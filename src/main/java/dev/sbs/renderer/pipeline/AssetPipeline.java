@@ -1,6 +1,6 @@
 package dev.sbs.renderer.pipeline;
 
-import dev.sbs.renderer.model.BlockTint;
+import dev.sbs.renderer.model.Block;
 import dev.sbs.renderer.model.ColorMap;
 import dev.sbs.renderer.model.Texture;
 import dev.sbs.renderer.model.TexturePack;
@@ -46,7 +46,7 @@ public final class AssetPipeline {
         TexturePack vanillaPack = TexturePackReader.loadVanilla(packRoot);
         ConcurrentList<Texture> textures = TexturePackReader.scanTextures(packRoot, vanillaPack.getId());
         ConcurrentList<ColorMap> colorMaps = ColorMapReader.load(packRoot, vanillaPack.getId());
-        ConcurrentList<BlockTint> blockTints = VanillaTintsLoader.load(vanillaPack.getId());
+        ConcurrentMap<String, Block.Tint> blockTints = VanillaTintsLoader.load();
 
         return new Result(packRoot, vanillaPack, textures, colorMaps, blockTints, blockModels, itemModels);
     }
@@ -61,7 +61,7 @@ public final class AssetPipeline {
         private final @NotNull TexturePack vanillaPack;
         private final @NotNull ConcurrentList<Texture> textures;
         private final @NotNull ConcurrentList<ColorMap> colorMaps;
-        private final @NotNull ConcurrentList<BlockTint> blockTints;
+        private final @NotNull ConcurrentMap<String, Block.Tint> blockTints;
         private final @NotNull ConcurrentMap<String, BlockModelData> blockModels;
         private final @NotNull ConcurrentMap<String, ItemModelData> itemModels;
 
@@ -70,7 +70,7 @@ public final class AssetPipeline {
             @NotNull TexturePack vanillaPack,
             @NotNull ConcurrentList<Texture> textures,
             @NotNull ConcurrentList<ColorMap> colorMaps,
-            @NotNull ConcurrentList<BlockTint> blockTints,
+            @NotNull ConcurrentMap<String, Block.Tint> blockTints,
             @NotNull ConcurrentMap<String, BlockModelData> blockModels,
             @NotNull ConcurrentMap<String, ItemModelData> itemModels
         ) {

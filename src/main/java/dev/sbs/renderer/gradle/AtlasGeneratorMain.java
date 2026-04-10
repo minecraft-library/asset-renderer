@@ -7,6 +7,7 @@ import dev.sbs.renderer.pipeline.AssetPipeline;
 import dev.sbs.renderer.pipeline.AssetPipelineOptions;
 import dev.sbs.renderer.pipeline.HttpFetcher;
 import dev.sbs.renderer.pipeline.PipelineRendererContext;
+import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;
@@ -24,10 +25,8 @@ import java.nio.file.Files;
  * argument. All rendering, tile iteration, and progress reporting lives on the renderer; this
  * class only handles file I/O and command-line argument parsing.
  */
+@UtilityClass
 public final class AtlasGeneratorMain {
-
-    private AtlasGeneratorMain() {
-    }
 
     /**
      * Runs the atlas generator.

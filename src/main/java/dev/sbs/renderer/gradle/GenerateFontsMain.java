@@ -1,5 +1,6 @@
 package dev.sbs.renderer.gradle;
 
+import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
@@ -41,6 +42,7 @@ import java.nio.file.Path;
  *     then {@code py} in that order)</li>
  * </ul>
  */
+@UtilityClass
 public final class GenerateFontsMain {
 
     private static final @NotNull String REPO_URL = "https://github.com/minecraft-library/font-generator.git";
@@ -48,9 +50,6 @@ public final class GenerateFontsMain {
     private static final @NotNull String CLONE_DIR_REL = "cache/font-generator";
     private static final @NotNull String FONTS_DIR_REL = "cache/fonts";
     private static final @NotNull String MODULE_NAME = "minecraft_fontgen";
-
-    private GenerateFontsMain() {
-    }
 
     /**
      * Runs the font generator.

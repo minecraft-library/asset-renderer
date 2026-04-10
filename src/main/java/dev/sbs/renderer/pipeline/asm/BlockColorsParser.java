@@ -2,12 +2,10 @@ package dev.sbs.renderer.pipeline.asm;
 
 import dev.sbs.renderer.biome.BiomeTintTarget;
 import dev.sbs.renderer.exception.AssetPipelineException;
-import dev.sbs.renderer.model.BlockTint;
+import dev.sbs.renderer.model.Block;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.reflection.Reflection;
-import dev.simplified.reflection.accessor.FieldAccessor;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.objectweb.asm.ClassReader;
@@ -30,7 +28,7 @@ import java.util.zip.ZipFile;
 
 /**
  * Bytecode walker that parses {@code net.minecraft.client.color.block.BlockColors$createDefault()}
- * from a Minecraft client jar and translates its registration calls into {@link BlockTint}
+ * from a Minecraft client jar and translates its registration calls into {@link Block.Tint}
  * entities.
  * <p>
  * The parser only handles deobfuscated jars - that is, MC 26.1 and later, where Mojang ships
@@ -48,7 +46,7 @@ import java.util.zip.ZipFile;
  *     or {@code constant(int, int)} call (the ARGB values), and</li>
  * <li>every {@code GETSTATIC Blocks.X} field reference (the affected blocks).</li>
  * </ul>
- * When a {@code register(List, Block[])} call is hit, one {@link BlockTint} is emitted per
+ * When a {@code register(List, Block[])} call is hit, one {@link Block.Tint} is emitted per
  * collected block - provided the source method is one we recognise - and the running state is
  * reset. Multi-source registrations (recognisable by the 2-arg {@code List.of} overload) are
  * skipped because the atlas renderer cannot tint individual sprite layers.
@@ -73,12 +71,6 @@ public class BlockColorsParser {
      */
     private static final @NotNull ConcurrentMap<String, BiomeTintTarget> SUPPORTED_SOURCES = buildSupportedSources();
 
-    private static final @NotNull Reflection<BlockTint> BLOCK_TINT_REFLECTION = new Reflection<>(BlockTint.class);
-    private static final @NotNull FieldAccessor<String> BLOCK_TINT_BLOCK_ID = BLOCK_TINT_REFLECTION.getField("blockId");
-    private static final @NotNull FieldAccessor<String> BLOCK_TINT_PACK_ID = BLOCK_TINT_REFLECTION.getField("packId");
-    private static final @NotNull FieldAccessor<BiomeTintTarget> BLOCK_TINT_TARGET = BLOCK_TINT_REFLECTION.getField("target");
-    private static final @NotNull FieldAccessor<Optional<Integer>> BLOCK_TINT_CONSTANT = BLOCK_TINT_REFLECTION.getField("tintConstant");
-
     private static @NotNull ConcurrentMap<String, BiomeTintTarget> buildSupportedSources() {
         ConcurrentMap<String, BiomeTintTarget> map = Concurrent.newMap();
         // GRASS colormap sources - the BlockTintSources helper distinguishes several grass
@@ -99,13 +91,12 @@ public class BlockColorsParser {
      * supplied client jar.
      *
      * @param jarPath the deobfuscated client jar to read from (MC 26.1+)
-     * @param packId the pack id to tag every emitted {@link BlockTint} with
-     * @return a list of block tint entities
+     * @return a map of block id to tint binding
      * @throws AssetPipelineException if the jar cannot be read, the BlockColors class is not
      *     present (jar is obfuscated or from an unsupported version), or {@code createDefault}
      *     is missing
      */
-    public static @NotNull ConcurrentList<BlockTint> parse(@NotNull Path jarPath, @NotNull String packId) {
+    public static @NotNull ConcurrentMap<String, Block.Tint> parse(@NotNull Path jarPath) {
         byte[] classBytes = readClassBytes(jarPath);
         ClassNode classNode = new ClassNode();
         new ClassReader(classBytes).accept(classNode, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
@@ -118,7 +109,7 @@ public class BlockColorsParser {
                 CREATE_DEFAULT_METHOD_NAME
             ));
 
-        return parseCreateDefault(createDefault.instructions, packId);
+        return parseCreateDefault(createDefault.instructions);
     }
 
     /**
@@ -147,11 +138,10 @@ public class BlockColorsParser {
      * recognised {@code (source, blocks[])} registration. See the class-level javadoc for the
      * recognition rules.
      */
-    private static @NotNull ConcurrentList<BlockTint> parseCreateDefault(
-        @NotNull InsnList instructions,
-        @NotNull String packId
+    private static @NotNull ConcurrentMap<String, Block.Tint> parseCreateDefault(
+        @NotNull InsnList instructions
     ) {
-        ConcurrentList<BlockTint> tints = Concurrent.newList();
+        ConcurrentMap<String, Block.Tint> tints = Concurrent.newMap();
 
         String pendingSource = null;
         int pendingConstantA = 0;
@@ -211,9 +201,8 @@ public class BlockColorsParser {
                 && methodInsn.owner.equals(BLOCK_COLORS_INTERNAL_NAME)
                 && methodInsn.name.equals(REGISTER_METHOD_NAME)) {
 
-                if (pendingSource != null && pendingSourceLayers == 1 && !pendingBlocks.isEmpty()) {
-                    emitTints(tints, packId, pendingSource, pendingConstantA, pendingConstantB, pendingConstantCount, pendingBlocks);
-                }
+                if (pendingSource != null && pendingSourceLayers == 1 && !pendingBlocks.isEmpty())
+                    emitTints(tints, pendingSource, pendingConstantA, pendingConstantB, pendingConstantCount, pendingBlocks);
 
                 pendingSource = null;
                 pendingConstantA = 0;
@@ -254,13 +243,12 @@ public class BlockColorsParser {
     }
 
     /**
-     * Emits one {@link BlockTint} per block for the current pending registration, after
+     * Emits one {@link Block.Tint} per block for the current pending registration, after
      * verifying the source method is one the renderer knows how to sample. Unsupported sources
      * (water, waterParticles, redstone, stem) are silently dropped.
      */
     private static void emitTints(
-        @NotNull ConcurrentList<BlockTint> tints,
-        @NotNull String packId,
+        @NotNull ConcurrentMap<String, Block.Tint> tints,
         @NotNull String sourceMethod,
         int constantA,
         int constantB,
@@ -283,8 +271,9 @@ public class BlockColorsParser {
             target = mapped;
         }
 
+        Block.Tint tint = new Block.Tint(target, constant);
         for (String blockId : blocks)
-            tints.add(buildEntity(blockId, packId, target, constant));
+            tints.put(blockId, tint);
     }
 
     /**
@@ -294,25 +283,6 @@ public class BlockColorsParser {
      */
     private static @NotNull String blockIdFromField(@NotNull String fieldName) {
         return "minecraft:" + fieldName.toLowerCase();
-    }
-
-    /**
-     * Materialises a single {@link BlockTint} JpaModel via cached Simplified-Dev
-     * {@link Reflection} field accessors.
-     */
-    private static @NotNull BlockTint buildEntity(
-        @NotNull String blockId,
-        @NotNull String packId,
-        @NotNull BiomeTintTarget target,
-        @NotNull Optional<Integer> constant
-    ) {
-        BlockTint tint = new BlockTint();
-        BLOCK_TINT_BLOCK_ID.set(tint, blockId);
-        BLOCK_TINT_PACK_ID.set(tint, packId);
-        BLOCK_TINT_TARGET.set(tint, target);
-        if (constant.isPresent())
-            BLOCK_TINT_CONSTANT.set(tint, constant);
-        return tint;
     }
 
 }

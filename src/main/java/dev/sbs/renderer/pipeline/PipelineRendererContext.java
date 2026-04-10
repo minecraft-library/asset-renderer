@@ -1,10 +1,8 @@
 package dev.sbs.renderer.pipeline;
 
-import dev.sbs.renderer.biome.BiomeTintTarget;
 import dev.sbs.renderer.engine.RendererContext;
 import dev.sbs.renderer.exception.RendererException;
 import dev.sbs.renderer.model.Block;
-import dev.sbs.renderer.model.BlockTint;
 import dev.sbs.renderer.model.ColorMap;
 import dev.sbs.renderer.model.Entity;
 import dev.sbs.renderer.model.Item;
@@ -69,8 +67,7 @@ public final class PipelineRendererContext implements RendererContext {
     private static final @NotNull FieldAccessor<String> BLOCK_NAME = BLOCK_REFLECTION.getField("name");
     private static final @NotNull FieldAccessor<BlockModelData> BLOCK_MODEL = BLOCK_REFLECTION.getField("model");
     private static final @NotNull FieldAccessor<ConcurrentMap<String, String>> BLOCK_TEXTURES = BLOCK_REFLECTION.getField("textures");
-    private static final @NotNull FieldAccessor<BiomeTintTarget> BLOCK_TINT_TARGET = BLOCK_REFLECTION.getField("tintTarget");
-    private static final @NotNull FieldAccessor<Optional<Integer>> BLOCK_TINT_CONSTANT = BLOCK_REFLECTION.getField("tintConstant");
+    private static final @NotNull FieldAccessor<Block.Tint> BLOCK_TINT = BLOCK_REFLECTION.getField("tint");
 
     private static final @NotNull Reflection<Item> ITEM_REFLECTION = new Reflection<>(Item.class);
     private static final @NotNull FieldAccessor<String> ITEM_ID = ITEM_REFLECTION.getField("id");
@@ -117,9 +114,7 @@ public final class PipelineRendererContext implements RendererContext {
         ConcurrentList<TexturePack> packs = Concurrent.newList();
         packs.add(result.getVanillaPack());
 
-        ConcurrentMap<String, BlockTint> tints = Concurrent.newMap();
-        for (BlockTint tint : result.getBlockTints())
-            tints.put(tint.getBlockId(), tint);
+        ConcurrentMap<String, Block.Tint> tints = result.getBlockTints();
 
         ConcurrentMap<String, Block> blockIndex = Concurrent.newMap();
         result.getBlockModels().forEach((modelId, model) -> {
@@ -251,17 +246,16 @@ public final class PipelineRendererContext implements RendererContext {
      * so the {@code all} / {@code side} / {@code particle} fallback chain still works for blocks
      * whose models do not expose element faces (e.g. {@code item/generated}-parented block items).
      * <p>
-     * When a {@link BlockTint} is supplied (the block id appears in any pack-bundled tints table)
-     * the entity's {@code tintTarget} and {@code tintConstant} fields are populated so
+     * When a {@link Block.Tint} is supplied (the block id appears in any pack-bundled tints
+     * table) the entity's {@code tint} field is set so
      * {@link dev.sbs.renderer.BlockRenderer BlockRenderer} samples the matching colormap or
-     * hardcoded ARGB at render time. Untinted blocks leave the defaults in place ({@code NONE},
-     * no constant).
+     * hardcoded ARGB at render time. Untinted blocks keep the default ({@code NONE}, no constant).
      */
     private static @NotNull Block newBlock(
         @NotNull String id,
         @NotNull String name,
         @NotNull BlockModelData model,
-        @org.jetbrains.annotations.Nullable BlockTint tint
+        @org.jetbrains.annotations.Nullable Block.Tint tint
     ) {
         Block block = new Block();
         BLOCK_ID.set(block, id);
@@ -274,11 +268,9 @@ public final class PipelineRendererContext implements RendererContext {
         flattenElementFaces(model, textures);
         BLOCK_TEXTURES.set(block, textures);
 
-        if (tint != null) {
-            BLOCK_TINT_TARGET.set(block, tint.getTarget());
-            if (tint.getTintConstant().isPresent())
-                BLOCK_TINT_CONSTANT.set(block, tint.getTintConstant());
-        }
+        if (tint != null)
+            BLOCK_TINT.set(block, tint);
+
         return block;
     }
 

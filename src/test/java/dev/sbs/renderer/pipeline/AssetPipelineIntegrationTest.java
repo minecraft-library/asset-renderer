@@ -137,47 +137,39 @@ class AssetPipelineIntegrationTest {
     }
 
     @Test
-    @DisplayName("VanillaTintsLoader loads the bundled vanilla_tints.json into BlockTint entities")
+    @DisplayName("VanillaTintsLoader loads the bundled vanilla_tints.json into Block.Tint entries")
     void parsesBlockColors() {
         var tints = result.getBlockTints();
 
         // Print the full table once so the slowTest log captures what the bundled JSON contains
         // - useful when refreshing the snapshot via the generateVanillaTints Gradle task and
         // verifying nothing silently dropped.
-        System.out.println("Loaded " + tints.size() + " BlockTint entries from vanilla_tints.json:");
-        for (var tint : tints) {
-            String constant = tint.getTintConstant()
+        System.out.println("Loaded " + tints.size() + " Block.Tint entries from vanilla_tints.json:");
+        tints.forEach((blockId, tint) -> {
+            String constant = tint.constant()
                 .map(v -> String.format(" 0x%08X", v))
                 .orElse("");
-            System.out.println("  " + tint.getBlockId() + " -> " + tint.getTarget() + constant);
-        }
+            System.out.println("  " + blockId + " -> " + tint.target() + constant);
+        });
 
         assertThat("at least 15 tints loaded", tints.size(), is(greaterThanOrEqualTo(15)));
 
-        var grassBlock = tints.stream()
-            .filter(t -> t.getBlockId().equals("minecraft:grass_block"))
-            .findFirst()
-            .orElseThrow();
-        assertThat(grassBlock.getTarget(), equalTo(dev.sbs.renderer.biome.BiomeTintTarget.GRASS));
+        var grassBlock = tints.get("minecraft:grass_block");
+        assertThat(grassBlock, is(notNullValue()));
+        assertThat(grassBlock.target(), equalTo(dev.sbs.renderer.biome.BiomeTintTarget.GRASS));
 
-        var oakLeaves = tints.stream()
-            .filter(t -> t.getBlockId().equals("minecraft:oak_leaves"))
-            .findFirst()
-            .orElseThrow();
-        assertThat(oakLeaves.getTarget(), equalTo(dev.sbs.renderer.biome.BiomeTintTarget.FOLIAGE));
+        var oakLeaves = tints.get("minecraft:oak_leaves");
+        assertThat(oakLeaves, is(notNullValue()));
+        assertThat(oakLeaves.target(), equalTo(dev.sbs.renderer.biome.BiomeTintTarget.FOLIAGE));
 
-        var spruceLeaves = tints.stream()
-            .filter(t -> t.getBlockId().equals("minecraft:spruce_leaves"))
-            .findFirst()
-            .orElseThrow();
-        assertThat(spruceLeaves.getTarget(), equalTo(dev.sbs.renderer.biome.BiomeTintTarget.CONSTANT));
-        assertThat("spruce constant ARGB", spruceLeaves.getTintConstant().get(), equalTo(0xFF619961));
+        var spruceLeaves = tints.get("minecraft:spruce_leaves");
+        assertThat(spruceLeaves, is(notNullValue()));
+        assertThat(spruceLeaves.target(), equalTo(dev.sbs.renderer.biome.BiomeTintTarget.CONSTANT));
+        assertThat("spruce constant ARGB", spruceLeaves.constant().get(), equalTo(0xFF619961));
 
-        var leafLitter = tints.stream()
-            .filter(t -> t.getBlockId().equals("minecraft:leaf_litter"))
-            .findFirst()
-            .orElseThrow();
-        assertThat(leafLitter.getTarget(), equalTo(dev.sbs.renderer.biome.BiomeTintTarget.DRY_FOLIAGE));
+        var leafLitter = tints.get("minecraft:leaf_litter");
+        assertThat(leafLitter, is(notNullValue()));
+        assertThat(leafLitter.target(), equalTo(dev.sbs.renderer.biome.BiomeTintTarget.DRY_FOLIAGE));
     }
 
 }

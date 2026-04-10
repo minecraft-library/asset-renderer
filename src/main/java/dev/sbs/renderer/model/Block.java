@@ -1,15 +1,13 @@
 package dev.sbs.renderer.model;
 
-import com.google.gson.annotations.SerializedName;
 import dev.sbs.renderer.biome.BiomeTintTarget;
 import dev.sbs.renderer.model.asset.BlockModelData;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.persistence.JpaModel;
+import dev.simplified.persistence.type.GsonType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.Getter;
@@ -49,13 +47,8 @@ public class Block implements JpaModel {
     @Column(name = "states", nullable = false)
     private @NotNull ConcurrentMap<String, BlockModelData> states = Concurrent.newMap();
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "tint_target", nullable = false)
-    private @NotNull BiomeTintTarget tintTarget = BiomeTintTarget.NONE;
-
-    @SerializedName("tint_constant")
-    @Column(name = "tint_constant")
-    private @NotNull Optional<Integer> tintConstant = Optional.empty();
+    @Column(name = "tint")
+    private @NotNull Tint tint = new Tint(BiomeTintTarget.NONE, Optional.empty());
 
     @Override
     public boolean equals(Object o) {
@@ -67,13 +60,24 @@ public class Block implements JpaModel {
             && Objects.equals(this.getModel(), block.getModel())
             && Objects.equals(this.getTextures(), block.getTextures())
             && Objects.equals(this.getStates(), block.getStates())
-            && this.getTintTarget() == block.getTintTarget()
-            && Objects.equals(this.getTintConstant(), block.getTintConstant());
+            && Objects.equals(this.getTint(), block.getTint());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.getId(), this.getNamespace(), this.getName(), this.getModel(), this.getTextures(), this.getStates(), this.getTintTarget(), this.getTintConstant());
+        return Objects.hash(this.getId(), this.getNamespace(), this.getName(), this.getModel(), this.getTextures(), this.getStates(), this.getTint());
     }
+
+    /**
+     * The biome tint binding for a block, selecting which colormap (or hardcoded constant) the
+     * renderer samples for tinted faces.
+     *
+     * @param target the tint source - {@link BiomeTintTarget#NONE NONE} for untinted blocks,
+     *     {@link BiomeTintTarget#CONSTANT CONSTANT} for a hardcoded ARGB value, or a colormap
+     *     target like {@link BiomeTintTarget#GRASS GRASS} / {@link BiomeTintTarget#FOLIAGE FOLIAGE}
+     * @param constant the hardcoded ARGB value when target is {@code CONSTANT}
+     */
+    @GsonType
+    public record Tint(@NotNull BiomeTintTarget target, @NotNull Optional<Integer> constant) {}
 
 }

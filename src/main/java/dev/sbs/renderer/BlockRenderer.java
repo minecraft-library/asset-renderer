@@ -73,9 +73,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         @NotNull Block block,
         @NotNull BlockOptions options
     ) {
-        BiomeTintTarget target = block.getTintTarget();
+        BiomeTintTarget target = block.getTint().target();
         if (target == BiomeTintTarget.NONE) return ColorKit.WHITE;
-        if (target == BiomeTintTarget.CONSTANT) return block.getTintConstant().orElse(ColorKit.WHITE);
+        if (target == BiomeTintTarget.CONSTANT) return block.getTint().constant().orElse(ColorKit.WHITE);
 
         return new IsometricEngine(context).sampleBiomeTint(target, options.getBiome());
     }

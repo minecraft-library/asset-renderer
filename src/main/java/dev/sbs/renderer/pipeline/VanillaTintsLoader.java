@@ -7,12 +7,10 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import dev.sbs.renderer.biome.BiomeTintTarget;
 import dev.sbs.renderer.exception.AssetPipelineException;
-import dev.sbs.renderer.model.BlockTint;
+import dev.sbs.renderer.model.Block;
 import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
+import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
-import dev.simplified.reflection.Reflection;
-import dev.simplified.reflection.accessor.FieldAccessor;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -23,7 +21,7 @@ import java.util.Optional;
 
 /**
  * Loads the bundled vanilla block tint table from the {@code renderer/vanilla_tints.json}
- * resource and produces persistable {@link BlockTint} JpaModel entities.
+ * resource and produces a lookup map of block id to {@link Block.Tint}.
  * <p>
  * The JSON resource is a checked-in snapshot of MC 26.1's
  * {@code net.minecraft.client.color.block.BlockColors$createDefault()} as parsed by
@@ -44,22 +42,14 @@ public class VanillaTintsLoader {
     private static final @NotNull String RESOURCE_PATH = "/renderer/vanilla_tints.json";
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
-    private static final @NotNull Reflection<BlockTint> BLOCK_TINT_REFLECTION = new Reflection<>(BlockTint.class);
-    private static final @NotNull FieldAccessor<String> BLOCK_TINT_BLOCK_ID = BLOCK_TINT_REFLECTION.getField("blockId");
-    private static final @NotNull FieldAccessor<String> BLOCK_TINT_PACK_ID = BLOCK_TINT_REFLECTION.getField("packId");
-    private static final @NotNull FieldAccessor<BiomeTintTarget> BLOCK_TINT_TARGET = BLOCK_TINT_REFLECTION.getField("target");
-    private static final @NotNull FieldAccessor<Optional<Integer>> BLOCK_TINT_CONSTANT = BLOCK_TINT_REFLECTION.getField("tintConstant");
-
     /**
-     * Loads the bundled vanilla tint table into a list of {@link BlockTint} entities tagged with
-     * the supplied pack id (typically {@code "vanilla"}).
+     * Loads the bundled vanilla tint table into a map of block id to {@link Block.Tint}.
      *
-     * @param packId the pack id every emitted entity is stamped with
-     * @return a fresh list of block tint entities
+     * @return a map keyed by namespaced block id
      * @throws AssetPipelineException if the resource is missing or cannot be parsed
      */
-    public static @NotNull ConcurrentList<BlockTint> load(@NotNull String packId) {
-        ConcurrentList<BlockTint> tints = Concurrent.newList();
+    public static @NotNull ConcurrentMap<String, Block.Tint> load() {
+        ConcurrentMap<String, Block.Tint> tints = Concurrent.newMap();
 
         try (InputStream stream = VanillaTintsLoader.class.getResourceAsStream(RESOURCE_PATH)) {
             if (stream == null)
@@ -78,33 +68,13 @@ public class VanillaTintsLoader {
                 Optional<Integer> constant = entry.has("constant")
                     ? Optional.of(Integer.parseUnsignedInt(entry.get("constant").getAsString().substring(2), 16))
                     : Optional.empty();
-                tints.add(buildEntity(blockId, packId, target, constant));
+                tints.put(blockId, new Block.Tint(target, constant));
             }
         } catch (IOException | JsonSyntaxException ex) {
             throw new AssetPipelineException(ex, "Failed to load vanilla tints resource '%s'", RESOURCE_PATH);
         }
 
         return tints;
-    }
-
-    /**
-     * Materialises a single {@link BlockTint} JpaModel via cached reflection. The renderer's
-     * JPA entities expose only {@code @Getter} accessors so the loader reaches through with
-     * the Simplified-Dev {@link Reflection} wrapper rather than widening the entity API.
-     */
-    private static @NotNull BlockTint buildEntity(
-        @NotNull String blockId,
-        @NotNull String packId,
-        @NotNull BiomeTintTarget target,
-        @NotNull Optional<Integer> constant
-    ) {
-        BlockTint tint = new BlockTint();
-        BLOCK_TINT_BLOCK_ID.set(tint, blockId);
-        BLOCK_TINT_PACK_ID.set(tint, packId);
-        BLOCK_TINT_TARGET.set(tint, target);
-        if (constant.isPresent())
-            BLOCK_TINT_CONSTANT.set(tint, constant);
-        return tint;
     }
 
 }

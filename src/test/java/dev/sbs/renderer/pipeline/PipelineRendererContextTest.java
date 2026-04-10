@@ -3,7 +3,6 @@ package dev.sbs.renderer.pipeline;
 import com.google.gson.Gson;
 import dev.sbs.renderer.biome.BiomeTintTarget;
 import dev.sbs.renderer.model.Block;
-import dev.sbs.renderer.model.BlockTint;
 import dev.sbs.renderer.model.ColorMap;
 import dev.sbs.renderer.model.Entity;
 import dev.sbs.renderer.model.Item;
@@ -25,7 +24,6 @@ import org.junit.jupiter.api.io.TempDir;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
@@ -91,10 +89,10 @@ class PipelineRendererContextTest {
         TexturePack vanillaPack = TexturePackReader.loadVanilla(packRoot);
         ConcurrentList<Texture> textures = TexturePackReader.scanTextures(packRoot, vanillaPack.getId());
         ConcurrentList<ColorMap> colorMaps = ColorMapReader.load(packRoot, vanillaPack.getId());
-        ConcurrentList<BlockTint> blockTints = Concurrent.newList();
-        blockTints.add(buildTint("minecraft:grass_block", BiomeTintTarget.GRASS, Optional.empty()));
-        blockTints.add(buildTint("minecraft:oak_leaves", BiomeTintTarget.FOLIAGE, Optional.empty()));
-        blockTints.add(buildTint("minecraft:spruce_leaves", BiomeTintTarget.CONSTANT, Optional.of(0xFF619961)));
+        ConcurrentMap<String, Block.Tint> blockTints = Concurrent.newMap();
+        blockTints.put("minecraft:grass_block", new Block.Tint(BiomeTintTarget.GRASS, Optional.empty()));
+        blockTints.put("minecraft:oak_leaves", new Block.Tint(BiomeTintTarget.FOLIAGE, Optional.empty()));
+        blockTints.put("minecraft:spruce_leaves", new Block.Tint(BiomeTintTarget.CONSTANT, Optional.of(0xFF619961)));
 
         // Synthetic model maps. Each model references the fixture texture so resolveTexture
         // has a meaningful lookup target. Gson is used in place of reflective setters because
@@ -317,68 +315,38 @@ class PipelineRendererContextTest {
     }
 
     @Test
-    @DisplayName("Synthetic block tint list is wired through to AssetPipeline.Result")
+    @DisplayName("Synthetic block tint map is wired through to AssetPipeline.Result")
     void blockTintsExposedFromResult() {
-        ConcurrentList<BlockTint> tints = result.getBlockTints();
+        ConcurrentMap<String, Block.Tint> tints = result.getBlockTints();
         assertThat(tints.size(), equalTo(3));
-        assertThat(tints.stream().anyMatch(t -> t.getBlockId().equals("minecraft:grass_block")), is(true));
-        assertThat(tints.stream().anyMatch(t -> t.getBlockId().equals("minecraft:oak_leaves")), is(true));
-        assertThat(tints.stream().anyMatch(t -> t.getBlockId().equals("minecraft:spruce_leaves")), is(true));
+        assertThat(tints.containsKey("minecraft:grass_block"), is(true));
+        assertThat(tints.containsKey("minecraft:oak_leaves"), is(true));
+        assertThat(tints.containsKey("minecraft:spruce_leaves"), is(true));
     }
 
     @Test
-    @DisplayName("Block.tintTarget is populated for known vanilla colormap-tinted blocks")
+    @DisplayName("Block.tint.target is populated for known vanilla colormap-tinted blocks")
     void blockTintTargetPopulatedFromVanillaTintsTable() {
         Block grassBlock = context.findBlock("minecraft:grass_block").orElseThrow();
-        assertThat(grassBlock.getTintTarget(), equalTo(BiomeTintTarget.GRASS));
-        assertThat(grassBlock.getTintConstant().isPresent(), is(false));
+        assertThat(grassBlock.getTint().target(), equalTo(BiomeTintTarget.GRASS));
+        assertThat(grassBlock.getTint().constant().isPresent(), is(false));
     }
 
     @Test
-    @DisplayName("Block.tintConstant is populated for known vanilla constant-tinted blocks")
+    @DisplayName("Block.tint.constant is populated for known vanilla constant-tinted blocks")
     void blockTintConstantPopulatedFromVanillaTintsTable() {
         Block spruceLeaves = context.findBlock("minecraft:spruce_leaves").orElseThrow();
-        assertThat(spruceLeaves.getTintTarget(), equalTo(BiomeTintTarget.CONSTANT));
-        assertThat(spruceLeaves.getTintConstant().isPresent(), is(true));
-        assertThat(spruceLeaves.getTintConstant().get(), equalTo(0xFF619961));
+        assertThat(spruceLeaves.getTint().target(), equalTo(BiomeTintTarget.CONSTANT));
+        assertThat(spruceLeaves.getTint().constant().isPresent(), is(true));
+        assertThat(spruceLeaves.getTint().constant().get(), equalTo(0xFF619961));
     }
 
     @Test
-    @DisplayName("Untinted blocks (not in the tints table) keep tintTarget=NONE")
+    @DisplayName("Untinted blocks (not in the tints table) keep tint.target=NONE")
     void blockTintTargetDefaultsForUntintedBlocks() {
         Block stone = context.findBlock("minecraft:stone").orElseThrow();
-        assertThat(stone.getTintTarget(), equalTo(BiomeTintTarget.NONE));
-        assertThat(stone.getTintConstant().isPresent(), is(false));
-    }
-
-    /**
-     * Test-only factory that materialises a {@link BlockTint} via direct field reflection,
-     * mirroring the production loader's pattern. The renderer's JPA entities expose only
-     * {@code @Getter} accessors so the test reaches through the same way the loader does
-     * rather than widening the entity API for test setup.
-     */
-    private static @org.jetbrains.annotations.NotNull BlockTint buildTint(
-        @org.jetbrains.annotations.NotNull String blockId,
-        @org.jetbrains.annotations.NotNull BiomeTintTarget target,
-        @org.jetbrains.annotations.NotNull Optional<Integer> constant
-    ) {
-        BlockTint tint = new BlockTint();
-        try {
-            setField(tint, "blockId", blockId);
-            setField(tint, "packId", "vanilla");
-            setField(tint, "target", target);
-            if (constant.isPresent())
-                setField(tint, "tintConstant", constant);
-        } catch (ReflectiveOperationException ex) {
-            throw new IllegalStateException("Failed to build test BlockTint fixture", ex);
-        }
-        return tint;
-    }
-
-    private static void setField(@org.jetbrains.annotations.NotNull Object instance, @org.jetbrains.annotations.NotNull String name, @org.jetbrains.annotations.NotNull Object value) throws ReflectiveOperationException {
-        Field field = instance.getClass().getDeclaredField(name);
-        field.setAccessible(true);
-        field.set(instance, value);
+        assertThat(stone.getTint().target(), equalTo(BiomeTintTarget.NONE));
+        assertThat(stone.getTint().constant().isPresent(), is(false));
     }
 
 }

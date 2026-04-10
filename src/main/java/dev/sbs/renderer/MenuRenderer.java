@@ -3,6 +3,7 @@ package dev.sbs.renderer;
 import dev.sbs.renderer.draw.Canvas;
 import dev.sbs.renderer.draw.ColorKit;
 import dev.sbs.renderer.draw.FrameMerger;
+import dev.sbs.renderer.draw.ObfuscationKit;
 import dev.sbs.renderer.engine.RenderEngine;
 import dev.sbs.renderer.engine.RendererContext;
 import dev.sbs.renderer.options.BlockOptions;
@@ -120,7 +121,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             case EMPTY -> throw new IllegalStateException("EMPTY handled above");
         };
         ImageData fillerImage = itemRenderer.render(fillerOptions);
-        boolean fillerAnimated = !(fillerImage instanceof StaticImageData);
+        boolean fillerAnimated = fillerImage.isAnimated();
 
         for (int chestSlot = 0; chestSlot < SKYBLOCK_CHEST_SLOTS; chestSlot++) {
             if (claimed.contains(chestSlot)) continue;
@@ -463,33 +464,81 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     // ---------------------------------------------------------------------------------------
 
     /**
-     * Renders the menu title in the title band area using the Minecraft pixel font. The title
-     * string is parsed as legacy-formatted text (supports {@code §} colour and format codes).
-     * Does nothing when the title is empty.
+     * Builds the chrome {@link ImageData} layer for a menu. When the title contains
+     * obfuscated segments ({@code §k}), the result is an animated {@link ImageData} with
+     * one second of unique obfuscation frames; otherwise a single static frame is returned.
+     * <p>
+     * The caller must draw all pixel-based chrome and any static text labels onto
+     * {@code baseChrome} and {@linkplain Canvas#disposeGraphics() dispose its graphics}
+     * before calling this method.
      *
-     * @param canvas the chrome canvas to draw onto
-     * @param title the title string, optionally containing legacy format codes
-     * @param titleX the horizontal origin for the first character
-     * @param bandTop the Y coordinate of the top of the renderable band
-     * @param bandHeight the height of the renderable band in pixels
-     * @param defaultColor the colour used for segments that have no explicit colour
+     * @param baseChrome the chrome canvas with all static content already drawn
+     * @param options the menu options (supplies title and FPS)
+     * @param titleX the horizontal origin for the title text
+     * @param defaultTitleColor the colour used for title segments with no explicit colour
+     * @return a static or animated chrome layer
      */
-    static void drawTitle(
-        @NotNull Canvas canvas,
-        @NotNull String title,
-        int titleX, int bandTop, int bandHeight,
-        @NotNull Color defaultColor
+    static @NotNull ImageData renderChrome(
+        @NotNull Canvas baseChrome,
+        @NotNull MenuOptions options,
+        int titleX,
+        @NotNull Color defaultTitleColor
     ) {
-        if (title.isEmpty()) return;
+        String title = options.getTitle();
+        if (title.isEmpty())
+            return StaticImageData.of(baseChrome.getBuffer().toBufferedImage());
 
-        LineSegment line = ColorSegment.fromLegacy(title);
+        LineSegment titleLine = ColorSegment.fromLegacy(title);
+        boolean animated = hasTitleObfuscation(titleLine);
+
+        if (!animated) {
+            drawTitleSegments(baseChrome, titleLine, titleX, INSET, TITLE_HEIGHT, defaultTitleColor, 0);
+            baseChrome.disposeGraphics();
+            return StaticImageData.of(baseChrome.getBuffer().toBufferedImage());
+        }
+
+        PixelBuffer base = baseChrome.getBuffer();
+        int w = baseChrome.width();
+        int h = baseChrome.height();
+        int frameCount = options.getFramesPerSecond();
+        ConcurrentList<PixelBuffer> frames = Concurrent.newList();
+
+        for (int i = 0; i < frameCount; i++) {
+            Canvas frame = Canvas.of(w, h);
+            frame.blit(base, 0, 0);
+            drawTitleSegments(frame, titleLine, titleX, INSET, TITLE_HEIGHT, defaultTitleColor, i);
+            frame.disposeGraphics();
+            frames.add(frame.getBuffer());
+        }
+
+        int delayMs = Math.max(1, Math.round(1000f / options.getFramesPerSecond()));
+        return RenderEngine.output(frames, delayMs);
+    }
+
+    private static boolean hasTitleObfuscation(@NotNull LineSegment line) {
+        for (ColorSegment segment : line.getSegments())
+            if (segment.isObfuscated()) return true;
+        return false;
+    }
+
+    /**
+     * Renders pre-parsed title segments onto the canvas. Handles per-segment font style,
+     * colour, and obfuscation substitution.
+     */
+    private static void drawTitleSegments(
+        @NotNull Canvas canvas,
+        @NotNull LineSegment titleLine,
+        int titleX, int bandTop, int bandHeight,
+        @NotNull Color defaultColor,
+        long frameSeed
+    ) {
         Graphics2D g = canvas.graphics();
         g.setFont(MinecraftFont.REGULAR.getActual());
         FontMetrics fm = g.getFontMetrics();
         int textY = bandTop + (bandHeight - fm.getHeight()) / 2 + fm.getAscent();
 
         int x = titleX;
-        for (ColorSegment segment : line.getSegments()) {
+        for (ColorSegment segment : titleLine.getSegments()) {
             if (segment.getText().isEmpty()) continue;
             MinecraftFont font = MinecraftFont.of(segment.fontStyle());
             g.setFont(font.getActual());
@@ -498,8 +547,12 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
                 .map(ChatFormat::getColor)
                 .orElse(defaultColor);
             g.setColor(color);
-            g.drawString(segment.getText(), x, textY);
-            x += g.getFontMetrics().stringWidth(segment.getText());
+
+            String text = segment.isObfuscated()
+                ? ObfuscationKit.substitute(segment.getText(), frameSeed)
+                : segment.getText();
+            g.drawString(text, x, textY);
+            x += g.getFontMetrics().stringWidth(text);
         }
     }
 
@@ -584,20 +637,18 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
                 case VANILLA -> new Color(0x404040);
                 case DARK, SKYBLOCK -> Color.WHITE;
             };
-            drawTitle(chromeCanvas, options.getTitle(), INSET + 4, INSET, TITLE_HEIGHT, defaultTitleColor);
-            chromeCanvas.disposeGraphics();
-            PixelBuffer chrome = chromeCanvas.getBuffer();
+            ImageData chromeData = renderChrome(chromeCanvas, options, INSET + 4, defaultTitleColor);
 
             ItemRenderer itemRenderer = new ItemRenderer(this.context);
             ConcurrentList<FrameMerger.Layer> layers = Concurrent.newList();
-            layers.add(new FrameMerger.Layer(0, 0, StaticImageData.of(chrome.toBufferedImage())));
+            layers.add(new FrameMerger.Layer(0, 0, chromeData));
 
-            boolean anyAnimated = false;
+            boolean anyAnimated = chromeData.isAnimated();
             for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet().stream().toList()) {
                 int slotIndex = entry.getKey();
                 MenuOptions.MenuSlotContent content = entry.getValue();
                 ImageData rendered = itemRenderer.render(content.options());
-                if (!(rendered instanceof StaticImageData)) anyAnimated = true;
+                if (rendered.isAnimated()) anyAnimated = true;
 
                 int col = slotIndex % cols;
                 int row = slotIndex / cols;
@@ -669,21 +720,19 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             drawSlotBackground(chromeCanvas, 3, 0, 0xFFC6C6C6);
             drawSlotBackground(chromeCanvas, 3, 2, 0xFFC6C6C6);
             drawCraftArrowInSlot(chromeCanvas, 3, 1);
-            drawTitle(chromeCanvas, options.getTitle(), INSET + 4, INSET, TITLE_HEIGHT, new Color(0x404040));
-            chromeCanvas.disposeGraphics();
-            PixelBuffer chrome = chromeCanvas.getBuffer();
+            ImageData chromeData = renderChrome(chromeCanvas, options, INSET + 4, new Color(0x404040));
 
             ItemRenderer itemRenderer = new ItemRenderer(this.context);
             ConcurrentList<FrameMerger.Layer> layers = Concurrent.newList();
-            layers.add(new FrameMerger.Layer(0, 0, StaticImageData.of(chrome.toBufferedImage())));
+            layers.add(new FrameMerger.Layer(0, 0, chromeData));
 
-            boolean anyAnimated = false;
+            boolean anyAnimated = chromeData.isAnimated();
             for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet().stream().toList()) {
                 int callerSlot = entry.getKey();
                 int[] coord = SLOT_COORDS[callerSlot];
                 MenuOptions.MenuSlotContent content = entry.getValue();
                 ImageData rendered = itemRenderer.render(content.options());
-                if (!(rendered instanceof StaticImageData)) anyAnimated = true;
+                if (rendered.isAnimated()) anyAnimated = true;
 
                 int x = INSET + coord[0] * SLOT_SIZE;
                 int y = INSET + TITLE_HEIGHT + coord[1] * SLOT_SIZE;
@@ -743,26 +792,25 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             drawPlusInSlot(chromeCanvas, 1, slotRowY);
             drawCraftArrowInSlotAt(chromeCanvas, 3, slotRowY);
 
-            drawTitle(chromeCanvas, options.getTitle(), INSET + 24, INSET, TITLE_HEIGHT, new Color(0x404040));
             drawTextboxLabel(chromeCanvas, options.getTextboxLabel(),
                 textboxX + 2, textboxY + 2, textboxH - 4);
             drawXpCost(chromeCanvas, options.getXpCost(), canvasW,
                 slotRowY + SLOT_SIZE, xpLabelHeight);
             chromeCanvas.disposeGraphics();
 
-            PixelBuffer chrome = chromeCanvas.getBuffer();
+            ImageData chromeData = renderChrome(chromeCanvas, options, INSET + 24, new Color(0x404040));
 
             ItemRenderer itemRenderer = new ItemRenderer(this.context);
             ConcurrentList<FrameMerger.Layer> layers = Concurrent.newList();
-            layers.add(new FrameMerger.Layer(0, 0, StaticImageData.of(chrome.toBufferedImage())));
+            layers.add(new FrameMerger.Layer(0, 0, chromeData));
 
-            boolean anyAnimated = false;
+            boolean anyAnimated = chromeData.isAnimated();
             for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet().stream().toList()) {
                 int callerSlot = entry.getKey();
                 int col = SLOT_COLS[callerSlot];
                 MenuOptions.MenuSlotContent content = entry.getValue();
                 ImageData rendered = itemRenderer.render(content.options());
-                if (!(rendered instanceof StaticImageData)) anyAnimated = true;
+                if (rendered.isAnimated()) anyAnimated = true;
 
                 int x = INSET + col * SLOT_SIZE;
                 layers.add(new FrameMerger.Layer(x, slotRowY, rendered));
@@ -813,25 +861,23 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             drawCraftArrowInSlot(chromeCanvas,
                 ARROW_SLOT % SKYBLOCK_CHEST_COLS,
                 ARROW_SLOT / SKYBLOCK_CHEST_COLS);
-            drawTitle(chromeCanvas, options.getTitle(), INSET + 4, INSET, TITLE_HEIGHT, new Color(0x404040));
-            chromeCanvas.disposeGraphics();
-            PixelBuffer chrome = chromeCanvas.getBuffer();
+            ImageData chromeData = renderChrome(chromeCanvas, options, INSET + 4, new Color(0x404040));
 
             ItemRenderer itemRenderer = new ItemRenderer(this.context);
             ConcurrentList<FrameMerger.Layer> layers = Concurrent.newList();
-            layers.add(new FrameMerger.Layer(0, 0, StaticImageData.of(chrome.toBufferedImage())));
+            layers.add(new FrameMerger.Layer(0, 0, chromeData));
 
             Set<Integer> claimed = new HashSet<>();
             for (int chestSlot : SLOT_MAP) claimed.add(chestSlot);
             claimed.add(ARROW_SLOT);
 
-            boolean anyAnimated = false;
+            boolean anyAnimated = chromeData.isAnimated();
             for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet().stream().toList()) {
                 int callerSlot = entry.getKey();
                 int chestSlot = SLOT_MAP[callerSlot];
                 MenuOptions.MenuSlotContent content = entry.getValue();
                 ImageData rendered = itemRenderer.render(content.options());
-                if (!(rendered instanceof StaticImageData)) anyAnimated = true;
+                if (rendered.isAnimated()) anyAnimated = true;
                 layers.add(new FrameMerger.Layer(chestSlotX(chestSlot), chestSlotY(chestSlot), rendered));
             }
 
@@ -882,28 +928,26 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
 
             Canvas chromeCanvas = Canvas.of(canvasW, canvasH);
             drawVanillaChestChrome(chromeCanvas, SKYBLOCK_CHEST_ROWS, SKYBLOCK_CHEST_COLS);
-            drawTitle(chromeCanvas, options.getTitle(), INSET + 4, INSET, TITLE_HEIGHT, new Color(0x404040));
-            chromeCanvas.disposeGraphics();
-            PixelBuffer chrome = chromeCanvas.getBuffer();
+            ImageData chromeData = renderChrome(chromeCanvas, options, INSET + 4, new Color(0x404040));
 
             ItemRenderer itemRenderer = new ItemRenderer(this.context);
             BlockRenderer blockRenderer = new BlockRenderer(this.context);
             ConcurrentList<FrameMerger.Layer> layers = Concurrent.newList();
-            layers.add(new FrameMerger.Layer(0, 0, StaticImageData.of(chrome.toBufferedImage())));
+            layers.add(new FrameMerger.Layer(0, 0, chromeData));
 
             Set<Integer> claimed = new HashSet<>();
             for (int chestSlot : SLOT_MAP) claimed.add(chestSlot);
             claimed.add(DECORATION_SLOT);
             for (int chestSlot : RED_PANE_SLOTS) claimed.add(chestSlot);
 
-            boolean anyAnimated = false;
+            boolean anyAnimated = chromeData.isAnimated();
 
             for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet().stream().toList()) {
                 int callerSlot = entry.getKey();
                 int chestSlot = SLOT_MAP[callerSlot];
                 MenuOptions.MenuSlotContent content = entry.getValue();
                 ImageData rendered = itemRenderer.render(content.options());
-                if (!(rendered instanceof StaticImageData)) anyAnimated = true;
+                if (rendered.isAnimated()) anyAnimated = true;
                 layers.add(new FrameMerger.Layer(chestSlotX(chestSlot), chestSlotY(chestSlot), rendered));
             }
 
@@ -914,7 +958,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
                 .antiAlias(false)
                 .build();
             ImageData decoration = blockRenderer.render(decorationOptions);
-            if (!(decoration instanceof StaticImageData)) anyAnimated = true;
+            if (decoration.isAnimated()) anyAnimated = true;
             layers.add(new FrameMerger.Layer(
                 chestSlotX(DECORATION_SLOT) + 2,
                 chestSlotY(DECORATION_SLOT) + 2,
@@ -927,7 +971,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
                 .outputSize(SLOT_SIZE - 4)
                 .build();
             ImageData redPane = itemRenderer.render(redPaneOptions);
-            if (!(redPane instanceof StaticImageData)) anyAnimated = true;
+            if (redPane.isAnimated()) anyAnimated = true;
             for (int chestSlot : RED_PANE_SLOTS) {
                 layers.add(new FrameMerger.Layer(
                     chestSlotX(chestSlot) + 2,
