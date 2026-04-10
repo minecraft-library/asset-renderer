@@ -94,6 +94,22 @@ public class MenuOptions {
     @lombok.Builder.Default
     private final @NotNull String title = "";
 
+    /**
+     * Text rendered inside the rename textbox on vanilla anvil menus. Ignored by every other
+     * menu type. Supports plain text only (no legacy format codes) - drawn in white on the
+     * beige textbox interior.
+     */
+    @lombok.Builder.Default
+    private final @NotNull String textboxLabel = "";
+
+    /**
+     * XP level cost displayed below the slot row on vanilla anvil menus as
+     * {@code "Enchantment Cost: X"} in green. A value of zero or less suppresses the label
+     * entirely. Ignored by every other menu type.
+     */
+    @lombok.Builder.Default
+    private final int xpCost = 0;
+
     @lombok.Builder.Default
     private final @NotNull Theme theme = Theme.VANILLA;
 

@@ -8,6 +8,10 @@ import dev.sbs.renderer.engine.RendererContext;
 import dev.sbs.renderer.options.BlockOptions;
 import dev.sbs.renderer.options.ItemOptions;
 import dev.sbs.renderer.options.MenuOptions;
+import dev.sbs.renderer.text.ChatFormat;
+import dev.sbs.renderer.text.MinecraftFont;
+import dev.sbs.renderer.text.segment.ColorSegment;
+import dev.sbs.renderer.text.segment.LineSegment;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
@@ -16,6 +20,7 @@ import dev.simplified.image.StaticImageData;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
+import java.awt.*;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -53,6 +58,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     static final int SLOT_SIZE = 36;
     static final int INSET = 4;
     static final int TITLE_HEIGHT = 24;
+    static final int XP_LABEL_HEIGHT = 20;
 
     // --- Shared SkyBlock chest (9x6) dimensions ---
 
@@ -453,6 +459,102 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     }
 
     // ---------------------------------------------------------------------------------------
+    // Title / label drawing helpers.
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * Renders the menu title in the title band area using the Minecraft pixel font. The title
+     * string is parsed as legacy-formatted text (supports {@code §} colour and format codes).
+     * Does nothing when the title is empty.
+     *
+     * @param canvas the chrome canvas to draw onto
+     * @param title the title string, optionally containing legacy format codes
+     * @param titleX the horizontal origin for the first character
+     * @param bandTop the Y coordinate of the top of the renderable band
+     * @param bandHeight the height of the renderable band in pixels
+     * @param defaultColor the colour used for segments that have no explicit colour
+     */
+    static void drawTitle(
+        @NotNull Canvas canvas,
+        @NotNull String title,
+        int titleX, int bandTop, int bandHeight,
+        @NotNull Color defaultColor
+    ) {
+        if (title.isEmpty()) return;
+
+        LineSegment line = ColorSegment.fromLegacy(title);
+        Graphics2D g = canvas.graphics();
+        g.setFont(MinecraftFont.REGULAR.getActual());
+        FontMetrics fm = g.getFontMetrics();
+        int textY = bandTop + (bandHeight - fm.getHeight()) / 2 + fm.getAscent();
+
+        int x = titleX;
+        for (ColorSegment segment : line.getSegments()) {
+            if (segment.getText().isEmpty()) continue;
+            MinecraftFont font = MinecraftFont.of(segment.fontStyle());
+            g.setFont(font.getActual());
+            Color color = segment.getColor()
+                .filter(ChatFormat::isColor)
+                .map(ChatFormat::getColor)
+                .orElse(defaultColor);
+            g.setColor(color);
+            g.drawString(segment.getText(), x, textY);
+            x += g.getFontMetrics().stringWidth(segment.getText());
+        }
+    }
+
+    /**
+     * Renders the textbox label inside the rename textbox interior. The text is drawn in
+     * white, left-aligned with a small horizontal padding. Does nothing when the label is
+     * empty.
+     *
+     * @param canvas the chrome canvas to draw onto
+     * @param label the plain text to render inside the textbox
+     * @param innerX the left edge of the textbox interior (after the border)
+     * @param innerY the top edge of the textbox interior
+     * @param innerH the height of the textbox interior
+     */
+    static void drawTextboxLabel(
+        @NotNull Canvas canvas,
+        @NotNull String label,
+        int innerX, int innerY, int innerH
+    ) {
+        if (label.isEmpty()) return;
+
+        Graphics2D g = canvas.graphics();
+        g.setFont(MinecraftFont.REGULAR.getActual());
+        FontMetrics fm = g.getFontMetrics();
+        int textY = innerY + (innerH - fm.getHeight()) / 2 + fm.getAscent();
+        g.setColor(Color.WHITE);
+        g.drawString(label, innerX + 2, textY);
+    }
+
+    /**
+     * Renders the XP cost label right-aligned in the given area, displayed as
+     * {@code "Enchantment Cost: X"} in green ({@code 0x80FF20}), matching the vanilla
+     * Minecraft anvil style. Does nothing when cost is zero or negative.
+     *
+     * @param canvas the chrome canvas to draw onto
+     * @param cost the XP level cost to display
+     * @param canvasW the total canvas width (for right-alignment)
+     * @param areaTop the Y origin of the label area
+     * @param areaHeight the height of the label area
+     */
+    static void drawXpCost(@NotNull Canvas canvas, int cost, int canvasW, int areaTop, int areaHeight) {
+        if (cost <= 0) return;
+
+        String text = "Enchantment Cost: " + cost;
+        Graphics2D g = canvas.graphics();
+        g.setFont(MinecraftFont.REGULAR.getActual());
+        FontMetrics fm = g.getFontMetrics();
+        int textWidth = fm.stringWidth(text);
+        int textX = canvasW - INSET - 4 - textWidth;
+        int textY = areaTop + (areaHeight - fm.getHeight()) / 2 + fm.getAscent();
+        g.setColor(new Color(0x80FF20));
+        g.drawString(text, textX, textY);
+    }
+
+    // ---------------------------------------------------------------------------------------
     // Sub-renderers.
     // ---------------------------------------------------------------------------------------
 
@@ -478,6 +580,12 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
 
             Canvas chromeCanvas = Canvas.of(canvasW, canvasH);
             drawGenericChrome(chromeCanvas, rows, cols, options);
+            Color defaultTitleColor = switch (options.getTheme()) {
+                case VANILLA -> new Color(0x404040);
+                case DARK, SKYBLOCK -> Color.WHITE;
+            };
+            drawTitle(chromeCanvas, options.getTitle(), INSET + 4, INSET, TITLE_HEIGHT, defaultTitleColor);
+            chromeCanvas.disposeGraphics();
             PixelBuffer chrome = chromeCanvas.getBuffer();
 
             ItemRenderer itemRenderer = new ItemRenderer(this.context);
@@ -561,6 +669,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             drawSlotBackground(chromeCanvas, 3, 0, 0xFFC6C6C6);
             drawSlotBackground(chromeCanvas, 3, 2, 0xFFC6C6C6);
             drawCraftArrowInSlot(chromeCanvas, 3, 1);
+            drawTitle(chromeCanvas, options.getTitle(), INSET + 4, INSET, TITLE_HEIGHT, new Color(0x404040));
+            chromeCanvas.disposeGraphics();
             PixelBuffer chrome = chromeCanvas.getBuffer();
 
             ItemRenderer itemRenderer = new ItemRenderer(this.context);
@@ -612,7 +722,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             validateSlots(options);
 
             int canvasW = COLS * SLOT_SIZE + 2 * INSET;
-            int canvasH = TITLE_HEIGHT + TEXTBOX_HEIGHT + SLOT_SIZE + 2 * INSET;
+            int xpLabelHeight = options.getXpCost() > 0 ? XP_LABEL_HEIGHT : 0;
+            int canvasH = TITLE_HEIGHT + TEXTBOX_HEIGHT + SLOT_SIZE + 2 * INSET + xpLabelHeight;
 
             Canvas chromeCanvas = Canvas.of(canvasW, canvasH);
             drawVanillaChestChrome(chromeCanvas, 0, COLS);
@@ -631,6 +742,13 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             }
             drawPlusInSlot(chromeCanvas, 1, slotRowY);
             drawCraftArrowInSlotAt(chromeCanvas, 3, slotRowY);
+
+            drawTitle(chromeCanvas, options.getTitle(), INSET + 24, INSET, TITLE_HEIGHT, new Color(0x404040));
+            drawTextboxLabel(chromeCanvas, options.getTextboxLabel(),
+                textboxX + 2, textboxY + 2, textboxH - 4);
+            drawXpCost(chromeCanvas, options.getXpCost(), canvasW,
+                slotRowY + SLOT_SIZE, xpLabelHeight);
+            chromeCanvas.disposeGraphics();
 
             PixelBuffer chrome = chromeCanvas.getBuffer();
 
@@ -695,6 +813,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             drawCraftArrowInSlot(chromeCanvas,
                 ARROW_SLOT % SKYBLOCK_CHEST_COLS,
                 ARROW_SLOT / SKYBLOCK_CHEST_COLS);
+            drawTitle(chromeCanvas, options.getTitle(), INSET + 4, INSET, TITLE_HEIGHT, new Color(0x404040));
+            chromeCanvas.disposeGraphics();
             PixelBuffer chrome = chromeCanvas.getBuffer();
 
             ItemRenderer itemRenderer = new ItemRenderer(this.context);
@@ -762,6 +882,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
 
             Canvas chromeCanvas = Canvas.of(canvasW, canvasH);
             drawVanillaChestChrome(chromeCanvas, SKYBLOCK_CHEST_ROWS, SKYBLOCK_CHEST_COLS);
+            drawTitle(chromeCanvas, options.getTitle(), INSET + 4, INSET, TITLE_HEIGHT, new Color(0x404040));
+            chromeCanvas.disposeGraphics();
             PixelBuffer chrome = chromeCanvas.getBuffer();
 
             ItemRenderer itemRenderer = new ItemRenderer(this.context);
