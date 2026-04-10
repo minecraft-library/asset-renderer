@@ -1,9 +1,11 @@
 package dev.sbs.renderer;
 
+import dev.sbs.renderer.draw.ArmorKit;
 import dev.sbs.renderer.draw.BlockFace;
 import dev.sbs.renderer.draw.Canvas;
 import dev.sbs.renderer.draw.ColorKit;
 import dev.sbs.renderer.draw.GeometryKit;
+import dev.sbs.renderer.draw.GlintKit;
 import dev.sbs.renderer.draw.SkinFace;
 import dev.sbs.renderer.engine.IsometricEngine;
 import dev.sbs.renderer.engine.ModelEngine;
@@ -30,6 +32,8 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -63,6 +67,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     private final @NotNull PlayerSimple2D playerSimple2D;
     private final @NotNull PlayerSkull playerSkull;
     private final @NotNull PlayerBust3D playerBust3D;
+    private final @NotNull PlayerFull3D playerFull3D;
     private final @NotNull Entity3D entity3D;
 
     public EntityRenderer(@NotNull RendererContext context) {
@@ -71,6 +76,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         this.playerSimple2D = new PlayerSimple2D(this);
         this.playerSkull = new PlayerSkull(this);
         this.playerBust3D = new PlayerBust3D(this);
+        this.playerFull3D = new PlayerFull3D(this);
         this.entity3D = new Entity3D(this);
     }
 
@@ -81,6 +87,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             case PLAYER_PROFILE_2D, PLAYER_BUST_2D -> this.playerSimple2D.render(options);
             case PLAYER_SKULL -> this.playerSkull.render(options);
             case PLAYER_BUST_3D -> this.playerBust3D.render(options);
+            case PLAYER_FULL_3D -> this.playerFull3D.render(options);
             case ENTITY_3D -> this.entity3D.render(options);
         };
     }
@@ -166,6 +173,31 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
+     * Wraps a finished entity canvas into an {@link ImageData}, optionally applying enchantment
+     * glint when any equipped armor piece is enchanted. Uses the armor-specific glint preset
+     * ({@link GlintKit.GlintOptions#armorDefault(int)}) which matches vanilla's lower-scale
+     * armor glint.
+     */
+    static @NotNull ImageData finaliseWithGlint(
+        @NotNull Canvas canvas,
+        @NotNull EntityRenderer parent,
+        @NotNull EntityOptions options
+    ) {
+        if (!ArmorKit.hasEnchantedArmor(options))
+            return RenderEngine.staticFrame(canvas);
+
+        IsometricEngine engine = new IsometricEngine(parent.context);
+        GlintKit.GlintOptions glintOptions = GlintKit.GlintOptions.armorDefault(30);
+        Optional<PixelBuffer> glintTexture = engine.tryResolveTexture(glintOptions.glintTextureId());
+        if (glintTexture.isEmpty())
+            return RenderEngine.staticFrame(canvas);
+
+        ConcurrentList<PixelBuffer> frames = GlintKit.apply(canvas.getBuffer(), glintTexture.get(), glintOptions);
+        int frameDelayMs = Math.max(1, Math.round(1000f / 30f));
+        return RenderEngine.output(frames, frameDelayMs);
+    }
+
+    /**
      * 3D isometric player skull renderer. Builds a unit head cube from the skin's base-layer
      * head region, optionally stacks an inflated hat cube from the second layer, and rasterizes
      * through an {@link IsometricEngine} with the caller's pitch/yaw/roll.
@@ -185,13 +217,19 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             if (options.isRenderHat() && skin.getWidth() >= 64 && skin.getHeight() >= 16)
                 triangles.addAll(buildHeadCube(skin, true));
 
+            Map<SkinFace, Vector3f[]> bodyPositions = new EnumMap<>(SkinFace.class);
+            bodyPositions.put(SkinFace.HEAD, new Vector3f[]{
+                new Vector3f(-0.5f, -0.5f, -0.5f), new Vector3f(0.5f, 0.5f, 0.5f)
+            });
+            triangles.addAll(ArmorKit.buildHumanoidArmor(bodyPositions, options, engine));
+
             engine.rasterize(triangles, canvas, PerspectiveParams.NONE,
                 options.getPitch(), options.getYaw(), options.getRoll());
 
             if (options.isAntiAlias())
                 canvas.getBuffer().applyFxaa();
 
-            return RenderEngine.staticFrame(canvas);
+            return finaliseWithGlint(canvas, this.parent, options);
         }
 
         /**
@@ -224,6 +262,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     @RequiredArgsConstructor
     public static final class PlayerBust3D implements Renderer<EntityOptions> {
 
+        private static final Vector3f HEAD_MIN = new Vector3f(-0.25f, 0.1f, -0.25f);
+        private static final Vector3f HEAD_MAX = new Vector3f(0.25f, 0.6f, 0.25f);
+        private static final Vector3f TORSO_MIN = new Vector3f(-0.2f, -0.4f, -0.1f);
+        private static final Vector3f TORSO_MAX = new Vector3f(0.2f, 0.1f, 0.1f);
+
         private final @NotNull EntityRenderer parent;
 
         @Override
@@ -232,32 +275,24 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             IsometricEngine engine = new IsometricEngine(this.parent.context);
             Canvas canvas = Canvas.of(options.getOutputSize(), options.getOutputSize());
 
-            // Head cube at the top plus a torso box directly underneath, both in the same
-            // model-space bounding box so the combined bust fits the standard output size.
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
-            triangles.addAll(GeometryKit.box(
-                new Vector3f(-0.25f, 0.1f, -0.25f),
-                new Vector3f(0.25f, 0.6f, 0.25f),
-                SkinFace.HEAD.cropAll(skin, false),
-                ColorKit.WHITE
-            ));
+            triangles.addAll(GeometryKit.box(HEAD_MIN, HEAD_MAX,
+                SkinFace.HEAD.cropAll(skin, false), ColorKit.WHITE));
 
-            if (options.isRenderHat() && skin.getWidth() >= 64 && skin.getHeight() >= 16) {
+            if (options.isRenderHat() && skin.getWidth() >= 64 && skin.getHeight() >= 16)
                 triangles.addAll(GeometryKit.box(
                     new Vector3f(-0.26f, 0.09f, -0.26f),
                     new Vector3f(0.26f, 0.61f, 0.26f),
-                    SkinFace.HEAD.cropAll(skin, true),
-                    ColorKit.WHITE
-                ));
-            }
+                    SkinFace.HEAD.cropAll(skin, true), ColorKit.WHITE));
 
-            triangles.addAll(GeometryKit.box(
-                new Vector3f(-0.2f, -0.4f, -0.1f),
-                new Vector3f(0.2f, 0.1f, 0.1f),
-                SkinFace.TORSO.cropAll(skin, false),
-                ColorKit.WHITE
-            ));
+            triangles.addAll(GeometryKit.box(TORSO_MIN, TORSO_MAX,
+                SkinFace.TORSO.cropAll(skin, false), ColorKit.WHITE));
+
+            Map<SkinFace, Vector3f[]> bodyPositions = new EnumMap<>(SkinFace.class);
+            bodyPositions.put(SkinFace.HEAD, new Vector3f[]{ HEAD_MIN, HEAD_MAX });
+            bodyPositions.put(SkinFace.TORSO, new Vector3f[]{ TORSO_MIN, TORSO_MAX });
+            triangles.addAll(ArmorKit.buildHumanoidArmor(bodyPositions, options, engine));
 
             engine.rasterize(triangles, canvas, PerspectiveParams.NONE,
                 options.getPitch(), options.getYaw(), options.getRoll());
@@ -265,7 +300,110 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             if (options.isAntiAlias())
                 canvas.getBuffer().applyFxaa();
 
-            return RenderEngine.staticFrame(canvas);
+            return finaliseWithGlint(canvas, this.parent, options);
+        }
+
+    }
+
+    /**
+     * Full-body 3D isometric player renderer. Builds all six {@link SkinFace} body parts (head,
+     * torso, arms, legs) with overlay layers, plus optional armor overlays with trim and
+     * enchantment glint.
+     * <p>
+     * Body part positions use a 1/32-unit-per-pixel scale centred at the origin so the full
+     * 32-pixel-tall player model spans roughly {@code [-0.48, 0.48]} in Y.
+     */
+    @RequiredArgsConstructor
+    public static final class PlayerFull3D implements Renderer<EntityOptions> {
+
+        // 1 MC pixel = 1/32 model unit, then shifted down 0.12 to vertically centre the model.
+        private static final Vector3f HEAD_MIN = new Vector3f(-0.12f, 0.24f, -0.12f);
+        private static final Vector3f HEAD_MAX = new Vector3f(0.12f, 0.48f, 0.12f);
+        private static final Vector3f TORSO_MIN = new Vector3f(-0.12f, -0.12f, -0.06f);
+        private static final Vector3f TORSO_MAX = new Vector3f(0.12f, 0.24f, 0.06f);
+        private static final Vector3f R_ARM_MIN = new Vector3f(-0.24f, -0.12f, -0.06f);
+        private static final Vector3f R_ARM_MAX = new Vector3f(-0.12f, 0.24f, 0.06f);
+        private static final Vector3f L_ARM_MIN = new Vector3f(0.12f, -0.12f, -0.06f);
+        private static final Vector3f L_ARM_MAX = new Vector3f(0.24f, 0.24f, 0.06f);
+        private static final Vector3f R_LEG_MIN = new Vector3f(-0.12f, -0.48f, -0.06f);
+        private static final Vector3f R_LEG_MAX = new Vector3f(0.0f, -0.12f, 0.06f);
+        private static final Vector3f L_LEG_MIN = new Vector3f(0.0f, -0.48f, -0.06f);
+        private static final Vector3f L_LEG_MAX = new Vector3f(0.12f, -0.12f, 0.06f);
+
+        private static final float HAT_INFLATE = 0.01f;
+
+        private final @NotNull EntityRenderer parent;
+
+        @Override
+        public @NotNull ImageData render(@NotNull EntityOptions options) {
+            PixelBuffer skin = resolveSkin(this.parent, options);
+            IsometricEngine engine = new IsometricEngine(this.parent.context);
+            Canvas canvas = Canvas.of(options.getOutputSize(), options.getOutputSize());
+
+            ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
+
+            // Base skin body parts
+            triangles.addAll(GeometryKit.box(HEAD_MIN, HEAD_MAX,
+                SkinFace.HEAD.cropAll(skin, false), ColorKit.WHITE));
+            triangles.addAll(GeometryKit.box(TORSO_MIN, TORSO_MAX,
+                SkinFace.TORSO.cropAll(skin, false), ColorKit.WHITE));
+            triangles.addAll(GeometryKit.box(R_ARM_MIN, R_ARM_MAX,
+                SkinFace.RIGHT_ARM.cropAll(skin, false), ColorKit.WHITE));
+            triangles.addAll(GeometryKit.box(L_ARM_MIN, L_ARM_MAX,
+                SkinFace.LEFT_ARM.cropAll(skin, false), ColorKit.WHITE));
+            triangles.addAll(GeometryKit.box(R_LEG_MIN, R_LEG_MAX,
+                SkinFace.RIGHT_LEG.cropAll(skin, false), ColorKit.WHITE));
+            triangles.addAll(GeometryKit.box(L_LEG_MIN, L_LEG_MAX,
+                SkinFace.LEFT_LEG.cropAll(skin, false), ColorKit.WHITE));
+
+            // Overlay layers (hat, jacket, sleeves, trousers)
+            if (options.isRenderHat() && skin.getWidth() >= 64 && skin.getHeight() >= 64) {
+                addOverlay(triangles, skin, SkinFace.HEAD, HEAD_MIN, HEAD_MAX, HAT_INFLATE);
+                addOverlay(triangles, skin, SkinFace.TORSO, TORSO_MIN, TORSO_MAX, HAT_INFLATE);
+                addOverlay(triangles, skin, SkinFace.RIGHT_ARM, R_ARM_MIN, R_ARM_MAX, HAT_INFLATE);
+                addOverlay(triangles, skin, SkinFace.LEFT_ARM, L_ARM_MIN, L_ARM_MAX, HAT_INFLATE);
+                addOverlay(triangles, skin, SkinFace.RIGHT_LEG, R_LEG_MIN, R_LEG_MAX, HAT_INFLATE);
+                addOverlay(triangles, skin, SkinFace.LEFT_LEG, L_LEG_MIN, L_LEG_MAX, HAT_INFLATE);
+            }
+
+            // Armor + trim
+            Map<SkinFace, Vector3f[]> bodyPositions = buildBodyPositions();
+            triangles.addAll(ArmorKit.buildHumanoidArmor(bodyPositions, options, engine));
+
+            engine.rasterize(triangles, canvas, PerspectiveParams.NONE,
+                options.getPitch(), options.getYaw(), options.getRoll());
+
+            if (options.isAntiAlias())
+                canvas.getBuffer().applyFxaa();
+
+            return finaliseWithGlint(canvas, this.parent, options);
+        }
+
+        private static void addOverlay(
+            @NotNull ConcurrentList<VisibleTriangle> triangles,
+            @NotNull PixelBuffer skin,
+            @NotNull SkinFace part,
+            @NotNull Vector3f min,
+            @NotNull Vector3f max,
+            float inflate
+        ) {
+            triangles.addAll(GeometryKit.box(
+                new Vector3f(min.getX() - inflate, min.getY() - inflate, min.getZ() - inflate),
+                new Vector3f(max.getX() + inflate, max.getY() + inflate, max.getZ() + inflate),
+                part.cropAll(skin, true),
+                ColorKit.WHITE
+            ));
+        }
+
+        private static @NotNull Map<SkinFace, Vector3f[]> buildBodyPositions() {
+            Map<SkinFace, Vector3f[]> positions = new EnumMap<>(SkinFace.class);
+            positions.put(SkinFace.HEAD, new Vector3f[]{ HEAD_MIN, HEAD_MAX });
+            positions.put(SkinFace.TORSO, new Vector3f[]{ TORSO_MIN, TORSO_MAX });
+            positions.put(SkinFace.RIGHT_ARM, new Vector3f[]{ R_ARM_MIN, R_ARM_MAX });
+            positions.put(SkinFace.LEFT_ARM, new Vector3f[]{ L_ARM_MIN, L_ARM_MAX });
+            positions.put(SkinFace.RIGHT_LEG, new Vector3f[]{ R_LEG_MIN, R_LEG_MAX });
+            positions.put(SkinFace.LEFT_LEG, new Vector3f[]{ L_LEG_MIN, L_LEG_MAX });
+            return positions;
         }
 
     }

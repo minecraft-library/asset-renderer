@@ -1,5 +1,6 @@
 package dev.sbs.renderer.options;
 
+import dev.sbs.renderer.draw.ArmorPiece;
 import dev.simplified.image.ImageFormat;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -20,8 +21,10 @@ public class EntityOptions {
     public enum Type {
         /** A 3D isometric player skull tile. */
         PLAYER_SKULL,
-        /** A 3D isometric bust (head + torso + arms). */
+        /** A 3D isometric bust (head + torso). */
         PLAYER_BUST_3D,
+        /** A 3D isometric full body (head + torso + arms + legs). */
+        PLAYER_FULL_3D,
         /** A 2D front-facing bust. */
         PLAYER_BUST_2D,
         /** A 2D front-facing full-body profile. */
@@ -62,6 +65,22 @@ public class EntityOptions {
 
     @lombok.Builder.Default
     private final float roll = 0f;
+
+    /** Helmet armor piece to render on the entity's head. */
+    @lombok.Builder.Default
+    private final @NotNull Optional<ArmorPiece> helmet = Optional.empty();
+
+    /** Chestplate armor piece to render on the entity's torso and arms. */
+    @lombok.Builder.Default
+    private final @NotNull Optional<ArmorPiece> chestplate = Optional.empty();
+
+    /** Leggings armor piece to render on the entity's waist and legs. */
+    @lombok.Builder.Default
+    private final @NotNull Optional<ArmorPiece> leggings = Optional.empty();
+
+    /** Boots armor piece to render on the entity's feet. */
+    @lombok.Builder.Default
+    private final @NotNull Optional<ArmorPiece> boots = Optional.empty();
 
     /** Whether to render the second skin layer (hat overlay) on the head. */
     @lombok.Builder.Default

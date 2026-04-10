@@ -136,8 +136,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 layerIndex++;
             }
 
-            if (options.getTrimSlot().isPresent() && options.getTrim().isPresent())
-                TrimKit.resolve(engine, options.getTrimSlot().get().getKey(), options.getTrim().get().getKey())
+            if (options.getTrimSlot().isPresent() && options.getTrimColor().isPresent())
+                TrimKit.resolve(engine, options.getTrimSlot().get().getKey(), options.getTrimColor().get().getKey())
                     .ifPresent(trim -> canvas.blitScaled(trim, 0, 0, options.getOutputSize(), options.getOutputSize()));
 
             if (options.isShowDamageBar())

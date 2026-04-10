@@ -1,5 +1,6 @@
 package dev.sbs.renderer.pipeline;
 
+import dev.sbs.renderer.biome.BiomeTintTarget;
 import dev.sbs.renderer.engine.RendererContext;
 import dev.sbs.renderer.exception.RendererException;
 import dev.sbs.renderer.model.Block;

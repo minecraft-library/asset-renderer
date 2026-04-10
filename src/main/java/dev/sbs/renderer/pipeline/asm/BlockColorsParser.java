@@ -134,7 +134,7 @@ public class BlockColorsParser {
     }
 
     /**
-     * Walks the {@code createDefault()} instruction list and emits a {@link BlockTint} per
+     * Walks the {@code createDefault()} instruction list and emits a {@link Block.Tint} per
      * recognised {@code (source, blocks[])} registration. See the class-level javadoc for the
      * recognition rules.
      */
