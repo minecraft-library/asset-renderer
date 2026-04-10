@@ -6,6 +6,7 @@ import dev.sbs.renderer.draw.ColorKit;
 import dev.sbs.renderer.draw.GeometryKit;
 import dev.sbs.renderer.draw.GlintKit;
 import dev.sbs.renderer.draw.ItemBarKit;
+import dev.sbs.renderer.draw.TrimKit;
 import dev.sbs.renderer.engine.ModelEngine;
 import dev.sbs.renderer.engine.PerspectiveParams;
 import dev.sbs.renderer.engine.RasterEngine;
@@ -134,6 +135,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                     canvas.blitScaled(layer, 0, 0, options.getOutputSize(), options.getOutputSize());
                 layerIndex++;
             }
+
+            if (options.getTrimSlot().isPresent() && options.getTrim().isPresent())
+                TrimKit.resolve(engine, options.getTrimSlot().get().getKey(), options.getTrim().get().getKey())
+                    .ifPresent(trim -> canvas.blitScaled(trim, 0, 0, options.getOutputSize(), options.getOutputSize()));
 
             if (options.isShowDamageBar())
                 ItemBarKit.drawDamageBar(canvas, options.getContext().damage(), item.getMaxDurability());

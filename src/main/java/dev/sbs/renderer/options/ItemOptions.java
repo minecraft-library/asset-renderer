@@ -1,5 +1,6 @@
 package dev.sbs.renderer.options;
 
+import dev.sbs.renderer.draw.PlayerArmor;
 import dev.sbs.renderer.pack.ItemContext;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
@@ -40,6 +41,23 @@ public class ItemOptions {
     /** Optional ARGB tint applied to colour-overlay items (leather armour, spawn eggs). */
     @lombok.Builder.Default
     private final @NotNull Optional<Integer> tintColor = Optional.empty();
+
+    /**
+     * The armor slot whose trim pattern to composite on top of the base item layers. When both
+     * this and {@link #trim} are present, the renderer resolves the trim texture via paletted
+     * permutation and composites it as an overlay.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Optional<PlayerArmor> trimSlot = Optional.empty();
+
+    /**
+     * The trim material that selects the colour palette for the trim overlay. Use the
+     * {@code _DARKER} variants when the trim material matches the armor material (e.g.
+     * {@link PlayerArmor.Trim#IRON_DARKER} for an iron trim on iron armor) so the pattern
+     * stays visible. Ignored when {@link #trimSlot} is absent.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Optional<PlayerArmor.Trim> trim = Optional.empty();
 
     /** Primary overlay colour for items that support a two-colour tint (spawn egg primary). */
     @lombok.Builder.Default
