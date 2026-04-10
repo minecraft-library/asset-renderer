@@ -6,7 +6,7 @@ import dev.sbs.renderer.draw.ColorKit;
 import dev.sbs.renderer.draw.GeometryKit;
 import dev.sbs.renderer.draw.GlintKit;
 import dev.sbs.renderer.draw.ItemBarKit;
-import dev.sbs.renderer.draw.TrimKit;
+import dev.sbs.renderer.draw.armor.TrimKit;
 import dev.sbs.renderer.engine.ModelEngine;
 import dev.sbs.renderer.engine.PerspectiveParams;
 import dev.sbs.renderer.engine.RasterEngine;

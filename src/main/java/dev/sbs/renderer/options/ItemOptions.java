@@ -1,6 +1,6 @@
 package dev.sbs.renderer.options;
 
-import dev.sbs.renderer.draw.ArmorTrim;
+import dev.sbs.renderer.draw.armor.ArmorTrim;
 import dev.sbs.renderer.pack.ItemContext;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;

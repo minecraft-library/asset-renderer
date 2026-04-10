@@ -1,4 +1,4 @@
-package dev.sbs.renderer.draw;
+package dev.sbs.renderer.draw.armor;
 
 import dev.sbs.renderer.engine.TextureEngine;
 import dev.simplified.image.PixelBuffer;

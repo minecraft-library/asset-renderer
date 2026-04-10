@@ -1,4 +1,4 @@
-package dev.sbs.renderer.draw;
+package dev.sbs.renderer.draw.armor;
 
 import org.jetbrains.annotations.NotNull;
 
