@@ -108,13 +108,15 @@ public class EntityGeometryKit {
                         corners[0], corners[i1], corners[i2],
                         uv[0], uv[i1], uv[i2],
                         texture, ColorKit.WHITE,
-                        normal, 1f, priority
+                        normal, 1f, priority,
+                        true
                     ));
                     triangles.add(new VisibleTriangle(
                         corners[0], corners[j1], corners[j2],
                         uv[0], uv[j1], uv[j2],
                         texture, ColorKit.WHITE,
-                        normal, 1f, priority
+                        normal, 1f, priority,
+                        true
                     ));
                     priority++;
                 }

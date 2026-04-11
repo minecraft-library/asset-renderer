@@ -40,38 +40,6 @@ public record VisibleTriangle(
 ) {
 
     /**
-     * Convenience constructor for cullable triangles (the common case). Sets
-     * {@link #cullBackFaces()} to {@code true}.
-     *
-     * @param position0 the first vertex position in model space
-     * @param position1 the second vertex position in model space
-     * @param position2 the third vertex position in model space
-     * @param uv0 the first vertex UV coordinate
-     * @param uv1 the second vertex UV coordinate
-     * @param uv2 the third vertex UV coordinate
-     * @param texture the texture this triangle samples from
-     * @param tintArgb the ARGB tint applied to each sampled pixel
-     * @param normal the surface normal
-     * @param shading the precomputed shading factor
-     * @param renderPriority the tie-break sort key
-     */
-    public VisibleTriangle(
-        @NotNull Vector3f position0,
-        @NotNull Vector3f position1,
-        @NotNull Vector3f position2,
-        @NotNull Vector2f uv0,
-        @NotNull Vector2f uv1,
-        @NotNull Vector2f uv2,
-        @NotNull PixelBuffer texture,
-        int tintArgb,
-        @NotNull Vector3f normal,
-        float shading,
-        int renderPriority
-    ) {
-        this(position0, position1, position2, uv0, uv1, uv2, texture, tintArgb, normal, shading, renderPriority, true);
-    }
-
-    /**
      * Returns the mean depth of the three vertices along the given axis, used as the painter's
      * algorithm sort key.
      *
