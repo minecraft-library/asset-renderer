@@ -17,27 +17,11 @@ import java.util.Optional;
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
 public class PlayerOptions {
 
-    /** Which body parts to render. */
-    public enum Type {
-        /** Head only. */
-        SKULL,
-        /** Head, torso and arms. */
-        BUST,
-        /** Full body - head, torso, arms and legs. */
-        FULL
-    }
-
-    /** Whether to produce a 2D front-facing composite or a 3D isometric render. */
-    public enum Dimension {
-        /** Front-facing 2D sprite composite. */
-        TWO_D,
-        /** Isometric 3D rasterization. */
-        THREE_D
-    }
-
+    /** Which body parts to include in the render */
     @lombok.Builder.Default
     private final @NotNull Type type = Type.SKULL;
 
+    /** Whether to produce a 2D composite or 3D isometric render */
     @lombok.Builder.Default
     private final @NotNull Dimension dimension = Dimension.THREE_D;
 
@@ -89,15 +73,19 @@ public class PlayerOptions {
     @lombok.Builder.Default
     private final boolean renderOverlay = true;
 
+    /** Output image dimensions in pixels (square) */
     @lombok.Builder.Default
     private final int outputSize = 256;
 
+    /** Model rotation around the Y axis in degrees */
     @lombok.Builder.Default
     private final float yaw = 0f;
 
+    /** Model rotation around the X axis in degrees */
     @lombok.Builder.Default
     private final float pitch = 0f;
 
+    /** Model rotation around the Z axis in degrees */
     @lombok.Builder.Default
     private final float roll = 0f;
 
@@ -105,6 +93,7 @@ public class PlayerOptions {
     @lombok.Builder.Default
     private final boolean antiAlias = true;
 
+    /** Output image format */
     @lombok.Builder.Default
     private final @NotNull ImageFormat outputFormat = ImageFormat.PNG;
 
@@ -114,6 +103,31 @@ public class PlayerOptions {
 
     public static @NotNull PlayerOptions defaults() {
         return builder().build();
+    }
+
+    /** Which body parts to render. */
+    public enum Type {
+
+        /** Head only. */
+        SKULL,
+
+        /** Head, torso and arms. */
+        BUST,
+
+        /** Full body - head, torso, arms and legs. */
+        FULL
+
+    }
+
+    /** Whether to produce a 2D front-facing composite or a 3D isometric render. */
+    public enum Dimension {
+
+        /** Front-facing 2D sprite composite. */
+        TWO_D,
+
+        /** Isometric 3D rasterization. */
+        THREE_D
+
     }
 
 }

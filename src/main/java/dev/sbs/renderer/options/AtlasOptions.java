@@ -22,13 +22,7 @@ import java.util.Optional;
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
 public class AtlasOptions {
 
-    /** Which model kind(s) the atlas includes. */
-    public enum Source {
-        BLOCK,
-        ITEM,
-        BOTH
-    }
-
+    /** Which model kind(s) to include in the atlas */
     @lombok.Builder.Default
     private final @NotNull Source source = Source.BOTH;
 
@@ -36,18 +30,23 @@ public class AtlasOptions {
     @lombok.Builder.Default
     private final @NotNull Optional<java.util.function.Predicate<String>> filter = Optional.empty();
 
+    /** Output tile dimensions in pixels (square) */
     @lombok.Builder.Default
     private final int tileSize = 128;
 
+    /** Number of tile columns per row in the output atlas */
     @lombok.Builder.Default
     private final int columns = 16;
 
+    /** ARGB fill color for empty areas */
     @lombok.Builder.Default
     private final int backgroundArgb = 0x00000000;
 
+    /** Additional texture pack ids to layer on top of vanilla */
     @lombok.Builder.Default
     private final @NotNull ConcurrentList<String> texturePackIds = Concurrent.newList();
 
+    /** Output image format */
     @lombok.Builder.Default
     private final @NotNull ImageFormat outputFormat = ImageFormat.PNG;
 
@@ -66,6 +65,17 @@ public class AtlasOptions {
 
     public static @NotNull AtlasOptions defaults() {
         return builder().build();
+    }
+
+    /** Which model kind(s) the atlas includes. */
+    public enum Source {
+
+        BLOCK,
+
+        ITEM,
+
+        BOTH
+
     }
 
 }

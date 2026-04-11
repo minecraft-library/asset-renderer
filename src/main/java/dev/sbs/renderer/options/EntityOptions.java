@@ -42,15 +42,19 @@ public class EntityOptions {
     @lombok.Builder.Default
     private final @NotNull Optional<ArmorPiece> boots = Optional.empty();
 
+    /** Output image dimensions in pixels (square) */
     @lombok.Builder.Default
     private final int outputSize = 256;
 
+    /** Model rotation around the Y axis in degrees */
     @lombok.Builder.Default
     private final float yaw = 0f;
 
+    /** Model rotation around the X axis in degrees */
     @lombok.Builder.Default
     private final float pitch = 0f;
 
+    /** Model rotation around the Z axis in degrees */
     @lombok.Builder.Default
     private final float roll = 0f;
 
@@ -58,6 +62,7 @@ public class EntityOptions {
     @lombok.Builder.Default
     private final boolean antiAlias = true;
 
+    /** Output image format */
     @lombok.Builder.Default
     private final @NotNull ImageFormat outputFormat = ImageFormat.PNG;
 

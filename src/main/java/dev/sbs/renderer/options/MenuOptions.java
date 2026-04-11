@@ -16,81 +16,23 @@ import org.jetbrains.annotations.NotNull;
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
 public class MenuOptions {
 
-    /** The supported menu types. */
-    public enum Type {
-        /** The 4x9 player inventory view (9 hotbar + 27 main). */
-        PLAYER,
-        /** A chest with configurable {@code rows} (3 for single, 6 for double). */
-        CHEST,
-        /** A custom rows x columns grid with no hard-coded dimensions. */
-        CUSTOM,
-        /** A single 1x1 slot. */
-        SLOT,
-        /**
-         * The vanilla 3x3 crafting table layout: 9-slot input grid plus a separate output slot
-         * across a craft arrow. Caller slots {@code 0..8} map to the grid in reading order and
-         * slot {@code 9} is the output.
-         */
-        VANILLA_CRAFTING,
-        /**
-         * The Hypixel SkyBlock crafting menu: a 9x6 chest container that wraps the 3x3 input
-         * grid at chest positions {@code 10-12/19-21/28-30} with the output at chest slot
-         * {@code 23} and decorative filler around the functional slots. Caller slots
-         * {@code 0..8} map to the grid in reading order and slot {@code 9} is the output.
-         */
-        SKYBLOCK_CRAFTING,
-        /** The vanilla 2-input 1-output anvil. */
-        VANILLA_ANVIL,
-        /**
-         * The Hypixel SkyBlock "Combine Items" anvil menu: a 9x6 chest with an isometric anvil
-         * decoration, red-glass borders, and three caller-controlled slots.
-         * <ul>
-         * <li>Slot {@code 0} (first input) -> chest slot {@code 29}</li>
-         * <li>Slot {@code 1} (second input) -> chest slot {@code 33}</li>
-         * <li>Slot {@code 2} (output) -> chest slot {@code 13}</li>
-         * </ul>
-         * The decorative isometric anvil sits at chest slot {@code 22} and red stained glass
-         * panes fill chest slots {@code 11, 12, 14, 15, 20, 24} plus the entire bottom row
-         * ({@code 45..53}).
-         */
-        SKYBLOCK_ANVIL
-    }
-
-    /** Visual theme applied to the menu chrome. */
-    public enum Theme {
-        VANILLA,
-        DARK,
-        SKYBLOCK
-    }
-
-    /**
-     * How non-functional (filler/border) slots should be rendered in menu layouts that have
-     * them, such as {@link Type#SKYBLOCK_CRAFTING} which wraps the 3x3 crafting grid inside a
-     * 9x6 chest container.
-     */
-    public enum Fill {
-        /**
-         * Fill every non-functional slot with a {@code minecraft:black_stained_glass_pane} GUI
-         * icon, matching the standard Hypixel menu border. The item must be resolvable through
-         * the active {@link dev.sbs.renderer.engine.RendererContext}.
-         */
-        BLACK_STAINED_GLASS_PANE,
-        /** Leave non-functional slots transparent so the chrome shows through. */
-        EMPTY
-    }
-
+    /** Menu layout type */
     @lombok.Builder.Default
     private final @NotNull Type type = Type.CHEST;
 
+    /** Number of slot rows */
     @lombok.Builder.Default
     private final int rows = 3;
 
+    /** Number of slot columns */
     @lombok.Builder.Default
     private final int columns = 9;
 
+    /** Slot index to content mapping */
     @lombok.Builder.Default
     private final @NotNull ConcurrentMap<Integer, MenuSlotContent> slots = Concurrent.newMap();
 
+    /** Menu title text rendered in the header */
     @lombok.Builder.Default
     private final @NotNull String title = "";
 
@@ -110,6 +52,7 @@ public class MenuOptions {
     @lombok.Builder.Default
     private final int xpCost = 0;
 
+    /** Visual theme applied to the menu chrome */
     @lombok.Builder.Default
     private final @NotNull Theme theme = Theme.VANILLA;
 
@@ -125,6 +68,7 @@ public class MenuOptions {
     @lombok.Builder.Default
     private final int framesPerSecond = 30;
 
+    /** Output image format */
     @lombok.Builder.Default
     private final @NotNull ImageFormat outputFormat = ImageFormat.PNG;
 
@@ -177,6 +121,84 @@ public class MenuOptions {
                 .build();
             return new MenuSlotContent(itemId, options, count);
         }
+
+    }
+
+    /** The supported menu types. */
+    public enum Type {
+
+        /** The 4x9 player inventory view (9 hotbar + 27 main). */
+        PLAYER,
+
+        /** A chest with configurable {@code rows} (3 for single, 6 for double). */
+        CHEST,
+
+        /** A custom rows x columns grid with no hard-coded dimensions. */
+        CUSTOM,
+
+        /** A single 1x1 slot. */
+        SLOT,
+
+        /**
+         * The vanilla 3x3 crafting table layout: 9-slot input grid plus a separate output slot
+         * across a craft arrow. Caller slots {@code 0..8} map to the grid in reading order and
+         * slot {@code 9} is the output.
+         */
+        VANILLA_CRAFTING,
+
+        /**
+         * The Hypixel SkyBlock crafting menu: a 9x6 chest container that wraps the 3x3 input
+         * grid at chest positions {@code 10-12/19-21/28-30} with the output at chest slot
+         * {@code 23} and decorative filler around the functional slots. Caller slots
+         * {@code 0..8} map to the grid in reading order and slot {@code 9} is the output.
+         */
+        SKYBLOCK_CRAFTING,
+
+        /** The vanilla 2-input 1-output anvil. */
+        VANILLA_ANVIL,
+
+        /**
+         * The Hypixel SkyBlock "Combine Items" anvil menu: a 9x6 chest with an isometric anvil
+         * decoration, red-glass borders, and three caller-controlled slots.
+         * <ul>
+         * <li>Slot {@code 0} (first input) -> chest slot {@code 29}</li>
+         * <li>Slot {@code 1} (second input) -> chest slot {@code 33}</li>
+         * <li>Slot {@code 2} (output) -> chest slot {@code 13}</li>
+         * </ul>
+         * The decorative isometric anvil sits at chest slot {@code 22} and red stained glass
+         * panes fill chest slots {@code 11, 12, 14, 15, 20, 24} plus the entire bottom row
+         * ({@code 45..53}).
+         */
+        SKYBLOCK_ANVIL
+    }
+
+    /** Visual theme applied to the menu chrome. */
+    public enum Theme {
+
+        VANILLA,
+
+        DARK,
+
+        SKYBLOCK
+
+    }
+
+    /**
+     * How non-functional (filler/border) slots should be rendered in menu layouts that have
+     * them, such as {@link Type#SKYBLOCK_CRAFTING} which wraps the 3x3 crafting grid inside a
+     * 9x6 chest container.
+     */
+    public enum Fill {
+
+        /**
+         * Fill every non-functional slot with a {@code minecraft:black_stained_glass_pane} GUI
+         * icon, matching the standard Hypixel menu border. The item must be resolvable through
+         * the active {@link dev.sbs.renderer.engine.RendererContext}.
+         */
+        BLACK_STAINED_GLASS_PANE,
+
+        /** Leave non-functional slots transparent so the chrome shows through. */
+        EMPTY
 
     }
 

@@ -20,17 +20,11 @@ import java.util.Optional;
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
 public class ItemOptions {
 
-    /** The supported render types for {@code ItemRenderer}. */
-    public enum Type {
-        /** 3D view as the item appears when held in a player's hand. */
-        HELD_3D,
-        /** 2D flat GUI icon. */
-        GUI_2D
-    }
-
+    /** Namespaced item id to render, e.g. {@code "minecraft:diamond_sword"} */
     @lombok.Builder.Default
     private final @NotNull String itemId = "";
 
+    /** Render type - 2D GUI icon or 3D held-item view */
     @lombok.Builder.Default
     private final @NotNull Type type = Type.GUI_2D;
 
@@ -91,12 +85,15 @@ public class ItemOptions {
     @lombok.Builder.Default
     private final boolean showDamageBar = true;
 
+    /** Output image dimensions in pixels (square) */
     @lombok.Builder.Default
     private final int outputSize = 256;
 
+    /** Additional texture pack ids to layer on top of vanilla */
     @lombok.Builder.Default
     private final @NotNull ConcurrentList<String> texturePackIds = Concurrent.newList();
 
+    /** Output image format */
     @lombok.Builder.Default
     private final @NotNull ImageFormat outputFormat = ImageFormat.PNG;
 
@@ -110,6 +107,17 @@ public class ItemOptions {
 
     public static @NotNull ItemOptions defaults() {
         return builder().build();
+    }
+
+    /** The supported render types for {@code ItemRenderer}. */
+    public enum Type {
+
+        /** 3D view as the item appears when held in a player's hand. */
+        HELD_3D,
+
+        /** 2D flat GUI icon. */
+        GUI_2D
+
     }
 
 }
