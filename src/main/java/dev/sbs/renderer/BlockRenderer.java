@@ -364,26 +364,6 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             return current;
         }
 
-        /**
-         * Resolves all six cube face textures for the unit-cube fast path (single-element
-         * blocks). Each direction key is looked up via
-         * {@link BlockRenderer#resolveTextureRef(Block, String)} and loaded through the active
-         * pack stack.
-         */
-        private @NotNull PixelBuffer @NotNull [] resolveFaces(@NotNull Block block) {
-            RasterEngine engine = new RasterEngine(this.context);
-            PixelBuffer[] faces = new PixelBuffer[6];
-            String[] directionKeys = { "down", "up", "north", "south", "west", "east" };
-
-            for (int i = 0; i < 6; i++) {
-                String textureRef = resolveTextureRef(block, directionKeys[i]);
-                if (textureRef.isBlank())
-                    throw new RendererException("Block '%s' has no texture for face '%s'", block.getId(), directionKeys[i]);
-                faces[i] = engine.resolveTexture(textureRef);
-            }
-            return faces;
-        }
-
     }
 
     /**
@@ -402,7 +382,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             RasterEngine engine = new RasterEngine(this.context);
             Canvas canvas = engine.createCanvas(options.getOutputSize(), options.getOutputSize());
 
-            String textureId = resolveFaceTextureId(block, options.getFace());
+            String textureId = resolveTextureRef(block, options.getFace().direction());
             PixelBuffer face = engine.resolveTexture(textureId);
             int tint = resolveBlockTint(this.context, block, options);
             PixelBuffer tinted = ColorKit.tint(face, tint);
@@ -410,23 +390,6 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             canvas.blitScaled(tinted, 0, 0, size, size);
 
             return RenderEngine.staticFrame(canvas);
-        }
-
-        /**
-         * Maps a {@link BlockOptions.Face} enum value to the corresponding lowercase direction
-         * key in the block's texture map, then reuses
-         * {@link BlockRenderer#resolveTextureRef(Block, String)} for the fallback chain.
-         */
-        private static @NotNull String resolveFaceTextureId(@NotNull Block block, @NotNull BlockOptions.Face face) {
-            String key = switch (face) {
-                case DOWN -> "down";
-                case UP -> "up";
-                case NORTH -> "north";
-                case SOUTH -> "south";
-                case WEST -> "west";
-                case EAST -> "east";
-            };
-            return resolveTextureRef(block, key);
         }
 
     }
