@@ -18,7 +18,7 @@ import dev.sbs.renderer.engine.VisibleTriangle;
 import dev.sbs.renderer.exception.RendererException;
 import dev.sbs.renderer.math.Vector3f;
 import dev.sbs.renderer.options.PlayerOptions;
-import dev.sbs.renderer.pipeline.HttpFetcher;
+import dev.sbs.renderer.pipeline.client.HttpFetcher;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;

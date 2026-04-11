@@ -3,6 +3,7 @@ package dev.sbs.renderer.pipeline;
 import dev.sbs.renderer.model.Texture;
 import dev.sbs.renderer.model.asset.BlockModelData;
 import dev.sbs.renderer.model.asset.ItemModelData;
+import dev.sbs.renderer.pipeline.client.HttpFetcher;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;

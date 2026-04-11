@@ -10,6 +10,8 @@ import dev.sbs.renderer.model.TexturePack;
 import dev.sbs.renderer.model.asset.AnimationData;
 import dev.sbs.renderer.model.asset.BlockModelData;
 import dev.sbs.renderer.model.asset.ItemModelData;
+import dev.sbs.renderer.pipeline.loader.ColorMapLoader;
+import dev.sbs.renderer.pipeline.loader.TexturePackLoader;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -77,7 +79,7 @@ class PipelineRendererContextTest {
         ImageIO.write(grassMap, "PNG", colormapDir.resolve("grass.png").toFile());
 
         // Scan the fixture pack to derive a realistic TexturePack + texture list. Using the
-        // real TexturePackReader / ColorMapReader keeps the test honest about the exact id
+        // real TexturePackLoader / ColorMapLoader keeps the test honest about the exact id
         // format and resource shape the context normalises against.
         //
         // VanillaTintsLoader is intentionally NOT called here: it now parses BlockColors from
@@ -85,9 +87,9 @@ class PipelineRendererContextTest {
         // directly so the context wiring (Block.tintTarget population, colorMap pass-through)
         // can still be exercised in isolation. The end-to-end loader is exercised by the
         // slowTest against the cached vanilla 26.1 jar.
-        TexturePack vanillaPack = TexturePackReader.loadVanilla(packRoot);
-        ConcurrentList<Texture> textures = TexturePackReader.scanTextures(packRoot, vanillaPack.getId());
-        ConcurrentList<ColorMap> colorMaps = ColorMapReader.load(packRoot, vanillaPack.getId());
+        TexturePack vanillaPack = TexturePackLoader.loadVanilla(packRoot);
+        ConcurrentList<Texture> textures = TexturePackLoader.scanTextures(packRoot, vanillaPack.getId());
+        ConcurrentList<ColorMap> colorMaps = ColorMapLoader.load();
         ConcurrentMap<String, Block.Tint> blockTints = Concurrent.newMap();
         blockTints.put("minecraft:grass_block", new Block.Tint(BiomeTintTarget.GRASS, Optional.empty()));
         blockTints.put("minecraft:oak_leaves", new Block.Tint(BiomeTintTarget.FOLIAGE, Optional.empty()));
@@ -210,21 +212,21 @@ class PipelineRendererContextTest {
     }
 
     @Test
-    @DisplayName("colorMap returns the GRASS map loaded from the fixture pack")
+    @DisplayName("colorMap returns the GRASS map loaded from the bundled resource")
     void colorMapReturnsLoadedGrass() {
         Optional<ColorMap> grass = context.colorMap(ColorMap.Type.GRASS);
         assertThat(grass.isPresent(), is(true));
         assertThat(grass.get().getType(), equalTo(ColorMap.Type.GRASS));
         assertThat(grass.get().getPackId(), equalTo("vanilla"));
-        // 4x4 ARGB pixels = 64 bytes total.
-        assertThat(grass.get().getPixels().length, equalTo(64));
+        // 256x256 ARGB pixels = 262144 bytes from the bundled colormap resource.
+        assertThat(grass.get().getPixels().length, equalTo(256 * 256 * 4));
     }
 
     @Test
-    @DisplayName("colorMap returns empty for types not present in the fixture pack")
-    void colorMapEmptyForMissingTypes() {
-        assertThat(context.colorMap(ColorMap.Type.FOLIAGE).isPresent(), is(false));
-        assertThat(context.colorMap(ColorMap.Type.DRY_FOLIAGE).isPresent(), is(false));
+    @DisplayName("colorMap returns all three types from the bundled resource")
+    void colorMapReturnsAllTypes() {
+        assertThat(context.colorMap(ColorMap.Type.FOLIAGE).isPresent(), is(true));
+        assertThat(context.colorMap(ColorMap.Type.DRY_FOLIAGE).isPresent(), is(true));
     }
 
     @Test
