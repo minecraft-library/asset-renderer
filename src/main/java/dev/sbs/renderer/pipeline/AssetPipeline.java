@@ -6,8 +6,6 @@ import dev.sbs.renderer.model.ColorMap;
 import dev.sbs.renderer.model.Texture;
 import dev.sbs.renderer.model.TexturePack;
 import dev.sbs.renderer.model.asset.BlockModelData;
-import dev.sbs.renderer.model.asset.BlockStateMultipart;
-import dev.sbs.renderer.model.asset.BlockStateVariant;
 import dev.sbs.renderer.model.asset.ItemModelData;
 import dev.sbs.renderer.pipeline.client.ClientJarDownloader;
 import dev.sbs.renderer.pipeline.client.ClientJarExtractor;
@@ -82,8 +80,8 @@ public final class AssetPipeline {
         private final @NotNull ConcurrentMap<String, Block.Tint> blockTints;
         private final @NotNull ConcurrentMap<String, BlockModelData> blockModels;
         private final @NotNull ConcurrentMap<String, ItemModelData> itemModels;
-        private final @NotNull ConcurrentMap<String, ConcurrentMap<String, BlockStateVariant>> blockStates;
-        private final @NotNull ConcurrentMap<String, BlockStateMultipart> blockStateMultiparts;
+        private final @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockStates;
+        private final @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts;
         private final @NotNull ConcurrentMap<String, String> itemDefinitions;
         private final @NotNull ConcurrentMap<String, BlockTag> blockTags;
 
