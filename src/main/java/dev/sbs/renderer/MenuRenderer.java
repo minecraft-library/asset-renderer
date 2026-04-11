@@ -3,13 +3,12 @@ package dev.sbs.renderer;
 import dev.sbs.renderer.draw.Canvas;
 import dev.sbs.renderer.draw.ColorKit;
 import dev.sbs.renderer.draw.FrameMerger;
-import dev.sbs.renderer.draw.ObfuscationKit;
 import dev.sbs.renderer.engine.RenderEngine;
 import dev.sbs.renderer.engine.RendererContext;
+import dev.sbs.renderer.engine.TextEngine;
 import dev.sbs.renderer.options.BlockOptions;
 import dev.sbs.renderer.options.ItemOptions;
 import dev.sbs.renderer.options.MenuOptions;
-import dev.sbs.renderer.text.ChatFormat;
 import dev.sbs.renderer.text.MinecraftFont;
 import dev.sbs.renderer.text.segment.ColorSegment;
 import dev.sbs.renderer.text.segment.LineSegment;
@@ -522,8 +521,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     }
 
     /**
-     * Renders pre-parsed title segments onto the canvas. Handles per-segment font style,
-     * colour, and obfuscation substitution.
+     * Renders pre-parsed title segments onto the canvas. Delegates font style resolution,
+     * colour mapping, shadow, and obfuscation to {@link TextEngine}.
      */
     private static void drawTitleSegments(
         @NotNull Canvas canvas,
@@ -536,36 +535,13 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         g.setFont(MinecraftFont.REGULAR.getActual());
         FontMetrics fm = g.getFontMetrics();
         int textY = bandTop + (bandHeight - fm.getHeight()) / 2 + fm.getAscent();
-
-        int x = titleX;
-        for (ColorSegment segment : titleLine.getSegments()) {
-            if (segment.getText().isEmpty()) continue;
-            MinecraftFont font = MinecraftFont.of(segment.fontStyle());
-            g.setFont(font.getActual());
-            Color color = segment.getColor()
-                .filter(ChatFormat::isColor)
-                .map(ChatFormat::getColor)
-                .orElse(defaultColor);
-            g.setColor(color);
-
-            String text = segment.isObfuscated()
-                ? ObfuscationKit.substitute(segment.getText(), frameSeed)
-                : segment.getText();
-            g.drawString(text, x, textY);
-            x += g.getFontMetrics().stringWidth(text);
-        }
+        TextEngine.drawLine(canvas, titleLine, titleX, textY, defaultColor, frameSeed);
     }
 
     /**
      * Renders the textbox label inside the rename textbox interior. The text is drawn in
      * white, left-aligned with a small horizontal padding. Does nothing when the label is
      * empty.
-     *
-     * @param canvas the chrome canvas to draw onto
-     * @param label the plain text to render inside the textbox
-     * @param innerX the left edge of the textbox interior (after the border)
-     * @param innerY the top edge of the textbox interior
-     * @param innerH the height of the textbox interior
      */
     static void drawTextboxLabel(
         @NotNull Canvas canvas,
@@ -578,33 +554,25 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         g.setFont(MinecraftFont.REGULAR.getActual());
         FontMetrics fm = g.getFontMetrics();
         int textY = innerY + (innerH - fm.getHeight()) / 2 + fm.getAscent();
-        g.setColor(Color.WHITE);
-        g.drawString(label, innerX + 2, textY);
+        TextEngine.drawText(canvas, label, innerX + 2, textY, MinecraftFont.REGULAR.getActual(), Color.WHITE);
     }
 
     /**
      * Renders the XP cost label right-aligned in the given area, displayed as
      * {@code "Enchantment Cost: X"} in green ({@code 0x80FF20}), matching the vanilla
      * Minecraft anvil style. Does nothing when cost is zero or negative.
-     *
-     * @param canvas the chrome canvas to draw onto
-     * @param cost the XP level cost to display
-     * @param canvasW the total canvas width (for right-alignment)
-     * @param areaTop the Y origin of the label area
-     * @param areaHeight the height of the label area
      */
     static void drawXpCost(@NotNull Canvas canvas, int cost, int canvasW, int areaTop, int areaHeight) {
         if (cost <= 0) return;
 
         String text = "Enchantment Cost: " + cost;
+        Font font = MinecraftFont.REGULAR.getActual();
         Graphics2D g = canvas.graphics();
-        g.setFont(MinecraftFont.REGULAR.getActual());
+        g.setFont(font);
         FontMetrics fm = g.getFontMetrics();
-        int textWidth = fm.stringWidth(text);
-        int textX = canvasW - INSET - 4 - textWidth;
+        int textX = canvasW - INSET - 4 - fm.stringWidth(text);
         int textY = areaTop + (areaHeight - fm.getHeight()) / 2 + fm.getAscent();
-        g.setColor(new Color(0x80FF20));
-        g.drawString(text, textX, textY);
+        TextEngine.drawText(canvas, text, textX, textY, font, new Color(0x80FF20));
     }
 
     // ---------------------------------------------------------------------------------------
