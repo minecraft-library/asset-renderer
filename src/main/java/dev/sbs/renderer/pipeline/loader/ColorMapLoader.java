@@ -8,8 +8,6 @@ import dev.sbs.renderer.pipeline.parser.ColorMapParser;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.GsonSettings;
-import dev.simplified.reflection.Reflection;
-import dev.simplified.reflection.accessor.FieldAccessor;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -36,12 +34,6 @@ public class ColorMapLoader {
     private static final @NotNull String RESOURCE_PATH = "/renderer/color_maps.json";
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
-    private static final @NotNull Reflection<ColorMap> COLOR_MAP_REFLECTION = new Reflection<>(ColorMap.class);
-    private static final @NotNull FieldAccessor<String> COLOR_MAP_ID = COLOR_MAP_REFLECTION.getField("id");
-    private static final @NotNull FieldAccessor<String> COLOR_MAP_PACK_ID = COLOR_MAP_REFLECTION.getField("packId");
-    private static final @NotNull FieldAccessor<ColorMap.Type> COLOR_MAP_TYPE = COLOR_MAP_REFLECTION.getField("type");
-    private static final @NotNull FieldAccessor<byte[]> COLOR_MAP_PIXELS = COLOR_MAP_REFLECTION.getField("pixels");
-
     /**
      * Loads all colormaps from the bundled JSON resource.
      *
@@ -61,12 +53,8 @@ public class ColorMapLoader {
             ColorMap.Type type = ColorMap.Type.valueOf(entry.get("type").getAsString());
             byte[] pixels = Base64.getDecoder().decode(entry.get("pixels").getAsString());
 
-            ColorMap colorMap = new ColorMap();
-            COLOR_MAP_ID.set(colorMap, "vanilla:" + type.name().toLowerCase());
-            COLOR_MAP_PACK_ID.set(colorMap, "vanilla");
-            COLOR_MAP_TYPE.set(colorMap, type);
-            COLOR_MAP_PIXELS.set(colorMap, pixels);
-            colorMaps.add(colorMap);
+            String id = "vanilla:" + type.name().toLowerCase();
+            colorMaps.add(new ColorMap(id, "vanilla", type, pixels));
         }
 
         return colorMaps;

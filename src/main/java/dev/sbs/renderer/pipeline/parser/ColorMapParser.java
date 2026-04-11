@@ -6,8 +6,6 @@ import dev.sbs.renderer.model.ColorMap;
 import dev.sbs.renderer.pipeline.loader.ColorMapLoader;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.reflection.Reflection;
-import dev.simplified.reflection.accessor.FieldAccessor;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -40,12 +38,6 @@ import java.util.Optional;
  */
 @UtilityClass
 public class ColorMapParser {
-
-    private static final @NotNull Reflection<ColorMap> COLOR_MAP_REFLECTION = new Reflection<>(ColorMap.class);
-    private static final @NotNull FieldAccessor<String> COLOR_MAP_ID = COLOR_MAP_REFLECTION.getField("id");
-    private static final @NotNull FieldAccessor<String> COLOR_MAP_PACK_ID = COLOR_MAP_REFLECTION.getField("packId");
-    private static final @NotNull FieldAccessor<ColorMap.Type> COLOR_MAP_TYPE = COLOR_MAP_REFLECTION.getField("type");
-    private static final @NotNull FieldAccessor<byte[]> COLOR_MAP_PIXELS = COLOR_MAP_REFLECTION.getField("pixels");
 
     /**
      * Loads every supported colormap PNG under the given pack root.
@@ -97,12 +89,8 @@ public class ColorMapParser {
         ByteBuffer buffer = ByteBuffer.allocate(pixels.length * Integer.BYTES);
         buffer.asIntBuffer().put(pixels);
 
-        ColorMap colorMap = new ColorMap();
-        COLOR_MAP_ID.set(colorMap, packId + ":" + type.name().toLowerCase());
-        COLOR_MAP_PACK_ID.set(colorMap, packId);
-        COLOR_MAP_TYPE.set(colorMap, type);
-        COLOR_MAP_PIXELS.set(colorMap, buffer.array());
-        return Optional.of(colorMap);
+        String id = packId + ":" + type.name().toLowerCase();
+        return Optional.of(new ColorMap(id, packId, type, buffer.array()));
     }
 
 }

@@ -5,6 +5,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.persistence.type.GsonType;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -31,6 +32,7 @@ import java.util.Objects;
 @Getter
 @GsonType
 @NoArgsConstructor
+@AllArgsConstructor
 public class EntityModelData {
 
     /** Texture size in pixels, typically {@code 64} or {@code 128}. */
@@ -73,6 +75,7 @@ public class EntityModelData {
     @Getter
     @GsonType
     @NoArgsConstructor
+    @AllArgsConstructor
     public static class Bone {
 
         private float @NotNull [] pivot = new float[]{ 0f, 0f, 0f };
@@ -105,6 +108,7 @@ public class EntityModelData {
     @Getter
     @GsonType
     @NoArgsConstructor
+    @AllArgsConstructor
     public static class Cube {
 
         private float @NotNull [] origin = new float[]{ 0f, 0f, 0f };

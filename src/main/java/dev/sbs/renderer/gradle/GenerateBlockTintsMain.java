@@ -8,7 +8,7 @@ import dev.sbs.renderer.model.Block;
 import dev.sbs.renderer.pipeline.AssetPipelineOptions;
 import dev.sbs.renderer.pipeline.client.ClientJarDownloader;
 import dev.sbs.renderer.pipeline.client.HttpFetcher;
-import dev.sbs.renderer.pipeline.loader.VanillaTintsLoader;
+import dev.sbs.renderer.pipeline.loader.BlockTintsLoader;
 import dev.sbs.renderer.pipeline.parser.BlockTintParser;
 import dev.simplified.collection.ConcurrentMap;
 import lombok.experimental.UtilityClass;
@@ -23,8 +23,8 @@ import java.nio.file.Path;
  * <p>
  * Downloads (or reuses the cached) MC 26.1 client jar, runs
  * {@link BlockTintParser} over its {@code BlockColors} class, and writes the resulting tint
- * table to {@code src/main/resources/renderer/vanilla_tints.json}. The runtime pipeline reads
- * the JSON via {@link VanillaTintsLoader VanillaTintsLoader} so the ASM walker is never on the
+ * table to {@code src/main/resources/renderer/block_tints.json}. The runtime pipeline reads
+ * the JSON via {@link BlockTintsLoader VanillaTintsLoader} so the ASM walker is never on the
  * production classpath - the only people who run it are developers bumping the bundled tint
  * snapshot when a new Minecraft version ships.
  * <p>
@@ -36,7 +36,7 @@ import java.nio.file.Path;
 @UtilityClass
 public final class GenerateBlockTintsMain {
 
-    private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/renderer/vanilla_tints.json");
+    private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/renderer/block_tints.json");
 
     /**
      * Runs the generator.

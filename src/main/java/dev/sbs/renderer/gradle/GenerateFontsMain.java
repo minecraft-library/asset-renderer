@@ -33,7 +33,7 @@ import java.nio.file.Path;
  * <h2>Command-line arguments</h2>
  * <ul>
  * <li>{@code args[0]} - Minecraft version id to compile, e.g. {@code 26.1}. Defaults to
- *     {@code 26.1} when omitted (matches the bundled {@code vanilla_tints.json}).</li>
+ *     {@code 26.1} when omitted (matches the bundled {@code block_tints.json}).</li>
  * </ul>
  *
  * <h2>Requirements on the host</h2>

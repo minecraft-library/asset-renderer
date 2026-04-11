@@ -22,13 +22,13 @@ import java.util.Optional;
 
 /**
  * A loader that reads the bundled vanilla block tint table from the
- * {@code /renderer/vanilla_tints.json} classpath resource and produces a lookup map of block
+ * {@code /renderer/block_tints.json} classpath resource and produces a lookup map of block
  * id to {@link Block.Tint}.
  * <p>
  * The JSON resource is a checked-in snapshot of MC 26.1's
  * {@code net.minecraft.client.color.block.BlockColors$createDefault()} as parsed by
  * {@link BlockTintParser}. To refresh it on a Minecraft version bump, run the
- * {@code generateVanillaTints} Gradle task; the runtime pipeline never invokes the ASM walker
+ * {@code generateBlockTints} Gradle task; the runtime pipeline never invokes the ASM walker
  * directly. Older Minecraft versions reuse the same 26.1 tint set - blocks that don't exist
  * in their era simply never match a lookup, which the renderer treats as untinted. The slight
  * inaccuracy for old-version-only blocks is an accepted tradeoff against the brittleness of
@@ -42,9 +42,9 @@ import java.util.Optional;
  * @see Block.Tint
  */
 @UtilityClass
-public class VanillaTintsLoader {
+public class BlockTintsLoader {
 
-    private static final @NotNull String RESOURCE_PATH = "/renderer/vanilla_tints.json";
+    private static final @NotNull String RESOURCE_PATH = "/renderer/block_tints.json";
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**
@@ -56,7 +56,7 @@ public class VanillaTintsLoader {
     public static @NotNull ConcurrentMap<String, Block.Tint> load() {
         ConcurrentMap<String, Block.Tint> tints = Concurrent.newMap();
 
-        try (InputStream stream = VanillaTintsLoader.class.getResourceAsStream(RESOURCE_PATH)) {
+        try (InputStream stream = BlockTintsLoader.class.getResourceAsStream(RESOURCE_PATH)) {
             if (stream == null)
                 throw new AssetPipelineException("Vanilla tints resource '%s' not found on the classpath", RESOURCE_PATH);
 

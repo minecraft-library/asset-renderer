@@ -8,7 +8,9 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Objects;
@@ -18,6 +20,8 @@ import java.util.Objects;
  * pack-sourced PNGs are typically a few KiB on disk so the serialized form stays small).
  */
 @Getter
+@NoArgsConstructor
+@AllArgsConstructor
 @Entity
 @Table(name = "renderer_color_maps")
 public class ColorMap implements JpaModel {

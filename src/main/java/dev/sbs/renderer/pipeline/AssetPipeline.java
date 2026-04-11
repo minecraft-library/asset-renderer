@@ -12,11 +12,11 @@ import dev.sbs.renderer.pipeline.client.ClientJarDownloader;
 import dev.sbs.renderer.pipeline.client.ClientJarExtractor;
 import dev.sbs.renderer.pipeline.client.HttpFetcher;
 import dev.sbs.renderer.pipeline.loader.BlockStateLoader;
+import dev.sbs.renderer.pipeline.loader.BlockTintsLoader;
 import dev.sbs.renderer.pipeline.loader.ColorMapLoader;
 import dev.sbs.renderer.pipeline.loader.ItemDefinitionLoader;
 import dev.sbs.renderer.pipeline.loader.ModelResolver;
 import dev.sbs.renderer.pipeline.loader.TexturePackLoader;
-import dev.sbs.renderer.pipeline.loader.VanillaTintsLoader;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lombok.Getter;
@@ -57,7 +57,7 @@ public final class AssetPipeline {
         TexturePack vanillaPack = TexturePackLoader.loadVanilla(packRoot);
         ConcurrentList<Texture> textures = TexturePackLoader.scanTextures(packRoot, vanillaPack.getId());
         ConcurrentList<ColorMap> colorMaps = ColorMapLoader.load();
-        ConcurrentMap<String, Block.Tint> blockTints = VanillaTintsLoader.load();
+        ConcurrentMap<String, Block.Tint> blockTints = BlockTintsLoader.load();
         BlockStateLoader.LoadResult blockStateResult = BlockStateLoader.load(packRoot);
         ConcurrentMap<String, String> itemDefinitions = ItemDefinitionLoader.load(packRoot);
 

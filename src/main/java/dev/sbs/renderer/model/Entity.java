@@ -5,7 +5,9 @@ import dev.simplified.persistence.JpaModel;
 import jakarta.persistence.Column;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Objects;
@@ -18,6 +20,8 @@ import java.util.Optional;
  * {@code skinTextureId} fields.
  */
 @Getter
+@NoArgsConstructor
+@AllArgsConstructor
 @jakarta.persistence.Entity
 @Table(name = "renderer_entities")
 public class Entity implements JpaModel {

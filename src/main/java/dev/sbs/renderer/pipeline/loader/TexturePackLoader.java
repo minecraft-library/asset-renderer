@@ -12,8 +12,6 @@ import dev.sbs.renderer.model.asset.AnimationData;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.GsonSettings;
-import dev.simplified.reflection.Reflection;
-import dev.simplified.reflection.accessor.FieldAccessor;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -45,28 +43,6 @@ public class TexturePackLoader {
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
-    private static final @NotNull Reflection<Texture> TEXTURE_REFLECTION = new Reflection<>(Texture.class);
-    private static final @NotNull FieldAccessor<String> TEXTURE_ID = TEXTURE_REFLECTION.getField("id");
-    private static final @NotNull FieldAccessor<String> TEXTURE_PACK_ID = TEXTURE_REFLECTION.getField("packId");
-    private static final @NotNull FieldAccessor<String> TEXTURE_RELATIVE_PATH = TEXTURE_REFLECTION.getField("relativePath");
-    private static final @NotNull FieldAccessor<Integer> TEXTURE_WIDTH = TEXTURE_REFLECTION.getField("width");
-    private static final @NotNull FieldAccessor<Integer> TEXTURE_HEIGHT = TEXTURE_REFLECTION.getField("height");
-    private static final @NotNull FieldAccessor<Optional<AnimationData>> TEXTURE_ANIMATION = TEXTURE_REFLECTION.getField("animation");
-
-    private static final @NotNull Reflection<TexturePack> PACK_REFLECTION = new Reflection<>(TexturePack.class);
-    private static final @NotNull FieldAccessor<String> PACK_ID = PACK_REFLECTION.getField("id");
-    private static final @NotNull FieldAccessor<String> PACK_NAMESPACE = PACK_REFLECTION.getField("namespace");
-    private static final @NotNull FieldAccessor<String> PACK_DESCRIPTION = PACK_REFLECTION.getField("description");
-    private static final @NotNull FieldAccessor<String> PACK_ROOT_PATH = PACK_REFLECTION.getField("rootPath");
-    private static final @NotNull FieldAccessor<Integer> PACK_PRIORITY = PACK_REFLECTION.getField("priority");
-
-    private static final @NotNull Reflection<AnimationData> ANIMATION_REFLECTION = new Reflection<>(AnimationData.class);
-    private static final @NotNull FieldAccessor<Integer> ANIMATION_FRAMETIME = ANIMATION_REFLECTION.getField("frametime");
-    private static final @NotNull FieldAccessor<Boolean> ANIMATION_INTERPOLATE = ANIMATION_REFLECTION.getField("interpolate");
-    private static final @NotNull FieldAccessor<Integer> ANIMATION_WIDTH = ANIMATION_REFLECTION.getField("width");
-    private static final @NotNull FieldAccessor<Integer> ANIMATION_HEIGHT = ANIMATION_REFLECTION.getField("height");
-    private static final @NotNull FieldAccessor<ConcurrentList<AnimationData.FrameEntry>> ANIMATION_FRAMES = ANIMATION_REFLECTION.getField("frames");
-
     /**
      * Loads the vanilla texture pack from a previously-extracted client jar root.
      *
@@ -96,13 +72,7 @@ public class TexturePackLoader {
         if (!Files.isDirectory(packRoot))
             throw new AssetPipelineException("Pack root '%s' does not exist or is not a directory", packRoot);
 
-        TexturePack pack = new TexturePack();
-        PACK_ID.set(pack, packId);
-        PACK_NAMESPACE.set(pack, "minecraft");
-        PACK_DESCRIPTION.set(pack, description);
-        PACK_ROOT_PATH.set(pack, packRoot.toString());
-        PACK_PRIORITY.set(pack, priority);
-        return pack;
+        return new TexturePack(packId, "minecraft", description, packRoot.toString(), priority);
     }
 
     /**
@@ -146,17 +116,8 @@ public class TexturePackLoader {
             throw new AssetPipelineException(ex, "Failed to read texture '%s'", file);
         }
 
-        Texture texture = new Texture();
-        TEXTURE_ID.set(texture, id);
-        TEXTURE_PACK_ID.set(texture, packId);
-        TEXTURE_RELATIVE_PATH.set(texture, relative);
-        TEXTURE_WIDTH.set(texture, width);
-        TEXTURE_HEIGHT.set(texture, height);
-
         Optional<AnimationData> animation = parseMcMeta(mcmetaSibling(file));
-        if (animation.isPresent())
-            TEXTURE_ANIMATION.set(texture, animation);
-        return texture;
+        return new Texture(id, packId, relative, width, height, animation);
     }
 
     /**
@@ -189,20 +150,14 @@ public class TexturePackLoader {
         }
         if (root == null || !root.has("animation")) return Optional.empty();
 
-        JsonObject animJson = root.getAsJsonObject("animation");
-        AnimationData animation = new AnimationData();
-        if (animJson.has("frametime"))
-            ANIMATION_FRAMETIME.set(animation, animJson.get("frametime").getAsInt());
-        if (animJson.has("interpolate"))
-            ANIMATION_INTERPOLATE.set(animation, animJson.get("interpolate").getAsBoolean());
-        if (animJson.has("width"))
-            ANIMATION_WIDTH.set(animation, animJson.get("width").getAsInt());
-        if (animJson.has("height"))
-            ANIMATION_HEIGHT.set(animation, animJson.get("height").getAsInt());
-        if (animJson.has("frames"))
-            ANIMATION_FRAMES.set(animation, parseFrames(animJson.getAsJsonArray("frames")));
+        JsonObject a = root.getAsJsonObject("animation");
+        int frametime = a.has("frametime") ? a.get("frametime").getAsInt() : 1;
+        boolean interpolate = a.has("interpolate") && a.get("interpolate").getAsBoolean();
+        ConcurrentList<AnimationData.FrameEntry> frames = a.has("frames") ? parseFrames(a.getAsJsonArray("frames")) : Concurrent.newList();
+        int width = a.has("width") ? a.get("width").getAsInt() : -1;
+        int height = a.has("height") ? a.get("height").getAsInt() : -1;
 
-        return Optional.of(animation);
+        return Optional.of(new AnimationData(frametime, interpolate, frames, width, height));
     }
 
     /**

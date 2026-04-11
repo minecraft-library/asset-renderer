@@ -138,14 +138,14 @@ class AssetPipelineIntegrationTest {
     }
 
     @Test
-    @DisplayName("VanillaTintsLoader loads the bundled vanilla_tints.json into Block.Tint entries")
+    @DisplayName("VanillaTintsLoader loads the bundled block_tints.json into Block.Tint entries")
     void parsesBlockColors() {
         var tints = result.getBlockTints();
 
         // Print the full table once so the slowTest log captures what the bundled JSON contains
         // - useful when refreshing the snapshot via the generateVanillaTints Gradle task and
         // verifying nothing silently dropped.
-        System.out.println("Loaded " + tints.size() + " Block.Tint entries from vanilla_tints.json:");
+        System.out.println("Loaded " + tints.size() + " Block.Tint entries from block_tints.json:");
         tints.forEach((blockId, tint) -> {
             String constant = tint.constant()
                 .map(v -> String.format(" 0x%08X", v))

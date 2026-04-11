@@ -3,7 +3,7 @@ package dev.sbs.renderer.pipeline.parser;
 import dev.sbs.renderer.biome.BiomeTintTarget;
 import dev.sbs.renderer.exception.AssetPipelineException;
 import dev.sbs.renderer.model.Block;
-import dev.sbs.renderer.pipeline.loader.VanillaTintsLoader;
+import dev.sbs.renderer.pipeline.loader.BlockTintsLoader;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -37,7 +37,7 @@ import java.util.zip.ZipFile;
  * source-equivalent class names. Older obfuscated jars cannot be parsed without a remapping
  * pass, which would require multiple bytecode-shape variants and per-version mapping plumbing
  * that the project explicitly does not pursue. The runtime pipeline reads
- * {@code /renderer/vanilla_tints.json} from the classpath instead; this parser is invoked only
+ * {@code /renderer/block_tints.json} from the classpath instead; this parser is invoked only
  * by the {@code generateVanillaTints} Gradle task to refresh that resource on a version bump.
  * <p>
  * Parsing approach: load the class through ASM's tree model, walk
@@ -53,7 +53,7 @@ import java.util.zip.ZipFile;
  * reset. Multi-source registrations (recognisable by the 2-arg {@code List.of} overload) are
  * skipped because the atlas renderer cannot tint individual sprite layers.
  *
- * @see VanillaTintsLoader
+ * @see BlockTintsLoader
  * @see Block.Tint
  * @see BiomeTintTarget
  */

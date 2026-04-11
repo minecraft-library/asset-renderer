@@ -177,27 +177,13 @@ public class EntityModelParser {
                     ? cubeJson.get("mirror").getAsBoolean()
                     : boneMirror;
 
-                EntityModelData.Cube cube = new EntityModelData.Cube();
-                setField(cube, "origin", origin);
-                setField(cube, "size", size);
-                setField(cube, "uv", uv);
-                setField(cube, "inflate", inflate);
-                setField(cube, "mirror", mirror);
-                cubes.add(cube);
+                cubes.add(new EntityModelData.Cube(origin, size, uv, inflate, mirror, Concurrent.newMap()));
             }
 
-            EntityModelData.Bone bone = new EntityModelData.Bone();
-            setField(bone, "pivot", pivot);
-            setField(bone, "rotation", rotation);
-            setField(bone, "cubes", cubes);
-            bones.put(name, bone);
+            bones.put(name, new EntityModelData.Bone(pivot, rotation, cubes));
         }
 
-        EntityModelData model = new EntityModelData();
-        setField(model, "textureWidth", textureWidth);
-        setField(model, "textureHeight", textureHeight);
-        setField(model, "bones", bones);
-        return model;
+        return new EntityModelData(textureWidth, textureHeight, false, bones);
     }
 
     /**
@@ -237,17 +223,5 @@ public class EntityModelParser {
         return result;
     }
 
-    /**
-     * Sets a field on a @GsonType/@NoArgsConstructor object via reflection.
-     */
-    private static void setField(@NotNull Object instance, @NotNull String fieldName, @NotNull Object value) {
-        try {
-            java.lang.reflect.Field field = instance.getClass().getDeclaredField(fieldName);
-            field.setAccessible(true);
-            field.set(instance, value);
-        } catch (ReflectiveOperationException ex) {
-            throw new IllegalStateException("Failed to set field '" + fieldName + "' on " + instance.getClass().getSimpleName(), ex);
-        }
-    }
 
 }

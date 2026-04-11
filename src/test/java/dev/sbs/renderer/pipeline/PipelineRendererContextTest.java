@@ -122,7 +122,7 @@ class PipelineRendererContextTest {
             )
         );
         // Real vanilla-named blocks used by the tint pass-through tests. The bundled
-        // vanilla_tints.json table maps grass_block -> GRASS and spruce_leaves -> CONSTANT 0xFF619961.
+        // block_tints.json table maps grass_block -> GRASS and spruce_leaves -> CONSTANT 0xFF619961.
         blockModels.put(
             "minecraft:block/grass_block",
             gson.fromJson("{\"textures\": {\"all\": \"minecraft:block/fixture\"}}", BlockModelData.class)

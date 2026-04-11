@@ -18,16 +18,14 @@ import dev.sbs.renderer.model.asset.EntityModelData;
 import dev.sbs.renderer.model.asset.ItemModelData;
 import dev.sbs.renderer.model.asset.ModelElement;
 import dev.sbs.renderer.model.asset.ModelFace;
+import dev.sbs.renderer.pipeline.loader.BlockTintsLoader;
 import dev.sbs.renderer.pipeline.loader.EntityModelLoader;
-import dev.sbs.renderer.pipeline.loader.VanillaTintsLoader;
 import dev.sbs.renderer.pipeline.parser.ColorMapParser;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.image.PixelBuffer;
-import dev.simplified.reflection.Reflection;
-import dev.simplified.reflection.accessor.FieldAccessor;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
@@ -55,7 +53,7 @@ import java.util.Optional;
  * <p>
  * Biome colormaps and the {@link BiomeTintTarget} of every known vanilla tinted block are wired
  * through to render time: {@link ColorMapParser} loads {@code grass.png}, {@code foliage.png},
- * and {@code dry_foliage.png} into {@link ColorMap} entities, and {@link VanillaTintsLoader}
+ * and {@code dry_foliage.png} into {@link ColorMap} entities, and {@link BlockTintsLoader}
  * supplies the {@code minecraft:grass_block} - to - {@code GRASS} (etc.) mapping verified against
  * the bytecode of {@code BlockColors$createDefault} in the 26.1 client jar. Entity definitions
  * are still empty - {@link #findEntity(String)} returns {@link Optional#empty()} until a future
@@ -63,30 +61,6 @@ import java.util.Optional;
  */
 @RequiredArgsConstructor
 public final class PipelineRendererContext implements RendererContext {
-
-    private static final @NotNull Reflection<Block> BLOCK_REFLECTION = new Reflection<>(Block.class);
-    private static final @NotNull FieldAccessor<String> BLOCK_ID = BLOCK_REFLECTION.getField("id");
-    private static final @NotNull FieldAccessor<String> BLOCK_NAMESPACE = BLOCK_REFLECTION.getField("namespace");
-    private static final @NotNull FieldAccessor<String> BLOCK_NAME = BLOCK_REFLECTION.getField("name");
-    private static final @NotNull FieldAccessor<BlockModelData> BLOCK_MODEL = BLOCK_REFLECTION.getField("model");
-    private static final @NotNull FieldAccessor<ConcurrentMap<String, String>> BLOCK_TEXTURES = BLOCK_REFLECTION.getField("textures");
-    private static final @NotNull FieldAccessor<ConcurrentMap<String, BlockStateVariant>> BLOCK_VARIANTS = BLOCK_REFLECTION.getField("variants");
-    private static final @NotNull FieldAccessor<Optional<BlockStateMultipart>> BLOCK_MULTIPART = BLOCK_REFLECTION.getField("multipart");
-    private static final @NotNull FieldAccessor<Block.Tint> BLOCK_TINT = BLOCK_REFLECTION.getField("tint");
-
-    private static final @NotNull Reflection<Item> ITEM_REFLECTION = new Reflection<>(Item.class);
-    private static final @NotNull FieldAccessor<String> ITEM_ID = ITEM_REFLECTION.getField("id");
-    private static final @NotNull FieldAccessor<String> ITEM_NAMESPACE = ITEM_REFLECTION.getField("namespace");
-    private static final @NotNull FieldAccessor<String> ITEM_NAME = ITEM_REFLECTION.getField("name");
-    private static final @NotNull FieldAccessor<ItemModelData> ITEM_MODEL = ITEM_REFLECTION.getField("model");
-    private static final @NotNull FieldAccessor<ConcurrentMap<String, String>> ITEM_TEXTURES = ITEM_REFLECTION.getField("textures");
-
-    private static final @NotNull Reflection<Entity> ENTITY_REFLECTION = new Reflection<>(Entity.class);
-    private static final @NotNull FieldAccessor<String> ENTITY_ID = ENTITY_REFLECTION.getField("id");
-    private static final @NotNull FieldAccessor<String> ENTITY_NAMESPACE = ENTITY_REFLECTION.getField("namespace");
-    private static final @NotNull FieldAccessor<String> ENTITY_NAME = ENTITY_REFLECTION.getField("name");
-    private static final @NotNull FieldAccessor<EntityModelData> ENTITY_MODEL = ENTITY_REFLECTION.getField("model");
-    private static final @NotNull FieldAccessor<Optional<String>> ENTITY_TEXTURE_ID = ENTITY_REFLECTION.getField("textureId");
 
     private final @NotNull Path textureRoot;
     private final @NotNull ConcurrentList<TexturePack> packs;
@@ -131,37 +105,30 @@ public final class PipelineRendererContext implements RendererContext {
                     modelToUse = override;
             }
 
-            Block block = newBlock(blockId, name, modelToUse, tints.get(blockId));
+            ConcurrentMap<String, String> textures = Concurrent.newMap();
+            textures.putAll(modelToUse.getTextures());
+            flattenElementFaces(modelToUse, textures);
 
-            // Attach blockstate data directly to the block entity
-            ConcurrentMap<String, BlockStateVariant> variants = variantMap.get(blockId);
-            if (variants != null)
-                BLOCK_VARIANTS.set(block, variants);
-            BlockStateMultipart multipart = multipartMap.get(blockId);
-            if (multipart != null)
-                BLOCK_MULTIPART.set(block, Optional.of(multipart));
+            Block.Tint tint = tints.getOrDefault(blockId, new Block.Tint(BiomeTintTarget.NONE, Optional.empty()));
+            ConcurrentMap<String, BlockStateVariant> variants = variantMap.getOrDefault(blockId, Concurrent.newMap());
+            Optional<BlockStateMultipart> multipart = Optional.ofNullable(multipartMap.get(blockId));
 
-            blockIndex.put(blockId, block);
+            blockIndex.put(blockId, new Block(blockId, "minecraft", name, modelToUse, textures, variants, multipart, tint));
         });
 
         ConcurrentMap<String, Item> itemIndex = Concurrent.newMap();
         result.getItemModels().forEach((modelId, model) -> {
             String itemId = stripPrefix(modelId, ":item/");
             String name = localName(modelId);
-            itemIndex.put(itemId, newItem(itemId, name, model));
+            ConcurrentMap<String, String> textures = Concurrent.newMap();
+            textures.putAll(model.getTextures());
+            itemIndex.put(itemId, new Item(itemId, "minecraft", name, model, textures, 0, 64, Optional.empty()));
         });
 
         ConcurrentMap<String, Entity> entityIndex = Concurrent.newMap();
-        EntityModelLoader.load().forEach((entityId, definition) -> {
-            Entity entity = new Entity();
-            ENTITY_ID.set(entity, entityId);
-            ENTITY_NAMESPACE.set(entity, "minecraft");
-            ENTITY_NAME.set(entity, localName(entityId));
-            ENTITY_MODEL.set(entity, definition.model());
-            if (definition.textureId().isPresent())
-                ENTITY_TEXTURE_ID.set(entity, definition.textureId());
-            entityIndex.put(entityId, entity);
-        });
+        EntityModelLoader.load().forEach((entityId, definition) ->
+            entityIndex.put(entityId, new Entity(entityId, "minecraft", localName(entityId), definition.model(), definition.textureId()))
+        );
 
         ConcurrentMap<String, Texture> textureIndex = Concurrent.newMap();
         for (Texture texture : result.getTextures())
@@ -241,15 +208,7 @@ public final class PipelineRendererContext implements RendererContext {
         @NotNull EntityModelData model,
         @NotNull Optional<String> textureId
     ) {
-        String name = localName(id);
-        Entity entity = new Entity();
-        ENTITY_ID.set(entity, id);
-        ENTITY_NAMESPACE.set(entity, "minecraft");
-        ENTITY_NAME.set(entity, name);
-        ENTITY_MODEL.set(entity, model);
-        if (textureId.isPresent())
-            ENTITY_TEXTURE_ID.set(entity, textureId);
-        this.entityIndex.put(id, entity);
+        this.entityIndex.put(id, new Entity(id, "minecraft", localName(id), model, textureId));
     }
 
     @Override
@@ -293,64 +252,6 @@ public final class PipelineRendererContext implements RendererContext {
         if (slash >= 0) return modelId.substring(slash + 1);
         int colon = modelId.lastIndexOf(':');
         return colon >= 0 ? modelId.substring(colon + 1) : modelId;
-    }
-
-    /**
-     * Materialises a {@link Block} entity from a parsed model.
-     * <p>
-     * The resulting {@code textures} map contains both the original variable bindings from the
-     * model JSON ({@code all}, {@code top}, {@code side}, {@code particle}, ...) and a flattened
-     * direction-to-texture map derived from the model's first element face bindings. The direction
-     * keys let {@link dev.sbs.renderer.BlockRenderer BlockRenderer} pick up the most specific
-     * match per face without a second resolution pass at render time; the original keys survive
-     * so the {@code all} / {@code side} / {@code particle} fallback chain still works for blocks
-     * whose models do not expose element faces (e.g. {@code item/generated}-parented block items).
-     * <p>
-     * When a {@link Block.Tint} is supplied (the block id appears in any pack-bundled tints
-     * table) the entity's {@code tint} field is set so
-     * {@link dev.sbs.renderer.BlockRenderer BlockRenderer} samples the matching colormap or
-     * hardcoded ARGB at render time. Untinted blocks keep the default ({@code NONE}, no constant).
-     */
-    private static @NotNull Block newBlock(
-        @NotNull String id,
-        @NotNull String name,
-        @NotNull BlockModelData model,
-        @org.jetbrains.annotations.Nullable Block.Tint tint
-    ) {
-        Block block = new Block();
-        BLOCK_ID.set(block, id);
-        BLOCK_NAMESPACE.set(block, "minecraft");
-        BLOCK_NAME.set(block, name);
-        BLOCK_MODEL.set(block, model);
-
-        ConcurrentMap<String, String> textures = Concurrent.newMap();
-        textures.putAll(model.getTextures());
-        flattenElementFaces(model, textures);
-        BLOCK_TEXTURES.set(block, textures);
-
-        if (tint != null)
-            BLOCK_TINT.set(block, tint);
-
-        return block;
-    }
-
-    /**
-     * Materialises an {@link Item} entity from a parsed model. The model's texture variable
-     * bindings are copied verbatim into the entity's {@code textures} column so the flat-item
-     * sprite path in {@link dev.sbs.renderer.ItemRenderer.Gui2D ItemRenderer.Gui2D} picks up
-     * {@code layer0}, {@code layer1}, etc. directly.
-     */
-    private static @NotNull Item newItem(@NotNull String id, @NotNull String name, @NotNull ItemModelData model) {
-        Item item = new Item();
-        ITEM_ID.set(item, id);
-        ITEM_NAMESPACE.set(item, "minecraft");
-        ITEM_NAME.set(item, name);
-        ITEM_MODEL.set(item, model);
-
-        ConcurrentMap<String, String> textures = Concurrent.newMap();
-        textures.putAll(model.getTextures());
-        ITEM_TEXTURES.set(item, textures);
-        return item;
     }
 
     /**

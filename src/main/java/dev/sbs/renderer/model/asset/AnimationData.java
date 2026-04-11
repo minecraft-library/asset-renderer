@@ -3,6 +3,7 @@ package dev.sbs.renderer.model.asset;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.persistence.type.GsonType;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -16,6 +17,7 @@ import java.util.Objects;
 @Getter
 @GsonType
 @NoArgsConstructor
+@AllArgsConstructor
 public class AnimationData {
 
     /** The default display duration per frame, in ticks (1 tick = 50ms). */
