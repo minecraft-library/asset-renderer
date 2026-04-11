@@ -4,8 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import dev.sbs.renderer.model.asset.BlockStateMultipart;
-import dev.sbs.renderer.model.asset.BlockStateVariant;
+import dev.sbs.renderer.model.Block;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -26,17 +25,17 @@ import java.util.stream.Stream;
  * produces both variant-based and multipart-based blockstate data.
  * <p>
  * Minecraft defines two blockstate formats. The {@code "variants"} format maps block property
- * combinations (e.g. {@code "facing=north,half=bottom"}) to a single {@link BlockStateVariant}
+ * combinations (e.g. {@code "facing=north,half=bottom"}) to a single {@link Block.Variant}
  * model reference. The {@code "multipart"} format assembles multiple conditional model parts
- * into a composite {@link BlockStateMultipart} block, where each part applies when its
+ * into a composite {@link Block.Multipart} block, where each part applies when its
  * {@code "when"} condition matches the block's properties. Both formats are parsed into their
  * respective data structures and returned together as a {@link LoadResult}.
  * <p>
  * When a variant or multipart {@code "apply"} value is an array (weighted random selection),
  * only the first entry is used - the renderer does not support random model selection.
  *
- * @see BlockStateVariant
- * @see BlockStateMultipart
+ * @see Block.Variant
+ * @see Block.Multipart
  * @see ModelResolver
  */
 @UtilityClass
@@ -52,8 +51,8 @@ public class BlockStateLoader {
      */
     public static @NotNull LoadResult load(@NotNull Path packRoot) {
         Path blockstatesDir = packRoot.resolve("assets/minecraft/blockstates");
-        ConcurrentMap<String, ConcurrentMap<String, BlockStateVariant>> variants = Concurrent.newMap();
-        ConcurrentMap<String, BlockStateMultipart> multiparts = Concurrent.newMap();
+        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variants = Concurrent.newMap();
+        ConcurrentMap<String, Block.Multipart> multiparts = Concurrent.newMap();
 
         if (!Files.isDirectory(blockstatesDir)) return new LoadResult(variants, multiparts);
 
@@ -69,11 +68,11 @@ public class BlockStateLoader {
                     if (root == null) return;
 
                     if (root.has("variants")) {
-                        ConcurrentMap<String, BlockStateVariant> parsed = parseVariants(root.getAsJsonObject("variants"));
+                        ConcurrentMap<String, Block.Variant> parsed = parseVariants(root.getAsJsonObject("variants"));
                         if (!parsed.isEmpty())
                             variants.put(blockId, parsed);
                     } else if (root.has("multipart")) {
-                        BlockStateMultipart parsed = parseMultipart(root.getAsJsonArray("multipart"));
+                        Block.Multipart parsed = parseMultipart(root.getAsJsonArray("multipart"));
                         if (!parsed.parts().isEmpty())
                             multiparts.put(blockId, parsed);
                     }
@@ -88,8 +87,8 @@ public class BlockStateLoader {
         return new LoadResult(variants, multiparts);
     }
 
-    private static @NotNull ConcurrentMap<String, BlockStateVariant> parseVariants(@NotNull JsonObject variants) {
-        ConcurrentMap<String, BlockStateVariant> result = Concurrent.newMap();
+    private static @NotNull ConcurrentMap<String, Block.Variant> parseVariants(@NotNull JsonObject variants) {
+        ConcurrentMap<String, Block.Variant> result = Concurrent.newMap();
 
         for (Map.Entry<String, JsonElement> entry : variants.entrySet()) {
             JsonElement value = entry.getValue();
@@ -111,8 +110,8 @@ public class BlockStateLoader {
         return result;
     }
 
-    private static @NotNull BlockStateMultipart parseMultipart(@NotNull JsonArray parts) {
-        ConcurrentList<BlockStateMultipart.Part> result = Concurrent.newList();
+    private static @NotNull Block.Multipart parseMultipart(@NotNull JsonArray parts) {
+        ConcurrentList<Block.Multipart.Part> result = Concurrent.newList();
 
         for (JsonElement element : parts) {
             if (!element.isJsonObject()) continue;
@@ -135,18 +134,18 @@ public class BlockStateLoader {
                 continue;
             }
 
-            result.add(new BlockStateMultipart.Part(when, parseApply(applyObj)));
+            result.add(new Block.Multipart.Part(when, parseApply(applyObj)));
         }
 
-        return new BlockStateMultipart(result);
+        return new Block.Multipart(result);
     }
 
-    private static @NotNull BlockStateVariant parseApply(@NotNull JsonObject obj) {
+    private static @NotNull Block.Variant parseApply(@NotNull JsonObject obj) {
         String modelId = obj.has("model") ? obj.get("model").getAsString() : "";
         int x = obj.has("x") ? obj.get("x").getAsInt() : 0;
         int y = obj.has("y") ? obj.get("y").getAsInt() : 0;
         boolean uvlock = obj.has("uvlock") && obj.get("uvlock").getAsBoolean();
-        return new BlockStateVariant(modelId, x, y, uvlock);
+        return new Block.Variant(modelId, x, y, uvlock);
     }
 
     /**
@@ -157,8 +156,8 @@ public class BlockStateLoader {
     @RequiredArgsConstructor
     public static final class LoadResult {
 
-        private final @NotNull ConcurrentMap<String, ConcurrentMap<String, BlockStateVariant>> variants;
-        private final @NotNull ConcurrentMap<String, BlockStateMultipart> multiparts;
+        private final @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variants;
+        private final @NotNull ConcurrentMap<String, Block.Multipart> multiparts;
 
     }
 

@@ -1,9 +1,8 @@
 package dev.sbs.renderer.model;
 
+import com.google.gson.JsonObject;
 import dev.sbs.renderer.biome.BiomeTintTarget;
 import dev.sbs.renderer.model.asset.BlockModelData;
-import dev.sbs.renderer.model.asset.BlockStateMultipart;
-import dev.sbs.renderer.model.asset.BlockStateVariant;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -17,6 +16,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Objects;
 import java.util.Optional;
@@ -52,10 +52,10 @@ public class Block implements JpaModel {
     private @NotNull ConcurrentMap<String, String> textures = Concurrent.newMap();
 
     @Column(name = "variants", nullable = false)
-    private @NotNull ConcurrentMap<String, BlockStateVariant> variants = Concurrent.newMap();
+    private @NotNull ConcurrentMap<String, Variant> variants = Concurrent.newMap();
 
     @Column(name = "multipart", nullable = false)
-    private @NotNull Optional<BlockStateMultipart> multipart = Optional.empty();
+    private @NotNull Optional<Multipart> multipart = Optional.empty();
 
     /** Tag names this block belongs to, e.g. {@code ["minecraft:stairs", "minecraft:wooden_stairs"]}. */
     @Column(name = "tags", nullable = false)
@@ -63,6 +63,10 @@ public class Block implements JpaModel {
 
     @Column(name = "tint", nullable = false)
     private @NotNull Tint tint = new Tint(BiomeTintTarget.NONE, Optional.empty());
+
+    /** Entity model fallback for blocks rendered by tile entity renderers (chests, signs, beds, etc.). */
+    @Column(name = "entity_mapping")
+    private @NotNull Optional<EntityMapping> entityMapping = Optional.empty();
 
     @Override
     public boolean equals(Object o) {
@@ -76,12 +80,13 @@ public class Block implements JpaModel {
             && Objects.equals(this.getVariants(), block.getVariants())
             && Objects.equals(this.getMultipart(), block.getMultipart())
             && Objects.equals(this.getTags(), block.getTags())
-            && Objects.equals(this.getTint(), block.getTint());
+            && Objects.equals(this.getTint(), block.getTint())
+            && Objects.equals(this.getEntityMapping(), block.getEntityMapping());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.getId(), this.getNamespace(), this.getName(), this.getModel(), this.getTextures(), this.getVariants(), this.getMultipart(), this.getTags(), this.getTint());
+        return Objects.hash(this.getId(), this.getNamespace(), this.getName(), this.getModel(), this.getTextures(), this.getVariants(), this.getMultipart(), this.getTags(), this.getTint(), this.getEntityMapping());
     }
 
     /**
@@ -95,5 +100,61 @@ public class Block implements JpaModel {
      */
     @GsonType
     public record Tint(@NotNull BiomeTintTarget target, @NotNull Optional<Integer> constant) {}
+
+    /**
+     * Maps a block to an entity model for fallback rendering. Blocks whose vanilla geometry is
+     * rendered by tile entity renderers (chests, signs, beds, shulker boxes) carry this mapping
+     * so the block renderer can delegate to entity model geometry when the block has no elements.
+     *
+     * @param model the entity model id providing the geometry, e.g. {@code "minecraft:chest"}
+     * @param texture the entity texture id to render with, e.g. {@code "minecraft:entity/chest/normal"}
+     */
+    @GsonType
+    public record EntityMapping(@NotNull String model, @NotNull String texture) {}
+
+    /**
+     * A single blockstate variant entry, specifying which model to use and what whole-block
+     * rotation to apply. Parsed from blockstate JSON files like
+     * {@code assets/minecraft/blockstates/furnace.json}.
+     * <p>
+     * The {@code x} and {@code y} rotations are multiples of 90 degrees applied to the entire
+     * model before rendering. These are distinct from element-level rotations in the model JSON.
+     *
+     * @param modelId the namespaced model reference (e.g. {@code "minecraft:block/furnace"})
+     * @param x the whole-model X rotation in degrees (0, 90, 180, or 270)
+     * @param y the whole-model Y rotation in degrees (0, 90, 180, or 270)
+     * @param uvlock whether UVs should be locked to the block grid during rotation
+     */
+    @GsonType
+    public record Variant(@NotNull String modelId, int x, int y, boolean uvlock) {
+
+        /**
+         * Returns {@code true} when this variant applies rotation to the model.
+         */
+        public boolean hasRotation() {
+            return this.x != 0 || this.y != 0;
+        }
+
+    }
+
+    /**
+     * A parsed {@code "multipart"} blockstate definition. Each part carries an optional condition
+     * and a model reference (with rotation) to apply when the condition matches the block's
+     * properties. Parts without a condition are unconditional and always rendered.
+     *
+     * @param parts the ordered list of conditional or unconditional parts
+     */
+    @GsonType
+    public record Multipart(@NotNull ConcurrentList<Part> parts) {
+
+        /**
+         * A single entry in a multipart blockstate.
+         *
+         * @param when the raw condition JSON, or {@code null} for unconditional parts
+         * @param apply the model reference and rotation to render when the condition matches
+         */
+        public record Part(@Nullable JsonObject when, @NotNull Variant apply) {}
+
+    }
 
 }

@@ -7,6 +7,7 @@ import dev.sbs.renderer.biome.BiomeTintTarget;
 import dev.sbs.renderer.draw.BlendMode;
 import dev.sbs.renderer.draw.Canvas;
 import dev.sbs.renderer.draw.ColorKit;
+import dev.sbs.renderer.draw.EntityGeometryKit;
 import dev.sbs.renderer.draw.GeometryKit;
 import dev.sbs.renderer.engine.IsometricEngine;
 import dev.sbs.renderer.engine.PerspectiveParams;
@@ -18,9 +19,8 @@ import dev.sbs.renderer.exception.RendererException;
 import dev.sbs.renderer.math.Matrix4f;
 import dev.sbs.renderer.math.Vector3f;
 import dev.sbs.renderer.model.Block;
+import dev.sbs.renderer.model.Entity;
 import dev.sbs.renderer.model.asset.BlockModelData;
-import dev.sbs.renderer.model.asset.BlockStateMultipart;
-import dev.sbs.renderer.model.asset.BlockStateVariant;
 import dev.sbs.renderer.model.asset.ModelElement;
 import dev.sbs.renderer.model.asset.ModelFace;
 import dev.sbs.renderer.model.asset.ModelTransform;
@@ -37,6 +37,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -137,12 +138,16 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
                 // Apply blockstate variant rotation to the geometry, not the camera.
                 String variantKey = options.getVariant();
-                BlockStateVariant variant = block.getVariants().get(variantKey);
+                Block.Variant variant = block.getVariants().get(variantKey);
                 if (variant == null && !variantKey.isEmpty())
                     variant = block.getVariants().get("");
                 if (variant != null && variant.hasRotation())
                     triangles = applyRotation(triangles, buildVariantRotation(variant));
             }
+
+            // Fallback to entity model when block has no renderable geometry
+            if (triangles.isEmpty())
+                triangles = tryBuildFromEntityModel(block);
 
             float guiYawDelta = guiYawDelta(block);
 
@@ -169,15 +174,15 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * each part's condition against the variant properties and builds triangles for every
          * matching model, applying per-part rotation where specified.
          */
-        private @NotNull ConcurrentList<VisibleTriangle> assembleMultipart(@NotNull BlockStateMultipart multipart, @NotNull BlockOptions options, int tint) {
+        private @NotNull ConcurrentList<VisibleTriangle> assembleMultipart(@NotNull Block.Multipart multipart, @NotNull BlockOptions options, int tint) {
             Map<String, String> properties = parseProperties(options.getVariant());
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
             RasterEngine raster = new RasterEngine(this.context);
 
-            for (BlockStateMultipart.Part part : multipart.parts()) {
+            for (Block.Multipart.Part part : multipart.parts()) {
                 if (!matchesCondition(part.when(), properties)) continue;
 
-                BlockStateVariant apply = part.apply();
+                Block.Variant apply = part.apply();
                 // Convert model id (minecraft:block/brewing_stand) to block id (minecraft:brewing_stand)
                 String partBlockId = apply.modelId().replace(":block/", ":");
                 BlockModelData partModel = this.context.findBlock(partBlockId)
@@ -189,8 +194,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 Map<String, PixelBuffer> faceTextures = new HashMap<>();
                 Map<String, String> variables = partModel.getTextures();
                 for (ModelElement element : partModel.getElements()) {
-                    for (ModelFace face : element.getFaces().values()) {
-                        String ref = face.getTexture();
+                    for (Map.Entry<String, ModelFace> faceEntry : element.getFaces().entrySet()) {
+                        String ref = faceEntry.getValue().getTexture();
                         if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
                         String resolvedId = dereferenceVariable(ref, variables);
                         if (resolvedId.startsWith("#")) continue;
@@ -293,8 +298,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             Map<String, String> variables = block.getModel().getTextures();
 
             for (ModelElement element : block.getModel().getElements()) {
-                for (ModelFace face : element.getFaces().values()) {
-                    String ref = face.getTexture();
+                for (Map.Entry<String, ModelFace> faceEntry : element.getFaces().entrySet()) {
+                    String ref = faceEntry.getValue().getTexture();
                     if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
                     String resolvedId = dereferenceVariable(ref, variables);
                     if (resolvedId.startsWith("#")) continue;
@@ -306,12 +311,30 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         }
 
         /**
+         * Attempts to build triangles from an entity model mapping when the block has no
+         * renderable elements. Returns an empty list if no mapping exists, the entity model
+         * is missing, or the entity texture cannot be resolved.
+         */
+        private @NotNull ConcurrentList<VisibleTriangle> tryBuildFromEntityModel(@NotNull Block block) {
+            if (block.getEntityMapping().isEmpty()) return Concurrent.newList();
+            Block.EntityMapping mapping = block.getEntityMapping().get();
+
+            Optional<Entity> entity = this.context.findEntity(mapping.model());
+            if (entity.isEmpty()) return Concurrent.newList();
+
+            Optional<PixelBuffer> texture = this.context.resolveTexture(mapping.texture());
+            if (texture.isEmpty()) return Concurrent.newList();
+
+            return EntityGeometryKit.buildTriangles(entity.get().getModel(), texture.get()).triangles();
+        }
+
+        /**
          * Builds a rotation matrix from a blockstate variant's X and Y rotation values.
          * Variant angles are specified in Minecraft's left-handed convention (CW from above
          * for Y), so the Y angle is negated to match our right-handed rotation matrices.
          * Applied to vertex positions to pre-transform the geometry before camera projection.
          */
-        private static @NotNull Matrix4f buildVariantRotation(@NotNull BlockStateVariant variant) {
+        private static @NotNull Matrix4f buildVariantRotation(@NotNull Block.Variant variant) {
             Matrix4f result = Matrix4f.IDENTITY;
 
             if (variant.y() != 0)
