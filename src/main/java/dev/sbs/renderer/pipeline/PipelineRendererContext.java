@@ -3,7 +3,6 @@ package dev.sbs.renderer.pipeline;
 import dev.sbs.renderer.biome.BiomeTintTarget;
 import dev.sbs.renderer.draw.BlockFace;
 import dev.sbs.renderer.engine.RendererContext;
-import dev.sbs.renderer.exception.RendererException;
 import dev.sbs.renderer.model.Block;
 import dev.sbs.renderer.model.BlockTag;
 import dev.sbs.renderer.model.ColorMap;
@@ -13,27 +12,25 @@ import dev.sbs.renderer.model.Texture;
 import dev.sbs.renderer.model.TexturePack;
 import dev.sbs.renderer.model.asset.AnimationData;
 import dev.sbs.renderer.model.asset.BlockModelData;
-import dev.sbs.renderer.model.asset.BlockStateMultipart;
-import dev.sbs.renderer.model.asset.BlockStateVariant;
 import dev.sbs.renderer.model.asset.EntityModelData;
 import dev.sbs.renderer.model.asset.ItemModelData;
 import dev.sbs.renderer.model.asset.ModelElement;
 import dev.sbs.renderer.model.asset.ModelFace;
+import dev.sbs.renderer.pipeline.loader.BlockEntityModelLoader;
 import dev.sbs.renderer.pipeline.loader.BlockTintsLoader;
 import dev.sbs.renderer.pipeline.loader.EntityModelLoader;
-import dev.sbs.renderer.pipeline.parser.ColorMapParser;
+import dev.sbs.renderer.tooling.ToolingColorMaps;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.ConcurrentSet;
+import dev.simplified.image.ImageFactory;
 import dev.simplified.image.PixelBuffer;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -53,7 +50,7 @@ import java.util.Optional;
  * {@code all} / {@code side} / {@code particle} fallback chain.
  * <p>
  * Biome colormaps and the {@link BiomeTintTarget} of every known vanilla tinted block are wired
- * through to render time: {@link ColorMapParser} loads {@code grass.png}, {@code foliage.png},
+ * through to render time: {@link ToolingColorMaps.Parser} loads {@code grass.png}, {@code foliage.png},
  * and {@code dry_foliage.png} into {@link ColorMap} entities, and {@link BlockTintsLoader}
  * supplies the {@code minecraft:grass_block} - to - {@code GRASS} (etc.) mapping verified against
  * the bytecode of {@code BlockColors$createDefault} in the 26.1 client jar. Entity definitions
@@ -71,6 +68,7 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull ConcurrentMap<String, Texture> textureIndex;
     private final @NotNull ConcurrentMap<ColorMap.Type, ColorMap> colorMapIndex;
     private final @NotNull ConcurrentMap<String, BlockTag> blockTagIndex;
+    private final @NotNull ImageFactory imageFactory = new ImageFactory();
     private final @NotNull ConcurrentMap<String, PixelBuffer> textureCache = Concurrent.newMap();
 
     /**
@@ -89,11 +87,23 @@ public final class PipelineRendererContext implements RendererContext {
 
         ConcurrentMap<String, Block.Tint> tints = result.getBlockTints();
         ConcurrentMap<String, String> itemDefs = result.getItemDefinitions();
-        ConcurrentMap<String, ConcurrentMap<String, BlockStateVariant>> variantMap = result.getBlockStates();
-        ConcurrentMap<String, BlockStateMultipart> multipartMap = result.getBlockStateMultiparts();
+        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap = result.getBlockStates();
+        ConcurrentMap<String, Block.Multipart> multipartMap = result.getBlockMultiparts();
+        BlockEntityModelLoader.LoadResult blockEntityResult = BlockEntityModelLoader.load();
+        ConcurrentMap<String, Block.EntityMapping> entityMappings = blockEntityResult.getMappings();
+
+        // Build reverse tag index (tag id → block ids becomes block id → tag names)
+        ConcurrentMap<String, BlockTag> tagMap = result.getBlockTags();
+        ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex = Concurrent.newMap();
+        for (Map.Entry<String, BlockTag> tagEntry : tagMap.entrySet()) {
+            for (String blockId : tagEntry.getValue().getValues())
+                reverseTagIndex.computeIfAbsent(blockId, k -> Concurrent.newList()).add(tagEntry.getKey());
+        }
 
         ConcurrentMap<String, Block> blockIndex = Concurrent.newMap();
-        result.getBlockModels().forEach((modelId, model) -> {
+        for (Map.Entry<String, BlockModelData> blockEntry : result.getBlockModels().entrySet()) {
+            String modelId = blockEntry.getKey();
+            BlockModelData model = blockEntry.getValue();
             String blockId = stripPrefix(modelId, ":block/");
             String name = localName(modelId);
 
@@ -112,38 +122,31 @@ public final class PipelineRendererContext implements RendererContext {
             flattenElementFaces(modelToUse, textures);
 
             Block.Tint tint = tints.getOrDefault(blockId, new Block.Tint(BiomeTintTarget.NONE, Optional.empty()));
-            ConcurrentMap<String, BlockStateVariant> variants = variantMap.getOrDefault(blockId, Concurrent.newMap());
-            Optional<BlockStateMultipart> multipart = Optional.ofNullable(multipartMap.get(blockId));
+            ConcurrentMap<String, Block.Variant> variants = variantMap.getOrDefault(blockId, Concurrent.newMap());
+            Optional<Block.Multipart> multipart = Optional.ofNullable(multipartMap.get(blockId));
+            ConcurrentList<String> tags = reverseTagIndex.getOrDefault(blockId, Concurrent.newList());
+            Optional<Block.EntityMapping> entityMapping = entityMappings.getOptional(blockId);
 
-            blockIndex.put(blockId, new Block(blockId, "minecraft", name, modelToUse, textures, variants, multipart, Concurrent.newList(), tint));
-        });
-
-        // Build reverse tag index (block id → tag names) and populate Block.tags
-        ConcurrentMap<String, BlockTag> tagMap = result.getBlockTags();
-        ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex = Concurrent.newMap();
-        tagMap.forEach((tagId, tag) -> {
-            for (String blockId : tag.getValues()) {
-                reverseTagIndex.computeIfAbsent(blockId, k -> Concurrent.newList()).add(tagId);
-            }
-        });
-        blockIndex.forEach((blockId, block) -> {
-            ConcurrentList<String> blockTags = reverseTagIndex.getOrDefault(blockId, Concurrent.newList());
-            block.getTags().addAll(blockTags);
-        });
+            blockIndex.put(blockId, new Block(blockId, "minecraft", name, modelToUse, textures, variants, multipart, tags, tint, entityMapping));
+        }
 
         ConcurrentMap<String, Item> itemIndex = Concurrent.newMap();
-        result.getItemModels().forEach((modelId, model) -> {
+        for (Map.Entry<String, ItemModelData> itemEntry : result.getItemModels().entrySet()) {
+            String modelId = itemEntry.getKey();
+            ItemModelData model = itemEntry.getValue();
             String itemId = stripPrefix(modelId, ":item/");
             String name = localName(modelId);
             ConcurrentMap<String, String> textures = Concurrent.newMap();
             textures.putAll(model.getTextures());
             itemIndex.put(itemId, new Item(itemId, "minecraft", name, model, textures, 0, 64, Optional.empty()));
-        });
+        }
 
         ConcurrentMap<String, Entity> entityIndex = Concurrent.newMap();
-        EntityModelLoader.load().forEach((entityId, definition) ->
-            entityIndex.put(entityId, new Entity(entityId, "minecraft", localName(entityId), definition.model(), definition.textureId()))
-        );
+        for (Map.Entry<String, EntityModelLoader.EntityDefinition> entityEntry : EntityModelLoader.load().entrySet())
+            entityIndex.put(entityEntry.getKey(), new Entity(entityEntry.getKey(), "minecraft", localName(entityEntry.getKey()), entityEntry.getValue().model(), entityEntry.getValue().textureId()));
+
+        // Block entity models (chest, sign, bed, etc.) are registered alongside mob entities.
+        entityIndex.putAll(blockEntityResult.getEntities());
 
         ConcurrentMap<String, Texture> textureIndex = Concurrent.newMap();
         for (Texture texture : result.getTextures())
@@ -176,15 +179,9 @@ public final class PipelineRendererContext implements RendererContext {
         if (texture == null) return Optional.empty();
 
         Path file = this.textureRoot.resolve(texture.getRelativePath());
-        try {
-            BufferedImage image = ImageIO.read(file.toFile());
-            if (image == null) return Optional.empty();
-            PixelBuffer buffer = PixelBuffer.wrap(image);
-            this.textureCache.put(normalized, buffer);
-            return Optional.of(buffer);
-        } catch (IOException ex) {
-            throw new RendererException(ex, "Failed to load texture '%s' from '%s'", normalized, file);
-        }
+        PixelBuffer buffer = PixelBuffer.wrap(this.imageFactory.fromFile(file.toFile()).toBufferedImage());
+        this.textureCache.put(normalized, buffer);
+        return Optional.of(buffer);
     }
 
     @Override
@@ -260,11 +257,13 @@ public final class PipelineRendererContext implements RendererContext {
      */
     private @NotNull String primaryTag(@NotNull String blockId) {
         Block block = this.blockIndex.get(blockId);
-        if (block != null && !block.getTags().isEmpty())
-            return block.getTags().stream()
+        if (block != null && !block.getTags().isEmpty()) {
+            return block.getTags()
+                .stream()
                 .filter(this.blockTagIndex::containsKey)
                 .min(java.util.Comparator.comparingInt(tag -> this.blockTagIndex.get(tag).getValues().size()))
                 .orElse(blockId);
+        }
 
         // Prefix heuristic: extract material from "minecraft:oak_stairs" → "oak"
         String name = blockId.contains(":") ? blockId.substring(blockId.indexOf(':') + 1) : blockId;
