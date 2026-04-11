@@ -1,4 +1,4 @@
-package dev.sbs.renderer.gradle;
+package dev.sbs.renderer.tooling;
 
 import dev.simplified.collection.Concurrent;
 import lombok.experimental.UtilityClass;
@@ -44,7 +44,7 @@ import java.nio.file.Path;
  * </ul>
  */
 @UtilityClass
-public final class GenerateFontsMain {
+public final class ToolingFonts {
 
     private static final @NotNull String REPO_URL = "https://github.com/minecraft-library/font-generator.git";
     private static final @NotNull String DEFAULT_VERSION = "26.1";

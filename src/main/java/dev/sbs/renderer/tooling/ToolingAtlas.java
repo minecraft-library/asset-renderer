@@ -1,4 +1,4 @@
-package dev.sbs.renderer.gradle;
+package dev.sbs.renderer.tooling;
 
 import dev.sbs.renderer.AtlasRenderer;
 import dev.sbs.renderer.exception.AssetPipelineException;
@@ -7,13 +7,16 @@ import dev.sbs.renderer.pipeline.AssetPipeline;
 import dev.sbs.renderer.pipeline.AssetPipelineOptions;
 import dev.sbs.renderer.pipeline.PipelineRendererContext;
 import dev.sbs.renderer.pipeline.client.HttpFetcher;
+import dev.simplified.image.ImageFactory;
+import dev.simplified.image.ImageFormat;
+import dev.simplified.image.codec.webp.WebPWriteOptions;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
-import javax.imageio.ImageIO;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * Entry point invoked by the {@code generateAtlas} Gradle JavaExec task.
@@ -26,7 +29,7 @@ import java.nio.file.Files;
  * class only handles file I/O and command-line argument parsing.
  */
 @UtilityClass
-public final class AtlasGeneratorMain {
+public final class ToolingAtlas {
 
     /**
      * Runs the atlas generator.
@@ -35,7 +38,7 @@ public final class AtlasGeneratorMain {
      * @throws IOException if the atlas image or sidecar JSON cannot be written
      */
     public static void main(String @NotNull [] args) throws IOException {
-        File outputDir = new File(args.length > 0 ? args[0] : "build/atlas");
+        File outputDir = Path.of(args.length > 0 ? args[0] : "build/atlas").toFile();
         Files.createDirectories(outputDir.toPath());
 
         AssetPipeline.Result result;
@@ -57,17 +60,34 @@ public final class AtlasGeneratorMain {
         PipelineRendererContext context = PipelineRendererContext.of(result);
         AtlasRenderer atlasRenderer = new AtlasRenderer(context);
         AtlasRenderer.AtlasResult atlas = atlasRenderer.renderAtlas(AtlasOptions.defaults());
+        ImageFactory imageFactory = new ImageFactory();
+        File outputFile = outputDir.toPath().resolve("atlas." + (atlas.image().isAnimated() ? "webp" : "png")).toFile();
 
-        File pngFile = new File(outputDir, "atlas.png");
-        ImageIO.write(atlas.image().toBufferedImage(), "PNG", pngFile);
+        if (atlas.image().isAnimated()) {
+            imageFactory.toFile(
+                atlas.image(),
+                ImageFormat.WEBP,
+                outputFile,
+                WebPWriteOptions.builder()
+                    .isLossless()
+                    .isMultithreaded()
+                    .build()
+            );
+        } else {
+            imageFactory.toFile(
+                atlas.image(),
+                ImageFormat.PNG,
+                outputFile
+            );
+        }
 
-        File jsonFile = new File(outputDir, "atlas.json");
+        File jsonFile = outputDir.toPath().resolve("atlas.json").toFile();
         Files.writeString(jsonFile.toPath(), atlas.sidecarJson());
 
         System.out.printf(
             "Wrote atlas: %d tiles -> %s (%dx%d px)%n",
             atlas.tiles().size(),
-            pngFile.getAbsolutePath(),
+            outputFile.getAbsolutePath(),
             atlas.image().getWidth(),
             atlas.image().getHeight()
         );

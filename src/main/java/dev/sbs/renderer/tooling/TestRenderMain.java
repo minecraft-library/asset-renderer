@@ -1,4 +1,4 @@
-package dev.sbs.renderer.gradle;
+package dev.sbs.renderer.tooling;
 
 import dev.sbs.renderer.BlockRenderer;
 import dev.sbs.renderer.draw.BlockFace;

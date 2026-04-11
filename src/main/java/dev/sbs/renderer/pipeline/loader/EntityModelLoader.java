@@ -7,7 +7,7 @@ import com.google.gson.JsonSyntaxException;
 import dev.sbs.renderer.exception.AssetPipelineException;
 import dev.sbs.renderer.model.asset.EntityModelData;
 import dev.sbs.renderer.pipeline.PipelineRendererContext;
-import dev.sbs.renderer.pipeline.parser.EntityModelParser;
+import dev.sbs.renderer.tooling.ToolingEntityModels;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
@@ -28,13 +28,13 @@ import java.util.Optional;
  * default texture reference. Vanilla Minecraft does not ship entity model JSON files - entity
  * geometry is hardcoded in the client source. The bundled resource is a hand-curated snapshot
  * of the bone/cube trees for common entities, verified against the MC 26.1 deobfuscated client
- * source. The JSON is produced offline by {@link EntityModelParser} from Bedrock Edition
+ * source. The JSON is produced offline by {@link ToolingEntityModels.Parser} from Bedrock Edition
  * {@code .geo.json} files and checked into the repository.
  * <p>
  * Callers can register additional entities at runtime via
  * {@link PipelineRendererContext#registerEntity(String, EntityModelData, Optional)}.
  *
- * @see EntityModelParser
+ * @see ToolingEntityModels.Parser
  * @see PipelineRendererContext
  */
 @UtilityClass

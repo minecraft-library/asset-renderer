@@ -95,43 +95,52 @@ tasks {
         }
     }
 
-    register<JavaExec>("generateAtlas") {
-        description = "Generates a block/item atlas PNG + coordinates JSON."
-        group = "renderer"
-        mainClass.set("dev.sbs.renderer.gradle.AtlasGeneratorMain")
-        classpath = sourceSets["main"].runtimeClasspath
-        args = listOf(layout.buildDirectory.dir("atlas").get().asFile.absolutePath)
-    }
-
     withType<JavaExec>().configureEach {
         workingDir = layout.projectDirectory.asFile
     }
 
-    register<JavaExec>("generateBlockTints") {
+    // Tooling
+
+    register<JavaExec>("atlas") {
+        description = "Generates a block/item atlas PNG + coordinates JSON."
+        group = "tooling"
+        mainClass.set("dev.sbs.renderer.tooling.ToolingAtlas")
+        classpath = sourceSets["main"].runtimeClasspath
+        args = listOf(layout.buildDirectory.dir("atlas").get().asFile.absolutePath)
+    }
+
+    register<JavaExec>("blockTints") {
         description = "Parses BlockColors out of the cached client jar via ASM and rewrites src/main/resources/renderer/block_tints.json. Run on a Minecraft version bump."
-        group = "parser"
-        mainClass.set("dev.sbs.renderer.gradle.GenerateBlockTintsMain")
+        group = "tooling"
+        mainClass.set("dev.sbs.renderer.tooling.ToolingBlockTints")
         classpath = sourceSets["main"].runtimeClasspath
     }
 
-    register<JavaExec>("generateEntityModels") {
+    register<JavaExec>("entityModels") {
         description = "Downloads the Bedrock Edition vanilla resource pack and generates src/main/resources/renderer/entity_models.json from .geo.json files. Run on a Minecraft version bump."
-        group = "parser"
-        mainClass.set("dev.sbs.renderer.gradle.GenerateEntityModelsMain")
+        group = "tooling"
+        mainClass.set("dev.sbs.renderer.tooling.ToolingEntityModels")
         classpath = sourceSets["main"].runtimeClasspath
     }
 
-    register<JavaExec>("generateColorMaps") {
+    register<JavaExec>("blockEntityModels") {
+        description = "Parses block entity model classes (chest, sign, bed, etc.) from the client jar via ASM and generates src/main/resources/renderer/block_entity_models.json."
+        group = "tooling"
+        mainClass.set("dev.sbs.renderer.tooling.ToolingBlockEntityModels")
+        classpath = sourceSets["main"].runtimeClasspath
+    }
+
+    register<JavaExec>("colorMaps") {
         description = "Reads vanilla biome colormap PNGs and generates src/main/resources/renderer/color_maps.json. Run on a Minecraft version bump."
-        group = "parser"
-        mainClass.set("dev.sbs.renderer.gradle.GenerateColorMapsMain")
+        group = "tooling"
+        mainClass.set("dev.sbs.renderer.tooling.ToolingColorMaps")
         classpath = sourceSets["main"].runtimeClasspath
     }
 
     register<JavaExec>("testRender") {
-        description = "Renders a single block to cache/test-render/ for visual inspection. -PblockId=minecraft:tnt -PrenderSize=512 -Pssaa=2"
-        group = "renderer"
-        mainClass.set("dev.sbs.renderer.gradle.TestRenderMain")
+        description = "Renders blocks to cache/test-render/ for visual inspection. -PblockId=minecraft:tnt -PrenderSize=512 -Pssaa=2"
+        group = "tooling"
+        mainClass.set("dev.sbs.renderer.tooling.TestRenderMain")
         classpath = sourceSets["main"].runtimeClasspath
         val blockId = project.findProperty("blockId") as String?
         val renderSize = (project.findProperty("renderSize") as String?) ?: "512"
@@ -139,10 +148,20 @@ tasks {
         args = if (blockId != null) listOf(blockId, renderSize, ssaa) else listOf()
     }
 
-    register<JavaExec>("generateFonts") {
+    register<JavaExec>("testRenderItem") {
+        description = "Renders items to cache/test-render-item/ for visual inspection. -PitemId=minecraft:diamond_sword -PrenderSize=256"
+        group = "tooling"
+        mainClass.set("dev.sbs.renderer.tooling.TestRenderItemMain")
+        classpath = sourceSets["main"].runtimeClasspath
+        val itemId = project.findProperty("itemId") as String?
+        val renderSize = (project.findProperty("renderSize") as String?) ?: "256"
+        args = if (itemId != null) listOf(itemId, renderSize) else listOf()
+    }
+
+    register<JavaExec>("fonts") {
         description = "Clones minecraft-library/font-generator into cache/font-generator, sets up a Python venv, and runs the generator against the given MC version (-PfontVersion=26.1 by default). Writes .otf files to cache/fonts/ - run processResources afterwards to copy them onto the classpath."
-        group = "renderer"
-        mainClass.set("dev.sbs.renderer.gradle.GenerateFontsMain")
+        group = "tooling"
+        mainClass.set("dev.sbs.renderer.tooling.ToolingFonts")
         classpath = sourceSets["main"].runtimeClasspath
         val version = (project.findProperty("fontVersion") as String?) ?: "26.1"
         args = listOf(version)

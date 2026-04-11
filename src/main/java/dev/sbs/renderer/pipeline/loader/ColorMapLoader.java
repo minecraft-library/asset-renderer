@@ -4,7 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.sbs.renderer.model.ColorMap;
-import dev.sbs.renderer.pipeline.parser.ColorMapParser;
+import dev.sbs.renderer.tooling.ToolingColorMaps;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.GsonSettings;
@@ -21,11 +21,11 @@ import java.util.Base64;
  * {@code /renderer/color_maps.json} classpath resource.
  * <p>
  * The JSON is produced by the {@code generateColorMaps} Gradle task via
- * {@link ColorMapParser}, which reads the vanilla colormap PNGs and encodes their raw ARGB
+ * {@link ToolingColorMaps.Parser}, which reads the vanilla colormap PNGs and encodes their raw ARGB
  * pixels as Base64. This loader decodes the pixels at runtime so the renderer can sample biome
  * tint colors without needing the original PNG files.
  *
- * @see ColorMapParser
+ * @see ToolingColorMaps.Parser
  * @see ColorMap
  */
 @UtilityClass
