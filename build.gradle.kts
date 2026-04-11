@@ -103,6 +103,10 @@ tasks {
         args = listOf(layout.buildDirectory.dir("atlas").get().asFile.absolutePath)
     }
 
+    withType<JavaExec>().configureEach {
+        workingDir = layout.projectDirectory.asFile
+    }
+
     register<JavaExec>("generateBlockTints") {
         description = "Parses BlockColors out of the cached client jar via ASM and rewrites src/main/resources/renderer/block_tints.json. Run on a Minecraft version bump."
         group = "parser"
@@ -140,7 +144,6 @@ tasks {
         group = "renderer"
         mainClass.set("dev.sbs.renderer.gradle.GenerateFontsMain")
         classpath = sourceSets["main"].runtimeClasspath
-        workingDir = layout.projectDirectory.asFile
         val version = (project.findProperty("fontVersion") as String?) ?: "26.1"
         args = listOf(version)
     }
