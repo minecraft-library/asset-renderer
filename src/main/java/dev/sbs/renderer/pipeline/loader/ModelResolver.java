@@ -1,6 +1,7 @@
 package dev.sbs.renderer.pipeline.loader;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import dev.sbs.renderer.exception.AssetPipelineException;
@@ -109,7 +110,7 @@ public class ModelResolver {
         @NotNull Path packRoot,
         @NotNull String kindPrefix
     ) {
-        Optional<String> parentId = Optional.ofNullable(model.get("parent")).map(e -> e.getAsString());
+        Optional<String> parentId = Optional.ofNullable(model.get("parent")).map(JsonElement::getAsString);
         if (parentId.isEmpty()) return model;
 
         String fqParent = parentId.get().contains(":") ? parentId.get() : "minecraft:" + parentId.get();
@@ -134,7 +135,29 @@ public class ModelResolver {
             }
         }
 
+        normalizeTextureEntries(merged);
         return merged;
+    }
+
+    /**
+     * Replaces object-valued texture entries with their {@code sprite} string. MC 26.1 uses
+     * {@code {"force_translucent": true, "sprite": "minecraft:block/glass"}} for translucent
+     * blocks; the renderer only needs the sprite id.
+     */
+    private static void normalizeTextureEntries(@NotNull JsonObject model) {
+        if (!model.has("textures") || !model.get("textures").isJsonObject()) return;
+
+        JsonObject textures = model.getAsJsonObject("textures");
+        ConcurrentMap<String, String> normalized = Concurrent.newMap();
+
+        for (Map.Entry<String, JsonElement> entry : textures.entrySet()) {
+            JsonElement value = entry.getValue();
+            if (value.isJsonObject() && value.getAsJsonObject().has("sprite"))
+                normalized.put(entry.getKey(), value.getAsJsonObject().get("sprite").getAsString());
+        }
+
+        for (Map.Entry<String, String> entry : normalized.entrySet())
+            textures.addProperty(entry.getKey(), entry.getValue());
     }
 
 }
