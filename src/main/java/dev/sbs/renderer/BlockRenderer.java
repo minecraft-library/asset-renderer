@@ -31,6 +31,7 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -76,8 +77,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
      * {@link RendererException} when the block is missing.
      */
     static @NotNull Block requireBlock(@NotNull RendererContext context, @NotNull String blockId) {
-        return context.findBlock(blockId)
-            .orElseThrow(() -> new RendererException("No block registered for id '%s'", blockId));
+        return context.findBlock(blockId).orElseThrow(() -> new RendererException("No block registered for id '%s'", blockId));
     }
 
     /**
@@ -86,14 +86,14 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
      * constant for {@code CONSTANT}, or a colormap sample for {@code GRASS} / {@code FOLIAGE} /
      * {@code DRY_FOLIAGE}.
      */
-    static int resolveBlockTint(
-        @NotNull RendererContext context,
-        @NotNull Block block,
-        @NotNull BlockOptions options
-    ) {
+    static int resolveBlockTint(@NotNull RendererContext context, @NotNull Block block, @NotNull BlockOptions options) {
         BiomeTintTarget target = block.getTint().target();
-        if (target == BiomeTintTarget.NONE) return ColorKit.WHITE;
-        if (target == BiomeTintTarget.CONSTANT) return block.getTint().constant().orElse(ColorKit.WHITE);
+
+        if (target == BiomeTintTarget.NONE)
+            return ColorKit.WHITE;
+
+        if (target == BiomeTintTarget.CONSTANT)
+            return block.getTint().constant().orElse(ColorKit.WHITE);
 
         return new IsometricEngine(context).sampleBiomeTint(target, options.getBiome());
     }
@@ -169,11 +169,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * each part's condition against the variant properties and builds triangles for every
          * matching model, applying per-part rotation where specified.
          */
-        private @NotNull ConcurrentList<VisibleTriangle> assembleMultipart(
-            @NotNull BlockStateMultipart multipart,
-            @NotNull BlockOptions options,
-            int tint
-        ) {
+        private @NotNull ConcurrentList<VisibleTriangle> assembleMultipart(@NotNull BlockStateMultipart multipart, @NotNull BlockOptions options, int tint) {
             Map<String, String> properties = parseProperties(options.getVariant());
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
             RasterEngine raster = new RasterEngine(this.context);
@@ -219,11 +215,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * Applies a rotation matrix to all triangles in a list, transforming vertex positions
          * and surface normals.
          */
-        private static @NotNull ConcurrentList<VisibleTriangle> applyRotation(
-            @NotNull ConcurrentList<VisibleTriangle> triangles,
-            @NotNull Matrix4f rotation
-        ) {
+        private static @NotNull ConcurrentList<VisibleTriangle> applyRotation(@NotNull ConcurrentList<VisibleTriangle> triangles, @NotNull Matrix4f rotation) {
             ConcurrentList<VisibleTriangle> rotated = Concurrent.newList();
+
             for (VisibleTriangle tri : triangles) {
                 rotated.add(new VisibleTriangle(
                     Vector3f.transform(tri.position0(), rotation),
@@ -235,6 +229,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     tri.shading(), tri.renderPriority(), tri.cullBackFaces()
                 ));
             }
+
             return rotated;
         }
 
@@ -257,10 +252,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * property matching, pipe-delimited multi-value OR ({@code "side|up"}), and compound
          * AND/OR operators.
          */
-        private static boolean matchesCondition(
-            @org.jetbrains.annotations.Nullable JsonObject when,
-            @NotNull Map<String, String> properties
-        ) {
+        private static boolean matchesCondition(@Nullable JsonObject when, @NotNull Map<String, String> properties) {
             if (when == null) return true;
 
             if (when.has("AND")) {
@@ -295,10 +287,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * the model's texture bindings, and builds geometry via
          * {@link GeometryKit#buildFromElements}.
          */
-        private @NotNull ConcurrentList<VisibleTriangle> buildFromBlockElements(
-            @NotNull Block block,
-            int tint
-        ) {
+        private @NotNull ConcurrentList<VisibleTriangle> buildFromBlockElements(@NotNull Block block, int tint) {
             RasterEngine raster = new RasterEngine(this.context);
             Map<String, PixelBuffer> faceTextures = new HashMap<>();
             Map<String, String> variables = block.getModel().getTextures();
@@ -324,10 +313,13 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          */
         private static @NotNull Matrix4f buildVariantRotation(@NotNull BlockStateVariant variant) {
             Matrix4f result = Matrix4f.IDENTITY;
+
             if (variant.y() != 0)
                 result = result.multiply(Matrix4f.createRotationY((float) Math.toRadians(-variant.y())));
+
             if (variant.x() != 0)
                 result = result.multiply(Matrix4f.createRotationX((float) Math.toRadians(variant.x())));
+
             return result;
         }
 
@@ -348,12 +340,16 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
         /**
          * Walks a {@code #variable} chain until it terminates at a concrete namespaced id.
+         * Bare names without {@code #} or {@code :} are treated as implicit variable references
+         * (vanilla shorthand where {@code "texture": "all"} means {@code "texture": "#all"}).
          */
-        private static @NotNull String dereferenceVariable(
-            @NotNull String reference,
-            @NotNull Map<String, String> variables
-        ) {
+        private static @NotNull String dereferenceVariable(@NotNull String reference, @NotNull Map<String, String> variables) {
             String current = reference;
+
+            // Normalize bare variable names: "all" → "#all"
+            if (!current.startsWith("#") && !current.contains(":") && variables.containsKey(current))
+                current = "#" + current;
+
             Set<String> visited = new HashSet<>();
             while (current.startsWith("#")) {
                 if (!visited.add(current)) return current;
@@ -361,6 +357,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 if (next == null) return current;
                 current = next;
             }
+
             return current;
         }
 

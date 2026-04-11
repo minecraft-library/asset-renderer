@@ -131,6 +131,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
                 .type(ItemOptions.Type.GUI_2D)
                 .outputSize(options.getTileSize())
                 .build();
+
             try {
                 ImageData image = this.itemRenderer.render(itemOptions);
                 tiles.add(new TileSpec(itemId, "item", image));

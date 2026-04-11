@@ -327,6 +327,10 @@ public final class PipelineRendererContext implements RendererContext {
      */
     private static @NotNull String dereferenceVariable(@NotNull String reference, @NotNull ConcurrentMap<String, String> variables) {
         String current = reference;
+
+        if (!current.startsWith("#") && !current.contains(":") && variables.containsKey(current))
+            current = "#" + current;
+
         ConcurrentSet<String> visited = Concurrent.newSet();
         while (current.startsWith("#")) {
             if (!visited.add(current)) return current;
@@ -334,6 +338,7 @@ public final class PipelineRendererContext implements RendererContext {
             if (next == null) return current;
             current = next;
         }
+
         return current;
     }
 

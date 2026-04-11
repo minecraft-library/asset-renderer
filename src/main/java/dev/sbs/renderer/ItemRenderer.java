@@ -120,19 +120,27 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             RasterEngine engine = new RasterEngine(this.context);
             Canvas canvas = engine.createCanvas(options.getOutputSize(), options.getOutputSize());
 
-            // Layered flat-item sprite: layer0, layer1, ... stacked, each tinted per options.tintColor.
+            // Layered flat-item sprite: layer0, layer1, ... stacked, each tinted per options.
+            // Trim overlay layers (matching trims/items/{slot}_trim_{material}) are generated
+            // via paletted permutation since vanilla doesn't ship the material-specific PNGs.
             int layerIndex = 0;
+            int size = options.getOutputSize();
             int tint = options.getTintColor().orElse(ColorKit.WHITE);
             while (true) {
                 String layerKey = "layer" + layerIndex;
                 String textureRef = item.getTextures().get(layerKey);
                 if (textureRef == null || textureRef.isBlank()) break;
 
-                PixelBuffer layer = engine.resolveTexture(textureRef);
-                if (layerIndex == 0 && tint != ColorKit.WHITE)
-                    canvas.blitTinted(layer, 0, 0, tint, BlendMode.MULTIPLY);
-                else
-                    canvas.blitScaled(layer, 0, 0, options.getOutputSize(), options.getOutputSize());
+                if (TrimKit.isTrimTexture(textureRef)) {
+                    TrimKit.resolveFromTextureRef(engine, textureRef)
+                        .ifPresent(trim -> canvas.blitScaled(trim, 0, 0, size, size));
+                } else {
+                    PixelBuffer layer = engine.resolveTexture(textureRef);
+                    if (layerIndex == 0 && tint != ColorKit.WHITE)
+                        canvas.blitTinted(layer, 0, 0, tint, BlendMode.MULTIPLY);
+                    else
+                        canvas.blitScaled(layer, 0, 0, size, size);
+                }
                 layerIndex++;
             }
 
@@ -233,11 +241,12 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          * it terminates at a concrete namespaced id or fails to resolve. Cycle-guarded with a
          * visited set so a malformed pack cannot hang the caller.
          */
-        private static @NotNull String dereferenceVariable(
-            @NotNull String reference,
-            @NotNull Map<String, String> variables
-        ) {
+        private static @NotNull String dereferenceVariable(@NotNull String reference, @NotNull Map<String, String> variables) {
             String current = reference;
+
+            if (!current.startsWith("#") && !current.contains(":") && variables.containsKey(current))
+                current = "#" + current;
+
             Set<String> visited = new HashSet<>();
             while (current.startsWith("#")) {
                 if (!visited.add(current)) return current;
@@ -245,6 +254,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 if (next == null) return current;
                 current = next;
             }
+
             return current;
         }
 
