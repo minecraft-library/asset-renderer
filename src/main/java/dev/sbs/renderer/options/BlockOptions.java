@@ -1,6 +1,7 @@
 package dev.sbs.renderer.options;
 
 import dev.sbs.renderer.biome.Biome;
+import dev.sbs.renderer.draw.BlockFace;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageFormat;
@@ -27,9 +28,6 @@ public class BlockOptions {
 
     }
 
-    /** The six cardinal block faces, used by {@link Type#BLOCK_FACE_2D}. */
-    public enum Face { DOWN, UP, NORTH, SOUTH, WEST, EAST }
-
     @lombok.Builder.Default
     private final @NotNull String blockId = "";
 
@@ -37,7 +35,7 @@ public class BlockOptions {
     private final @NotNull Type type = Type.ISOMETRIC_3D;
 
     @lombok.Builder.Default
-    private final @NotNull Face face = Face.NORTH;
+    private final @NotNull BlockFace face = BlockFace.NORTH;
 
     /**
      * Blockstate variant properties string (e.g. {@code "facing=south,lit=false"}). When set,
