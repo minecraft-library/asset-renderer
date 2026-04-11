@@ -1,6 +1,7 @@
 package dev.sbs.renderer.pipeline;
 
 import dev.sbs.renderer.model.Block;
+import dev.sbs.renderer.model.BlockTag;
 import dev.sbs.renderer.model.ColorMap;
 import dev.sbs.renderer.model.Texture;
 import dev.sbs.renderer.model.TexturePack;
@@ -12,6 +13,7 @@ import dev.sbs.renderer.pipeline.client.ClientJarDownloader;
 import dev.sbs.renderer.pipeline.client.ClientJarExtractor;
 import dev.sbs.renderer.pipeline.client.HttpFetcher;
 import dev.sbs.renderer.pipeline.loader.BlockStateLoader;
+import dev.sbs.renderer.pipeline.loader.BlockTagLoader;
 import dev.sbs.renderer.pipeline.loader.BlockTintsLoader;
 import dev.sbs.renderer.pipeline.loader.ColorMapLoader;
 import dev.sbs.renderer.pipeline.loader.ItemDefinitionLoader;
@@ -60,9 +62,10 @@ public final class AssetPipeline {
         ConcurrentMap<String, Block.Tint> blockTints = BlockTintsLoader.load();
         BlockStateLoader.LoadResult blockStateResult = BlockStateLoader.load(packRoot);
         ConcurrentMap<String, String> itemDefinitions = ItemDefinitionLoader.load(packRoot);
+        ConcurrentMap<String, BlockTag> blockTags = BlockTagLoader.load(packRoot);
 
         return new Result(packRoot, vanillaPack, textures, colorMaps, blockTints, blockModels, itemModels,
-            blockStateResult.getVariants(), blockStateResult.getMultiparts(), itemDefinitions);
+            blockStateResult.getVariants(), blockStateResult.getMultiparts(), itemDefinitions, blockTags);
     }
 
     /**
@@ -82,6 +85,7 @@ public final class AssetPipeline {
         private final @NotNull ConcurrentMap<String, ConcurrentMap<String, BlockStateVariant>> blockStates;
         private final @NotNull ConcurrentMap<String, BlockStateMultipart> blockStateMultiparts;
         private final @NotNull ConcurrentMap<String, String> itemDefinitions;
+        private final @NotNull ConcurrentMap<String, BlockTag> blockTags;
 
     }
 

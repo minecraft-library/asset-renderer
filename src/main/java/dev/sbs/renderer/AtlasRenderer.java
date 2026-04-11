@@ -12,7 +12,6 @@ import dev.sbs.renderer.options.GridOptions;
 import dev.sbs.renderer.options.ItemOptions;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.collection.sorted.ConcurrentSortedMap;
 import dev.simplified.image.ImageData;
 import org.jetbrains.annotations.NotNull;
 
@@ -87,15 +86,12 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * logged when {@link AtlasOptions#isProgressLogging()} is set.
      */
     private @NotNull ConcurrentList<TileSpec> renderBlocks(@NotNull AtlasOptions options) {
-        ConcurrentSortedMap<String, ImageData> rendered = Concurrent.newSortedMap();
-        ConcurrentSortedMap<String, String> sortedBlockIds = Concurrent.newSortedMap();
+        ConcurrentList<TileSpec> tiles = Concurrent.newList();
+        int count = 0;
+
         for (String blockId : this.context.knownBlockIds()) {
             if (options.getFilter().map(f -> !f.test(blockId)).orElse(false)) continue;
-            sortedBlockIds.put(blockId, blockId);
-        }
 
-        int[] count = { 0 };
-        sortedBlockIds.forEach((blockId, ignored) -> {
             BlockOptions blockOptions = BlockOptions.builder()
                 .blockId(blockId)
                 .type(BlockOptions.Type.ISOMETRIC_3D)
@@ -103,18 +99,16 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
                 .build();
             try {
                 ImageData image = this.blockRenderer.render(blockOptions);
-                rendered.put(blockId, image);
-                count[0]++;
-                if (options.isProgressLogging() && count[0] % 100 == 0)
-                    System.out.printf("  rendered %d block tiles...%n", count[0]);
+                tiles.add(new TileSpec(blockId, "block", image));
+                count++;
+                if (options.isProgressLogging() && count % 100 == 0)
+                    System.out.printf("  rendered %d block tiles...%n", count);
             } catch (RendererException ex) {
                 if (options.isProgressLogging())
                     System.err.printf("  skipped block '%s': %s%n", blockId, ex.getMessage());
             }
-        });
+        }
 
-        ConcurrentList<TileSpec> tiles = Concurrent.newList();
-        rendered.forEach((blockId, image) -> tiles.add(new TileSpec(blockId, "block", image)));
         if (options.isProgressLogging())
             System.out.printf("Block render pass complete: %d tiles%n", tiles.size());
         return tiles;
@@ -126,15 +120,12 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * when {@link AtlasOptions#isProgressLogging()} is set.
      */
     private @NotNull ConcurrentList<TileSpec> renderItems(@NotNull AtlasOptions options) {
-        ConcurrentSortedMap<String, ImageData> rendered = Concurrent.newSortedMap();
-        ConcurrentSortedMap<String, String> sortedItemIds = Concurrent.newSortedMap();
+        ConcurrentList<TileSpec> tiles = Concurrent.newList();
+        int count = 0;
+
         for (String itemId : this.context.knownItemIds()) {
             if (options.getFilter().map(f -> !f.test(itemId)).orElse(false)) continue;
-            sortedItemIds.put(itemId, itemId);
-        }
 
-        int[] count = { 0 };
-        sortedItemIds.forEach((itemId, ignored) -> {
             ItemOptions itemOptions = ItemOptions.builder()
                 .itemId(itemId)
                 .type(ItemOptions.Type.GUI_2D)
@@ -142,18 +133,16 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
                 .build();
             try {
                 ImageData image = this.itemRenderer.render(itemOptions);
-                rendered.put(itemId, image);
-                count[0]++;
-                if (options.isProgressLogging() && count[0] % 100 == 0)
-                    System.out.printf("  rendered %d item tiles...%n", count[0]);
+                tiles.add(new TileSpec(itemId, "item", image));
+                count++;
+                if (options.isProgressLogging() && count % 100 == 0)
+                    System.out.printf("  rendered %d item tiles...%n", count);
             } catch (RendererException ex) {
                 if (options.isProgressLogging())
                     System.err.printf("  skipped item '%s': %s%n", itemId, ex.getMessage());
             }
-        });
+        }
 
-        ConcurrentList<TileSpec> tiles = Concurrent.newList();
-        rendered.forEach((itemId, image) -> tiles.add(new TileSpec(itemId, "item", image)));
         if (options.isProgressLogging())
             System.out.printf("Item render pass complete: %d tiles%n", tiles.size());
         return tiles;

@@ -5,6 +5,7 @@ import dev.sbs.renderer.draw.BlockFace;
 import dev.sbs.renderer.engine.RendererContext;
 import dev.sbs.renderer.exception.RendererException;
 import dev.sbs.renderer.model.Block;
+import dev.sbs.renderer.model.BlockTag;
 import dev.sbs.renderer.model.ColorMap;
 import dev.sbs.renderer.model.Entity;
 import dev.sbs.renderer.model.Item;
@@ -69,6 +70,7 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull ConcurrentMap<String, Entity> entityIndex;
     private final @NotNull ConcurrentMap<String, Texture> textureIndex;
     private final @NotNull ConcurrentMap<ColorMap.Type, ColorMap> colorMapIndex;
+    private final @NotNull ConcurrentMap<String, BlockTag> blockTagIndex;
     private final @NotNull ConcurrentMap<String, PixelBuffer> textureCache = Concurrent.newMap();
 
     /**
@@ -113,7 +115,20 @@ public final class PipelineRendererContext implements RendererContext {
             ConcurrentMap<String, BlockStateVariant> variants = variantMap.getOrDefault(blockId, Concurrent.newMap());
             Optional<BlockStateMultipart> multipart = Optional.ofNullable(multipartMap.get(blockId));
 
-            blockIndex.put(blockId, new Block(blockId, "minecraft", name, modelToUse, textures, variants, multipart, tint));
+            blockIndex.put(blockId, new Block(blockId, "minecraft", name, modelToUse, textures, variants, multipart, Concurrent.newList(), tint));
+        });
+
+        // Build reverse tag index (block id → tag names) and populate Block.tags
+        ConcurrentMap<String, BlockTag> tagMap = result.getBlockTags();
+        ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex = Concurrent.newMap();
+        tagMap.forEach((tagId, tag) -> {
+            for (String blockId : tag.getValues()) {
+                reverseTagIndex.computeIfAbsent(blockId, k -> Concurrent.newList()).add(tagId);
+            }
+        });
+        blockIndex.forEach((blockId, block) -> {
+            ConcurrentList<String> blockTags = reverseTagIndex.getOrDefault(blockId, Concurrent.newList());
+            block.getTags().addAll(blockTags);
         });
 
         ConcurrentMap<String, Item> itemIndex = Concurrent.newMap();
@@ -143,7 +158,7 @@ public final class PipelineRendererContext implements RendererContext {
             .resolve("minecraft")
             .resolve("textures");
 
-        return new PipelineRendererContext(textureRoot, packs, blockIndex, itemIndex, entityIndex, textureIndex, colorMapIndex);
+        return new PipelineRendererContext(textureRoot, packs, blockIndex, itemIndex, entityIndex, textureIndex, colorMapIndex, tagMap);
     }
 
     @Override
@@ -192,6 +207,33 @@ public final class PipelineRendererContext implements RendererContext {
         return this.entityIndex.getOptional(id);
     }
 
+    @Override
+    public @NotNull Optional<AnimationData> animationFor(@NotNull String textureId) {
+        String normalized = textureId.contains(":") ? textureId : "minecraft:" + textureId;
+        Texture texture = this.textureIndex.get(normalized);
+        return texture == null ? Optional.empty() : texture.getAnimation();
+    }
+
+    @Override
+    public @NotNull ConcurrentList<String> knownBlockIds() {
+        ConcurrentList<String> ids = Concurrent.newList();
+        ids.addAll(this.blockIndex.keySet());
+        ids.sort((a, b) -> {
+            String groupA = primaryTag(a);
+            String groupB = primaryTag(b);
+            int cmp = String.CASE_INSENSITIVE_ORDER.compare(groupA, groupB);
+            return cmp != 0 ? cmp : String.CASE_INSENSITIVE_ORDER.compare(a, b);
+        });
+        return ids;
+    }
+
+    @Override
+    public @NotNull ConcurrentList<String> knownItemIds() {
+        ConcurrentList<String> ids = Concurrent.newList();
+        ids.addAll(this.itemIndex.keySet());
+        ids.sort(String.CASE_INSENSITIVE_ORDER);
+        return ids;
+    }
 
     /**
      * Registers an entity definition so it can be looked up by
@@ -211,25 +253,23 @@ public final class PipelineRendererContext implements RendererContext {
         this.entityIndex.put(id, new Entity(id, "minecraft", localName(id), model, textureId));
     }
 
-    @Override
-    public @NotNull Optional<AnimationData> animationFor(@NotNull String textureId) {
-        String normalized = textureId.contains(":") ? textureId : "minecraft:" + textureId;
-        Texture texture = this.textureIndex.get(normalized);
-        return texture == null ? Optional.empty() : texture.getAnimation();
-    }
+    /**
+     * Returns the most specific tag name for a block (the tag with fewest members), or the
+     * block's material prefix as a fallback for untagged blocks. Used as the primary sort key
+     * so semantically related blocks cluster together in atlas output.
+     */
+    private @NotNull String primaryTag(@NotNull String blockId) {
+        Block block = this.blockIndex.get(blockId);
+        if (block != null && !block.getTags().isEmpty())
+            return block.getTags().stream()
+                .filter(this.blockTagIndex::containsKey)
+                .min(java.util.Comparator.comparingInt(tag -> this.blockTagIndex.get(tag).getValues().size()))
+                .orElse(blockId);
 
-    @Override
-    public @NotNull ConcurrentList<String> knownBlockIds() {
-        ConcurrentList<String> ids = Concurrent.newList();
-        ids.addAll(this.blockIndex.keySet());
-        return ids;
-    }
-
-    @Override
-    public @NotNull ConcurrentList<String> knownItemIds() {
-        ConcurrentList<String> ids = Concurrent.newList();
-        ids.addAll(this.itemIndex.keySet());
-        return ids;
+        // Prefix heuristic: extract material from "minecraft:oak_stairs" → "oak"
+        String name = blockId.contains(":") ? blockId.substring(blockId.indexOf(':') + 1) : blockId;
+        int lastUnderscore = name.lastIndexOf('_');
+        return lastUnderscore > 0 ? "~" + name.substring(0, lastUnderscore) : "~" + name;
     }
 
     /**

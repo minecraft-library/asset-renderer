@@ -5,6 +5,7 @@ import dev.sbs.renderer.model.asset.BlockModelData;
 import dev.sbs.renderer.model.asset.BlockStateMultipart;
 import dev.sbs.renderer.model.asset.BlockStateVariant;
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.persistence.JpaModel;
 import dev.simplified.persistence.type.GsonType;
@@ -56,6 +57,10 @@ public class Block implements JpaModel {
     @Column(name = "multipart", nullable = false)
     private @NotNull Optional<BlockStateMultipart> multipart = Optional.empty();
 
+    /** Tag names this block belongs to, e.g. {@code ["minecraft:stairs", "minecraft:wooden_stairs"]}. */
+    @Column(name = "tags", nullable = false)
+    private @NotNull ConcurrentList<String> tags = Concurrent.newList();
+
     @Column(name = "tint", nullable = false)
     private @NotNull Tint tint = new Tint(BiomeTintTarget.NONE, Optional.empty());
 
@@ -70,12 +75,13 @@ public class Block implements JpaModel {
             && Objects.equals(this.getTextures(), block.getTextures())
             && Objects.equals(this.getVariants(), block.getVariants())
             && Objects.equals(this.getMultipart(), block.getMultipart())
+            && Objects.equals(this.getTags(), block.getTags())
             && Objects.equals(this.getTint(), block.getTint());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.getId(), this.getNamespace(), this.getName(), this.getModel(), this.getTextures(), this.getVariants(), this.getMultipart(), this.getTint());
+        return Objects.hash(this.getId(), this.getNamespace(), this.getName(), this.getModel(), this.getTextures(), this.getVariants(), this.getMultipart(), this.getTags(), this.getTint());
     }
 
     /**

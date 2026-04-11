@@ -138,7 +138,7 @@ class PipelineRendererContextTest {
             gson.fromJson("{\"textures\": {\"layer0\": \"minecraft:block/fixture\"}}", ItemModelData.class)
         );
 
-        result = new AssetPipeline.Result(packRoot, vanillaPack, textures, colorMaps, blockTints, blockModels, itemModels, Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap());
+        result = new AssetPipeline.Result(packRoot, vanillaPack, textures, colorMaps, blockTints, blockModels, itemModels, Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap());
         context = PipelineRendererContext.of(result);
     }
 
