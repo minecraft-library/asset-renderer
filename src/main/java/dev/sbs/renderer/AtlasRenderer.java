@@ -4,8 +4,15 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import dev.sbs.renderer.draw.AnimationKit;
 import dev.sbs.renderer.engine.RendererContext;
 import dev.sbs.renderer.exception.RendererException;
+import dev.sbs.renderer.model.Block;
+import dev.sbs.renderer.model.ColorMap;
+import dev.sbs.renderer.model.Entity;
+import dev.sbs.renderer.model.Item;
+import dev.sbs.renderer.model.TexturePack;
+import dev.sbs.renderer.model.asset.AnimationData;
 import dev.sbs.renderer.options.AtlasOptions;
 import dev.sbs.renderer.options.BlockOptions;
 import dev.sbs.renderer.options.GridOptions;
@@ -13,7 +20,10 @@ import dev.sbs.renderer.options.ItemOptions;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
+import dev.simplified.image.PixelBuffer;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.Optional;
 
 /**
  * Renders every block and item model exposed by a {@link RendererContext} into a single grid
@@ -66,11 +76,20 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * @return the atlas result
      */
     public @NotNull AtlasResult renderAtlas(@NotNull AtlasOptions options) {
+        BlockRenderer blocks = this.blockRenderer;
+        ItemRenderer items = this.itemRenderer;
+
+        if (!options.isAnimated()) {
+            RendererContext staticContext = new StaticTextureContext(this.context);
+            blocks = new BlockRenderer(staticContext);
+            items = new ItemRenderer(staticContext);
+        }
+
         ConcurrentList<TileSpec> tiles = Concurrent.newList();
         if (options.getSource() != AtlasOptions.Source.ITEM)
-            tiles.addAll(renderBlocks(options));
+            tiles.addAll(renderBlocks(options, blocks));
         if (options.getSource() != AtlasOptions.Source.BLOCK)
-            tiles.addAll(renderItems(options));
+            tiles.addAll(renderItems(options, items));
 
         if (tiles.isEmpty())
             throw new RendererException("Atlas render produced zero tiles - nothing to compose");
@@ -85,7 +104,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * renders each via {@link BlockRenderer.Isometric3D}. Failures are caught per-tile and
      * logged when {@link AtlasOptions#isProgressLogging()} is set.
      */
-    private @NotNull ConcurrentList<TileSpec> renderBlocks(@NotNull AtlasOptions options) {
+    private @NotNull ConcurrentList<TileSpec> renderBlocks(@NotNull AtlasOptions options, @NotNull BlockRenderer renderer) {
         ConcurrentList<TileSpec> tiles = Concurrent.newList();
         int count = 0;
 
@@ -98,7 +117,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
                 .outputSize(options.getTileSize())
                 .build();
             try {
-                ImageData image = this.blockRenderer.render(blockOptions);
+                ImageData image = renderer.render(blockOptions);
                 tiles.add(new TileSpec(blockId, "block", image));
                 count++;
                 if (options.isProgressLogging() && count % 100 == 0)
@@ -119,7 +138,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * renders each via {@link ItemRenderer.Gui2D}. Failures are caught per-tile and logged
      * when {@link AtlasOptions#isProgressLogging()} is set.
      */
-    private @NotNull ConcurrentList<TileSpec> renderItems(@NotNull AtlasOptions options) {
+    private @NotNull ConcurrentList<TileSpec> renderItems(@NotNull AtlasOptions options, @NotNull ItemRenderer renderer) {
         ConcurrentList<TileSpec> tiles = Concurrent.newList();
         int count = 0;
 
@@ -133,7 +152,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
                 .build();
 
             try {
-                ImageData image = this.itemRenderer.render(itemOptions);
+                ImageData image = renderer.render(itemOptions);
                 tiles.add(new TileSpec(itemId, "item", image));
                 count++;
                 if (options.isProgressLogging() && count % 100 == 0)
@@ -222,5 +241,66 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         @NotNull ConcurrentList<TileSpec> tiles,
         @NotNull String sidecarJson
     ) {}
+
+    /**
+     * A context wrapper that flattens animated textures to their first frame. Delegates
+     * every method to the wrapped context except {@link #resolveTexture} (which extracts
+     * frame 0 from animation strips) and {@link #animationFor} (which returns empty so
+     * downstream renderers treat every texture as static).
+     */
+    private record StaticTextureContext(@NotNull RendererContext delegate) implements RendererContext {
+
+        @Override
+        public @NotNull ConcurrentList<TexturePack> activePacks() {
+            return this.delegate.activePacks();
+        }
+
+        @Override
+        public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
+            Optional<PixelBuffer> strip = this.delegate.resolveTexture(textureId);
+            if (strip.isEmpty()) return strip;
+
+            Optional<AnimationData> animation = this.delegate.animationFor(textureId);
+            if (animation.isEmpty()) return strip;
+
+            return Optional.of(AnimationKit.sampleFrame(strip.get(), animation.get(), 0));
+        }
+
+        @Override
+        public @NotNull Optional<ColorMap> colorMap(ColorMap.@NotNull Type type) {
+            return this.delegate.colorMap(type);
+        }
+
+        @Override
+        public @NotNull Optional<Block> findBlock(@NotNull String id) {
+            return this.delegate.findBlock(id);
+        }
+
+        @Override
+        public @NotNull Optional<Item> findItem(@NotNull String id) {
+            return this.delegate.findItem(id);
+        }
+
+        @Override
+        public @NotNull Optional<Entity> findEntity(@NotNull String id) {
+            return this.delegate.findEntity(id);
+        }
+
+        @Override
+        public @NotNull Optional<AnimationData> animationFor(@NotNull String textureId) {
+            return Optional.empty();
+        }
+
+        @Override
+        public @NotNull ConcurrentList<String> knownBlockIds() {
+            return this.delegate.knownBlockIds();
+        }
+
+        @Override
+        public @NotNull ConcurrentList<String> knownItemIds() {
+            return this.delegate.knownItemIds();
+        }
+
+    }
 
 }
