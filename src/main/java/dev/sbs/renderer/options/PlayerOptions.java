@@ -69,6 +69,22 @@ public class PlayerOptions {
     @lombok.Builder.Default
     private final @NotNull Optional<ArmorPiece> boots = Optional.empty();
 
+    /** Whether to render the player cape behind the torso (3D bust and full only). */
+    @lombok.Builder.Default
+    private final boolean renderCape = false;
+
+    /** Raw PNG bytes of the 64x32 cape texture. Ignored when {@link #renderCape} is false. */
+    @lombok.Builder.Default
+    private final @NotNull Optional<byte[]> capeBytes = Optional.empty();
+
+    /** Absolute URL to a cape texture PNG. Ignored when {@link #renderCape} is false. */
+    @lombok.Builder.Default
+    private final @NotNull Optional<String> capeUrl = Optional.empty();
+
+    /** Pack-resolvable cape texture id. Ignored when {@link #renderCape} is false. */
+    @lombok.Builder.Default
+    private final @NotNull Optional<String> capeTextureId = Optional.empty();
+
     /** Whether to render the second skin layer (hat, jacket, sleeves, trousers). */
     @lombok.Builder.Default
     private final boolean renderOverlay = true;

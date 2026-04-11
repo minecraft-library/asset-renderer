@@ -5,6 +5,8 @@ import dev.sbs.renderer.model.ColorMap;
 import dev.sbs.renderer.model.Texture;
 import dev.sbs.renderer.model.TexturePack;
 import dev.sbs.renderer.model.asset.BlockModelData;
+import dev.sbs.renderer.model.asset.BlockStateMultipart;
+import dev.sbs.renderer.model.asset.BlockStateVariant;
 import dev.sbs.renderer.model.asset.ItemModelData;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -47,8 +49,11 @@ public final class AssetPipeline {
         ConcurrentList<Texture> textures = TexturePackReader.scanTextures(packRoot, vanillaPack.getId());
         ConcurrentList<ColorMap> colorMaps = ColorMapReader.load(packRoot, vanillaPack.getId());
         ConcurrentMap<String, Block.Tint> blockTints = VanillaTintsLoader.load();
+        BlockStateLoader.LoadResult blockStateResult = BlockStateLoader.load(packRoot);
+        ConcurrentMap<String, String> itemDefinitions = ItemDefinitionLoader.load(packRoot);
 
-        return new Result(packRoot, vanillaPack, textures, colorMaps, blockTints, blockModels, itemModels);
+        return new Result(packRoot, vanillaPack, textures, colorMaps, blockTints, blockModels, itemModels,
+            blockStateResult.getVariants(), blockStateResult.getMultiparts(), itemDefinitions);
     }
 
     /**
@@ -64,6 +69,9 @@ public final class AssetPipeline {
         private final @NotNull ConcurrentMap<String, Block.Tint> blockTints;
         private final @NotNull ConcurrentMap<String, BlockModelData> blockModels;
         private final @NotNull ConcurrentMap<String, ItemModelData> itemModels;
+        private final @NotNull ConcurrentMap<String, ConcurrentMap<String, BlockStateVariant>> blockStates;
+        private final @NotNull ConcurrentMap<String, BlockStateMultipart> blockStateMultiparts;
+        private final @NotNull ConcurrentMap<String, String> itemDefinitions;
 
         public Result(
             @NotNull Path packRoot,
@@ -72,7 +80,10 @@ public final class AssetPipeline {
             @NotNull ConcurrentList<ColorMap> colorMaps,
             @NotNull ConcurrentMap<String, Block.Tint> blockTints,
             @NotNull ConcurrentMap<String, BlockModelData> blockModels,
-            @NotNull ConcurrentMap<String, ItemModelData> itemModels
+            @NotNull ConcurrentMap<String, ItemModelData> itemModels,
+            @NotNull ConcurrentMap<String, ConcurrentMap<String, BlockStateVariant>> blockStates,
+            @NotNull ConcurrentMap<String, BlockStateMultipart> blockStateMultiparts,
+            @NotNull ConcurrentMap<String, String> itemDefinitions
         ) {
             this.packRoot = packRoot;
             this.vanillaPack = vanillaPack;
@@ -81,6 +92,9 @@ public final class AssetPipeline {
             this.blockTints = blockTints;
             this.blockModels = blockModels;
             this.itemModels = itemModels;
+            this.blockStates = blockStates;
+            this.blockStateMultiparts = blockStateMultiparts;
+            this.itemDefinitions = itemDefinitions;
         }
 
     }

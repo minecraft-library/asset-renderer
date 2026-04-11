@@ -4,7 +4,6 @@ import com.google.gson.Gson;
 import dev.sbs.renderer.biome.BiomeTintTarget;
 import dev.sbs.renderer.model.Block;
 import dev.sbs.renderer.model.ColorMap;
-import dev.sbs.renderer.model.Entity;
 import dev.sbs.renderer.model.Item;
 import dev.sbs.renderer.model.Texture;
 import dev.sbs.renderer.model.TexturePack;
@@ -137,7 +136,7 @@ class PipelineRendererContextTest {
             gson.fromJson("{\"textures\": {\"layer0\": \"minecraft:block/fixture\"}}", ItemModelData.class)
         );
 
-        result = new AssetPipeline.Result(packRoot, vanillaPack, textures, colorMaps, blockTints, blockModels, itemModels);
+        result = new AssetPipeline.Result(packRoot, vanillaPack, textures, colorMaps, blockTints, blockModels, itemModels, Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap());
         context = PipelineRendererContext.of(result);
     }
 
@@ -229,10 +228,12 @@ class PipelineRendererContextTest {
     }
 
     @Test
-    @DisplayName("findEntity always returns empty in the minimal context")
-    void findEntityEmpty() {
-        Optional<Entity> entity = context.findEntity("minecraft:zombie");
-        assertThat(entity.isPresent(), is(false));
+    @DisplayName("Bundled entity models are loaded and findEntity resolves them")
+    void findEntityLoaded() {
+        assertThat(context.findEntity("minecraft:zombie").isPresent(), is(true));
+        assertThat(context.findEntity("minecraft:skeleton").isPresent(), is(true));
+        assertThat(context.findEntity("minecraft:creeper").isPresent(), is(true));
+        assertThat(context.findEntity("minecraft:nonexistent").isPresent(), is(false));
     }
 
     @Test

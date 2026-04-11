@@ -36,7 +36,7 @@ public interface RenderEngine {
      * @return the projected 2D point
      */
     static @NotNull Vector2f projectOrtho(@NotNull Vector3f point, float scale, float offsetX, float offsetY) {
-        return new Vector2f(point.getX() * scale + offsetX, point.getY() * scale + offsetY);
+        return new Vector2f(point.getX() * scale + offsetX, -point.getY() * scale + offsetY);
     }
 
     /**
@@ -64,25 +64,29 @@ public interface RenderEngine {
         float denom = params.cameraDistance() - point.getZ();
         float perspectiveFactor = denom == 0f ? 1f : (params.focalLength() / denom);
         float blended = 1f + (perspectiveFactor - 1f) * params.amount();
-        return new Vector2f(point.getX() * scale * blended + offsetX, point.getY() * scale * blended + offsetY);
+        return new Vector2f(point.getX() * scale * blended + offsetX, -point.getY() * scale * blended + offsetY);
     }
 
     // --- inventory lighting ---
 
-    /** The canonical vanilla inventory light direction (normalized). */
-    @NotNull Vector3f INVENTORY_LIGHT_DIRECTION = Vector3f.normalize(new Vector3f(-1f, -1f, -1f));
-
     /**
-     * Computes the inventory lighting intensity for a surface normal, matching vanilla's
-     * ambient + diffuse formula for GUI item rendering.
+     * Computes the per-face shade factor for a world-space surface normal, matching vanilla's
+     * fixed per-direction values used for block rendering (see
+     * {@code net.minecraft.core.Direction.getBrightness}).
      *
-     * @param normal the surface normal (should be normalized)
-     * @return an intensity factor in the range {@code [0.2, 1.0]}
+     * @param normal the world-space surface normal (should be normalized)
+     * @return a shade factor: 1.0 for UP, 0.8 for NORTH/SOUTH, 0.6 for EAST/WEST, 0.5 for DOWN
      */
     static float computeInventoryLighting(@NotNull Vector3f normal) {
-        float d = Vector3f.dot(normal, INVENTORY_LIGHT_DIRECTION);
-        float diffuse = Math.max(0f, d);
-        return Math.clamp(0.4f + 0.6f * diffuse, 0.2f, 1f);
+        float absX = Math.abs(normal.getX());
+        float absY = Math.abs(normal.getY());
+        float absZ = Math.abs(normal.getZ());
+
+        if (absY > absX && absY > absZ)
+            return normal.getY() > 0f ? 1f : 0.5f;
+        if (absZ > absX)
+            return 0.8f;
+        return 0.6f;
     }
 
     // --- shading ---

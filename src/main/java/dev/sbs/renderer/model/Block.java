@@ -2,6 +2,8 @@ package dev.sbs.renderer.model;
 
 import dev.sbs.renderer.biome.BiomeTintTarget;
 import dev.sbs.renderer.model.asset.BlockModelData;
+import dev.sbs.renderer.model.asset.BlockStateMultipart;
+import dev.sbs.renderer.model.asset.BlockStateVariant;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.persistence.JpaModel;
@@ -44,10 +46,13 @@ public class Block implements JpaModel {
     @Column(name = "textures", nullable = false)
     private @NotNull ConcurrentMap<String, String> textures = Concurrent.newMap();
 
-    @Column(name = "states", nullable = false)
-    private @NotNull ConcurrentMap<String, BlockModelData> states = Concurrent.newMap();
+    @Column(name = "variants", nullable = false)
+    private @NotNull ConcurrentMap<String, BlockStateVariant> variants = Concurrent.newMap();
 
-    @Column(name = "tint")
+    @Column(name = "multipart", nullable = false)
+    private @NotNull Optional<BlockStateMultipart> multipart = Optional.empty();
+
+    @Column(name = "tint", nullable = false)
     private @NotNull Tint tint = new Tint(BiomeTintTarget.NONE, Optional.empty());
 
     @Override
@@ -59,13 +64,14 @@ public class Block implements JpaModel {
             && Objects.equals(this.getName(), block.getName())
             && Objects.equals(this.getModel(), block.getModel())
             && Objects.equals(this.getTextures(), block.getTextures())
-            && Objects.equals(this.getStates(), block.getStates())
+            && Objects.equals(this.getVariants(), block.getVariants())
+            && Objects.equals(this.getMultipart(), block.getMultipart())
             && Objects.equals(this.getTint(), block.getTint());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.getId(), this.getNamespace(), this.getName(), this.getModel(), this.getTextures(), this.getStates(), this.getTint());
+        return Objects.hash(this.getId(), this.getNamespace(), this.getName(), this.getModel(), this.getTextures(), this.getVariants(), this.getMultipart(), this.getTint());
     }
 
     /**

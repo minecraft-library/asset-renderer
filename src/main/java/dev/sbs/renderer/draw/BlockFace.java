@@ -24,9 +24,9 @@ import java.util.Locale;
  * 2: (x1, y1, z0)   6: (x1, y1, z1)
  * 3: (x0, y1, z0)   7: (x0, y1, z1)
  * </pre>
- * The four indices per face are wound top-left, top-right, bottom-right, bottom-left when viewed
- * from the outward normal direction, matching the convention used by
- * {@link GeometryKit}'s triangle builders.
+ * The four indices per face are wound top-left, bottom-left, bottom-right, top-right when viewed
+ * from the outward normal direction (CCW), matching vanilla's {@code FaceInfo} vertex order and
+ * the convention used by {@link GeometryKit}'s triangle builders.
  */
 @Getter
 @Accessors(fluent = true)
@@ -34,27 +34,27 @@ import java.util.Locale;
 public enum BlockFace {
 
     DOWN(
-        "down", new int[]{ 4, 5, 1, 0 }, new Vector3f(0f, -1f, 0f),
+        "down", new int[]{ 4, 0, 1, 5 }, new Vector3f(0f, -1f, 0f),
         new FaceLayout(0, 2, false, true, 1, 1, 0, 0)
     ),
     UP(
-        "up", new int[]{ 3, 2, 6, 7 }, new Vector3f(0f, 1f, 0f),
+        "up", new int[]{ 3, 7, 6, 2 }, new Vector3f(0f, 1f, 0f),
         new FaceLayout(0, 2, false, false, 0, 1, 0, 0)
     ),
     NORTH(
-        "north", new int[]{ 2, 3, 0, 1 }, new Vector3f(0f, 0f, -1f),
+        "north", new int[]{ 2, 1, 0, 3 }, new Vector3f(0f, 0f, -1f),
         new FaceLayout(0, 1, true, true, 1, 2, 0, 1)
     ),
     SOUTH(
-        "south", new int[]{ 7, 6, 5, 4 }, new Vector3f(0f, 0f, 1f),
+        "south", new int[]{ 7, 4, 5, 6 }, new Vector3f(0f, 0f, 1f),
         new FaceLayout(0, 1, false, true, 0, 1, 0, 1)
     ),
     WEST(
-        "west", new int[]{ 3, 7, 4, 0 }, new Vector3f(-1f, 0f, 0f),
+        "west", new int[]{ 3, 0, 4, 7 }, new Vector3f(-1f, 0f, 0f),
         new FaceLayout(2, 1, false, true, 0, 0, 0, 1)
     ),
     EAST(
-        "east", new int[]{ 6, 2, 1, 5 }, new Vector3f(1f, 0f, 0f),
+        "east", new int[]{ 6, 5, 1, 2 }, new Vector3f(1f, 0f, 0f),
         new FaceLayout(2, 1, true, true, 1, 1, 0, 1)
     );
 
@@ -66,8 +66,9 @@ public enum BlockFace {
     private final @NotNull FaceLayout layout;
 
     /**
-     * Returns the four CCW-ordered (TL, TR, BR, BL) corners of this face on an axis-aligned box
-     * defined by the given minimum and maximum bounds.
+     * Returns the four CCW-ordered (TL, BL, BR, TR) corners of this face on an axis-aligned box
+     * defined by the given minimum and maximum bounds, matching vanilla's {@code FaceInfo} vertex
+     * order.
      *
      * @param x0 the box minimum X
      * @param y0 the box minimum Y
@@ -75,7 +76,7 @@ public enum BlockFace {
      * @param x1 the box maximum X
      * @param y1 the box maximum Y
      * @param z1 the box maximum Z
-     * @return the four corner positions, ordered TL, TR, BR, BL
+     * @return the four corner positions, ordered TL, BL, BR, TR
      */
     public @NotNull Vector3f @NotNull [] corners(
         float x0, float y0, float z0,
@@ -94,9 +95,9 @@ public enum BlockFace {
     }
 
     /**
-     * Returns the four default UV corners (TL, TR, BR, BL) for this face in normalized
+     * Returns the four default UV corners (TL, BL, BR, TR) for this face in normalized
      * {@code [0, 1]} space, derived from the element bounds using vanilla's block-model
-     * projection formulas (see {@code net.minecraft.client.renderer.block.model.BlockElementFace}).
+     * projection formulas (see {@code FaceBakery.defaultFaceUV}).
      * <p>
      * Block model elements reference an independent texture per face (via their {@code #var}
      * bindings), so every face samples the full {@code [0, 16]} UV rectangle projected onto its
@@ -104,7 +105,7 @@ public enum BlockFace {
      *
      * @param from the element minimum in 0-16 space ({@code [x, y, z]})
      * @param to the element maximum in 0-16 space ({@code [x, y, z]})
-     * @return the four UV corners, ordered TL, TR, BR, BL
+     * @return the four UV corners, ordered TL, BL, BR, TR
      */
     public @NotNull Vector2f @NotNull [] defaultUv(float @NotNull [] from, float @NotNull [] to) {
         int uAxis = this.layout.widthAxis();
@@ -117,7 +118,7 @@ public enum BlockFace {
     }
 
     /**
-     * Returns the four default UV corners (TL, TR, BR, BL) for this face in normalized
+     * Returns the four default UV corners (TL, BL, BR, TR) for this face in normalized
      * {@code [0, 1]} space, using the Java-edition box atlas unwrap where all six faces of a
      * single cube share one texture image.
      * <p>
@@ -138,7 +139,7 @@ public enum BlockFace {
      * @param texWidth the total texture width in pixels
      * @param texHeight the total texture height in pixels
      * @param mirror whether to mirror the U axis (classic MCBE {@code mirror} flag)
-     * @return the four UV corners, ordered TL, TR, BR, BL
+     * @return the four UV corners, ordered TL, BL, BR, TR
      */
     public @NotNull Vector2f @NotNull [] defaultUv(
         int @NotNull [] uv,
@@ -176,7 +177,7 @@ public enum BlockFace {
      * @param uScale the total texture width in pixels
      * @param vScale the total texture height in pixels
      * @param mirror whether to mirror the U axis
-     * @return the four UV corners, ordered TL, TR, BR, BL
+     * @return the four UV corners, ordered TL, BL, BR, TR
      */
     public static @NotNull Vector2f @NotNull [] uvRect(
         float u0, float v0, float u1, float v1,
@@ -193,22 +194,22 @@ public enum BlockFace {
     }
 
     /**
-     * Builds four UV corners (TL, TR, BR, BL) from a UV rectangle already in normalized
-     * {@code [0, 1]} space. Shared by the derivation paths above and by callers that have
-     * explicit UVs to convert.
+     * Builds four UV corners (TL, BL, BR, TR) from a UV rectangle already in normalized
+     * {@code [0, 1]} space, matching vanilla's vertex-to-UV assignment order. Shared by the
+     * derivation paths above and by callers that have explicit UVs to convert.
      *
      * @param u0 the minimum U
      * @param v0 the minimum V
      * @param u1 the maximum U
      * @param v1 the maximum V
-     * @return the four UV corners, ordered TL, TR, BR, BL
+     * @return the four UV corners, ordered TL, BL, BR, TR
      */
     public static @NotNull Vector2f @NotNull [] uvCorners(float u0, float v0, float u1, float v1) {
         return new Vector2f[]{
             new Vector2f(u0, v0),
-            new Vector2f(u1, v0),
+            new Vector2f(u0, v1),
             new Vector2f(u1, v1),
-            new Vector2f(u0, v1)
+            new Vector2f(u1, v0)
         };
     }
 

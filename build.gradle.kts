@@ -38,10 +38,8 @@ dependencies {
     api("com.github.simplified-dev:collections:master-SNAPSHOT")
     api("com.github.simplified-dev:utils:master-SNAPSHOT")
     api("com.github.simplified-dev:reflection:master-SNAPSHOT")
-    api("com.github.simplified-dev:image:68aec439ed")
+    api("com.github.simplified-dev:image:master-SNAPSHOT")
     api("com.github.simplified-dev:gson-extras:master-SNAPSHOT")
-    api("com.github.simplified-dev:scheduler:master-SNAPSHOT")
-    api("com.github.simplified-dev:manager:master-SNAPSHOT")
     api("com.github.simplified-dev:client:master-SNAPSHOT")
     api("com.github.simplified-dev:persistence:master-SNAPSHOT")
 
@@ -110,6 +108,24 @@ tasks {
         description = "Parses BlockColors out of the cached client jar via ASM and rewrites src/main/resources/renderer/vanilla_tints.json. Run on a Minecraft version bump."
         group = "renderer"
         mainClass.set("dev.sbs.renderer.gradle.GenerateVanillaTintsMain")
+        classpath = sourceSets["main"].runtimeClasspath
+    }
+
+    register<JavaExec>("testRender") {
+        description = "Renders a single block to cache/test-render/ for visual inspection. -PblockId=minecraft:tnt -PrenderSize=512 -Pssaa=2"
+        group = "renderer"
+        mainClass.set("dev.sbs.renderer.gradle.TestRenderMain")
+        classpath = sourceSets["main"].runtimeClasspath
+        val blockId = project.findProperty("blockId") as String?
+        val renderSize = (project.findProperty("renderSize") as String?) ?: "512"
+        val ssaa = (project.findProperty("ssaa") as String?) ?: "2"
+        args = if (blockId != null) listOf(blockId, renderSize, ssaa) else listOf()
+    }
+
+    register<JavaExec>("generateEntityModels") {
+        description = "Downloads the Bedrock Edition vanilla resource pack and generates src/main/resources/renderer/entity_models.json from .geo.json files."
+        group = "renderer"
+        mainClass.set("dev.sbs.renderer.gradle.GenerateEntityModelsMain")
         classpath = sourceSets["main"].runtimeClasspath
     }
 

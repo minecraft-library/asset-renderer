@@ -1,7 +1,6 @@
 package dev.sbs.renderer.engine;
 
 import dev.sbs.renderer.math.Matrix4f;
-import dev.sbs.renderer.math.Vector3f;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -36,16 +35,20 @@ public class IsometricEngine extends ModelEngine {
     }
 
     private static @NotNull Matrix4f buildCameraTransform() {
+        // Vanilla's gui display transform specifies rotation [30, 225, 0] in Minecraft's
+        // left-handed model space (+Z = south). Our rotation matrices use right-handed
+        // convention, so the Y rotation is negated: 225 LH = -225 RH = -45 RH (mod 360 =
+        // 315). The camera is Ry(-45) * Rx(30) in row-vector convention (v * M), matching
+        // the standard yaw-then-pitch composition order. The world-to-screen Y inversion
+        // (world +Y up, screen +Y down) is handled by negating Y in the projection step.
         float pitch = (float) Math.toRadians(30d);
-        float yaw = (float) Math.toRadians(45d);
+        float yaw = (float) Math.toRadians(-45d);
 
-        // Y first (yaw), then X (pitch) so the camera looks down and to the right at the cube.
         Matrix4f yawMatrix = Matrix4f.createRotationY(yaw);
         Matrix4f pitchMatrix = Matrix4f.createRotationX(pitch);
 
-        // Flip Y axis so the world +Y (up) maps to screen -Y, matching Java's top-left origin.
-        Matrix4f flipY = Matrix4f.createScale(new Vector3f(1f, -1f, 1f));
-        return flipY.multiply(pitchMatrix.multiply(yawMatrix));
+        // Row-vector convention (v * M): yaw applied first, then pitch.
+        return yawMatrix.multiply(pitchMatrix);
     }
 
 }

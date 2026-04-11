@@ -1,5 +1,8 @@
 package dev.sbs.renderer;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import dev.sbs.renderer.biome.BiomeTintTarget;
 import dev.sbs.renderer.draw.BlendMode;
 import dev.sbs.renderer.draw.Canvas;
@@ -12,13 +15,28 @@ import dev.sbs.renderer.engine.RenderEngine;
 import dev.sbs.renderer.engine.RendererContext;
 import dev.sbs.renderer.engine.VisibleTriangle;
 import dev.sbs.renderer.exception.RendererException;
+import dev.sbs.renderer.math.Matrix4f;
+import dev.sbs.renderer.math.Vector3f;
 import dev.sbs.renderer.model.Block;
+import dev.sbs.renderer.model.asset.BlockModelData;
+import dev.sbs.renderer.model.asset.BlockStateMultipart;
+import dev.sbs.renderer.model.asset.BlockStateVariant;
+import dev.sbs.renderer.model.asset.ModelElement;
+import dev.sbs.renderer.model.asset.ModelFace;
+import dev.sbs.renderer.model.asset.ModelTransform;
 import dev.sbs.renderer.options.BlockOptions;
+import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Renders a {@link Block} as either a full 3D isometric tile or a single flat face by
@@ -94,9 +112,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
     }
 
     /**
-     * Full 3D isometric block tile renderer. Produces a single-frame static image by building a
-     * unit cube from the six face textures of the target block and rasterizing through
-     * {@link IsometricEngine}. Biome tint is applied per face via the shared
+     * Full 3D isometric block tile renderer. Multi-element blocks (chests, doors, pistons) are
+     * rendered using their full element list via {@link GeometryKit#buildFromElements}; single-
+     * element blocks use the fast unit-cube path. Biome tint is applied per face via the shared
      * {@link BlockRenderer#resolveBlockTint(RendererContext, Block, BlockOptions)} helper.
      */
     @RequiredArgsConstructor
@@ -108,25 +126,249 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         public @NotNull ImageData render(@NotNull BlockOptions options) {
             Block block = requireBlock(this.context, options.getBlockId());
             IsometricEngine engine = new IsometricEngine(this.context);
-            Canvas canvas = Canvas.of(options.getOutputSize(), options.getOutputSize());
-
-            PixelBuffer[] faces = resolveFaces(block);
             int tint = resolveBlockTint(this.context, block, options);
-            ConcurrentList<VisibleTriangle> triangles = GeometryKit.unitCube(faces, tint);
+
+            ConcurrentList<VisibleTriangle> triangles;
+
+            if (block.getMultipart().isPresent()) {
+                triangles = assembleMultipart(block.getMultipart().get(), options, tint);
+            } else {
+                triangles = buildFromBlockElements(block, tint);
+
+                // Apply blockstate variant rotation to the geometry, not the camera.
+                String variantKey = options.getVariant();
+                BlockStateVariant variant = block.getVariants().get(variantKey);
+                if (variant == null && !variantKey.isEmpty())
+                    variant = block.getVariants().get("");
+                if (variant != null && variant.hasRotation())
+                    triangles = applyRotation(triangles, buildVariantRotation(variant));
+            }
+
+            float guiYawDelta = guiYawDelta(block);
+
+            int ssaa = Math.max(1, options.getSupersample());
+            int hiRes = options.getOutputSize() * ssaa;
+            Canvas canvas = Canvas.of(hiRes, hiRes);
             engine.rasterize(triangles, canvas, PerspectiveParams.NONE,
-                options.getPitch(), options.getYaw(), options.getRoll());
+                options.getPitch(), options.getYaw() + guiYawDelta, options.getRoll());
 
             if (options.isAntiAlias())
                 canvas.getBuffer().applyFxaa();
+
+            if (ssaa > 1) {
+                Canvas output = Canvas.of(options.getOutputSize(), options.getOutputSize());
+                output.blitScaled(canvas.getBuffer(), 0, 0, options.getOutputSize(), options.getOutputSize());
+                return RenderEngine.staticFrame(output);
+            }
 
             return RenderEngine.staticFrame(canvas);
         }
 
         /**
-         * Resolves all six cube face textures from the block's textures map. Each direction key
-         * ({@code down}, {@code up}, {@code north}, {@code south}, {@code west}, {@code east})
-         * is looked up via {@link BlockRenderer#resolveTextureRef(Block, String)} and loaded
-         * through the active pack stack.
+         * Assembles geometry from all matching parts of a multipart blockstate. Evaluates
+         * each part's condition against the variant properties and builds triangles for every
+         * matching model, applying per-part rotation where specified.
+         */
+        private @NotNull ConcurrentList<VisibleTriangle> assembleMultipart(
+            @NotNull BlockStateMultipart multipart,
+            @NotNull BlockOptions options,
+            int tint
+        ) {
+            Map<String, String> properties = parseProperties(options.getVariant());
+            ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
+            RasterEngine raster = new RasterEngine(this.context);
+
+            for (BlockStateMultipart.Part part : multipart.parts()) {
+                if (!matchesCondition(part.when(), properties)) continue;
+
+                BlockStateVariant apply = part.apply();
+                // Convert model id (minecraft:block/brewing_stand) to block id (minecraft:brewing_stand)
+                String partBlockId = apply.modelId().replace(":block/", ":");
+                BlockModelData partModel = this.context.findBlock(partBlockId)
+                    .map(Block::getModel)
+                    .orElse(null);
+                if (partModel == null) continue;
+
+                // Build triangles for this part's model
+                Map<String, PixelBuffer> faceTextures = new HashMap<>();
+                Map<String, String> variables = partModel.getTextures();
+                for (ModelElement element : partModel.getElements()) {
+                    for (ModelFace face : element.getFaces().values()) {
+                        String ref = face.getTexture();
+                        if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
+                        String resolvedId = dereferenceVariable(ref, variables);
+                        if (resolvedId.startsWith("#")) continue;
+                        faceTextures.put(ref, raster.resolveTexture(resolvedId));
+                    }
+                }
+
+                ConcurrentList<VisibleTriangle> partTriangles =
+                    GeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint);
+
+                // Apply per-part rotation if specified
+                if (apply.hasRotation())
+                    partTriangles = applyRotation(partTriangles, buildVariantRotation(apply));
+
+                triangles.addAll(partTriangles);
+            }
+
+            return triangles;
+        }
+
+        /**
+         * Applies a rotation matrix to all triangles in a list, transforming vertex positions
+         * and surface normals.
+         */
+        private static @NotNull ConcurrentList<VisibleTriangle> applyRotation(
+            @NotNull ConcurrentList<VisibleTriangle> triangles,
+            @NotNull Matrix4f rotation
+        ) {
+            ConcurrentList<VisibleTriangle> rotated = Concurrent.newList();
+            for (VisibleTriangle tri : triangles) {
+                rotated.add(new VisibleTriangle(
+                    Vector3f.transform(tri.position0(), rotation),
+                    Vector3f.transform(tri.position1(), rotation),
+                    Vector3f.transform(tri.position2(), rotation),
+                    tri.uv0(), tri.uv1(), tri.uv2(),
+                    tri.texture(), tri.tintArgb(),
+                    Vector3f.transformNormal(tri.normal(), rotation),
+                    tri.shading(), tri.renderPriority(), tri.cullBackFaces()
+                ));
+            }
+            return rotated;
+        }
+
+        /**
+         * Parses a variant properties string ({@code "facing=south,lit=false"}) into a map.
+         */
+        private static @NotNull Map<String, String> parseProperties(@NotNull String variant) {
+            Map<String, String> result = new HashMap<>();
+            if (variant.isBlank()) return result;
+            for (String pair : variant.split(",")) {
+                int eq = pair.indexOf('=');
+                if (eq > 0)
+                    result.put(pair.substring(0, eq), pair.substring(eq + 1));
+            }
+            return result;
+        }
+
+        /**
+         * Evaluates a multipart condition against blockstate properties. Supports simple
+         * property matching, pipe-delimited multi-value OR ({@code "side|up"}), and compound
+         * AND/OR operators.
+         */
+        private static boolean matchesCondition(
+            @org.jetbrains.annotations.Nullable JsonObject when,
+            @NotNull Map<String, String> properties
+        ) {
+            if (when == null) return true;
+
+            if (when.has("AND")) {
+                JsonArray conditions = when.getAsJsonArray("AND");
+                for (JsonElement el : conditions)
+                    if (!matchesCondition(el.getAsJsonObject(), properties)) return false;
+                return true;
+            }
+            if (when.has("OR")) {
+                JsonArray conditions = when.getAsJsonArray("OR");
+                for (JsonElement el : conditions)
+                    if (matchesCondition(el.getAsJsonObject(), properties)) return true;
+                return false;
+            }
+
+            // Simple property matching
+            for (Map.Entry<String, JsonElement> entry : when.entrySet()) {
+                String required = entry.getValue().getAsString();
+                String actual = properties.getOrDefault(entry.getKey(), "");
+                if (required.contains("|")) {
+                    if (!Arrays.asList(required.split("\\|")).contains(actual)) return false;
+                } else {
+                    if (!required.equals(actual)) return false;
+                }
+            }
+            return true;
+        }
+
+        /**
+         * Builds triangles from all elements in a multi-element block model. Walks every
+         * element's face texture references, dereferences {@code #variable} chains against
+         * the model's texture bindings, and builds geometry via
+         * {@link GeometryKit#buildFromElements}.
+         */
+        private @NotNull ConcurrentList<VisibleTriangle> buildFromBlockElements(
+            @NotNull Block block,
+            int tint
+        ) {
+            RasterEngine raster = new RasterEngine(this.context);
+            Map<String, PixelBuffer> faceTextures = new HashMap<>();
+            Map<String, String> variables = block.getModel().getTextures();
+
+            for (ModelElement element : block.getModel().getElements()) {
+                for (ModelFace face : element.getFaces().values()) {
+                    String ref = face.getTexture();
+                    if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
+                    String resolvedId = dereferenceVariable(ref, variables);
+                    if (resolvedId.startsWith("#")) continue;
+                    faceTextures.put(ref, raster.resolveTexture(resolvedId));
+                }
+            }
+
+            return GeometryKit.buildFromElements(block.getModel().getElements(), faceTextures, tint);
+        }
+
+        /**
+         * Builds a rotation matrix from a blockstate variant's X and Y rotation values.
+         * Variant angles are specified in Minecraft's left-handed convention (CW from above
+         * for Y), so the Y angle is negated to match our right-handed rotation matrices.
+         * Applied to vertex positions to pre-transform the geometry before camera projection.
+         */
+        private static @NotNull Matrix4f buildVariantRotation(@NotNull BlockStateVariant variant) {
+            Matrix4f result = Matrix4f.IDENTITY;
+            if (variant.y() != 0)
+                result = result.multiply(Matrix4f.createRotationY((float) Math.toRadians(-variant.y())));
+            if (variant.x() != 0)
+                result = result.multiply(Matrix4f.createRotationX((float) Math.toRadians(variant.x())));
+            return result;
+        }
+
+        /**
+         * Returns the model-rotation yaw delta (in degrees, right-handed) needed to compensate
+         * for a non-standard {@code display.gui.rotation} on the block model. Most blocks
+         * inherit the standard {@code [30, 225, 0]} from the {@code block.json} parent; blocks
+         * like stairs override this (e.g. {@code [30, 135, 0]}). The delta is negated for the
+         * left-handed to right-handed conversion.
+         */
+        private static float guiYawDelta(@NotNull Block block) {
+            ModelTransform gui = block.getModel().getDisplay().get("gui");
+            if (gui == null) return 0f;
+            float guiYaw = gui.getRotationY();
+            if (guiYaw == 0f || guiYaw == 225f) return 0f;
+            return -(guiYaw - 225f);
+        }
+
+        /**
+         * Walks a {@code #variable} chain until it terminates at a concrete namespaced id.
+         */
+        private static @NotNull String dereferenceVariable(
+            @NotNull String reference,
+            @NotNull Map<String, String> variables
+        ) {
+            String current = reference;
+            Set<String> visited = new HashSet<>();
+            while (current.startsWith("#")) {
+                if (!visited.add(current)) return current;
+                String next = variables.get(current.substring(1));
+                if (next == null) return current;
+                current = next;
+            }
+            return current;
+        }
+
+        /**
+         * Resolves all six cube face textures for the unit-cube fast path (single-element
+         * blocks). Each direction key is looked up via
+         * {@link BlockRenderer#resolveTextureRef(Block, String)} and loaded through the active
+         * pack stack.
          */
         private @NotNull PixelBuffer @NotNull [] resolveFaces(@NotNull Block block) {
             RasterEngine engine = new RasterEngine(this.context);
@@ -163,7 +405,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             String textureId = resolveFaceTextureId(block, options.getFace());
             PixelBuffer face = engine.resolveTexture(textureId);
             int tint = resolveBlockTint(this.context, block, options);
-            canvas.blitTinted(face, 0, 0, tint, BlendMode.MULTIPLY);
+            PixelBuffer tinted = ColorKit.tint(face, tint);
+            int size = options.getOutputSize();
+            canvas.blitScaled(tinted, 0, 0, size, size);
 
             return RenderEngine.staticFrame(canvas);
         }

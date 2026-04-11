@@ -77,7 +77,7 @@ class GeometryKitTest {
 
         assertThat(triangles.size(), equalTo(2));
         VisibleTriangle firstHalf = triangles.get(0);
-        // Triangle 0 samples (TL, TR, BR): uv0 is TL, uv2 is BR.
+        // Triangle 0 samples (TL, BL, BR): uv0 is TL, uv2 is BR.
         assertThat(firstHalf.uv0().getX(), equalTo(0f));
         assertThat(firstHalf.uv0().getY(), equalTo(0f));
         assertThat(firstHalf.uv2().getX(), equalTo(0.5f));
@@ -114,7 +114,7 @@ class GeometryKitTest {
 
         assertThat(triangles.size(), equalTo(2));
         VisibleTriangle firstHalf = triangles.get(0);
-        // Up-face TL corner = (x0, y1, z0) and BR corner = (x1, y1, z1) after normalization.
+        // Up-face TL = vertex 3 = (x0, y1, z0) and BR = vertex 6 = (x1, y1, z1).
         assertThat(firstHalf.position0().getX(), equalTo(-0.25f));
         assertThat(firstHalf.position0().getY(), equalTo(0.5f));
         assertThat(firstHalf.position0().getZ(), equalTo(-0.25f));

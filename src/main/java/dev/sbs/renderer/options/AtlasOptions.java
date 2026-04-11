@@ -37,7 +37,7 @@ public class AtlasOptions {
     private final @NotNull Optional<java.util.function.Predicate<String>> filter = Optional.empty();
 
     @lombok.Builder.Default
-    private final int tileSize = 64;
+    private final int tileSize = 128;
 
     @lombok.Builder.Default
     private final int columns = 16;

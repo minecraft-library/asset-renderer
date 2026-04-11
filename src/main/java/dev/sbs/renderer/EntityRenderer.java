@@ -3,6 +3,8 @@ package dev.sbs.renderer;
 import dev.sbs.renderer.draw.BlockFace;
 import dev.sbs.renderer.draw.Canvas;
 import dev.sbs.renderer.draw.ColorKit;
+import dev.sbs.renderer.draw.GlintKit;
+import dev.sbs.renderer.draw.armor.ArmorKit;
 import dev.sbs.renderer.engine.ModelEngine;
 import dev.sbs.renderer.engine.PerspectiveParams;
 import dev.sbs.renderer.engine.RenderEngine;
@@ -21,6 +23,8 @@ import dev.simplified.image.PixelBuffer;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -53,19 +57,43 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (model.getBones().isEmpty())
             return RenderEngine.staticFrame(canvas);
 
-        ConcurrentList<VisibleTriangle> triangles = buildEntityTriangles(model, texture.get());
-        if (triangles.isEmpty())
+        EntityBuildResult buildResult = buildEntityTriangles(model, texture.get());
+        if (buildResult.triangles.isEmpty())
             return RenderEngine.staticFrame(canvas);
 
+        ConcurrentList<VisibleTriangle> triangles = buildResult.triangles;
+
+        // Armor overlay for humanoid entities
         ModelEngine engine = new ModelEngine(this.context);
+        triangles.addAll(ArmorKit.buildEntityArmor3D(buildResult.boneBounds,
+            options.getHelmet(), options.getChestplate(),
+            options.getLeggings(), options.getBoots(), engine));
+
         engine.rasterize(triangles, canvas, PerspectiveParams.GUI_ITEM,
             options.getPitch(), options.getYaw(), options.getRoll());
 
         if (options.isAntiAlias())
             canvas.getBuffer().applyFxaa();
 
+        if (ArmorKit.hasEnchantedArmor(
+            options.getHelmet(), options.getChestplate(),
+            options.getLeggings(), options.getBoots())) {
+            GlintKit.GlintOptions glintOptions = GlintKit.GlintOptions.armorDefault(30);
+            Optional<PixelBuffer> glintTexture = engine.tryResolveTexture(glintOptions.glintTextureId());
+            if (glintTexture.isPresent()) {
+                ConcurrentList<PixelBuffer> frames = GlintKit.apply(canvas.getBuffer(), glintTexture.get(), glintOptions);
+                int frameDelayMs = Math.max(1, Math.round(1000f / 30f));
+                return RenderEngine.output(frames, frameDelayMs);
+            }
+        }
+
         return RenderEngine.staticFrame(canvas);
     }
+
+    private record EntityBuildResult(
+        @NotNull ConcurrentList<VisibleTriangle> triangles,
+        @NotNull Map<String, Vector3f[]> boneBounds
+    ) {}
 
     /**
      * Resolves the entity texture through the pack stack. An explicit texture id on the options
@@ -84,7 +112,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         return Optional.empty();
     }
 
-    private static @NotNull ConcurrentList<VisibleTriangle> buildEntityTriangles(
+    private static @NotNull EntityBuildResult buildEntityTriangles(
         @NotNull EntityModelData model,
         @NotNull PixelBuffer texture
     ) {
@@ -100,10 +128,16 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         float texH = Math.max(1f, model.getTextureHeight());
 
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
+        Map<String, Vector3f[]> boneBounds = new HashMap<>();
         int priority = 0;
 
-        for (EntityModelData.Bone bone : model.getBones().values()) {
+        for (Map.Entry<String, EntityModelData.Bone> boneEntry : model.getBones().entrySet()) {
+            String boneName = boneEntry.getKey();
+            EntityModelData.Bone bone = boneEntry.getValue();
             Matrix4f boneTransform = buildBoneTransform(bone);
+
+            float bMinX = Float.POSITIVE_INFINITY, bMinY = Float.POSITIVE_INFINITY, bMinZ = Float.POSITIVE_INFINITY;
+            float bMaxX = Float.NEGATIVE_INFINITY, bMaxY = Float.NEGATIVE_INFINITY, bMaxZ = Float.NEGATIVE_INFINITY;
 
             for (EntityModelData.Cube cube : bone.getCubes()) {
                 float[] origin = cube.getOrigin();
@@ -122,11 +156,17 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     for (int i = 0; i < 4; i++) {
                         Vector3f transformed = Vector3f.transform(corners[i], boneTransform);
                         float ty = negateY ? -transformed.getY() : transformed.getY();
-                        corners[i] = new Vector3f(
-                            (transformed.getX() - cx) * scale,
-                            (ty - cy) * scale,
-                            (transformed.getZ() - cz) * scale
-                        );
+                        float nx = (transformed.getX() - cx) * scale;
+                        float ny = (ty - cy) * scale;
+                        float nz = (transformed.getZ() - cz) * scale;
+                        corners[i] = new Vector3f(nx, ny, nz);
+
+                        bMinX = Math.min(bMinX, nx);
+                        bMinY = Math.min(bMinY, ny);
+                        bMinZ = Math.min(bMinZ, nz);
+                        bMaxX = Math.max(bMaxX, nx);
+                        bMaxY = Math.max(bMaxY, ny);
+                        bMaxZ = Math.max(bMaxZ, nz);
                     }
 
                     Vector3f rawNormal = Vector3f.transformNormal(face.normal(), boneTransform);
@@ -155,9 +195,15 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     priority++;
                 }
             }
+
+            if (bMinX != Float.POSITIVE_INFINITY)
+                boneBounds.put(boneName, new Vector3f[]{
+                    new Vector3f(bMinX, bMinY, bMinZ),
+                    new Vector3f(bMaxX, bMaxY, bMaxZ)
+                });
         }
 
-        return triangles;
+        return new EntityBuildResult(triangles, boneBounds);
     }
 
     private static @NotNull Vector2f @NotNull [] resolveFaceUv(

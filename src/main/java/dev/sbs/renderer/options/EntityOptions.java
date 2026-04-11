@@ -1,5 +1,6 @@
 package dev.sbs.renderer.options;
 
+import dev.sbs.renderer.draw.armor.ArmorPiece;
 import dev.simplified.image.ImageFormat;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -24,6 +25,22 @@ public class EntityOptions {
     /** Optional texture id override, resolvable through the active pack stack. */
     @lombok.Builder.Default
     private final @NotNull Optional<String> textureId = Optional.empty();
+
+    /** Helmet armor piece to render on humanoid entities. */
+    @lombok.Builder.Default
+    private final @NotNull Optional<ArmorPiece> helmet = Optional.empty();
+
+    /** Chestplate armor piece to render on humanoid entities. */
+    @lombok.Builder.Default
+    private final @NotNull Optional<ArmorPiece> chestplate = Optional.empty();
+
+    /** Leggings armor piece to render on humanoid entities. */
+    @lombok.Builder.Default
+    private final @NotNull Optional<ArmorPiece> leggings = Optional.empty();
+
+    /** Boots armor piece to render on humanoid entities. */
+    @lombok.Builder.Default
+    private final @NotNull Optional<ArmorPiece> boots = Optional.empty();
 
     @lombok.Builder.Default
     private final int outputSize = 256;

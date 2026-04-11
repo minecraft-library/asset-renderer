@@ -8,6 +8,7 @@ import dev.sbs.renderer.draw.GlintKit;
 import dev.sbs.renderer.draw.SkinFace;
 import dev.sbs.renderer.draw.armor.ArmorKit;
 import dev.sbs.renderer.draw.armor.ArmorPiece;
+import dev.sbs.renderer.draw.armor.ArmorTrim;
 import dev.sbs.renderer.engine.IsometricEngine;
 import dev.sbs.renderer.engine.PerspectiveParams;
 import dev.sbs.renderer.engine.RasterEngine;
@@ -135,6 +136,96 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         return skin.getWidth() >= 48 && skin.getHeight() >= 16;
     }
 
+    /**
+     * Resolves the cape texture using the same priority chain as skins. Returns empty when
+     * {@code renderCape} is false or no texture source is available.
+     */
+    static @NotNull Optional<PixelBuffer> resolveCape(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
+        if (!options.isRenderCape()) return Optional.empty();
+
+        if (options.getCapeBytes().isPresent())
+            return Optional.of(PixelBuffer.wrap(parent.imageFactory.fromByteArray(options.getCapeBytes().get()).toBufferedImage()));
+
+        if (options.getCapeUrl().isPresent()) {
+            String url = options.getCapeUrl().get();
+            PixelBuffer cached = parent.skinCache.get("cape:" + url);
+            if (cached != null) return Optional.of(cached);
+
+            byte[] bytes = parent.fetcher.get(url);
+            PixelBuffer buffer = PixelBuffer.wrap(parent.imageFactory.fromByteArray(bytes).toBufferedImage());
+            parent.skinCache.put("cape:" + url, buffer);
+            return Optional.of(buffer);
+        }
+
+        if (options.getCapeTextureId().isPresent()) {
+            RasterEngine engine = new RasterEngine(parent.context);
+            return engine.tryResolveTexture(options.getCapeTextureId().get());
+        }
+
+        return Optional.empty();
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Cape geometry - 10x16x1 pixel box on a 64x32 texture, standard cube UV unwrap at (0,0).
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * Crops the 6 face textures for the cape cube from a 64x32 cape texture. The cape model
+     * is a 10x16x1 box with UV origin (0,0), following the standard Minecraft cube unwrap:
+     * <pre>
+     * y=0:  [1px pad][10px TOP][1px pad][10px BOTTOM]
+     * y=1:  [1px WEST][10px SOUTH][1px EAST][10px NORTH]  (16 rows)
+     * </pre>
+     */
+    private static @NotNull PixelBuffer @NotNull [] cropCapeFaces(@NotNull PixelBuffer cape) {
+        PixelBuffer[] faces = new PixelBuffer[6];
+        faces[BlockFace.DOWN.ordinal()] = cropRect(cape, 11, 0, 10, 1);
+        faces[BlockFace.UP.ordinal()] = cropRect(cape, 1, 0, 10, 1);
+        faces[BlockFace.NORTH.ordinal()] = cropRect(cape, 12, 1, 10, 16);
+        faces[BlockFace.SOUTH.ordinal()] = cropRect(cape, 1, 1, 10, 16);
+        faces[BlockFace.WEST.ordinal()] = cropRect(cape, 0, 1, 1, 16);
+        faces[BlockFace.EAST.ordinal()] = cropRect(cape, 11, 1, 1, 16);
+        return faces;
+    }
+
+    private static @NotNull PixelBuffer cropRect(@NotNull PixelBuffer source, int x, int y, int w, int h) {
+        int[] pixels = new int[w * h];
+        for (int dy = 0; dy < h; dy++)
+            for (int dx = 0; dx < w; dx++) {
+                int sx = x + dx, sy = y + dy;
+                if (sx < source.getWidth() && sy < source.getHeight())
+                    pixels[dy * w + dx] = source.getPixel(sx, sy);
+            }
+        return PixelBuffer.of(pixels, w, h);
+    }
+
+    /**
+     * Builds cape triangles as a thin box positioned behind and below the torso top edge.
+     * The cape width and height are proportional to the torso dimensions.
+     */
+    private static void addCape(
+        @NotNull ConcurrentList<VisibleTriangle> triangles,
+        @NotNull PixelBuffer capeTexture,
+        @NotNull Vector3f torsoMin,
+        @NotNull Vector3f torsoMax
+    ) {
+        float torsoW = torsoMax.getX() - torsoMin.getX();
+        float torsoH = torsoMax.getY() - torsoMin.getY();
+        float capeW = torsoW * 10f / 8f;
+        float capeH = torsoH * 16f / 12f;
+        float capeD = torsoW * 1f / 8f;
+
+        float cx = (torsoMin.getX() + torsoMax.getX()) / 2f;
+        float capeTop = torsoMax.getY();
+        float capeBack = torsoMax.getZ();
+
+        Vector3f capeMin = new Vector3f(cx - capeW / 2f, capeTop - capeH, capeBack);
+        Vector3f capeMax = new Vector3f(cx + capeW / 2f, capeTop, capeBack + capeD);
+
+        PixelBuffer[] faces = cropCapeFaces(capeTexture);
+        triangles.addAll(GeometryKit.box(capeMin, capeMax, faces, ColorKit.WHITE));
+    }
+
     // ---------------------------------------------------------------------------------------
     // 2D helpers - composite front-facing body parts + armor onto a canvas.
     // ---------------------------------------------------------------------------------------
@@ -221,9 +312,8 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 canvas.blitScaled(hat, bp.x, bp.y, bp.w, bp.h);
             }
 
-            // Armor + trim for this body part
-            Optional<ArmorPiece> piece = armorForPart(bp.part, options);
-            ArmorKit.compositeSlot2D(canvas, bp.part, piece, bp.x, bp.y, bp.w, bp.h, engine);
+            // Armor + trim for this body part (each slot that covers this part gets composited)
+            compositeArmor2D(canvas, bp.part, bp.x, bp.y, bp.w, bp.h, options, engine);
         }
 
         if (options.isAntiAlias())
@@ -233,18 +323,33 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     }
 
     /**
-     * Returns the armor piece that covers the given body part, if any.
+     * Composites all armor slots that cover the given body part in the correct layer order.
+     * Leggings are drawn before chestplate/boots so the outer layer wins on overlapping parts
+     * (torso, legs).
      */
-    private static @NotNull Optional<ArmorPiece> armorForPart(
+    private static void compositeArmor2D(
+        @NotNull Canvas canvas,
         @NotNull SkinFace part,
-        @NotNull PlayerOptions options
+        int x, int y, int w, int h,
+        @NotNull PlayerOptions options,
+        @NotNull RasterEngine engine
     ) {
-        return switch (part) {
-            case HEAD -> options.getHelmet();
-            case TORSO -> options.getChestplate().or(options::getLeggings);
-            case RIGHT_ARM, LEFT_ARM -> options.getChestplate();
-            case RIGHT_LEG, LEFT_LEG -> options.getBoots().or(options::getLeggings);
-        };
+        for (ArmorTrim.Slot slot : ArmorTrim.Slot.values()) {
+            Optional<ArmorPiece> piece = switch (slot) {
+                case HELMET -> options.getHelmet();
+                case CHESTPLATE -> options.getChestplate();
+                case LEGGINGS -> options.getLeggings();
+                case BOOTS -> options.getBoots();
+            };
+            if (piece.isEmpty()) continue;
+
+            boolean partInSlot = false;
+            for (SkinFace slotPart : ArmorKit.partsForSlot(slot))
+                if (slotPart == part) { partInSlot = true; break; }
+            if (!partInSlot) continue;
+
+            ArmorKit.compositeSlot2D(canvas, part, slot, piece.get(), x, y, w, h, engine);
+        }
     }
 
     // ---------------------------------------------------------------------------------------
@@ -362,6 +467,9 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 options.getHelmet(), options.getChestplate(),
                 options.getLeggings(), options.getBoots(), engine));
 
+            resolveCape(this.parent, options)
+                .ifPresent(cape -> addCape(triangles, cape, BUST_TORSO_MIN, BUST_TORSO_MAX));
+
             engine.rasterize(triangles, canvas, PerspectiveParams.NONE,
                 options.getPitch(), options.getYaw(), options.getRoll());
             if (options.isAntiAlias()) canvas.getBuffer().applyFxaa();
@@ -408,6 +516,9 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             triangles.addAll(ArmorKit.buildHumanoidArmor3D(bp,
                 options.getHelmet(), options.getChestplate(),
                 options.getLeggings(), options.getBoots(), engine));
+
+            resolveCape(this.parent, options)
+                .ifPresent(cape -> addCape(triangles, cape, FULL_TORSO_MIN, FULL_TORSO_MAX));
 
             engine.rasterize(triangles, canvas, PerspectiveParams.NONE,
                 options.getPitch(), options.getYaw(), options.getRoll());

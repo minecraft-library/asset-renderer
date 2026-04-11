@@ -14,6 +14,7 @@ import dev.simplified.image.PixelBuffer;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.EnumMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -90,11 +91,13 @@ public class ArmorKit {
 
     /**
      * Composites the 2D front-facing armor and trim sprites for a single body part onto the
-     * canvas at the given position and scale. Does nothing when the piece is absent.
+     * canvas at the given position and scale. The slot determines whether to use the humanoid
+     * (layer 1) or humanoid_leggings (layer 2) texture atlas.
      *
      * @param canvas the target canvas
      * @param part the body part whose south face to crop from the armor atlas
-     * @param piece the armor piece to render, or empty to skip
+     * @param slot the armor slot that determines the texture layer
+     * @param piece the armor piece to render
      * @param x the destination X on the canvas
      * @param y the destination Y on the canvas
      * @param w the destination width
@@ -104,26 +107,24 @@ public class ArmorKit {
     public static void compositeSlot2D(
         @NotNull Canvas canvas,
         @NotNull SkinFace part,
-        @NotNull Optional<ArmorPiece> piece,
+        @NotNull ArmorTrim.Slot slot,
+        @NotNull ArmorPiece piece,
         int x, int y, int w, int h,
         @NotNull TextureEngine engine
     ) {
-        if (piece.isEmpty()) return;
-        ArmorPiece armor = piece.get();
-
-        boolean useLeggingsLayer = isLeggingsSlotPart(part, armor);
+        boolean useLeggingsLayer = slot == ArmorTrim.Slot.LEGGINGS;
         String textureId = useLeggingsLayer
-            ? armor.material().leggingsTextureId()
-            : armor.material().humanoidTextureId();
+            ? piece.material().leggingsTextureId()
+            : piece.material().humanoidTextureId();
         Optional<PixelBuffer> armorTexture = engine.tryResolveTexture(textureId);
         armorTexture.ifPresent(tex -> {
             PixelBuffer face = part.crop(tex, BlockFace.SOUTH, false);
             canvas.blitScaled(face, x, y, w, h);
         });
 
-        if (armor.trimColor().isPresent() && armor.trimPattern().isPresent()) {
+        if (piece.trimColor().isPresent() && piece.trimPattern().isPresent()) {
             String trimLayer = useLeggingsLayer ? "humanoid_leggings" : "humanoid";
-            resolveTrimTexture(engine, trimLayer, armor.trimPattern().get(), armor.trimColor().get())
+            resolveTrimTexture(engine, trimLayer, piece.trimPattern().get(), piece.trimColor().get())
                 .ifPresent(trimTex -> {
                     PixelBuffer face = part.crop(trimTex, BlockFace.SOUTH, false);
                     canvas.blitScaled(face, x, y, w, h);
@@ -147,32 +148,68 @@ public class ArmorKit {
     }
 
     // ---------------------------------------------------------------------------------------
+    // Entity armor (maps bone names to humanoid SkinFace parts).
+    // ---------------------------------------------------------------------------------------
+
+    private static final @NotNull Map<String, SkinFace> HUMANOID_BONE_MAP = Map.ofEntries(
+        Map.entry("head", SkinFace.HEAD),
+        Map.entry("body", SkinFace.TORSO),
+        Map.entry("right_arm", SkinFace.RIGHT_ARM),
+        Map.entry("left_arm", SkinFace.LEFT_ARM),
+        Map.entry("right_leg", SkinFace.RIGHT_LEG),
+        Map.entry("left_leg", SkinFace.LEFT_LEG),
+        Map.entry("rightArm", SkinFace.RIGHT_ARM),
+        Map.entry("leftArm", SkinFace.LEFT_ARM),
+        Map.entry("rightLeg", SkinFace.RIGHT_LEG),
+        Map.entry("leftLeg", SkinFace.LEFT_LEG)
+    );
+
+    /**
+     * Builds armor triangles for an entity by mapping its bone bounding boxes to humanoid
+     * armor slots. Only bones whose names match the standard humanoid naming convention
+     * ({@code head}, {@code body}, {@code right_arm}, {@code left_arm}, {@code right_leg},
+     * {@code left_leg}) are considered; entities with non-humanoid bone names are silently
+     * skipped.
+     *
+     * @param boneBounds map of bone name to {@code [min, max]} in normalized model space
+     * @param helmet equipped helmet, or empty
+     * @param chestplate equipped chestplate, or empty
+     * @param leggings equipped leggings, or empty
+     * @param boots equipped boots, or empty
+     * @param engine the texture engine for pack-aware texture resolution
+     * @return the armor + trim triangles
+     */
+    public static @NotNull ConcurrentList<VisibleTriangle> buildEntityArmor3D(
+        @NotNull Map<String, Vector3f[]> boneBounds,
+        @NotNull Optional<ArmorPiece> helmet,
+        @NotNull Optional<ArmorPiece> chestplate,
+        @NotNull Optional<ArmorPiece> leggings,
+        @NotNull Optional<ArmorPiece> boots,
+        @NotNull TextureEngine engine
+    ) {
+        Map<SkinFace, Vector3f[]> bodyPositions = new EnumMap<>(SkinFace.class);
+        for (var entry : boneBounds.entrySet()) {
+            SkinFace part = HUMANOID_BONE_MAP.get(entry.getKey());
+            if (part != null)
+                bodyPositions.put(part, entry.getValue());
+        }
+        return buildHumanoidArmor3D(bodyPositions, helmet, chestplate, leggings, boots, engine);
+    }
+
+    // ---------------------------------------------------------------------------------------
     // Shared internals.
     // ---------------------------------------------------------------------------------------
 
     /**
      * Maps an armor slot to the {@link SkinFace} body parts it covers.
      */
-    static @NotNull SkinFace @NotNull [] partsForSlot(@NotNull ArmorTrim.Slot slot) {
+    public static @NotNull SkinFace @NotNull [] partsForSlot(@NotNull ArmorTrim.Slot slot) {
         return switch (slot) {
             case HELMET -> new SkinFace[]{ SkinFace.HEAD };
             case CHESTPLATE -> new SkinFace[]{ SkinFace.TORSO, SkinFace.RIGHT_ARM, SkinFace.LEFT_ARM };
             case LEGGINGS -> new SkinFace[]{ SkinFace.TORSO, SkinFace.RIGHT_LEG, SkinFace.LEFT_LEG };
             case BOOTS -> new SkinFace[]{ SkinFace.RIGHT_LEG, SkinFace.LEFT_LEG };
         };
-    }
-
-    /**
-     * Determines whether a given body part should use the leggings layer texture. Leggings
-     * affect TORSO (lower waist) and legs; everything else uses layer 1.
-     */
-    private static boolean isLeggingsSlotPart(@NotNull SkinFace part, @NotNull ArmorPiece piece) {
-        // The caller is responsible for only passing parts relevant to the piece's slot.
-        // TORSO + legs from a leggings piece use layer 2; all else uses layer 1.
-        // We check if this part could come from leggings by looking at the piece's material
-        // texture availability - but the simpler heuristic is: legs always use leggings layer
-        // when the piece IS leggings.
-        return false; // Default to layer 1; the 3D path handles this via addSlot3D's slot param.
     }
 
     private static void addSlot3D(

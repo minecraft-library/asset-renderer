@@ -142,14 +142,14 @@ public class ModelEngine extends TextureEngine {
             prepared.add(new Projected(triangle, p0, p1, p2, s0, s1, s2, normal));
         }
 
-        prepared.sort((a, b) -> Float.compare(averageDepth(b), averageDepth(a)));
+        prepared.sort((a, b) -> Float.compare(averageDepth(a), averageDepth(b)));
 
         float[] depthBuffer = new float[width * height];
-        Arrays.fill(depthBuffer, Float.POSITIVE_INFINITY);
+        Arrays.fill(depthBuffer, Float.NEGATIVE_INFINITY);
 
         for (Projected t : prepared) {
             int[] bounds = ProjectionMath.triangleBounds(t.s0, t.s1, t.s2, width, height);
-            float shading = t.source.shading() * RenderEngine.computeInventoryLighting(t.normal);
+            float shading = t.source.shading() * RenderEngine.computeInventoryLighting(t.source.normal());
 
             for (int py = bounds[1]; py <= bounds[3]; py++) {
                 for (int px = bounds[0]; px <= bounds[2]; px++) {
@@ -159,7 +159,7 @@ public class ModelEngine extends TextureEngine {
 
                     float depth = bary[0] * t.p0.getZ() + bary[1] * t.p1.getZ() + bary[2] * t.p2.getZ();
                     int idx = py * width + px;
-                    if (depth >= depthBuffer[idx]) continue;
+                    if (depth <= depthBuffer[idx]) continue;
 
                     float u = bary[0] * t.source.uv0().getX() + bary[1] * t.source.uv1().getX() + bary[2] * t.source.uv2().getX();
                     float v = bary[0] * t.source.uv0().getY() + bary[1] * t.source.uv1().getY() + bary[2] * t.source.uv2().getY();
@@ -182,9 +182,11 @@ public class ModelEngine extends TextureEngine {
     }
 
     /**
-     * Computes a signed triangle area in screen space. A non-positive result means the triangle
-     * is wound clockwise after projection - i.e. back-facing in our Y-down screen coordinate
-     * system - and should be culled.
+     * Computes a signed triangle area in screen space. The camera transform is a pure rotation
+     * (det=+1, preserves winding), so the Y-down screen conversion is applied only in the
+     * projection step. The projection negates Y, which reverses winding: front-facing CCW
+     * triangles end up CW on screen with negative signed area. A non-negative result therefore
+     * means back-facing.
      * <p>
      * This is more robust than a camera-space normal test because it correctly handles arbitrary
      * rotations, perspective foreshortening, and non-uniform scales.
@@ -192,7 +194,7 @@ public class ModelEngine extends TextureEngine {
     private static boolean isBackFacing(@NotNull Vector2f v0, @NotNull Vector2f v1, @NotNull Vector2f v2) {
         float signedArea = (v1.getX() - v0.getX()) * (v2.getY() - v0.getY())
             - (v2.getX() - v0.getX()) * (v1.getY() - v0.getY());
-        return signedArea <= 0f;
+        return signedArea >= 0f;
     }
 
     /**

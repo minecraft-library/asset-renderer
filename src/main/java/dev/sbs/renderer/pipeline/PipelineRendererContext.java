@@ -11,6 +11,9 @@ import dev.sbs.renderer.model.Texture;
 import dev.sbs.renderer.model.TexturePack;
 import dev.sbs.renderer.model.asset.AnimationData;
 import dev.sbs.renderer.model.asset.BlockModelData;
+import dev.sbs.renderer.model.asset.BlockStateMultipart;
+import dev.sbs.renderer.model.asset.BlockStateVariant;
+import dev.sbs.renderer.model.asset.EntityModelData;
 import dev.sbs.renderer.model.asset.ItemModelData;
 import dev.sbs.renderer.model.asset.ModelElement;
 import dev.sbs.renderer.model.asset.ModelFace;
@@ -68,6 +71,8 @@ public final class PipelineRendererContext implements RendererContext {
     private static final @NotNull FieldAccessor<String> BLOCK_NAME = BLOCK_REFLECTION.getField("name");
     private static final @NotNull FieldAccessor<BlockModelData> BLOCK_MODEL = BLOCK_REFLECTION.getField("model");
     private static final @NotNull FieldAccessor<ConcurrentMap<String, String>> BLOCK_TEXTURES = BLOCK_REFLECTION.getField("textures");
+    private static final @NotNull FieldAccessor<ConcurrentMap<String, BlockStateVariant>> BLOCK_VARIANTS = BLOCK_REFLECTION.getField("variants");
+    private static final @NotNull FieldAccessor<Optional<BlockStateMultipart>> BLOCK_MULTIPART = BLOCK_REFLECTION.getField("multipart");
     private static final @NotNull FieldAccessor<Block.Tint> BLOCK_TINT = BLOCK_REFLECTION.getField("tint");
 
     private static final @NotNull Reflection<Item> ITEM_REFLECTION = new Reflection<>(Item.class);
@@ -77,10 +82,18 @@ public final class PipelineRendererContext implements RendererContext {
     private static final @NotNull FieldAccessor<ItemModelData> ITEM_MODEL = ITEM_REFLECTION.getField("model");
     private static final @NotNull FieldAccessor<ConcurrentMap<String, String>> ITEM_TEXTURES = ITEM_REFLECTION.getField("textures");
 
+    private static final @NotNull Reflection<Entity> ENTITY_REFLECTION = new Reflection<>(Entity.class);
+    private static final @NotNull FieldAccessor<String> ENTITY_ID = ENTITY_REFLECTION.getField("id");
+    private static final @NotNull FieldAccessor<String> ENTITY_NAMESPACE = ENTITY_REFLECTION.getField("namespace");
+    private static final @NotNull FieldAccessor<String> ENTITY_NAME = ENTITY_REFLECTION.getField("name");
+    private static final @NotNull FieldAccessor<EntityModelData> ENTITY_MODEL = ENTITY_REFLECTION.getField("model");
+    private static final @NotNull FieldAccessor<Optional<String>> ENTITY_TEXTURE_ID = ENTITY_REFLECTION.getField("textureId");
+
     private final @NotNull Path textureRoot;
     private final @NotNull ConcurrentList<TexturePack> packs;
     private final @NotNull ConcurrentMap<String, Block> blockIndex;
     private final @NotNull ConcurrentMap<String, Item> itemIndex;
+    private final @NotNull ConcurrentMap<String, Entity> entityIndex;
     private final @NotNull ConcurrentMap<String, Texture> textureIndex;
     private final @NotNull ConcurrentMap<ColorMap.Type, ColorMap> colorMapIndex;
     private final @NotNull ConcurrentMap<String, PixelBuffer> textureCache = Concurrent.newMap();
@@ -90,6 +103,7 @@ public final class PipelineRendererContext implements RendererContext {
         @NotNull ConcurrentList<TexturePack> packs,
         @NotNull ConcurrentMap<String, Block> blockIndex,
         @NotNull ConcurrentMap<String, Item> itemIndex,
+        @NotNull ConcurrentMap<String, Entity> entityIndex,
         @NotNull ConcurrentMap<String, Texture> textureIndex,
         @NotNull ConcurrentMap<ColorMap.Type, ColorMap> colorMapIndex
     ) {
@@ -97,6 +111,7 @@ public final class PipelineRendererContext implements RendererContext {
         this.packs = packs;
         this.blockIndex = blockIndex;
         this.itemIndex = itemIndex;
+        this.entityIndex = entityIndex;
         this.textureIndex = textureIndex;
         this.colorMapIndex = colorMapIndex;
     }
@@ -116,12 +131,36 @@ public final class PipelineRendererContext implements RendererContext {
         packs.add(result.getVanillaPack());
 
         ConcurrentMap<String, Block.Tint> tints = result.getBlockTints();
+        ConcurrentMap<String, String> itemDefs = result.getItemDefinitions();
+        ConcurrentMap<String, ConcurrentMap<String, BlockStateVariant>> variantMap = result.getBlockStates();
+        ConcurrentMap<String, BlockStateMultipart> multipartMap = result.getBlockStateMultiparts();
 
         ConcurrentMap<String, Block> blockIndex = Concurrent.newMap();
         result.getBlockModels().forEach((modelId, model) -> {
             String blockId = stripPrefix(modelId, ":block/");
             String name = localName(modelId);
-            blockIndex.put(blockId, newBlock(blockId, name, model, tints.get(blockId)));
+
+            // Use the item definition's model override when the inventory rendering model
+            // differs from the blockstate model (e.g. piston -> piston_inventory).
+            BlockModelData modelToUse = model;
+            String itemModelRef = itemDefs.get(blockId);
+            if (itemModelRef != null && !itemModelRef.equals(modelId)) {
+                BlockModelData override = result.getBlockModels().get(itemModelRef);
+                if (override != null)
+                    modelToUse = override;
+            }
+
+            Block block = newBlock(blockId, name, modelToUse, tints.get(blockId));
+
+            // Attach blockstate data directly to the block entity
+            ConcurrentMap<String, BlockStateVariant> variants = variantMap.get(blockId);
+            if (variants != null)
+                BLOCK_VARIANTS.set(block, variants);
+            BlockStateMultipart multipart = multipartMap.get(blockId);
+            if (multipart != null)
+                BLOCK_MULTIPART.set(block, Optional.of(multipart));
+
+            blockIndex.put(blockId, block);
         });
 
         ConcurrentMap<String, Item> itemIndex = Concurrent.newMap();
@@ -129,6 +168,18 @@ public final class PipelineRendererContext implements RendererContext {
             String itemId = stripPrefix(modelId, ":item/");
             String name = localName(modelId);
             itemIndex.put(itemId, newItem(itemId, name, model));
+        });
+
+        ConcurrentMap<String, Entity> entityIndex = Concurrent.newMap();
+        EntityModelLoader.load().forEach((entityId, definition) -> {
+            Entity entity = new Entity();
+            ENTITY_ID.set(entity, entityId);
+            ENTITY_NAMESPACE.set(entity, "minecraft");
+            ENTITY_NAME.set(entity, localName(entityId));
+            ENTITY_MODEL.set(entity, definition.model());
+            if (definition.textureId().isPresent())
+                ENTITY_TEXTURE_ID.set(entity, definition.textureId());
+            entityIndex.put(entityId, entity);
         });
 
         ConcurrentMap<String, Texture> textureIndex = Concurrent.newMap();
@@ -144,7 +195,7 @@ public final class PipelineRendererContext implements RendererContext {
             .resolve("minecraft")
             .resolve("textures");
 
-        return new PipelineRendererContext(textureRoot, packs, blockIndex, itemIndex, textureIndex, colorMapIndex);
+        return new PipelineRendererContext(textureRoot, packs, blockIndex, itemIndex, entityIndex, textureIndex, colorMapIndex);
     }
 
     @Override
@@ -190,7 +241,34 @@ public final class PipelineRendererContext implements RendererContext {
 
     @Override
     public @NotNull Optional<Entity> findEntity(@NotNull String id) {
-        return Optional.empty();
+        return Optional.ofNullable(this.entityIndex.get(id));
+    }
+
+
+    /**
+     * Registers an entity definition so it can be looked up by
+     * {@link #findEntity(String)}. Callers supply the model data directly since vanilla
+     * Minecraft does not ship entity model JSON files - entity geometry is hardcoded in the
+     * client source and changes between versions.
+     *
+     * @param id the namespaced entity id (e.g. {@code "minecraft:zombie"})
+     * @param model the bone/cube tree describing the entity's geometry
+     * @param textureId the default texture reference, or empty to require an override at render time
+     */
+    public void registerEntity(
+        @NotNull String id,
+        @NotNull EntityModelData model,
+        @NotNull Optional<String> textureId
+    ) {
+        String name = localName(id);
+        Entity entity = new Entity();
+        ENTITY_ID.set(entity, id);
+        ENTITY_NAMESPACE.set(entity, "minecraft");
+        ENTITY_NAME.set(entity, name);
+        ENTITY_MODEL.set(entity, model);
+        if (textureId.isPresent())
+            ENTITY_TEXTURE_ID.set(entity, textureId);
+        this.entityIndex.put(id, entity);
     }
 
     @Override

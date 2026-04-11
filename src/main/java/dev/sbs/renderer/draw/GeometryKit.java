@@ -1,6 +1,7 @@
 package dev.sbs.renderer.draw;
 
 import dev.sbs.renderer.engine.VisibleTriangle;
+import dev.sbs.renderer.math.Matrix4f;
 import dev.sbs.renderer.math.Vector2f;
 import dev.sbs.renderer.math.Vector3f;
 import dev.sbs.renderer.model.asset.ModelElement;
@@ -97,9 +98,10 @@ public class GeometryKit {
      * {@code rotation} ({@code 0}/{@code 90}/{@code 180}/{@code 270} degrees) rotates the UV
      * corners clockwise.
      * <p>
-     * Element-level rotation ({@link ModelElement.ElementRotation}) is not yet supported and is
-     * ignored by this first pass. Vanilla block items do not rotate elements, which covers the
-     * intended use case (held dirt, held stone, held planks).
+     * Element-level rotation ({@link ModelElement.ElementRotation}) is supported: each element's
+     * vertices are rotated around the specified origin on a single axis by the given angle. When
+     * the {@code rescale} flag is set, the perpendicular axes are scaled by {@code 1/cos(angle)}
+     * to preserve the element's axis-aligned footprint (used by cross-shaped plants).
      *
      * @param elements the fully-resolved element list from an
      *     {@link dev.sbs.renderer.model.asset.ItemModelData} or
@@ -127,6 +129,50 @@ public class GeometryKit {
             float y1 = element.getTo()[1] / 16f - 0.5f;
             float z1 = element.getTo()[2] / 16f - 0.5f;
 
+            // Build element rotation transform if present. The rotation is applied around
+            // an arbitrary origin on a single axis. When rescale is set, the two axes
+            // perpendicular to the rotation axis are scaled by 1/cos(angle) to preserve
+            // the element's axis-aligned footprint.
+            Matrix4f elementTransform = null;
+            Matrix4f normalTransform = null;
+            if (element.getRotation().isPresent()) {
+                ModelElement.ElementRotation rot = element.getRotation().get();
+                if (rot.angle() != 0f) {
+                    float[] rawOrigin = rot.origin();
+                    float ox = rawOrigin[0] / 16f - 0.5f;
+                    float oy = rawOrigin[1] / 16f - 0.5f;
+                    float oz = rawOrigin[2] / 16f - 0.5f;
+
+                    Vector3f axisVec = switch (rot.axis()) {
+                        case "x" -> new Vector3f(1, 0, 0);
+                        case "y" -> new Vector3f(0, 1, 0);
+                        default -> new Vector3f(0, 0, 1);
+                    };
+                    float radians = (float) Math.toRadians(rot.angle());
+
+                    Matrix4f toOrigin = Matrix4f.createTranslation(-ox, -oy, -oz);
+                    Matrix4f rotation = Matrix4f.createFromAxisAngle(axisVec, radians);
+                    Matrix4f fromOrigin = Matrix4f.createTranslation(ox, oy, oz);
+
+                    if (rot.rescale()) {
+                        float s = 1f / (float) Math.cos(radians);
+                        Matrix4f scale = switch (rot.axis()) {
+                            case "x" -> Matrix4f.createScale(1f, s, s);
+                            case "y" -> Matrix4f.createScale(s, 1f, s);
+                            default -> Matrix4f.createScale(s, s, 1f);
+                        };
+                        elementTransform = toOrigin.multiply(rotation).multiply(scale).multiply(fromOrigin);
+                    } else {
+                        elementTransform = toOrigin.multiply(rotation).multiply(fromOrigin);
+                    }
+                    normalTransform = rotation;
+                }
+            }
+
+            // Flat planes (zero thickness on any axis) must disable backface culling so
+            // both sides render — used by brewing stand bottles, banners, item frames, etc.
+            boolean twoSided = x0 == x1 || y0 == y1 || z0 == z1;
+
             for (Map.Entry<String, ModelFace> entry : element.getFaces().entrySet()) {
                 BlockFace blockFace = BlockFace.fromName(entry.getKey());
                 if (blockFace == null) continue;
@@ -137,13 +183,22 @@ public class GeometryKit {
 
                 Vector2f[] uv = resolveFaceUv(face, blockFace, element);
                 Vector3f[] corners = blockFace.corners(x0, y0, z0, x1, y1, z1);
+                Vector3f faceNormal = blockFace.normal();
+
+                if (elementTransform != null) {
+                    for (int i = 0; i < corners.length; i++)
+                        corners[i] = Vector3f.transform(corners[i], elementTransform);
+                    faceNormal = Vector3f.normalize(Vector3f.transformNormal(faceNormal, normalTransform));
+                }
+
                 addQuad(
                     triangles,
                     corners[0], corners[1], corners[2], corners[3],
                     uv[0], uv[1], uv[2], uv[3],
                     texture, tintArgb,
-                    blockFace.normal(),
-                    renderPriority++
+                    faceNormal,
+                    renderPriority++,
+                    !twoSided
                 );
             }
         }
@@ -152,10 +207,11 @@ public class GeometryKit {
     }
 
     /**
-     * Resolves the four UV corners (TL, TR, BR, BL) for a face in normalized {@code [0, 1]}
+     * Resolves the four UV corners (TL, BL, BR, TR) for a face in normalized {@code [0, 1]}
      * space. When the face supplies an explicit UV rectangle in 0-16 space it is converted
      * directly; otherwise the UV is delegated to {@link BlockFace#defaultUv}. Face rotation of
-     * {@code 90}/{@code 180}/{@code 270} rotates the corners clockwise.
+     * {@code 90}/{@code 180}/{@code 270} rotates the corners clockwise via a forward cyclic
+     * shift matching vanilla's {@code Quadrant}-based UV rotation.
      */
     private static @NotNull Vector2f @NotNull [] resolveFaceUv(
         @NotNull ModelFace face,
@@ -173,11 +229,11 @@ public class GeometryKit {
         int rotation = ((face.getRotation() % 360) + 360) % 360;
         int shifts = rotation / 90;
         for (int i = 0; i < shifts; i++) {
-            Vector2f last = corners[3];
-            corners[3] = corners[2];
-            corners[2] = corners[1];
-            corners[1] = corners[0];
-            corners[0] = last;
+            Vector2f first = corners[0];
+            corners[0] = corners[1];
+            corners[1] = corners[2];
+            corners[2] = corners[3];
+            corners[3] = first;
         }
         return corners;
     }
@@ -185,49 +241,69 @@ public class GeometryKit {
     /**
      * Adds two triangles describing a quad defined by four CCW-ordered vertices to the given list.
      * <p>
-     * Vertex order is top-left, top-right, bottom-right, bottom-left when viewed from the positive
-     * normal direction. UV mapping is fixed to the full {@code [0, 1]} rectangle.
+     * Vertex order is top-left, bottom-left, bottom-right, top-right when viewed from the
+     * positive normal direction, matching vanilla's {@code FaceInfo} convention. UV mapping is
+     * fixed to the full {@code [0, 1]} rectangle.
      */
     private static void addQuad(
         @NotNull ConcurrentList<VisibleTriangle> out,
         @NotNull Vector3f topLeft,
-        @NotNull Vector3f topRight,
-        @NotNull Vector3f bottomRight,
         @NotNull Vector3f bottomLeft,
+        @NotNull Vector3f bottomRight,
+        @NotNull Vector3f topRight,
         @NotNull PixelBuffer texture,
         int tintArgb,
         @NotNull Vector3f normal,
         int renderPriority
     ) {
         addQuad(out,
-            topLeft, topRight, bottomRight, bottomLeft,
-            new Vector2f(0f, 0f), new Vector2f(1f, 0f), new Vector2f(1f, 1f), new Vector2f(0f, 1f),
+            topLeft, bottomLeft, bottomRight, topRight,
+            new Vector2f(0f, 0f), new Vector2f(0f, 1f), new Vector2f(1f, 1f), new Vector2f(1f, 0f),
             texture, tintArgb, normal, renderPriority);
     }
 
     /**
      * Adds two triangles describing a quad with explicit UV corners. The vertex and UV order
-     * follow the same CCW (top-left, top-right, bottom-right, bottom-left) convention as the
-     * no-UV overload.
+     * follow the same CCW (top-left, bottom-left, bottom-right, top-right) convention as the
+     * no-UV overload, matching vanilla's {@code FaceInfo} vertex order.
      */
     private static void addQuad(
         @NotNull ConcurrentList<VisibleTriangle> out,
         @NotNull Vector3f topLeft,
-        @NotNull Vector3f topRight,
-        @NotNull Vector3f bottomRight,
         @NotNull Vector3f bottomLeft,
+        @NotNull Vector3f bottomRight,
+        @NotNull Vector3f topRight,
         @NotNull Vector2f uvTL,
-        @NotNull Vector2f uvTR,
-        @NotNull Vector2f uvBR,
         @NotNull Vector2f uvBL,
+        @NotNull Vector2f uvBR,
+        @NotNull Vector2f uvTR,
         @NotNull PixelBuffer texture,
         int tintArgb,
         @NotNull Vector3f normal,
         int renderPriority
     ) {
+        addQuad(out, topLeft, bottomLeft, bottomRight, topRight, uvTL, uvBL, uvBR, uvTR, texture, tintArgb, normal, renderPriority, true);
+    }
+
+    private static void addQuad(
+        @NotNull ConcurrentList<VisibleTriangle> out,
+        @NotNull Vector3f topLeft,
+        @NotNull Vector3f bottomLeft,
+        @NotNull Vector3f bottomRight,
+        @NotNull Vector3f topRight,
+        @NotNull Vector2f uvTL,
+        @NotNull Vector2f uvBL,
+        @NotNull Vector2f uvBR,
+        @NotNull Vector2f uvTR,
+        @NotNull PixelBuffer texture,
+        int tintArgb,
+        @NotNull Vector3f normal,
+        int renderPriority,
+        boolean cullBackFaces
+    ) {
         float shading = 1f;
-        out.add(new VisibleTriangle(topLeft, topRight, bottomRight, uvTL, uvTR, uvBR, texture, tintArgb, normal, shading, renderPriority));
-        out.add(new VisibleTriangle(topLeft, bottomRight, bottomLeft, uvTL, uvBR, uvBL, texture, tintArgb, normal, shading, renderPriority));
+        out.add(new VisibleTriangle(topLeft, bottomLeft, bottomRight, uvTL, uvBL, uvBR, texture, tintArgb, normal, shading, renderPriority, cullBackFaces));
+        out.add(new VisibleTriangle(topLeft, bottomRight, topRight, uvTL, uvBR, uvTR, texture, tintArgb, normal, shading, renderPriority, cullBackFaces));
     }
 
 }
