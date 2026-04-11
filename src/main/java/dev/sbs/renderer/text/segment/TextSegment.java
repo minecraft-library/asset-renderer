@@ -2,6 +2,7 @@ package dev.sbs.renderer.text.segment;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.sbs.renderer.text.ChatColor;
 import dev.sbs.renderer.text.ChatFormat;
 import dev.sbs.renderer.text.event.ClickEvent;
 import dev.sbs.renderer.text.event.HoverEvent;
@@ -43,7 +44,7 @@ public final class TextSegment extends ColorSegment {
             TextSegment textSegment = new TextSegment(jsonObject.get("text").getAsString());
             if (jsonObject.has("clickEvent")) textSegment.setClickEvent(Optional.of(ClickEvent.fromJson(jsonObject.get("clickEvent").getAsJsonObject())));
             if (jsonObject.has("hoverEvent")) textSegment.setHoverEvent(Optional.of(HoverEvent.fromJson(jsonObject.get("hoverEvent").getAsJsonObject())));
-            if (jsonObject.has("color")) textSegment.setColor(ChatFormat.valueOf(jsonObject.get("color").getAsString().toUpperCase()));
+            if (jsonObject.has("color")) textSegment.setColor(ChatColor.valueOf(jsonObject.get("color").getAsString().toUpperCase()));
             if (jsonObject.has("obfuscated")) textSegment.setObfuscated(jsonObject.get("obfuscated").getAsBoolean());
             if (jsonObject.has("italic")) textSegment.setItalic(jsonObject.get("italic").getAsBoolean());
             if (jsonObject.has("bold")) textSegment.setBold(jsonObject.get("bold").getAsBoolean());
@@ -77,7 +78,7 @@ public final class TextSegment extends ColorSegment {
     public static class Builder {
 
         protected String text = "";
-        protected Optional<ChatFormat> color = Optional.empty();
+        protected Optional<ChatColor> color = Optional.empty();
         protected boolean italic, bold, underlined, obfuscated, strikethrough;
         private Optional<ClickEvent> clickEvent = Optional.empty();
         private Optional<HoverEvent> hoverEvent = Optional.empty();
@@ -127,12 +128,12 @@ public final class TextSegment extends ColorSegment {
             return this;
         }
 
-        public Builder withColor(@Nullable ChatFormat color) {
+        public Builder withColor(@Nullable ChatColor color) {
             return this.withColor(Optional.ofNullable(color));
         }
 
-        public Builder withColor(@NotNull Optional<ChatFormat> color) {
-            this.color = color.filter(ChatFormat::isColor);
+        public Builder withColor(@NotNull Optional<ChatColor> color) {
+            this.color = color;
             return this;
         }
 

@@ -1,6 +1,7 @@
 package dev.sbs.renderer.text.segment;
 
 import com.google.gson.JsonObject;
+import dev.sbs.renderer.text.ChatColor;
 import dev.sbs.renderer.text.ChatFormat;
 import dev.sbs.renderer.text.MinecraftFont;
 import dev.simplified.collection.Concurrent;
@@ -13,7 +14,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Supplier;
 
@@ -23,7 +23,7 @@ import java.util.function.Supplier;
 public class ColorSegment {
 
     protected @NotNull String text;
-    protected @NotNull Optional<ChatFormat> color = Optional.empty();
+    protected @NotNull Optional<ChatColor> color = Optional.empty();
     protected boolean italic, bold, underlined, obfuscated, strikethrough;
 
     public ColorSegment(@NotNull String text) {
@@ -81,7 +81,7 @@ public class ColorSegment {
 
     /**
      * Resolves the {@link MinecraftFont.Style} corresponding to this segment's bold and italic
-     * flags. Used by {@code LoreRenderer} and any other caller that needs to pick a font
+     * flags. Used by {@code TextRenderer} and any other caller that needs to pick a font
      * variant from a styled segment without coupling the font enum back to this class.
      *
      * @return the matching font style, or {@link MinecraftFont.Style#REGULAR} when neither
@@ -93,79 +93,70 @@ public class ColorSegment {
 
     protected static @NotNull LineSegment fromLegacyHandler(@NotNull String legacyText, char symbolSubstitute, @NotNull Supplier<? extends ColorSegment> segmentSupplier) {
         LineSegment.Builder builder = LineSegment.builder();
-        ColorSegment currentObject = segmentSupplier.get();
-        StringBuilder text = new StringBuilder();
+        ColorSegment current = segmentSupplier.get();
+        StringBuilder buf = new StringBuilder();
 
         for (int i = 0; i < legacyText.length(); i++) {
-            char charAtIndex = legacyText.charAt(i);
+            char ch = legacyText.charAt(i);
 
-            if (charAtIndex == ChatFormat.SECTION_SYMBOL || charAtIndex == symbolSubstitute) {
-                if ((i + 1) > legacyText.length() - 1)
-                    continue; // do nothing.
+            if ((ch != ChatFormat.SECTION_SYMBOL && ch != symbolSubstitute) || i + 1 >= legacyText.length()) {
+                buf.append(ch);
+                continue;
+            }
 
-                // peek at the next character.
-                char peek = legacyText.charAt(i + 1);
+            char peek = legacyText.charAt(++i);
 
-                if (ChatFormat.isValid(peek)) {
-                    i += 1; // if valid
-                    if (!text.isEmpty()) {
-                        currentObject.setText(text.toString()); // create a new text object
-                        builder.withSegments(currentObject); // append the current object.
-                        currentObject = segmentSupplier.get(); // reset the current object.
-                        text.setLength(0); // reset the buffer
-                    }
+            // Try color first, then format
+            ChatColor color = ChatColor.of(peek);
+            ChatFormat format = color == null ? ChatFormat.of(peek) : null;
 
-                    ChatFormat color = Objects.requireNonNull(ChatFormat.of(peek));
+            if (color == null && format == null) {
+                buf.append(ch);
+                i--; // un-consume the peek
+                continue;
+            }
 
-                    switch (color) {
-                        case OBFUSCATED:
-                            currentObject.setObfuscated(true);
-                            break;
-                        case BOLD:
-                            currentObject.setBold(true);
-                            break;
-                        case STRIKETHROUGH:
-                            currentObject.setStrikethrough(true);
-                            break;
-                        case ITALIC:
-                            currentObject.setItalic(true);
-                            break;
-                        case UNDERLINE:
-                            currentObject.setUnderlined(true);
-                            break;
-                        case RESET:
-                            // Reset everything.
-                            currentObject.setColor(ChatFormat.WHITE);
-                            currentObject.setObfuscated(false);
-                            currentObject.setBold(false);
-                            currentObject.setItalic(false);
-                            currentObject.setUnderlined(false);
-                            currentObject.setStrikethrough(false);
-                            break;
-                        default:
-                            // emulate Minecraft's behavior of dropping styles that do not yet have an object.
-                            currentObject = segmentSupplier.get();
-                            currentObject.setColor(color);
-                            break;
-                    }
-                } else
-                    text.append(charAtIndex);
-            } else
-                text.append(charAtIndex);
+            // Flush buffered text before applying the new code
+            if (!buf.isEmpty()) {
+                current.setText(buf.toString());
+                builder.withSegments(current);
+                current = segmentSupplier.get();
+                buf.setLength(0);
+            }
+
+            if (color != null) {
+                // Color codes reset all styles (vanilla behavior)
+                current = segmentSupplier.get();
+                current.setColor(color);
+            } else if (format == ChatFormat.RESET) {
+                current.setColor(ChatColor.WHITE);
+                current.setObfuscated(false);
+                current.setBold(false);
+                current.setItalic(false);
+                current.setUnderlined(false);
+                current.setStrikethrough(false);
+            } else {
+                switch (format) {
+                    case OBFUSCATED -> current.setObfuscated(true);
+                    case BOLD -> current.setBold(true);
+                    case STRIKETHROUGH -> current.setStrikethrough(true);
+                    case UNDERLINE -> current.setUnderlined(true);
+                    case ITALIC -> current.setItalic(true);
+                    default -> {}
+                }
+            }
         }
 
-        // whatever we were working on when the loop exited
-        currentObject.setText(text.toString());
-        builder.withSegments(currentObject);
-
+        current.setText(buf.toString());
+        builder.withSegments(current);
         return builder.build();
     }
 
-    public void setColor(@Nullable ChatFormat color) {
-        this.setColor(Optional.ofNullable(Objects.isNull(color) || !color.isColor() ? null : color));
+    public void setColor(@Nullable ChatColor color) {
+        this.color = Optional.ofNullable(color);
     }
 
-    public void setColor(@NotNull Optional<ChatFormat> color) {
+    public void setColor(@NotNull Optional<ChatColor> color) {
         this.color = color;
     }
 
@@ -233,7 +224,7 @@ public class ColorSegment {
     public static class Builder {
 
         protected String text = "";
-        protected Optional<ChatFormat> color = Optional.empty();
+        protected Optional<ChatColor> color = Optional.empty();
         protected boolean italic, bold, underlined, obfuscated, strikethrough;
 
         public Builder isBold() {
@@ -281,12 +272,12 @@ public class ColorSegment {
             return this;
         }
 
-        public Builder withColor(@Nullable ChatFormat color) {
+        public Builder withColor(@Nullable ChatColor color) {
             return this.withColor(Optional.ofNullable(color));
         }
 
-        public Builder withColor(@NotNull Optional<ChatFormat> color) {
-            this.color = color.filter(ChatFormat::isColor);
+        public Builder withColor(@NotNull Optional<ChatColor> color) {
+            this.color = color;
             return this;
         }
 
