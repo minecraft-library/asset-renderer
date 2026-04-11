@@ -104,10 +104,24 @@ tasks {
         args = listOf(layout.buildDirectory.dir("atlas").get().asFile.absolutePath)
     }
 
-    register<JavaExec>("generateVanillaTints") {
-        description = "Parses BlockColors out of the cached client jar via ASM and rewrites src/main/resources/renderer/vanilla_tints.json. Run on a Minecraft version bump."
-        group = "renderer"
-        mainClass.set("dev.sbs.renderer.gradle.GenerateVanillaTintsMain")
+    register<JavaExec>("generateBlockTints") {
+        description = "Parses BlockColors out of the cached client jar via ASM and rewrites src/main/resources/renderer/block_tints.json. Run on a Minecraft version bump."
+        group = "parser"
+        mainClass.set("dev.sbs.renderer.gradle.GenerateBlockTintsMain")
+        classpath = sourceSets["main"].runtimeClasspath
+    }
+
+    register<JavaExec>("generateEntityModels") {
+        description = "Downloads the Bedrock Edition vanilla resource pack and generates src/main/resources/renderer/entity_models.json from .geo.json files. Run on a Minecraft version bump."
+        group = "parser"
+        mainClass.set("dev.sbs.renderer.gradle.GenerateEntityModelsMain")
+        classpath = sourceSets["main"].runtimeClasspath
+    }
+
+    register<JavaExec>("generateColorMaps") {
+        description = "Reads vanilla biome colormap PNGs and generates src/main/resources/renderer/color_maps.json. Run on a Minecraft version bump."
+        group = "parser"
+        mainClass.set("dev.sbs.renderer.gradle.GenerateColorMapsMain")
         classpath = sourceSets["main"].runtimeClasspath
     }
 
@@ -120,13 +134,6 @@ tasks {
         val renderSize = (project.findProperty("renderSize") as String?) ?: "512"
         val ssaa = (project.findProperty("ssaa") as String?) ?: "2"
         args = if (blockId != null) listOf(blockId, renderSize, ssaa) else listOf()
-    }
-
-    register<JavaExec>("generateEntityModels") {
-        description = "Downloads the Bedrock Edition vanilla resource pack and generates src/main/resources/renderer/entity_models.json from .geo.json files."
-        group = "renderer"
-        mainClass.set("dev.sbs.renderer.gradle.GenerateEntityModelsMain")
-        classpath = sourceSets["main"].runtimeClasspath
     }
 
     register<JavaExec>("generateFonts") {

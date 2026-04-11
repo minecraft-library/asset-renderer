@@ -1,13 +1,15 @@
-package dev.sbs.renderer.pipeline.asm;
+package dev.sbs.renderer.pipeline.parser;
 
 import dev.sbs.renderer.biome.BiomeTintTarget;
 import dev.sbs.renderer.exception.AssetPipelineException;
 import dev.sbs.renderer.model.Block;
+import dev.sbs.renderer.pipeline.loader.VanillaTintsLoader;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -27,15 +29,15 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 /**
- * Bytecode walker that parses {@code net.minecraft.client.color.block.BlockColors$createDefault()}
- * from a Minecraft client jar and translates its registration calls into {@link Block.Tint}
- * entities.
+ * An ASM bytecode walker that parses
+ * {@code net.minecraft.client.color.block.BlockColors$createDefault()} from a deobfuscated
+ * Minecraft client jar and translates its registration calls into {@link Block.Tint} entities.
  * <p>
  * The parser only handles deobfuscated jars - that is, MC 26.1 and later, where Mojang ships
  * source-equivalent class names. Older obfuscated jars cannot be parsed without a remapping
  * pass, which would require multiple bytecode-shape variants and per-version mapping plumbing
  * that the project explicitly does not pursue. The runtime pipeline reads
- * {@code renderer/vanilla_tints.json} from the classpath instead; this parser is invoked only
+ * {@code /renderer/vanilla_tints.json} from the classpath instead; this parser is invoked only
  * by the {@code generateVanillaTints} Gradle task to refresh that resource on a version bump.
  * <p>
  * Parsing approach: load the class through ASM's tree model, walk
@@ -50,9 +52,13 @@ import java.util.zip.ZipFile;
  * collected block - provided the source method is one we recognise - and the running state is
  * reset. Multi-source registrations (recognisable by the 2-arg {@code List.of} overload) are
  * skipped because the atlas renderer cannot tint individual sprite layers.
+ *
+ * @see VanillaTintsLoader
+ * @see Block.Tint
+ * @see BiomeTintTarget
  */
 @UtilityClass
-public class BlockColorsParser {
+public class BlockTintParser {
 
     private static final @NotNull String BLOCK_COLORS_CLASS_ENTRY = "net/minecraft/client/color/block/BlockColors.class";
     private static final @NotNull String BLOCK_COLORS_INTERNAL_NAME = "net/minecraft/client/color/block/BlockColors";
@@ -138,12 +144,10 @@ public class BlockColorsParser {
      * recognised {@code (source, blocks[])} registration. See the class-level javadoc for the
      * recognition rules.
      */
-    private static @NotNull ConcurrentMap<String, Block.Tint> parseCreateDefault(
-        @NotNull InsnList instructions
-    ) {
+    private static @NotNull ConcurrentMap<String, Block.Tint> parseCreateDefault(@NotNull InsnList instructions) {
         ConcurrentMap<String, Block.Tint> tints = Concurrent.newMap();
 
-        String pendingSource = null;
+        @Nullable String pendingSource = null;
         int pendingConstantA = 0;
         int pendingConstantB = 0;
         int pendingConstantCount = 0;
@@ -161,57 +165,56 @@ public class BlockColorsParser {
             Integer literal = readIntLiteral(node);
             if (literal != null) {
                 intLiteralStack.add(literal);
+
                 if (intLiteralStack.size() > 4)
-                    intLiteralStack.remove(0);
+                    intLiteralStack.removeFirst();
+
                 continue;
             }
 
-            if (opcode == Opcodes.GETSTATIC && node instanceof FieldInsnNode fieldInsn) {
-                if (fieldInsn.owner.equals(BLOCKS_INTERNAL_NAME))
-                    pendingBlocks.add(blockIdFromField(fieldInsn.name));
-                continue;
-            }
+            switch (node) {
+                case FieldInsnNode fieldInsn when opcode == Opcodes.GETSTATIC -> {
+                    if (fieldInsn.owner.equals(BLOCKS_INTERNAL_NAME))
+                        pendingBlocks.add(blockIdFromField(fieldInsn.name));
+                }
+                case MethodInsnNode methodInsn when opcode == Opcodes.INVOKESTATIC -> {
+                    if (methodInsn.owner.equals(BLOCK_TINT_SOURCES_INTERNAL_NAME)) {
+                        pendingSource = methodInsn.name;
+                        pendingSourceLayers++;
 
-            if (opcode == Opcodes.INVOKESTATIC && node instanceof MethodInsnNode methodInsn) {
-                if (methodInsn.owner.equals(BLOCK_TINT_SOURCES_INTERNAL_NAME)) {
-                    pendingSource = methodInsn.name;
-                    pendingSourceLayers++;
-                    if (methodInsn.name.equals("constant") && methodInsn.desc.startsWith("(I")) {
-                        if (methodInsn.desc.equals("(I)Lnet/minecraft/client/color/block/BlockTintSource;")) {
-                            pendingConstantA = popLastLiteral(intLiteralStack);
-                            pendingConstantCount = 1;
-                        } else if (methodInsn.desc.equals("(II)Lnet/minecraft/client/color/block/BlockTintSource;")) {
-                            pendingConstantB = popLastLiteral(intLiteralStack);
-                            pendingConstantA = popLastLiteral(intLiteralStack);
-                            pendingConstantCount = 2;
+                        if (methodInsn.name.equals("constant") && methodInsn.desc.startsWith("(I")) {
+                            if (methodInsn.desc.equals("(I)Lnet/minecraft/client/color/block/BlockTintSource;")) {
+                                pendingConstantA = popLastLiteral(intLiteralStack);
+                                pendingConstantCount = 1;
+                            } else if (methodInsn.desc.equals("(II)Lnet/minecraft/client/color/block/BlockTintSource;")) {
+                                pendingConstantB = popLastLiteral(intLiteralStack);
+                                pendingConstantA = popLastLiteral(intLiteralStack);
+                                pendingConstantCount = 2;
+                            }
                         }
+                    } else if (methodInsn.owner.equals(LIST_INTERNAL_NAME) && methodInsn.name.equals("of")
+                        && !methodInsn.desc.equals(LIST_OF_SINGLE_DESCRIPTOR)) {
+                        // Multi-argument List.of call means the register() block composes multiple
+                        // sources (e.g. [BLANK_LAYER, grass()] for pink_petals). Skip it.
+                        pendingSource = null;
                     }
-                    continue;
                 }
-                if (methodInsn.owner.equals(LIST_INTERNAL_NAME) && methodInsn.name.equals("of")
-                    && !methodInsn.desc.equals(LIST_OF_SINGLE_DESCRIPTOR)) {
-                    // Multi-argument List.of call means the register() block composes multiple
-                    // sources (e.g. [BLANK_LAYER, grass()] for pink_petals). Skip it.
+                case MethodInsnNode methodInsn when opcode == Opcodes.INVOKEVIRTUAL && methodInsn.owner.equals(BLOCK_COLORS_INTERNAL_NAME) && methodInsn.name.equals(REGISTER_METHOD_NAME) -> {
+
+                    if (pendingSource != null && pendingSourceLayers == 1 && !pendingBlocks.isEmpty())
+                        emitTints(tints, pendingSource, pendingConstantA, pendingConstantB, pendingConstantCount, pendingBlocks);
+
                     pendingSource = null;
+                    pendingConstantA = 0;
+                    pendingConstantB = 0;
+                    pendingConstantCount = 0;
+                    pendingSourceLayers = 0;
+                    pendingBlocks.clear();
+                    intLiteralStack.clear();
                 }
-                continue;
+                default -> { }
             }
 
-            if (opcode == Opcodes.INVOKEVIRTUAL && node instanceof MethodInsnNode methodInsn
-                && methodInsn.owner.equals(BLOCK_COLORS_INTERNAL_NAME)
-                && methodInsn.name.equals(REGISTER_METHOD_NAME)) {
-
-                if (pendingSource != null && pendingSourceLayers == 1 && !pendingBlocks.isEmpty())
-                    emitTints(tints, pendingSource, pendingConstantA, pendingConstantB, pendingConstantCount, pendingBlocks);
-
-                pendingSource = null;
-                pendingConstantA = 0;
-                pendingConstantB = 0;
-                pendingConstantCount = 0;
-                pendingSourceLayers = 0;
-                pendingBlocks.clear();
-                intLiteralStack.clear();
-            }
         }
 
         return tints;
@@ -221,14 +224,18 @@ public class BlockColorsParser {
      * Decodes an int literal from a bytecode instruction, returning {@code null} for nodes that
      * do not push a compile-time integer constant onto the stack.
      */
-    private static Integer readIntLiteral(@NotNull AbstractInsnNode node) {
+    private static @Nullable Integer readIntLiteral(@NotNull AbstractInsnNode node) {
         int opcode = node.getOpcode();
+
         if (opcode >= Opcodes.ICONST_M1 && opcode <= Opcodes.ICONST_5)
             return opcode - Opcodes.ICONST_0;
+
         if ((opcode == Opcodes.BIPUSH || opcode == Opcodes.SIPUSH) && node instanceof IntInsnNode intInsn)
             return intInsn.operand;
+
         if (opcode == Opcodes.LDC && node instanceof LdcInsnNode ldc && ldc.cst instanceof Integer value)
             return value;
+
         return null;
     }
 

@@ -1,10 +1,11 @@
-package dev.sbs.renderer.pipeline.bedrock;
+package dev.sbs.renderer.pipeline.parser;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.sbs.renderer.model.asset.EntityModelData;
+import dev.sbs.renderer.pipeline.loader.EntityModelLoader;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -16,7 +17,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Parses Minecraft Bedrock Edition {@code .geo.json} entity model files into
+ * A parser that converts Minecraft Bedrock Edition {@code .geo.json} entity model files into
  * {@link EntityModelData} instances.
  * <p>
  * Bedrock model files come in two format versions:
@@ -29,10 +30,14 @@ import java.util.Set;
  * Both are handled transparently. Bones marked {@code neverRender: true} or lacking cubes are
  * excluded from the output. The bone {@code mirror} flag is promoted to each cube when present
  * at the bone level (Bedrock convention) since {@link EntityModelData.Cube} stores mirror
- * per-cube.
+ * per-cube. The parsed output feeds into the bundled {@code /renderer/entity_models.json}
+ * resource via the {@code generateEntityModels} Gradle task.
+ *
+ * @see EntityModelLoader
+ * @see EntityModelData
  */
 @UtilityClass
-public class BedrockGeoParser {
+public class EntityModelParser {
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 

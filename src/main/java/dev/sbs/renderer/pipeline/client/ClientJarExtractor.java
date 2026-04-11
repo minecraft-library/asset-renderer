@@ -1,4 +1,4 @@
-package dev.sbs.renderer.pipeline;
+package dev.sbs.renderer.pipeline.client;
 
 import dev.sbs.renderer.exception.AssetPipelineException;
 import lombok.experimental.UtilityClass;
@@ -13,12 +13,17 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 /**
- * Unzips the {@code assets/minecraft/**} and {@code data/minecraft/**} subtrees of a Minecraft
- * client jar into a cache directory, skipping classes and other non-resource entries.
+ * An extractor that unzips the {@code assets/minecraft/**} and {@code data/minecraft/**}
+ * subtrees of a Minecraft client jar into a cache directory, skipping classes and other
+ * non-resource entries.
  * <p>
  * The extractor is idempotent: if the destination tree already contains files, the caller can
  * either delete them first or trust the extractor to overwrite them via
- * {@link StandardCopyOption#REPLACE_EXISTING}.
+ * {@link StandardCopyOption#REPLACE_EXISTING}. Only resource entries under the two known
+ * subtrees are extracted - all {@code .class} files, manifests, and other jar metadata are
+ * ignored.
+ *
+ * @see ClientJarDownloader
  */
 @UtilityClass
 public class ClientJarExtractor {

@@ -8,6 +8,15 @@ import dev.sbs.renderer.model.asset.BlockModelData;
 import dev.sbs.renderer.model.asset.BlockStateMultipart;
 import dev.sbs.renderer.model.asset.BlockStateVariant;
 import dev.sbs.renderer.model.asset.ItemModelData;
+import dev.sbs.renderer.pipeline.client.ClientJarDownloader;
+import dev.sbs.renderer.pipeline.client.ClientJarExtractor;
+import dev.sbs.renderer.pipeline.client.HttpFetcher;
+import dev.sbs.renderer.pipeline.loader.BlockStateLoader;
+import dev.sbs.renderer.pipeline.loader.ColorMapLoader;
+import dev.sbs.renderer.pipeline.loader.ItemDefinitionLoader;
+import dev.sbs.renderer.pipeline.loader.ModelResolver;
+import dev.sbs.renderer.pipeline.loader.TexturePackLoader;
+import dev.sbs.renderer.pipeline.loader.VanillaTintsLoader;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lombok.Getter;
@@ -45,9 +54,9 @@ public final class AssetPipeline {
         ConcurrentMap<String, BlockModelData> blockModels = ModelResolver.loadBlockModels(packRoot);
         ConcurrentMap<String, ItemModelData> itemModels = ModelResolver.loadItemModels(packRoot);
 
-        TexturePack vanillaPack = TexturePackReader.loadVanilla(packRoot);
-        ConcurrentList<Texture> textures = TexturePackReader.scanTextures(packRoot, vanillaPack.getId());
-        ConcurrentList<ColorMap> colorMaps = ColorMapReader.load(packRoot, vanillaPack.getId());
+        TexturePack vanillaPack = TexturePackLoader.loadVanilla(packRoot);
+        ConcurrentList<Texture> textures = TexturePackLoader.scanTextures(packRoot, vanillaPack.getId());
+        ConcurrentList<ColorMap> colorMaps = ColorMapLoader.load();
         ConcurrentMap<String, Block.Tint> blockTints = VanillaTintsLoader.load();
         BlockStateLoader.LoadResult blockStateResult = BlockStateLoader.load(packRoot);
         ConcurrentMap<String, String> itemDefinitions = ItemDefinitionLoader.load(packRoot);
@@ -60,6 +69,7 @@ public final class AssetPipeline {
      * The result of a single pipeline run.
      */
     @Getter
+    @RequiredArgsConstructor
     public static final class Result {
 
         private final @NotNull Path packRoot;
@@ -72,30 +82,6 @@ public final class AssetPipeline {
         private final @NotNull ConcurrentMap<String, ConcurrentMap<String, BlockStateVariant>> blockStates;
         private final @NotNull ConcurrentMap<String, BlockStateMultipart> blockStateMultiparts;
         private final @NotNull ConcurrentMap<String, String> itemDefinitions;
-
-        public Result(
-            @NotNull Path packRoot,
-            @NotNull TexturePack vanillaPack,
-            @NotNull ConcurrentList<Texture> textures,
-            @NotNull ConcurrentList<ColorMap> colorMaps,
-            @NotNull ConcurrentMap<String, Block.Tint> blockTints,
-            @NotNull ConcurrentMap<String, BlockModelData> blockModels,
-            @NotNull ConcurrentMap<String, ItemModelData> itemModels,
-            @NotNull ConcurrentMap<String, ConcurrentMap<String, BlockStateVariant>> blockStates,
-            @NotNull ConcurrentMap<String, BlockStateMultipart> blockStateMultiparts,
-            @NotNull ConcurrentMap<String, String> itemDefinitions
-        ) {
-            this.packRoot = packRoot;
-            this.vanillaPack = vanillaPack;
-            this.textures = textures;
-            this.colorMaps = colorMaps;
-            this.blockTints = blockTints;
-            this.blockModels = blockModels;
-            this.itemModels = itemModels;
-            this.blockStates = blockStates;
-            this.blockStateMultiparts = blockStateMultiparts;
-            this.itemDefinitions = itemDefinitions;
-        }
 
     }
 

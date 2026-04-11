@@ -1,4 +1,4 @@
-package dev.sbs.renderer.pipeline;
+package dev.sbs.renderer.pipeline.loader;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -22,13 +22,22 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 /**
- * Parses blockstate JSON files from {@code assets/minecraft/blockstates/} and produces both
- * variant-based and multipart-based blockstate data.
+ * A loader that reads blockstate JSON files from {@code assets/minecraft/blockstates/} and
+ * produces both variant-based and multipart-based blockstate data.
  * <p>
- * The {@code "variants"} format maps property combinations to single model references. The
- * {@code "multipart"} format assembles multiple conditional model parts into a composite block.
- * Both formats are parsed into their respective data structures and returned as a
- * {@link LoadResult}.
+ * Minecraft defines two blockstate formats. The {@code "variants"} format maps block property
+ * combinations (e.g. {@code "facing=north,half=bottom"}) to a single {@link BlockStateVariant}
+ * model reference. The {@code "multipart"} format assembles multiple conditional model parts
+ * into a composite {@link BlockStateMultipart} block, where each part applies when its
+ * {@code "when"} condition matches the block's properties. Both formats are parsed into their
+ * respective data structures and returned together as a {@link LoadResult}.
+ * <p>
+ * When a variant or multipart {@code "apply"} value is an array (weighted random selection),
+ * only the first entry is used - the renderer does not support random model selection.
+ *
+ * @see BlockStateVariant
+ * @see BlockStateMultipart
+ * @see ModelResolver
  */
 @UtilityClass
 public class BlockStateLoader {

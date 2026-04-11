@@ -1,4 +1,4 @@
-package dev.sbs.renderer.pipeline;
+package dev.sbs.renderer.pipeline.loader;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -25,15 +25,23 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 /**
- * Scans a texture pack directory and produces a {@link TexturePack} entity plus a list of
- * {@link Texture} rows that catalogue every {@code .png} file under {@code assets/minecraft/textures}.
+ * A loader that scans a texture pack directory and produces a {@link TexturePack} entity plus a
+ * list of {@link Texture} rows cataloguing every {@code .png} file under
+ * {@code assets/minecraft/textures}.
  * <p>
  * Texture sizes are read from the PNG header via {@link ImageIO} and any adjacent
  * {@code .png.mcmeta} sidecar is parsed eagerly so the resulting {@link Texture#getAnimation()}
- * field already carries the frame list when the caller queries it.
+ * field already carries the frame list when the caller queries it. The sidecar format is
+ * vanilla's heterogeneous frames array - a mix of bare integers ({@code [0, 1, 2]}) and
+ * explicit frame objects ({@code [{"index":0,"time":5}]}) - which is normalised into
+ * {@link AnimationData.FrameEntry} records during the walk.
+ *
+ * @see TexturePack
+ * @see Texture
+ * @see AnimationData
  */
 @UtilityClass
-public class TexturePackReader {
+public class TexturePackLoader {
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 

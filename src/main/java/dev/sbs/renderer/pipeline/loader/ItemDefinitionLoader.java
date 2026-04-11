@@ -1,9 +1,10 @@
-package dev.sbs.renderer.pipeline;
+package dev.sbs.renderer.pipeline.loader;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import dev.sbs.renderer.exception.AssetPipelineException;
+import dev.sbs.renderer.pipeline.PipelineRendererContext;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
@@ -16,8 +17,8 @@ import java.nio.file.Path;
 import java.util.stream.Stream;
 
 /**
- * Parses the MC 26.1 item definition files under {@code assets/minecraft/items/} and extracts
- * the block model reference for each block item.
+ * A loader that reads MC 26.1 item definition files from {@code assets/minecraft/items/} and
+ * extracts the block model reference for each block item.
  * <p>
  * Vanilla uses these files to determine which block model to render when a block appears as an
  * item (inventory, held item, dropped item). Many blocks have an inventory-specific model that
@@ -28,6 +29,9 @@ import java.util.stream.Stream;
  * Only entries with {@code model.type == "minecraft:model"} and a {@code model.model} reference
  * starting with {@code "minecraft:block/"} are included. Non-block items (sprites, special
  * renderers) are skipped.
+ *
+ * @see ModelResolver
+ * @see PipelineRendererContext
  */
 @UtilityClass
 public class ItemDefinitionLoader {

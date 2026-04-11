@@ -5,8 +5,8 @@ import dev.sbs.renderer.exception.AssetPipelineException;
 import dev.sbs.renderer.options.AtlasOptions;
 import dev.sbs.renderer.pipeline.AssetPipeline;
 import dev.sbs.renderer.pipeline.AssetPipelineOptions;
-import dev.sbs.renderer.pipeline.HttpFetcher;
 import dev.sbs.renderer.pipeline.PipelineRendererContext;
+import dev.sbs.renderer.pipeline.client.HttpFetcher;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 

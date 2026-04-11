@@ -1,4 +1,4 @@
-package dev.sbs.renderer.pipeline;
+package dev.sbs.renderer.pipeline.client;
 
 import dev.sbs.renderer.exception.HttpFetchException;
 import lombok.Getter;
@@ -15,12 +15,16 @@ import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 
 /**
- * Single-class direct URL fetcher that wraps {@link HttpClient} for {@code GET} requests.
+ * A direct URL fetcher that wraps {@link HttpClient} for {@code GET} requests, providing both
+ * byte-array and streaming-to-file download modes.
  * <p>
- * Every network call in the renderer module goes through this helper. When the user later
- * extracts a proper {@code MojangContract}-style Feign client to a standalone library, this file
- * is the only one that has to change - the two call sites ({@code ClientJarDownloader} and
- * {@code EntityRenderer} skin fetch) can drop in the new client without renaming.
+ * Every network call in the renderer module goes through this helper. When the project later
+ * extracts a proper {@code MojangContract}-style Feign client to a standalone library, this
+ * class is the only one that has to change - the two call sites
+ * ({@link ClientJarDownloader} and {@link dev.sbs.renderer.EntityRenderer EntityRenderer} skin
+ * fetch) can drop in the new client without renaming.
+ *
+ * @see ClientJarDownloader
  */
 @Getter
 public final class HttpFetcher {

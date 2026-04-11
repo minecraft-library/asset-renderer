@@ -1,7 +1,9 @@
-package dev.sbs.renderer.pipeline;
+package dev.sbs.renderer.pipeline.parser;
 
+import dev.sbs.renderer.engine.TextureEngine;
 import dev.sbs.renderer.exception.AssetPipelineException;
 import dev.sbs.renderer.model.ColorMap;
+import dev.sbs.renderer.pipeline.loader.ColorMapLoader;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.reflection.Reflection;
@@ -18,20 +20,26 @@ import java.nio.file.Path;
 import java.util.Optional;
 
 /**
- * Loads the three vanilla biome colormap PNGs ({@code grass.png}, {@code foliage.png},
- * {@code dry_foliage.png}) from {@code assets/minecraft/textures/colormap/} into
- * {@link ColorMap} entities.
+ * A parser that reads the three vanilla biome colormap PNGs ({@code grass.png},
+ * {@code foliage.png}, {@code dry_foliage.png}) from
+ * {@code assets/minecraft/textures/colormap/} and converts them into {@link ColorMap} entities.
  * <p>
  * Each colormap is a 256x256 indexed lookup table sampled at {@code (temperature, downfall)}.
- * The reader stores the raw ARGB pixels as a packed big-endian byte array on the entity so the
- * downstream {@link dev.sbs.renderer.engine.TextureEngine TextureEngine#sampleBiomeTint} path can
- * round-trip via {@link java.nio.ByteBuffer#asIntBuffer()}.
+ * The parser stores the raw ARGB pixels as a packed big-endian byte array on the entity so the
+ * downstream {@link TextureEngine#sampleBiomeTint} path
+ * can round-trip via {@link ByteBuffer#asIntBuffer()}. The output is consumed by the
+ * {@code generateColorMaps} Gradle task, which serialises the pixel data as Base64 into the
+ * bundled {@code /renderer/color_maps.json} resource for runtime use by
+ * {@link ColorMapLoader}.
  * <p>
- * The reader is intentionally tolerant: if a colormap file is missing the corresponding entry is
- * skipped rather than throwing, since legitimate user packs may ship a partial colormap set.
+ * The parser is intentionally tolerant: if a colormap file is missing the corresponding entry
+ * is skipped rather than throwing, since legitimate user packs may ship a partial colormap set.
+ *
+ * @see ColorMapLoader
+ * @see ColorMap
  */
 @UtilityClass
-public class ColorMapReader {
+public class ColorMapParser {
 
     private static final @NotNull Reflection<ColorMap> COLOR_MAP_REFLECTION = new Reflection<>(ColorMap.class);
     private static final @NotNull FieldAccessor<String> COLOR_MAP_ID = COLOR_MAP_REFLECTION.getField("id");
@@ -46,14 +54,14 @@ public class ColorMapReader {
      * @param packId the owning pack identifier (typically {@code "vanilla"})
      * @return a list of loaded colormap entities, one per file that was found
      */
-    public static @NotNull ConcurrentList<ColorMap> load(@NotNull Path packRoot, @NotNull String packId) {
+    public static @NotNull ConcurrentList<ColorMap> parse(@NotNull Path packRoot) {
         ConcurrentList<ColorMap> colorMaps = Concurrent.newList();
         Path colormapDir = packRoot.resolve("assets/minecraft/textures/colormap");
         if (!Files.isDirectory(colormapDir)) return colorMaps;
 
-        loadOne(colormapDir, packId, ColorMap.Type.GRASS, "grass.png").ifPresent(map -> colorMaps.add(map));
-        loadOne(colormapDir, packId, ColorMap.Type.FOLIAGE, "foliage.png").ifPresent(map -> colorMaps.add(map));
-        loadOne(colormapDir, packId, ColorMap.Type.DRY_FOLIAGE, "dry_foliage.png").ifPresent(map -> colorMaps.add(map));
+        parseOne(colormapDir, "vanilla", ColorMap.Type.GRASS, "grass.png").ifPresent(colorMaps::add);
+        parseOne(colormapDir, "vanilla", ColorMap.Type.FOLIAGE, "foliage.png").ifPresent(colorMaps::add);
+        parseOne(colormapDir, "vanilla", ColorMap.Type.DRY_FOLIAGE, "dry_foliage.png").ifPresent(colorMaps::add);
 
         return colorMaps;
     }
@@ -63,7 +71,7 @@ public class ColorMapReader {
      * is absent. Decoding errors abort the pipeline because a corrupt colormap means downstream
      * tint sampling would silently produce wrong colors.
      */
-    private static @NotNull Optional<ColorMap> loadOne(
+    private static @NotNull Optional<ColorMap> parseOne(
         @NotNull Path colormapDir,
         @NotNull String packId,
         @NotNull ColorMap.Type type,

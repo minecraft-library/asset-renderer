@@ -1,12 +1,13 @@
 package dev.sbs.renderer.gradle;
 
 import dev.sbs.renderer.BlockRenderer;
+import dev.sbs.renderer.draw.BlockFace;
 import dev.sbs.renderer.exception.AssetPipelineException;
 import dev.sbs.renderer.options.BlockOptions;
 import dev.sbs.renderer.pipeline.AssetPipeline;
 import dev.sbs.renderer.pipeline.AssetPipelineOptions;
-import dev.sbs.renderer.pipeline.HttpFetcher;
 import dev.sbs.renderer.pipeline.PipelineRendererContext;
+import dev.sbs.renderer.pipeline.client.HttpFetcher;
 import dev.simplified.image.ImageData;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -98,7 +99,7 @@ public final class TestRenderMain {
             }
 
             // Render each 2D face for comparison
-            for (BlockOptions.Face face : BlockOptions.Face.values()) {
+            for (BlockFace face : BlockFace.values()) {
                 try {
                     BlockOptions faceOpt = BlockOptions.builder()
                         .blockId(blockId)
@@ -107,7 +108,7 @@ public final class TestRenderMain {
                         .outputSize(128)
                         .build();
                     ImageData faceImage = renderer.render(faceOpt);
-                    File faceFile = outputDir.resolve(safeName + "_" + face.name().toLowerCase() + ".png").toFile();
+                    File faceFile = outputDir.resolve(safeName + "_" + face.direction() + ".png").toFile();
                     ImageIO.write(faceImage.toBufferedImage(), "PNG", faceFile);
                 } catch (Exception ex) {
                     System.err.println("  Failed 2D " + face + ": " + ex.getMessage());

@@ -1,4 +1,4 @@
-package dev.sbs.renderer.pipeline;
+package dev.sbs.renderer.pipeline.loader;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
@@ -6,6 +6,7 @@ import com.google.gson.JsonSyntaxException;
 import dev.sbs.renderer.exception.AssetPipelineException;
 import dev.sbs.renderer.model.asset.BlockModelData;
 import dev.sbs.renderer.model.asset.ItemModelData;
+import dev.sbs.renderer.pipeline.PipelineRendererContext;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
@@ -20,12 +21,18 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 /**
- * Walks a pack's {@code models/} subtree, parses every JSON file into {@link BlockModelData} or
- * {@link ItemModelData}, and eagerly merges parent chains so the resulting DTOs carry everything
- * needed for rendering without further resolution at render time.
+ * A loader and resolver that walks a pack's {@code assets/minecraft/models/} subtree, parses
+ * every JSON file into {@link BlockModelData} or {@link ItemModelData}, and eagerly merges
+ * parent chains so the resulting DTOs carry everything needed for rendering without further
+ * resolution at render time.
  * <p>
  * Parent chain merging is deep: child textures and elements win on conflicting keys, and the
  * merged result records the original parent id in its {@code parent} field for introspection.
+ * Vanilla chains are acyclic and shallow (at most 3 deep), so no cycle detection is needed.
+ *
+ * @see BlockModelData
+ * @see ItemModelData
+ * @see PipelineRendererContext
  */
 @UtilityClass
 public class ModelResolver {

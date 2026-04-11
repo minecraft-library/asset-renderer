@@ -1,4 +1,4 @@
-package dev.sbs.renderer.pipeline;
+package dev.sbs.renderer.pipeline.loader;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
@@ -6,6 +6,8 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import dev.sbs.renderer.exception.AssetPipelineException;
 import dev.sbs.renderer.model.asset.EntityModelData;
+import dev.sbs.renderer.pipeline.PipelineRendererContext;
+import dev.sbs.renderer.pipeline.parser.EntityModelParser;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
@@ -19,15 +21,21 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Loads bundled entity model definitions from the {@code renderer/entity_models.json} classpath
- * resource. Each entry maps an entity id to its geometry ({@link EntityModelData}) and default
- * texture reference.
+ * A loader that reads bundled entity model definitions from the
+ * {@code /renderer/entity_models.json} classpath resource.
  * <p>
- * Vanilla Minecraft does not ship entity model JSON files - entity geometry is hardcoded in the
- * client source. The bundled resource is a hand-curated snapshot of the bone/cube trees for
- * common entities, verified against the MC 26.1 deobfuscated client source. Callers can register
- * additional entities at runtime via
+ * Each entry maps an entity id to its geometry ({@link EntityModelData}) and an optional
+ * default texture reference. Vanilla Minecraft does not ship entity model JSON files - entity
+ * geometry is hardcoded in the client source. The bundled resource is a hand-curated snapshot
+ * of the bone/cube trees for common entities, verified against the MC 26.1 deobfuscated client
+ * source. The JSON is produced offline by {@link EntityModelParser} from Bedrock Edition
+ * {@code .geo.json} files and checked into the repository.
+ * <p>
+ * Callers can register additional entities at runtime via
  * {@link PipelineRendererContext#registerEntity(String, EntityModelData, Optional)}.
+ *
+ * @see EntityModelParser
+ * @see PipelineRendererContext
  */
 @UtilityClass
 public class EntityModelLoader {

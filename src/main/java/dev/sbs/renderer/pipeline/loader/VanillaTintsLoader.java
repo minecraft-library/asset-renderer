@@ -1,4 +1,4 @@
-package dev.sbs.renderer.pipeline;
+package dev.sbs.renderer.pipeline.loader;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -8,6 +8,7 @@ import com.google.gson.JsonSyntaxException;
 import dev.sbs.renderer.biome.BiomeTintTarget;
 import dev.sbs.renderer.exception.AssetPipelineException;
 import dev.sbs.renderer.model.Block;
+import dev.sbs.renderer.pipeline.parser.BlockTintParser;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
@@ -20,21 +21,25 @@ import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
 /**
- * Loads the bundled vanilla block tint table from the {@code renderer/vanilla_tints.json}
- * resource and produces a lookup map of block id to {@link Block.Tint}.
+ * A loader that reads the bundled vanilla block tint table from the
+ * {@code /renderer/vanilla_tints.json} classpath resource and produces a lookup map of block
+ * id to {@link Block.Tint}.
  * <p>
  * The JSON resource is a checked-in snapshot of MC 26.1's
  * {@code net.minecraft.client.color.block.BlockColors$createDefault()} as parsed by
- * {@link dev.sbs.renderer.pipeline.asm.BlockColorsParser BlockColorsParser}. To refresh it on
- * a Minecraft version bump, run the {@code generateVanillaTints} Gradle task; the runtime
- * pipeline never invokes the ASM walker directly. Older Minecraft versions reuse the same
- * 26.1 tint set - blocks that don't exist in their era simply never match a lookup, which the
- * renderer treats as untinted. The slight inaccuracy for old-version-only blocks is an
- * accepted tradeoff against the brittleness of per-version bytecode parsing and remapping.
+ * {@link BlockTintParser}. To refresh it on a Minecraft version bump, run the
+ * {@code generateVanillaTints} Gradle task; the runtime pipeline never invokes the ASM walker
+ * directly. Older Minecraft versions reuse the same 26.1 tint set - blocks that don't exist
+ * in their era simply never match a lookup, which the renderer treats as untinted. The slight
+ * inaccuracy for old-version-only blocks is an accepted tradeoff against the brittleness of
+ * per-version bytecode parsing and remapping.
  * <p>
  * Constants are stored as {@code 0x}-prefixed hex strings in the JSON because Gson cannot
  * round-trip {@code 0x80000000}-class signed integers literally. They round-trip via
  * {@link Integer#parseUnsignedInt(String, int)}.
+ *
+ * @see BlockTintParser
+ * @see Block.Tint
  */
 @UtilityClass
 public class VanillaTintsLoader {

@@ -1,6 +1,7 @@
-package dev.sbs.renderer.pipeline;
+package dev.sbs.renderer.pipeline.client;
 
 import dev.sbs.renderer.exception.AssetPipelineException;
+import dev.sbs.renderer.pipeline.AssetPipelineOptions;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -9,13 +10,17 @@ import java.nio.file.Path;
 import java.util.Map;
 
 /**
- * Downloads the Minecraft client jar to the local cache root, mapping a version id to a direct
- * Mojang piston-data URL.
+ * A downloader that fetches the Minecraft client jar to the local cache root, mapping a version
+ * id to a direct Mojang piston-data URL.
  * <p>
  * The initial build supports a single hardcoded version (26.1, the first deobfuscated build).
- * When the user extracts a proper {@code MojangContract} client later, this class will delegate
- * to that client for version-manifest-based resolution and the hardcoded URL table will be
- * removed.
+ * When the project extracts a proper {@code MojangContract} Feign client later, this class will
+ * delegate to that client for version-manifest-based resolution and the hardcoded URL table
+ * will be removed. Downloads are delegated to the shared {@link HttpFetcher} and cached locally
+ * so subsequent pipeline runs skip the network round-trip.
+ *
+ * @see HttpFetcher
+ * @see ClientJarExtractor
  */
 @UtilityClass
 public class ClientJarDownloader {

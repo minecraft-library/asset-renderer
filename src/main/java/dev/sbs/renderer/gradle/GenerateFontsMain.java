@@ -1,5 +1,6 @@
 package dev.sbs.renderer.gradle;
 
+import dev.simplified.collection.Concurrent;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -179,7 +180,7 @@ public final class GenerateFontsMain {
      * Throws on non-zero exit.
      */
     private static void run(@NotNull Path workingDir, @NotNull String @NotNull ... command) throws IOException, InterruptedException {
-        Process process = new ProcessBuilder(command)
+        Process process = new ProcessBuilder(Concurrent.newList(command))
             .directory(workingDir.toFile())
             .inheritIO()
             .start();

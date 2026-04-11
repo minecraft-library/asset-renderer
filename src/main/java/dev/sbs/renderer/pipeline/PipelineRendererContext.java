@@ -1,6 +1,7 @@
 package dev.sbs.renderer.pipeline;
 
 import dev.sbs.renderer.biome.BiomeTintTarget;
+import dev.sbs.renderer.draw.BlockFace;
 import dev.sbs.renderer.engine.RendererContext;
 import dev.sbs.renderer.exception.RendererException;
 import dev.sbs.renderer.model.Block;
@@ -17,6 +18,9 @@ import dev.sbs.renderer.model.asset.EntityModelData;
 import dev.sbs.renderer.model.asset.ItemModelData;
 import dev.sbs.renderer.model.asset.ModelElement;
 import dev.sbs.renderer.model.asset.ModelFace;
+import dev.sbs.renderer.pipeline.loader.EntityModelLoader;
+import dev.sbs.renderer.pipeline.loader.VanillaTintsLoader;
+import dev.sbs.renderer.pipeline.parser.ColorMapParser;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -24,6 +28,7 @@ import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.reflection.Reflection;
 import dev.simplified.reflection.accessor.FieldAccessor;
+import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import javax.imageio.ImageIO;
@@ -49,21 +54,15 @@ import java.util.Optional;
  * {@code all} / {@code side} / {@code particle} fallback chain.
  * <p>
  * Biome colormaps and the {@link BiomeTintTarget} of every known vanilla tinted block are wired
- * through to render time: {@link ColorMapReader} loads {@code grass.png}, {@code foliage.png},
+ * through to render time: {@link ColorMapParser} loads {@code grass.png}, {@code foliage.png},
  * and {@code dry_foliage.png} into {@link ColorMap} entities, and {@link VanillaTintsLoader}
  * supplies the {@code minecraft:grass_block} - to - {@code GRASS} (etc.) mapping verified against
  * the bytecode of {@code BlockColors$createDefault} in the 26.1 client jar. Entity definitions
  * are still empty - {@link #findEntity(String)} returns {@link Optional#empty()} until a future
  * pipeline phase ships an entity loader.
  */
+@RequiredArgsConstructor
 public final class PipelineRendererContext implements RendererContext {
-
-    /**
-     * The six vanilla face direction keys, iterated in the canonical order that
-     * {@link dev.sbs.renderer.BlockRenderer BlockRenderer} expects when walking cube faces.
-     */
-    private static final @NotNull String @NotNull [] FACE_DIRECTIONS =
-        { "down", "up", "north", "south", "west", "east" };
 
     private static final @NotNull Reflection<Block> BLOCK_REFLECTION = new Reflection<>(Block.class);
     private static final @NotNull FieldAccessor<String> BLOCK_ID = BLOCK_REFLECTION.getField("id");
@@ -97,24 +96,6 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull ConcurrentMap<String, Texture> textureIndex;
     private final @NotNull ConcurrentMap<ColorMap.Type, ColorMap> colorMapIndex;
     private final @NotNull ConcurrentMap<String, PixelBuffer> textureCache = Concurrent.newMap();
-
-    private PipelineRendererContext(
-        @NotNull Path textureRoot,
-        @NotNull ConcurrentList<TexturePack> packs,
-        @NotNull ConcurrentMap<String, Block> blockIndex,
-        @NotNull ConcurrentMap<String, Item> itemIndex,
-        @NotNull ConcurrentMap<String, Entity> entityIndex,
-        @NotNull ConcurrentMap<String, Texture> textureIndex,
-        @NotNull ConcurrentMap<ColorMap.Type, ColorMap> colorMapIndex
-    ) {
-        this.textureRoot = textureRoot;
-        this.packs = packs;
-        this.blockIndex = blockIndex;
-        this.itemIndex = itemIndex;
-        this.entityIndex = entityIndex;
-        this.textureIndex = textureIndex;
-        this.colorMapIndex = colorMapIndex;
-    }
 
     /**
      * Builds a context from a completed pipeline result.
@@ -226,22 +207,22 @@ public final class PipelineRendererContext implements RendererContext {
 
     @Override
     public @NotNull Optional<ColorMap> colorMap(@NotNull ColorMap.Type type) {
-        return Optional.ofNullable(this.colorMapIndex.get(type));
+        return this.colorMapIndex.getOptional(type);
     }
 
     @Override
     public @NotNull Optional<Block> findBlock(@NotNull String id) {
-        return Optional.ofNullable(this.blockIndex.get(id));
+        return this.blockIndex.getOptional(id);
     }
 
     @Override
     public @NotNull Optional<Item> findItem(@NotNull String id) {
-        return Optional.ofNullable(this.itemIndex.get(id));
+        return this.itemIndex.getOptional(id);
     }
 
     @Override
     public @NotNull Optional<Entity> findEntity(@NotNull String id) {
-        return Optional.ofNullable(this.entityIndex.get(id));
+        return this.entityIndex.getOptional(id);
     }
 
 
@@ -388,14 +369,14 @@ public final class PipelineRendererContext implements RendererContext {
         if (model.getElements().isEmpty()) return;
         ModelElement element = model.getElements().getFirst();
 
-        for (String direction : FACE_DIRECTIONS) {
-            ModelFace face = element.getFaces().get(direction);
+        for (BlockFace blockFace : BlockFace.values()) {
+            ModelFace face = element.getFaces().get(blockFace.direction());
             if (face == null) continue;
             String textureRef = face.getTexture();
             if (textureRef.isBlank()) continue;
             String resolved = dereferenceVariable(textureRef, model.getTextures());
             if (resolved.startsWith("#")) continue;
-            textures.put(direction, resolved);
+            textures.put(blockFace.direction(), resolved);
         }
     }
 
