@@ -1,8 +1,7 @@
-package dev.sbs.renderer.text.segment;
+package dev.sbs.renderer.text;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
-import dev.sbs.renderer.text.ChatFormat;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.StreamUtil;

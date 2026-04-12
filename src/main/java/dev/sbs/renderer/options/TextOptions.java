@@ -1,6 +1,6 @@
 package dev.sbs.renderer.options;
 
-import dev.sbs.renderer.text.segment.LineSegment;
+import dev.sbs.renderer.text.LineSegment;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageFormat;

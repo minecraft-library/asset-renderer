@@ -3,9 +3,9 @@ package dev.sbs.renderer.engine;
 import dev.sbs.renderer.draw.Canvas;
 import dev.sbs.renderer.draw.ObfuscationKit;
 import dev.sbs.renderer.text.ChatColor;
+import dev.sbs.renderer.text.ColorSegment;
+import dev.sbs.renderer.text.LineSegment;
 import dev.sbs.renderer.text.MinecraftFont;
-import dev.sbs.renderer.text.segment.ColorSegment;
-import dev.sbs.renderer.text.segment.LineSegment;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 

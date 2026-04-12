@@ -1,9 +1,7 @@
-package dev.sbs.renderer.text.segment;
+package dev.sbs.renderer.text;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import dev.sbs.renderer.text.ChatColor;
-import dev.sbs.renderer.text.ChatFormat;
 import dev.sbs.renderer.text.event.ClickEvent;
 import dev.sbs.renderer.text.event.HoverEvent;
 import dev.simplified.util.StringUtil;

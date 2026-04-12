@@ -1,9 +1,6 @@
-package dev.sbs.renderer.text.segment;
+package dev.sbs.renderer.text;
 
 import com.google.gson.JsonObject;
-import dev.sbs.renderer.text.ChatColor;
-import dev.sbs.renderer.text.ChatFormat;
-import dev.sbs.renderer.text.MinecraftFont;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.util.StringUtil;
