@@ -10,6 +10,7 @@ import dev.sbs.renderer.model.ColorMap;
 import dev.sbs.renderer.model.asset.AnimationData;
 import dev.simplified.image.PixelBuffer;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.ByteBuffer;
@@ -24,19 +25,10 @@ import java.util.Optional;
  * and thread-safe provided the underlying context is too.
  */
 @Getter
+@RequiredArgsConstructor
 public class TextureEngine implements RenderEngine {
 
     private final @NotNull RendererContext context;
-
-    /**
-     * Constructs a texture engine using the given ambient context for pack, colormap, and
-     * repository lookups.
-     *
-     * @param context the ambient renderer context
-     */
-    public TextureEngine(@NotNull RendererContext context) {
-        this.context = context;
-    }
 
     /**
      * Resolves a texture identifier through the active pack stack, throwing if no pack provides it.
@@ -87,8 +79,7 @@ public class TextureEngine implements RenderEngine {
     public @NotNull PixelBuffer resolveTextureAtTick(@NotNull String textureId, int tick) {
         PixelBuffer strip = resolveTexture(textureId);
         Optional<AnimationData> animation = animationFor(textureId);
-        if (animation.isEmpty()) return strip;
-        return AnimationKit.sampleFrame(strip, animation.get(), tick);
+        return animation.map(animationData -> AnimationKit.sampleFrame(strip, animationData, tick)).orElse(strip);
     }
 
     /**

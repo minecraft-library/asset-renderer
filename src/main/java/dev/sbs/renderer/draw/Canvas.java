@@ -1,8 +1,11 @@
 package dev.sbs.renderer.draw;
 
 import dev.simplified.image.PixelBuffer;
+import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -17,16 +20,12 @@ import java.util.Arrays;
  * either API are visible from the other without a flush step.
  */
 @Getter
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public final class Canvas {
 
     private final @NotNull PixelBuffer buffer;
     private final @NotNull BufferedImage image;
-    private Graphics2D graphics;
-
-    private Canvas(@NotNull PixelBuffer buffer, @NotNull BufferedImage image) {
-        this.buffer = buffer;
-        this.image = image;
-    }
+    private @Nullable Graphics2D graphics;
 
     /**
      * Creates a new canvas of the given dimensions, initially filled with transparent black.
@@ -38,6 +37,7 @@ public final class Canvas {
     public static @NotNull Canvas of(int width, int height) {
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         PixelBuffer buffer = PixelBuffer.wrap(image);
+        buffer.toBufferedImage();
         return new Canvas(buffer, image);
     }
 
@@ -64,6 +64,7 @@ public final class Canvas {
             this.graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             this.graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
         }
+
         return this.graphics;
     }
 
