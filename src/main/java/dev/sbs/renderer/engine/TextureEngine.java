@@ -1,11 +1,11 @@
 package dev.sbs.renderer.engine;
 
-import dev.sbs.renderer.biome.Biome;
-import dev.sbs.renderer.biome.BiomeTintTarget;
 import dev.sbs.renderer.draw.AnimationKit;
 import dev.sbs.renderer.draw.BlendMode;
 import dev.sbs.renderer.draw.ColorKit;
 import dev.sbs.renderer.exception.RendererException;
+import dev.sbs.renderer.geometry.Biome;
+import dev.sbs.renderer.geometry.BiomeTintTarget;
 import dev.sbs.renderer.model.ColorMap;
 import dev.sbs.renderer.model.asset.AnimationData;
 import dev.simplified.image.PixelBuffer;
@@ -38,8 +38,7 @@ public class TextureEngine implements RenderEngine {
      * @throws RendererException if no pack provides the texture
      */
     public @NotNull PixelBuffer resolveTexture(@NotNull String textureId) {
-        return this.context.resolveTexture(textureId)
-            .orElseThrow(() -> new RendererException("No texture registered for id '%s'", textureId));
+        return this.context.resolveTexture(textureId).orElseThrow(() -> new RendererException("No texture registered for id '%s'", textureId));
     }
 
     /**
@@ -193,7 +192,7 @@ public class TextureEngine implements RenderEngine {
                 int b = ((argb & 0xFE) + 0x0A) >> 1;
                 yield ColorKit.pack(0xFF, r & 0xFF, g & 0xFF, b & 0xFF);
             }
-            case SWAMP -> {
+            case SWAMP ->
                 // Verified against MC 26.1 deobfuscated client source:
                 // net.minecraft.world.level.biome.BiomeSpecialEffects$GrassColorModifier$3.modifyColor
                 // samples Biome.BIOME_INFO_NOISE at (temperature * 0.0225, downfall * 0.0225) and
@@ -202,8 +201,7 @@ public class TextureEngine implements RenderEngine {
                 // always return the warm swamp colour. Callers that want the cold variant can
                 // override via {@link Biome.Builder#grassColorOverride(Optional)} with
                 // {@link Biome#SWAMP_GRASS_COLD}.
-                yield Biome.SWAMP_GRASS_WARM;
-            }
+                Biome.SWAMP_GRASS_WARM;
         };
     }
 

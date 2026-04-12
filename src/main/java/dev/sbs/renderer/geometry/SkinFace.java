@@ -1,7 +1,8 @@
-package dev.sbs.renderer.draw;
+package dev.sbs.renderer.geometry;
 
-import dev.sbs.renderer.math.Vector2f;
-import dev.sbs.renderer.math.Vector3f;
+import dev.sbs.renderer.draw.GeometryKit;
+import dev.sbs.renderer.tensor.Vector2f;
+import dev.sbs.renderer.tensor.Vector3f;
 import dev.simplified.image.PixelBuffer;
 import lombok.AccessLevel;
 import lombok.Getter;

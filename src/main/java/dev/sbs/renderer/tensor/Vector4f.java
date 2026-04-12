@@ -1,4 +1,4 @@
-package dev.sbs.renderer.math;
+package dev.sbs.renderer.tensor;
 
 import com.google.gson.TypeAdapter;
 import com.google.gson.stream.JsonReader;

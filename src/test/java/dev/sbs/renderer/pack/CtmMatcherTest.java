@@ -1,5 +1,9 @@
 package dev.sbs.renderer.pack;
 
+import dev.sbs.renderer.pipeline.pack.CtmMatcher;
+import dev.sbs.renderer.pipeline.pack.CtmMethod;
+import dev.sbs.renderer.pipeline.pack.CtmResolution;
+import dev.sbs.renderer.pipeline.pack.CtmRule;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import org.junit.jupiter.api.DisplayName;
@@ -93,8 +97,7 @@ class CtmMatcherTest {
     }
 
     private static @org.jetbrains.annotations.NotNull CtmRule rule(@org.jetbrains.annotations.NotNull CtmMethod method, @org.jetbrains.annotations.NotNull String @org.jetbrains.annotations.NotNull ... tileIds) {
-        ConcurrentList<String> tiles = Concurrent.newList();
-        for (String tile : tileIds) tiles.add(tile);
+        ConcurrentList<String> tiles = Concurrent.newList(tileIds);
 
         ConcurrentList<String> blocks = Concurrent.newList();
         blocks.add("minecraft:stone");

@@ -1,6 +1,6 @@
 package dev.sbs.renderer.draw;
 
-import dev.sbs.renderer.engine.VisibleTriangle;
+import dev.sbs.renderer.geometry.VisibleTriangle;
 import dev.sbs.renderer.model.asset.ModelElement;
 import dev.sbs.renderer.model.asset.ModelFace;
 import dev.simplified.collection.Concurrent;
@@ -76,7 +76,7 @@ class GeometryKitTest {
             GeometryKit.buildFromElements(one(element), faceTextures, TINT_ARGB);
 
         assertThat(triangles.size(), equalTo(2));
-        VisibleTriangle firstHalf = triangles.get(0);
+        VisibleTriangle firstHalf = triangles.getFirst();
         // Triangle 0 samples (TL, BL, BR): uv0 is TL, uv2 is BR.
         assertThat(firstHalf.uv0().getX(), equalTo(0f));
         assertThat(firstHalf.uv0().getY(), equalTo(0f));
@@ -113,7 +113,7 @@ class GeometryKitTest {
             GeometryKit.buildFromElements(one(element), faceTextures, TINT_ARGB);
 
         assertThat(triangles.size(), equalTo(2));
-        VisibleTriangle firstHalf = triangles.get(0);
+        VisibleTriangle firstHalf = triangles.getFirst();
         // Up-face TL = vertex 3 = (x0, y1, z0) and BR = vertex 6 = (x1, y1, z1).
         assertThat(firstHalf.position0().getX(), equalTo(-0.25f));
         assertThat(firstHalf.position0().getY(), equalTo(0.5f));

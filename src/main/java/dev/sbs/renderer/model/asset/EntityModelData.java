@@ -1,6 +1,7 @@
 package dev.sbs.renderer.model.asset;
 
 import com.google.gson.annotations.SerializedName;
+import dev.sbs.renderer.geometry.BlockFace;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -118,7 +119,7 @@ public class EntityModelData {
         private boolean mirror = false;
 
         /**
-         * Per-face UV overrides keyed by {@link dev.sbs.renderer.draw.BlockFace#direction()
+         * Per-face UV overrides keyed by {@link BlockFace#direction()
          * face direction name} ({@code "down"}, {@code "up"}, {@code "north"}, {@code "south"},
          * {@code "west"}, {@code "east"}). When a face has an entry here, the explicit
          * {@link FaceUv#getUv() uv} origin and {@link FaceUv#getUvSize() uvSize} replace the

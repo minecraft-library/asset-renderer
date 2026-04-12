@@ -1,4 +1,4 @@
-package dev.sbs.renderer.biome;
+package dev.sbs.renderer.geometry;
 
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -105,16 +105,20 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
      * Post-sample grass colour modifier applied to the output of a colormap lookup.
      */
     enum GrassColorModifier {
+
         /** Pass through the sampled value unchanged. */
         NONE,
+
         /** Darkens the sampled value via {@code ((color & 0xFEFEFE) + 0x28340A) >> 1}. */
         DARK_FOREST,
+
         /**
          * Discards the sampled value and returns {@link Biome#SWAMP_GRASS_WARM}. Vanilla uses a
          * Perlin-noise world lookup to sometimes return {@link Biome#SWAMP_GRASS_COLD}; the cold
          * variant is not reachable from pure biome metadata.
          */
         SWAMP
+
     }
 
     /**

@@ -1,5 +1,6 @@
-package dev.sbs.renderer.engine;
+package dev.sbs.renderer.geometry;
 
+import dev.sbs.renderer.engine.RenderEngine;
 import org.jetbrains.annotations.NotNull;
 
 /**

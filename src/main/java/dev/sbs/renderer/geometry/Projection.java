@@ -1,6 +1,6 @@
-package dev.sbs.renderer.engine;
+package dev.sbs.renderer.geometry;
 
-import dev.sbs.renderer.math.Vector2f;
+import dev.sbs.renderer.tensor.Vector2f;
 import org.jetbrains.annotations.NotNull;
 
 /**

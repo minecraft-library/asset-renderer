@@ -3,28 +3,27 @@ package dev.sbs.renderer;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import dev.sbs.renderer.biome.BiomeTintTarget;
 import dev.sbs.renderer.draw.BlendMode;
 import dev.sbs.renderer.draw.Canvas;
 import dev.sbs.renderer.draw.ColorKit;
 import dev.sbs.renderer.draw.EntityGeometryKit;
 import dev.sbs.renderer.draw.GeometryKit;
 import dev.sbs.renderer.engine.IsometricEngine;
-import dev.sbs.renderer.engine.PerspectiveParams;
 import dev.sbs.renderer.engine.RasterEngine;
 import dev.sbs.renderer.engine.RenderEngine;
 import dev.sbs.renderer.engine.RendererContext;
-import dev.sbs.renderer.engine.VisibleTriangle;
 import dev.sbs.renderer.exception.RendererException;
-import dev.sbs.renderer.math.Matrix4f;
-import dev.sbs.renderer.math.Vector3f;
+import dev.sbs.renderer.geometry.BiomeTintTarget;
+import dev.sbs.renderer.geometry.PerspectiveParams;
+import dev.sbs.renderer.geometry.VisibleTriangle;
 import dev.sbs.renderer.model.Block;
-import dev.sbs.renderer.model.Entity;
 import dev.sbs.renderer.model.asset.BlockModelData;
 import dev.sbs.renderer.model.asset.ModelElement;
 import dev.sbs.renderer.model.asset.ModelFace;
 import dev.sbs.renderer.model.asset.ModelTransform;
 import dev.sbs.renderer.options.BlockOptions;
+import dev.sbs.renderer.tensor.Matrix4f;
+import dev.sbs.renderer.tensor.Vector3f;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
@@ -37,7 +36,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -244,11 +242,14 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         private static @NotNull Map<String, String> parseProperties(@NotNull String variant) {
             Map<String, String> result = new HashMap<>();
             if (variant.isBlank()) return result;
+
             for (String pair : variant.split(",")) {
                 int eq = pair.indexOf('=');
+
                 if (eq > 0)
                     result.put(pair.substring(0, eq), pair.substring(eq + 1));
             }
+
             return result;
         }
 
@@ -262,14 +263,21 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
             if (when.has("AND")) {
                 JsonArray conditions = when.getAsJsonArray("AND");
-                for (JsonElement el : conditions)
+
+                for (JsonElement el : conditions) {
                     if (!matchesCondition(el.getAsJsonObject(), properties)) return false;
+                }
+
                 return true;
             }
             if (when.has("OR")) {
                 JsonArray conditions = when.getAsJsonArray("OR");
-                for (JsonElement el : conditions)
-                    if (matchesCondition(el.getAsJsonObject(), properties)) return true;
+
+                for (JsonElement el : conditions) {
+                    if (matchesCondition(el.getAsJsonObject(), properties))
+                        return true;
+                }
+
                 return false;
             }
 
@@ -277,10 +285,13 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             for (Map.Entry<String, JsonElement> entry : when.entrySet()) {
                 String required = entry.getValue().getAsString();
                 String actual = properties.getOrDefault(entry.getKey(), "");
+
                 if (required.contains("|")) {
-                    if (!Arrays.asList(required.split("\\|")).contains(actual)) return false;
+                    if (!Arrays.asList(required.split("\\|")).contains(actual))
+                        return false;
                 } else {
-                    if (!required.equals(actual)) return false;
+                    if (!required.equals(actual))
+                        return false;
                 }
             }
             return true;
@@ -298,8 +309,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             Map<String, String> variables = block.getModel().getTextures();
 
             for (ModelElement element : block.getModel().getElements()) {
-                for (Map.Entry<String, ModelFace> faceEntry : element.getFaces().entrySet()) {
-                    String ref = faceEntry.getValue().getTexture();
+                for (ModelFace face : element.getFaces().values()) {
+                    String ref = face.getTexture();
                     if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
                     String resolvedId = dereferenceVariable(ref, variables);
                     if (resolvedId.startsWith("#")) continue;
@@ -319,13 +330,17 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             if (block.getEntityMapping().isEmpty()) return Concurrent.newList();
             Block.EntityMapping mapping = block.getEntityMapping().get();
 
-            Optional<Entity> entity = this.context.findEntity(mapping.model());
-            if (entity.isEmpty()) return Concurrent.newList();
-
-            Optional<PixelBuffer> texture = this.context.resolveTexture(mapping.texture());
-            if (texture.isEmpty()) return Concurrent.newList();
-
-            return EntityGeometryKit.buildTriangles(entity.get().getModel(), texture.get()).triangles();
+            return this.context.findEntity(mapping.model())
+                .map(value -> this.context.resolveTexture(mapping.texture())
+                    .map(pixelBuffer -> EntityGeometryKit.buildTriangles(
+                                 value.getModel(),
+                                 pixelBuffer
+                             )
+                             .triangles()
+                    )
+                    .orElseGet(Concurrent::newList)
+                )
+                .orElseGet(Concurrent::newList);
         }
 
         /**

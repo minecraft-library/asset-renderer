@@ -1,5 +1,6 @@
 package dev.sbs.renderer.biome;
 
+import dev.sbs.renderer.geometry.Biome;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

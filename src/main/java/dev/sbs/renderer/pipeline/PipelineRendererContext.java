@@ -1,8 +1,8 @@
 package dev.sbs.renderer.pipeline;
 
-import dev.sbs.renderer.biome.BiomeTintTarget;
-import dev.sbs.renderer.draw.BlockFace;
 import dev.sbs.renderer.engine.RendererContext;
+import dev.sbs.renderer.geometry.BiomeTintTarget;
+import dev.sbs.renderer.geometry.BlockFace;
 import dev.sbs.renderer.model.Block;
 import dev.sbs.renderer.model.BlockTag;
 import dev.sbs.renderer.model.ColorMap;

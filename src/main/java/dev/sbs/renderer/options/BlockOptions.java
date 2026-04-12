@@ -1,7 +1,7 @@
 package dev.sbs.renderer.options;
 
-import dev.sbs.renderer.biome.Biome;
-import dev.sbs.renderer.draw.BlockFace;
+import dev.sbs.renderer.geometry.Biome;
+import dev.sbs.renderer.geometry.BlockFace;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageFormat;

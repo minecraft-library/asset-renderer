@@ -1,13 +1,13 @@
-package dev.sbs.renderer.draw;
+package dev.sbs.renderer.geometry;
 
-import dev.sbs.renderer.math.Vector2f;
+import dev.sbs.renderer.tensor.Vector2f;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 /**
  * Static helpers for 2D rasterization math that are shared by the drawing helpers and the
  * engine layer. Projection and perspective math that depends on the {@link
- * dev.sbs.renderer.engine.PerspectiveParams} record lives on {@code RenderEngine}; this file is
+ * PerspectiveParams} record lives on {@code RenderEngine}; this file is
  * reserved for the primitive triangle and barycentric math that has no dependency on engine types.
  */
 @UtilityClass

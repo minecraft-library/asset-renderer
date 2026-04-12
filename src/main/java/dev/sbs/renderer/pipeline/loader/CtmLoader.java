@@ -1,6 +1,8 @@
-package dev.sbs.renderer.pack;
+package dev.sbs.renderer.pipeline.loader;
 
 import dev.sbs.renderer.exception.RendererException;
+import dev.sbs.renderer.pipeline.pack.CtmMethod;
+import dev.sbs.renderer.pipeline.pack.CtmRule;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lombok.experimental.UtilityClass;

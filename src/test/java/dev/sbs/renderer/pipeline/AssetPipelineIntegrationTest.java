@@ -1,5 +1,6 @@
 package dev.sbs.renderer.pipeline;
 
+import dev.sbs.renderer.geometry.BiomeTintTarget;
 import dev.sbs.renderer.model.Texture;
 import dev.sbs.renderer.model.asset.BlockModelData;
 import dev.sbs.renderer.model.asset.ItemModelData;
@@ -157,20 +158,21 @@ class AssetPipelineIntegrationTest {
 
         var grassBlock = tints.get("minecraft:grass_block");
         assertThat(grassBlock, is(notNullValue()));
-        assertThat(grassBlock.target(), equalTo(dev.sbs.renderer.biome.BiomeTintTarget.GRASS));
+        assertThat(grassBlock.target(), equalTo(BiomeTintTarget.GRASS));
 
         var oakLeaves = tints.get("minecraft:oak_leaves");
         assertThat(oakLeaves, is(notNullValue()));
-        assertThat(oakLeaves.target(), equalTo(dev.sbs.renderer.biome.BiomeTintTarget.FOLIAGE));
+        assertThat(oakLeaves.target(), equalTo(BiomeTintTarget.FOLIAGE));
 
         var spruceLeaves = tints.get("minecraft:spruce_leaves");
         assertThat(spruceLeaves, is(notNullValue()));
-        assertThat(spruceLeaves.target(), equalTo(dev.sbs.renderer.biome.BiomeTintTarget.CONSTANT));
+        assertThat(spruceLeaves.target(), equalTo(BiomeTintTarget.CONSTANT));
+        assertThat(spruceLeaves.constant().isPresent(), is(true));
         assertThat("spruce constant ARGB", spruceLeaves.constant().get(), equalTo(0xFF619961));
 
         var leafLitter = tints.get("minecraft:leaf_litter");
         assertThat(leafLitter, is(notNullValue()));
-        assertThat(leafLitter.target(), equalTo(dev.sbs.renderer.biome.BiomeTintTarget.DRY_FOLIAGE));
+        assertThat(leafLitter.target(), equalTo(BiomeTintTarget.DRY_FOLIAGE));
     }
 
 }

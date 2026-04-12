@@ -1,7 +1,7 @@
 package dev.sbs.renderer.model;
 
 import com.google.gson.JsonObject;
-import dev.sbs.renderer.biome.BiomeTintTarget;
+import dev.sbs.renderer.geometry.BiomeTintTarget;
 import dev.sbs.renderer.model.asset.BlockModelData;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;

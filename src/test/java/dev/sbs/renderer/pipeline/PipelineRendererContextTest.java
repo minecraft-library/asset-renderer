@@ -1,7 +1,7 @@
 package dev.sbs.renderer.pipeline;
 
 import com.google.gson.Gson;
-import dev.sbs.renderer.biome.BiomeTintTarget;
+import dev.sbs.renderer.geometry.BiomeTintTarget;
 import dev.sbs.renderer.model.Block;
 import dev.sbs.renderer.model.ColorMap;
 import dev.sbs.renderer.model.Item;
@@ -243,8 +243,8 @@ class PipelineRendererContextTest {
     void activePacksContainsVanillaOnly() {
         ConcurrentList<TexturePack> packs = context.activePacks();
         assertThat(packs.size(), equalTo(1));
-        assertThat(packs.get(0).getId(), equalTo("vanilla"));
-        assertThat(packs.get(0).getRootPath(), not(equalTo("")));
+        assertThat(packs.getFirst().getId(), equalTo("vanilla"));
+        assertThat(packs.getFirst().getRootPath(), not(equalTo("")));
     }
 
     @Test

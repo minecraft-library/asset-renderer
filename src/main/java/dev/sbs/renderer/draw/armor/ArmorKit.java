@@ -1,13 +1,13 @@
 package dev.sbs.renderer.draw.armor;
 
-import dev.sbs.renderer.draw.BlockFace;
 import dev.sbs.renderer.draw.Canvas;
 import dev.sbs.renderer.draw.ColorKit;
 import dev.sbs.renderer.draw.GeometryKit;
-import dev.sbs.renderer.draw.SkinFace;
 import dev.sbs.renderer.engine.TextureEngine;
-import dev.sbs.renderer.engine.VisibleTriangle;
-import dev.sbs.renderer.math.Vector3f;
+import dev.sbs.renderer.geometry.BlockFace;
+import dev.sbs.renderer.geometry.SkinFace;
+import dev.sbs.renderer.geometry.VisibleTriangle;
+import dev.sbs.renderer.tensor.Vector3f;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.PixelBuffer;

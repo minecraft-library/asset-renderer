@@ -1,8 +1,8 @@
 package dev.sbs.renderer.tooling;
 
 import dev.sbs.renderer.BlockRenderer;
-import dev.sbs.renderer.draw.BlockFace;
 import dev.sbs.renderer.exception.AssetPipelineException;
+import dev.sbs.renderer.geometry.BlockFace;
 import dev.sbs.renderer.options.BlockOptions;
 import dev.sbs.renderer.pipeline.AssetPipeline;
 import dev.sbs.renderer.pipeline.AssetPipelineOptions;

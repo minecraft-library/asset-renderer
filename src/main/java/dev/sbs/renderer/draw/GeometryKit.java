@@ -1,11 +1,12 @@
 package dev.sbs.renderer.draw;
 
-import dev.sbs.renderer.engine.VisibleTriangle;
-import dev.sbs.renderer.math.Matrix4f;
-import dev.sbs.renderer.math.Vector2f;
-import dev.sbs.renderer.math.Vector3f;
+import dev.sbs.renderer.geometry.BlockFace;
+import dev.sbs.renderer.geometry.VisibleTriangle;
 import dev.sbs.renderer.model.asset.ModelElement;
 import dev.sbs.renderer.model.asset.ModelFace;
+import dev.sbs.renderer.tensor.Matrix4f;
+import dev.sbs.renderer.tensor.Vector2f;
+import dev.sbs.renderer.tensor.Vector3f;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.PixelBuffer;

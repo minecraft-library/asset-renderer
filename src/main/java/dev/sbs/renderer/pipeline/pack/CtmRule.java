@@ -1,4 +1,4 @@
-package dev.sbs.renderer.pack;
+package dev.sbs.renderer.pipeline.pack;
 
 import dev.simplified.collection.ConcurrentList;
 import org.jetbrains.annotations.NotNull;

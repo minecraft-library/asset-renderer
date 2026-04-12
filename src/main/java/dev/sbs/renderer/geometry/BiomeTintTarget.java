@@ -1,4 +1,4 @@
-package dev.sbs.renderer.biome;
+package dev.sbs.renderer.geometry;
 
 /**
  * Identifies which biome colormap drives a block face's tint, or flags that the tint comes from

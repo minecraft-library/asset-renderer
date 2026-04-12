@@ -2,16 +2,15 @@ package dev.sbs.renderer.draw.armor;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 /**
  * Constants for the Minecraft armor trim system: which armor slot the trim applies to, which
  * colour palette recolours the pattern, and which pattern shape is used for 3D entity rendering.
  */
+@UtilityClass
 public final class ArmorTrim {
-
-    private ArmorTrim() {
-    }
 
     /** The armor slot that determines which trim pattern texture to use. */
     @Getter

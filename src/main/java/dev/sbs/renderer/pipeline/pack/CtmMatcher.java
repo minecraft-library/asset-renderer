@@ -1,4 +1,4 @@
-package dev.sbs.renderer.pack;
+package dev.sbs.renderer.pipeline.pack;
 
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -33,9 +33,9 @@ public class CtmMatcher {
         if (rule.tiles().isEmpty()) return Optional.empty();
 
         return switch (rule.method()) {
-            case FIXED, REPEAT, UNSUPPORTED -> Optional.of(new CtmResolution(rule.tiles().get(0), Optional.empty()));
+            case FIXED, REPEAT, UNSUPPORTED -> Optional.of(new CtmResolution(rule.tiles().getFirst(), Optional.empty()));
             case RANDOM -> Optional.of(new CtmResolution(pickRandom(rule, blockId), Optional.empty()));
-            case OVERLAY, OVERLAY_FIXED -> Optional.of(new CtmResolution(baseTextureId, Optional.of(rule.tiles().get(0))));
+            case OVERLAY, OVERLAY_FIXED -> Optional.of(new CtmResolution(baseTextureId, Optional.of(rule.tiles().getFirst())));
         };
     }
 

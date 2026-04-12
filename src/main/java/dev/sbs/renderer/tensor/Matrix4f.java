@@ -1,4 +1,4 @@
-package dev.sbs.renderer.math;
+package dev.sbs.renderer.tensor;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

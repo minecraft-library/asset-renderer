@@ -1,4 +1,4 @@
-package dev.sbs.renderer.pack;
+package dev.sbs.renderer.pipeline.pack;
 
 import dev.sbs.renderer.exception.RendererException;
 import dev.simplified.collection.Concurrent;

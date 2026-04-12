@@ -1,6 +1,7 @@
 package dev.sbs.renderer.engine;
 
-import dev.sbs.renderer.math.Matrix4f;
+import dev.sbs.renderer.geometry.PerspectiveParams;
+import dev.sbs.renderer.tensor.Matrix4f;
 import org.jetbrains.annotations.NotNull;
 
 /**
