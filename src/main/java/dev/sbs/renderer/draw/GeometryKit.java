@@ -69,8 +69,8 @@ public class GeometryKit {
             throw new IllegalArgumentException("Box requires exactly 6 face textures");
 
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
-        float x0 = min.getX(), y0 = min.getY(), z0 = min.getZ();
-        float x1 = max.getX(), y1 = max.getY(), z1 = max.getZ();
+        float x0 = min.x(), y0 = min.y(), z0 = min.z();
+        float x1 = max.x(), y1 = max.y(), z1 = max.z();
 
         for (BlockFace face : BlockFace.values()) {
             Vector3f[] corners = face.corners(x0, y0, z0, x1, y1, z1);

@@ -193,10 +193,10 @@ public class ColorKit {
      * @return a new tinted pixel buffer with the same dimensions
      */
     public static @NotNull PixelBuffer tint(@NotNull PixelBuffer source, int argbTint) {
-        int w = source.getWidth();
-        int h = source.getHeight();
+        int w = source.width();
+        int h = source.height();
         int[] result = new int[w * h];
-        int[] src = source.getPixels();
+        int[] src = source.pixels();
 
         int tr = red(argbTint);
         int tg = green(argbTint);

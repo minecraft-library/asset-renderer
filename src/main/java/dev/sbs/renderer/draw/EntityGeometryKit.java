@@ -80,10 +80,10 @@ public class EntityGeometryKit {
                     Vector3f[] corners = face.corners(x0, y0, z0, x1, y1, z1);
                     for (int i = 0; i < 4; i++) {
                         Vector3f transformed = Vector3f.transform(corners[i], boneTransform);
-                        float ty = negateY ? -transformed.getY() : transformed.getY();
-                        float nx = (transformed.getX() - cx) * scale;
+                        float ty = negateY ? -transformed.y() : transformed.y();
+                        float nx = (transformed.x() - cx) * scale;
                         float ny = (ty - cy) * scale;
-                        float nz = (transformed.getZ() - cz) * scale;
+                        float nz = (transformed.z() - cz) * scale;
                         corners[i] = new Vector3f(nx, ny, nz);
 
                         bMinX = Math.min(bMinX, nx);
@@ -96,7 +96,7 @@ public class EntityGeometryKit {
 
                     Vector3f rawNormal = Vector3f.transformNormal(face.normal(), boneTransform);
                     if (negateY)
-                        rawNormal = new Vector3f(rawNormal.getX(), -rawNormal.getY(), rawNormal.getZ());
+                        rawNormal = new Vector3f(rawNormal.x(), -rawNormal.y(), rawNormal.z());
                     Vector3f normal = Vector3f.normalize(rawNormal);
                     Vector2f[] uv = resolveFaceUv(face, cube, size, texW, texH);
 
@@ -160,13 +160,13 @@ public class EntityGeometryKit {
                     for (float y : ys) {
                         for (float z : zs) {
                             Vector3f c = Vector3f.transform(new Vector3f(x, y, z), boneTransform);
-                            float cy = negateY ? -c.getY() : c.getY();
-                            minX = Math.min(minX, c.getX());
+                            float cy = negateY ? -c.y() : c.y();
+                            minX = Math.min(minX, c.x());
                             minY = Math.min(minY, cy);
-                            minZ = Math.min(minZ, c.getZ());
-                            maxX = Math.max(maxX, c.getX());
+                            minZ = Math.min(minZ, c.z());
+                            maxX = Math.max(maxX, c.x());
                             maxY = Math.max(maxY, cy);
-                            maxZ = Math.max(maxZ, c.getZ());
+                            maxZ = Math.max(maxZ, c.z());
                         }
                     }
                 }

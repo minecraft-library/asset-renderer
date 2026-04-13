@@ -63,7 +63,7 @@ public enum BlockFace {
     private final int @NotNull [] vertexIndices;
     private final @NotNull Vector3f normal;
 
-    @lombok.Getter(lombok.AccessLevel.NONE)
+    @Getter(lombok.AccessLevel.NONE)
     private final @NotNull FaceLayout layout;
 
     /**

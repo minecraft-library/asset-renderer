@@ -2,8 +2,8 @@ package dev.sbs.renderer;
 
 import dev.sbs.renderer.draw.Canvas;
 import dev.sbs.renderer.draw.ColorKit;
+import dev.sbs.renderer.draw.TextKit;
 import dev.sbs.renderer.engine.RenderEngine;
-import dev.sbs.renderer.engine.TextEngine;
 import dev.sbs.renderer.options.TextOptions;
 import dev.sbs.renderer.text.ChatColor;
 import dev.sbs.renderer.text.ColorSegment;
@@ -77,7 +77,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
         int y = pad + g.getFontMetrics().getAscent();
 
         for (int i = 0; i < options.getLines().size(); i++) {
-            TextEngine.drawLine(canvas, options.getLines().get(i), pad, y, DEFAULT_COLOR, frameSeed);
+            TextKit.drawLine(canvas, options.getLines().get(i), pad, y, DEFAULT_COLOR, frameSeed);
             y += LINE_HEIGHT;
             if (isLore && i == 0)
                 y += PIXEL_SIZE * 2;
@@ -112,7 +112,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
         Canvas scratch = Canvas.of(1, 1);
         int max = 0;
         for (LineSegment line : options.getLines())
-            max = Math.max(max, TextEngine.measureLine(scratch, line));
+            max = Math.max(max, TextKit.measureLine(scratch, line));
         scratch.disposeGraphics();
         return Math.max(32, max);
     }

@@ -128,12 +128,12 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
     /** Whether the skin is wide enough to have overlay layers. */
     private static boolean hasOverlay(@NotNull PixelBuffer skin) {
-        return skin.getWidth() >= 64 && skin.getHeight() >= 64;
+        return skin.width() >= 64 && skin.height() >= 64;
     }
 
     /** Whether the skin is wide enough to have hat overlay (smaller threshold than full overlay). */
     private static boolean hasHatOverlay(@NotNull PixelBuffer skin) {
-        return skin.getWidth() >= 48 && skin.getHeight() >= 16;
+        return skin.width() >= 48 && skin.height() >= 16;
     }
 
     /**
@@ -193,7 +193,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         for (int dy = 0; dy < h; dy++)
             for (int dx = 0; dx < w; dx++) {
                 int sx = x + dx, sy = y + dy;
-                if (sx < source.getWidth() && sy < source.getHeight())
+                if (sx < source.width() && sy < source.height())
                     pixels[dy * w + dx] = source.getPixel(sx, sy);
             }
         return PixelBuffer.of(pixels, w, h);
@@ -209,15 +209,15 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         @NotNull Vector3f torsoMin,
         @NotNull Vector3f torsoMax
     ) {
-        float torsoW = torsoMax.getX() - torsoMin.getX();
-        float torsoH = torsoMax.getY() - torsoMin.getY();
+        float torsoW = torsoMax.x() - torsoMin.x();
+        float torsoH = torsoMax.y() - torsoMin.y();
         float capeW = torsoW * 10f / 8f;
         float capeH = torsoH * 16f / 12f;
         float capeD = torsoW * 1f / 8f;
 
-        float cx = (torsoMin.getX() + torsoMax.getX()) / 2f;
-        float capeTop = torsoMax.getY();
-        float capeBack = torsoMax.getZ();
+        float cx = (torsoMin.x() + torsoMax.x()) / 2f;
+        float capeTop = torsoMax.y();
+        float capeBack = torsoMax.z();
 
         Vector3f capeMin = new Vector3f(cx - capeW / 2f, capeTop - capeH, capeBack);
         Vector3f capeMax = new Vector3f(cx + capeW / 2f, capeTop, capeBack + capeD);
@@ -542,8 +542,8 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         triangles.addAll(GeometryKit.box(min, max, part.cropAll(skin, false), ColorKit.WHITE));
         if (options.isRenderOverlay() && hasOverlay(skin))
             triangles.addAll(GeometryKit.box(
-                new Vector3f(min.getX() - OVERLAY_INFLATE, min.getY() - OVERLAY_INFLATE, min.getZ() - OVERLAY_INFLATE),
-                new Vector3f(max.getX() + OVERLAY_INFLATE, max.getY() + OVERLAY_INFLATE, max.getZ() + OVERLAY_INFLATE),
+                new Vector3f(min.x() - OVERLAY_INFLATE, min.y() - OVERLAY_INFLATE, min.z() - OVERLAY_INFLATE),
+                new Vector3f(max.x() + OVERLAY_INFLATE, max.y() + OVERLAY_INFLATE, max.z() + OVERLAY_INFLATE),
                 part.cropAll(skin, true), ColorKit.WHITE));
     }
 

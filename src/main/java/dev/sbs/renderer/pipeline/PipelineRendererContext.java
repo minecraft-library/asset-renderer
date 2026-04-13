@@ -1,6 +1,7 @@
 package dev.sbs.renderer.pipeline;
 
 import dev.sbs.renderer.engine.RendererContext;
+import dev.sbs.renderer.engine.TextureEngine;
 import dev.sbs.renderer.geometry.BiomeTintTarget;
 import dev.sbs.renderer.geometry.BlockFace;
 import dev.sbs.renderer.model.Block;
@@ -23,7 +24,6 @@ import dev.sbs.renderer.tooling.ToolingColorMaps;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.PixelBuffer;
 import lombok.RequiredArgsConstructor;
@@ -314,31 +314,10 @@ public final class PipelineRendererContext implements RendererContext {
             if (face == null) continue;
             String textureRef = face.getTexture();
             if (textureRef.isBlank()) continue;
-            String resolved = dereferenceVariable(textureRef, model.getTextures());
+            String resolved = TextureEngine.dereferenceVariable(textureRef, model.getTextures());
             if (resolved.startsWith("#")) continue;
             textures.put(blockFace.direction(), resolved);
         }
-    }
-
-    /**
-     * Walks a {@code #variable} chain until it terminates at a concrete namespaced id or fails
-     * to resolve. Cycle-guarded so a malformed pack cannot hang the loader.
-     */
-    private static @NotNull String dereferenceVariable(@NotNull String reference, @NotNull ConcurrentMap<String, String> variables) {
-        String current = reference;
-
-        if (!current.startsWith("#") && !current.contains(":") && variables.containsKey(current))
-            current = "#" + current;
-
-        ConcurrentSet<String> visited = Concurrent.newSet();
-        while (current.startsWith("#")) {
-            if (!visited.add(current)) return current;
-            String next = variables.get(current.substring(1));
-            if (next == null) return current;
-            current = next;
-        }
-
-        return current;
     }
 
 }

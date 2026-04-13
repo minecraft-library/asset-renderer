@@ -3,9 +3,9 @@ package dev.sbs.renderer;
 import dev.sbs.renderer.draw.Canvas;
 import dev.sbs.renderer.draw.ColorKit;
 import dev.sbs.renderer.draw.FrameMerger;
+import dev.sbs.renderer.draw.TextKit;
 import dev.sbs.renderer.engine.RenderEngine;
 import dev.sbs.renderer.engine.RendererContext;
-import dev.sbs.renderer.engine.TextEngine;
 import dev.sbs.renderer.options.BlockOptions;
 import dev.sbs.renderer.options.ItemOptions;
 import dev.sbs.renderer.options.MenuOptions;
@@ -14,6 +14,7 @@ import dev.sbs.renderer.text.LineSegment;
 import dev.sbs.renderer.text.MinecraftFont;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.StaticImageData;
@@ -21,9 +22,7 @@ import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.awt.*;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Renders an inventory-style menu (chest, player, crafting, anvil) by dispatching to one of
@@ -107,7 +106,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         @NotNull MenuOptions options,
         @NotNull ConcurrentList<FrameMerger.Layer> layers,
         @NotNull ItemRenderer itemRenderer,
-        @NotNull Set<Integer> claimed
+        @NotNull ConcurrentSet<Integer> claimed
     ) {
         if (options.getFill() == MenuOptions.Fill.EMPTY) return false;
 
@@ -246,9 +245,11 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     static void fillRect(@NotNull Canvas canvas, int x, int y, int w, int h, int argb) {
         int canvasW = canvas.width();
         int canvasH = canvas.height();
+
         for (int dy = 0; dy < h; dy++) {
             int py = y + dy;
             if (py < 0 || py >= canvasH) continue;
+
             for (int dx = 0; dx < w; dx++) {
                 int px = x + dx;
                 if (px < 0 || px >= canvasW) continue;
@@ -517,12 +518,13 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     private static boolean hasTitleObfuscation(@NotNull LineSegment line) {
         for (ColorSegment segment : line.getSegments())
             if (segment.isObfuscated()) return true;
+
         return false;
     }
 
     /**
      * Renders pre-parsed title segments onto the canvas. Delegates font style resolution,
-     * colour mapping, shadow, and obfuscation to {@link TextEngine}.
+     * colour mapping, shadow, and obfuscation to {@link TextKit}.
      */
     private static void drawTitleSegments(
         @NotNull Canvas canvas,
@@ -535,7 +537,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         g.setFont(MinecraftFont.REGULAR.getActual());
         FontMetrics fm = g.getFontMetrics();
         int textY = bandTop + (bandHeight - fm.getHeight()) / 2 + fm.getAscent();
-        TextEngine.drawLine(canvas, titleLine, titleX, textY, defaultColor, frameSeed);
+        TextKit.drawLine(canvas, titleLine, titleX, textY, defaultColor, frameSeed);
     }
 
     /**
@@ -554,7 +556,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         g.setFont(MinecraftFont.REGULAR.getActual());
         FontMetrics fm = g.getFontMetrics();
         int textY = innerY + (innerH - fm.getHeight()) / 2 + fm.getAscent();
-        TextEngine.drawText(canvas, label, innerX + 2, textY, MinecraftFont.REGULAR.getActual(), Color.WHITE);
+        TextKit.drawText(canvas, label, innerX + 2, textY, MinecraftFont.REGULAR.getActual(), Color.WHITE);
     }
 
     /**
@@ -572,7 +574,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         FontMetrics fm = g.getFontMetrics();
         int textX = canvasW - INSET - 4 - fm.stringWidth(text);
         int textY = areaTop + (areaHeight - fm.getHeight()) / 2 + fm.getAscent();
-        TextEngine.drawText(canvas, text, textX, textY, font, new Color(0x80FF20));
+        TextKit.drawText(canvas, text, textX, textY, font, new Color(0x80FF20));
     }
 
     // ---------------------------------------------------------------------------------------
@@ -612,7 +614,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             layers.add(new FrameMerger.Layer(0, 0, chromeData));
 
             boolean anyAnimated = chromeData.isAnimated();
-            for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet().stream().toList()) {
+            for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet()) {
                 int slotIndex = entry.getKey();
                 MenuOptions.MenuSlotContent content = entry.getValue();
                 ImageData rendered = itemRenderer.render(content.options());
@@ -695,7 +697,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             layers.add(new FrameMerger.Layer(0, 0, chromeData));
 
             boolean anyAnimated = chromeData.isAnimated();
-            for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet().stream().toList()) {
+            for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet()) {
                 int callerSlot = entry.getKey();
                 int[] coord = SLOT_COORDS[callerSlot];
                 MenuOptions.MenuSlotContent content = entry.getValue();
@@ -757,13 +759,11 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
                 int sx = INSET + col * SLOT_SIZE;
                 drawSlotInset(chromeCanvas, sx, slotRowY, SLOT_SIZE - 2, SLOT_SIZE - 2);
             }
+
             drawPlusInSlot(chromeCanvas, 1, slotRowY);
             drawCraftArrowInSlotAt(chromeCanvas, 3, slotRowY);
-
-            drawTextboxLabel(chromeCanvas, options.getTextboxLabel(),
-                textboxX + 2, textboxY + 2, textboxH - 4);
-            drawXpCost(chromeCanvas, options.getXpCost(), canvasW,
-                slotRowY + SLOT_SIZE, xpLabelHeight);
+            drawTextboxLabel(chromeCanvas, options.getTextboxLabel(), textboxX + 2, textboxY + 2, textboxH - 4);
+            drawXpCost(chromeCanvas, options.getXpCost(), canvasW, slotRowY + SLOT_SIZE, xpLabelHeight);
             chromeCanvas.disposeGraphics();
 
             ImageData chromeData = renderChrome(chromeCanvas, options, INSET + 24, new Color(0x404040));
@@ -773,13 +773,12 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             layers.add(new FrameMerger.Layer(0, 0, chromeData));
 
             boolean anyAnimated = chromeData.isAnimated();
-            for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet().stream().toList()) {
+            for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet()) {
                 int callerSlot = entry.getKey();
                 int col = SLOT_COLS[callerSlot];
                 MenuOptions.MenuSlotContent content = entry.getValue();
                 ImageData rendered = itemRenderer.render(content.options());
                 if (rendered.isAnimated()) anyAnimated = true;
-
                 int x = INSET + col * SLOT_SIZE;
                 layers.add(new FrameMerger.Layer(x, slotRowY, rendered));
             }
@@ -826,16 +825,14 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
 
             Canvas chromeCanvas = Canvas.of(canvasW, canvasH);
             drawVanillaChestChrome(chromeCanvas, SKYBLOCK_CHEST_ROWS, SKYBLOCK_CHEST_COLS);
-            drawCraftArrowInSlot(chromeCanvas,
-                ARROW_SLOT % SKYBLOCK_CHEST_COLS,
-                ARROW_SLOT / SKYBLOCK_CHEST_COLS);
+            drawCraftArrowInSlot(chromeCanvas, ARROW_SLOT % SKYBLOCK_CHEST_COLS, ARROW_SLOT / SKYBLOCK_CHEST_COLS);
             ImageData chromeData = renderChrome(chromeCanvas, options, INSET + 4, new Color(0x404040));
 
             ItemRenderer itemRenderer = new ItemRenderer(this.context);
             ConcurrentList<FrameMerger.Layer> layers = Concurrent.newList();
             layers.add(new FrameMerger.Layer(0, 0, chromeData));
 
-            Set<Integer> claimed = new HashSet<>();
+            ConcurrentSet<Integer> claimed = Concurrent.newSet();
             for (int chestSlot : SLOT_MAP) claimed.add(chestSlot);
             claimed.add(ARROW_SLOT);
 
@@ -903,14 +900,14 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             ConcurrentList<FrameMerger.Layer> layers = Concurrent.newList();
             layers.add(new FrameMerger.Layer(0, 0, chromeData));
 
-            Set<Integer> claimed = new HashSet<>();
+            ConcurrentSet<Integer> claimed = Concurrent.newSet();
             for (int chestSlot : SLOT_MAP) claimed.add(chestSlot);
             claimed.add(DECORATION_SLOT);
             for (int chestSlot : RED_PANE_SLOTS) claimed.add(chestSlot);
 
             boolean anyAnimated = chromeData.isAnimated();
 
-            for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet().stream().toList()) {
+            for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet()) {
                 int callerSlot = entry.getKey();
                 int chestSlot = SLOT_MAP[callerSlot];
                 MenuOptions.MenuSlotContent content = entry.getValue();
@@ -949,7 +946,6 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             }
 
             anyAnimated |= appendFillerLayers(options, layers, itemRenderer, claimed);
-
             return composite(canvasW, canvasH, layers, anyAnimated, options);
         }
 

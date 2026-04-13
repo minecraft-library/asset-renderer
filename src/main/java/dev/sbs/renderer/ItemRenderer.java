@@ -24,16 +24,15 @@ import dev.sbs.renderer.tensor.Matrix4f;
 import dev.sbs.renderer.tensor.Vector3f;
 import dev.sbs.renderer.text.MinecraftFont;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 /**
  * Renders an {@link Item} as either a flat 2D GUI icon or a held 3D view by dispatching to one
@@ -223,39 +222,17 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             @NotNull Item item
         ) {
             Map<String, PixelBuffer> result = new HashMap<>();
-            Map<String, String> variables = item.getModel().getTextures();
+            ConcurrentMap<String, String> variables = item.getModel().getTextures();
             for (ModelElement element : item.getModel().getElements()) {
                 for (ModelFace face : element.getFaces().values()) {
                     String ref = face.getTexture();
                     if (ref.isBlank() || result.containsKey(ref)) continue;
-                    String resolvedId = dereferenceVariable(ref, variables);
+                    String resolvedId = TextureEngine.dereferenceVariable(ref, variables);
                     if (resolvedId.startsWith("#")) continue;
                     result.put(ref, engine.resolveTexture(resolvedId));
                 }
             }
             return result;
-        }
-
-        /**
-         * Walks a texture variable chain ({@code #all -> #side -> minecraft:block/dirt}) until
-         * it terminates at a concrete namespaced id or fails to resolve. Cycle-guarded with a
-         * visited set so a malformed pack cannot hang the caller.
-         */
-        private static @NotNull String dereferenceVariable(@NotNull String reference, @NotNull Map<String, String> variables) {
-            String current = reference;
-
-            if (!current.startsWith("#") && !current.contains(":") && variables.containsKey(current))
-                current = "#" + current;
-
-            Set<String> visited = new HashSet<>();
-            while (current.startsWith("#")) {
-                if (!visited.add(current)) return current;
-                String next = variables.get(current.substring(1));
-                if (next == null) return current;
-                current = next;
-            }
-
-            return current;
         }
 
         /**

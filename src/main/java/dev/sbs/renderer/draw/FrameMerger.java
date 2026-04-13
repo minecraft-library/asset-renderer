@@ -1,6 +1,5 @@
 package dev.sbs.renderer.draw;
 
-import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.AnimatedImageData;
 import dev.simplified.image.ImageData;
@@ -9,10 +8,6 @@ import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.StaticImageData;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
-
-import java.awt.image.BufferedImage;
-// ImageFrame + AnimatedImageData use Java record-style accessors (frame.image(), frame.delayMs());
-// AnimatedImageData exposes getFrames(), getTotalDurationMs(), getFrameAtTime() via Lombok @Getter.
 
 /**
  * Composites multiple {@link ImageData} layers into a single output, transparently handling mixed
@@ -53,13 +48,7 @@ public class FrameMerger {
      * @param backgroundArgb the canvas background colour applied before blitting any layer
      * @return the composited image data
      */
-    public static @NotNull ImageData merge(
-        @NotNull ConcurrentList<Layer> layers,
-        int canvasW,
-        int canvasH,
-        int framesPerSecond,
-        int backgroundArgb
-    ) {
+    public static @NotNull ImageData merge(@NotNull ConcurrentList<Layer> layers, int canvasW, int canvasH, int framesPerSecond, int backgroundArgb) {
         boolean anyAnimated = layers.stream().anyMatch(layer -> layer.source() instanceof AnimatedImageData);
 
         if (!anyAnimated)
@@ -69,26 +58,17 @@ public class FrameMerger {
         long mergedLoopMs = computeMergedLoopMs(layers);
         int outputFrameCount = Math.max(1, (int) Math.ceil((double) mergedLoopMs / outputFrameDelayMs));
 
-        ConcurrentList<BufferedImage> buffered = Concurrent.newList();
+        AnimatedImageData.Builder builder = AnimatedImageData.builder();
         for (int frameIndex = 0; frameIndex < outputFrameCount; frameIndex++) {
             long timeMs = (long) frameIndex * outputFrameDelayMs;
             PixelBuffer frame = renderFrame(layers, canvasW, canvasH, backgroundArgb, timeMs);
-            buffered.add(frame.toBufferedImage());
+            builder.withFrame(ImageFrame.of(frame, outputFrameDelayMs));
         }
 
-        AnimatedImageData.Builder builder = AnimatedImageData.builder();
-        for (BufferedImage image : buffered)
-            builder.withFrame(ImageFrame.of(image, outputFrameDelayMs));
         return builder.build();
     }
 
-    private static @NotNull PixelBuffer renderFrame(
-        @NotNull ConcurrentList<Layer> layers,
-        int canvasW,
-        int canvasH,
-        int backgroundArgb,
-        long timeMs
-    ) {
+    private static @NotNull PixelBuffer renderFrame(@NotNull ConcurrentList<Layer> layers, int canvasW, int canvasH, int backgroundArgb, long timeMs) {
         Canvas canvas = Canvas.of(canvasW, canvasH);
         canvas.fill(backgroundArgb);
 
@@ -107,13 +87,14 @@ public class FrameMerger {
      */
     private static @NotNull PixelBuffer sampleLayerAtTime(@NotNull ImageData source, long timeMs) {
         if (source instanceof AnimatedImageData animated && !animated.getFrames().isEmpty())
-            return PixelBuffer.wrap(animated.getFrameAtTime(timeMs, false).frame().image());
+            return animated.getFrameAtTime(timeMs, false).frame().pixels();
 
-        return PixelBuffer.wrap(source.toBufferedImage());
+        return source.toPixelBuffer();
     }
 
     private static long computeMergedLoopMs(@NotNull ConcurrentList<Layer> layers) {
         long merged = 0;
+
         for (Layer layer : layers) {
             if (!(layer.source() instanceof AnimatedImageData animated)) continue;
             long layerMs = animated.getTotalDurationMs();
@@ -121,7 +102,8 @@ public class FrameMerger {
             merged = merged == 0 ? layerMs : lcm(merged, layerMs);
             if (merged >= MAX_LOOP_MS) return MAX_LOOP_MS;
         }
-        return merged == 0 ? 1 : Math.min(merged, MAX_LOOP_MS);
+
+        return merged == 0 ? 1 : merged;
     }
 
     private static long lcm(long a, long b) {
@@ -135,6 +117,7 @@ public class FrameMerger {
             b = a % b;
             a = t;
         }
+
         return a;
     }
 

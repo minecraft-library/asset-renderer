@@ -74,7 +74,7 @@ public final class Canvas {
      * @return the width
      */
     public int width() {
-        return this.buffer.getWidth();
+        return this.buffer.width();
     }
 
     /**
@@ -83,7 +83,7 @@ public final class Canvas {
      * @return the height
      */
     public int height() {
-        return this.buffer.getHeight();
+        return this.buffer.height();
     }
 
     /**
@@ -92,7 +92,7 @@ public final class Canvas {
      * @param argb the fill colour
      */
     public void fill(int argb) {
-        int[] pixels = this.buffer.getPixels();
+        int[] pixels = this.buffer.pixels();
         Arrays.fill(pixels, argb);
     }
 
@@ -118,8 +118,8 @@ public final class Canvas {
      * @param mode the blend mode to use for compositing
      */
     public void blit(@NotNull PixelBuffer source, int dx, int dy, @NotNull BlendMode mode) {
-        int sw = source.getWidth();
-        int sh = source.getHeight();
+        int sw = source.width();
+        int sh = source.height();
         int w = this.width();
         int h = this.height();
 
@@ -164,8 +164,8 @@ public final class Canvas {
      * @param dh the destination height
      */
     public void blitScaled(@NotNull PixelBuffer source, int dx, int dy, int dw, int dh) {
-        int sw = source.getWidth();
-        int sh = source.getHeight();
+        int sw = source.width();
+        int sh = source.height();
         int w = this.width();
         int h = this.height();
 

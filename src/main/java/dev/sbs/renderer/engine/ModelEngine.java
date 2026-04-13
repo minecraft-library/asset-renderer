@@ -159,16 +159,16 @@ public class ModelEngine extends TextureEngine {
                     float[] bary = ProjectionMath.barycentric(t.s0, t.s1, t.s2, pt);
                     if (!ProjectionMath.isInsideTriangle(bary)) continue;
 
-                    float depth = bary[0] * t.p0.getZ() + bary[1] * t.p1.getZ() + bary[2] * t.p2.getZ();
+                    float depth = bary[0] * t.p0.z() + bary[1] * t.p1.z() + bary[2] * t.p2.z();
                     int idx = py * width + px;
                     if (depth <= depthBuffer[idx]) continue;
 
-                    float u = bary[0] * t.source.uv0().getX() + bary[1] * t.source.uv1().getX() + bary[2] * t.source.uv2().getX();
-                    float v = bary[0] * t.source.uv0().getY() + bary[1] * t.source.uv1().getY() + bary[2] * t.source.uv2().getY();
+                    float u = bary[0] * t.source.uv0().x() + bary[1] * t.source.uv1().x() + bary[2] * t.source.uv2().x();
+                    float v = bary[0] * t.source.uv0().y() + bary[1] * t.source.uv1().y() + bary[2] * t.source.uv2().y();
 
                     PixelBuffer texture = t.source.texture();
-                    int tx = Math.clamp((int) (u * texture.getWidth()), 0, texture.getWidth() - 1);
-                    int ty = Math.clamp((int) (v * texture.getHeight()), 0, texture.getHeight() - 1);
+                    int tx = Math.clamp((int) (u * texture.width()), 0, texture.width() - 1);
+                    int ty = Math.clamp((int) (v * texture.height()), 0, texture.height() - 1);
                     int sampled = texture.getPixel(tx, ty);
                     if (ColorKit.alpha(sampled) == 0) continue;
 
@@ -194,8 +194,8 @@ public class ModelEngine extends TextureEngine {
      * rotations, perspective foreshortening, and non-uniform scales.
      */
     private static boolean isBackFacing(@NotNull Vector2f v0, @NotNull Vector2f v1, @NotNull Vector2f v2) {
-        float signedArea = (v1.getX() - v0.getX()) * (v2.getY() - v0.getY())
-            - (v2.getX() - v0.getX()) * (v1.getY() - v0.getY());
+        float signedArea = (v1.x() - v0.x()) * (v2.y() - v0.y())
+            - (v2.x() - v0.x()) * (v1.y() - v0.y());
         return signedArea >= 0f;
     }
 
@@ -213,7 +213,7 @@ public class ModelEngine extends TextureEngine {
     }
 
     private static float averageDepth(@NotNull Projected t) {
-        return (t.p0.getZ() + t.p1.getZ() + t.p2.getZ()) / 3f;
+        return (t.p0.z() + t.p1.z() + t.p2.z()) / 3f;
     }
 
     /**

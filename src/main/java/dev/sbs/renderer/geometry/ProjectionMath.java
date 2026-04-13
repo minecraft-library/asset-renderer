@@ -23,7 +23,7 @@ public class ProjectionMath {
      * @return the denominator value
      */
     public static float barycentricDenominator(@NotNull Vector2f a, @NotNull Vector2f b, @NotNull Vector2f c) {
-        return (b.getY() - c.getY()) * (a.getX() - c.getX()) + (c.getX() - b.getX()) * (a.getY() - c.getY());
+        return (b.y() - c.y()) * (a.x() - c.x()) + (c.x() - b.x()) * (a.y() - c.y());
     }
 
     /**
@@ -44,8 +44,8 @@ public class ProjectionMath {
         float denom = barycentricDenominator(a, b, c);
         if (denom == 0f) return new float[]{ 0f, 0f, 0f };
 
-        float u = ((b.getY() - c.getY()) * (point.getX() - c.getX()) + (c.getX() - b.getX()) * (point.getY() - c.getY())) / denom;
-        float v = ((c.getY() - a.getY()) * (point.getX() - c.getX()) + (a.getX() - c.getX()) * (point.getY() - c.getY())) / denom;
+        float u = ((b.y() - c.y()) * (point.x() - c.x()) + (c.x() - b.x()) * (point.y() - c.y())) / denom;
+        float v = ((c.y() - a.y()) * (point.x() - c.x()) + (a.x() - c.x()) * (point.y() - c.y())) / denom;
         float w = 1f - u - v;
         return new float[]{ u, v, w };
     }
@@ -78,10 +78,10 @@ public class ProjectionMath {
         int canvasW,
         int canvasH
     ) {
-        int minX = Math.max(0, (int) Math.floor(Math.min(a.getX(), Math.min(b.getX(), c.getX()))));
-        int minY = Math.max(0, (int) Math.floor(Math.min(a.getY(), Math.min(b.getY(), c.getY()))));
-        int maxX = Math.min(canvasW - 1, (int) Math.ceil(Math.max(a.getX(), Math.max(b.getX(), c.getX()))));
-        int maxY = Math.min(canvasH - 1, (int) Math.ceil(Math.max(a.getY(), Math.max(b.getY(), c.getY()))));
+        int minX = Math.max(0, (int) Math.floor(Math.min(a.x(), Math.min(b.x(), c.x()))));
+        int minY = Math.max(0, (int) Math.floor(Math.min(a.y(), Math.min(b.y(), c.y()))));
+        int maxX = Math.min(canvasW - 1, (int) Math.ceil(Math.max(a.x(), Math.max(b.x(), c.x()))));
+        int maxY = Math.min(canvasH - 1, (int) Math.ceil(Math.max(a.y(), Math.max(b.y(), c.y()))));
         return new int[]{ minX, minY, maxX, maxY };
     }
 

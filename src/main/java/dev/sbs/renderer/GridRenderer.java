@@ -8,7 +8,6 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
-import dev.simplified.image.StaticImageData;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -26,12 +25,14 @@ public final class GridRenderer implements Renderer<GridOptions> {
         int canvasW = options.getColumns() * (cellSize + separation) + separation;
         int canvasH = options.getRows() * (cellSize + separation) + separation;
 
-        boolean anyAnimated = options.getTiles().stream()
-            .anyMatch(tile -> !(tile.image() instanceof StaticImageData));
+        boolean anyAnimated = options.getTiles()
+            .stream()
+            .anyMatch(tile -> tile.image().isAnimated());
 
         if (!anyAnimated) {
             Canvas canvas = Canvas.of(canvasW, canvasH);
             canvas.fill(options.getBackgroundArgb());
+
             for (GridOptions.GridTile tile : options.getTiles()) {
                 PixelBuffer buffer = PixelBuffer.wrap(tile.image().toBufferedImage());
                 int x = tile.col() * (cellSize + separation) + separation;

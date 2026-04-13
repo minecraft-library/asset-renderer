@@ -8,6 +8,9 @@ import dev.sbs.renderer.geometry.Biome;
 import dev.sbs.renderer.geometry.BiomeTintTarget;
 import dev.sbs.renderer.model.ColorMap;
 import dev.sbs.renderer.model.asset.AnimationData;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.image.PixelBuffer;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -158,8 +161,8 @@ public class TextureEngine implements RenderEngine {
         @NotNull BlendMode mode
     ) {
         PixelBuffer tinted = ColorKit.tint(overlay, argbTint);
-        int w = Math.min(base.getWidth(), tinted.getWidth());
-        int h = Math.min(base.getHeight(), tinted.getHeight());
+        int w = Math.min(base.width(), tinted.width());
+        int h = Math.min(base.height(), tinted.height());
 
         int[] result = new int[w * h];
         for (int y = 0; y < h; y++) {
@@ -209,6 +212,32 @@ public class TextureEngine implements RenderEngine {
      * Unpacks the row-major ARGB bytes from a {@link ColorMap} entity into an {@code int[]}
      * colormap suitable for {@link ColorKit#sampleColormap(int[], float, float)}.
      */
+    /**
+     * Walks a {@code #variable} chain until it terminates at a concrete namespaced id or fails
+     * to resolve. Handles bare variable names (vanilla shorthand where {@code "texture": "all"}
+     * means {@code "texture": "#all"}). Cycle-guarded so a malformed pack cannot hang the caller.
+     *
+     * @param reference the texture reference, possibly starting with {@code #}
+     * @param variables the variable map to resolve against
+     * @return the resolved namespaced texture id, or the last unresolvable {@code #variable}
+     */
+    public static @NotNull String dereferenceVariable(@NotNull String reference, @NotNull ConcurrentMap<String, String> variables) {
+        String current = reference;
+
+        if (!current.startsWith("#") && !current.contains(":") && variables.containsKey(current))
+            current = "#" + current;
+
+        ConcurrentSet<String> visited = Concurrent.newSet();
+        while (current.startsWith("#")) {
+            if (!visited.add(current)) return current;
+            String next = variables.get(current.substring(1));
+            if (next == null) return current;
+            current = next;
+        }
+
+        return current;
+    }
+
     private int @NotNull [] unpackColorMap(@NotNull ColorMap map) {
         byte[] bytes = map.getPixels();
         int[] pixels = new int[bytes.length / 4];

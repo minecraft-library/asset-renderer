@@ -5,13 +5,12 @@ import dev.sbs.renderer.model.asset.ModelElement;
 import dev.sbs.renderer.model.asset.ModelFace;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.PixelBuffer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -34,7 +33,7 @@ class GeometryKitTest {
         element.getFaces().put("east", face("#all"));
 
         PixelBuffer texture = texture1x1();
-        Map<String, PixelBuffer> faceTextures = new HashMap<>();
+        ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
         faceTextures.put("#all", texture);
 
         ConcurrentList<VisibleTriangle> triangles =
@@ -54,7 +53,7 @@ class GeometryKitTest {
         element.getFaces().put("up", face("#all"));
         element.getFaces().put("down", face("#all"));
 
-        Map<String, PixelBuffer> faceTextures = new HashMap<>();
+        ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
         faceTextures.put("#all", texture1x1());
 
         ConcurrentList<VisibleTriangle> triangles =
@@ -69,7 +68,7 @@ class GeometryKitTest {
         ModelElement element = new ModelElement();
         element.getFaces().put("up", face("#all", new float[]{ 0f, 0f, 8f, 8f }, 0));
 
-        Map<String, PixelBuffer> faceTextures = new HashMap<>();
+        ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
         faceTextures.put("#all", texture1x1());
 
         ConcurrentList<VisibleTriangle> triangles =
@@ -78,10 +77,10 @@ class GeometryKitTest {
         assertThat(triangles.size(), equalTo(2));
         VisibleTriangle firstHalf = triangles.getFirst();
         // Triangle 0 samples (TL, BL, BR): uv0 is TL, uv2 is BR.
-        assertThat(firstHalf.uv0().getX(), equalTo(0f));
-        assertThat(firstHalf.uv0().getY(), equalTo(0f));
-        assertThat(firstHalf.uv2().getX(), equalTo(0.5f));
-        assertThat(firstHalf.uv2().getY(), equalTo(0.5f));
+        assertThat(firstHalf.uv0().x(), equalTo(0f));
+        assertThat(firstHalf.uv0().y(), equalTo(0f));
+        assertThat(firstHalf.uv2().x(), equalTo(0.5f));
+        assertThat(firstHalf.uv2().y(), equalTo(0.5f));
     }
 
     @Test
@@ -91,7 +90,7 @@ class GeometryKitTest {
         element.getFaces().put("up", face("#all"));
         element.getFaces().put("down", face("#unknown"));
 
-        Map<String, PixelBuffer> faceTextures = new HashMap<>();
+        ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
         faceTextures.put("#all", texture1x1());
 
         ConcurrentList<VisibleTriangle> triangles =
@@ -106,7 +105,7 @@ class GeometryKitTest {
         ModelElement element = element(new float[]{ 4f, 0f, 4f }, new float[]{ 12f, 16f, 12f });
         element.getFaces().put("up", face("#all"));
 
-        Map<String, PixelBuffer> faceTextures = new HashMap<>();
+        ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
         faceTextures.put("#all", texture1x1());
 
         ConcurrentList<VisibleTriangle> triangles =
@@ -115,12 +114,12 @@ class GeometryKitTest {
         assertThat(triangles.size(), equalTo(2));
         VisibleTriangle firstHalf = triangles.getFirst();
         // Up-face TL = vertex 3 = (x0, y1, z0) and BR = vertex 6 = (x1, y1, z1).
-        assertThat(firstHalf.position0().getX(), equalTo(-0.25f));
-        assertThat(firstHalf.position0().getY(), equalTo(0.5f));
-        assertThat(firstHalf.position0().getZ(), equalTo(-0.25f));
-        assertThat(firstHalf.position2().getX(), equalTo(0.25f));
-        assertThat(firstHalf.position2().getY(), equalTo(0.5f));
-        assertThat(firstHalf.position2().getZ(), equalTo(0.25f));
+        assertThat(firstHalf.position0().x(), equalTo(-0.25f));
+        assertThat(firstHalf.position0().y(), equalTo(0.5f));
+        assertThat(firstHalf.position0().z(), equalTo(-0.25f));
+        assertThat(firstHalf.position2().x(), equalTo(0.25f));
+        assertThat(firstHalf.position2().y(), equalTo(0.5f));
+        assertThat(firstHalf.position2().z(), equalTo(0.25f));
     }
 
     // --- fixtures ---

@@ -13,8 +13,6 @@ import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.StaticImageData;
 import org.jetbrains.annotations.NotNull;
 
-import java.awt.image.BufferedImage;
-
 /**
  * Baseline contract and shared static helpers for every rendering engine.
  * <p>
@@ -37,7 +35,7 @@ public interface RenderEngine {
      * @return the projected 2D point
      */
     static @NotNull Vector2f projectOrtho(@NotNull Vector3f point, float scale, float offsetX, float offsetY) {
-        return new Vector2f(point.getX() * scale + offsetX, -point.getY() * scale + offsetY);
+        return new Vector2f(point.x() * scale + offsetX, -point.y() * scale + offsetY);
     }
 
     /**
@@ -62,10 +60,10 @@ public interface RenderEngine {
         if (params.amount() <= 0f)
             return projectOrtho(point, scale, offsetX, offsetY);
 
-        float denom = params.cameraDistance() - point.getZ();
+        float denom = params.cameraDistance() - point.z();
         float perspectiveFactor = denom == 0f ? 1f : (params.focalLength() / denom);
         float blended = 1f + (perspectiveFactor - 1f) * params.amount();
-        return new Vector2f(point.getX() * scale * blended + offsetX, -point.getY() * scale * blended + offsetY);
+        return new Vector2f(point.x() * scale * blended + offsetX, -point.y() * scale * blended + offsetY);
     }
 
     // --- inventory lighting ---
@@ -79,12 +77,12 @@ public interface RenderEngine {
      * @return a shade factor: 1.0 for UP, 0.8 for NORTH/SOUTH, 0.6 for EAST/WEST, 0.5 for DOWN
      */
     static float computeInventoryLighting(@NotNull Vector3f normal) {
-        float absX = Math.abs(normal.getX());
-        float absY = Math.abs(normal.getY());
-        float absZ = Math.abs(normal.getZ());
+        float absX = Math.abs(normal.x());
+        float absY = Math.abs(normal.y());
+        float absZ = Math.abs(normal.z());
 
         if (absY > absX && absY > absZ)
-            return normal.getY() > 0f ? 1f : 0.5f;
+            return normal.y() > 0f ? 1f : 0.5f;
         if (absZ > absX)
             return 0.8f;
         return 0.6f;
@@ -131,10 +129,9 @@ public interface RenderEngine {
             return StaticImageData.of(frames.getFirst().toBufferedImage());
 
         AnimatedImageData.Builder builder = AnimatedImageData.builder();
-        for (PixelBuffer frame : frames) {
-            BufferedImage image = frame.toBufferedImage();
-            builder.withFrame(ImageFrame.of(image, frameDelayMs));
-        }
+        for (PixelBuffer frame : frames)
+            builder.withFrame(ImageFrame.of(frame, frameDelayMs));
+
         return builder.build();
     }
 

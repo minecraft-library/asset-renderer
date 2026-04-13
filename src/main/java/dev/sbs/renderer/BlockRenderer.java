@@ -12,6 +12,7 @@ import dev.sbs.renderer.engine.IsometricEngine;
 import dev.sbs.renderer.engine.RasterEngine;
 import dev.sbs.renderer.engine.RenderEngine;
 import dev.sbs.renderer.engine.RendererContext;
+import dev.sbs.renderer.engine.TextureEngine;
 import dev.sbs.renderer.exception.RendererException;
 import dev.sbs.renderer.geometry.BiomeTintTarget;
 import dev.sbs.renderer.geometry.PerspectiveParams;
@@ -26,6 +27,7 @@ import dev.sbs.renderer.tensor.Matrix4f;
 import dev.sbs.renderer.tensor.Vector3f;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
 import lombok.RequiredArgsConstructor;
@@ -33,10 +35,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Renders a {@link Block} as either a full 3D isometric tile or a single flat face by
@@ -173,7 +172,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * matching model, applying per-part rotation where specified.
          */
         private @NotNull ConcurrentList<VisibleTriangle> assembleMultipart(@NotNull Block.Multipart multipart, @NotNull BlockOptions options, int tint) {
-            Map<String, String> properties = parseProperties(options.getVariant());
+            ConcurrentMap<String, String> properties = parseProperties(options.getVariant());
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
             RasterEngine raster = new RasterEngine(this.context);
 
@@ -189,13 +188,13 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 if (partModel == null) continue;
 
                 // Build triangles for this part's model
-                Map<String, PixelBuffer> faceTextures = new HashMap<>();
-                Map<String, String> variables = partModel.getTextures();
+                ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
+                ConcurrentMap<String, String> variables = partModel.getTextures();
                 for (ModelElement element : partModel.getElements()) {
                     for (Map.Entry<String, ModelFace> faceEntry : element.getFaces().entrySet()) {
                         String ref = faceEntry.getValue().getTexture();
                         if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
-                        String resolvedId = dereferenceVariable(ref, variables);
+                        String resolvedId = TextureEngine.dereferenceVariable(ref, variables);
                         if (resolvedId.startsWith("#")) continue;
                         faceTextures.put(ref, raster.resolveTexture(resolvedId));
                     }
@@ -239,8 +238,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         /**
          * Parses a variant properties string ({@code "facing=south,lit=false"}) into a map.
          */
-        private static @NotNull Map<String, String> parseProperties(@NotNull String variant) {
-            Map<String, String> result = new HashMap<>();
+        private static @NotNull ConcurrentMap<String, String> parseProperties(@NotNull String variant) {
+            ConcurrentMap<String, String> result = Concurrent.newMap();
             if (variant.isBlank()) return result;
 
             for (String pair : variant.split(",")) {
@@ -258,7 +257,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * property matching, pipe-delimited multi-value OR ({@code "side|up"}), and compound
          * AND/OR operators.
          */
-        private static boolean matchesCondition(@Nullable JsonObject when, @NotNull Map<String, String> properties) {
+        private static boolean matchesCondition(@Nullable JsonObject when, @NotNull ConcurrentMap<String, String> properties) {
             if (when == null) return true;
 
             if (when.has("AND")) {
@@ -305,14 +304,14 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          */
         private @NotNull ConcurrentList<VisibleTriangle> buildFromBlockElements(@NotNull Block block, int tint) {
             RasterEngine raster = new RasterEngine(this.context);
-            Map<String, PixelBuffer> faceTextures = new HashMap<>();
-            Map<String, String> variables = block.getModel().getTextures();
+            ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
+            ConcurrentMap<String, String> variables = block.getModel().getTextures();
 
             for (ModelElement element : block.getModel().getElements()) {
                 for (ModelFace face : element.getFaces().values()) {
                     String ref = face.getTexture();
                     if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
-                    String resolvedId = dereferenceVariable(ref, variables);
+                    String resolvedId = TextureEngine.dereferenceVariable(ref, variables);
                     if (resolvedId.startsWith("#")) continue;
                     faceTextures.put(ref, raster.resolveTexture(resolvedId));
                 }
@@ -374,29 +373,6 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             float guiYaw = gui.getRotationY();
             if (guiYaw == 0f || guiYaw == 225f) return 0f;
             return -(guiYaw - 225f);
-        }
-
-        /**
-         * Walks a {@code #variable} chain until it terminates at a concrete namespaced id.
-         * Bare names without {@code #} or {@code :} are treated as implicit variable references
-         * (vanilla shorthand where {@code "texture": "all"} means {@code "texture": "#all"}).
-         */
-        private static @NotNull String dereferenceVariable(@NotNull String reference, @NotNull Map<String, String> variables) {
-            String current = reference;
-
-            // Normalize bare variable names: "all" → "#all"
-            if (!current.startsWith("#") && !current.contains(":") && variables.containsKey(current))
-                current = "#" + current;
-
-            Set<String> visited = new HashSet<>();
-            while (current.startsWith("#")) {
-                if (!visited.add(current)) return current;
-                String next = variables.get(current.substring(1));
-                if (next == null) return current;
-                current = next;
-            }
-
-            return current;
         }
 
     }

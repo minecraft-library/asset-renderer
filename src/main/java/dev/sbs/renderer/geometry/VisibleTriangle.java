@@ -46,7 +46,7 @@ public record VisibleTriangle(
      * @return the average Z depth in model space
      */
     public float averageDepth() {
-        return (this.position0.getZ() + this.position1.getZ() + this.position2.getZ()) / 3f;
+        return (this.position0.z() + this.position1.z() + this.position2.z()) / 3f;
     }
 
 }
