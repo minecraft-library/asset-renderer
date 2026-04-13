@@ -1,7 +1,5 @@
-package dev.sbs.renderer.engine;
+package dev.sbs.renderer.draw;
 
-import dev.sbs.renderer.draw.Canvas;
-import dev.sbs.renderer.draw.ObfuscationKit;
 import dev.sbs.renderer.text.ChatColor;
 import dev.sbs.renderer.text.ColorSegment;
 import dev.sbs.renderer.text.LineSegment;
@@ -19,15 +17,14 @@ import java.awt.*;
  * a segment or line, and a position. All text is rendered via AWT {@link Graphics2D} using
  * the pre-loaded {@link MinecraftFont} variants.
  * <p>
- * Shadow, strikethrough, and underline offsets are extracted from the minecraft-api module's
- * {@code MinecraftText} class and match vanilla's pixel-level rendering.
+ * Shadow, strikethrough, and underline offsets match vanilla's pixel-level rendering.
  *
  * @see MinecraftFont
  * @see ColorSegment
  * @see LineSegment
  */
 @UtilityClass
-public class TextEngine {
+public class TextKit {
 
     private static final int PIXEL_SIZE = 2;
     private static final int STRIKETHROUGH_OFFSET = -8;
