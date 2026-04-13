@@ -4,9 +4,7 @@ import com.google.gson.TypeAdapter;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
-import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -15,20 +13,10 @@ import java.io.IOException;
 /**
  * An immutable four-component float vector, used primarily for UV coordinate ranges.
  */
-@Getter
-@RequiredArgsConstructor
-public final class Vector4f {
+public record Vector4f(float x, float y, float z, float w) {
 
     /** The zero vector. */
     public static final @NotNull Vector4f ZERO = new Vector4f(0, 0, 0, 0);
-
-    private final float x;
-
-    private final float y;
-
-    private final float z;
-
-    private final float w;
 
     /**
      * Returns the sum of this vector and the given vector.
@@ -114,10 +102,10 @@ public final class Vector4f {
             }
 
             out.beginArray();
-            out.value(value.getX());
-            out.value(value.getY());
-            out.value(value.getZ());
-            out.value(value.getW());
+            out.value(value.x());
+            out.value(value.y());
+            out.value(value.z());
+            out.value(value.w());
             out.endArray();
         }
 

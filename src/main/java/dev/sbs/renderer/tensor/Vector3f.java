@@ -4,9 +4,7 @@ import com.google.gson.TypeAdapter;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
-import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -15,21 +13,11 @@ import java.io.IOException;
 /**
  * An immutable three-component float vector.
  */
-@Getter
-@RequiredArgsConstructor
-public final class Vector3f {
+
+public record Vector3f(float x, float y, float z) {
 
     /** The zero vector. */
     public static final @NotNull Vector3f ZERO = new Vector3f(0, 0, 0);
-
-    /** The unit vector with all components set to one. */
-    public static final @NotNull Vector3f ONE = new Vector3f(1, 1, 1);
-
-    private final float x;
-
-    private final float y;
-
-    private final float z;
 
     /**
      * Returns the sum of this vector and the given vector.
@@ -195,9 +183,9 @@ public final class Vector3f {
             }
 
             out.beginArray();
-            out.value(value.getX());
-            out.value(value.getY());
-            out.value(value.getZ());
+            out.value(value.x());
+            out.value(value.y());
+            out.value(value.z());
             out.endArray();
         }
 

@@ -4,9 +4,7 @@ import com.google.gson.TypeAdapter;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
-import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -15,16 +13,10 @@ import java.io.IOException;
 /**
  * An immutable two-component float vector.
  */
-@Getter
-@RequiredArgsConstructor
-public final class Vector2f {
+public record Vector2f(float x, float y) {
 
     /** The zero vector. */
     public static final @NotNull Vector2f ZERO = new Vector2f(0, 0);
-
-    private final float x;
-
-    private final float y;
 
     /**
      * Returns the sum of this vector and the given vector.
@@ -63,7 +55,7 @@ public final class Vector2f {
      * @return the length
      */
     public float length() {
-        return (float) Math.sqrt(lengthSquared());
+        return (float) Math.sqrt(this.lengthSquared());
     }
 
     /**
@@ -110,8 +102,8 @@ public final class Vector2f {
             }
 
             out.beginArray();
-            out.value(value.getX());
-            out.value(value.getY());
+            out.value(value.x());
+            out.value(value.y());
             out.endArray();
         }
 

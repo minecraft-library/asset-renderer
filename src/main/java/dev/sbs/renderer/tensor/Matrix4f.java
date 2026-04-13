@@ -21,14 +21,10 @@ public final class Matrix4f {
         0, 0, 0, 1
     );
 
-    // Row 1
-    private final float m11, m12, m13, m14;
-    // Row 2
-    private final float m21, m22, m23, m24;
-    // Row 3
-    private final float m31, m32, m33, m34;
-    // Row 4
-    private final float m41, m42, m43, m44;
+    private final float m11, m12, m13, m14; // Row 1
+    private final float m21, m22, m23, m24; // Row 2
+    private final float m31, m32, m33, m34; // Row 3
+    private final float m41, m42, m43, m44; // Row 4
 
     /**
      * Creates a rotation matrix from an axis and angle using Rodrigues' rotation formula.
@@ -38,9 +34,9 @@ public final class Matrix4f {
      * @return a new rotation matrix
      */
     public static @NotNull Matrix4f createFromAxisAngle(@NotNull Vector3f axis, float angle) {
-        float x = axis.getX();
-        float y = axis.getY();
-        float z = axis.getZ();
+        float x = axis.x();
+        float y = axis.y();
+        float z = axis.z();
         float cos = (float) Math.cos(angle);
         float sin = (float) Math.sin(angle);
         float oneMinusCos = 1f - cos;
@@ -53,7 +49,7 @@ public final class Matrix4f {
         float yz = y * z;
 
         return new Matrix4f(
-            xx * oneMinusCos + cos,     xy * oneMinusCos + z * sin, xz * oneMinusCos - y * sin, 0,
+            xx * oneMinusCos + cos,     xy * oneMinusCos + z * sin, xz * oneMinusCos - y * sin,  0,
             xy * oneMinusCos - z * sin, yy * oneMinusCos + cos,     yz * oneMinusCos + x * sin, 0,
             xz * oneMinusCos + y * sin, yz * oneMinusCos - x * sin, zz * oneMinusCos + cos,     0,
             0,                          0,                          0,                          1
@@ -69,11 +65,12 @@ public final class Matrix4f {
     public static @NotNull Matrix4f createRotationX(float radians) {
         float cos = (float) Math.cos(radians);
         float sin = (float) Math.sin(radians);
+
         return new Matrix4f(
-            1, 0, 0, 0,
-            0, cos, sin, 0,
+            1, 0,     0,   0,
+            0, cos,  sin, 0,
             0, -sin, cos, 0,
-            0, 0, 0, 1
+            0, 0,    0,   1
         );
     }
 
@@ -86,11 +83,12 @@ public final class Matrix4f {
     public static @NotNull Matrix4f createRotationY(float radians) {
         float cos = (float) Math.cos(radians);
         float sin = (float) Math.sin(radians);
+
         return new Matrix4f(
-            cos, 0, -sin, 0,
-            0, 1, 0, 0,
-            sin, 0, cos, 0,
-            0, 0, 0, 1
+            cos, 0,  -sin, 0,
+            0,   1, 0,    0,
+            sin, 0, cos,  0,
+            0,   0, 0,    1
         );
     }
 
@@ -103,11 +101,12 @@ public final class Matrix4f {
     public static @NotNull Matrix4f createRotationZ(float radians) {
         float cos = (float) Math.cos(radians);
         float sin = (float) Math.sin(radians);
+
         return new Matrix4f(
-            cos, sin, 0, 0,
+            cos,  sin,  0, 0,
             -sin, cos, 0, 0,
-            0, 0, 1, 0,
-            0, 0, 0, 1
+            0,    0,   1, 0,
+            0,    0,   0, 1
         );
     }
 
@@ -145,7 +144,7 @@ public final class Matrix4f {
      * @return a new scale matrix
      */
     public static @NotNull Matrix4f createScale(@NotNull Vector3f v) {
-        return createScale(v.getX(), v.getY(), v.getZ());
+        return createScale(v.x(), v.y(), v.z());
     }
 
     /**
@@ -172,7 +171,7 @@ public final class Matrix4f {
      * @return a new translation matrix
      */
     public static @NotNull Matrix4f createTranslation(@NotNull Vector3f v) {
-        return createTranslation(v.getX(), v.getY(), v.getZ());
+        return createTranslation(v.x(), v.y(), v.z());
     }
 
     /**
