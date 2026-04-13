@@ -5,11 +5,10 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.AnimatedImageData;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFrame;
+import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.StaticImageData;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-
-import java.awt.image.BufferedImage;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -39,13 +38,10 @@ class FrameMergerTest {
         assertThat(((AnimatedImageData) result).getFrames().size(), greaterThan(1));
     }
 
-    private static @org.jetbrains.annotations.NotNull BufferedImage solidImage(int w, int h, int argb) {
-        BufferedImage image = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++)
-                image.setRGB(x, y, argb);
-        }
-        return image;
+    private static @org.jetbrains.annotations.NotNull PixelBuffer solidImage(int w, int h, int argb) {
+        int[] pixels = new int[w * h];
+        java.util.Arrays.fill(pixels, argb);
+        return PixelBuffer.of(pixels, w, h);
     }
 
     private static @org.jetbrains.annotations.NotNull AnimatedImageData animated(int w, int h, int frameCount, int delayMs) {

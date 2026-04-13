@@ -1,9 +1,5 @@
-package dev.sbs.renderer.pack;
+package dev.sbs.renderer.pipeline.pack;
 
-import dev.sbs.renderer.pipeline.pack.CtmMatcher;
-import dev.sbs.renderer.pipeline.pack.CtmMethod;
-import dev.sbs.renderer.pipeline.pack.CtmResolution;
-import dev.sbs.renderer.pipeline.pack.CtmRule;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import org.junit.jupiter.api.DisplayName;

@@ -1,6 +1,7 @@
 package dev.sbs.renderer.draw;
 
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.ColorMath;
 import dev.simplified.image.PixelBuffer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -81,8 +82,8 @@ class GlintKitTest {
 
         assertThat(frames.size(), is(options.totalFrames()));
         for (PixelBuffer frame : frames) {
-            assertThat(frame.getWidth(), is(16));
-            assertThat(frame.getHeight(), is(16));
+            assertThat(frame.width(), is(16));
+            assertThat(frame.height(), is(16));
         }
     }
 
@@ -103,9 +104,9 @@ class GlintKitTest {
         PixelBuffer first = frames.get(0);
 
         // Left half must be opaque (base red possibly brightened by glint).
-        assertThat(ColorKit.alpha(first.getPixel(0, 0)), is(0xFF));
+        assertThat(ColorMath.alpha(first.getPixel(0, 0)), is(0xFF));
         // Right half must still be transparent - the glint is masked out.
-        assertThat(ColorKit.alpha(first.getPixel(15, 0)), is(0x00));
+        assertThat(ColorMath.alpha(first.getPixel(15, 0)), is(0x00));
     }
 
     private static PixelBuffer solidBuffer(int width, int height, int argb) {

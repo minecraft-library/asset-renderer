@@ -182,8 +182,8 @@ class PipelineRendererContextTest {
     void resolveTextureLoadsFromDisk() {
         Optional<PixelBuffer> buffer = context.resolveTexture("minecraft:block/fixture");
         assertThat(buffer.isPresent(), is(true));
-        assertThat(buffer.get().getWidth(), equalTo(4));
-        assertThat(buffer.get().getHeight(), equalTo(4));
+        assertThat(buffer.get().width(), equalTo(4));
+        assertThat(buffer.get().height(), equalTo(4));
         assertThat(buffer.get().getPixel(0, 0), equalTo(0xFFFF0000));
     }
 

@@ -1,5 +1,6 @@
 package dev.sbs.renderer.draw;
 
+import dev.simplified.image.ColorMath;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -56,7 +57,7 @@ class ItemBarKitTest {
         int coloredPixels = 0;
         for (int x = 2; x < 14; x++) {
             int pixel = canvas.getBuffer().getPixel(x, 14);
-            int alpha = ColorKit.alpha(pixel);
+            int alpha = ColorMath.alpha(pixel);
             if (alpha == 0xFF && pixel != 0xFF000000) coloredPixels++;
         }
         assertThat("foreground row has coloured pixels", coloredPixels, greaterThan(0));

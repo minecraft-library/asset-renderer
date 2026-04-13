@@ -25,8 +25,8 @@ class AnimationKitTest {
         PixelBuffer frame0 = AnimationKit.sampleFrame(strip, animation, 0);
         PixelBuffer frame5 = AnimationKit.sampleFrame(strip, animation, 5);
 
-        assertThat(frame0.getWidth(), equalTo(1));
-        assertThat(frame0.getHeight(), equalTo(1));
+        assertThat(frame0.width(), equalTo(1));
+        assertThat(frame0.height(), equalTo(1));
         assertThat(frame0.getPixel(0, 0), equalTo(0xFFFF0000));
         assertThat(frame5.getPixel(0, 0), equalTo(0xFFFF0000));
     }
@@ -135,8 +135,8 @@ class AnimationKitTest {
 
         PixelBuffer row1 = AnimationKit.extractFrame(strip, 1, 2, 1);
 
-        assertThat(row1.getWidth(), equalTo(2));
-        assertThat(row1.getHeight(), equalTo(1));
+        assertThat(row1.width(), equalTo(2));
+        assertThat(row1.height(), equalTo(1));
         assertThat(row1.getPixel(0, 0), equalTo(0xFF00FF00));
         assertThat(row1.getPixel(1, 0), equalTo(0xFF00FF01));
     }
