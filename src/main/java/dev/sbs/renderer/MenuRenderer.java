@@ -1,7 +1,6 @@
 package dev.sbs.renderer;
 
 import dev.sbs.renderer.draw.Canvas;
-import dev.sbs.renderer.draw.ColorKit;
 import dev.sbs.renderer.draw.FrameMerger;
 import dev.sbs.renderer.draw.TextKit;
 import dev.sbs.renderer.engine.RenderEngine;
@@ -15,6 +14,7 @@ import dev.sbs.renderer.text.MinecraftFont;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentSet;
+import dev.simplified.image.ColorMath;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
 import dev.simplified.image.StaticImageData;
@@ -145,15 +145,15 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         @NotNull MenuOptions options
     ) {
         if (!anyAnimated) {
-            Canvas canvas = Canvas.of(canvasW, canvasH);
+            PixelBuffer buffer = PixelBuffer.create(canvasW, canvasH);
 
             for (FrameMerger.Layer layer : layers)
-                canvas.blit(PixelBuffer.wrap(layer.source().toBufferedImage()), layer.x(), layer.y());
+                buffer.blit(PixelBuffer.wrap(layer.source().toBufferedImage()), layer.x(), layer.y());
 
-            return RenderEngine.staticFrame(canvas);
+            return RenderEngine.staticFrame(buffer);
         }
 
-        return FrameMerger.merge(layers, canvasW, canvasH, options.getFramesPerSecond(), ColorKit.TRANSPARENT);
+        return FrameMerger.merge(layers, canvasW, canvasH, options.getFramesPerSecond(), ColorMath.TRANSPARENT);
     }
 
     /**
@@ -225,7 +225,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             case DARK -> 0xFF303030;
             case SKYBLOCK -> 0xFF1E1E2E;
         };
-        canvas.fill(backgroundArgb);
+        canvas.getBuffer().fill(backgroundArgb);
 
         int slotArgb = switch (options.getTheme()) {
             case VANILLA -> 0xFF8B8B8B;
@@ -289,7 +289,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         final int titleBand = 0xFFB4B4B4;
         final int borderThickness = 2;
 
-        canvas.fill(background);
+        canvas.getBuffer().fill(background);
 
         fillRect(canvas, 0, 0, w, borderThickness, borderHighlight);
         fillRect(canvas, 0, 0, borderThickness, h, borderHighlight);
@@ -504,11 +504,12 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         ConcurrentList<PixelBuffer> frames = Concurrent.newList();
 
         for (int i = 0; i < frameCount; i++) {
-            Canvas frame = Canvas.of(w, h);
-            frame.blit(base, 0, 0);
+            PixelBuffer frameBuffer = PixelBuffer.create(w, h);
+            frameBuffer.blit(base, 0, 0);
+            Canvas frame = Canvas.wrap(frameBuffer);
             drawTitleSegments(frame, titleLine, titleX, INSET, TITLE_HEIGHT, defaultTitleColor, i);
             frame.disposeGraphics();
-            frames.add(frame.getBuffer());
+            frames.add(frameBuffer);
         }
 
         int delayMs = Math.max(1, Math.round(1000f / options.getFramesPerSecond()));

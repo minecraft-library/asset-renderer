@@ -1,8 +1,5 @@
 package dev.sbs.renderer.engine;
 
-import dev.sbs.renderer.draw.BlendMode;
-import dev.sbs.renderer.draw.Canvas;
-import dev.sbs.renderer.draw.ColorKit;
 import dev.sbs.renderer.geometry.PerspectiveParams;
 import dev.sbs.renderer.geometry.ProjectionMath;
 import dev.sbs.renderer.geometry.VisibleTriangle;
@@ -11,6 +8,8 @@ import dev.sbs.renderer.tensor.Vector2f;
 import dev.sbs.renderer.tensor.Vector3f;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.BlendMode;
+import dev.simplified.image.ColorMath;
 import dev.simplified.image.PixelBuffer;
 import org.jetbrains.annotations.NotNull;
 
@@ -18,7 +17,7 @@ import java.util.Arrays;
 
 /**
  * A 3D triangle rasterizer that projects a list of {@link VisibleTriangle triangles} onto a 2D
- * {@link Canvas} using a depth buffer, barycentric interpolation, and painter's-algorithm
+ * {@link PixelBuffer} using a depth buffer, barycentric interpolation, and painter's-algorithm
  * ordering for back-to-front draw order.
  * <p>
  * Every renderer composing this engine can supply pitch, yaw, and roll Euler angles at render
@@ -50,31 +49,31 @@ public class ModelEngine extends TextureEngine {
     }
 
     /**
-     * Rasterizes a triangle list onto the given canvas with no additional model rotation.
+     * Rasterizes a triangle list onto the given buffer with no additional model rotation.
      *
      * @param triangles the triangle list
-     * @param canvas the destination canvas
+     * @param buffer the destination buffer
      * @param perspective the perspective blend parameters
      */
     public void rasterize(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
-        @NotNull Canvas canvas,
+        @NotNull PixelBuffer buffer,
         @NotNull PerspectiveParams perspective
     ) {
-        rasterize(triangles, canvas, perspective, 0f, 0f, 0f);
+        rasterize(triangles, buffer, perspective, 0f, 0f, 0f);
     }
 
     /**
-     * Rasterizes a triangle list onto the given canvas after applying a pitch/yaw/roll rotation
+     * Rasterizes a triangle list onto the given buffer after applying a pitch/yaw/roll rotation
      * to the model before the camera transform.
      * <p>
      * Rotations are applied in yaw-pitch-roll order (yaw first around the Y axis, then pitch
      * around the X axis, then roll around the Z axis) and the combined rotation is then
      * composed with the engine's camera transform. Supplying three zeros is equivalent to
-     * calling {@link #rasterize(ConcurrentList, Canvas, PerspectiveParams)}.
+     * calling {@link #rasterize(ConcurrentList, PixelBuffer, PerspectiveParams)}.
      *
      * @param triangles the triangle list
-     * @param canvas the destination canvas
+     * @param buffer the destination buffer
      * @param perspective the perspective blend parameters
      * @param pitchDegrees rotation around the X axis, in degrees
      * @param yawDegrees rotation around the Y axis, in degrees
@@ -82,7 +81,7 @@ public class ModelEngine extends TextureEngine {
      */
     public void rasterize(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
-        @NotNull Canvas canvas,
+        @NotNull PixelBuffer buffer,
         @NotNull PerspectiveParams perspective,
         float pitchDegrees,
         float yawDegrees,
@@ -90,7 +89,7 @@ public class ModelEngine extends TextureEngine {
     ) {
         Matrix4f modelRotation = buildModelRotation(pitchDegrees, yawDegrees, rollDegrees);
         Matrix4f transform = modelRotation.multiply(cameraTransform());
-        rasterizeInternal(triangles, canvas, perspective, transform);
+        rasterizeInternal(triangles, buffer, perspective, transform);
     }
 
     /**
@@ -99,28 +98,28 @@ public class ModelEngine extends TextureEngine {
      * any other caller that needs more than a pitch-yaw-roll Euler rotation.
      *
      * @param triangles the triangle list
-     * @param canvas the destination canvas
+     * @param buffer the destination buffer
      * @param perspective the perspective blend parameters
      * @param modelTransform the model-space transform applied before the camera transform
      */
     public void rasterize(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
-        @NotNull Canvas canvas,
+        @NotNull PixelBuffer buffer,
         @NotNull PerspectiveParams perspective,
         @NotNull Matrix4f modelTransform
     ) {
         Matrix4f transform = modelTransform.multiply(cameraTransform());
-        rasterizeInternal(triangles, canvas, perspective, transform);
+        rasterizeInternal(triangles, buffer, perspective, transform);
     }
 
     private void rasterizeInternal(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
-        @NotNull Canvas canvas,
+        @NotNull PixelBuffer buffer,
         @NotNull PerspectiveParams perspective,
         @NotNull Matrix4f transform
     ) {
-        int width = canvas.width();
-        int height = canvas.height();
+        int width = buffer.width();
+        int height = buffer.height();
         float scale = Math.min(width, height) * 0.4f;
         float offsetX = width * 0.5f;
         float offsetY = height * 0.5f;
@@ -170,13 +169,13 @@ public class ModelEngine extends TextureEngine {
                     int tx = Math.clamp((int) (u * texture.width()), 0, texture.width() - 1);
                     int ty = Math.clamp((int) (v * texture.height()), 0, texture.height() - 1);
                     int sampled = texture.getPixel(tx, ty);
-                    if (ColorKit.alpha(sampled) == 0) continue;
+                    if (ColorMath.alpha(sampled) == 0) continue;
 
-                    if (t.source.tintArgb() != ColorKit.WHITE)
-                        sampled = ColorKit.blend(t.source.tintArgb(), sampled, BlendMode.MULTIPLY);
+                    if (t.source.tintArgb() != ColorMath.WHITE)
+                        sampled = ColorMath.blend(t.source.tintArgb(), sampled, BlendMode.MULTIPLY);
 
                     sampled = RenderEngine.applyShading(sampled, shading);
-                    canvas.getBuffer().setPixel(px, py, sampled);
+                    buffer.setPixel(px, py, sampled);
                     depthBuffer[idx] = depth;
                 }
             }

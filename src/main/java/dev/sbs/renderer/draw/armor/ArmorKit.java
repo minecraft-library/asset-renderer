@@ -1,7 +1,5 @@
 package dev.sbs.renderer.draw.armor;
 
-import dev.sbs.renderer.draw.Canvas;
-import dev.sbs.renderer.draw.ColorKit;
 import dev.sbs.renderer.draw.GeometryKit;
 import dev.sbs.renderer.engine.TextureEngine;
 import dev.sbs.renderer.geometry.BlockFace;
@@ -10,6 +8,7 @@ import dev.sbs.renderer.geometry.VisibleTriangle;
 import dev.sbs.renderer.tensor.Vector3f;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.ColorMath;
 import dev.simplified.image.PixelBuffer;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -98,14 +97,14 @@ public class ArmorKit {
      * @param part the body part whose south face to crop from the armor atlas
      * @param slot the armor slot that determines the texture layer
      * @param piece the armor piece to render
-     * @param x the destination X on the canvas
-     * @param y the destination Y on the canvas
+     * @param x the destination X on the buffer
+     * @param y the destination Y on the buffer
      * @param w the destination width
      * @param h the destination height
      * @param engine the texture engine for pack-aware texture resolution
      */
     public static void compositeSlot2D(
-        @NotNull Canvas canvas,
+        @NotNull PixelBuffer target,
         @NotNull SkinFace part,
         @NotNull ArmorTrim.Slot slot,
         @NotNull ArmorPiece piece,
@@ -119,7 +118,7 @@ public class ArmorKit {
         Optional<PixelBuffer> armorTexture = engine.tryResolveTexture(textureId);
         armorTexture.ifPresent(tex -> {
             PixelBuffer face = part.crop(tex, BlockFace.SOUTH, false);
-            canvas.blitScaled(face, x, y, w, h);
+            target.blitScaled(face, x, y, w, h);
         });
 
         if (piece.trimColor().isPresent() && piece.trimPattern().isPresent()) {
@@ -127,7 +126,7 @@ public class ArmorKit {
             resolveTrimTexture(engine, trimLayer, piece.trimPattern().get(), piece.trimColor().get())
                 .ifPresent(trimTex -> {
                     PixelBuffer face = part.crop(trimTex, BlockFace.SOUTH, false);
-                    canvas.blitScaled(face, x, y, w, h);
+                    target.blitScaled(face, x, y, w, h);
                 });
         }
     }
@@ -259,7 +258,7 @@ public class ArmorKit {
         Vector3f inflatedMin = new Vector3f(min.x() - inflate, min.y() - inflate, min.z() - inflate);
         Vector3f inflatedMax = new Vector3f(max.x() + inflate, max.y() + inflate, max.z() + inflate);
         PixelBuffer[] faces = part.cropAll(texture, false);
-        return GeometryKit.box(inflatedMin, inflatedMax, faces, ColorKit.WHITE);
+        return GeometryKit.box(inflatedMin, inflatedMax, faces, ColorMath.WHITE);
     }
 
     /**

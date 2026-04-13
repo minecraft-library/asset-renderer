@@ -3,9 +3,6 @@ package dev.sbs.renderer;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import dev.sbs.renderer.draw.BlendMode;
-import dev.sbs.renderer.draw.Canvas;
-import dev.sbs.renderer.draw.ColorKit;
 import dev.sbs.renderer.draw.EntityGeometryKit;
 import dev.sbs.renderer.draw.GeometryKit;
 import dev.sbs.renderer.engine.IsometricEngine;
@@ -28,6 +25,8 @@ import dev.sbs.renderer.tensor.Vector3f;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.image.BlendMode;
+import dev.simplified.image.ColorMath;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
 import lombok.RequiredArgsConstructor;
@@ -88,10 +87,10 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         BiomeTintTarget target = block.getTint().target();
 
         if (target == BiomeTintTarget.NONE)
-            return ColorKit.WHITE;
+            return ColorMath.WHITE;
 
         if (target == BiomeTintTarget.CONSTANT)
-            return block.getTint().constant().orElse(ColorKit.WHITE);
+            return block.getTint().constant().orElse(ColorMath.WHITE);
 
         return new IsometricEngine(context).sampleBiomeTint(target, options.getBiome());
     }
@@ -150,20 +149,20 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
             int ssaa = Math.max(1, options.getSupersample());
             int hiRes = options.getOutputSize() * ssaa;
-            Canvas canvas = Canvas.of(hiRes, hiRes);
-            engine.rasterize(triangles, canvas, PerspectiveParams.NONE,
+            PixelBuffer buffer = PixelBuffer.create(hiRes, hiRes);
+            engine.rasterize(triangles, buffer, PerspectiveParams.NONE,
                 options.getPitch(), options.getYaw() + guiYawDelta, options.getRoll());
 
             if (options.isAntiAlias())
-                canvas.getBuffer().applyFxaa();
+                buffer.applyFxaa();
 
             if (ssaa > 1) {
-                Canvas output = Canvas.of(options.getOutputSize(), options.getOutputSize());
-                output.blitScaled(canvas.getBuffer(), 0, 0, options.getOutputSize(), options.getOutputSize());
+                PixelBuffer output = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
+                output.blitScaled(buffer, 0, 0, options.getOutputSize(), options.getOutputSize());
                 return RenderEngine.staticFrame(output);
             }
 
-            return RenderEngine.staticFrame(canvas);
+            return RenderEngine.staticFrame(buffer);
         }
 
         /**
@@ -391,16 +390,16 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         public @NotNull ImageData render(@NotNull BlockOptions options) {
             Block block = requireBlock(this.context, options.getBlockId());
             RasterEngine engine = new RasterEngine(this.context);
-            Canvas canvas = engine.createCanvas(options.getOutputSize(), options.getOutputSize());
+            PixelBuffer buffer = engine.createBuffer(options.getOutputSize(), options.getOutputSize());
 
             String textureId = resolveTextureRef(block, options.getFace().direction());
             PixelBuffer face = engine.resolveTexture(textureId);
             int tint = resolveBlockTint(this.context, block, options);
-            PixelBuffer tinted = ColorKit.tint(face, tint);
+            PixelBuffer tinted = ColorMath.tint(face, tint);
             int size = options.getOutputSize();
-            canvas.blitScaled(tinted, 0, 0, size, size);
+            buffer.blitScaled(tinted, 0, 0, size, size);
 
-            return RenderEngine.staticFrame(canvas);
+            return RenderEngine.staticFrame(buffer);
         }
 
     }

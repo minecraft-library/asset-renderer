@@ -1,7 +1,5 @@
 package dev.sbs.renderer;
 
-import dev.sbs.renderer.draw.Canvas;
-import dev.sbs.renderer.draw.ColorKit;
 import dev.sbs.renderer.draw.GeometryKit;
 import dev.sbs.renderer.draw.GlintKit;
 import dev.sbs.renderer.draw.armor.ArmorKit;
@@ -22,6 +20,7 @@ import dev.sbs.renderer.tensor.Vector3f;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.image.ColorMath;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.PixelBuffer;
@@ -106,22 +105,22 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     }
 
     static @NotNull ImageData finaliseWithGlint(
-        @NotNull Canvas canvas,
+        @NotNull PixelBuffer buffer,
         @NotNull PlayerRenderer parent,
         @NotNull PlayerOptions options
     ) {
         if (!ArmorKit.hasEnchantedArmor(
             options.getHelmet(), options.getChestplate(),
             options.getLeggings(), options.getBoots()))
-            return RenderEngine.staticFrame(canvas);
+            return RenderEngine.staticFrame(buffer);
 
         IsometricEngine engine = new IsometricEngine(parent.context);
         GlintKit.GlintOptions glintOptions = GlintKit.GlintOptions.armorDefault(30);
         Optional<PixelBuffer> glintTexture = engine.tryResolveTexture(glintOptions.glintTextureId());
         if (glintTexture.isEmpty())
-            return RenderEngine.staticFrame(canvas);
+            return RenderEngine.staticFrame(buffer);
 
-        ConcurrentList<PixelBuffer> frames = GlintKit.apply(canvas.getBuffer(), glintTexture.get(), glintOptions);
+        ConcurrentList<PixelBuffer> frames = GlintKit.apply(buffer, glintTexture.get(), glintOptions);
         int frameDelayMs = Math.max(1, Math.round(1000f / 30f));
         return RenderEngine.output(frames, frameDelayMs);
     }
@@ -223,7 +222,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         Vector3f capeMax = new Vector3f(cx + capeW / 2f, capeTop, capeBack + capeD);
 
         PixelBuffer[] faces = cropCapeFaces(capeTexture);
-        triangles.addAll(GeometryKit.box(capeMin, capeMax, faces, ColorKit.WHITE));
+        triangles.addAll(GeometryKit.box(capeMin, capeMax, faces, ColorMath.WHITE));
     }
 
     // ---------------------------------------------------------------------------------------
@@ -289,7 +288,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     ) {
         PixelBuffer skin = resolveSkin(parent, options);
         RasterEngine engine = new RasterEngine(parent.context);
-        Canvas canvas = engine.createCanvas(options.getOutputSize(), options.getOutputSize());
+        PixelBuffer buffer = engine.createBuffer(options.getOutputSize(), options.getOutputSize());
 
         int[] so = scaleAndOffset2D(options.getType(), options.getOutputSize());
         int scale = so[0];
@@ -301,25 +300,25 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         for (BodyPart2D bp : parts) {
             // Base skin
             PixelBuffer face = bp.part.crop(skin, BlockFace.SOUTH, false);
-            canvas.blitScaled(face, bp.x, bp.y, bp.w, bp.h);
+            buffer.blitScaled(face, bp.x, bp.y, bp.w, bp.h);
 
             // Overlay
             if (overlay && hasOverlay(skin)) {
                 PixelBuffer overlayFace = bp.part.crop(skin, BlockFace.SOUTH, true);
-                canvas.blitScaled(overlayFace, bp.x, bp.y, bp.w, bp.h);
+                buffer.blitScaled(overlayFace, bp.x, bp.y, bp.w, bp.h);
             } else if (overlay && bp.part == SkinFace.HEAD && hasHatOverlay(skin)) {
                 PixelBuffer hat = SkinFace.HEAD.crop(skin, BlockFace.SOUTH, true);
-                canvas.blitScaled(hat, bp.x, bp.y, bp.w, bp.h);
+                buffer.blitScaled(hat, bp.x, bp.y, bp.w, bp.h);
             }
 
             // Armor + trim for this body part (each slot that covers this part gets composited)
-            compositeArmor2D(canvas, bp.part, bp.x, bp.y, bp.w, bp.h, options, engine);
+            compositeArmor2D(buffer, bp.part, bp.x, bp.y, bp.w, bp.h, options, engine);
         }
 
         if (options.isAntiAlias())
-            canvas.getBuffer().applyFxaa();
+            buffer.applyFxaa();
 
-        return finaliseWithGlint(canvas, parent, options);
+        return finaliseWithGlint(buffer, parent, options);
     }
 
     /**
@@ -328,7 +327,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * (torso, legs).
      */
     private static void compositeArmor2D(
-        @NotNull Canvas canvas,
+        @NotNull PixelBuffer target,
         @NotNull SkinFace part,
         int x, int y, int w, int h,
         @NotNull PlayerOptions options,
@@ -348,7 +347,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 if (slotPart == part) { partInSlot = true; break; }
             if (!partInSlot) continue;
 
-            ArmorKit.compositeSlot2D(canvas, part, slot, piece.get(), x, y, w, h, engine);
+            ArmorKit.compositeSlot2D(target, part, slot, piece.get(), x, y, w, h, engine);
         }
     }
 
@@ -408,15 +407,15 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
             IsometricEngine engine = new IsometricEngine(this.parent.context);
-            Canvas canvas = Canvas.of(options.getOutputSize(), options.getOutputSize());
+            PixelBuffer buffer = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
 
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
-            triangles.addAll(GeometryKit.unitCube(SkinFace.HEAD.cropAll(skin, false), ColorKit.WHITE));
+            triangles.addAll(GeometryKit.unitCube(SkinFace.HEAD.cropAll(skin, false), ColorMath.WHITE));
             if (options.isRenderOverlay() && hasHatOverlay(skin))
                 triangles.addAll(GeometryKit.box(
                     new Vector3f(-0.52f, -0.52f, -0.52f),
                     new Vector3f(0.52f, 0.52f, 0.52f),
-                    SkinFace.HEAD.cropAll(skin, true), ColorKit.WHITE));
+                    SkinFace.HEAD.cropAll(skin, true), ColorMath.WHITE));
 
             Map<SkinFace, Vector3f[]> bp = new EnumMap<>(SkinFace.class);
             bp.put(SkinFace.HEAD, new Vector3f[]{ SKULL_HEAD_MIN, SKULL_HEAD_MAX });
@@ -424,10 +423,10 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 options.getHelmet(), options.getChestplate(),
                 options.getLeggings(), options.getBoots(), engine));
 
-            engine.rasterize(triangles, canvas, PerspectiveParams.NONE,
+            engine.rasterize(triangles, buffer, PerspectiveParams.NONE,
                 options.getPitch(), options.getYaw(), options.getRoll());
-            if (options.isAntiAlias()) canvas.getBuffer().applyFxaa();
-            return finaliseWithGlint(canvas, this.parent, options);
+            if (options.isAntiAlias()) buffer.applyFxaa();
+            return finaliseWithGlint(buffer, this.parent, options);
         }
 
     }
@@ -450,7 +449,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
             IsometricEngine engine = new IsometricEngine(this.parent.context);
-            Canvas canvas = Canvas.of(options.getOutputSize(), options.getOutputSize());
+            PixelBuffer buffer = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             addBodyPart(triangles, skin, SkinFace.HEAD, BUST_HEAD_MIN, BUST_HEAD_MAX, options);
@@ -470,10 +469,10 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             resolveCape(this.parent, options)
                 .ifPresent(cape -> addCape(triangles, cape, BUST_TORSO_MIN, BUST_TORSO_MAX));
 
-            engine.rasterize(triangles, canvas, PerspectiveParams.NONE,
+            engine.rasterize(triangles, buffer, PerspectiveParams.NONE,
                 options.getPitch(), options.getYaw(), options.getRoll());
-            if (options.isAntiAlias()) canvas.getBuffer().applyFxaa();
-            return finaliseWithGlint(canvas, this.parent, options);
+            if (options.isAntiAlias()) buffer.applyFxaa();
+            return finaliseWithGlint(buffer, this.parent, options);
         }
 
     }
@@ -496,7 +495,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
             IsometricEngine engine = new IsometricEngine(this.parent.context);
-            Canvas canvas = Canvas.of(options.getOutputSize(), options.getOutputSize());
+            PixelBuffer buffer = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             addBodyPart(triangles, skin, SkinFace.HEAD, FULL_HEAD_MIN, FULL_HEAD_MAX, options);
@@ -520,10 +519,10 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             resolveCape(this.parent, options)
                 .ifPresent(cape -> addCape(triangles, cape, FULL_TORSO_MIN, FULL_TORSO_MAX));
 
-            engine.rasterize(triangles, canvas, PerspectiveParams.NONE,
+            engine.rasterize(triangles, buffer, PerspectiveParams.NONE,
                 options.getPitch(), options.getYaw(), options.getRoll());
-            if (options.isAntiAlias()) canvas.getBuffer().applyFxaa();
-            return finaliseWithGlint(canvas, this.parent, options);
+            if (options.isAntiAlias()) buffer.applyFxaa();
+            return finaliseWithGlint(buffer, this.parent, options);
         }
 
     }
@@ -539,12 +538,12 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         @NotNull Vector3f max,
         @NotNull PlayerOptions options
     ) {
-        triangles.addAll(GeometryKit.box(min, max, part.cropAll(skin, false), ColorKit.WHITE));
+        triangles.addAll(GeometryKit.box(min, max, part.cropAll(skin, false), ColorMath.WHITE));
         if (options.isRenderOverlay() && hasOverlay(skin))
             triangles.addAll(GeometryKit.box(
                 new Vector3f(min.x() - OVERLAY_INFLATE, min.y() - OVERLAY_INFLATE, min.z() - OVERLAY_INFLATE),
                 new Vector3f(max.x() + OVERLAY_INFLATE, max.y() + OVERLAY_INFLATE, max.z() + OVERLAY_INFLATE),
-                part.cropAll(skin, true), ColorKit.WHITE));
+                part.cropAll(skin, true), ColorMath.WHITE));
     }
 
 }

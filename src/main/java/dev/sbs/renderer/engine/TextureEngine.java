@@ -1,8 +1,6 @@
 package dev.sbs.renderer.engine;
 
 import dev.sbs.renderer.draw.AnimationKit;
-import dev.sbs.renderer.draw.BlendMode;
-import dev.sbs.renderer.draw.ColorKit;
 import dev.sbs.renderer.exception.RendererException;
 import dev.sbs.renderer.geometry.Biome;
 import dev.sbs.renderer.geometry.BiomeTintTarget;
@@ -11,6 +9,8 @@ import dev.sbs.renderer.model.asset.AnimationData;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.ConcurrentSet;
+import dev.simplified.image.BlendMode;
+import dev.simplified.image.ColorMath;
 import dev.simplified.image.PixelBuffer;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -116,7 +116,7 @@ public class TextureEngine implements RenderEngine {
      */
     public int sampleBiomeTint(@NotNull BiomeTintTarget target, @NotNull Biome biome) {
         if (target == BiomeTintTarget.NONE || target == BiomeTintTarget.CONSTANT)
-            return ColorKit.WHITE;
+            return ColorMath.WHITE;
 
         Optional<Integer> override = switch (target) {
             case GRASS -> biome.grassColorOverride();
@@ -134,12 +134,12 @@ public class TextureEngine implements RenderEngine {
             case DRY_FOLIAGE -> ColorMap.Type.DRY_FOLIAGE;
             default -> null;
         };
-        if (type == null) return ColorKit.WHITE;
+        if (type == null) return ColorMath.WHITE;
 
         Optional<ColorMap> map = this.context.colorMap(type);
-        if (map.isEmpty()) return ColorKit.WHITE;
+        if (map.isEmpty()) return ColorMath.WHITE;
 
-        int sampled = ColorKit.sampleColormap(unpackColorMap(map.get()), biome.temperature(), biome.downfall());
+        int sampled = sampleColormap(unpackColorMap(map.get()), biome.temperature(), biome.downfall());
         return applyModifier(sampled, biome.grassColorModifier(), target);
     }
 
@@ -160,7 +160,7 @@ public class TextureEngine implements RenderEngine {
         int argbTint,
         @NotNull BlendMode mode
     ) {
-        PixelBuffer tinted = ColorKit.tint(overlay, argbTint);
+        PixelBuffer tinted = ColorMath.tint(overlay, argbTint);
         int w = Math.min(base.width(), tinted.width());
         int h = Math.min(base.height(), tinted.height());
 
@@ -169,7 +169,7 @@ public class TextureEngine implements RenderEngine {
             for (int x = 0; x < w; x++) {
                 int dst = base.getPixel(x, y);
                 int src = tinted.getPixel(x, y);
-                result[y * w + x] = ColorKit.blend(src, dst, mode);
+                result[y * w + x] = ColorMath.blend(src, dst, mode);
             }
         }
         return PixelBuffer.of(result, w, h);
@@ -193,7 +193,7 @@ public class TextureEngine implements RenderEngine {
                 int r = (((argb >>> 16) & 0xFE) + 0x28) >> 1;
                 int g = (((argb >>> 8) & 0xFE) + 0x34) >> 1;
                 int b = ((argb & 0xFE) + 0x0A) >> 1;
-                yield ColorKit.pack(0xFF, r & 0xFF, g & 0xFF, b & 0xFF);
+                yield ColorMath.pack(0xFF, r & 0xFF, g & 0xFF, b & 0xFF);
             }
             case SWAMP ->
                 // Verified against MC 26.1 deobfuscated client source:
@@ -236,6 +236,38 @@ public class TextureEngine implements RenderEngine {
         }
 
         return current;
+    }
+
+    /**
+     * Samples a 256x256 ARGB colormap at the location described by a biome's temperature and
+     * downfall.
+     * <p>
+     * The sampling formula is byte-for-byte identical to vanilla's
+     * {@code net.minecraft.world.level.ColorMapColorUtil.get(double, double, int[], int)} from the
+     * MC 26.1 deobfuscated client, verified via {@code javap} disassembly:
+     * <pre>{@code
+     * adjTemp = clamp(temperature, 0, 1)   // vanilla clamps in Biome.getGrassColorFromTexture
+     * adjRain = clamp(downfall, 0, 1) * adjTemp
+     * x = floor((1 - adjTemp) * 255)
+     * y = floor((1 - adjRain) * 255)
+     * index = (y << 8) | x
+     * }</pre>
+     * Vanilla returns a magenta fallback ({@code 0xFFFF00FF}) when the index is out of bounds;
+     * this helper clamps instead for defensive parity with malformed colormaps.
+     *
+     * @param colormap the 256x256 colormap pixels in row-major ARGB order
+     * @param temperature the biome temperature
+     * @param downfall the biome downfall
+     * @return the sampled ARGB pixel
+     */
+    public static int sampleColormap(int @NotNull [] colormap, float temperature, float downfall) {
+        float adjTemp = Math.clamp(temperature, 0f, 1f);
+        float adjRain = Math.clamp(downfall, 0f, 1f) * adjTemp;
+
+        int x = Math.clamp((int) ((1.0f - adjTemp) * 255f), 0, 255);
+        int y = Math.clamp((int) ((1.0f - adjRain) * 255f), 0, 255);
+
+        return colormap[y * 256 + x];
     }
 
     private int @NotNull [] unpackColorMap(@NotNull ColorMap map) {

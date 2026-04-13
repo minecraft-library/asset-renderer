@@ -2,6 +2,8 @@ package dev.sbs.renderer.draw;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.BlendMode;
+import dev.simplified.image.ColorMath;
 import dev.simplified.image.PixelBuffer;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -191,14 +193,14 @@ public class GlintKit {
         @NotNull GlintOptions options
     ) {
         ConcurrentList<PixelBuffer> frames = Concurrent.newList();
-        int baseWidth = base.getWidth();
-        int baseHeight = base.getHeight();
-        int glintW = glintTexture.getWidth();
-        int glintH = glintTexture.getHeight();
+        int baseWidth = base.width();
+        int baseHeight = base.height();
+        int glintW = glintTexture.width();
+        int glintH = glintTexture.height();
 
         PixelBuffer tintedGlint = options.tintArgb() == 0xFFFFFFFF
             ? glintTexture
-            : ColorKit.tint(glintTexture, options.tintArgb());
+            : ColorMath.tint(glintTexture, options.tintArgb());
 
         double millisPerFrame = 1000.0 / options.framesPerSecond();
 
@@ -212,48 +214,43 @@ public class GlintKit {
             float scrollX = -u * glintW;
             float scrollY = v * glintH;
 
-            Canvas canvas = Canvas.of(baseWidth, baseHeight);
-            canvas.blit(base, 0, 0);
-            stampGlint(canvas, tintedGlint, scrollX, scrollY, base);
-            frames.add(canvas.getBuffer());
+            PixelBuffer frame = base.copy();
+            stampGlint(frame, tintedGlint, scrollX, scrollY);
+            frames.add(frame);
         }
 
         return frames;
     }
 
     /**
-     * Overlays the glint texture on a canvas at the given scroll offset, masked by the base
-     * image's alpha so the glint only shows where the item is opaque. Sampling wraps around the
+     * Overlays the glint texture on a buffer at the given scroll offset, masked by the buffer's
+     * own alpha so the glint only shows where the item is opaque. Sampling wraps around the
      * glint texture dimensions (GL_REPEAT equivalent), matching the vanilla texture sampler state.
      */
     private static void stampGlint(
-        @NotNull Canvas canvas,
+        @NotNull PixelBuffer target,
         @NotNull PixelBuffer glint,
         float scrollX,
-        float scrollY,
-        @NotNull PixelBuffer mask
+        float scrollY
     ) {
-        int canvasW = canvas.width();
-        int canvasH = canvas.height();
-        int glintW = glint.getWidth();
-        int glintH = glint.getHeight();
+        int w = target.width();
+        int h = target.height();
+        int glintW = glint.width();
+        int glintH = glint.height();
 
         int scrollXInt = Math.floorMod(Math.round(scrollX), glintW);
         int scrollYInt = Math.floorMod(Math.round(scrollY), glintH);
 
-        for (int y = 0; y < canvasH; y++) {
-            int maskY = (y * mask.getHeight()) / canvasH;
+        for (int y = 0; y < h; y++) {
             int glintY = (y + scrollYInt) % glintH;
-            for (int x = 0; x < canvasW; x++) {
-                int maskPixel = mask.getPixel((x * mask.getWidth()) / canvasW, maskY);
-                if (ColorKit.alpha(maskPixel) == 0) continue;
+            for (int x = 0; x < w; x++) {
+                if (ColorMath.alpha(target.getPixel(x, y)) == 0) continue;
 
                 int glintX = (x + scrollXInt) % glintW;
                 int glintPixel = glint.getPixel(glintX, glintY);
-                if (ColorKit.alpha(glintPixel) == 0) continue;
+                if (ColorMath.alpha(glintPixel) == 0) continue;
 
-                int current = canvas.getBuffer().getPixel(x, y);
-                canvas.getBuffer().setPixel(x, y, ColorKit.blend(glintPixel, current, BlendMode.ADD));
+                target.setPixel(x, y, ColorMath.blend(glintPixel, target.getPixel(x, y), BlendMode.ADD));
             }
         }
     }

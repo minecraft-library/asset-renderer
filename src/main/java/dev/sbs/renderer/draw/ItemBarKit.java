@@ -1,6 +1,8 @@
 package dev.sbs.renderer.draw;
 
 import dev.sbs.renderer.text.MinecraftFont;
+import dev.simplified.image.ColorMath;
+import dev.simplified.image.PixelBuffer;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -36,26 +38,26 @@ public class ItemBarKit {
      * @param damage the current damage value
      * @param maxDurability the maximum durability
      */
-    public static void drawDamageBar(@NotNull Canvas canvas, int damage, int maxDurability) {
+    public static void drawDamageBar(@NotNull PixelBuffer buffer, int damage, int maxDurability) {
         if (damage <= 0 || maxDurability <= 0) return;
 
         int remaining = Math.max(0, maxDurability - damage);
         float fraction = (float) remaining / (float) maxDurability;
         int fgWidth = Math.clamp(Math.round(BAR_FG_WIDTH * fraction), 0, BAR_FG_WIDTH);
-        int fgColor = ColorKit.hsvToArgb(fraction * 120f, 1f, 1f);
+        int fgColor = ColorMath.hsvToArgb(fraction * 120f, 1f, 1f);
 
-        int scale = Math.max(1, canvas.width() / LOGICAL_CANVAS);
+        int scale = Math.max(1, buffer.width() / LOGICAL_CANVAS);
         int barX = BAR_X * scale;
         int barY = BAR_Y * scale;
         int cellH = scale;
 
         // Background: 13 wide x 1 tall black row at logical (2, 13)
-        fillRect(canvas, barX, barY, BAR_BG_WIDTH * scale, cellH, ColorKit.BLACK);
+        buffer.fillRect(barX, barY, BAR_BG_WIDTH * scale, cellH, ColorMath.BLACK);
 
         // Foreground: 12 wide x 1 tall coloured row at logical (2, 14), proportional width
         int fgPxWidth = fgWidth * scale;
         if (fgPxWidth > 0)
-            fillRect(canvas, barX, barY + cellH, fgPxWidth, cellH, fgColor);
+            buffer.fillRect(barX, barY + cellH, fgPxWidth, cellH, fgColor);
     }
 
     /**
@@ -95,20 +97,6 @@ public class ItemBarKit {
             g.drawString(text, x, y);
         } finally {
             g.setFont(previous);
-        }
-    }
-
-    private static void fillRect(@NotNull Canvas canvas, int x, int y, int w, int h, int argb) {
-        int cw = canvas.width();
-        int ch = canvas.height();
-        for (int dy = 0; dy < h; dy++) {
-            int py = y + dy;
-            if (py < 0 || py >= ch) continue;
-            for (int dx = 0; dx < w; dx++) {
-                int px = x + dx;
-                if (px < 0 || px >= cw) continue;
-                canvas.getBuffer().setPixel(px, py, argb);
-            }
         }
     }
 

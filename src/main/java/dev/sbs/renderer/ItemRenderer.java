@@ -1,8 +1,6 @@
 package dev.sbs.renderer;
 
-import dev.sbs.renderer.draw.BlendMode;
 import dev.sbs.renderer.draw.Canvas;
-import dev.sbs.renderer.draw.ColorKit;
 import dev.sbs.renderer.draw.GeometryKit;
 import dev.sbs.renderer.draw.GlintKit;
 import dev.sbs.renderer.draw.ItemBarKit;
@@ -25,6 +23,8 @@ import dev.sbs.renderer.tensor.Vector3f;
 import dev.sbs.renderer.text.MinecraftFont;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.image.BlendMode;
+import dev.simplified.image.ColorMath;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
 import lombok.RequiredArgsConstructor;
@@ -79,26 +79,26 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     }
 
     /**
-     * Wraps a finished canvas into an {@link ImageData} with optional glint animation. Both the
+     * Wraps a finished buffer into an {@link ImageData} with optional glint animation. Both the
      * GUI and held paths share this tail: if the item is not enchanted, or the active pack stack
-     * has no glint texture, the canvas is returned as a single-frame static image; otherwise a
+     * has no glint texture, the buffer is returned as a single-frame static image; otherwise a
      * scrolling glint overlay is composed and the frames are emitted at
      * {@link ItemOptions#getFramesPerSecond()}.
      */
     static @NotNull ImageData finaliseFrames(
-        @NotNull Canvas canvas,
+        @NotNull PixelBuffer buffer,
         @NotNull TextureEngine engine,
         @NotNull ItemOptions options
     ) {
         if (!options.isEnchanted())
-            return RenderEngine.staticFrame(canvas);
+            return RenderEngine.staticFrame(buffer);
 
         GlintKit.GlintOptions glintOptions = GlintKit.GlintOptions.itemDefault(options.getFramesPerSecond());
         Optional<PixelBuffer> glintTexture = engine.tryResolveTexture(glintOptions.glintTextureId());
         if (glintTexture.isEmpty())
-            return RenderEngine.staticFrame(canvas);
+            return RenderEngine.staticFrame(buffer);
 
-        ConcurrentList<PixelBuffer> glintFrames = GlintKit.apply(canvas.getBuffer(), glintTexture.get(), glintOptions);
+        ConcurrentList<PixelBuffer> glintFrames = GlintKit.apply(buffer, glintTexture.get(), glintOptions);
         int frameDelayMs = Math.max(1, Math.round(1000f / options.getFramesPerSecond()));
         return RenderEngine.output(glintFrames, frameDelayMs);
     }
@@ -117,14 +117,14 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         public @NotNull ImageData render(@NotNull ItemOptions options) {
             Item item = requireItem(this.context, options.getItemId());
             RasterEngine engine = new RasterEngine(this.context);
-            Canvas canvas = engine.createCanvas(options.getOutputSize(), options.getOutputSize());
+            PixelBuffer buffer = engine.createBuffer(options.getOutputSize(), options.getOutputSize());
 
             // Layered flat-item sprite: layer0, layer1, ... stacked, each tinted per options.
             // Trim overlay layers (matching trims/items/{slot}_trim_{material}) are generated
             // via paletted permutation since vanilla doesn't ship the material-specific PNGs.
             int layerIndex = 0;
             int size = options.getOutputSize();
-            int tint = options.getTintColor().orElse(ColorKit.WHITE);
+            int tint = options.getTintColor().orElse(ColorMath.WHITE);
             while (true) {
                 String layerKey = "layer" + layerIndex;
                 String textureRef = item.getTextures().get(layerKey);
@@ -132,28 +132,31 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
                 if (TrimKit.isTrimTexture(textureRef)) {
                     TrimKit.resolveFromTextureRef(engine, textureRef)
-                        .ifPresent(trim -> canvas.blitScaled(trim, 0, 0, size, size));
+                        .ifPresent(trim -> buffer.blitScaled(trim, 0, 0, size, size));
                 } else {
                     PixelBuffer layer = engine.resolveTexture(textureRef);
-                    if (layerIndex == 0 && tint != ColorKit.WHITE)
-                        canvas.blitTinted(layer, 0, 0, tint, BlendMode.MULTIPLY);
+                    if (layerIndex == 0 && tint != ColorMath.WHITE)
+                        buffer.blitTinted(layer, 0, 0, tint, BlendMode.MULTIPLY);
                     else
-                        canvas.blitScaled(layer, 0, 0, size, size);
+                        buffer.blitScaled(layer, 0, 0, size, size);
                 }
                 layerIndex++;
             }
 
             if (options.getTrimSlot().isPresent() && options.getTrimColor().isPresent())
                 TrimKit.resolve(engine, options.getTrimSlot().get().getKey(), options.getTrimColor().get().getKey())
-                    .ifPresent(trim -> canvas.blitScaled(trim, 0, 0, options.getOutputSize(), options.getOutputSize()));
+                    .ifPresent(trim -> buffer.blitScaled(trim, 0, 0, options.getOutputSize(), options.getOutputSize()));
 
             if (options.isShowDamageBar())
-                ItemBarKit.drawDamageBar(canvas, options.getContext().damage(), item.getMaxDurability());
+                ItemBarKit.drawDamageBar(buffer, options.getContext().damage(), item.getMaxDurability());
 
-            if (options.getContext().stackCount() > 1)
+            if (options.getContext().stackCount() > 1) {
+                Canvas canvas = Canvas.wrap(buffer);
                 ItemBarKit.drawStackCount(canvas, options.getContext().stackCount(), MinecraftFont.REGULAR);
+                canvas.disposeGraphics();
+            }
 
-            return finaliseFrames(canvas, engine, options);
+            return finaliseFrames(buffer, engine, options);
         }
 
     }
@@ -174,8 +177,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         public @NotNull ImageData render(@NotNull ItemOptions options) {
             Item item = requireItem(this.context, options.getItemId());
             ModelEngine engine = new ModelEngine(this.context);
-            Canvas canvas = Canvas.of(options.getOutputSize(), options.getOutputSize());
-            int tint = options.getTintColor().orElse(ColorKit.WHITE);
+            PixelBuffer buffer = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
+            int tint = options.getTintColor().orElse(ColorMath.WHITE);
 
             ConcurrentList<VisibleTriangle> triangles;
             if (!item.getModel().getElements().isEmpty()) {
@@ -205,9 +208,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             }
 
             Matrix4f displayTransform = resolveDisplayTransform(item, "thirdperson_righthand");
-            engine.rasterize(triangles, canvas, PerspectiveParams.GUI_ITEM, displayTransform);
+            engine.rasterize(triangles, buffer, PerspectiveParams.GUI_ITEM, displayTransform);
 
-            return finaliseFrames(canvas, engine, options);
+            return finaliseFrames(buffer, engine, options);
         }
 
         /**

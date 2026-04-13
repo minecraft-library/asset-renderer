@@ -229,7 +229,7 @@ public enum SkinFace {
             for (int dx = 0; dx < w; dx++) {
                 int sx = rect.x + dx;
                 int sy = rect.y + dy;
-                if (sx < 0 || sx >= skin.getWidth() || sy < 0 || sy >= skin.getHeight()) continue;
+                if (sx < 0 || sx >= skin.width() || sy < 0 || sy >= skin.height()) continue;
                 pixels[dy * w + dx] = skin.getPixel(sx, sy);
             }
         }

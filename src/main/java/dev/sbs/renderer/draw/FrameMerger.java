@@ -69,15 +69,15 @@ public class FrameMerger {
     }
 
     private static @NotNull PixelBuffer renderFrame(@NotNull ConcurrentList<Layer> layers, int canvasW, int canvasH, int backgroundArgb, long timeMs) {
-        Canvas canvas = Canvas.of(canvasW, canvasH);
-        canvas.fill(backgroundArgb);
+        PixelBuffer buffer = PixelBuffer.create(canvasW, canvasH);
+        buffer.fill(backgroundArgb);
 
         for (Layer layer : layers) {
             PixelBuffer frame = sampleLayerAtTime(layer.source(), timeMs);
-            canvas.blit(frame, layer.x(), layer.y());
+            buffer.blit(frame, layer.x(), layer.y());
         }
 
-        return canvas.getBuffer();
+        return buffer;
     }
 
     /**

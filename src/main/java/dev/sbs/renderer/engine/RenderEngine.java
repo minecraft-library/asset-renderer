@@ -1,6 +1,5 @@
 package dev.sbs.renderer.engine;
 
-import dev.sbs.renderer.draw.Canvas;
 import dev.sbs.renderer.geometry.PerspectiveParams;
 import dev.sbs.renderer.tensor.Vector2f;
 import dev.sbs.renderer.tensor.Vector3f;
@@ -136,15 +135,15 @@ public interface RenderEngine {
     }
 
     /**
-     * Wraps a canvas's buffer as a single-frame static {@link ImageData}. Shared convenience
-     * for every renderer that needs to emit exactly one frame without glint or animation.
+     * Wraps a pixel buffer as a single-frame static {@link ImageData}. Shared convenience for
+     * every renderer that needs to emit exactly one frame without glint or animation.
      *
-     * @param canvas the canvas whose buffer becomes the static frame
+     * @param buffer the pixel buffer that becomes the static frame
      * @return the wrapped image data
      */
-    static @NotNull ImageData staticFrame(@NotNull Canvas canvas) {
+    static @NotNull ImageData staticFrame(@NotNull PixelBuffer buffer) {
         ConcurrentList<PixelBuffer> frames = Concurrent.newList();
-        frames.add(canvas.getBuffer());
+        frames.add(buffer);
         return output(frames, 0);
     }
 

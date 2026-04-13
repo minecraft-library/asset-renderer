@@ -1,6 +1,5 @@
 package dev.sbs.renderer;
 
-import dev.sbs.renderer.draw.Canvas;
 import dev.sbs.renderer.draw.EntityGeometryKit;
 import dev.sbs.renderer.draw.GlintKit;
 import dev.sbs.renderer.draw.armor.ArmorKit;
@@ -32,27 +31,27 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
     @Override
     public @NotNull ImageData render(@NotNull EntityOptions options) {
-        Canvas canvas = Canvas.of(options.getOutputSize(), options.getOutputSize());
+        PixelBuffer buffer = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
 
         if (options.getEntityId().isEmpty())
-            return RenderEngine.staticFrame(canvas);
+            return RenderEngine.staticFrame(buffer);
 
         Optional<Entity> entityLookup = this.context.findEntity(options.getEntityId().get());
         if (entityLookup.isEmpty())
-            return RenderEngine.staticFrame(canvas);
+            return RenderEngine.staticFrame(buffer);
 
         Entity entity = entityLookup.get();
         Optional<PixelBuffer> texture = resolveEntityTexture(entity, options);
         if (texture.isEmpty())
-            return RenderEngine.staticFrame(canvas);
+            return RenderEngine.staticFrame(buffer);
 
         EntityModelData model = entity.getModel();
         if (model.getBones().isEmpty())
-            return RenderEngine.staticFrame(canvas);
+            return RenderEngine.staticFrame(buffer);
 
         EntityGeometryKit.BuildResult buildResult = EntityGeometryKit.buildTriangles(model, texture.get());
         if (buildResult.triangles().isEmpty())
-            return RenderEngine.staticFrame(canvas);
+            return RenderEngine.staticFrame(buffer);
 
         ConcurrentList<VisibleTriangle> triangles = buildResult.triangles();
 
@@ -62,11 +61,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             options.getHelmet(), options.getChestplate(),
             options.getLeggings(), options.getBoots(), engine));
 
-        engine.rasterize(triangles, canvas, PerspectiveParams.GUI_ITEM,
+        engine.rasterize(triangles, buffer, PerspectiveParams.GUI_ITEM,
             options.getPitch(), options.getYaw(), options.getRoll());
 
         if (options.isAntiAlias())
-            canvas.getBuffer().applyFxaa();
+            buffer.applyFxaa();
 
         if (ArmorKit.hasEnchantedArmor(
             options.getHelmet(), options.getChestplate(),
@@ -74,13 +73,13 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             GlintKit.GlintOptions glintOptions = GlintKit.GlintOptions.armorDefault(30);
             Optional<PixelBuffer> glintTexture = engine.tryResolveTexture(glintOptions.glintTextureId());
             if (glintTexture.isPresent()) {
-                ConcurrentList<PixelBuffer> frames = GlintKit.apply(canvas.getBuffer(), glintTexture.get(), glintOptions);
+                ConcurrentList<PixelBuffer> frames = GlintKit.apply(buffer, glintTexture.get(), glintOptions);
                 int frameDelayMs = Math.max(1, Math.round(1000f / 30f));
                 return RenderEngine.output(frames, frameDelayMs);
             }
         }
 
-        return RenderEngine.staticFrame(canvas);
+        return RenderEngine.staticFrame(buffer);
     }
 
     /**

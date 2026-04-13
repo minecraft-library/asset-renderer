@@ -48,7 +48,7 @@ public class AnimationKit {
         int frameHeight = frameHeight(strip, animation);
         if (frameWidth <= 0 || frameHeight <= 0) return strip;
 
-        int frameCount = strip.getHeight() / frameHeight;
+        int frameCount = strip.height() / frameHeight;
         if (frameCount <= 0) return strip;
 
         int defaultTicks = Math.max(1, animation.getFrametime());
@@ -120,9 +120,9 @@ public class AnimationKit {
         int[] pixels = new int[frameWidth * frameHeight];
         for (int y = 0; y < frameHeight; y++) {
             int sy = yOffset + y;
-            if (sy < 0 || sy >= strip.getHeight()) continue;
+            if (sy < 0 || sy >= strip.height()) continue;
             for (int x = 0; x < frameWidth; x++) {
-                if (x >= strip.getWidth()) continue;
+                if (x >= strip.width()) continue;
                 pixels[y * frameWidth + x] = strip.getPixel(x, sy);
             }
         }
@@ -134,7 +134,7 @@ public class AnimationKit {
      * declare one.
      */
     public static int frameWidth(@NotNull PixelBuffer strip, @NotNull AnimationData animation) {
-        return animation.getWidth() > 0 ? animation.getWidth() : strip.getWidth();
+        return animation.getWidth() > 0 ? animation.getWidth() : strip.width();
     }
 
     /**
@@ -142,7 +142,7 @@ public class AnimationKit {
      * declare one (vanilla defaults to square frames so the fallback uses the width axis).
      */
     public static int frameHeight(@NotNull PixelBuffer strip, @NotNull AnimationData animation) {
-        return animation.getHeight() > 0 ? animation.getHeight() : strip.getWidth();
+        return animation.getHeight() > 0 ? animation.getHeight() : strip.width();
     }
 
 }

@@ -1,7 +1,6 @@
 package dev.sbs.renderer;
 
 import dev.sbs.renderer.draw.Canvas;
-import dev.sbs.renderer.draw.ColorKit;
 import dev.sbs.renderer.draw.TextKit;
 import dev.sbs.renderer.engine.RenderEngine;
 import dev.sbs.renderer.options.TextOptions;
@@ -11,6 +10,7 @@ import dev.sbs.renderer.text.LineSegment;
 import dev.sbs.renderer.text.MinecraftFont;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.ColorMath;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.PixelBuffer;
 import org.jetbrains.annotations.NotNull;
@@ -36,7 +36,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
     @Override
     public @NotNull ImageData render(@NotNull TextOptions options) {
         if (options.getLines().isEmpty())
-            return RenderEngine.output(singleFrame(1, 1, ColorKit.TRANSPARENT), 0);
+            return RenderEngine.output(singleFrame(1, 1, ColorMath.TRANSPARENT), 0);
 
         boolean isLore = options.getStyle() == TextOptions.Style.LORE;
         boolean animated = hasObfuscation(options.getLines());
@@ -68,7 +68,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
         Canvas canvas = Canvas.of(canvasW, canvasH);
         if (isLore) {
             int alpha = Math.clamp(options.getAlpha(), 0, 255);
-            canvas.fill((alpha << 24) | BACKGROUND_RGB);
+            canvas.getBuffer().fill((alpha << 24) | BACKGROUND_RGB);
             drawBorder(canvas, canvasW, canvasH, (alpha << 24) | BORDER_RGB);
         }
 
@@ -118,10 +118,10 @@ public final class TextRenderer implements Renderer<TextOptions> {
     }
 
     private static @NotNull ConcurrentList<PixelBuffer> singleFrame(int w, int h, int fill) {
-        Canvas canvas = Canvas.of(w, h);
-        canvas.fill(fill);
+        PixelBuffer buffer = PixelBuffer.create(w, h);
+        buffer.fill(fill);
         ConcurrentList<PixelBuffer> frames = Concurrent.newList();
-        frames.add(canvas.getBuffer());
+        frames.add(buffer);
         return frames;
     }
 

@@ -116,7 +116,7 @@ public class TrimKit {
         @NotNull PixelBuffer paletteKey,
         @NotNull PixelBuffer materialPalette
     ) {
-        int paletteSize = Math.min(paletteKey.getWidth(), materialPalette.getWidth());
+        int paletteSize = Math.min(paletteKey.width(), materialPalette.width());
         int[] keyGrays = new int[paletteSize];
         int[] materialColors = new int[paletteSize];
 
@@ -125,8 +125,8 @@ public class TrimKit {
             materialColors[i] = materialPalette.getPixel(i, 0) | 0xFF000000;
         }
 
-        int w = baseTrim.getWidth();
-        int h = baseTrim.getHeight();
+        int w = baseTrim.width();
+        int h = baseTrim.height();
         int[] pixels = new int[w * h];
 
         for (int y = 0; y < h; y++) {

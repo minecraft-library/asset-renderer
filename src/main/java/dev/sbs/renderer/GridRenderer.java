@@ -1,6 +1,5 @@
 package dev.sbs.renderer;
 
-import dev.sbs.renderer.draw.Canvas;
 import dev.sbs.renderer.draw.FrameMerger;
 import dev.sbs.renderer.engine.RenderEngine;
 import dev.sbs.renderer.options.GridOptions;
@@ -30,17 +29,17 @@ public final class GridRenderer implements Renderer<GridOptions> {
             .anyMatch(tile -> tile.image().isAnimated());
 
         if (!anyAnimated) {
-            Canvas canvas = Canvas.of(canvasW, canvasH);
-            canvas.fill(options.getBackgroundArgb());
+            PixelBuffer buffer = PixelBuffer.create(canvasW, canvasH);
+            buffer.fill(options.getBackgroundArgb());
 
             for (GridOptions.GridTile tile : options.getTiles()) {
-                PixelBuffer buffer = PixelBuffer.wrap(tile.image().toBufferedImage());
+                PixelBuffer tileBuffer = PixelBuffer.wrap(tile.image().toBufferedImage());
                 int x = tile.col() * (cellSize + separation) + separation;
                 int y = tile.row() * (cellSize + separation) + separation;
-                canvas.blitScaled(buffer, x, y, cellSize, cellSize);
+                buffer.blitScaled(tileBuffer, x, y, cellSize, cellSize);
             }
 
-            return RenderEngine.staticFrame(canvas);
+            return RenderEngine.staticFrame(buffer);
         }
 
         ConcurrentList<FrameMerger.Layer> layers = Concurrent.newList();

@@ -8,6 +8,7 @@ import dev.sbs.renderer.tensor.Vector2f;
 import dev.sbs.renderer.tensor.Vector3f;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.ColorMath;
 import dev.simplified.image.PixelBuffer;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -108,14 +109,14 @@ public class EntityGeometryKit {
                     triangles.add(new VisibleTriangle(
                         corners[0], corners[i1], corners[i2],
                         uv[0], uv[i1], uv[i2],
-                        texture, ColorKit.WHITE,
+                        texture, ColorMath.WHITE,
                         normal, 1f, priority,
                         true
                     ));
                     triangles.add(new VisibleTriangle(
                         corners[0], corners[j1], corners[j2],
                         uv[0], uv[j1], uv[j2],
-                        texture, ColorKit.WHITE,
+                        texture, ColorMath.WHITE,
                         normal, 1f, priority,
                         true
                     ));
