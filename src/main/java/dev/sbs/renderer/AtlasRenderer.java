@@ -287,11 +287,6 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         }
 
         @Override
-        public @NotNull Optional<AnimationData> animationFor(@NotNull String textureId) {
-            return Optional.empty();
-        }
-
-        @Override
         public @NotNull ConcurrentList<String> knownBlockIds() {
             return this.delegate.knownBlockIds();
         }

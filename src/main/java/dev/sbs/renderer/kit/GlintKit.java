@@ -193,8 +193,6 @@ public class GlintKit {
         @NotNull GlintOptions options
     ) {
         ConcurrentList<PixelBuffer> frames = Concurrent.newList();
-        int baseWidth = base.width();
-        int baseHeight = base.height();
         int glintW = glintTexture.width();
         int glintH = glintTexture.height();
 

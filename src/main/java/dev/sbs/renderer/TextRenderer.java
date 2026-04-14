@@ -1,21 +1,18 @@
 package dev.sbs.renderer;
 
-import dev.sbs.renderer.draw.Canvas;
-import dev.sbs.renderer.draw.TextKit;
 import dev.sbs.renderer.engine.RenderEngine;
+import dev.sbs.renderer.kit.TextKit;
 import dev.sbs.renderer.options.TextOptions;
 import dev.sbs.renderer.text.ChatColor;
 import dev.sbs.renderer.text.ColorSegment;
 import dev.sbs.renderer.text.LineSegment;
-import dev.sbs.renderer.text.MinecraftFont;
+import dev.sbs.renderer.text.font.MinecraftFont;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.ColorMath;
 import dev.simplified.image.ImageData;
-import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.ColorMath;
+import dev.simplified.image.pixel.PixelBuffer;
 import org.jetbrains.annotations.NotNull;
-
-import java.awt.*;
 
 /**
  * Renders styled Minecraft text in one of two modes: item-style lore tooltips with a purple
@@ -23,7 +20,7 @@ import java.awt.*;
  * <p>
  * When any segment across any line is marked obfuscated, the renderer produces an animated
  * output of {@link TextOptions#getFrameCount()} frames, each rendering obfuscated spans with a
- * fresh {@link dev.sbs.renderer.draw.ObfuscationKit ObfuscationKit} substitution.
+ * fresh {@link dev.sbs.renderer.kit.ObfuscationKit ObfuscationKit} substitution.
  */
 public final class TextRenderer implements Renderer<TextOptions> {
 
@@ -31,7 +28,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
     private static final int BORDER_RGB = 0x2F0054;
     private static final int PIXEL_SIZE = 2;
     private static final int LINE_HEIGHT = 24;
-    private static final @NotNull Color DEFAULT_COLOR = ChatColor.GRAY.getColor();
+    private static final int DEFAULT_COLOR_ARGB = ChatColor.GRAY.getRGB();
 
     @Override
     public @NotNull ImageData render(@NotNull TextOptions options) {
@@ -65,38 +62,35 @@ public final class TextRenderer implements Renderer<TextOptions> {
         boolean isLore = options.getStyle() == TextOptions.Style.LORE;
         int pad = isLore ? options.getPadding() : 0;
 
-        Canvas canvas = Canvas.of(canvasW, canvasH);
+        PixelBuffer buffer = PixelBuffer.create(canvasW, canvasH);
         if (isLore) {
             int alpha = Math.clamp(options.getAlpha(), 0, 255);
-            canvas.getBuffer().fill((alpha << 24) | BACKGROUND_RGB);
-            drawBorder(canvas, canvasW, canvasH, (alpha << 24) | BORDER_RGB);
+            buffer.fill((alpha << 24) | BACKGROUND_RGB);
+            drawBorder(buffer, canvasW, canvasH, (alpha << 24) | BORDER_RGB);
         }
 
-        Graphics2D g = canvas.graphics();
-        g.setFont(MinecraftFont.REGULAR.getActual());
-        int y = pad + g.getFontMetrics().getAscent();
+        int y = pad + MinecraftFont.REGULAR.getFontMetrics().getAscent();
 
         for (int i = 0; i < options.getLines().size(); i++) {
-            TextKit.drawLine(canvas, options.getLines().get(i), pad, y, DEFAULT_COLOR, frameSeed);
+            TextKit.drawLine(buffer, options.getLines().get(i), pad, y, DEFAULT_COLOR_ARGB, frameSeed);
             y += LINE_HEIGHT;
             if (isLore && i == 0)
                 y += PIXEL_SIZE * 2;
         }
 
-        canvas.disposeGraphics();
         ConcurrentList<PixelBuffer> frames = Concurrent.newList();
-        frames.add(canvas.getBuffer());
+        frames.add(buffer);
         return frames;
     }
 
-    private static void drawBorder(@NotNull Canvas canvas, int w, int h, int argb) {
+    private static void drawBorder(@NotNull PixelBuffer buffer, int w, int h, int argb) {
         for (int x = 1; x < w - 1; x++) {
-            canvas.getBuffer().setPixel(x, 1, argb);
-            canvas.getBuffer().setPixel(x, h - 2, argb);
+            buffer.setPixel(x, 1, argb);
+            buffer.setPixel(x, h - 2, argb);
         }
         for (int y = 1; y < h - 1; y++) {
-            canvas.getBuffer().setPixel(1, y, argb);
-            canvas.getBuffer().setPixel(w - 2, y, argb);
+            buffer.setPixel(1, y, argb);
+            buffer.setPixel(w - 2, y, argb);
         }
     }
 
@@ -109,11 +103,9 @@ public final class TextRenderer implements Renderer<TextOptions> {
     }
 
     private static int measureWidth(@NotNull TextOptions options) {
-        Canvas scratch = Canvas.of(1, 1);
         int max = 0;
         for (LineSegment line : options.getLines())
-            max = Math.max(max, TextKit.measureLine(scratch, line));
-        scratch.disposeGraphics();
+            max = Math.max(max, TextKit.measureLine(line));
         return Math.max(32, max);
     }
 
