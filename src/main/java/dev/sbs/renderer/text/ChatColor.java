@@ -2,11 +2,12 @@ package dev.sbs.renderer.text;
 
 import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.experimental.Accessors;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.awt.Color;
+import java.awt.*;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -331,12 +332,11 @@ public sealed interface ChatColor permits ChatColor.Legacy, ChatColor.Custom {
     /**
      * Mutable builder for a {@link Custom} color.
      */
+    @NoArgsConstructor(access = AccessLevel.PRIVATE)
     final class Builder {
 
         private @NotNull Color color = Color.WHITE;
         private @NotNull Optional<Color> backgroundColor = Optional.empty();
-
-        Builder() {}
 
         /**
          * Sets the foreground color.
