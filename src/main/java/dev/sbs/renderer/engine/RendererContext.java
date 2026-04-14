@@ -93,7 +93,7 @@ public interface RendererContext {
      * do not need to override it; production contexts ({@code PipelineRendererContext}) supply
      * the full set.
      *
-     * @return the set of known block ids
+     * @return the list of known block ids
      */
     default @NotNull ConcurrentList<String> knownBlockIds() {
         return Concurrent.newList();
@@ -103,7 +103,7 @@ public interface RendererContext {
      * Returns every item id this context knows about, in no guaranteed order. See
      * {@link #knownBlockIds()} for the contract.
      *
-     * @return the set of known item ids
+     * @return the list of known item ids
      */
     default @NotNull ConcurrentList<String> knownItemIds() {
         return Concurrent.newList();
