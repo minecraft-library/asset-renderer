@@ -1,12 +1,5 @@
 package dev.sbs.renderer.model;
 
-import dev.simplified.persistence.JpaModel;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
@@ -19,28 +12,18 @@ import java.util.Optional;
  * tipped arrows without scattering the logic through every item entry.
  */
 @Getter
-@Entity
-@Table(name = "renderer_overlay_bindings")
-public class OverlayBinding implements JpaModel {
+public class OverlayBinding {
 
-    @Id
-    @Column(name = "id", nullable = false)
     private @NotNull String id = "";
 
-    @Column(name = "item_id", nullable = false)
     private @NotNull String itemId = "";
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "kind", nullable = false)
     private @NotNull Kind kind = Kind.LEATHER;
 
-    @Column(name = "base_texture", nullable = false)
     private @NotNull String baseTexture = "";
 
-    @Column(name = "overlay_texture", nullable = false)
     private @NotNull String overlayTexture = "";
 
-    @Column(name = "default_color")
     private @NotNull Optional<Integer> defaultColor = Optional.empty();
 
     @Override

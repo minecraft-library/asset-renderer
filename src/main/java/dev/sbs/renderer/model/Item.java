@@ -4,11 +4,6 @@ import com.google.gson.annotations.SerializedName;
 import dev.sbs.renderer.model.asset.ItemModelData;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.persistence.JpaModel;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -26,36 +21,25 @@ import java.util.Optional;
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-@Entity
-@Table(name = "renderer_items")
-public class Item implements JpaModel {
+public class Item {
 
-    @Id
-    @Column(name = "id", nullable = false)
     private @NotNull String id = "";
 
-    @Column(name = "namespace", nullable = false)
     private @NotNull String namespace = "minecraft";
 
-    @Column(name = "name", nullable = false)
     private @NotNull String name = "";
 
-    @Column(name = "model", nullable = false)
     private @NotNull ItemModelData model = new ItemModelData();
 
-    @Column(name = "textures", nullable = false)
     private @NotNull ConcurrentMap<String, String> textures = Concurrent.newMap();
 
     @SerializedName("max_durability")
-    @Column(name = "max_durability", nullable = false)
     private int maxDurability = 0;
 
     @SerializedName("stack_size")
-    @Column(name = "stack_size", nullable = false)
     private int stackSize = 64;
 
     @SerializedName("overlay_binding_id")
-    @Column(name = "overlay_binding_id")
     private @NotNull Optional<String> overlayBindingId = Optional.empty();
 
     @Override

@@ -18,8 +18,9 @@ import java.util.Optional;
  * of the active texture packs, biome colormaps, and model repositories without coupling the
  * engine layer to the pipeline layer.
  * <p>
- * Production implementations are provided by the {@code pipeline} package's {@code RendererFactory};
- * tests and in-memory callers can supply lightweight stub implementations directly.
+ * The production implementation is {@code dev.sbs.renderer.pipeline.PipelineRendererContext},
+ * built once at bootstrap from an {@code AssetPipeline.Result}; tests and in-memory callers can
+ * supply lightweight stub implementations directly.
  */
 public interface RendererContext {
 

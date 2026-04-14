@@ -1,6 +1,5 @@
 package dev.sbs.renderer.model.asset;
 
-import dev.simplified.persistence.type.GsonType;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
@@ -16,7 +15,6 @@ import java.util.Objects;
  * {@code translation}, and {@code scale}. The array indices correspond to the X, Y, and Z
  * components in that order.
  */
-@GsonType
 @NoArgsConstructor
 public class ModelTransform {
 

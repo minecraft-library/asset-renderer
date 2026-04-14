@@ -40,7 +40,6 @@ dependencies {
     api("com.github.simplified-dev:image:master-SNAPSHOT")
     api("com.github.simplified-dev:gson-extras:master-SNAPSHOT")
     api("com.github.simplified-dev:client:master-SNAPSHOT")
-    api("com.github.simplified-dev:persistence:master-SNAPSHOT")
 
     // ASM - used by VanillaTintsLoader to parse net.minecraft.client.color.block.BlockColors
     // straight from the extracted client jar, replacing the previously hand-curated tint table.

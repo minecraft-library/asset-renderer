@@ -5,7 +5,6 @@ import dev.sbs.renderer.geometry.BlockFace;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.persistence.type.GsonType;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -31,7 +30,6 @@ import java.util.Objects;
  * and triangle winding is reversed in the same pass so back-face culling continues to work.
  */
 @Getter
-@GsonType
 @NoArgsConstructor
 @AllArgsConstructor
 public class EntityModelData {
@@ -74,7 +72,6 @@ public class EntityModelData {
      * A single bone in an entity model, with an origin, rotation, and one or more cubes.
      */
     @Getter
-    @GsonType
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Bone {
@@ -107,7 +104,6 @@ public class EntityModelData {
      * along each axis in model units. UV is the top-left corner of the cube's texture region.
      */
     @Getter
-    @GsonType
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Cube {
@@ -166,7 +162,6 @@ public class EntityModelData {
      * sub-rectangle of the texture that should be sampled for this face of the cube.
      */
     @Getter
-    @GsonType
     @NoArgsConstructor
     public static class FaceUv {
 

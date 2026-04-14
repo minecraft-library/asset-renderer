@@ -1,10 +1,5 @@
 package dev.sbs.renderer.model;
 
-import dev.simplified.persistence.JpaModel;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -22,24 +17,16 @@ import java.util.Objects;
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-@Entity
-@Table(name = "renderer_texture_packs")
-public class TexturePack implements JpaModel {
+public class TexturePack {
 
-    @Id
-    @Column(name = "id", nullable = false)
     private @NotNull String id = "";
 
-    @Column(name = "namespace", nullable = false)
     private @NotNull String namespace = "minecraft";
 
-    @Column(name = "description", nullable = false)
     private @NotNull String description = "";
 
-    @Column(name = "root_path", nullable = false)
     private @NotNull String rootPath = "";
 
-    @Column(name = "priority", nullable = false)
     private int priority = 0;
 
     @Override

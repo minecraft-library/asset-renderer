@@ -2,7 +2,6 @@ package dev.sbs.renderer.model.asset;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.persistence.type.GsonType;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -19,7 +18,6 @@ import java.util.Optional;
  * from the source JSON represent culled or invisible faces.
  */
 @Getter
-@GsonType
 @NoArgsConstructor
 public class ModelElement {
 
@@ -66,7 +64,6 @@ public class ModelElement {
      * @param angle the rotation angle in degrees: one of {@code -45}, {@code -22.5}, {@code 0}, {@code 22.5}, {@code 45}
      * @param rescale whether to rescale the element to preserve its footprint after rotation
      */
-    @GsonType
     public record ElementRotation(
         float @NotNull [] origin,
         @NotNull String axis,

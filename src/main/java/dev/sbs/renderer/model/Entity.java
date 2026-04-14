@@ -1,10 +1,6 @@
 package dev.sbs.renderer.model;
 
 import dev.sbs.renderer.model.asset.EntityModelData;
-import dev.simplified.persistence.JpaModel;
-import jakarta.persistence.Column;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -15,31 +11,23 @@ import java.util.Optional;
 
 /**
  * A fully-parsed entity definition - geometry and texture reference - for use by the entity
- * renderer's {@code ENTITY_3D} mode. Player skins are never stored on this entity; they are
+ * renderer's {@code ENTITY_3D} mode. Player skins are never stored on this DTO; they are
  * supplied at render time through the {@code EntityOptions.skinBytes}/{@code skinUrl}/
  * {@code skinTextureId} fields.
  */
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-@jakarta.persistence.Entity
-@Table(name = "renderer_entities")
-public class Entity implements JpaModel {
+public class Entity {
 
-    @Id
-    @Column(name = "id", nullable = false)
     private @NotNull String id = "";
 
-    @Column(name = "namespace", nullable = false)
     private @NotNull String namespace = "minecraft";
 
-    @Column(name = "name", nullable = false)
     private @NotNull String name = "";
 
-    @Column(name = "model", nullable = false)
     private @NotNull EntityModelData model = new EntityModelData();
 
-    @Column(name = "texture_id")
     private @NotNull Optional<String> textureId = Optional.empty();
 
     @Override

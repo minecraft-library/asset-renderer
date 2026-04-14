@@ -1,11 +1,6 @@
 package dev.sbs.renderer.model;
 
 import dev.sbs.renderer.model.asset.AnimationData;
-import dev.simplified.persistence.JpaModel;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -15,33 +10,24 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * A texture reference within a texture pack. The entity stores only metadata and a relative file
- * path under the asset cache root - raw PNG bytes stay on disk to keep the database lean.
+ * A texture reference within a texture pack. The DTO stores only metadata and a relative file
+ * path under the asset cache root - raw PNG bytes stay on disk to keep memory lean.
  */
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-@Entity
-@Table(name = "renderer_textures")
-public class Texture implements JpaModel {
+public class Texture {
 
-    @Id
-    @Column(name = "id", nullable = false)
     private @NotNull String id = "";
 
-    @Column(name = "pack_id", nullable = false)
     private @NotNull String packId = "";
 
-    @Column(name = "relative_path", nullable = false)
     private @NotNull String relativePath = "";
 
-    @Column(name = "width", nullable = false)
     private int width = 0;
 
-    @Column(name = "height", nullable = false)
     private int height = 0;
 
-    @Column(name = "animation")
     private @NotNull Optional<AnimationData> animation = Optional.empty();
 
     @Override

@@ -1,13 +1,5 @@
 package dev.sbs.renderer.model;
 
-import dev.simplified.persistence.JpaModel;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
-import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -22,23 +14,14 @@ import java.util.Objects;
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-@Entity
-@Table(name = "renderer_color_maps")
-public class ColorMap implements JpaModel {
+public class ColorMap {
 
-    @Id
-    @Column(name = "id", nullable = false)
     private @NotNull String id = "";
 
-    @Column(name = "pack_id", nullable = false)
     private @NotNull String packId = "";
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "type", nullable = false)
     private @NotNull Type type = Type.GRASS;
 
-    @Lob
-    @Column(name = "pixels", nullable = false)
     private byte @NotNull [] pixels = new byte[0];
 
     @Override

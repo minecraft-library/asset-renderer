@@ -7,12 +7,6 @@ import dev.sbs.renderer.model.asset.BlockModelData;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.persistence.JpaModel;
-import dev.simplified.persistence.type.GsonType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -26,47 +20,34 @@ import java.util.Optional;
  * A fully-parsed block definition backed by its vanilla model JSON and blockstate variants.
  * <p>
  * Every field is populated once during {@code AssetPipeline} bootstrap and stored verbatim; no
- * lazy or computed fields live on this entity. Lookup happens through the standard JPA repository
- * API ({@code findAll}, {@code findById}, etc.).
+ * lazy or computed fields live on this DTO. Lookup happens through the active
+ * {@link dev.sbs.renderer.engine.RendererContext}.
  */
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-@Entity
-@Table(name = "renderer_blocks")
-public class Block implements JpaModel {
+public class Block {
 
-    @Id
-    @Column(name = "id", nullable = false)
     private @NotNull String id = "";
 
-    @Column(name = "namespace", nullable = false)
     private @NotNull String namespace = "minecraft";
 
-    @Column(name = "name", nullable = false)
     private @NotNull String name = "";
 
-    @Column(name = "model", nullable = false)
     private @NotNull BlockModelData model = new BlockModelData();
 
-    @Column(name = "textures", nullable = false)
     private @NotNull ConcurrentMap<String, String> textures = Concurrent.newMap();
 
-    @Column(name = "variants", nullable = false)
     private @NotNull ConcurrentMap<String, Variant> variants = Concurrent.newMap();
 
-    @Column(name = "multipart", nullable = false)
     private @NotNull Optional<Multipart> multipart = Optional.empty();
 
     /** Tag names this block belongs to, e.g. {@code ["minecraft:stairs", "minecraft:wooden_stairs"]}. */
-    @Column(name = "tags", nullable = false)
     private @NotNull ConcurrentList<String> tags = Concurrent.newList();
 
-    @Column(name = "tint", nullable = false)
     private @NotNull Tint tint = new Tint(Biome.TintTarget.NONE, Optional.empty());
 
     /** Entity model fallback for blocks rendered by tile entity renderers (chests, signs, beds, etc.). */
-    @Column(name = "entity_mapping")
     private @NotNull Optional<EntityMapping> entityMapping = Optional.empty();
 
     @Override
@@ -99,7 +80,6 @@ public class Block implements JpaModel {
      *     target like {@link Biome.TintTarget#GRASS GRASS} / {@link Biome.TintTarget#FOLIAGE FOLIAGE}
      * @param constant the hardcoded ARGB value when target is {@code CONSTANT}
      */
-    @GsonType
     public record Tint(@NotNull Biome.TintTarget target, @NotNull Optional<Integer> constant) {}
 
     /**
@@ -110,7 +90,6 @@ public class Block implements JpaModel {
      * @param model the entity model id providing the geometry, e.g. {@code "minecraft:chest"}
      * @param texture the entity texture id to render with, e.g. {@code "minecraft:entity/chest/normal"}
      */
-    @GsonType
     public record EntityMapping(@NotNull String model, @NotNull String texture) {}
 
     /**
@@ -126,7 +105,6 @@ public class Block implements JpaModel {
      * @param y the whole-model Y rotation in degrees (0, 90, 180, or 270)
      * @param uvlock whether UVs should be locked to the block grid during rotation
      */
-    @GsonType
     public record Variant(@NotNull String modelId, int x, int y, boolean uvlock) {
 
         /**
@@ -145,7 +123,6 @@ public class Block implements JpaModel {
      *
      * @param parts the ordered list of conditional or unconditional parts
      */
-    @GsonType
     public record Multipart(@NotNull ConcurrentList<Part> parts) {
 
         /**

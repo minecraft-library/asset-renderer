@@ -4,7 +4,6 @@ import com.google.gson.annotations.SerializedName;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.persistence.type.GsonType;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -16,12 +15,11 @@ import java.util.Optional;
  * The fully-resolved block model parsed from a vanilla JSON file under
  * {@code assets/minecraft/models/block/*.json}.
  * <p>
- * By the time an instance lives inside a {@code Block} JpaModel, every reference to a parent has
- * been walked and deep-merged so the textures map and elements list already contain everything
- * needed to render. No lazy resolution happens at render time.
+ * By the time an instance lives inside a {@code Block}, every reference to a parent has been
+ * walked and deep-merged so the textures map and elements list already contain everything needed
+ * to render. No lazy resolution happens at render time.
  */
 @Getter
-@GsonType
 @NoArgsConstructor
 public class BlockModelData {
 

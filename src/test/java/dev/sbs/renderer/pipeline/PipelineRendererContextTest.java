@@ -98,8 +98,8 @@ class PipelineRendererContextTest {
 
         // Synthetic model maps. Each model references the fixture texture so resolveTexture
         // has a meaningful lookup target. Gson is used in place of reflective setters because
-        // the DTOs are already @GsonType and the JSON form matches what the production pipeline
-        // feeds through ModelResolver.
+        // the DTOs are already Gson-friendly and the JSON form matches what the production
+        // pipeline feeds through ModelResolver.
         Gson gson = GsonSettings.defaults().create();
         ConcurrentMap<String, BlockModelData> blockModels = Concurrent.newMap();
         blockModels.put(

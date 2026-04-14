@@ -1,7 +1,6 @@
 package dev.sbs.renderer.model.asset;
 
 import com.google.gson.annotations.SerializedName;
-import dev.simplified.persistence.type.GsonType;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -14,7 +13,6 @@ import java.util.Optional;
  * {@code elements[i].faces.<direction>} in vanilla block/item model JSON files.
  */
 @Getter
-@GsonType
 @NoArgsConstructor
 public class ModelFace {
 

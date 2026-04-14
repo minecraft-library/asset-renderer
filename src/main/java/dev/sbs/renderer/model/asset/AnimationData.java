@@ -2,7 +2,6 @@ package dev.sbs.renderer.model.asset;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.persistence.type.GsonType;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -15,7 +14,6 @@ import java.util.Objects;
  * vertically-stacked animation strip should be played back as a sequence of frames.
  */
 @Getter
-@GsonType
 @NoArgsConstructor
 @AllArgsConstructor
 public class AnimationData {
@@ -60,7 +58,6 @@ public class AnimationData {
      * @param index the frame index into the animation strip
      * @param time the per-frame duration override in ticks, or {@code -1} to use {@code frametime}
      */
-    @GsonType
     public record FrameEntry(int index, int time) {}
 
 }

@@ -3,7 +3,6 @@ package dev.sbs.renderer.model.asset;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.persistence.type.GsonType;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -22,7 +21,6 @@ import java.util.Optional;
  * inventory icon; {@code thirdperson_righthand} when rendering the held-item view.
  */
 @Getter
-@GsonType
 @NoArgsConstructor
 public class ItemModelData {
 
