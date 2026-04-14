@@ -73,8 +73,7 @@ public class Item {
      * that tints both layers with separate colors.
      * <p>
      * The enclosing {@link Item} supplies identity ({@code id}), so overlay records only carry
-     * per-shape metadata. Follows the {@code Block.Tint} / {@code Block.Variant} /
-     * {@code Block.Multipart} inner-type pattern on the parent DTO.
+     * per-shape metadata.
      */
     public sealed interface Overlay {
 
@@ -115,7 +114,15 @@ public class Item {
          * Coarse classification of the overlay shape. Present for dispatch convenience; the record
          * type itself is the authoritative shape.
          */
-        enum Kind { LEATHER, POTION, TIPPED_ARROW, FIREWORK, SPAWN_EGG }
+        enum Kind {
+
+            LEATHER,
+            POTION,
+            TIPPED_ARROW,
+            FIREWORK,
+            SPAWN_EGG
+
+        }
 
         /**
          * Leather armor: base hide texture untinted, overlay dye texture tinted with
