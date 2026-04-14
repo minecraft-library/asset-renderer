@@ -205,12 +205,33 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     }
 
     /**
-     * Composites a leather-armor item onto {@code buffer}: base hide layer untinted, overlay dye
-     * layer tinted via {@link BlendMode#MULTIPLY}. Tint precedence is
+     * Builds a native-sized composite of a leather-armor item: base hide layer untinted, overlay
+     * dye layer tinted via {@link BlendMode#MULTIPLY}. Tint precedence is
      * {@link ItemOptions#getLeatherColor()} → {@link ItemOptions#getTintColor()} →
-     * {@link Item.Overlay.Leather#defaultColor()} ({@code #A06540}). Returns the composited buffer
-     * for callers that need to reuse the face texture in the 3D path; callers rendering to
-     * {@code buffer} directly may ignore the return value.
+     * {@link Item.Overlay.Leather#defaultColor()} ({@code #A06540}). Returns a fresh
+     * {@link PixelBuffer} at the base texture's native dimensions, so the 2D path can scale it
+     * up while the 3D path can feed it directly into {@link GeometryKit#box} as the face texture.
+     */
+    static @NotNull PixelBuffer composeLeatherOverlay(
+        @NotNull TextureEngine engine,
+        @NotNull Item.Overlay.Leather overlay,
+        @NotNull ItemOptions options
+    ) {
+        int tint = options.getLeatherColor()
+            .or(options::getTintColor)
+            .orElse(overlay.defaultColor());
+
+        PixelBuffer base = engine.resolveTexture(overlay.baseTexture());
+        PixelBuffer dye = engine.resolveTexture(overlay.overlayTexture());
+        PixelBuffer composite = PixelBuffer.create(base.width(), base.height());
+        composite.blit(base, 0, 0);
+        composite.blitTinted(dye, 0, 0, tint, BlendMode.MULTIPLY);
+        return composite;
+    }
+
+    /**
+     * Composites a leather-armor item onto {@code buffer} by scaling the native-size composite
+     * produced by {@link #composeLeatherOverlay} up to {@link ItemOptions#getOutputSize()}.
      */
     static @NotNull PixelBuffer renderLeatherOverlay(
         @NotNull RasterEngine engine,
@@ -218,31 +239,40 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         @NotNull Item.Overlay.Leather overlay,
         @NotNull ItemOptions options
     ) {
+        PixelBuffer composite = composeLeatherOverlay(engine, overlay, options);
         int size = options.getOutputSize();
-        int tint = options.getLeatherColor()
-            .or(options::getTintColor)
-            .orElse(overlay.defaultColor());
-
-        PixelBuffer base = engine.resolveTexture(overlay.baseTexture());
-        PixelBuffer dye = engine.resolveTexture(overlay.overlayTexture());
-        buffer.blitScaled(base, 0, 0, size, size);
-        buffer.blitTinted(dye, 0, 0, tint, BlendMode.MULTIPLY);
+        buffer.blitScaled(composite, 0, 0, size, size);
         return buffer;
     }
 
     /**
-     * Composites a firework star onto {@code buffer}: star body untinted, center overlay tinted
-     * via {@link BlendMode#MULTIPLY}. Tint precedence is
-     * {@link ItemOptions#getFireworkColor()} → {@link ItemOptions#getTintColor()} →
-     * {@link Item.Overlay.Firework#defaultColor()} ({@code #808080}, a visible placeholder).
-     * Vanilla firework star colours come entirely from the item's NBT; the caller resolves the
-     * NBT {@code Fireworks.Explosions[0].Colors[0]} and passes it as {@code fireworkColor}.
-     *
-     * @param engine the raster engine for texture resolution
-     * @param buffer the output pixel buffer
-     * @param overlay the firework overlay binding
-     * @param options the render options carrying firework colour precedence sources
-     * @return the composited buffer
+     * Builds a native-sized composite of a firework star: body untinted, center overlay tinted
+     * via {@link BlendMode#MULTIPLY}. Tint precedence is {@link ItemOptions#getFireworkColor()}
+     * → {@link ItemOptions#getTintColor()} → {@link Item.Overlay.Firework#defaultColor()}
+     * ({@code #808080}, a visible placeholder). Vanilla firework star colours come from NBT;
+     * callers resolve {@code Fireworks.Explosions[0].Colors[0]} and pass it as
+     * {@code fireworkColor}.
+     */
+    static @NotNull PixelBuffer composeFireworkStar(
+        @NotNull TextureEngine engine,
+        @NotNull Item.Overlay.Firework overlay,
+        @NotNull ItemOptions options
+    ) {
+        int tint = options.getFireworkColor()
+            .or(options::getTintColor)
+            .orElse(overlay.defaultColor());
+
+        PixelBuffer base = engine.resolveTexture(overlay.baseTexture());
+        PixelBuffer center = engine.resolveTexture(overlay.overlayTexture());
+        PixelBuffer composite = PixelBuffer.create(base.width(), base.height());
+        composite.blit(base, 0, 0);
+        composite.blitTinted(center, 0, 0, tint, BlendMode.MULTIPLY);
+        return composite;
+    }
+
+    /**
+     * Composites a firework star onto {@code buffer} by scaling the native-size composite
+     * produced by {@link #composeFireworkStar} up to {@link ItemOptions#getOutputSize()}.
      */
     static @NotNull PixelBuffer renderFireworkStar(
         @NotNull RasterEngine engine,
@@ -250,43 +280,27 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         @NotNull Item.Overlay.Firework overlay,
         @NotNull ItemOptions options
     ) {
+        PixelBuffer composite = composeFireworkStar(engine, overlay, options);
         int size = options.getOutputSize();
-        int tint = options.getFireworkColor()
-            .or(options::getTintColor)
-            .orElse(overlay.defaultColor());
-
-        PixelBuffer base = engine.resolveTexture(overlay.baseTexture());
-        PixelBuffer center = engine.resolveTexture(overlay.overlayTexture());
-        buffer.blitScaled(base, 0, 0, size, size);
-        buffer.blitTinted(center, 0, 0, tint, BlendMode.MULTIPLY);
+        buffer.blitScaled(composite, 0, 0, size, size);
         return buffer;
     }
 
     /**
-     * Composites a potion-shaped item onto {@code buffer}: base bottle / shaft untinted, overlay
-     * liquid / head tinted via {@link BlendMode#MULTIPLY}. Tint precedence is
-     * {@link ItemOptions#getPotionColor()} → the first potion effect in
+     * Builds a native-sized composite of a potion-shaped item: base untinted, overlay tinted
+     * via {@link BlendMode#MULTIPLY}. Tint precedence is {@link ItemOptions#getPotionColor()}
+     * → the first potion effect in
      * {@link dev.sbs.renderer.pipeline.pack.ItemContext#potionEffects()} resolved via
      * {@link RendererContext#potionEffectColor(String)} → {@link ItemOptions#getTintColor()} →
      * the water fallback ({@code #385DC6}).
-     *
-     * @param context the renderer context used to resolve potion effect colours
-     * @param engine the raster engine for texture resolution
-     * @param buffer the output pixel buffer
-     * @param baseTexture the bottle / shaft base texture id
-     * @param overlayTexture the liquid / head overlay texture id
-     * @param options the render options carrying potion colour precedence sources
-     * @return the composited buffer
      */
-    static @NotNull PixelBuffer renderPotionOverlay(
+    static @NotNull PixelBuffer composePotionOverlay(
         @NotNull RendererContext context,
-        @NotNull RasterEngine engine,
-        @NotNull PixelBuffer buffer,
+        @NotNull TextureEngine engine,
         @NotNull String baseTexture,
         @NotNull String overlayTexture,
         @NotNull ItemOptions options
     ) {
-        int size = options.getOutputSize();
         int tint = options.getPotionColor()
             .or(() -> options.getContext().potionEffects().stream()
                 .findFirst()
@@ -296,8 +310,51 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
         PixelBuffer base = engine.resolveTexture(baseTexture);
         PixelBuffer liquid = engine.resolveTexture(overlayTexture);
-        buffer.blitScaled(base, 0, 0, size, size);
-        buffer.blitTinted(liquid, 0, 0, tint, BlendMode.MULTIPLY);
+        PixelBuffer composite = PixelBuffer.create(base.width(), base.height());
+        composite.blit(base, 0, 0);
+        composite.blitTinted(liquid, 0, 0, tint, BlendMode.MULTIPLY);
+        return composite;
+    }
+
+    /**
+     * Dispatches to the matching {@code compose*} helper for the given {@link Item.Overlay}
+     * kind, returning a native-sized composite suitable for the thin-Z-slab HELD_3D path.
+     * Mirrors the {@link Gui2D} overlay switch so 2D and 3D paths share the same composition
+     * semantics.
+     */
+    static @NotNull PixelBuffer composeOverlayTexture(
+        @NotNull RendererContext context,
+        @NotNull TextureEngine engine,
+        @NotNull Item.Overlay overlay,
+        @NotNull ItemOptions options
+    ) {
+        return switch (overlay) {
+            case Item.Overlay.Leather leather ->
+                composeLeatherOverlay(engine, leather, options);
+            case Item.Overlay.Potion potion ->
+                composePotionOverlay(context, engine, potion.baseTexture(), potion.overlayTexture(), options);
+            case Item.Overlay.TippedArrow tippedArrow ->
+                composePotionOverlay(context, engine, tippedArrow.baseTexture(), tippedArrow.overlayTexture(), options);
+            case Item.Overlay.Firework firework ->
+                composeFireworkStar(engine, firework, options);
+        };
+    }
+
+    /**
+     * Composites a potion-shaped item onto {@code buffer} by scaling the native-size composite
+     * produced by {@link #composePotionOverlay} up to {@link ItemOptions#getOutputSize()}.
+     */
+    static @NotNull PixelBuffer renderPotionOverlay(
+        @NotNull RendererContext context,
+        @NotNull RasterEngine engine,
+        @NotNull PixelBuffer buffer,
+        @NotNull String baseTexture,
+        @NotNull String overlayTexture,
+        @NotNull ItemOptions options
+    ) {
+        PixelBuffer composite = composePotionOverlay(context, engine, baseTexture, overlayTexture, options);
+        int size = options.getOutputSize();
+        buffer.blitScaled(composite, 0, 0, size, size);
         return buffer;
     }
 
@@ -437,8 +494,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * the {@code minecraft:banner} block-entity model when it is registered, and shields fall
      * back to a thin slab using the composited shield texture.
      * <p>
-     * Overlay items (leather, potion, spawn egg, firework, tipped arrow) fall back to the GUI
-     * path for now - full 3D overlay composition lands in a later phase.
+     * Overlay items (leather, potion, tipped arrow, firework) composite their base + tinted
+     * overlay into a native-size {@link PixelBuffer} via the shared {@code compose*} helpers
+     * and feed the result into the same thin-Z-slab path as plain flat sprites, so the held
+     * view reflects the correct tint without a separate 3D composition stage.
      */
     @RequiredArgsConstructor
     public static final class Held3D implements Renderer<ItemOptions> {
@@ -449,16 +508,21 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         public @NotNull ImageData render(@NotNull ItemOptions options) {
             Item item = requireItem(this.context, options.getItemId());
 
-            // Overlay items composite via the 2D helper for now; 3D overlay support arrives later.
-            if (item.getOverlay().isPresent())
-                return new Gui2D(this.context).render(options);
-
             ModelEngine engine = new ModelEngine(this.context);
             PixelBuffer buffer = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
             int tint = options.getTintColor().orElse(ColorMath.WHITE);
 
             ConcurrentList<VisibleTriangle> triangles;
-            if (isBannerOrShield(options.getItemId())) {
+            if (item.getOverlay().isPresent()) {
+                PixelBuffer overlayTexture = composeOverlayTexture(this.context, engine, item.getOverlay().get(), options);
+                PixelBuffer[] faces = new PixelBuffer[]{ overlayTexture, overlayTexture, overlayTexture, overlayTexture, overlayTexture, overlayTexture };
+                triangles = GeometryKit.box(
+                    new Vector3f(-0.45f, -0.45f, -0.02f),
+                    new Vector3f(0.45f, 0.45f, 0.02f),
+                    faces,
+                    ColorMath.WHITE
+                );
+            } else if (isBannerOrShield(options.getItemId())) {
                 triangles = buildBannerOrShield3D(this.context, engine, options.getItemId(), options);
             } else if (!item.getModel().getElements().isEmpty()) {
                 // Element-based path - held block items and any custom item whose model JSON
