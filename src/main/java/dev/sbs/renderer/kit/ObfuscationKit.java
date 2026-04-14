@@ -1,4 +1,4 @@
-package dev.sbs.renderer.draw;
+package dev.sbs.renderer.kit;
 
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;

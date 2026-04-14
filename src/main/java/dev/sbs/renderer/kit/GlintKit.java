@@ -1,10 +1,10 @@
-package dev.sbs.renderer.draw;
+package dev.sbs.renderer.kit;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.BlendMode;
-import dev.simplified.image.ColorMath;
-import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.ColorMath;
+import dev.simplified.image.pixel.PixelBuffer;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 

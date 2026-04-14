@@ -1,15 +1,15 @@
-package dev.sbs.renderer.draw.armor;
+package dev.sbs.renderer.kit.armor;
 
-import dev.sbs.renderer.draw.GeometryKit;
 import dev.sbs.renderer.engine.TextureEngine;
 import dev.sbs.renderer.geometry.BlockFace;
 import dev.sbs.renderer.geometry.SkinFace;
 import dev.sbs.renderer.geometry.VisibleTriangle;
+import dev.sbs.renderer.kit.GeometryKit;
 import dev.sbs.renderer.tensor.Vector3f;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.ColorMath;
-import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.ColorMath;
+import dev.simplified.image.pixel.PixelBuffer;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -93,7 +93,7 @@ public class ArmorKit {
      * canvas at the given position and scale. The slot determines whether to use the humanoid
      * (layer 1) or humanoid_leggings (layer 2) texture atlas.
      *
-     * @param canvas the target canvas
+     * @param target the target buffer
      * @param part the body part whose south face to crop from the armor atlas
      * @param slot the armor slot that determines the texture layer
      * @param piece the armor piece to render

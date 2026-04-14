@@ -1,7 +1,8 @@
 package dev.sbs.renderer.pipeline;
 
 import com.google.gson.Gson;
-import dev.sbs.renderer.geometry.BiomeTintTarget;
+
+import dev.sbs.renderer.geometry.Biome;
 import dev.sbs.renderer.model.Block;
 import dev.sbs.renderer.model.ColorMap;
 import dev.sbs.renderer.model.Item;
@@ -16,7 +17,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
-import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.PixelBuffer;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -91,9 +92,9 @@ class PipelineRendererContextTest {
         ConcurrentList<Texture> textures = TexturePackLoader.scanTextures(packRoot, vanillaPack.getId());
         ConcurrentList<ColorMap> colorMaps = ColorMapLoader.load();
         ConcurrentMap<String, Block.Tint> blockTints = Concurrent.newMap();
-        blockTints.put("minecraft:grass_block", new Block.Tint(BiomeTintTarget.GRASS, Optional.empty()));
-        blockTints.put("minecraft:oak_leaves", new Block.Tint(BiomeTintTarget.FOLIAGE, Optional.empty()));
-        blockTints.put("minecraft:spruce_leaves", new Block.Tint(BiomeTintTarget.CONSTANT, Optional.of(0xFF619961)));
+        blockTints.put("minecraft:grass_block", new Block.Tint(Biome.TintTarget.GRASS, Optional.empty()));
+        blockTints.put("minecraft:oak_leaves", new Block.Tint(Biome.TintTarget.FOLIAGE, Optional.empty()));
+        blockTints.put("minecraft:spruce_leaves", new Block.Tint(Biome.TintTarget.CONSTANT, Optional.of(0xFF619961)));
 
         // Synthetic model maps. Each model references the fixture texture so resolveTexture
         // has a meaningful lookup target. Gson is used in place of reflective setters because
@@ -331,7 +332,7 @@ class PipelineRendererContextTest {
     @DisplayName("Block.tint.target is populated for known vanilla colormap-tinted blocks")
     void blockTintTargetPopulatedFromVanillaTintsTable() {
         Block grassBlock = context.findBlock("minecraft:grass_block").orElseThrow();
-        assertThat(grassBlock.getTint().target(), equalTo(BiomeTintTarget.GRASS));
+        assertThat(grassBlock.getTint().target(), equalTo(Biome.TintTarget.GRASS));
         assertThat(grassBlock.getTint().constant().isPresent(), is(false));
     }
 
@@ -339,7 +340,7 @@ class PipelineRendererContextTest {
     @DisplayName("Block.tint.constant is populated for known vanilla constant-tinted blocks")
     void blockTintConstantPopulatedFromVanillaTintsTable() {
         Block spruceLeaves = context.findBlock("minecraft:spruce_leaves").orElseThrow();
-        assertThat(spruceLeaves.getTint().target(), equalTo(BiomeTintTarget.CONSTANT));
+        assertThat(spruceLeaves.getTint().target(), equalTo(Biome.TintTarget.CONSTANT));
         assertThat(spruceLeaves.getTint().constant().isPresent(), is(true));
         assertThat(spruceLeaves.getTint().constant().get(), equalTo(0xFF619961));
     }
@@ -348,7 +349,7 @@ class PipelineRendererContextTest {
     @DisplayName("Untinted blocks (not in the tints table) keep tint.target=NONE")
     void blockTintTargetDefaultsForUntintedBlocks() {
         Block stone = context.findBlock("minecraft:stone").orElseThrow();
-        assertThat(stone.getTint().target(), equalTo(BiomeTintTarget.NONE));
+        assertThat(stone.getTint().target(), equalTo(Biome.TintTarget.NONE));
         assertThat(stone.getTint().constant().isPresent(), is(false));
     }
 

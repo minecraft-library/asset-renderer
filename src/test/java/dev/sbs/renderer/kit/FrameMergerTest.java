@@ -1,12 +1,12 @@
-package dev.sbs.renderer.draw;
+package dev.sbs.renderer.kit;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.AnimatedImageData;
 import dev.simplified.image.ImageData;
-import dev.simplified.image.ImageFrame;
-import dev.simplified.image.PixelBuffer;
-import dev.simplified.image.StaticImageData;
+import dev.simplified.image.data.AnimatedImageData;
+import dev.simplified.image.data.ImageFrame;
+import dev.simplified.image.data.StaticImageData;
+import dev.simplified.image.pixel.PixelBuffer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

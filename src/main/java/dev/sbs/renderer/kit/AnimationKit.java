@@ -1,7 +1,7 @@
-package dev.sbs.renderer.draw;
+package dev.sbs.renderer.kit;
 
 import dev.sbs.renderer.model.asset.AnimationData;
-import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.PixelBuffer;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 

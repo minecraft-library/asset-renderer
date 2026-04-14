@@ -1,7 +1,7 @@
-package dev.sbs.renderer.draw.armor;
+package dev.sbs.renderer.kit.armor;
 
 import dev.sbs.renderer.engine.TextureEngine;
-import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.PixelBuffer;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 

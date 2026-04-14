@@ -1,4 +1,4 @@
-package dev.sbs.renderer.text;
+package dev.sbs.renderer.text.font;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

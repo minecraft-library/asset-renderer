@@ -1,4 +1,4 @@
-package dev.sbs.renderer.draw;
+package dev.sbs.renderer.kit;
 
 import dev.sbs.renderer.geometry.VisibleTriangle;
 import dev.sbs.renderer.model.asset.ModelElement;
@@ -6,7 +6,7 @@ import dev.sbs.renderer.model.asset.ModelFace;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.PixelBuffer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
