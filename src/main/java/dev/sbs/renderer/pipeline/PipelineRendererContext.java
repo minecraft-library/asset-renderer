@@ -6,6 +6,7 @@ import dev.sbs.renderer.geometry.Biome;
 import dev.sbs.renderer.geometry.BlockFace;
 import dev.sbs.renderer.asset.Block;
 import dev.sbs.renderer.asset.BlockTag;
+import dev.sbs.renderer.asset.binding.BannerPattern;
 import dev.sbs.renderer.asset.pack.ColorMap;
 import dev.sbs.renderer.asset.Entity;
 import dev.sbs.renderer.asset.Item;
@@ -70,6 +71,7 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull ConcurrentMap<ColorMap.Type, ColorMap> colorMapIndex;
     private final @NotNull ConcurrentMap<String, BlockTag> blockTagIndex;
     private final @NotNull ConcurrentMap<String, Integer> potionEffectColors;
+    private final @NotNull ConcurrentMap<String, BannerPattern> bannerPatterns;
     private final @NotNull ImageFactory imageFactory = new ImageFactory();
     private final @NotNull ConcurrentMap<String, PixelBuffer> textureCache = Concurrent.newMap();
 
@@ -164,7 +166,7 @@ public final class PipelineRendererContext implements RendererContext {
             .resolve("minecraft")
             .resolve("textures");
 
-        return new PipelineRendererContext(textureRoot, packs, blockIndex, itemIndex, entityIndex, textureIndex, colorMapIndex, tagMap, result.getPotionEffectColors());
+        return new PipelineRendererContext(textureRoot, packs, blockIndex, itemIndex, entityIndex, textureIndex, colorMapIndex, tagMap, result.getPotionEffectColors(), result.getBannerPatterns());
     }
 
     @Override
@@ -238,6 +240,18 @@ public final class PipelineRendererContext implements RendererContext {
     @Override
     public @NotNull Optional<Integer> potionEffectColor(@NotNull String effectId) {
         return this.potionEffectColors.getOptional(effectId);
+    }
+
+    @Override
+    public @NotNull Optional<BannerPattern> findBannerPattern(@NotNull String patternId) {
+        return this.bannerPatterns.getOptional(patternId);
+    }
+
+    @Override
+    public @NotNull ConcurrentList<BannerPattern> knownBannerPatterns() {
+        ConcurrentList<BannerPattern> patterns = Concurrent.newList();
+        patterns.addAll(this.bannerPatterns.values());
+        return patterns;
     }
 
     /**

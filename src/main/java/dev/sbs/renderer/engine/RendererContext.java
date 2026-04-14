@@ -124,4 +124,27 @@ public interface RendererContext {
         return Optional.empty();
     }
 
+    /**
+     * Looks up a banner / shield pattern by its namespaced registry id
+     * (e.g. {@code "minecraft:creeper"}). Banner and shield rendering share the same pattern
+     * registry since MC 1.19.4; the pattern's {@code assetId} drives both atlas paths. The
+     * default returns empty so test stubs do not need to override it.
+     *
+     * @param patternId the namespaced pattern id
+     * @return the pattern descriptor, or empty when the pattern is unknown
+     */
+    default @NotNull Optional<dev.sbs.renderer.asset.binding.BannerPattern> findBannerPattern(@NotNull String patternId) {
+        return Optional.empty();
+    }
+
+    /**
+     * Returns every banner pattern the context knows about, in no guaranteed order. Used by
+     * bulk consumers (pattern pickers, preview grids) that want the whole set.
+     *
+     * @return the list of known patterns
+     */
+    default @NotNull ConcurrentList<dev.sbs.renderer.asset.binding.BannerPattern> knownBannerPatterns() {
+        return Concurrent.newList();
+    }
+
 }

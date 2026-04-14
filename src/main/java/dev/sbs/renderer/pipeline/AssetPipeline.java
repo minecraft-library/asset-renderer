@@ -2,6 +2,7 @@ package dev.sbs.renderer.pipeline;
 
 import dev.sbs.renderer.asset.Block;
 import dev.sbs.renderer.asset.BlockTag;
+import dev.sbs.renderer.asset.binding.BannerPattern;
 import dev.sbs.renderer.asset.pack.ColorMap;
 import dev.sbs.renderer.asset.pack.Texture;
 import dev.sbs.renderer.asset.pack.TexturePack;
@@ -10,6 +11,7 @@ import dev.sbs.renderer.asset.model.ItemModelData;
 import dev.sbs.renderer.pipeline.client.ClientJarDownloader;
 import dev.sbs.renderer.pipeline.client.ClientJarExtractor;
 import dev.sbs.renderer.pipeline.client.HttpFetcher;
+import dev.sbs.renderer.pipeline.loader.BannerPatternLoader;
 import dev.sbs.renderer.pipeline.loader.BlockStateLoader;
 import dev.sbs.renderer.pipeline.loader.BlockTagLoader;
 import dev.sbs.renderer.pipeline.loader.BlockTintsLoader;
@@ -63,10 +65,11 @@ public final class AssetPipeline {
         ConcurrentMap<String, String> itemDefinitions = ItemDefinitionLoader.load(packRoot);
         ConcurrentMap<String, BlockTag> blockTags = BlockTagLoader.load(packRoot);
         ConcurrentMap<String, Integer> potionEffectColors = PotionColorLoader.load();
+        ConcurrentMap<String, BannerPattern> bannerPatterns = BannerPatternLoader.load(packRoot);
 
         return new Result(packRoot, vanillaPack, textures, colorMaps, blockTints, blockModels, itemModels,
             blockStateResult.getVariants(), blockStateResult.getMultiparts(), itemDefinitions, blockTags,
-            potionEffectColors);
+            potionEffectColors, bannerPatterns);
     }
 
     /**
@@ -90,6 +93,9 @@ public final class AssetPipeline {
 
         /** Namespaced effect id to ARGB colour, parsed from {@code MobEffects} by the pipeline's potion colour loader. */
         private final @NotNull ConcurrentMap<String, Integer> potionEffectColors;
+
+        /** Namespaced banner pattern id to descriptor, parsed from {@code data/minecraft/banner_pattern/} by the banner pattern loader. */
+        private final @NotNull ConcurrentMap<String, BannerPattern> bannerPatterns;
 
     }
 

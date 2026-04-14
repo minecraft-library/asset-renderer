@@ -13,9 +13,11 @@ import dev.sbs.renderer.kit.GlintKit;
 import dev.sbs.renderer.kit.ItemBarKit;
 import dev.sbs.renderer.kit.TrimKit;
 import dev.sbs.renderer.asset.Item;
+import dev.sbs.renderer.asset.binding.DyeColor;
 import dev.sbs.renderer.asset.model.ModelElement;
 import dev.sbs.renderer.asset.model.ModelFace;
 import dev.sbs.renderer.asset.model.ModelTransform;
+import dev.sbs.renderer.kit.BannerKit;
 import dev.sbs.renderer.options.ItemOptions;
 import dev.sbs.renderer.tensor.Matrix4f;
 import dev.sbs.renderer.tensor.Vector3f;
@@ -108,6 +110,48 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
     /** The "water" potion colour - used as the fallback when no potion effect is supplied. */
     private static final int DEFAULT_POTION_ARGB = 0xFF385DC6;
+
+    /** Item id suffix that flags a banner: {@code minecraft:white_banner}, etc. */
+    private static final @NotNull String BANNER_SUFFIX = "_banner";
+
+    /** The sole shield item id. */
+    private static final @NotNull String SHIELD_ITEM_ID = "minecraft:shield";
+
+    /**
+     * Returns {@code true} when the item id is a banner or shield, which get composited through
+     * {@link BannerKit} rather than the standard layered-sprite or overlay paths.
+     */
+    static boolean isBannerOrShield(@NotNull String itemId) {
+        return itemId.equals(SHIELD_ITEM_ID) || itemId.endsWith(BANNER_SUFFIX);
+    }
+
+    /**
+     * Composites a banner or shield item onto {@code buffer}: dye-coloured field, then each
+     * {@link ItemOptions#getBannerLayers()} layer blitted as a tinted grayscale mask.
+     * {@link ItemOptions#getBaseDye()} drives the field colour - white when absent. Shields
+     * route through the {@code entity/shield/} atlas; banners through {@code entity/banner/}.
+     *
+     * @param engine the texture engine for pattern resolution
+     * @param buffer the output pixel buffer
+     * @param itemId the item id (used to pick the banner vs. shield atlas variant)
+     * @param options the render options carrying {@code baseDye} + {@code bannerLayers}
+     * @return the composited buffer
+     */
+    static @NotNull PixelBuffer renderBannerOrShield(
+        @NotNull TextureEngine engine,
+        @NotNull PixelBuffer buffer,
+        @NotNull String itemId,
+        @NotNull ItemOptions options
+    ) {
+        DyeColor baseDye = options.getBaseDye().orElse(DyeColor.Vanilla.WHITE);
+        BannerKit.Variant variant = itemId.equals(SHIELD_ITEM_ID)
+            ? BannerKit.Variant.SHIELD_ITEM
+            : BannerKit.Variant.BANNER_ITEM;
+
+        PixelBuffer composite = BannerKit.composite2D(engine, baseDye, options.getBannerLayers(), variant);
+        buffer.blitScaled(composite, 0, 0, options.getOutputSize(), options.getOutputSize());
+        return buffer;
+    }
 
     /**
      * Composites a leather-armor item onto {@code buffer}: base hide layer untinted, overlay dye
@@ -309,6 +353,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                     case Item.Overlay.Firework firework ->
                         renderFireworkStar(engine, buffer, firework, options);
                 }
+            } else if (isBannerOrShield(options.getItemId())) {
+                renderBannerOrShield(engine, buffer, options.getItemId(), options);
             } else {
                 renderStandardLayers(engine, buffer, item, options);
             }

@@ -1,6 +1,8 @@
 package dev.sbs.renderer.options;
 
 import dev.sbs.renderer.asset.binding.ArmorTrim;
+import dev.sbs.renderer.asset.binding.BannerLayer;
+import dev.sbs.renderer.asset.binding.DyeColor;
 import dev.sbs.renderer.pipeline.pack.ItemContext;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
@@ -64,6 +66,20 @@ public class ItemOptions {
     /** Override colour for firework stars. */
     @lombok.Builder.Default
     private final @NotNull Optional<Integer> fireworkColor = Optional.empty();
+
+    /**
+     * The base dye colour (banner field / shield base) for banner and shield items. Defaults
+     * to white when absent.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Optional<DyeColor> baseDye = Optional.empty();
+
+    /**
+     * Ordered list of pattern layers composited on top of the base dye for banner and shield
+     * items. Empty for plain banners / shields.
+     */
+    @lombok.Builder.Default
+    private final @NotNull ConcurrentList<BannerLayer> bannerLayers = Concurrent.newList();
 
     /** Total number of frames produced when the renderer generates animated output. */
     @lombok.Builder.Default
