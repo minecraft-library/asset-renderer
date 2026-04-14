@@ -2,8 +2,6 @@ package dev.sbs.renderer.pipeline.loader;
 
 import dev.sbs.renderer.asset.Item;
 import dev.sbs.renderer.asset.model.ItemModelData;
-import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentMap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -20,8 +18,6 @@ import static org.hamcrest.Matchers.is;
  */
 class OverlayResolverTest {
 
-    private static final ConcurrentMap<String, int[]> EMPTY_EGGS = Concurrent.newMap();
-
     private static @org.jetbrains.annotations.NotNull ItemModelData modelWithTextures(String... layerPairs) {
         ItemModelData model = new ItemModelData();
         for (int i = 0; i < layerPairs.length; i += 2)
@@ -36,7 +32,7 @@ class OverlayResolverTest {
             "layer0", "minecraft:item/leather_helmet",
             "layer1", "minecraft:item/leather_helmet_overlay"
         );
-        Optional<Item.Overlay> overlay = OverlayResolver.resolve("minecraft:leather_helmet", model, EMPTY_EGGS);
+        Optional<Item.Overlay> overlay = OverlayResolver.resolve("minecraft:leather_helmet", model);
         assertThat(overlay.isPresent(), is(true));
         assertThat(overlay.get(), is(instanceOf(Item.Overlay.Leather.class)));
         Item.Overlay.Leather leather = (Item.Overlay.Leather) overlay.get();
@@ -57,7 +53,7 @@ class OverlayResolverTest {
                 "layer0", "minecraft:item/" + id.substring("minecraft:".length()),
                 "layer1", "minecraft:item/" + id.substring("minecraft:".length()) + "_overlay"
             );
-            assertThat(id, OverlayResolver.resolve(id, model, EMPTY_EGGS).isPresent(), is(true));
+            assertThat(id, OverlayResolver.resolve(id, model).isPresent(), is(true));
         }
     }
 
@@ -67,7 +63,7 @@ class OverlayResolverTest {
         ItemModelData model = modelWithTextures(
             "layer0", "minecraft:item/diamond_helmet"
         );
-        assertThat(OverlayResolver.resolve("minecraft:diamond_helmet", model, EMPTY_EGGS).isPresent(), is(false));
+        assertThat(OverlayResolver.resolve("minecraft:diamond_helmet", model).isPresent(), is(false));
     }
 
     @Test
@@ -76,7 +72,7 @@ class OverlayResolverTest {
         ItemModelData model = modelWithTextures(
             "layer0", "minecraft:item/leather_helmet"
         );
-        assertThat(OverlayResolver.resolve("minecraft:leather_helmet", model, EMPTY_EGGS).isPresent(), is(false));
+        assertThat(OverlayResolver.resolve("minecraft:leather_helmet", model).isPresent(), is(false));
     }
 
     @Test
@@ -85,9 +81,9 @@ class OverlayResolverTest {
         ItemModelData model = modelWithTextures(
             "layer0", "minecraft:item/diamond_sword"
         );
-        assertThat(OverlayResolver.resolve("minecraft:diamond_sword", model, EMPTY_EGGS).isPresent(), is(false));
-        assertThat(OverlayResolver.resolve("minecraft:compass", model, EMPTY_EGGS).isPresent(), is(false));
-        assertThat(OverlayResolver.resolve("minecraft:apple", model, EMPTY_EGGS).isPresent(), is(false));
+        assertThat(OverlayResolver.resolve("minecraft:diamond_sword", model).isPresent(), is(false));
+        assertThat(OverlayResolver.resolve("minecraft:compass", model).isPresent(), is(false));
+        assertThat(OverlayResolver.resolve("minecraft:apple", model).isPresent(), is(false));
     }
 
     @Test
@@ -98,7 +94,7 @@ class OverlayResolverTest {
                 "layer0", "minecraft:item/potion_bottle_drinkable",
                 "layer1", "minecraft:item/potion_overlay"
             );
-            Optional<Item.Overlay> overlay = OverlayResolver.resolve(id, model, EMPTY_EGGS);
+            Optional<Item.Overlay> overlay = OverlayResolver.resolve(id, model);
             assertThat(id, overlay.isPresent(), is(true));
             assertThat(id, overlay.get(), is(instanceOf(Item.Overlay.Potion.class)));
             Item.Overlay.Potion potion = (Item.Overlay.Potion) overlay.get();
@@ -114,29 +110,41 @@ class OverlayResolverTest {
             "layer0", "minecraft:item/tipped_arrow_base",
             "layer1", "minecraft:item/tipped_arrow_head"
         );
-        Optional<Item.Overlay> overlay = OverlayResolver.resolve("minecraft:tipped_arrow", model, EMPTY_EGGS);
+        Optional<Item.Overlay> overlay = OverlayResolver.resolve("minecraft:tipped_arrow", model);
         assertThat(overlay.isPresent(), is(true));
         assertThat(overlay.get(), is(instanceOf(Item.Overlay.TippedArrow.class)));
     }
 
     @Test
-    @DisplayName("firework star and spawn egg are not yet resolved in Phase B")
-    void phaseBOnlyLeatherPlusPotions() {
-        // These items will resolve in Phase C. Phase B intentionally leaves them unresolved so
-        // their rendering remains unchanged from the current behaviour.
-        assertThat(OverlayResolver.resolve("minecraft:firework_star",
-            modelWithTextures("layer0", "minecraft:item/firework_star_small", "layer1", "minecraft:item/firework_star_overlay"),
-            EMPTY_EGGS).isPresent(), is(false));
-        assertThat(OverlayResolver.resolve("minecraft:pig_spawn_egg",
-            modelWithTextures("layer0", "minecraft:item/spawn_egg", "layer1", "minecraft:item/spawn_egg_overlay"),
-            EMPTY_EGGS).isPresent(), is(false));
+    @DisplayName("firework_star resolves to Firework overlay with the gray placeholder default")
+    void resolvesFireworkStar() {
+        ItemModelData model = modelWithTextures(
+            "layer0", "minecraft:item/firework_star",
+            "layer1", "minecraft:item/firework_star_overlay"
+        );
+        Optional<Item.Overlay> overlay = OverlayResolver.resolve("minecraft:firework_star", model);
+        assertThat(overlay.isPresent(), is(true));
+        assertThat(overlay.get(), is(instanceOf(Item.Overlay.Firework.class)));
+        Item.Overlay.Firework firework = (Item.Overlay.Firework) overlay.get();
+        assertThat(firework.defaultColor(), is(equalTo(Item.Overlay.FIREWORK_DEFAULT_ARGB)));
+    }
+
+    @Test
+    @DisplayName("spawn eggs render through the standard layered-sprite path (no overlay in MC 26.1)")
+    void spawnEggsNoLongerUseOverlays() {
+        // MC 26.1 ships pre-composited per-entity spawn egg PNGs; the old shared-texture
+        // two-color tinting is gone. Any item ending in _spawn_egg should return empty.
+        ItemModelData model = modelWithTextures(
+            "layer0", "minecraft:item/pig_spawn_egg"
+        );
+        assertThat(OverlayResolver.resolve("minecraft:pig_spawn_egg", model).isPresent(), is(false));
     }
 
     @Test
     @DisplayName("potion missing layer1 returns empty")
     void potionRequiresBothLayers() {
         ItemModelData model = modelWithTextures("layer0", "minecraft:item/potion_bottle_drinkable");
-        assertThat(OverlayResolver.resolve("minecraft:potion", model, EMPTY_EGGS).isPresent(), is(false));
+        assertThat(OverlayResolver.resolve("minecraft:potion", model).isPresent(), is(false));
     }
 
 }

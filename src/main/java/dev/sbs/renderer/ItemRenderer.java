@@ -136,6 +136,38 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     }
 
     /**
+     * Composites a firework star onto {@code buffer}: star body untinted, center overlay tinted
+     * via {@link BlendMode#MULTIPLY}. Tint precedence is
+     * {@link ItemOptions#getFireworkColor()} → {@link ItemOptions#getTintColor()} →
+     * {@link Item.Overlay.Firework#defaultColor()} ({@code #808080}, a visible placeholder).
+     * Vanilla firework star colours come entirely from the item's NBT; the caller resolves the
+     * NBT {@code Fireworks.Explosions[0].Colors[0]} and passes it as {@code fireworkColor}.
+     *
+     * @param engine the raster engine for texture resolution
+     * @param buffer the output pixel buffer
+     * @param overlay the firework overlay binding
+     * @param options the render options carrying firework colour precedence sources
+     * @return the composited buffer
+     */
+    static @NotNull PixelBuffer renderFireworkStar(
+        @NotNull RasterEngine engine,
+        @NotNull PixelBuffer buffer,
+        @NotNull Item.Overlay.Firework overlay,
+        @NotNull ItemOptions options
+    ) {
+        int size = options.getOutputSize();
+        int tint = options.getFireworkColor()
+            .or(options::getTintColor)
+            .orElse(overlay.defaultColor());
+
+        PixelBuffer base = engine.resolveTexture(overlay.baseTexture());
+        PixelBuffer center = engine.resolveTexture(overlay.overlayTexture());
+        buffer.blitScaled(base, 0, 0, size, size);
+        buffer.blitTinted(center, 0, 0, tint, BlendMode.MULTIPLY);
+        return buffer;
+    }
+
+    /**
      * Composites a potion-shaped item onto {@code buffer}: base bottle / shaft untinted, overlay
      * liquid / head tinted via {@link BlendMode#MULTIPLY}. Tint precedence is
      * {@link ItemOptions#getPotionColor()} → the first potion effect in
@@ -267,15 +299,15 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
             Optional<Item.Overlay> overlay = item.getOverlay();
             if (overlay.isPresent()) {
-                Item.Overlay value = overlay.get();
-                if (value instanceof Item.Overlay.Leather leather) {
-                    renderLeatherOverlay(engine, buffer, leather, options);
-                } else if (value instanceof Item.Overlay.Potion potion) {
-                    renderPotionOverlay(this.context, engine, buffer, potion.baseTexture(), potion.overlayTexture(), options);
-                } else if (value instanceof Item.Overlay.TippedArrow tippedArrow) {
-                    renderPotionOverlay(this.context, engine, buffer, tippedArrow.baseTexture(), tippedArrow.overlayTexture(), options);
-                } else {
-                    renderStandardLayers(engine, buffer, item, options);
+                switch (overlay.get()) {
+                    case Item.Overlay.Leather leather ->
+                        renderLeatherOverlay(engine, buffer, leather, options);
+                    case Item.Overlay.Potion potion ->
+                        renderPotionOverlay(this.context, engine, buffer, potion.baseTexture(), potion.overlayTexture(), options);
+                    case Item.Overlay.TippedArrow tippedArrow ->
+                        renderPotionOverlay(this.context, engine, buffer, tippedArrow.baseTexture(), tippedArrow.overlayTexture(), options);
+                    case Item.Overlay.Firework firework ->
+                        renderFireworkStar(engine, buffer, firework, options);
                 }
             } else {
                 renderStandardLayers(engine, buffer, item, options);

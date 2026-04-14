@@ -36,28 +36,24 @@ class ItemOverlayTest {
         Item.Overlay potion = new Item.Overlay.Potion("base", "overlay");
         Item.Overlay tippedArrow = new Item.Overlay.TippedArrow("base", "overlay");
         Item.Overlay firework = new Item.Overlay.Firework("base", "overlay", Item.Overlay.FIREWORK_DEFAULT_ARGB);
-        Item.Overlay spawnEgg = new Item.Overlay.SpawnEgg("base", "overlay", 0xFFAABBCC, 0xFF112233);
 
         assertThat(leather.kind(), is(Item.Overlay.Kind.LEATHER));
         assertThat(potion.kind(), is(Item.Overlay.Kind.POTION));
         assertThat(tippedArrow.kind(), is(Item.Overlay.Kind.TIPPED_ARROW));
         assertThat(firework.kind(), is(Item.Overlay.Kind.FIREWORK));
-        assertThat(spawnEgg.kind(), is(Item.Overlay.Kind.SPAWN_EGG));
     }
 
     @Test
     @DisplayName("overlay records preserve base and overlay texture references")
     void textureReferencesRoundTrip() {
-        Item.Overlay.SpawnEgg spawnEgg = new Item.Overlay.SpawnEgg(
-            "minecraft:item/spawn_egg",
-            "minecraft:item/spawn_egg_overlay",
-            0xFFF0A5A2,
-            0xFFDB635F
+        Item.Overlay.Firework firework = new Item.Overlay.Firework(
+            "minecraft:item/firework_star",
+            "minecraft:item/firework_star_overlay",
+            0xFFFF4400
         );
-        assertThat(spawnEgg.baseTexture(), is("minecraft:item/spawn_egg"));
-        assertThat(spawnEgg.overlayTexture(), is("minecraft:item/spawn_egg_overlay"));
-        assertThat(spawnEgg.defaultPrimary(), is(0xFFF0A5A2));
-        assertThat(spawnEgg.defaultSecondary(), is(0xFFDB635F));
+        assertThat(firework.baseTexture(), is("minecraft:item/firework_star"));
+        assertThat(firework.overlayTexture(), is("minecraft:item/firework_star_overlay"));
+        assertThat(firework.defaultColor(), is(0xFFFF4400));
     }
 
     @Test

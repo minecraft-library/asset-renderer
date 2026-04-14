@@ -53,14 +53,6 @@ public class ItemOptions {
     @lombok.Builder.Default
     private final @NotNull Optional<ArmorTrim.Color> trimColor = Optional.empty();
 
-    /** Primary overlay colour for items that support a two-colour tint (spawn egg primary). */
-    @lombok.Builder.Default
-    private final @NotNull Optional<Integer> overlayPrimary = Optional.empty();
-
-    /** Secondary overlay colour for items that support a two-colour tint (spawn egg secondary). */
-    @lombok.Builder.Default
-    private final @NotNull Optional<Integer> overlaySecondary = Optional.empty();
-
     /** Override colour for leather armour pieces. */
     @lombok.Builder.Default
     private final @NotNull Optional<Integer> leatherColor = Optional.empty();

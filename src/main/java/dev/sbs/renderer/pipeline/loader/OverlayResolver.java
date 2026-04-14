@@ -2,7 +2,6 @@ package dev.sbs.renderer.pipeline.loader;
 
 import dev.sbs.renderer.asset.Item;
 import dev.sbs.renderer.asset.model.ItemModelData;
-import dev.simplified.collection.ConcurrentMap;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -22,12 +21,12 @@ import java.util.Optional;
  * Base is {@code layer0} (glass bottle), overlay is {@code layer1} (liquid).</li>
  * <li>Tipped arrow: item id is {@code tipped_arrow}. Base is {@code layer0} (shaft), overlay is
  * {@code layer1} (head).</li>
- * <li>Firework star: item id is {@code firework_star}. Base is {@code layer0}, overlay is
- * {@code layer1}.</li>
- * <li>Spawn egg: item id ends in {@code _spawn_egg}. Defaults come from the
- * {@code spawnEggColors} map keyed by the entity id derived via {@code stripSuffix("_spawn_egg")}.
- * Entities missing from the map fall back to white × white.</li>
+ * <li>Firework star: item id is {@code firework_star}. Base is {@code layer0} (star body),
+ * overlay is {@code layer1} (center spot tinted by {@link dev.sbs.renderer.options.ItemOptions#getFireworkColor()}).</li>
  * </ul>
+ * Spawn eggs shipped pre-composited per-entity textures starting in MC 26.1 and no longer need
+ * overlay compositing; they render through the standard layered-sprite path.
+ * <p>
  * Items that don't match any rule return {@link Optional#empty()} and render through the
  * standard layered-sprite path.
  */
@@ -44,7 +43,6 @@ public class OverlayResolver {
     private static final @NotNull String SUFFIX_CHESTPLATE = "_chestplate";
     private static final @NotNull String SUFFIX_LEGGINGS   = "_leggings";
     private static final @NotNull String SUFFIX_BOOTS      = "_boots";
-    private static final @NotNull String SUFFIX_SPAWN_EGG  = "_spawn_egg";
 
     /**
      * Resolves an overlay for the given item, or returns empty when the item doesn't match any
@@ -52,14 +50,11 @@ public class OverlayResolver {
      *
      * @param itemId the namespaced item id, e.g. {@code "minecraft:leather_helmet"}
      * @param model the fully-resolved item model (parent chain already merged)
-     * @param spawnEggColors map of entity id to {@code [primary, secondary]} ARGB; pass an empty
-     *     map when spawn egg support is not yet wired
      * @return the synthesised overlay, or empty
      */
     public static @NotNull Optional<Item.Overlay> resolve(
         @NotNull String itemId,
-        @NotNull ItemModelData model,
-        @NotNull ConcurrentMap<String, int[]> spawnEggColors
+        @NotNull ItemModelData model
     ) {
         String layer0 = model.getTextures().get("layer0");
         String layer1 = model.getTextures().get("layer1");
@@ -72,6 +67,8 @@ public class OverlayResolver {
                 return Optional.of(new Item.Overlay.Potion(layer0, layer1));
             if (itemId.equals(ITEM_ID_TIPPED_ARROW))
                 return Optional.of(new Item.Overlay.TippedArrow(layer0, layer1));
+            if (itemId.equals(ITEM_ID_FIREWORK_STAR))
+                return Optional.of(new Item.Overlay.Firework(layer0, layer1, Item.Overlay.FIREWORK_DEFAULT_ARGB));
         }
 
         return Optional.empty();

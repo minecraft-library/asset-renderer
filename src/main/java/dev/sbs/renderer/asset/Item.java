@@ -69,8 +69,9 @@ public class Item {
 
     /**
      * A per-item overlay rendering rule. Vanilla uses a handful of shapes that all boil down to
-     * "one base texture + one overlay texture + a tint source," with spawn eggs as the odd sibling
-     * that tints both layers with separate colors.
+     * "one base texture + one overlay texture + a tint source." MC 26.1 spawn eggs switched to
+     * pre-composited per-entity textures and no longer need overlay compositing, so only four
+     * kinds remain.
      * <p>
      * The enclosing {@link Item} supplies identity ({@code id}), so overlay records only carry
      * per-shape metadata.
@@ -119,8 +120,7 @@ public class Item {
             LEATHER,
             POTION,
             TIPPED_ARROW,
-            FIREWORK,
-            SPAWN_EGG
+            FIREWORK
 
         }
 
@@ -197,30 +197,6 @@ public class Item {
             @Override
             public @NotNull Kind kind() {
                 return Kind.FIREWORK;
-            }
-
-        }
-
-        /**
-         * Spawn egg: base egg tinted with {@link #defaultPrimary()}, spots overlay tinted with
-         * {@link #defaultSecondary()}. Both defaults come from the vanilla {@code SpawnEggItem}
-         * color table keyed by entity id.
-         *
-         * @param baseTexture the egg base texture id (shared across all spawn eggs)
-         * @param overlayTexture the spots overlay texture id (shared across all spawn eggs)
-         * @param defaultPrimary the egg body ARGB
-         * @param defaultSecondary the spots ARGB
-         */
-        record SpawnEgg(
-            @NotNull String baseTexture,
-            @NotNull String overlayTexture,
-            int defaultPrimary,
-            int defaultSecondary
-        ) implements Overlay {
-
-            @Override
-            public @NotNull Kind kind() {
-                return Kind.SPAWN_EGG;
             }
 
         }

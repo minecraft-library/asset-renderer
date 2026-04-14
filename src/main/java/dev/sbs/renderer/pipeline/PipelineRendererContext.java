@@ -133,7 +133,6 @@ public final class PipelineRendererContext implements RendererContext {
         }
 
         ConcurrentMap<String, Item> itemIndex = Concurrent.newMap();
-        ConcurrentMap<String, int[]> spawnEggColors = Concurrent.newMap();
         for (Map.Entry<String, ItemModelData> itemEntry : result.getItemModels().entrySet()) {
             String modelId = itemEntry.getKey();
             ItemModelData model = itemEntry.getValue();
@@ -141,7 +140,7 @@ public final class PipelineRendererContext implements RendererContext {
             String name = localName(modelId);
             ConcurrentMap<String, String> textures = Concurrent.newMap();
             textures.putAll(model.getTextures());
-            Optional<Item.Overlay> overlay = OverlayResolver.resolve(itemId, model, spawnEggColors);
+            Optional<Item.Overlay> overlay = OverlayResolver.resolve(itemId, model);
             itemIndex.put(itemId, new Item(itemId, "minecraft", name, model, textures, 0, 64, overlay));
         }
 
