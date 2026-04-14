@@ -9,8 +9,10 @@ import org.jetbrains.annotations.NotNull;
  * <p>
  * Fixes the camera transform to a 30 degree pitch and 45 degree yaw, producing the familiar
  * three-quarter view used by block icons and player skulls across the wiki and most third-party
- * renderers. Callers should pass {@link PerspectiveParams#NONE} when calling {@link #rasterize}
- * to get a pure orthographic projection that matches vanilla icons pixel-for-pixel.
+ * renderers. Callers should pass {@link PerspectiveParams#ISOMETRIC_BLOCK} when calling
+ * {@link #rasterize} to get a pure orthographic projection tuned so a unit cube fills the
+ * output tile - or {@link PerspectiveParams#NONE} for a more conservative scale that matches
+ * the articulated-figure preset used by {@code PlayerRenderer}.
  */
 public class IsometricEngine extends ModelEngine {
 
@@ -26,13 +28,14 @@ public class IsometricEngine extends ModelEngine {
     }
 
     /**
-     * The default orthographic perspective for isometric rendering. Exposed so callers do not
-     * have to repeat {@link PerspectiveParams#NONE} at every call site.
+     * The default orthographic perspective for isometric rendering. Returns
+     * {@link PerspectiveParams#ISOMETRIC_BLOCK} so a unit cube fills the output tile without
+     * excess padding.
      *
      * @return the orthographic perspective params
      */
     public @NotNull PerspectiveParams defaultPerspective() {
-        return PerspectiveParams.NONE;
+        return PerspectiveParams.ISOMETRIC_BLOCK;
     }
 
     private static @NotNull Matrix4f buildCameraTransform() {

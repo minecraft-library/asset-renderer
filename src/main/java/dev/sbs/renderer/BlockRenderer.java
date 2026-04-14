@@ -150,7 +150,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             int ssaa = Math.max(1, options.getSupersample());
             int hiRes = options.getOutputSize() * ssaa;
             PixelBuffer buffer = PixelBuffer.create(hiRes, hiRes);
-            engine.rasterize(triangles, buffer, PerspectiveParams.NONE,
+            engine.rasterize(triangles, buffer, PerspectiveParams.ISOMETRIC_BLOCK,
                 options.getPitch(), options.getYaw() + guiYawDelta, options.getRoll());
 
             if (options.isAntiAlias())

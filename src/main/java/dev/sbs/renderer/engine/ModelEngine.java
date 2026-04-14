@@ -120,7 +120,7 @@ public class ModelEngine extends TextureEngine {
     ) {
         int width = buffer.width();
         int height = buffer.height();
-        float scale = Math.min(width, height) * 0.4f;
+        float scale = Math.min(width, height) * perspective.projectionScale();
         float offsetX = width * 0.5f;
         float offsetY = height * 0.5f;
 
