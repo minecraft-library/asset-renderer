@@ -42,7 +42,7 @@ public final class TextSegment extends ColorSegment {
             TextSegment textSegment = new TextSegment(jsonObject.get("text").getAsString());
             if (jsonObject.has("clickEvent")) textSegment.setClickEvent(Optional.of(ClickEvent.fromJson(jsonObject.get("clickEvent").getAsJsonObject())));
             if (jsonObject.has("hoverEvent")) textSegment.setHoverEvent(Optional.of(HoverEvent.fromJson(jsonObject.get("hoverEvent").getAsJsonObject())));
-            if (jsonObject.has("color")) textSegment.setColor(ChatColor.valueOf(jsonObject.get("color").getAsString().toUpperCase()));
+            if (jsonObject.has("color")) textSegment.setColor(ChatColor.fromJsonString(jsonObject.get("color").getAsString()));
             if (jsonObject.has("obfuscated")) textSegment.setObfuscated(jsonObject.get("obfuscated").getAsBoolean());
             if (jsonObject.has("italic")) textSegment.setItalic(jsonObject.get("italic").getAsBoolean());
             if (jsonObject.has("bold")) textSegment.setBold(jsonObject.get("bold").getAsBoolean());

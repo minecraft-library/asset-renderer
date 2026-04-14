@@ -38,15 +38,29 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public enum MinecraftFont {
 
-    REGULAR("Minecraft-Regular.otf", Style.REGULAR, 15.5f),
-    BOLD("Minecraft-Bold.otf", Style.BOLD, 20.0f),
-    ITALIC("Minecraft-Italic.otf", Style.ITALIC, 20.5f),
-    BOLD_ITALIC("Minecraft-BoldItalic.otf", Style.BOLD_ITALIC, 20.5f),
-    GALACTIC("Minecraft-Galactic.otf", Style.GALACTIC, 15.5f),
-    ILLAGERALT("Minecraft-Illageralt.otf", Style.ILLAGERALT, 15.5f);
+    // Size 16.0f = 2x vanilla mcPixel resolution. The cached bitmap-derived OTFs are
+    // designed on a unitsPerEm = 1024 grid where 128 units = 1 mcPixel, so 1 em corresponds
+    // to 8 mcPixels. AWT renders at 72 DPI, so the load size must be an integer multiple of
+    // 8 to keep every glyph on integer output pixel boundaries. See #MC_PIXEL_SCALE.
+    REGULAR("Minecraft-Regular.otf", Style.REGULAR, 16.0f),
+    BOLD("Minecraft-Bold.otf", Style.BOLD, 16.0f),
+    ITALIC("Minecraft-Italic.otf", Style.ITALIC, 16.0f),
+    BOLD_ITALIC("Minecraft-BoldItalic.otf", Style.BOLD_ITALIC, 16.0f),
+    GALACTIC("Minecraft-Galactic.otf", Style.GALACTIC, 16.0f),
+    ILLAGERALT("Minecraft-Illageralt.otf", Style.ILLAGERALT, 16.0f);
 
     private static final int EAGER_START = 32;
     private static final int EAGER_END = 126;
+
+    /**
+     * Output pixels per vanilla Minecraft pixel for the current native {@code 16.0f} load
+     * size. Driven by the {@code unitsPerEm = 1024}, {@code 128 units = 1 mcPixel} layout
+     * that the bitmap-to-OTF generator bakes into every font file. Callers positioning
+     * text-adjacent geometry (line spacing, tooltip padding, decoration offsets) should
+     * express their measurements in terms of this constant rather than hardcoding the
+     * {@code 2x} factor.
+     */
+    public static final int MC_PIXEL_SCALE = 2;
 
     /** The underlying AWT font, retained for lazy glyph rasterization. */
     private final @NotNull java.awt.Font actual;
@@ -68,7 +82,11 @@ public enum MinecraftFont {
         this.style = style;
         this.size = size;
         this.glyphCache = Concurrent.newMap();
-        this.fontMetrics = initAtlas(this, this.actual, this.glyphCache);
+        this.fontMetrics = MinecraftFontMetrics.capture(this);
+
+        // Eagerly rasterize printable ASCII so the first render has zero AWT overhead.
+        for (int cp = EAGER_START; cp <= EAGER_END; cp++)
+            this.glyphCache.put(cp, rasterizeGlyph(cp));
     }
 
     /**
@@ -93,65 +111,42 @@ public enum MinecraftFont {
      * @return the cached glyph data
      */
     public @NotNull GlyphData glyph(int codepoint) {
-        return this.glyphCache.computeIfAbsent(codepoint, cp -> rasterizeGlyph(this.actual, cp));
+        return this.glyphCache.computeIfAbsent(codepoint, this::rasterizeGlyph);
     }
 
     // --- init ---
 
     /**
-     * Captures font-level metrics and eagerly rasterizes printable ASCII glyphs into the cache.
-     * Called once per enum value during construction.
+     * Rasterizes a single glyph as white-on-transparent into a {@link PixelBuffer}. Queries the
+     * AWT {@link FontMetrics} and {@link java.awt.font.FontRenderContext} already captured on
+     * {@link #fontMetrics} rather than spinning up a throwaway scratch {@link Graphics2D} for
+     * every codepoint - only the per-glyph {@link BufferedImage} (sized to the visual bounds)
+     * is newly allocated.
      */
-    private static @NotNull MinecraftFontMetrics initAtlas(@NotNull MinecraftFont mcFont, @NotNull java.awt.Font font, @NotNull ConcurrentMap<Integer, GlyphData> cache) {
-        BufferedImage temp = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = temp.createGraphics();
-        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        g.setFont(font);
-        FontMetrics fm = g.getFontMetrics();
-
-        MinecraftFontMetrics metrics = new MinecraftFontMetrics(mcFont, fm.getAscent(), fm.getDescent(), fm.getHeight());
-
-        for (int cp = EAGER_START; cp <= EAGER_END; cp++)
-            cache.put(cp, rasterizeGlyph(font, cp));
-
-        g.dispose();
-        return metrics;
-    }
-
-    /**
-     * Rasterizes a single glyph as white-on-transparent into a {@link PixelBuffer}. Uses AWT
-     * to create a temporary image sized to the glyph's visual bounds, draws the character in
-     * white, and extracts the pixel data. The temporary image is discarded after extraction.
-     */
-    private static @NotNull GlyphData rasterizeGlyph(@NotNull java.awt.Font font, int codepoint) {
-        BufferedImage temp = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = temp.createGraphics();
-        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        g.setFont(font);
-        FontMetrics fm = g.getFontMetrics();
-
-        int advanceWidth = fm.charWidth(codepoint);
+    private @NotNull GlyphData rasterizeGlyph(int codepoint) {
+        int advanceWidth = this.fontMetrics.getAwtMetrics().charWidth(codepoint);
         char[] chars = Character.toChars(codepoint);
-        GlyphVector gv = font.createGlyphVector(g.getFontRenderContext(), chars);
+        GlyphVector gv = this.actual.createGlyphVector(this.fontMetrics.getAwtFrc(), chars);
         Rectangle2D bounds = gv.getVisualBounds();
-        g.dispose();
 
         int bw = Math.max(1, (int) Math.ceil(bounds.getWidth()));
         int bh = Math.max(1, (int) Math.ceil(bounds.getHeight()));
         int bearingX = (int) Math.floor(bounds.getX());
         int bearingY = (int) Math.floor(bounds.getY());
 
-        // Render the glyph into a correctly sized image
         BufferedImage glyphImage = new BufferedImage(bw, bh, BufferedImage.TYPE_INT_ARGB);
         Graphics2D gg = glyphImage.createGraphics();
-        gg.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        gg.setFont(font);
-        gg.setColor(Color.WHITE);
-        gg.drawString(new String(chars), -bearingX, -bearingY);
-        gg.dispose();
 
-        PixelBuffer bitmap = PixelBuffer.wrap(glyphImage);
-        return new GlyphData(bitmap, advanceWidth, bearingX, bearingY);
+        try {
+            gg.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            gg.setFont(this.actual);
+            gg.setColor(Color.WHITE);
+            gg.drawString(new String(chars), -bearingX, -bearingY);
+        } finally {
+            gg.dispose();
+        }
+
+        return new GlyphData(PixelBuffer.wrap(glyphImage), advanceWidth, bearingX, bearingY);
     }
 
     private static @NotNull java.awt.Font initFont(@NotNull String resourcePath, float size) throws FontException {

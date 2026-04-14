@@ -30,9 +30,31 @@ public class TextOptions {
     @lombok.Builder.Default
     private final int padding = 10;
 
-    /** Alpha channel for the LORE background and border, in {@code [0, 255]}. */
+    /**
+     * Alpha channel for the LORE background fill, in {@code [0, 255]}. Defaults to
+     * {@code 240} (0xF0), matching the vanilla tooltip background {@code 0xF0100010}
+     * constant used in every version from 1.8.9 through 26.1.
+     */
     @lombok.Builder.Default
-    private final int alpha = 245;
+    private final int backgroundAlpha = 240;
+
+    /**
+     * Alpha channel for the LORE border gradient, in {@code [0, 255]}. Defaults to
+     * {@code 80} (0x50), matching the vanilla tooltip border endpoints
+     * {@code 0x505000FF} and {@code 0x5028007F}.
+     */
+    @lombok.Builder.Default
+    private final int borderAlpha = 80;
+
+    /**
+     * Supersampling factor for text rendering. {@code 1} renders at the native pixel grid
+     * exactly as the font is rasterized; values {@code > 1} render the full canvas at
+     * {@code sampling x sampling} resolution and box-filter the result back down, which
+     * smooths the gradient border and resolves sub-pixel decoration geometry
+     * (strikethrough {@code y+3.5..y+4.5} and underline {@code y+8..y+9}).
+     */
+    @lombok.Builder.Default
+    private final int sampling = 1;
 
     /** Maximum characters per line before wrapping */
     @lombok.Builder.Default

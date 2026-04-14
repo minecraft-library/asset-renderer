@@ -158,6 +158,15 @@ tasks {
         args = if (itemId != null) listOf(itemId, renderSize) else listOf()
     }
 
+    register<JavaExec>("testLore") {
+        description = "Renders a pair of SkyBlock-style lore tooltips to cache/test-lore/ at the given supersampling factors (comma-separated, default '1,4')."
+        group = "tooling"
+        mainClass.set("dev.sbs.renderer.tooling.TestLoreMain")
+        classpath = sourceSets["main"].runtimeClasspath
+        val samples = project.findProperty("samples") as String?
+        args = if (samples != null) listOf(samples) else listOf()
+    }
+
     register<JavaExec>("fonts") {
         description = "Clones minecraft-library/font-generator into cache/font-generator, sets up a Python venv, and runs the generator against the given MC version (-PfontVersion=26.1 by default). Writes .otf files to cache/fonts/ - run processResources afterwards to copy them onto the classpath."
         group = "tooling"

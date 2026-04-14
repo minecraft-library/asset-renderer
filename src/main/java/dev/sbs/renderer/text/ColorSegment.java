@@ -127,7 +127,7 @@ public class ColorSegment {
                 current = segmentSupplier.get();
                 current.setColor(color);
             } else if (format == ChatFormat.RESET) {
-                current.setColor(ChatColor.WHITE);
+                current.setColor(ChatColor.Legacy.WHITE);
                 current.setObfuscated(false);
                 current.setBold(false);
                 current.setItalic(false);
@@ -197,7 +197,7 @@ public class ColorSegment {
 
     protected @NotNull StringBuilder toLegacyBuilder(char symbol) {
         StringBuilder builder = new StringBuilder();
-        this.getColor().ifPresent(color -> builder.append(symbol).append(color.getCode()));
+        this.getColor().ifPresent(color -> color.code().ifPresent(code -> builder.append(symbol).append(code)));
         if (this.isObfuscated()) builder.append(symbol).append(ChatFormat.OBFUSCATED.getCode());
         if (this.isBold()) builder.append(symbol).append(ChatFormat.BOLD.getCode());
         if (this.isStrikethrough()) builder.append(symbol).append(ChatFormat.STRIKETHROUGH.getCode());

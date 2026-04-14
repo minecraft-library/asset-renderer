@@ -7,7 +7,6 @@ import dev.sbs.renderer.text.font.MinecraftFont;
 import dev.sbs.renderer.text.font.MinecraftGraphics;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import dev.simplified.image.pixel.PixelGraphics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -28,15 +27,33 @@ import org.jetbrains.annotations.NotNull;
 @UtilityClass
 public class TextKit {
 
-    private static final int PIXEL_SIZE = 2;
+    private static final int PIXEL_SIZE = MinecraftFont.MC_PIXEL_SCALE;
+
+    /**
+     * Strikethrough top-edge offset from baseline, in the native 2x-rasterized font space.
+     * Matches vanilla's {@code y+3.5..y+4.5} 1-mc-pixel-tall rect when combined with
+     * {@link #STRIKETHROUGH_THICKNESS}.
+     */
     private static final int STRIKETHROUGH_OFFSET = -8;
+
+    /**
+     * Underline top-edge offset from baseline, in the native 2x-rasterized font space. Matches
+     * vanilla's {@code y+8..y+9} 1-mc-pixel-tall rect when combined with
+     * {@link #UNDERLINE_THICKNESS}.
+     */
     private static final int UNDERLINE_OFFSET = 2;
+
+    /** Strikethrough bar thickness in native 2x-rasterized font space (1 mcPixel). */
+    private static final int STRIKETHROUGH_THICKNESS = PIXEL_SIZE;
+
+    /** Underline bar thickness in native 2x-rasterized font space (1 mcPixel). */
+    private static final int UNDERLINE_THICKNESS = PIXEL_SIZE;
 
     // --- segment rendering ---
 
     /**
      * Draws all segments in a {@link LineSegment} at the given position with shadow and
-     * decoration support. Returns the total pixel width drawn.
+     * decoration support at the native pixel scale. Returns the total pixel width drawn.
      *
      * @param buffer the pixel buffer to draw onto
      * @param line the line of styled segments to render
@@ -53,17 +70,44 @@ public class TextKit {
         int defaultArgb,
         long frameSeed
     ) {
+        return drawLine(buffer, line, x, y, defaultArgb, frameSeed, 1);
+    }
+
+    /**
+     * Draws all segments in a {@link LineSegment} at the given position with shadow and
+     * decoration support, scaled uniformly by {@code scale} for supersampled rendering.
+     * Returns the total pixel width drawn in the output buffer.
+     *
+     * @param buffer the pixel buffer to draw onto
+     * @param line the line of styled segments to render
+     * @param x the starting X position (in output pixels)
+     * @param y the text baseline Y position (in output pixels)
+     * @param defaultArgb the fallback color for segments without an explicit color
+     * @param frameSeed the animation frame seed for obfuscation substitution
+     * @param scale the supersampling factor - glyphs, shadow offset and decoration geometry
+     *              all scale uniformly
+     * @return the total pixel width of the rendered line, in output pixels
+     */
+    public static int drawLine(
+        @NotNull PixelBuffer buffer,
+        @NotNull LineSegment line,
+        int x, int y,
+        int defaultArgb,
+        long frameSeed,
+        int scale
+    ) {
         int startX = x;
 
         for (ColorSegment segment : line.getSegments())
-            x += drawSegment(buffer, segment, x, y, defaultArgb, frameSeed);
+            x += drawSegment(buffer, segment, x, y, defaultArgb, frameSeed, scale);
 
         return x - startX;
     }
 
     /**
      * Draws a single {@link ColorSegment} at the given position with shadow, strikethrough,
-     * underline, and obfuscation support. Returns the pixel width of the rendered text.
+     * underline, and obfuscation support at native pixel scale. Returns the pixel width of
+     * the rendered text.
      *
      * @param buffer the pixel buffer to draw onto
      * @param segment the styled text segment to render
@@ -80,35 +124,79 @@ public class TextKit {
         int defaultArgb,
         long frameSeed
     ) {
+        return drawSegment(buffer, segment, x, y, defaultArgb, frameSeed, 1);
+    }
+
+    /**
+     * Draws a single {@link ColorSegment} at the given position scaled by {@code scale} for
+     * supersampled rendering. Glyph bitmaps are nearest-neighbor upscaled; the shadow offset
+     * and decoration rectangles are scaled by the same factor so they retain their 1-mcPixel
+     * thickness in the final (pre-downsample) output.
+     *
+     * @param buffer the pixel buffer to draw onto
+     * @param segment the styled text segment to render
+     * @param x the starting X position (in output pixels)
+     * @param y the text baseline Y position (in output pixels)
+     * @param defaultArgb the fallback color when the segment has no explicit color
+     * @param frameSeed the animation frame seed for obfuscation substitution
+     * @param scale the supersampling factor applied uniformly to glyphs, shadow offset and
+     *              decoration geometry
+     * @return the pixel width of the rendered segment in output pixels
+     */
+    public static int drawSegment(
+        @NotNull PixelBuffer buffer,
+        @NotNull ColorSegment segment,
+        int x, int y,
+        int defaultArgb,
+        long frameSeed,
+        int scale
+    ) {
         String text = segment.getText();
         if (text.isEmpty()) return 0;
 
         if (segment.isObfuscated())
             text = ObfuscationKit.substitute(text, frameSeed);
 
+        int s = Math.max(1, scale);
         MinecraftFont font = MinecraftFont.of(segment.fontStyle());
         int color = resolveColor(segment, defaultArgb);
         int shadow = shadowColor(segment, color);
-        int textWidth = measureText(text, font);
+        int textWidthNative = measureText(text, font);
+        int textWidth = textWidthNative * s;
 
-        PixelGraphics g = new MinecraftGraphics(buffer);
-        g.setFont(font.getActual());
+        int shadowOffset = PIXEL_SIZE * s;
+        int strikeThicknessScaled = STRIKETHROUGH_THICKNESS * s;
+        int underlineThicknessScaled = UNDERLINE_THICKNESS * s;
+        int strikeOffsetScaled = STRIKETHROUGH_OFFSET * s;
+        int underlineOffsetScaled = UNDERLINE_OFFSET * s;
+        int decoLeftPad = s; // 1 mcPixel of "first character" left padding (vanilla x-1)
+
+        // Vanilla 1.13+ rasters strikethrough as y+3.5..y+4.5 - a half-mcPixel down from the
+        // 1.8.9 integer y+3..y+4 row. At native sampling this half-pixel rounds to the same
+        // output row; at s >= 2 we add (s / 2) supersample pixels, which the box-downsample
+        // averages into a 2-row strikethrough with 50% top/bottom coverage - the anti-aliased
+        // sub-pixel position that matches modern clients. Underline stays integer because
+        // vanilla has always rendered it at y+8..y+9 with no fractional component.
+        int strikeSubPixelShift = s >= 2 ? s / 2 : 0;
+
+        MinecraftGraphics g = new MinecraftGraphics(buffer, s);
+        g.setFont(font);
 
         // Shadow pass
         g.setColor(new java.awt.Color(shadow, true));
-        g.drawString(text, x + PIXEL_SIZE, y + PIXEL_SIZE);
+        g.drawString(text, x + shadowOffset, y + shadowOffset);
         if (segment.isStrikethrough())
-            g.fillRect(x + PIXEL_SIZE - 1, y + PIXEL_SIZE + STRIKETHROUGH_OFFSET, textWidth, PIXEL_SIZE);
+            g.fillRect(x + shadowOffset - decoLeftPad, y + shadowOffset + strikeOffsetScaled + strikeSubPixelShift, textWidth, strikeThicknessScaled);
         if (segment.isUnderlined())
-            g.fillRect(x + PIXEL_SIZE, y + PIXEL_SIZE + UNDERLINE_OFFSET, textWidth + 1, PIXEL_SIZE);
+            g.fillRect(x + shadowOffset, y + shadowOffset + underlineOffsetScaled, textWidth + decoLeftPad, underlineThicknessScaled);
 
         // Main pass
         g.setColor(new java.awt.Color(color, true));
         g.drawString(text, x, y);
         if (segment.isStrikethrough())
-            g.fillRect(x - 1, y + STRIKETHROUGH_OFFSET, textWidth, PIXEL_SIZE);
+            g.fillRect(x - decoLeftPad, y + strikeOffsetScaled + strikeSubPixelShift, textWidth, strikeThicknessScaled);
         if (segment.isUnderlined())
-            g.fillRect(x, y + UNDERLINE_OFFSET, textWidth + 1, PIXEL_SIZE);
+            g.fillRect(x, y + underlineOffsetScaled, textWidth + decoLeftPad, underlineThicknessScaled);
 
         return textWidth;
     }
@@ -145,8 +233,8 @@ public class TextKit {
         if (text.isEmpty()) return 0;
 
         int shadowArgb = darken(argb);
-        PixelGraphics g = new MinecraftGraphics(buffer, scale);
-        g.setFont(font.getActual());
+        MinecraftGraphics g = new MinecraftGraphics(buffer, scale);
+        g.setFont(font);
 
         g.setColor(new java.awt.Color(shadowArgb, true));
         g.drawString(text, x + PIXEL_SIZE, y + PIXEL_SIZE);
@@ -211,13 +299,13 @@ public class TextKit {
      */
     public static int resolveColor(@NotNull ColorSegment segment, int defaultArgb) {
         return segment.getColor()
-            .map(ChatColor::getRGB)
+            .map(ChatColor::rgb)
             .orElse(defaultArgb);
     }
 
     /**
      * Returns the shadow color for a segment as packed ARGB. Uses the
-     * {@link ChatColor#getBackgroundRGB()} when available, otherwise darkens the given color
+     * {@link ChatColor#backgroundRgb()} when available, otherwise darkens the given color
      * to 25% brightness.
      *
      * @param segment the segment
@@ -226,7 +314,7 @@ public class TextKit {
      */
     public static int shadowColor(@NotNull ColorSegment segment, int fallbackArgb) {
         return segment.getColor()
-            .map(ChatColor::getBackgroundRGB)
+            .map(ChatColor::backgroundRgb)
             .orElseGet(() -> darken(fallbackArgb));
     }
 

@@ -68,6 +68,29 @@ public class MinecraftGraphics extends PixelGraphics {
     }
 
     private void blitGlyph(@NotNull MinecraftFont.GlyphData glyph, int x, int y) {
+        // TODO: supersampled glyph edge rendering.
+        //
+        // Today every pixel of the cached glyph bitmap is nearest-neighbor replicated by
+        // `this.scale` into an s*s block. When TextRenderer renders at supersampling > 1 and
+        // box-filters the result back down, those replicated blocks collapse unchanged - the
+        // scale+downsample round-trip is the identity transform, so SSAA produces no actual
+        // glyph anti-aliasing.
+        //
+        // To make supersampling smooth glyph edges, rasterize an HD bitmap on demand (AWT at
+        // `font.getSize2D() * this.scale`) and blit directly into the buffer at 1:1, letting
+        // the downsample pass mix it with neighboring pixels. Cache keyed by
+        // (codepoint, scale) on MinecraftFont.GlyphData - lazily populated to keep ASCII warm
+        // at scale=1 and avoid rasterizing the full BMP upfront for every scale.
+        //
+        // Touch points when ready:
+        //   - MinecraftFont.rasterizeGlyph(Font, int, int scale) returns an HD GlyphData
+        //   - MinecraftFont.glyph(int, int scale) looks up the scale-specific cache
+        //   - this method picks the HD bitmap and skips the inner sx/sy replication loop
+        //
+        // Decorations (strikethrough/underline) already use sub-pixel positioning when
+        // `scale >= 2` (see TextKit#drawSegment), so once glyphs go HD the whole tooltip will
+        // benefit from SSAA uniformly.
+
         PixelBuffer bitmap = glyph.bitmap();
         int bw = bitmap.width();
         int bh = bitmap.height();
@@ -112,6 +135,23 @@ public class MinecraftGraphics extends PixelGraphics {
     }
 
     // --- font and metrics ---
+
+    /**
+     * Selects a {@link MinecraftFont} variant directly, bypassing AWT's style-bit round trip.
+     * <p>
+     * Custom-loaded OTF fonts always report {@link Font#PLAIN} from {@link Font#getStyle()}
+     * because AWT does not introspect the typeface file - style is whatever was set with
+     * {@code deriveFont(style)} (never, for us). Going through {@link #setFont(Font)} would
+     * therefore always resolve to {@link MinecraftFont#REGULAR}. Callers that already know
+     * which variant they want (e.g. the text pipeline picking BOLD from a
+     * {@link dev.sbs.renderer.text.ColorSegment}'s {@code &l} flag) should use this method
+     * instead.
+     *
+     * @param font the Minecraft font variant to use for subsequent {@link #drawString} calls
+     */
+    public void setFont(@NotNull MinecraftFont font) {
+        this.currentMcFont = font;
+    }
 
     @Override
     public void setFont(@NotNull Font font) {
