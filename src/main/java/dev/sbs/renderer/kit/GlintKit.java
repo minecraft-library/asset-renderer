@@ -2,7 +2,7 @@ package dev.sbs.renderer.kit;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.BlendMode;
+import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lombok.experimental.UtilityClass;

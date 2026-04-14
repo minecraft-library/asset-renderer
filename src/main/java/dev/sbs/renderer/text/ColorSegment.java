@@ -1,6 +1,7 @@
 package dev.sbs.renderer.text;
 
 import com.google.gson.JsonObject;
+import dev.sbs.renderer.text.font.MinecraftFont;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.util.StringUtil;

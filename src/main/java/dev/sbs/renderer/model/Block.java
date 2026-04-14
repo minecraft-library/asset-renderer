@@ -1,7 +1,8 @@
 package dev.sbs.renderer.model;
 
 import com.google.gson.JsonObject;
-import dev.sbs.renderer.geometry.BiomeTintTarget;
+
+import dev.sbs.renderer.geometry.Biome;
 import dev.sbs.renderer.model.asset.BlockModelData;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
@@ -62,7 +63,7 @@ public class Block implements JpaModel {
     private @NotNull ConcurrentList<String> tags = Concurrent.newList();
 
     @Column(name = "tint", nullable = false)
-    private @NotNull Tint tint = new Tint(BiomeTintTarget.NONE, Optional.empty());
+    private @NotNull Tint tint = new Tint(Biome.TintTarget.NONE, Optional.empty());
 
     /** Entity model fallback for blocks rendered by tile entity renderers (chests, signs, beds, etc.). */
     @Column(name = "entity_mapping")
@@ -93,13 +94,13 @@ public class Block implements JpaModel {
      * The biome tint binding for a block, selecting which colormap (or hardcoded constant) the
      * renderer samples for tinted faces.
      *
-     * @param target the tint source - {@link BiomeTintTarget#NONE NONE} for untinted blocks,
-     *     {@link BiomeTintTarget#CONSTANT CONSTANT} for a hardcoded ARGB value, or a colormap
-     *     target like {@link BiomeTintTarget#GRASS GRASS} / {@link BiomeTintTarget#FOLIAGE FOLIAGE}
+     * @param target the tint source - {@link Biome.TintTarget#NONE NONE} for untinted blocks,
+     *     {@link Biome.TintTarget#CONSTANT CONSTANT} for a hardcoded ARGB value, or a colormap
+     *     target like {@link Biome.TintTarget#GRASS GRASS} / {@link Biome.TintTarget#FOLIAGE FOLIAGE}
      * @param constant the hardcoded ARGB value when target is {@code CONSTANT}
      */
     @GsonType
-    public record Tint(@NotNull BiomeTintTarget target, @NotNull Optional<Integer> constant) {}
+    public record Tint(@NotNull Biome.TintTarget target, @NotNull Optional<Integer> constant) {}
 
     /**
      * Maps a block to an entity model for fallback rendering. Blocks whose vanilla geometry is

@@ -8,9 +8,9 @@ import dev.sbs.renderer.tensor.Vector2f;
 import dev.sbs.renderer.tensor.Vector3f;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.BlendMode;
-import dev.simplified.image.ColorMath;
-import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.BlendMode;
+import dev.simplified.image.pixel.ColorMath;
+import dev.simplified.image.pixel.PixelBuffer;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;

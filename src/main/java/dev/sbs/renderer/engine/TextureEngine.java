@@ -1,17 +1,17 @@
 package dev.sbs.renderer.engine;
 
-import dev.sbs.renderer.draw.AnimationKit;
 import dev.sbs.renderer.exception.RendererException;
 import dev.sbs.renderer.geometry.Biome;
-import dev.sbs.renderer.geometry.BiomeTintTarget;
+
+import dev.sbs.renderer.kit.AnimationKit;
 import dev.sbs.renderer.model.ColorMap;
 import dev.sbs.renderer.model.asset.AnimationData;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.ConcurrentSet;
-import dev.simplified.image.BlendMode;
-import dev.simplified.image.ColorMath;
-import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.BlendMode;
+import dev.simplified.image.pixel.ColorMath;
+import dev.simplified.image.pixel.PixelBuffer;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -102,8 +102,8 @@ public class TextureEngine implements RenderEngine {
      * <p>
      * Priority order:
      * <ol>
-     * <li>{@link BiomeTintTarget#NONE} returns opaque white - no tint applied.</li>
-     * <li>{@link BiomeTintTarget#CONSTANT} defers to the block DTO's {@code tintConstant} and
+     * <li>{@link Biome.TintTarget#NONE} returns opaque white - no tint applied.</li>
+     * <li>{@link Biome.TintTarget#CONSTANT} defers to the block DTO's {@code tintConstant} and
      * should not be routed through this method.</li>
      * <li>The biome's matching hardcoded override (badlands, cherry grove, etc.).</li>
      * <li>A sample from the corresponding {@link ColorMap} at {@code (temperature, downfall)}.</li>
@@ -114,8 +114,8 @@ public class TextureEngine implements RenderEngine {
      * @param biome the biome context
      * @return the sampled ARGB colour
      */
-    public int sampleBiomeTint(@NotNull BiomeTintTarget target, @NotNull Biome biome) {
-        if (target == BiomeTintTarget.NONE || target == BiomeTintTarget.CONSTANT)
+    public int sampleBiomeTint(@NotNull Biome.TintTarget target, @NotNull Biome biome) {
+        if (target == Biome.TintTarget.NONE || target == Biome.TintTarget.CONSTANT)
             return ColorMath.WHITE;
 
         Optional<Integer> override = switch (target) {
@@ -175,11 +175,11 @@ public class TextureEngine implements RenderEngine {
         return PixelBuffer.of(result, w, h);
     }
 
-    private int applyModifier(int argb, @NotNull Biome.GrassColorModifier modifier, @NotNull BiomeTintTarget target) {
+    private int applyModifier(int argb, @NotNull Biome.GrassColorModifier modifier, @NotNull Biome.TintTarget target) {
         // Vanilla only runs the grass colour modifier on the grass tint - foliage and dry foliage
         // pass through untouched. See {@code Biome.getGrassColor} vs {@code Biome.getFoliageColor}
         // in the MC 26.1 client source: only the former invokes {@code grassColorModifier.modifyColor}.
-        if (target != BiomeTintTarget.GRASS) return argb;
+        if (target != Biome.TintTarget.GRASS) return argb;
 
         return switch (modifier) {
             case NONE -> argb;
@@ -208,10 +208,6 @@ public class TextureEngine implements RenderEngine {
         };
     }
 
-    /**
-     * Unpacks the row-major ARGB bytes from a {@link ColorMap} entity into an {@code int[]}
-     * colormap suitable for {@link ColorKit#sampleColormap(int[], float, float)}.
-     */
     /**
      * Walks a {@code #variable} chain until it terminates at a concrete namespaced id or fails
      * to resolve. Handles bare variable names (vanilla shorthand where {@code "texture": "all"}
@@ -270,6 +266,10 @@ public class TextureEngine implements RenderEngine {
         return colormap[y * 256 + x];
     }
 
+    /**
+     * Unpacks the row-major ARGB bytes from a {@link ColorMap} entity into an {@code int[]}
+     * colormap suitable for {@link #sampleColormap(int[], float, float)}.
+     */
     private int @NotNull [] unpackColorMap(@NotNull ColorMap map) {
         byte[] bytes = map.getPixels();
         int[] pixels = new int[bytes.length / 4];

@@ -1,6 +1,6 @@
 package dev.sbs.renderer.geometry;
 
-import dev.sbs.renderer.draw.GeometryKit;
+import dev.sbs.renderer.kit.GeometryKit;
 import dev.sbs.renderer.tensor.Vector2f;
 import dev.sbs.renderer.tensor.Vector3f;
 import lombok.Getter;

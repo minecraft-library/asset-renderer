@@ -1,6 +1,6 @@
 package dev.sbs.renderer;
 
-import dev.sbs.renderer.draw.FrameMerger;
+import dev.sbs.renderer.kit.FrameMerger;
 import dev.sbs.renderer.options.Layout;
 import dev.sbs.renderer.options.LayoutOptions;
 import dev.simplified.collection.Concurrent;

@@ -2,7 +2,7 @@ package dev.sbs.renderer.pipeline;
 
 import dev.sbs.renderer.engine.RendererContext;
 import dev.sbs.renderer.engine.TextureEngine;
-import dev.sbs.renderer.geometry.BiomeTintTarget;
+import dev.sbs.renderer.geometry.Biome;
 import dev.sbs.renderer.geometry.BlockFace;
 import dev.sbs.renderer.model.Block;
 import dev.sbs.renderer.model.BlockTag;
@@ -25,7 +25,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageFactory;
-import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.PixelBuffer;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
@@ -49,7 +49,7 @@ import java.util.Optional;
  * variable map is preserved under its original keys for models that rely on the
  * {@code all} / {@code side} / {@code particle} fallback chain.
  * <p>
- * Biome colormaps and the {@link BiomeTintTarget} of every known vanilla tinted block are wired
+ * Biome colormaps and the {@link Biome.TintTarget} of every known vanilla tinted block are wired
  * through to render time: {@link ToolingColorMaps.Parser} loads {@code grass.png}, {@code foliage.png},
  * and {@code dry_foliage.png} into {@link ColorMap} entities, and {@link BlockTintsLoader}
  * supplies the {@code minecraft:grass_block} - to - {@code GRASS} (etc.) mapping verified against
@@ -121,7 +121,7 @@ public final class PipelineRendererContext implements RendererContext {
             textures.putAll(modelToUse.getTextures());
             flattenElementFaces(modelToUse, textures);
 
-            Block.Tint tint = tints.getOrDefault(blockId, new Block.Tint(BiomeTintTarget.NONE, Optional.empty()));
+            Block.Tint tint = tints.getOrDefault(blockId, new Block.Tint(Biome.TintTarget.NONE, Optional.empty()));
             ConcurrentMap<String, Block.Variant> variants = variantMap.getOrDefault(blockId, Concurrent.newMap());
             Optional<Block.Multipart> multipart = Optional.ofNullable(multipartMap.get(blockId));
             ConcurrentList<String> tags = reverseTagIndex.getOrDefault(blockId, Concurrent.newList());

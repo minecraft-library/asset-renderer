@@ -1,19 +1,19 @@
 package dev.sbs.renderer;
 
-import dev.sbs.renderer.draw.EntityGeometryKit;
-import dev.sbs.renderer.draw.GlintKit;
-import dev.sbs.renderer.draw.armor.ArmorKit;
 import dev.sbs.renderer.engine.ModelEngine;
 import dev.sbs.renderer.engine.RenderEngine;
 import dev.sbs.renderer.engine.RendererContext;
 import dev.sbs.renderer.geometry.PerspectiveParams;
 import dev.sbs.renderer.geometry.VisibleTriangle;
+import dev.sbs.renderer.kit.EntityGeometryKit;
+import dev.sbs.renderer.kit.GlintKit;
+import dev.sbs.renderer.kit.armor.ArmorKit;
 import dev.sbs.renderer.model.Entity;
 import dev.sbs.renderer.model.asset.EntityModelData;
 import dev.sbs.renderer.options.EntityOptions;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
-import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.PixelBuffer;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 

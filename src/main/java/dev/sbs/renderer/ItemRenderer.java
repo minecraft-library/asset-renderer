@@ -1,10 +1,5 @@
 package dev.sbs.renderer;
 
-import dev.sbs.renderer.draw.Canvas;
-import dev.sbs.renderer.draw.GeometryKit;
-import dev.sbs.renderer.draw.GlintKit;
-import dev.sbs.renderer.draw.ItemBarKit;
-import dev.sbs.renderer.draw.armor.TrimKit;
 import dev.sbs.renderer.engine.ModelEngine;
 import dev.sbs.renderer.engine.RasterEngine;
 import dev.sbs.renderer.engine.RenderEngine;
@@ -13,6 +8,10 @@ import dev.sbs.renderer.engine.TextureEngine;
 import dev.sbs.renderer.exception.RendererException;
 import dev.sbs.renderer.geometry.PerspectiveParams;
 import dev.sbs.renderer.geometry.VisibleTriangle;
+import dev.sbs.renderer.kit.GeometryKit;
+import dev.sbs.renderer.kit.GlintKit;
+import dev.sbs.renderer.kit.ItemBarKit;
+import dev.sbs.renderer.kit.armor.TrimKit;
 import dev.sbs.renderer.model.Item;
 import dev.sbs.renderer.model.asset.ModelElement;
 import dev.sbs.renderer.model.asset.ModelFace;
@@ -20,13 +19,13 @@ import dev.sbs.renderer.model.asset.ModelTransform;
 import dev.sbs.renderer.options.ItemOptions;
 import dev.sbs.renderer.tensor.Matrix4f;
 import dev.sbs.renderer.tensor.Vector3f;
-import dev.sbs.renderer.text.MinecraftFont;
+import dev.sbs.renderer.text.font.MinecraftFont;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.image.BlendMode;
-import dev.simplified.image.ColorMath;
 import dev.simplified.image.ImageData;
-import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.BlendMode;
+import dev.simplified.image.pixel.ColorMath;
+import dev.simplified.image.pixel.PixelBuffer;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
@@ -150,11 +149,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             if (options.isShowDamageBar())
                 ItemBarKit.drawDamageBar(buffer, options.getContext().damage(), item.getMaxDurability());
 
-            if (options.getContext().stackCount() > 1) {
-                Canvas canvas = Canvas.wrap(buffer);
-                ItemBarKit.drawStackCount(canvas, options.getContext().stackCount(), MinecraftFont.REGULAR);
-                canvas.disposeGraphics();
-            }
+            if (options.getContext().stackCount() > 1)
+                ItemBarKit.drawStackCount(buffer, options.getContext().stackCount(), MinecraftFont.REGULAR);
 
             return finaliseFrames(buffer, engine, options);
         }

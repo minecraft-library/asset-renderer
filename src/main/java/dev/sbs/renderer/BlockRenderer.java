@@ -3,17 +3,17 @@ package dev.sbs.renderer;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import dev.sbs.renderer.draw.EntityGeometryKit;
-import dev.sbs.renderer.draw.GeometryKit;
 import dev.sbs.renderer.engine.IsometricEngine;
 import dev.sbs.renderer.engine.RasterEngine;
 import dev.sbs.renderer.engine.RenderEngine;
 import dev.sbs.renderer.engine.RendererContext;
 import dev.sbs.renderer.engine.TextureEngine;
 import dev.sbs.renderer.exception.RendererException;
-import dev.sbs.renderer.geometry.BiomeTintTarget;
+import dev.sbs.renderer.geometry.Biome;
 import dev.sbs.renderer.geometry.PerspectiveParams;
 import dev.sbs.renderer.geometry.VisibleTriangle;
+import dev.sbs.renderer.kit.EntityGeometryKit;
+import dev.sbs.renderer.kit.GeometryKit;
 import dev.sbs.renderer.model.Block;
 import dev.sbs.renderer.model.asset.BlockModelData;
 import dev.sbs.renderer.model.asset.ModelElement;
@@ -25,10 +25,10 @@ import dev.sbs.renderer.tensor.Vector3f;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.image.BlendMode;
-import dev.simplified.image.ColorMath;
 import dev.simplified.image.ImageData;
-import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.BlendMode;
+import dev.simplified.image.pixel.ColorMath;
+import dev.simplified.image.pixel.PixelBuffer;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -79,17 +79,17 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
     /**
      * Resolves the ARGB tint applied to a block's faces based on its
-     * {@link BiomeTintTarget}. Returns opaque white for {@code NONE}, the block's hardcoded
+     * {@link Biome.TintTarget}. Returns opaque white for {@code NONE}, the block's hardcoded
      * constant for {@code CONSTANT}, or a colormap sample for {@code GRASS} / {@code FOLIAGE} /
      * {@code DRY_FOLIAGE}.
      */
     static int resolveBlockTint(@NotNull RendererContext context, @NotNull Block block, @NotNull BlockOptions options) {
-        BiomeTintTarget target = block.getTint().target();
+        Biome.TintTarget target = block.getTint().target();
 
-        if (target == BiomeTintTarget.NONE)
+        if (target == Biome.TintTarget.NONE)
             return ColorMath.WHITE;
 
-        if (target == BiomeTintTarget.CONSTANT)
+        if (target == Biome.TintTarget.CONSTANT)
             return block.getTint().constant().orElse(ColorMath.WHITE);
 
         return new IsometricEngine(context).sampleBiomeTint(target, options.getBiome());

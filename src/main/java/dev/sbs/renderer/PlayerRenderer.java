@@ -1,10 +1,5 @@
 package dev.sbs.renderer;
 
-import dev.sbs.renderer.draw.GeometryKit;
-import dev.sbs.renderer.draw.GlintKit;
-import dev.sbs.renderer.draw.armor.ArmorKit;
-import dev.sbs.renderer.draw.armor.ArmorPiece;
-import dev.sbs.renderer.draw.armor.ArmorTrim;
 import dev.sbs.renderer.engine.IsometricEngine;
 import dev.sbs.renderer.engine.RasterEngine;
 import dev.sbs.renderer.engine.RenderEngine;
@@ -14,16 +9,21 @@ import dev.sbs.renderer.geometry.BlockFace;
 import dev.sbs.renderer.geometry.PerspectiveParams;
 import dev.sbs.renderer.geometry.SkinFace;
 import dev.sbs.renderer.geometry.VisibleTriangle;
+import dev.sbs.renderer.kit.GeometryKit;
+import dev.sbs.renderer.kit.GlintKit;
+import dev.sbs.renderer.kit.armor.ArmorKit;
+import dev.sbs.renderer.kit.armor.ArmorPiece;
+import dev.sbs.renderer.kit.armor.ArmorTrim;
 import dev.sbs.renderer.options.PlayerOptions;
 import dev.sbs.renderer.pipeline.client.HttpFetcher;
 import dev.sbs.renderer.tensor.Vector3f;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.image.ColorMath;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
-import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.ColorMath;
+import dev.simplified.image.pixel.PixelBuffer;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 

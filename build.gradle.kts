@@ -37,7 +37,7 @@ dependencies {
     // Simplified Libraries (extracted to github.com/simplified-dev)
     api("com.github.simplified-dev:collections:master-SNAPSHOT")
     api("com.github.simplified-dev:utils:master-SNAPSHOT")
-    api("com.github.simplified-dev:image:master-SNAPSHOT")
+    api("com.github.simplified-dev:image:4b01c06")
     api("com.github.simplified-dev:gson-extras:master-SNAPSHOT")
     api("com.github.simplified-dev:client:master-SNAPSHOT")
     api("com.github.simplified-dev:persistence:master-SNAPSHOT")

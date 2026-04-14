@@ -1,7 +1,7 @@
 package dev.sbs.renderer.engine;
 
-import dev.simplified.image.BlendMode;
-import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.BlendMode;
+import dev.simplified.image.pixel.PixelBuffer;
 import org.jetbrains.annotations.NotNull;
 
 /**

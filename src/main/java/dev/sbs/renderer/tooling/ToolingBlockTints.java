@@ -4,7 +4,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.sbs.renderer.exception.AssetPipelineException;
-import dev.sbs.renderer.geometry.BiomeTintTarget;
+import dev.sbs.renderer.geometry.Biome;
 import dev.sbs.renderer.model.Block;
 import dev.sbs.renderer.pipeline.AssetPipelineOptions;
 import dev.sbs.renderer.pipeline.client.ClientJarDownloader;
@@ -131,7 +131,7 @@ public final class ToolingBlockTints {
      *
      * @see BlockTintsLoader
      * @see Block.Tint
-     * @see BiomeTintTarget
+     * @see Biome.TintTarget
      */
     @UtilityClass
     static class Parser {
@@ -147,24 +147,24 @@ public final class ToolingBlockTints {
 
         /**
          * Maps the short name of a {@code BlockTintSources.X()} factory method to the corresponding
-         * {@link BiomeTintTarget}. Sources whose tint depends on dynamic per-block state - water,
+         * {@link Biome.TintTarget}. Sources whose tint depends on dynamic per-block state - water,
          * waterParticles, redstone, stem - are not in the map and are silently dropped because the
          * atlas renderer cannot resolve them at static-render time.
          */
-        private static final @NotNull ConcurrentMap<String, BiomeTintTarget> SUPPORTED_SOURCES = buildSupportedSources();
+        private static final @NotNull ConcurrentMap<String, Biome.TintTarget> SUPPORTED_SOURCES = buildSupportedSources();
 
-        private static @NotNull ConcurrentMap<String, BiomeTintTarget> buildSupportedSources() {
-            ConcurrentMap<String, BiomeTintTarget> map = Concurrent.newMap();
+        private static @NotNull ConcurrentMap<String, Biome.TintTarget> buildSupportedSources() {
+            ConcurrentMap<String, Biome.TintTarget> map = Concurrent.newMap();
             // GRASS colormap sources - the BlockTintSources helper distinguishes several grass
             // variants (grass, grassBlock with its top-face-only sampling, sugarCane's biome
             // modifier, doubleTallGrass for large_fern / tall_grass), all of which sample the grass
             // colormap at render time. For atlas rendering they collapse to the same target.
-            map.put("grass", BiomeTintTarget.GRASS);
-            map.put("grassBlock", BiomeTintTarget.GRASS);
-            map.put("sugarCane", BiomeTintTarget.GRASS);
-            map.put("doubleTallGrass", BiomeTintTarget.GRASS);
-            map.put("foliage", BiomeTintTarget.FOLIAGE);
-            map.put("dryFoliage", BiomeTintTarget.DRY_FOLIAGE);
+            map.put("grass", Biome.TintTarget.GRASS);
+            map.put("grassBlock", Biome.TintTarget.GRASS);
+            map.put("sugarCane", Biome.TintTarget.GRASS);
+            map.put("doubleTallGrass", Biome.TintTarget.GRASS);
+            map.put("foliage", Biome.TintTarget.FOLIAGE);
+            map.put("dryFoliage", Biome.TintTarget.DRY_FOLIAGE);
             return map;
         }
 
@@ -338,18 +338,18 @@ public final class ToolingBlockTints {
             int constantCount,
             @NotNull ConcurrentList<String> blocks
         ) {
-            BiomeTintTarget target;
+            Biome.TintTarget target;
             Optional<Integer> constant = Optional.empty();
 
             if (sourceMethod.equals("constant")) {
-                target = BiomeTintTarget.CONSTANT;
+                target = Biome.TintTarget.CONSTANT;
                 // BlockTintSources.constant(int, int) is the two-colour overload used for lily_pad:
                 // first int is the in-world colour, second is the GUI default. Atlas rendering is
                 // item-perspective, so the GUI default wins.
                 int argb = constantCount == 2 ? constantB : constantA;
                 constant = Optional.of(argb);
             } else {
-                BiomeTintTarget mapped = SUPPORTED_SOURCES.get(sourceMethod);
+                Biome.TintTarget mapped = SUPPORTED_SOURCES.get(sourceMethod);
                 if (mapped == null) return;
                 target = mapped;
             }

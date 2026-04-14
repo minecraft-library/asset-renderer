@@ -5,11 +5,11 @@ import dev.sbs.renderer.tensor.Vector2f;
 import dev.sbs.renderer.tensor.Vector3f;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.AnimatedImageData;
 import dev.simplified.image.ImageData;
-import dev.simplified.image.ImageFrame;
-import dev.simplified.image.PixelBuffer;
-import dev.simplified.image.StaticImageData;
+import dev.simplified.image.data.AnimatedImageData;
+import dev.simplified.image.data.ImageFrame;
+import dev.simplified.image.data.StaticImageData;
+import dev.simplified.image.pixel.PixelBuffer;
 import org.jetbrains.annotations.NotNull;
 
 /**

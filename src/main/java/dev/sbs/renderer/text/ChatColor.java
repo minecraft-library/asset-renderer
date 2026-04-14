@@ -58,6 +58,15 @@ public enum ChatColor {
     }
 
     /**
+     * The background (shadow) color for this chat color as a packed ARGB int.
+     *
+     * @return the background ARGB value
+     */
+    public int getBackgroundRGB() {
+        return this.backgroundColor.getRGB();
+    }
+
+    /**
      * Returns the next color in ordinal order, wrapping around to {@link #BLACK}.
      */
     public @NotNull ChatColor getNextColor() {

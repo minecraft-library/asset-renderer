@@ -6,7 +6,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import dev.sbs.renderer.exception.AssetPipelineException;
-import dev.sbs.renderer.geometry.BiomeTintTarget;
+import dev.sbs.renderer.geometry.Biome;
 import dev.sbs.renderer.model.Block;
 import dev.sbs.renderer.tooling.ToolingBlockTints;
 import dev.simplified.collection.Concurrent;
@@ -69,7 +69,7 @@ public class BlockTintsLoader {
             for (JsonElement element : entries) {
                 JsonObject entry = element.getAsJsonObject();
                 String blockId = entry.get("block").getAsString();
-                BiomeTintTarget target = BiomeTintTarget.valueOf(entry.get("target").getAsString());
+                Biome.TintTarget target = Biome.TintTarget.valueOf(entry.get("target").getAsString());
                 Optional<Integer> constant = entry.has("constant")
                     ? Optional.of(Integer.parseUnsignedInt(entry.get("constant").getAsString().substring(2), 16))
                     : Optional.empty();

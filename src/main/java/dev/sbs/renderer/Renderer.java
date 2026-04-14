@@ -1,8 +1,8 @@
 package dev.sbs.renderer;
 
-import dev.simplified.image.AnimatedImageData;
 import dev.simplified.image.ImageData;
-import dev.simplified.image.StaticImageData;
+import dev.simplified.image.data.AnimatedImageData;
+import dev.simplified.image.data.StaticImageData;
 import org.jetbrains.annotations.NotNull;
 
 /**

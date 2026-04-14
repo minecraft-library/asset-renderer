@@ -8,7 +8,7 @@ import dev.sbs.renderer.model.TexturePack;
 import dev.sbs.renderer.model.asset.AnimationData;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.PixelBuffer;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;

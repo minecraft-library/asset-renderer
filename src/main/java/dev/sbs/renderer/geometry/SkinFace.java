@@ -1,9 +1,9 @@
 package dev.sbs.renderer.geometry;
 
-import dev.sbs.renderer.draw.GeometryKit;
+import dev.sbs.renderer.kit.GeometryKit;
 import dev.sbs.renderer.tensor.Vector2f;
 import dev.sbs.renderer.tensor.Vector3f;
-import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.PixelBuffer;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.experimental.Accessors;
@@ -185,7 +185,7 @@ public enum SkinFace {
 
     /**
      * Returns the four local-space vertices for the given face on this body part's box, in the
-     * TL, TR, BR, BL CCW order used by {@link dev.sbs.renderer.draw.GeometryKit}.
+     * TL, TR, BR, BL CCW order used by {@link dev.sbs.renderer.kit.GeometryKit}.
      *
      * @param face the cube face direction
      * @return the four face corner positions in local model space

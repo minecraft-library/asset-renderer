@@ -1,12 +1,12 @@
 package dev.sbs.renderer;
 
-import dev.sbs.renderer.draw.FrameMerger;
 import dev.sbs.renderer.engine.RenderEngine;
+import dev.sbs.renderer.kit.FrameMerger;
 import dev.sbs.renderer.options.GridOptions;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
-import dev.simplified.image.PixelBuffer;
+import dev.simplified.image.pixel.PixelBuffer;
 import org.jetbrains.annotations.NotNull;
 
 /**

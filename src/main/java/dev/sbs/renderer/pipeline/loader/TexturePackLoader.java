@@ -163,7 +163,7 @@ public class TexturePackLoader {
     /**
      * Normalises the vanilla {@code frames} array into a list of {@link AnimationData.FrameEntry}
      * records. Bare-integer entries become frames with the default ({@code -1}) duration marker
-     * which {@link dev.sbs.renderer.draw.AnimationKit AnimationKit} resolves against the
+     * which {@link dev.sbs.renderer.kit.AnimationKit AnimationKit} resolves against the
      * animation-level {@code frametime}; explicit objects are read directly.
      */
     private static @NotNull ConcurrentList<AnimationData.FrameEntry> parseFrames(@NotNull JsonArray elements) {
