@@ -12,12 +12,14 @@ import dev.sbs.renderer.kit.GeometryKit;
 import dev.sbs.renderer.kit.GlintKit;
 import dev.sbs.renderer.kit.ItemBarKit;
 import dev.sbs.renderer.kit.TrimKit;
+import dev.sbs.renderer.asset.Entity;
 import dev.sbs.renderer.asset.Item;
 import dev.sbs.renderer.asset.binding.DyeColor;
 import dev.sbs.renderer.asset.model.ModelElement;
 import dev.sbs.renderer.asset.model.ModelFace;
 import dev.sbs.renderer.asset.model.ModelTransform;
 import dev.sbs.renderer.kit.BannerKit;
+import dev.sbs.renderer.kit.EntityGeometryKit;
 import dev.sbs.renderer.options.ItemOptions;
 import dev.sbs.renderer.tensor.Matrix4f;
 import dev.sbs.renderer.tensor.Vector3f;
@@ -151,6 +153,55 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         PixelBuffer composite = BannerKit.composite2D(engine, baseDye, options.getBannerLayers(), variant);
         buffer.blitScaled(composite, 0, 0, options.getOutputSize(), options.getOutputSize());
         return buffer;
+    }
+
+    /**
+     * Composites a fresh banner / shield texture via {@link BannerKit#composite2D} and folds it
+     * into the 3D held-item render path. Banners route through the
+     * {@code minecraft:banner} block-entity model (single flag bone) when the context knows it,
+     * so the HELD_3D view shows proper 3D flag geometry rather than a flat sprite. Shields - and
+     * banners when the block-entity model is absent - fall back to the existing thin-Z-slab
+     * treatment so callers still get a 3D frame with the correct pattern stack applied.
+     *
+     * @param context the renderer context used to resolve the banner entity model
+     * @param engine the model engine that also serves as the {@link TextureEngine} for pattern
+     *     resolution
+     * @param itemId the item id (used to pick the banner vs. shield atlas variant)
+     * @param options the render options carrying {@code baseDye} + {@code bannerLayers}
+     * @return the list of triangles ready for rasterisation
+     */
+    static @NotNull ConcurrentList<VisibleTriangle> buildBannerOrShield3D(
+        @NotNull RendererContext context,
+        @NotNull ModelEngine engine,
+        @NotNull String itemId,
+        @NotNull ItemOptions options
+    ) {
+        DyeColor baseDye = options.getBaseDye().orElse(DyeColor.Vanilla.WHITE);
+        boolean isShield = itemId.equals(SHIELD_ITEM_ID);
+        BannerKit.Variant variant = isShield
+            ? BannerKit.Variant.SHIELD_BLOCK_3D
+            : BannerKit.Variant.BANNER_BLOCK_3D;
+
+        PixelBuffer composite = BannerKit.composite2D(engine, baseDye, options.getBannerLayers(), variant);
+
+        // Banners get real 3D geometry when the block-entity model is registered; shields and
+        // banners-without-model fall back to a thin Z-slab using the composited texture so the
+        // HELD_3D view still reflects the pattern stack. Using the composited texture for all
+        // six slab faces mirrors the flat-sprite fallback already used for other item kinds.
+        if (!isShield) {
+            Optional<Entity> bannerEntity = context.findEntity("minecraft:banner");
+            if (bannerEntity.isPresent()) {
+                return EntityGeometryKit.buildTriangles(bannerEntity.get().getModel(), composite).triangles();
+            }
+        }
+
+        PixelBuffer[] faces = new PixelBuffer[]{ composite, composite, composite, composite, composite, composite };
+        return GeometryKit.box(
+            new Vector3f(-0.45f, -0.45f, -0.02f),
+            new Vector3f(0.45f, 0.45f, 0.02f),
+            faces,
+            ColorMath.WHITE
+        );
     }
 
     /**
@@ -381,8 +432,13 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * Both branches feed the same {@link ModelEngine#rasterize} overload with the item's
      * {@code thirdperson_righthand} display transform.
      * <p>
-     * Overlay items fall back to the GUI path for now - the 3D overlay composition lands in a
-     * later phase.
+     * Banner and shield items route through {@link ItemRenderer#buildBannerOrShield3D} so the
+     * HELD_3D view shows the composited pattern stack - banners get the real flag geometry from
+     * the {@code minecraft:banner} block-entity model when it is registered, and shields fall
+     * back to a thin slab using the composited shield texture.
+     * <p>
+     * Overlay items (leather, potion, spawn egg, firework, tipped arrow) fall back to the GUI
+     * path for now - full 3D overlay composition lands in a later phase.
      */
     @RequiredArgsConstructor
     public static final class Held3D implements Renderer<ItemOptions> {
@@ -402,7 +458,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             int tint = options.getTintColor().orElse(ColorMath.WHITE);
 
             ConcurrentList<VisibleTriangle> triangles;
-            if (!item.getModel().getElements().isEmpty()) {
+            if (isBannerOrShield(options.getItemId())) {
+                triangles = buildBannerOrShield3D(this.context, engine, options.getItemId(), options);
+            } else if (!item.getModel().getElements().isEmpty()) {
                 // Element-based path - held block items and any custom item whose model JSON
                 // supplies 'elements'. The element bounds and face bindings are fully resolved
                 // at pipeline time.
