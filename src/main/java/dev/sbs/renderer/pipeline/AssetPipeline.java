@@ -16,6 +16,7 @@ import dev.sbs.renderer.pipeline.loader.BlockTintsLoader;
 import dev.sbs.renderer.pipeline.loader.ColorMapLoader;
 import dev.sbs.renderer.pipeline.loader.ItemDefinitionLoader;
 import dev.sbs.renderer.pipeline.loader.ModelResolver;
+import dev.sbs.renderer.pipeline.loader.PotionColorLoader;
 import dev.sbs.renderer.pipeline.loader.TexturePackLoader;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -61,9 +62,11 @@ public final class AssetPipeline {
         BlockStateLoader.LoadResult blockStateResult = BlockStateLoader.load(packRoot);
         ConcurrentMap<String, String> itemDefinitions = ItemDefinitionLoader.load(packRoot);
         ConcurrentMap<String, BlockTag> blockTags = BlockTagLoader.load(packRoot);
+        ConcurrentMap<String, Integer> potionEffectColors = PotionColorLoader.load();
 
         return new Result(packRoot, vanillaPack, textures, colorMaps, blockTints, blockModels, itemModels,
-            blockStateResult.getVariants(), blockStateResult.getMultiparts(), itemDefinitions, blockTags);
+            blockStateResult.getVariants(), blockStateResult.getMultiparts(), itemDefinitions, blockTags,
+            potionEffectColors);
     }
 
     /**
@@ -84,6 +87,9 @@ public final class AssetPipeline {
         private final @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts;
         private final @NotNull ConcurrentMap<String, String> itemDefinitions;
         private final @NotNull ConcurrentMap<String, BlockTag> blockTags;
+
+        /** Namespaced effect id to ARGB colour, parsed from {@code MobEffects} by the pipeline's potion colour loader. */
+        private final @NotNull ConcurrentMap<String, Integer> potionEffectColors;
 
     }
 

@@ -67,7 +67,20 @@ public class OverlayResolver {
         if (isLeatherArmor(itemId, layer0) && layer1 != null)
             return Optional.of(new Item.Overlay.Leather(layer0, layer1, Item.Overlay.LEATHER_DEFAULT_ARGB));
 
+        if (layer1 != null && layer0 != null) {
+            if (isPotion(itemId))
+                return Optional.of(new Item.Overlay.Potion(layer0, layer1));
+            if (itemId.equals(ITEM_ID_TIPPED_ARROW))
+                return Optional.of(new Item.Overlay.TippedArrow(layer0, layer1));
+        }
+
         return Optional.empty();
+    }
+
+    private static boolean isPotion(@NotNull String itemId) {
+        return itemId.equals(ITEM_ID_POTION)
+            || itemId.equals(ITEM_ID_SPLASH_POTION)
+            || itemId.equals(ITEM_ID_LINGERING_POTION);
     }
 
     /**

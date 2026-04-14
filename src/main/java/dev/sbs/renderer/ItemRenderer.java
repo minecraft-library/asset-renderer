@@ -106,6 +106,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         return RenderEngine.output(glintFrames, frameDelayMs);
     }
 
+    /** The "water" potion colour - used as the fallback when no potion effect is supplied. */
+    private static final int DEFAULT_POTION_ARGB = 0xFF385DC6;
+
     /**
      * Composites a leather-armor item onto {@code buffer}: base hide layer untinted, overlay dye
      * layer tinted via {@link BlendMode#MULTIPLY}. Tint precedence is
@@ -129,6 +132,45 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         PixelBuffer dye = engine.resolveTexture(overlay.overlayTexture());
         buffer.blitScaled(base, 0, 0, size, size);
         buffer.blitTinted(dye, 0, 0, tint, BlendMode.MULTIPLY);
+        return buffer;
+    }
+
+    /**
+     * Composites a potion-shaped item onto {@code buffer}: base bottle / shaft untinted, overlay
+     * liquid / head tinted via {@link BlendMode#MULTIPLY}. Tint precedence is
+     * {@link ItemOptions#getPotionColor()} → the first potion effect in
+     * {@link dev.sbs.renderer.pipeline.pack.ItemContext#potionEffects()} resolved via
+     * {@link RendererContext#potionEffectColor(String)} → {@link ItemOptions#getTintColor()} →
+     * the water fallback ({@code #385DC6}).
+     *
+     * @param context the renderer context used to resolve potion effect colours
+     * @param engine the raster engine for texture resolution
+     * @param buffer the output pixel buffer
+     * @param baseTexture the bottle / shaft base texture id
+     * @param overlayTexture the liquid / head overlay texture id
+     * @param options the render options carrying potion colour precedence sources
+     * @return the composited buffer
+     */
+    static @NotNull PixelBuffer renderPotionOverlay(
+        @NotNull RendererContext context,
+        @NotNull RasterEngine engine,
+        @NotNull PixelBuffer buffer,
+        @NotNull String baseTexture,
+        @NotNull String overlayTexture,
+        @NotNull ItemOptions options
+    ) {
+        int size = options.getOutputSize();
+        int tint = options.getPotionColor()
+            .or(() -> options.getContext().potionEffects().stream()
+                .findFirst()
+                .flatMap(context::potionEffectColor))
+            .or(options::getTintColor)
+            .orElse(DEFAULT_POTION_ARGB);
+
+        PixelBuffer base = engine.resolveTexture(baseTexture);
+        PixelBuffer liquid = engine.resolveTexture(overlayTexture);
+        buffer.blitScaled(base, 0, 0, size, size);
+        buffer.blitTinted(liquid, 0, 0, tint, BlendMode.MULTIPLY);
         return buffer;
     }
 
@@ -224,8 +266,17 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             PixelBuffer buffer = engine.createBuffer(options.getOutputSize(), options.getOutputSize());
 
             Optional<Item.Overlay> overlay = item.getOverlay();
-            if (overlay.isPresent() && overlay.get() instanceof Item.Overlay.Leather leather) {
-                renderLeatherOverlay(engine, buffer, leather, options);
+            if (overlay.isPresent()) {
+                Item.Overlay value = overlay.get();
+                if (value instanceof Item.Overlay.Leather leather) {
+                    renderLeatherOverlay(engine, buffer, leather, options);
+                } else if (value instanceof Item.Overlay.Potion potion) {
+                    renderPotionOverlay(this.context, engine, buffer, potion.baseTexture(), potion.overlayTexture(), options);
+                } else if (value instanceof Item.Overlay.TippedArrow tippedArrow) {
+                    renderPotionOverlay(this.context, engine, buffer, tippedArrow.baseTexture(), tippedArrow.overlayTexture(), options);
+                } else {
+                    renderStandardLayers(engine, buffer, item, options);
+                }
             } else {
                 renderStandardLayers(engine, buffer, item, options);
             }

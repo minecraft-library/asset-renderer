@@ -111,4 +111,17 @@ public interface RendererContext {
         return Concurrent.newList();
     }
 
+    /**
+     * Returns the ARGB display colour for a potion effect, used by potion-bottle and tipped-arrow
+     * rendering to tint the liquid / head layer. The default returns empty so test stubs do not
+     * need to override it; the production context reads the bundled
+     * {@code /renderer/potion_colors.json} snapshot.
+     *
+     * @param effectId the namespaced effect id, e.g. {@code "minecraft:strength"}
+     * @return the effect colour, or empty when the effect is unknown
+     */
+    default @NotNull Optional<Integer> potionEffectColor(@NotNull String effectId) {
+        return Optional.empty();
+    }
+
 }

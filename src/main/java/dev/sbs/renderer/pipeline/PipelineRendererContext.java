@@ -69,6 +69,7 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull ConcurrentMap<String, Texture> textureIndex;
     private final @NotNull ConcurrentMap<ColorMap.Type, ColorMap> colorMapIndex;
     private final @NotNull ConcurrentMap<String, BlockTag> blockTagIndex;
+    private final @NotNull ConcurrentMap<String, Integer> potionEffectColors;
     private final @NotNull ImageFactory imageFactory = new ImageFactory();
     private final @NotNull ConcurrentMap<String, PixelBuffer> textureCache = Concurrent.newMap();
 
@@ -164,7 +165,7 @@ public final class PipelineRendererContext implements RendererContext {
             .resolve("minecraft")
             .resolve("textures");
 
-        return new PipelineRendererContext(textureRoot, packs, blockIndex, itemIndex, entityIndex, textureIndex, colorMapIndex, tagMap);
+        return new PipelineRendererContext(textureRoot, packs, blockIndex, itemIndex, entityIndex, textureIndex, colorMapIndex, tagMap, result.getPotionEffectColors());
     }
 
     @Override
@@ -233,6 +234,11 @@ public final class PipelineRendererContext implements RendererContext {
         ids.addAll(this.itemIndex.keySet());
         ids.sort(String.CASE_INSENSITIVE_ORDER);
         return ids;
+    }
+
+    @Override
+    public @NotNull Optional<Integer> potionEffectColor(@NotNull String effectId) {
+        return this.potionEffectColors.getOptional(effectId);
     }
 
     /**

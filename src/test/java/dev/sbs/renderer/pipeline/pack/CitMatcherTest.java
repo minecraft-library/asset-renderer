@@ -53,7 +53,7 @@ class CitMatcherTest {
             "custom_sword"
         );
         ItemContext context = new ItemContext(
-            "minecraft:diamond_sword", 50, 1, Optional.empty(), Concurrent.newMap(), Concurrent.newMap()
+            "minecraft:diamond_sword", 50, 1, Optional.empty(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newList()
         );
         assertThat(CitMatcher.match(rule, context), is(true));
     }
@@ -75,7 +75,7 @@ class CitMatcherTest {
             "custom_sword"
         );
         ItemContext context = new ItemContext(
-            "minecraft:diamond_sword", 50, 1, Optional.empty(), Concurrent.newMap(), Concurrent.newMap()
+            "minecraft:diamond_sword", 50, 1, Optional.empty(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newList()
         );
         assertThat(CitMatcher.match(rule, context), is(false));
     }
@@ -100,10 +100,10 @@ class CitMatcherTest {
             "custom_sword"
         );
         ItemContext matching = new ItemContext(
-            "minecraft:diamond_sword", 0, 1, Optional.of("Legendary Thunderbolt Blade"), Concurrent.newMap(), Concurrent.newMap()
+            "minecraft:diamond_sword", 0, 1, Optional.of("Legendary Thunderbolt Blade"), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newList()
         );
         ItemContext nonMatching = new ItemContext(
-            "minecraft:diamond_sword", 0, 1, Optional.of("Plain Sword"), Concurrent.newMap(), Concurrent.newMap()
+            "minecraft:diamond_sword", 0, 1, Optional.of("Plain Sword"), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newList()
         );
 
         assertThat(CitMatcher.match(rule, matching), is(true));
@@ -133,8 +133,8 @@ class CitMatcherTest {
         present.put("minecraft:sharpness", 5);
         ConcurrentMap<String, Integer> missing = Concurrent.newMap();
 
-        ItemContext withEnch = new ItemContext("minecraft:diamond_sword", 0, 1, Optional.empty(), Concurrent.newMap(), present);
-        ItemContext withoutEnch = new ItemContext("minecraft:diamond_sword", 0, 1, Optional.empty(), Concurrent.newMap(), missing);
+        ItemContext withEnch = new ItemContext("minecraft:diamond_sword", 0, 1, Optional.empty(), Concurrent.newMap(), present, Concurrent.newList());
+        ItemContext withoutEnch = new ItemContext("minecraft:diamond_sword", 0, 1, Optional.empty(), Concurrent.newMap(), missing, Concurrent.newList());
 
         assertThat(CitMatcher.match(rule, withEnch), is(true));
         assertThat(CitMatcher.match(rule, withoutEnch), is(false));

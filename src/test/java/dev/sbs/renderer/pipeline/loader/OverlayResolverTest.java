@@ -91,23 +91,52 @@ class OverlayResolverTest {
     }
 
     @Test
-    @DisplayName("potion, tipped arrow, firework star, spawn egg are not yet resolved in Phase A")
-    void phaseAOnlyLeather() {
-        // These items will resolve in Phase B (potion, tipped arrow) and Phase C (spawn egg,
-        // firework). Phase A intentionally leaves them unresolved so their rendering remains
-        // unchanged from the current behaviour.
-        assertThat(OverlayResolver.resolve("minecraft:potion",
-            modelWithTextures("layer0", "minecraft:item/potion_bottle_drinkable", "layer1", "minecraft:item/potion_overlay"),
-            EMPTY_EGGS).isPresent(), is(false));
-        assertThat(OverlayResolver.resolve("minecraft:tipped_arrow",
-            modelWithTextures("layer0", "minecraft:item/tipped_arrow_base", "layer1", "minecraft:item/tipped_arrow_head"),
-            EMPTY_EGGS).isPresent(), is(false));
+    @DisplayName("potion, splash_potion, and lingering_potion resolve to Potion overlay")
+    void resolvesPotionVariants() {
+        for (String id : new String[]{ "minecraft:potion", "minecraft:splash_potion", "minecraft:lingering_potion" }) {
+            ItemModelData model = modelWithTextures(
+                "layer0", "minecraft:item/potion_bottle_drinkable",
+                "layer1", "minecraft:item/potion_overlay"
+            );
+            Optional<Item.Overlay> overlay = OverlayResolver.resolve(id, model, EMPTY_EGGS);
+            assertThat(id, overlay.isPresent(), is(true));
+            assertThat(id, overlay.get(), is(instanceOf(Item.Overlay.Potion.class)));
+            Item.Overlay.Potion potion = (Item.Overlay.Potion) overlay.get();
+            assertThat(potion.baseTexture(), is("minecraft:item/potion_bottle_drinkable"));
+            assertThat(potion.overlayTexture(), is("minecraft:item/potion_overlay"));
+        }
+    }
+
+    @Test
+    @DisplayName("tipped_arrow resolves to TippedArrow overlay")
+    void resolvesTippedArrow() {
+        ItemModelData model = modelWithTextures(
+            "layer0", "minecraft:item/tipped_arrow_base",
+            "layer1", "minecraft:item/tipped_arrow_head"
+        );
+        Optional<Item.Overlay> overlay = OverlayResolver.resolve("minecraft:tipped_arrow", model, EMPTY_EGGS);
+        assertThat(overlay.isPresent(), is(true));
+        assertThat(overlay.get(), is(instanceOf(Item.Overlay.TippedArrow.class)));
+    }
+
+    @Test
+    @DisplayName("firework star and spawn egg are not yet resolved in Phase B")
+    void phaseBOnlyLeatherPlusPotions() {
+        // These items will resolve in Phase C. Phase B intentionally leaves them unresolved so
+        // their rendering remains unchanged from the current behaviour.
         assertThat(OverlayResolver.resolve("minecraft:firework_star",
             modelWithTextures("layer0", "minecraft:item/firework_star_small", "layer1", "minecraft:item/firework_star_overlay"),
             EMPTY_EGGS).isPresent(), is(false));
         assertThat(OverlayResolver.resolve("minecraft:pig_spawn_egg",
             modelWithTextures("layer0", "minecraft:item/spawn_egg", "layer1", "minecraft:item/spawn_egg_overlay"),
             EMPTY_EGGS).isPresent(), is(false));
+    }
+
+    @Test
+    @DisplayName("potion missing layer1 returns empty")
+    void potionRequiresBothLayers() {
+        ItemModelData model = modelWithTextures("layer0", "minecraft:item/potion_bottle_drinkable");
+        assertThat(OverlayResolver.resolve("minecraft:potion", model, EMPTY_EGGS).isPresent(), is(false));
     }
 
 }

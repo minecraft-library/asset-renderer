@@ -136,6 +136,13 @@ tasks {
         classpath = sourceSets["main"].runtimeClasspath
     }
 
+    register<JavaExec>("potionColors") {
+        description = "Parses MobEffects out of the cached client jar via ASM and rewrites src/main/resources/renderer/potion_colors.json. Run on a Minecraft version bump."
+        group = "tooling"
+        mainClass.set("dev.sbs.renderer.tooling.ToolingPotionColors")
+        classpath = sourceSets["main"].runtimeClasspath
+    }
+
     register<JavaExec>("testRender") {
         description = "Renders blocks to cache/test-render/ for visual inspection. -PblockId=minecraft:tnt -PrenderSize=512 -Pssaa=2"
         group = "tooling"
