@@ -1,6 +1,5 @@
-package dev.sbs.renderer.model;
+package dev.sbs.renderer.asset.pack;
 
-import dev.sbs.renderer.model.asset.AnimationData;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

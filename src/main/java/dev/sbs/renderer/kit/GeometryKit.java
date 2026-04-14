@@ -2,8 +2,8 @@ package dev.sbs.renderer.kit;
 
 import dev.sbs.renderer.geometry.BlockFace;
 import dev.sbs.renderer.geometry.VisibleTriangle;
-import dev.sbs.renderer.model.asset.ModelElement;
-import dev.sbs.renderer.model.asset.ModelFace;
+import dev.sbs.renderer.asset.model.ModelElement;
+import dev.sbs.renderer.asset.model.ModelFace;
 import dev.sbs.renderer.tensor.Matrix4f;
 import dev.sbs.renderer.tensor.Vector2f;
 import dev.sbs.renderer.tensor.Vector3f;
@@ -105,8 +105,8 @@ public class GeometryKit {
      * to preserve the element's axis-aligned footprint (used by cross-shaped plants).
      *
      * @param elements the fully-resolved element list from an
-     *     {@link dev.sbs.renderer.model.asset.ItemModelData} or
-     *     {@link dev.sbs.renderer.model.asset.BlockModelData}
+     *     {@link dev.sbs.renderer.asset.model.ItemModelData} or
+     *     {@link dev.sbs.renderer.asset.model.BlockModelData}
      * @param faceTextures a map keyed by the exact {@link ModelFace#getTexture()} string
      *     (including any leading {@code #}) to a pre-loaded {@link PixelBuffer}. The caller is
      *     responsible for dereferencing {@code #var} chains against the model's texture

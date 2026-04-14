@@ -1,11 +1,12 @@
 package dev.sbs.renderer.engine;
 
-import dev.sbs.renderer.model.Block;
-import dev.sbs.renderer.model.ColorMap;
-import dev.sbs.renderer.model.Entity;
-import dev.sbs.renderer.model.Item;
-import dev.sbs.renderer.model.TexturePack;
-import dev.sbs.renderer.model.asset.AnimationData;
+import dev.sbs.renderer.asset.Block;
+import dev.sbs.renderer.asset.pack.ColorMap;
+import dev.sbs.renderer.asset.Entity;
+import dev.sbs.renderer.asset.Item;
+import dev.sbs.renderer.asset.pack.Texture;
+import dev.sbs.renderer.asset.pack.TexturePack;
+import dev.sbs.renderer.asset.pack.AnimationData;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.PixelBuffer;
@@ -76,7 +77,7 @@ public interface RendererContext {
      * Returns the parsed {@code .mcmeta} animation sidecar for the given texture, if any. The
      * default implementation returns empty so non-animated contexts do not need to override it;
      * animation-aware contexts should look up the associated {@code Texture} entity and forward
-     * its {@link dev.sbs.renderer.model.Texture#getAnimation() animation} field.
+     * its {@link Texture#getAnimation() animation} field.
      *
      * @param textureId the namespaced texture identifier
      * @return the animation metadata, or empty when the texture has no sidecar

@@ -1,8 +1,8 @@
 package dev.sbs.renderer.kit;
 
 import dev.sbs.renderer.geometry.VisibleTriangle;
-import dev.sbs.renderer.model.asset.ModelElement;
-import dev.sbs.renderer.model.asset.ModelFace;
+import dev.sbs.renderer.asset.model.ModelElement;
+import dev.sbs.renderer.asset.model.ModelFace;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;

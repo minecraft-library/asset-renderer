@@ -1,4 +1,4 @@
-package dev.sbs.renderer.kit.armor;
+package dev.sbs.renderer.kit;
 
 import dev.sbs.renderer.engine.TextureEngine;
 import dev.simplified.image.pixel.PixelBuffer;

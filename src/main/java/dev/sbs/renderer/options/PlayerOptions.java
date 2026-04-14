@@ -1,6 +1,6 @@
 package dev.sbs.renderer.options;
 
-import dev.sbs.renderer.kit.armor.ArmorPiece;
+import dev.sbs.renderer.asset.binding.ArmorPiece;
 import dev.simplified.image.ImageFormat;
 import lombok.AccessLevel;
 import lombok.Builder;

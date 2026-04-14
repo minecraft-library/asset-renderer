@@ -3,14 +3,14 @@ package dev.sbs.renderer.pipeline;
 import com.google.gson.Gson;
 
 import dev.sbs.renderer.geometry.Biome;
-import dev.sbs.renderer.model.Block;
-import dev.sbs.renderer.model.ColorMap;
-import dev.sbs.renderer.model.Item;
-import dev.sbs.renderer.model.Texture;
-import dev.sbs.renderer.model.TexturePack;
-import dev.sbs.renderer.model.asset.AnimationData;
-import dev.sbs.renderer.model.asset.BlockModelData;
-import dev.sbs.renderer.model.asset.ItemModelData;
+import dev.sbs.renderer.asset.Block;
+import dev.sbs.renderer.asset.pack.ColorMap;
+import dev.sbs.renderer.asset.Item;
+import dev.sbs.renderer.asset.pack.Texture;
+import dev.sbs.renderer.asset.pack.TexturePack;
+import dev.sbs.renderer.asset.pack.AnimationData;
+import dev.sbs.renderer.asset.model.BlockModelData;
+import dev.sbs.renderer.asset.model.ItemModelData;
 import dev.sbs.renderer.pipeline.loader.ColorMapLoader;
 import dev.sbs.renderer.pipeline.loader.TexturePackLoader;
 import dev.simplified.collection.Concurrent;
@@ -138,6 +138,16 @@ class PipelineRendererContextTest {
             "minecraft:item/stick",
             gson.fromJson("{\"textures\": {\"layer0\": \"minecraft:block/fixture\"}}", ItemModelData.class)
         );
+        // Leather helmet to verify OverlayResolver wires a Leather overlay onto the materialised
+        // Item during PipelineRendererContext.of.
+        itemModels.put(
+            "minecraft:item/leather_helmet",
+            gson.fromJson(
+                "{\"textures\": {\"layer0\": \"minecraft:item/leather_helmet\","
+                    + "\"layer1\": \"minecraft:item/leather_helmet_overlay\"}}",
+                ItemModelData.class
+            )
+        );
 
         result = new AssetPipeline.Result(packRoot, vanillaPack, textures, colorMaps, blockTints, blockModels, itemModels, Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap());
         context = PipelineRendererContext.of(result);
@@ -176,6 +186,27 @@ class PipelineRendererContextTest {
     @DisplayName("findItem returns empty for unknown ids")
     void findItemMissing() {
         assertThat(context.findItem("minecraft:unknown").isPresent(), is(false));
+    }
+
+    @Test
+    @DisplayName("leather helmet materialises with a Leather overlay carrying the default dye color")
+    void leatherHelmetGetsOverlayAtPipelineTime() {
+        Optional<Item> leatherHelmet = context.findItem("minecraft:leather_helmet");
+        assertThat(leatherHelmet.isPresent(), is(true));
+        assertThat(leatherHelmet.get().getOverlay().isPresent(), is(true));
+        assertThat(leatherHelmet.get().getOverlay().get(), instanceOf(Item.Overlay.Leather.class));
+        Item.Overlay.Leather leather = (Item.Overlay.Leather) leatherHelmet.get().getOverlay().get();
+        assertThat(leather.baseTexture(), equalTo("minecraft:item/leather_helmet"));
+        assertThat(leather.overlayTexture(), equalTo("minecraft:item/leather_helmet_overlay"));
+        assertThat(leather.defaultColor(), equalTo(Item.Overlay.LEATHER_DEFAULT_ARGB));
+    }
+
+    @Test
+    @DisplayName("non-overlay items materialise with empty overlay")
+    void nonOverlayItemsGetEmptyOverlay() {
+        Optional<Item> stick = context.findItem("minecraft:stick");
+        assertThat(stick.isPresent(), is(true));
+        assertThat(stick.get().getOverlay().isPresent(), is(false));
     }
 
     @Test

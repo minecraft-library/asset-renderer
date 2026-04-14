@@ -7,7 +7,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import dev.sbs.renderer.exception.AssetPipelineException;
 import dev.sbs.renderer.geometry.Biome;
-import dev.sbs.renderer.model.Block;
+import dev.sbs.renderer.asset.Block;
 import dev.sbs.renderer.tooling.ToolingBlockTints;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;

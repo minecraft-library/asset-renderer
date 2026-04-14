@@ -1,4 +1,4 @@
-package dev.sbs.renderer.kit.armor;
+package dev.sbs.renderer.asset.binding;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

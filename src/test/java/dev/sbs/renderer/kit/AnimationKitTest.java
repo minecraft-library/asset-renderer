@@ -1,6 +1,6 @@
 package dev.sbs.renderer.kit;
 
-import dev.sbs.renderer.model.asset.AnimationData;
+import dev.sbs.renderer.asset.pack.AnimationData;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.PixelBuffer;

@@ -5,7 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import dev.sbs.renderer.exception.AssetPipelineException;
-import dev.sbs.renderer.model.asset.EntityModelData;
+import dev.sbs.renderer.asset.model.EntityModelData;
 import dev.sbs.renderer.pipeline.PipelineRendererContext;
 import dev.sbs.renderer.tooling.ToolingEntityModels;
 import dev.simplified.collection.Concurrent;

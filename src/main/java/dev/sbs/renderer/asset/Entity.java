@@ -1,6 +1,6 @@
-package dev.sbs.renderer.model;
+package dev.sbs.renderer.asset;
 
-import dev.sbs.renderer.model.asset.EntityModelData;
+import dev.sbs.renderer.asset.model.EntityModelData;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

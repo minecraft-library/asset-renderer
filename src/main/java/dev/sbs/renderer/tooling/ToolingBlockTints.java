@@ -5,7 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.sbs.renderer.exception.AssetPipelineException;
 import dev.sbs.renderer.geometry.Biome;
-import dev.sbs.renderer.model.Block;
+import dev.sbs.renderer.asset.Block;
 import dev.sbs.renderer.pipeline.AssetPipelineOptions;
 import dev.sbs.renderer.pipeline.client.ClientJarDownloader;
 import dev.sbs.renderer.pipeline.client.HttpFetcher;

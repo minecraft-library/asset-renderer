@@ -2,9 +2,9 @@ package dev.sbs.renderer.pipeline;
 
 
 import dev.sbs.renderer.geometry.Biome;
-import dev.sbs.renderer.model.Texture;
-import dev.sbs.renderer.model.asset.BlockModelData;
-import dev.sbs.renderer.model.asset.ItemModelData;
+import dev.sbs.renderer.asset.pack.Texture;
+import dev.sbs.renderer.asset.model.BlockModelData;
+import dev.sbs.renderer.asset.model.ItemModelData;
 import dev.sbs.renderer.pipeline.client.HttpFetcher;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;

@@ -5,7 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.sbs.renderer.engine.TextureEngine;
 import dev.sbs.renderer.exception.AssetPipelineException;
-import dev.sbs.renderer.model.ColorMap;
+import dev.sbs.renderer.asset.pack.ColorMap;
 import dev.sbs.renderer.pipeline.AssetPipelineOptions;
 import dev.sbs.renderer.pipeline.client.ClientJarDownloader;
 import dev.sbs.renderer.pipeline.client.ClientJarExtractor;

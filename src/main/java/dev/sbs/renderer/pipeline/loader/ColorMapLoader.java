@@ -3,7 +3,7 @@ package dev.sbs.renderer.pipeline.loader;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import dev.sbs.renderer.model.ColorMap;
+import dev.sbs.renderer.asset.pack.ColorMap;
 import dev.sbs.renderer.tooling.ToolingColorMaps;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;

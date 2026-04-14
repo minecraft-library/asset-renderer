@@ -1,10 +1,11 @@
-package dev.sbs.renderer.kit.armor;
+package dev.sbs.renderer.kit;
 
+import dev.sbs.renderer.asset.binding.ArmorPiece;
+import dev.sbs.renderer.asset.binding.ArmorTrim;
 import dev.sbs.renderer.engine.TextureEngine;
 import dev.sbs.renderer.geometry.BlockFace;
 import dev.sbs.renderer.geometry.SkinFace;
 import dev.sbs.renderer.geometry.VisibleTriangle;
-import dev.sbs.renderer.kit.GeometryKit;
 import dev.sbs.renderer.tensor.Vector3f;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;

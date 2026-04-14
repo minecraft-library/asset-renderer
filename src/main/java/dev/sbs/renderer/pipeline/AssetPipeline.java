@@ -1,12 +1,12 @@
 package dev.sbs.renderer.pipeline;
 
-import dev.sbs.renderer.model.Block;
-import dev.sbs.renderer.model.BlockTag;
-import dev.sbs.renderer.model.ColorMap;
-import dev.sbs.renderer.model.Texture;
-import dev.sbs.renderer.model.TexturePack;
-import dev.sbs.renderer.model.asset.BlockModelData;
-import dev.sbs.renderer.model.asset.ItemModelData;
+import dev.sbs.renderer.asset.Block;
+import dev.sbs.renderer.asset.BlockTag;
+import dev.sbs.renderer.asset.pack.ColorMap;
+import dev.sbs.renderer.asset.pack.Texture;
+import dev.sbs.renderer.asset.pack.TexturePack;
+import dev.sbs.renderer.asset.model.BlockModelData;
+import dev.sbs.renderer.asset.model.ItemModelData;
 import dev.sbs.renderer.pipeline.client.ClientJarDownloader;
 import dev.sbs.renderer.pipeline.client.ClientJarExtractor;
 import dev.sbs.renderer.pipeline.client.HttpFetcher;

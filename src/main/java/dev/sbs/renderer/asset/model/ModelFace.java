@@ -1,4 +1,4 @@
-package dev.sbs.renderer.model.asset;
+package dev.sbs.renderer.asset.model;
 
 import com.google.gson.annotations.SerializedName;
 import lombok.Getter;

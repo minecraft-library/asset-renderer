@@ -3,7 +3,7 @@ package dev.sbs.renderer.pipeline.loader;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import dev.sbs.renderer.model.BlockTag;
+import dev.sbs.renderer.asset.BlockTag;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;

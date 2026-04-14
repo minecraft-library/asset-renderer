@@ -1,4 +1,4 @@
-package dev.sbs.renderer.model;
+package dev.sbs.renderer.asset.pack;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

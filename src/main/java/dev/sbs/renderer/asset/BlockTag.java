@@ -1,4 +1,4 @@
-package dev.sbs.renderer.model;
+package dev.sbs.renderer.asset;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;

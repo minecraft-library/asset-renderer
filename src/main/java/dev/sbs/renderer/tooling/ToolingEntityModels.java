@@ -5,7 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import dev.sbs.renderer.model.asset.EntityModelData;
+import dev.sbs.renderer.asset.model.EntityModelData;
 import dev.sbs.renderer.pipeline.client.HttpFetcher;
 import dev.sbs.renderer.pipeline.loader.EntityModelLoader;
 import dev.simplified.collection.Concurrent;

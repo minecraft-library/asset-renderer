@@ -4,22 +4,23 @@ import dev.sbs.renderer.engine.RendererContext;
 import dev.sbs.renderer.engine.TextureEngine;
 import dev.sbs.renderer.geometry.Biome;
 import dev.sbs.renderer.geometry.BlockFace;
-import dev.sbs.renderer.model.Block;
-import dev.sbs.renderer.model.BlockTag;
-import dev.sbs.renderer.model.ColorMap;
-import dev.sbs.renderer.model.Entity;
-import dev.sbs.renderer.model.Item;
-import dev.sbs.renderer.model.Texture;
-import dev.sbs.renderer.model.TexturePack;
-import dev.sbs.renderer.model.asset.AnimationData;
-import dev.sbs.renderer.model.asset.BlockModelData;
-import dev.sbs.renderer.model.asset.EntityModelData;
-import dev.sbs.renderer.model.asset.ItemModelData;
-import dev.sbs.renderer.model.asset.ModelElement;
-import dev.sbs.renderer.model.asset.ModelFace;
+import dev.sbs.renderer.asset.Block;
+import dev.sbs.renderer.asset.BlockTag;
+import dev.sbs.renderer.asset.pack.ColorMap;
+import dev.sbs.renderer.asset.Entity;
+import dev.sbs.renderer.asset.Item;
+import dev.sbs.renderer.asset.pack.Texture;
+import dev.sbs.renderer.asset.pack.TexturePack;
+import dev.sbs.renderer.asset.pack.AnimationData;
+import dev.sbs.renderer.asset.model.BlockModelData;
+import dev.sbs.renderer.asset.model.EntityModelData;
+import dev.sbs.renderer.asset.model.ItemModelData;
+import dev.sbs.renderer.asset.model.ModelElement;
+import dev.sbs.renderer.asset.model.ModelFace;
 import dev.sbs.renderer.pipeline.loader.BlockEntityModelLoader;
 import dev.sbs.renderer.pipeline.loader.BlockTintsLoader;
 import dev.sbs.renderer.pipeline.loader.EntityModelLoader;
+import dev.sbs.renderer.pipeline.loader.OverlayResolver;
 import dev.sbs.renderer.tooling.ToolingColorMaps;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
@@ -131,6 +132,7 @@ public final class PipelineRendererContext implements RendererContext {
         }
 
         ConcurrentMap<String, Item> itemIndex = Concurrent.newMap();
+        ConcurrentMap<String, int[]> spawnEggColors = Concurrent.newMap();
         for (Map.Entry<String, ItemModelData> itemEntry : result.getItemModels().entrySet()) {
             String modelId = itemEntry.getKey();
             ItemModelData model = itemEntry.getValue();
@@ -138,7 +140,8 @@ public final class PipelineRendererContext implements RendererContext {
             String name = localName(modelId);
             ConcurrentMap<String, String> textures = Concurrent.newMap();
             textures.putAll(model.getTextures());
-            itemIndex.put(itemId, new Item(itemId, "minecraft", name, model, textures, 0, 64, Optional.empty()));
+            Optional<Item.Overlay> overlay = OverlayResolver.resolve(itemId, model, spawnEggColors);
+            itemIndex.put(itemId, new Item(itemId, "minecraft", name, model, textures, 0, 64, overlay));
         }
 
         ConcurrentMap<String, Entity> entityIndex = Concurrent.newMap();

@@ -11,11 +11,11 @@ import dev.sbs.renderer.geometry.VisibleTriangle;
 import dev.sbs.renderer.kit.GeometryKit;
 import dev.sbs.renderer.kit.GlintKit;
 import dev.sbs.renderer.kit.ItemBarKit;
-import dev.sbs.renderer.kit.armor.TrimKit;
-import dev.sbs.renderer.model.Item;
-import dev.sbs.renderer.model.asset.ModelElement;
-import dev.sbs.renderer.model.asset.ModelFace;
-import dev.sbs.renderer.model.asset.ModelTransform;
+import dev.sbs.renderer.kit.TrimKit;
+import dev.sbs.renderer.asset.Item;
+import dev.sbs.renderer.asset.model.ModelElement;
+import dev.sbs.renderer.asset.model.ModelFace;
+import dev.sbs.renderer.asset.model.ModelTransform;
 import dev.sbs.renderer.options.ItemOptions;
 import dev.sbs.renderer.tensor.Matrix4f;
 import dev.sbs.renderer.tensor.Vector3f;
@@ -41,14 +41,18 @@ import java.util.Optional;
  * {@link Renderer Renderer&lt;ItemOptions&gt;}:
  * <ul>
  * <li>{@link Gui2D} composes layered flat sprites with optional damage bar, stack count, and
- * glint animation.</li>
+ * glint animation. Items carrying an {@link Item.Overlay} route through a per-kind helper that
+ * honours the vanilla base + overlay + tint composition (leather armor, potions, spawn eggs,
+ * firework stars, tipped arrows); items without an overlay fall through to the standard
+ * layered-sprite path that respects per-face {@code tintindex}.</li>
  * <li>{@link Held3D} dispatches on whether the item's model provides element boxes - block items
  * build real cubes via {@link GeometryKit#buildFromElements}, flat sprite items fall back to a
  * thin textured slab. Both paths route through {@link ModelEngine} with the item model's
  * {@code thirdperson_righthand} display transform applied.</li>
  * </ul>
- * Shared item lookup plus the glint-finalization tail live as package-private static helpers on
- * this class so both sub-renderers can reach them without duplicating logic.
+ * Shared item lookup, the glint-finalization tail, and per-kind overlay helpers live as
+ * package-private static helpers on this class so both sub-renderers can reach them without
+ * duplicating logic.
  */
 public final class ItemRenderer implements Renderer<ItemOptions> {
 
@@ -103,9 +107,110 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     }
 
     /**
+     * Composites a leather-armor item onto {@code buffer}: base hide layer untinted, overlay dye
+     * layer tinted via {@link BlendMode#MULTIPLY}. Tint precedence is
+     * {@link ItemOptions#getLeatherColor()} → {@link ItemOptions#getTintColor()} →
+     * {@link Item.Overlay.Leather#defaultColor()} ({@code #A06540}). Returns the composited buffer
+     * for callers that need to reuse the face texture in the 3D path; callers rendering to
+     * {@code buffer} directly may ignore the return value.
+     */
+    static @NotNull PixelBuffer renderLeatherOverlay(
+        @NotNull RasterEngine engine,
+        @NotNull PixelBuffer buffer,
+        @NotNull Item.Overlay.Leather overlay,
+        @NotNull ItemOptions options
+    ) {
+        int size = options.getOutputSize();
+        int tint = options.getLeatherColor()
+            .or(options::getTintColor)
+            .orElse(overlay.defaultColor());
+
+        PixelBuffer base = engine.resolveTexture(overlay.baseTexture());
+        PixelBuffer dye = engine.resolveTexture(overlay.overlayTexture());
+        buffer.blitScaled(base, 0, 0, size, size);
+        buffer.blitTinted(dye, 0, 0, tint, BlendMode.MULTIPLY);
+        return buffer;
+    }
+
+    /**
+     * Looks up the {@code tintindex} that applies to {@code layerN} for a flat item. Prefers the
+     * model-declared tintindex on any element face whose texture reference resolves to the layer,
+     * falling back to the vanilla {@code item/generated} convention ({@code layerN} has tintindex
+     * {@code N}) when the resolved model has no elements - which is the common case for flat
+     * items.
+     *
+     * @param item the item being rendered
+     * @param layerIndex the layer index being rendered
+     * @return the tintindex for the layer, or {@code -1} when the layer should render untinted
+     */
+    static int tintIndexForLayer(@NotNull Item item, int layerIndex) {
+        ConcurrentList<ModelElement> elements = item.getModel().getElements();
+        if (elements.isEmpty()) {
+            // Vanilla item/generated convention: layer N has tintindex N.
+            return layerIndex;
+        }
+
+        ConcurrentMap<String, String> variables = item.getModel().getTextures();
+        String layerKey = "layer" + layerIndex;
+        String layerRef = variables.get(layerKey);
+        for (ModelElement element : elements) {
+            for (ModelFace face : element.getFaces().values()) {
+                String faceRef = face.getTexture();
+                if (faceRef.equals("#" + layerKey) || faceRef.equals(layerRef)) {
+                    return face.getTintIndex();
+                }
+                String resolved = TextureEngine.dereferenceVariable(faceRef, variables);
+                if (layerRef != null && resolved.equals(layerRef)) {
+                    return face.getTintIndex();
+                }
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Renders the standard layered-sprite path for an item without an {@link Item.Overlay}. Each
+     * {@code layerN} texture is composited in order, with {@link ItemOptions#getTintColor()}
+     * applied only to layers whose {@link #tintIndexForLayer(Item, int) tintindex} is {@code 0} -
+     * the primary tintable slot by vanilla convention. Trim overlay textures are resolved via
+     * {@link TrimKit#resolveFromTextureRef} so the renderer doesn't depend on material-specific
+     * PNGs being shipped in the pack.
+     */
+    static void renderStandardLayers(
+        @NotNull RasterEngine engine,
+        @NotNull PixelBuffer buffer,
+        @NotNull Item item,
+        @NotNull ItemOptions options
+    ) {
+        int size = options.getOutputSize();
+        int tint = options.getTintColor().orElse(ColorMath.WHITE);
+        int layerIndex = 0;
+        while (true) {
+            String layerKey = "layer" + layerIndex;
+            String textureRef = item.getTextures().get(layerKey);
+            if (textureRef == null || textureRef.isBlank()) break;
+
+            if (TrimKit.isTrimTexture(textureRef)) {
+                TrimKit.resolveFromTextureRef(engine, textureRef)
+                    .ifPresent(trim -> buffer.blitScaled(trim, 0, 0, size, size));
+            } else {
+                PixelBuffer layer = engine.resolveTexture(textureRef);
+                int layerTintIndex = tintIndexForLayer(item, layerIndex);
+                if (tint != ColorMath.WHITE && layerTintIndex == 0) {
+                    buffer.blitTinted(layer, 0, 0, tint, BlendMode.MULTIPLY);
+                } else {
+                    buffer.blitScaled(layer, 0, 0, size, size);
+                }
+            }
+            layerIndex++;
+        }
+    }
+
+    /**
      * Flat 2D GUI icon renderer. Composes layered sprites ({@code layer0}, {@code layer1}, ...)
      * with optional {@link ItemOptions#getTintColor() tint}, damage bar, stack count, and glint
-     * animation.
+     * animation. Items carrying an {@link Item.Overlay} route through the matching per-kind
+     * helper instead of the standard layer loop.
      */
     @RequiredArgsConstructor
     public static final class Gui2D implements Renderer<ItemOptions> {
@@ -118,28 +223,11 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             RasterEngine engine = new RasterEngine(this.context);
             PixelBuffer buffer = engine.createBuffer(options.getOutputSize(), options.getOutputSize());
 
-            // Layered flat-item sprite: layer0, layer1, ... stacked, each tinted per options.
-            // Trim overlay layers (matching trims/items/{slot}_trim_{material}) are generated
-            // via paletted permutation since vanilla doesn't ship the material-specific PNGs.
-            int layerIndex = 0;
-            int size = options.getOutputSize();
-            int tint = options.getTintColor().orElse(ColorMath.WHITE);
-            while (true) {
-                String layerKey = "layer" + layerIndex;
-                String textureRef = item.getTextures().get(layerKey);
-                if (textureRef == null || textureRef.isBlank()) break;
-
-                if (TrimKit.isTrimTexture(textureRef)) {
-                    TrimKit.resolveFromTextureRef(engine, textureRef)
-                        .ifPresent(trim -> buffer.blitScaled(trim, 0, 0, size, size));
-                } else {
-                    PixelBuffer layer = engine.resolveTexture(textureRef);
-                    if (layerIndex == 0 && tint != ColorMath.WHITE)
-                        buffer.blitTinted(layer, 0, 0, tint, BlendMode.MULTIPLY);
-                    else
-                        buffer.blitScaled(layer, 0, 0, size, size);
-                }
-                layerIndex++;
+            Optional<Item.Overlay> overlay = item.getOverlay();
+            if (overlay.isPresent() && overlay.get() instanceof Item.Overlay.Leather leather) {
+                renderLeatherOverlay(engine, buffer, leather, options);
+            } else {
+                renderStandardLayers(engine, buffer, item, options);
             }
 
             if (options.getTrimSlot().isPresent() && options.getTrimColor().isPresent())
@@ -163,6 +251,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * while flat sprite items fall back to a thin textured slab derived from {@code layer0}.
      * Both branches feed the same {@link ModelEngine#rasterize} overload with the item's
      * {@code thirdperson_righthand} display transform.
+     * <p>
+     * Overlay items fall back to the GUI path for now - the 3D overlay composition lands in a
+     * later phase.
      */
     @RequiredArgsConstructor
     public static final class Held3D implements Renderer<ItemOptions> {
@@ -172,6 +263,11 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         @Override
         public @NotNull ImageData render(@NotNull ItemOptions options) {
             Item item = requireItem(this.context, options.getItemId());
+
+            // Overlay items composite via the 2D helper for now; 3D overlay support arrives later.
+            if (item.getOverlay().isPresent())
+                return new Gui2D(this.context).render(options);
+
             ModelEngine engine = new ModelEngine(this.context);
             PixelBuffer buffer = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
             int tint = options.getTintColor().orElse(ColorMath.WHITE);

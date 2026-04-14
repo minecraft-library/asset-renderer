@@ -4,8 +4,8 @@ import dev.sbs.renderer.exception.RendererException;
 import dev.sbs.renderer.geometry.Biome;
 
 import dev.sbs.renderer.kit.AnimationKit;
-import dev.sbs.renderer.model.ColorMap;
-import dev.sbs.renderer.model.asset.AnimationData;
+import dev.sbs.renderer.asset.pack.ColorMap;
+import dev.sbs.renderer.asset.pack.AnimationData;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.ConcurrentSet;
