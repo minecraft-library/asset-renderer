@@ -4,11 +4,14 @@ import dev.sbs.renderer.exception.RendererException;
 import dev.sbs.renderer.geometry.Biome;
 
 import dev.sbs.renderer.kit.AnimationKit;
+import dev.sbs.renderer.kit.GlintKit;
 import dev.sbs.renderer.asset.pack.ColorMap;
 import dev.sbs.renderer.asset.pack.AnimationData;
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.ConcurrentSet;
+import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
@@ -82,6 +85,40 @@ public class TextureEngine implements RenderEngine {
         PixelBuffer strip = resolveTexture(textureId);
         Optional<AnimationData> animation = animationFor(textureId);
         return animation.map(animationData -> AnimationKit.sampleFrame(strip, animationData, tick)).orElse(strip);
+    }
+
+    /**
+     * Wraps a finished buffer into an {@link ImageData}, optionally applying a scrolling glint
+     * overlay animation. If {@code enchanted} is {@code false} or the active pack stack has no
+     * glint texture, the buffer is returned as a single-frame static image; otherwise the
+     * configured glint is composed via {@link GlintKit#apply} and the frames are emitted at
+     * {@code glintOptions.framesPerSecond()}.
+     * <p>
+     * Callers differ only in the enchanted predicate (per-item {@code isEnchanted} vs
+     * armor-slot scan) and the {@link GlintKit.GlintOptions} preset ({@code itemDefault} vs
+     * {@code armorDefault} vs {@code entityItemDefault}). All other structure - pack resolution,
+     * empty-texture fallback, frame-rate derivation - is identical across renderers.
+     *
+     * @param buffer the finished render surface
+     * @param enchanted whether the item / entity is enchanted and should show a glint
+     * @param glintOptions the glint preset, carrying the texture id and frame rate
+     * @return a static image when no glint is applied, an animated image otherwise
+     */
+    public @NotNull ImageData finaliseWithGlint(
+        @NotNull PixelBuffer buffer,
+        boolean enchanted,
+        @NotNull GlintKit.GlintOptions glintOptions
+    ) {
+        if (!enchanted)
+            return RenderEngine.staticFrame(buffer);
+
+        Optional<PixelBuffer> glintTexture = tryResolveTexture(glintOptions.glintTextureId());
+        if (glintTexture.isEmpty())
+            return RenderEngine.staticFrame(buffer);
+
+        ConcurrentList<PixelBuffer> frames = GlintKit.apply(buffer, glintTexture.get(), glintOptions);
+        int frameDelayMs = Math.max(1, Math.round(1000f / glintOptions.framesPerSecond()));
+        return RenderEngine.output(frames, frameDelayMs);
     }
 
     /**
