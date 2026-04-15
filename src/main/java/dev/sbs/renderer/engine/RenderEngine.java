@@ -1,5 +1,6 @@
 package dev.sbs.renderer.engine;
 
+import dev.sbs.renderer.geometry.BlockFace;
 import dev.sbs.renderer.geometry.PerspectiveParams;
 import dev.sbs.renderer.tensor.Vector2f;
 import dev.sbs.renderer.tensor.Vector3f;
@@ -68,31 +69,18 @@ public interface RenderEngine {
     // --- inventory lighting ---
 
     /**
-     * Computes the per-face shade factor for a world-space surface normal, matching what
-     * vanilla's inventory pipeline produces under the standard {@code [30, 225, 0]} gui pose.
-     * <p>
-     * Vanilla's {@code Lighting.ITEMS_3D} uses two directional lights offset in X to make the
-     * visible left-hand (E/W axis) face end up <b>brighter</b> than the right-hand (N/S axis)
-     * face after the gui rotation - the opposite of world-lit block brightness from
-     * {@code Direction.getBrightness}. Rather than replicate the dual-directional light
-     * shader, this approximates the vanilla inventory result with swapped per-axis values:
-     * {@code 0.8} for E/W (the left face under standard gui pose) and {@code 0.6} for N/S
-     * (the right face). The UP/DOWN contributions stay at vanilla's {@code 1.0} and
-     * {@code 0.5}.
+     * Computes the per-face shade factor for a world-space surface normal under vanilla's
+     * standard {@code [30, 225, 0]} GUI pose. Delegates to {@link BlockFace#fromNormal} to pick
+     * the dominant cardinal face and returns that face's pre-baked
+     * {@link BlockFace#lighting() lighting} factor. See {@link BlockFace}'s class-level doc for
+     * the rationale behind the reversed E/W vs N/S values (vanilla {@code Lighting.ITEMS_3D}
+     * uses two directional lights offset in X, inverting world-block brightness).
      *
      * @param normal the world-space surface normal (should be normalized)
-     * @return a shade factor: 1.0 for UP, 0.8 for EAST/WEST, 0.6 for NORTH/SOUTH, 0.5 for DOWN
+     * @return the shade factor for the face that best matches the normal
      */
     static float computeInventoryLighting(@NotNull Vector3f normal) {
-        float absX = Math.abs(normal.x());
-        float absY = Math.abs(normal.y());
-        float absZ = Math.abs(normal.z());
-
-        if (absY > absX && absY > absZ)
-            return normal.y() > 0f ? 1f : 0.5f;
-        if (absZ > absX)
-            return 0.6f;
-        return 0.8f;
+        return BlockFace.fromNormal(normal).lighting();
     }
 
     // --- shading ---

@@ -15,10 +15,10 @@ import java.util.Locale;
  * The six cardinal face directions of an axis-aligned Minecraft box element.
  * <p>
  * Each constant knows its lowercase direction name (the key used in vanilla block and item model
- * JSON), its four vertex indices into the canonical 8-corner box, its outward unit normal, and a
+ * JSON), its four vertex indices into the canonical 8-corner box, its outward unit normal, a
  * {@link FaceLayout} that captures the data both {@link #defaultUv defaultUv} overloads need to
- * project face geometry into a UV rectangle without a per-face {@code switch}. The box vertex
- * layout is:
+ * project face geometry into a UV rectangle without a per-face {@code switch}, and an inventory
+ * {@link #lighting shade factor}. The box vertex layout is:
  * <pre>
  * 0: (x0, y0, z0)   4: (x0, y0, z1)
  * 1: (x1, y0, z0)   5: (x1, y0, z1)
@@ -28,6 +28,16 @@ import java.util.Locale;
  * The four indices per face are wound top-left, bottom-left, bottom-right, top-right when viewed
  * from the outward normal direction (CCW), matching vanilla's {@code FaceInfo} vertex order and
  * the convention used by {@link GeometryKit}'s triangle builders.
+ * <p>
+ * The {@link #lighting} field carries the shade factor applied to this face under vanilla's
+ * {@code Lighting.ITEMS_3D} GUI pose. Note the per-axis values are <b>reversed</b> relative to
+ * world-lit block brightness from {@code Direction.getBrightness}: vanilla's inventory pipeline
+ * uses two directional lights offset in X so the left-hand (E/W) face ends up brighter than the
+ * right-hand (N/S) face after the standard {@code [30, 225, 0]} gui rotation. Rather than
+ * replicate the dual-directional light shader, each face carries a pre-baked scalar that
+ * approximates the vanilla inventory output ({@code 0.8} for E/W, {@code 0.6} for N/S,
+ * {@code 1.0} for UP, {@code 0.5} for DOWN). Callers that have a surface normal rather than a
+ * face enum should resolve it via {@link #fromNormal(Vector3f)}.
  */
 @Getter
 @Accessors(fluent = true)
@@ -36,27 +46,33 @@ public enum BlockFace {
 
     DOWN(
         "down", new int[]{ 4, 0, 1, 5 }, new Vector3f(0f, -1f, 0f),
-        new FaceLayout(0, 2, false, true, 1, 1, 0, 0)
+        new FaceLayout(0, 2, false, true, 1, 1, 0, 0),
+        0.5f
     ),
     UP(
         "up", new int[]{ 3, 7, 6, 2 }, new Vector3f(0f, 1f, 0f),
-        new FaceLayout(0, 2, false, false, 0, 1, 0, 0)
+        new FaceLayout(0, 2, false, false, 0, 1, 0, 0),
+        1.0f
     ),
     NORTH(
         "north", new int[]{ 2, 1, 0, 3 }, new Vector3f(0f, 0f, -1f),
-        new FaceLayout(0, 1, true, true, 1, 2, 0, 1)
+        new FaceLayout(0, 1, true, true, 1, 2, 0, 1),
+        0.6f
     ),
     SOUTH(
         "south", new int[]{ 7, 4, 5, 6 }, new Vector3f(0f, 0f, 1f),
-        new FaceLayout(0, 1, false, true, 0, 1, 0, 1)
+        new FaceLayout(0, 1, false, true, 0, 1, 0, 1),
+        0.6f
     ),
     WEST(
         "west", new int[]{ 3, 0, 4, 7 }, new Vector3f(-1f, 0f, 0f),
-        new FaceLayout(2, 1, false, true, 0, 0, 0, 1)
+        new FaceLayout(2, 1, false, true, 0, 0, 0, 1),
+        0.8f
     ),
     EAST(
         "east", new int[]{ 6, 5, 1, 2 }, new Vector3f(1f, 0f, 0f),
-        new FaceLayout(2, 1, true, true, 1, 1, 0, 1)
+        new FaceLayout(2, 1, true, true, 1, 1, 0, 1),
+        0.8f
     );
 
     private final @NotNull String direction;
@@ -65,6 +81,14 @@ public enum BlockFace {
 
     @Getter(lombok.AccessLevel.NONE)
     private final @NotNull FaceLayout layout;
+
+    /**
+     * Shade factor applied to this face under vanilla {@code Lighting.ITEMS_3D} GUI pose. E/W
+     * faces are intentionally brighter than N/S to match vanilla's dual-directional light rig
+     * under the standard {@code [30, 225, 0]} display rotation - the opposite of world-lit block
+     * brightness. Bottom is half-bright, top is fully bright.
+     */
+    private final float lighting;
 
     /**
      * Returns the four CCW-ordered (TL, BL, BR, TR) corners of this face on an axis-aligned box
@@ -111,11 +135,11 @@ public enum BlockFace {
     public @NotNull Vector2f @NotNull [] defaultUv(float @NotNull [] from, float @NotNull [] to) {
         int uAxis = this.layout.widthAxis();
         int vAxis = this.layout.heightAxis();
-        float u0 = this.layout.uInverted() ? 16f - to[uAxis] : from[uAxis];
-        float u1 = this.layout.uInverted() ? 16f - from[uAxis] : to[uAxis];
-        float v0 = this.layout.vInverted() ? 16f - to[vAxis] : from[vAxis];
-        float v1 = this.layout.vInverted() ? 16f - from[vAxis] : to[vAxis];
-        return uvRect(u0, v0, u1, v1, 16f, 16f, false);
+        float u0 = this.layout.uInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - to[uAxis] : from[uAxis];
+        float u1 = this.layout.uInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - from[uAxis] : to[uAxis];
+        float v0 = this.layout.vInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - to[vAxis] : from[vAxis];
+        float v1 = this.layout.vInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - from[vAxis] : to[vAxis];
+        return uvRect(u0, v0, u1, v1, ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK, ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK, false);
     }
 
     /**
@@ -212,6 +236,27 @@ public enum BlockFace {
             new Vector2f(u1, v1),
             new Vector2f(u1, v0)
         };
+    }
+
+    /**
+     * Resolves the dominant cardinal face for a surface normal by comparing the magnitude of its
+     * components: the largest-magnitude axis wins, the sign of that component picks between the
+     * two opposing faces on that axis. Ties between axes resolve in Y &gt; Z &gt; X order,
+     * matching the original nested-{@code if} form in the inventory-lighting code.
+     *
+     * @param normal the surface normal (should be normalized, but magnitude is not required)
+     * @return the closest cardinal face to the normal direction
+     */
+    public static @NotNull BlockFace fromNormal(@NotNull Vector3f normal) {
+        float absX = Math.abs(normal.x());
+        float absY = Math.abs(normal.y());
+        float absZ = Math.abs(normal.z());
+
+        if (absY > absX && absY > absZ)
+            return normal.y() > 0f ? UP : DOWN;
+        if (absZ > absX)
+            return normal.z() > 0f ? SOUTH : NORTH;
+        return normal.x() > 0f ? EAST : WEST;
     }
 
     /**
