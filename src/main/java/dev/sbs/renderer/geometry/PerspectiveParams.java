@@ -48,15 +48,47 @@ public record PerspectiveParams(float amount, float cameraDistance, float focalL
     private static final float ISO_CUBE_PADDING = 0.04f;
 
     /**
-     * A pure orthographic projection with no perspective blend and the conservative
-     * {@code 0.4f} scale - leaves generous margin for rotated or limb-bearing geometry.
-     * Used by {@code PlayerRenderer} and any caller that renders articulated models which
-     * extend beyond the unit cube after animation.
+     * Conservative scale margin used by the presets that cannot assume a tight unit-cube
+     * silhouette. Leaves ~30% of the tile empty per side so rotated, articulated, or
+     * limb-bearing geometry (players, entities, held items) never clips the framebuffer.
      */
-    public static final @NotNull PerspectiveParams NONE = new PerspectiveParams(0f, 0f, 0f, 0.4f);
+    private static final float CONSERVATIVE_PROJECTION_SCALE = 0.4f;
+
+    /**
+     * Perspective blend factor baked into {@link #GUI_ITEM} - a moderate ortho/perspective mix
+     * that gives held item icons a faint 3D feel without the extreme foreshortening of a full
+     * pinhole projection.
+     */
+    private static final float GUI_ITEM_PERSPECTIVE_AMOUNT = 0.3f;
+
+    /**
+     * Virtual camera distance (in model units) for {@link #GUI_ITEM}. Matched to the focal
+     * length so the blend stays centred around the model origin.
+     */
+    private static final float GUI_ITEM_CAMERA_DISTANCE = 8f;
+
+    /**
+     * Focal length (in model units) for {@link #GUI_ITEM}. See {@link #GUI_ITEM_CAMERA_DISTANCE}.
+     */
+    private static final float GUI_ITEM_FOCAL_LENGTH = 8f;
+
+    /**
+     * A pure orthographic projection with no perspective blend and the conservative scale -
+     * leaves generous margin for rotated or limb-bearing geometry. Used by {@code PlayerRenderer}
+     * and any caller that renders articulated models which extend beyond the unit cube after
+     * animation.
+     */
+    public static final @NotNull PerspectiveParams NONE = new PerspectiveParams(
+        0f, 0f, 0f, CONSERVATIVE_PROJECTION_SCALE
+    );
 
     /** A moderate perspective suitable for GUI item icons. */
-    public static final @NotNull PerspectiveParams GUI_ITEM = new PerspectiveParams(0.3f, 8f, 8f, 0.4f);
+    public static final @NotNull PerspectiveParams GUI_ITEM = new PerspectiveParams(
+        GUI_ITEM_PERSPECTIVE_AMOUNT,
+        GUI_ITEM_CAMERA_DISTANCE,
+        GUI_ITEM_FOCAL_LENGTH,
+        CONSERVATIVE_PROJECTION_SCALE
+    );
 
     /**
      * A pure orthographic projection tuned for isometric block renders. The scale is computed

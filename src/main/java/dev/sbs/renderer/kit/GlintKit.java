@@ -125,7 +125,7 @@ public class GlintKit {
                 ITEM_SCALE,
                 VANILLA_U_LOOP_MILLIS,
                 VANILLA_V_LOOP_MILLIS,
-                0xFFFFFFFF
+                ColorMath.WHITE
             );
         }
 
@@ -144,7 +144,7 @@ public class GlintKit {
                 ARMOR_SCALE,
                 VANILLA_U_LOOP_MILLIS,
                 VANILLA_V_LOOP_MILLIS,
-                0xFFFFFFFF
+                ColorMath.WHITE
             );
         }
 
@@ -164,7 +164,7 @@ public class GlintKit {
                 ENTITY_ITEM_SCALE,
                 VANILLA_U_LOOP_MILLIS,
                 VANILLA_V_LOOP_MILLIS,
-                0xFFFFFFFF
+                ColorMath.WHITE
             );
         }
     }
@@ -196,7 +196,7 @@ public class GlintKit {
         int glintW = glintTexture.width();
         int glintH = glintTexture.height();
 
-        PixelBuffer tintedGlint = options.tintArgb() == 0xFFFFFFFF
+        PixelBuffer tintedGlint = options.tintArgb() == ColorMath.WHITE
             ? glintTexture
             : ColorMath.tint(glintTexture, options.tintArgb());
 

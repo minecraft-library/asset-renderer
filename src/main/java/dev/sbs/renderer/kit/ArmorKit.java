@@ -43,7 +43,7 @@ import java.util.Optional;
 public class ArmorKit {
 
     /** Per-side inflation in model units so armor sits visibly above the skin geometry. */
-    private static final float INFLATE = 0.015f;
+    private static final float ARMOR_INFLATE = 0.015f;
 
     /** Additional inflate for trim so it sits above the armor base and avoids z-fighting. */
     private static final float TRIM_INFLATE = 0.003f;
@@ -231,7 +231,7 @@ public class ArmorKit {
         for (SkinFace part : parts) {
             Vector3f[] bounds = bodyPositions.get(part);
             if (bounds == null) continue;
-            triangles.addAll(buildPart3D(part, bounds[0], bounds[1], armorTexture.get(), INFLATE));
+            triangles.addAll(buildPart3D(part, bounds[0], bounds[1], armorTexture.get(), ARMOR_INFLATE));
         }
 
         if (piece.trimColor().isPresent() && piece.trimPattern().isPresent()) {
@@ -243,7 +243,7 @@ public class ArmorKit {
                     Vector3f[] bounds = bodyPositions.get(part);
                     if (bounds == null) continue;
                     triangles.addAll(buildPart3D(part, bounds[0], bounds[1],
-                        trimTexture.get(), INFLATE + TRIM_INFLATE));
+                        trimTexture.get(), ARMOR_INFLATE + TRIM_INFLATE));
                 }
             }
         }

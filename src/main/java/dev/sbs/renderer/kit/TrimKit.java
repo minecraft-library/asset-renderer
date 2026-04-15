@@ -28,6 +28,9 @@ public class TrimKit {
     private static final @NotNull String TRIM_TEXTURE_PREFIX = "minecraft:trims/items/";
     private static final @NotNull String TRIM_INFIX = "_trim_";
 
+    /** Prefix for per-material palette textures (e.g. {@code minecraft:trims/color_palettes/amethyst}). */
+    private static final @NotNull String PALETTE_MATERIAL_PREFIX = "minecraft:trims/color_palettes/";
+
     /**
      * Returns {@code true} when the texture reference matches the pattern for a material-specific
      * trim overlay ({@code minecraft:trims/items/{slot}_trim_{material}}).
@@ -85,8 +88,8 @@ public class TrimKit {
         @NotNull String armorSlot,
         @NotNull String material
     ) {
-        String baseTrimId = "minecraft:trims/items/" + armorSlot + "_trim";
-        String materialPaletteId = "minecraft:trims/color_palettes/" + material;
+        String baseTrimId = TRIM_TEXTURE_PREFIX + armorSlot + "_trim";
+        String materialPaletteId = PALETTE_MATERIAL_PREFIX + material;
 
         Optional<PixelBuffer> baseTrim = engine.tryResolveTexture(baseTrimId);
         Optional<PixelBuffer> paletteKey = engine.tryResolveTexture(PALETTE_KEY_ID);

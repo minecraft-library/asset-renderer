@@ -29,7 +29,7 @@ import java.util.Optional;
 public class BannerKit {
 
     /** The banner-background texture id. Painted under every layer with the base dye tint. */
-    private static final @NotNull String BANNER_BASE_TEXTURE = "minecraft:entity/banner_base";
+    private static final @NotNull String BANNER_BASE_TEXTURE_ID = "minecraft:entity/banner_base";
 
     /**
      * Composites a banner or shield in its GUI-item orientation: base dye background, then each
@@ -50,7 +50,7 @@ public class BannerKit {
         // The banner_base texture in the vanilla atlas is 64x64; the item-icon region we
         // actually want occupies the top-left portion. We composite at full texture size and
         // let downstream scaling handle the final icon crop / scale.
-        Optional<PixelBuffer> baseTexture = engine.tryResolveTexture(BANNER_BASE_TEXTURE);
+        Optional<PixelBuffer> baseTexture = engine.tryResolveTexture(BANNER_BASE_TEXTURE_ID);
         int width = baseTexture.map(PixelBuffer::width).orElse(64);
         int height = baseTexture.map(PixelBuffer::height).orElse(64);
 

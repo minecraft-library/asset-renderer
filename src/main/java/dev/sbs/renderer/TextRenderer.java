@@ -34,14 +34,24 @@ import org.jetbrains.annotations.NotNull;
  */
 public final class TextRenderer implements Renderer<TextOptions> {
 
-    /** Vanilla tooltip background RGB - 1.8.9 through 26.1 all use {@code 0xF0100010}. */
-    private static final int BACKGROUND_RGB = 0x100010;
+    /**
+     * Vanilla tooltip background RGB component - identical across 1.8.9 through 26.1. The
+     * full ARGB is {@code 0xF0100010}; the alpha {@code 0xF0} (240) is applied from
+     * {@link TextOptions#getBackgroundAlpha()} at composite time so callers can override it.
+     */
+    private static final int VANILLA_TOOLTIP_BG_RGB = 0x100010;
 
-    /** Vanilla tooltip border gradient top RGB ({@code 0x505000FF} with alpha). */
-    private static final int BORDER_TOP_RGB = 0x5000FF;
+    /**
+     * Vanilla tooltip border gradient top RGB component. Full ARGB is {@code 0x505000FF};
+     * alpha {@code 0x50} (80) is applied from {@link TextOptions#getBorderAlpha()}.
+     */
+    private static final int VANILLA_TOOLTIP_BORDER_TOP_RGB = 0x5000FF;
 
-    /** Vanilla tooltip border gradient bottom RGB ({@code 0x5028007F} with alpha). */
-    private static final int BORDER_BOTTOM_RGB = 0x28007F;
+    /**
+     * Vanilla tooltip border gradient bottom RGB component. Full ARGB is {@code 0x5028007F};
+     * alpha {@code 0x50} (80) is applied from {@link TextOptions#getBorderAlpha()}.
+     */
+    private static final int VANILLA_TOOLTIP_BORDER_BOTTOM_RGB = 0x28007F;
 
     private static final int PIXEL_SIZE = MinecraftFont.MC_PIXEL_SCALE;
 
@@ -104,7 +114,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
         if (isLore) {
             int bgAlpha = Math.clamp(options.getBackgroundAlpha(), 0, 255);
             int borderAlpha = Math.clamp(options.getBorderAlpha(), 0, 255);
-            buffer.fill((bgAlpha << 24) | BACKGROUND_RGB);
+            buffer.fill((bgAlpha << 24) | VANILLA_TOOLTIP_BG_RGB);
             drawGradientBorder(buffer, hiW, hiH, sampling, borderAlpha);
         }
 
@@ -125,8 +135,8 @@ public final class TextRenderer implements Renderer<TextOptions> {
 
     /**
      * Draws the vanilla tooltip border - a 1-{@code mcPixel}-thick frame inset 1 {@code mcPixel}
-     * from the canvas edge, filled with a vertical gradient from {@link #BORDER_TOP_RGB} at the
-     * top row to {@link #BORDER_BOTTOM_RGB} at the bottom row. Horizontal edges receive the
+     * from the canvas edge, filled with a vertical gradient from {@link #VANILLA_TOOLTIP_BORDER_TOP_RGB} at the
+     * top row to {@link #VANILLA_TOOLTIP_BORDER_BOTTOM_RGB} at the bottom row. Horizontal edges receive the
      * endpoint colors; the interpolation interior runs along the vertical edges.
      *
      * @param buffer the supersampled buffer to draw onto
@@ -153,13 +163,13 @@ public final class TextRenderer implements Renderer<TextOptions> {
         int innerSpan = Math.max(1, innerBottom - 1 - innerTop); // rows in gradient interior
 
         // Top stroke - solid top color
-        int topArgb = (alpha << 24) | BORDER_TOP_RGB;
+        int topArgb = (alpha << 24) | VANILLA_TOOLTIP_BORDER_TOP_RGB;
         for (int y = topY0; y < topY1; y++)
             for (int x = leftX0; x < rightX1; x++)
                 buffer.setPixel(x, y, topArgb);
 
         // Bottom stroke - solid bottom color
-        int botArgb = (alpha << 24) | BORDER_BOTTOM_RGB;
+        int botArgb = (alpha << 24) | VANILLA_TOOLTIP_BORDER_BOTTOM_RGB;
         for (int y = botY0; y < botY1; y++)
             for (int x = leftX0; x < rightX1; x++)
                 buffer.setPixel(x, y, botArgb);

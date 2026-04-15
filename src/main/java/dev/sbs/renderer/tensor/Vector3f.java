@@ -20,6 +20,13 @@ public record Vector3f(float x, float y, float z) {
     public static final @NotNull Vector3f ZERO = new Vector3f(0, 0, 0);
 
     /**
+     * Minimum length below which {@link #normalize normalize} treats a vector as degenerate and
+     * returns {@link #ZERO} rather than dividing by the (near-zero) magnitude. Guards against
+     * infinities and NaN from dividing by a cancellation-rounded magnitude.
+     */
+    public static final float NORMALIZE_EPSILON = 1e-8f;
+
+    /**
      * Returns the sum of this vector and the given vector.
      *
      * @param other the vector to add
@@ -126,7 +133,7 @@ public record Vector3f(float x, float y, float z) {
      */
     public static @NotNull Vector3f normalize(@NotNull Vector3f v) {
         float len = v.length();
-        if (len < 1e-8f) return ZERO;
+        if (len < NORMALIZE_EPSILON) return ZERO;
         return v.divide(len);
     }
 

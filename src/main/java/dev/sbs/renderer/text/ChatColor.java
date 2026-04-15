@@ -36,6 +36,14 @@ import java.util.Optional;
 public sealed interface ChatColor permits ChatColor.Legacy, ChatColor.Custom {
 
     /**
+     * Per-channel low-bit clear applied to a foreground RGB before the ÷4 right shift in the
+     * vanilla shadow-color formula {@code (rgb & 0xFCFCFC) >> 2}. Dropping the two low bits of
+     * each channel keeps the shifted result inside the byte range and matches the rounding that
+     * vanilla's {@code ARGB.scaleRGB(color, 0.25f)} produces from 1.13 onward.
+     */
+    int SHADOW_RGB_MASK = 0xFCFCFC;
+
+    /**
      * The foreground color.
      *
      * @return the foreground {@link Color}
@@ -118,7 +126,7 @@ public sealed interface ChatColor permits ChatColor.Legacy, ChatColor.Custom {
      * @return the 24-bit shadow color
      */
     static @NotNull Color shadowOf(@NotNull Color color) {
-        return new Color((color.getRGB() & 0xFCFCFC) >> 2);
+        return new Color((color.getRGB() & SHADOW_RGB_MASK) >> 2);
     }
 
     /**

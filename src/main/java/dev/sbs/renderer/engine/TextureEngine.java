@@ -34,6 +34,35 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class TextureEngine implements RenderEngine {
 
+    /**
+     * Edge length of the square ARGB biome colormap (grass / foliage). Every vanilla colormap
+     * ships as a 256x256 image, so sampling indexes as {@code y * COLORMAP_SIZE + x}.
+     */
+    private static final int COLORMAP_SIZE = 256;
+
+    /**
+     * Upper index of the colormap lookup coordinate in normalized space. Multiplying a clamped
+     * {@code [0, 1]} temperature / downfall by this value maps it to a {@code [0, 255]} column
+     * or row.
+     */
+    private static final float COLORMAP_COORD_MAX = 255f;
+
+    /**
+     * Low-bit mask applied per channel to the base ARGB before the dark-forest offset is added.
+     * Matches vanilla {@code BiomeSpecialEffects$GrassColorModifier$2.modifyColor} which clears
+     * the LSB of each channel before blending.
+     */
+    private static final int DARK_FOREST_LOW_BIT_MASK = 0xFE;
+
+    /** Red-channel add vanilla applies to the base grass color for dark-forest biomes. */
+    private static final int DARK_FOREST_RED_OFFSET = 0x28;
+
+    /** Green-channel add for dark-forest grass modifier. */
+    private static final int DARK_FOREST_GREEN_OFFSET = 0x34;
+
+    /** Blue-channel add for dark-forest grass modifier. */
+    private static final int DARK_FOREST_BLUE_OFFSET = 0x0A;
+
     private final @NotNull RendererContext context;
 
     /**
@@ -215,9 +244,9 @@ public class TextureEngine implements RenderEngine {
                 // Applied channel-by-channel: the low bit is masked off, the dark green offset
                 // (0x28/0x34/0x0A per channel) is added, and the sum is halved. Vanilla forces the
                 // result to be opaque, which we mirror with a hardcoded 0xFF alpha.
-                int r = (((argb >>> 16) & 0xFE) + 0x28) >> 1;
-                int g = (((argb >>> 8) & 0xFE) + 0x34) >> 1;
-                int b = ((argb & 0xFE) + 0x0A) >> 1;
+                int r = (((argb >>> 16) & DARK_FOREST_LOW_BIT_MASK) + DARK_FOREST_RED_OFFSET) >> 1;
+                int g = (((argb >>> 8) & DARK_FOREST_LOW_BIT_MASK) + DARK_FOREST_GREEN_OFFSET) >> 1;
+                int b = ((argb & DARK_FOREST_LOW_BIT_MASK) + DARK_FOREST_BLUE_OFFSET) >> 1;
                 yield ColorMath.pack(0xFF, r & 0xFF, g & 0xFF, b & 0xFF);
             }
             case SWAMP ->
@@ -285,10 +314,10 @@ public class TextureEngine implements RenderEngine {
         float adjTemp = Math.clamp(temperature, 0f, 1f);
         float adjRain = Math.clamp(downfall, 0f, 1f) * adjTemp;
 
-        int x = Math.clamp((int) ((1.0f - adjTemp) * 255f), 0, 255);
-        int y = Math.clamp((int) ((1.0f - adjRain) * 255f), 0, 255);
+        int x = Math.clamp((int) ((1.0f - adjTemp) * COLORMAP_COORD_MAX), 0, (int) COLORMAP_COORD_MAX);
+        int y = Math.clamp((int) ((1.0f - adjRain) * COLORMAP_COORD_MAX), 0, (int) COLORMAP_COORD_MAX);
 
-        return colormap[y * 256 + x];
+        return colormap[y * COLORMAP_SIZE + x];
     }
 
     /**
