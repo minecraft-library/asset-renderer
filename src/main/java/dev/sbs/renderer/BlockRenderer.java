@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.sbs.renderer.engine.IsometricEngine;
+import dev.sbs.renderer.engine.ModelEngine;
 import dev.sbs.renderer.engine.RasterEngine;
 import dev.sbs.renderer.engine.RenderEngine;
 import dev.sbs.renderer.engine.RendererContext;
@@ -43,7 +44,11 @@ import java.util.Map;
  * Each sub-renderer is a {@code public static final} inner class implementing
  * {@link Renderer Renderer&lt;BlockOptions&gt;}:
  * <ul>
- * <li>{@link Isometric3D} delegates to {@link IsometricEngine} for full cube rendering.</li>
+ * <li>{@link Isometric3D} feeds a {@link ModelEngine} with the block's own
+ * {@code display.gui} rotation as the model transform, matching vanilla's
+ * {@code PoseStack.mulPose(Quaternionf.rotationXYZ(gui.rotation))} exactly so stairs,
+ * slabs, fence gates, and other blocks that override the standard {@code [30, 225, 0]}
+ * pose render vanilla-accurate without any yaw-delta fixup.</li>
  * <li>{@link BlockFace2D} delegates to {@link RasterEngine} for single-face output.</li>
  * </ul>
  * Shared block lookup and biome tint resolution live as package-private static helpers on this
@@ -92,7 +97,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         if (target == Biome.TintTarget.CONSTANT)
             return block.getTint().constant().orElse(ColorMath.WHITE);
 
-        return new IsometricEngine(context).sampleBiomeTint(target, options.getBiome());
+        return new TextureEngine(context).sampleBiomeTint(target, options.getBiome());
     }
 
     /**
@@ -122,7 +127,11 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         @Override
         public @NotNull ImageData render(@NotNull BlockOptions options) {
             Block block = requireBlock(this.context, options.getBlockId());
-            IsometricEngine engine = new IsometricEngine(this.context);
+            // Use a plain ModelEngine (identity camera) and feed it the block's own
+            // display.gui rotation as the model transform - this is exactly what vanilla
+            // does via PoseStack.mulPose(Quaternionf.rotationXYZ(gui.rotation)), no
+            // extra fixup required for stairs / slabs / anything that overrides [30, 225, 0].
+            ModelEngine engine = new ModelEngine(this.context);
             int tint = resolveBlockTint(this.context, block, options);
 
             ConcurrentList<VisibleTriangle> triangles;
@@ -132,11 +141,13 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             } else {
                 triangles = buildFromBlockElements(block, tint);
 
-                // Apply blockstate variant rotation to the geometry, not the camera.
-                String variantKey = options.getVariant();
-                Block.Variant variant = block.getVariants().get(variantKey);
-                if (variant == null && !variantKey.isEmpty())
-                    variant = block.getVariants().get("");
+                // Apply blockstate variant rotation (x/y) to the geometry. When the caller
+                // didn't specify a variant we intentionally skip variant resolution so the
+                // block renders in its raw model pose - matching vanilla inventory, which
+                // consults the item model + display.gui transform and never the blockstate.
+                // Callers that want a specific orientation pass {@code "facing=east,..."}
+                // explicitly on {@link BlockOptions#getVariant()}.
+                Block.Variant variant = resolveVariant(block, options.getVariant());
                 if (variant != null && variant.hasRotation())
                     triangles = applyRotation(triangles, buildVariantRotation(variant));
             }
@@ -145,13 +156,12 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             if (triangles.isEmpty())
                 triangles = tryBuildFromEntityModel(block);
 
-            float guiYawDelta = guiYawDelta(block);
+            Matrix4f modelTransform = buildUserRotation(options).multiply(buildGuiRotation(block));
 
             int ssaa = Math.max(1, options.getSupersample());
             int hiRes = options.getOutputSize() * ssaa;
             PixelBuffer buffer = PixelBuffer.create(hiRes, hiRes);
-            engine.rasterize(triangles, buffer, PerspectiveParams.ISOMETRIC_BLOCK,
-                options.getPitch(), options.getYaw() + guiYawDelta, options.getRoll());
+            engine.rasterize(triangles, buffer, PerspectiveParams.ISOMETRIC_BLOCK, modelTransform);
 
             if (options.isAntiAlias())
                 buffer.applyFxaa();
@@ -342,10 +352,11 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         }
 
         /**
-         * Builds a rotation matrix from a blockstate variant's X and Y rotation values.
-         * Variant angles are specified in Minecraft's left-handed convention (CW from above
-         * for Y), so the Y angle is negated to match our right-handed rotation matrices.
-         * Applied to vertex positions to pre-transform the geometry before camera projection.
+         * Builds a rotation matrix from a blockstate variant's X and Y rotation values,
+         * matching vanilla's {@code BlockModelDefinition} variant baking: both angles are
+         * negated because blockstate rotation is specified in the opposite sense from JOML's
+         * (and this codebase's) right-handed rotation matrices. Applied to vertex positions
+         * to pre-transform the geometry before the gui display transform.
          */
         private static @NotNull Matrix4f buildVariantRotation(@NotNull Block.Variant variant) {
             Matrix4f result = Matrix4f.IDENTITY;
@@ -354,24 +365,55 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 result = result.multiply(Matrix4f.createRotationY((float) Math.toRadians(-variant.y())));
 
             if (variant.x() != 0)
-                result = result.multiply(Matrix4f.createRotationX((float) Math.toRadians(variant.x())));
+                result = result.multiply(Matrix4f.createRotationX((float) Math.toRadians(-variant.x())));
 
             return result;
         }
 
         /**
-         * Returns the model-rotation yaw delta (in degrees, right-handed) needed to compensate
-         * for a non-standard {@code display.gui.rotation} on the block model. Most blocks
-         * inherit the standard {@code [30, 225, 0]} from the {@code block.json} parent; blocks
-         * like stairs override this (e.g. {@code [30, 135, 0]}). The delta is negated for the
-         * left-handed to right-handed conversion.
+         * Looks up the blockstate variant for a given property key. Exact-match only: an
+         * empty {@code variantKey} or a key that isn't present in the blockstate returns
+         * {@code null}, in which case the caller renders the raw model pose - which for
+         * oriented blocks matches what vanilla inventory shows, since vanilla's inventory
+         * pipeline never consults the blockstate.
          */
-        private static float guiYawDelta(@NotNull Block block) {
+        private static @Nullable Block.Variant resolveVariant(@NotNull Block block, @NotNull String variantKey) {
+            if (variantKey.isEmpty()) return null;
+            return block.getVariants().get(variantKey);
+        }
+
+        /**
+         * Builds the user-supplied pitch/yaw/roll model rotation. Applied before the block's
+         * {@code display.gui} rotation so callers can spin the block relative to its
+         * inventory pose. Composition is Y, then X, then Z, matching the order
+         * {@link ModelEngine#rasterize(ConcurrentList, PixelBuffer, PerspectiveParams, float, float, float)
+         * ModelEngine.buildModelRotation} uses so the {@link BlockOptions#getYaw()} /
+         * {@link BlockOptions#getPitch() pitch} / {@link BlockOptions#getRoll() roll} angles
+         * keep their existing semantics.
+         */
+        private static @NotNull Matrix4f buildUserRotation(@NotNull BlockOptions options) {
+            float pitch = options.getPitch();
+            float yaw = options.getYaw();
+            float roll = options.getRoll();
+            if (pitch == 0f && yaw == 0f && roll == 0f) return Matrix4f.IDENTITY;
+
+            return Matrix4f.createRotationY((float) Math.toRadians(yaw))
+                .multiply(Matrix4f.createRotationX((float) Math.toRadians(pitch)))
+                .multiply(Matrix4f.createRotationZ((float) Math.toRadians(roll)));
+        }
+
+        /**
+         * Returns the block's own {@code display.gui} rotation as a vanilla-equivalent
+         * {@code Quaternionf.rotationXYZ} matrix. Falls back to the standard
+         * {@code [30, 225, 0]} from {@code block/block.json} when the block doesn't supply
+         * its own gui transform, matching vanilla's inheritance behaviour.
+         */
+        private static @NotNull Matrix4f buildGuiRotation(@NotNull Block block) {
             ModelTransform gui = block.getModel().getDisplay().get("gui");
-            if (gui == null) return 0f;
-            float guiYaw = gui.getRotationY();
-            if (guiYaw == 0f || guiYaw == 225f) return 0f;
-            return -(guiYaw - 225f);
+            float pitch = gui != null ? gui.getRotationX() : 30f;
+            float yaw = gui != null ? gui.getRotationY() : 225f;
+            float roll = gui != null ? gui.getRotationZ() : 0f;
+            return IsometricEngine.buildGuiDisplayTransform(pitch, yaw, roll);
         }
 
     }
