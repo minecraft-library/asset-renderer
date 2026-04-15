@@ -85,18 +85,6 @@ public class TextureEngine implements RenderEngine {
     }
 
     /**
-     * Returns {@code true} when the given texture has a parsed animation sidecar. Convenience
-     * wrapper over {@link #animationFor(String)} for callers that only need to branch on
-     * animated-vs-static without inspecting the metadata.
-     *
-     * @param textureId the namespaced texture identifier
-     * @return whether the texture has an {@code .mcmeta} sidecar registered in the context
-     */
-    public boolean isAnimated(@NotNull String textureId) {
-        return this.context.animationFor(textureId).isPresent();
-    }
-
-    /**
      * Samples the biome tint for the given target using the specified biome's temperature,
      * downfall, and optional colour overrides.
      * <p>

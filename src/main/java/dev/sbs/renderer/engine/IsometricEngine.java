@@ -2,21 +2,33 @@ package dev.sbs.renderer.engine;
 
 import dev.sbs.renderer.geometry.PerspectiveParams;
 import dev.sbs.renderer.tensor.Matrix4f;
+import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.pixel.PixelBuffer;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * A {@link ModelEngine} configured for the Minecraft wiki's standardized isometric view.
+ * A {@link ModelEngine} wired to vanilla Minecraft's standard block inventory pose.
  * <p>
- * Fixes the camera transform to a 30 degree pitch and 45 degree yaw, producing the familiar
- * three-quarter view used by block icons and player skulls across the wiki and most third-party
- * renderers. Callers should pass {@link PerspectiveParams#ISOMETRIC_BLOCK} when calling
- * {@link #rasterize} to get a pure orthographic projection tuned so a unit cube fills the
- * output tile - or {@link PerspectiveParams#NONE} for a more conservative scale that matches
- * the articulated-figure preset used by {@code PlayerRenderer}.
+ * Vanilla renders block icons by applying the {@code display.gui} rotation from the root
+ * {@code block/block.json} model ({@code [30, 225, 0]} = pitch, yaw, roll) to the model
+ * geometry via {@code PoseStack#mulPose(Quaternionf.rotationXYZ(...))}. This engine exposes
+ * that exact rotation as its {@link #cameraTransform()} so callers that just want the
+ * standard three-quarter block icon view can rasterize without composing any extra
+ * transform themselves.
+ * <p>
+ * Callers that need a non-standard pose - e.g. blocks whose own model overrides
+ * {@code display.gui} (stairs use {@code [30, 135, 0]}) - should build their own matrix via
+ * {@link #buildGuiDisplayTransform(float, float, float)} and feed it through the explicit
+ * {@link #rasterize(ConcurrentList, PixelBuffer, PerspectiveParams, Matrix4f)}
+ * overload on {@link ModelEngine} rather than relying on this engine's default camera.
  */
 public class IsometricEngine extends ModelEngine {
 
-    private static final @NotNull Matrix4f CAMERA = buildCameraTransform();
+    /**
+     * Vanilla's standard block {@code display.gui} rotation {@code [30, 225, 0]} composed into
+     * a single matrix. Matches {@code Quaternionf.rotationXYZ(toRadians(30), toRadians(225), 0)}.
+     */
+    private static final @NotNull Matrix4f CAMERA = buildGuiDisplayTransform(30f, 225f, 0f);
 
     public IsometricEngine(@NotNull RendererContext context) {
         super(context);
@@ -28,31 +40,32 @@ public class IsometricEngine extends ModelEngine {
     }
 
     /**
-     * The default orthographic perspective for isometric rendering. Returns
-     * {@link PerspectiveParams#ISOMETRIC_BLOCK} so a unit cube fills the output tile without
-     * excess padding.
+     * Builds the matrix equivalent of vanilla's {@code Quaternionf.rotationXYZ(x, y, z)} for
+     * a {@code display.*} transform's Euler angles in degrees.
+     * <p>
+     * JOML's {@code rotationXYZ} produces the quaternion {@code q_x * q_y * q_z}; when that
+     * quaternion rotates a vector {@code q * v * q^-1}, the rotations apply to the vector in
+     * the order Z, then Y, then X (innermost first). The equivalent column-vector matrix is
+     * {@code R_x * R_y * R_z}. Under this codebase's row-vector convention ({@code v * M}) the
+     * correct composition is therefore the transpose, {@code R_z^T * R_y^T * R_x^T}, which is
+     * exactly {@link Matrix4f#createRotationZ createRotationZ} {@link Matrix4f#multiply
+     * multiply} {@link Matrix4f#createRotationY createRotationY} {@link Matrix4f#multiply
+     * multiply} {@link Matrix4f#createRotationX createRotationX}.
+     * <p>
+     * Getting the order right matters: swapping it to {@code Rx * Ry * Rz} produces the same
+     * math for single-axis rotations but silently flips the tilt direction for compound poses
+     * like the standard {@code [30, 225, 0]} block-icon pose, which shows up as the block's
+     * bottom face being visible instead of the top.
      *
-     * @return the orthographic perspective params
+     * @param pitchDegrees the rotation about the X axis in degrees (vanilla {@code rotation[0]})
+     * @param yawDegrees the rotation about the Y axis in degrees (vanilla {@code rotation[1]})
+     * @param rollDegrees the rotation about the Z axis in degrees (vanilla {@code rotation[2]})
+     * @return the composed rotation matrix
      */
-    public @NotNull PerspectiveParams defaultPerspective() {
-        return PerspectiveParams.ISOMETRIC_BLOCK;
-    }
-
-    private static @NotNull Matrix4f buildCameraTransform() {
-        // Vanilla's gui display transform specifies rotation [30, 225, 0] in Minecraft's
-        // left-handed model space (+Z = south). Our rotation matrices use right-handed
-        // convention, so the Y rotation is negated: 225 LH = -225 RH = -45 RH (mod 360 =
-        // 315). The camera is Ry(-45) * Rx(30) in row-vector convention (v * M), matching
-        // the standard yaw-then-pitch composition order. The world-to-screen Y inversion
-        // (world +Y up, screen +Y down) is handled by negating Y in the projection step.
-        float pitch = (float) Math.toRadians(30d);
-        float yaw = (float) Math.toRadians(-45d);
-
-        Matrix4f yawMatrix = Matrix4f.createRotationY(yaw);
-        Matrix4f pitchMatrix = Matrix4f.createRotationX(pitch);
-
-        // Row-vector convention (v * M): yaw applied first, then pitch.
-        return yawMatrix.multiply(pitchMatrix);
+    public static @NotNull Matrix4f buildGuiDisplayTransform(float pitchDegrees, float yawDegrees, float rollDegrees) {
+        return Matrix4f.createRotationZ((float) Math.toRadians(rollDegrees))
+            .multiply(Matrix4f.createRotationY((float) Math.toRadians(yawDegrees)))
+            .multiply(Matrix4f.createRotationX((float) Math.toRadians(pitchDegrees)));
     }
 
 }
