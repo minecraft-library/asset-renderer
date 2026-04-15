@@ -4,7 +4,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.sbs.renderer.engine.IsometricEngine;
-import dev.sbs.renderer.engine.ModelEngine;
 import dev.sbs.renderer.engine.RasterEngine;
 import dev.sbs.renderer.engine.RenderEngine;
 import dev.sbs.renderer.engine.RendererContext;
@@ -44,11 +43,11 @@ import java.util.Map;
  * Each sub-renderer is a {@code public static final} inner class implementing
  * {@link Renderer Renderer&lt;BlockOptions&gt;}:
  * <ul>
- * <li>{@link Isometric3D} feeds a {@link ModelEngine} with the block's own
- * {@code display.gui} rotation as the model transform, matching vanilla's
- * {@code PoseStack.mulPose(Quaternionf.rotationXYZ(gui.rotation))} exactly so stairs,
- * slabs, fence gates, and other blocks that override the standard {@code [30, 225, 0]}
- * pose render vanilla-accurate without any yaw-delta fixup.</li>
+ * <li>{@link Isometric3D} uses an {@link IsometricEngine} whose camera transform is the
+ * block's own {@code display.gui} rotation (via {@link IsometricEngine#withGuiPose}),
+ * matching vanilla's {@code PoseStack.mulPose(Quaternionf.rotationXYZ(gui.rotation))}
+ * exactly so stairs, slabs, fence gates, and other blocks that override the standard
+ * {@code [30, 225, 0]} pose render vanilla-accurate without any yaw-delta fixup.</li>
  * <li>{@link BlockFace2D} delegates to {@link RasterEngine} for single-face output.</li>
  * </ul>
  * Shared block lookup and biome tint resolution live as package-private static helpers on this
@@ -127,11 +126,11 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         @Override
         public @NotNull ImageData render(@NotNull BlockOptions options) {
             Block block = requireBlock(this.context, options.getBlockId());
-            // Use a plain ModelEngine (identity camera) and feed it the block's own
-            // display.gui rotation as the model transform - this is exactly what vanilla
-            // does via PoseStack.mulPose(Quaternionf.rotationXYZ(gui.rotation)), no
-            // extra fixup required for stairs / slabs / anything that overrides [30, 225, 0].
-            ModelEngine engine = new ModelEngine(this.context);
+            // The block's own display.gui rotation (stairs use [30, 135, 0] instead of the
+            // default [30, 225, 0], etc.) lives in the engine's camera transform; the user's
+            // pitch/yaw/roll go through the standard rasterize path. This matches vanilla's
+            // PoseStack.mulPose(Quaternionf.rotationXYZ(gui.rotation)) exactly.
+            IsometricEngine engine = engineForBlockIcon(this.context, block);
             int tint = resolveBlockTint(this.context, block, options);
 
             ConcurrentList<VisibleTriangle> triangles;
@@ -156,12 +155,11 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             if (triangles.isEmpty())
                 triangles = tryBuildFromEntityModel(block);
 
-            Matrix4f modelTransform = buildUserRotation(options).multiply(buildGuiRotation(block));
-
             int ssaa = Math.max(1, options.getSupersample());
             int hiRes = options.getOutputSize() * ssaa;
             PixelBuffer buffer = PixelBuffer.create(hiRes, hiRes);
-            engine.rasterize(triangles, buffer, PerspectiveParams.ISOMETRIC_BLOCK, modelTransform);
+            engine.rasterize(triangles, buffer, PerspectiveParams.ISOMETRIC_BLOCK,
+                options.getPitch(), options.getYaw(), options.getRoll());
 
             if (options.isAntiAlias())
                 buffer.applyFxaa();
@@ -383,37 +381,18 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         }
 
         /**
-         * Builds the user-supplied pitch/yaw/roll model rotation. Applied before the block's
-         * {@code display.gui} rotation so callers can spin the block relative to its
-         * inventory pose. Composition is Y, then X, then Z, matching the order
-         * {@link ModelEngine#rasterize(ConcurrentList, PixelBuffer, PerspectiveParams, float, float, float)
-         * ModelEngine.buildModelRotation} uses so the {@link BlockOptions#getYaw()} /
-         * {@link BlockOptions#getPitch() pitch} / {@link BlockOptions#getRoll() roll} angles
-         * keep their existing semantics.
+         * Returns an {@link IsometricEngine} whose camera reflects the block's own
+         * {@code display.gui} rotation. Falls back to the standard {@code [30, 225, 0]} from
+         * {@code block/block.json} when the block doesn't supply its own gui transform, matching
+         * vanilla's inheritance behaviour - stairs ship {@code [30, 135, 0]}, slabs and fence
+         * gates override too.
          */
-        private static @NotNull Matrix4f buildUserRotation(@NotNull BlockOptions options) {
-            float pitch = options.getPitch();
-            float yaw = options.getYaw();
-            float roll = options.getRoll();
-            if (pitch == 0f && yaw == 0f && roll == 0f) return Matrix4f.IDENTITY;
-
-            return Matrix4f.createRotationY((float) Math.toRadians(yaw))
-                .multiply(Matrix4f.createRotationX((float) Math.toRadians(pitch)))
-                .multiply(Matrix4f.createRotationZ((float) Math.toRadians(roll)));
-        }
-
-        /**
-         * Returns the block's own {@code display.gui} rotation as a vanilla-equivalent
-         * {@code Quaternionf.rotationXYZ} matrix. Falls back to the standard
-         * {@code [30, 225, 0]} from {@code block/block.json} when the block doesn't supply
-         * its own gui transform, matching vanilla's inheritance behaviour.
-         */
-        private static @NotNull Matrix4f buildGuiRotation(@NotNull Block block) {
+        private static @NotNull IsometricEngine engineForBlockIcon(@NotNull RendererContext context, @NotNull Block block) {
             ModelTransform gui = block.getModel().getDisplay().get("gui");
             float pitch = gui != null ? gui.getRotationX() : 30f;
             float yaw = gui != null ? gui.getRotationY() : 225f;
             float roll = gui != null ? gui.getRotationZ() : 0f;
-            return IsometricEngine.buildGuiDisplayTransform(pitch, yaw, roll);
+            return IsometricEngine.withGuiPose(context, pitch, yaw, roll);
         }
 
     }
