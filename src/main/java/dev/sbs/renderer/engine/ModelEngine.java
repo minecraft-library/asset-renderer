@@ -21,7 +21,7 @@ import java.util.Arrays;
  * ordering for back-to-front draw order.
  * <p>
  * Every renderer composing this engine can supply pitch, yaw, and roll Euler angles at render
- * time. The rotation is pre-multiplied into the engine's {@link #cameraTransform()} so the inner
+ * time. The rotation is pre-multiplied into the engine's camera transform so the inner
  * rasterization loop stays hot and the existing triangle list can be reused across multiple
  * rotations without rebuilding the geometry.
  * <p>
@@ -59,17 +59,6 @@ public class ModelEngine extends TextureEngine {
     protected ModelEngine(@NotNull RendererContext context, @NotNull Matrix4f camera) {
         super(context);
         this.camera = camera;
-    }
-
-    /**
-     * The camera transform applied to every vertex before projection. Backed by the value
-     * supplied at construction time - identity for plain {@code ModelEngine}, a preset pose
-     * for subclasses like {@link IsometricEngine}.
-     *
-     * @return the camera transform matrix
-     */
-    public @NotNull Matrix4f cameraTransform() {
-        return this.camera;
     }
 
     /**
@@ -112,7 +101,7 @@ public class ModelEngine extends TextureEngine {
         float rollDegrees
     ) {
         Matrix4f modelRotation = buildModelRotation(pitchDegrees, yawDegrees, rollDegrees);
-        Matrix4f transform = modelRotation.multiply(cameraTransform());
+        Matrix4f transform = modelRotation.multiply(this.camera);
         rasterizeInternal(triangles, buffer, perspective, transform);
     }
 
@@ -132,7 +121,7 @@ public class ModelEngine extends TextureEngine {
         @NotNull PerspectiveParams perspective,
         @NotNull Matrix4f modelTransform
     ) {
-        Matrix4f transform = modelTransform.multiply(cameraTransform());
+        Matrix4f transform = modelTransform.multiply(this.camera);
         rasterizeInternal(triangles, buffer, perspective, transform);
     }
 

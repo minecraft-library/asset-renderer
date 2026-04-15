@@ -11,10 +11,10 @@ import org.jetbrains.annotations.NotNull;
  * <p>
  * Vanilla renders block icons by applying the {@code display.gui} rotation from the root
  * {@code block/block.json} model ({@code [30, 225, 0]} = pitch, yaw, roll) to the model
- * geometry via {@code PoseStack#mulPose(Quaternionf.rotationXYZ(...))}. This engine exposes
- * that exact rotation as its {@link #cameraTransform()} so callers that just want the
- * standard three-quarter block icon view can rasterize without composing any extra
- * transform themselves.
+ * geometry via {@code PoseStack#mulPose(Quaternionf.rotationXYZ(...))}. This engine bakes
+ * that exact rotation into its camera transform so callers that just want the standard
+ * three-quarter block icon view can rasterize without composing any extra transform
+ * themselves.
  * <p>
  * Callers that need a non-standard pose - e.g. blocks whose own model overrides
  * {@code display.gui} (stairs use {@code [30, 135, 0]}) - should build their own matrix via
