@@ -366,6 +366,23 @@ public final class ToolingEntityModels {
 
         /**
          * Converts a Bedrock bones array into an {@link EntityModelData} with a flat bone map.
+         * <p>
+         * Bedrock geo.json is Y-up with cube origins pre-baked to entity-root space; the runtime
+         * expects Java {@code ModelPart} conventions (Y-down, cube origins bone-local). The
+         * conversion happens here so every downstream consumer sees a single coordinate
+         * convention:
+         * <ul>
+         * <li><b>Pivot:</b> relativise to its own bone (a no-op since Bedrock pivots already live
+         * in entity-root space) and negate {@code y} to flip Y-up into Y-down.</li>
+         * <li><b>Cube origin:</b> subtract the pivot to move the corner into bone-local space,
+         * then <i>mirror</i> it about the pivot's XZ plane. Because {@code origin} is the
+         * <b>min</b> corner and {@code size} is an unsigned extent, flipping Y swaps min/max on
+         * the Y axis - so the converted {@code origin.y} is {@code -(origin.y - pivot.y) -
+         * size.y}, i.e. the former max corner negated.</li>
+         * </ul>
+         * Sizes remain unsigned extents and rotation angles carry over unchanged; no vanilla
+         * Bedrock entity needs a rotation adjustment because the per-axis rotation conventions
+         * match between {@code .geo.json} and Java entity models.
          */
         private static @NotNull EntityModelData buildModel(
             @NotNull JsonArray bonesArray,
@@ -389,6 +406,9 @@ public final class ToolingEntityModels {
                 float[] pivot = readFloatArray(boneJson, "pivot", new float[]{ 0, 0, 0 });
                 float[] rotation = readFloatArray(boneJson, "rotation", new float[]{ 0, 0, 0 });
 
+                // Bedrock Y-up -> Java Y-down: mirror the pivot about the XZ plane.
+                float[] javaPivot = new float[]{ pivot[0], -pivot[1], pivot[2] };
+
                 JsonArray cubesArray = boneJson.getAsJsonArray("cubes");
                 ConcurrentList<EntityModelData.Cube> cubes = Concurrent.newList();
 
@@ -402,13 +422,23 @@ public final class ToolingEntityModels {
                         ? cubeJson.get("mirror").getAsBoolean()
                         : boneMirror;
 
-                    cubes.add(new EntityModelData.Cube(origin, size, uv, inflate, mirror, Concurrent.newMap()));
+                    // World-space (Y-up) -> bone-local (Y-down). The cube's min corner in Y-up
+                    // becomes its max corner after Y is flipped, so the new min Y is the negated
+                    // former max: -(origin.y - pivot.y + size.y). X and Z are unaffected by the
+                    // mirror and only need to be relativised to the bone.
+                    float[] javaOrigin = new float[]{
+                        origin[0] - pivot[0],
+                        -(origin[1] - pivot[1]) - size[1],
+                        origin[2] - pivot[2]
+                    };
+
+                    cubes.add(new EntityModelData.Cube(javaOrigin, size, uv, inflate, mirror, Concurrent.newMap()));
                 }
 
-                bones.put(name, new EntityModelData.Bone(pivot, rotation, cubes));
+                bones.put(name, new EntityModelData.Bone(javaPivot, rotation, cubes));
             }
 
-            return new EntityModelData(textureWidth, textureHeight, false, bones);
+            return new EntityModelData(textureWidth, textureHeight, bones);
         }
 
         /**

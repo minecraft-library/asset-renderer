@@ -25,6 +25,19 @@ import java.util.Map;
  * by both {@link dev.sbs.renderer.EntityRenderer EntityRenderer} (full entity rendering with
  * armor overlays) and {@link dev.sbs.renderer.BlockRenderer BlockRenderer} (entity model
  * fallback for element-less blocks like shulker boxes and chests).
+ * <p>
+ * The runtime coordinate convention is Minecraft Java Edition's {@code ModelPart}:
+ * <ul>
+ * <li>Y-down - positive Y points toward the floor, so every transformed vertex has its Y
+ * negated before centring and scaling, and triangle winding is reversed so back-face culling
+ * is preserved.</li>
+ * <li>Cube {@link EntityModelData.Cube#getOrigin() origin}s are bone-local - they are the raw
+ * {@code addBox(x, y, z, ...)} arguments - so the bone's {@link EntityModelData.Bone#getPivot()
+ * PartPose offset} is applied as a translation on every cube vertex.</li>
+ * </ul>
+ * Bedrock-sourced data from the {@code .geo.json} vanilla resource pack is converted into this
+ * convention by {@link dev.sbs.renderer.tooling.ToolingEntityModels ToolingEntityModels} at
+ * asset-generation time, so the renderer never sees mixed conventions at runtime.
  */
 @UtilityClass
 public class EntityGeometryKit {
@@ -42,7 +55,6 @@ public class EntityGeometryKit {
         @NotNull EntityModelData model,
         @NotNull PixelBuffer texture
     ) {
-        boolean negateY = model.isNegateY();
         ModelBounds bounds = computeBounds(model);
         float extent = Math.max(bounds.maxExtent(), 0.001f);
         float scale = 0.9f / extent;
@@ -80,8 +92,12 @@ public class EntityGeometryKit {
                 for (BlockFace face : BlockFace.values()) {
                     Vector3f[] corners = face.corners(x0, y0, z0, x1, y1, z1);
                     for (int i = 0; i < 4; i++) {
+                        // Java ModelPart: vertex_world = pivot + R * cube_vertex_local. The
+                        // bone transform already folds the PartPose offset in as a translation,
+                        // so applying it here moves the bone-local corner into entity-root space.
                         Vector3f transformed = Vector3f.transform(corners[i], boneTransform);
-                        float ty = negateY ? -transformed.y() : transformed.y();
+                        // Y-down -> Y-up for the renderer.
+                        float ty = -transformed.y();
                         float nx = (transformed.x() - cx) * scale;
                         float ny = (ty - cy) * scale;
                         float nz = (transformed.z() - cz) * scale;
@@ -96,26 +112,23 @@ public class EntityGeometryKit {
                     }
 
                     Vector3f rawNormal = Vector3f.transformNormal(face.normal(), boneTransform);
-                    if (negateY)
-                        rawNormal = new Vector3f(rawNormal.x(), -rawNormal.y(), rawNormal.z());
+                    // Mirror normals across XZ together with the vertices.
+                    rawNormal = new Vector3f(rawNormal.x(), -rawNormal.y(), rawNormal.z());
                     Vector3f normal = Vector3f.normalize(rawNormal);
                     Vector2f[] uv = resolveFaceUv(face, cube, size, texW, texH);
 
-                    int i1 = negateY ? 2 : 1;
-                    int i2 = negateY ? 1 : 2;
-                    int j1 = negateY ? 3 : 2;
-                    int j2 = negateY ? 2 : 3;
-
+                    // Reverse triangle winding to match the Y-flip so back-face culling keeps
+                    // identifying the same geometric side as front/back.
                     triangles.add(new VisibleTriangle(
-                        corners[0], corners[i1], corners[i2],
-                        uv[0], uv[i1], uv[i2],
+                        corners[0], corners[2], corners[1],
+                        uv[0], uv[2], uv[1],
                         texture, ColorMath.WHITE,
                         normal, 1f, priority,
                         true
                     ));
                     triangles.add(new VisibleTriangle(
-                        corners[0], corners[j1], corners[j2],
-                        uv[0], uv[j1], uv[j2],
+                        corners[0], corners[3], corners[2],
+                        uv[0], uv[3], uv[2],
                         texture, ColorMath.WHITE,
                         normal, 1f, priority,
                         true
@@ -142,7 +155,6 @@ public class EntityGeometryKit {
      * @return the model bounds
      */
     public static @NotNull ModelBounds computeBounds(@NotNull EntityModelData model) {
-        boolean negateY = model.isNegateY();
         float minX = Float.POSITIVE_INFINITY, minY = Float.POSITIVE_INFINITY, minZ = Float.POSITIVE_INFINITY;
         float maxX = Float.NEGATIVE_INFINITY, maxY = Float.NEGATIVE_INFINITY, maxZ = Float.NEGATIVE_INFINITY;
 
@@ -161,7 +173,7 @@ public class EntityGeometryKit {
                     for (float y : ys) {
                         for (float z : zs) {
                             Vector3f c = Vector3f.transform(new Vector3f(x, y, z), boneTransform);
-                            float cy = negateY ? -c.y() : c.y();
+                            float cy = -c.y();
                             minX = Math.min(minX, c.x());
                             minY = Math.min(minY, cy);
                             minZ = Math.min(minZ, c.z());
@@ -180,17 +192,24 @@ public class EntityGeometryKit {
         return new ModelBounds(minX, minY, minZ, maxX, maxY, maxZ);
     }
 
+    /**
+     * Builds the Java {@code ModelPart} transform {@code T(pivot) * R(rotation)}: rotate the
+     * bone-local cube vertex around the origin, then translate by the PartPose offset so the
+     * cube ends up in entity-root space. When {@link EntityModelData.Bone#getRotation() rotation}
+     * is zero the transform collapses to a pure translation by the pivot; it is never identity
+     * because cube origins are always bone-local in this schema.
+     */
     private static @NotNull Matrix4f buildBoneTransform(@NotNull EntityModelData.Bone bone) {
-        float[] r = bone.getRotation();
-        if (r[0] == 0f && r[1] == 0f && r[2] == 0f) return Matrix4f.IDENTITY;
-
         float[] p = bone.getPivot();
-        Matrix4f toPivot = Matrix4f.createTranslation(-p[0], -p[1], -p[2]);
-        Matrix4f fromPivot = Matrix4f.createTranslation(p[0], p[1], p[2]);
+        float[] r = bone.getRotation();
+
+        Matrix4f translate = Matrix4f.createTranslation(p[0], p[1], p[2]);
+        if (r[0] == 0f && r[1] == 0f && r[2] == 0f) return translate;
+
         Matrix4f rotation = Matrix4f.createRotationZ((float) Math.toRadians(r[2]))
             .multiply(Matrix4f.createRotationY((float) Math.toRadians(r[1])))
             .multiply(Matrix4f.createRotationX((float) Math.toRadians(r[0])));
-        return toPivot.multiply(rotation).multiply(fromPivot);
+        return rotation.multiply(translate);
     }
 
     private static @NotNull Vector2f @NotNull [] resolveFaceUv(

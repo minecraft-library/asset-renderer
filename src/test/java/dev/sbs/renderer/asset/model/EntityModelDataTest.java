@@ -9,55 +9,49 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
- * Focused coverage for the {@link EntityModelData} schema, mainly the
- * {@link EntityModelData#isNegateY() negateY} Y-down-to-Y-up compatibility flag added for
- * Minecraft Java Edition {@code ModelPart} imports.
+ * Focused coverage for the {@link EntityModelData} schema - texture dimensions default to
+ * {@code 64 x 64}, Gson deserialisation populates the declared fields, and equality discriminates
+ * by content.
  */
 class EntityModelDataTest {
 
     private static final Gson GSON = GsonSettings.defaults().create();
 
     @Test
-    @DisplayName("defaults to Y-up (negateY=false)")
-    void defaultsYUp() {
+    @DisplayName("defaults to 64x64 texture dimensions")
+    void defaultsTextureDimensions() {
         EntityModelData model = new EntityModelData();
-        assertThat(model.isNegateY(), is(false));
+        assertThat(model.getTextureWidth(), is(64));
+        assertThat(model.getTextureHeight(), is(64));
+        assertThat(model.getBones().isEmpty(), is(true));
     }
 
     @Test
-    @DisplayName("deserializes negate_y from JSON with snake_case key")
-    void deserializesNegateYFromSnakeCaseKey() {
-        String json = "{\"negate_y\": true}";
+    @DisplayName("deserialises textureWidth / textureHeight from JSON")
+    void deserialisesTextureDimensions() {
+        String json = "{\"textureWidth\": 128, \"textureHeight\": 32}";
         EntityModelData model = GSON.fromJson(json, EntityModelData.class);
-        assertThat(model.isNegateY(), is(true));
-    }
-
-    @Test
-    @DisplayName("omitted negate_y falls back to default")
-    void omittedNegateYUsesDefault() {
-        String json = "{\"textureWidth\": 128}";
-        EntityModelData model = GSON.fromJson(json, EntityModelData.class);
-        assertThat(model.isNegateY(), is(false));
         assertThat(model.getTextureWidth(), is(128));
+        assertThat(model.getTextureHeight(), is(32));
     }
 
     @Test
-    @DisplayName("roundtrips negate_y through the Gson serializer")
-    void roundtripNegateY() {
-        String original = "{\"negate_y\": true, \"textureWidth\": 64, \"textureHeight\": 32}";
+    @DisplayName("roundtrips through the Gson serializer")
+    void roundtripsThroughGson() {
+        String original = "{\"textureWidth\": 64, \"textureHeight\": 32}";
         EntityModelData model = GSON.fromJson(original, EntityModelData.class);
         String reserialized = GSON.toJson(model);
         EntityModelData reloaded = GSON.fromJson(reserialized, EntityModelData.class);
-        assertThat(reloaded.isNegateY(), is(true));
         assertThat(reloaded, equalTo(model));
+        assertThat(reloaded.hashCode(), is(model.hashCode()));
     }
 
     @Test
-    @DisplayName("equals / hashCode differentiate on the negate_y flag")
-    void equalityRespectsNegateY() {
-        EntityModelData a = GSON.fromJson("{\"negate_y\": false}", EntityModelData.class);
-        EntityModelData b = GSON.fromJson("{\"negate_y\": true}", EntityModelData.class);
-        EntityModelData c = GSON.fromJson("{\"negate_y\": true}", EntityModelData.class);
+    @DisplayName("equals / hashCode differentiate on texture dimensions")
+    void equalityRespectsTextureDimensions() {
+        EntityModelData a = GSON.fromJson("{\"textureWidth\": 64}", EntityModelData.class);
+        EntityModelData b = GSON.fromJson("{\"textureWidth\": 128}", EntityModelData.class);
+        EntityModelData c = GSON.fromJson("{\"textureWidth\": 128}", EntityModelData.class);
 
         assertThat(a, is(not(equalTo(b))));
         assertThat(b, is(equalTo(c)));

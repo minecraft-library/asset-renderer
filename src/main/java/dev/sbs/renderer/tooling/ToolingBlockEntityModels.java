@@ -2,7 +2,9 @@ package dev.sbs.renderer.tooling;
 
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import dev.sbs.renderer.exception.AssetPipelineException;
 import dev.sbs.renderer.pipeline.AssetPipelineOptions;
 import dev.sbs.renderer.pipeline.client.ClientJarDownloader;
@@ -196,22 +198,40 @@ public final class ToolingBlockEntityModels {
         private static final @NotNull String LAYER_DEFINITION = "net/minecraft/client/model/geom/builders/LayerDefinition";
 
         /**
-         * Block entity model sources: class entry path, method name, and output entity id.
-         * Methods that take parameters (like {@code createFlagLayer(boolean)}) are parsed with
-         * default values - conditional branches are ignored (first path taken).
+         * Block entity model sources: class entry path, method name, output entity id, and the
+         * source's Y axis convention. Methods that take parameters (like
+         * {@code createFlagLayer(boolean)}) are parsed with default values - conditional branches
+         * are ignored (first path taken).
+         * <p>
+         * Most Java {@code ModelPart}-derived block entities are Y-down (standard mob-style
+         * convention - a vertex with the smallest Y points at the highest spot on the model).
+         * A few block-native models, notably {@code ChestModel}, author their cubes in Y-up
+         * block-space directly; those are marked {@link YAxis#UP} so the parser post-processes
+         * them back into the canonical Y-down form before emission.
          */
         private static final @NotNull List<Source> SOURCES = List.of(
-            new Source("net/minecraft/client/model/object/chest/ChestModel.class", "createSingleBodyLayer", "minecraft:chest"),
-            new Source("net/minecraft/client/model/object/banner/BannerFlagModel.class", "createFlagLayer", "minecraft:banner"),
-            new Source("net/minecraft/client/renderer/blockentity/BedRenderer.class", "createHeadLayer", "minecraft:bed_head"),
-            new Source("net/minecraft/client/renderer/blockentity/BedRenderer.class", "createFootLayer", "minecraft:bed_foot"),
-            new Source("net/minecraft/client/model/monster/shulker/ShulkerModel.class", "createShellMesh", "minecraft:shulker_box"),
-            new Source("net/minecraft/client/renderer/blockentity/StandingSignRenderer.class", "createSignLayer", "minecraft:sign"),
-            new Source("net/minecraft/client/renderer/blockentity/HangingSignRenderer.class", "createHangingSignLayer", "minecraft:hanging_sign"),
-            new Source("net/minecraft/client/renderer/blockentity/ConduitRenderer.class", "createShellLayer", "minecraft:conduit")
+            // ChestModel is authored in Y-up block-space (positive Y is up) rather than the
+            // Y-down ModelPart convention used elsewhere - the lid sits at y=9..14 and the body
+            // at y=0..10 in the raw data, which is how the chest block looks when rendered.
+            new Source("net/minecraft/client/model/object/chest/ChestModel.class", "createSingleBodyLayer", "minecraft:chest", YAxis.UP),
+            new Source("net/minecraft/client/model/object/banner/BannerFlagModel.class", "createFlagLayer", "minecraft:banner", YAxis.DOWN),
+            new Source("net/minecraft/client/renderer/blockentity/BedRenderer.class", "createHeadLayer", "minecraft:bed_head", YAxis.DOWN),
+            new Source("net/minecraft/client/renderer/blockentity/BedRenderer.class", "createFootLayer", "minecraft:bed_foot", YAxis.DOWN),
+            new Source("net/minecraft/client/model/monster/shulker/ShulkerModel.class", "createShellMesh", "minecraft:shulker_box", YAxis.DOWN),
+            new Source("net/minecraft/client/renderer/blockentity/StandingSignRenderer.class", "createSignLayer", "minecraft:sign", YAxis.DOWN),
+            new Source("net/minecraft/client/renderer/blockentity/HangingSignRenderer.class", "createHangingSignLayer", "minecraft:hanging_sign", YAxis.DOWN),
+            new Source("net/minecraft/client/renderer/blockentity/ConduitRenderer.class", "createShellLayer", "minecraft:conduit", YAxis.DOWN)
         );
 
-        private record Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId) {}
+        /** The Y axis orientation used by a Java block entity model's source data. */
+        private enum YAxis { UP, DOWN }
+
+        private record Source(
+            @NotNull String classEntry,
+            @NotNull String methodName,
+            @NotNull String entityId,
+            @NotNull YAxis yAxis
+        ) {}
 
         /**
          * Parses all known block entity model classes from the supplied client jar and returns
@@ -247,8 +267,11 @@ public final class ToolingBlockEntityModels {
                         }
 
                         JsonObject model = parseLayerMethod(method.instructions);
-                        if (model != null)
+                        if (model != null) {
+                            if (source.yAxis == YAxis.UP)
+                                flipToYDown(model);
                             results.put(source.entityId, model);
+                        }
 
                     } catch (Exception ex) {
                         System.err.printf("  skipped %s: %s%n", source.entityId, ex.getMessage());
@@ -259,6 +282,42 @@ public final class ToolingBlockEntityModels {
             }
 
             return results;
+        }
+
+        /**
+         * Post-processes a Y-up block entity model into the canonical Y-down form. For each
+         * bone, negates the pivot's Y so the {@code PartPose} offset flips into the Y-down
+         * frame; for each cube, mirrors the {@code origin.y} about the pivot's XZ plane. Because
+         * {@code origin} is the <b>min</b> corner and {@code size} is an unsigned extent, the
+         * new min Y is the negated former max: {@code origin.y = -origin.y - size.y}. X, Z, and
+         * size are unaffected.
+         */
+        private static void flipToYDown(@NotNull JsonObject model) {
+            JsonObject bones = model.getAsJsonObject("bones");
+            if (bones == null) return;
+
+            for (Map.Entry<String, JsonElement> entry : bones.entrySet()) {
+                JsonObject bone = entry.getValue().getAsJsonObject();
+
+                JsonArray pivot = bone.getAsJsonArray("pivot");
+                if (pivot != null && pivot.size() == 3)
+                    pivot.set(1, new JsonPrimitive(-pivot.get(1).getAsFloat()));
+
+                JsonArray cubes = bone.getAsJsonArray("cubes");
+                if (cubes == null) continue;
+
+                for (JsonElement cubeElement : cubes) {
+                    JsonObject cube = cubeElement.getAsJsonObject();
+                    JsonArray origin = cube.getAsJsonArray("origin");
+                    JsonArray size = cube.getAsJsonArray("size");
+                    if (origin == null || size == null || origin.size() != 3 || size.size() != 3)
+                        continue;
+
+                    float oy = origin.get(1).getAsFloat();
+                    float sy = size.get(1).getAsFloat();
+                    origin.set(1, new JsonPrimitive(-oy - sy));
+                }
+            }
         }
 
         /**
@@ -295,64 +354,68 @@ public final class ToolingBlockEntityModels {
 
                 int opcode = node.getOpcode();
 
-                if (node instanceof FieldInsnNode fieldInsn && opcode == Opcodes.GETSTATIC) {
-                    if (fieldInsn.owner.equals(PART_POSE) && fieldInsn.name.equals("ZERO")) {
-                        pendingPivot = new float[]{0, 0, 0};
-                        pendingRotation = new float[]{0, 0, 0};
+                switch (node) {
+                    case FieldInsnNode fieldInsn when opcode == Opcodes.GETSTATIC -> {
+                        if (fieldInsn.owner.equals(PART_POSE) && fieldInsn.name.equals("ZERO")) {
+                            pendingPivot = new float[]{ 0, 0, 0 };
+                            pendingRotation = new float[]{ 0, 0, 0 };
+                        }
                     }
-                } else if (node instanceof MethodInsnNode methodInsn) {
-                    if (methodInsn.owner.equals(CUBE_LIST_BUILDER)) {
-                        if (methodInsn.name.equals("texOffs") && methodInsn.desc.startsWith("(II")) {
-                            pendingUv[1] = popInt(numStack);
-                            pendingUv[0] = popInt(numStack);
-                        } else if (methodInsn.name.equals("addBox") && methodInsn.desc.startsWith("(FFFFFF")) {
-                            float d = popFloat(numStack);
-                            float h = popFloat(numStack);
-                            float w = popFloat(numStack);
-                            float z = popFloat(numStack);
-                            float y = popFloat(numStack);
-                            float x = popFloat(numStack);
-                            pendingCubes.add(new float[]{x, y, z, w, h, d, pendingUv[0], pendingUv[1]});
+                    case MethodInsnNode methodInsn -> {
+                        if (methodInsn.owner.equals(CUBE_LIST_BUILDER)) {
+                            if (methodInsn.name.equals("texOffs") && methodInsn.desc.startsWith("(II")) {
+                                pendingUv[1] = popInt(numStack);
+                                pendingUv[0] = popInt(numStack);
+                            } else if (methodInsn.name.equals("addBox") && methodInsn.desc.startsWith("(FFFFFF")) {
+                                float d = popFloat(numStack);
+                                float h = popFloat(numStack);
+                                float w = popFloat(numStack);
+                                float z = popFloat(numStack);
+                                float y = popFloat(numStack);
+                                float x = popFloat(numStack);
+                                pendingCubes.add(new float[]{ x, y, z, w, h, d, pendingUv[0], pendingUv[1] });
+                            }
+                        } else if (methodInsn.owner.equals(PART_POSE)) {
+                            if (methodInsn.name.equals("offset") && methodInsn.desc.startsWith("(FFF")) {
+                                float pz = popFloat(numStack);
+                                float py = popFloat(numStack);
+                                float px = popFloat(numStack);
+                                pendingPivot = new float[]{ px, py, pz };
+                                pendingRotation = new float[]{ 0, 0, 0 };
+                            } else if (methodInsn.name.equals("offsetAndRotation") && methodInsn.desc.startsWith("(FFFFFF")) {
+                                float rz = popFloat(numStack);
+                                float ry = popFloat(numStack);
+                                float rx = popFloat(numStack);
+                                float pz = popFloat(numStack);
+                                float py = popFloat(numStack);
+                                float px = popFloat(numStack);
+                                pendingPivot = new float[]{ px, py, pz };
+                                pendingRotation = new float[]{
+                                    (float) Math.toDegrees(rx),
+                                    (float) Math.toDegrees(ry),
+                                    (float) Math.toDegrees(rz)
+                                };
+                            }
+                        } else if (methodInsn.owner.equals(PART_DEFINITION) && methodInsn.name.equals("addOrReplaceChild")) {
+                            // The part name was pushed as an ldc String before the CubeListBuilder chain.
+                            // Find it by scanning backward from numStack context.
+                            if (pendingPartName != null && !pendingCubes.isEmpty()) {
+                                bones.add(pendingPartName, buildBone(pendingPivot, pendingRotation, pendingCubes));
+                            }
+                            pendingPartName = null;
+                            pendingCubes = Concurrent.newList();
+                            pendingPivot = new float[]{ 0, 0, 0 };
+                            pendingRotation = new float[]{ 0, 0, 0 };
+                            pendingUv = new int[]{ 0, 0 };
+                        } else if (methodInsn.owner.equals(LAYER_DEFINITION) && methodInsn.name.equals("create")) {
+                            texHeight = popInt(numStack);
+                            texWidth = popInt(numStack);
                         }
-                    } else if (methodInsn.owner.equals(PART_POSE)) {
-                        if (methodInsn.name.equals("offset") && methodInsn.desc.startsWith("(FFF")) {
-                            float pz = popFloat(numStack);
-                            float py = popFloat(numStack);
-                            float px = popFloat(numStack);
-                            pendingPivot = new float[]{px, py, pz};
-                            pendingRotation = new float[]{0, 0, 0};
-                        } else if (methodInsn.name.equals("offsetAndRotation") && methodInsn.desc.startsWith("(FFFFFF")) {
-                            float rz = popFloat(numStack);
-                            float ry = popFloat(numStack);
-                            float rx = popFloat(numStack);
-                            float pz = popFloat(numStack);
-                            float py = popFloat(numStack);
-                            float px = popFloat(numStack);
-                            pendingPivot = new float[]{px, py, pz};
-                            pendingRotation = new float[]{
-                                (float) Math.toDegrees(rx),
-                                (float) Math.toDegrees(ry),
-                                (float) Math.toDegrees(rz)
-                            };
-                        }
-                    } else if (methodInsn.owner.equals(PART_DEFINITION) && methodInsn.name.equals("addOrReplaceChild")) {
-                        // The part name was pushed as an ldc String before the CubeListBuilder chain.
-                        // Find it by scanning backward from numStack context.
-                        if (pendingPartName != null && !pendingCubes.isEmpty()) {
-                            bones.add(pendingPartName, buildBone(pendingPivot, pendingRotation, pendingCubes));
-                        }
-                        pendingPartName = null;
-                        pendingCubes = Concurrent.newList();
-                        pendingPivot = new float[]{0, 0, 0};
-                        pendingRotation = new float[]{0, 0, 0};
-                        pendingUv = new int[]{0, 0};
-                    } else if (methodInsn.owner.equals(LAYER_DEFINITION) && methodInsn.name.equals("create")) {
-                        texHeight = popInt(numStack);
-                        texWidth = popInt(numStack);
                     }
-                } else if (node instanceof LdcInsnNode ldc && ldc.cst instanceof String s) {
-                    // Track the last string literal as potential part name
-                    pendingPartName = s;
+                    case LdcInsnNode ldc when ldc.cst instanceof String s ->
+                        // Track the last string literal as potential part name
+                        pendingPartName = s;
+                    default -> { }
                 }
             }
 
@@ -361,7 +424,6 @@ public final class ToolingBlockEntityModels {
             JsonObject model = new JsonObject();
             model.addProperty("textureWidth", texWidth);
             model.addProperty("textureHeight", texHeight);
-            model.addProperty("negate_y", false);
             model.add("bones", bones);
             return model;
         }

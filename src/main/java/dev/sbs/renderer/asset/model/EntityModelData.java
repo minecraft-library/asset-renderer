@@ -13,21 +13,24 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Objects;
 
 /**
- * A minimal bedrock-inspired entity model schema. Java Edition's entity models live in hardcoded
- * client code rather than JSON, so the asset pipeline parses a slim in-repo descriptor per entity
- * that lists its bones and their cube geometry without trying to express every vanilla feature.
+ * A minimal entity model schema modelled on Minecraft Java Edition's hardcoded {@code ModelPart}
+ * geometry. The asset pipeline parses a slim in-repo descriptor per entity that lists its bones
+ * and their cube geometry without trying to express every vanilla feature.
  * <p>
  * Used by {@code EntityRenderer.ENTITY_3D} to turn an entity id into a list of cubes that can be
  * fed to the model engine.
  * <p>
- * Bedrock {@code geo.json} and Blockbench exports use a Y-up coordinate system natively, which is
- * what this schema expects. Minecraft Java Edition's {@code ModelPart} code instead uses a
- * Y-down system where positive Y points toward the floor - a vertex at {@code y = -8} is eight
- * units above the entity origin. When an asset is imported from a Java-edition source without
- * being pre-flipped, set {@link #isNegateY()} to {@code true} and the renderer will mirror the
- * whole model about the XZ plane at render time. The mirror is applied after every bone
- * transform so rotations expressed in the source's native coordinate system remain consistent,
- * and triangle winding is reversed in the same pass so back-face culling continues to work.
+ * The canonical coordinate convention is Java Edition's: Y-down (positive Y points toward the
+ * floor - a vertex at {@code y = -8} is eight units above the entity origin), and each
+ * {@link Cube#getOrigin() cube origin} is in its {@link Bone bone}'s <b>local</b> space - the
+ * raw {@code addBox(x, y, z, ...)} arguments from the vanilla client. The bone's
+ * {@link Bone#getPivot() pivot} doubles as the Java {@code PartPose} offset: it translates every
+ * cube vertex into entity-root space and anchors rotations. Bedrock {@code .geo.json} data,
+ * which is Y-up with cube origins pre-baked to world space, is converted into this convention
+ * by {@link dev.sbs.renderer.tooling.ToolingEntityModels ToolingEntityModels} at asset-generation
+ * time, so the runtime only ever sees a single convention.
+ *
+ * @see dev.sbs.renderer.kit.EntityGeometryKit
  */
 @Getter
 @NoArgsConstructor
@@ -40,16 +43,6 @@ public class EntityModelData {
     /** Texture size in pixels. */
     private int textureHeight = 64;
 
-    /**
-     * When {@code true}, the renderer mirrors every transformed vertex and normal about the XZ
-     * plane before centring and scaling, and reverses triangle winding so back-face culling is
-     * preserved. Set this on models whose source data comes from Minecraft Java Edition's
-     * Y-down {@code ModelPart} coordinate system; leave it {@code false} (default) for
-     * Bedrock-native Y-up data.
-     */
-    @SerializedName("negate_y")
-    private boolean negateY = false;
-
     /** The top-level bones keyed by bone name. */
     private @NotNull ConcurrentMap<String, Bone> bones = Concurrent.newMap();
 
@@ -59,17 +52,19 @@ public class EntityModelData {
         EntityModelData that = (EntityModelData) o;
         return textureWidth == that.textureWidth
             && textureHeight == that.textureHeight
-            && negateY == that.negateY
             && Objects.equals(bones, that.bones);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(textureWidth, textureHeight, negateY, bones);
+        return Objects.hash(textureWidth, textureHeight, bones);
     }
 
     /**
-     * A single bone in an entity model, with an origin, rotation, and one or more cubes.
+     * A single bone in an entity model, with a pivot, rotation, and one or more cubes. The
+     * {@link #pivot} is the Java {@code PartPose} offset: it translates every cube vertex from
+     * bone-local space into entity-root space and is also the point about which
+     * {@link #rotation} is applied.
      */
     @Getter
     @NoArgsConstructor
@@ -100,8 +95,11 @@ public class EntityModelData {
     }
 
     /**
-     * A single cube within a bone. Origin is the cube's minimum corner; size is the cube's extent
-     * along each axis in model units. UV is the top-left corner of the cube's texture region.
+     * A single cube within a bone. {@link #origin} is the cube's minimum corner in the owning
+     * {@link Bone bone}'s local space (i.e. the raw {@code addBox(x, y, z, ...)} arguments from
+     * the Java client, before the bone's {@link Bone#getPivot() PartPose offset} is applied);
+     * {@link #size} is the cube's extent along each axis in model units; {@link #uv} is the
+     * top-left corner of the cube's texture region.
      */
     @Getter
     @NoArgsConstructor

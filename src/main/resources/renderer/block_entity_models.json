@@ -5,7 +5,6 @@
     "minecraft:banner": {
       "textureWidth": 64,
       "textureHeight": 64,
-      "negate_y": false,
       "bones": {
         "flag": {
           "pivot": [
@@ -45,7 +44,6 @@
     "minecraft:bed_foot": {
       "textureWidth": 64,
       "textureHeight": 64,
-      "negate_y": false,
       "bones": {
         "main": {
           "pivot": [
@@ -151,7 +149,6 @@
     "minecraft:bed_head": {
       "textureWidth": 64,
       "textureHeight": 64,
-      "negate_y": false,
       "bones": {
         "main": {
           "pivot": [
@@ -257,7 +254,6 @@
     "minecraft:chest": {
       "textureWidth": 64,
       "textureHeight": 64,
-      "negate_y": false,
       "bones": {
         "bottom": {
           "pivot": [
@@ -274,7 +270,7 @@
             {
               "origin": [
                 1.0,
-                0.0,
+                -10.0,
                 1.0
               ],
               "size": [
@@ -295,7 +291,7 @@
         "lid": {
           "pivot": [
             0.0,
-            9.0,
+            -9.0,
             1.0
           ],
           "rotation": [
@@ -307,7 +303,7 @@
             {
               "origin": [
                 1.0,
-                0.0,
+                -5.0,
                 0.0
               ],
               "size": [
@@ -328,7 +324,7 @@
         "lock": {
           "pivot": [
             0.0,
-            9.0,
+            -9.0,
             1.0
           ],
           "rotation": [
@@ -363,7 +359,6 @@
     "minecraft:conduit": {
       "textureWidth": 32,
       "textureHeight": 16,
-      "negate_y": false,
       "bones": {
         "shell": {
           "pivot": [
@@ -403,7 +398,6 @@
     "minecraft:hanging_sign": {
       "textureWidth": 64,
       "textureHeight": 32,
-      "negate_y": false,
       "bones": {
         "board": {
           "pivot": [
@@ -641,7 +635,6 @@
     "minecraft:shulker_box": {
       "textureWidth": 64,
       "textureHeight": 64,
-      "negate_y": false,
       "bones": {
         "lid": {
           "pivot": [
@@ -714,7 +707,6 @@
     "minecraft:sign": {
       "textureWidth": 64,
       "textureHeight": 32,
-      "negate_y": false,
       "bones": {
         "sign": {
           "pivot": [
