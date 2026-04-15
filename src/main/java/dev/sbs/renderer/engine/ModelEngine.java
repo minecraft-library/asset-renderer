@@ -33,19 +33,43 @@ import java.util.Arrays;
  */
 public class ModelEngine extends TextureEngine {
 
+    private final @NotNull Matrix4f camera;
+
+    /**
+     * Constructs a model engine whose camera transform is the identity matrix - geometry is
+     * viewed directly down the negative Z axis with no pre-rotation. Callers that want a
+     * preset pose (e.g. the standard block inventory icon) should use {@link IsometricEngine}
+     * instead of composing the pose into their {@code modelTransform}.
+     *
+     * @param context the renderer context
+     */
     public ModelEngine(@NotNull RendererContext context) {
-        super(context);
+        this(context, Matrix4f.IDENTITY);
     }
 
     /**
-     * The camera transform applied to every vertex before projection. The default implementation
-     * returns the identity matrix, matching a view directly down the negative Z axis. Subclasses
-     * like {@link IsometricEngine} override this with a fixed dimetric camera.
+     * Constructs a model engine with a preset camera transform, applied after the caller's
+     * model transform during rasterization. Intended as the {@code super(...)} entry point for
+     * subclasses that bake a named pose (e.g. {@link IsometricEngine} with the vanilla
+     * {@code [30, 225, 0]} block-icon camera) into every render.
+     *
+     * @param context the renderer context
+     * @param camera the camera transform matrix composed with every rasterization
+     */
+    protected ModelEngine(@NotNull RendererContext context, @NotNull Matrix4f camera) {
+        super(context);
+        this.camera = camera;
+    }
+
+    /**
+     * The camera transform applied to every vertex before projection. Backed by the value
+     * supplied at construction time - identity for plain {@code ModelEngine}, a preset pose
+     * for subclasses like {@link IsometricEngine}.
      *
      * @return the camera transform matrix
      */
     public @NotNull Matrix4f cameraTransform() {
-        return Matrix4f.IDENTITY;
+        return this.camera;
     }
 
     /**

@@ -31,12 +31,7 @@ public class IsometricEngine extends ModelEngine {
     private static final @NotNull Matrix4f CAMERA = buildGuiDisplayTransform(30f, 225f, 0f);
 
     public IsometricEngine(@NotNull RendererContext context) {
-        super(context);
-    }
-
-    @Override
-    public @NotNull Matrix4f cameraTransform() {
-        return CAMERA;
+        super(context, CAMERA);
     }
 
     /**
