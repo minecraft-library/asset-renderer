@@ -2,6 +2,7 @@ package dev.sbs.renderer.asset.model;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.collection.linked.ConcurrentLinkedMap;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -27,8 +28,14 @@ public class ModelElement {
     /** The maximum corner in 0-16 space {@code [x, y, z]}. */
     private float @NotNull [] to = new float[]{ 16f, 16f, 16f };
 
-    /** The faces keyed by direction: {@code down}, {@code up}, {@code north}, {@code south}, {@code west}, {@code east}. */
-    private @NotNull ConcurrentMap<String, ModelFace> faces = Concurrent.newMap();
+    /**
+     * The faces keyed by direction: {@code down}, {@code up}, {@code north}, {@code south},
+     * {@code west}, {@code east}. Backed by {@link ConcurrentLinkedMap} so iteration preserves
+     * JSON author order: render priority assigned per face during triangle assembly determines
+     * paint order at tied depth, and authors occasionally rely on a specific face winning when
+     * two elements share a plane.
+     */
+    private @NotNull ConcurrentLinkedMap<String, ModelFace> faces = Concurrent.newLinkedMap();
 
     /** An optional element-level rotation, matching vanilla's {@code rotation} object. */
     private @NotNull Optional<ElementRotation> rotation = Optional.empty();

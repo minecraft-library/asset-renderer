@@ -67,8 +67,11 @@ public class EntityGeometryKit {
 
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
         Map<String, Vector3f[]> boneBounds = new HashMap<>();
-        int priority = 0;
 
+        // bones is a ConcurrentLinkedMap so entrySet() preserves JSON insertion order. The
+        // rasterizer respects that order for coplanar-face resolution (e.g. chest body SOUTH,
+        // lid SOUTH, and lock's back face all at z=15 - body bone iterated first ends up in the
+        // triangle list first, and its pixels survive the epsilon-tolerant depth test).
         for (Map.Entry<String, EntityModelData.Bone> boneEntry : model.getBones().entrySet()) {
             String boneName = boneEntry.getKey();
             EntityModelData.Bone bone = boneEntry.getValue();
@@ -115,7 +118,7 @@ public class EntityGeometryKit {
                     // Mirror normals across XZ together with the vertices.
                     rawNormal = new Vector3f(rawNormal.x(), -rawNormal.y(), rawNormal.z());
                     Vector3f normal = Vector3f.normalize(rawNormal);
-                    Vector2f[] uv = resolveFaceUv(face, cube, size, texW, texH);
+                    Vector2f[] uv = resolveFaceUv(face, cube, size, texW, texH, model.getYAxis());
 
                     // Reverse triangle winding to match the Y-flip so back-face culling keeps
                     // identifying the same geometric side as front/back.
@@ -123,17 +126,16 @@ public class EntityGeometryKit {
                         corners[0], corners[2], corners[1],
                         uv[0], uv[2], uv[1],
                         texture, ColorMath.WHITE,
-                        normal, 1f, priority,
+                        normal, 1f,
                         true
                     ));
                     triangles.add(new VisibleTriangle(
                         corners[0], corners[3], corners[2],
                         uv[0], uv[3], uv[2],
                         texture, ColorMath.WHITE,
-                        normal, 1f, priority,
+                        normal, 1f,
                         true
                     ));
-                    priority++;
                 }
             }
 
@@ -217,17 +219,51 @@ public class EntityGeometryKit {
         @NotNull EntityModelData.Cube cube,
         float @NotNull [] size,
         float texWidth,
-        float texHeight
+        float texHeight,
+        @NotNull EntityModelData.YAxis yAxis
     ) {
-        EntityModelData.FaceUv override = cube.getFaceUv().get(face.direction());
-        if (override == null)
-            return face.defaultUv(cube.getUv(), size, texWidth, texHeight, cube.isMirror());
+        // The BlockFace atlas layout matches vanilla's UV-generation convention for Y-UP-authored
+        // cubes: BlockFace.UP (y-MAX face) maps to the {@code (d, 0)} slot, BlockFace.DOWN (y-MIN)
+        // to {@code (d+w, 0)}. A Y-UP author paints exterior top at {@code (d+w, 0)} (their
+        // y-MAX is world-up), and after the tooling flipToYDown + runtime Y-flip the y-MIN face
+        // ends up at the renderer top - so BlockFace.DOWN's {@code (d+w, 0)} slot correctly
+        // surfaces the exterior on top with no swap.
+        // <p>
+        // For Y-DOWN-authored cubes (shulker, sign, bed, etc.) the author paints exterior top at
+        // {@code (d, 0)} instead (their y-MIN is world-up). No tooling flip is applied, so at
+        // runtime the y-MIN face still reaches the renderer top via the Y-flip, but BlockFace.DOWN
+        // wants {@code (d+w, 0)} - mapping interior content to the top. The atlas-face lookup is
+        // swapped for Y-DOWN data to compensate.
+        BlockFace atlasFace = yAxis == EntityModelData.YAxis.DOWN
+            ? switch (face) {
+                case UP -> BlockFace.DOWN;
+                case DOWN -> BlockFace.UP;
+                default -> face;
+            }
+            : face;
 
-        float u0 = override.getUv()[0];
-        float v0 = override.getUv()[1];
-        float u1 = u0 + override.getUvSize()[0];
-        float v1 = v0 + override.getUvSize()[1];
-        return BlockFace.uvRect(u0, v0, u1, v1, texWidth, texHeight, cube.isMirror());
+        EntityModelData.FaceUv override = cube.getFaceUv().get(atlasFace.direction());
+        Vector2f[] uv;
+        if (override == null) {
+            uv = atlasFace.defaultUv(cube.getUv(), size, texWidth, texHeight, cube.isMirror());
+        } else {
+            float u0 = override.getUv()[0];
+            float v0 = override.getUv()[1];
+            float u1 = u0 + override.getUvSize()[0];
+            float v1 = v0 + override.getUvSize()[1];
+            uv = BlockFace.uvRect(u0, v0, u1, v1, texWidth, texHeight, cube.isMirror());
+        }
+
+        // Side faces (NORTH/SOUTH/EAST/WEST) have a V-down texture strip where V=min is the top
+        // edge. BlockFace's corner ordering puts UV[0] (TL) on the y-MAX vertex - correct for
+        // block-model elements where {@code +Y = up}, but for entity cubes the runtime Y-flip
+        // puts the y-MIN vertex at the face's top-in-renderer. The UV rows are swapped so V=min
+        // lands on that vertex. Up/down faces carry a V-axis along Z (not Y), so the swap is
+        // skipped for them - the atlas slot assignment above already handles their orientation.
+        if (face != BlockFace.UP && face != BlockFace.DOWN)
+            return new Vector2f[]{ uv[1], uv[0], uv[3], uv[2] };
+
+        return uv;
     }
 
     /**

@@ -78,8 +78,7 @@ public class GeometryKit {
                 triangles,
                 corners[0], corners[1], corners[2], corners[3],
                 faces[face.ordinal()], tintArgb,
-                face.normal(),
-                face.ordinal()
+                face.normal()
             );
         }
 
@@ -120,7 +119,6 @@ public class GeometryKit {
         int tintArgb
     ) {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
-        int renderPriority = 0;
 
         for (ModelElement element : elements) {
             float x0 = element.getFrom()[0] / 16f - 0.5f;
@@ -198,7 +196,6 @@ public class GeometryKit {
                     uv[0], uv[1], uv[2], uv[3],
                     texture, tintArgb,
                     faceNormal,
-                    renderPriority++,
                     !twoSided
                 );
             }
@@ -254,13 +251,12 @@ public class GeometryKit {
         @NotNull Vector3f topRight,
         @NotNull PixelBuffer texture,
         int tintArgb,
-        @NotNull Vector3f normal,
-        int renderPriority
+        @NotNull Vector3f normal
     ) {
         addQuad(out,
             topLeft, bottomLeft, bottomRight, topRight,
             new Vector2f(0f, 0f), new Vector2f(0f, 1f), new Vector2f(1f, 1f), new Vector2f(1f, 0f),
-            texture, tintArgb, normal, renderPriority);
+            texture, tintArgb, normal);
     }
 
     /**
@@ -280,10 +276,9 @@ public class GeometryKit {
         @NotNull Vector2f uvTR,
         @NotNull PixelBuffer texture,
         int tintArgb,
-        @NotNull Vector3f normal,
-        int renderPriority
+        @NotNull Vector3f normal
     ) {
-        addQuad(out, topLeft, bottomLeft, bottomRight, topRight, uvTL, uvBL, uvBR, uvTR, texture, tintArgb, normal, renderPriority, true);
+        addQuad(out, topLeft, bottomLeft, bottomRight, topRight, uvTL, uvBL, uvBR, uvTR, texture, tintArgb, normal, true);
     }
 
     private static void addQuad(
@@ -299,12 +294,11 @@ public class GeometryKit {
         @NotNull PixelBuffer texture,
         int tintArgb,
         @NotNull Vector3f normal,
-        int renderPriority,
         boolean cullBackFaces
     ) {
         float shading = 1f;
-        out.add(new VisibleTriangle(topLeft, bottomLeft, bottomRight, uvTL, uvBL, uvBR, texture, tintArgb, normal, shading, renderPriority, cullBackFaces));
-        out.add(new VisibleTriangle(topLeft, bottomRight, topRight, uvTL, uvBR, uvTR, texture, tintArgb, normal, shading, renderPriority, cullBackFaces));
+        out.add(new VisibleTriangle(topLeft, bottomLeft, bottomRight, uvTL, uvBL, uvBR, texture, tintArgb, normal, shading, cullBackFaces));
+        out.add(new VisibleTriangle(topLeft, bottomRight, topRight, uvTL, uvBR, uvTR, texture, tintArgb, normal, shading, cullBackFaces));
     }
 
 }

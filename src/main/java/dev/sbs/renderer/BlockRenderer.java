@@ -235,7 +235,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     tri.uv0(), tri.uv1(), tri.uv2(),
                     tri.texture(), tri.tintArgb(),
                     Vector3f.transformNormal(tri.normal(), rotation),
-                    tri.shading(), tri.renderPriority(), tri.cullBackFaces()
+                    tri.shading(), tri.cullBackFaces()
                 ));
             }
 
@@ -331,6 +331,14 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * Attempts to build triangles from an entity model mapping when the block has no
          * renderable elements. Returns an empty list if no mapping exists, the entity model
          * is missing, or the entity texture cannot be resolved.
+         * <p>
+         * The inventory-pose Y rotation carried by the model
+         * ({@link dev.sbs.renderer.asset.model.EntityModelData#getInventoryYRotation()}) is
+         * applied after geometry assembly. This mirrors vanilla's per-type transformation set
+         * up by each {@code BlockEntityRenderer} inside
+         * {@code BlockEntityWithoutLevelRenderer.renderByItem} - for example, {@code ChestRenderer}
+         * yaws the lid by {@code -Direction.NORTH.toYRot() = 180} so the lock cube (at model-space
+         * {@code z=+15..+16}) ends up on the camera-facing side of the block in the inventory icon.
          */
         private @NotNull ConcurrentList<VisibleTriangle> tryBuildFromEntityModel(@NotNull Block block) {
             if (block.getEntityMapping().isEmpty()) return Concurrent.newList();
@@ -338,12 +346,17 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
             return this.context.findEntity(mapping.model())
                 .map(value -> this.context.resolveTexture(mapping.texture())
-                    .map(pixelBuffer -> EntityGeometryKit.buildTriangles(
-                                 value.getModel(),
-                                 pixelBuffer
-                             )
-                             .triangles()
-                    )
+                    .map(pixelBuffer -> {
+                        ConcurrentList<VisibleTriangle> triangles = EntityGeometryKit
+                            .buildTriangles(value.getModel(), pixelBuffer)
+                            .triangles();
+
+                        float yRotation = value.getModel().getInventoryYRotation();
+                        if (yRotation != 0f)
+                            triangles = applyRotation(triangles, Matrix4f.createRotationY((float) Math.toRadians(yRotation)));
+
+                        return triangles;
+                    })
                     .orElseGet(Concurrent::newList)
                 )
                 .orElseGet(Concurrent::newList);

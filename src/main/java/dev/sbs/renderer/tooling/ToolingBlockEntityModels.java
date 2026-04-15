@@ -213,14 +213,16 @@ public final class ToolingBlockEntityModels {
             // ChestModel is authored in Y-up block-space (positive Y is up) rather than the
             // Y-down ModelPart convention used elsewhere - the lid sits at y=9..14 and the body
             // at y=0..10 in the raw data, which is how the chest block looks when rendered.
-            new Source("net/minecraft/client/model/object/chest/ChestModel.class", "createSingleBodyLayer", "minecraft:chest", YAxis.UP),
-            new Source("net/minecraft/client/model/object/banner/BannerFlagModel.class", "createFlagLayer", "minecraft:banner", YAxis.DOWN),
-            new Source("net/minecraft/client/renderer/blockentity/BedRenderer.class", "createHeadLayer", "minecraft:bed_head", YAxis.DOWN),
-            new Source("net/minecraft/client/renderer/blockentity/BedRenderer.class", "createFootLayer", "minecraft:bed_foot", YAxis.DOWN),
-            new Source("net/minecraft/client/model/monster/shulker/ShulkerModel.class", "createShellMesh", "minecraft:shulker_box", YAxis.DOWN),
-            new Source("net/minecraft/client/renderer/blockentity/StandingSignRenderer.class", "createSignLayer", "minecraft:sign", YAxis.DOWN),
-            new Source("net/minecraft/client/renderer/blockentity/HangingSignRenderer.class", "createHangingSignLayer", "minecraft:hanging_sign", YAxis.DOWN),
-            new Source("net/minecraft/client/renderer/blockentity/ConduitRenderer.class", "createShellLayer", "minecraft:conduit", YAxis.DOWN)
+            // {@code ChestRenderer} yaws the rendering by {@code -NORTH.toYRot() = 180} to face
+            // the lock toward the camera; that pose is carried through as {@code inventoryYRotation}.
+            new Source("net/minecraft/client/model/object/chest/ChestModel.class", "createSingleBodyLayer", "minecraft:chest", YAxis.UP, 180f),
+            new Source("net/minecraft/client/model/object/banner/BannerFlagModel.class", "createFlagLayer", "minecraft:banner", YAxis.DOWN, 0f),
+            new Source("net/minecraft/client/renderer/blockentity/BedRenderer.class", "createHeadLayer", "minecraft:bed_head", YAxis.DOWN, 0f),
+            new Source("net/minecraft/client/renderer/blockentity/BedRenderer.class", "createFootLayer", "minecraft:bed_foot", YAxis.DOWN, 0f),
+            new Source("net/minecraft/client/model/monster/shulker/ShulkerModel.class", "createShellMesh", "minecraft:shulker_box", YAxis.DOWN, 0f),
+            new Source("net/minecraft/client/renderer/blockentity/StandingSignRenderer.class", "createSignLayer", "minecraft:sign", YAxis.DOWN, 0f),
+            new Source("net/minecraft/client/renderer/blockentity/HangingSignRenderer.class", "createHangingSignLayer", "minecraft:hanging_sign", YAxis.DOWN, 0f),
+            new Source("net/minecraft/client/renderer/blockentity/ConduitRenderer.class", "createShellLayer", "minecraft:conduit", YAxis.DOWN, 0f)
         );
 
         /** The Y axis orientation used by a Java block entity model's source data. */
@@ -230,7 +232,8 @@ public final class ToolingBlockEntityModels {
             @NotNull String classEntry,
             @NotNull String methodName,
             @NotNull String entityId,
-            @NotNull YAxis yAxis
+            @NotNull YAxis yAxis,
+            float inventoryYRotation
         ) {}
 
         /**
@@ -270,6 +273,9 @@ public final class ToolingBlockEntityModels {
                         if (model != null) {
                             if (source.yAxis == YAxis.UP)
                                 flipToYDown(model);
+                            model.addProperty("y_axis", source.yAxis.name());
+                            if (source.inventoryYRotation != 0f)
+                                model.addProperty("inventory_y_rotation", source.inventoryYRotation);
                             results.put(source.entityId, model);
                         }
 

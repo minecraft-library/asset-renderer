@@ -5,6 +5,7 @@ import dev.sbs.renderer.geometry.BlockFace;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.collection.linked.ConcurrentLinkedMap;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -43,8 +44,40 @@ public class EntityModelData {
     /** Texture size in pixels. */
     private int textureHeight = 64;
 
-    /** The top-level bones keyed by bone name. */
-    private @NotNull ConcurrentMap<String, Bone> bones = Concurrent.newMap();
+    /**
+     * The vertical-axis convention the model's author used when laying out the texture atlas.
+     * Most vanilla Java {@code ModelPart} subclasses are {@link YAxis#DOWN Y-down} (mob-style -
+     * a vertex with the smallest Y is visually highest on the model). A handful of block-native
+     * models - {@code ChestModel} is the canonical example - were authored {@link YAxis#UP Y-up}
+     * (larger Y is higher). The value affects the runtime UV slot assignment between the y-MAX
+     * and y-MIN faces: Y-down authors paint exterior content at the {@code (d, 0)} atlas slot,
+     * while Y-up authors paint it at {@code (d+w, 0)}.
+     *
+     * @see dev.sbs.renderer.kit.EntityGeometryKit
+     */
+    @SerializedName("y_axis")
+    private @NotNull YAxis yAxis = YAxis.DOWN;
+
+    /**
+     * The pitch/yaw/roll this model's inventory render should apply before rasterization, in
+     * degrees. Mirrors the per-type transformation each vanilla {@code BlockEntityRenderer}
+     * applies in {@code BlockEntityWithoutLevelRenderer.renderByItem}; e.g. {@code ChestRenderer}
+     * reads the chest's default {@code FACING = NORTH} and yaws {@code -NORTH.toYRot() = 180}.
+     * A stored value of {@code 180} therefore reflects chest-family inventory rendering. Models
+     * that don't need a bespoke pose (shulker, sign, bed, banner, conduit, hanging sign) leave
+     * this at its zero default.
+     */
+    @SerializedName("inventory_y_rotation")
+    private float inventoryYRotation = 0f;
+
+    /**
+     * The top-level bones keyed by bone name. Backed by {@link ConcurrentLinkedMap} so iteration
+     * preserves JSON author order: render priority assigned per bone during triangle assembly
+     * determines which face wins at tied depth (e.g. chest body SOUTH vs lid SOUTH are coplanar
+     * at z=15, and the JSON orders bottom/lid/lock so body paints first and its shadow-row
+     * pixels survive the lid's overwrite at the overlap seam).
+     */
+    private @NotNull ConcurrentLinkedMap<String, Bone> bones = Concurrent.newLinkedMap();
 
     @Override
     public boolean equals(Object o) {
@@ -52,12 +85,27 @@ public class EntityModelData {
         EntityModelData that = (EntityModelData) o;
         return textureWidth == that.textureWidth
             && textureHeight == that.textureHeight
+            && yAxis == that.yAxis
+            && Float.compare(inventoryYRotation, that.inventoryYRotation) == 0
             && Objects.equals(bones, that.bones);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(textureWidth, textureHeight, bones);
+        return Objects.hash(textureWidth, textureHeight, yAxis, inventoryYRotation, bones);
+    }
+
+    /**
+     * The vertical-axis convention an entity model's author used when authoring cube geometry
+     * and texture atlas layout.
+     */
+    public enum YAxis {
+        /** Positive Y points toward the floor. Standard Java {@code ModelPart} convention. */
+        DOWN,
+        /** Positive Y points toward the sky. Used by a handful of block-native models like
+         *  {@code ChestModel} where the artist wrote cubes with {@code y=0} at the floor and
+         *  larger Y for higher points on the model. */
+        UP
     }
 
     /**

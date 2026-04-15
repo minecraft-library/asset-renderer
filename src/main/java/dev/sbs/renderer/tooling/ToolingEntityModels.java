@@ -11,6 +11,7 @@ import dev.sbs.renderer.pipeline.loader.EntityModelLoader;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.collection.linked.ConcurrentLinkedMap;
 import dev.simplified.gson.GsonSettings;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -389,7 +390,9 @@ public final class ToolingEntityModels {
             int textureWidth,
             int textureHeight
         ) {
-            ConcurrentMap<String, EntityModelData.Bone> bones = Concurrent.newMap();
+            // Insertion-ordered so the generated JSON preserves bone order from the Bedrock pack,
+            // and so runtime rendering assigns per-bone render priorities deterministically.
+            ConcurrentLinkedMap<String, EntityModelData.Bone> bones = Concurrent.newLinkedMap();
 
             for (JsonElement boneElement : bonesArray) {
                 JsonObject boneJson = boneElement.getAsJsonObject();
@@ -438,7 +441,7 @@ public final class ToolingEntityModels {
                 bones.put(name, new EntityModelData.Bone(javaPivot, rotation, cubes));
             }
 
-            return new EntityModelData(textureWidth, textureHeight, bones);
+            return new EntityModelData(textureWidth, textureHeight, EntityModelData.YAxis.DOWN, 0f, bones);
         }
 
         /**

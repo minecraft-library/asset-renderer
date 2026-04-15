@@ -68,12 +68,20 @@ public interface RenderEngine {
     // --- inventory lighting ---
 
     /**
-     * Computes the per-face shade factor for a world-space surface normal, matching vanilla's
-     * fixed per-direction values used for block rendering (see
-     * {@code net.minecraft.core.Direction.getBrightness}).
+     * Computes the per-face shade factor for a world-space surface normal, matching what
+     * vanilla's inventory pipeline produces under the standard {@code [30, 225, 0]} gui pose.
+     * <p>
+     * Vanilla's {@code Lighting.ITEMS_3D} uses two directional lights offset in X to make the
+     * visible left-hand (E/W axis) face end up <b>brighter</b> than the right-hand (N/S axis)
+     * face after the gui rotation - the opposite of world-lit block brightness from
+     * {@code Direction.getBrightness}. Rather than replicate the dual-directional light
+     * shader, this approximates the vanilla inventory result with swapped per-axis values:
+     * {@code 0.8} for E/W (the left face under standard gui pose) and {@code 0.6} for N/S
+     * (the right face). The UP/DOWN contributions stay at vanilla's {@code 1.0} and
+     * {@code 0.5}.
      *
      * @param normal the world-space surface normal (should be normalized)
-     * @return a shade factor: 1.0 for UP, 0.8 for NORTH/SOUTH, 0.6 for EAST/WEST, 0.5 for DOWN
+     * @return a shade factor: 1.0 for UP, 0.8 for EAST/WEST, 0.6 for NORTH/SOUTH, 0.5 for DOWN
      */
     static float computeInventoryLighting(@NotNull Vector3f normal) {
         float absX = Math.abs(normal.x());
@@ -83,8 +91,8 @@ public interface RenderEngine {
         if (absY > absX && absY > absZ)
             return normal.y() > 0f ? 1f : 0.5f;
         if (absZ > absX)
-            return 0.8f;
-        return 0.6f;
+            return 0.6f;
+        return 0.8f;
     }
 
     // --- shading ---

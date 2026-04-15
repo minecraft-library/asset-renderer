@@ -5,6 +5,7 @@
     "minecraft:banner": {
       "textureWidth": 64,
       "textureHeight": 64,
+      "y_axis": "DOWN",
       "bones": {
         "flag": {
           "pivot": [
@@ -44,6 +45,7 @@
     "minecraft:bed_foot": {
       "textureWidth": 64,
       "textureHeight": 64,
+      "y_axis": "DOWN",
       "bones": {
         "main": {
           "pivot": [
@@ -149,6 +151,7 @@
     "minecraft:bed_head": {
       "textureWidth": 64,
       "textureHeight": 64,
+      "y_axis": "DOWN",
       "bones": {
         "main": {
           "pivot": [
@@ -254,6 +257,8 @@
     "minecraft:chest": {
       "textureWidth": 64,
       "textureHeight": 64,
+      "y_axis": "UP",
+      "inventory_y_rotation": 180.0,
       "bones": {
         "bottom": {
           "pivot": [
@@ -359,6 +364,7 @@
     "minecraft:conduit": {
       "textureWidth": 32,
       "textureHeight": 16,
+      "y_axis": "DOWN",
       "bones": {
         "shell": {
           "pivot": [
@@ -398,6 +404,7 @@
     "minecraft:hanging_sign": {
       "textureWidth": 64,
       "textureHeight": 32,
+      "y_axis": "DOWN",
       "bones": {
         "board": {
           "pivot": [
@@ -635,6 +642,7 @@
     "minecraft:shulker_box": {
       "textureWidth": 64,
       "textureHeight": 64,
+      "y_axis": "DOWN",
       "bones": {
         "lid": {
           "pivot": [
@@ -707,6 +715,7 @@
     "minecraft:sign": {
       "textureWidth": 64,
       "textureHeight": 32,
+      "y_axis": "DOWN",
       "bones": {
         "sign": {
           "pivot": [

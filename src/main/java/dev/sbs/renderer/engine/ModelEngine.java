@@ -33,6 +33,16 @@ import java.util.Arrays;
  */
 public class ModelEngine extends TextureEngine {
 
+    /**
+     * Per-pixel depth comparison epsilon. Absorbs floating-point noise between mathematically
+     * equal coplanar depths so the deterministic insertion-order paint sequence survives the
+     * strict {@code depth <= depthBuffer} rejection. Chosen small enough that legitimate
+     * geometry separation (e.g. lock front at z=16 vs body SOUTH at z=15, a one-unit gap in
+     * model space) stays resolvable but large enough that float-precision jitter around a
+     * shared plane is collapsed.
+     */
+    private static final float DEPTH_EPSILON = 1e-4f;
+
     private final @NotNull Matrix4f camera;
 
     /**
@@ -156,8 +166,12 @@ public class ModelEngine extends TextureEngine {
             prepared.add(new Projected(triangle, p0, p1, p2, s0, s1, s2, normal));
         }
 
-        prepared.sort((a, b) -> Float.compare(averageDepth(a), averageDepth(b)));
-
+        // No painter's sort: triangles arrive in insertion order (bone -> cube -> face), which
+        // is the order authors intended for coplanar resolution. {@link DEPTH_EPSILON} in the
+        // per-pixel test absorbs FP jitter so the first-drawn of a coplanar pair wins
+        // deterministically; non-coplanar correctness is unaffected because the depth test still
+        // picks the closer fragment whichever order the triangles were rasterised in. Mirrors
+        // the GL_LESS + draw-call-order semantics of vanilla Minecraft's OpenGL pipeline.
         float[] depthBuffer = new float[width * height];
         Arrays.fill(depthBuffer, Float.NEGATIVE_INFINITY);
 
@@ -173,7 +187,16 @@ public class ModelEngine extends TextureEngine {
 
                     float depth = bary[0] * t.p0.z() + bary[1] * t.p1.z() + bary[2] * t.p2.z();
                     int idx = py * width + px;
-                    if (depth <= depthBuffer[idx]) continue;
+                    // Epsilon-tolerant rejection: coplanar faces (e.g. chest body SOUTH and lid
+                    // SOUTH both at z=15 before camera) project to mathematically equal per-pixel
+                    // depths, but barycentric interpolation over triangles with different vertex
+                    // sets produces small floating-point differences. Without the epsilon, the
+                    // later-drawn face occasionally wins in scattered pixels and the result is
+                    // visible speckle z-fighting in the coplanar region. The insertion-order sort
+                    // above guarantees the intended painter sequence (body < lid < lock for a
+                    // chest), so absorbing FP noise in the depth test makes the first-drawn
+                    // coplanar face deterministically win.
+                    if (depth <= depthBuffer[idx] + DEPTH_EPSILON) continue;
 
                     float u = bary[0] * t.source.uv0().x() + bary[1] * t.source.uv1().x() + bary[2] * t.source.uv2().x();
                     float v = bary[0] * t.source.uv0().y() + bary[1] * t.source.uv1().y() + bary[2] * t.source.uv2().y();
@@ -222,10 +245,6 @@ public class ModelEngine extends TextureEngine {
         Matrix4f pitch = Matrix4f.createRotationX((float) Math.toRadians(pitchDegrees));
         Matrix4f roll = Matrix4f.createRotationZ((float) Math.toRadians(rollDegrees));
         return yaw.multiply(pitch).multiply(roll);
-    }
-
-    private static float averageDepth(@NotNull Projected t) {
-        return (t.p0.z() + t.p1.z() + t.p2.z()) / 3f;
     }
 
     /**
