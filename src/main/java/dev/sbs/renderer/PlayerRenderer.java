@@ -392,7 +392,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            IsometricEngine engine = new IsometricEngine(this.parent.context);
+            IsometricEngine engine = IsometricEngine.standard(this.parent.context);
             PixelBuffer buffer = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
 
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
@@ -434,7 +434,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            IsometricEngine engine = new IsometricEngine(this.parent.context);
+            IsometricEngine engine = IsometricEngine.standard(this.parent.context);
             PixelBuffer buffer = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
@@ -480,7 +480,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            IsometricEngine engine = new IsometricEngine(this.parent.context);
+            IsometricEngine engine = IsometricEngine.standard(this.parent.context);
             PixelBuffer buffer = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 

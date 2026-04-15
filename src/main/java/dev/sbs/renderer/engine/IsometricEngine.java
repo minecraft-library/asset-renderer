@@ -1,26 +1,25 @@
 package dev.sbs.renderer.engine;
 
-import dev.sbs.renderer.geometry.PerspectiveParams;
 import dev.sbs.renderer.tensor.Matrix4f;
-import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.pixel.PixelBuffer;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * A {@link ModelEngine} wired to vanilla Minecraft's standard block inventory pose.
- * <p>
- * Vanilla renders block icons by applying the {@code display.gui} rotation from the root
- * {@code block/block.json} model ({@code [30, 225, 0]} = pitch, yaw, roll) to the model
- * geometry via {@code PoseStack#mulPose(Quaternionf.rotationXYZ(...))}. This engine bakes
- * that exact rotation into its camera transform so callers that just want the standard
- * three-quarter block icon view can rasterize without composing any extra transform
- * themselves.
- * <p>
- * Callers that need a non-standard pose - e.g. blocks whose own model overrides
- * {@code display.gui} (stairs use {@code [30, 135, 0]}) - should build their own matrix via
- * {@link #buildGuiDisplayTransform(float, float, float)} and feed it through the explicit
- * {@link #rasterize(ConcurrentList, PixelBuffer, PerspectiveParams, Matrix4f)}
- * overload on {@link ModelEngine} rather than relying on this engine's default camera.
+ * A {@link ModelEngine} whose camera transform is a named vanilla-Minecraft {@code display.*}
+ * pose. Callers use one of two factories rather than {@code new} to pick which pose ends up in
+ * the camera:
+ * <ul>
+ * <li>{@link #standard(RendererContext)} - the stock {@code [30, 225, 0]} pitch/yaw/roll from
+ * the root {@code block/block.json} model's {@code display.gui}. Use for renders that want the
+ * default three-quarter block-icon view (skulls, busts, full-body skin renders).</li>
+ * <li>{@link #withGuiPose(RendererContext, float, float, float)} - a caller-supplied pose.
+ * Use when a block or item model overrides the default (stairs author {@code display.gui} as
+ * {@code [30, 135, 0]}) so the engine's camera reflects the specific model's authored
+ * orientation.</li>
+ * </ul>
+ * The camera is applied after the caller's model transform during rasterization, equivalent to
+ * vanilla's {@code PoseStack.mulPose(Quaternionf.rotationXYZ(...))} call around the model
+ * rendering block. Renderers that are not isometric (free-rotation entity views, handheld item
+ * placements) should use plain {@link ModelEngine} instead.
  */
 public class IsometricEngine extends ModelEngine {
 
@@ -29,10 +28,6 @@ public class IsometricEngine extends ModelEngine {
      * a single matrix. Matches {@code Quaternionf.rotationXYZ(toRadians(30), toRadians(225), 0)}.
      */
     private static final @NotNull Matrix4f CAMERA = buildGuiDisplayTransform(30f, 225f, 0f);
-
-    public IsometricEngine(@NotNull RendererContext context) {
-        super(context, CAMERA);
-    }
 
     private IsometricEngine(@NotNull RendererContext context, @NotNull Matrix4f camera) {
         super(context, camera);
@@ -80,7 +75,7 @@ public class IsometricEngine extends ModelEngine {
      * quaternion rotates a vector {@code q * v * q^-1}, the rotations apply to the vector in
      * the order Z, then Y, then X (innermost first). The equivalent column-vector matrix is
      * {@code R_x * R_y * R_z}. Under this codebase's row-vector convention ({@code v * M}) the
-     * correct composition is therefore the transpose, {@code R_z^T * R_y^T * R_x^T}, which is
+     * correct composition is therefore the transpose, {@code R_z * R_y * R_x}, which is
      * exactly {@link Matrix4f#createRotationZ createRotationZ} {@link Matrix4f#multiply
      * multiply} {@link Matrix4f#createRotationY createRotationY} {@link Matrix4f#multiply
      * multiply} {@link Matrix4f#createRotationX createRotationX}.
@@ -89,13 +84,8 @@ public class IsometricEngine extends ModelEngine {
      * math for single-axis rotations but silently flips the tilt direction for compound poses
      * like the standard {@code [30, 225, 0]} block-icon pose, which shows up as the block's
      * bottom face being visible instead of the top.
-     *
-     * @param pitchDegrees the rotation about the X axis in degrees (vanilla {@code rotation[0]})
-     * @param yawDegrees the rotation about the Y axis in degrees (vanilla {@code rotation[1]})
-     * @param rollDegrees the rotation about the Z axis in degrees (vanilla {@code rotation[2]})
-     * @return the composed rotation matrix
      */
-    public static @NotNull Matrix4f buildGuiDisplayTransform(float pitchDegrees, float yawDegrees, float rollDegrees) {
+    private static @NotNull Matrix4f buildGuiDisplayTransform(float pitchDegrees, float yawDegrees, float rollDegrees) {
         return Matrix4f.createRotationZ((float) Math.toRadians(rollDegrees))
             .multiply(Matrix4f.createRotationY((float) Math.toRadians(yawDegrees)))
             .multiply(Matrix4f.createRotationX((float) Math.toRadians(pitchDegrees)));
