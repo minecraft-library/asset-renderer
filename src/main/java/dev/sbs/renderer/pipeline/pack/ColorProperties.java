@@ -1,6 +1,7 @@
 package dev.sbs.renderer.pipeline.pack;
 
 import dev.sbs.renderer.exception.RendererException;
+import dev.sbs.renderer.pipeline.VanillaPaths;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import org.jetbrains.annotations.NotNull;
@@ -35,8 +36,8 @@ public record ColorProperties(@NotNull ConcurrentMap<String, Integer> overrides)
      */
     public static @NotNull ColorProperties loadFrom(@NotNull Path packRoot) {
         Path[] candidates = {
-            packRoot.resolve("assets/minecraft/optifine/color.properties"),
-            packRoot.resolve("assets/minecraft/mcpatcher/color.properties")
+            packRoot.resolve(VanillaPaths.OPTIFINE_COLOR_PROPS),
+            packRoot.resolve(VanillaPaths.MCPATCHER_COLOR_PROPS)
         };
 
         for (Path candidate : candidates) {

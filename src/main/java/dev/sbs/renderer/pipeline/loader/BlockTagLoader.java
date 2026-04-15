@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.sbs.renderer.asset.BlockTag;
+import dev.sbs.renderer.pipeline.VanillaPaths;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -52,7 +53,7 @@ public class BlockTagLoader {
                 .filter(p -> p.toString().endsWith(".json"))
                 .forEach(file -> {
                     String relative = tagsDir.relativize(file).toString().replace('\\', '/');
-                    String tagId = "minecraft:" + relative.substring(0, relative.length() - 5);
+                    String tagId = VanillaPaths.MINECRAFT_NAMESPACE + relative.substring(0, relative.length() - 5);
                     try {
                         JsonObject root = GSON.fromJson(Files.readString(file), JsonObject.class);
                         if (root == null || !root.has("values")) return;

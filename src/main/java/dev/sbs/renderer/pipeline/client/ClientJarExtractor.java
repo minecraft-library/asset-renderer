@@ -1,6 +1,7 @@
 package dev.sbs.renderer.pipeline.client;
 
 import dev.sbs.renderer.exception.AssetPipelineException;
+import dev.sbs.renderer.pipeline.VanillaPaths;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -28,7 +29,7 @@ import java.util.zip.ZipFile;
 @UtilityClass
 public class ClientJarExtractor {
 
-    private static final @NotNull String[] SUBTREES = { "assets/minecraft/", "data/minecraft/" };
+    private static final @NotNull String[] SUBTREES = { VanillaPaths.VANILLA_ASSET_ROOT, VanillaPaths.VANILLA_DATA_ROOT };
 
     /**
      * Extracts the relevant subtrees of the client jar into the pack root directory.

@@ -3,6 +3,7 @@ package dev.sbs.renderer.pipeline.loader;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import dev.sbs.renderer.asset.binding.BannerPattern;
+import dev.sbs.renderer.pipeline.VanillaPaths;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
@@ -60,7 +61,7 @@ public class BannerPatternLoader {
         @NotNull ConcurrentMap<String, BannerPattern> result
     ) {
         String relative = patternDir.relativize(file).toString().replace('\\', '/');
-        String patternId = "minecraft:" + relative.substring(0, relative.length() - ".json".length());
+        String patternId = VanillaPaths.MINECRAFT_NAMESPACE + relative.substring(0, relative.length() - ".json".length());
         try {
             JsonObject root = GSON.fromJson(Files.readString(file), JsonObject.class);
             if (root == null || !root.has("asset_id")) return;

@@ -5,6 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.sbs.renderer.asset.Block;
+import dev.sbs.renderer.pipeline.VanillaPaths;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -50,7 +51,7 @@ public class BlockStateLoader {
      * @return the parsed blockstate data
      */
     public static @NotNull LoadResult load(@NotNull Path packRoot) {
-        Path blockstatesDir = packRoot.resolve("assets/minecraft/blockstates");
+        Path blockstatesDir = packRoot.resolve(VanillaPaths.BLOCKSTATES_DIR);
         ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variants = Concurrent.newMap();
         ConcurrentMap<String, Block.Multipart> multiparts = Concurrent.newMap();
 
@@ -60,7 +61,7 @@ public class BlockStateLoader {
             files.filter(p -> p.toString().endsWith(".json")).forEach(file -> {
                 String fileName = file.getFileName().toString();
                 String blockName = fileName.substring(0, fileName.length() - 5);
-                String blockId = "minecraft:" + blockName;
+                String blockId = VanillaPaths.MINECRAFT_NAMESPACE + blockName;
 
                 try {
                     String json = Files.readString(file);

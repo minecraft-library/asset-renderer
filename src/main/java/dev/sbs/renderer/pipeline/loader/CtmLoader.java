@@ -1,6 +1,7 @@
 package dev.sbs.renderer.pipeline.loader;
 
 import dev.sbs.renderer.exception.RendererException;
+import dev.sbs.renderer.pipeline.VanillaPaths;
 import dev.sbs.renderer.pipeline.pack.CtmMethod;
 import dev.sbs.renderer.pipeline.pack.CtmRule;
 import dev.simplified.collection.Concurrent;
@@ -28,8 +29,8 @@ import java.util.stream.Stream;
 public class CtmLoader {
 
     private static final @NotNull String[] CTM_ROOTS = {
-        "assets/minecraft/optifine/ctm",
-        "assets/minecraft/mcpatcher/ctm"
+        VanillaPaths.OPTIFINE_CTM_DIR,
+        VanillaPaths.MCPATCHER_CTM_DIR
     };
 
     /**
@@ -74,7 +75,7 @@ public class CtmLoader {
         ConcurrentList<String> matchedBlocks = Concurrent.newList();
         String blocksValue = props.getProperty("matchBlocks", "");
         for (String id : blocksValue.split("\\s+")) {
-            if (!id.isBlank()) matchedBlocks.add(id.contains(":") ? id : "minecraft:" + id);
+            if (!id.isBlank()) matchedBlocks.add(id.contains(":") ? id : VanillaPaths.MINECRAFT_NAMESPACE + id);
         }
 
         ConcurrentList<String> matchedTiles = Concurrent.newList();

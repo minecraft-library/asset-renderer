@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import dev.sbs.renderer.exception.AssetPipelineException;
 import dev.sbs.renderer.pipeline.PipelineRendererContext;
+import dev.sbs.renderer.pipeline.VanillaPaths;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
@@ -47,7 +48,7 @@ public class ItemDefinitionLoader {
      * @return the item-to-block-model mapping for block items
      */
     public static @NotNull ConcurrentMap<String, String> load(@NotNull Path packRoot) {
-        Path itemsDir = packRoot.resolve("assets/minecraft/items");
+        Path itemsDir = packRoot.resolve(VanillaPaths.ITEMS_DIR);
         ConcurrentMap<String, String> result = Concurrent.newMap();
         if (!Files.isDirectory(itemsDir)) return result;
 
@@ -57,7 +58,7 @@ public class ItemDefinitionLoader {
                 .forEach(p -> {
                     String relative = itemsDir.relativize(p).toString().replace('\\', '/');
                     if (!relative.endsWith(".json")) return;
-                    String itemId = "minecraft:" + relative.substring(0, relative.length() - ".json".length());
+                    String itemId = VanillaPaths.MINECRAFT_NAMESPACE + relative.substring(0, relative.length() - ".json".length());
 
                     try {
                         String content = Files.readString(p);
@@ -70,7 +71,7 @@ public class ItemDefinitionLoader {
                         if (!"minecraft:model".equals(model.get("type").getAsString())) return;
 
                         String modelRef = model.get("model").getAsString();
-                        if (modelRef.startsWith("minecraft:block/"))
+                        if (modelRef.startsWith(VanillaPaths.MODEL_BLOCK_ID_PREFIX))
                             result.put(itemId, modelRef);
                     } catch (IOException | JsonSyntaxException ex) {
                         throw new AssetPipelineException(ex, "Failed to parse item definition '%s'", p);

@@ -1,6 +1,7 @@
 package dev.sbs.renderer.pipeline.loader;
 
 import dev.sbs.renderer.exception.RendererException;
+import dev.sbs.renderer.pipeline.VanillaPaths;
 import dev.sbs.renderer.pipeline.pack.CitRule;
 import dev.sbs.renderer.pipeline.pack.IntRange;
 import dev.sbs.renderer.pipeline.pack.NbtCondition;
@@ -30,8 +31,8 @@ import java.util.stream.Stream;
 public class CitLoader {
 
     private static final @NotNull String[] CIT_ROOTS = {
-        "assets/minecraft/optifine/cit",
-        "assets/minecraft/mcpatcher/cit"
+        VanillaPaths.OPTIFINE_CIT_DIR,
+        VanillaPaths.MCPATCHER_CIT_DIR
     };
 
     /**
@@ -80,7 +81,7 @@ public class CitLoader {
         ConcurrentList<String> matchedItems = Concurrent.newList();
         String itemsProperty = props.getProperty("items", props.getProperty("matchItems", ""));
         for (String id : itemsProperty.split("\\s+")) {
-            if (!id.isBlank()) matchedItems.add(id.contains(":") ? id : "minecraft:" + id);
+            if (!id.isBlank()) matchedItems.add(id.contains(":") ? id : VanillaPaths.MINECRAFT_NAMESPACE + id);
         }
         if (matchedItems.isEmpty()) return Optional.empty();
 
@@ -90,7 +91,7 @@ public class CitLoader {
         ConcurrentList<String> enchantmentIds = Concurrent.newList();
         String enchantments = props.getProperty("enchantmentIDs", "");
         for (String id : enchantments.split("\\s+")) {
-            if (!id.isBlank()) enchantmentIds.add(id.contains(":") ? id : "minecraft:" + id);
+            if (!id.isBlank()) enchantmentIds.add(id.contains(":") ? id : VanillaPaths.MINECRAFT_NAMESPACE + id);
         }
 
         ConcurrentMap<String, IntRange> enchantmentLevels = Concurrent.newMap();
@@ -101,7 +102,7 @@ public class CitLoader {
             if (eq < 0) continue;
             String key = token.substring(0, eq);
             IntRange range = parseRange(token.substring(eq + 1)).orElse(IntRange.ANY);
-            enchantmentLevels.put(key.contains(":") ? key : "minecraft:" + key, range);
+            enchantmentLevels.put(key.contains(":") ? key : VanillaPaths.MINECRAFT_NAMESPACE + key, range);
         }
 
         ConcurrentMap<String, NbtCondition> nbtConditions = Concurrent.newMap();
@@ -125,12 +126,12 @@ public class CitLoader {
 
     private static @NotNull String normalizeTextureId(@NotNull String texture) {
         if (texture.contains(":")) return texture;
-        if (texture.startsWith("assets/minecraft/textures/")) {
-            String trimmed = texture.substring("assets/minecraft/textures/".length());
+        if (texture.startsWith(VanillaPaths.TEXTURES_PREFIX)) {
+            String trimmed = texture.substring(VanillaPaths.TEXTURES_PREFIX.length());
             if (trimmed.endsWith(".png")) trimmed = trimmed.substring(0, trimmed.length() - 4);
-            return "minecraft:" + trimmed;
+            return VanillaPaths.MINECRAFT_NAMESPACE + trimmed;
         }
-        return "minecraft:" + texture;
+        return VanillaPaths.MINECRAFT_NAMESPACE + texture;
     }
 
     private static @NotNull Optional<IntRange> parseRange(String expression) {

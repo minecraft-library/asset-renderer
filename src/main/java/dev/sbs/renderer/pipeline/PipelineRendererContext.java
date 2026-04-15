@@ -176,7 +176,7 @@ public final class PipelineRendererContext implements RendererContext {
 
     @Override
     public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
-        String normalized = textureId.contains(":") ? textureId : "minecraft:" + textureId;
+        String normalized = textureId.contains(":") ? textureId : VanillaPaths.MINECRAFT_NAMESPACE + textureId;
         PixelBuffer cached = this.textureCache.get(normalized);
         if (cached != null) return Optional.of(cached);
 
@@ -211,7 +211,7 @@ public final class PipelineRendererContext implements RendererContext {
 
     @Override
     public @NotNull Optional<AnimationData> animationFor(@NotNull String textureId) {
-        String normalized = textureId.contains(":") ? textureId : "minecraft:" + textureId;
+        String normalized = textureId.contains(":") ? textureId : VanillaPaths.MINECRAFT_NAMESPACE + textureId;
         Texture texture = this.textureIndex.get(normalized);
         return texture == null ? Optional.empty() : texture.getAnimation();
     }

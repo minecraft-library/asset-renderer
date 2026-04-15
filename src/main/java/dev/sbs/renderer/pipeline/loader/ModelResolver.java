@@ -8,6 +8,7 @@ import dev.sbs.renderer.exception.AssetPipelineException;
 import dev.sbs.renderer.asset.model.BlockModelData;
 import dev.sbs.renderer.asset.model.ItemModelData;
 import dev.sbs.renderer.pipeline.PipelineRendererContext;
+import dev.sbs.renderer.pipeline.VanillaPaths;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
@@ -48,7 +49,7 @@ public class ModelResolver {
      * @return a map of model id to resolved block model data
      */
     public static @NotNull ConcurrentMap<String, BlockModelData> loadBlockModels(@NotNull Path packRoot) {
-        ConcurrentMap<String, JsonObject> raw = scanJsonFiles(packRoot.resolve("assets/minecraft/models/block"), "minecraft:block/");
+        ConcurrentMap<String, JsonObject> raw = scanJsonFiles(packRoot.resolve(VanillaPaths.MODEL_BLOCK_DIR), VanillaPaths.MODEL_BLOCK_ID_PREFIX);
         ConcurrentMap<String, BlockModelData> resolved = Concurrent.newMap();
         for (Map.Entry<String, JsonObject> entry : raw.entrySet().stream().toList()) {
             JsonObject merged = mergeParentChain(entry.getValue(), raw, packRoot, "block");
@@ -65,7 +66,7 @@ public class ModelResolver {
      * @return a map of model id to resolved item model data
      */
     public static @NotNull ConcurrentMap<String, ItemModelData> loadItemModels(@NotNull Path packRoot) {
-        ConcurrentMap<String, JsonObject> raw = scanJsonFiles(packRoot.resolve("assets/minecraft/models/item"), "minecraft:item/");
+        ConcurrentMap<String, JsonObject> raw = scanJsonFiles(packRoot.resolve(VanillaPaths.MODEL_ITEM_DIR), VanillaPaths.MODEL_ITEM_ID_PREFIX);
         ConcurrentMap<String, ItemModelData> resolved = Concurrent.newMap();
         for (Map.Entry<String, JsonObject> entry : raw.entrySet().stream().toList()) {
             JsonObject merged = mergeParentChain(entry.getValue(), raw, packRoot, "item");
@@ -113,7 +114,7 @@ public class ModelResolver {
         Optional<String> parentId = Optional.ofNullable(model.get("parent")).map(JsonElement::getAsString);
         if (parentId.isEmpty()) return model;
 
-        String fqParent = parentId.get().contains(":") ? parentId.get() : "minecraft:" + parentId.get();
+        String fqParent = parentId.get().contains(":") ? parentId.get() : VanillaPaths.MINECRAFT_NAMESPACE + parentId.get();
         JsonObject parentJson = raw.get(fqParent);
         if (parentJson == null) {
             // Parent lives outside this tree (e.g. minecraft:builtin/generated) - keep the reference

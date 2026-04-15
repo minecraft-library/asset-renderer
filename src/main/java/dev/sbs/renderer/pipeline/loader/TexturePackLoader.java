@@ -9,6 +9,7 @@ import dev.sbs.renderer.exception.AssetPipelineException;
 import dev.sbs.renderer.asset.pack.Texture;
 import dev.sbs.renderer.asset.pack.TexturePack;
 import dev.sbs.renderer.asset.pack.AnimationData;
+import dev.sbs.renderer.pipeline.VanillaPaths;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.GsonSettings;
@@ -86,7 +87,7 @@ public class TexturePackLoader {
      */
     public static @NotNull ConcurrentList<Texture> scanTextures(@NotNull Path packRoot, @NotNull String packId) {
         ConcurrentList<Texture> textures = Concurrent.newList();
-        Path texturesDir = packRoot.resolve("assets/minecraft/textures");
+        Path texturesDir = packRoot.resolve(VanillaPaths.TEXTURES_DIR);
         if (!Files.isDirectory(texturesDir)) return textures;
 
         try (Stream<Path> stream = Files.walk(texturesDir)) {
@@ -102,7 +103,7 @@ public class TexturePackLoader {
     private static @NotNull Texture buildTexture(@NotNull Path file, @NotNull Path texturesRoot, @NotNull String packId) {
         String relative = texturesRoot.relativize(file).toString().replace('\\', '/');
         String withoutExtension = relative.endsWith(".png") ? relative.substring(0, relative.length() - 4) : relative;
-        String id = "minecraft:" + withoutExtension;
+        String id = VanillaPaths.MINECRAFT_NAMESPACE + withoutExtension;
 
         int width = 0;
         int height = 0;
