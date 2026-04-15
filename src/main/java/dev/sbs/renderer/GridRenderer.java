@@ -17,6 +17,9 @@ import org.jetbrains.annotations.NotNull;
  */
 public final class GridRenderer implements Renderer<GridOptions> {
 
+    /** Default animated-grid output frame rate when promoting a mixed static/animated composite. */
+    private static final int DEFAULT_FRAME_FPS = 30;
+
     @Override
     public @NotNull ImageData render(@NotNull GridOptions options) {
         int cellSize = options.getCellSize();
@@ -49,7 +52,7 @@ public final class GridRenderer implements Renderer<GridOptions> {
             layers.add(new FrameMerger.Layer(x, y, tile.image()));
         }
 
-        return FrameMerger.merge(layers, canvasW, canvasH, 30, options.getBackgroundArgb());
+        return FrameMerger.merge(layers, canvasW, canvasH, DEFAULT_FRAME_FPS, options.getBackgroundArgb());
     }
 
 }

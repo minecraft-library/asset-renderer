@@ -24,6 +24,13 @@ public class ItemBarKit {
     private static final int BAR_FG_WIDTH = 12;
 
     /**
+     * HSV hue in degrees that maps to full green - the upper endpoint of the durability bar's
+     * colour sweep. Empty durability corresponds to hue 0 (red); vanilla's
+     * {@code ItemRenderer.renderItemBar} lerps from 0 to this value as damage approaches zero.
+     */
+    private static final float DURABILITY_FULL_HUE_DEGREES = 120f;
+
+    /**
      * Draws a durability bar at the bottom-left of a GUI item buffer.
      * <p>
      * The bar consists of a 13x1 black background row at logical Y 13, plus a 12x1 foreground row
@@ -43,7 +50,7 @@ public class ItemBarKit {
         int remaining = Math.max(0, maxDurability - damage);
         float fraction = (float) remaining / (float) maxDurability;
         int fgWidth = Math.clamp(Math.round(BAR_FG_WIDTH * fraction), 0, BAR_FG_WIDTH);
-        int fgColor = ColorMath.hsvToArgb(fraction * 120f, 1f, 1f);
+        int fgColor = ColorMath.hsvToArgb(fraction * DURABILITY_FULL_HUE_DEGREES, 1f, 1f);
 
         int scale = Math.max(1, buffer.width() / LOGICAL_CANVAS);
         int barX = BAR_X * scale;

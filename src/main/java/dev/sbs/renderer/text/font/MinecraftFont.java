@@ -38,10 +38,9 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public enum MinecraftFont {
 
-    // Size 16.0f = 2x vanilla mcPixel resolution. The cached bitmap-derived OTFs are
-    // designed on a unitsPerEm = 1024 grid where 128 units = 1 mcPixel, so 1 em corresponds
-    // to 8 mcPixels. AWT renders at 72 DPI, so the load size must be an integer multiple of
-    // 8 to keep every glyph on integer output pixel boundaries. See #MC_PIXEL_SCALE.
+    // Load size = FONT_LOAD_POINT_SIZE (see below). Inlined here because Java disallows
+    // forward-reference of static fields from enum-constant arguments - every enum case must
+    // precede every static field declaration.
     REGULAR("Minecraft-Regular.otf", Style.REGULAR, 16.0f),
     BOLD("Minecraft-Bold.otf", Style.BOLD, 16.0f),
     ITALIC("Minecraft-Italic.otf", Style.ITALIC, 16.0f),
@@ -49,8 +48,21 @@ public enum MinecraftFont {
     GALACTIC("Minecraft-Galactic.otf", Style.GALACTIC, 16.0f),
     ILLAGERALT("Minecraft-Illageralt.otf", Style.ILLAGERALT, 16.0f);
 
-    private static final int EAGER_START = 32;
-    private static final int EAGER_END = 126;
+    /**
+     * Load size (in AWT points) for every Minecraft font file. {@code 16.0f} is twice the
+     * vanilla mcPixel resolution so the bitmap-derived OTFs render at the {@link #MC_PIXEL_SCALE}
+     * integer factor. The cached OTFs use {@code unitsPerEm = 1024} with {@code 128 units = 1 mcPixel},
+     * so 1 em corresponds to 8 mcPixels and the load size must be an integer multiple of 8 to
+     * keep every glyph on integer output pixel boundaries at AWT's fixed 72 DPI. Kept in sync by
+     * hand with the literal above - Java enum forward-reference rules prevent consolidation.
+     */
+    public static final float FONT_LOAD_POINT_SIZE = 16.0f;
+
+    /** First printable ASCII codepoint the font eagerly pre-caches at enum init. */
+    private static final int EAGER_ASCII_START = 32;
+
+    /** Last printable ASCII codepoint eagerly pre-cached. */
+    private static final int EAGER_ASCII_END = 126;
 
     /**
      * Output pixels per vanilla Minecraft pixel for the current native {@code 16.0f} load
@@ -85,7 +97,7 @@ public enum MinecraftFont {
         this.fontMetrics = MinecraftFontMetrics.capture(this);
 
         // Eagerly rasterize printable ASCII so the first render has zero AWT overhead.
-        for (int cp = EAGER_START; cp <= EAGER_END; cp++)
+        for (int cp = EAGER_ASCII_START; cp <= EAGER_ASCII_END; cp++)
             this.glyphCache.put(cp, rasterizeGlyph(cp));
     }
 

@@ -33,11 +33,11 @@ import java.util.Optional;
 @UtilityClass
 public class OverlayResolver {
 
-    private static final @NotNull String ITEM_ID_POTION          = "minecraft:potion";
-    private static final @NotNull String ITEM_ID_SPLASH_POTION   = "minecraft:splash_potion";
-    private static final @NotNull String ITEM_ID_LINGERING_POTION = "minecraft:lingering_potion";
-    private static final @NotNull String ITEM_ID_TIPPED_ARROW    = "minecraft:tipped_arrow";
-    private static final @NotNull String ITEM_ID_FIREWORK_STAR   = "minecraft:firework_star";
+    private static final @NotNull String POTION_ID          = "minecraft:potion";
+    private static final @NotNull String SPLASH_POTION_ID   = "minecraft:splash_potion";
+    private static final @NotNull String LINGERING_POTION_ID = "minecraft:lingering_potion";
+    private static final @NotNull String TIPPED_ARROW_ID    = "minecraft:tipped_arrow";
+    private static final @NotNull String FIREWORK_STAR_ID   = "minecraft:firework_star";
 
     private static final @NotNull String SUFFIX_HELMET     = "_helmet";
     private static final @NotNull String SUFFIX_CHESTPLATE = "_chestplate";
@@ -65,9 +65,9 @@ public class OverlayResolver {
         if (layer1 != null && layer0 != null) {
             if (isPotion(itemId))
                 return Optional.of(new Item.Overlay.Potion(layer0, layer1));
-            if (itemId.equals(ITEM_ID_TIPPED_ARROW))
+            if (itemId.equals(TIPPED_ARROW_ID))
                 return Optional.of(new Item.Overlay.TippedArrow(layer0, layer1));
-            if (itemId.equals(ITEM_ID_FIREWORK_STAR))
+            if (itemId.equals(FIREWORK_STAR_ID))
                 return Optional.of(new Item.Overlay.Firework(layer0, layer1, Item.Overlay.FIREWORK_DEFAULT_ARGB));
         }
 
@@ -75,9 +75,9 @@ public class OverlayResolver {
     }
 
     private static boolean isPotion(@NotNull String itemId) {
-        return itemId.equals(ITEM_ID_POTION)
-            || itemId.equals(ITEM_ID_SPLASH_POTION)
-            || itemId.equals(ITEM_ID_LINGERING_POTION);
+        return itemId.equals(POTION_ID)
+            || itemId.equals(SPLASH_POTION_ID)
+            || itemId.equals(LINGERING_POTION_ID);
     }
 
     /**

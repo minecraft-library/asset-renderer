@@ -95,7 +95,7 @@ public class ItemOptions {
 
     /** Output image dimensions in pixels (square) */
     @lombok.Builder.Default
-    private final int outputSize = 256;
+    private final int outputSize = dev.sbs.renderer.Renderer.DEFAULT_OUTPUT_SIZE;
 
     /** Additional texture pack ids to layer on top of vanilla */
     @lombok.Builder.Default

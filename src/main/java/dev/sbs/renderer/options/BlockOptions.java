@@ -48,7 +48,7 @@ public class BlockOptions {
 
     /** Output image dimensions in pixels (square) */
     @lombok.Builder.Default
-    private final int outputSize = 256;
+    private final int outputSize = dev.sbs.renderer.Renderer.DEFAULT_OUTPUT_SIZE;
 
     /** Whether to apply FXAA post-processing */
     @lombok.Builder.Default

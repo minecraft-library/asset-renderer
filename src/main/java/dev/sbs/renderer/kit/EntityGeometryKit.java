@@ -44,9 +44,23 @@ import java.util.Map;
 public class EntityGeometryKit {
 
     /**
+     * Uniform fit extent every entity model is rescaled to - fills 90% of the unit cube so
+     * outstretched limbs, capes, and horn extensions keep a small margin before clipping the
+     * iso tile edges.
+     */
+    private static final float ENTITY_MODEL_FIT_EXTENT = 0.9f;
+
+    /**
+     * Lower bound on the measured model extent before scaling. Guards against division by zero
+     * on degenerate (empty-bone or zero-cube) models that would otherwise produce an infinite
+     * scale factor.
+     */
+    private static final float MIN_MODEL_EXTENT = 0.001f;
+
+    /**
      * Builds a triangle list from the bone/cube tree of an entity model, using a single shared
-     * texture atlas. The model is centered at the origin and uniformly scaled to fit within a
-     * {@code 0.9}-unit extent.
+     * texture atlas. The model is centered at the origin and uniformly scaled to fit within
+     * {@link #ENTITY_MODEL_FIT_EXTENT}.
      *
      * @param model the entity model definition
      * @param texture the shared texture atlas for all cubes
@@ -54,8 +68,8 @@ public class EntityGeometryKit {
      */
     public static @NotNull BuildResult buildTriangles(@NotNull EntityModelData model, @NotNull PixelBuffer texture) {
         ModelBounds bounds = computeBounds(model);
-        float extent = Math.max(bounds.maxExtent(), 0.001f);
-        float scale = 0.9f / extent;
+        float extent = Math.max(bounds.maxExtent(), MIN_MODEL_EXTENT);
+        float scale = ENTITY_MODEL_FIT_EXTENT / extent;
         float cx = (bounds.minX + bounds.maxX) * 0.5f;
         float cy = (bounds.minY + bounds.maxY) * 0.5f;
         float cz = (bounds.minZ + bounds.maxZ) * 0.5f;

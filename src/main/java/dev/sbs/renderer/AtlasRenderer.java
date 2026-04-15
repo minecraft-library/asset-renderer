@@ -23,6 +23,7 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
 import org.jetbrains.annotations.NotNull;
 
+import java.awt.*;
 import java.util.Optional;
 
 /**
@@ -42,6 +43,9 @@ import java.util.Optional;
  * progress logs are gated on {@link AtlasOptions#isProgressLogging()}.
  */
 public final class AtlasRenderer implements Renderer<AtlasOptions> {
+
+    /** Tile-count interval between {@code stdout} progress lines when {@link AtlasOptions#isProgressLogging()} is set. */
+    private static final int PROGRESS_LOG_INTERVAL = 100;
 
     private final @NotNull RendererContext context;
     private final @NotNull BlockRenderer blockRenderer;
@@ -118,9 +122,9 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
                 .build();
             try {
                 ImageData image = renderer.render(blockOptions);
-                tiles.add(new TileSpec(blockId, "block", image));
+                tiles.add(new TileSpec(blockId, TileSpec.Kind.BLOCK, image));
                 count++;
-                if (options.isProgressLogging() && count % 100 == 0)
+                if (options.isProgressLogging() && count % PROGRESS_LOG_INTERVAL == 0)
                     System.out.printf("  rendered %d block tiles...%n", count);
             } catch (RendererException ex) {
                 if (options.isProgressLogging())
@@ -153,9 +157,9 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
 
             try {
                 ImageData image = renderer.render(itemOptions);
-                tiles.add(new TileSpec(itemId, "item", image));
+                tiles.add(new TileSpec(itemId, TileSpec.Kind.ITEM, image));
                 count++;
-                if (options.isProgressLogging() && count % 100 == 0)
+                if (options.isProgressLogging() && count % PROGRESS_LOG_INTERVAL == 0)
                     System.out.printf("  rendered %d item tiles...%n", count);
             } catch (RendererException ex) {
                 if (options.isProgressLogging())
@@ -213,7 +217,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             int row = i / columns;
             JsonObject entry = new JsonObject();
             entry.addProperty("id", tile.id());
-            entry.addProperty("kind", tile.kind());
+            entry.addProperty("kind", tile.kind().jsonName());
             entry.addProperty("col", col);
             entry.addProperty("row", row);
             entry.addProperty("x", col * tileSize);
@@ -227,10 +231,31 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     }
 
     /**
-     * A single rendered tile carrying the entity id, kind tag ({@code "block"} / {@code "item"}),
-     * and the rendered image data ready for grid composition.
+     * A single rendered tile carrying the entity id, {@link Kind} tag, and the rendered image
+     * data ready for grid composition.
      */
-    public record TileSpec(@NotNull String id, @NotNull String kind, @NotNull ImageData image) {}
+    public record TileSpec(@NotNull String id, @NotNull Kind kind, @NotNull ImageData image) {
+
+        /**
+         * Kind tag emitted alongside each tile in the sidecar JSON. Serialised via
+         * {@link #jsonName()} so the on-disk format stays lowercase ({@code "block"} /
+         * {@code "item"}) across the enum refactor.
+         */
+        public enum Kind {
+
+            /** A block tile rendered via {@link BlockRenderer}. */
+            BLOCK,
+            /** An item tile rendered via {@link ItemRenderer}. */
+            ITEM;
+
+            /** The lowercase kind name used in the sidecar JSON schema. */
+            public @NotNull String jsonName() {
+                return this.name().toLowerCase(java.util.Locale.ROOT);
+            }
+
+        }
+
+    }
 
     /**
      * The full output of an atlas render: the composed grid image, the per-tile metadata list,

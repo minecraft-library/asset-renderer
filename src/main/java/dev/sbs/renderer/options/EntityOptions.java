@@ -45,7 +45,7 @@ public class EntityOptions {
 
     /** Output image dimensions in pixels (square) */
     @lombok.Builder.Default
-    private final int outputSize = 256;
+    private final int outputSize = dev.sbs.renderer.Renderer.DEFAULT_OUTPUT_SIZE;
 
     /** Model rotation applied before the camera transform, in degrees */
     @lombok.Builder.Default

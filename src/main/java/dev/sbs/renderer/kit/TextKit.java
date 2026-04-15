@@ -49,6 +49,19 @@ public class TextKit {
     /** Underline bar thickness in native 2x-rasterized font space (1 mcPixel). */
     private static final int UNDERLINE_THICKNESS = PIXEL_SIZE;
 
+    /**
+     * Drop-shadow displacement in mcPixels - one mcPixel right and one mcPixel down from the
+     * glyph origin, multiplied by the active supersampling factor at draw time.
+     */
+    private static final int SHADOW_OFFSET = 1;
+
+    /**
+     * Divisor applied to each RGB channel to produce vanilla's ~25%-brightness drop shadow.
+     * Matches the {@code (rgb & 0xFCFCFC) >> 2} formula used by {@code Font#getShadowColor}
+     * from 1.13 onward, split across channels so the low two bits survive the mask independently.
+     */
+    private static final int SHADOW_DARKEN_DIVISOR = 4;
+
     // --- segment rendering ---
 
     /**
@@ -164,7 +177,7 @@ public class TextKit {
         int textWidthNative = measureText(text, font);
         int textWidth = textWidthNative * s;
 
-        int shadowOffset = PIXEL_SIZE * s;
+        int shadowOffset = SHADOW_OFFSET * PIXEL_SIZE * s;
         int strikeThicknessScaled = STRIKETHROUGH_THICKNESS * s;
         int underlineThicknessScaled = UNDERLINE_THICKNESS * s;
         int strikeOffsetScaled = STRIKETHROUGH_OFFSET * s;
@@ -324,9 +337,9 @@ public class TextKit {
     static int darken(int argb) {
         return ColorMath.pack(
             ColorMath.alpha(argb),
-            ColorMath.red(argb) / 4,
-            ColorMath.green(argb) / 4,
-            ColorMath.blue(argb) / 4
+            ColorMath.red(argb) / SHADOW_DARKEN_DIVISOR,
+            ColorMath.green(argb) / SHADOW_DARKEN_DIVISOR,
+            ColorMath.blue(argb) / SHADOW_DARKEN_DIVISOR
         );
     }
 

@@ -20,6 +20,14 @@ import org.jetbrains.annotations.NotNull;
 public interface Renderer<O> {
 
     /**
+     * Shared square-pixel default output size for single-entity renders. Consumed by
+     * {@code BlockOptions}, {@code EntityOptions}, {@code ItemOptions}, and {@code PlayerOptions}
+     * as the default value of their {@code outputSize} field so the entity-scoped renderers all
+     * agree on one tile dimension out of the box.
+     */
+    int DEFAULT_OUTPUT_SIZE = 256;
+
+    /**
      * Renders the given options into an image.
      *
      * @param options the options describing what to render

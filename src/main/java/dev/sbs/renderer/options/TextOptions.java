@@ -18,6 +18,27 @@ import org.jetbrains.annotations.NotNull;
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
 public class TextOptions {
 
+    /** Default per-side inner padding between the tooltip border and the first glyph (output pixels). */
+    public static final int TOOLTIP_PADDING_PX = 10;
+
+    /**
+     * Alpha component matching the vanilla 0xF0100010 tooltip background. {@code 0xF0 = 240}
+     * is used in every client version from 1.8.9 through 26.1.
+     */
+    public static final int VANILLA_TOOLTIP_BG_ALPHA = 240;
+
+    /**
+     * Alpha component matching the vanilla 0x50 border gradient endpoints
+     * (0x505000FF top, 0x5028007F bottom).
+     */
+    public static final int VANILLA_TOOLTIP_BORDER_ALPHA = 80;
+
+    /** Default wrap width; matches vanilla tooltip line break behaviour (~38 chars). */
+    public static final int VANILLA_WRAP_WIDTH_CHARS = 38;
+
+    /** Obfuscation animation frame rate; matches vanilla's 20 ticks-per-second refresh. */
+    public static final int VANILLA_TICK_FPS = 20;
+
     /** Rendering style - tooltip or plain chat text */
     @lombok.Builder.Default
     private final @NotNull Style style = Style.LORE;
@@ -28,23 +49,23 @@ public class TextOptions {
 
     /** Pixel padding around the text content */
     @lombok.Builder.Default
-    private final int padding = 10;
+    private final int padding = TOOLTIP_PADDING_PX;
 
     /**
      * Alpha channel for the LORE background fill, in {@code [0, 255]}. Defaults to
-     * {@code 240} (0xF0), matching the vanilla tooltip background {@code 0xF0100010}
-     * constant used in every version from 1.8.9 through 26.1.
+     * {@link #VANILLA_TOOLTIP_BG_ALPHA}, matching the vanilla tooltip background
+     * {@code 0xF0100010} constant used in every version from 1.8.9 through 26.1.
      */
     @lombok.Builder.Default
-    private final int backgroundAlpha = 240;
+    private final int backgroundAlpha = VANILLA_TOOLTIP_BG_ALPHA;
 
     /**
      * Alpha channel for the LORE border gradient, in {@code [0, 255]}. Defaults to
-     * {@code 80} (0x50), matching the vanilla tooltip border endpoints
+     * {@link #VANILLA_TOOLTIP_BORDER_ALPHA}, matching the vanilla tooltip border endpoints
      * {@code 0x505000FF} and {@code 0x5028007F}.
      */
     @lombok.Builder.Default
-    private final int borderAlpha = 80;
+    private final int borderAlpha = VANILLA_TOOLTIP_BORDER_ALPHA;
 
     /**
      * Supersampling factor for text rendering. {@code 1} renders at the native pixel grid
@@ -58,15 +79,15 @@ public class TextOptions {
 
     /** Maximum characters per line before wrapping */
     @lombok.Builder.Default
-    private final int wrapWidth = 38;
+    private final int wrapWidth = VANILLA_WRAP_WIDTH_CHARS;
 
     /** Total number of frames produced when obfuscated text is present. */
     @lombok.Builder.Default
     private final int frameCount = 20;
 
-    /** Target output frame rate; 20 fps matches vanilla's tick-synced obfuscation refresh. */
+    /** Target output frame rate; matches vanilla's tick-synced obfuscation refresh. */
     @lombok.Builder.Default
-    private final int framesPerSecond = 20;
+    private final int framesPerSecond = VANILLA_TICK_FPS;
 
     /** Output image format */
     @lombok.Builder.Default
