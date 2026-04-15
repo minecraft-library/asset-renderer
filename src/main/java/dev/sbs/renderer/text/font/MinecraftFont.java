@@ -38,25 +38,23 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public enum MinecraftFont {
 
-    // Load size = FONT_LOAD_POINT_SIZE (see below). Inlined here because Java disallows
-    // forward-reference of static fields from enum-constant arguments - every enum case must
-    // precede every static field declaration.
-    REGULAR("Minecraft-Regular.otf", Style.REGULAR, 16.0f),
-    BOLD("Minecraft-Bold.otf", Style.BOLD, 16.0f),
-    ITALIC("Minecraft-Italic.otf", Style.ITALIC, 16.0f),
-    BOLD_ITALIC("Minecraft-BoldItalic.otf", Style.BOLD_ITALIC, 16.0f),
-    GALACTIC("Minecraft-Galactic.otf", Style.GALACTIC, 16.0f),
-    ILLAGERALT("Minecraft-Illageralt.otf", Style.ILLAGERALT, 16.0f);
+    REGULAR("Minecraft-Regular.otf", Style.REGULAR),
+    BOLD("Minecraft-Bold.otf", Style.BOLD),
+    ITALIC("Minecraft-Italic.otf", Style.ITALIC),
+    BOLD_ITALIC("Minecraft-BoldItalic.otf", Style.BOLD_ITALIC),
+    GALACTIC("Minecraft-Galactic.otf", Style.GALACTIC),
+    ILLAGERALT("Minecraft-Illageralt.otf", Style.ILLAGERALT);
 
     /**
-     * Load size (in AWT points) for every Minecraft font file. {@code 16.0f} is twice the
-     * vanilla mcPixel resolution so the bitmap-derived OTFs render at the {@link #MC_PIXEL_SCALE}
-     * integer factor. The cached OTFs use {@code unitsPerEm = 1024} with {@code 128 units = 1 mcPixel},
-     * so 1 em corresponds to 8 mcPixels and the load size must be an integer multiple of 8 to
-     * keep every glyph on integer output pixel boundaries at AWT's fixed 72 DPI. Kept in sync by
-     * hand with the literal above - Java enum forward-reference rules prevent consolidation.
+     * Load size (in AWT points) for every Minecraft font file.
+     * <p>
+     * {@code 16.0f} is twice the vanilla mcPixel resolution so the bitmap-derived OTFs render
+     * at the {@link #MC_PIXEL_SCALE} integer factor. The cached OTFs use {@code unitsPerEm = 1024}
+     * with {@code 128 units = 1 mcPixel}, so 1 em corresponds to 8 mcPixels and the load size
+     * must be an integer multiple of 8 to keep every glyph on integer output pixel boundaries
+     * at AWT's fixed 72 DPI.
      */
-    public static final float FONT_LOAD_POINT_SIZE = 16.0f;
+    public static final float FONT_POINT_SIZE = 16.0f;
 
     /** First printable ASCII codepoint the font eagerly pre-caches at enum init. */
     private static final int EAGER_ASCII_START = 32;
@@ -80,19 +78,15 @@ public enum MinecraftFont {
     /** The style category this enum value belongs to. */
     private final @NotNull Style style;
 
-    /** The size in points used when the font was loaded. */
-    private final float size;
-
     /** Font-level metrics backed by the glyph atlas, captured at init time. */
     private final @NotNull MinecraftFontMetrics fontMetrics;
 
     /** Lazily populated glyph cache - eagerly filled with ASCII at init, rest on demand. */
     private final @NotNull ConcurrentMap<Integer, GlyphData> glyphCache;
 
-    MinecraftFont(@NotNull String fileName, @NotNull Style style, float size) {
-        this.actual = initFont(String.format("fonts/%s", fileName), size);
+    MinecraftFont(@NotNull String fileName, @NotNull Style style) {
+        this.actual = initFont(String.format("fonts/%s", fileName));
         this.style = style;
-        this.size = size;
         this.glyphCache = Concurrent.newMap();
         this.fontMetrics = MinecraftFontMetrics.capture(this);
 
@@ -161,14 +155,14 @@ public enum MinecraftFont {
         return new GlyphData(PixelBuffer.wrap(glyphImage), advanceWidth, bearingX, bearingY);
     }
 
-    private static @NotNull java.awt.Font initFont(@NotNull String resourcePath, float size) throws FontException {
+    private static @NotNull java.awt.Font initFont(@NotNull String resourcePath) throws FontException {
         try {
             @Cleanup InputStream inputStream = SystemUtil.getResource(resourcePath);
             Font font = Font.createFont(
                 Font.TRUETYPE_FONT,
                 Objects.requireNonNull(inputStream)
                 )
-                .deriveFont(size);
+                .deriveFont(FONT_POINT_SIZE);
             GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(font);
             return font;
         } catch (IOException | FontFormatException | NullPointerException ex) {

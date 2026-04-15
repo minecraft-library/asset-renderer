@@ -4,7 +4,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Smoke coverage for {@link MinecraftFont}. Forces every classpath-backed enum value to load
@@ -18,8 +19,7 @@ class MinecraftFontTest {
     @DisplayName("REGULAR loads Minecraft-Regular.otf")
     void regularResolves() {
         assertThat(MinecraftFont.REGULAR.getActual(), notNullValue());
-        assertThat(MinecraftFont.REGULAR.getStyle(), equalTo(MinecraftFont.Style.REGULAR));
-        assertThat(MinecraftFont.REGULAR.getSize(), greaterThan(0f));
+        assertThat(MinecraftFont.REGULAR.getStyle(), equalTo(MinecraftFont.Style.REGULAR));;
     }
 
     @Test
