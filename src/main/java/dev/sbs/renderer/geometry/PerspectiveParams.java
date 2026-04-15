@@ -20,9 +20,32 @@ import org.jetbrains.annotations.NotNull;
  * @param focalLength the focal length in model units
  * @param projectionScale the multiplier applied to model-space coordinates relative to the
  *     output tile's smaller dimension - {@code 0.4f} leaves ~30% margin per side for rotated
- *     geometry, {@code 0.65f} fills an isometric-projected unit cube to ~90% of the tile
+ *     geometry, {@link #ISOMETRIC_BLOCK} derives its scale from the rotated unit-cube
+ *     bounding box plus a small padding margin
  */
 public record PerspectiveParams(float amount, float cameraDistance, float focalLength, float projectionScale) {
+
+    /**
+     * Vertical extent of a unit cube after the standard {@code [30, 225, 0]} iso rotation,
+     * relative to the model-space unit. Derived geometrically: yaw 225° rotates the cube so
+     * its top-face diagonal lies along the screen X axis (width {@code √2}); pitch 30° then
+     * tilts the top edge down by {@code cos(30°)} and pulls the front-bottom corner
+     * vertically by {@code √2 · sin(30°)}, giving the projected height
+     * {@code cos(30°) + √2 · sin(30°) ≈ 1.5731}. This is the cube silhouette's longer axis -
+     * the width is only {@code √2 ≈ 1.4142} - so it determines the tightest scale that keeps
+     * a vanilla cobblestone-style full cube inside its tile.
+     */
+    private static final float ISO_CUBE_PROJECTED_HEIGHT = (float) (
+        Math.cos(Math.toRadians(30)) + Math.sqrt(2) * Math.sin(Math.toRadians(30))
+    );
+
+    /**
+     * Fractional margin left empty on each side of the tile around the iso-projected cube.
+     * Small enough that the block still dominates the tile, large enough to absorb the few
+     * extra pixels stairs, slabs, and other variant-rotated geometry can poke past the unit
+     * cube envelope.
+     */
+    private static final float ISO_CUBE_PADDING = 0.04f;
 
     /**
      * A pure orthographic projection with no perspective blend and the conservative
@@ -36,12 +59,24 @@ public record PerspectiveParams(float amount, float cameraDistance, float focalL
     public static final @NotNull PerspectiveParams GUI_ITEM = new PerspectiveParams(0.3f, 8f, 8f, 0.4f);
 
     /**
-     * A pure orthographic projection tuned for isometric block renders: a unit cube projected
-     * at standard 30°/45° pitch/yaw spans roughly {@code sqrt(2) ≈ 1.414} in model-space
-     * width after rotation, so a {@code 0.65f} scale makes the block fill ~92% of the output
-     * tile while leaving a small safety margin for stairs, slabs, and multi-element geometry
-     * that extend beyond the unit cube under their variant rotations.
+     * A pure orthographic projection tuned for isometric block renders. The scale is computed
+     * directly from a unit cube's screen-space silhouette at the standard {@code [30, 225, 0]}
+     * pitch/yaw/roll pose used by vanilla's block inventory icon:
+     * <ul>
+     * <li>width  = {@code √2                       ≈ 1.4142} - top-face diagonal</li>
+     * <li>height = {@code cos(30°) + √2 · sin(30°) ≈ 1.5731} - top edge plus foreshortened side</li>
+     * </ul>
+     * Height is the constraint, so {@code scale = (1 − 2 · padding) / height}. With
+     * {@link #ISO_CUBE_PADDING 4% padding} per side this yields
+     * {@code 0.92 / 1.5731 ≈ 0.5848}, leaving the cube's corners safely inside the tile -
+     * the previous hand-tuned {@code 0.65f} sized for width alone and silently let the iso
+     * top corner clip the tile by ~2% in height. Stairs, slabs, and other variant-rotated
+     * geometry that extend marginally past the unit cube still fit because the horizontal
+     * axis is far from saturated ({@code 0.5848 · 1.4142 ≈ 0.827}, ~17% horizontal headroom).
      */
-    public static final @NotNull PerspectiveParams ISOMETRIC_BLOCK = new PerspectiveParams(0f, 0f, 0f, 0.65f);
+    public static final @NotNull PerspectiveParams ISOMETRIC_BLOCK = new PerspectiveParams(
+        0f, 0f, 0f,
+        (1f - 2f * ISO_CUBE_PADDING) / ISO_CUBE_PROJECTED_HEIGHT
+    );
 
 }
