@@ -1,8 +1,8 @@
 package dev.sbs.renderer;
 
+import dev.sbs.renderer.engine.IsometricEngine;
 import dev.sbs.renderer.engine.ModelEngine;
 import dev.sbs.renderer.engine.RasterEngine;
-import dev.sbs.renderer.engine.RenderEngine;
 import dev.sbs.renderer.engine.RendererContext;
 import dev.sbs.renderer.engine.TextureEngine;
 import dev.sbs.renderer.exception.RendererException;
@@ -83,31 +83,6 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     static @NotNull Item requireItem(@NotNull RendererContext context, @NotNull String itemId) {
         return context.findItem(itemId)
             .orElseThrow(() -> new RendererException("No item registered for id '%s'", itemId));
-    }
-
-    /**
-     * Wraps a finished buffer into an {@link ImageData} with optional glint animation. Both the
-     * GUI and held paths share this tail: if the item is not enchanted, or the active pack stack
-     * has no glint texture, the buffer is returned as a single-frame static image; otherwise a
-     * scrolling glint overlay is composed and the frames are emitted at
-     * {@link ItemOptions#getFramesPerSecond()}.
-     */
-    static @NotNull ImageData finaliseFrames(
-        @NotNull PixelBuffer buffer,
-        @NotNull TextureEngine engine,
-        @NotNull ItemOptions options
-    ) {
-        if (!options.isEnchanted())
-            return RenderEngine.staticFrame(buffer);
-
-        GlintKit.GlintOptions glintOptions = GlintKit.GlintOptions.itemDefault(options.getFramesPerSecond());
-        Optional<PixelBuffer> glintTexture = engine.tryResolveTexture(glintOptions.glintTextureId());
-        if (glintTexture.isEmpty())
-            return RenderEngine.staticFrame(buffer);
-
-        ConcurrentList<PixelBuffer> glintFrames = GlintKit.apply(buffer, glintTexture.get(), glintOptions);
-        int frameDelayMs = Math.max(1, Math.round(1000f / options.getFramesPerSecond()));
-        return RenderEngine.output(glintFrames, frameDelayMs);
     }
 
     /** The "water" potion colour - used as the fallback when no potion effect is supplied. */
@@ -477,7 +452,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             if (options.getContext().stackCount() > 1)
                 ItemBarKit.drawStackCount(buffer, options.getContext().stackCount(), MinecraftFont.REGULAR);
 
-            return finaliseFrames(buffer, engine, options);
+            return engine.finaliseWithGlint(buffer, options.isEnchanted(), GlintKit.GlintOptions.itemDefault(options.getFramesPerSecond()));
         }
 
     }
@@ -553,7 +528,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             Matrix4f displayTransform = resolveDisplayTransform(item, "thirdperson_righthand");
             engine.rasterize(triangles, buffer, PerspectiveParams.GUI_ITEM, displayTransform);
 
-            return finaliseFrames(buffer, engine, options);
+            return engine.finaliseWithGlint(buffer, options.isEnchanted(), GlintKit.GlintOptions.itemDefault(options.getFramesPerSecond()));
         }
 
         /**
@@ -586,15 +561,22 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          * {@code thirdperson_righthand}) into a {@link Matrix4f}. Falls back to the identity
          * when the slot is not defined, which matches vanilla's behaviour for items with no
          * display metadata.
+         * <p>
+         * Rotation composition matches vanilla's
+         * {@code PoseStack.mulPose(Quaternionf.rotationXYZ(...))} call. The JOML quaternion
+         * {@code q_x * q_y * q_z} applies rotations innermost-first when transforming a
+         * vector, so the equivalent column-vector matrix is {@code R_x * R_y * R_z} and under
+         * this codebase's row-vector convention the correct composition is the transpose,
+         * {@code R_z^T * R_y^T * R_x^T} - built here via
+         * {@link IsometricEngine#buildGuiDisplayTransform(float, float, float)}.
          */
         private static @NotNull Matrix4f resolveDisplayTransform(@NotNull Item item, @NotNull String slot) {
             ModelTransform transform = item.getModel().getDisplay().get(slot);
             if (transform == null) return Matrix4f.IDENTITY;
 
             Matrix4f scale = Matrix4f.createScale(transform.getScaleX(), transform.getScaleY(), transform.getScaleZ());
-            Matrix4f rotation = Matrix4f.createRotationY((float) Math.toRadians(transform.getRotationY()))
-                .multiply(Matrix4f.createRotationX((float) Math.toRadians(transform.getRotationX())))
-                .multiply(Matrix4f.createRotationZ((float) Math.toRadians(transform.getRotationZ())));
+            Matrix4f rotation = IsometricEngine.buildGuiDisplayTransform(
+                transform.getRotationX(), transform.getRotationY(), transform.getRotationZ());
             // Vanilla display transforms use sub-unit translation values in {@code /16} space;
             // apply them to the model vertex positions directly since our unit cube is already
             // normalized.

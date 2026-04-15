@@ -2,7 +2,6 @@ package dev.sbs.renderer;
 
 import dev.sbs.renderer.engine.IsometricEngine;
 import dev.sbs.renderer.engine.RasterEngine;
-import dev.sbs.renderer.engine.RenderEngine;
 import dev.sbs.renderer.engine.RendererContext;
 import dev.sbs.renderer.exception.RendererException;
 import dev.sbs.renderer.geometry.BlockFace;
@@ -104,25 +103,12 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             .orElseThrow(() -> new RendererException("No default Steve skin registered and no skin supplied"));
     }
 
-    static @NotNull ImageData finaliseWithGlint(
-        @NotNull PixelBuffer buffer,
-        @NotNull PlayerRenderer parent,
-        @NotNull PlayerOptions options
-    ) {
-        if (!ArmorKit.hasEnchantedArmor(
+    /** Whether any of the four armor slots carries an enchanted piece. */
+    private static boolean hasEnchantedArmor(@NotNull PlayerOptions options) {
+        return ArmorKit.hasEnchantedArmor(
             options.getHelmet(), options.getChestplate(),
-            options.getLeggings(), options.getBoots()))
-            return RenderEngine.staticFrame(buffer);
-
-        IsometricEngine engine = new IsometricEngine(parent.context);
-        GlintKit.GlintOptions glintOptions = GlintKit.GlintOptions.armorDefault(30);
-        Optional<PixelBuffer> glintTexture = engine.tryResolveTexture(glintOptions.glintTextureId());
-        if (glintTexture.isEmpty())
-            return RenderEngine.staticFrame(buffer);
-
-        ConcurrentList<PixelBuffer> frames = GlintKit.apply(buffer, glintTexture.get(), glintOptions);
-        int frameDelayMs = Math.max(1, Math.round(1000f / 30f));
-        return RenderEngine.output(frames, frameDelayMs);
+            options.getLeggings(), options.getBoots()
+        );
     }
 
     /** Whether the skin is wide enough to have overlay layers. */
@@ -318,7 +304,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         if (options.isAntiAlias())
             buffer.applyFxaa();
 
-        return finaliseWithGlint(buffer, parent, options);
+        return engine.finaliseWithGlint(buffer, hasEnchantedArmor(options), GlintKit.GlintOptions.armorDefault(30));
     }
 
     /**
@@ -426,7 +412,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             engine.rasterize(triangles, buffer, PerspectiveParams.NONE,
                 options.getPitch(), options.getYaw(), options.getRoll());
             if (options.isAntiAlias()) buffer.applyFxaa();
-            return finaliseWithGlint(buffer, this.parent, options);
+            return engine.finaliseWithGlint(buffer, hasEnchantedArmor(options), GlintKit.GlintOptions.armorDefault(30));
         }
 
     }
@@ -472,7 +458,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             engine.rasterize(triangles, buffer, PerspectiveParams.NONE,
                 options.getPitch(), options.getYaw(), options.getRoll());
             if (options.isAntiAlias()) buffer.applyFxaa();
-            return finaliseWithGlint(buffer, this.parent, options);
+            return engine.finaliseWithGlint(buffer, hasEnchantedArmor(options), GlintKit.GlintOptions.armorDefault(30));
         }
 
     }
@@ -522,7 +508,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             engine.rasterize(triangles, buffer, PerspectiveParams.NONE,
                 options.getPitch(), options.getYaw(), options.getRoll());
             if (options.isAntiAlias()) buffer.applyFxaa();
-            return finaliseWithGlint(buffer, this.parent, options);
+            return engine.finaliseWithGlint(buffer, hasEnchantedArmor(options), GlintKit.GlintOptions.armorDefault(30));
         }
 
     }

@@ -67,19 +67,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (options.isAntiAlias())
             buffer.applyFxaa();
 
-        if (ArmorKit.hasEnchantedArmor(
+        boolean enchanted = ArmorKit.hasEnchantedArmor(
             options.getHelmet(), options.getChestplate(),
-            options.getLeggings(), options.getBoots())) {
-            GlintKit.GlintOptions glintOptions = GlintKit.GlintOptions.armorDefault(30);
-            Optional<PixelBuffer> glintTexture = engine.tryResolveTexture(glintOptions.glintTextureId());
-            if (glintTexture.isPresent()) {
-                ConcurrentList<PixelBuffer> frames = GlintKit.apply(buffer, glintTexture.get(), glintOptions);
-                int frameDelayMs = Math.max(1, Math.round(1000f / 30f));
-                return RenderEngine.output(frames, frameDelayMs);
-            }
-        }
-
-        return RenderEngine.staticFrame(buffer);
+            options.getLeggings(), options.getBoots()
+        );
+        return engine.finaliseWithGlint(buffer, enchanted, GlintKit.GlintOptions.armorDefault(30));
     }
 
     /**
