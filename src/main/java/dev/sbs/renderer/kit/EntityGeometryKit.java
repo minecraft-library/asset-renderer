@@ -1,6 +1,7 @@
 package dev.sbs.renderer.kit;
 
 import dev.sbs.renderer.geometry.BlockFace;
+import dev.sbs.renderer.geometry.EulerRotation;
 import dev.sbs.renderer.geometry.VisibleTriangle;
 import dev.sbs.renderer.asset.model.EntityModelData;
 import dev.sbs.renderer.tensor.Matrix4f;
@@ -51,10 +52,7 @@ public class EntityGeometryKit {
      * @param texture the shared texture atlas for all cubes
      * @return the build result containing triangles and per-bone bounding boxes
      */
-    public static @NotNull BuildResult buildTriangles(
-        @NotNull EntityModelData model,
-        @NotNull PixelBuffer texture
-    ) {
+    public static @NotNull BuildResult buildTriangles(@NotNull EntityModelData model, @NotNull PixelBuffer texture) {
         ModelBounds bounds = computeBounds(model);
         float extent = Math.max(bounds.maxExtent(), 0.001f);
         float scale = 0.9f / extent;
@@ -202,16 +200,16 @@ public class EntityGeometryKit {
      * because cube origins are always bone-local in this schema.
      */
     private static @NotNull Matrix4f buildBoneTransform(@NotNull EntityModelData.Bone bone) {
-        float[] p = bone.getPivot();
-        float[] r = bone.getRotation();
+        float[] pivot = bone.getPivot();
+        EulerRotation rotation = bone.getRotation();
 
-        Matrix4f translate = Matrix4f.createTranslation(p[0], p[1], p[2]);
-        if (r[0] == 0f && r[1] == 0f && r[2] == 0f) return translate;
+        Matrix4f translate = Matrix4f.createTranslation(pivot[0], pivot[1], pivot[2]);
+        if (rotation.pitch() == 0f && rotation.yaw() == 0f && rotation.roll() == 0f) return translate;
 
-        Matrix4f rotation = Matrix4f.createRotationZ((float) Math.toRadians(r[2]))
-            .multiply(Matrix4f.createRotationY((float) Math.toRadians(r[1])))
-            .multiply(Matrix4f.createRotationX((float) Math.toRadians(r[0])));
-        return rotation.multiply(translate);
+        Matrix4f transform = Matrix4f.createRotationZ(rotation.rollRadians())
+            .multiply(Matrix4f.createRotationY(rotation.yawRadians()))
+            .multiply(Matrix4f.createRotationX(rotation.pitchRadians()));
+        return transform.multiply(translate);
     }
 
     private static @NotNull Vector2f @NotNull [] resolveFaceUv(

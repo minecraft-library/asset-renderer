@@ -10,6 +10,7 @@ import dev.sbs.renderer.engine.RendererContext;
 import dev.sbs.renderer.engine.TextureEngine;
 import dev.sbs.renderer.exception.RendererException;
 import dev.sbs.renderer.geometry.Biome;
+import dev.sbs.renderer.geometry.EulerRotation;
 import dev.sbs.renderer.geometry.PerspectiveParams;
 import dev.sbs.renderer.geometry.VisibleTriangle;
 import dev.sbs.renderer.kit.EntityGeometryKit;
@@ -158,8 +159,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             int ssaa = Math.max(1, options.getSupersample());
             int hiRes = options.getOutputSize() * ssaa;
             PixelBuffer buffer = PixelBuffer.create(hiRes, hiRes);
-            engine.rasterize(triangles, buffer, PerspectiveParams.ISOMETRIC_BLOCK,
-                options.getPitch(), options.getYaw(), options.getRoll());
+            engine.rasterize(triangles, buffer, PerspectiveParams.ISOMETRIC_BLOCK, options.getRotation());
 
             if (options.isAntiAlias())
                 buffer.applyFxaa();
@@ -402,10 +402,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          */
         private static @NotNull IsometricEngine engineForBlockIcon(@NotNull RendererContext context, @NotNull Block block) {
             ModelTransform gui = block.getModel().getDisplay().get("gui");
-            float pitch = gui != null ? gui.getRotationX() : 30f;
-            float yaw = gui != null ? gui.getRotationY() : 225f;
-            float roll = gui != null ? gui.getRotationZ() : 0f;
-            return IsometricEngine.withGuiPose(context, pitch, yaw, roll);
+            EulerRotation rotation = gui != null ? gui.getRotation() : EulerRotation.STANDARD_ISO_BLOCK;
+            return IsometricEngine.withGuiPose(context, rotation);
         }
 
     }

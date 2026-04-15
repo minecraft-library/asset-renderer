@@ -1,7 +1,9 @@
 package dev.sbs.renderer.asset.model;
 
+import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.annotations.SerializedName;
 import dev.sbs.renderer.geometry.BlockFace;
+import dev.sbs.renderer.geometry.EulerRotation;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -120,7 +122,8 @@ public class EntityModelData {
     public static class Bone {
 
         private float @NotNull [] pivot = new float[]{ 0f, 0f, 0f };
-        private float @NotNull [] rotation = new float[]{ 0f, 0f, 0f };
+        @JsonAdapter(EulerRotation.Adapter.class)
+        private @NotNull EulerRotation rotation = EulerRotation.NONE;
         private @NotNull ConcurrentList<Cube> cubes = Concurrent.newList();
 
         @Override
@@ -128,15 +131,14 @@ public class EntityModelData {
             if (o == null || getClass() != o.getClass()) return false;
             Bone that = (Bone) o;
             return java.util.Arrays.equals(pivot, that.pivot)
-                && java.util.Arrays.equals(rotation, that.rotation)
+                && Objects.equals(rotation, that.rotation)
                 && Objects.equals(cubes, that.cubes);
         }
 
         @Override
         public int hashCode() {
-            int result = Objects.hash(cubes);
+            int result = Objects.hash(cubes, rotation);
             result = 31 * result + java.util.Arrays.hashCode(pivot);
-            result = 31 * result + java.util.Arrays.hashCode(rotation);
             return result;
         }
 

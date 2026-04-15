@@ -1,6 +1,7 @@
 package dev.sbs.renderer.options;
 
 import dev.sbs.renderer.asset.binding.ArmorPiece;
+import dev.sbs.renderer.geometry.EulerRotation;
 import dev.simplified.image.ImageFormat;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -46,17 +47,9 @@ public class EntityOptions {
     @lombok.Builder.Default
     private final int outputSize = 256;
 
-    /** Model rotation around the Y axis in degrees */
+    /** Model rotation applied before the camera transform, in degrees */
     @lombok.Builder.Default
-    private final float yaw = 0f;
-
-    /** Model rotation around the X axis in degrees */
-    @lombok.Builder.Default
-    private final float pitch = 0f;
-
-    /** Model rotation around the Z axis in degrees */
-    @lombok.Builder.Default
-    private final float roll = 0f;
+    private final @NotNull EulerRotation rotation = EulerRotation.NONE;
 
     /** Whether to apply FXAA post-processing after the main render pass. */
     @lombok.Builder.Default

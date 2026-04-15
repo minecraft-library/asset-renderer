@@ -2,6 +2,7 @@ package dev.sbs.renderer.options;
 
 import dev.sbs.renderer.geometry.Biome;
 import dev.sbs.renderer.geometry.BlockFace;
+import dev.sbs.renderer.geometry.EulerRotation;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageFormat;
@@ -41,17 +42,9 @@ public class BlockOptions {
     @lombok.Builder.Default
     private final @NotNull Biome biome = Biome.Vanilla.PLAINS;
 
-    /** Model rotation around the Y axis in degrees */
+    /** Model rotation applied before the camera transform, in degrees */
     @lombok.Builder.Default
-    private final float yaw = 0f;
-
-    /** Model rotation around the X axis in degrees */
-    @lombok.Builder.Default
-    private final float pitch = 0f;
-
-    /** Model rotation around the Z axis in degrees */
-    @lombok.Builder.Default
-    private final float roll = 0f;
+    private final @NotNull EulerRotation rotation = EulerRotation.NONE;
 
     /** Output image dimensions in pixels (square) */
     @lombok.Builder.Default

@@ -1,5 +1,6 @@
 package dev.sbs.renderer.engine;
 
+import dev.sbs.renderer.geometry.EulerRotation;
 import dev.sbs.renderer.tensor.Matrix4f;
 import org.jetbrains.annotations.NotNull;
 
@@ -11,7 +12,7 @@ import org.jetbrains.annotations.NotNull;
  * <li>{@link #standard(RendererContext)} - the stock {@code [30, 225, 0]} pitch/yaw/roll from
  * the root {@code block/block.json} model's {@code display.gui}. Use for renders that want the
  * default three-quarter block-icon view (skulls, busts, full-body skin renders).</li>
- * <li>{@link #withGuiPose(RendererContext, float, float, float)} - a caller-supplied pose.
+ * <li>{@link #withGuiPose(RendererContext, EulerRotation)} - a caller-supplied pose.
  * Use when a block or item model overrides the default (stairs author {@code display.gui} as
  * {@code [30, 135, 0]}) so the engine's camera reflects the specific model's authored
  * orientation.</li>
@@ -27,7 +28,7 @@ public class IsometricEngine extends ModelEngine {
      * Vanilla's standard block {@code display.gui} rotation {@code [30, 225, 0]} composed into
      * a single matrix. Matches {@code Quaternionf.rotationXYZ(toRadians(30), toRadians(225), 0)}.
      */
-    private static final @NotNull Matrix4f CAMERA = buildGuiDisplayTransform(30f, 225f, 0f);
+    private static final @NotNull Matrix4f CAMERA = buildGuiDisplayTransform(EulerRotation.STANDARD_ISO_BLOCK);
 
     private IsometricEngine(@NotNull RendererContext context, @NotNull Matrix4f camera) {
         super(context, camera);
@@ -47,24 +48,20 @@ public class IsometricEngine extends ModelEngine {
 
     /**
      * Returns an engine whose camera is a vanilla {@code display.*} GUI pose built from the
-     * supplied pitch/yaw/roll degrees. Use this when a block or item model overrides the
-     * default {@code [30, 225, 0]} (e.g. stairs author {@code display.gui} as
-     * {@code [30, 135, 0]}) so the render respects the model's authored pose without the
-     * caller composing it into a {@code modelTransform}.
+     * supplied Euler-angle rotation. Use this when a block or item model overrides the default
+     * {@code [30, 225, 0]} (e.g. stairs author {@code display.gui} as {@code [30, 135, 0]}) so
+     * the render respects the model's authored pose without the caller composing it into a
+     * {@code modelTransform}.
      *
      * @param context the renderer context
-     * @param pitchDegrees the rotation about the X axis in degrees (vanilla {@code rotation[0]})
-     * @param yawDegrees the rotation about the Y axis in degrees (vanilla {@code rotation[1]})
-     * @param rollDegrees the rotation about the Z axis in degrees (vanilla {@code rotation[2]})
+     * @param rotation the Euler-angle pose (in degrees) baked into the camera transform
      * @return an isometric engine with the requested pose baked into the camera
      */
     public static @NotNull IsometricEngine withGuiPose(
         @NotNull RendererContext context,
-        float pitchDegrees,
-        float yawDegrees,
-        float rollDegrees
+        @NotNull EulerRotation rotation
     ) {
-        return new IsometricEngine(context, buildGuiDisplayTransform(pitchDegrees, yawDegrees, rollDegrees));
+        return new IsometricEngine(context, buildGuiDisplayTransform(rotation));
     }
 
     /**
@@ -85,10 +82,10 @@ public class IsometricEngine extends ModelEngine {
      * like the standard {@code [30, 225, 0]} block-icon pose, which shows up as the block's
      * bottom face being visible instead of the top.
      */
-    private static @NotNull Matrix4f buildGuiDisplayTransform(float pitchDegrees, float yawDegrees, float rollDegrees) {
-        return Matrix4f.createRotationZ((float) Math.toRadians(rollDegrees))
-            .multiply(Matrix4f.createRotationY((float) Math.toRadians(yawDegrees)))
-            .multiply(Matrix4f.createRotationX((float) Math.toRadians(pitchDegrees)));
+    private static @NotNull Matrix4f buildGuiDisplayTransform(@NotNull EulerRotation rotation) {
+        return Matrix4f.createRotationZ(rotation.rollRadians())
+            .multiply(Matrix4f.createRotationY(rotation.yawRadians()))
+            .multiply(Matrix4f.createRotationX(rotation.pitchRadians()));
     }
 
 }

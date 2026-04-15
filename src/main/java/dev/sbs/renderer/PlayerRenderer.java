@@ -409,8 +409,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 options.getHelmet(), options.getChestplate(),
                 options.getLeggings(), options.getBoots(), engine));
 
-            engine.rasterize(triangles, buffer, PerspectiveParams.NONE,
-                options.getPitch(), options.getYaw(), options.getRoll());
+            engine.rasterize(triangles, buffer, PerspectiveParams.NONE, options.getRotation());
             if (options.isAntiAlias()) buffer.applyFxaa();
             return engine.finaliseWithGlint(buffer, hasEnchantedArmor(options), GlintKit.GlintOptions.armorDefault(30));
         }
@@ -455,8 +454,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             resolveCape(this.parent, options)
                 .ifPresent(cape -> addCape(triangles, cape, BUST_TORSO_MIN, BUST_TORSO_MAX));
 
-            engine.rasterize(triangles, buffer, PerspectiveParams.NONE,
-                options.getPitch(), options.getYaw(), options.getRoll());
+            engine.rasterize(triangles, buffer, PerspectiveParams.NONE, options.getRotation());
             if (options.isAntiAlias()) buffer.applyFxaa();
             return engine.finaliseWithGlint(buffer, hasEnchantedArmor(options), GlintKit.GlintOptions.armorDefault(30));
         }
@@ -505,8 +503,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             resolveCape(this.parent, options)
                 .ifPresent(cape -> addCape(triangles, cape, FULL_TORSO_MIN, FULL_TORSO_MAX));
 
-            engine.rasterize(triangles, buffer, PerspectiveParams.NONE,
-                options.getPitch(), options.getYaw(), options.getRoll());
+            engine.rasterize(triangles, buffer, PerspectiveParams.NONE, options.getRotation());
             if (options.isAntiAlias()) buffer.applyFxaa();
             return engine.finaliseWithGlint(buffer, hasEnchantedArmor(options), GlintKit.GlintOptions.armorDefault(30));
         }

@@ -5,6 +5,7 @@ import dev.sbs.renderer.engine.RasterEngine;
 import dev.sbs.renderer.engine.RendererContext;
 import dev.sbs.renderer.engine.TextureEngine;
 import dev.sbs.renderer.exception.RendererException;
+import dev.sbs.renderer.geometry.EulerRotation;
 import dev.sbs.renderer.geometry.PerspectiveParams;
 import dev.sbs.renderer.geometry.VisibleTriangle;
 import dev.sbs.renderer.kit.GeometryKit;
@@ -575,9 +576,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             if (transform == null) return Matrix4f.IDENTITY;
 
             Matrix4f scale = Matrix4f.createScale(transform.getScaleX(), transform.getScaleY(), transform.getScaleZ());
-            Matrix4f rotation = Matrix4f.createRotationZ((float) Math.toRadians(transform.getRotationZ()))
-                .multiply(Matrix4f.createRotationY((float) Math.toRadians(transform.getRotationY())))
-                .multiply(Matrix4f.createRotationX((float) Math.toRadians(transform.getRotationX())));
+            EulerRotation angles = transform.getRotation();
+            Matrix4f rotation = Matrix4f.createRotationZ(angles.rollRadians())
+                .multiply(Matrix4f.createRotationY(angles.yawRadians()))
+                .multiply(Matrix4f.createRotationX(angles.pitchRadians()));
             // Vanilla display transforms use sub-unit translation values in {@code /16} space;
             // apply them to the model vertex positions directly since our unit cube is already
             // normalized.

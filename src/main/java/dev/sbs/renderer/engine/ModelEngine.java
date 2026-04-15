@@ -1,5 +1,6 @@
 package dev.sbs.renderer.engine;
 
+import dev.sbs.renderer.geometry.EulerRotation;
 import dev.sbs.renderer.geometry.PerspectiveParams;
 import dev.sbs.renderer.geometry.ProjectionMath;
 import dev.sbs.renderer.geometry.VisibleTriangle;
@@ -83,34 +84,30 @@ public class ModelEngine extends TextureEngine {
         @NotNull PixelBuffer buffer,
         @NotNull PerspectiveParams perspective
     ) {
-        rasterize(triangles, buffer, perspective, 0f, 0f, 0f);
+        rasterize(triangles, buffer, perspective, EulerRotation.NONE);
     }
 
     /**
-     * Rasterizes a triangle list onto the given buffer after applying a pitch/yaw/roll rotation
+     * Rasterizes a triangle list onto the given buffer after applying an Euler-angle rotation
      * to the model before the camera transform.
      * <p>
      * Rotations are applied in yaw-pitch-roll order (yaw first around the Y axis, then pitch
      * around the X axis, then roll around the Z axis) and the combined rotation is then
-     * composed with the engine's camera transform. Supplying three zeros is equivalent to
-     * calling {@link #rasterize(ConcurrentList, PixelBuffer, PerspectiveParams)}.
+     * composed with the engine's camera transform. Supplying {@link EulerRotation#NONE} is
+     * equivalent to calling {@link #rasterize(ConcurrentList, PixelBuffer, PerspectiveParams)}.
      *
      * @param triangles the triangle list
      * @param buffer the destination buffer
      * @param perspective the perspective blend parameters
-     * @param pitchDegrees rotation around the X axis, in degrees
-     * @param yawDegrees rotation around the Y axis, in degrees
-     * @param rollDegrees rotation around the Z axis, in degrees
+     * @param rotation the Euler-angle rotation applied to the model before the camera transform
      */
     public void rasterize(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
         @NotNull PerspectiveParams perspective,
-        float pitchDegrees,
-        float yawDegrees,
-        float rollDegrees
+        @NotNull EulerRotation rotation
     ) {
-        Matrix4f modelRotation = buildModelRotation(pitchDegrees, yawDegrees, rollDegrees);
+        Matrix4f modelRotation = buildModelRotation(rotation);
         Matrix4f transform = modelRotation.multiply(this.camera);
         rasterizeInternal(triangles, buffer, perspective, transform);
     }
@@ -235,15 +232,15 @@ public class ModelEngine extends TextureEngine {
     }
 
     /**
-     * Builds the model-space rotation matrix from yaw, pitch, and roll Euler angles in degrees.
+     * Builds the model-space rotation matrix from the given Euler angles (in degrees).
      * Applied yaw first, then pitch, then roll using the row-vector convention.
      */
-    private static @NotNull Matrix4f buildModelRotation(float pitchDegrees, float yawDegrees, float rollDegrees) {
-        if (pitchDegrees == 0f && yawDegrees == 0f && rollDegrees == 0f) return Matrix4f.IDENTITY;
+    private static @NotNull Matrix4f buildModelRotation(@NotNull EulerRotation rotation) {
+        if (rotation.pitch() == 0f && rotation.yaw() == 0f && rotation.roll() == 0f) return Matrix4f.IDENTITY;
 
-        Matrix4f yaw = Matrix4f.createRotationY((float) Math.toRadians(yawDegrees));
-        Matrix4f pitch = Matrix4f.createRotationX((float) Math.toRadians(pitchDegrees));
-        Matrix4f roll = Matrix4f.createRotationZ((float) Math.toRadians(rollDegrees));
+        Matrix4f yaw = Matrix4f.createRotationY(rotation.yawRadians());
+        Matrix4f pitch = Matrix4f.createRotationX(rotation.pitchRadians());
+        Matrix4f roll = Matrix4f.createRotationZ(rotation.rollRadians());
         return yaw.multiply(pitch).multiply(roll);
     }
 

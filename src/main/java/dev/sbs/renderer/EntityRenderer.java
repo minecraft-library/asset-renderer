@@ -61,8 +61,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             options.getHelmet(), options.getChestplate(),
             options.getLeggings(), options.getBoots(), engine));
 
-        engine.rasterize(triangles, buffer, PerspectiveParams.GUI_ITEM,
-            options.getPitch(), options.getYaw(), options.getRoll());
+        engine.rasterize(triangles, buffer, PerspectiveParams.GUI_ITEM, options.getRotation());
 
         if (options.isAntiAlias())
             buffer.applyFxaa();

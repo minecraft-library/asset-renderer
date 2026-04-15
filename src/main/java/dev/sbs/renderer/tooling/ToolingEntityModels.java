@@ -6,6 +6,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.sbs.renderer.asset.model.EntityModelData;
+import dev.sbs.renderer.geometry.EulerRotation;
 import dev.sbs.renderer.pipeline.client.HttpFetcher;
 import dev.sbs.renderer.pipeline.loader.EntityModelLoader;
 import dev.simplified.collection.Concurrent;
@@ -407,7 +408,8 @@ public final class ToolingEntityModels {
                 boolean boneMirror = boneJson.has("mirror") && boneJson.get("mirror").getAsBoolean();
 
                 float[] pivot = readFloatArray(boneJson, "pivot", new float[]{ 0, 0, 0 });
-                float[] rotation = readFloatArray(boneJson, "rotation", new float[]{ 0, 0, 0 });
+                float[] r = readFloatArray(boneJson, "rotation", new float[]{ 0, 0, 0 });
+                EulerRotation rotation = new EulerRotation(r[0], r[1], r[2]);
 
                 // Bedrock Y-up -> Java Y-down: mirror the pivot about the XZ plane.
                 float[] javaPivot = new float[]{ pivot[0], -pivot[1], pivot[2] };
