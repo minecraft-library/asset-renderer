@@ -34,6 +34,44 @@ public class IsometricEngine extends ModelEngine {
         super(context, CAMERA);
     }
 
+    private IsometricEngine(@NotNull RendererContext context, @NotNull Matrix4f camera) {
+        super(context, camera);
+    }
+
+    /**
+     * Returns an engine wired to vanilla Minecraft's standard block inventory icon pose
+     * ({@code [30, 225, 0]} pitch/yaw/roll). Equivalent to the block-icon camera baked into
+     * the root {@code block/block.json} model's {@code display.gui} transform.
+     *
+     * @param context the renderer context
+     * @return an isometric engine with the standard block-icon camera
+     */
+    public static @NotNull IsometricEngine standard(@NotNull RendererContext context) {
+        return new IsometricEngine(context, CAMERA);
+    }
+
+    /**
+     * Returns an engine whose camera is a vanilla {@code display.*} GUI pose built from the
+     * supplied pitch/yaw/roll degrees. Use this when a block or item model overrides the
+     * default {@code [30, 225, 0]} (e.g. stairs author {@code display.gui} as
+     * {@code [30, 135, 0]}) so the render respects the model's authored pose without the
+     * caller composing it into a {@code modelTransform}.
+     *
+     * @param context the renderer context
+     * @param pitchDegrees the rotation about the X axis in degrees (vanilla {@code rotation[0]})
+     * @param yawDegrees the rotation about the Y axis in degrees (vanilla {@code rotation[1]})
+     * @param rollDegrees the rotation about the Z axis in degrees (vanilla {@code rotation[2]})
+     * @return an isometric engine with the requested pose baked into the camera
+     */
+    public static @NotNull IsometricEngine withGuiPose(
+        @NotNull RendererContext context,
+        float pitchDegrees,
+        float yawDegrees,
+        float rollDegrees
+    ) {
+        return new IsometricEngine(context, buildGuiDisplayTransform(pitchDegrees, yawDegrees, rollDegrees));
+    }
+
     /**
      * Builds the matrix equivalent of vanilla's {@code Quaternionf.rotationXYZ(x, y, z)} for
      * a {@code display.*} transform's Euler angles in degrees.
