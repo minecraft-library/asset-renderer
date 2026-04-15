@@ -6,6 +6,7 @@ import dev.sbs.renderer.engine.RendererContext;
 import dev.sbs.renderer.engine.TextureEngine;
 import dev.sbs.renderer.exception.RendererException;
 import dev.sbs.renderer.geometry.EulerRotation;
+import dev.sbs.renderer.geometry.ModelGrid;
 import dev.sbs.renderer.geometry.PerspectiveParams;
 import dev.sbs.renderer.geometry.VisibleTriangle;
 import dev.sbs.renderer.kit.GeometryKit;
@@ -88,8 +89,26 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     /** The "water" potion colour - used as the fallback when no potion effect is supplied. */
     private static final int DEFAULT_POTION_ARGB = 0xFF385DC6;
 
+    /** Model-space minimum-X bound for the flat-sprite item Z-axis slab. */
+    private static final float FLAT_ITEM_SLAB_MIN_X = -0.45f;
+
+    /** Model-space maximum-X bound for the flat-sprite item Z-axis slab. */
+    private static final float FLAT_ITEM_SLAB_MAX_X = 0.45f;
+
+    /** Model-space minimum-Z bound - the thin side of the flat sprite slab. */
+    private static final float FLAT_ITEM_SLAB_MIN_Z = -0.02f;
+
+    /** Model-space maximum-Z bound - the thin side of the flat sprite slab. */
+    private static final float FLAT_ITEM_SLAB_MAX_Z = 0.02f;
+
+    /** Prefix for multi-layer item texture keys ({@code layer0}, {@code layer1}, ...). */
+    private static final @NotNull String LAYER_TEXTURE_PREFIX = "layer";
+
+    /** Item model display slot for the 3D held-item pose (vanilla {@code thirdperson_righthand}). */
+    private static final @NotNull String DISPLAY_SLOT_HELD_3D = "thirdperson_righthand";
+
     /** Item id suffix that flags a banner: {@code minecraft:white_banner}, etc. */
-    private static final @NotNull String BANNER_SUFFIX = "_banner";
+    private static final @NotNull String BANNER_ITEM_SUFFIX = "_banner";
 
     /** The sole shield item id. */
     private static final @NotNull String SHIELD_ITEM_ID = "minecraft:shield";
@@ -99,7 +118,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * {@link BannerKit} rather than the standard layered-sprite or overlay paths.
      */
     static boolean isBannerOrShield(@NotNull String itemId) {
-        return itemId.equals(SHIELD_ITEM_ID) || itemId.endsWith(BANNER_SUFFIX);
+        return itemId.equals(SHIELD_ITEM_ID) || itemId.endsWith(BANNER_ITEM_SUFFIX);
     }
 
     /**
@@ -172,8 +191,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
         PixelBuffer[] faces = new PixelBuffer[]{ composite, composite, composite, composite, composite, composite };
         return GeometryKit.box(
-            new Vector3f(-0.45f, -0.45f, -0.02f),
-            new Vector3f(0.45f, 0.45f, 0.02f),
+            new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),
+            new Vector3f(FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_Z),
             faces,
             ColorMath.WHITE
         );
@@ -352,7 +371,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         }
 
         ConcurrentMap<String, String> variables = item.getModel().getTextures();
-        String layerKey = "layer" + layerIndex;
+        String layerKey = LAYER_TEXTURE_PREFIX + layerIndex;
         String layerRef = variables.get(layerKey);
         for (ModelElement element : elements) {
             for (ModelFace face : element.getFaces().values()) {
@@ -387,7 +406,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         int tint = options.getTintColor().orElse(ColorMath.WHITE);
         int layerIndex = 0;
         while (true) {
-            String layerKey = "layer" + layerIndex;
+            String layerKey = LAYER_TEXTURE_PREFIX + layerIndex;
             String textureRef = item.getTextures().get(layerKey);
             if (textureRef == null || textureRef.isBlank()) break;
 
@@ -492,8 +511,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 PixelBuffer overlayTexture = composeOverlayTexture(this.context, engine, item.getOverlay().get(), options);
                 PixelBuffer[] faces = new PixelBuffer[]{ overlayTexture, overlayTexture, overlayTexture, overlayTexture, overlayTexture, overlayTexture };
                 triangles = GeometryKit.box(
-                    new Vector3f(-0.45f, -0.45f, -0.02f),
-                    new Vector3f(0.45f, 0.45f, 0.02f),
+                    new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),
+                    new Vector3f(FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_Z),
                     faces,
                     ColorMath.WHITE
                 );
@@ -518,14 +537,14 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 PixelBuffer texture = engine.resolveTexture(layerRef);
                 PixelBuffer[] faces = new PixelBuffer[]{ texture, texture, texture, texture, texture, texture };
                 triangles = GeometryKit.box(
-                    new Vector3f(-0.45f, -0.45f, -0.02f),
-                    new Vector3f(0.45f, 0.45f, 0.02f),
+                    new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),
+                    new Vector3f(FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_Z),
                     faces,
                     tint
                 );
             }
 
-            Matrix4f displayTransform = resolveDisplayTransform(item, "thirdperson_righthand");
+            Matrix4f displayTransform = resolveDisplayTransform(item, DISPLAY_SLOT_HELD_3D);
             engine.rasterize(triangles, buffer, PerspectiveParams.GUI_ITEM, displayTransform);
 
             return engine.finaliseWithGlint(buffer, options.isEnchanted(), GlintKit.GlintOptions.itemDefault(options.getFramesPerSecond()));
@@ -584,9 +603,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // apply them to the model vertex positions directly since our unit cube is already
             // normalized.
             Matrix4f translation = Matrix4f.createTranslation(
-                transform.getTranslationX() / 16f,
-                transform.getTranslationY() / 16f,
-                transform.getTranslationZ() / 16f
+                transform.getTranslationX() / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK,
+                transform.getTranslationY() / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK,
+                transform.getTranslationZ() / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK
             );
             return scale.multiply(rotation).multiply(translation);
         }

@@ -1,6 +1,7 @@
 package dev.sbs.renderer.kit;
 
 import dev.sbs.renderer.geometry.BlockFace;
+import dev.sbs.renderer.geometry.ModelGrid;
 import dev.sbs.renderer.geometry.VisibleTriangle;
 import dev.sbs.renderer.asset.model.ModelElement;
 import dev.sbs.renderer.asset.model.ModelFace;
@@ -121,12 +122,12 @@ public class GeometryKit {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
         for (ModelElement element : elements) {
-            float x0 = element.getFrom()[0] / 16f - 0.5f;
-            float y0 = element.getFrom()[1] / 16f - 0.5f;
-            float z0 = element.getFrom()[2] / 16f - 0.5f;
-            float x1 = element.getTo()[0] / 16f - 0.5f;
-            float y1 = element.getTo()[1] / 16f - 0.5f;
-            float z1 = element.getTo()[2] / 16f - 0.5f;
+            float x0 = element.getFrom()[0] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+            float y0 = element.getFrom()[1] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+            float z0 = element.getFrom()[2] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+            float x1 = element.getTo()[0] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+            float y1 = element.getTo()[1] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+            float z1 = element.getTo()[2] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
 
             // Build element rotation transform if present. The rotation is applied around
             // an arbitrary origin on a single axis. When rescale is set, the two axes
@@ -138,9 +139,9 @@ public class GeometryKit {
                 ModelElement.ElementRotation rot = element.getRotation().get();
                 if (rot.angle() != 0f) {
                     float[] rawOrigin = rot.origin();
-                    float ox = rawOrigin[0] / 16f - 0.5f;
-                    float oy = rawOrigin[1] / 16f - 0.5f;
-                    float oz = rawOrigin[2] / 16f - 0.5f;
+                    float ox = rawOrigin[0] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+                    float oy = rawOrigin[1] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+                    float oz = rawOrigin[2] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
 
                     Vector3f axisVec = switch (rot.axis()) {
                         case "x" -> new Vector3f(1, 0, 0);
@@ -219,7 +220,12 @@ public class GeometryKit {
         Vector2f[] corners;
         if (face.getUv().isPresent()) {
             float[] raw = face.getUv().get();
-            corners = BlockFace.uvCorners(raw[0] / 16f, raw[1] / 16f, raw[2] / 16f, raw[3] / 16f);
+            corners = BlockFace.uvCorners(
+                raw[0] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK,
+                raw[1] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK,
+                raw[2] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK,
+                raw[3] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK
+            );
         } else {
             corners = blockFace.defaultUv(element.getFrom(), element.getTo());
         }
