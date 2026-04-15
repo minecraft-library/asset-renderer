@@ -2,15 +2,14 @@ package dev.sbs.renderer.pipeline.loader;
 
 import dev.sbs.renderer.asset.Item;
 import dev.sbs.renderer.asset.model.ItemModelData;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 /**
  * Verifies {@link OverlayResolver}'s synthesis rules against fixture item models. The resolver
@@ -18,7 +17,7 @@ import static org.hamcrest.Matchers.is;
  */
 class OverlayResolverTest {
 
-    private static @org.jetbrains.annotations.NotNull ItemModelData modelWithTextures(String... layerPairs) {
+    private static @NotNull ItemModelData modelWithTextures(String... layerPairs) {
         ItemModelData model = new ItemModelData();
         for (int i = 0; i < layerPairs.length; i += 2)
             model.getTextures().put(layerPairs[i], layerPairs[i + 1]);

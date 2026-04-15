@@ -7,6 +7,7 @@ import dev.simplified.image.data.AnimatedImageData;
 import dev.simplified.image.data.ImageFrame;
 import dev.simplified.image.data.StaticImageData;
 import dev.simplified.image.pixel.PixelBuffer;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -38,13 +39,13 @@ class FrameMergerTest {
         assertThat(((AnimatedImageData) result).getFrames().size(), greaterThan(1));
     }
 
-    private static @org.jetbrains.annotations.NotNull PixelBuffer solidImage(int w, int h, int argb) {
+    private static @NotNull PixelBuffer solidImage(int w, int h, int argb) {
         int[] pixels = new int[w * h];
         java.util.Arrays.fill(pixels, argb);
         return PixelBuffer.of(pixels, w, h);
     }
 
-    private static @org.jetbrains.annotations.NotNull AnimatedImageData animated(int w, int h, int frameCount, int delayMs) {
+    private static @NotNull AnimatedImageData animated(int w, int h, int frameCount, int delayMs) {
         AnimatedImageData.Builder builder = AnimatedImageData.builder();
         for (int i = 0; i < frameCount; i++)
             builder.withFrame(ImageFrame.of(solidImage(w, h, 0xFF000000 | (i * 0x40)), delayMs));

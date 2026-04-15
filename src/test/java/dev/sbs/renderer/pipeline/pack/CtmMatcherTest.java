@@ -2,6 +2,7 @@ package dev.sbs.renderer.pipeline.pack;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -92,7 +93,7 @@ class CtmMatcherTest {
         assertThat(CtmMethod.parse("top"), is(CtmMethod.UNSUPPORTED));
     }
 
-    private static @org.jetbrains.annotations.NotNull CtmRule rule(@org.jetbrains.annotations.NotNull CtmMethod method, @org.jetbrains.annotations.NotNull String @org.jetbrains.annotations.NotNull ... tileIds) {
+    private static @NotNull CtmRule rule(@NotNull CtmMethod method, @NotNull String @NotNull ... tileIds) {
         ConcurrentList<String> tiles = Concurrent.newList(tileIds);
 
         ConcurrentList<String> blocks = Concurrent.newList();

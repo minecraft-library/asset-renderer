@@ -3,6 +3,7 @@ package dev.sbs.renderer.pipeline.pack;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -140,7 +141,7 @@ class CitMatcherTest {
         assertThat(CitMatcher.match(rule, withoutEnch), is(false));
     }
 
-    private static @org.jetbrains.annotations.NotNull CitRule simpleRule(@org.jetbrains.annotations.NotNull String itemId) {
+    private static @NotNull CitRule simpleRule(@NotNull String itemId) {
         ConcurrentList<String> items = Concurrent.newList();
         items.add(itemId);
         return new CitRule(
