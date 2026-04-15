@@ -1,6 +1,5 @@
 package dev.sbs.renderer;
 
-import dev.sbs.renderer.engine.IsometricEngine;
 import dev.sbs.renderer.engine.ModelEngine;
 import dev.sbs.renderer.engine.RasterEngine;
 import dev.sbs.renderer.engine.RendererContext;
@@ -562,21 +561,23 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          * when the slot is not defined, which matches vanilla's behaviour for items with no
          * display metadata.
          * <p>
-         * Rotation composition matches vanilla's
-         * {@code PoseStack.mulPose(Quaternionf.rotationXYZ(...))} call. The JOML quaternion
-         * {@code q_x * q_y * q_z} applies rotations innermost-first when transforming a
-         * vector, so the equivalent column-vector matrix is {@code R_x * R_y * R_z} and under
-         * this codebase's row-vector convention the correct composition is the transpose,
-         * {@code R_z^T * R_y^T * R_x^T} - built here via
-         * {@link IsometricEngine#buildGuiDisplayTransform(float, float, float)}.
+         * Applied to a row vector in the order <b>scale, then rotate, then translate</b>, which
+         * is what vanilla produces for {@code poseStack.scale(); poseStack.mulPose(rXYZ);
+         * poseStack.translate();}. The rotation composition itself has to be
+         * {@code R_z * R_y * R_x} (row-vector convention) to match JOML's
+         * {@code Quaternionf.rotationXYZ(x, y, z)} - that quaternion rotates a vector in
+         * Z-then-Y-then-X order innermost-first, whose column-vector matrix is
+         * {@code R_x * R_y * R_z} and transposes to {@code R_z * R_y * R_x} under row vectors.
+         * Getting the rotation order wrong silently flips the tilt direction of compound poses.
          */
         private static @NotNull Matrix4f resolveDisplayTransform(@NotNull Item item, @NotNull String slot) {
             ModelTransform transform = item.getModel().getDisplay().get(slot);
             if (transform == null) return Matrix4f.IDENTITY;
 
             Matrix4f scale = Matrix4f.createScale(transform.getScaleX(), transform.getScaleY(), transform.getScaleZ());
-            Matrix4f rotation = IsometricEngine.buildGuiDisplayTransform(
-                transform.getRotationX(), transform.getRotationY(), transform.getRotationZ());
+            Matrix4f rotation = Matrix4f.createRotationZ((float) Math.toRadians(transform.getRotationZ()))
+                .multiply(Matrix4f.createRotationY((float) Math.toRadians(transform.getRotationY())))
+                .multiply(Matrix4f.createRotationX((float) Math.toRadians(transform.getRotationX())));
             // Vanilla display transforms use sub-unit translation values in {@code /16} space;
             // apply them to the model vertex positions directly since our unit cube is already
             // normalized.
