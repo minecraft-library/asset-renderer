@@ -6,6 +6,7 @@ import dev.simplified.image.ImageFormat;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
@@ -76,7 +77,7 @@ public class PlayerOptions {
 
     /** Output image dimensions in pixels (square) */
     @lombok.Builder.Default
-    private final int outputSize = 256;
+    private final int outputSize = dev.sbs.renderer.Renderer.DEFAULT_OUTPUT_SIZE;
 
     /** Model rotation applied before the camera transform, in degrees */
     @lombok.Builder.Default
@@ -99,16 +100,24 @@ public class PlayerOptions {
     }
 
     /** Which body parts to render. */
+    @Getter
+    @RequiredArgsConstructor
     public enum Type {
 
         /** Head only. */
-        SKULL,
+        SKULL (8,  8),
 
         /** Head, torso and arms. */
-        BUST,
+        BUST  (20, 16),
 
         /** Full body - head, torso, arms and legs. */
-        FULL
+        FULL  (32, 16);
+
+        /** Pixel height of the 2D body composite, before output scaling. */
+        private final int bodyHeight;
+
+        /** Pixel width of the 2D body composite, before output scaling. */
+        private final int bodyWidth;
 
     }
 

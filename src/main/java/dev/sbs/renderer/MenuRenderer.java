@@ -64,6 +64,17 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     static final int SKYBLOCK_CHEST_ROWS = 6;
     static final int SKYBLOCK_CHEST_SLOTS = SKYBLOCK_CHEST_COLS * SKYBLOCK_CHEST_ROWS;
 
+    // --- Shared vanilla chrome palette ---
+
+    /** Vanilla slot highlight / outer-bevel edge colour (white). */
+    static final int CHROME_BORDER_HIGHLIGHT = 0xFFFFFFFF;
+
+    /** Vanilla slot shadow / inner-bevel edge colour (mid-grey). */
+    static final int CHROME_BORDER_SHADOW = 0xFF555555;
+
+    /** Interior fill colour of the vanilla anvil rename textbox. */
+    static final int ANVIL_TEXTBOX_BEIGE = 0xFFE5D4AC;
+
     private final @NotNull Generic generic;
     private final @NotNull VanillaCrafting vanillaCrafting;
     private final @NotNull VanillaAnvil vanillaAnvil;
@@ -219,24 +230,14 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      * beveled edges.
      */
     static void drawGenericChrome(@NotNull PixelBuffer chrome, int rows, int cols, @NotNull MenuOptions options) {
-        int backgroundArgb = switch (options.getTheme()) {
-            case VANILLA -> 0xFFC6C6C6;
-            case DARK -> 0xFF303030;
-            case SKYBLOCK -> 0xFF1E1E2E;
-        };
-        chrome.fill(backgroundArgb);
-
-        int slotArgb = switch (options.getTheme()) {
-            case VANILLA -> 0xFF8B8B8B;
-            case DARK -> 0xFF1A1A1A;
-            case SKYBLOCK -> 0xFF111122;
-        };
+        MenuOptions.Theme theme = options.getTheme();
+        chrome.fill(theme.getBackgroundArgb());
 
         for (int row = 0; row < rows; row++) {
             for (int col = 0; col < cols; col++) {
                 int x = INSET + col * SLOT_SIZE;
                 int y = INSET + TITLE_HEIGHT + row * SLOT_SIZE;
-                chrome.fillRect(x, y, SLOT_SIZE - 2, SLOT_SIZE - 2, slotArgb);
+                chrome.fillRect(x, y, SLOT_SIZE - 2, SLOT_SIZE - 2, theme.getSlotArgb());
             }
         }
     }
@@ -264,11 +265,11 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         int h = chrome.height();
 
         final int background = 0xFFC6C6C6;
-        final int borderHighlight = 0xFFFFFFFF;
-        final int borderShadow = 0xFF555555;
+        final int borderHighlight = CHROME_BORDER_HIGHLIGHT;
+        final int borderShadow = CHROME_BORDER_SHADOW;
         final int slotFill = 0xFF8B8B8B;
         final int slotShadow = 0xFF373737;
-        final int slotHighlight = 0xFFFFFFFF;
+        final int slotHighlight = CHROME_BORDER_HIGHLIGHT;
         final int titleBand = 0xFFB4B4B4;
         final int borderThickness = 2;
 
@@ -312,7 +313,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         int y = INSET + TITLE_HEIGHT + row * SLOT_SIZE + padY;
         int w = SLOT_SIZE - 2 * padX;
         int h = SLOT_SIZE - 2 * padY;
-        drawCraftArrow(chrome, x, y, w, h, 0xFF555555);
+        drawCraftArrow(chrome, x, y, w, h, CHROME_BORDER_SHADOW);
     }
 
     /**
@@ -367,7 +368,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         int x = INSET + col * SLOT_SIZE + padX;
         int w = SLOT_SIZE - 2 * padX;
         int h = SLOT_SIZE - 2 * padY;
-        drawCraftArrow(chrome, x, y + padY, w, h, 0xFF555555);
+        drawCraftArrow(chrome, x, y + padY, w, h, CHROME_BORDER_SHADOW);
     }
 
     /**
@@ -378,7 +379,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         int pad = SLOT_SIZE / 4;
         int x = INSET + col * SLOT_SIZE + pad;
         int size = SLOT_SIZE - 2 * pad;
-        drawPlus(chrome, x, y + pad, size, 0xFF555555);
+        drawPlus(chrome, x, y + pad, size, CHROME_BORDER_SHADOW);
     }
 
     /**
@@ -402,7 +403,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     static void drawSlotInset(@NotNull PixelBuffer chrome, int x, int y, int w, int h) {
         final int slotFill = 0xFF8B8B8B;
         final int slotShadow = 0xFF373737;
-        final int slotHighlight = 0xFFFFFFFF;
+        final int slotHighlight = CHROME_BORDER_HIGHLIGHT;
         chrome.fillRect(x, y, w, h, slotFill);
         chrome.fillRect(x, y, w, 1, slotShadow);
         chrome.fillRect(x, y, 1, h, slotShadow);
@@ -419,7 +420,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     static void drawRenameTextbox(@NotNull PixelBuffer chrome, int x, int y, int width, int height) {
         if (width <= 4 || height <= 4) return;
         final int borderColor = 0xFF373737;
-        final int beigeColor = 0xFFE5D4AC;
+        final int beigeColor = ANVIL_TEXTBOX_BEIGE;
 
         chrome.fillRect(x, y, width, height, borderColor);
         chrome.fillRect(x + 2, y + 2, width - 4, height - 4, beigeColor);
@@ -573,10 +574,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
 
             PixelBuffer chrome = PixelBuffer.create(canvasW, canvasH);
             drawGenericChrome(chrome, rows, cols, options);
-            int defaultTitleArgb = switch (options.getTheme()) {
-                case VANILLA -> 0xFF404040;
-                case DARK, SKYBLOCK -> ColorMath.WHITE;
-            };
+            int defaultTitleArgb = options.getTheme().getDefaultTitleArgb();
             ImageData chromeData = renderChrome(chrome, options, INSET + 4, defaultTitleArgb);
 
             ItemRenderer itemRenderer = new ItemRenderer(this.context);
@@ -716,7 +714,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
 
             PixelBuffer chrome = PixelBuffer.create(canvasW, canvasH);
             drawVanillaChestChrome(chrome, 0, COLS);
-            drawHammer(chrome, INSET + 4, (TITLE_HEIGHT - 16) / 2 + 2, 16, 16, 0xFFFFFFFF);
+            drawHammer(chrome, INSET + 4, (TITLE_HEIGHT - 16) / 2 + 2, 16, 16, CHROME_BORDER_HIGHLIGHT);
 
             int textboxX = INSET + SLOT_SIZE / 2;
             int textboxY = INSET + TITLE_HEIGHT + 4;

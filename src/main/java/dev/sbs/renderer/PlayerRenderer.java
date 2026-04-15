@@ -251,17 +251,8 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * output canvas height with horizontal centering.
      */
     private static int @NotNull [] scaleAndOffset2D(@NotNull PlayerOptions.Type type, int outputSize) {
-        int bodyHeight = switch (type) {
-            case SKULL -> 8;
-            case BUST -> 20;
-            case FULL -> 32;
-        };
-        int bodyWidth = switch (type) {
-            case SKULL -> 8;
-            case BUST, FULL -> 16;
-        };
-        int scale = outputSize / bodyHeight;
-        int offsetX = (outputSize - bodyWidth * scale) / 2;
+        int scale = outputSize / type.getBodyHeight();
+        int offsetX = (outputSize - type.getBodyWidth() * scale) / 2;
         return new int[]{ scale, offsetX };
     }
 

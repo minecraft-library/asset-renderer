@@ -3,9 +3,11 @@ package dev.sbs.renderer.options;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageFormat;
+import dev.simplified.image.pixel.ColorMath;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -173,13 +175,25 @@ public class MenuOptions {
     }
 
     /** Visual theme applied to the menu chrome. */
+    @Getter
+    @RequiredArgsConstructor
     public enum Theme {
 
-        VANILLA,
+        /** Classic Minecraft inventory palette - light grey chrome, mid-grey slots. */
+        VANILLA  (0xFFC6C6C6, 0xFF8B8B8B, 0xFF404040),
+        /** High-contrast dark mode - near-black chrome and slots, white title text. */
+        DARK     (0xFF303030, 0xFF1A1A1A, ColorMath.WHITE),
+        /** Hypixel SkyBlock palette - deep purple chrome, black slots, white title text. */
+        SKYBLOCK (0xFF1E1E2E, 0xFF111122, ColorMath.WHITE);
 
-        DARK,
+        /** ARGB fill for the canvas behind the slot grid. */
+        private final int backgroundArgb;
 
-        SKYBLOCK
+        /** ARGB fill for each slot's interior. */
+        private final int slotArgb;
+
+        /** Default title-bar text ARGB when the caller does not override {@link MenuOptions#titleColor}. */
+        private final int defaultTitleArgb;
 
     }
 
