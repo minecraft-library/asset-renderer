@@ -233,7 +233,10 @@ public final class PipelineRendererContext implements RendererContext {
     public @NotNull ConcurrentList<String> knownItemIds() {
         ConcurrentList<String> ids = Concurrent.newList();
         ids.addAll(this.itemIndex.keySet());
-        ids.sort(String.CASE_INSENSITIVE_ORDER);
+        ids.sort((a, b) -> {
+            int cmp = String.CASE_INSENSITIVE_ORDER.compare(idPrefix(a), idPrefix(b));
+            return cmp != 0 ? cmp : String.CASE_INSENSITIVE_ORDER.compare(a, b);
+        });
         return ids;
     }
 
@@ -287,8 +290,17 @@ public final class PipelineRendererContext implements RendererContext {
                 .orElse(blockId);
         }
 
-        // Prefix heuristic: extract material from "minecraft:oak_stairs" → "oak"
-        String name = blockId.contains(":") ? blockId.substring(blockId.indexOf(':') + 1) : blockId;
+        return idPrefix(blockId);
+    }
+
+    /**
+     * Returns the material prefix of a namespaced id, used as a grouping key when no richer
+     * signal (such as block tags) is available. Strips the namespace and the trailing
+     * {@code _suffix}, then prepends {@code ~} so heuristic groups sort distinctly from real
+     * tag groups. {@code "minecraft:oak_stairs"} becomes {@code "~oak"}.
+     */
+    private static @NotNull String idPrefix(@NotNull String id) {
+        String name = id.contains(":") ? id.substring(id.indexOf(':') + 1) : id;
         int lastUnderscore = name.lastIndexOf('_');
         return lastUnderscore > 0 ? "~" + name.substring(0, lastUnderscore) : "~" + name;
     }
