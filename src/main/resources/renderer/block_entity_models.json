@@ -1177,7 +1177,49 @@
           ]
         }
       },
-      "y_axis": "DOWN"
+      "y_axis": "DOWN",
+      "inventory_y_rotation": 180.0
+    },
+    "minecraft:skull_humanoid_head": {
+      "textureWidth": 64,
+      "textureHeight": 64,
+      "bones": {
+        "head": {
+          "pivot": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -4.0,
+                -8.0,
+                -4.0
+              ],
+              "size": [
+                8.0,
+                8.0,
+                8.0
+              ],
+              "uv": [
+                0,
+                0
+              ],
+              "inflate": 0.0,
+              "mirror": false,
+              "face_uv": {}
+            }
+          ]
+        }
+      },
+      "y_axis": "DOWN",
+      "inventory_y_rotation": 180.0
     }
   }
 }

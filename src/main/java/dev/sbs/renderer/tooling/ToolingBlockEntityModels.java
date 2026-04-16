@@ -167,7 +167,20 @@ public final class ToolingBlockEntityModels {
             // DragonHeadModel.createHeadLayer and PiglinHeadModel.createHeadModel need
             // further parser features (dragon uses addBox(String,FFF,IIIII); piglin delegates
             // to PiglinModel.addHead via invokestatic). Tracked as follow-up in plan task 4.
-            new Source("net/minecraft/client/model/object/skull/SkullModel.class", "createHeadModel", "minecraft:skull_head", YAxis.DOWN, 0f, 64, 32)
+            // inventoryYRotation=180: vanilla item/template_skull's display.gui.rotation is
+            // [30, 45, 0] (yaw 45) while our renderer uses the default [30, 225, 0] (yaw 225).
+            // Same 180° delta as chest - bake a Y-rotation here so the skull's front face is
+            // camera-facing under our gui pose.
+            //
+            // Two parses of SkullModel.createHeadModel are needed because different skull
+            // variants bind textures with different heights: mob skulls (skeleton, wither_skeleton,
+            // creeper, piglin, dragon) use 64x32 entity textures, while humanoid skulls (zombie,
+            // player) use 64x64 player-skin textures where the head occupies the same top-left
+            // 32x16 region. The block-model UV system normalises to (0..16) against the texture's
+            // actual dimensions at render time, so the converter needs to scale V differently per
+            // target texture height. Same geometry, two UV calibrations.
+            new Source("net/minecraft/client/model/object/skull/SkullModel.class", "createHeadModel", "minecraft:skull_head", YAxis.DOWN, 180f, 64, 32),
+            new Source("net/minecraft/client/model/object/skull/SkullModel.class", "createHeadModel", "minecraft:skull_humanoid_head", YAxis.DOWN, 180f, 64, 64)
         );
 
         /** The Y axis orientation used by a Java block entity model's source data. */
@@ -510,10 +523,20 @@ public final class ToolingBlockEntityModels {
             // vanilla's inner translate(0, -1, 0) is applied before the flip (post-flip this
             // becomes +16 px, which together with the +8 centering yields +24).
             "minecraft:shulker_box", new float[]{ 8, 24, 8, 180, 0, 0 },
-            // SkullBlockRenderer: translate(0.5, 0, 0.5) in block units (skull sits on the floor,
-            // centred in X/Z, Y=0..8 after flip). In pixel units that's translate(8, 0, 8) with
-            // no rotation.
-            "minecraft:skull_head", new float[]{ 8, 0, 8, 0, 0, 0 }
+            // SkullBlockRenderer: translate(0.5, 0, 0.5) * scale(-1, -1, 1) * translate(-0.5, 0, -0.5).
+            // scale(-1, -1, 1) ≡ Rz(180), which combined with the translate pair centres the
+            // skull at x/z block-centre with Y flipping the Y-DOWN source to Y-UP. Our converter's
+            // inv-transform path uses Rx, not Rz, but Rx(180) is the equivalent for a cube
+            // centred on the X axis: flips Y and Z. Since the head cube spans z=-4..4 (symmetric
+            // around z=0), the Z-flip is a no-op on the bbox, leaving a clean Y-flip. The
+            // translate(+8, 0, +8) then centres the head at (4..12, 0..8, 4..12).
+            //
+            // Critical: this must live in INVENTORY_TRANSFORMS (not rely on the default Y-flip)
+            // because the default Y-flip doesn't translate X/Z and would leave the cube at
+            // (-4..4, 0..8, -4..4), escaping the 0..16 block bbox and triggering the runtime
+            // recenterAndFit that compresses the tile to one-face visibility.
+            "minecraft:skull_head", new float[]{ 8, 0, 8, 180, 0, 0 },
+            "minecraft:skull_humanoid_head", new float[]{ 8, 0, 8, 180, 0, 0 }
         );
 
         /** Names of the six block-model face directions, indexed in down/up/north/south/west/east order. */
@@ -565,7 +588,7 @@ public final class ToolingBlockEntityModels {
                     if (cubes == null) continue;
 
                     for (JsonElement cubeEl : cubes)
-                        elements.add(buildElement(CubeDef.of(cubeEl.getAsJsonObject()), transform, isYUpSource, texW));
+                        elements.add(buildElement(CubeDef.of(cubeEl.getAsJsonObject()), transform, isYUpSource, texW, texH));
                 }
 
                 JsonObject modelOutput = new JsonObject();
@@ -583,18 +606,23 @@ public final class ToolingBlockEntityModels {
          * ordering v19..v26), pushes them through the bone + inventory transform chain, then emits
          * a block element by mapping each entity face to a block face via per-vertex UV tracking.
          */
-        private static @NotNull JsonObject buildElement(@NotNull CubeDef cube, @NotNull CubeTransform transform, boolean isYUpSource, int texW) {
+        private static @NotNull JsonObject buildElement(@NotNull CubeDef cube, @NotNull CubeTransform transform, boolean isYUpSource, int texW, int texH) {
             float[][] entityCorners = cube.entityCorners(isYUpSource);
             float[][] blockCorners = new float[8][3];
             for (int i = 0; i < 8; i++)
                 blockCorners[i] = transform.apply(entityCorners[i]);
 
             Bounds bounds = Bounds.of(blockCorners);
-            float scale = 16.0f / texW;
+            // Block-model UV uses a 0..16 range independent of texture size; at render time the
+            // runtime multiplies u by texW/16 and v by texH/16 to recover pixel coords. So our
+            // pixel-space UVs must be scaled by 16/texW on the u axis and 16/texH on the v axis.
+            // Non-square textures (e.g. SkullModel's 64x32) break when the V scale uses 16/texW.
+            float scaleU = 16.0f / texW;
+            float scaleV = 16.0f / texH;
 
             JsonObject faces = new JsonObject();
             for (EntityFaceLayout layout : EntityFaceLayout.values())
-                emitBlockFace(layout.faceFor(cube, scale), blockCorners, bounds, faces);
+                emitBlockFace(layout.faceFor(cube, scaleU, scaleV), blockCorners, bounds, faces);
 
             JsonObject element = new JsonObject();
             JsonArray from = new JsonArray(); from.add(round2(bounds.minX)); from.add(round2(bounds.minY)); from.add(round2(bounds.minZ));
@@ -918,9 +946,9 @@ public final class ToolingBlockEntityModels {
             }
 
             /** Instantiates an {@link EntityFace} with the four UV edges scaled to texture-relative coordinates. */
-            @NotNull EntityFace faceFor(@NotNull CubeDef c, float scale) {
+            @NotNull EntityFace faceFor(@NotNull CubeDef c, float scaleU, float scaleV) {
                 float[] uv = uvFormula.compute(c.u, c.v, c);
-                return new EntityFace(vertexIndices, uv[0] * scale, uv[1] * scale, uv[2] * scale, uv[3] * scale);
+                return new EntityFace(vertexIndices, uv[0] * scaleU, uv[1] * scaleV, uv[2] * scaleU, uv[3] * scaleV);
             }
         }
 

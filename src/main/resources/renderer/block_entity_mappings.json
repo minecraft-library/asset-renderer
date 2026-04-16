@@ -618,6 +618,7 @@
   ],
   "minecraft:skull_head": [
     {
+      "//": "skull_head variant: UV calibrated for 64x32 entity textures (skeleton/wither/creeper/piglin/dragon).",
       "blockId": "minecraft:skeleton_skull",
       "textureId": "minecraft:entity/skeleton/skeleton"
     },
@@ -632,22 +633,6 @@
     {
       "blockId": "minecraft:wither_skeleton_wall_skull",
       "textureId": "minecraft:entity/skeleton/wither_skeleton"
-    },
-    {
-      "blockId": "minecraft:zombie_head",
-      "textureId": "minecraft:entity/zombie/zombie"
-    },
-    {
-      "blockId": "minecraft:zombie_wall_head",
-      "textureId": "minecraft:entity/zombie/zombie"
-    },
-    {
-      "blockId": "minecraft:player_head",
-      "textureId": "minecraft:entity/player/wide/steve"
-    },
-    {
-      "blockId": "minecraft:player_wall_head",
-      "textureId": "minecraft:entity/player/wide/steve"
     },
     {
       "blockId": "minecraft:creeper_head",
@@ -673,6 +658,25 @@
     {
       "blockId": "minecraft:piglin_wall_head",
       "textureId": "minecraft:entity/piglin/piglin"
+    }
+  ],
+  "minecraft:skull_humanoid_head": [
+    {
+      "//": "skull_humanoid_head variant: UV calibrated for 64x64 player-skin textures (zombie, player). Same geometry as skull_head; only the V scale differs so the top-left 32x16 head region samples correctly on a double-height texture.",
+      "blockId": "minecraft:zombie_head",
+      "textureId": "minecraft:entity/zombie/zombie"
+    },
+    {
+      "blockId": "minecraft:zombie_wall_head",
+      "textureId": "minecraft:entity/zombie/zombie"
+    },
+    {
+      "blockId": "minecraft:player_head",
+      "textureId": "minecraft:entity/player/wide/steve"
+    },
+    {
+      "blockId": "minecraft:player_wall_head",
+      "textureId": "minecraft:entity/player/wide/steve"
     }
   ]
 }
