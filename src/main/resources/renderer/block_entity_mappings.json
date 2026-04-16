@@ -578,13 +578,13 @@
   ],
   "minecraft:decorated_pot": [
     {
-      "//": "Primary model is the neck + lid/base caps from createBaseLayer; the pot walls (front/back/left/right panels) come from createSidesLayer via parts so the loader merges all elements into one atlas tile.",
+      "//": "Primary model is the neck + lid/base caps from createBaseLayer (Sheets.DECORATED_POT_BASE, 32x32); the pot walls from createSidesLayer use Sheets.DECORATED_POT_SIDE (16x16 solid terracotta, the default when a pot has no sherd decorations).",
       "blockId": "minecraft:decorated_pot",
       "textureId": "minecraft:entity/decorated_pot/decorated_pot_base",
       "parts": [
         {
           "model": "minecraft:decorated_pot_sides",
-          "texture": "minecraft:entity/decorated_pot/decorated_pot_base",
+          "texture": "minecraft:entity/decorated_pot/decorated_pot_side",
           "offset": [
             0,
             0,

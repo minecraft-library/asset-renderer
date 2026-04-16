@@ -435,8 +435,20 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          */
         /**
          * Recenters and scales a triangle list so all geometry fits within the standard
-         * 0.9 unit extent. Used for multi-block entity models (beds) that extend beyond
-         * the standard 0-16 single-block bounds.
+         * 1.4 unit extent. Used for multi-block entity models that extend beyond the
+         * standard 0-16 single-block bounds.
+         * <p>
+         * Applies two distinct behaviours depending on how far the geometry overflows:
+         * <ul>
+         * <li><b>Horizontal multi-block (beds):</b> extent &gt; 1.4 — shrinks uniformly to
+         *     1.4 and recenters around the bbox midpoint so both halves fit one tile.</li>
+         * <li><b>Slightly tall single-block (decorated_pot rim y=17..20):</b> extent just
+         *     above 1.0 — leaves scale at 1 and skips recentering, so the element keeps
+         *     its authored Y levels and the rim naturally extends above the block top
+         *     line just like vanilla's inventory icon. Previously the pot got scaled up
+         *     1.12× and shifted down, which stretched the wall→rim gap and broke
+         *     element-to-element alignment.</li>
+         * </ul>
          */
         private static @NotNull ConcurrentList<VisibleTriangle> recenterAndFit(@NotNull ConcurrentList<VisibleTriangle> triangles) {
             float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE, minZ = Float.MAX_VALUE;
@@ -448,9 +460,10 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     minZ = Math.min(minZ, v.z()); maxZ = Math.max(maxZ, v.z());
                 }
             }
-            float cx = (minX + maxX) * 0.5f, cy = (minY + maxY) * 0.5f, cz = (minZ + maxZ) * 0.5f;
             float extent = Math.max(Math.max(maxX - minX, maxY - minY), maxZ - minZ);
-            float scale = extent > 0.001f ? 1.4f / extent : 1f;
+            if (extent <= 1.4f) return triangles;
+            float cx = (minX + maxX) * 0.5f, cy = (minY + maxY) * 0.5f, cz = (minZ + maxZ) * 0.5f;
+            float scale = 1.4f / extent;
 
             ConcurrentList<VisibleTriangle> result = Concurrent.newList();
             for (VisibleTriangle t : triangles) {

@@ -99,19 +99,34 @@ public class BlockEntityModelLoader {
                             if (partBlockModel == null) continue;
                             BlockModelData partData = parseBlockModelData(partBlockModel, partTexture);
 
-                            // Merge part elements into the primary model, applying the offset
+                            // Merge part elements into the primary model, applying the offset.
+                            // Rewrite each face's {@code #entity} texture ref to the part's absolute
+                            // texture id, since the merged model's texture variables map only
+                            // resolves {@code #entity} to the primary texture - without this rewrite,
+                            // parts with a different texture (decorated_pot sides using
+                            // decorated_pot_side, distinct from decorated_pot_base) silently sample
+                            // the primary's pixels instead.
                             for (ModelElement partElem : partData.getElements()) {
                                 float[] from = partElem.getFrom().clone();
                                 float[] to = partElem.getTo().clone();
                                 from[0] += offset[0]; from[1] += offset[1]; from[2] += offset[2];
                                 to[0] += offset[0]; to[1] += offset[1]; to[2] += offset[2];
 
-                                // Create a new element with the offset positions via Gson roundtrip
                                 JsonObject elemJson = GSON.toJsonTree(partElem).getAsJsonObject();
                                 JsonArray fromArr = new JsonArray(); fromArr.add(from[0]); fromArr.add(from[1]); fromArr.add(from[2]);
                                 JsonArray toArr = new JsonArray(); toArr.add(to[0]); toArr.add(to[1]); toArr.add(to[2]);
                                 elemJson.add("from", fromArr);
                                 elemJson.add("to", toArr);
+
+                                JsonObject facesJson = elemJson.getAsJsonObject("faces");
+                                if (facesJson != null && !partTexture.equals(textureId)) {
+                                    for (Map.Entry<String, JsonElement> faceEntry : facesJson.entrySet()) {
+                                        JsonObject faceJson = faceEntry.getValue().getAsJsonObject();
+                                        if (faceJson.has("texture") && "#entity".equals(faceJson.get("texture").getAsString()))
+                                            faceJson.addProperty("texture", partTexture);
+                                    }
+                                }
+
                                 modelData.getElements().add(GSON.fromJson(elemJson, ModelElement.class));
                             }
                         }
