@@ -744,17 +744,17 @@ public final class ToolingBlockEntityModels {
          * model format. Values extracted from vanilla BedRenderer.createModelTransform,
          * ChestRenderer, and ShulkerBoxRenderer bytecode.
          */
-        private static final @NotNull Map<String, float[]> INVENTORY_TRANSFORMS = Map.of(
+        private static final @NotNull Map<String, float[]> INVENTORY_TRANSFORMS = Map.ofEntries(
             // BedRenderer: translate(0, 9, 0) * Rx(90°) in model units
-            "minecraft:bed_head", new float[]{ 0, 9, 0, 90, 0, 0 },
-            "minecraft:bed_foot", new float[]{ 0, 9, 0, 90, 0, 0 },
+            Map.entry("minecraft:bed_head", new float[]{ 0, 9, 0, 90, 0, 0 }),
+            Map.entry("minecraft:bed_foot", new float[]{ 0, 9, 0, 90, 0, 0 }),
             // ShulkerBoxRenderer: translate(0.5, 0.5, 0.5) * scale(1, -1, -1) * translate(0, -1, 0)
             // in block units. scale(1, -1, -1) is Rx(180), and in our "Rx then translate" form the
             // two translates fold into translate(8, 24, 8): +8 on all axes to shift from the
             // centered frame back to block-corner-at-origin, and an extra +16 on Y because
             // vanilla's inner translate(0, -1, 0) is applied before the flip (post-flip this
             // becomes +16 px, which together with the +8 centering yields +24).
-            "minecraft:shulker_box", new float[]{ 8, 24, 8, 180, 0, 0 },
+            Map.entry("minecraft:shulker_box", new float[]{ 8, 24, 8, 180, 0, 0 }),
             // SkullBlockRenderer: translate(0.5, 0, 0.5) * scale(-1, -1, 1) * translate(-0.5, 0, -0.5).
             // scale(-1, -1, 1) ≡ Rz(180), which combined with the translate pair centres the
             // skull at x/z block-centre with Y flipping the Y-DOWN source to Y-UP. Our converter's
@@ -767,22 +767,33 @@ public final class ToolingBlockEntityModels {
             // because the default Y-flip doesn't translate X/Z and would leave the cube at
             // (-4..4, 0..8, -4..4), escaping the 0..16 block bbox and triggering the runtime
             // recenterAndFit that compresses the tile to one-face visibility.
-            "minecraft:skull_head", new float[]{ 8, 0, 8, 180, 0, 0 },
-            "minecraft:skull_humanoid_head", new float[]{ 8, 0, 8, 180, 0, 0 },
-            // Dragon and piglin skulls share the vanilla SkullBlockRenderer transform - same
-            // Rx(180) + translate(+8, 0, +8) as the simple skull. Dragon's snout extends past
-            // the 0..16 bbox in block space (the head is ~1.5 blocks deep); the runtime
-            // recenterAndFit pass in BlockRenderer.Isometric3D rescales it to fit the atlas tile.
-            "minecraft:skull_dragon_head", new float[]{ 8, 0, 8, 180, 0, 0 },
-            "minecraft:skull_piglin_head", new float[]{ 8, 0, 8, 180, 0, 0 },
+            Map.entry("minecraft:skull_head", new float[]{ 8, 0, 8, 180, 0, 0 }),
+            Map.entry("minecraft:skull_humanoid_head", new float[]{ 8, 0, 8, 180, 0, 0 }),
+            // Piglin skull: same Rx(180) + translate(+8, 0, +8) as the simple skull - head cube
+            // and ears all stay inside the block bbox.
+            Map.entry("minecraft:skull_piglin_head", new float[]{ 8, 0, 8, 180, 0, 0 }),
+            // Dragon skull: tz=1.25 instead of 8 shifts the whole model +6.75 in post-invYRot
+            // block-space Z so the bbox midpoint (snout extending to z=-10 + head cube at z=0.5..12.5
+            // under the simple {8,0,8,180,0,0} transform) lands at block centre 8. Without this
+            // the bbox midpoint is ~1.25 and recenterAndFit's recentering pushes the head to the
+            // back corner of the tile, with the snout clipping off the near corner. Post-shift
+            // the bbox is symmetric around block centre; recenterAndFit only scales by ~0.99 and
+            // doesn't shift, so head + snout render centred in the atlas tile with the snout
+            // naturally extending toward +z (camera-facing) like vanilla's inventory icon.
+            Map.entry("minecraft:skull_dragon_head", new float[]{ 8, 0, 1.25f, 180, 0, 0 }),
             // DecoratedPotRenderer authors cubes in block-space Y-up (neck rim at y=17..20,
             // lid/base decals at y=16/y=0), and its runtime modelTransformation is just a Y-rotation
             // around block center for facing - no translate or Y-flip. A neutral inventory transform
             // (all zeros) skips the default {@code cy = -cy} reflection path so cubes land where
             // vanilla renders them. The neck rim extending past y=16 triggers the multi-block
             // recenterAndFit pass at render time.
-            "minecraft:decorated_pot", new float[]{ 0, 0, 0, 0, 0, 0 },
-            "minecraft:decorated_pot_sides", new float[]{ 0, 0, 0, 0, 0, 0 }
+            Map.entry("minecraft:decorated_pot", new float[]{ 0, 0, 0, 0, 0, 0 }),
+            Map.entry("minecraft:decorated_pot_sides", new float[]{ 0, 0, 0, 0, 0, 0 }),
+            // ConduitRenderer: translate(0.5, 0.5, 0.5) + rotateY(activeRotation), no Y-flip
+            // (conduit authored as 6x6x6 cube centred at origin). Baking pitch=0 skips the
+            // default {@code cy = -cy} reflection (cube is symmetric around origin so a flip is
+            // a no-op) and translates to block centre so the shell lands at (5..11) on each axis.
+            Map.entry("minecraft:conduit", new float[]{ 8, 8, 8, 0, 0, 0 })
         );
 
         /** Names of the six block-model face directions, indexed in down/up/north/south/west/east order. */
