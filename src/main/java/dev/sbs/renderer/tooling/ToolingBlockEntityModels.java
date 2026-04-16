@@ -793,7 +793,19 @@ public final class ToolingBlockEntityModels {
             // (conduit authored as 6x6x6 cube centred at origin). Baking pitch=0 skips the
             // default {@code cy = -cy} reflection (cube is symmetric around origin so a flip is
             // a no-op) and translates to block centre so the shell lands at (5..11) on each axis.
-            Map.entry("minecraft:conduit", new float[]{ 8, 8, 8, 0, 0, 0 })
+            Map.entry("minecraft:conduit", new float[]{ 8, 8, 8, 0, 0, 0 }),
+            // AbstractSignRenderer (StandingSignRenderer): translate(0.5, 0.5, 0.5) *
+            // rotateY(-yaw) * scale(2/3, -2/3, -2/3) in block units. The 2/3 scale shrinks the
+            // authored sign (24-wide board, taller than a block) to fit a single tile. The
+            // negative Y/Z scales compose with a uniform positive scale into {@code Rx(180) *
+            // scale(2/3)} - baking uniform 2/3 in slot 6 plus pitch=180 + translate(8,8,8)
+            // matches vanilla's matrix composition exactly. Yaw=0 for the default iso render.
+            Map.entry("minecraft:sign", new float[]{ 8, 8, 8, 180, 0, 0, 0.6666667f }),
+            // HangingSignRenderer: translate(0.5, 0.9375, 0.5) * rotateY(-yaw) *
+            // translate(0, -0.3125, 0) * scale(1, -1, -1). Folds to translate(0.5, 0.625, 0.5)
+            // for yaw=0, i.e. model-units translate(8, 10, 8), plus Rx(180) for the Y/Z flips.
+            // No uniform shrink - hanging sign is authored to fit within a block already.
+            Map.entry("minecraft:hanging_sign", new float[]{ 8, 10, 8, 180, 0, 0 })
         );
 
         /** Names of the six block-model face directions, indexed in down/up/north/south/west/east order. */
@@ -1207,6 +1219,14 @@ public final class ToolingBlockEntityModels {
                 cx += px; cy += py; cz += pz;
 
                 if (invTransform != null) {
+                    // Optional uniform scale at index 6 (defaults to 1). Applied BEFORE the
+                    // Rx rotation + translate so it matches vanilla's matrix composition
+                    // {@code translate * rotate * scale} exactly - signs use scale(2/3, -2/3, -2/3)
+                    // which we decompose into uniform 2/3 + Rx(180) for Y/Z sign flips.
+                    float invScale = invTransform.length > 6 && invTransform[6] != 0f ? invTransform[6] : 1f;
+                    if (invScale != 1f) {
+                        cx *= invScale; cy *= invScale; cz *= invScale;
+                    }
                     float pitch = (float) Math.toRadians(invTransform[3]);
                     float cosP = (float) Math.cos(pitch), sinP = (float) Math.sin(pitch);
                     float ry = cy * cosP - cz * sinP;
