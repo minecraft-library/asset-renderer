@@ -359,6 +359,11 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             return this.delegate.knownItemIds();
         }
 
+        @Override
+        public @NotNull Optional<dev.sbs.renderer.pipeline.loader.BlockEntityModelLoader.BlockEntityEntry> findBlockEntityEntry(@NotNull String blockId) {
+            return this.delegate.findBlockEntityEntry(blockId);
+        }
+
     }
 
 }

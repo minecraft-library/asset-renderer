@@ -133,7 +133,23 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // pitch/yaw/roll go through the standard rasterize path. This matches vanilla's
             // PoseStack.mulPose(Quaternionf.rotationXYZ(gui.rotation)) exactly.
             IsometricEngine engine = engineForBlockIcon(this.context, block);
-            int tint = resolveBlockTint(this.context, block, options);
+
+            // Block-entity mappings may supply a per-entry tint that overrides the block's
+            // biome / constant tint. Used for banners: vanilla resolves DyeColor via
+            // BlockColors at render time rather than baking per-colour textures, so the
+            // mapping JSON carries the DyeColor diffuse colour and we multiply it against
+            // every sampled texel. Non-banner entries default to {@code ColorMath.WHITE},
+            // leaving the normal biome-tint path intact.
+            //
+            // We go through {@link RendererContext#findBlockEntityEntry} rather than the
+            // {@code instanceof PipelineRendererContext} pattern because the atlas pass wraps
+            // the context in {@code StaticTextureContext} to force animation-strip frame 0,
+            // and that wrapper isn't a {@code PipelineRendererContext}. Delegating via the
+            // interface method lets wrappers forward transparently.
+            BlockEntityModelLoader.BlockEntityEntry be = this.context.findBlockEntityEntry(options.getBlockId()).orElse(null);
+            int tint = be != null && be.getTintArgb() != ColorMath.WHITE
+                ? be.getTintArgb()
+                : resolveBlockTint(this.context, block, options);
 
             ConcurrentList<VisibleTriangle> triangles;
 
@@ -155,15 +171,12 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
             // Block entity multi-block models (beds) need recentering + rotation + scaling
             // since they extend beyond the standard 0-16 single-block bounds.
-            if (this.context instanceof PipelineRendererContext prc) {
-                BlockEntityModelLoader.BlockEntityEntry be = prc.getBlockEntityEntries().get(options.getBlockId());
-                if (be != null && (be.isMultiBlock() || be.getIconRotation() != 0)) {
-                    if (be.getIconRotation() != 0)
-                        triangles = applyRotation(triangles, Matrix4f.createRotationY(
-                            (float) Math.toRadians(be.getIconRotation())));
-                    if (be.isMultiBlock())
-                        triangles = recenterAndFit(triangles);
-                }
+            if (be != null && (be.isMultiBlock() || be.getIconRotation() != 0)) {
+                if (be.getIconRotation() != 0)
+                    triangles = applyRotation(triangles, Matrix4f.createRotationY(
+                        (float) Math.toRadians(be.getIconRotation())));
+                if (be.isMultiBlock())
+                    triangles = recenterAndFit(triangles);
             }
 
             // Fallback: when the block's registered model produces no faces (variant- or

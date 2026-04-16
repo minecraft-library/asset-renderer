@@ -345,6 +345,11 @@ public final class PipelineRendererContext implements RendererContext {
         return patterns;
     }
 
+    @Override
+    public @NotNull Optional<BlockEntityModelLoader.BlockEntityEntry> findBlockEntityEntry(@NotNull String blockId) {
+        return this.blockEntityEntries.getOptional(blockId);
+    }
+
     /**
      * Registers an entity definition so it can be looked up by
      * {@link #findEntity(String)}. Callers supply the model data directly since vanilla

@@ -136,20 +136,38 @@ public final class ToolingBlockEntityModels {
             // - vanilla splits banner geometry across two model classes. BannerModel owns
             // pole + bar; BannerFlagModel owns the flag. Both select standing-vs-wall via a
             // boolean parameter that gates PartPose.offset and addBox values through ifeq/goto
-            // chains. We parse the isStanding=true branch via {@code paramIntValues=[1]} so
-            // the parser follows the control flow (see {@link #walkInstructions}'s ILOAD /
-            // IFEQ / GOTO handling). The flag merges into the primary banner via the `parts`
-            // field in block_entity_mappings.json.
+            // chains. We parse each branch separately via {@code paramIntValues} so the parser
+            // follows the control flow (see {@link #walkInstructions}'s ILOAD / IFEQ / GOTO
+            // handling) and splits the standing and wall variants into their own model ids.
+            // Each flag merges into its body via the `parts` field in block_entity_mappings.json.
+            //
+            // Standing variant (paramIntValues=[1], ids {@code banner} + {@code banner_flag}):
+            //   body  → pole (2×42×2 vertical post) + bar (20×2×2 crossbar at y=-44)
+            //   flag  → pivot (0, -44, 0), cube (-10..10, 0..40, -2..-1) - hangs from bar
+            //
+            // Wall variant (paramIntValues=[0], ids {@code wall_banner} + {@code wall_banner_flag}):
+            //   body  → just the bar (20×2×2 at y=-20.5, z=9.5..11.5) - no pole, since wall
+            //           banners mount to a wall surface instead of a standing post
+            //   flag  → pivot (0, -20.5, 10.5), same cube as standing - the wall-specific
+            //           pivot places the flag hanging from the bar against the wall surface
             //
             // inventoryYRotation=180: vanilla's BannerRenderer places the flag on the +Z
             // (SOUTH) side of the pole, which under our standard iso gui rotation [30, 225, 0]
             // ends up BEHIND the pole (camera-facing side is NORTH / -Z). The banner item's
             // display.gui rotation is [30, 20, 0] - a ~180° yaw delta from our block default -
-            // so the actual inventory icon player sees has the flag facing the camera. Bake
+            // so the actual inventory icon the player sees has the flag facing the camera. Bake
             // a Y-rotation around block centre so the flag lands on -Z side and stays visible
             // under our iso pose (same pattern as chest).
             new Source("net/minecraft/client/model/object/banner/BannerModel.class", "createBodyLayer", "minecraft:banner", YAxis.DOWN, 180f, null, null, new int[]{ 1 }),
             new Source("net/minecraft/client/model/object/banner/BannerFlagModel.class", "createFlagLayer", "minecraft:banner_flag", YAxis.DOWN, 180f, null, null, new int[]{ 1 }),
+            // Wall variants skip the Y-rotation (inventoryYRotation=0). Standing variants need
+            // 180° because their flag lands on +Z (SOUTH) after the base transform chain and has
+            // to be rotated to -Z (NORTH) to face the iso camera. Wall variants have the flag
+            // pivoted at z=10.5 in entity space, which after Rx(180) + translate(0,0,8) already
+            // lands on -Z (NORTH, z=1.67..2.33) - rotating by 180 would send it behind the block
+            // instead of in front.
+            new Source("net/minecraft/client/model/object/banner/BannerModel.class", "createBodyLayer", "minecraft:wall_banner", YAxis.DOWN, 0f, null, null, new int[]{ 0 }),
+            new Source("net/minecraft/client/model/object/banner/BannerFlagModel.class", "createFlagLayer", "minecraft:wall_banner_flag", YAxis.DOWN, 0f, null, null, new int[]{ 0 }),
             new Source("net/minecraft/client/renderer/blockentity/BedRenderer.class", "createHeadLayer", "minecraft:bed_head", YAxis.DOWN, 0f),
             new Source("net/minecraft/client/renderer/blockentity/BedRenderer.class", "createFootLayer", "minecraft:bed_foot", YAxis.DOWN, 0f),
             new Source("net/minecraft/client/model/monster/shulker/ShulkerModel.class", "createShellMesh", "minecraft:shulker_box", YAxis.DOWN, 0f),
@@ -885,7 +903,14 @@ public final class ToolingBlockEntityModels {
             // and the flag (`minecraft:banner_flag`) since both are rendered under the same
             // PoseStack in BannerRenderer.submitBanner.
             Map.entry("minecraft:banner", new float[]{ 8, 0, 8, 180, 0, 0, 0.6666667f }),
-            Map.entry("minecraft:banner_flag", new float[]{ 8, 0, 8, 180, 0, 0, 0.6666667f })
+            Map.entry("minecraft:banner_flag", new float[]{ 8, 0, 8, 180, 0, 0, 0.6666667f }),
+            // Wall banner variants share the same pose decomposition - the BannerRenderer
+            // runs wall and standing variants through identical MODEL_SCALE + MODEL_TRANSLATION.
+            // The wall-specific geometry difference (no pole, flag pivoted at (0, -20.5, 10.5)
+            // instead of (0, -44, 0)) comes from the BannerModel / BannerFlagModel branch we
+            // parse, not from a separate render transform.
+            Map.entry("minecraft:wall_banner", new float[]{ 8, 0, 8, 180, 0, 0, 0.6666667f }),
+            Map.entry("minecraft:wall_banner_flag", new float[]{ 8, 0, 8, 180, 0, 0, 0.6666667f })
         );
 
         /** Names of the six block-model face directions, indexed in down/up/north/south/west/east order. */

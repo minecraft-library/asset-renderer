@@ -5,6 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
+import dev.sbs.renderer.asset.binding.DyeColor;
 import dev.sbs.renderer.asset.model.BlockModelData;
 import dev.sbs.renderer.asset.model.ModelElement;
 import dev.sbs.renderer.asset.model.ModelFace;
@@ -14,6 +15,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.linked.ConcurrentLinkedMap;
 import dev.simplified.gson.GsonSettings;
+import dev.simplified.image.pixel.ColorMath;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.UtilityClass;
@@ -143,7 +145,8 @@ public class BlockEntityModelLoader {
                     }
 
                     int iconRotation = obj.has("iconRotation") ? obj.get("iconRotation").getAsInt() : 0;
-                    result.put(blockId, new BlockEntityEntry(modelData, textureId, modelId, iconRotation, multiBlock));
+                    int tintArgb = obj.has("tint") ? resolveTint(obj.get("tint").getAsString()) : ColorMath.WHITE;
+                    result.put(blockId, new BlockEntityEntry(modelData, textureId, modelId, iconRotation, multiBlock, tintArgb));
                 }
             }
         } catch (IOException | JsonSyntaxException ex) {
@@ -198,6 +201,26 @@ public class BlockEntityModelLoader {
     }
 
     /**
+     * Resolves a mapping-JSON {@code tint} string to an ARGB int. Values are interpreted as:
+     * <ul>
+     * <li>{@link DyeColor.Vanilla} enum names (case-sensitive, e.g. {@code "RED"}, {@code "LIGHT_BLUE"})
+     *     - preferred, carries the canonical {@code textureDiffuseColor} value from vanilla</li>
+     * <li>Hex colour string ({@code #RRGGBB}, {@code #AARRGGBB}, or {@code 0x}-prefixed) for
+     *     custom colours outside the sixteen vanilla dyes</li>
+     * </ul>
+     */
+    private static int resolveTint(@NotNull String value) {
+        DyeColor dye = DyeColor.ofName(value);
+        if (dye != null) return dye.argb();
+        String trimmed = value.startsWith("#") ? value.substring(1)
+            : value.startsWith("0x") || value.startsWith("0X") ? value.substring(2)
+            : value;
+        long packed = Long.parseLong(trimmed, 16);
+        if (trimmed.length() <= 6) packed |= 0xFF000000L;
+        return (int) packed;
+    }
+
+    /**
      * A loaded block entity entry carrying the block model data (with real elements for
      * rendering via {@link dev.sbs.renderer.kit.GeometryKit}), the entity texture path,
      * and the source model id for diagnostics.
@@ -213,6 +236,15 @@ public class BlockEntityModelLoader {
         private final int iconRotation;
         /** Whether this model spans multiple blocks and needs recentering for the atlas icon. */
         private final boolean multiBlock;
+        /**
+         * Per-entry ARGB tint multiplied against every sampled texel at render time. Used
+         * when a block-entity block's colour comes from runtime state rather than a
+         * dedicated per-variant texture - banners read {@code DyeColor.getTextureDiffuseColor()}
+         * via BlockColors in vanilla, and we bake that colour in at mapping time. Defaults
+         * to {@link ColorMath#WHITE} (no tint) for entries that don't set {@code tint} in
+         * the mapping JSON.
+         */
+        private final int tintArgb;
 
     }
 

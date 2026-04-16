@@ -147,4 +147,23 @@ public interface RendererContext {
         return Concurrent.newList();
     }
 
+    /**
+     * Looks up the block-entity mapping entry for a block id. Block-entity mappings carry the
+     * extracted geometry (from {@code block_entity_block_models.json}), entity texture binding,
+     * icon rotation, multi-block flag, and per-entry tint used by {@link dev.sbs.renderer.BlockRenderer
+     * BlockRenderer} for blocks whose vanilla rendering is hardcoded in tile-entity renderers
+     * (banners, beds, chests, shulker boxes, signs, etc.).
+     * <p>
+     * The default returns empty so test stubs and lightweight contexts don't need to carry the
+     * full map; production contexts ({@code PipelineRendererContext}) supply real entries, and
+     * context wrappers ({@link dev.sbs.renderer.AtlasRenderer}'s {@code StaticTextureContext})
+     * delegate to their underlying context.
+     *
+     * @param blockId the block id
+     * @return the entry, or empty when the block has no block-entity mapping
+     */
+    default @NotNull Optional<dev.sbs.renderer.pipeline.loader.BlockEntityModelLoader.BlockEntityEntry> findBlockEntityEntry(@NotNull String blockId) {
+        return Optional.empty();
+    }
+
 }

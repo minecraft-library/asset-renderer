@@ -1802,6 +1802,86 @@
       },
       "y_axis": "DOWN",
       "inventory_y_rotation": 180.0
+    },
+    "minecraft:wall_banner": {
+      "textureWidth": 64,
+      "textureHeight": 64,
+      "bones": {
+        "bar": {
+          "pivot": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -10.0,
+                -20.5,
+                9.5
+              ],
+              "size": [
+                20.0,
+                2.0,
+                2.0
+              ],
+              "uv": [
+                0,
+                42
+              ],
+              "inflate": 0.0,
+              "mirror": false,
+              "face_uv": {}
+            }
+          ]
+        }
+      },
+      "y_axis": "DOWN"
+    },
+    "minecraft:wall_banner_flag": {
+      "textureWidth": 64,
+      "textureHeight": 64,
+      "bones": {
+        "flag": {
+          "pivot": [
+            0.0,
+            -20.5,
+            10.5
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -10.0,
+                0.0,
+                -2.0
+              ],
+              "size": [
+                20.0,
+                40.0,
+                1.0
+              ],
+              "uv": [
+                0,
+                0
+              ],
+              "inflate": 0.0,
+              "mirror": false,
+              "face_uv": {}
+            }
+          ]
+        }
+      },
+      "y_axis": "DOWN"
     }
   }
 }
