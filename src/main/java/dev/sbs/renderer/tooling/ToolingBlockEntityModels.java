@@ -48,6 +48,7 @@ import java.util.zip.ZipFile;
 public final class ToolingBlockEntityModels {
 
     private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/renderer/block_entity_models.json");
+    private static final @NotNull Path BLOCK_MODEL_OUTPUT_PATH = Path.of("src/main/resources/renderer/block_entity_block_models.json");
 
     public static void main(String @NotNull [] args) throws IOException {
         AssetPipelineOptions options = AssetPipelineOptions.defaults();
@@ -60,6 +61,12 @@ public final class ToolingBlockEntityModels {
         Files.createDirectories(OUTPUT_PATH.getParent());
         Files.writeString(OUTPUT_PATH, buildJson(models, options.getVersion()));
         System.out.println("Wrote " + OUTPUT_PATH.toAbsolutePath());
+
+        // NEW: also output block model elements format
+        JsonObject blockModels = BlockModelConverter.convert(models);
+        Files.writeString(BLOCK_MODEL_OUTPUT_PATH,
+            new GsonBuilder().setPrettyPrinting().create().toJson(blockModels) + System.lineSeparator());
+        System.out.println("Wrote block model conversion: " + BLOCK_MODEL_OUTPUT_PATH.toAbsolutePath());
     }
 
     private static @NotNull String buildJson(@NotNull ConcurrentMap<String, JsonObject> models, @NotNull String mcVersion) {
@@ -307,6 +314,18 @@ public final class ToolingBlockEntityModels {
                                 float px = popFloat(numStack);
                                 pendingPivot = new float[]{ px, py, pz };
                                 pendingRotation = new float[]{ 0, 0, 0 };
+                            } else if (methodInsn.name.equals("rotation") && methodInsn.desc.startsWith("(FFF")) {
+                                // PartPose.rotation(rx, ry, rz) — rotation only, pivot stays at origin.
+                                // Used by BedRenderer legs.
+                                float rz = popFloat(numStack);
+                                float ry = popFloat(numStack);
+                                float rx = popFloat(numStack);
+                                pendingPivot = new float[]{ 0, 0, 0 };
+                                pendingRotation = new float[]{
+                                    (float) Math.toDegrees(rx),
+                                    (float) Math.toDegrees(ry),
+                                    (float) Math.toDegrees(rz)
+                                };
                             } else if (methodInsn.name.equals("offsetAndRotation") && methodInsn.desc.startsWith("(FFFFFF")) {
                                 float rz = popFloat(numStack);
                                 float ry = popFloat(numStack);
@@ -416,6 +435,209 @@ public final class ToolingBlockEntityModels {
         private static float popFloat(@NotNull ConcurrentList<Number> stack) {
             if (stack.isEmpty()) return 0f;
             return stack.remove(stack.size() - 1).floatValue();
+        }
+
+    }
+
+    /**
+     * Converts parsed entity model JSON (bones/cubes with box UV) into block model elements
+     * JSON (from/to/faces with per-face UV). The output is in standard block model Y-up format
+     * compatible with {@link dev.sbs.renderer.kit.GeometryKit#buildFromElements}.
+     * <p>
+     * Conversion steps per model:
+     * <ol>
+     * <li>Each bone's cubes provide origin, size, and box UV offset</li>
+     * <li>Bone rotation is baked into cube positions (already done by Parser.bakeBoneRotations)</li>
+     * <li>Y-down geometry is flipped to Y-up (already done by Parser.flipToYDown for Y-UP models,
+     *     applied here for Y-DOWN models)</li>
+     * <li>Box UV (u, v origin + w, h, d size) is expanded to 6 per-face UV rectangles using the
+     *     vanilla Java {@code ModelPart.Cube} texture layout</li>
+     * </ol>
+     */
+    @UtilityClass
+    static class BlockModelConverter {
+
+        /**
+         * Vanilla inventory transforms per model type. Each transform is applied to the
+         * model-space cube corners (in Y-down model units) before converting to Y-up block
+         * model format. Values extracted from vanilla BedRenderer.createModelTransform and
+         * ChestRenderer bytecode.
+         */
+        private static final java.util.Map<String, float[]> INVENTORY_TRANSFORMS = java.util.Map.of(
+            // BedRenderer: translate(0, 9, 0) * Rx(90°) in model units
+            "minecraft:bed_head", new float[]{ 0, 9, 0, 90, 0, 0 },
+            "minecraft:bed_foot", new float[]{ 0, 9, 0, 90, 0, 0 }
+        );
+
+        /**
+         * Converts all parsed entity models into a JSON object containing block model elements
+         * keyed by entity model id.
+         */
+        static @NotNull JsonObject convert(@NotNull ConcurrentMap<String, JsonObject> entityModels) {
+            JsonObject result = new JsonObject();
+            result.addProperty("//", "Generated block model elements from entity model geometry. Run tooling/blockEntityModels to refresh.");
+
+            for (Map.Entry<String, JsonObject> entry : entityModels.entrySet()) {
+                String modelId = entry.getKey();
+                JsonObject entityModel = entry.getValue();
+
+                int texW = entityModel.has("textureWidth") ? entityModel.get("textureWidth").getAsInt() : 64;
+                int texH = entityModel.has("textureHeight") ? entityModel.get("textureHeight").getAsInt() : 64;
+                String yAxis = entityModel.has("y_axis") ? entityModel.get("y_axis").getAsString() : "DOWN";
+                boolean isYDown = "DOWN".equals(yAxis);
+
+                JsonObject bones = entityModel.getAsJsonObject("bones");
+                if (bones == null) continue;
+
+                // Look up the vanilla inventory transform for this model type
+                float[] invTransform = INVENTORY_TRANSFORMS.get(modelId);
+                boolean hasInvTransform = invTransform != null;
+
+                JsonArray elements = new JsonArray();
+                for (Map.Entry<String, JsonElement> boneEntry : bones.entrySet()) {
+                    JsonObject bone = boneEntry.getValue().getAsJsonObject();
+                    JsonArray pivotArr = bone.getAsJsonArray("pivot");
+                    float px = pivotArr != null ? pivotArr.get(0).getAsFloat() : 0f;
+                    float py = pivotArr != null ? pivotArr.get(1).getAsFloat() : 0f;
+                    float pz = pivotArr != null ? pivotArr.get(2).getAsFloat() : 0f;
+
+                    JsonArray cubes = bone.getAsJsonArray("cubes");
+                    if (cubes == null) continue;
+
+                    // Parse bone rotation (in degrees)
+                    JsonArray rotArr = bone.getAsJsonArray("rotation");
+                    float brx = 0, bry = 0, brz = 0;
+                    if (rotArr != null && rotArr.size() == 3) {
+                        brx = rotArr.get(0).getAsFloat();
+                        bry = rotArr.get(1).getAsFloat();
+                        brz = rotArr.get(2).getAsFloat();
+                    }
+                    boolean hasBoneRot = brx != 0 || bry != 0 || brz != 0;
+
+                    // Precompute bone rotation matrix: Rz * Ry * Rx (matching vanilla's rotationZYX)
+                    double rxR = Math.toRadians(brx), ryR = Math.toRadians(bry), rzR = Math.toRadians(brz);
+                    double[][] mRx = {{ 1, 0, 0 }, { 0, Math.cos(rxR), -Math.sin(rxR) }, { 0, Math.sin(rxR), Math.cos(rxR) }};
+                    double[][] mRy = {{ Math.cos(ryR), 0, Math.sin(ryR) }, { 0, 1, 0 }, { -Math.sin(ryR), 0, Math.cos(ryR) }};
+                    double[][] mRz = {{ Math.cos(rzR), -Math.sin(rzR), 0 }, { Math.sin(rzR), Math.cos(rzR), 0 }, { 0, 0, 1 }};
+                    double[][] boneRot = hasBoneRot ? matMul3(matMul3(mRz, mRy), mRx) : null;
+
+                    for (JsonElement cubeEl : cubes) {
+                        JsonObject cube = cubeEl.getAsJsonObject();
+                        JsonArray originArr = cube.getAsJsonArray("origin");
+                        JsonArray sizeArr = cube.getAsJsonArray("size");
+                        int[] uv = { cube.getAsJsonArray("uv").get(0).getAsInt(), cube.getAsJsonArray("uv").get(1).getAsInt() };
+
+                        float ox = originArr.get(0).getAsFloat();
+                        float oy = originArr.get(1).getAsFloat();
+                        float oz = originArr.get(2).getAsFloat();
+                        float sw = sizeArr.get(0).getAsFloat();
+                        float sh = sizeArr.get(1).getAsFloat();
+                        float sd = sizeArr.get(2).getAsFloat();
+
+                        // Transform all 8 corners: bone rotation + pivot + inventory transform + Y-flip
+                        float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE, minZ = Float.MAX_VALUE;
+                        float maxX = -Float.MAX_VALUE, maxY = -Float.MAX_VALUE, maxZ = -Float.MAX_VALUE;
+                        for (int dx = 0; dx <= 1; dx++) {
+                            for (int dy = 0; dy <= 1; dy++) {
+                                for (int dz = 0; dz <= 1; dz++) {
+                                    float cx = ox + dx * sw;
+                                    float cy = oy + dy * sh;
+                                    float cz = oz + dz * sd;
+
+                                    // 1. Apply bone rotation (Rz * Ry * Rx)
+                                    if (boneRot != null) {
+                                        double rx2 = boneRot[0][0]*cx + boneRot[0][1]*cy + boneRot[0][2]*cz;
+                                        double ry2 = boneRot[1][0]*cx + boneRot[1][1]*cy + boneRot[1][2]*cz;
+                                        double rz2 = boneRot[2][0]*cx + boneRot[2][1]*cy + boneRot[2][2]*cz;
+                                        cx = (float) rx2; cy = (float) ry2; cz = (float) rz2;
+                                    }
+
+                                    // 2. Add bone pivot
+                                    cx += px; cy += py; cz += pz;
+
+                                    // 3. Apply inventory transform (model-specific)
+                                    if (hasInvTransform) {
+                                        float pitch = (float) Math.toRadians(invTransform[3]);
+                                        float cosP = (float) Math.cos(pitch), sinP = (float) Math.sin(pitch);
+                                        float ry = cy * cosP - cz * sinP;
+                                        float rz = cy * sinP + cz * cosP;
+                                        cy = ry + invTransform[1];
+                                        cz = rz + invTransform[2];
+                                    }
+
+                                    // 4. Y-flip for non-inventory-transformed models
+                                    if (!hasInvTransform) cy = -cy;
+
+                                    minX = Math.min(minX, cx); maxX = Math.max(maxX, cx);
+                                    minY = Math.min(minY, cy); maxY = Math.max(maxY, cy);
+                                    minZ = Math.min(minZ, cz); maxZ = Math.max(maxZ, cz);
+                                }
+                            }
+                        }
+
+                        float fromX = minX, fromY = minY, fromZ = minZ;
+                        float toX = maxX, toY = maxY, toZ = maxZ;
+
+                        // Build per-face UV from box UV layout
+                        // Vanilla Java Cube UV layout for box UV (u,v) with cube size (w,h,d):
+                        //   DOWN:  (u+d,     v,     u+d+w,     v+d)
+                        //   UP:    (u+d+w,   v+d,   u+d+w+d,   v)       [V reversed]
+                        //   WEST:  (u,       v+d,   u+d,       v+d+h)
+                        //   NORTH: (u+d,     v+d,   u+d+w,     v+d+h)
+                        //   EAST:  (u+d+w,   v+d,   u+d+w+d,   v+d+h)
+                        //   SOUTH: (u+d+w+d, v+d,   u+d+w+d+w, v+d+h)
+                        int u = uv[0], v = uv[1];
+                        int w = (int) sw, h = (int) sh, d = (int) sd;
+                        float scale = 16.0f / texW;  // texture pixels to 0-16 block UV
+
+                        JsonObject faces = new JsonObject();
+                        addFace(faces, "down",  (u+d)*scale, v*scale, (u+d+w)*scale, (v+d)*scale, isYDown ? 0 : 180);
+                        addFace(faces, "up",    (u+d)*scale, v*scale, (u+d+w)*scale, (v+d)*scale, 0);  // same region as down for entity models
+                        addFace(faces, "west",  (u)*scale, (v+d)*scale, (u+d)*scale, (v+d+h)*scale, isYDown ? 0 : 180);
+                        addFace(faces, "north", (u+d)*scale, (v+d)*scale, (u+d+w)*scale, (v+d+h)*scale, isYDown ? 0 : 180);
+                        addFace(faces, "east",  (u+d+w)*scale, (v+d)*scale, (u+d+w+d)*scale, (v+d+h)*scale, isYDown ? 0 : 180);
+                        addFace(faces, "south", (u+d+w+d)*scale, (v+d)*scale, (u+d+w+d+w)*scale, (v+d+h)*scale, isYDown ? 0 : 180);
+
+                        JsonObject element = new JsonObject();
+                        JsonArray from = new JsonArray(); from.add(round2(fromX)); from.add(round2(fromY)); from.add(round2(fromZ));
+                        JsonArray to = new JsonArray(); to.add(round2(toX)); to.add(round2(toY)); to.add(round2(toZ));
+                        element.add("from", from);
+                        element.add("to", to);
+                        element.add("faces", faces);
+                        elements.add(element);
+                    }
+                }
+
+                JsonObject modelOutput = new JsonObject();
+                modelOutput.addProperty("textureWidth", texW);
+                modelOutput.addProperty("textureHeight", texH);
+                modelOutput.add("elements", elements);
+                result.add(modelId, modelOutput);
+            }
+
+            return result;
+        }
+
+        private static double[][] matMul3(double[][] a, double[][] b) {
+            double[][] r = new double[3][3];
+            for (int i = 0; i < 3; i++)
+                for (int j = 0; j < 3; j++)
+                    r[i][j] = a[i][0] * b[0][j] + a[i][1] * b[1][j] + a[i][2] * b[2][j];
+            return r;
+        }
+
+        private static void addFace(@NotNull JsonObject faces, @NotNull String dir, float u0, float v0, float u1, float v1, int rotation) {
+            JsonObject face = new JsonObject();
+            face.addProperty("texture", "#entity");
+            JsonArray uv = new JsonArray();
+            uv.add(round2(u0)); uv.add(round2(v0)); uv.add(round2(u1)); uv.add(round2(v1));
+            face.add("uv", uv);
+            if (rotation != 0) face.addProperty("rotation", rotation);
+            faces.add(dir, face);
+        }
+
+        private static float round2(double v) {
+            return (float) (Math.round(v * 100.0) / 100.0);
         }
 
     }

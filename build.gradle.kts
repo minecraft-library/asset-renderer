@@ -180,6 +180,15 @@ tasks {
         args = if (itemId != null) listOf(itemId, renderSize) else listOf()
     }
 
+    register<JavaExec>("testBed") {
+        description = "Renders red_bed and white_bed at 1024x1024 for visual comparison. -PrenderSize=1024"
+        group = "tooling"
+        mainClass.set("dev.sbs.renderer.tooling.TestBedMain")
+        classpath = sourceSets["main"].runtimeClasspath
+        val renderSize = (project.findProperty("renderSize") as String?) ?: "1024"
+        args = listOf(renderSize)
+    }
+
     register<JavaExec>("testLore") {
         description = "Renders a pair of SkyBlock-style lore tooltips to cache/test-lore/ at the given supersampling factors (comma-separated, default '1,4')."
         group = "tooling"

@@ -14,6 +14,8 @@ import dev.sbs.renderer.geometry.EulerRotation;
 import dev.sbs.renderer.geometry.PerspectiveParams;
 import dev.sbs.renderer.geometry.VisibleTriangle;
 import dev.sbs.renderer.kit.EntityGeometryKit;
+import dev.sbs.renderer.pipeline.PipelineRendererContext;
+import dev.sbs.renderer.pipeline.loader.BlockEntityModelLoader;
 import dev.sbs.renderer.kit.GeometryKit;
 import dev.sbs.renderer.asset.Block;
 import dev.sbs.renderer.asset.model.BlockModelData;
@@ -150,6 +152,19 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 Block.Variant variant = resolveVariant(block, options.getVariant());
                 if (variant != null && variant.hasRotation())
                     triangles = applyRotation(triangles, buildVariantRotation(variant));
+            }
+
+            // Block entity multi-block models (beds) need recentering + rotation + scaling
+            // since they extend beyond the standard 0-16 single-block bounds.
+            if (this.context instanceof PipelineRendererContext prc) {
+                BlockEntityModelLoader.BlockEntityEntry be = prc.getBlockEntityEntries().get(options.getBlockId());
+                if (be != null && (be.isMultiBlock() || be.getIconRotation() != 0)) {
+                    if (be.getIconRotation() != 0)
+                        triangles = applyRotation(triangles, Matrix4f.createRotationY(
+                            (float) Math.toRadians(be.getIconRotation())));
+                    if (be.isMultiBlock())
+                        triangles = recenterAndFit(triangles);
+                }
             }
 
             // Fallback 1: when the block's registered model produces no faces (variant- or
@@ -458,6 +473,38 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * vanilla's inheritance behaviour - stairs ship {@code [30, 135, 0]}, slabs and fence
          * gates override too.
          */
+        /**
+         * Recenters and scales a triangle list so all geometry fits within the standard
+         * 0.9 unit extent. Used for multi-block entity models (beds) that extend beyond
+         * the standard 0-16 single-block bounds.
+         */
+        private static @NotNull ConcurrentList<VisibleTriangle> recenterAndFit(@NotNull ConcurrentList<VisibleTriangle> triangles) {
+            float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE, minZ = Float.MAX_VALUE;
+            float maxX = -Float.MAX_VALUE, maxY = -Float.MAX_VALUE, maxZ = -Float.MAX_VALUE;
+            for (VisibleTriangle t : triangles) {
+                for (Vector3f v : new Vector3f[]{ t.position0(), t.position1(), t.position2() }) {
+                    minX = Math.min(minX, v.x()); maxX = Math.max(maxX, v.x());
+                    minY = Math.min(minY, v.y()); maxY = Math.max(maxY, v.y());
+                    minZ = Math.min(minZ, v.z()); maxZ = Math.max(maxZ, v.z());
+                }
+            }
+            float cx = (minX + maxX) * 0.5f, cy = (minY + maxY) * 0.5f, cz = (minZ + maxZ) * 0.5f;
+            float extent = Math.max(Math.max(maxX - minX, maxY - minY), maxZ - minZ);
+            float scale = extent > 0.001f ? 1.4f / extent : 1f;
+
+            ConcurrentList<VisibleTriangle> result = Concurrent.newList();
+            for (VisibleTriangle t : triangles) {
+                result.add(new VisibleTriangle(
+                    new Vector3f((t.position0().x() - cx) * scale, (t.position0().y() - cy) * scale, (t.position0().z() - cz) * scale),
+                    new Vector3f((t.position1().x() - cx) * scale, (t.position1().y() - cy) * scale, (t.position1().z() - cz) * scale),
+                    new Vector3f((t.position2().x() - cx) * scale, (t.position2().y() - cy) * scale, (t.position2().z() - cz) * scale),
+                    t.uv0(), t.uv1(), t.uv2(),
+                    t.texture(), t.tintArgb(), t.normal(), t.shading(), t.cullBackFaces()
+                ));
+            }
+            return result;
+        }
+
         private static @NotNull IsometricEngine engineForBlockIcon(@NotNull RendererContext context, @NotNull Block block) {
             ModelTransform gui = block.getModel().getDisplay().get("gui");
             EulerRotation rotation = gui != null ? gui.getRotation() : EulerRotation.STANDARD_ISO_BLOCK;

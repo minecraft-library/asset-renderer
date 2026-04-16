@@ -81,6 +81,9 @@ public final class PipelineRendererContext implements RendererContext {
      */
     @Getter
     private final @NotNull Set<String> blockstateOnlyIds;
+    /** Block entity metadata for multi-block centering and icon rotation at render time. */
+    @Getter
+    private final @NotNull ConcurrentMap<String, BlockEntityModelLoader.BlockEntityEntry> blockEntityEntries;
     private final @NotNull ImageFactory imageFactory = new ImageFactory();
     private final @NotNull ConcurrentMap<String, PixelBuffer> textureCache = Concurrent.newMap();
 
@@ -102,8 +105,7 @@ public final class PipelineRendererContext implements RendererContext {
         ConcurrentMap<String, String> itemDefs = result.getItemDefinitions();
         ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap = result.getBlockStates();
         ConcurrentMap<String, Block.Multipart> multipartMap = result.getBlockMultiparts();
-        BlockEntityModelLoader.LoadResult blockEntityResult = BlockEntityModelLoader.load();
-        ConcurrentMap<String, Block.EntityMapping> entityMappings = blockEntityResult.getMappings();
+        ConcurrentMap<String, BlockEntityModelLoader.BlockEntityEntry> blockEntityEntries = BlockEntityModelLoader.load();
 
         // Build reverse tag index (tag id → block ids becomes block id → tag names)
         ConcurrentMap<String, BlockTag> tagMap = result.getBlockTags();
@@ -138,30 +140,32 @@ public final class PipelineRendererContext implements RendererContext {
             ConcurrentMap<String, Block.Variant> variants = variantMap.getOrDefault(blockId, Concurrent.newMap());
             Optional<Block.Multipart> multipart = Optional.ofNullable(multipartMap.get(blockId));
             ConcurrentList<String> tags = reverseTagIndex.getOrDefault(blockId, Concurrent.newList());
-            Optional<Block.EntityMapping> entityMapping = entityMappings.getOptional(blockId);
 
-            blockIndex.put(blockId, new Block(blockId, "minecraft", name, modelToUse, textures, variants, multipart, tags, tint, entityMapping));
+            blockIndex.put(blockId, new Block(blockId, "minecraft", name, modelToUse, textures, variants, multipart, tags, tint, Optional.empty()));
         }
 
-        // Register a block for every entity mapping whose id is not already in the block index.
-        // These are block-entity-only blocks ({@code <color>_bed}, {@code <color>_sign}, etc.)
-        // whose vanilla model files live under a single template id ({@code block/bed}) rather
-        // than being duplicated per colour. Without this entry {@code findBlock} returns empty
-        // for the coloured id and downstream item render paths that redirect to the block
-        // renderer produce a blank tile.
-        for (Map.Entry<String, Block.EntityMapping> entry : entityMappings.entrySet()) {
+        // Register block entity blocks with real block model elements. These are blocks like
+        // coloured beds, shulker boxes, signs, etc. whose vanilla geometry is hardcoded in
+        // tile entity renderers. The tooling extracts this geometry and converts it to standard
+        // block model elements so they render through GeometryKit like any other block.
+        for (Map.Entry<String, BlockEntityModelLoader.BlockEntityEntry> entry : blockEntityEntries.entrySet()) {
             String blockId = entry.getKey();
-            if (blockIndex.containsKey(blockId)) continue;
+            // Block entities override vanilla template models (e.g. block/chest.json is an empty
+            // template, but the block entity model has the real chest geometry).
+            BlockEntityModelLoader.BlockEntityEntry be = entry.getValue();
             String shortName = blockId.contains(":") ? blockId.substring(blockId.indexOf(':') + 1) : blockId;
             ConcurrentList<String> tags = reverseTagIndex.getOrDefault(blockId, Concurrent.newList());
             ConcurrentMap<String, Block.Variant> variants = variantMap.getOrDefault(blockId, Concurrent.newMap());
             Optional<Block.Multipart> multipart = Optional.ofNullable(multipartMap.get(blockId));
+            // Store the entity texture reference in the textures map so the renderer can resolve it
+            ConcurrentMap<String, String> textures = Concurrent.newMap();
+            textures.put("#entity", be.getTextureId());
             blockIndex.put(blockId, new Block(
                 blockId, "minecraft", shortName,
-                new BlockModelData(), Concurrent.newMap(),
+                be.getModel(), textures,
                 variants, multipart, tags,
                 new Block.Tint(Biome.TintTarget.NONE, Optional.empty()),
-                Optional.of(entry.getValue())
+                Optional.empty()
             ));
         }
 
@@ -235,8 +239,8 @@ public final class PipelineRendererContext implements RendererContext {
         for (Map.Entry<String, EntityModelLoader.EntityDefinition> entityEntry : EntityModelLoader.load().entrySet())
             entityIndex.put(entityEntry.getKey(), new Entity(entityEntry.getKey(), "minecraft", localName(entityEntry.getKey()), entityEntry.getValue().model(), entityEntry.getValue().textureId()));
 
-        // Block entity models (chest, sign, bed, etc.) are registered alongside mob entities.
-        entityIndex.putAll(blockEntityResult.getEntities());
+        // Block entity models now render via the block model path (GeometryKit.buildFromElements),
+        // not the entity model path. Only mob entities remain in the entity index.
 
         ConcurrentMap<String, Texture> textureIndex = Concurrent.newMap();
         for (Texture texture : result.getTextures())
@@ -251,7 +255,7 @@ public final class PipelineRendererContext implements RendererContext {
             .resolve("minecraft")
             .resolve("textures");
 
-        return new PipelineRendererContext(textureRoot, packs, blockIndex, itemIndex, entityIndex, textureIndex, colorMapIndex, tagMap, result.getPotionEffectColors(), result.getBannerPatterns(), java.util.Collections.unmodifiableSet(blockstateOnlyIds));
+        return new PipelineRendererContext(textureRoot, packs, blockIndex, itemIndex, entityIndex, textureIndex, colorMapIndex, tagMap, result.getPotionEffectColors(), result.getBannerPatterns(), java.util.Collections.unmodifiableSet(blockstateOnlyIds), blockEntityEntries);
     }
 
     @Override
