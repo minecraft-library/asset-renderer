@@ -441,18 +441,20 @@ public final class ToolingBlockEntityModels {
 
     /**
      * Converts parsed entity model JSON (bones/cubes with box UV) into block model elements
-     * JSON (from/to/faces with per-face UV). The output is in standard block model Y-up format
-     * compatible with {@link dev.sbs.renderer.kit.GeometryKit#buildFromElements}.
+     * JSON (from/to/faces with per-face UV).
      * <p>
-     * Conversion steps per model:
-     * <ol>
-     * <li>Each bone's cubes provide origin, size, and box UV offset</li>
-     * <li>Bone rotation is baked into cube positions (already done by Parser.bakeBoneRotations)</li>
-     * <li>Y-down geometry is flipped to Y-up (already done by Parser.flipToYDown for Y-UP models,
-     *     applied here for Y-DOWN models)</li>
-     * <li>Box UV (u, v origin + w, h, d size) is expanded to 6 per-face UV rectangles using the
-     *     vanilla Java {@code ModelPart.Cube} texture layout</li>
-     * </ol>
+     * The conversion is fully derived from the vanilla {@code ModelPart$Cube} polygon layout:
+     * each cube produces eight corner positions in entity space, paired with the per-vertex UVs
+     * vanilla assigns to each of the six entity faces (the per-vertex UV map is fixed by
+     * {@code ModelPart$Polygon}'s vertex-to-UV order). The full transform chain
+     * (bone rotation + pivot + inventory transform, or a Y-flip when no inventory transform is
+     * present) is applied to the eight corners; the resulting axis-aligned block-space face is
+     * resolved by snapping the transformed face normal to the closest cardinal direction. Each
+     * surviving entity face emits a single block face whose UV rectangle and rotation tag are
+     * derived from where {@code (uMin, vMin)} lands among the block face's TL/BL/BR/TR corners.
+     * <p>
+     * No per-face direction tables or hardcoded rotations are required - the algorithm handles
+     * arbitrary axis-aligned rotations of bones and inventory transforms uniformly.
      */
     @UtilityClass
     static class BlockModelConverter {
@@ -469,6 +471,19 @@ public final class ToolingBlockEntityModels {
             "minecraft:bed_foot", new float[]{ 0, 9, 0, 90, 0, 0 }
         );
 
+        /** Names of the six block-model face directions, indexed by {@link Face#ordinal}. */
+        private static final String[] BLOCK_FACE_NAMES = { "down", "up", "north", "south", "west", "east" };
+
+        /** Outward unit normals for the six block-model face directions. */
+        private static final int[][] BLOCK_FACE_NORMALS = {
+            { 0, -1, 0 },  // down
+            { 0,  1, 0 },  // up
+            { 0, 0, -1 },  // north
+            { 0, 0,  1 },  // south
+            { -1, 0, 0 },  // west
+            {  1, 0, 0 }   // east
+        };
+
         /**
          * Converts all parsed entity models into a JSON object containing block model elements
          * keyed by entity model id.
@@ -483,13 +498,10 @@ public final class ToolingBlockEntityModels {
 
                 int texW = entityModel.has("textureWidth") ? entityModel.get("textureWidth").getAsInt() : 64;
                 int texH = entityModel.has("textureHeight") ? entityModel.get("textureHeight").getAsInt() : 64;
-                String yAxis = entityModel.has("y_axis") ? entityModel.get("y_axis").getAsString() : "DOWN";
-                boolean isYDown = "DOWN".equals(yAxis);
 
                 JsonObject bones = entityModel.getAsJsonObject("bones");
                 if (bones == null) continue;
 
-                // Look up the vanilla inventory transform for this model type
                 float[] invTransform = INVENTORY_TRANSFORMS.get(modelId);
                 boolean hasInvTransform = invTransform != null;
 
@@ -504,7 +516,6 @@ public final class ToolingBlockEntityModels {
                     JsonArray cubes = bone.getAsJsonArray("cubes");
                     if (cubes == null) continue;
 
-                    // Parse bone rotation (in degrees)
                     JsonArray rotArr = bone.getAsJsonArray("rotation");
                     float brx = 0, bry = 0, brz = 0;
                     if (rotArr != null && rotArr.size() == 3) {
@@ -514,7 +525,8 @@ public final class ToolingBlockEntityModels {
                     }
                     boolean hasBoneRot = brx != 0 || bry != 0 || brz != 0;
 
-                    // Precompute bone rotation matrix: Rz * Ry * Rx (matching vanilla's rotationZYX)
+                    // Bone rotation matrix: Rz * Ry * Rx (matches vanilla's Quaternionf.rotationZYX,
+                    // which applies X first, then Y, then Z).
                     double rxR = Math.toRadians(brx), ryR = Math.toRadians(bry), rzR = Math.toRadians(brz);
                     double[][] mRx = {{ 1, 0, 0 }, { 0, Math.cos(rxR), -Math.sin(rxR) }, { 0, Math.sin(rxR), Math.cos(rxR) }};
                     double[][] mRy = {{ Math.cos(ryR), 0, Math.sin(ryR) }, { 0, 1, 0 }, { -Math.sin(ryR), 0, Math.cos(ryR) }};
@@ -525,7 +537,8 @@ public final class ToolingBlockEntityModels {
                         JsonObject cube = cubeEl.getAsJsonObject();
                         JsonArray originArr = cube.getAsJsonArray("origin");
                         JsonArray sizeArr = cube.getAsJsonArray("size");
-                        int[] uv = { cube.getAsJsonArray("uv").get(0).getAsInt(), cube.getAsJsonArray("uv").get(1).getAsInt() };
+                        int u = cube.getAsJsonArray("uv").get(0).getAsInt();
+                        int v = cube.getAsJsonArray("uv").get(1).getAsInt();
 
                         float ox = originArr.get(0).getAsFloat();
                         float oy = originArr.get(1).getAsFloat();
@@ -534,77 +547,12 @@ public final class ToolingBlockEntityModels {
                         float sh = sizeArr.get(1).getAsFloat();
                         float sd = sizeArr.get(2).getAsFloat();
 
-                        // Transform all 8 corners: bone rotation + pivot + inventory transform + Y-flip
-                        float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE, minZ = Float.MAX_VALUE;
-                        float maxX = -Float.MAX_VALUE, maxY = -Float.MAX_VALUE, maxZ = -Float.MAX_VALUE;
-                        for (int dx = 0; dx <= 1; dx++) {
-                            for (int dy = 0; dy <= 1; dy++) {
-                                for (int dz = 0; dz <= 1; dz++) {
-                                    float cx = ox + dx * sw;
-                                    float cy = oy + dy * sh;
-                                    float cz = oz + dz * sd;
-
-                                    // 1. Apply bone rotation (Rz * Ry * Rx)
-                                    if (boneRot != null) {
-                                        double rx2 = boneRot[0][0]*cx + boneRot[0][1]*cy + boneRot[0][2]*cz;
-                                        double ry2 = boneRot[1][0]*cx + boneRot[1][1]*cy + boneRot[1][2]*cz;
-                                        double rz2 = boneRot[2][0]*cx + boneRot[2][1]*cy + boneRot[2][2]*cz;
-                                        cx = (float) rx2; cy = (float) ry2; cz = (float) rz2;
-                                    }
-
-                                    // 2. Add bone pivot
-                                    cx += px; cy += py; cz += pz;
-
-                                    // 3. Apply inventory transform (model-specific)
-                                    if (hasInvTransform) {
-                                        float pitch = (float) Math.toRadians(invTransform[3]);
-                                        float cosP = (float) Math.cos(pitch), sinP = (float) Math.sin(pitch);
-                                        float ry = cy * cosP - cz * sinP;
-                                        float rz = cy * sinP + cz * cosP;
-                                        cy = ry + invTransform[1];
-                                        cz = rz + invTransform[2];
-                                    }
-
-                                    // 4. Y-flip for non-inventory-transformed models
-                                    if (!hasInvTransform) cy = -cy;
-
-                                    minX = Math.min(minX, cx); maxX = Math.max(maxX, cx);
-                                    minY = Math.min(minY, cy); maxY = Math.max(maxY, cy);
-                                    minZ = Math.min(minZ, cz); maxZ = Math.max(maxZ, cz);
-                                }
-                            }
-                        }
-
-                        float fromX = minX, fromY = minY, fromZ = minZ;
-                        float toX = maxX, toY = maxY, toZ = maxZ;
-
-                        // Build per-face UV from box UV layout
-                        // Vanilla Java Cube UV layout for box UV (u,v) with cube size (w,h,d):
-                        //   DOWN:  (u+d,     v,     u+d+w,     v+d)
-                        //   UP:    (u+d+w,   v+d,   u+d+w+d,   v)       [V reversed]
-                        //   WEST:  (u,       v+d,   u+d,       v+d+h)
-                        //   NORTH: (u+d,     v+d,   u+d+w,     v+d+h)
-                        //   EAST:  (u+d+w,   v+d,   u+d+w+d,   v+d+h)
-                        //   SOUTH: (u+d+w+d, v+d,   u+d+w+d+w, v+d+h)
-                        int u = uv[0], v = uv[1];
-                        int w = (int) sw, h = (int) sh, d = (int) sd;
-                        float scale = 16.0f / texW;  // texture pixels to 0-16 block UV
-
-                        JsonObject faces = new JsonObject();
-                        addFace(faces, "down",  (u+d)*scale, v*scale, (u+d+w)*scale, (v+d)*scale, isYDown ? 0 : 180);
-                        addFace(faces, "up",    (u+d)*scale, v*scale, (u+d+w)*scale, (v+d)*scale, 0);  // same region as down for entity models
-                        addFace(faces, "west",  (u)*scale, (v+d)*scale, (u+d)*scale, (v+d+h)*scale, isYDown ? 0 : 180);
-                        addFace(faces, "north", (u+d)*scale, (v+d)*scale, (u+d+w)*scale, (v+d+h)*scale, isYDown ? 0 : 180);
-                        addFace(faces, "east",  (u+d+w)*scale, (v+d)*scale, (u+d+w+d)*scale, (v+d+h)*scale, isYDown ? 0 : 180);
-                        addFace(faces, "south", (u+d+w+d)*scale, (v+d)*scale, (u+d+w+d+w)*scale, (v+d+h)*scale, isYDown ? 0 : 180);
-
-                        JsonObject element = new JsonObject();
-                        JsonArray from = new JsonArray(); from.add(round2(fromX)); from.add(round2(fromY)); from.add(round2(fromZ));
-                        JsonArray to = new JsonArray(); to.add(round2(toX)); to.add(round2(toY)); to.add(round2(toZ));
-                        element.add("from", from);
-                        element.add("to", to);
-                        element.add("faces", faces);
-                        elements.add(element);
+                        elements.add(buildElement(
+                            ox, oy, oz, sw, sh, sd, u, v,
+                            boneRot, px, py, pz,
+                            invTransform, hasInvTransform,
+                            texW
+                        ));
                     }
                 }
 
@@ -618,6 +566,246 @@ public final class ToolingBlockEntityModels {
             return result;
         }
 
+        /**
+         * Builds the eight entity-space corners (matching vanilla {@code ModelPart$Cube}'s vertex
+         * ordering v19..v26), pushes them through the bone + inventory transform chain, then emits
+         * a block element by mapping each entity face to a block face via per-vertex UV tracking.
+         */
+        private static @NotNull JsonObject buildElement(
+            float ox, float oy, float oz,
+            float sw, float sh, float sd,
+            int u, int v,
+            double @org.jetbrains.annotations.Nullable [][] boneRot,
+            float px, float py, float pz,
+            float @org.jetbrains.annotations.Nullable [] invTransform,
+            boolean hasInvTransform,
+            int texW
+        ) {
+            // Vanilla v19..v26 layout: bit pattern (xMax?, yMax?, zMax?) selecting one of 8 corners.
+            // The order below matches the offsets the vanilla bytecode assigns to v19..v26.
+            float[][] entityCorners = {
+                { ox,        oy,        oz        },  // 0 = v19 (-x,-y,-z)
+                { ox + sw,   oy,        oz        },  // 1 = v20 (+x,-y,-z)
+                { ox + sw,   oy + sh,   oz        },  // 2 = v21 (+x,+y,-z)
+                { ox,        oy + sh,   oz        },  // 3 = v22 (-x,+y,-z)
+                { ox,        oy,        oz + sd   },  // 4 = v23 (-x,-y,+z)
+                { ox + sw,   oy,        oz + sd   },  // 5 = v24 (+x,-y,+z)
+                { ox + sw,   oy + sh,   oz + sd   },  // 6 = v25 (+x,+y,+z)
+                { ox,        oy + sh,   oz + sd   }   // 7 = v26 (-x,+y,+z)
+            };
+
+            float[][] blockCorners = new float[8][3];
+            for (int i = 0; i < 8; i++)
+                blockCorners[i] = applyTransform(entityCorners[i], boneRot, px, py, pz, invTransform, hasInvTransform);
+
+            float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE, minZ = Float.MAX_VALUE;
+            float maxX = -Float.MAX_VALUE, maxY = -Float.MAX_VALUE, maxZ = -Float.MAX_VALUE;
+            for (float[] c : blockCorners) {
+                minX = Math.min(minX, c[0]); maxX = Math.max(maxX, c[0]);
+                minY = Math.min(minY, c[1]); maxY = Math.max(maxY, c[1]);
+                minZ = Math.min(minZ, c[2]); maxZ = Math.max(maxZ, c[2]);
+            }
+
+            // Vanilla per-face vertex order and UV rectangle. Per Polygon constructor:
+            // vertex[0] gets (u1, v0), vertex[1] gets (u0, v0), vertex[2] gets (u0, v1),
+            // vertex[3] gets (u1, v1).
+            float scale = 16.0f / texW;
+            EntityFace[] entityFaces = {
+                // DOWN: vertices v24, v23, v19, v20; UV (u+d, v, u+d+w, v+d)
+                new EntityFace(new int[]{ 5, 4, 0, 1 }, (u + sd) * scale, v * scale, (u + sd + sw) * scale, (v + sd) * scale),
+                // UP: vertices v21, v22, v26, v25; UV (u+d+w, v+d, u+d+w+w, v) - note v0 > v1
+                new EntityFace(new int[]{ 2, 3, 7, 6 }, (u + sd + sw) * scale, (v + sd) * scale, (u + sd + sw + sw) * scale, v * scale),
+                // NORTH: vertices v20, v19, v22, v21; UV (u+d, v+d, u+d+w, v+d+h)
+                new EntityFace(new int[]{ 1, 0, 3, 2 }, (u + sd) * scale, (v + sd) * scale, (u + sd + sw) * scale, (v + sd + sh) * scale),
+                // SOUTH: vertices v23, v24, v25, v26; UV (u+d+w+d, v+d, u+d+w+d+w, v+d+h)
+                new EntityFace(new int[]{ 4, 5, 6, 7 }, (u + sd + sw + sd) * scale, (v + sd) * scale, (u + sd + sw + sd + sw) * scale, (v + sd + sh) * scale),
+                // WEST: vertices v19, v23, v26, v22; UV (u, v+d, u+d, v+d+h)
+                new EntityFace(new int[]{ 0, 4, 7, 3 }, u * scale, (v + sd) * scale, (u + sd) * scale, (v + sd + sh) * scale),
+                // EAST: vertices v24, v20, v21, v25; UV (u+d+w, v+d, u+d+w+d, v+d+h)
+                new EntityFace(new int[]{ 5, 1, 2, 6 }, (u + sd + sw) * scale, (v + sd) * scale, (u + sd + sw + sd) * scale, (v + sd + sh) * scale)
+            };
+
+            JsonObject faces = new JsonObject();
+            for (EntityFace face : entityFaces)
+                emitBlockFace(face, blockCorners, minX, minY, minZ, maxX, maxY, maxZ, faces);
+
+            JsonObject element = new JsonObject();
+            JsonArray from = new JsonArray(); from.add(round2(minX)); from.add(round2(minY)); from.add(round2(minZ));
+            JsonArray to = new JsonArray(); to.add(round2(maxX)); to.add(round2(maxY)); to.add(round2(maxZ));
+            element.add("from", from);
+            element.add("to", to);
+            element.add("faces", faces);
+            return element;
+        }
+
+        /**
+         * Determines which block face the four transformed vertices of an entity face land on,
+         * matches them to that block face's TL/BL/BR/TR corners (per
+         * {@link dev.sbs.renderer.geometry.BlockFace}'s vertex-index conventions), and emits a
+         * single block face entry whose UV rectangle and rotation tag reproduce the per-vertex UVs.
+         */
+        private static void emitBlockFace(
+            @NotNull EntityFace face,
+            float @NotNull [] @NotNull [] blockCorners,
+            float minX, float minY, float minZ,
+            float maxX, float maxY, float maxZ,
+            @NotNull JsonObject facesOut
+        ) {
+            float[] p0 = blockCorners[face.vertexIndices[0]];
+            float[] p1 = blockCorners[face.vertexIndices[1]];
+            float[] p2 = blockCorners[face.vertexIndices[2]];
+            float[] p3 = blockCorners[face.vertexIndices[3]];
+
+            // Cross product of two edges gives the face normal.
+            float[] e1 = { p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2] };
+            float[] e2 = { p3[0] - p0[0], p3[1] - p0[1], p3[2] - p0[2] };
+            float[] normal = {
+                e1[1] * e2[2] - e1[2] * e2[1],
+                e1[2] * e2[0] - e1[0] * e2[2],
+                e1[0] * e2[1] - e1[1] * e2[0]
+            };
+
+            int blockFaceIdx = snapToCardinal(normal);
+            String blockFaceName = BLOCK_FACE_NAMES[blockFaceIdx];
+
+            // Block-face TL/BL/BR/TR positions, matching BlockFace.corners(...) for this bbox.
+            float[][] blockFaceCorners = blockFaceCornersOf(blockFaceIdx, minX, minY, minZ, maxX, maxY, maxZ);
+
+            // For each transformed vertex of the entity face, look up the (uMin/uMax, vMin/vMax)
+            // it carries (per the four-corner UV order: v[0]→(u1,v0), v[1]→(u0,v0), v[2]→(u0,v1), v[3]→(u1,v1)),
+            // then attach that UV to whichever block-face corner the vertex landed at.
+            float[][] entityFaceUv = {
+                { face.u1, face.v0 },
+                { face.u0, face.v0 },
+                { face.u0, face.v1 },
+                { face.u1, face.v1 }
+            };
+            float[][] blockCornerUv = new float[4][2];
+            float[][] entityFacePos = { p0, p1, p2, p3 };
+            for (int i = 0; i < 4; i++) {
+                int blockCorner = matchCorner(entityFacePos[i], blockFaceCorners);
+                blockCornerUv[blockCorner] = entityFaceUv[i];
+            }
+
+            // The four UVs at TL/BL/BR/TR form one of D4's eight orientations of a UV rectangle.
+            // For each candidate rotation R in {0, 90, 180, 270}, undo R by cyclic-shifting back
+            // (the "old" canonical corners). If the undone corners satisfy vanilla's uvCorners
+            // shape (TL/BL share u, TR/BR share u, TL/TR share v, BL/BR share v), the rotation
+            // is correct - emit (u0=TL_old.u, v0=TL_old.v, u1=BR_old.u, v1=BR_old.v) and tag.
+            // Implicit u/v flips are handled by allowing u0 > u1 or v0 > v1 in the output.
+            int rotation = 0;
+            float u0 = 0, v0 = 0, u1 = 0, v1 = 0;
+            for (int r = 0; r < 4; r++) {
+                float[] tlOld = blockCornerUv[(0 - r + 4) % 4];
+                float[] blOld = blockCornerUv[(1 - r + 4) % 4];
+                float[] brOld = blockCornerUv[(2 - r + 4) % 4];
+                float[] trOld = blockCornerUv[(3 - r + 4) % 4];
+                if (approxEqual(tlOld[0], blOld[0]) && approxEqual(trOld[0], brOld[0])
+                    && approxEqual(tlOld[1], trOld[1]) && approxEqual(blOld[1], brOld[1])) {
+                    u0 = tlOld[0]; v0 = tlOld[1]; u1 = brOld[0]; v1 = brOld[1];
+                    rotation = r * 90;
+                    break;
+                }
+            }
+
+            JsonObject blockFace = new JsonObject();
+            blockFace.addProperty("texture", "#entity");
+            JsonArray uvArr = new JsonArray();
+            uvArr.add(round2(u0)); uvArr.add(round2(v0)); uvArr.add(round2(u1)); uvArr.add(round2(v1));
+            blockFace.add("uv", uvArr);
+            if (rotation != 0) blockFace.addProperty("rotation", rotation);
+            facesOut.add(blockFaceName, blockFace);
+        }
+
+        /** Applies bone rotation, pivot, then either the inventory transform or a Y-flip. */
+        private static float @NotNull [] applyTransform(
+            float @NotNull [] entityCorner,
+            double @org.jetbrains.annotations.Nullable [][] boneRot,
+            float px, float py, float pz,
+            float @org.jetbrains.annotations.Nullable [] invTransform,
+            boolean hasInvTransform
+        ) {
+            float cx = entityCorner[0], cy = entityCorner[1], cz = entityCorner[2];
+
+            if (boneRot != null) {
+                double rx2 = boneRot[0][0]*cx + boneRot[0][1]*cy + boneRot[0][2]*cz;
+                double ry2 = boneRot[1][0]*cx + boneRot[1][1]*cy + boneRot[1][2]*cz;
+                double rz2 = boneRot[2][0]*cx + boneRot[2][1]*cy + boneRot[2][2]*cz;
+                cx = (float) rx2; cy = (float) ry2; cz = (float) rz2;
+            }
+
+            cx += px; cy += py; cz += pz;
+
+            if (hasInvTransform) {
+                float pitch = (float) Math.toRadians(invTransform[3]);
+                float cosP = (float) Math.cos(pitch), sinP = (float) Math.sin(pitch);
+                float ry = cy * cosP - cz * sinP;
+                float rz = cy * sinP + cz * cosP;
+                cy = ry + invTransform[1];
+                cz = rz + invTransform[2];
+                cx += invTransform[0];
+            } else {
+                cy = -cy;
+            }
+
+            return new float[]{ cx, cy, cz };
+        }
+
+        /** Returns the index into {@link #BLOCK_FACE_NORMALS} closest to the given normal. */
+        private static int snapToCardinal(float @NotNull [] normal) {
+            float absX = Math.abs(normal[0]);
+            float absY = Math.abs(normal[1]);
+            float absZ = Math.abs(normal[2]);
+            if (absY >= absX && absY >= absZ) return normal[1] > 0 ? 1 : 0;
+            if (absZ >= absX) return normal[2] > 0 ? 3 : 2;
+            return normal[0] > 0 ? 5 : 4;
+        }
+
+        /**
+         * Returns the four TL, BL, BR, TR corner positions for a block face on the given bbox,
+         * matching the vertex-index order used by {@link dev.sbs.renderer.geometry.BlockFace}.
+         */
+        private static float[][] blockFaceCornersOf(int faceIdx, float x0, float y0, float z0, float x1, float y1, float z1) {
+            return switch (faceIdx) {
+                case 0 -> new float[][]{                   // DOWN: indices 4, 0, 1, 5
+                    { x0, y0, z1 }, { x0, y0, z0 }, { x1, y0, z0 }, { x1, y0, z1 }
+                };
+                case 1 -> new float[][]{                   // UP: indices 3, 7, 6, 2
+                    { x0, y1, z0 }, { x0, y1, z1 }, { x1, y1, z1 }, { x1, y1, z0 }
+                };
+                case 2 -> new float[][]{                   // NORTH: indices 2, 1, 0, 3
+                    { x1, y1, z0 }, { x1, y0, z0 }, { x0, y0, z0 }, { x0, y1, z0 }
+                };
+                case 3 -> new float[][]{                   // SOUTH: indices 7, 4, 5, 6
+                    { x0, y1, z1 }, { x0, y0, z1 }, { x1, y0, z1 }, { x1, y1, z1 }
+                };
+                case 4 -> new float[][]{                   // WEST: indices 3, 0, 4, 7
+                    { x0, y1, z0 }, { x0, y0, z0 }, { x0, y0, z1 }, { x0, y1, z1 }
+                };
+                default -> new float[][]{                  // EAST: indices 6, 5, 1, 2
+                    { x1, y1, z1 }, { x1, y0, z1 }, { x1, y0, z0 }, { x1, y1, z0 }
+                };
+            };
+        }
+
+        /** Returns the index (0=TL, 1=BL, 2=BR, 3=TR) of {@code blockFaceCorners} closest to {@code position}. */
+        private static int matchCorner(float @NotNull [] position, float @NotNull [] @NotNull [] blockFaceCorners) {
+            int best = 0;
+            float bestDist = Float.MAX_VALUE;
+            for (int i = 0; i < 4; i++) {
+                float dx = position[0] - blockFaceCorners[i][0];
+                float dy = position[1] - blockFaceCorners[i][1];
+                float dz = position[2] - blockFaceCorners[i][2];
+                float dist = dx * dx + dy * dy + dz * dz;
+                if (dist < bestDist) { bestDist = dist; best = i; }
+            }
+            return best;
+        }
+
+        private static boolean approxEqual(float a, float b) {
+            return Math.abs(a - b) < 1e-4f;
+        }
+
         private static double[][] matMul3(double[][] a, double[][] b) {
             double[][] r = new double[3][3];
             for (int i = 0; i < 3; i++)
@@ -626,19 +814,17 @@ public final class ToolingBlockEntityModels {
             return r;
         }
 
-        private static void addFace(@NotNull JsonObject faces, @NotNull String dir, float u0, float v0, float u1, float v1, int rotation) {
-            JsonObject face = new JsonObject();
-            face.addProperty("texture", "#entity");
-            JsonArray uv = new JsonArray();
-            uv.add(round2(u0)); uv.add(round2(v0)); uv.add(round2(u1)); uv.add(round2(v1));
-            face.add("uv", uv);
-            if (rotation != 0) face.addProperty("rotation", rotation);
-            faces.add(dir, face);
-        }
-
         private static float round2(double v) {
             return (float) (Math.round(v * 100.0) / 100.0);
         }
+
+        /**
+         * One of the six entity faces of a cube: the four vertex indices into the eight-corner
+         * layout {@code v19..v26} (re-indexed 0..7), and the four UV-rectangle edges. The four
+         * UVs assigned to {@code (u1, v0), (u0, v0), (u0, v1), (u1, v1)} are paired with the
+         * four vertices in the order vanilla's {@code Polygon} constructor uses.
+         */
+        private record EntityFace(int @NotNull [] vertexIndices, float u0, float v0, float u1, float v1) {}
 
     }
 
