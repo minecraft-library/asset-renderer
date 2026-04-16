@@ -23,6 +23,7 @@ import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.IntInsnNode;
+import org.objectweb.asm.tree.JumpInsnNode;
 import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
@@ -130,7 +131,25 @@ public final class ToolingBlockEntityModels {
             // {@code ChestRenderer} yaws the rendering by {@code -NORTH.toYRot() = 180} to face
             // the lock toward the camera; that pose is carried through as {@code inventoryYRotation}.
             new Source("net/minecraft/client/model/object/chest/ChestModel.class", "createSingleBodyLayer", "minecraft:chest", YAxis.UP, 180f),
-            new Source("net/minecraft/client/model/object/banner/BannerFlagModel.class", "createFlagLayer", "minecraft:banner", YAxis.DOWN, 0f),
+
+            // BannerModel.createBodyLayer(boolean isStanding) + BannerFlagModel.createFlagLayer(boolean isStanding)
+            // - vanilla splits banner geometry across two model classes. BannerModel owns
+            // pole + bar; BannerFlagModel owns the flag. Both select standing-vs-wall via a
+            // boolean parameter that gates PartPose.offset and addBox values through ifeq/goto
+            // chains. We parse the isStanding=true branch via {@code paramIntValues=[1]} so
+            // the parser follows the control flow (see {@link #walkInstructions}'s ILOAD /
+            // IFEQ / GOTO handling). The flag merges into the primary banner via the `parts`
+            // field in block_entity_mappings.json.
+            //
+            // inventoryYRotation=180: vanilla's BannerRenderer places the flag on the +Z
+            // (SOUTH) side of the pole, which under our standard iso gui rotation [30, 225, 0]
+            // ends up BEHIND the pole (camera-facing side is NORTH / -Z). The banner item's
+            // display.gui rotation is [30, 20, 0] - a ~180° yaw delta from our block default -
+            // so the actual inventory icon player sees has the flag facing the camera. Bake
+            // a Y-rotation around block centre so the flag lands on -Z side and stays visible
+            // under our iso pose (same pattern as chest).
+            new Source("net/minecraft/client/model/object/banner/BannerModel.class", "createBodyLayer", "minecraft:banner", YAxis.DOWN, 180f, null, null, new int[]{ 1 }),
+            new Source("net/minecraft/client/model/object/banner/BannerFlagModel.class", "createFlagLayer", "minecraft:banner_flag", YAxis.DOWN, 180f, null, null, new int[]{ 1 }),
             new Source("net/minecraft/client/renderer/blockentity/BedRenderer.class", "createHeadLayer", "minecraft:bed_head", YAxis.DOWN, 0f),
             new Source("net/minecraft/client/renderer/blockentity/BedRenderer.class", "createFootLayer", "minecraft:bed_foot", YAxis.DOWN, 0f),
             new Source("net/minecraft/client/model/monster/shulker/ShulkerModel.class", "createShellMesh", "minecraft:shulker_box", YAxis.DOWN, 0f),
@@ -214,11 +233,16 @@ public final class ToolingBlockEntityModels {
             @NotNull YAxis yAxis,
             float inventoryYRotation,
             @Nullable Integer texWidthOverride,
-            @Nullable Integer texHeightOverride
+            @Nullable Integer texHeightOverride,
+            int @Nullable [] paramIntValues
         ) {
 
             Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation) {
-                this(classEntry, methodName, entityId, yAxis, inventoryYRotation, null, null);
+                this(classEntry, methodName, entityId, yAxis, inventoryYRotation, null, null, null);
+            }
+
+            Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation, @Nullable Integer texWidthOverride, @Nullable Integer texHeightOverride) {
+                this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, null);
             }
 
         }
@@ -256,7 +280,7 @@ public final class ToolingBlockEntityModels {
                             continue;
                         }
 
-                        JsonObject model = parseLayerMethod(method.instructions, zip);
+                        JsonObject model = parseLayerMethod(method.instructions, zip, source.paramIntValues);
                         if (model != null) {
                             // Source overrides apply when the parsed method doesn't call
                             // LayerDefinition.create itself (e.g. SkullModel.createHeadModel returns
@@ -327,8 +351,9 @@ public final class ToolingBlockEntityModels {
          * {@code PiglinHeadModel.createHeadModel -> PiglinModel.addHead} resolve without
          * needing a dedicated source entry per delegate.
          */
-        private static @Nullable JsonObject parseLayerMethod(@NotNull InsnList instructions, @NotNull ZipFile zip) {
+        private static @Nullable JsonObject parseLayerMethod(@NotNull InsnList instructions, @NotNull ZipFile zip, int @Nullable [] paramIntValues) {
             ParseState state = new ParseState();
+            state.paramIntValues = paramIntValues;
             walkInstructions(instructions, state, zip);
 
             if (state.bones.isEmpty()) return null;
@@ -356,6 +381,39 @@ public final class ToolingBlockEntityModels {
                 }
 
                 int opcode = node.getOpcode();
+
+                // Conditional / unconditional jumps. Only followed when {@code paramIntValues}
+                // is supplied - without a known parameter value, the parser falls back to its
+                // default linear walk (which picks up LDCs on both branches of an if/else).
+                // GOTO always jumps (target is determined statically by javac); IFEQ / IFNE
+                // consume the top of {@link ParseState#branchStack} so the taken branch is
+                // decided by the ILOAD slot's known value. Other jump opcodes (icmp, ifnull,
+                // etc.) aren't emitted by the layer-build patterns we parse and are treated
+                // as no-ops for now.
+                if (state.paramIntValues != null && node instanceof JumpInsnNode jumpInsn) {
+                    if (opcode == Opcodes.GOTO) {
+                        node = jumpInsn.label;
+                        continue;
+                    }
+                    if ((opcode == Opcodes.IFEQ || opcode == Opcodes.IFNE) && !state.branchStack.isEmpty()) {
+                        int value = state.branchStack.remove(state.branchStack.size() - 1);
+                        boolean jump = opcode == Opcodes.IFEQ ? value == 0 : value != 0;
+                        if (jump) {
+                            node = jumpInsn.label;
+                            continue;
+                        }
+                    }
+                }
+
+                // ILOAD N: if the source declared a value for slot N, push it onto the
+                // branch stack so the upcoming IFEQ / IFNE can evaluate the conditional.
+                // We still fall through to the {@code switch} below because ILOAD doesn't
+                // match any case there - no side effect on {@link ParseState#numStack}.
+                if (state.paramIntValues != null && node instanceof VarInsnNode varInsn && opcode == Opcodes.ILOAD) {
+                    int slot = varInsn.var;
+                    if (slot >= 0 && slot < state.paramIntValues.length)
+                        state.branchStack.add(state.paramIntValues[slot]);
+                }
 
                 switch (node) {
                     case FieldInsnNode fieldInsn when opcode == Opcodes.GETSTATIC -> {
@@ -620,6 +678,17 @@ public final class ToolingBlockEntityModels {
         /** Mutable parse state threaded through one top-level method parse (plus any inlined invokestatic targets). */
         private static final class ParseState {
             final @NotNull ConcurrentList<Number> numStack = Concurrent.newList();
+            /**
+             * Int values to substitute for {@code ILOAD_N} parameters when evaluating branches.
+             * {@code paramIntValues[N]} is pushed onto {@link #branchStack} whenever an iload
+             * references slot {@code N}, so the subsequent {@code IFEQ} / {@code IFNE} pops a
+             * concrete value and jumps (or not). {@code null} disables branch evaluation -
+             * the parser falls back to its default linear walk and lets both sides of any
+             * conditional land on {@link #numStack}.
+             */
+            int @Nullable [] paramIntValues;
+            /** Pushed by ILOAD when the slot maps to a paramIntValues entry; consumed by IFEQ / IFNE. */
+            final @NotNull ConcurrentList<Integer> branchStack = Concurrent.newList();
             /** Most recent ldc String - tracks both bone names and inner cube names. */
             @Nullable String pendingPartName;
             /** Snapshot of {@link #pendingPartName} at CubeListBuilder.create(); preserved across inner ldc Strings from addBox(String, ...) variants. */
@@ -805,7 +874,18 @@ public final class ToolingBlockEntityModels {
             // translate(0, -0.3125, 0) * scale(1, -1, -1). Folds to translate(0.5, 0.625, 0.5)
             // for yaw=0, i.e. model-units translate(8, 10, 8), plus Rx(180) for the Y/Z flips.
             // No uniform shrink - hanging sign is authored to fit within a block already.
-            Map.entry("minecraft:hanging_sign", new float[]{ 8, 10, 8, 180, 0, 0 })
+            Map.entry("minecraft:hanging_sign", new float[]{ 8, 10, 8, 180, 0, 0 }),
+            // BannerRenderer.modelTransformation: Transformation(MODEL_TRANSLATION,
+            // Axis.YP.rotationDegrees(-yaw), MODEL_SCALE, null) where MODEL_TRANSLATION =
+            // (0.5, 0, 0.5) and MODEL_SCALE = (2/3, -2/3, -2/3). Same decomposition as the
+            // standing sign: positive uniform 2/3 + Rx(180) for the Y/Z sign flips, with
+            // translate(8, 0, 8) to land at block centre on X/Z (Y stays at 0 because vanilla
+            // doesn't translate the banner up - the pole extends from y=0 down to y=-42 in
+            // model units, flipped up post-Rx). Same transform for pole+bar (`minecraft:banner`)
+            // and the flag (`minecraft:banner_flag`) since both are rendered under the same
+            // PoseStack in BannerRenderer.submitBanner.
+            Map.entry("minecraft:banner", new float[]{ 8, 0, 8, 180, 0, 0, 0.6666667f }),
+            Map.entry("minecraft:banner_flag", new float[]{ 8, 0, 8, 180, 0, 0, 0.6666667f })
         );
 
         /** Names of the six block-model face directions, indexed in down/up/north/south/west/east order. */

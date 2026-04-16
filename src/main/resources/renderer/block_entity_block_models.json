@@ -1849,6 +1849,148 @@
       }
     ]
   },
+  "minecraft:banner": {
+    "textureWidth": 64,
+    "textureHeight": 64,
+    "elements": [
+      {
+        "from": [
+          7.33,
+          0.0,
+          7.33
+        ],
+        "to": [
+          8.67,
+          28.0,
+          8.67
+        ],
+        "faces": {
+          "up": {
+            "texture": "#entity",
+            "uv": [
+              12.0,
+              0.5,
+              11.5,
+              0.0
+            ]
+          },
+          "down": {
+            "texture": "#entity",
+            "uv": [
+              12.5,
+              0.0,
+              12.0,
+              0.5
+            ]
+          },
+          "north": {
+            "texture": "#entity",
+            "uv": [
+              11.5,
+              0.5,
+              12.0,
+              11.0
+            ]
+          },
+          "south": {
+            "texture": "#entity",
+            "uv": [
+              12.5,
+              0.5,
+              13.0,
+              11.0
+            ]
+          },
+          "east": {
+            "texture": "#entity",
+            "uv": [
+              11.0,
+              0.5,
+              11.5,
+              11.0
+            ]
+          },
+          "west": {
+            "texture": "#entity",
+            "uv": [
+              12.0,
+              0.5,
+              12.5,
+              11.0
+            ]
+          }
+        }
+      },
+      {
+        "from": [
+          1.33,
+          28.0,
+          7.33
+        ],
+        "to": [
+          14.67,
+          29.33,
+          8.67
+        ],
+        "faces": {
+          "up": {
+            "texture": "#entity",
+            "uv": [
+              5.5,
+              11.0,
+              0.5,
+              10.5
+            ]
+          },
+          "down": {
+            "texture": "#entity",
+            "uv": [
+              10.5,
+              10.5,
+              5.5,
+              11.0
+            ]
+          },
+          "north": {
+            "texture": "#entity",
+            "uv": [
+              0.5,
+              11.0,
+              5.5,
+              11.5
+            ]
+          },
+          "south": {
+            "texture": "#entity",
+            "uv": [
+              6.0,
+              11.0,
+              11.0,
+              11.5
+            ]
+          },
+          "east": {
+            "texture": "#entity",
+            "uv": [
+              0.0,
+              11.0,
+              0.5,
+              11.5
+            ]
+          },
+          "west": {
+            "texture": "#entity",
+            "uv": [
+              5.5,
+              11.0,
+              6.0,
+              11.5
+            ]
+          }
+        }
+      }
+    ]
+  },
   "minecraft:skull_humanoid_head": {
     "textureWidth": 64,
     "textureHeight": 64,
@@ -1917,80 +2059,6 @@
               2.0,
               6.0,
               4.0
-            ]
-          }
-        }
-      }
-    ]
-  },
-  "minecraft:banner": {
-    "textureWidth": 64,
-    "textureHeight": 64,
-    "elements": [
-      {
-        "from": [
-          -30.5,
-          -40.0,
-          8.5
-        ],
-        "to": [
-          -10.5,
-          0.0,
-          9.5
-        ],
-        "faces": {
-          "down": {
-            "texture": "#entity",
-            "uv": [
-              0.25,
-              0.0,
-              5.25,
-              0.25
-            ]
-          },
-          "up": {
-            "texture": "#entity",
-            "uv": [
-              5.25,
-              0.25,
-              10.25,
-              0.0
-            ]
-          },
-          "south": {
-            "texture": "#entity",
-            "uv": [
-              0.25,
-              0.25,
-              5.25,
-              10.25
-            ]
-          },
-          "north": {
-            "texture": "#entity",
-            "uv": [
-              5.5,
-              0.25,
-              10.5,
-              10.25
-            ]
-          },
-          "east": {
-            "texture": "#entity",
-            "uv": [
-              0.0,
-              0.25,
-              0.25,
-              10.25
-            ]
-          },
-          "west": {
-            "texture": "#entity",
-            "uv": [
-              5.25,
-              0.25,
-              5.5,
-              10.25
             ]
           }
         }
@@ -2423,6 +2491,80 @@
               2.5,
               12.0,
               3.75
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "minecraft:banner_flag": {
+    "textureWidth": 64,
+    "textureHeight": 64,
+    "elements": [
+      {
+        "from": [
+          1.33,
+          2.67,
+          6.67
+        ],
+        "to": [
+          14.67,
+          29.33,
+          7.33
+        ],
+        "faces": {
+          "up": {
+            "texture": "#entity",
+            "uv": [
+              5.25,
+              0.25,
+              0.25,
+              0.0
+            ]
+          },
+          "down": {
+            "texture": "#entity",
+            "uv": [
+              10.25,
+              0.0,
+              5.25,
+              0.25
+            ]
+          },
+          "north": {
+            "texture": "#entity",
+            "uv": [
+              0.25,
+              0.25,
+              5.25,
+              10.25
+            ]
+          },
+          "south": {
+            "texture": "#entity",
+            "uv": [
+              5.5,
+              0.25,
+              10.5,
+              10.25
+            ]
+          },
+          "east": {
+            "texture": "#entity",
+            "uv": [
+              0.0,
+              0.25,
+              0.25,
+              10.25
+            ]
+          },
+          "west": {
+            "texture": "#entity",
+            "uv": [
+              5.25,
+              0.25,
+              5.5,
+              10.25
             ]
           }
         }

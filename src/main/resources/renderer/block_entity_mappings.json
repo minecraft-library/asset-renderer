@@ -695,5 +695,169 @@
       "blockId": "minecraft:player_wall_head",
       "textureId": "minecraft:entity/player/wide/steve"
     }
+  ],
+  "minecraft:banner": [
+    {
+      "//": "Standing banners: pole+bar (primary) merged with flag (part). All 16 dye colours share the same entity/banner/banner_base 64x64 texture - vanilla applies per-colour DyeColor tint at render time via ItemColors/BlockColors, which our atlas pipeline doesn't model yet. All variants currently render as the untinted (white) banner; per-colour tinting is future work.",
+      "blockId": "minecraft:white_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:orange_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:magenta_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:light_blue_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:yellow_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:lime_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:pink_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:gray_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:light_gray_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:cyan_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:purple_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:blue_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:brown_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:green_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:red_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:black_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "//": "Wall banners: same geometry as standing (includes pole) - intentional simplification. Vanilla's BannerModel.createBodyLayer(false) drops the pole for wall-mounted banners, but wiring a separate model for wall variants adds complexity without user-visible benefit in the atlas (tiles are small enough that the post overlaps the flag anyway). Accepting the pole on wall banners as a known limitation.",
+      "blockId": "minecraft:white_wall_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:orange_wall_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:magenta_wall_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:light_blue_wall_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:yellow_wall_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:lime_wall_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:pink_wall_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:gray_wall_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:light_gray_wall_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:cyan_wall_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:purple_wall_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:blue_wall_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:brown_wall_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:green_wall_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:red_wall_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    },
+    {
+      "blockId": "minecraft:black_wall_banner",
+      "textureId": "minecraft:entity/banner/banner_base",
+      "parts": [{ "model": "minecraft:banner_flag", "texture": "minecraft:entity/banner/banner_base" }]
+    }
   ]
 }

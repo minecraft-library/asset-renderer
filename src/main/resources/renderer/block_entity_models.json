@@ -6,11 +6,85 @@
       "textureWidth": 64,
       "textureHeight": 64,
       "bones": {
+        "pole": {
+          "pivot": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -1.0,
+                -42.0,
+                -1.0
+              ],
+              "size": [
+                2.0,
+                42.0,
+                2.0
+              ],
+              "uv": [
+                44,
+                0
+              ],
+              "inflate": 0.0,
+              "mirror": false,
+              "face_uv": {}
+            }
+          ]
+        },
+        "bar": {
+          "pivot": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -10.0,
+                -44.0,
+                -1.0
+              ],
+              "size": [
+                20.0,
+                2.0,
+                2.0
+              ],
+              "uv": [
+                0,
+                42
+              ],
+              "inflate": 0.0,
+              "mirror": false,
+              "face_uv": {}
+            }
+          ]
+        }
+      },
+      "y_axis": "DOWN",
+      "inventory_y_rotation": 180.0
+    },
+    "minecraft:banner_flag": {
+      "textureWidth": 64,
+      "textureHeight": 64,
+      "bones": {
         "flag": {
           "pivot": [
-            -20.5,
             0.0,
-            10.5
+            -44.0,
+            0.0
           ],
           "rotation": [
             0.0,
@@ -40,7 +114,8 @@
           ]
         }
       },
-      "y_axis": "DOWN"
+      "y_axis": "DOWN",
+      "inventory_y_rotation": 180.0
     },
     "minecraft:bed_foot": {
       "textureWidth": 64,
