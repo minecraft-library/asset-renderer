@@ -138,11 +138,22 @@ public final class ToolingBlockEntityModels {
             new Source("net/minecraft/client/renderer/blockentity/HangingSignRenderer.class", "createHangingSignLayer", "minecraft:hanging_sign", YAxis.DOWN, 0f),
             new Source("net/minecraft/client/renderer/blockentity/ConduitRenderer.class", "createShellLayer", "minecraft:conduit", YAxis.DOWN, 0f),
 
-            // DecoratedPotRenderer.createBaseLayer is the main pot geometry (foot + belly + neck
-            // + top rim). The createSidesLayer produces separate quads for the sherd decorations
-            // - skipped for the atlas icon because it requires per-face pattern lookups we do
-            // not model here; the base layer by itself shows a recognisable empty pot.
+            // DecoratedPotRenderer authors its cubes in block-space Y-up (cube y=17..20 for the
+            // neck rim sits above the block top, lid/base decals at y=16 / y=0), so the default
+            // Y-flip would bury everything below the block floor. The neutral INVENTORY_TRANSFORMS
+            // entry below skips the flip and leaves positions as-authored.
+            //
+            // The pot needs TWO layers because vanilla's decorated_pot block.json has no elements -
+            // the whole pot comes from the renderer:
+            //   - createBaseLayer produces the neck/lid/base (neck bone with two cubes, plus
+            //     top + bottom flat decals sharing one pre-built CubeListBuilder via astore_4 +
+            //     aload_4).
+            //   - createSidesLayer produces the four wall panels (front/back/left/right) that
+            //     form the pot body, each rotated around its pivot to face a different side.
+            // Both layers are linked via `parts` in block_entity_mappings.json so the loader
+            // merges them into a single pot model.
             new Source("net/minecraft/client/renderer/blockentity/DecoratedPotRenderer.class", "createBaseLayer", "minecraft:decorated_pot", YAxis.DOWN, 0f),
+            new Source("net/minecraft/client/renderer/blockentity/DecoratedPotRenderer.class", "createSidesLayer", "minecraft:decorated_pot_sides", YAxis.DOWN, 0f),
 
             // CopperGolemStatueBlockRenderer bakes four Copper Golem poses
             // (COPPER_GOLEM / _RUNNING / _SITTING / _STAR from ModelLayers); picks one per
@@ -360,16 +371,31 @@ public final class ToolingBlockEntityModels {
                     // {@code head = root.addOrReplaceChild("head", ...); head.addOrReplaceChild("jaw", ...);}
                     // which compiles to {@code invokevirtual; astore_N; aload_N;} around the child's
                     // builder chain - so astore-after-flush and aload-before-chain are our hooks.
+                    // Additionally, slots may hold a pre-built CubeListBuilder that multiple
+                    // addOrReplaceChild calls share (DecoratedPotRenderer stores one builder and
+                    // reuses it for both {@code top} and {@code bottom} bones). Snapshot pending
+                    // cubes into {@link ParseState#slotToCubes} so a later aload_N can re-hydrate
+                    // them for the next bone without re-reading the same addBox literals.
                     case VarInsnNode varInsn when opcode == Opcodes.ASTORE -> {
                         if (state.lastFlushedBone != null) {
                             state.localSlotBone.put(varInsn.var, state.lastFlushedBone);
                             state.lastFlushedBone = null;
+                        } else if (!state.pendingCubes.isEmpty()) {
+                            ConcurrentList<float[]> snapshot = Concurrent.newList();
+                            for (float[] c : state.pendingCubes) snapshot.add(c.clone());
+                            state.slotToCubes.put(varInsn.var, snapshot);
+                            state.pendingCubes = Concurrent.newList();
+                            state.pendingUv = new int[]{ 0, 0 };
                         }
                     }
                     case VarInsnNode varInsn when opcode == Opcodes.ALOAD -> {
                         String parent = state.localSlotBone.get(varInsn.var);
                         if (parent != null)
                             state.nextParent = parent;
+                        ConcurrentList<float[]> savedCubes = state.slotToCubes.get(varInsn.var);
+                        if (savedCubes != null) {
+                            for (float[] c : savedCubes) state.pendingCubes.add(c.clone());
+                        }
                     }
                     case LdcInsnNode ldc when ldc.cst instanceof String s ->
                         state.pendingPartName = s;
@@ -418,10 +444,14 @@ public final class ToolingBlockEntityModels {
                     // overwrite the addOrReplaceChild key. Also snapshot the parent captured
                     // from the most recent aload (typically the slot holding the parent
                     // PartDefinition returned by an earlier addOrReplaceChild).
+                    // Clear {@code lastFlushedBone} since a new builder is now on the operand
+                    // stack - any astore_N that follows stores the builder, not a stale
+                    // PartDefinition the caller already discarded via {@code pop}.
                     if (state.pendingPartName != null)
                         state.boneName = state.pendingPartName;
                     state.parentBone = state.nextParent;
                     state.nextParent = null;
+                    state.lastFlushedBone = null;
                 }
                 case "texOffs" -> {
                     if (methodInsn.desc.startsWith("(II")) {
@@ -602,6 +632,8 @@ public final class ToolingBlockEntityModels {
             @Nullable String lastFlushedBone;
             /** JVM local-variable slot -> bone name that was stored there via astore_N. */
             final @NotNull ConcurrentMap<Integer, String> localSlotBone = Concurrent.newMap();
+            /** JVM local-variable slot -> captured CubeListBuilder cubes, for builders reused by multiple addOrReplaceChild calls. */
+            final @NotNull ConcurrentMap<Integer, ConcurrentList<float[]>> slotToCubes = Concurrent.newMap();
             /** Flattened pivot + scale for each flushed bone, used to resolve child inheritance. */
             final @NotNull ConcurrentMap<String, BoneMeta> boneMeta = Concurrent.newMap();
             @NotNull ConcurrentList<float[]> pendingCubes = Concurrent.newList();
@@ -742,7 +774,15 @@ public final class ToolingBlockEntityModels {
             // the 0..16 bbox in block space (the head is ~1.5 blocks deep); the runtime
             // recenterAndFit pass in BlockRenderer.Isometric3D rescales it to fit the atlas tile.
             "minecraft:skull_dragon_head", new float[]{ 8, 0, 8, 180, 0, 0 },
-            "minecraft:skull_piglin_head", new float[]{ 8, 0, 8, 180, 0, 0 }
+            "minecraft:skull_piglin_head", new float[]{ 8, 0, 8, 180, 0, 0 },
+            // DecoratedPotRenderer authors cubes in block-space Y-up (neck rim at y=17..20,
+            // lid/base decals at y=16/y=0), and its runtime modelTransformation is just a Y-rotation
+            // around block center for facing - no translate or Y-flip. A neutral inventory transform
+            // (all zeros) skips the default {@code cy = -cy} reflection path so cubes land where
+            // vanilla renders them. The neck rim extending past y=16 triggers the multi-block
+            // recenterAndFit pass at render time.
+            "minecraft:decorated_pot", new float[]{ 0, 0, 0, 0, 0, 0 },
+            "minecraft:decorated_pot_sides", new float[]{ 0, 0, 0, 0, 0, 0 }
         );
 
         /** Names of the six block-model face directions, indexed in down/up/north/south/west/east order. */
@@ -897,6 +937,12 @@ public final class ToolingBlockEntityModels {
                 e1[2] * e2[0] - e1[0] * e2[2],
                 e1[0] * e2[1] - e1[1] * e2[0]
             };
+            // Zero-thickness cubes (flat decals like decorated_pot's lid/base) collapse 4 of the
+            // 6 entity faces into degenerate line segments with zero-magnitude normals. Emitting
+            // them would let the axis-snapping default to blockFaceIdx=0 (down) and clobber the
+            // actual DOWN face's UV with a blank rectangle. Skip any face whose normal vanishes.
+            float normalLenSq = normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2];
+            if (normalLenSq < 1e-6f) return;
             float aNX = Math.abs(normal[0]), aNY = Math.abs(normal[1]), aNZ = Math.abs(normal[2]);
             int blockFaceIdx;
             if (aNY >= aNX && aNY >= aNZ) blockFaceIdx = normal[1] > 0 ? 1 : 0;
@@ -922,6 +968,16 @@ public final class ToolingBlockEntityModels {
             }
 
             UvRect uvRect = resolveUvRotation(blockCornerUv);
+
+            // Zero-thickness cubes (decorated_pot's side panels) emit both entity NORTH and
+            // SOUTH faces from the same quad - vanilla uses {@code EnumSet.of(Direction.NORTH)}
+            // to render only one side but we don't model that filter. The "extra" face's UV
+            // wraps past the texture edge (SOUTH formula gives u1 = u + 2w, which lands beyond
+            // the 0..16 block-UV range for anything wider than half the texture). Skip those
+            // out-of-bounds faces so we don't spray garbage texels onto the back of panels.
+            if (uvRect.u0 < -0.01f || uvRect.u1 < -0.01f || uvRect.u0 > 16.01f || uvRect.u1 > 16.01f
+                || uvRect.v0 < -0.01f || uvRect.v1 < -0.01f || uvRect.v0 > 16.01f || uvRect.v1 > 16.01f)
+                return;
 
             JsonObject blockFace = new JsonObject();
             blockFace.addProperty("texture", "#entity");

@@ -1133,6 +1133,310 @@
       }
     ]
   },
+  "minecraft:decorated_pot": {
+    "textureWidth": 32,
+    "textureHeight": 32,
+    "elements": [
+      {
+        "from": [
+          4.0,
+          17.0,
+          4.0
+        ],
+        "to": [
+          12.0,
+          20.0,
+          12.0
+        ],
+        "faces": {
+          "up": {
+            "texture": "#entity",
+            "uv": [
+              4.0,
+              0.0,
+              8.0,
+              4.0
+            ]
+          },
+          "down": {
+            "texture": "#entity",
+            "uv": [
+              8.0,
+              4.0,
+              12.0,
+              0.0
+            ]
+          },
+          "south": {
+            "texture": "#entity",
+            "uv": [
+              4.0,
+              4.0,
+              8.0,
+              5.5
+            ]
+          },
+          "north": {
+            "texture": "#entity",
+            "uv": [
+              12.0,
+              4.0,
+              16.0,
+              5.5
+            ]
+          },
+          "west": {
+            "texture": "#entity",
+            "uv": [
+              0.0,
+              4.0,
+              4.0,
+              5.5
+            ]
+          },
+          "east": {
+            "texture": "#entity",
+            "uv": [
+              8.0,
+              4.0,
+              12.0,
+              5.5
+            ]
+          }
+        }
+      },
+      {
+        "from": [
+          5.0,
+          16.0,
+          5.0
+        ],
+        "to": [
+          11.0,
+          17.0,
+          11.0
+        ],
+        "faces": {
+          "up": {
+            "texture": "#entity",
+            "uv": [
+              3.0,
+              2.5,
+              6.0,
+              5.5
+            ]
+          },
+          "down": {
+            "texture": "#entity",
+            "uv": [
+              6.0,
+              5.5,
+              9.0,
+              2.5
+            ]
+          },
+          "south": {
+            "texture": "#entity",
+            "uv": [
+              3.0,
+              5.5,
+              6.0,
+              6.0
+            ]
+          },
+          "north": {
+            "texture": "#entity",
+            "uv": [
+              9.0,
+              5.5,
+              12.0,
+              6.0
+            ]
+          },
+          "west": {
+            "texture": "#entity",
+            "uv": [
+              0.0,
+              5.5,
+              3.0,
+              6.0
+            ]
+          },
+          "east": {
+            "texture": "#entity",
+            "uv": [
+              6.0,
+              5.5,
+              9.0,
+              6.0
+            ]
+          }
+        }
+      },
+      {
+        "from": [
+          1.0,
+          16.0,
+          1.0
+        ],
+        "to": [
+          15.0,
+          16.0,
+          15.0
+        ],
+        "faces": {
+          "down": {
+            "texture": "#entity",
+            "uv": [
+              0.0,
+              6.5,
+              7.0,
+              13.5
+            ]
+          },
+          "up": {
+            "texture": "#entity",
+            "uv": [
+              7.0,
+              13.5,
+              14.0,
+              6.5
+            ]
+          }
+        }
+      },
+      {
+        "from": [
+          1.0,
+          0.0,
+          1.0
+        ],
+        "to": [
+          15.0,
+          0.0,
+          15.0
+        ],
+        "faces": {
+          "down": {
+            "texture": "#entity",
+            "uv": [
+              0.0,
+              6.5,
+              7.0,
+              13.5
+            ]
+          },
+          "up": {
+            "texture": "#entity",
+            "uv": [
+              7.0,
+              13.5,
+              14.0,
+              6.5
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "minecraft:decorated_pot_sides": {
+    "textureWidth": 16,
+    "textureHeight": 16,
+    "elements": [
+      {
+        "from": [
+          1.0,
+          0.0,
+          1.0
+        ],
+        "to": [
+          15.0,
+          16.0,
+          1.0
+        ],
+        "faces": {
+          "north": {
+            "texture": "#entity",
+            "uv": [
+              1.0,
+              0.0,
+              15.0,
+              16.0
+            ]
+          }
+        }
+      },
+      {
+        "from": [
+          1.0,
+          0.0,
+          1.0
+        ],
+        "to": [
+          1.0,
+          16.0,
+          15.0
+        ],
+        "faces": {
+          "west": {
+            "texture": "#entity",
+            "uv": [
+              1.0,
+              0.0,
+              15.0,
+              16.0
+            ]
+          }
+        }
+      },
+      {
+        "from": [
+          15.0,
+          0.0,
+          1.0
+        ],
+        "to": [
+          15.0,
+          16.0,
+          15.0
+        ],
+        "faces": {
+          "east": {
+            "texture": "#entity",
+            "uv": [
+              1.0,
+              0.0,
+              15.0,
+              16.0
+            ]
+          }
+        }
+      },
+      {
+        "from": [
+          1.0,
+          0.0,
+          15.0
+        ],
+        "to": [
+          15.0,
+          16.0,
+          15.0
+        ],
+        "faces": {
+          "south": {
+            "texture": "#entity",
+            "uv": [
+              1.0,
+              0.0,
+              15.0,
+              16.0
+            ]
+          }
+        }
+      }
+    ]
+  },
   "minecraft:skull_head": {
     "textureWidth": 64,
     "textureHeight": 32,
@@ -1359,15 +1663,6 @@
           1.06
         ],
         "faces": {
-          "down": {
-            "texture": "#entity",
-            "uv": [
-              0.0,
-              0.0,
-              0.0,
-              0.0
-            ]
-          },
           "south": {
             "texture": "#entity",
             "uv": [
@@ -1400,15 +1695,6 @@
           1.06
         ],
         "faces": {
-          "down": {
-            "texture": "#entity",
-            "uv": [
-              0.0,
-              0.0,
-              0.0,
-              0.0
-            ]
-          },
           "south": {
             "texture": "#entity",
             "uv": [
@@ -1441,15 +1727,6 @@
           1.06
         ],
         "faces": {
-          "down": {
-            "texture": "#entity",
-            "uv": [
-              0.0,
-              0.0,
-              0.0,
-              0.0
-            ]
-          },
           "south": {
             "texture": "#entity",
             "uv": [
@@ -1482,15 +1759,6 @@
           1.06
         ],
         "faces": {
-          "down": {
-            "texture": "#entity",
-            "uv": [
-              0.0,
-              0.0,
-              0.0,
-              0.0
-            ]
-          },
           "south": {
             "texture": "#entity",
             "uv": [
@@ -1523,15 +1791,6 @@
           0.0
         ],
         "faces": {
-          "down": {
-            "texture": "#entity",
-            "uv": [
-              0.0,
-              0.0,
-              0.0,
-              0.0
-            ]
-          },
           "south": {
             "texture": "#entity",
             "uv": [
@@ -1548,180 +1807,6 @@
               3.0,
               9.5,
               6.0
-            ]
-          }
-        }
-      }
-    ]
-  },
-  "minecraft:decorated_pot": {
-    "textureWidth": 32,
-    "textureHeight": 32,
-    "elements": [
-      {
-        "from": [
-          4.0,
-          -20.0,
-          4.0
-        ],
-        "to": [
-          12.0,
-          -17.0,
-          12.0
-        ],
-        "faces": {
-          "up": {
-            "texture": "#entity",
-            "uv": [
-              4.0,
-              0.0,
-              8.0,
-              4.0
-            ]
-          },
-          "down": {
-            "texture": "#entity",
-            "uv": [
-              8.0,
-              4.0,
-              12.0,
-              0.0
-            ]
-          },
-          "north": {
-            "texture": "#entity",
-            "uv": [
-              8.0,
-              5.5,
-              4.0,
-              4.0
-            ]
-          },
-          "south": {
-            "texture": "#entity",
-            "uv": [
-              16.0,
-              5.5,
-              12.0,
-              4.0
-            ]
-          },
-          "east": {
-            "texture": "#entity",
-            "uv": [
-              4.0,
-              5.5,
-              0.0,
-              4.0
-            ]
-          },
-          "west": {
-            "texture": "#entity",
-            "uv": [
-              12.0,
-              5.5,
-              8.0,
-              4.0
-            ]
-          }
-        }
-      },
-      {
-        "from": [
-          5.0,
-          -17.0,
-          5.0
-        ],
-        "to": [
-          11.0,
-          -16.0,
-          11.0
-        ],
-        "faces": {
-          "up": {
-            "texture": "#entity",
-            "uv": [
-              3.0,
-              2.5,
-              6.0,
-              5.5
-            ]
-          },
-          "down": {
-            "texture": "#entity",
-            "uv": [
-              6.0,
-              5.5,
-              9.0,
-              2.5
-            ]
-          },
-          "north": {
-            "texture": "#entity",
-            "uv": [
-              6.0,
-              6.0,
-              3.0,
-              5.5
-            ]
-          },
-          "south": {
-            "texture": "#entity",
-            "uv": [
-              12.0,
-              6.0,
-              9.0,
-              5.5
-            ]
-          },
-          "east": {
-            "texture": "#entity",
-            "uv": [
-              3.0,
-              6.0,
-              0.0,
-              5.5
-            ]
-          },
-          "west": {
-            "texture": "#entity",
-            "uv": [
-              9.0,
-              6.0,
-              6.0,
-              5.5
-            ]
-          }
-        }
-      },
-      {
-        "from": [
-          1.0,
-          -16.0,
-          1.0
-        ],
-        "to": [
-          15.0,
-          -16.0,
-          15.0
-        ],
-        "faces": {
-          "down": {
-            "texture": "#entity",
-            "uv": [
-              0.0,
-              0.0,
-              0.0,
-              0.0
-            ]
-          },
-          "up": {
-            "texture": "#entity",
-            "uv": [
-              7.0,
-              13.5,
-              14.0,
-              6.5
             ]
           }
         }
