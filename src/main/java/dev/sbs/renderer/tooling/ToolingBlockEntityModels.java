@@ -811,12 +811,28 @@ public final class ToolingBlockEntityModels {
          * Builds the eight entity-space corners (matching vanilla {@code ModelPart$Cube}'s vertex
          * ordering v19..v26), pushes them through the bone + inventory transform chain, then emits
          * a block element by mapping each entity face to a block face via per-vertex UV tracking.
+         * <p>
+         * When the bone rotation conjugated through the inventory + invYRot chain collapses to a
+         * single block-axis rotation (piglin ears tilt Rz(±30°) under Rz(180)-composed inventory
+         * transform = block Rz(±30°)), the element is emitted as an axis-aligned AABB with a
+         * {@code rotation} directive so the tilt is preserved at render time instead of
+         * axis-aligning the rotated cube into a bigger AABB that loses the tilt.
          */
         private static @NotNull JsonObject buildElement(@NotNull CubeDef cube, @NotNull CubeTransform transform, boolean isYUpSource, int texW, int texH) {
             float[][] entityCorners = cube.entityCorners(isYUpSource);
+            ElementRotationInfo blockRot = transform.computeBlockRotation();
+
+            // When the bone rotation maps cleanly onto one of the block axes we output the
+            // unrotated cube (positions run through scale + pivot + inv + invYRot, but NOT bone
+            // rotation) and let the renderer apply the rotation at runtime. Otherwise we fall
+            // back to the AABB of the fully-rotated cube - correct for 90°-symmetric cases like
+            // bed legs where rotation + cube stay axis-aligned, but sacrifices tilt for
+            // asymmetric cubes with non-90° bone rotations.
             float[][] blockCorners = new float[8][3];
             for (int i = 0; i < 8; i++)
-                blockCorners[i] = transform.apply(entityCorners[i]);
+                blockCorners[i] = blockRot != null
+                    ? transform.applyNoBoneRot(entityCorners[i])
+                    : transform.apply(entityCorners[i]);
 
             Bounds bounds = Bounds.of(blockCorners);
             // Block-model UV uses a 0..16 range independent of texture size; at render time the
@@ -835,9 +851,25 @@ public final class ToolingBlockEntityModels {
             JsonArray to = new JsonArray(); to.add(round2(bounds.maxX)); to.add(round2(bounds.maxY)); to.add(round2(bounds.maxZ));
             element.add("from", from);
             element.add("to", to);
+            if (blockRot != null) {
+                // Rotation origin is the bone pivot translated through the non-rotation chain,
+                // matching how vanilla's ModelPart renders: translate(pivot) * R_bone * ...cube
+                // - the pivot lands at the same point whether or not we apply the bone rotation.
+                float[] origin = transform.applyNoBoneRot(new float[]{ 0f, 0f, 0f });
+                JsonObject rotObj = new JsonObject();
+                JsonArray originArr = new JsonArray();
+                originArr.add(round2(origin[0])); originArr.add(round2(origin[1])); originArr.add(round2(origin[2]));
+                rotObj.add("origin", originArr);
+                rotObj.addProperty("axis", blockRot.axis);
+                rotObj.addProperty("angle", blockRot.angle);
+                element.add("rotation", rotObj);
+            }
             element.add("faces", faces);
             return element;
         }
+
+        /** Axis-aligned rotation the renderer should apply to an element - one of x/y/z in degrees. */
+        private record ElementRotationInfo(@NotNull String axis, float angle) {}
 
         /**
          * Determines which block face the four transformed vertices of an entity face land on,
@@ -1085,11 +1117,20 @@ public final class ToolingBlockEntityModels {
                 return new CubeTransform(boneRot, scale, px, py, pz, invTransform, invYRot);
             }
 
+            /** Applies scale + pivot + inventory transform (or Y-flip) + inventory yaw, skipping bone rotation. */
+            float @NotNull [] applyNoBoneRot(float @NotNull [] corner) {
+                return applyChain(corner, false);
+            }
+
             /** Applies scale, bone rotation, pivot, inventory transform (or Y-flip), then inventory yaw. */
             float @NotNull [] apply(float @NotNull [] corner) {
+                return applyChain(corner, true);
+            }
+
+            private float @NotNull [] applyChain(float @NotNull [] corner, boolean withBoneRot) {
                 float cx = corner[0] * scale, cy = corner[1] * scale, cz = corner[2] * scale;
 
-                if (boneRot != null) {
+                if (withBoneRot && boneRot != null) {
                     double rx2 = boneRot[0][0]*cx + boneRot[0][1]*cy + boneRot[0][2]*cz;
                     double ry2 = boneRot[1][0]*cx + boneRot[1][1]*cy + boneRot[1][2]*cz;
                     double rz2 = boneRot[2][0]*cx + boneRot[2][1]*cy + boneRot[2][2]*cz;
@@ -1122,6 +1163,60 @@ public final class ToolingBlockEntityModels {
                 }
 
                 return new float[]{ cx, cy, cz };
+            }
+
+            /**
+             * Conjugates the bone rotation through the linear part of the inventory + invYRot
+             * chain, returning the resulting block-space rotation if and only if its axis lands
+             * on x/y/z. Diagonal axes (bed legs use Rx(90)·Rz(90) ≡ 120° around (1,1,1)/√3) and
+             * pure reflections return {@code null}, falling back to the axis-aligned-bbox path.
+             * <p>
+             * The linear transform is {@code T = R_invYRot · R_inv}, where {@code R_inv} is
+             * {@code Rx(invPitch)} when an inventory transform is present, or the identity when
+             * not (the {@code cy = -cy} reflection path is skipped here - pure reflections don't
+             * cleanly conjugate into an axis-aligned rotation and fall through to the AABB path).
+             * Bone rotation {@code R_bone} becomes block rotation {@code R_block = T · R_bone · T^T}.
+             */
+            @Nullable ElementRotationInfo computeBlockRotation() {
+                if (boneRot == null || invTransform == null) return null;
+
+                double pitch = Math.toRadians(invTransform[3]);
+                double yaw = Math.toRadians(invYRot);
+                double cp = Math.cos(pitch), sp = Math.sin(pitch);
+                double cy = Math.cos(yaw), sy = Math.sin(yaw);
+                double[][] rInv = {{ 1, 0, 0 }, { 0, cp, -sp }, { 0, sp, cp }};
+                double[][] rYaw = {{ cy, 0, sy }, { 0, 1, 0 }, { -sy, 0, cy }};
+                double[][] t = matMul3(rYaw, rInv);
+                double[][] tT = { { t[0][0], t[1][0], t[2][0] }, { t[0][1], t[1][1], t[2][1] }, { t[0][2], t[1][2], t[2][2] } };
+                double[][] rBlock = matMul3(matMul3(t, boneRot), tT);
+
+                // Axis-angle via the standard trace formula. Angle is in [0, π]; the sign is
+                // recovered from whichever principal axis the rotation axis vector aligns with.
+                double trace = rBlock[0][0] + rBlock[1][1] + rBlock[2][2];
+                double cosAngle = Math.max(-1.0, Math.min(1.0, (trace - 1.0) * 0.5));
+                double angle = Math.acos(cosAngle);
+                if (Math.abs(angle) < 1e-4) return null;
+
+                double sinAngle = Math.sin(angle);
+                if (Math.abs(sinAngle) < 1e-4) {
+                    // angle near 180°: rotation axis found from the largest diagonal element
+                    // of R + I. Rare; no model in our sources currently needs this, so punt.
+                    return null;
+                }
+                double ax = (rBlock[2][1] - rBlock[1][2]) / (2 * sinAngle);
+                double ay = (rBlock[0][2] - rBlock[2][0]) / (2 * sinAngle);
+                double az = (rBlock[1][0] - rBlock[0][1]) / (2 * sinAngle);
+
+                double aAbsX = Math.abs(ax), aAbsY = Math.abs(ay), aAbsZ = Math.abs(az);
+                double axisTol = 1e-2;
+                float degAngle = (float) Math.toDegrees(angle);
+                if (aAbsX > 1 - axisTol && aAbsY < axisTol && aAbsZ < axisTol)
+                    return new ElementRotationInfo("x", ax > 0 ? degAngle : -degAngle);
+                if (aAbsY > 1 - axisTol && aAbsX < axisTol && aAbsZ < axisTol)
+                    return new ElementRotationInfo("y", ay > 0 ? degAngle : -degAngle);
+                if (aAbsZ > 1 - axisTol && aAbsX < axisTol && aAbsY < axisTol)
+                    return new ElementRotationInfo("z", az > 0 ? degAngle : -degAngle);
+                return null;
             }
         }
 
