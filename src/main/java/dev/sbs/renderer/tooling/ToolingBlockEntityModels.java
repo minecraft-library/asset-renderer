@@ -26,6 +26,7 @@ import org.objectweb.asm.tree.IntInsnNode;
 import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.VarInsnNode;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -159,14 +160,10 @@ public final class ToolingBlockEntityModels {
             // at origin=(-4,-8,-4). Its two callers - createMobHeadLayer (tex 64x32, used for
             // skeleton / wither_skeleton / creeper) and createHumanoidHeadLayer (tex 64x64,
             // adds a 0.25-inflated "hat" overlay, used for zombie / player) - aren't parseable
-            // directly because they call createHeadModel via invokestatic and our parser
-            // doesn't follow those chains yet. Parse createHeadModel directly and override
-            // tex dimensions to 64x32 (the mob-head convention; 64x64 mob textures are
-            // compatible since they share the top-left 8x8 head region).
+            // directly because they call createHeadModel via invokestatic-follow into the
+            // MeshDefinition builder. Parse createHeadModel directly and override tex
+            // dimensions per variant.
             //
-            // DragonHeadModel.createHeadLayer and PiglinHeadModel.createHeadModel need
-            // further parser features (dragon uses addBox(String,FFF,IIIII); piglin delegates
-            // to PiglinModel.addHead via invokestatic). Tracked as follow-up in plan task 4.
             // inventoryYRotation=180: vanilla item/template_skull's display.gui.rotation is
             // [30, 45, 0] (yaw 45) while our renderer uses the default [30, 225, 0] (yaw 225).
             // Same 180° delta as chest - bake a Y-rotation here so the skull's front face is
@@ -174,13 +171,26 @@ public final class ToolingBlockEntityModels {
             //
             // Two parses of SkullModel.createHeadModel are needed because different skull
             // variants bind textures with different heights: mob skulls (skeleton, wither_skeleton,
-            // creeper, piglin, dragon) use 64x32 entity textures, while humanoid skulls (zombie,
-            // player) use 64x64 player-skin textures where the head occupies the same top-left
-            // 32x16 region. The block-model UV system normalises to (0..16) against the texture's
-            // actual dimensions at render time, so the converter needs to scale V differently per
+            // creeper) use 64x32 entity textures, while humanoid skulls (zombie, player) use
+            // 64x64 player-skin textures where the head occupies the same top-left 32x16 region.
+            // The block-model UV system normalises to (0..16) against the texture's actual
+            // dimensions at render time, so the converter needs to scale V differently per
             // target texture height. Same geometry, two UV calibrations.
             new Source("net/minecraft/client/model/object/skull/SkullModel.class", "createHeadModel", "minecraft:skull_head", YAxis.DOWN, 180f, 64, 32),
-            new Source("net/minecraft/client/model/object/skull/SkullModel.class", "createHeadModel", "minecraft:skull_humanoid_head", YAxis.DOWN, 180f, 64, 64)
+            new Source("net/minecraft/client/model/object/skull/SkullModel.class", "createHeadModel", "minecraft:skull_humanoid_head", YAxis.DOWN, 180f, 64, 64),
+
+            // DragonHeadModel.createHeadLayer - "head" bone with 6 cubes (upper_lip, upper_head,
+            // scale x2, nostril x2) built via addBox(String,FFF,IIIII) inline-UV variant, wrapped
+            // in PartPose.offset(FFF).scaled(0.75f). Plus a "jaw" child bone with one cube via the
+            // standard texOffs+addBox(FFFFFF) pattern. Texture is 256x256 (LayerDefinition.create).
+            new Source("net/minecraft/client/model/object/skull/DragonHeadModel.class", "createHeadLayer", "minecraft:skull_dragon_head", YAxis.DOWN, 180f),
+
+            // PiglinHeadModel.createHeadModel - returns a MeshDefinition populated by invokestatic
+            // AbstractPiglinModel.addHead(CubeDeformation.NONE, mesh). The addHead static is
+            // declared on AbstractPiglinModel but invoked via PiglinModel.addHead (JVM walks
+            // superclass chain). Parser follows net/minecraft/client/model/ invokestatic calls
+            // outside the /geom/ builder package to pick up this pattern.
+            new Source("net/minecraft/client/model/object/skull/PiglinHeadModel.class", "createHeadModel", "minecraft:skull_piglin_head", YAxis.DOWN, 180f, 64, 64)
         );
 
         /** The Y axis orientation used by a Java block entity model's source data. */
@@ -235,7 +245,7 @@ public final class ToolingBlockEntityModels {
                             continue;
                         }
 
-                        JsonObject model = parseLayerMethod(method.instructions);
+                        JsonObject model = parseLayerMethod(method.instructions, zip);
                         if (model != null) {
                             // Source overrides apply when the parsed method doesn't call
                             // LayerDefinition.create itself (e.g. SkullModel.createHeadModel returns
@@ -301,33 +311,36 @@ public final class ToolingBlockEntityModels {
 
         /**
          * Parses a single layer-creation method's bytecode and extracts the model geometry.
+         * Invokestatic calls targeting other model-building methods (not in the builder/geom
+         * package) are followed recursively so chains like
+         * {@code PiglinHeadModel.createHeadModel -> PiglinModel.addHead} resolve without
+         * needing a dedicated source entry per delegate.
          */
-        private static @Nullable JsonObject parseLayerMethod(@NotNull InsnList instructions) {
-            ConcurrentList<Number> numStack = Concurrent.newList();
-            @Nullable String pendingPartName = null;
-            int pendingTexU = 0;
-            int pendingTexV = 0;
+        private static @Nullable JsonObject parseLayerMethod(@NotNull InsnList instructions, @NotNull ZipFile zip) {
+            ParseState state = new ParseState();
+            walkInstructions(instructions, state, zip);
 
-            // Per-cube state (accumulated across texOffs + addBox chains)
-            ConcurrentList<float[]> pendingCubes = Concurrent.newList();
-            int[] pendingUv = {0, 0};
+            if (state.bones.isEmpty()) return null;
 
-            // Per-part state
-            float[] pendingPivot = {0, 0, 0};
-            float[] pendingRotation = {0, 0, 0};
+            JsonObject model = new JsonObject();
+            model.addProperty("textureWidth", state.texWidth);
+            model.addProperty("textureHeight", state.texHeight);
+            model.add("bones", state.bones);
+            return model;
+        }
 
-            // Accumulated parts
-            JsonObject bones = new JsonObject();
-            int texWidth = 64;
-            int texHeight = 64;
-
+        /**
+         * Walks an instruction list, accumulating numeric literals on a stack and matching
+         * builder-chain patterns. Recurses via {@link #handleMethodInsn}'s invokestatic-follow
+         * branch so a single {@link ParseState} spans the entire dispatch chain.
+         */
+        private static void walkInstructions(@NotNull InsnList instructions, @NotNull ParseState state, @NotNull ZipFile zip) {
             for (AbstractInsnNode node = instructions.getFirst(); node != null; node = node.getNext()) {
-                // Track numeric literals
                 Number literal = readNumericLiteral(node);
                 if (literal != null) {
-                    numStack.add(literal);
-                    if (numStack.size() > 12)
-                        numStack.removeFirst();
+                    state.numStack.add(literal);
+                    if (state.numStack.size() > 16)
+                        state.numStack.removeFirst();
                     continue;
                 }
 
@@ -336,93 +349,280 @@ public final class ToolingBlockEntityModels {
                 switch (node) {
                     case FieldInsnNode fieldInsn when opcode == Opcodes.GETSTATIC -> {
                         if (fieldInsn.owner.equals(PART_POSE) && fieldInsn.name.equals("ZERO")) {
-                            pendingPivot = new float[]{ 0, 0, 0 };
-                            pendingRotation = new float[]{ 0, 0, 0 };
+                            state.pendingPivot = new float[]{ 0, 0, 0 };
+                            state.pendingRotation = new float[]{ 0, 0, 0 };
+                            state.pendingScale = 1f;
                         }
                     }
-                    case MethodInsnNode methodInsn -> {
-                        if (methodInsn.owner.equals(CUBE_LIST_BUILDER)) {
-                            if (methodInsn.name.equals("texOffs") && methodInsn.desc.startsWith("(II")) {
-                                pendingUv[1] = popInt(numStack);
-                                pendingUv[0] = popInt(numStack);
-                            } else if (methodInsn.name.equals("addBox") && methodInsn.desc.startsWith("(FFFFFF")) {
-                                float d = popFloat(numStack);
-                                float h = popFloat(numStack);
-                                float w = popFloat(numStack);
-                                float z = popFloat(numStack);
-                                float y = popFloat(numStack);
-                                float x = popFloat(numStack);
-                                pendingCubes.add(new float[]{ x, y, z, w, h, d, pendingUv[0], pendingUv[1] });
-                            }
-                        } else if (methodInsn.owner.equals(PART_POSE)) {
-                            if (methodInsn.name.equals("offset") && methodInsn.desc.startsWith("(FFF")) {
-                                float pz = popFloat(numStack);
-                                float py = popFloat(numStack);
-                                float px = popFloat(numStack);
-                                pendingPivot = new float[]{ px, py, pz };
-                                pendingRotation = new float[]{ 0, 0, 0 };
-                            } else if (methodInsn.name.equals("rotation") && methodInsn.desc.startsWith("(FFF")) {
-                                // PartPose.rotation(rx, ry, rz) — rotation only, pivot stays at origin.
-                                // Used by BedRenderer legs.
-                                float rz = popFloat(numStack);
-                                float ry = popFloat(numStack);
-                                float rx = popFloat(numStack);
-                                pendingPivot = new float[]{ 0, 0, 0 };
-                                pendingRotation = new float[]{
-                                    (float) Math.toDegrees(rx),
-                                    (float) Math.toDegrees(ry),
-                                    (float) Math.toDegrees(rz)
-                                };
-                            } else if (methodInsn.name.equals("offsetAndRotation") && methodInsn.desc.startsWith("(FFFFFF")) {
-                                float rz = popFloat(numStack);
-                                float ry = popFloat(numStack);
-                                float rx = popFloat(numStack);
-                                float pz = popFloat(numStack);
-                                float py = popFloat(numStack);
-                                float px = popFloat(numStack);
-                                pendingPivot = new float[]{ px, py, pz };
-                                pendingRotation = new float[]{
-                                    (float) Math.toDegrees(rx),
-                                    (float) Math.toDegrees(ry),
-                                    (float) Math.toDegrees(rz)
-                                };
-                            }
-                        } else if (methodInsn.owner.equals(PART_DEFINITION) && methodInsn.name.equals("addOrReplaceChild")) {
-                            // The part name was pushed as an ldc String before the CubeListBuilder chain.
-                            // Find it by scanning backward from numStack context.
-                            if (pendingPartName != null && !pendingCubes.isEmpty()) {
-                                bones.add(pendingPartName, buildBone(pendingPivot, pendingRotation, pendingCubes));
-                            }
-                            pendingPartName = null;
-                            pendingCubes = Concurrent.newList();
-                            pendingPivot = new float[]{ 0, 0, 0 };
-                            pendingRotation = new float[]{ 0, 0, 0 };
-                            pendingUv = new int[]{ 0, 0 };
-                        } else if (methodInsn.owner.equals(LAYER_DEFINITION) && methodInsn.name.equals("create")) {
-                            texHeight = popInt(numStack);
-                            texWidth = popInt(numStack);
+                    case MethodInsnNode methodInsn -> handleMethodInsn(methodInsn, opcode, state, zip);
+                    // Track local-variable slot -> bone mapping so child bones inherit their
+                    // parent's pivot + scale. Vanilla models use
+                    // {@code head = root.addOrReplaceChild("head", ...); head.addOrReplaceChild("jaw", ...);}
+                    // which compiles to {@code invokevirtual; astore_N; aload_N;} around the child's
+                    // builder chain - so astore-after-flush and aload-before-chain are our hooks.
+                    case VarInsnNode varInsn when opcode == Opcodes.ASTORE -> {
+                        if (state.lastFlushedBone != null) {
+                            state.localSlotBone.put(varInsn.var, state.lastFlushedBone);
+                            state.lastFlushedBone = null;
                         }
+                    }
+                    case VarInsnNode varInsn when opcode == Opcodes.ALOAD -> {
+                        String parent = state.localSlotBone.get(varInsn.var);
+                        if (parent != null)
+                            state.nextParent = parent;
                     }
                     case LdcInsnNode ldc when ldc.cst instanceof String s ->
-                        // Track the last string literal as potential part name
-                        pendingPartName = s;
+                        state.pendingPartName = s;
                     default -> { }
                 }
             }
-
-            if (bones.isEmpty()) return null;
-
-            JsonObject model = new JsonObject();
-            model.addProperty("textureWidth", texWidth);
-            model.addProperty("textureHeight", texHeight);
-            model.add("bones", bones);
-            return model;
         }
 
-        private static @NotNull JsonObject buildBone(float @NotNull [] pivot, float @NotNull [] rotation, @NotNull ConcurrentList<float[]> cubes) {
+        private static void handleMethodInsn(@NotNull MethodInsnNode methodInsn, int opcode, @NotNull ParseState state, @NotNull ZipFile zip) {
+            if (methodInsn.owner.equals(CUBE_LIST_BUILDER)) {
+                handleCubeListBuilder(methodInsn, state);
+                return;
+            }
+            if (methodInsn.owner.equals(PART_POSE)) {
+                handlePartPose(methodInsn, state);
+                return;
+            }
+            if (methodInsn.owner.equals(PART_DEFINITION) && methodInsn.name.equals("addOrReplaceChild")) {
+                flushPendingBone(state);
+                return;
+            }
+            if (methodInsn.owner.equals(LAYER_DEFINITION) && methodInsn.name.equals("create")) {
+                state.texHeight = popInt(state.numStack);
+                state.texWidth = popInt(state.numStack);
+                return;
+            }
+            // Invokestatic-follow: recurse into model-building statics outside the builder/geom
+            // package (e.g. PiglinHeadModel.createHeadModel -> PiglinModel.addHead). The JVM
+            // resolves invokestatic through the superclass chain, so {@link #findStaticMethod}
+            // walks {@code superName} until the method is found.
+            if (opcode == Opcodes.INVOKESTATIC
+                && methodInsn.owner.startsWith("net/minecraft/client/model/")
+                && !methodInsn.owner.startsWith("net/minecraft/client/model/geom/")) {
+                MethodNode inlined = findStaticMethod(zip, methodInsn.owner, methodInsn.name, methodInsn.desc);
+                if (inlined != null)
+                    walkInstructions(inlined.instructions, state, zip);
+            }
+        }
+
+        private static void handleCubeListBuilder(@NotNull MethodInsnNode methodInsn, @NotNull ParseState state) {
+            switch (methodInsn.name) {
+                case "create" -> {
+                    // CubeListBuilder.create() opens a builder chain. Snapshot the outer bone
+                    // name (the ldc String pushed before the chain) into {@code boneName} so
+                    // inner ldc Strings from per-cube addBox(String, ...) variants don't
+                    // overwrite the addOrReplaceChild key. Also snapshot the parent captured
+                    // from the most recent aload (typically the slot holding the parent
+                    // PartDefinition returned by an earlier addOrReplaceChild).
+                    if (state.pendingPartName != null)
+                        state.boneName = state.pendingPartName;
+                    state.parentBone = state.nextParent;
+                    state.nextParent = null;
+                }
+                case "texOffs" -> {
+                    if (methodInsn.desc.startsWith("(II")) {
+                        state.pendingUv[1] = popInt(state.numStack);
+                        state.pendingUv[0] = popInt(state.numStack);
+                    }
+                }
+                case "addBox" -> {
+                    // Four addBox variants observed in vanilla (names/CubeDeformation args don't
+                    // land on numStack, so only the numeric literals drive the pop order):
+                    //  1. (FFFFFF) or (FFFFFF + CubeDeformation) - origin xyz + size whd; uses current texOffs.
+                    //  2. (Ljava/lang/String;FFFFFF) - named single-cube, uses current texOffs. Dragon's jaw bone.
+                    //  3. (Ljava/lang/String;FFFIIIII) - named multi-cube with inline (w,h,d,u,v) ints. Dragon's head bone
+                    //     stacks 6 cubes this way, each with its own UV.
+                    if (methodInsn.desc.startsWith("(Ljava/lang/String;FFFIIIII")) {
+                        int v = popInt(state.numStack);
+                        int u = popInt(state.numStack);
+                        int d = popInt(state.numStack);
+                        int h = popInt(state.numStack);
+                        int w = popInt(state.numStack);
+                        float z = popFloat(state.numStack);
+                        float y = popFloat(state.numStack);
+                        float x = popFloat(state.numStack);
+                        state.pendingCubes.add(new float[]{ x, y, z, w, h, d, u, v });
+                    } else if (methodInsn.desc.startsWith("(FFFFFF") || methodInsn.desc.startsWith("(Ljava/lang/String;FFFFFF")) {
+                        float d = popFloat(state.numStack);
+                        float h = popFloat(state.numStack);
+                        float w = popFloat(state.numStack);
+                        float z = popFloat(state.numStack);
+                        float y = popFloat(state.numStack);
+                        float x = popFloat(state.numStack);
+                        state.pendingCubes.add(new float[]{ x, y, z, w, h, d, state.pendingUv[0], state.pendingUv[1] });
+                    }
+                }
+                case "mirror" -> {
+                    // mirror(Z) flips face-UVs on subsequent addBox cubes in vanilla. The atlas
+                    // pipeline doesn't model per-cube mirror yet; pop the boolean to keep the
+                    // literal stack aligned so it doesn't leak into the next builder call.
+                    if (methodInsn.desc.startsWith("(Z"))
+                        popInt(state.numStack);
+                }
+                default -> { }
+            }
+        }
+
+        private static void handlePartPose(@NotNull MethodInsnNode methodInsn, @NotNull ParseState state) {
+            switch (methodInsn.name) {
+                case "offset" -> {
+                    if (methodInsn.desc.startsWith("(FFF")) {
+                        float pz = popFloat(state.numStack);
+                        float py = popFloat(state.numStack);
+                        float px = popFloat(state.numStack);
+                        state.pendingPivot = new float[]{ px, py, pz };
+                        state.pendingRotation = new float[]{ 0, 0, 0 };
+                    }
+                }
+                case "rotation" -> {
+                    // PartPose.rotation(rx, ry, rz) - rotation only, pivot stays at origin.
+                    // Used by BedRenderer legs.
+                    if (methodInsn.desc.startsWith("(FFF")) {
+                        float rz = popFloat(state.numStack);
+                        float ry = popFloat(state.numStack);
+                        float rx = popFloat(state.numStack);
+                        state.pendingPivot = new float[]{ 0, 0, 0 };
+                        state.pendingRotation = new float[]{
+                            (float) Math.toDegrees(rx),
+                            (float) Math.toDegrees(ry),
+                            (float) Math.toDegrees(rz)
+                        };
+                    }
+                }
+                case "offsetAndRotation" -> {
+                    if (methodInsn.desc.startsWith("(FFFFFF")) {
+                        float rz = popFloat(state.numStack);
+                        float ry = popFloat(state.numStack);
+                        float rx = popFloat(state.numStack);
+                        float pz = popFloat(state.numStack);
+                        float py = popFloat(state.numStack);
+                        float px = popFloat(state.numStack);
+                        state.pendingPivot = new float[]{ px, py, pz };
+                        state.pendingRotation = new float[]{
+                            (float) Math.toDegrees(rx),
+                            (float) Math.toDegrees(ry),
+                            (float) Math.toDegrees(rz)
+                        };
+                    }
+                }
+                case "scaled" -> {
+                    // PartPose.scaled(F) - uniform scale around pivot at render time. Vanilla's
+                    // render order is translate(pivot) * rotation * scale * cube, so applying
+                    // scale to each cube's origin + size (before rotation + pivot) reproduces it.
+                    // Baked in {@link #flushPendingBone} so the scale is tied to the cubes it
+                    // applies to and resets when the next addOrReplaceChild finalises the bone.
+                    if (methodInsn.desc.startsWith("(F") && !methodInsn.desc.startsWith("(FF"))
+                        state.pendingScale = popFloat(state.numStack);
+                }
+                default -> { }
+            }
+        }
+
+        private static void flushPendingBone(@NotNull ParseState state) {
+            // Prefer the snapshot taken at CubeListBuilder.create(); fall back to pendingPartName
+            // for models that set the name immediately before addOrReplaceChild (no builder
+            // chain - rare, but cheap to support).
+            String name = state.boneName != null ? state.boneName : state.pendingPartName;
+            if (name != null && !state.pendingCubes.isEmpty()) {
+                // Flatten parent-child hierarchy at parse time: a child bone's world pivot
+                // and world scale fold in the parent's already-flattened values. Vanilla renders
+                // children with pose T(parent.pivot) * S(parent.scale) * T(child.pivot) * S(child.scale)
+                // then draws child cubes. Ignoring parent rotation (none of our current sources use
+                // a rotated parent with children), that collapses to
+                //   world_pivot = parent.world_pivot + parent.world_scale * child.local_pivot
+                //   world_scale = parent.world_scale * child.local_scale
+                float[] worldPivot = state.pendingPivot;
+                float worldScale = state.pendingScale;
+                if (state.parentBone != null) {
+                    BoneMeta parent = state.boneMeta.get(state.parentBone);
+                    if (parent != null) {
+                        worldPivot = new float[]{
+                            parent.pivot[0] + parent.scale * state.pendingPivot[0],
+                            parent.pivot[1] + parent.scale * state.pendingPivot[1],
+                            parent.pivot[2] + parent.scale * state.pendingPivot[2]
+                        };
+                        worldScale = parent.scale * state.pendingScale;
+                    }
+                }
+                state.bones.add(name, buildBone(worldPivot, state.pendingRotation, worldScale, state.pendingCubes));
+                state.boneMeta.put(name, new BoneMeta(worldPivot, worldScale));
+                state.lastFlushedBone = name;
+            }
+            state.pendingPartName = null;
+            state.boneName = null;
+            state.parentBone = null;
+            state.pendingCubes = Concurrent.newList();
+            state.pendingPivot = new float[]{ 0, 0, 0 };
+            state.pendingRotation = new float[]{ 0, 0, 0 };
+            state.pendingUv = new int[]{ 0, 0 };
+            state.pendingScale = 1f;
+        }
+
+        /**
+         * Looks up a static method by (class, name, descriptor), walking the superclass chain
+         * as the JVM would for invokestatic. Returns {@code null} if the method isn't found or
+         * the superclass can't be loaded from the jar.
+         */
+        private static @Nullable MethodNode findStaticMethod(@NotNull ZipFile zip, @NotNull String className, @NotNull String methodName, @NotNull String descriptor) {
+            String current = className;
+            while (current != null) {
+                ZipEntry entry = zip.getEntry(current + ".class");
+                if (entry == null) return null;
+                ClassNode classNode = new ClassNode();
+                try (InputStream stream = zip.getInputStream(entry)) {
+                    new ClassReader(stream.readAllBytes()).accept(classNode, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
+                } catch (IOException ex) {
+                    return null;
+                }
+                for (MethodNode m : classNode.methods) {
+                    if (m.name.equals(methodName) && m.desc.equals(descriptor))
+                        return m;
+                }
+                current = classNode.superName;
+            }
+            return null;
+        }
+
+        /** Mutable parse state threaded through one top-level method parse (plus any inlined invokestatic targets). */
+        private static final class ParseState {
+            final @NotNull ConcurrentList<Number> numStack = Concurrent.newList();
+            /** Most recent ldc String - tracks both bone names and inner cube names. */
+            @Nullable String pendingPartName;
+            /** Snapshot of {@link #pendingPartName} at CubeListBuilder.create(); preserved across inner ldc Strings from addBox(String, ...) variants. */
+            @Nullable String boneName;
+            /** Parent bone name captured from {@link #nextParent} at CubeListBuilder.create(). */
+            @Nullable String parentBone;
+            /** Parent bone captured from the most recent aload_N; consumed by CubeListBuilder.create(). */
+            @Nullable String nextParent;
+            /** Most recently flushed bone; the next astore_N after flush binds it to that slot. */
+            @Nullable String lastFlushedBone;
+            /** JVM local-variable slot -> bone name that was stored there via astore_N. */
+            final @NotNull ConcurrentMap<Integer, String> localSlotBone = Concurrent.newMap();
+            /** Flattened pivot + scale for each flushed bone, used to resolve child inheritance. */
+            final @NotNull ConcurrentMap<String, BoneMeta> boneMeta = Concurrent.newMap();
+            @NotNull ConcurrentList<float[]> pendingCubes = Concurrent.newList();
+            int @NotNull [] pendingUv = { 0, 0 };
+            float @NotNull [] pendingPivot = { 0, 0, 0 };
+            float @NotNull [] pendingRotation = { 0, 0, 0 };
+            float pendingScale = 1f;
+            final @NotNull JsonObject bones = new JsonObject();
+            int texWidth = 64;
+            int texHeight = 64;
+        }
+
+        /** Parent lookup data: the bone's pivot and scale in world-flattened form. */
+        private record BoneMeta(float @NotNull [] pivot, float scale) {}
+
+        private static @NotNull JsonObject buildBone(float @NotNull [] pivot, float @NotNull [] rotation, float scale, @NotNull ConcurrentList<float[]> cubes) {
             JsonObject bone = new JsonObject();
             bone.add("pivot", floatArray(pivot));
             bone.add("rotation", floatArray(rotation));
+            if (scale != 1f)
+                bone.addProperty("scale", scale);
 
             JsonArray cubeArray = new JsonArray();
             for (float[] c : cubes) {
@@ -536,7 +736,13 @@ public final class ToolingBlockEntityModels {
             // (-4..4, 0..8, -4..4), escaping the 0..16 block bbox and triggering the runtime
             // recenterAndFit that compresses the tile to one-face visibility.
             "minecraft:skull_head", new float[]{ 8, 0, 8, 180, 0, 0 },
-            "minecraft:skull_humanoid_head", new float[]{ 8, 0, 8, 180, 0, 0 }
+            "minecraft:skull_humanoid_head", new float[]{ 8, 0, 8, 180, 0, 0 },
+            // Dragon and piglin skulls share the vanilla SkullBlockRenderer transform - same
+            // Rx(180) + translate(+8, 0, +8) as the simple skull. Dragon's snout extends past
+            // the 0..16 bbox in block space (the head is ~1.5 blocks deep); the runtime
+            // recenterAndFit pass in BlockRenderer.Isometric3D rescales it to fit the atlas tile.
+            "minecraft:skull_dragon_head", new float[]{ 8, 0, 8, 180, 0, 0 },
+            "minecraft:skull_piglin_head", new float[]{ 8, 0, 8, 180, 0, 0 }
         );
 
         /** Names of the six block-model face directions, indexed in down/up/north/south/west/east order. */
@@ -830,15 +1036,22 @@ public final class ToolingBlockEntityModels {
 
         /**
          * The full entity-space → block-space transform for one bone's cubes: the bone's
-         * {@code Rz · Ry · Rx} rotation matrix, its pivot offset, the model's optional inventory
-         * transform (translate + X rotation), and the inventory yaw applied around block center.
+         * {@code Rz · Ry · Rx} rotation matrix, a uniform scale applied to cube-local positions
+         * (from {@code PartPose.scaled}, flattened with any parent scale at parse time), the
+         * pivot offset, the model's optional inventory transform (translate + X rotation), and
+         * the inventory yaw applied around block center.
          * <p>
          * When no inventory transform is present the model is Y-flipped ({@code cy = -cy}) so
          * entity Y-down coordinates end up Y-up in block space. The inventory yaw (used by the
          * chest) is applied last around block center {@code (8, 8, 8)}.
+         * <p>
+         * The scale applies only to positions - cube {@code size} stays unscaled in the parsed
+         * JSON so the vanilla {@code ModelPart$Polygon} UV layout (which indexes texture pixels
+         * by the cube's pre-scale dimensions) continues to produce the correct texture region.
          */
         private record CubeTransform(
             double @Nullable [][] boneRot,
+            float scale,
             float px, float py, float pz,
             float @Nullable [] invTransform,
             float invYRot
@@ -859,6 +1072,8 @@ public final class ToolingBlockEntityModels {
                 }
                 boolean hasBoneRot = brx != 0 || bry != 0 || brz != 0;
 
+                float scale = bone.has("scale") ? bone.get("scale").getAsFloat() : 1f;
+
                 // Bone rotation matrix: Rz * Ry * Rx (matches vanilla's Quaternionf.rotationZYX,
                 // which applies X first, then Y, then Z).
                 double rxR = Math.toRadians(brx), ryR = Math.toRadians(bry), rzR = Math.toRadians(brz);
@@ -867,12 +1082,12 @@ public final class ToolingBlockEntityModels {
                 double[][] mRz = {{ Math.cos(rzR), -Math.sin(rzR), 0 }, { Math.sin(rzR), Math.cos(rzR), 0 }, { 0, 0, 1 }};
                 double[][] boneRot = hasBoneRot ? matMul3(matMul3(mRz, mRy), mRx) : null;
 
-                return new CubeTransform(boneRot, px, py, pz, invTransform, invYRot);
+                return new CubeTransform(boneRot, scale, px, py, pz, invTransform, invYRot);
             }
 
-            /** Applies bone rotation, pivot, inventory transform (or Y-flip), then inventory yaw. */
+            /** Applies scale, bone rotation, pivot, inventory transform (or Y-flip), then inventory yaw. */
             float @NotNull [] apply(float @NotNull [] corner) {
-                float cx = corner[0], cy = corner[1], cz = corner[2];
+                float cx = corner[0] * scale, cy = corner[1] * scale, cz = corner[2] * scale;
 
                 if (boneRot != null) {
                     double rx2 = boneRot[0][0]*cx + boneRot[0][1]*cy + boneRot[0][2]*cz;

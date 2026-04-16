@@ -641,17 +641,22 @@
     {
       "blockId": "minecraft:creeper_wall_head",
       "textureId": "minecraft:entity/creeper/creeper"
-    },
+    }
+  ],
+  "minecraft:skull_dragon_head": [
     {
-      "//": "dragon_head and piglin_head render with the shared simple skull cube as a placeholder until the parser supports addBox(String,FFF,IIIII) (dragon) and invokestatic-follow for MeshDefinition builders (piglin).",
+      "//": "Dragon head: full snout geometry from DragonHeadModel.createHeadLayer (256x256 dragon entity texture). Extends past the 0..16 bbox; runtime recenterAndFit rescales for the atlas tile.",
       "blockId": "minecraft:dragon_head",
       "textureId": "minecraft:entity/enderdragon/dragon"
     },
     {
       "blockId": "minecraft:dragon_wall_head",
       "textureId": "minecraft:entity/enderdragon/dragon"
-    },
+    }
+  ],
+  "minecraft:skull_piglin_head": [
     {
+      "//": "Piglin head: head cube + ears from AbstractPiglinModel.addHead, reached by following the invokestatic chain from PiglinHeadModel.createHeadModel.",
       "blockId": "minecraft:piglin_head",
       "textureId": "minecraft:entity/piglin/piglin"
     },
