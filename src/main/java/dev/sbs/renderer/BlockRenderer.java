@@ -152,7 +152,15 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     triangles = applyRotation(triangles, buildVariantRotation(variant));
             }
 
-            // Fallback to entity model when block has no renderable geometry
+            // Fallback 1: when the block's registered model produces no faces (variant- or
+            // multipart-gated blocks where every apply has a {@code when} clause), rebuild
+            // using the first blockstate apply regardless of conditions. Fixes shelves,
+            // chiseled_bookshelf, sniffer_egg, stem_growth, mushroom_stem, flowerbed_*,
+            // pitcher_crop_top_stage_*, redstone_dust, coral_fan, brewing_stand_bottle2, etc.
+            if (triangles.isEmpty())
+                triangles = tryFirstBlockstateApply(block, tint);
+
+            // Fallback 2: entity-model geometry for block entities (beds, chests, banners, ...).
             if (triangles.isEmpty())
                 triangles = tryBuildFromEntityModel(block);
 
@@ -325,6 +333,56 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             }
 
             return GeometryKit.buildFromElements(block.getModel().getElements(), faceTextures, tint);
+        }
+
+        /**
+         * Builds triangles from the first variant or multipart apply of a block's blockstate,
+         * ignoring any {@code when} condition. Acts as a default render for blocks whose every
+         * blockstate apply is gated behind property conditions (shelves, chiseled_bookshelf,
+         * redstone_dust, flowerbed_*) or whose registered template model carries unresolved
+         * {@code #var} face refs (sniffer_egg, stem_growth, mushroom_stem).
+         * <p>
+         * Returns an empty list when the block has no blockstate apply or when the referenced
+         * model cannot be resolved in the block index. Per-apply rotation is preserved so the
+         * rendered block faces the apply's intended direction.
+         */
+        private @NotNull ConcurrentList<VisibleTriangle> tryFirstBlockstateApply(@NotNull Block block, int tint) {
+            Block.Variant first = null;
+            if (block.getMultipart().isPresent()) {
+                ConcurrentList<Block.Multipart.Part> parts = block.getMultipart().get().parts();
+                if (!parts.isEmpty())
+                    first = parts.get(0).apply();
+            } else if (!block.getVariants().isEmpty()) {
+                first = block.getVariants().values().iterator().next();
+            }
+            if (first == null) return Concurrent.newList();
+
+            String partBlockId = first.modelId().replace(":block/", ":");
+            BlockModelData partModel = this.context.findBlock(partBlockId)
+                .map(Block::getModel)
+                .orElse(null);
+            if (partModel == null || partModel.getElements().isEmpty()) return Concurrent.newList();
+
+            RasterEngine raster = new RasterEngine(this.context);
+            ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
+            ConcurrentMap<String, String> variables = partModel.getTextures();
+            for (ModelElement element : partModel.getElements()) {
+                for (Map.Entry<String, ModelFace> faceEntry : element.getFaces().entrySet()) {
+                    String ref = faceEntry.getValue().getTexture();
+                    if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
+                    String resolvedId = TextureEngine.dereferenceVariable(ref, variables);
+                    if (resolvedId.startsWith("#")) continue;
+                    faceTextures.put(ref, raster.resolveTexture(resolvedId));
+                }
+            }
+
+            ConcurrentList<VisibleTriangle> triangles =
+                GeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint);
+
+            if (first.hasRotation())
+                triangles = applyRotation(triangles, buildVariantRotation(first));
+
+            return triangles;
         }
 
         /**

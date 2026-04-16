@@ -17,6 +17,7 @@ import dev.sbs.renderer.options.AtlasOptions;
 import dev.sbs.renderer.options.BlockOptions;
 import dev.sbs.renderer.options.GridOptions;
 import dev.sbs.renderer.options.ItemOptions;
+import dev.sbs.renderer.pipeline.PipelineRendererContext;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
@@ -111,6 +112,9 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     private @NotNull ConcurrentList<TileSpec> renderBlocks(@NotNull AtlasOptions options, @NotNull BlockRenderer renderer) {
         ConcurrentList<TileSpec> tiles = Concurrent.newList();
         int count = 0;
+        java.util.Set<String> blockstateOnly = this.context instanceof PipelineRendererContext prc
+            ? prc.getBlockstateOnlyIds()
+            : java.util.Set.of();
 
         for (String blockId : this.context.knownBlockIds()) {
             if (options.getFilter().map(f -> !f.test(blockId)).orElse(false)) continue;
@@ -122,7 +126,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
                 .build();
             try {
                 ImageData image = renderer.render(blockOptions);
-                tiles.add(new TileSpec(blockId, TileSpec.Kind.BLOCK, image));
+                tiles.add(new TileSpec(blockId, TileSpec.Kind.BLOCK, classifyBlockSource(blockId, blockstateOnly), image));
                 count++;
                 if (options.isProgressLogging() && count % PROGRESS_LOG_INTERVAL == 0)
                     System.out.printf("  rendered %d block tiles...%n", count);
@@ -135,6 +139,19 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         if (options.isProgressLogging())
             System.out.printf("Block render pass complete: %d tiles%n", tiles.size());
         return tiles;
+    }
+
+    /**
+     * Classifies a block tile by its registration origin. Blockstate-only ids (Task 10) win first;
+     * otherwise an empty-model block with an entity mapping is treated as a Task 2 transient
+     * (entity-mapping registration). Everything else came from the primary block-model iteration.
+     */
+    private @NotNull TileSpec.Source classifyBlockSource(@NotNull String blockId, @NotNull java.util.Set<String> blockstateOnly) {
+        if (blockstateOnly.contains(blockId)) return TileSpec.Source.BLOCKSTATE_ONLY;
+        return this.context.findBlock(blockId)
+            .filter(block -> block.getEntityMapping().isPresent() && block.getModel().getElements().isEmpty())
+            .map(block -> TileSpec.Source.ENTITY_MAPPING)
+            .orElse(TileSpec.Source.BLOCK_MODEL);
     }
 
     /**
@@ -157,7 +174,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
 
             try {
                 ImageData image = renderer.render(itemOptions);
-                tiles.add(new TileSpec(itemId, TileSpec.Kind.ITEM, image));
+                tiles.add(new TileSpec(itemId, TileSpec.Kind.ITEM, TileSpec.Source.ITEM_MODEL, image));
                 count++;
                 if (options.isProgressLogging() && count % PROGRESS_LOG_INTERVAL == 0)
                     System.out.printf("  rendered %d item tiles...%n", count);
@@ -218,6 +235,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             JsonObject entry = new JsonObject();
             entry.addProperty("id", tile.id());
             entry.addProperty("kind", tile.kind().jsonName());
+            entry.addProperty("source", tile.source().jsonName());
             entry.addProperty("col", col);
             entry.addProperty("row", row);
             entry.addProperty("x", col * tileSize);
@@ -231,10 +249,10 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     }
 
     /**
-     * A single rendered tile carrying the entity id, {@link Kind} tag, and the rendered image
-     * data ready for grid composition.
+     * A single rendered tile carrying the entity id, {@link Kind} tag, the registration
+     * {@link Source} tag, and the rendered image data ready for grid composition.
      */
-    public record TileSpec(@NotNull String id, @NotNull Kind kind, @NotNull ImageData image) {
+    public record TileSpec(@NotNull String id, @NotNull Kind kind, @NotNull Source source, @NotNull ImageData image) {
 
         /**
          * Kind tag emitted alongside each tile in the sidecar JSON. Serialised via
@@ -249,6 +267,32 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             ITEM;
 
             /** The lowercase kind name used in the sidecar JSON schema. */
+            public @NotNull String jsonName() {
+                return this.name().toLowerCase(java.util.Locale.ROOT);
+            }
+
+        }
+
+        /**
+         * Registration source tag emitted alongside {@link Kind} so diagnostics can filter tiles
+         * by the pipeline path that produced them. {@link #BLOCK_MODEL} is the primary
+         * {@code blockModels} iteration; {@link #ENTITY_MAPPING} covers Task 2 transient blocks
+         * registered from block-entity maps (e.g. coloured beds); {@link #BLOCKSTATE_ONLY}
+         * covers Task 10 blocks resolved via their blockstate when no block-model file matches
+         * the id; {@link #ITEM_MODEL} is every item tile.
+         */
+        public enum Source {
+
+            /** Primary {@code blockModels} iteration. */
+            BLOCK_MODEL,
+            /** Task 2 - transient block registered from an entity mapping (bed, sign, etc.). */
+            ENTITY_MAPPING,
+            /** Task 10 - transient block resolved via blockstate only (fence, wall, small_dripleaf, etc.). */
+            BLOCKSTATE_ONLY,
+            /** Primary {@code itemModels} iteration. */
+            ITEM_MODEL;
+
+            /** The lowercase source name used in the sidecar JSON schema. */
             public @NotNull String jsonName() {
                 return this.name().toLowerCase(java.util.Locale.ROOT);
             }

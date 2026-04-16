@@ -108,6 +108,22 @@ tasks {
         args = listOf(layout.buildDirectory.dir("atlas").get().asFile.absolutePath)
     }
 
+    register<JavaExec>("diagnoseAtlas") {
+        description = "Slices build/atlas/atlas.png by atlas.json, flags blank tiles to build/atlas/missing.json."
+        group = "tooling"
+        mainClass.set("dev.sbs.renderer.tooling.ToolingAtlasDiagnose")
+        classpath = sourceSets["main"].runtimeClasspath
+        args = listOf(layout.buildDirectory.dir("atlas").get().asFile.absolutePath)
+    }
+
+    register<JavaExec>("diagnoseAtlasTask10") {
+        description = "Writes a mini atlas containing only Task 10 (blockstate-only) additions to build/atlas/blockstate_only/."
+        group = "tooling"
+        mainClass.set("dev.sbs.renderer.tooling.ToolingAtlasDiagnose")
+        classpath = sourceSets["main"].runtimeClasspath
+        args = listOf(layout.buildDirectory.dir("atlas").get().asFile.absolutePath, "--source-filter=blockstate_only")
+    }
+
     register<JavaExec>("blockTints") {
         description = "Parses BlockColors out of the cached client jar via ASM and rewrites src/main/resources/renderer/block_tints.json. Run on a Minecraft version bump."
         group = "tooling"

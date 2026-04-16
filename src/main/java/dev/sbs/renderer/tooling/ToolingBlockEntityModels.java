@@ -49,91 +49,6 @@ public final class ToolingBlockEntityModels {
 
     private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/renderer/block_entity_models.json");
 
-    /**
-     * Maps block ids to (entity model id, default entity texture path). Shulker boxes reference
-     * the mob entity model from {@code entity_models.json} rather than a block entity model.
-     */
-    private static final @NotNull List<BlockMapping> BLOCK_MAPPINGS = List.of(
-        // Shulker boxes use the existing shulker mob model
-        mapping("minecraft:shulker_box",  "minecraft:shulker_box", "minecraft:entity/shulker/shulker"),
-        mapping("minecraft:white_shulker_box",      "minecraft:shulker_box", "minecraft:entity/shulker/shulker_white"),
-        mapping("minecraft:orange_shulker_box",     "minecraft:shulker_box", "minecraft:entity/shulker/shulker_orange"),
-        mapping("minecraft:magenta_shulker_box",    "minecraft:shulker_box", "minecraft:entity/shulker/shulker_magenta"),
-        mapping("minecraft:light_blue_shulker_box", "minecraft:shulker_box", "minecraft:entity/shulker/shulker_light_blue"),
-        mapping("minecraft:yellow_shulker_box",     "minecraft:shulker_box", "minecraft:entity/shulker/shulker_yellow"),
-        mapping("minecraft:lime_shulker_box",       "minecraft:shulker_box", "minecraft:entity/shulker/shulker_lime"),
-        mapping("minecraft:pink_shulker_box",       "minecraft:shulker_box", "minecraft:entity/shulker/shulker_pink"),
-        mapping("minecraft:gray_shulker_box",       "minecraft:shulker_box", "minecraft:entity/shulker/shulker_gray"),
-        mapping("minecraft:light_gray_shulker_box", "minecraft:shulker_box", "minecraft:entity/shulker/shulker_light_gray"),
-        mapping("minecraft:cyan_shulker_box",       "minecraft:shulker_box", "minecraft:entity/shulker/shulker_cyan"),
-        mapping("minecraft:purple_shulker_box",     "minecraft:shulker_box", "minecraft:entity/shulker/shulker_purple"),
-        mapping("minecraft:blue_shulker_box",       "minecraft:shulker_box", "minecraft:entity/shulker/shulker_blue"),
-        mapping("minecraft:brown_shulker_box",      "minecraft:shulker_box", "minecraft:entity/shulker/shulker_brown"),
-        mapping("minecraft:green_shulker_box",      "minecraft:shulker_box", "minecraft:entity/shulker/shulker_green"),
-        mapping("minecraft:red_shulker_box",        "minecraft:shulker_box", "minecraft:entity/shulker/shulker_red"),
-        mapping("minecraft:black_shulker_box",      "minecraft:shulker_box", "minecraft:entity/shulker/shulker_black"),
-
-        // Chests
-        mapping("minecraft:chest",         "minecraft:chest", "minecraft:entity/chest/normal"),
-        mapping("minecraft:trapped_chest", "minecraft:chest", "minecraft:entity/chest/trapped"),
-        mapping("minecraft:ender_chest",   "minecraft:chest", "minecraft:entity/chest/ender"),
-
-        // Beds (16 colors)
-        mapping("minecraft:white_bed",      "minecraft:bed_head", "minecraft:entity/bed/white"),
-        mapping("minecraft:orange_bed",     "minecraft:bed_head", "minecraft:entity/bed/orange"),
-        mapping("minecraft:magenta_bed",    "minecraft:bed_head", "minecraft:entity/bed/magenta"),
-        mapping("minecraft:light_blue_bed", "minecraft:bed_head", "minecraft:entity/bed/light_blue"),
-        mapping("minecraft:yellow_bed",     "minecraft:bed_head", "minecraft:entity/bed/yellow"),
-        mapping("minecraft:lime_bed",       "minecraft:bed_head", "minecraft:entity/bed/lime"),
-        mapping("minecraft:pink_bed",       "minecraft:bed_head", "minecraft:entity/bed/pink"),
-        mapping("minecraft:gray_bed",       "minecraft:bed_head", "minecraft:entity/bed/gray"),
-        mapping("minecraft:light_gray_bed", "minecraft:bed_head", "minecraft:entity/bed/light_gray"),
-        mapping("minecraft:cyan_bed",       "minecraft:bed_head", "minecraft:entity/bed/cyan"),
-        mapping("minecraft:purple_bed",     "minecraft:bed_head", "minecraft:entity/bed/purple"),
-        mapping("minecraft:blue_bed",       "minecraft:bed_head", "minecraft:entity/bed/blue"),
-        mapping("minecraft:brown_bed",      "minecraft:bed_head", "minecraft:entity/bed/brown"),
-        mapping("minecraft:green_bed",      "minecraft:bed_head", "minecraft:entity/bed/green"),
-        mapping("minecraft:red_bed",        "minecraft:bed_head", "minecraft:entity/bed/red"),
-        mapping("minecraft:black_bed",      "minecraft:bed_head", "minecraft:entity/bed/black"),
-
-        // Signs (12 wood types)
-        mapping("minecraft:oak_sign",      "minecraft:sign", "minecraft:entity/signs/oak"),
-        mapping("minecraft:spruce_sign",   "minecraft:sign", "minecraft:entity/signs/spruce"),
-        mapping("minecraft:birch_sign",    "minecraft:sign", "minecraft:entity/signs/birch"),
-        mapping("minecraft:jungle_sign",   "minecraft:sign", "minecraft:entity/signs/jungle"),
-        mapping("minecraft:acacia_sign",   "minecraft:sign", "minecraft:entity/signs/acacia"),
-        mapping("minecraft:dark_oak_sign", "minecraft:sign", "minecraft:entity/signs/dark_oak"),
-        mapping("minecraft:crimson_sign",  "minecraft:sign", "minecraft:entity/signs/crimson"),
-        mapping("minecraft:warped_sign",   "minecraft:sign", "minecraft:entity/signs/warped"),
-        mapping("minecraft:mangrove_sign", "minecraft:sign", "minecraft:entity/signs/mangrove"),
-        mapping("minecraft:bamboo_sign",   "minecraft:sign", "minecraft:entity/signs/bamboo"),
-        mapping("minecraft:cherry_sign",   "minecraft:sign", "minecraft:entity/signs/cherry"),
-        mapping("minecraft:pale_oak_sign", "minecraft:sign", "minecraft:entity/signs/pale_oak"),
-
-        // Hanging signs (12 wood types)
-        mapping("minecraft:oak_hanging_sign",      "minecraft:hanging_sign", "minecraft:entity/signs/hanging/oak"),
-        mapping("minecraft:spruce_hanging_sign",   "minecraft:hanging_sign", "minecraft:entity/signs/hanging/spruce"),
-        mapping("minecraft:birch_hanging_sign",    "minecraft:hanging_sign", "minecraft:entity/signs/hanging/birch"),
-        mapping("minecraft:jungle_hanging_sign",   "minecraft:hanging_sign", "minecraft:entity/signs/hanging/jungle"),
-        mapping("minecraft:acacia_hanging_sign",   "minecraft:hanging_sign", "minecraft:entity/signs/hanging/acacia"),
-        mapping("minecraft:dark_oak_hanging_sign", "minecraft:hanging_sign", "minecraft:entity/signs/hanging/dark_oak"),
-        mapping("minecraft:crimson_hanging_sign",  "minecraft:hanging_sign", "minecraft:entity/signs/hanging/crimson"),
-        mapping("minecraft:warped_hanging_sign",   "minecraft:hanging_sign", "minecraft:entity/signs/hanging/warped"),
-        mapping("minecraft:mangrove_hanging_sign", "minecraft:hanging_sign", "minecraft:entity/signs/hanging/mangrove"),
-        mapping("minecraft:bamboo_hanging_sign",   "minecraft:hanging_sign", "minecraft:entity/signs/hanging/bamboo"),
-        mapping("minecraft:cherry_hanging_sign",   "minecraft:hanging_sign", "minecraft:entity/signs/hanging/cherry"),
-        mapping("minecraft:pale_oak_hanging_sign", "minecraft:hanging_sign", "minecraft:entity/signs/hanging/pale_oak"),
-
-        // Conduit
-        mapping("minecraft:conduit", "minecraft:conduit", "minecraft:entity/conduit/base")
-    );
-
-    private record BlockMapping(@NotNull String blockId, @NotNull String modelId, @NotNull String textureId) {}
-
-    private static @NotNull BlockMapping mapping(@NotNull String blockId, @NotNull String modelId, @NotNull String textureId) {
-        return new BlockMapping(blockId, modelId, textureId);
-    }
-
     public static void main(String @NotNull [] args) throws IOException {
         AssetPipelineOptions options = AssetPipelineOptions.defaults();
         Path jarPath = ClientJarDownloader.download(options, new HttpFetcher());
@@ -149,7 +64,7 @@ public final class ToolingBlockEntityModels {
 
     private static @NotNull String buildJson(@NotNull ConcurrentMap<String, JsonObject> models, @NotNull String mcVersion) {
         JsonObject root = new JsonObject();
-        root.addProperty("//", "Generated by ToolingBlockEntityModels. From net.minecraft.client.**.class$*Layer/Mesh(). Run the tooling/blockEntityModels Gradle task to refresh.");
+        root.addProperty("//", "Generated by ToolingBlockEntityModels. From net.minecraft.client.**.class$*Layer/Mesh(). Run the tooling/blockEntityModels Gradle task to refresh. Block-to-model wiring lives in block_entity_mappings.json (hand-edited).");
         root.addProperty("source_version", mcVersion);
 
         JsonObject modelsObj = new JsonObject();
@@ -158,15 +73,6 @@ public final class ToolingBlockEntityModels {
             .sorted(Map.Entry.comparingByKey())
             .forEach(entry -> modelsObj.add(entry.getKey(), entry.getValue()));
         root.add("models", modelsObj);
-
-        JsonObject mappingsObj = new JsonObject();
-        for (BlockMapping mapping : BLOCK_MAPPINGS) {
-            JsonObject entry = new JsonObject();
-            entry.addProperty("model", mapping.modelId);
-            entry.addProperty("texture", mapping.textureId);
-            mappingsObj.add(mapping.blockId, entry);
-        }
-        root.add("mappings", mappingsObj);
 
         return new GsonBuilder().setPrettyPrinting().create().toJson(root) + System.lineSeparator();
     }
@@ -222,7 +128,20 @@ public final class ToolingBlockEntityModels {
             new Source("net/minecraft/client/model/monster/shulker/ShulkerModel.class", "createShellMesh", "minecraft:shulker_box", YAxis.DOWN, 0f),
             new Source("net/minecraft/client/renderer/blockentity/StandingSignRenderer.class", "createSignLayer", "minecraft:sign", YAxis.DOWN, 0f),
             new Source("net/minecraft/client/renderer/blockentity/HangingSignRenderer.class", "createHangingSignLayer", "minecraft:hanging_sign", YAxis.DOWN, 0f),
-            new Source("net/minecraft/client/renderer/blockentity/ConduitRenderer.class", "createShellLayer", "minecraft:conduit", YAxis.DOWN, 0f)
+            new Source("net/minecraft/client/renderer/blockentity/ConduitRenderer.class", "createShellLayer", "minecraft:conduit", YAxis.DOWN, 0f),
+
+            // DecoratedPotRenderer.createBaseLayer is the main pot geometry (foot + belly + neck
+            // + top rim). The createSidesLayer produces separate quads for the sherd decorations
+            // - skipped for the atlas icon because it requires per-face pattern lookups we do
+            // not model here; the base layer by itself shows a recognisable empty pot.
+            new Source("net/minecraft/client/renderer/blockentity/DecoratedPotRenderer.class", "createBaseLayer", "minecraft:decorated_pot", YAxis.DOWN, 0f),
+
+            // CopperGolemStatueBlockRenderer bakes four Copper Golem poses
+            // (COPPER_GOLEM / _RUNNING / _SITTING / _STAR from ModelLayers); picks one per
+            // blockstate pose at runtime. For the atlas we pick COPPER_GOLEM (the default
+            // standing pose) via CopperGolemModel.createBodyLayer - same geometry as the
+            // copper golem mob, just rendered as a static block.
+            new Source("net/minecraft/client/model/animal/golem/CopperGolemModel.class", "createBodyLayer", "minecraft:copper_golem_statue", YAxis.DOWN, 0f)
         );
 
         /** The Y axis orientation used by a Java block entity model's source data. */

@@ -19,8 +19,10 @@ import dev.sbs.renderer.asset.binding.DyeColor;
 import dev.sbs.renderer.asset.model.ModelElement;
 import dev.sbs.renderer.asset.model.ModelFace;
 import dev.sbs.renderer.asset.model.ModelTransform;
+import dev.sbs.renderer.asset.Block;
 import dev.sbs.renderer.kit.BannerKit;
 import dev.sbs.renderer.kit.EntityGeometryKit;
+import dev.sbs.renderer.options.BlockOptions;
 import dev.sbs.renderer.options.ItemOptions;
 import dev.sbs.renderer.tensor.Matrix4f;
 import dev.sbs.renderer.tensor.Vector3f;
@@ -396,6 +398,26 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * {@link TrimKit#resolveFromTextureRef} so the renderer doesn't depend on material-specific
      * PNGs being shipped in the pack.
      */
+    /**
+     * Returns {@code true} when an item has no renderable 2D/3D content on its own (no layer
+     * textures, no elements, no overlay, not a banner/shield) but the same id names a real
+     * block the renderer can draw. Used by {@link Gui2D} and {@link Held3D} to route
+     * block-items like beds, shulker boxes, chests, and decorated pots through
+     * {@link BlockRenderer.Isometric3D} instead of producing a blank flat icon.
+     */
+    static boolean shouldRedirectToBlockRender(
+        @NotNull RendererContext context,
+        @NotNull Item item,
+        @NotNull String itemId
+    ) {
+        if (item.getOverlay().isPresent()) return false;
+        if (isBannerOrShield(itemId)) return false;
+        if (!item.getModel().getElements().isEmpty()) return false;
+        String layer0 = item.getTextures().get(LAYER_TEXTURE_PREFIX + "0");
+        if (layer0 != null && !layer0.isBlank()) return false;
+        return context.findBlock(itemId).isPresent();
+    }
+
     static void renderStandardLayers(
         @NotNull RasterEngine engine,
         @NotNull PixelBuffer buffer,
@@ -457,6 +479,19 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 }
             } else if (isBannerOrShield(options.getItemId())) {
                 renderBannerOrShield(engine, buffer, options.getItemId(), options);
+            } else if (shouldRedirectToBlockRender(this.context, item, options.getItemId())) {
+                // Block-items like <color>_bed, <color>_shulker_box, chest, and decorated_pot
+                // have an item model with only display transforms - no layer0 and no elements.
+                // renderStandardLayers would produce a blank icon, so route the render through
+                // BlockRenderer.Isometric3D which knows how to build geometry from the paired
+                // block's blockstate or entity mapping.
+                return new BlockRenderer(this.context).render(
+                    BlockOptions.builder()
+                        .blockId(options.getItemId())
+                        .type(BlockOptions.Type.ISOMETRIC_3D)
+                        .outputSize(options.getOutputSize())
+                        .build()
+                );
             } else {
                 renderStandardLayers(engine, buffer, item, options);
             }

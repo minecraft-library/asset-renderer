@@ -28,12 +28,14 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.pixel.PixelBuffer;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * A {@link RendererContext} backed by a single {@link AssetPipeline.Result}.
@@ -72,6 +74,13 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull ConcurrentMap<String, BlockTag> blockTagIndex;
     private final @NotNull ConcurrentMap<String, Integer> potionEffectColors;
     private final @NotNull ConcurrentMap<String, BannerPattern> bannerPatterns;
+    /**
+     * Block ids that were registered via the blockstate-only fallback path (Task 10) rather than
+     * the primary block-model iteration. Exposed so downstream diagnostics can tag tiles by
+     * registration source.
+     */
+    @Getter
+    private final @NotNull Set<String> blockstateOnlyIds;
     private final @NotNull ImageFactory imageFactory = new ImageFactory();
     private final @NotNull ConcurrentMap<String, PixelBuffer> textureCache = Concurrent.newMap();
 
@@ -134,6 +143,61 @@ public final class PipelineRendererContext implements RendererContext {
             blockIndex.put(blockId, new Block(blockId, "minecraft", name, modelToUse, textures, variants, multipart, tags, tint, entityMapping));
         }
 
+        // Register a block for every entity mapping whose id is not already in the block index.
+        // These are block-entity-only blocks ({@code <color>_bed}, {@code <color>_sign}, etc.)
+        // whose vanilla model files live under a single template id ({@code block/bed}) rather
+        // than being duplicated per colour. Without this entry {@code findBlock} returns empty
+        // for the coloured id and downstream item render paths that redirect to the block
+        // renderer produce a blank tile.
+        for (Map.Entry<String, Block.EntityMapping> entry : entityMappings.entrySet()) {
+            String blockId = entry.getKey();
+            if (blockIndex.containsKey(blockId)) continue;
+            String shortName = blockId.contains(":") ? blockId.substring(blockId.indexOf(':') + 1) : blockId;
+            ConcurrentList<String> tags = reverseTagIndex.getOrDefault(blockId, Concurrent.newList());
+            ConcurrentMap<String, Block.Variant> variants = variantMap.getOrDefault(blockId, Concurrent.newMap());
+            Optional<Block.Multipart> multipart = Optional.ofNullable(multipartMap.get(blockId));
+            blockIndex.put(blockId, new Block(
+                blockId, "minecraft", shortName,
+                new BlockModelData(), Concurrent.newMap(),
+                variants, multipart, tags,
+                new Block.Tint(Biome.TintTarget.NONE, Optional.empty()),
+                Optional.of(entry.getValue())
+            ));
+        }
+
+        // Task 10: register blockstate-only blocks - ids whose blockstate exists but whose model
+        // file lives under a different name (fence/wall/door inventories, small_dripleaf, etc.).
+        // These are invisible to the primary block-model loop because it keys on model files and
+        // these ids have no matching {@code block/<id>.json}. Resolution precedence is item-def
+        // override first (for correct inventory icons on fences/walls), then the first variant's
+        // model id, then the first multipart part's apply model id. See {@link #resolveBlockStateModel}.
+        Set<String> blockstateOnlyIds = new java.util.HashSet<>();
+        java.util.Set<String> candidateBlockstateIds = new java.util.LinkedHashSet<>();
+        candidateBlockstateIds.addAll(variantMap.keySet());
+        candidateBlockstateIds.addAll(multipartMap.keySet());
+        for (String blockId : candidateBlockstateIds) {
+            if (blockIndex.containsKey(blockId)) continue;
+            if (isParentOrTemplateBlockId(blockId)) continue;
+            Optional<ResolvedBlockModel> resolved = resolveBlockStateModel(blockId, itemDefs, variantMap, result.getBlockModels());
+            if (resolved.isEmpty()) continue;
+            ResolvedBlockModel hit = resolved.get();
+
+            String shortName = blockId.contains(":") ? blockId.substring(blockId.indexOf(':') + 1) : blockId;
+            BlockModelData modelToUse = hit.model();
+            ConcurrentMap<String, String> textures = Concurrent.newMap();
+            textures.putAll(modelToUse.getTextures());
+            flattenElementFaces(modelToUse, textures);
+
+            Block.Tint tint = tints.getOrDefault(blockId, new Block.Tint(Biome.TintTarget.NONE, Optional.empty()));
+            ConcurrentMap<String, Block.Variant> variants = variantMap.getOrDefault(blockId, Concurrent.newMap());
+            Optional<Block.Multipart> multipart = Optional.ofNullable(multipartMap.get(blockId));
+            ConcurrentList<String> tags = reverseTagIndex.getOrDefault(blockId, Concurrent.newList());
+
+            blockIndex.put(blockId, new Block(blockId, "minecraft", shortName, modelToUse, textures, variants, multipart, tags, tint, Optional.empty()));
+            blockstateOnlyIds.add(blockId);
+        }
+        System.out.printf("Atlas blockstate-only registration: added %d blocks%n", blockstateOnlyIds.size());
+
         ConcurrentMap<String, Item> itemIndex = Concurrent.newMap();
         for (Map.Entry<String, ItemModelData> itemEntry : result.getItemModels().entrySet()) {
             String modelId = itemEntry.getKey();
@@ -145,6 +209,27 @@ public final class PipelineRendererContext implements RendererContext {
             Optional<Item.Overlay> overlay = OverlayResolver.resolve(itemId, model);
             itemIndex.put(itemId, new Item(itemId, "minecraft", name, model, textures, 0, 64, overlay));
         }
+
+        // Task 1: drop parent/template ids and intentionally-invisible blocks. Every id removed
+        // here was confirmed fully-transparent in missing.json; the filter never touches a tile
+        // that was rendering. See plans/AssetRenderer-AtlasGaps.md -> Task 1 for the allow-list
+        // rationale and {@link #isParentOrTemplateBlockId}/{@link #isParentOrTemplateItemId} for
+        // the exact id predicate.
+        int removedBlocks = 0;
+        for (String blockId : new java.util.ArrayList<>(blockIndex.keySet())) {
+            if (isParentOrTemplateBlockId(blockId)) {
+                blockIndex.remove(blockId);
+                removedBlocks++;
+            }
+        }
+        int removedItems = 0;
+        for (String itemId : new java.util.ArrayList<>(itemIndex.keySet())) {
+            if (isParentOrTemplateItemId(itemId)) {
+                itemIndex.remove(itemId);
+                removedItems++;
+            }
+        }
+        System.out.printf("Atlas parent/template filter: removed %d blocks, %d items%n", removedBlocks, removedItems);
 
         ConcurrentMap<String, Entity> entityIndex = Concurrent.newMap();
         for (Map.Entry<String, EntityModelLoader.EntityDefinition> entityEntry : EntityModelLoader.load().entrySet())
@@ -166,7 +251,7 @@ public final class PipelineRendererContext implements RendererContext {
             .resolve("minecraft")
             .resolve("textures");
 
-        return new PipelineRendererContext(textureRoot, packs, blockIndex, itemIndex, entityIndex, textureIndex, colorMapIndex, tagMap, result.getPotionEffectColors(), result.getBannerPatterns());
+        return new PipelineRendererContext(textureRoot, packs, blockIndex, itemIndex, entityIndex, textureIndex, colorMapIndex, tagMap, result.getPotionEffectColors(), result.getBannerPatterns(), java.util.Collections.unmodifiableSet(blockstateOnlyIds));
     }
 
     @Override
@@ -325,6 +410,186 @@ public final class PipelineRendererContext implements RendererContext {
         if (slash >= 0) return modelId.substring(slash + 1);
         int colon = modelId.lastIndexOf(':');
         return colon >= 0 ? modelId.substring(colon + 1) : modelId;
+    }
+
+    /**
+     * Exact local-name matches for block-side template parents and multipart submodels that
+     * should not appear as standalone atlas tiles. Every entry has been confirmed either
+     * fully-transparent or sparse ({@code <2%} opaque) in the atlas diagnostic. Categories:
+     * <ul>
+     * <li>Parent templates ({@code stairs}, {@code slab}, {@code leaves}, {@code cross}, etc.) -
+     *     concrete blocks inherit from these via the {@code parent:} chain.</li>
+     * <li>Implicit templates ({@code flowerbed_*}, {@code stem_*}, {@code coral_fan}, etc.) -
+     *     inherited by concrete blocks but not following the {@code template_*} naming convention.</li>
+     * <li>Multipart submodels ({@code redstone_dust_*}, {@code brewing_stand_bottle2}, {@code tripwire_*},
+     *     {@code glass_pane_post}, {@code *_bars_post_ends}, etc.) - only meaningful as part of a
+     *     composite blockstate, never rendered standalone.</li>
+     * <li>Early growth stages ({@code melon_stem_stage0..2}, {@code pumpkin_stem_stage0..2}) -
+     *     sparse partial renders that add no atlas value.</li>
+     * </ul>
+     */
+    private static final java.util.Set<String> TEMPLATE_BLOCK_NAMES = java.util.Set.of(
+        // Parent templates
+        "banner", "bed", "block", "button", "button_inventory", "button_pressed",
+        "carpet", "crop", "cross", "cross_emissive",
+        "door_bottom_left", "door_bottom_left_open", "door_bottom_right", "door_bottom_right_open",
+        "door_top_left", "door_top_left_open", "door_top_right", "door_top_right_open",
+        "fence_inventory", "fence_post", "fence_side",
+        "inner_stairs", "leaves", "mossy_carpet_side", "outer_stairs",
+        "piston_extended", "pressure_plate_down", "pressure_plate_up",
+        "rail_curved", "rail_flat", "skull", "slab", "slab_top", "stairs",
+        "thin_block", "tinted_cross", "wall_inventory",
+        // Implicit templates (inherited by concrete blocks)
+        "flowerbed_1", "flowerbed_2", "flowerbed_3", "flowerbed_4",
+        "stem_fruit", "stem_growth0", "stem_growth1", "stem_growth2", "stem_growth3",
+        "stem_growth4", "stem_growth5", "stem_growth6", "stem_growth7",
+        "coral_fan", "coral_wall_fan",
+        // Multipart submodels - redstone dust
+        "redstone_dust_dot", "redstone_dust_side", "redstone_dust_side_alt", "redstone_dust_up",
+        "redstone_dust_side0", "redstone_dust_side1", "redstone_dust_side_alt0", "redstone_dust_side_alt1",
+        // Multipart submodels - brewing stand / pitcher crop
+        "brewing_stand_bottle2", "brewing_stand_empty2",
+        "pitcher_crop_top_stage_0", "pitcher_crop_top_stage_1", "pitcher_crop_top_stage_2",
+        // Multipart submodels - tripwire
+        "tripwire_n", "tripwire_ne", "tripwire_ns", "tripwire_nse", "tripwire_nsew",
+        "tripwire_attached_n", "tripwire_attached_ne", "tripwire_attached_ns",
+        "tripwire_attached_nse", "tripwire_attached_nsew",
+        // Multipart submodels - pane / bar posts
+        "glass_pane_post", "glass_pane_noside", "glass_pane_noside_alt",
+        "black_stained_glass_pane_post", "blue_stained_glass_pane_post",
+        "brown_stained_glass_pane_post", "cyan_stained_glass_pane_post",
+        "gray_stained_glass_pane_post", "green_stained_glass_pane_post",
+        "light_blue_stained_glass_pane_post", "light_gray_stained_glass_pane_post",
+        "lime_stained_glass_pane_post", "magenta_stained_glass_pane_post",
+        "orange_stained_glass_pane_post", "pink_stained_glass_pane_post",
+        "purple_stained_glass_pane_post", "red_stained_glass_pane_post",
+        "white_stained_glass_pane_post", "yellow_stained_glass_pane_post",
+        "iron_bars_post_ends", "copper_bars_post_ends", "exposed_copper_bars_post_ends",
+        "weathered_copper_bars_post_ends", "oxidized_copper_bars_post_ends",
+        // Early growth stages (sparse renders, no atlas value)
+        "melon_stem_stage0", "melon_stem_stage1", "melon_stem_stage2",
+        "pumpkin_stem_stage0", "pumpkin_stem_stage1", "pumpkin_stem_stage2",
+        // Sparse wildflower submodels
+        "wildflowers_2", "wildflowers_4",
+        // Bell multipart submodel (ceiling-mount part only)
+        "bell_ceiling"
+    );
+
+    /** Blocks that are invisible by design in vanilla - renderer intentionally produces empty geometry for them, so they do not belong in the atlas. */
+    private static final java.util.Set<String> INVISIBLE_BLOCK_NAMES = java.util.Set.of(
+        "air", "barrier", "end_gateway", "moving_piston", "structure_void"
+    );
+
+    /**
+     * Exact local-name matches for item-side templates / flat parents / held-pose predicate outputs.
+     * {@code decorated_pot} is intentionally NOT in this set - it is a real item that renders blank
+     * only because its block-entity mapping was missing before Task 3b, not because it is a
+     * template. Held-pose predicate variants ({@code *_in_hand}, {@code *_throwing},
+     * {@code shield_blocking}) ship as regular item models in {@code models/item/} but are not
+     * real inventory items - they are the result of vanilla's held-pose predicate dispatch and
+     * have no place in a GUI atlas.
+     */
+    private static final java.util.Set<String> TEMPLATE_ITEM_NAMES = java.util.Set.of(
+        "generated", "handheld", "handheld_mace", "handheld_rod",
+        "template_bed", "template_bundle_open_back", "template_bundle_open_front",
+        "template_chest", "template_copper_golem_statue", "template_music_disc",
+        "template_shulker_box", "template_skull",
+        "air",
+        "amethyst_bud",
+        "shield_blocking", "spear_in_hand", "spyglass_in_hand",
+        "trident_in_hand", "trident_throwing"
+    );
+
+    /**
+     * Returns {@code true} when a block id is a known parent/template model file or an
+     * intentionally-invisible vanilla block. Matches the plan's Task 1 allow-list exactly:
+     * {@code template_*}, {@code cube*}, {@code custom_fence_*}, {@code orientable*},
+     * {@code light_NN}, plus the explicit {@link #TEMPLATE_BLOCK_NAMES} and
+     * {@link #INVISIBLE_BLOCK_NAMES} sets.
+     */
+    private static boolean isParentOrTemplateBlockId(@NotNull String blockId) {
+        String name = blockId.contains(":") ? blockId.substring(blockId.indexOf(':') + 1) : blockId;
+        if (name.startsWith("template_")) return true;
+        if (name.startsWith("cube")) return true;
+        if (name.startsWith("custom_fence_")) return true;
+        if (name.startsWith("orientable")) return true;
+        if (name.length() == 8 && name.startsWith("light_") && Character.isDigit(name.charAt(6)) && Character.isDigit(name.charAt(7))) return true;
+        return TEMPLATE_BLOCK_NAMES.contains(name) || INVISIBLE_BLOCK_NAMES.contains(name);
+    }
+
+    /**
+     * Returns {@code true} when an item id is a known parent/template item file. Matches the
+     * plan's Task 1 allow-list exactly: {@code template_*}, {@code handheld*},
+     * {@code generated}, plus the explicit {@link #TEMPLATE_ITEM_NAMES} set (which includes
+     * the item-side {@code decorated_pot} template, not the real block-item of the same id).
+     */
+    private static boolean isParentOrTemplateItemId(@NotNull String itemId) {
+        String name = itemId.contains(":") ? itemId.substring(itemId.indexOf(':') + 1) : itemId;
+        if (name.startsWith("template_")) return true;
+        if (name.startsWith("handheld")) return true;
+        return TEMPLATE_ITEM_NAMES.contains(name);
+    }
+
+    /**
+     * Paired model id + concrete {@link BlockModelData} returned by the blockstate-only resolver.
+     * The id is retained alongside the data so the caller can cross-check it against the
+     * parent/template filter before registering the block.
+     */
+    private record ResolvedBlockModel(@NotNull String modelId, @NotNull BlockModelData model) {}
+
+    /**
+     * Resolves a blockstate-only id to a concrete block model, trying the item-def inventory
+     * override first and the first variant's model id second. Returns empty when no candidate is
+     * usable.
+     * <p>
+     * Multipart-only blocks (no item-def, no variants) deliberately resolve to empty: picking
+     * the first multipart part of an inventory render produces a partial tile (only always-on
+     * parts render, e.g. {@code glass_pane_post} alone) which is misleading. Inventory-rendering
+     * for multipart blocks must come from an explicit {@code _inventory} item-def override.
+     * <p>
+     * A resolution candidate is usable only when its model is loaded, carries at least one
+     * element (skips entity-rendered shells like wall signs whose model file is empty), and is
+     * not itself a parent/template id ({@link #isParentOrTemplateBlockId}, e.g.
+     * {@code block/skull} - whose elements reference unresolved {@code #var} face textures).
+     *
+     * @param blockId stripped blockstate id (e.g. {@code minecraft:acacia_fence})
+     * @param itemDefs item-definition overrides keyed by stripped block id, valued by full model id
+     * @param variantMap blockstate variant map keyed by stripped block id
+     * @param blockModels loaded block model data keyed by full model id
+     * @return the resolved model paired with the model id that produced it, or empty
+     */
+    private static @NotNull Optional<ResolvedBlockModel> resolveBlockStateModel(
+        @NotNull String blockId,
+        @NotNull ConcurrentMap<String, String> itemDefs,
+        @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap,
+        @NotNull ConcurrentMap<String, BlockModelData> blockModels
+    ) {
+        String itemModelRef = itemDefs.get(blockId);
+        if (itemModelRef != null) {
+            BlockModelData model = blockModels.get(itemModelRef);
+            if (isUsableResolvedModel(itemModelRef, model)) return Optional.of(new ResolvedBlockModel(itemModelRef, model));
+        }
+
+        ConcurrentMap<String, Block.Variant> variants = variantMap.get(blockId);
+        if (variants != null && !variants.isEmpty()) {
+            String variantModelId = variants.values().iterator().next().modelId();
+            BlockModelData model = blockModels.get(variantModelId);
+            if (isUsableResolvedModel(variantModelId, model)) return Optional.of(new ResolvedBlockModel(variantModelId, model));
+        }
+
+        return Optional.empty();
+    }
+
+    /**
+     * Returns {@code true} when a candidate resolved model would produce a non-blank, non-template
+     * atlas tile. Used by {@link #resolveBlockStateModel} to drop entity-only shells (empty
+     * elements) and parent/template references that would otherwise sneak through the resolver
+     * via an item-def or variant pointing at a template id.
+     */
+    private static boolean isUsableResolvedModel(@NotNull String modelId, BlockModelData model) {
+        if (model == null) return false;
+        if (model.getElements().isEmpty()) return false;
+        return !isParentOrTemplateBlockId(stripPrefix(modelId, ":block/"));
     }
 
     /**
