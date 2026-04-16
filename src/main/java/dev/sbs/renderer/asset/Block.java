@@ -47,9 +47,6 @@ public class Block {
 
     private @NotNull Tint tint = new Tint(Biome.TintTarget.NONE, Optional.empty());
 
-    /** Entity model fallback for blocks rendered by tile entity renderers (chests, signs, beds, etc.). */
-    private @NotNull Optional<EntityMapping> entityMapping = Optional.empty();
-
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
@@ -62,13 +59,12 @@ public class Block {
             && Objects.equals(this.getVariants(), block.getVariants())
             && Objects.equals(this.getMultipart(), block.getMultipart())
             && Objects.equals(this.getTags(), block.getTags())
-            && Objects.equals(this.getTint(), block.getTint())
-            && Objects.equals(this.getEntityMapping(), block.getEntityMapping());
+            && Objects.equals(this.getTint(), block.getTint());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.getId(), this.getNamespace(), this.getName(), this.getModel(), this.getTextures(), this.getVariants(), this.getMultipart(), this.getTags(), this.getTint(), this.getEntityMapping());
+        return Objects.hash(this.getId(), this.getNamespace(), this.getName(), this.getModel(), this.getTextures(), this.getVariants(), this.getMultipart(), this.getTags(), this.getTint());
     }
 
     /**
@@ -81,16 +77,6 @@ public class Block {
      * @param constant the hardcoded ARGB value when target is {@code CONSTANT}
      */
     public record Tint(@NotNull Biome.TintTarget target, @NotNull Optional<Integer> constant) {}
-
-    /**
-     * Maps a block to an entity model for fallback rendering. Blocks whose vanilla geometry is
-     * rendered by tile entity renderers (chests, signs, beds, shulker boxes) carry this mapping
-     * so the block renderer can delegate to entity model geometry when the block has no elements.
-     *
-     * @param model the entity model id providing the geometry, e.g. {@code "minecraft:chest"}
-     * @param texture the entity texture id to render with, e.g. {@code "minecraft:entity/chest/normal"}
-     */
-    public record EntityMapping(@NotNull String model, @NotNull String texture) {}
 
     /**
      * A single blockstate variant entry, specifying which model to use and what whole-block

@@ -141,7 +141,7 @@ public final class PipelineRendererContext implements RendererContext {
             Optional<Block.Multipart> multipart = Optional.ofNullable(multipartMap.get(blockId));
             ConcurrentList<String> tags = reverseTagIndex.getOrDefault(blockId, Concurrent.newList());
 
-            blockIndex.put(blockId, new Block(blockId, "minecraft", name, modelToUse, textures, variants, multipart, tags, tint, Optional.empty()));
+            blockIndex.put(blockId, new Block(blockId, "minecraft", name, modelToUse, textures, variants, multipart, tags, tint));
         }
 
         // Register block entity blocks with real block model elements. These are blocks like
@@ -164,8 +164,7 @@ public final class PipelineRendererContext implements RendererContext {
                 blockId, "minecraft", shortName,
                 be.getModel(), textures,
                 variants, multipart, tags,
-                new Block.Tint(Biome.TintTarget.NONE, Optional.empty()),
-                Optional.empty()
+                new Block.Tint(Biome.TintTarget.NONE, Optional.empty())
             ));
         }
 
@@ -197,7 +196,7 @@ public final class PipelineRendererContext implements RendererContext {
             Optional<Block.Multipart> multipart = Optional.ofNullable(multipartMap.get(blockId));
             ConcurrentList<String> tags = reverseTagIndex.getOrDefault(blockId, Concurrent.newList());
 
-            blockIndex.put(blockId, new Block(blockId, "minecraft", shortName, modelToUse, textures, variants, multipart, tags, tint, Optional.empty()));
+            blockIndex.put(blockId, new Block(blockId, "minecraft", shortName, modelToUse, textures, variants, multipart, tags, tint));
             blockstateOnlyIds.add(blockId);
         }
         System.out.printf("Atlas blockstate-only registration: added %d blocks%n", blockstateOnlyIds.size());

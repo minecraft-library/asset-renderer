@@ -13,7 +13,6 @@ import dev.sbs.renderer.geometry.Biome;
 import dev.sbs.renderer.geometry.EulerRotation;
 import dev.sbs.renderer.geometry.PerspectiveParams;
 import dev.sbs.renderer.geometry.VisibleTriangle;
-import dev.sbs.renderer.kit.EntityGeometryKit;
 import dev.sbs.renderer.pipeline.PipelineRendererContext;
 import dev.sbs.renderer.pipeline.loader.BlockEntityModelLoader;
 import dev.sbs.renderer.kit.GeometryKit;
@@ -167,17 +166,13 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 }
             }
 
-            // Fallback 1: when the block's registered model produces no faces (variant- or
+            // Fallback: when the block's registered model produces no faces (variant- or
             // multipart-gated blocks where every apply has a {@code when} clause), rebuild
             // using the first blockstate apply regardless of conditions. Fixes shelves,
             // chiseled_bookshelf, sniffer_egg, stem_growth, mushroom_stem, flowerbed_*,
             // pitcher_crop_top_stage_*, redstone_dust, coral_fan, brewing_stand_bottle2, etc.
             if (triangles.isEmpty())
                 triangles = tryFirstBlockstateApply(block, tint);
-
-            // Fallback 2: entity-model geometry for block entities (beds, chests, banners, ...).
-            if (triangles.isEmpty())
-                triangles = tryBuildFromEntityModel(block);
 
             int ssaa = Math.max(1, options.getSupersample());
             int hiRes = options.getOutputSize() * ssaa;
@@ -398,41 +393,6 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 triangles = applyRotation(triangles, buildVariantRotation(first));
 
             return triangles;
-        }
-
-        /**
-         * Attempts to build triangles from an entity model mapping when the block has no
-         * renderable elements. Returns an empty list if no mapping exists, the entity model
-         * is missing, or the entity texture cannot be resolved.
-         * <p>
-         * The inventory-pose Y rotation carried by the model
-         * ({@link dev.sbs.renderer.asset.model.EntityModelData#getInventoryYRotation()}) is
-         * applied after geometry assembly. This mirrors vanilla's per-type transformation set
-         * up by each {@code BlockEntityRenderer} inside
-         * {@code BlockEntityWithoutLevelRenderer.renderByItem} - for example, {@code ChestRenderer}
-         * yaws the lid by {@code -Direction.NORTH.toYRot() = 180} so the lock cube (at model-space
-         * {@code z=+15..+16}) ends up on the camera-facing side of the block in the inventory icon.
-         */
-        private @NotNull ConcurrentList<VisibleTriangle> tryBuildFromEntityModel(@NotNull Block block) {
-            if (block.getEntityMapping().isEmpty()) return Concurrent.newList();
-            Block.EntityMapping mapping = block.getEntityMapping().get();
-
-            return this.context.findEntity(mapping.model())
-                .map(value -> this.context.resolveTexture(mapping.texture())
-                    .map(pixelBuffer -> {
-                        ConcurrentList<VisibleTriangle> triangles = EntityGeometryKit
-                            .buildTriangles(value.getModel(), pixelBuffer)
-                            .triangles();
-
-                        float yRotation = value.getModel().getInventoryYRotation();
-                        if (yRotation != 0f)
-                            triangles = applyRotation(triangles, Matrix4f.createRotationY((float) Math.toRadians(yRotation)));
-
-                        return triangles;
-                    })
-                    .orElseGet(Concurrent::newList)
-                )
-                .orElseGet(Concurrent::newList);
         }
 
         /**

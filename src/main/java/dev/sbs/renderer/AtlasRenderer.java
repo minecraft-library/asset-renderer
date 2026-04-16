@@ -143,15 +143,11 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
 
     /**
      * Classifies a block tile by its registration origin. Blockstate-only ids (Task 10) win first;
-     * otherwise an empty-model block with an entity mapping is treated as a Task 2 transient
-     * (entity-mapping registration). Everything else came from the primary block-model iteration.
+     * everything else came from the primary block-model iteration (including block entities whose
+     * geometry is now baked into block model elements via {@code BlockEntityModelLoader}).
      */
     private @NotNull TileSpec.Source classifyBlockSource(@NotNull String blockId, @NotNull java.util.Set<String> blockstateOnly) {
-        if (blockstateOnly.contains(blockId)) return TileSpec.Source.BLOCKSTATE_ONLY;
-        return this.context.findBlock(blockId)
-            .filter(block -> block.getEntityMapping().isPresent() && block.getModel().getElements().isEmpty())
-            .map(block -> TileSpec.Source.ENTITY_MAPPING)
-            .orElse(TileSpec.Source.BLOCK_MODEL);
+        return blockstateOnly.contains(blockId) ? TileSpec.Source.BLOCKSTATE_ONLY : TileSpec.Source.BLOCK_MODEL;
     }
 
     /**
@@ -276,8 +272,8 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         /**
          * Registration source tag emitted alongside {@link Kind} so diagnostics can filter tiles
          * by the pipeline path that produced them. {@link #BLOCK_MODEL} is the primary
-         * {@code blockModels} iteration; {@link #ENTITY_MAPPING} covers Task 2 transient blocks
-         * registered from block-entity maps (e.g. coloured beds); {@link #BLOCKSTATE_ONLY}
+         * {@code blockModels} iteration (including block entities whose geometry is baked into
+         * block model elements via {@code BlockEntityModelLoader}); {@link #BLOCKSTATE_ONLY}
          * covers Task 10 blocks resolved via their blockstate when no block-model file matches
          * the id; {@link #ITEM_MODEL} is every item tile.
          */
@@ -285,8 +281,6 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
 
             /** Primary {@code blockModels} iteration. */
             BLOCK_MODEL,
-            /** Task 2 - transient block registered from an entity mapping (bed, sign, etc.). */
-            ENTITY_MAPPING,
             /** Task 10 - transient block resolved via blockstate only (fence, wall, small_dripleaf, etc.). */
             BLOCKSTATE_ONLY,
             /** Primary {@code itemModels} iteration. */
