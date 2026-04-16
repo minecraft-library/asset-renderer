@@ -471,18 +471,8 @@ public final class ToolingBlockEntityModels {
             "minecraft:bed_foot", new float[]{ 0, 9, 0, 90, 0, 0 }
         );
 
-        /** Names of the six block-model face directions, indexed by {@link Face#ordinal}. */
+        /** Names of the six block-model face directions, indexed in down/up/north/south/west/east order. */
         private static final String[] BLOCK_FACE_NAMES = { "down", "up", "north", "south", "west", "east" };
-
-        /** Outward unit normals for the six block-model face directions. */
-        private static final int[][] BLOCK_FACE_NORMALS = {
-            { 0, -1, 0 },  // down
-            { 0,  1, 0 },  // up
-            { 0, 0, -1 },  // north
-            { 0, 0,  1 },  // south
-            { -1, 0, 0 },  // west
-            {  1, 0, 0 }   // east
-        };
 
         /**
          * Converts all parsed entity models into a JSON object containing block model elements
@@ -504,6 +494,24 @@ public final class ToolingBlockEntityModels {
 
                 float[] invTransform = INVENTORY_TRANSFORMS.get(modelId);
                 boolean hasInvTransform = invTransform != null;
+
+                // Vanilla's per-type BlockEntityRenderer applies a yaw before drawing the model -
+                // ChestRenderer's modelTransformation rotates around the BlockState facing, but the
+                // chest item's display.gui transform is [30, 45, 0] (yaw 45) instead of the default
+                // [30, 225, 0] (yaw 225), which puts the chest's +Z (model SOUTH) face on the
+                // camera-facing side - that's where the lock cube lives. Our renderer uses the
+                // standard [30, 225, 0] (block.json default), so we bake an equivalent +180 yaw
+                // into the chest model here. Lock at z=14..15 lands at z=0..1, NORTH-visible.
+                float invYRot = entityModel.has("inventory_y_rotation") ? entityModel.get("inventory_y_rotation").getAsFloat() : 0f;
+
+                // For Y-UP source models (chest), the parser pre-flipped to Y-DOWN so the rest of
+                // the pipeline sees a uniform convention - but that flip swaps which corner of the
+                // cube vanilla calls "v19" (its yMin in source coords, which is the cube's
+                // render-bottom corner and carries a specific UV via the SOUTH/NORTH/etc polygon
+                // assignments). My entityCorners array indexes vertices by the post-flip Y values,
+                // so for Y-UP source I have to swap yLo <-> yHi to recover vanilla's labels.
+                String yAxis = entityModel.has("y_axis") ? entityModel.get("y_axis").getAsString() : "DOWN";
+                boolean isYUpSource = "UP".equals(yAxis);
 
                 JsonArray elements = new JsonArray();
                 for (Map.Entry<String, JsonElement> boneEntry : bones.entrySet()) {
@@ -551,6 +559,7 @@ public final class ToolingBlockEntityModels {
                             ox, oy, oz, sw, sh, sd, u, v,
                             boneRot, px, py, pz,
                             invTransform, hasInvTransform,
+                            invYRot, isYUpSource,
                             texW
                         ));
                     }
@@ -579,24 +588,47 @@ public final class ToolingBlockEntityModels {
             float px, float py, float pz,
             float @org.jetbrains.annotations.Nullable [] invTransform,
             boolean hasInvTransform,
+            float invYRot,
+            boolean isYUpSource,
             int texW
         ) {
             // Vanilla v19..v26 layout: bit pattern (xMax?, yMax?, zMax?) selecting one of 8 corners.
             // The order below matches the offsets the vanilla bytecode assigns to v19..v26.
+            // Vanilla labels v19..v22 as the "yMin" vertices and v21..v26 as the "yMax" vertices
+            // BY THE SOURCE Y CONVENTION. For Y-DOWN source the post-flip Y coords match (yMin in
+            // source == yMin in our cube origin), but for Y-UP source the parser pre-flipped Y
+            // and the meaning of yMin/yMax is inverted - swap yLo/yHi to recover vanilla's labels.
+            float yLo = isYUpSource ? oy + sh : oy;
+            float yHi = isYUpSource ? oy      : oy + sh;
             float[][] entityCorners = {
-                { ox,        oy,        oz        },  // 0 = v19 (-x,-y,-z)
-                { ox + sw,   oy,        oz        },  // 1 = v20 (+x,-y,-z)
-                { ox + sw,   oy + sh,   oz        },  // 2 = v21 (+x,+y,-z)
-                { ox,        oy + sh,   oz        },  // 3 = v22 (-x,+y,-z)
-                { ox,        oy,        oz + sd   },  // 4 = v23 (-x,-y,+z)
-                { ox + sw,   oy,        oz + sd   },  // 5 = v24 (+x,-y,+z)
-                { ox + sw,   oy + sh,   oz + sd   },  // 6 = v25 (+x,+y,+z)
-                { ox,        oy + sh,   oz + sd   }   // 7 = v26 (-x,+y,+z)
+                { ox,        yLo,       oz        },
+                { ox + sw,   yLo,       oz        },
+                { ox + sw,   yHi,       oz        },
+                { ox,        yHi,       oz        },
+                { ox,        yLo,       oz + sd   },
+                { ox + sw,   yLo,       oz + sd   },
+                { ox + sw,   yHi,       oz + sd   },
+                { ox,        yHi,       oz + sd   }
             };
 
             float[][] blockCorners = new float[8][3];
             for (int i = 0; i < 8; i++)
                 blockCorners[i] = applyTransform(entityCorners[i], boneRot, px, py, pz, invTransform, hasInvTransform);
+
+            // Inventory yaw applied around the block center (8, 8, 8). For invYRot=180 this maps
+            // (cx, cy, cz) -> (16-cx, cy, 16-cz), so the chest's lock cube at z=14..15 lands at
+            // z=0..1 - the camera-facing side under the standard [30, 225, 0] gui rotation.
+            if (invYRot != 0f) {
+                double yawR = Math.toRadians(invYRot);
+                double cosY = Math.cos(yawR), sinY = Math.sin(yawR);
+                for (int i = 0; i < 8; i++) {
+                    float dx = blockCorners[i][0] - 8f;
+                    float dz = blockCorners[i][2] - 8f;
+                    float rx = (float) (dx * cosY + dz * sinY);
+                    float rz = (float) (-dx * sinY + dz * cosY);
+                    blockCorners[i] = new float[]{ rx + 8f, blockCorners[i][1], rz + 8f };
+                }
+            }
 
             float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE, minZ = Float.MAX_VALUE;
             float maxX = -Float.MAX_VALUE, maxY = -Float.MAX_VALUE, maxZ = -Float.MAX_VALUE;
@@ -656,7 +688,8 @@ public final class ToolingBlockEntityModels {
             float[] p2 = blockCorners[face.vertexIndices[2]];
             float[] p3 = blockCorners[face.vertexIndices[3]];
 
-            // Cross product of two edges gives the face normal.
+            // Cross product of two edges gives the face normal; snapping to the cardinal axis
+            // tells us which of the six block-face slots the polygon belongs to.
             float[] e1 = { p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2] };
             float[] e2 = { p3[0] - p0[0], p3[1] - p0[1], p3[2] - p0[2] };
             float[] normal = {
@@ -664,8 +697,11 @@ public final class ToolingBlockEntityModels {
                 e1[2] * e2[0] - e1[0] * e2[2],
                 e1[0] * e2[1] - e1[1] * e2[0]
             };
-
-            int blockFaceIdx = snapToCardinal(normal);
+            float aNX = Math.abs(normal[0]), aNY = Math.abs(normal[1]), aNZ = Math.abs(normal[2]);
+            int blockFaceIdx;
+            if (aNY >= aNX && aNY >= aNZ) blockFaceIdx = normal[1] > 0 ? 1 : 0;
+            else if (aNZ >= aNX) blockFaceIdx = normal[2] > 0 ? 3 : 2;
+            else blockFaceIdx = normal[0] > 0 ? 5 : 4;
             String blockFaceName = BLOCK_FACE_NAMES[blockFaceIdx];
 
             // Block-face TL/BL/BR/TR positions, matching BlockFace.corners(...) for this bbox.
@@ -749,16 +785,6 @@ public final class ToolingBlockEntityModels {
             }
 
             return new float[]{ cx, cy, cz };
-        }
-
-        /** Returns the index into {@link #BLOCK_FACE_NORMALS} closest to the given normal. */
-        private static int snapToCardinal(float @NotNull [] normal) {
-            float absX = Math.abs(normal[0]);
-            float absY = Math.abs(normal[1]);
-            float absZ = Math.abs(normal[2]);
-            if (absY >= absX && absY >= absZ) return normal[1] > 0 ? 1 : 0;
-            if (absZ >= absX) return normal[2] > 0 ? 3 : 2;
-            return normal[0] > 0 ? 5 : 4;
         }
 
         /**
