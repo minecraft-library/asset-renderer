@@ -615,5 +615,64 @@
       "blockId": "minecraft:waxed_oxidized_copper_golem_statue",
       "textureId": "minecraft:entity/copper_golem/copper_golem_oxidized"
     }
+  ],
+  "minecraft:skull_head": [
+    {
+      "blockId": "minecraft:skeleton_skull",
+      "textureId": "minecraft:entity/skeleton/skeleton"
+    },
+    {
+      "blockId": "minecraft:skeleton_wall_skull",
+      "textureId": "minecraft:entity/skeleton/skeleton"
+    },
+    {
+      "blockId": "minecraft:wither_skeleton_skull",
+      "textureId": "minecraft:entity/skeleton/wither_skeleton"
+    },
+    {
+      "blockId": "minecraft:wither_skeleton_wall_skull",
+      "textureId": "minecraft:entity/skeleton/wither_skeleton"
+    },
+    {
+      "blockId": "minecraft:zombie_head",
+      "textureId": "minecraft:entity/zombie/zombie"
+    },
+    {
+      "blockId": "minecraft:zombie_wall_head",
+      "textureId": "minecraft:entity/zombie/zombie"
+    },
+    {
+      "blockId": "minecraft:player_head",
+      "textureId": "minecraft:entity/player/wide/steve"
+    },
+    {
+      "blockId": "minecraft:player_wall_head",
+      "textureId": "minecraft:entity/player/wide/steve"
+    },
+    {
+      "blockId": "minecraft:creeper_head",
+      "textureId": "minecraft:entity/creeper/creeper"
+    },
+    {
+      "blockId": "minecraft:creeper_wall_head",
+      "textureId": "minecraft:entity/creeper/creeper"
+    },
+    {
+      "//": "dragon_head and piglin_head render with the shared simple skull cube as a placeholder until the parser supports addBox(String,FFF,IIIII) (dragon) and invokestatic-follow for MeshDefinition builders (piglin).",
+      "blockId": "minecraft:dragon_head",
+      "textureId": "minecraft:entity/enderdragon/dragon"
+    },
+    {
+      "blockId": "minecraft:dragon_wall_head",
+      "textureId": "minecraft:entity/enderdragon/dragon"
+    },
+    {
+      "blockId": "minecraft:piglin_head",
+      "textureId": "minecraft:entity/piglin/piglin"
+    },
+    {
+      "blockId": "minecraft:piglin_wall_head",
+      "textureId": "minecraft:entity/piglin/piglin"
+    }
   ]
 }

@@ -74,6 +74,80 @@
       }
     ]
   },
+  "minecraft:skull_head": {
+    "textureWidth": 64,
+    "textureHeight": 32,
+    "elements": [
+      {
+        "from": [
+          4.0,
+          -8.0,
+          4.0
+        ],
+        "to": [
+          12.0,
+          0.0,
+          12.0
+        ],
+        "faces": {
+          "down": {
+            "texture": "#entity",
+            "uv": [
+              2.0,
+              0.0,
+              4.0,
+              2.0
+            ]
+          },
+          "up": {
+            "texture": "#entity",
+            "uv": [
+              4.0,
+              2.0,
+              6.0,
+              0.0
+            ]
+          },
+          "north": {
+            "texture": "#entity",
+            "uv": [
+              4.0,
+              4.0,
+              2.0,
+              2.0
+            ]
+          },
+          "south": {
+            "texture": "#entity",
+            "uv": [
+              8.0,
+              4.0,
+              6.0,
+              2.0
+            ]
+          },
+          "west": {
+            "texture": "#entity",
+            "uv": [
+              2.0,
+              4.0,
+              0.0,
+              2.0
+            ]
+          },
+          "east": {
+            "texture": "#entity",
+            "uv": [
+              6.0,
+              4.0,
+              4.0,
+              2.0
+            ]
+          }
+        }
+      }
+    ]
+  },
   "minecraft:bed_foot": {
     "textureWidth": 64,
     "textureHeight": 64,

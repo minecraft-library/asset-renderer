@@ -148,7 +148,26 @@ public final class ToolingBlockEntityModels {
             // blockstate pose at runtime. For the atlas we pick COPPER_GOLEM (the default
             // standing pose) via CopperGolemModel.createBodyLayer - same geometry as the
             // copper golem mob, just rendered as a static block.
-            new Source("net/minecraft/client/model/animal/golem/CopperGolemModel.class", "createBodyLayer", "minecraft:copper_golem_statue", YAxis.DOWN, 0f)
+            new Source("net/minecraft/client/model/animal/golem/CopperGolemModel.class", "createBodyLayer", "minecraft:copper_golem_statue", YAxis.DOWN, 0f),
+
+            // Skulls. MC 26.1 skulls use the new items/*.json "minecraft:special" +
+            // "minecraft:head" type which our pipeline doesn't consume, so the only way to
+            // get them in the atlas is to register block-entity geometry and let the block-
+            // item redirect in ItemRenderer pick them up.
+            //
+            // SkullModel.createHeadModel (MeshDefinition) builds the shared 8x8x8 head cube
+            // at origin=(-4,-8,-4). Its two callers - createMobHeadLayer (tex 64x32, used for
+            // skeleton / wither_skeleton / creeper) and createHumanoidHeadLayer (tex 64x64,
+            // adds a 0.25-inflated "hat" overlay, used for zombie / player) - aren't parseable
+            // directly because they call createHeadModel via invokestatic and our parser
+            // doesn't follow those chains yet. Parse createHeadModel directly and override
+            // tex dimensions to 64x32 (the mob-head convention; 64x64 mob textures are
+            // compatible since they share the top-left 8x8 head region).
+            //
+            // DragonHeadModel.createHeadLayer and PiglinHeadModel.createHeadModel need
+            // further parser features (dragon uses addBox(String,FFF,IIIII); piglin delegates
+            // to PiglinModel.addHead via invokestatic). Tracked as follow-up in plan task 4.
+            new Source("net/minecraft/client/model/object/skull/SkullModel.class", "createHeadModel", "minecraft:skull_head", YAxis.DOWN, 0f, 64, 32)
         );
 
         /** The Y axis orientation used by a Java block entity model's source data. */
@@ -159,8 +178,16 @@ public final class ToolingBlockEntityModels {
             @NotNull String methodName,
             @NotNull String entityId,
             @NotNull YAxis yAxis,
-            float inventoryYRotation
-        ) {}
+            float inventoryYRotation,
+            @Nullable Integer texWidthOverride,
+            @Nullable Integer texHeightOverride
+        ) {
+
+            Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation) {
+                this(classEntry, methodName, entityId, yAxis, inventoryYRotation, null, null);
+            }
+
+        }
 
         /**
          * Parses all known block entity model classes from the supplied client jar and returns
@@ -197,6 +224,13 @@ public final class ToolingBlockEntityModels {
 
                         JsonObject model = parseLayerMethod(method.instructions);
                         if (model != null) {
+                            // Source overrides apply when the parsed method doesn't call
+                            // LayerDefinition.create itself (e.g. SkullModel.createHeadModel returns
+                            // a MeshDefinition; the caller supplies the texture dimensions).
+                            if (source.texWidthOverride != null)
+                                model.addProperty("textureWidth", source.texWidthOverride);
+                            if (source.texHeightOverride != null)
+                                model.addProperty("textureHeight", source.texHeightOverride);
                             if (source.yAxis == YAxis.UP)
                                 flipToYDown(model);
                             model.addProperty("y_axis", source.yAxis.name());
@@ -475,7 +509,11 @@ public final class ToolingBlockEntityModels {
             // centered frame back to block-corner-at-origin, and an extra +16 on Y because
             // vanilla's inner translate(0, -1, 0) is applied before the flip (post-flip this
             // becomes +16 px, which together with the +8 centering yields +24).
-            "minecraft:shulker_box", new float[]{ 8, 24, 8, 180, 0, 0 }
+            "minecraft:shulker_box", new float[]{ 8, 24, 8, 180, 0, 0 },
+            // SkullBlockRenderer: translate(0.5, 0, 0.5) in block units (skull sits on the floor,
+            // centred in X/Z, Y=0..8 after flip). In pixel units that's translate(8, 0, 8) with
+            // no rotation.
+            "minecraft:skull_head", new float[]{ 8, 0, 8, 0, 0, 0 }
         );
 
         /** Names of the six block-model face directions, indexed in down/up/north/south/west/east order. */
