@@ -462,13 +462,20 @@ public final class ToolingBlockEntityModels {
         /**
          * Vanilla inventory transforms per model type. Each transform is applied to the
          * model-space cube corners (in Y-down model units) before converting to Y-up block
-         * model format. Values extracted from vanilla BedRenderer.createModelTransform and
-         * ChestRenderer bytecode.
+         * model format. Values extracted from vanilla BedRenderer.createModelTransform,
+         * ChestRenderer, and ShulkerBoxRenderer bytecode.
          */
         private static final @NotNull Map<String, float[]> INVENTORY_TRANSFORMS = Map.of(
             // BedRenderer: translate(0, 9, 0) * Rx(90°) in model units
             "minecraft:bed_head", new float[]{ 0, 9, 0, 90, 0, 0 },
-            "minecraft:bed_foot", new float[]{ 0, 9, 0, 90, 0, 0 }
+            "minecraft:bed_foot", new float[]{ 0, 9, 0, 90, 0, 0 },
+            // ShulkerBoxRenderer: translate(0.5, 0.5, 0.5) * scale(1, -1, -1) * translate(0, -1, 0)
+            // in block units. scale(1, -1, -1) is Rx(180), and in our "Rx then translate" form the
+            // two translates fold into translate(8, 24, 8): +8 on all axes to shift from the
+            // centered frame back to block-corner-at-origin, and an extra +16 on Y because
+            // vanilla's inner translate(0, -1, 0) is applied before the flip (post-flip this
+            // becomes +16 px, which together with the +8 centering yields +24).
+            "minecraft:shulker_box", new float[]{ 8, 24, 8, 180, 0, 0 }
         );
 
         /** Names of the six block-model face directions, indexed in down/up/north/south/west/east order. */
