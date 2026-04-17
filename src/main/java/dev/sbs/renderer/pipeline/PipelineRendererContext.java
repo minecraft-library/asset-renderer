@@ -460,7 +460,12 @@ public final class PipelineRendererContext implements RendererContext {
      * </ul>
      */
     private static final java.util.Set<String> TEMPLATE_BLOCK_NAMES = java.util.Set.of(
-        // Parent templates
+        // Parent templates - empty block.json files that concrete blocks inherit from. Kept
+        // out of the atlas because they have no own geometry. {@code banner}, {@code bed},
+        // {@code skull} stay in this list even after the Block.Entity refactor: they are still
+        // template parents for their concrete variants, not tile-entity block ids themselves.
+        // The real tile-entity ids ({@code red_bed}, {@code white_banner}, {@code skeleton_skull})
+        // don't match this filter since they aren't in this set.
         "banner", "bed", "block", "button", "button_inventory", "button_pressed",
         "carpet", "crop", "cross", "cross_emissive",
         "door_bottom_left", "door_bottom_left_open", "door_bottom_right", "door_bottom_right_open",
@@ -521,6 +526,12 @@ public final class PipelineRendererContext implements RendererContext {
      * have no place in a GUI atlas.
      */
     private static final java.util.Set<String> TEMPLATE_ITEM_NAMES = java.util.Set.of(
+        // Parent item templates - empty item.json files that concrete items inherit from.
+        // Kept out of the atlas because they have no own content. Block-entity-item templates
+        // ({@code template_bed}, {@code template_chest}, etc.) stay in this list: they are
+        // template parents, not tile-entity item ids themselves. The concrete tile-entity
+        // items ({@code red_bed}, {@code chest}, etc.) are filtered out of {@code itemIndex}
+        // upstream so the item pass never sees them; they render via the block pass instead.
         "generated", "handheld", "handheld_mace", "handheld_rod",
         "template_bed", "template_bundle_open_back", "template_bundle_open_front",
         "template_chest", "template_copper_golem_statue", "template_music_disc",
