@@ -91,6 +91,18 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
     @NotNull Optional<Integer> dryFoliageColorOverride();
 
     /**
+     * An optional hardcoded ARGB water colour override. Present only for biomes that depart from
+     * the vanilla default {@code 0xFF3F76E4} (swamps, oceans of various temperatures, cherry
+     * grove, meadow). Unlike grass and foliage, water has no colormap in vanilla - the tint is
+     * either the per-biome override below or the engine-level default applied at render time.
+     *
+     * @return the water colour override if any
+     */
+    default @NotNull Optional<Integer> waterColorOverride() {
+        return Optional.empty();
+    }
+
+    /**
      * The post-sample grass colour modifier applied after a colormap lookup. {@code NONE} passes
      * through; {@code DARK_FOREST} darkens the result via a mask + offset + halve; {@code SWAMP}
      * discards the sampled value and returns {@link #SWAMP_GRASS_WARM}. The modifier is only
@@ -118,6 +130,13 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
 
         /** Sample the dry-foliage colormap. Applies to pale oak and a handful of other biomes. */
         DRY_FOLIAGE,
+
+        /**
+         * Use the biome's {@link Biome#waterColorOverride() water colour override} when present,
+         * or the engine-level default {@code 0xFF3F76E4} otherwise. Vanilla water has no colormap;
+         * biomes either carry an explicit {@code water_color} value or inherit the default.
+         */
+        WATER,
 
         /** Use the block's {@code tintConstant} field directly. Applies to redstone wire, stems, etc. */
         CONSTANT
@@ -154,7 +173,7 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
      * @return a new {@link Custom} biome
      */
     static @NotNull Biome of(@NotNull String id, float temperature, float downfall) {
-        return new Custom(id, temperature, downfall, Optional.empty(), Optional.empty(), Optional.empty(), GrassColorModifier.NONE);
+        return new Custom(id, temperature, downfall, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), GrassColorModifier.NONE);
     }
 
     /**
@@ -188,8 +207,8 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
         OLD_GROWTH_BIRCH_FOREST("minecraft:old_growth_birch_forest",0.6f,  0.6f, GrassColorModifier.NONE),
         DARK_FOREST         ("minecraft:dark_forest",               0.7f,  0.8f, GrassColorModifier.DARK_FOREST),
         PALE_GARDEN         ("minecraft:pale_garden",               0.7f,  0.8f, GrassColorModifier.NONE),
-        MEADOW              ("minecraft:meadow",                    0.5f,  0.8f, GrassColorModifier.NONE),
-        CHERRY_GROVE        ("minecraft:cherry_grove",              0.5f,  0.8f, Optional.of(0xFFB5DB61), Optional.of(0xFFB5DB61), Optional.empty(), GrassColorModifier.NONE),
+        MEADOW              ("minecraft:meadow",                    0.5f,  0.8f, Optional.of(0xFF0E4ECF), GrassColorModifier.NONE),
+        CHERRY_GROVE        ("minecraft:cherry_grove",              0.5f,  0.8f, Optional.of(0xFFB5DB61), Optional.of(0xFFB5DB61), Optional.empty(), Optional.of(0xFF5DB7EF), GrassColorModifier.NONE),
 
         // --- overworld cold ---
         TAIGA               ("minecraft:taiga",                     0.25f, 0.8f, GrassColorModifier.NONE),
@@ -216,9 +235,10 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
         // --- overworld swamp / wet ---
         // Foliage override matches vanilla SWAMP / MANGROVE_SWAMP effects.foliage_color in the 26.1
         // biome JSON (extracted via slowTest). The grass tint comes from GrassColorModifier.SWAMP
-        // which returns SWAMP_GRASS_WARM without Perlin-noise world context.
-        SWAMP               ("minecraft:swamp",                     0.8f,  0.9f, Optional.empty(), Optional.of(SWAMP_GRASS_WARM), Optional.empty(), GrassColorModifier.SWAMP),
-        MANGROVE_SWAMP      ("minecraft:mangrove_swamp",            0.8f,  0.9f, Optional.empty(), Optional.of(SWAMP_GRASS_WARM), Optional.empty(), GrassColorModifier.SWAMP),
+        // which returns SWAMP_GRASS_WARM without Perlin-noise world context. Water overrides match
+        // effects.water_color from the same biome JSON.
+        SWAMP               ("minecraft:swamp",                     0.8f,  0.9f, Optional.empty(), Optional.of(SWAMP_GRASS_WARM), Optional.empty(), Optional.of(0xFF617B64), GrassColorModifier.SWAMP),
+        MANGROVE_SWAMP      ("minecraft:mangrove_swamp",            0.8f,  0.9f, Optional.empty(), Optional.of(SWAMP_GRASS_WARM), Optional.empty(), Optional.of(0xFF3A7A6A), GrassColorModifier.SWAMP),
 
         // --- overworld windswept ---
         WINDSWEPT_HILLS     ("minecraft:windswept_hills",           0.2f,  0.3f, GrassColorModifier.NONE),
@@ -232,18 +252,21 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
 
         // --- overworld rivers ---
         RIVER               ("minecraft:river",                     0.5f,  0.5f, GrassColorModifier.NONE),
-        FROZEN_RIVER        ("minecraft:frozen_river",              0.0f,  0.5f, GrassColorModifier.NONE),
+        FROZEN_RIVER        ("minecraft:frozen_river",              0.0f,  0.5f, Optional.of(0xFF3938C9), GrassColorModifier.NONE),
 
         // --- overworld oceans ---
+        // Water overrides match effects.water_color from the 26.1 biome JSON. Deep variants of
+        // lukewarm / cold / frozen inherit their shallow counterparts' water colour - populate
+        // them here too so a deep-ocean caller gets the right tint without special-casing.
         OCEAN               ("minecraft:ocean",                     0.5f,  0.5f, GrassColorModifier.NONE),
         DEEP_OCEAN          ("minecraft:deep_ocean",                0.5f,  0.5f, GrassColorModifier.NONE),
-        WARM_OCEAN          ("minecraft:warm_ocean",                0.5f,  0.5f, GrassColorModifier.NONE),
-        LUKEWARM_OCEAN      ("minecraft:lukewarm_ocean",            0.5f,  0.5f, GrassColorModifier.NONE),
-        DEEP_LUKEWARM_OCEAN ("minecraft:deep_lukewarm_ocean",       0.5f,  0.5f, GrassColorModifier.NONE),
-        COLD_OCEAN          ("minecraft:cold_ocean",                0.5f,  0.5f, GrassColorModifier.NONE),
-        DEEP_COLD_OCEAN     ("minecraft:deep_cold_ocean",           0.5f,  0.5f, GrassColorModifier.NONE),
-        FROZEN_OCEAN        ("minecraft:frozen_ocean",              0.0f,  0.5f, GrassColorModifier.NONE),
-        DEEP_FROZEN_OCEAN   ("minecraft:deep_frozen_ocean",         0.5f,  0.5f, GrassColorModifier.NONE),
+        WARM_OCEAN          ("minecraft:warm_ocean",                0.5f,  0.5f, Optional.of(0xFF43D5EE), GrassColorModifier.NONE),
+        LUKEWARM_OCEAN      ("minecraft:lukewarm_ocean",            0.5f,  0.5f, Optional.of(0xFF45ADF2), GrassColorModifier.NONE),
+        DEEP_LUKEWARM_OCEAN ("minecraft:deep_lukewarm_ocean",       0.5f,  0.5f, Optional.of(0xFF45ADF2), GrassColorModifier.NONE),
+        COLD_OCEAN          ("minecraft:cold_ocean",                0.5f,  0.5f, Optional.of(0xFF3D57D6), GrassColorModifier.NONE),
+        DEEP_COLD_OCEAN     ("minecraft:deep_cold_ocean",           0.5f,  0.5f, Optional.of(0xFF3D57D6), GrassColorModifier.NONE),
+        FROZEN_OCEAN        ("minecraft:frozen_ocean",              0.0f,  0.5f, Optional.of(0xFF3938C9), GrassColorModifier.NONE),
+        DEEP_FROZEN_OCEAN   ("minecraft:deep_frozen_ocean",         0.5f,  0.5f, Optional.of(0xFF3938C9), GrassColorModifier.NONE),
 
         // --- overworld special ---
         MUSHROOM_FIELDS     ("minecraft:mushroom_fields",           0.9f,  1.0f, GrassColorModifier.NONE),
@@ -277,12 +300,31 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
         private final @NotNull Optional<Integer> grassColorOverride;
         private final @NotNull Optional<Integer> foliageColorOverride;
         private final @NotNull Optional<Integer> dryFoliageColorOverride;
+        private final @NotNull Optional<Integer> waterColorOverride;
         private final @NotNull GrassColorModifier grassColorModifier;
 
         // --- convenience overloads so the table stays readable ---
 
         Vanilla(@NotNull String id, float temperature, float downfall, @NotNull GrassColorModifier grassColorModifier) {
-            this(id, temperature, downfall, Optional.empty(), Optional.empty(), Optional.empty(), grassColorModifier);
+            this(id, temperature, downfall, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), grassColorModifier);
+        }
+
+        Vanilla(
+            @NotNull String id, float temperature, float downfall,
+            @NotNull Optional<Integer> waterColorOverride,
+            @NotNull GrassColorModifier grassColorModifier
+        ) {
+            this(id, temperature, downfall, Optional.empty(), Optional.empty(), Optional.empty(), waterColorOverride, grassColorModifier);
+        }
+
+        Vanilla(
+            @NotNull String id, float temperature, float downfall,
+            @NotNull Optional<Integer> grassColorOverride,
+            @NotNull Optional<Integer> foliageColorOverride,
+            @NotNull Optional<Integer> dryFoliageColorOverride,
+            @NotNull GrassColorModifier grassColorModifier
+        ) {
+            this(id, temperature, downfall, grassColorOverride, foliageColorOverride, dryFoliageColorOverride, Optional.empty(), grassColorModifier);
         }
 
         /**
@@ -308,6 +350,7 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
      * @param grassColorOverride the optional grass colour override
      * @param foliageColorOverride the optional foliage colour override
      * @param dryFoliageColorOverride the optional dry-foliage colour override
+     * @param waterColorOverride the optional water colour override
      * @param grassColorModifier the post-sample grass colour modifier
      */
     record Custom(
@@ -317,6 +360,7 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
         @NotNull Optional<Integer> grassColorOverride,
         @NotNull Optional<Integer> foliageColorOverride,
         @NotNull Optional<Integer> dryFoliageColorOverride,
+        @NotNull Optional<Integer> waterColorOverride,
         @NotNull GrassColorModifier grassColorModifier
     ) implements Biome {}
 
@@ -331,6 +375,7 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
         private @NotNull Optional<Integer> grassColorOverride = Optional.empty();
         private @NotNull Optional<Integer> foliageColorOverride = Optional.empty();
         private @NotNull Optional<Integer> dryFoliageColorOverride = Optional.empty();
+        private @NotNull Optional<Integer> waterColorOverride = Optional.empty();
         private @NotNull GrassColorModifier grassColorModifier = GrassColorModifier.NONE;
 
         Builder(@NotNull String id) {
@@ -362,13 +407,18 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
             return this;
         }
 
+        public @NotNull Builder waterColorOverride(int argb) {
+            this.waterColorOverride = Optional.of(argb);
+            return this;
+        }
+
         public @NotNull Builder grassColorModifier(@NotNull GrassColorModifier modifier) {
             this.grassColorModifier = modifier;
             return this;
         }
 
         public @NotNull Biome build() {
-            return new Custom(this.id, this.temperature, this.downfall, this.grassColorOverride, this.foliageColorOverride, this.dryFoliageColorOverride, this.grassColorModifier);
+            return new Custom(this.id, this.temperature, this.downfall, this.grassColorOverride, this.foliageColorOverride, this.dryFoliageColorOverride, this.waterColorOverride, this.grassColorModifier);
         }
 
     }

@@ -63,6 +63,13 @@ public class TextureEngine implements RenderEngine {
     /** Blue-channel add for dark-forest grass modifier. */
     private static final int DARK_FOREST_BLUE_OFFSET = 0x0A;
 
+    /**
+     * Vanilla's default water ARGB, used by {@link #sampleBiomeTint} when a biome carries no
+     * {@link Biome#waterColorOverride()}. Matches the default value in the Minecraft 26.1 biome
+     * {@code effects.water_color} field for biomes that don't override it.
+     */
+    private static final int DEFAULT_WATER_ARGB = 0xFF3F76E4;
+
     private final @NotNull RendererContext context;
 
     /**
@@ -171,6 +178,12 @@ public class TextureEngine implements RenderEngine {
     public int sampleBiomeTint(@NotNull Biome.TintTarget target, @NotNull Biome biome) {
         if (target == Biome.TintTarget.NONE || target == Biome.TintTarget.CONSTANT)
             return ColorMath.WHITE;
+
+        // Water has no colormap in vanilla - the tint is either the per-biome override or the
+        // engine-level default. Skip the colormap path entirely and skip grassColorModifier
+        // (water is unaffected by the dark-forest / swamp modifiers that only apply to grass).
+        if (target == Biome.TintTarget.WATER)
+            return biome.waterColorOverride().orElse(DEFAULT_WATER_ARGB);
 
         Optional<Integer> override = switch (target) {
             case GRASS -> biome.grassColorOverride();

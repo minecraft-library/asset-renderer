@@ -198,6 +198,13 @@ tasks {
         args = if (samples != null) listOf(samples) else listOf()
     }
 
+    register<JavaExec>("testFluid") {
+        description = "Renders every FluidRenderer code path (water/lava, iso/2D, static/animated, biome variants, override) to cache/test-fluid/ for visual inspection."
+        group = "tooling"
+        mainClass.set("dev.sbs.renderer.tooling.TestFluidMain")
+        classpath = sourceSets["main"].runtimeClasspath
+    }
+
     register<JavaExec>("fonts") {
         description = "Clones minecraft-library/font-generator into cache/font-generator, sets up a Python venv, and runs the generator against the given MC version (-PfontVersion=26.1 by default). Writes .otf files to cache/fonts/ - run processResources afterwards to copy them onto the classpath."
         group = "tooling"
