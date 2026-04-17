@@ -143,14 +143,14 @@ public final class ToolingBlockEntities {
             // under our iso pose (same pattern as chest).
             new Source("net/minecraft/client/model/object/banner/BannerModel.class", "createBodyLayer", "minecraft:banner", YAxis.DOWN, 180f, null, null, new int[]{ 1 }),
             new Source("net/minecraft/client/model/object/banner/BannerFlagModel.class", "createFlagLayer", "minecraft:banner_flag", YAxis.DOWN, 180f, null, null, new int[]{ 1 }),
-            // Wall variants skip the Y-rotation (inventoryYRotation=0). Standing variants need
-            // 180° because their flag lands on +Z (SOUTH) after the base transform chain and has
-            // to be rotated to -Z (NORTH) to face the iso camera. Wall variants have the flag
-            // pivoted at z=10.5 in entity space, which after Rx(180) + translate(0,0,8) already
-            // lands on -Z (NORTH, z=1.67..2.33) - rotating by 180 would send it behind the block
-            // instead of in front.
-            new Source("net/minecraft/client/model/object/banner/BannerModel.class", "createBodyLayer", "minecraft:wall_banner", YAxis.DOWN, 0f, null, null, new int[]{ 0 }),
-            new Source("net/minecraft/client/model/object/banner/BannerFlagModel.class", "createFlagLayer", "minecraft:wall_banner_flag", YAxis.DOWN, 0f, null, null, new int[]{ 0 }),
+            // Wall variants use the same 180° Y-rotation as standing variants. The prior analysis
+            // thought the wall flag's entity-space z=10.5 pivot landed it on the camera-facing
+            // side without a yaw, but empirically the resulting icon shows the flag facing away
+            // from the iso camera (bar in front, flag hanging to the back) - the same failure
+            // mode standing variants have without the 180° fix. Match the standing setup so wall
+            // banners render with the flag facing the camera.
+            new Source("net/minecraft/client/model/object/banner/BannerModel.class", "createBodyLayer", "minecraft:wall_banner", YAxis.DOWN, 180f, null, null, new int[]{ 0 }),
+            new Source("net/minecraft/client/model/object/banner/BannerFlagModel.class", "createFlagLayer", "minecraft:wall_banner_flag", YAxis.DOWN, 180f, null, null, new int[]{ 0 }),
             new Source("net/minecraft/client/renderer/blockentity/BedRenderer.class", "createHeadLayer", "minecraft:bed_head", YAxis.DOWN, 0f),
             new Source("net/minecraft/client/renderer/blockentity/BedRenderer.class", "createFootLayer", "minecraft:bed_foot", YAxis.DOWN, 0f),
             new Source("net/minecraft/client/model/monster/shulker/ShulkerModel.class", "createShellMesh", "minecraft:shulker_box", YAxis.DOWN, 0f),
@@ -822,6 +822,24 @@ public final class ToolingBlockEntities {
     static class BlockModelConverter {
 
         /**
+         * Model ids whose faces carry {@code tintindex: 0} in the generated block elements. The
+         * {@link dev.sbs.renderer.asset.Block.Entity#tintArgb() entity tint} is applied to these
+         * faces; untinted faces (pole + bar on a banner, wood parts of future tintable block
+         * entities) fall back to {@link dev.simplified.image.pixel.ColorMath#WHITE} so they render
+         * in their authored texture colour.
+         * <p>
+         * Banners are the primary consumer today: the body-only models ({@code banner},
+         * {@code wall_banner} - pole + bar) stay untinted, the flag-only models
+         * ({@code banner_flag}, {@code wall_banner_flag}) are fully tinted. The renderer merges
+         * the two via the {@code parts} chain in {@code tile_entity_mappings.json}, so the final
+         * banner block ends up with a wood-brown body and a dye-coloured flag.
+         */
+        private static final @NotNull java.util.Set<String> TINTED_MODEL_IDS = java.util.Set.of(
+            "minecraft:banner_flag",
+            "minecraft:wall_banner_flag"
+        );
+
+        /**
          * Vanilla inventory transforms per model type. Each transform is applied to the
          * model-space cube corners (in Y-down model units) before converting to Y-up block
          * model format. Values extracted from vanilla BedRenderer.createModelTransform,
@@ -945,6 +963,7 @@ public final class ToolingBlockEntities {
                 // assignments). Our entityCorners array indexes vertices by the post-flip Y values,
                 // so for Y-UP source we swap yLo <-> yHi to recover vanilla's labels.
                 boolean isYUpSource = "UP".equals(entityModel.has("y_axis") ? entityModel.get("y_axis").getAsString() : "DOWN");
+                boolean emitTintIndex = TINTED_MODEL_IDS.contains(modelId);
 
                 JsonArray elements = new JsonArray();
                 for (Map.Entry<String, JsonElement> boneEntry : bones.entrySet()) {
@@ -955,7 +974,7 @@ public final class ToolingBlockEntities {
                     if (cubes == null) continue;
 
                     for (JsonElement cubeEl : cubes)
-                        elements.add(buildElement(CubeDef.of(cubeEl.getAsJsonObject()), transform, isYUpSource, texW, texH));
+                        elements.add(buildElement(CubeDef.of(cubeEl.getAsJsonObject()), transform, isYUpSource, texW, texH, emitTintIndex));
                 }
 
                 JsonObject modelOutput = new JsonObject();
@@ -979,7 +998,7 @@ public final class ToolingBlockEntities {
          * {@code rotation} directive so the tilt is preserved at render time instead of
          * axis-aligning the rotated cube into a bigger AABB that loses the tilt.
          */
-        private static @NotNull JsonObject buildElement(@NotNull CubeDef cube, @NotNull CubeTransform transform, boolean isYUpSource, int texW, int texH) {
+        private static @NotNull JsonObject buildElement(@NotNull CubeDef cube, @NotNull CubeTransform transform, boolean isYUpSource, int texW, int texH, boolean emitTintIndex) {
             float[][] entityCorners = cube.entityCorners(isYUpSource);
             ElementRotationInfo blockRot = transform.computeBlockRotation();
 
@@ -1005,7 +1024,7 @@ public final class ToolingBlockEntities {
 
             JsonObject faces = new JsonObject();
             for (ModelPartPolygonFace layout : ModelPartPolygonFace.values())
-                emitBlockFace(layout.faceFor(cube, scaleU, scaleV), blockCorners, box, faces);
+                emitBlockFace(layout.faceFor(cube, scaleU, scaleV), blockCorners, box, faces, emitTintIndex);
 
             JsonObject element = new JsonObject();
             JsonArray from = new JsonArray(); from.add(round2(box.minX())); from.add(round2(box.minY())); from.add(round2(box.minZ()));
@@ -1042,7 +1061,8 @@ public final class ToolingBlockEntities {
             @NotNull EntityFace face,
             float @NotNull [] @NotNull [] blockCorners,
             @NotNull Box box,
-            @NotNull JsonObject facesOut
+            @NotNull JsonObject facesOut,
+            boolean emitTintIndex
         ) {
             float[] p0 = blockCorners[face.vertexIndices[0]];
             float[] p1 = blockCorners[face.vertexIndices[1]];
@@ -1106,6 +1126,7 @@ public final class ToolingBlockEntities {
             uvArr.add(round2(uvRect.u0)); uvArr.add(round2(uvRect.v0)); uvArr.add(round2(uvRect.u1)); uvArr.add(round2(uvRect.v1));
             blockFace.add("uv", uvArr);
             if (uvRect.rotation != 0) blockFace.addProperty("rotation", uvRect.rotation);
+            if (emitTintIndex) blockFace.addProperty("tintindex", 0);
             facesOut.add(BlockFace.values()[blockFaceIdx].direction(), blockFace);
         }
 

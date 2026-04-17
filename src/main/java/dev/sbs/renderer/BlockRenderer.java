@@ -146,16 +146,23 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // so the renderer reads it straight off the block - no sidecar lookup through
             // {@link RendererContext#findBlockEntityEntry} is needed.
             Block.Entity be = block.getEntity().orElse(null);
-            int tint = be != null && be.tintArgb() != ColorMath.WHITE
+            boolean entityTinted = be != null && be.tintArgb() != ColorMath.WHITE;
+            int tint = entityTinted
                 ? be.tintArgb()
                 : resolveBlockTint(this.context, block, options);
+            // When the block's tint comes from a {@link Block.Entity} (banner dye colour), only
+            // faces carrying {@code "tintindex": 0} should receive the dye - untinted faces
+            // (banner pole + bar) stay wood-brown via {@link ColorMath#WHITE}. Biome-tinted
+            // and untinted blocks keep uniform tinting (both slots equal) so grass_block and
+            // friends render unchanged.
+            int untintedTint = entityTinted ? ColorMath.WHITE : tint;
 
             ConcurrentList<VisibleTriangle> triangles;
 
             if (block.getMultipart().isPresent()) {
-                triangles = assembleMultipart(block.getMultipart().get(), options, tint);
+                triangles = assembleMultipart(block.getMultipart().get(), options, tint, untintedTint);
             } else {
-                triangles = buildFromBlockElements(block, tint);
+                triangles = buildFromBlockElements(block, tint, untintedTint);
 
                 // Apply blockstate variant rotation (x/y) to the geometry. When the caller
                 // didn't specify a variant we intentionally skip variant resolution so the
@@ -178,9 +185,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 // alongside its parts; non-additive entries skip this step because their
                 // entity geometry IS the primary model already (chests, beds, banners).
                 if (be.additive())
-                    triangles.addAll(buildFromAdditiveEntity(be, tint));
+                    triangles.addAll(buildFromAdditiveEntity(be, tint, untintedTint));
                 if (!be.parts().isEmpty())
-                    triangles.addAll(buildFromEntityParts(be, tint));
+                    triangles.addAll(buildFromEntityParts(be, tint, untintedTint));
             }
 
             // Block entity multi-block models (beds) need recentering + rotation + scaling
@@ -199,7 +206,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // chiseled_bookshelf, sniffer_egg, stem_growth, mushroom_stem, flowerbed_*,
             // pitcher_crop_top_stage_*, redstone_dust, coral_fan, brewing_stand_bottle2, etc.
             if (triangles.isEmpty())
-                triangles = tryFirstBlockstateApply(block, tint);
+                triangles = tryFirstBlockstateApply(block, tint, untintedTint);
 
             int ssaa = Math.max(1, options.getSupersample());
             int hiRes = options.getOutputSize() * ssaa;
@@ -223,7 +230,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * each part's condition against the variant properties and builds triangles for every
          * matching model, applying per-part rotation where specified.
          */
-        private @NotNull ConcurrentList<VisibleTriangle> assembleMultipart(@NotNull Block.Multipart multipart, @NotNull BlockOptions options, int tint) {
+        private @NotNull ConcurrentList<VisibleTriangle> assembleMultipart(@NotNull Block.Multipart multipart, @NotNull BlockOptions options, int tint, int untintedTint) {
             ConcurrentMap<String, String> properties = parseProperties(options.getVariant());
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
             RasterEngine raster = new RasterEngine(this.context);
@@ -253,7 +260,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 }
 
                 ConcurrentList<VisibleTriangle> partTriangles =
-                    GeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint);
+                    GeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint);
 
                 // Apply per-part rotation if specified
                 if (apply.hasRotation())
@@ -354,7 +361,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * the model's texture bindings, and builds geometry via
          * {@link GeometryKit#buildFromElements}.
          */
-        private @NotNull ConcurrentList<VisibleTriangle> buildFromBlockElements(@NotNull Block block, int tint) {
+        private @NotNull ConcurrentList<VisibleTriangle> buildFromBlockElements(@NotNull Block block, int tint, int untintedTint) {
             RasterEngine raster = new RasterEngine(this.context);
             ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
             ConcurrentMap<String, String> variables = block.getModel().getTextures();
@@ -369,7 +376,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 }
             }
 
-            return GeometryKit.buildFromElements(block.getModel().getElements(), faceTextures, tint);
+            return GeometryKit.buildFromElements(block.getModel().getElements(), faceTextures, tint, untintedTint);
         }
 
         /**
@@ -395,7 +402,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * geometry merges on top of an existing blockstate-resolved primary model rather than
          * replacing it.
          */
-        private @NotNull ConcurrentList<VisibleTriangle> buildFromAdditiveEntity(@NotNull Block.Entity entity, int tint) {
+        private @NotNull ConcurrentList<VisibleTriangle> buildFromAdditiveEntity(@NotNull Block.Entity entity, int tint, int untintedTint) {
             RasterEngine raster = new RasterEngine(this.context);
             ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
             ConcurrentMap<String, String> variables = Concurrent.newMap();
@@ -409,10 +416,10 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     faceTextures.put(ref, raster.resolveTexture(resolvedId));
                 }
             }
-            return GeometryKit.buildFromElements(entity.model().getElements(), faceTextures, tint);
+            return GeometryKit.buildFromElements(entity.model().getElements(), faceTextures, tint, untintedTint);
         }
 
-        private @NotNull ConcurrentList<VisibleTriangle> buildFromEntityParts(@NotNull Block.Entity entity, int tint) {
+        private @NotNull ConcurrentList<VisibleTriangle> buildFromEntityParts(@NotNull Block.Entity entity, int tint, int untintedTint) {
             ConcurrentList<VisibleTriangle> combined = Concurrent.newList();
             RasterEngine raster = new RasterEngine(this.context);
 
@@ -435,7 +442,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 }
 
                 ConcurrentList<VisibleTriangle> partTriangles =
-                    GeometryKit.buildFromElements(part.model().getElements(), faceTextures, tint);
+                    GeometryKit.buildFromElements(part.model().getElements(), faceTextures, tint, untintedTint);
 
                 // Apply the part's offset to every vertex. Offset is in model units (0..16);
                 // triangle vertex positions are in block units (0..1) post-GeometryKit, so
@@ -474,7 +481,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * model cannot be resolved in the block index. Per-apply rotation is preserved so the
          * rendered block faces the apply's intended direction.
          */
-        private @NotNull ConcurrentList<VisibleTriangle> tryFirstBlockstateApply(@NotNull Block block, int tint) {
+        private @NotNull ConcurrentList<VisibleTriangle> tryFirstBlockstateApply(@NotNull Block block, int tint, int untintedTint) {
             Block.Variant first = null;
             if (block.getMultipart().isPresent()) {
                 ConcurrentList<Block.Multipart.Part> parts = block.getMultipart().get().parts();
@@ -505,7 +512,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             }
 
             ConcurrentList<VisibleTriangle> triangles =
-                GeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint);
+                GeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint);
 
             if (first.hasRotation())
                 triangles = applyRotation(triangles, buildVariantRotation(first));

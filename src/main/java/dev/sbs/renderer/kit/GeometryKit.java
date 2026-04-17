@@ -119,6 +119,30 @@ public class GeometryKit {
         @NotNull Map<String, PixelBuffer> faceTextures,
         int tintArgb
     ) {
+        return buildFromElements(elements, faceTextures, tintArgb, tintArgb);
+    }
+
+    /**
+     * Per-face-tint variant of {@link #buildFromElements(ConcurrentList, Map, int)}. Faces whose
+     * {@link ModelFace#getTintIndex() tintindex} is {@code >= 0} receive {@code tintedArgb}; faces
+     * with {@code tintindex = -1} (the default) receive {@code untintedArgb}. Callers that want
+     * uniform tinting pass the same value for both, which is what the single-argument overload
+     * does.
+     * <p>
+     * Used by {@link dev.sbs.renderer.BlockRenderer} to honour vanilla's
+     * {@code "tintindex": 0} on banner-flag faces: the flag receives the dye colour, the pole
+     * and bar stay wood-brown. Biome-tinted blocks (grass_block, leaves) continue to call the
+     * uniform overload so every face still picks up the biome colormap sample.
+     *
+     * @param tintedArgb ARGB applied to faces with {@code tintindex >= 0}
+     * @param untintedArgb ARGB applied to faces with {@code tintindex = -1}
+     */
+    public static @NotNull ConcurrentList<VisibleTriangle> buildFromElements(
+        @NotNull ConcurrentList<ModelElement> elements,
+        @NotNull Map<String, PixelBuffer> faceTextures,
+        int tintedArgb,
+        int untintedArgb
+    ) {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
         for (ModelElement element : elements) {
@@ -191,11 +215,12 @@ public class GeometryKit {
                     faceNormal = Vector3f.normalize(Vector3f.transformNormal(faceNormal, normalTransform));
                 }
 
+                int faceTint = face.getTintIndex() >= 0 ? tintedArgb : untintedArgb;
                 addQuad(
                     triangles,
                     corners[0], corners[1], corners[2], corners[3],
                     uv[0], uv[1], uv[2], uv[3],
-                    texture, tintArgb,
+                    texture, faceTint,
                     faceNormal,
                     !twoSided
                 );

@@ -2662,7 +2662,8 @@
               0.25,
               0.25,
               0.0
-            ]
+            ],
+            "tintindex": 0
           },
           "down": {
             "texture": "#entity",
@@ -2671,7 +2672,8 @@
               0.0,
               5.25,
               0.25
-            ]
+            ],
+            "tintindex": 0
           },
           "north": {
             "texture": "#entity",
@@ -2680,7 +2682,8 @@
               0.25,
               5.25,
               10.25
-            ]
+            ],
+            "tintindex": 0
           },
           "south": {
             "texture": "#entity",
@@ -2689,7 +2692,8 @@
               0.25,
               10.5,
               10.25
-            ]
+            ],
+            "tintindex": 0
           },
           "east": {
             "texture": "#entity",
@@ -2698,7 +2702,8 @@
               0.25,
               0.25,
               10.25
-            ]
+            ],
+            "tintindex": 0
           },
           "west": {
             "texture": "#entity",
@@ -2707,155 +2712,8 @@
               0.25,
               5.5,
               10.25
-            ]
-          }
-        }
-      }
-    ]
-  },
-  "minecraft:wall_banner": {
-    "textureWidth": 64,
-    "textureHeight": 64,
-    "elements": [
-      {
-        "from": [
-          1.33,
-          12.33,
-          0.33
-        ],
-        "to": [
-          14.67,
-          13.67,
-          1.67
-        ],
-        "faces": {
-          "up": {
-            "texture": "#entity",
-            "uv": [
-              0.5,
-              10.5,
-              5.5,
-              11.0
-            ]
-          },
-          "down": {
-            "texture": "#entity",
-            "uv": [
-              5.5,
-              11.0,
-              10.5,
-              10.5
-            ]
-          },
-          "south": {
-            "texture": "#entity",
-            "uv": [
-              0.5,
-              11.0,
-              5.5,
-              11.5
-            ]
-          },
-          "north": {
-            "texture": "#entity",
-            "uv": [
-              6.0,
-              11.0,
-              11.0,
-              11.5
-            ]
-          },
-          "west": {
-            "texture": "#entity",
-            "uv": [
-              0.0,
-              11.0,
-              0.5,
-              11.5
-            ]
-          },
-          "east": {
-            "texture": "#entity",
-            "uv": [
-              5.5,
-              11.0,
-              6.0,
-              11.5
-            ]
-          }
-        }
-      }
-    ]
-  },
-  "minecraft:wall_banner_flag": {
-    "textureWidth": 64,
-    "textureHeight": 64,
-    "elements": [
-      {
-        "from": [
-          1.33,
-          -13.0,
-          1.67
-        ],
-        "to": [
-          14.67,
-          13.67,
-          2.33
-        ],
-        "faces": {
-          "up": {
-            "texture": "#entity",
-            "uv": [
-              0.25,
-              0.0,
-              5.25,
-              0.25
-            ]
-          },
-          "down": {
-            "texture": "#entity",
-            "uv": [
-              5.25,
-              0.25,
-              10.25,
-              0.0
-            ]
-          },
-          "south": {
-            "texture": "#entity",
-            "uv": [
-              0.25,
-              0.25,
-              5.25,
-              10.25
-            ]
-          },
-          "north": {
-            "texture": "#entity",
-            "uv": [
-              5.5,
-              0.25,
-              10.5,
-              10.25
-            ]
-          },
-          "west": {
-            "texture": "#entity",
-            "uv": [
-              0.0,
-              0.25,
-              0.25,
-              10.25
-            ]
-          },
-          "east": {
-            "texture": "#entity",
-            "uv": [
-              5.25,
-              0.25,
-              5.5,
-              10.25
-            ]
+            ],
+            "tintindex": 0
           }
         }
       }
@@ -3830,6 +3688,160 @@
               14.75,
               6.0
             ]
+          }
+        }
+      }
+    ]
+  },
+  "minecraft:wall_banner": {
+    "textureWidth": 64,
+    "textureHeight": 64,
+    "elements": [
+      {
+        "from": [
+          1.33,
+          12.33,
+          14.33
+        ],
+        "to": [
+          14.67,
+          13.67,
+          15.67
+        ],
+        "faces": {
+          "up": {
+            "texture": "#entity",
+            "uv": [
+              5.5,
+              11.0,
+              0.5,
+              10.5
+            ]
+          },
+          "down": {
+            "texture": "#entity",
+            "uv": [
+              10.5,
+              10.5,
+              5.5,
+              11.0
+            ]
+          },
+          "north": {
+            "texture": "#entity",
+            "uv": [
+              0.5,
+              11.0,
+              5.5,
+              11.5
+            ]
+          },
+          "south": {
+            "texture": "#entity",
+            "uv": [
+              6.0,
+              11.0,
+              11.0,
+              11.5
+            ]
+          },
+          "east": {
+            "texture": "#entity",
+            "uv": [
+              0.0,
+              11.0,
+              0.5,
+              11.5
+            ]
+          },
+          "west": {
+            "texture": "#entity",
+            "uv": [
+              5.5,
+              11.0,
+              6.0,
+              11.5
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "minecraft:wall_banner_flag": {
+    "textureWidth": 64,
+    "textureHeight": 64,
+    "elements": [
+      {
+        "from": [
+          1.33,
+          -13.0,
+          13.67
+        ],
+        "to": [
+          14.67,
+          13.67,
+          14.33
+        ],
+        "faces": {
+          "up": {
+            "texture": "#entity",
+            "uv": [
+              5.25,
+              0.25,
+              0.25,
+              0.0
+            ],
+            "tintindex": 0
+          },
+          "down": {
+            "texture": "#entity",
+            "uv": [
+              10.25,
+              0.0,
+              5.25,
+              0.25
+            ],
+            "tintindex": 0
+          },
+          "north": {
+            "texture": "#entity",
+            "uv": [
+              0.25,
+              0.25,
+              5.25,
+              10.25
+            ],
+            "tintindex": 0
+          },
+          "south": {
+            "texture": "#entity",
+            "uv": [
+              5.5,
+              0.25,
+              10.5,
+              10.25
+            ],
+            "tintindex": 0
+          },
+          "east": {
+            "texture": "#entity",
+            "uv": [
+              0.0,
+              0.25,
+              0.25,
+              10.25
+            ],
+            "tintindex": 0
+          },
+          "west": {
+            "texture": "#entity",
+            "uv": [
+              5.25,
+              0.25,
+              5.5,
+              10.25
+            ],
+            "tintindex": 0
           }
         }
       }
