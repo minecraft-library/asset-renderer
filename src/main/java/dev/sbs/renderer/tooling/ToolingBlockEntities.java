@@ -186,10 +186,12 @@ public final class ToolingBlockEntities {
             // <p>
             // Lectern's vanilla {@code state.yRot = facing.getClockWise().toYRot()} - for default
             // facing=NORTH that's EAST.toYRot() = 270°, so the renderer applies
-            // {@code Ry(-270°) = Ry(90°)} between the outer translate and the Z roll. We bake
-            // that as an {@code inventory_y_rotation = 90°} on the parsed model so the in-atlas
-            // tile reproduces the default-facing in-world view (book opens to the right).
-            new Source("net/minecraft/client/model/object/book/BookModel.class", "createBodyLayer", "minecraft:lectern_book", YAxis.DOWN, 90f, null, null, null, Map.of("left_lid", new float[]{ 0f, 180f, 0f })),
+            // {@code Ry(-270°) = Ry(90°)} between the outer translate and the Z roll. Encoded
+            // as INVENTORY_TRANSFORMS yaw (index 4) on the lectern_book entry so the rotation
+            // pivot lands at the post-translate point (8, 17, 8) - matching vanilla - rather
+            // than rotating around block centre (8, 8, 8) the way {@code inventory_y_rotation}
+            // would.
+            new Source("net/minecraft/client/model/object/book/BookModel.class", "createBodyLayer", "minecraft:lectern_book", YAxis.DOWN, 0f, null, null, null, Map.of("left_lid", new float[]{ 0f, 180f, 0f })),
             new Source("net/minecraft/client/model/object/book/BookModel.class", "createBodyLayer", "minecraft:enchant_book", YAxis.DOWN, 0f, null, null, null, Map.of("left_lid", new float[]{ 0f, 180f, 0f })),
 
             // DecoratedPotRenderer authors its cubes in block-space Y-up (cube y=17..20 for the
@@ -973,7 +975,7 @@ public final class ToolingBlockEntities {
             // is short-circuited by the presence of this entry. With pitch=0 the rotation chain
             // just emits Rz(67.5°), and the inner translate is encoded as the pre-rotation
             // translate at indices 7-9.
-            Map.entry("minecraft:lectern_book", new float[]{ 8, 17, 8, 0, 0, 67.5f, 1f, 0, -2, 0 }),
+            Map.entry("minecraft:lectern_book", new float[]{ 8, 17, 8, 0, 90f, 67.5f, 1f, 0, -2, 0 }),
             // EnchantTableRenderer.submit:
             //   translate(0.5, 0.75, 0.5) * translate(0, 0.1 + 0.01*sin(time), 0) * rotateY(-yaw) * rotateZ(80°)
             // For the static atlas (yaw=0, time=0): outer translate folds to (0.5, 0.85, 0.5) and
