@@ -576,22 +576,6 @@
       "textureId": "minecraft:entity/conduit/base"
     }
   ],
-  "minecraft:lectern_book": [
-    {
-      "//": "Additive overlay: BookModel.createBodyLayer's closed-book geometry sits tilted on top of the lectern stand from block/lectern.json. Both lectern and enchanting_table share entity/enchantment/enchanting_table_book.png (LecternRenderer references EnchantTableRenderer.BOOK_TEXTURE directly). The per-block tilt + position is baked into the lectern_book INVENTORY_TRANSFORMS entry (Rz(67.5°) + outer T(8,17,8) + inner T(0,-2,0)).",
-      "blockId": "minecraft:lectern",
-      "textureId": "minecraft:entity/enchantment/enchanting_table_book",
-      "additive": true
-    }
-  ],
-  "minecraft:enchant_book": [
-    {
-      "//": "Additive overlay: same BookModel geometry but with the enchanting-table-specific tilt baked into INVENTORY_TRANSFORMS (Rz(80°) + T(8,13.6,8)). The book floats above block/enchanting_table.json's table base; sin-driven hover and yaw spin from EnchantTableRenderer.submit are runtime animations - the atlas snaps the time=0 / yaw=0 pose.",
-      "blockId": "minecraft:enchanting_table",
-      "textureId": "minecraft:entity/enchantment/enchanting_table_book",
-      "additive": true
-    }
-  ],
   "minecraft:bell_body": [
     {
       "//": "Additive overlay: BellModel.createBodyLayer's bell-cup geometry hangs from the bar+post fixture supplied by block/bell_floor.json / bell_ceiling.json / bell_wall.json / bell_between_walls.json. Vanilla minecraft:bell is the loose item; the four model-named blocks are the placed variants picked by the bell blockstate's attachment property. additive=true keeps each blockstate's primary model in place and merges the bell entity geometry on top at render time.",
