@@ -158,7 +158,7 @@ public final class TestFluidMain {
                 ImageFormat.GIF,
                 out,
                 GifWriteOptions.builder()
-                    .withBackgroundRgb(0x000000)
+                    .isTransparent()
                     .build()
             );
         } else {
