@@ -398,37 +398,6 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * {@link TrimKit#resolveFromTextureRef} so the renderer doesn't depend on material-specific
      * PNGs being shipped in the pack.
      */
-    /**
-     * Returns {@code true} when an item has no renderable 2D/3D content on its own (no layer
-     * textures, no elements, no overlay, not a banner/shield) but the same id names a real
-     * block the renderer can draw. Used by {@link Gui2D} and {@link Held3D} to route
-     * block-entity items through {@link BlockRenderer.Isometric3D} instead of producing a
-     * blank flat icon.
-     * <p>
-     * This redirect is load-bearing. Audited (2026-04-16) against the MC 26.1 model tree:
-     * 60+ items inherit from {@code template_bed}, {@code template_shulker_box},
-     * {@code template_chest}, {@code template_banner}, {@code template_skull},
-     * {@code template_copper_golem_statue}, or ship their own empty item model
-     * ({@code decorated_pot}, {@code conduit}, {@code dragon_head}). None have elements or
-     * a {@code layer0} anywhere in the parent chain - vanilla renders them via dedicated
-     * tile-entity renderers that aren't part of our item pipeline. Removing the redirect
-     * would blank every one of these tiles in the atlas. The block path is the correct
-     * bridge because our {@link dev.sbs.renderer.pipeline.loader.BlockEntityLoader
-     * BlockEntityLoader} already extracts their geometry into block models.
-     */
-    static boolean shouldRedirectToBlockRender(
-        @NotNull RendererContext context,
-        @NotNull Item item,
-        @NotNull String itemId
-    ) {
-        if (item.getOverlay().isPresent()) return false;
-        if (isBannerOrShield(itemId)) return false;
-        if (!item.getModel().getElements().isEmpty()) return false;
-        String layer0 = item.getTextures().get(LAYER_TEXTURE_PREFIX + "0");
-        if (layer0 != null && !layer0.isBlank()) return false;
-        return context.findBlock(itemId).isPresent();
-    }
-
     static void renderStandardLayers(
         @NotNull RasterEngine engine,
         @NotNull PixelBuffer buffer,
@@ -490,19 +459,6 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 }
             } else if (isBannerOrShield(options.getItemId())) {
                 renderBannerOrShield(engine, buffer, options.getItemId(), options);
-            } else if (shouldRedirectToBlockRender(this.context, item, options.getItemId())) {
-                // Block-items like <color>_bed, <color>_shulker_box, chest, and decorated_pot
-                // have an item model with only display transforms - no layer0 and no elements.
-                // renderStandardLayers would produce a blank icon, so route the render through
-                // BlockRenderer.Isometric3D which knows how to build geometry from the paired
-                // block's blockstate or entity mapping.
-                return new BlockRenderer(this.context).render(
-                    BlockOptions.builder()
-                        .blockId(options.getItemId())
-                        .type(BlockOptions.Type.ISOMETRIC_3D)
-                        .outputSize(options.getOutputSize())
-                        .build()
-                );
             } else {
                 renderStandardLayers(engine, buffer, item, options);
             }
@@ -573,12 +529,13 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             } else {
                 // Flat sprite fallback - layer0 rendered as a thin Z-axis slab. Matches the
                 // previous behaviour for item/generated and item/handheld parented items.
+                // Degenerate cases (no elements AND no layer0) don't reach this path anymore
+                // now that tile-entity items are filtered out of {@code itemIndex} and the
+                // {@code shouldRedirectToBlockRender} bridge is gone - every id surviving to
+                // here has a layer0 by construction.
                 String layerRef = item.getTextures().get("layer0");
-                if (layerRef == null || layerRef.isBlank()) {
-                    // Degenerate: no element model and no layer0. Fall back to the GUI path so
-                    // we still emit a sensible frame rather than throwing.
-                    return new Gui2D(this.context).render(options);
-                }
+                if (layerRef == null || layerRef.isBlank())
+                    throw new RendererException("Item '%s' has no elements and no layer0 - nothing to render in Held3D path", options.getItemId());
 
                 PixelBuffer texture = engine.resolveTexture(layerRef);
                 PixelBuffer[] faces = new PixelBuffer[]{ texture, texture, texture, texture, texture, texture };

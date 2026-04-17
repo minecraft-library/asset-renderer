@@ -223,6 +223,13 @@ public final class PipelineRendererContext implements RendererContext {
             ItemModelData model = itemEntry.getValue();
             String itemId = stripPrefix(modelId, ":item/");
             String name = localName(modelId);
+            // Skip items whose matching block carries a {@link Block.Entity} - beds, chests,
+            // banners, shulkers, signs, skulls, conduit, decorated_pot, copper golem statues.
+            // Their vanilla item models have neither elements nor a layer0 and would render as
+            // blank 2D sprites; the {@link Block.Entity} geometry renders through the block
+            // path as a {@code TILE_ENTITY} atlas tile. Filtering them out here lets us delete
+            // the old {@code ItemRenderer.shouldRedirectToBlockRender} bridge entirely.
+            if (blockEntityEntries.containsKey(itemId)) continue;
             ConcurrentMap<String, String> textures = Concurrent.newMap();
             textures.putAll(model.getTextures());
             Optional<Item.Overlay> overlay = OverlayResolver.resolve(itemId, model);

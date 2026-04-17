@@ -142,12 +142,14 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     }
 
     /**
-     * Classifies a block tile by its registration origin. Blockstate-only ids (Task 10) win first;
-     * everything else came from the primary block-model iteration (including block entities whose
-     * geometry is now baked into block model elements via {@code BlockEntityLoader}).
+     * Classifies a block tile by its registration origin. Priority order: tile-entity blocks
+     * (carrying a {@link Block.Entity}) first; blockstate-only Task 10 fallbacks next; plain
+     * block-model blocks last.
      */
     private @NotNull TileSpec.Source classifyBlockSource(@NotNull String blockId, @NotNull java.util.Set<String> blockstateOnly) {
-        return blockstateOnly.contains(blockId) ? TileSpec.Source.BLOCKSTATE_ONLY : TileSpec.Source.BLOCK_MODEL;
+        if (this.context.findBlockEntityEntry(blockId).isPresent()) return TileSpec.Source.TILE_ENTITY;
+        if (blockstateOnly.contains(blockId)) return TileSpec.Source.BLOCKSTATE_ONLY;
+        return TileSpec.Source.BLOCK_MODEL;
     }
 
     /**
@@ -161,6 +163,12 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
 
         for (String itemId : this.context.knownItemIds()) {
             if (options.getFilter().map(f -> !f.test(itemId)).orElse(false)) continue;
+            // Tile-entity items (beds, chests, banners, shulkers, signs, skulls, conduit,
+            // decorated_pot, copper golem statues) render through the block pass as
+            // {@link TileSpec.Source#TILE_ENTITY} tiles - their vanilla item models have
+            // neither elements nor layer0 and would produce blank icons if we rendered them
+            // here. Skip so the atlas emits exactly one tile per TE id.
+            if (this.context.findBlockEntityEntry(itemId).isPresent()) continue;
 
             ItemOptions itemOptions = ItemOptions.builder()
                 .itemId(itemId)
@@ -271,11 +279,18 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
 
         /**
          * Registration source tag emitted alongside {@link Kind} so diagnostics can filter tiles
-         * by the pipeline path that produced them. {@link #BLOCK_MODEL} is the primary
-         * {@code blockModels} iteration (including block entities whose geometry is baked into
-         * block model elements via {@code BlockEntityLoader}); {@link #BLOCKSTATE_ONLY}
-         * covers Task 10 blocks resolved via their blockstate when no block-model file matches
-         * the id; {@link #ITEM_MODEL} is every item tile.
+         * by the pipeline path that produced them.
+         * <ul>
+         * <li>{@link #BLOCK_MODEL} - primary {@code blockModels} iteration (plain blocks whose
+         *     geometry is fully described by {@code block.json}).</li>
+         * <li>{@link #BLOCKSTATE_ONLY} - Task 10 fallback: blocks resolved via blockstate when no
+         *     block-model file matches the id (fences, walls, small_dripleaf, etc.).</li>
+         * <li>{@link #TILE_ENTITY} - blocks whose geometry comes from a {@link Block.Entity} -
+         *     vanilla {@code BlockEntityRenderer} geometry baked into block model elements by
+         *     {@link dev.sbs.renderer.pipeline.loader.BlockEntityLoader} (beds, chests, banners,
+         *     shulkers, signs, skulls, conduit, decorated_pot, etc.).</li>
+         * <li>{@link #ITEM_MODEL} - primary {@code itemModels} iteration.</li>
+         * </ul>
          */
         public enum Source {
 
@@ -283,6 +298,8 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             BLOCK_MODEL,
             /** Task 10 - transient block resolved via blockstate only (fence, wall, small_dripleaf, etc.). */
             BLOCKSTATE_ONLY,
+            /** Block carrying a {@link Block.Entity} - tile-entity geometry baked into block elements. */
+            TILE_ENTITY,
             /** Primary {@code itemModels} iteration. */
             ITEM_MODEL;
 
