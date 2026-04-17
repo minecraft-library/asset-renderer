@@ -186,10 +186,12 @@ public final class ToolingBlockEntities {
             // <p>
             // Lectern's vanilla {@code state.yRot = facing.getClockWise().toYRot()} - for default
             // facing=NORTH that's EAST.toYRot() = 270°, so the renderer applies
-            // {@code Ry(-270°) = Ry(90°)} between the outer translate and the Z roll. We bake
-            // that as an {@code inventory_y_rotation = 90°} on the parsed model so the in-atlas
-            // tile reproduces the default-facing in-world view (book opens to the right).
-            new Source("net/minecraft/client/model/object/book/BookModel.class", "createBodyLayer", "minecraft:lectern_book", YAxis.DOWN, 90f, null, null, null, Map.of("left_lid", new float[]{ 0f, 180f, 0f })),
+            // {@code Ry(-270°) = Ry(90°)} between the outer translate and the Z roll. That goes
+            // into the lectern_book INVENTORY_TRANSFORMS yaw slot (NOT
+            // {@code inventory_y_rotation}, which rotates around block centre rather than the
+            // model origin) so the rotation pivot lands at the post-translate point exactly like
+            // vanilla.
+            new Source("net/minecraft/client/model/object/book/BookModel.class", "createBodyLayer", "minecraft:lectern_book", YAxis.DOWN, 0f, null, null, null, Map.of("left_lid", new float[]{ 0f, 180f, 0f })),
             new Source("net/minecraft/client/model/object/book/BookModel.class", "createBodyLayer", "minecraft:enchant_book", YAxis.DOWN, 0f, null, null, null, Map.of("left_lid", new float[]{ 0f, 180f, 0f })),
 
             // DecoratedPotRenderer authors its cubes in block-space Y-up (cube y=17..20 for the
@@ -963,17 +965,17 @@ public final class ToolingBlockEntities {
             // parse, not from a separate render transform.
             Map.entry("minecraft:wall_banner", new float[]{ 8, 0, 8, 180, 0, 0, 0.6666667f }),
             Map.entry("minecraft:wall_banner_flag", new float[]{ 8, 0, 8, 180, 0, 0, 0.6666667f }),
-            // LecternRenderer.submit:
-            //   translate(0.5, 1.0625, 0.5) * rotateZ(67.5°) * translate(0, -0.125, 0)
-            // for the static atlas (yaw=0). Block units convert to model units via x16:
-            //   outer translate (8, 17, 8), Rz(67.5°), inner translate (0, -2, 0).
-            // BookModel cubes are authored in vanilla's Y-UP block frame directly (LecternRenderer
-            // applies no scale/flip before the draw call), so the converter stays in that frame -
-            // YAxis.DOWN means the parser doesn't pre-flip and {@code applyChain}'s Y-flip path
-            // is short-circuited by the presence of this entry. With pitch=0 the rotation chain
-            // just emits Rz(67.5°), and the inner translate is encoded as the pre-rotation
-            // translate at indices 7-9.
-            Map.entry("minecraft:lectern_book", new float[]{ 8, 17, 8, 0, 0, 67.5f, 1f, 0, -2, 0 }),
+            // LecternRenderer.submit (full chain):
+            //   translate(0.5, 1.0625, 0.5) * rotateY(-state.yRot) * rotateZ(67.5°) * translate(0, -0.125, 0)
+            // where state.yRot = facing.getClockWise().toYRot(). For default facing=NORTH:
+            // EAST.toYRot() = 270, so -state.yRot = 90. The pose chain becomes:
+            //   T(8, 17, 8) * Ry(90°) * Rz(67.5°) * T(0, -2, 0) in model units.
+            // Encoded as yaw=90, roll=67.5, pre-translate (0, -2, 0). The applyChain rotation
+            // order is Rz -> Ry -> Rx so Rz applies first to the vertex and Ry applies second,
+            // matching vanilla's {@code mulPose(Ry); mulPose(Rz);} semantics. The yaw is then
+            // emitted as a per-element rotation directive ({@link CubeTransform#singleAxisInvRotation})
+            // so it stays the outermost rotation and applies cleanly without AABB distortion.
+            Map.entry("minecraft:lectern_book", new float[]{ 8, 17, 8, 0, 90f, 67.5f, 1f, 0, -2, 0 }),
             // EnchantTableRenderer.submit:
             //   translate(0.5, 0.75, 0.5) * translate(0, 0.1 + 0.01*sin(time), 0) * rotateY(-yaw) * rotateZ(80°)
             // For the static atlas (yaw=0, time=0): outer translate folds to (0.5, 0.85, 0.5) and
@@ -1081,7 +1083,7 @@ public final class ToolingBlockEntities {
             float[][] blockCorners = new float[8][3];
             for (int i = 0; i < 8; i++) {
                 if (invRot != null)
-                    blockCorners[i] = transform.applyNoInvRot(entityCorners[i]);
+                    blockCorners[i] = transform.applyNoInvRot(entityCorners[i], invRot.axis);
                 else if (blockRot != null)
                     blockCorners[i] = transform.applyNoBoneRot(entityCorners[i]);
                 else
@@ -1402,29 +1404,30 @@ public final class ToolingBlockEntities {
 
             /** Applies scale + pivot + inventory transform (or Y-flip) + inventory yaw, skipping bone rotation. */
             float @NotNull [] applyNoBoneRot(float @NotNull [] corner) {
-                return applyChain(corner, false, true);
+                return applyChain(corner, false, null);
             }
 
             /** Applies scale, bone rotation, pivot, inventory transform (or Y-flip), then inventory yaw. */
             float @NotNull [] apply(float @NotNull [] corner) {
-                return applyChain(corner, true, true);
+                return applyChain(corner, true, null);
             }
 
             /**
              * Applies scale, bone rotation, pivot, optional inventory uniform-scale + pre-rotation
-             * translate + post-rotation translate, and inventory yaw - but skips the inventory
-             * transform's pitch/yaw/roll rotations and the no-invTransform Y-flip.
+             * translate + the OTHER inv rotations + post-rotation translate, and inventory yaw -
+             * but skips the inv rotation on {@code skipAxis} which is being emitted as a
+             * per-element {@code rotation} directive.
              * <p>
-             * Used when the inventory rotation is emitted as a per-element rotation directive
-             * (lectern + enchant table books): the renderer applies the inv rotation around
-             * {@code (invTransform[0..3])} at draw time, so the vertex math here only carries
-             * the translates plus any bone rotation.
+             * For the lectern book ({@code yaw=90°, roll=67.5°}, directive axis "y"), this bakes
+             * the {@code Rz(67.5°)} tilt into vertex positions and lets the renderer apply
+             * {@code Ry(90°)} around the post-translate point at draw time, matching vanilla's
+             * {@code Ry · Rz} composition (Rz first to vertex, then Ry).
              */
-            float @NotNull [] applyNoInvRot(float @NotNull [] corner) {
-                return applyChain(corner, true, false);
+            float @NotNull [] applyNoInvRot(float @NotNull [] corner, @NotNull String skipAxis) {
+                return applyChain(corner, true, skipAxis);
             }
 
-            private float @NotNull [] applyChain(float @NotNull [] corner, boolean withBoneRot, boolean withInvRot) {
+            private float @NotNull [] applyChain(float @NotNull [] corner, boolean withBoneRot, @Nullable String skipInvAxis) {
                 float cx = corner[0] * scale, cy = corner[1] * scale, cz = corner[2] * scale;
 
                 if (withBoneRot && boneRot != null) {
@@ -1453,28 +1456,19 @@ public final class ToolingBlockEntities {
                     if (invTransform.length > 9) {
                         cx += invTransform[7]; cy += invTransform[8]; cz += invTransform[9];
                     }
-                    // Rotations applied in Rx -> Ry -> Rz order (extrinsic), matching how
-                    // vanilla composes {@code mulPose(Rx) · mulPose(Ry) · mulPose(Rz)} on the
-                    // pose stack: each call right-multiplies, so the Rx rotation is the one
-                    // applied first to the model vertex. yaw + roll are optional - missing
-                    // (length <= 4 / <= 5) or zero values short-circuit the matrix mul.
-                    // Skipped entirely under {@code !withInvRot} - the rotation is then emitted
-                    // as a per-element {@code rotation} directive in {@link #buildElement}.
-                    if (withInvRot) {
-                        float pitch = (float) Math.toRadians(invTransform[3]);
-                        if (pitch != 0f) {
-                            float cosP = (float) Math.cos(pitch), sinP = (float) Math.sin(pitch);
-                            float ry = cy * cosP - cz * sinP;
-                            float rz = cy * sinP + cz * cosP;
-                            cy = ry; cz = rz;
-                        }
-                        float yaw = invTransform.length > 4 ? (float) Math.toRadians(invTransform[4]) : 0f;
-                        if (yaw != 0f) {
-                            float cosY = (float) Math.cos(yaw), sinY = (float) Math.sin(yaw);
-                            float rx = cx * cosY + cz * sinY;
-                            float rz = -cx * sinY + cz * cosY;
-                            cx = rx; cz = rz;
-                        }
+                    // Rotations applied in Rz -> Ry -> Rx order (in code order; matrix order is
+                    // Rx · Ry · Rz when read right-to-left). This matches vanilla's PoseStack
+                    // composition for blocks like the lectern: vanilla calls
+                    // {@code mulPose(Ry); mulPose(Rz);} which right-multiplies into a matrix
+                    // {@code Ry · Rz}, applied to a vertex as {@code Ry(Rz(v))} - Rz first, then
+                    // Ry. So in code we apply Rz first to the vertex, then Ry. Pitch (Rx) goes
+                    // last - the existing chest/banner/sign cases use pitch alone, so this order
+                    // change is a no-op for them.
+                    // Each axis is gated on {@code skipInvAxis}: when null, all rotations apply
+                    // (default vertex-baked behavior). When set to "x"/"y"/"z", that one axis is
+                    // skipped because the corresponding rotation is being emitted as a per-element
+                    // {@code rotation} directive in {@link #buildElement}.
+                    if (!"z".equals(skipInvAxis)) {
                         float roll = invTransform.length > 5 ? (float) Math.toRadians(invTransform[5]) : 0f;
                         if (roll != 0f) {
                             float cosR = (float) Math.cos(roll), sinR = (float) Math.sin(roll);
@@ -1483,8 +1477,30 @@ public final class ToolingBlockEntities {
                             cx = rx; cy = ry;
                         }
                     }
+                    if (!"y".equals(skipInvAxis)) {
+                        float yaw = invTransform.length > 4 ? (float) Math.toRadians(invTransform[4]) : 0f;
+                        if (yaw != 0f) {
+                            float cosY = (float) Math.cos(yaw), sinY = (float) Math.sin(yaw);
+                            float rx = cx * cosY + cz * sinY;
+                            float rz = -cx * sinY + cz * cosY;
+                            cx = rx; cz = rz;
+                        }
+                    }
+                    if (!"x".equals(skipInvAxis)) {
+                        float pitch = (float) Math.toRadians(invTransform[3]);
+                        if (pitch != 0f) {
+                            float cosP = (float) Math.cos(pitch), sinP = (float) Math.sin(pitch);
+                            float ry = cy * cosP - cz * sinP;
+                            float rz = cy * sinP + cz * cosP;
+                            cy = ry; cz = rz;
+                        }
+                    }
                     cx += invTransform[0]; cy += invTransform[1]; cz += invTransform[2];
-                } else if (withInvRot) {
+                } else {
+                    // No inv transform: apply the canonical Y-DOWN -> Y-UP flip so models
+                    // authored in mob convention land in block-space. This branch is unreachable
+                    // when {@code skipInvAxis} is set because every consumer of the directive
+                    // path has a non-null {@code invTransform}.
                     cy = -cy;
                 }
 
@@ -1515,25 +1531,27 @@ public final class ToolingBlockEntities {
              * Bone rotation {@code R_bone} becomes block rotation {@code R_block = T · R_bone · T^T}.
              */
             /**
-             * Returns the inv-transform rotation as an {@link ElementRotationInfo} when exactly
-             * one of pitch/yaw/roll is non-zero AND it is not pitch=180 (the chest/banner/sign
-             * pattern, where {@code Rx(180)} stays on the vertex-transform path so its AABB stays
-             * exact and the existing {@link #computeBlockRotation} bone-rotation conjugation
-             * keeps working). Returns {@code null} for all other shapes - mixed-axis combos and
-             * the 180° axis-flip cases fall back to the vertex-transform path where the rotation
-             * is baked into corner positions before AABB extraction.
+             * Picks one of the inv-transform rotations to emit as a per-element {@code rotation}
+             * directive. The directive is applied AFTER vertex math (i.e., it's the outermost
+             * rotation in the final composition), so to match vanilla's
+             * {@code mulPose(Ry); mulPose(Rz);} pattern - which produces an effective
+             * {@code Ry · Rz} applied to vertices - we pick the OUTERMOST non-zero rotation in
+             * our applyChain order ({@code Rz -> Ry -> Rx}: Rx is outermost, then Ry, then Rz).
+             * <p>
+             * Pitch=180 stays on the vertex-transform path so chest/banner/sign keep their
+             * existing AABB-exact behavior and the {@link #computeBlockRotation} bone-rotation
+             * conjugation keeps working. Returns {@code null} when no inv rotation should be
+             * emitted as a directive.
              */
             @Nullable ElementRotationInfo singleAxisInvRotation() {
                 if (invTransform == null) return null;
                 float pitch = invTransform[3];
                 float yaw = invTransform.length > 4 ? invTransform[4] : 0f;
                 float roll = invTransform.length > 5 ? invTransform[5] : 0f;
-                int nonZero = (pitch != 0f ? 1 : 0) + (yaw != 0f ? 1 : 0) + (roll != 0f ? 1 : 0);
-                if (nonZero != 1) return null;
-                if (pitch != 0f && pitch == 180f) return null;
-                if (pitch != 0f) return new ElementRotationInfo("x", pitch);
+                if (pitch != 0f && pitch != 180f) return new ElementRotationInfo("x", pitch);
                 if (yaw != 0f) return new ElementRotationInfo("y", yaw);
-                return new ElementRotationInfo("z", roll);
+                if (roll != 0f && pitch != 180f) return new ElementRotationInfo("z", roll);
+                return null;
             }
 
             @Nullable ElementRotationInfo computeBlockRotation() {
