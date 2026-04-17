@@ -15,6 +15,7 @@ import dev.sbs.renderer.asset.pack.TexturePack;
 import dev.sbs.renderer.asset.pack.AnimationData;
 import dev.sbs.renderer.options.AtlasOptions;
 import dev.sbs.renderer.options.BlockOptions;
+import dev.sbs.renderer.options.FluidOptions;
 import dev.sbs.renderer.options.GridOptions;
 import dev.sbs.renderer.options.ItemOptions;
 import dev.sbs.renderer.pipeline.PipelineRendererContext;
@@ -48,15 +49,28 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     /** Tile-count interval between {@code stdout} progress lines when {@link AtlasOptions#isProgressLogging()} is set. */
     private static final int PROGRESS_LOG_INTERVAL = 100;
 
+    /**
+     * Block ids that render through {@link FluidRenderer} instead of {@link BlockRenderer}.
+     * Vanilla {@code block/water.json} + {@code block/lava.json} carry only a {@code particle}
+     * texture - they have no elements, so the standard block-model path produces a blank tile.
+     * The atlas intercepts these ids in {@link #renderBlocks} and dispatches to
+     * {@link FluidRenderer.FluidFace2D} so each fluid emits a flat still-texture icon.
+     */
+    private static final java.util.Set<String> FLUID_BLOCK_IDS = java.util.Set.of(
+        "minecraft:water", "minecraft:lava"
+    );
+
     private final @NotNull RendererContext context;
     private final @NotNull BlockRenderer blockRenderer;
     private final @NotNull ItemRenderer itemRenderer;
+    private final @NotNull FluidRenderer fluidRenderer;
     private final @NotNull GridRenderer gridRenderer;
 
     public AtlasRenderer(@NotNull RendererContext context) {
         this.context = context;
         this.blockRenderer = new BlockRenderer(context);
         this.itemRenderer = new ItemRenderer(context);
+        this.fluidRenderer = new FluidRenderer(context);
         this.gridRenderer = new GridRenderer();
     }
 
@@ -83,16 +97,18 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     public @NotNull AtlasResult renderAtlas(@NotNull AtlasOptions options) {
         BlockRenderer blocks = this.blockRenderer;
         ItemRenderer items = this.itemRenderer;
+        FluidRenderer fluids = this.fluidRenderer;
 
         if (!options.isAnimated()) {
             RendererContext staticContext = new StaticTextureContext(this.context);
             blocks = new BlockRenderer(staticContext);
             items = new ItemRenderer(staticContext);
+            fluids = new FluidRenderer(staticContext);
         }
 
         ConcurrentList<TileSpec> tiles = Concurrent.newList();
         if (options.getSource() != AtlasOptions.Source.ITEM)
-            tiles.addAll(renderBlocks(options, blocks));
+            tiles.addAll(renderBlocks(options, blocks, fluids));
         if (options.getSource() != AtlasOptions.Source.BLOCK)
             tiles.addAll(renderItems(options, items));
 
@@ -106,10 +122,11 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
 
     /**
      * Iterates every block id the context knows about (sorted for deterministic output) and
-     * renders each via {@link BlockRenderer.Isometric3D}. Failures are caught per-tile and
-     * logged when {@link AtlasOptions#isProgressLogging()} is set.
+     * renders each via {@link BlockRenderer.Isometric3D}, except {@link #FLUID_BLOCK_IDS} which
+     * dispatch to {@link FluidRenderer.FluidFace2D}. Failures are caught per-tile and logged
+     * when {@link AtlasOptions#isProgressLogging()} is set.
      */
-    private @NotNull ConcurrentList<TileSpec> renderBlocks(@NotNull AtlasOptions options, @NotNull BlockRenderer renderer) {
+    private @NotNull ConcurrentList<TileSpec> renderBlocks(@NotNull AtlasOptions options, @NotNull BlockRenderer renderer, @NotNull FluidRenderer fluids) {
         ConcurrentList<TileSpec> tiles = Concurrent.newList();
         int count = 0;
         java.util.Set<String> blockstateOnly = this.context instanceof PipelineRendererContext prc
@@ -119,14 +136,22 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         for (String blockId : this.context.knownBlockIds()) {
             if (options.getFilter().map(f -> !f.test(blockId)).orElse(false)) continue;
 
-            BlockOptions blockOptions = BlockOptions.builder()
-                .blockId(blockId)
-                .type(BlockOptions.Type.ISOMETRIC_3D)
-                .outputSize(options.getTileSize())
-                .build();
             try {
-                ImageData image = renderer.render(blockOptions);
-                tiles.add(new TileSpec(blockId, TileSpec.Kind.BLOCK, classifyBlockSource(blockId, blockstateOnly), image));
+                ImageData image;
+                TileSpec.Source source;
+                if (FLUID_BLOCK_IDS.contains(blockId)) {
+                    image = fluids.render(fluidOptionsFor(blockId, options.getTileSize()));
+                    source = TileSpec.Source.FLUID;
+                } else {
+                    BlockOptions blockOptions = BlockOptions.builder()
+                        .blockId(blockId)
+                        .type(BlockOptions.Type.ISOMETRIC_3D)
+                        .outputSize(options.getTileSize())
+                        .build();
+                    image = renderer.render(blockOptions);
+                    source = classifyBlockSource(blockId, blockstateOnly);
+                }
+                tiles.add(new TileSpec(blockId, TileSpec.Kind.BLOCK, source, image));
                 count++;
                 if (options.isProgressLogging() && count % PROGRESS_LOG_INTERVAL == 0)
                     System.out.printf("  rendered %d block tiles...%n", count);
@@ -139,6 +164,23 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         if (options.isProgressLogging())
             System.out.printf("Block render pass complete: %d tiles%n", tiles.size());
         return tiles;
+    }
+
+    /**
+     * Builds the {@link FluidOptions} used for atlas fluid tiles. Fixes the render type to
+     * {@link FluidOptions.Type#FLUID_FACE_2D} so each fluid emits a flat tinted still-texture
+     * icon sized to the atlas tile. The isometric 3D path is deliberately not used here - it
+     * carries the full cube/flow/slope pipeline that is out of scope for a static atlas tile.
+     */
+    private static @NotNull FluidOptions fluidOptionsFor(@NotNull String blockId, int tileSize) {
+        FluidOptions.Fluid fluid = blockId.equals("minecraft:lava")
+            ? FluidOptions.Fluid.LAVA
+            : FluidOptions.Fluid.WATER;
+        return FluidOptions.builder()
+            .fluid(fluid)
+            .type(FluidOptions.Type.FLUID_FACE_2D)
+            .outputSize(tileSize)
+            .build();
     }
 
     /**
@@ -295,6 +337,10 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
          *     vanilla {@code BlockEntityRenderer} geometry baked into block model elements by
          *     {@link dev.sbs.renderer.pipeline.loader.BlockEntityLoader} (beds, chests, banners,
          *     shulkers, signs, skulls, conduit, decorated_pot, etc.).</li>
+         * <li>{@link #FLUID} - Task 6: block rendered through {@link FluidRenderer} from the
+         *     still fluid texture (water, lava). Vanilla {@code block/water.json} and
+         *     {@code block/lava.json} carry no elements, so the fluid renderer supplies the
+         *     atlas tile instead.</li>
          * <li>{@link #ITEM_MODEL} - primary {@code itemModels} iteration.</li>
          * </ul>
          */
@@ -306,6 +352,8 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             BLOCKSTATE_ONLY,
             /** Block carrying a {@link Block.Entity} - tile-entity geometry baked into block elements. */
             TILE_ENTITY,
+            /** Task 6 - block rendered via {@link FluidRenderer.FluidFace2D} (water, lava). */
+            FLUID,
             /** Primary {@code itemModels} iteration. */
             ITEM_MODEL;
 

@@ -109,7 +109,7 @@ class PipelineRendererContextTest {
         // A second model with a real elements list whose face bindings reference #variables in
         // the textures map. Drives the direction-key flattening test.
         blockModels.put(
-            "minecraft:block/cube_test",
+            "minecraft:block/faced_test_block",
             gson.fromJson(
                 "{\"textures\":{\"all\":\"minecraft:block/fixture\",\"top\":\"minecraft:block/fixture\"},"
                     + "\"elements\":[{\"from\":[0,0,0],\"to\":[16,16,16],\"faces\":{"
@@ -282,7 +282,7 @@ class PipelineRendererContextTest {
     @Test
     @DisplayName("Block.textures is populated with direction keys when the model has element faces")
     void blockTexturesFlattenElementFaces() {
-        Optional<Block> cube = context.findBlock("minecraft:cube_test");
+        Optional<Block> cube = context.findBlock("minecraft:faced_test_block");
         assertThat(cube.isPresent(), is(true));
 
         // Direction keys derived from element[0].faces, with #variable references resolved.
