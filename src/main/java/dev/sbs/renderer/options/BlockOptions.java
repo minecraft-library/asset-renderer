@@ -70,6 +70,20 @@ public class BlockOptions {
     @lombok.Builder.Default
     private final @NotNull ImageFormat outputFormat = ImageFormat.PNG;
 
+    /**
+     * Whether the renderer should compose a {@link dev.sbs.renderer.asset.Block.Entity}'s
+     * {@link dev.sbs.renderer.asset.Block.Entity#parts() parts} into the tile output.
+     * <p>
+     * Atlas-view rendering (the default, {@code true}) merges every part (bed foot onto bed
+     * head, decorated_pot sides onto its base, banner flag onto its post) so the icon shows
+     * the full composed block. Scene-view rendering ({@code false}) skips the merge, so a
+     * caller placing an individual {@code red_bed[part=head]} block in a 3D world gets just
+     * the head geometry, and {@code red_bed[part=foot]} at the neighbouring position gets
+     * just the foot. No-op on blocks that carry no entity or whose entity has no parts.
+     */
+    @lombok.Builder.Default
+    private final boolean mergeParts = true;
+
     public @NotNull BlockOptionsBuilder mutate() {
         return this.toBuilder();
     }

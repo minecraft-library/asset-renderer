@@ -165,30 +165,42 @@ public class Block {
     ) {
 
         /**
-         * An atlas-time composition instruction - an additional entity model id merged into the
-         * parent {@link Entity} at a positional offset. Used when vanilla's {@code BlockEntityRenderer}
+         * An atlas-time composition instruction - additional geometry merged into the parent
+         * {@link Entity} at a positional offset. Used when vanilla's {@code BlockEntityRenderer}
          * stitches multiple {@code LayerDefinition}s into the same in-world block render (bed head
          * + foot, decorated_pot base + sides, banner post + flag).
+         * <p>
+         * The renderer merges these at render time - gated on
+         * {@link dev.sbs.renderer.options.BlockOptions#isMergeParts()}. Atlas callers pass
+         * {@code mergeParts=true} (default) to produce the composed icon; future scene callers
+         * pass {@code false} to render one variant's geometry at a time.
          *
-         * @param modelId the entity model id to merge (e.g. {@code "minecraft:bed_foot"})
-         * @param texture the absolute texture id that rebinds the part's {@code "#entity"} face refs
+         * @param modelId source entity model id for diagnostics ({@code "minecraft:bed_foot"})
+         * @param model part geometry (elements + face UVs) ready to append to the parent
+         * @param texture absolute texture id that rebinds the part's {@code "#entity"} face refs
          * @param offset model-unit shift applied to every from/to + rotation.origin on the merged
-         *     elements (e.g. {@code [0, 0, 16]} to place the bed foot one block past the head)
+         *     elements ({@code [0, 0, 16]} to place the bed foot one block past the head)
          */
-        public record Part(@NotNull String modelId, @NotNull String texture, float @NotNull [] offset) {
+        public record Part(
+            @NotNull String modelId,
+            @NotNull BlockModelData model,
+            @NotNull String texture,
+            float @NotNull [] offset
+        ) {
 
             @Override
             public boolean equals(Object o) {
                 if (o == null || getClass() != o.getClass()) return false;
                 Part part = (Part) o;
                 return Objects.equals(this.modelId, part.modelId)
+                    && Objects.equals(this.model, part.model)
                     && Objects.equals(this.texture, part.texture)
                     && java.util.Arrays.equals(this.offset, part.offset);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(this.modelId, this.texture, java.util.Arrays.hashCode(this.offset));
+                return Objects.hash(this.modelId, this.model, this.texture, java.util.Arrays.hashCode(this.offset));
             }
 
         }

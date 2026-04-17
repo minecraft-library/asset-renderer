@@ -3,6 +3,7 @@ package dev.sbs.renderer;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import dev.sbs.renderer.geometry.ModelGrid;
 import dev.sbs.renderer.engine.IsometricEngine;
 import dev.sbs.renderer.engine.RasterEngine;
 import dev.sbs.renderer.engine.RenderEngine;
@@ -166,6 +167,13 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 if (variant != null && variant.hasRotation())
                     triangles = applyRotation(triangles, buildVariantRotation(variant));
             }
+
+            // Atlas-time composition: merge {@link Block.Entity.Part parts} into the primary
+            // geometry (bed foot onto bed head, decorated_pot sides onto its base, banner flag
+            // onto its post). Gated on {@link BlockOptions#isMergeParts()} - scene callers pass
+            // {@code false} to render one variant's geometry at a time.
+            if (be != null && options.isMergeParts() && !be.parts().isEmpty())
+                triangles.addAll(buildFromEntityParts(be, tint));
 
             // Block entity multi-block models (beds) need recentering + rotation + scaling
             // since they extend beyond the standard 0-16 single-block bounds.
@@ -354,6 +362,73 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             }
 
             return GeometryKit.buildFromElements(block.getModel().getElements(), faceTextures, tint);
+        }
+
+        /**
+         * Builds triangles for every {@link Block.Entity.Part part} attached to a block-entity
+         * block and translates them by each part's offset. Returns the combined triangle list
+         * ready to concatenate with the primary geometry. Called only when
+         * {@link BlockOptions#isMergeParts()} is {@code true}.
+         * <p>
+         * Translating the output triangles (rather than rewriting the element's from/to and
+         * rotation.origin up-front) is safe because rotation composes with translation:
+         * rotating around origin O then translating by D gives the same result as rotating
+         * around origin O+D after the whole element has been translated by D. That means the
+         * element's rotated-cube corners land at the correct final positions either way.
+         * <p>
+         * This is the atlas-time composition path that used to live in
+         * {@link dev.sbs.renderer.pipeline.loader.BlockEntityLoader}. Moving it to render time
+         * lets scene callers skip the merge for a per-variant-geometry render.
+         */
+        private @NotNull ConcurrentList<VisibleTriangle> buildFromEntityParts(@NotNull Block.Entity entity, int tint) {
+            ConcurrentList<VisibleTriangle> combined = Concurrent.newList();
+            RasterEngine raster = new RasterEngine(this.context);
+
+            for (Block.Entity.Part part : entity.parts()) {
+                // Resolve the part's face textures. {@code "#entity"} in element face refs
+                // binds to the part's own texture id (which may differ from the primary -
+                // decorated_pot sides use {@code entity/decorated_pot/decorated_pot_side}
+                // while the base uses {@code ..._base}).
+                ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
+                ConcurrentMap<String, String> variables = Concurrent.newMap();
+                variables.put("entity", part.texture());
+                for (ModelElement element : part.model().getElements()) {
+                    for (ModelFace face : element.getFaces().values()) {
+                        String ref = face.getTexture();
+                        if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
+                        String resolvedId = TextureEngine.dereferenceVariable(ref, variables);
+                        if (resolvedId.startsWith("#")) continue;
+                        faceTextures.put(ref, raster.resolveTexture(resolvedId));
+                    }
+                }
+
+                ConcurrentList<VisibleTriangle> partTriangles =
+                    GeometryKit.buildFromElements(part.model().getElements(), faceTextures, tint);
+
+                // Apply the part's offset to every vertex. Offset is in model units (0..16);
+                // triangle vertex positions are in block units (0..1) post-GeometryKit, so
+                // divide by 16.
+                float dx = part.offset()[0] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK;
+                float dy = part.offset()[1] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK;
+                float dz = part.offset()[2] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK;
+                if (dx != 0f || dy != 0f || dz != 0f) {
+                    ConcurrentList<VisibleTriangle> shifted = Concurrent.newList();
+                    for (VisibleTriangle t : partTriangles) {
+                        shifted.add(new VisibleTriangle(
+                            new Vector3f(t.position0().x() + dx, t.position0().y() + dy, t.position0().z() + dz),
+                            new Vector3f(t.position1().x() + dx, t.position1().y() + dy, t.position1().z() + dz),
+                            new Vector3f(t.position2().x() + dx, t.position2().y() + dy, t.position2().z() + dz),
+                            t.uv0(), t.uv1(), t.uv2(),
+                            t.texture(), t.tintArgb(), t.normal(), t.shading(), t.cullBackFaces()
+                        ));
+                    }
+                    partTriangles = shifted;
+                }
+
+                combined.addAll(partTriangles);
+            }
+
+            return combined;
         }
 
         /**

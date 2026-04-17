@@ -80,10 +80,15 @@ public class BlockEntityLoader {
                     String blockId = obj.get("blockId").getAsString();
                     String textureId = obj.get("textureId").getAsString();
 
-                    // Parse the primary model's elements
+                    // Parse the primary model's elements.
                     BlockModelData modelData = parseBlockModelData(blockModelJson, textureId);
 
-                    // Merge composite parts (e.g. bed foot) with offset
+                    // Resolve composite parts into {@link Block.Entity.Part} records. The merge
+                    // itself happens at render time inside {@link dev.sbs.renderer.BlockRenderer},
+                    // gated on {@link dev.sbs.renderer.options.BlockOptions#isMergeParts()}, so
+                    // scene-rendering callers can ask for just one variant's geometry without the
+                    // atlas-view composition.
+                    ConcurrentList<Block.Entity.Part> parts = Concurrent.newList();
                     if (obj.has("parts") && obj.get("parts").isJsonArray()) {
                         for (JsonElement partEl : obj.getAsJsonArray("parts")) {
                             JsonObject partObj = partEl.getAsJsonObject();
@@ -98,73 +103,23 @@ public class BlockEntityLoader {
                             JsonObject partBlockModel = blockModels.get(partModelId);
                             if (partBlockModel == null) continue;
                             BlockModelData partData = parseBlockModelData(partBlockModel, partTexture);
-
-                            // Merge part elements into the primary model, applying the offset.
-                            // Rewrite each face's {@code #entity} texture ref to the part's absolute
-                            // texture id, since the merged model's texture variables map only
-                            // resolves {@code #entity} to the primary texture - without this rewrite,
-                            // parts with a different texture (decorated_pot sides using
-                            // decorated_pot_side, distinct from decorated_pot_base) silently sample
-                            // the primary's pixels instead.
-                            for (ModelElement partElem : partData.getElements()) {
-                                float[] from = partElem.getFrom().clone();
-                                float[] to = partElem.getTo().clone();
-                                from[0] += offset[0]; from[1] += offset[1]; from[2] += offset[2];
-                                to[0] += offset[0]; to[1] += offset[1]; to[2] += offset[2];
-
-                                JsonObject elemJson = GSON.toJsonTree(partElem).getAsJsonObject();
-                                JsonArray fromArr = new JsonArray(); fromArr.add(from[0]); fromArr.add(from[1]); fromArr.add(from[2]);
-                                JsonArray toArr = new JsonArray(); toArr.add(to[0]); toArr.add(to[1]); toArr.add(to[2]);
-                                elemJson.add("from", fromArr);
-                                elemJson.add("to", toArr);
-
-                                // Rotation origin lives in the same coordinate space as from/to.
-                                // When we merge a part at an offset we have to offset the rotation
-                                // origin too, otherwise a rotated element in the part (e.g. bed_foot's
-                                // leg with Rx(90) around origin (0, 9, 0)) rotates around the wrong
-                                // pivot in the merged model and ends up outside the block bbox.
-                                JsonObject rotJson = elemJson.getAsJsonObject("rotation");
-                                if (rotJson != null && rotJson.has("origin") && rotJson.get("origin").isJsonArray()) {
-                                    JsonArray rawOrigin = rotJson.getAsJsonArray("origin");
-                                    JsonArray shifted = new JsonArray();
-                                    shifted.add(rawOrigin.get(0).getAsFloat() + offset[0]);
-                                    shifted.add(rawOrigin.get(1).getAsFloat() + offset[1]);
-                                    shifted.add(rawOrigin.get(2).getAsFloat() + offset[2]);
-                                    rotJson.add("origin", shifted);
-                                }
-
-                                JsonObject facesJson = elemJson.getAsJsonObject("faces");
-                                if (facesJson != null && !partTexture.equals(textureId)) {
-                                    for (Map.Entry<String, JsonElement> faceEntry : facesJson.entrySet()) {
-                                        JsonObject faceJson = faceEntry.getValue().getAsJsonObject();
-                                        if (faceJson.has("texture") && "#entity".equals(faceJson.get("texture").getAsString()))
-                                            faceJson.addProperty("texture", partTexture);
-                                    }
-                                }
-
-                                modelData.getElements().add(GSON.fromJson(elemJson, ModelElement.class));
-                            }
+                            parts.add(new Block.Entity.Part(partModelId, partData, partTexture, offset));
                         }
                     }
 
-                    // Detect multi-block models (any element extends beyond 0-16 on any axis)
-                    boolean multiBlock = false;
-                    for (ModelElement me : modelData.getElements()) {
-                        if (me.getFrom()[0] < -0.1f || me.getFrom()[1] < -0.1f || me.getFrom()[2] < -0.1f ||
-                            me.getTo()[0] > 16.1f || me.getTo()[1] > 16.1f || me.getTo()[2] > 16.1f) {
-                            multiBlock = true;
-                            break;
+                    // Multi-block detection has to consider the merged geometry since parts
+                    // (bed foot at z+16) can push the combined extent outside the 0..16 bbox
+                    // even when the primary geometry fits inside it.
+                    boolean multiBlock = extentsExceedBlock(modelData);
+                    if (!multiBlock) {
+                        for (Block.Entity.Part part : parts) {
+                            if (partExceedsBlock(part)) { multiBlock = true; break; }
                         }
                     }
 
                     int iconRotation = obj.has("iconRotation") ? obj.get("iconRotation").getAsInt() : 0;
                     int tintArgb = obj.has("tint") ? resolveTint(obj.get("tint").getAsString()) : ColorMath.WHITE;
-                    // {@code parts} is carried through as empty for now - the merge happens
-                    // in-place above against {@code modelData} so it isn't needed as a separate
-                    // list at render time. Step 8 of the refactor will move the merge to the
-                    // renderer and populate this field; for now it exists so {@link Block.Entity}
-                    // can carry it without further schema changes.
-                    result.put(blockId, new Block.Entity(modelId, modelData, textureId, tintArgb, iconRotation, multiBlock, Concurrent.newList()));
+                    result.put(blockId, new Block.Entity(modelId, modelData, textureId, tintArgb, iconRotation, multiBlock, parts));
                 }
             }
         } catch (IOException | JsonSyntaxException ex) {
@@ -172,6 +127,33 @@ public class BlockEntityLoader {
         }
 
         return result;
+    }
+
+    /** Returns {@code true} when any element of {@code model} escapes the {@code 0..16} block bbox. */
+    private static boolean extentsExceedBlock(@NotNull BlockModelData model) {
+        for (ModelElement me : model.getElements()) {
+            if (me.getFrom()[0] < -0.1f || me.getFrom()[1] < -0.1f || me.getFrom()[2] < -0.1f ||
+                me.getTo()[0] > 16.1f || me.getTo()[1] > 16.1f || me.getTo()[2] > 16.1f) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Returns {@code true} when a part, after its offset is applied, escapes the {@code 0..16}
+     * block bbox. Checked separately from the primary model so multi-block detection stays
+     * accurate after the loader stopped eagerly merging parts.
+     */
+    private static boolean partExceedsBlock(@NotNull Block.Entity.Part part) {
+        float[] offset = part.offset();
+        for (ModelElement me : part.model().getElements()) {
+            if (me.getFrom()[0] + offset[0] < -0.1f || me.getFrom()[1] + offset[1] < -0.1f || me.getFrom()[2] + offset[2] < -0.1f ||
+                me.getTo()[0] + offset[0] > 16.1f || me.getTo()[1] + offset[1] > 16.1f || me.getTo()[2] + offset[2] > 16.1f) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
