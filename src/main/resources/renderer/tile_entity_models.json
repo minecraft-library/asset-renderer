@@ -2065,6 +2065,148 @@
       }
     ]
   },
+  "minecraft:bell_body": {
+    "textureWidth": 32,
+    "textureHeight": 32,
+    "elements": [
+      {
+        "from": [
+          5.0,
+          6.0,
+          5.0
+        ],
+        "to": [
+          11.0,
+          13.0,
+          11.0
+        ],
+        "faces": {
+          "down": {
+            "texture": "#entity",
+            "uv": [
+              3.0,
+              0.0,
+              6.0,
+              3.0
+            ]
+          },
+          "up": {
+            "texture": "#entity",
+            "uv": [
+              6.0,
+              3.0,
+              9.0,
+              0.0
+            ]
+          },
+          "north": {
+            "texture": "#entity",
+            "uv": [
+              6.0,
+              6.5,
+              3.0,
+              3.0
+            ]
+          },
+          "south": {
+            "texture": "#entity",
+            "uv": [
+              12.0,
+              6.5,
+              9.0,
+              3.0
+            ]
+          },
+          "west": {
+            "texture": "#entity",
+            "uv": [
+              3.0,
+              6.5,
+              0.0,
+              3.0
+            ]
+          },
+          "east": {
+            "texture": "#entity",
+            "uv": [
+              9.0,
+              6.5,
+              6.0,
+              3.0
+            ]
+          }
+        }
+      },
+      {
+        "from": [
+          4.0,
+          4.0,
+          4.0
+        ],
+        "to": [
+          12.0,
+          6.0,
+          12.0
+        ],
+        "faces": {
+          "down": {
+            "texture": "#entity",
+            "uv": [
+              4.0,
+              6.5,
+              8.0,
+              10.5
+            ]
+          },
+          "up": {
+            "texture": "#entity",
+            "uv": [
+              8.0,
+              10.5,
+              12.0,
+              6.5
+            ]
+          },
+          "north": {
+            "texture": "#entity",
+            "uv": [
+              8.0,
+              11.5,
+              4.0,
+              10.5
+            ]
+          },
+          "south": {
+            "texture": "#entity",
+            "uv": [
+              16.0,
+              11.5,
+              12.0,
+              10.5
+            ]
+          },
+          "west": {
+            "texture": "#entity",
+            "uv": [
+              4.0,
+              11.5,
+              0.0,
+              10.5
+            ]
+          },
+          "east": {
+            "texture": "#entity",
+            "uv": [
+              12.0,
+              11.5,
+              8.0,
+              10.5
+            ]
+          }
+        }
+      }
+    ]
+  },
   "minecraft:skull_piglin_head": {
     "textureWidth": 64,
     "textureHeight": 64,

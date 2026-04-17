@@ -576,6 +576,29 @@
       "textureId": "minecraft:entity/conduit/base"
     }
   ],
+  "minecraft:bell_body": [
+    {
+      "//": "Additive overlay: BellModel.createBodyLayer's bell-cup geometry hangs from the bar+post fixture supplied by block/bell_floor.json / bell_ceiling.json / bell_wall.json / bell_between_walls.json. Vanilla minecraft:bell is the loose item; the four model-named blocks are the placed variants picked by the bell blockstate's attachment property. additive=true keeps each blockstate's primary model in place and merges the bell entity geometry on top at render time.",
+      "blockId": "minecraft:bell_floor",
+      "textureId": "minecraft:entity/bell/bell_body",
+      "additive": true
+    },
+    {
+      "blockId": "minecraft:bell_ceiling",
+      "textureId": "minecraft:entity/bell/bell_body",
+      "additive": true
+    },
+    {
+      "blockId": "minecraft:bell_wall",
+      "textureId": "minecraft:entity/bell/bell_body",
+      "additive": true
+    },
+    {
+      "blockId": "minecraft:bell_between_walls",
+      "textureId": "minecraft:entity/bell/bell_body",
+      "additive": true
+    }
+  ],
   "minecraft:decorated_pot": [
     {
       "//": "Primary model is the neck + lid/base caps from createBaseLayer (Sheets.DECORATED_POT_BASE, 32x32); the pot walls from createSidesLayer use Sheets.DECORATED_POT_SIDE (16x16 solid terracotta, the default when a pot has no sherd decorations).",

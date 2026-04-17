@@ -150,8 +150,12 @@ public final class PipelineRendererContext implements RendererContext {
             // reference. The {@link Block.Tint} goes to {@link Biome.TintTarget#NONE}
             // because per-entry tints are applied via {@link Block.Entity#tintArgb()} at
             // render time (see {@link BlockRenderer.Isometric3D}).
+            // <p>
+            // Additive entries (bell body) instead leave the primary block.json model in
+            // place and only attach the entity for {@link BlockRenderer.Isometric3D} to
+            // merge on top at render time.
             Block.Entity entity = blockEntityEntries.get(blockId);
-            if (entity != null) {
+            if (entity != null && !entity.additive()) {
                 modelToUse = entity.model();
                 textures = Concurrent.newMap();
                 textures.put("#entity", entity.textureId());
@@ -165,10 +169,15 @@ public final class PipelineRendererContext implements RendererContext {
         // vanilla {@code block.json} is missing entirely (e.g. some skull variants that
         // have no template model file). Backstop: for any {@link Block.Entity} not yet
         // registered above, emit a fresh Block carrying the extracted geometry.
+        // <p>
+        // Additive entries are skipped here - they need a primary model from elsewhere
+        // (the blockstate-only loop below for bells, the primary loop above for blocks
+        // that already had a {@code block/<id>.json}).
         for (Map.Entry<String, Block.Entity> entry : blockEntityEntries.entrySet()) {
             String blockId = entry.getKey();
             if (blockIndex.containsKey(blockId)) continue;
             Block.Entity be = entry.getValue();
+            if (be.additive()) continue;
             String shortName = blockId.contains(":") ? blockId.substring(blockId.indexOf(':') + 1) : blockId;
             ConcurrentList<String> tags = reverseTagIndex.getOrDefault(blockId, Concurrent.newList());
             ConcurrentMap<String, Block.Variant> variants = variantMap.getOrDefault(blockId, Concurrent.newMap());
@@ -212,7 +221,12 @@ public final class PipelineRendererContext implements RendererContext {
             Optional<Block.Multipart> multipart = Optional.ofNullable(multipartMap.get(blockId));
             ConcurrentList<String> tags = reverseTagIndex.getOrDefault(blockId, Concurrent.newList());
 
-            blockIndex.put(blockId, new Block(blockId, "minecraft", shortName, modelToUse, textures, variants, multipart, tags, tint, Optional.empty()));
+            // Additive entity geometry attaches here so blockstate-driven blocks (bell)
+            // pick up their entity overlay (BellModel bell-cup) at render time.
+            Block.Entity additiveEntity = blockEntityEntries.get(blockId);
+            Optional<Block.Entity> attachedEntity = additiveEntity != null && additiveEntity.additive()
+                ? Optional.of(additiveEntity) : Optional.empty();
+            blockIndex.put(blockId, new Block(blockId, "minecraft", shortName, modelToUse, textures, variants, multipart, tags, tint, attachedEntity));
             blockstateOnlyIds.add(blockId);
         }
         System.out.printf("Atlas blockstate-only registration: added %d blocks%n", blockstateOnlyIds.size());
@@ -506,9 +520,7 @@ public final class PipelineRendererContext implements RendererContext {
         "melon_stem_stage0", "melon_stem_stage1", "melon_stem_stage2",
         "pumpkin_stem_stage0", "pumpkin_stem_stage1", "pumpkin_stem_stage2",
         // Sparse wildflower submodels
-        "wildflowers_2", "wildflowers_4",
-        // Bell multipart submodel (ceiling-mount part only)
-        "bell_ceiling"
+        "wildflowers_2", "wildflowers_4"
     );
 
     /** Blocks that are invisible by design in vanilla - renderer intentionally produces empty geometry for them, so they do not belong in the atlas. */

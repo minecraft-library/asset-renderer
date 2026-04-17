@@ -155,6 +155,19 @@ public final class ToolingBlockEntities {
             new Source("net/minecraft/client/renderer/blockentity/HangingSignRenderer.class", "createHangingSignLayer", "minecraft:hanging_sign", YAxis.DOWN, 0f),
             new Source("net/minecraft/client/renderer/blockentity/ConduitRenderer.class", "createShellLayer", "minecraft:conduit", YAxis.DOWN, 0f),
 
+            // BellModel.createBodyLayer - bell-cup geometry that hangs from the bar built by
+            // {@code block/bell_floor.json} / {@code block/bell_ceiling.json} / etc. Authored in
+            // Y-UP block space (pivot at y=12, cube spans y=6..13 - i.e. dangling below the bar
+            // at y=13-14 in vanilla world coords). Marked {@link YAxis#UP} so the parser pre-flips
+            // to the canonical Y-DOWN form; with no INVENTORY_TRANSFORMS entry the default
+            // {@code cy = -cy} unflip restores the original block-space positions exactly.
+            // <p>
+            // Wired as an {@linkplain dev.sbs.renderer.asset.Block.Entity#additive() additive}
+            // mapping so the bar+post primary geometry from the four bell variant blocks
+            // ({@code bell_floor}, {@code bell_ceiling}, {@code bell_wall}, {@code bell_between_walls})
+            // is preserved and the bell cup is layered on top at render time.
+            new Source("net/minecraft/client/model/object/bell/BellModel.class", "createBodyLayer", "minecraft:bell_body", YAxis.UP, 0f),
+
             // DecoratedPotRenderer authors its cubes in block-space Y-up (cube y=17..20 for the
             // neck rim sits above the block top, lid/base decals at y=16 / y=0), so the default
             // Y-flip would bury everything below the block floor. The neutral INVENTORY_TRANSFORMS

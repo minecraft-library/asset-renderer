@@ -119,7 +119,11 @@ public class BlockEntityLoader {
 
                     int iconRotation = obj.has("iconRotation") ? obj.get("iconRotation").getAsInt() : 0;
                     int tintArgb = obj.has("tint") ? resolveTint(obj.get("tint").getAsString()) : ColorMath.WHITE;
-                    result.put(blockId, new Block.Entity(modelId, modelData, textureId, tintArgb, iconRotation, multiBlock, parts));
+                    // Additive entries leave the block's primary model intact and merge the
+                    // entity geometry on top at render time. Used for bells (bar+post from
+                    // block/bell_floor.json + bell-cup from BellModel.createBodyLayer).
+                    boolean additive = obj.has("additive") && obj.get("additive").getAsBoolean();
+                    result.put(blockId, new Block.Entity(modelId, modelData, textureId, tintArgb, iconRotation, multiBlock, parts, additive));
                 }
             }
         } catch (IOException | JsonSyntaxException ex) {

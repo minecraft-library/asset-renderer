@@ -172,8 +172,16 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // geometry (bed foot onto bed head, decorated_pot sides onto its base, banner flag
             // onto its post). Gated on {@link BlockOptions#isMergeParts()} - scene callers pass
             // {@code false} to render one variant's geometry at a time.
-            if (be != null && options.isMergeParts() && !be.parts().isEmpty())
-                triangles.addAll(buildFromEntityParts(be, tint));
+            if (be != null && options.isMergeParts()) {
+                // Additive entities (bell body) leave the primary block.json model in place
+                // and overlay the entity geometry. The entity's own model is appended here
+                // alongside its parts; non-additive entries skip this step because their
+                // entity geometry IS the primary model already (chests, beds, banners).
+                if (be.additive())
+                    triangles.addAll(buildFromAdditiveEntity(be, tint));
+                if (!be.parts().isEmpty())
+                    triangles.addAll(buildFromEntityParts(be, tint));
+            }
 
             // Block entity multi-block models (beds) need recentering + rotation + scaling
             // since they extend beyond the standard 0-16 single-block bounds.
@@ -380,6 +388,30 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * {@link dev.sbs.renderer.pipeline.loader.BlockEntityLoader}. Moving it to render time
          * lets scene callers skip the merge for a per-variant-geometry render.
          */
+        /**
+         * Builds triangles for an {@linkplain Block.Entity#additive() additive} entity's primary
+         * model and binds its {@link Block.Entity#textureId()} to the {@code "#entity"} face
+         * variable. Used by bells (and any future overlay-style block entity) where the entity
+         * geometry merges on top of an existing blockstate-resolved primary model rather than
+         * replacing it.
+         */
+        private @NotNull ConcurrentList<VisibleTriangle> buildFromAdditiveEntity(@NotNull Block.Entity entity, int tint) {
+            RasterEngine raster = new RasterEngine(this.context);
+            ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
+            ConcurrentMap<String, String> variables = Concurrent.newMap();
+            variables.put("entity", entity.textureId());
+            for (ModelElement element : entity.model().getElements()) {
+                for (ModelFace face : element.getFaces().values()) {
+                    String ref = face.getTexture();
+                    if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
+                    String resolvedId = TextureEngine.dereferenceVariable(ref, variables);
+                    if (resolvedId.startsWith("#")) continue;
+                    faceTextures.put(ref, raster.resolveTexture(resolvedId));
+                }
+            }
+            return GeometryKit.buildFromElements(entity.model().getElements(), faceTextures, tint);
+        }
+
         private @NotNull ConcurrentList<VisibleTriangle> buildFromEntityParts(@NotNull Block.Entity entity, int tint) {
             ConcurrentList<VisibleTriangle> combined = Concurrent.newList();
             RasterEngine raster = new RasterEngine(this.context);

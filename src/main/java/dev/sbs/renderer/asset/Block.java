@@ -153,6 +153,12 @@ public class Block {
      * @param parts atlas-time composition instructions - additional entity models merged at an
      *     offset (bed foot merged onto bed head, decorated_pot sides onto the base, banner flag
      *     onto the post). Empty for single-piece entities.
+     * @param additive when {@code true}, the entity {@link #model()} is merged ON TOP of the
+     *     block's blockstate-resolved primary model rather than replacing it. Used for blocks
+     *     whose vanilla render is "blockstate fixture + entity overlay" - the bell hangs from
+     *     posts in {@code block/bell_floor.json} but its bell-cup body comes from
+     *     {@code BellModel.createBodyLayer}. Default {@code false} preserves the original
+     *     replace-the-model semantics used by chests / beds / banners / shulkers / signs / skulls.
      */
     public record Entity(
         @NotNull String beType,
@@ -161,8 +167,15 @@ public class Block {
         int tintArgb,
         int iconRotation,
         boolean multiBlock,
-        @NotNull ConcurrentList<Part> parts
+        @NotNull ConcurrentList<Part> parts,
+        boolean additive
     ) {
+
+        /** Backwards-compatible constructor for the existing replace-the-model entries. */
+        public Entity(@NotNull String beType, @NotNull BlockModelData model, @NotNull String textureId,
+                      int tintArgb, int iconRotation, boolean multiBlock, @NotNull ConcurrentList<Part> parts) {
+            this(beType, model, textureId, tintArgb, iconRotation, multiBlock, parts, false);
+        }
 
         /**
          * An atlas-time composition instruction - additional geometry merged into the parent

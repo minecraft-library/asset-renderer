@@ -168,7 +168,13 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             // {@link TileSpec.Source#TILE_ENTITY} tiles - their vanilla item models have
             // neither elements nor layer0 and would produce blank icons if we rendered them
             // here. Skip so the atlas emits exactly one tile per TE id.
-            if (this.context.findBlockEntityEntry(itemId).isPresent()) continue;
+            // <p>
+            // Additive entries (bell-overlay attached to bell_floor / bell_wall / bell_between_walls)
+            // keep their item tile because the underlying {@code item/<id>.json} carries a real
+            // {@code layer0} icon - the entity overlay only enriches the block-tile render, not
+            // the inventory icon.
+            if (this.context.findBlockEntityEntry(itemId)
+                .map(be -> !be.additive()).orElse(false)) continue;
 
             ItemOptions itemOptions = ItemOptions.builder()
                 .itemId(itemId)
