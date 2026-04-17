@@ -360,7 +360,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         }
 
         @Override
-        public @NotNull Optional<dev.sbs.renderer.pipeline.loader.BlockEntityLoader.BlockEntityEntry> findBlockEntityEntry(@NotNull String blockId) {
+        public @NotNull Optional<dev.sbs.renderer.asset.Block.Entity> findBlockEntityEntry(@NotNull String blockId) {
             return this.delegate.findBlockEntityEntry(blockId);
         }
 

@@ -14,7 +14,6 @@ import dev.sbs.renderer.geometry.EulerRotation;
 import dev.sbs.renderer.geometry.PerspectiveParams;
 import dev.sbs.renderer.geometry.VisibleTriangle;
 import dev.sbs.renderer.pipeline.PipelineRendererContext;
-import dev.sbs.renderer.pipeline.loader.BlockEntityLoader;
 import dev.sbs.renderer.kit.GeometryKit;
 import dev.sbs.renderer.asset.Block;
 import dev.sbs.renderer.asset.model.BlockModelData;
@@ -141,14 +140,13 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // every sampled texel. Non-banner entries default to {@code ColorMath.WHITE},
             // leaving the normal biome-tint path intact.
             //
-            // We go through {@link RendererContext#findBlockEntityEntry} rather than the
-            // {@code instanceof PipelineRendererContext} pattern because the atlas pass wraps
-            // the context in {@code StaticTextureContext} to force animation-strip frame 0,
-            // and that wrapper isn't a {@code PipelineRendererContext}. Delegating via the
-            // interface method lets wrappers forward transparently.
-            BlockEntityLoader.BlockEntityEntry be = this.context.findBlockEntityEntry(options.getBlockId()).orElse(null);
-            int tint = be != null && be.getTintArgb() != ColorMath.WHITE
-                ? be.getTintArgb()
+            // The {@link Block.Entity} is attached directly to the {@link Block} at
+            // {@link dev.sbs.renderer.pipeline.PipelineRendererContext} construction time,
+            // so the renderer reads it straight off the block - no sidecar lookup through
+            // {@link RendererContext#findBlockEntityEntry} is needed.
+            Block.Entity be = block.getEntity().orElse(null);
+            int tint = be != null && be.tintArgb() != ColorMath.WHITE
+                ? be.tintArgb()
                 : resolveBlockTint(this.context, block, options);
 
             ConcurrentList<VisibleTriangle> triangles;
@@ -171,11 +169,11 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
             // Block entity multi-block models (beds) need recentering + rotation + scaling
             // since they extend beyond the standard 0-16 single-block bounds.
-            if (be != null && (be.isMultiBlock() || be.getIconRotation() != 0)) {
-                if (be.getIconRotation() != 0)
+            if (be != null && (be.multiBlock() || be.iconRotation() != 0)) {
+                if (be.iconRotation() != 0)
                     triangles = applyRotation(triangles, Matrix4f.createRotationY(
-                        (float) Math.toRadians(be.getIconRotation())));
-                if (be.isMultiBlock())
+                        (float) Math.toRadians(be.iconRotation())));
+                if (be.multiBlock())
                     triangles = recenterAndFit(triangles);
             }
 

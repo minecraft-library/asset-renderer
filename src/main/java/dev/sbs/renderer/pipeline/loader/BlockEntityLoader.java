@@ -5,6 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
+import dev.sbs.renderer.asset.Block;
 import dev.sbs.renderer.asset.binding.DyeColor;
 import dev.sbs.renderer.asset.model.BlockModelData;
 import dev.sbs.renderer.asset.model.ModelElement;
@@ -16,8 +17,6 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.linked.ConcurrentLinkedMap;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.image.pixel.ColorMath;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -52,9 +51,9 @@ public class BlockEntityLoader {
      * @return the loaded block entity entries keyed by block id
      * @throws AssetPipelineException if either resource is missing or cannot be parsed
      */
-    public static @NotNull ConcurrentMap<String, BlockEntityEntry> load() {
+    public static @NotNull ConcurrentMap<String, Block.Entity> load() {
         ConcurrentMap<String, JsonObject> blockModels = loadBlockModels();
-        ConcurrentMap<String, BlockEntityEntry> result = Concurrent.newMap();
+        ConcurrentMap<String, Block.Entity> result = Concurrent.newMap();
 
         // Read the mappings file to wire block ids to models + textures
         try (InputStream stream = BlockEntityLoader.class.getResourceAsStream(MAPPINGS_PATH)) {
@@ -160,7 +159,12 @@ public class BlockEntityLoader {
 
                     int iconRotation = obj.has("iconRotation") ? obj.get("iconRotation").getAsInt() : 0;
                     int tintArgb = obj.has("tint") ? resolveTint(obj.get("tint").getAsString()) : ColorMath.WHITE;
-                    result.put(blockId, new BlockEntityEntry(modelData, textureId, modelId, iconRotation, multiBlock, tintArgb));
+                    // {@code parts} is carried through as empty for now - the merge happens
+                    // in-place above against {@code modelData} so it isn't needed as a separate
+                    // list at render time. Step 8 of the refactor will move the merge to the
+                    // renderer and populate this field; for now it exists so {@link Block.Entity}
+                    // can carry it without further schema changes.
+                    result.put(blockId, new Block.Entity(modelId, modelData, textureId, tintArgb, iconRotation, multiBlock, Concurrent.newList()));
                 }
             }
         } catch (IOException | JsonSyntaxException ex) {
@@ -232,34 +236,6 @@ public class BlockEntityLoader {
         long packed = Long.parseLong(trimmed, 16);
         if (trimmed.length() <= 6) packed |= 0xFF000000L;
         return (int) packed;
-    }
-
-    /**
-     * A loaded block entity entry carrying the block model data (with real elements for
-     * rendering via {@link dev.sbs.renderer.kit.GeometryKit}), the entity texture path,
-     * and the source model id for diagnostics.
-     */
-    @Getter
-    @RequiredArgsConstructor
-    public static final class BlockEntityEntry {
-
-        private final @NotNull BlockModelData model;
-        private final @NotNull String textureId;
-        private final @NotNull String modelId;
-        /** Y-axis rotation in degrees for the atlas icon (e.g. 90 for beds). */
-        private final int iconRotation;
-        /** Whether this model spans multiple blocks and needs recentering for the atlas icon. */
-        private final boolean multiBlock;
-        /**
-         * Per-entry ARGB tint multiplied against every sampled texel at render time. Used
-         * when a block-entity block's colour comes from runtime state rather than a
-         * dedicated per-variant texture - banners read {@code DyeColor.getTextureDiffuseColor()}
-         * via BlockColors in vanilla, and we bake that colour in at mapping time. Defaults
-         * to {@link ColorMath#WHITE} (no tint) for entries that don't set {@code tint} in
-         * the mapping JSON.
-         */
-        private final int tintArgb;
-
     }
 
 }

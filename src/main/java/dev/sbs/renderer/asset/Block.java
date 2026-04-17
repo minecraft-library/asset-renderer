@@ -47,6 +47,17 @@ public class Block {
 
     private @NotNull Tint tint = new Tint(Biome.TintTarget.NONE, Optional.empty());
 
+    /**
+     * Rendering override for blocks whose visual geometry comes from a vanilla
+     * {@code BlockEntityRenderer} (beds, chests, banners, shulkers, signs, skulls, conduit,
+     * decorated_pot, etc.). When present, renderers prefer {@link Entity#model()} over
+     * {@link #getModel()}, multiply {@link Entity#tintArgb()} against sampled texels, honour
+     * {@link Entity#iconRotation()} for the atlas icon, and optionally compose
+     * {@link Entity#parts()} for multi-part atlas views (bed head + foot, decorated_pot body +
+     * sides, banner post + flag). Absent for plain blocks.
+     */
+    private @NotNull Optional<Entity> entity = Optional.empty();
+
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
@@ -59,12 +70,13 @@ public class Block {
             && Objects.equals(this.getVariants(), block.getVariants())
             && Objects.equals(this.getMultipart(), block.getMultipart())
             && Objects.equals(this.getTags(), block.getTags())
-            && Objects.equals(this.getTint(), block.getTint());
+            && Objects.equals(this.getTint(), block.getTint())
+            && Objects.equals(this.getEntity(), block.getEntity());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.getId(), this.getNamespace(), this.getName(), this.getModel(), this.getTextures(), this.getVariants(), this.getMultipart(), this.getTags(), this.getTint());
+        return Objects.hash(this.getId(), this.getNamespace(), this.getName(), this.getModel(), this.getTextures(), this.getVariants(), this.getMultipart(), this.getTags(), this.getTint(), this.getEntity());
     }
 
     /**
@@ -118,6 +130,68 @@ public class Block {
          * @param apply the model reference and rotation to render when the condition matches
          */
         public record Part(@Nullable JsonObject when, @NotNull Variant apply) {}
+
+    }
+
+    /**
+     * Rendering metadata for a block entity - carries the custom geometry extracted from a vanilla
+     * {@code BlockEntityRenderer} plus per-block presentation knobs (entity texture, dye tint, icon
+     * rotation, multi-block flag, atlas-time composition parts). Populated by
+     * {@link dev.sbs.renderer.pipeline.loader.BlockEntityLoader} for the ~180 block ids whose
+     * visual appearance comes from a tile-entity renderer rather than their {@code block.json}.
+     *
+     * @param beType vanilla {@code BlockEntityType} reference for diagnostics ({@code "minecraft:bed"})
+     * @param model extracted geometry (elements + face UVs)
+     * @param textureId entity texture id bound to the {@code "#entity"} texture variable, e.g.
+     *     {@code "minecraft:entity/bed/red"}
+     * @param tintArgb ARGB tint multiplied against every sampled texel - used for per-dye banner
+     *     colouring; {@link dev.simplified.image.pixel.ColorMath#WHITE} for no tint
+     * @param iconRotation Y-axis rotation in degrees applied only to the atlas icon (beds use 90°
+     *     to angle the headboard toward the camera)
+     * @param multiBlock {@code true} when the geometry extends outside the {@code 0..16} block
+     *     bbox and the atlas icon needs runtime {@code recenterAndFit}
+     * @param parts atlas-time composition instructions - additional entity models merged at an
+     *     offset (bed foot merged onto bed head, decorated_pot sides onto the base, banner flag
+     *     onto the post). Empty for single-piece entities.
+     */
+    public record Entity(
+        @NotNull String beType,
+        @NotNull BlockModelData model,
+        @NotNull String textureId,
+        int tintArgb,
+        int iconRotation,
+        boolean multiBlock,
+        @NotNull ConcurrentList<Part> parts
+    ) {
+
+        /**
+         * An atlas-time composition instruction - an additional entity model id merged into the
+         * parent {@link Entity} at a positional offset. Used when vanilla's {@code BlockEntityRenderer}
+         * stitches multiple {@code LayerDefinition}s into the same in-world block render (bed head
+         * + foot, decorated_pot base + sides, banner post + flag).
+         *
+         * @param modelId the entity model id to merge (e.g. {@code "minecraft:bed_foot"})
+         * @param texture the absolute texture id that rebinds the part's {@code "#entity"} face refs
+         * @param offset model-unit shift applied to every from/to + rotation.origin on the merged
+         *     elements (e.g. {@code [0, 0, 16]} to place the bed foot one block past the head)
+         */
+        public record Part(@NotNull String modelId, @NotNull String texture, float @NotNull [] offset) {
+
+            @Override
+            public boolean equals(Object o) {
+                if (o == null || getClass() != o.getClass()) return false;
+                Part part = (Part) o;
+                return Objects.equals(this.modelId, part.modelId)
+                    && Objects.equals(this.texture, part.texture)
+                    && java.util.Arrays.equals(this.offset, part.offset);
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(this.modelId, this.texture, java.util.Arrays.hashCode(this.offset));
+            }
+
+        }
 
     }
 

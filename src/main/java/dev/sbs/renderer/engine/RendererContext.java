@@ -148,21 +148,22 @@ public interface RendererContext {
     }
 
     /**
-     * Looks up the block-entity mapping entry for a block id. Block-entity mappings carry the
-     * extracted geometry (from {@code tile_entity_models.json}), entity texture binding,
-     * icon rotation, multi-block flag, and per-entry tint used by {@link dev.sbs.renderer.BlockRenderer
-     * BlockRenderer} for blocks whose vanilla rendering is hardcoded in tile-entity renderers
-     * (banners, beds, chests, shulker boxes, signs, etc.).
+     * Looks up the block-entity metadata for a block id. Returns the {@link Block.Entity} carrying
+     * the extracted geometry (from {@code tile_entity_models.json}), entity texture binding, icon
+     * rotation, multi-block flag, per-entry tint, and atlas-time composition parts used by
+     * {@link dev.sbs.renderer.BlockRenderer BlockRenderer} for blocks whose vanilla rendering is
+     * hardcoded in tile-entity renderers (banners, beds, chests, shulker boxes, signs, skulls,
+     * conduit, decorated_pot, etc.).
      * <p>
-     * The default returns empty so test stubs and lightweight contexts don't need to carry the
-     * full map; production contexts ({@code PipelineRendererContext}) supply real entries, and
-     * context wrappers ({@link dev.sbs.renderer.AtlasRenderer}'s {@code StaticTextureContext})
-     * delegate to their underlying context.
+     * Equivalent to {@code findBlock(blockId).flatMap(Block::getEntity)} once step 4 of the
+     * refactor drops the synthetic-Block injection. Kept as a first-class lookup so atlas
+     * rendering and context wrappers like {@code StaticTextureContext} can forward a single
+     * method call without chaining through {@link Block}.
      *
      * @param blockId the block id
-     * @return the entry, or empty when the block has no block-entity mapping
+     * @return the entity metadata, or empty when the block has no block-entity mapping
      */
-    default @NotNull Optional<dev.sbs.renderer.pipeline.loader.BlockEntityLoader.BlockEntityEntry> findBlockEntityEntry(@NotNull String blockId) {
+    default @NotNull Optional<Block.Entity> findBlockEntityEntry(@NotNull String blockId) {
         return Optional.empty();
     }
 

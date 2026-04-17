@@ -83,7 +83,7 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull Set<String> blockstateOnlyIds;
     /** Block entity metadata for multi-block centering and icon rotation at render time. */
     @Getter
-    private final @NotNull ConcurrentMap<String, BlockEntityLoader.BlockEntityEntry> blockEntityEntries;
+    private final @NotNull ConcurrentMap<String, Block.Entity> blockEntityEntries;
     private final @NotNull ImageFactory imageFactory = new ImageFactory();
     private final @NotNull ConcurrentMap<String, PixelBuffer> textureCache = Concurrent.newMap();
 
@@ -105,7 +105,7 @@ public final class PipelineRendererContext implements RendererContext {
         ConcurrentMap<String, String> itemDefs = result.getItemDefinitions();
         ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap = result.getBlockStates();
         ConcurrentMap<String, Block.Multipart> multipartMap = result.getBlockMultiparts();
-        ConcurrentMap<String, BlockEntityLoader.BlockEntityEntry> blockEntityEntries = BlockEntityLoader.load();
+        ConcurrentMap<String, Block.Entity> blockEntityEntries = BlockEntityLoader.load();
 
         // Build reverse tag index (tag id → block ids becomes block id → tag names)
         ConcurrentMap<String, BlockTag> tagMap = result.getBlockTags();
@@ -141,30 +141,46 @@ public final class PipelineRendererContext implements RendererContext {
             Optional<Block.Multipart> multipart = Optional.ofNullable(multipartMap.get(blockId));
             ConcurrentList<String> tags = reverseTagIndex.getOrDefault(blockId, Concurrent.newList());
 
-            blockIndex.put(blockId, new Block(blockId, "minecraft", name, modelToUse, textures, variants, multipart, tags, tint));
+            // Tile entities (beds, chests, banners, shulkers, signs, etc.) override the
+            // vanilla {@code block.json} model - the template block.json is usually empty
+            // (just a {@code particle} texture) and the real geometry is hardcoded in a
+            // {@code BlockEntityRenderer}. {@link BlockEntityLoader} has extracted that
+            // geometry into {@link Block.Entity#model()} for us; swap it in here and
+            // rebind the texture map to the entity texture via the {@code "#entity"} face
+            // reference. The {@link Block.Tint} goes to {@link Biome.TintTarget#NONE}
+            // because per-entry tints are applied via {@link Block.Entity#tintArgb()} at
+            // render time (see {@link BlockRenderer.Isometric3D}).
+            Block.Entity entity = blockEntityEntries.get(blockId);
+            if (entity != null) {
+                modelToUse = entity.model();
+                textures = Concurrent.newMap();
+                textures.put("#entity", entity.textureId());
+                tint = new Block.Tint(Biome.TintTarget.NONE, Optional.empty());
+            }
+
+            blockIndex.put(blockId, new Block(blockId, "minecraft", name, modelToUse, textures, variants, multipart, tags, tint, Optional.ofNullable(entity)));
         }
 
-        // Register block entity blocks with real block model elements. These are blocks like
-        // coloured beds, shulker boxes, signs, etc. whose vanilla geometry is hardcoded in
-        // tile entity renderers. The tooling extracts this geometry and converts it to standard
-        // block model elements so they render through GeometryKit like any other block.
-        for (Map.Entry<String, BlockEntityLoader.BlockEntityEntry> entry : blockEntityEntries.entrySet()) {
+        // Block-entity ids may not appear in the primary block-model loop when their
+        // vanilla {@code block.json} is missing entirely (e.g. some skull variants that
+        // have no template model file). Backstop: for any {@link Block.Entity} not yet
+        // registered above, emit a fresh Block carrying the extracted geometry.
+        for (Map.Entry<String, Block.Entity> entry : blockEntityEntries.entrySet()) {
             String blockId = entry.getKey();
-            // Block entities override vanilla template models (e.g. block/chest.json is an empty
-            // template, but the block entity model has the real chest geometry).
-            BlockEntityLoader.BlockEntityEntry be = entry.getValue();
+            if (blockIndex.containsKey(blockId)) continue;
+            Block.Entity be = entry.getValue();
             String shortName = blockId.contains(":") ? blockId.substring(blockId.indexOf(':') + 1) : blockId;
             ConcurrentList<String> tags = reverseTagIndex.getOrDefault(blockId, Concurrent.newList());
             ConcurrentMap<String, Block.Variant> variants = variantMap.getOrDefault(blockId, Concurrent.newMap());
             Optional<Block.Multipart> multipart = Optional.ofNullable(multipartMap.get(blockId));
-            // Store the entity texture reference in the textures map so the renderer can resolve it
             ConcurrentMap<String, String> textures = Concurrent.newMap();
-            textures.put("#entity", be.getTextureId());
+            textures.put("#entity", be.textureId());
             blockIndex.put(blockId, new Block(
                 blockId, "minecraft", shortName,
-                be.getModel(), textures,
+                be.model(), textures,
                 variants, multipart, tags,
-                new Block.Tint(Biome.TintTarget.NONE, Optional.empty())
+                new Block.Tint(Biome.TintTarget.NONE, Optional.empty()),
+                Optional.of(be)
             ));
         }
 
@@ -196,7 +212,7 @@ public final class PipelineRendererContext implements RendererContext {
             Optional<Block.Multipart> multipart = Optional.ofNullable(multipartMap.get(blockId));
             ConcurrentList<String> tags = reverseTagIndex.getOrDefault(blockId, Concurrent.newList());
 
-            blockIndex.put(blockId, new Block(blockId, "minecraft", shortName, modelToUse, textures, variants, multipart, tags, tint));
+            blockIndex.put(blockId, new Block(blockId, "minecraft", shortName, modelToUse, textures, variants, multipart, tags, tint, Optional.empty()));
             blockstateOnlyIds.add(blockId);
         }
         System.out.printf("Atlas blockstate-only registration: added %d blocks%n", blockstateOnlyIds.size());
@@ -346,7 +362,7 @@ public final class PipelineRendererContext implements RendererContext {
     }
 
     @Override
-    public @NotNull Optional<BlockEntityLoader.BlockEntityEntry> findBlockEntityEntry(@NotNull String blockId) {
+    public @NotNull Optional<Block.Entity> findBlockEntityEntry(@NotNull String blockId) {
         return this.blockEntityEntries.getOptional(blockId);
     }
 
