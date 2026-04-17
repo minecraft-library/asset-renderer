@@ -119,6 +119,21 @@ public class BlockEntityLoader {
                                 elemJson.add("from", fromArr);
                                 elemJson.add("to", toArr);
 
+                                // Rotation origin lives in the same coordinate space as from/to.
+                                // When we merge a part at an offset we have to offset the rotation
+                                // origin too, otherwise a rotated element in the part (e.g. bed_foot's
+                                // leg with Rx(90) around origin (0, 9, 0)) rotates around the wrong
+                                // pivot in the merged model and ends up outside the block bbox.
+                                JsonObject rotJson = elemJson.getAsJsonObject("rotation");
+                                if (rotJson != null && rotJson.has("origin") && rotJson.get("origin").isJsonArray()) {
+                                    JsonArray rawOrigin = rotJson.getAsJsonArray("origin");
+                                    JsonArray shifted = new JsonArray();
+                                    shifted.add(rawOrigin.get(0).getAsFloat() + offset[0]);
+                                    shifted.add(rawOrigin.get(1).getAsFloat() + offset[1]);
+                                    shifted.add(rawOrigin.get(2).getAsFloat() + offset[2]);
+                                    rotJson.add("origin", shifted);
+                                }
+
                                 JsonObject facesJson = elemJson.getAsJsonObject("faces");
                                 if (facesJson != null && !partTexture.equals(textureId)) {
                                     for (Map.Entry<String, JsonElement> faceEntry : facesJson.entrySet()) {
