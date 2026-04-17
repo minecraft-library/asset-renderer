@@ -91,31 +91,22 @@ public enum BlockFace {
     private final float lighting;
 
     /**
-     * Returns the four CCW-ordered (TL, BL, BR, TR) corners of this face on an axis-aligned box
-     * defined by the given minimum and maximum bounds, matching vanilla's {@code FaceInfo} vertex
-     * order.
+     * Returns the four CCW-ordered (TL, BL, BR, TR) corners of this face on the given axis-aligned
+     * {@link Box}, matching vanilla's {@code FaceInfo} vertex order.
      *
-     * @param x0 the box minimum X
-     * @param y0 the box minimum Y
-     * @param z0 the box minimum Z
-     * @param x1 the box maximum X
-     * @param y1 the box maximum Y
-     * @param z1 the box maximum Z
+     * @param box the bounding box
      * @return the four corner positions, ordered TL, BL, BR, TR
      */
-    public @NotNull Vector3f @NotNull [] corners(
-        float x0, float y0, float z0,
-        float x1, float y1, float z1
-    ) {
-        Vector3f[] box = {
-            new Vector3f(x0, y0, z0), new Vector3f(x1, y0, z0),
-            new Vector3f(x1, y1, z0), new Vector3f(x0, y1, z0),
-            new Vector3f(x0, y0, z1), new Vector3f(x1, y0, z1),
-            new Vector3f(x1, y1, z1), new Vector3f(x0, y1, z1)
+    public @NotNull Vector3f @NotNull [] corners(@NotNull Box box) {
+        Vector3f[] cornersOfBox = {
+            new Vector3f(box.minX(), box.minY(), box.minZ()), new Vector3f(box.maxX(), box.minY(), box.minZ()),
+            new Vector3f(box.maxX(), box.maxY(), box.minZ()), new Vector3f(box.minX(), box.maxY(), box.minZ()),
+            new Vector3f(box.minX(), box.minY(), box.maxZ()), new Vector3f(box.maxX(), box.minY(), box.maxZ()),
+            new Vector3f(box.maxX(), box.maxY(), box.maxZ()), new Vector3f(box.minX(), box.maxY(), box.maxZ())
         };
         return new Vector3f[]{
-            box[this.vertexIndices[0]], box[this.vertexIndices[1]],
-            box[this.vertexIndices[2]], box[this.vertexIndices[3]]
+            cornersOfBox[this.vertexIndices[0]], cornersOfBox[this.vertexIndices[1]],
+            cornersOfBox[this.vertexIndices[2]], cornersOfBox[this.vertexIndices[3]]
         };
     }
 
@@ -128,24 +119,35 @@ public enum BlockFace {
      * bindings), so every face samples the full {@code [0, 16]} UV rectangle projected onto its
      * cross-section. This overload is used by the block and held-item rendering paths.
      *
-     * @param from the element minimum in 0-16 space ({@code [x, y, z]})
-     * @param to the element maximum in 0-16 space ({@code [x, y, z]})
+     * @param element the element bounds in 0-16 space
      * @return the four UV corners, ordered TL, BL, BR, TR
      */
-    public @NotNull Vector2f @NotNull [] defaultUv(float @NotNull [] from, float @NotNull [] to) {
+    public @NotNull Vector2f @NotNull [] defaultUv(@NotNull Box element) {
         int uAxis = this.layout.widthAxis();
         int vAxis = this.layout.heightAxis();
-        float u0 = this.layout.uInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - to[uAxis] : from[uAxis];
-        float u1 = this.layout.uInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - from[uAxis] : to[uAxis];
-        float v0 = this.layout.vInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - to[vAxis] : from[vAxis];
-        float v1 = this.layout.vInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - from[vAxis] : to[vAxis];
+        float fromU = axisComponent(element, uAxis, false);
+        float toU = axisComponent(element, uAxis, true);
+        float fromV = axisComponent(element, vAxis, false);
+        float toV = axisComponent(element, vAxis, true);
+        float u0 = this.layout.uInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - toU : fromU;
+        float u1 = this.layout.uInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - fromU : toU;
+        float v0 = this.layout.vInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - toV : fromV;
+        float v1 = this.layout.vInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - fromV : toV;
         return uvRect(u0, v0, u1, v1, ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK, ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK, false);
+    }
+
+    private static float axisComponent(@NotNull Box box, int axis, boolean max) {
+        return switch (axis) {
+            case 0 -> max ? box.maxX() : box.minX();
+            case 1 -> max ? box.maxY() : box.minY();
+            default -> max ? box.maxZ() : box.minZ();
+        };
     }
 
     /**
      * Returns the four default UV corners (TL, BL, BR, TR) for this face in normalized
-     * {@code [0, 1]} space, using the Java-edition box atlas unwrap where all six faces of a
-     * single cube share one texture image.
+     * {@code [0, 1]} space, using the <b>Bedrock Edition {@code geo.json}</b> box atlas unwrap
+     * where all six faces of a single cube share one texture image.
      * <p>
      * The strip layout places top and bottom in a first row sized {@code sx x sz}, then west,
      * south, east, north in a second row sized {@code sz, sx, sz, sx} wide by {@code sy} tall:
@@ -156,8 +158,16 @@ public enum BlockFace {
      * |WST|  SOUTH |  EAST  |NTH|      row 2: height sy
      * +---+--------+--------+---+
      * </pre>
-     * Used by entity cube rendering where one skin image supplies every face of a body part,
-     * and by any other caller that owns a cube-atlas texture.
+     * Used by entity cube rendering (via {@code EntityGeometryKit.resolveFaceUv}) where one skin
+     * image supplies every face of a body part, and by any other caller that owns a cube-atlas
+     * texture in the Bedrock layout.
+     * <p>
+     * <b>Note:</b> vanilla Java Edition's {@code ModelPart$Cube} uses a <i>different</i> strip
+     * layout ({@code d+w+d+w} wide, {@code d+h} tall, with per-face offsets not expressible via
+     * the same axis coefficients). That layout is owned by
+     * {@code ToolingBlockEntities.BlockModelConverter.ModelPartPolygonFace.uvFormula}, which is
+     * used only at tooling time to convert Java client-jar bytecode into block-model JSON. The
+     * two conventions are intentionally separate - don't merge them.
      *
      * @param uv the cube's texture origin in pixels on the source image ({@code [u, v]})
      * @param size the cube's extent along each axis in model units ({@code [sx, sy, sz]})

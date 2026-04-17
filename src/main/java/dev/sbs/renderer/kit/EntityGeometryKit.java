@@ -1,6 +1,7 @@
 package dev.sbs.renderer.kit;
 
 import dev.sbs.renderer.geometry.BlockFace;
+import dev.sbs.renderer.geometry.Box;
 import dev.sbs.renderer.geometry.EulerRotation;
 import dev.sbs.renderer.geometry.VisibleTriangle;
 import dev.sbs.renderer.asset.model.EntityModelData;
@@ -97,15 +98,13 @@ public class EntityGeometryKit {
                 float[] size = cube.getSize();
                 float inflate = cube.getInflate();
 
-                float x0 = origin[0] - inflate;
-                float y0 = origin[1] - inflate;
-                float z0 = origin[2] - inflate;
-                float x1 = origin[0] + size[0] + inflate;
-                float y1 = origin[1] + size[1] + inflate;
-                float z1 = origin[2] + size[2] + inflate;
+                Box cubeBounds = new Box(
+                    origin[0] - inflate, origin[1] - inflate, origin[2] - inflate,
+                    origin[0] + size[0] + inflate, origin[1] + size[1] + inflate, origin[2] + size[2] + inflate
+                );
 
                 for (BlockFace face : BlockFace.values()) {
-                    Vector3f[] corners = face.corners(x0, y0, z0, x1, y1, z1);
+                    Vector3f[] corners = face.corners(cubeBounds);
                     for (int i = 0; i < 4; i++) {
                         // Java ModelPart: vertex_world = pivot + R * cube_vertex_local. The
                         // bone transform already folds the PartPose offset in as a translation,

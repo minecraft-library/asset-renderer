@@ -1,6 +1,7 @@
 package dev.sbs.renderer.kit;
 
 import dev.sbs.renderer.geometry.BlockFace;
+import dev.sbs.renderer.geometry.Box;
 import dev.sbs.renderer.geometry.ModelGrid;
 import dev.sbs.renderer.geometry.VisibleTriangle;
 import dev.sbs.renderer.asset.model.ModelElement;
@@ -70,11 +71,10 @@ public class GeometryKit {
             throw new IllegalArgumentException("Box requires exactly 6 face textures");
 
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
-        float x0 = min.x(), y0 = min.y(), z0 = min.z();
-        float x1 = max.x(), y1 = max.y(), z1 = max.z();
+        Box box = Box.of(min, max);
 
         for (BlockFace face : BlockFace.values()) {
-            Vector3f[] corners = face.corners(x0, y0, z0, x1, y1, z1);
+            Vector3f[] corners = face.corners(box);
             addQuad(
                 triangles,
                 corners[0], corners[1], corners[2], corners[3],
@@ -182,7 +182,7 @@ public class GeometryKit {
                 if (texture == null) continue;
 
                 Vector2f[] uv = resolveFaceUv(face, blockFace, element);
-                Vector3f[] corners = blockFace.corners(x0, y0, z0, x1, y1, z1);
+                Vector3f[] corners = blockFace.corners(new Box(x0, y0, z0, x1, y1, z1));
                 Vector3f faceNormal = blockFace.normal();
 
                 if (elementTransform != null) {
@@ -227,7 +227,7 @@ public class GeometryKit {
                 raw[3] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK
             );
         } else {
-            corners = blockFace.defaultUv(element.getFrom(), element.getTo());
+            corners = blockFace.defaultUv(Box.of(element.getFrom(), element.getTo()));
         }
 
         int rotation = ((face.getRotation() % 360) + 360) % 360;

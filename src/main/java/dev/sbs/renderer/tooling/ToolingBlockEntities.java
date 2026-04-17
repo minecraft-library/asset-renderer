@@ -6,10 +6,13 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import dev.sbs.renderer.exception.AssetPipelineException;
+import dev.sbs.renderer.geometry.BlockFace;
+import dev.sbs.renderer.geometry.Box;
 import dev.sbs.renderer.pipeline.AssetPipelineOptions;
 import dev.sbs.renderer.pipeline.client.ClientJarDownloader;
 import dev.sbs.renderer.pipeline.client.HttpFetcher;
 import dev.sbs.renderer.pipeline.loader.BlockEntityLoader;
+import dev.sbs.renderer.tensor.Vector3f;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -906,9 +909,6 @@ public final class ToolingBlockEntities {
             Map.entry("minecraft:wall_banner_flag", new float[]{ 8, 0, 8, 180, 0, 0, 0.6666667f })
         );
 
-        /** Names of the six block-model face directions, indexed in down/up/north/south/west/east order. */
-        private static final @NotNull String[] BLOCK_FACE_NAMES = { "down", "up", "north", "south", "west", "east" };
-
         /**
          * Converts all parsed entity models into a JSON object containing block model elements
          * keyed by entity model id.
@@ -995,7 +995,7 @@ public final class ToolingBlockEntities {
                     ? transform.applyNoBoneRot(entityCorners[i])
                     : transform.apply(entityCorners[i]);
 
-            Bounds bounds = Bounds.of(blockCorners);
+            Box box = Box.of(blockCorners);
             // Block-model UV uses a 0..16 range independent of texture size; at render time the
             // runtime multiplies u by texW/16 and v by texH/16 to recover pixel coords. So our
             // pixel-space UVs must be scaled by 16/texW on the u axis and 16/texH on the v axis.
@@ -1004,12 +1004,12 @@ public final class ToolingBlockEntities {
             float scaleV = 16.0f / texH;
 
             JsonObject faces = new JsonObject();
-            for (EntityFaceLayout layout : EntityFaceLayout.values())
-                emitBlockFace(layout.faceFor(cube, scaleU, scaleV), blockCorners, bounds, faces);
+            for (ModelPartPolygonFace layout : ModelPartPolygonFace.values())
+                emitBlockFace(layout.faceFor(cube, scaleU, scaleV), blockCorners, box, faces);
 
             JsonObject element = new JsonObject();
-            JsonArray from = new JsonArray(); from.add(round2(bounds.minX)); from.add(round2(bounds.minY)); from.add(round2(bounds.minZ));
-            JsonArray to = new JsonArray(); to.add(round2(bounds.maxX)); to.add(round2(bounds.maxY)); to.add(round2(bounds.maxZ));
+            JsonArray from = new JsonArray(); from.add(round2(box.minX())); from.add(round2(box.minY())); from.add(round2(box.minZ()));
+            JsonArray to = new JsonArray(); to.add(round2(box.maxX())); to.add(round2(box.maxY())); to.add(round2(box.maxZ()));
             element.add("from", from);
             element.add("to", to);
             if (blockRot != null) {
@@ -1041,7 +1041,7 @@ public final class ToolingBlockEntities {
         private static void emitBlockFace(
             @NotNull EntityFace face,
             float @NotNull [] @NotNull [] blockCorners,
-            @NotNull Bounds bounds,
+            @NotNull Box box,
             @NotNull JsonObject facesOut
         ) {
             float[] p0 = blockCorners[face.vertexIndices[0]];
@@ -1070,7 +1070,7 @@ public final class ToolingBlockEntities {
             else if (aNZ >= aNX) blockFaceIdx = normal[2] > 0 ? 3 : 2;
             else blockFaceIdx = normal[0] > 0 ? 5 : 4;
 
-            float[][] blockFaceCorners = blockFaceCornersOf(blockFaceIdx, bounds);
+            Vector3f[] blockFaceCorners = BlockFace.values()[blockFaceIdx].corners(box);
 
             // For each transformed vertex of the entity face, look up the (uMin/uMax, vMin/vMax)
             // it carries (per the four-corner UV order: v[0]→(u1,v0), v[1]→(u0,v0), v[2]→(u0,v1), v[3]→(u1,v1)),
@@ -1106,7 +1106,7 @@ public final class ToolingBlockEntities {
             uvArr.add(round2(uvRect.u0)); uvArr.add(round2(uvRect.v0)); uvArr.add(round2(uvRect.u1)); uvArr.add(round2(uvRect.v1));
             blockFace.add("uv", uvArr);
             if (uvRect.rotation != 0) blockFace.addProperty("rotation", uvRect.rotation);
-            facesOut.add(BLOCK_FACE_NAMES[blockFaceIdx], blockFace);
+            facesOut.add(BlockFace.values()[blockFaceIdx].direction(), blockFace);
         }
 
         /**
@@ -1131,41 +1131,14 @@ public final class ToolingBlockEntities {
             return new UvRect(0, 0, 0, 0, 0);
         }
 
-        /**
-         * Returns the four TL, BL, BR, TR corner positions for a block face on the given bbox,
-         * matching the vertex-index order used by {@link dev.sbs.renderer.geometry.BlockFace}.
-         */
-        private static float[][] blockFaceCornersOf(int faceIdx, @NotNull Bounds b) {
-            return switch (faceIdx) {
-                case 0 -> new float[][]{                   // DOWN: indices 4, 0, 1, 5
-                    { b.minX, b.minY, b.maxZ }, { b.minX, b.minY, b.minZ }, { b.maxX, b.minY, b.minZ }, { b.maxX, b.minY, b.maxZ }
-                };
-                case 1 -> new float[][]{                   // UP: indices 3, 7, 6, 2
-                    { b.minX, b.maxY, b.minZ }, { b.minX, b.maxY, b.maxZ }, { b.maxX, b.maxY, b.maxZ }, { b.maxX, b.maxY, b.minZ }
-                };
-                case 2 -> new float[][]{                   // NORTH: indices 2, 1, 0, 3
-                    { b.maxX, b.maxY, b.minZ }, { b.maxX, b.minY, b.minZ }, { b.minX, b.minY, b.minZ }, { b.minX, b.maxY, b.minZ }
-                };
-                case 3 -> new float[][]{                   // SOUTH: indices 7, 4, 5, 6
-                    { b.minX, b.maxY, b.maxZ }, { b.minX, b.minY, b.maxZ }, { b.maxX, b.minY, b.maxZ }, { b.maxX, b.maxY, b.maxZ }
-                };
-                case 4 -> new float[][]{                   // WEST: indices 3, 0, 4, 7
-                    { b.minX, b.maxY, b.minZ }, { b.minX, b.minY, b.minZ }, { b.minX, b.minY, b.maxZ }, { b.minX, b.maxY, b.maxZ }
-                };
-                default -> new float[][]{                  // EAST: indices 6, 5, 1, 2
-                    { b.maxX, b.maxY, b.maxZ }, { b.maxX, b.minY, b.maxZ }, { b.maxX, b.minY, b.minZ }, { b.maxX, b.maxY, b.minZ }
-                };
-            };
-        }
-
         /** Returns the index (0=TL, 1=BL, 2=BR, 3=TR) of {@code blockFaceCorners} closest to {@code position}. */
-        private static int matchCorner(float @NotNull [] position, float @NotNull [] @NotNull [] blockFaceCorners) {
+        private static int matchCorner(float @NotNull [] position, @NotNull Vector3f @NotNull [] blockFaceCorners) {
             int best = 0;
             float bestDist = Float.MAX_VALUE;
             for (int i = 0; i < 4; i++) {
-                float dx = position[0] - blockFaceCorners[i][0];
-                float dy = position[1] - blockFaceCorners[i][1];
-                float dz = position[2] - blockFaceCorners[i][2];
+                float dx = position[0] - blockFaceCorners[i].x();
+                float dy = position[1] - blockFaceCorners[i].y();
+                float dz = position[2] - blockFaceCorners[i].z();
                 float dist = dx * dx + dy * dy + dz * dz;
                 if (dist < bestDist) { bestDist = dist; best = i; }
             }
@@ -1225,21 +1198,6 @@ public final class ToolingBlockEntities {
                     { ox + sw, yHi, oz + sd },
                     { ox,      yHi, oz + sd }
                 };
-            }
-        }
-
-        /** Axis-aligned bounding box of a cube's eight transformed corners in block space. */
-        private record Bounds(float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
-
-            static @NotNull Bounds of(float @NotNull [] @NotNull [] corners) {
-                float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE, minZ = Float.MAX_VALUE;
-                float maxX = -Float.MAX_VALUE, maxY = -Float.MAX_VALUE, maxZ = -Float.MAX_VALUE;
-                for (float[] c : corners) {
-                    minX = Math.min(minX, c[0]); maxX = Math.max(maxX, c[0]);
-                    minY = Math.min(minY, c[1]); maxY = Math.max(maxY, c[1]);
-                    minZ = Math.min(minZ, c[2]); maxZ = Math.max(maxZ, c[2]);
-                }
-                return new Bounds(minX, minY, minZ, maxX, maxY, maxZ);
             }
         }
 
@@ -1412,13 +1370,33 @@ public final class ToolingBlockEntities {
         }
 
         /**
-         * The six entity faces of a vanilla {@code ModelPart$Cube}, each carrying its four vertex
-         * indices into the {@code v19..v26} layout (re-indexed 0..7) and the UV formula that
-         * computes the face's {@code (u0, v0, u1, v1)} rectangle from the cube's UV origin and
-         * dimensions. The formula expresses vanilla's per-face box-UV layout (width {@code d+w+d+w}
-         * across, height {@code d+h} down, with the two cap faces sharing the top strip).
+         * The six faces of a vanilla Java {@code ModelPart$Cube}, each carrying its four vertex
+         * indices into the shared 8-corner box layout and the UV formula that computes the face's
+         * {@code (u0, v0, u1, v1)} rectangle from the cube's UV origin and dimensions. The formula
+         * expresses vanilla's per-face box-UV layout (width {@code d+w+d+w} across, height
+         * {@code d+h} down, with the two cap faces sharing the top strip).
+         * <p>
+         * The vertex ordering mirrors vanilla's {@code ModelPart$Polygon} constructor: {@code v[0]}
+         * pairs with UV {@code (u1, v0)} (top-right of the texture rect), {@code v[1]} with
+         * {@code (u0, v0)}, {@code v[2]} with {@code (u0, v1)}, {@code v[3]} with {@code (u1, v1)}.
+         * This is a <i>different</i> convention from {@link BlockFace#corners(Box)}, whose indices
+         * start at the face's top-left corner to feed {@code GeometryKit.addQuad}'s
+         * {@code (topLeft, bottomLeft, bottomRight, topRight)} parameter order.
+         * <p>
+         * Both conventions index the same 8-corner box and are CCW; they differ by a 1-position
+         * shift whose direction flips between {@code UP}/{@code DOWN} and the four vertical faces
+         * because the two conventions disagree about which world corner is "first" per face. The
+         * two cannot be unified - {@link BlockFace} serves block-model rendering via
+         * {@code GeometryKit.addQuad}, while {@code ModelPartPolygonFace} serves the
+         * bytecode-to-block-model conversion in {@link BlockModelConverter}, which must round-trip
+         * vanilla's per-vertex UVs exactly.
+         * <p>
+         * The UV strip layout encoded here is also <i>different</i> from the Bedrock Edition
+         * geo.json strip layout encoded in
+         * {@link BlockFace#defaultUv(int[], float[], float, float, boolean)}. Those are two
+         * distinct Mojang conventions and must stay separate.
          */
-        private enum EntityFaceLayout {
+        private enum ModelPartPolygonFace {
             // DOWN: vertices v24, v23, v19, v20; UV (u+d, v, u+d+w, v+d)
             DOWN (new int[]{ 5, 4, 0, 1 }, (u, v, c) -> new float[]{ u + c.sd,                     v,                u + c.sd + c.sw,               v + c.sd }),
             // UP: vertices v21, v22, v26, v25; UV (u+d+w, v+d, u+d+w+w, v) - note v0 > v1
@@ -1435,7 +1413,7 @@ public final class ToolingBlockEntities {
             private final int @NotNull [] vertexIndices;
             private final @NotNull UvFormula uvFormula;
 
-            EntityFaceLayout(int @NotNull [] vertexIndices, @NotNull UvFormula uvFormula) {
+            ModelPartPolygonFace(int @NotNull [] vertexIndices, @NotNull UvFormula uvFormula) {
                 this.vertexIndices = vertexIndices;
                 this.uvFormula = uvFormula;
             }
@@ -1448,10 +1426,13 @@ public final class ToolingBlockEntities {
         }
 
         /**
-         * One of the six entity faces of a cube: the four vertex indices into the eight-corner
-         * layout {@code v19..v26} (re-indexed 0..7), and the four UV-rectangle edges. The four
-         * UVs assigned to {@code (u1, v0), (u0, v0), (u0, v1), (u1, v1)} are paired with the
-         * four vertices in the order vanilla's {@code Polygon} constructor uses.
+         * One of the six entity faces of a cube: the four vertex indices into the shared
+         * 8-corner box layout and the four UV-rectangle edges. The UVs
+         * {@code (u1, v0), (u0, v0), (u0, v1), (u1, v1)} are paired with the four vertices
+         * starting at the <b>texture top-right</b> corner and walking CCW, matching vanilla's
+         * {@code ModelPart$Polygon} constructor - <i>not</i> {@link BlockFace}'s top-left-first
+         * CCW convention. See {@link ModelPartPolygonFace} for why the two conventions
+         * coexist.
          */
         private record EntityFace(int @NotNull [] vertexIndices, float u0, float v0, float u1, float v1) {}
 
