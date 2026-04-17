@@ -975,14 +975,22 @@ public final class ToolingBlockEntities {
             // is short-circuited by the presence of this entry. With pitch=0 the rotation chain
             // just emits Rz(67.5°), and the inner translate is encoded as the pre-rotation
             // translate at indices 7-9.
-            Map.entry("minecraft:lectern_book", new float[]{ 8, 17, 8, 0, 90f, 67.5f, 1f, 0, -2, 0 }),
+            // Pitch -22.5° matches the slant angle baked into the lectern's top plank in
+            // {@code block/lectern.json} ({@code rotation: { angle: -22.5, axis: "x", origin: [8, 8, 8] }}).
+            // Vanilla's LecternRenderer doesn't apply this tilt to the book itself - vanilla
+            // renders the book OPEN with lids spread, which gives the visual impression of
+            // resting on the slanted surface. Our atlas renders the closed book (no setupAnim
+            // openness), so we lean it forward manually to match the slant.
+            Map.entry("minecraft:lectern_book", new float[]{ 8, 17, 8, -22.5f, 90f, 67.5f, 1f, 0, -2, 0 }),
             // EnchantTableRenderer.submit:
             //   translate(0.5, 0.75, 0.5) * translate(0, 0.1 + 0.01*sin(time), 0) * rotateY(-yaw) * rotateZ(80°)
             // For the static atlas (yaw=0, time=0): outer translate folds to (0.5, 0.85, 0.5) and
             // there's no inner translate. Block-units to model-units: (8, 13.6, 8), Rz(80°). Same
             // YAxis.DOWN-with-supplied-invTransform pattern as the lectern; no pre-rotation
-            // translate needed.
-            Map.entry("minecraft:enchant_book", new float[]{ 8, 13.6f, 8, 0, 0, 80f })
+            // translate needed. Yaw=90 mirrors the lectern's facing-derived rotation so the
+            // book opens to the right under the iso camera (vanilla's enchant table animates
+            // its yaw over time; we pin it to match the lectern's static pose).
+            Map.entry("minecraft:enchant_book", new float[]{ 8, 13.6f, 8, 0, 90f, 80f })
         );
 
         /** Names of the six block-model face directions, indexed in down/up/north/south/west/east order. */
