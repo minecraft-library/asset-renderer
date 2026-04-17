@@ -138,10 +138,10 @@ tasks {
         classpath = sourceSets["main"].runtimeClasspath
     }
 
-    register<JavaExec>("blockEntityModels") {
-        description = "Parses block entity model classes (chest, sign, bed, etc.) from the client jar via ASM and generates src/main/resources/renderer/block_entity_models.json."
+    register<JavaExec>("blockEntities") {
+        description = "Parses block entity model classes (chest, sign, bed, etc.) from the client jar via ASM and generates src/main/resources/renderer/tile_entity_models.json."
         group = "tooling"
-        mainClass.set("dev.sbs.renderer.tooling.ToolingBlockEntityModels")
+        mainClass.set("dev.sbs.renderer.tooling.ToolingBlockEntities")
         classpath = sourceSets["main"].runtimeClasspath
     }
 

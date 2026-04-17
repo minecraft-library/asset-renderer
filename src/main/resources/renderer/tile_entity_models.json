@@ -1,5 +1,5 @@
 {
-  "//": "Generated block model elements from entity model geometry. Run tooling/blockEntityModels to refresh.",
+  "//": "Generated block model elements from entity model geometry. Run tooling/blockEntities to refresh.",
   "minecraft:conduit": {
     "textureWidth": 32,
     "textureHeight": 16,

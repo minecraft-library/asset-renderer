@@ -18,7 +18,7 @@ import dev.sbs.renderer.asset.model.EntityModelData;
 import dev.sbs.renderer.asset.model.ItemModelData;
 import dev.sbs.renderer.asset.model.ModelElement;
 import dev.sbs.renderer.asset.model.ModelFace;
-import dev.sbs.renderer.pipeline.loader.BlockEntityModelLoader;
+import dev.sbs.renderer.pipeline.loader.BlockEntityLoader;
 import dev.sbs.renderer.pipeline.loader.BlockTintsLoader;
 import dev.sbs.renderer.pipeline.loader.EntityModelLoader;
 import dev.sbs.renderer.pipeline.loader.OverlayResolver;
@@ -83,7 +83,7 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull Set<String> blockstateOnlyIds;
     /** Block entity metadata for multi-block centering and icon rotation at render time. */
     @Getter
-    private final @NotNull ConcurrentMap<String, BlockEntityModelLoader.BlockEntityEntry> blockEntityEntries;
+    private final @NotNull ConcurrentMap<String, BlockEntityLoader.BlockEntityEntry> blockEntityEntries;
     private final @NotNull ImageFactory imageFactory = new ImageFactory();
     private final @NotNull ConcurrentMap<String, PixelBuffer> textureCache = Concurrent.newMap();
 
@@ -105,7 +105,7 @@ public final class PipelineRendererContext implements RendererContext {
         ConcurrentMap<String, String> itemDefs = result.getItemDefinitions();
         ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap = result.getBlockStates();
         ConcurrentMap<String, Block.Multipart> multipartMap = result.getBlockMultiparts();
-        ConcurrentMap<String, BlockEntityModelLoader.BlockEntityEntry> blockEntityEntries = BlockEntityModelLoader.load();
+        ConcurrentMap<String, BlockEntityLoader.BlockEntityEntry> blockEntityEntries = BlockEntityLoader.load();
 
         // Build reverse tag index (tag id → block ids becomes block id → tag names)
         ConcurrentMap<String, BlockTag> tagMap = result.getBlockTags();
@@ -148,11 +148,11 @@ public final class PipelineRendererContext implements RendererContext {
         // coloured beds, shulker boxes, signs, etc. whose vanilla geometry is hardcoded in
         // tile entity renderers. The tooling extracts this geometry and converts it to standard
         // block model elements so they render through GeometryKit like any other block.
-        for (Map.Entry<String, BlockEntityModelLoader.BlockEntityEntry> entry : blockEntityEntries.entrySet()) {
+        for (Map.Entry<String, BlockEntityLoader.BlockEntityEntry> entry : blockEntityEntries.entrySet()) {
             String blockId = entry.getKey();
             // Block entities override vanilla template models (e.g. block/chest.json is an empty
             // template, but the block entity model has the real chest geometry).
-            BlockEntityModelLoader.BlockEntityEntry be = entry.getValue();
+            BlockEntityLoader.BlockEntityEntry be = entry.getValue();
             String shortName = blockId.contains(":") ? blockId.substring(blockId.indexOf(':') + 1) : blockId;
             ConcurrentList<String> tags = reverseTagIndex.getOrDefault(blockId, Concurrent.newList());
             ConcurrentMap<String, Block.Variant> variants = variantMap.getOrDefault(blockId, Concurrent.newMap());
@@ -346,7 +346,7 @@ public final class PipelineRendererContext implements RendererContext {
     }
 
     @Override
-    public @NotNull Optional<BlockEntityModelLoader.BlockEntityEntry> findBlockEntityEntry(@NotNull String blockId) {
+    public @NotNull Optional<BlockEntityLoader.BlockEntityEntry> findBlockEntityEntry(@NotNull String blockId) {
         return this.blockEntityEntries.getOptional(blockId);
     }
 

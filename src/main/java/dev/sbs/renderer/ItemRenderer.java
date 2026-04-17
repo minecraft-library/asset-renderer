@@ -402,8 +402,19 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * Returns {@code true} when an item has no renderable 2D/3D content on its own (no layer
      * textures, no elements, no overlay, not a banner/shield) but the same id names a real
      * block the renderer can draw. Used by {@link Gui2D} and {@link Held3D} to route
-     * block-items like beds, shulker boxes, chests, and decorated pots through
-     * {@link BlockRenderer.Isometric3D} instead of producing a blank flat icon.
+     * block-entity items through {@link BlockRenderer.Isometric3D} instead of producing a
+     * blank flat icon.
+     * <p>
+     * This redirect is load-bearing. Audited (2026-04-16) against the MC 26.1 model tree:
+     * 60+ items inherit from {@code template_bed}, {@code template_shulker_box},
+     * {@code template_chest}, {@code template_banner}, {@code template_skull},
+     * {@code template_copper_golem_statue}, or ship their own empty item model
+     * ({@code decorated_pot}, {@code conduit}, {@code dragon_head}). None have elements or
+     * a {@code layer0} anywhere in the parent chain - vanilla renders them via dedicated
+     * tile-entity renderers that aren't part of our item pipeline. Removing the redirect
+     * would blank every one of these tiles in the atlas. The block path is the correct
+     * bridge because our {@link dev.sbs.renderer.pipeline.loader.BlockEntityLoader
+     * BlockEntityLoader} already extracts their geometry into block models.
      */
     static boolean shouldRedirectToBlockRender(
         @NotNull RendererContext context,

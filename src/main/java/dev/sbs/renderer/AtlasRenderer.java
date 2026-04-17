@@ -144,7 +144,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     /**
      * Classifies a block tile by its registration origin. Blockstate-only ids (Task 10) win first;
      * everything else came from the primary block-model iteration (including block entities whose
-     * geometry is now baked into block model elements via {@code BlockEntityModelLoader}).
+     * geometry is now baked into block model elements via {@code BlockEntityLoader}).
      */
     private @NotNull TileSpec.Source classifyBlockSource(@NotNull String blockId, @NotNull java.util.Set<String> blockstateOnly) {
         return blockstateOnly.contains(blockId) ? TileSpec.Source.BLOCKSTATE_ONLY : TileSpec.Source.BLOCK_MODEL;
@@ -273,7 +273,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
          * Registration source tag emitted alongside {@link Kind} so diagnostics can filter tiles
          * by the pipeline path that produced them. {@link #BLOCK_MODEL} is the primary
          * {@code blockModels} iteration (including block entities whose geometry is baked into
-         * block model elements via {@code BlockEntityModelLoader}); {@link #BLOCKSTATE_ONLY}
+         * block model elements via {@code BlockEntityLoader}); {@link #BLOCKSTATE_ONLY}
          * covers Task 10 blocks resolved via their blockstate when no block-model file matches
          * the id; {@link #ITEM_MODEL} is every item tile.
          */
@@ -360,7 +360,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         }
 
         @Override
-        public @NotNull Optional<dev.sbs.renderer.pipeline.loader.BlockEntityModelLoader.BlockEntityEntry> findBlockEntityEntry(@NotNull String blockId) {
+        public @NotNull Optional<dev.sbs.renderer.pipeline.loader.BlockEntityLoader.BlockEntityEntry> findBlockEntityEntry(@NotNull String blockId) {
             return this.delegate.findBlockEntityEntry(blockId);
         }
 

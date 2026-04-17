@@ -149,7 +149,7 @@ public interface RendererContext {
 
     /**
      * Looks up the block-entity mapping entry for a block id. Block-entity mappings carry the
-     * extracted geometry (from {@code block_entity_block_models.json}), entity texture binding,
+     * extracted geometry (from {@code tile_entity_models.json}), entity texture binding,
      * icon rotation, multi-block flag, and per-entry tint used by {@link dev.sbs.renderer.BlockRenderer
      * BlockRenderer} for blocks whose vanilla rendering is hardcoded in tile-entity renderers
      * (banners, beds, chests, shulker boxes, signs, etc.).
@@ -162,7 +162,7 @@ public interface RendererContext {
      * @param blockId the block id
      * @return the entry, or empty when the block has no block-entity mapping
      */
-    default @NotNull Optional<dev.sbs.renderer.pipeline.loader.BlockEntityModelLoader.BlockEntityEntry> findBlockEntityEntry(@NotNull String blockId) {
+    default @NotNull Optional<dev.sbs.renderer.pipeline.loader.BlockEntityLoader.BlockEntityEntry> findBlockEntityEntry(@NotNull String blockId) {
         return Optional.empty();
     }
 

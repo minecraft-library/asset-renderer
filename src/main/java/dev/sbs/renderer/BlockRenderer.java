@@ -14,7 +14,7 @@ import dev.sbs.renderer.geometry.EulerRotation;
 import dev.sbs.renderer.geometry.PerspectiveParams;
 import dev.sbs.renderer.geometry.VisibleTriangle;
 import dev.sbs.renderer.pipeline.PipelineRendererContext;
-import dev.sbs.renderer.pipeline.loader.BlockEntityModelLoader;
+import dev.sbs.renderer.pipeline.loader.BlockEntityLoader;
 import dev.sbs.renderer.kit.GeometryKit;
 import dev.sbs.renderer.asset.Block;
 import dev.sbs.renderer.asset.model.BlockModelData;
@@ -146,7 +146,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // the context in {@code StaticTextureContext} to force animation-strip frame 0,
             // and that wrapper isn't a {@code PipelineRendererContext}. Delegating via the
             // interface method lets wrappers forward transparently.
-            BlockEntityModelLoader.BlockEntityEntry be = this.context.findBlockEntityEntry(options.getBlockId()).orElse(null);
+            BlockEntityLoader.BlockEntityEntry be = this.context.findBlockEntityEntry(options.getBlockId()).orElse(null);
             int tint = be != null && be.getTintArgb() != ColorMath.WHITE
                 ? be.getTintArgb()
                 : resolveBlockTint(this.context, block, options);
