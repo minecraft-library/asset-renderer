@@ -18,6 +18,7 @@ import dev.sbs.renderer.options.BlockOptions;
 import dev.sbs.renderer.options.FluidOptions;
 import dev.sbs.renderer.options.GridOptions;
 import dev.sbs.renderer.options.ItemOptions;
+import dev.sbs.renderer.options.PortalOptions;
 import dev.sbs.renderer.pipeline.PipelineRendererContext;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
@@ -60,10 +61,23 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         "minecraft:water", "minecraft:lava"
     );
 
+    /**
+     * Block ids that render through {@link PortalRenderer} instead of {@link BlockRenderer}.
+     * Vanilla {@code block/end_portal.json} carries only a {@code particle} texture and
+     * {@code end_gateway} has no block-model file at all, so the standard block-model path
+     * produces a blank tile for both. The atlas intercepts these ids in {@link #renderBlocks}
+     * and dispatches to {@link PortalRenderer.PortalFace2D} so each portal emits a baked
+     * parallax star-field tile.
+     */
+    private static final java.util.Set<String> PORTAL_BLOCK_IDS = java.util.Set.of(
+        "minecraft:end_portal", "minecraft:end_gateway"
+    );
+
     private final @NotNull RendererContext context;
     private final @NotNull BlockRenderer blockRenderer;
     private final @NotNull ItemRenderer itemRenderer;
     private final @NotNull FluidRenderer fluidRenderer;
+    private final @NotNull PortalRenderer portalRenderer;
     private final @NotNull GridRenderer gridRenderer;
 
     public AtlasRenderer(@NotNull RendererContext context) {
@@ -71,6 +85,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         this.blockRenderer = new BlockRenderer(context);
         this.itemRenderer = new ItemRenderer(context);
         this.fluidRenderer = new FluidRenderer(context);
+        this.portalRenderer = new PortalRenderer(context);
         this.gridRenderer = new GridRenderer();
     }
 
@@ -98,17 +113,19 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         BlockRenderer blocks = this.blockRenderer;
         ItemRenderer items = this.itemRenderer;
         FluidRenderer fluids = this.fluidRenderer;
+        PortalRenderer portals = this.portalRenderer;
 
         if (!options.isAnimated()) {
             RendererContext staticContext = new StaticTextureContext(this.context);
             blocks = new BlockRenderer(staticContext);
             items = new ItemRenderer(staticContext);
             fluids = new FluidRenderer(staticContext);
+            portals = new PortalRenderer(staticContext);
         }
 
         ConcurrentList<TileSpec> tiles = Concurrent.newList();
         if (options.getSource() != AtlasOptions.Source.ITEM)
-            tiles.addAll(renderBlocks(options, blocks, fluids));
+            tiles.addAll(renderBlocks(options, blocks, fluids, portals));
         if (options.getSource() != AtlasOptions.Source.BLOCK)
             tiles.addAll(renderItems(options, items));
 
@@ -126,14 +143,20 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * dispatch to {@link FluidRenderer.FluidFace2D}. Failures are caught per-tile and logged
      * when {@link AtlasOptions#isProgressLogging()} is set.
      */
-    private @NotNull ConcurrentList<TileSpec> renderBlocks(@NotNull AtlasOptions options, @NotNull BlockRenderer renderer, @NotNull FluidRenderer fluids) {
+    private @NotNull ConcurrentList<TileSpec> renderBlocks(@NotNull AtlasOptions options, @NotNull BlockRenderer renderer, @NotNull FluidRenderer fluids, @NotNull PortalRenderer portals) {
         ConcurrentList<TileSpec> tiles = Concurrent.newList();
         int count = 0;
         java.util.Set<String> blockstateOnly = this.context instanceof PipelineRendererContext prc
             ? prc.getBlockstateOnlyIds()
             : java.util.Set.of();
 
-        for (String blockId : this.context.knownBlockIds()) {
+        // end_gateway has no block-model file; the primary {@code knownBlockIds()} walk doesn't
+        // surface it. Task 8 intercepts it here as a portal tile, so ensure it's part of the
+        // iteration set even when the primary pipeline didn't register it.
+        java.util.LinkedHashSet<String> blockIds = new java.util.LinkedHashSet<>(this.context.knownBlockIds());
+        blockIds.addAll(PORTAL_BLOCK_IDS);
+
+        for (String blockId : blockIds) {
             if (options.getFilter().map(f -> !f.test(blockId)).orElse(false)) continue;
 
             try {
@@ -142,6 +165,9 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
                 if (FLUID_BLOCK_IDS.contains(blockId)) {
                     image = fluids.render(fluidOptionsFor(blockId, options.getTileSize()));
                     source = TileSpec.Source.FLUID;
+                } else if (PORTAL_BLOCK_IDS.contains(blockId)) {
+                    image = portals.render(portalOptionsFor(blockId, options.getTileSize()));
+                    source = TileSpec.Source.PORTAL;
                 } else {
                     BlockOptions blockOptions = BlockOptions.builder()
                         .blockId(blockId)
@@ -179,6 +205,24 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         return FluidOptions.builder()
             .fluid(fluid)
             .type(FluidOptions.Type.FLUID_FACE_2D)
+            .outputSize(tileSize)
+            .build();
+    }
+
+    /**
+     * Builds the {@link PortalOptions} used for atlas portal tiles. Fixes the render type to
+     * {@link PortalOptions.Type#PORTAL_FACE_2D} so each portal emits a flat baked parallax
+     * sprite sized to the atlas tile. The isometric 3D path stays out of the atlas - it carries
+     * the full slab / cube geometry that callers outside the atlas (3D debug dumps, tooling)
+     * can request separately via {@link PortalRenderer}.
+     */
+    private static @NotNull PortalOptions portalOptionsFor(@NotNull String blockId, int tileSize) {
+        PortalOptions.Portal portal = blockId.equals("minecraft:end_gateway")
+            ? PortalOptions.Portal.END_GATEWAY
+            : PortalOptions.Portal.END_PORTAL;
+        return PortalOptions.builder()
+            .portal(portal)
+            .type(PortalOptions.Type.PORTAL_FACE_2D)
             .outputSize(tileSize)
             .build();
     }
@@ -341,6 +385,10 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
          *     still fluid texture (water, lava). Vanilla {@code block/water.json} and
          *     {@code block/lava.json} carry no elements, so the fluid renderer supplies the
          *     atlas tile instead.</li>
+         * <li>{@link #PORTAL} - Task 8: block rendered through {@link PortalRenderer} via a
+         *     CPU-baked parallax star-field (end_portal, end_gateway). Vanilla ships only a
+         *     particle-texture block model for end_portal and no block model at all for
+         *     end_gateway, so the portal renderer supplies the atlas tile instead.</li>
          * <li>{@link #ITEM_MODEL} - primary {@code itemModels} iteration.</li>
          * </ul>
          */
@@ -354,6 +402,8 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             TILE_ENTITY,
             /** Task 6 - block rendered via {@link FluidRenderer.FluidFace2D} (water, lava). */
             FLUID,
+            /** Task 8 - block rendered via {@link PortalRenderer.PortalFace2D} (end_portal, end_gateway). */
+            PORTAL,
             /** Primary {@code itemModels} iteration. */
             ITEM_MODEL;
 

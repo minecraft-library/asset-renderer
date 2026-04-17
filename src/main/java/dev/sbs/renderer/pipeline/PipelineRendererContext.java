@@ -523,9 +523,17 @@ public final class PipelineRendererContext implements RendererContext {
         "wildflowers_2", "wildflowers_4"
     );
 
-    /** Blocks that are invisible by design in vanilla - renderer intentionally produces empty geometry for them, so they do not belong in the atlas. */
+    /**
+     * Blocks that are invisible by design in vanilla - renderer intentionally produces empty
+     * geometry for them, so they do not belong in the atlas.
+     * <p>
+     * {@code end_gateway} was here before Task 8 because it has neither a block-model file nor a
+     * block-entity geometry extraction; it now renders via
+     * {@link dev.sbs.renderer.PortalRenderer} through {@link dev.sbs.renderer.AtlasRenderer}'s
+     * {@code PORTAL_BLOCK_IDS} intercept.
+     */
     private static final java.util.Set<String> INVISIBLE_BLOCK_NAMES = java.util.Set.of(
-        "air", "barrier", "end_gateway", "moving_piston", "structure_void"
+        "air", "barrier", "moving_piston", "structure_void"
     );
 
     /**

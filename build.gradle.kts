@@ -205,6 +205,13 @@ tasks {
         classpath = sourceSets["main"].runtimeClasspath
     }
 
+    register<JavaExec>("testPortal") {
+        description = "Renders every PortalRenderer code path (end_portal/end_gateway, iso/2D, static/animated) to cache/test-portal/ for visual inspection."
+        group = "tooling"
+        mainClass.set("dev.sbs.renderer.tooling.TestPortalMain")
+        classpath = sourceSets["main"].runtimeClasspath
+    }
+
     register<JavaExec>("fonts") {
         description = "Clones minecraft-library/font-generator into cache/font-generator, sets up a Python venv, and runs the generator against the given MC version (-PfontVersion=26.1 by default). Writes .otf files to cache/fonts/ - run processResources afterwards to copy them onto the classpath."
         group = "tooling"
