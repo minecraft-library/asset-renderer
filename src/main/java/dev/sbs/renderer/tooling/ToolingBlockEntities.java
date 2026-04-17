@@ -28,8 +28,10 @@ import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.IntInsnNode;
 import org.objectweb.asm.tree.JumpInsnNode;
 import org.objectweb.asm.tree.LdcInsnNode;
+import org.objectweb.asm.tree.LookupSwitchInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.TableSwitchInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
 import java.io.IOException;
@@ -513,15 +515,60 @@ public final class ToolingBlockEntities {
                     }
                 }
 
-                // ILOAD N: if the source declared a value for slot N, push it onto the
-                // branch stack so the upcoming IFEQ / IFNE can evaluate the conditional.
-                // We still fall through to the {@code switch} below because ILOAD doesn't
-                // match any case there - no side effect on {@link ParseState#numStack}.
-                if (state.paramIntValues != null && node instanceof VarInsnNode varInsn && opcode == Opcodes.ILOAD) {
-                    int slot = varInsn.var;
-                    if (slot >= 0 && slot < state.paramIntValues.length)
-                        state.branchStack.add(state.paramIntValues[slot]);
+                // Task 19: TABLESWITCH / LOOKUPSWITCH evaluation. Follows the same
+                // {@code paramIntValues}-driven branch-evaluation gate as IFEQ / IFNE - when the
+                // top of {@link ParseState#branchStack} holds a concrete value (put there by a
+                // preceding ILOAD of a paramIntValues-registered slot), jump to the matching case
+                // label. Otherwise the parser falls through linearly to preserve pre-Task 19
+                // behaviour, and - when {@code paramIntValues} is set but the switch value is
+                // unknown - surfaces a {@code WARN:} so the maintainer knows an unmodelled
+                // dispatch slipped through.
+                if (node instanceof TableSwitchInsnNode tableSwitch) {
+                    if (state.paramIntValues != null && !state.branchStack.isEmpty()) {
+                        int value = state.branchStack.remove(state.branchStack.size() - 1);
+                        node = value >= tableSwitch.min && value <= tableSwitch.max
+                            ? tableSwitch.labels.get(value - tableSwitch.min)
+                            : tableSwitch.dflt;
+                        continue;
+                    }
+                    if (state.paramIntValues != null && state.diagnostics != null && state.currentSource != null)
+                        state.diagnostics.warn("%s: TABLESWITCH encountered with unknown value - falling through linearly, case bodies may corrupt numStack", state.currentSource.entityId);
                 }
+                if (node instanceof LookupSwitchInsnNode lookupSwitch) {
+                    if (state.paramIntValues != null && !state.branchStack.isEmpty()) {
+                        int value = state.branchStack.remove(state.branchStack.size() - 1);
+                        int idx = lookupSwitch.keys.indexOf(value);
+                        node = idx >= 0 ? lookupSwitch.labels.get(idx) : lookupSwitch.dflt;
+                        continue;
+                    }
+                    if (state.paramIntValues != null && state.diagnostics != null && state.currentSource != null)
+                        state.diagnostics.warn("%s: LOOKUPSWITCH encountered with unknown value - falling through linearly, case bodies may corrupt numStack", state.currentSource.entityId);
+                }
+
+                // ILOAD N: if the source declared a value for slot N, push it onto the
+                // branch stack so the upcoming IFEQ / IFNE / switch can evaluate the
+                // conditional. If the slot is NOT in {@code paramIntValues} (or the source
+                // didn't supply any values), push a {@link NonLiteralMarker} onto
+                // {@link ParseState#numStack} instead - when a downstream addBox / PartPose
+                // consumes it, {@link #popIntWithDiagnostics} surfaces a {@code WARN:} so the
+                // silent-zero failure mode doesn't get baked into the output cube.
+                if (node instanceof VarInsnNode varInsn && opcode == Opcodes.ILOAD) {
+                    int slot = varInsn.var;
+                    boolean resolved = state.paramIntValues != null && slot >= 0 && slot < state.paramIntValues.length;
+                    if (resolved)
+                        state.branchStack.add(state.paramIntValues[slot]);
+                    else
+                        state.numStack.add(NON_LITERAL);
+                }
+
+                // FLOAD / DLOAD / LLOAD: the value comes from a local variable the parser
+                // can't resolve. Push {@link #NON_LITERAL} so the next {@link #popFloatWithDiagnostics}
+                // / {@link #popIntWithDiagnostics} surfaces the attribution instead of silently
+                // consuming a stale zero off an earlier literal or a fresh zero from an empty
+                // stack.
+                if (node instanceof VarInsnNode
+                    && (opcode == Opcodes.FLOAD || opcode == Opcodes.DLOAD || opcode == Opcodes.LLOAD))
+                    state.numStack.add(NON_LITERAL);
 
                 switch (node) {
                     case FieldInsnNode fieldInsn when opcode == Opcodes.GETSTATIC -> {
@@ -585,8 +632,8 @@ public final class ToolingBlockEntities {
             }
             if (methodInsn.owner.equals(LAYER_DEFINITION) && methodInsn.name.equals("create")) {
                 requireStack(state, 2, "LayerDefinition.create(mesh,II)");
-                state.texHeight = popInt(state.numStack);
-                state.texWidth = popInt(state.numStack);
+                state.texHeight = popIntWithDiagnostics(state, "LayerDefinition.create(mesh,II) texHeight");
+                state.texWidth = popIntWithDiagnostics(state, "LayerDefinition.create(mesh,II) texWidth");
                 return;
             }
             // Invokestatic-follow: recurse into model-building statics outside the builder/geom
@@ -639,8 +686,8 @@ public final class ToolingBlockEntities {
                 case "texOffs" -> {
                     if (methodInsn.desc.startsWith("(II")) {
                         requireStack(state, 2, "CubeListBuilder.texOffs(II)");
-                        state.pendingUv[1] = popInt(state.numStack);
-                        state.pendingUv[0] = popInt(state.numStack);
+                        state.pendingUv[1] = popIntWithDiagnostics(state, "CubeListBuilder.texOffs(II) v");
+                        state.pendingUv[0] = popIntWithDiagnostics(state, "CubeListBuilder.texOffs(II) u");
                     }
                 }
                 case "addBox" -> {
@@ -652,23 +699,23 @@ public final class ToolingBlockEntities {
                     //     stacks 6 cubes this way, each with its own UV.
                     if (methodInsn.desc.startsWith("(Ljava/lang/String;FFFIIIII")) {
                         requireStack(state, 8, "CubeListBuilder.addBox(name,FFFIIIII)");
-                        int v = popInt(state.numStack);
-                        int u = popInt(state.numStack);
-                        int d = popInt(state.numStack);
-                        int h = popInt(state.numStack);
-                        int w = popInt(state.numStack);
-                        float z = popFloat(state.numStack);
-                        float y = popFloat(state.numStack);
-                        float x = popFloat(state.numStack);
+                        int v = popIntWithDiagnostics(state, "CubeListBuilder.addBox(name,FFFIIIII) v");
+                        int u = popIntWithDiagnostics(state, "CubeListBuilder.addBox(name,FFFIIIII) u");
+                        int d = popIntWithDiagnostics(state, "CubeListBuilder.addBox(name,FFFIIIII) d");
+                        int h = popIntWithDiagnostics(state, "CubeListBuilder.addBox(name,FFFIIIII) h");
+                        int w = popIntWithDiagnostics(state, "CubeListBuilder.addBox(name,FFFIIIII) w");
+                        float z = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(name,FFFIIIII) z");
+                        float y = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(name,FFFIIIII) y");
+                        float x = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(name,FFFIIIII) x");
                         state.pendingCubes.add(new float[]{ x, y, z, w, h, d, u, v });
                     } else if (methodInsn.desc.startsWith("(FFFFFF") || methodInsn.desc.startsWith("(Ljava/lang/String;FFFFFF")) {
                         requireStack(state, 6, "CubeListBuilder.addBox(FFFFFF)");
-                        float d = popFloat(state.numStack);
-                        float h = popFloat(state.numStack);
-                        float w = popFloat(state.numStack);
-                        float z = popFloat(state.numStack);
-                        float y = popFloat(state.numStack);
-                        float x = popFloat(state.numStack);
+                        float d = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFF) d");
+                        float h = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFF) h");
+                        float w = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFF) w");
+                        float z = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFF) z");
+                        float y = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFF) y");
+                        float x = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFF) x");
                         state.pendingCubes.add(new float[]{ x, y, z, w, h, d, state.pendingUv[0], state.pendingUv[1] });
                     }
                 }
@@ -678,7 +725,7 @@ public final class ToolingBlockEntities {
                     // literal stack aligned so it doesn't leak into the next builder call.
                     if (methodInsn.desc.startsWith("(Z")) {
                         requireStack(state, 1, "CubeListBuilder.mirror(Z)");
-                        popInt(state.numStack);
+                        popIntWithDiagnostics(state, "CubeListBuilder.mirror(Z)");
                     }
                 }
                 default -> { }
@@ -690,9 +737,9 @@ public final class ToolingBlockEntities {
                 case "offset" -> {
                     if (methodInsn.desc.startsWith("(FFF")) {
                         requireStack(state, 3, "PartPose.offset(FFF)");
-                        float pz = popFloat(state.numStack);
-                        float py = popFloat(state.numStack);
-                        float px = popFloat(state.numStack);
+                        float pz = popFloatWithDiagnostics(state, "PartPose.offset(FFF) z");
+                        float py = popFloatWithDiagnostics(state, "PartPose.offset(FFF) y");
+                        float px = popFloatWithDiagnostics(state, "PartPose.offset(FFF) x");
                         state.pendingPivot = new float[]{ px, py, pz };
                         state.pendingRotation = new float[]{ 0, 0, 0 };
                     }
@@ -702,9 +749,9 @@ public final class ToolingBlockEntities {
                     // Used by BedRenderer legs.
                     if (methodInsn.desc.startsWith("(FFF")) {
                         requireStack(state, 3, "PartPose.rotation(FFF)");
-                        float rz = popFloat(state.numStack);
-                        float ry = popFloat(state.numStack);
-                        float rx = popFloat(state.numStack);
+                        float rz = popFloatWithDiagnostics(state, "PartPose.rotation(FFF) z");
+                        float ry = popFloatWithDiagnostics(state, "PartPose.rotation(FFF) y");
+                        float rx = popFloatWithDiagnostics(state, "PartPose.rotation(FFF) x");
                         state.pendingPivot = new float[]{ 0, 0, 0 };
                         state.pendingRotation = new float[]{
                             (float) Math.toDegrees(rx),
@@ -716,12 +763,12 @@ public final class ToolingBlockEntities {
                 case "offsetAndRotation" -> {
                     if (methodInsn.desc.startsWith("(FFFFFF")) {
                         requireStack(state, 6, "PartPose.offsetAndRotation(FFFFFF)");
-                        float rz = popFloat(state.numStack);
-                        float ry = popFloat(state.numStack);
-                        float rx = popFloat(state.numStack);
-                        float pz = popFloat(state.numStack);
-                        float py = popFloat(state.numStack);
-                        float px = popFloat(state.numStack);
+                        float rz = popFloatWithDiagnostics(state, "PartPose.offsetAndRotation(FFFFFF) rz");
+                        float ry = popFloatWithDiagnostics(state, "PartPose.offsetAndRotation(FFFFFF) ry");
+                        float rx = popFloatWithDiagnostics(state, "PartPose.offsetAndRotation(FFFFFF) rx");
+                        float pz = popFloatWithDiagnostics(state, "PartPose.offsetAndRotation(FFFFFF) pz");
+                        float py = popFloatWithDiagnostics(state, "PartPose.offsetAndRotation(FFFFFF) py");
+                        float px = popFloatWithDiagnostics(state, "PartPose.offsetAndRotation(FFFFFF) px");
                         state.pendingPivot = new float[]{ px, py, pz };
                         state.pendingRotation = new float[]{
                             (float) Math.toDegrees(rx),
@@ -738,7 +785,7 @@ public final class ToolingBlockEntities {
                     // applies to and resets when the next addOrReplaceChild finalises the bone.
                     if (methodInsn.desc.startsWith("(F") && !methodInsn.desc.startsWith("(FF")) {
                         requireStack(state, 1, "PartPose.scaled(F)");
-                        state.pendingScale = popFloat(state.numStack);
+                        state.pendingScale = popFloatWithDiagnostics(state, "PartPose.scaled(F)");
                     }
                 }
                 default -> { }
@@ -918,12 +965,73 @@ public final class ToolingBlockEntities {
 
         private static int popInt(@NotNull ConcurrentList<Number> stack) {
             if (stack.isEmpty()) return 0;
-            return stack.remove(stack.size() - 1).intValue();
+            Number top = stack.remove(stack.size() - 1);
+            return top.intValue();
         }
 
         private static float popFloat(@NotNull ConcurrentList<Number> stack) {
             if (stack.isEmpty()) return 0f;
-            return stack.remove(stack.size() - 1).floatValue();
+            Number top = stack.remove(stack.size() - 1);
+            return top.floatValue();
+        }
+
+        /**
+         * Sentinel value pushed onto {@link ParseState#numStack} for {@code FLOAD} / {@code DLOAD}
+         * / {@code LLOAD} and for {@code ILOAD} slots without a known {@code paramIntValues}
+         * entry. When a builder-dispatch site pops one of these via
+         * {@link #popIntWithDiagnostics} / {@link #popFloatWithDiagnostics}, the parser surfaces
+         * a {@code WARN:} identifying the entity id and pop site - the marker resolves to {@code 0}
+         * but the developer sees that a computed local slipped through the literal-only
+         * assumption instead of silently baking a zero into the output cube.
+         * <p>
+         * {@link Number#intValue()} / {@link Number#floatValue()} return {@code 0} so any caller
+         * that pops without going through the diagnostics-aware helpers still gets the same
+         * zero-fill behaviour as before Task 20.
+         */
+        private static final @NotNull Number NON_LITERAL = new NonLiteralMarker();
+
+        private static final class NonLiteralMarker extends Number {
+            @Override public int intValue() { return 0; }
+            @Override public long longValue() { return 0L; }
+            @Override public float floatValue() { return 0f; }
+            @Override public double doubleValue() { return 0d; }
+            @Override public @NotNull String toString() { return "<non-literal>"; }
+        }
+
+        /**
+         * {@link #popInt} with a {@link NonLiteralMarker} check that surfaces a {@code WARN:}
+         * through {@link ParseState#diagnostics} identifying the entity id and the dispatch
+         * site. Used by builder handlers whose coord/uv arg is expected to be a literal; when
+         * a method was compiled with the value in a local variable populated by computation,
+         * the resulting zero-fill is called out instead of silently baked.
+         */
+        private static int popIntWithDiagnostics(@NotNull ParseState state, @NotNull String where) {
+            if (state.numStack.isEmpty()) return 0;
+            Number top = state.numStack.remove(state.numStack.size() - 1);
+            if (top instanceof NonLiteralMarker) {
+                warnNonLiteral(state, where);
+                return 0;
+            }
+            return top.intValue();
+        }
+
+        /** Float-typed counterpart of {@link #popIntWithDiagnostics}. */
+        private static float popFloatWithDiagnostics(@NotNull ParseState state, @NotNull String where) {
+            if (state.numStack.isEmpty()) return 0f;
+            Number top = state.numStack.remove(state.numStack.size() - 1);
+            if (top instanceof NonLiteralMarker) {
+                warnNonLiteral(state, where);
+                return 0f;
+            }
+            return top.floatValue();
+        }
+
+        private static void warnNonLiteral(@NotNull ParseState state, @NotNull String where) {
+            if (state.diagnostics == null || state.currentSource == null) return;
+            state.diagnostics.warn(
+                "%s at %s: non-literal argument consumed - a local variable populated from a computation, resolved to 0",
+                state.currentSource.entityId, where
+            );
         }
 
     }
