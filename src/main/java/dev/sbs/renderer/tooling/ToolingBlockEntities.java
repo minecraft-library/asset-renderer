@@ -177,22 +177,8 @@ public final class ToolingBlockEntities {
             // the {@code ModelPart}-based models. Wired as additive overlays so the underlying
             // {@code block/lectern.json} / {@code block/enchanting_table.json} primary geometry
             // (the stand / table base) stays in place.
-            // <p>
-            // Bone-rotation override: vanilla's {@code BookModel.setupAnim} sets
-            // {@code leftLid.yRot = π + openness} - the +π baseline closes the cover (the model
-            // is authored "spread fully open" and setupAnim folds it back). For the atlas we
-            // bake this 180° flip in via {@code boneRotationOverrides} so the closed-book state
-            // appears as a closed book rather than a one-cover-flopped-on-the-ground spread.
-            // <p>
-            // Lectern's vanilla {@code state.yRot = facing.getClockWise().toYRot()} - for default
-            // facing=NORTH that's EAST.toYRot() = 270°, so the renderer applies
-            // {@code Ry(-270°) = Ry(90°)} between the outer translate and the Z roll. Encoded
-            // as INVENTORY_TRANSFORMS yaw (index 4) on the lectern_book entry so the rotation
-            // pivot lands at the post-translate point (8, 17, 8) - matching vanilla - rather
-            // than rotating around block centre (8, 8, 8) the way {@code inventory_y_rotation}
-            // would.
-            new Source("net/minecraft/client/model/object/book/BookModel.class", "createBodyLayer", "minecraft:lectern_book", YAxis.DOWN, 0f, null, null, null, bookSetupAnimOverrides(1.5f, 0.1f, 0.9f)),
-            new Source("net/minecraft/client/model/object/book/BookModel.class", "createBodyLayer", "minecraft:enchant_book", YAxis.DOWN, 0f, null, null, null, bookSetupAnimOverrides(1.25f, 0.1f, 0.9f)),
+            new Source("net/minecraft/client/model/object/book/BookModel.class", "createBodyLayer", "minecraft:lectern_book", YAxis.DOWN, 0f),
+            new Source("net/minecraft/client/model/object/book/BookModel.class", "createBodyLayer", "minecraft:enchant_book", YAxis.DOWN, 0f),
 
             // DecoratedPotRenderer authors its cubes in block-space Y-up (cube y=17..20 for the
             // neck rim sits above the block top, lid/base decals at y=16 / y=0), so the default
@@ -271,20 +257,15 @@ public final class ToolingBlockEntities {
             float inventoryYRotation,
             @Nullable Integer texWidthOverride,
             @Nullable Integer texHeightOverride,
-            int @Nullable [] paramIntValues,
-            @Nullable Map<String, float[]> boneRotationOverrides
+            int @Nullable [] paramIntValues
         ) {
 
             Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation) {
-                this(classEntry, methodName, entityId, yAxis, inventoryYRotation, null, null, null, null);
+                this(classEntry, methodName, entityId, yAxis, inventoryYRotation, null, null, null);
             }
 
             Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation, @Nullable Integer texWidthOverride, @Nullable Integer texHeightOverride) {
-                this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, null, null);
-            }
-
-            Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation, @Nullable Integer texWidthOverride, @Nullable Integer texHeightOverride, int @Nullable [] paramIntValues) {
-                this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, paramIntValues, null);
+                this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, null);
             }
 
         }
@@ -336,13 +317,6 @@ public final class ToolingBlockEntities {
                             model.addProperty("y_axis", source.yAxis.name());
                             if (source.inventoryYRotation != 0f)
                                 model.addProperty("inventory_y_rotation", source.inventoryYRotation);
-                            // Apply per-bone rotation overrides BEFORE the layer-bake. Used to
-                            // bake in static {@code setupAnim} rotations the parser doesn't
-                            // simulate (BookModel's left_lid {@code yRot = π} for the closed
-                            // state - vanilla authors the model "fully spread open" and relies on
-                            // setupAnim to close it via the +π baseline).
-                            if (source.boneRotationOverrides != null)
-                                applyBoneRotationOverrides(model, source.boneRotationOverrides);
                             results.put(source.entityId, model);
                         }
 
@@ -355,65 +329,6 @@ public final class ToolingBlockEntities {
             }
 
             return results;
-        }
-
-        /**
-         * Adds the supplied per-bone deltas to each named bone, simulating a static
-         * {@code setupAnim} call. Each delta is a float array of length 3 (rotation deltas in
-         * degrees, applied to {@code rotation[0..3]}) or length 6 (rotation deltas plus pivot
-         * deltas applied to {@code pivot[0..3]}). Used to bake bone rotations and translations
-         * that vanilla's setupAnim applies to the model parts - BookModel's
-         * {@code leftLid.yRot = π + openness} closes/opens the cover, and the open pages need
-         * an X-pivot shift of {@code sin(openness)} to spread.
-         */
-        private static void applyBoneRotationOverrides(@NotNull JsonObject model, @NotNull Map<String, float[]> overrides) {
-            JsonObject bones = model.getAsJsonObject("bones");
-            if (bones == null) return;
-            for (Map.Entry<String, float[]> entry : overrides.entrySet()) {
-                JsonObject bone = bones.getAsJsonObject(entry.getKey());
-                if (bone == null) continue;
-                float[] delta = entry.getValue();
-                JsonArray rotation = bone.getAsJsonArray("rotation");
-                if (rotation != null && rotation.size() == 3 && delta.length >= 3) {
-                    rotation.set(0, new JsonPrimitive(rotation.get(0).getAsFloat() + delta[0]));
-                    rotation.set(1, new JsonPrimitive(rotation.get(1).getAsFloat() + delta[1]));
-                    rotation.set(2, new JsonPrimitive(rotation.get(2).getAsFloat() + delta[2]));
-                }
-                JsonArray pivot = bone.getAsJsonArray("pivot");
-                if (pivot != null && pivot.size() == 3 && delta.length >= 6) {
-                    pivot.set(0, new JsonPrimitive(pivot.get(0).getAsFloat() + delta[3]));
-                    pivot.set(1, new JsonPrimitive(pivot.get(1).getAsFloat() + delta[4]));
-                    pivot.set(2, new JsonPrimitive(pivot.get(2).getAsFloat() + delta[5]));
-                }
-            }
-        }
-
-        /**
-         * Builds the per-bone deltas equivalent to {@code BookModel.setupAnim} for a given
-         * static animation pose. Replicates vanilla's formulas:
-         * <ul>
-         * <li>{@code leftLid.yRot = π + openness} (closes the lid; with {@code openness == 0}
-         *     this is the closed-book baseline of π)</li>
-         * <li>{@code rightLid.yRot = -openness}</li>
-         * <li>{@code leftPages.yRot = openness}, {@code rightPages.yRot = -openness}</li>
-         * <li>{@code flipPage{1,2}.yRot = openness · (1 - 2·pageFlip{1,2})}</li>
-         * <li>{@code pages.x = sin(openness)} (X-pivot offset, opens the page outward)</li>
-         * </ul>
-         * Used by {@code lectern_book} ({@code openness=1.5}, vanilla's static BOOK_STATE) and
-         * {@code enchant_book} ({@code openness=1.25}, the open state when a player is in
-         * range). For closed books pass {@code openness=0} to bake just the leftLid +π flip.
-         */
-        private static @NotNull Map<String, float[]> bookSetupAnimOverrides(float openness, float pageFlip1, float pageFlip2) {
-            float opennessDeg = (float) Math.toDegrees(openness);
-            float xPivot = (float) Math.sin(openness);
-            return Map.of(
-                "left_lid",    new float[]{ 0f, 180f + opennessDeg, 0f },
-                "right_lid",   new float[]{ 0f, -opennessDeg, 0f },
-                "left_pages",  new float[]{ 0f, opennessDeg, 0f, xPivot, 0f, 0f },
-                "right_pages", new float[]{ 0f, -opennessDeg, 0f, xPivot, 0f, 0f },
-                "flip_page1",  new float[]{ 0f, opennessDeg * (1f - 2f * pageFlip1), 0f, xPivot, 0f, 0f },
-                "flip_page2",  new float[]{ 0f, opennessDeg * (1f - 2f * pageFlip2), 0f, xPivot, 0f, 0f }
-            );
         }
 
         /**
@@ -1011,22 +926,14 @@ public final class ToolingBlockEntities {
             // is short-circuited by the presence of this entry. With pitch=0 the rotation chain
             // just emits Rz(67.5°), and the inner translate is encoded as the pre-rotation
             // translate at indices 7-9.
-            // Pitch -22.5° matches the slant angle baked into the lectern's top plank in
-            // {@code block/lectern.json} ({@code rotation: { angle: -22.5, axis: "x", origin: [8, 8, 8] }}).
-            // Vanilla's LecternRenderer doesn't apply this tilt to the book itself - vanilla
-            // renders the book OPEN with lids spread, which gives the visual impression of
-            // resting on the slanted surface. Our atlas renders the closed book (no setupAnim
-            // openness), so we lean it forward manually to match the slant.
-            Map.entry("minecraft:lectern_book", new float[]{ 8, 17, 8, -22.5f, 90f, 67.5f, 1f, 0, -2, 0 }),
+            Map.entry("minecraft:lectern_book", new float[]{ 8, 17, 8, 0, 0, 67.5f, 1f, 0, -2, 0 }),
             // EnchantTableRenderer.submit:
             //   translate(0.5, 0.75, 0.5) * translate(0, 0.1 + 0.01*sin(time), 0) * rotateY(-yaw) * rotateZ(80°)
             // For the static atlas (yaw=0, time=0): outer translate folds to (0.5, 0.85, 0.5) and
             // there's no inner translate. Block-units to model-units: (8, 13.6, 8), Rz(80°). Same
             // YAxis.DOWN-with-supplied-invTransform pattern as the lectern; no pre-rotation
-            // translate needed. Yaw=90 mirrors the lectern's facing-derived rotation so the
-            // book opens to the right under the iso camera (vanilla's enchant table animates
-            // its yaw over time; we pin it to match the lectern's static pose).
-            Map.entry("minecraft:enchant_book", new float[]{ 8, 13.6f, 8, 0, 90f, 80f })
+            // translate needed.
+            Map.entry("minecraft:enchant_book", new float[]{ 8, 13.6f, 8, 0, 0, 80f })
         );
 
         /** Names of the six block-model face directions, indexed in down/up/north/south/west/east order. */
