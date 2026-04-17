@@ -36,8 +36,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -55,18 +59,86 @@ public final class ToolingBlockEntities {
     private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/renderer/tile_entity_models.json");
 
     public static void main(String @NotNull [] args) throws IOException {
+        List<String> argList = Arrays.asList(args);
+        boolean lenient = argList.contains("--lenient");
+
         AssetPipelineOptions options = AssetPipelineOptions.defaults();
         Path jarPath = ClientJarDownloader.download(options, new HttpFetcher());
 
         System.out.println("Parsing block entity models from client jar...");
-        ConcurrentMap<String, JsonObject> models = Parser.parse(jarPath);
-        System.out.printf("Extracted %d block entity models%n", models.size());
+        Diagnostics diagnostics = new Diagnostics();
+        ConcurrentMap<String, JsonObject> models = Parser.parse(jarPath, diagnostics);
+        System.out.printf("Parsed %d / %d sources%n", models.size(), Parser.SOURCES.size());
+
+        // Lenient mode prints every diagnostic for manual inspection. Strict mode (default)
+        // only prints and then fails so the output stays visible in CI logs before the error.
+        for (String entry : diagnostics.entries())
+            System.err.println("  " + entry);
+
+        if (!lenient && diagnostics.strictFailingCount() > 0)
+            throw new AssetPipelineException(
+                "Strict mode: %d parse diagnostic(s) at WARN+ severity. Rerun with --lenient to continue.",
+                diagnostics.strictFailingCount()
+            );
 
         JsonObject blockModels = BlockModelConverter.convert(models);
         Files.createDirectories(OUTPUT_PATH.getParent());
         Files.writeString(OUTPUT_PATH,
             new GsonBuilder().setPrettyPrinting().create().toJson(blockModels) + System.lineSeparator());
         System.out.println("Wrote " + OUTPUT_PATH.toAbsolutePath());
+    }
+
+    /**
+     * Accumulates parser diagnostics into a single flat list. Each entry carries a severity
+     * prefix ({@code ERROR:}, {@code WARN:}, {@code INFO:}) for grep-friendly log scraping.
+     * <ul>
+     * <li>{@link #error} - missing class / method / parse exception. Fails strict mode.</li>
+     * <li>{@link #warn} - suspected data corruption (numStack underflow at an addBox /
+     *     PartPose boundary, numStack overflow). Fails strict mode.</li>
+     * <li>{@link #info} - informational notes like leftover literals at end-of-method that
+     *     don't corrupt output but hint at parser accounting gaps. Does NOT fail strict
+     *     mode so the current 26.1 baseline (three known sources) stays clean.</li>
+     * </ul>
+     * A per-instance dedupe set suppresses duplicate entries so a parser loop that fires the
+     * same underflow on every banner source doesn't spam the log with 32 copies of the same
+     * message.
+     */
+    static final class Diagnostics {
+
+        private final @NotNull List<String> entries = new ArrayList<>();
+        private final @NotNull List<String> strictFailingEntries = new ArrayList<>();
+        private final @NotNull Set<String> dedupe = new HashSet<>();
+
+        void warn(@NotNull String format, @org.jetbrains.annotations.Nullable Object... args) {
+            add("WARN: " + String.format(format, args), true);
+        }
+
+        void error(@NotNull String format, @org.jetbrains.annotations.Nullable Object... args) {
+            add("ERROR: " + String.format(format, args), true);
+        }
+
+        void info(@NotNull String format, @org.jetbrains.annotations.Nullable Object... args) {
+            add("INFO: " + String.format(format, args), false);
+        }
+
+        private void add(@NotNull String message, boolean strictFails) {
+            if (!this.dedupe.add(message)) return;
+            this.entries.add(message);
+            if (strictFails) this.strictFailingEntries.add(message);
+        }
+
+        @NotNull List<String> entries() {
+            return this.entries;
+        }
+
+        int strictFailingCount() {
+            return this.strictFailingEntries.size();
+        }
+
+        boolean isEmpty() {
+            return this.entries.isEmpty();
+        }
+
     }
 
     /**
@@ -268,14 +340,14 @@ public final class ToolingBlockEntities {
          * @param jarPath the deobfuscated client jar (MC 26.1+)
          * @return a map of entity id to model JSON
          */
-        public static @NotNull ConcurrentMap<String, JsonObject> parse(@NotNull Path jarPath) {
+        public static @NotNull ConcurrentMap<String, JsonObject> parse(@NotNull Path jarPath, @NotNull Diagnostics diagnostics) {
             ConcurrentMap<String, JsonObject> results = Concurrent.newMap();
 
             try (ZipFile zip = new ZipFile(jarPath.toFile())) {
                 for (Source source : SOURCES) {
                     ZipEntry entry = zip.getEntry(source.classEntry);
                     if (entry == null) {
-                        System.err.printf("  skipped %s: class not found in jar%n", source.entityId);
+                        diagnostics.error("%s: class '%s' not found in client jar (renamed in MC version bump?)", source.entityId, source.classEntry);
                         continue;
                     }
 
@@ -290,11 +362,11 @@ public final class ToolingBlockEntities {
                             .orElse(null);
 
                         if (method == null) {
-                            System.err.printf("  skipped %s: method '%s' not found%n", source.entityId, source.methodName);
+                            diagnostics.error("%s: method '%s' not found on class '%s' (renamed in MC version bump?)", source.entityId, source.methodName, source.classEntry);
                             continue;
                         }
 
-                        JsonObject model = parseLayerMethod(method.instructions, zip, source.paramIntValues);
+                        JsonObject model = parseLayerMethod(method.instructions, zip, source, diagnostics);
                         if (model != null) {
                             // Source overrides apply when the parsed method doesn't call
                             // LayerDefinition.create itself (e.g. SkullModel.createHeadModel returns
@@ -312,7 +384,7 @@ public final class ToolingBlockEntities {
                         }
 
                     } catch (Exception ex) {
-                        System.err.printf("  skipped %s: %s%n", source.entityId, ex.getMessage());
+                        diagnostics.error("%s: parse failure - %s", source.entityId, ex.getMessage());
                     }
                 }
             } catch (IOException ex) {
@@ -365,10 +437,23 @@ public final class ToolingBlockEntities {
          * {@code PiglinHeadModel.createHeadModel -> PiglinModel.addHead} resolve without
          * needing a dedicated source entry per delegate.
          */
-        private static @Nullable JsonObject parseLayerMethod(@NotNull InsnList instructions, @NotNull ZipFile zip, int @Nullable [] paramIntValues) {
+        private static @Nullable JsonObject parseLayerMethod(@NotNull InsnList instructions, @NotNull ZipFile zip, @NotNull Source source, @NotNull Diagnostics diagnostics) {
             ParseState state = new ParseState();
-            state.paramIntValues = paramIntValues;
+            state.paramIntValues = source.paramIntValues;
+            state.currentSource = source;
+            state.diagnostics = diagnostics;
             walkInstructions(instructions, state, zip);
+
+            // Literals left on the numeric stack after a parse usually mean a method-owner
+            // descriptor we didn't recognise pushed arguments we never consumed. Kept at INFO
+            // severity (does not fail strict mode) because end-of-method leftovers don't
+            // corrupt output - only underflow does, and that has its own strict-failing
+            // diagnostic at every addBox / PartPose site. The three 26.1 sources that
+            // currently hit this ({@code decorated_pot}, {@code copper_golem_statue},
+            // {@code skull_dragon_head}) all produce correct geometry; the leftovers are
+            // just accounting gaps in the parser's method-owner dispatch.
+            if (!state.numStack.isEmpty())
+                diagnostics.info("%s: %d leftover literal(s) on numStack after parse - unhandled method-owner descriptor?", source.entityId, state.numStack.size());
 
             if (state.bones.isEmpty()) return null;
 
@@ -389,8 +474,17 @@ public final class ToolingBlockEntities {
                 Number literal = readNumericLiteral(node);
                 if (literal != null) {
                     state.numStack.add(literal);
-                    if (state.numStack.size() > 16)
+                    if (state.numStack.size() > 16) {
+                        // First overflow in this parse surfaces a warning; subsequent drops are
+                        // silent so a truly broken source doesn't spam 1000 copies. If the cap
+                        // is ever hit on real sources it's a bug in the parser's pop accounting,
+                        // not in the source bytecode - the stack shouldn't grow unbounded.
+                        if (state.diagnostics != null && !state.overflowWarned && state.currentSource != null) {
+                            state.diagnostics.warn("%s: numStack overflow (>16 literals) - oldest literals being dropped, pop accounting may be broken", state.currentSource.entityId);
+                            state.overflowWarned = true;
+                        }
                         state.numStack.removeFirst();
+                    }
                     continue;
                 }
 
@@ -490,6 +584,7 @@ public final class ToolingBlockEntities {
                 return;
             }
             if (methodInsn.owner.equals(LAYER_DEFINITION) && methodInsn.name.equals("create")) {
+                requireStack(state, 2, "LayerDefinition.create(mesh,II)");
                 state.texHeight = popInt(state.numStack);
                 state.texWidth = popInt(state.numStack);
                 return;
@@ -505,6 +600,22 @@ public final class ToolingBlockEntities {
                 if (inlined != null)
                     walkInstructions(inlined.instructions, state, zip);
             }
+        }
+
+        /**
+         * Warns when {@code state.numStack} has fewer than {@code required} entries at a
+         * builder-dispatch site. The pop still proceeds with zero-fill (via
+         * {@link #popInt} / {@link #popFloat}'s empty-stack fallback), but the diagnostic
+         * surfaces the underflow so a bogus-coord cube doesn't silently ship.
+         */
+        private static void requireStack(@NotNull ParseState state, int required, @NotNull String where) {
+            if (state.diagnostics == null || state.currentSource == null) return;
+            int have = state.numStack.size();
+            if (have < required)
+                state.diagnostics.warn(
+                    "%s at %s: numStack underflow (need %d, have %d) - output coords likely wrong",
+                    state.currentSource.entityId, where, required, have
+                );
         }
 
         private static void handleCubeListBuilder(@NotNull MethodInsnNode methodInsn, @NotNull ParseState state) {
@@ -527,6 +638,7 @@ public final class ToolingBlockEntities {
                 }
                 case "texOffs" -> {
                     if (methodInsn.desc.startsWith("(II")) {
+                        requireStack(state, 2, "CubeListBuilder.texOffs(II)");
                         state.pendingUv[1] = popInt(state.numStack);
                         state.pendingUv[0] = popInt(state.numStack);
                     }
@@ -539,6 +651,7 @@ public final class ToolingBlockEntities {
                     //  3. (Ljava/lang/String;FFFIIIII) - named multi-cube with inline (w,h,d,u,v) ints. Dragon's head bone
                     //     stacks 6 cubes this way, each with its own UV.
                     if (methodInsn.desc.startsWith("(Ljava/lang/String;FFFIIIII")) {
+                        requireStack(state, 8, "CubeListBuilder.addBox(name,FFFIIIII)");
                         int v = popInt(state.numStack);
                         int u = popInt(state.numStack);
                         int d = popInt(state.numStack);
@@ -549,6 +662,7 @@ public final class ToolingBlockEntities {
                         float x = popFloat(state.numStack);
                         state.pendingCubes.add(new float[]{ x, y, z, w, h, d, u, v });
                     } else if (methodInsn.desc.startsWith("(FFFFFF") || methodInsn.desc.startsWith("(Ljava/lang/String;FFFFFF")) {
+                        requireStack(state, 6, "CubeListBuilder.addBox(FFFFFF)");
                         float d = popFloat(state.numStack);
                         float h = popFloat(state.numStack);
                         float w = popFloat(state.numStack);
@@ -562,8 +676,10 @@ public final class ToolingBlockEntities {
                     // mirror(Z) flips face-UVs on subsequent addBox cubes in vanilla. The atlas
                     // pipeline doesn't model per-cube mirror yet; pop the boolean to keep the
                     // literal stack aligned so it doesn't leak into the next builder call.
-                    if (methodInsn.desc.startsWith("(Z"))
+                    if (methodInsn.desc.startsWith("(Z")) {
+                        requireStack(state, 1, "CubeListBuilder.mirror(Z)");
                         popInt(state.numStack);
+                    }
                 }
                 default -> { }
             }
@@ -573,6 +689,7 @@ public final class ToolingBlockEntities {
             switch (methodInsn.name) {
                 case "offset" -> {
                     if (methodInsn.desc.startsWith("(FFF")) {
+                        requireStack(state, 3, "PartPose.offset(FFF)");
                         float pz = popFloat(state.numStack);
                         float py = popFloat(state.numStack);
                         float px = popFloat(state.numStack);
@@ -584,6 +701,7 @@ public final class ToolingBlockEntities {
                     // PartPose.rotation(rx, ry, rz) - rotation only, pivot stays at origin.
                     // Used by BedRenderer legs.
                     if (methodInsn.desc.startsWith("(FFF")) {
+                        requireStack(state, 3, "PartPose.rotation(FFF)");
                         float rz = popFloat(state.numStack);
                         float ry = popFloat(state.numStack);
                         float rx = popFloat(state.numStack);
@@ -597,6 +715,7 @@ public final class ToolingBlockEntities {
                 }
                 case "offsetAndRotation" -> {
                     if (methodInsn.desc.startsWith("(FFFFFF")) {
+                        requireStack(state, 6, "PartPose.offsetAndRotation(FFFFFF)");
                         float rz = popFloat(state.numStack);
                         float ry = popFloat(state.numStack);
                         float rx = popFloat(state.numStack);
@@ -617,8 +736,10 @@ public final class ToolingBlockEntities {
                     // scale to each cube's origin + size (before rotation + pivot) reproduces it.
                     // Baked in {@link #flushPendingBone} so the scale is tied to the cubes it
                     // applies to and resets when the next addOrReplaceChild finalises the bone.
-                    if (methodInsn.desc.startsWith("(F") && !methodInsn.desc.startsWith("(FF"))
+                    if (methodInsn.desc.startsWith("(F") && !methodInsn.desc.startsWith("(FF")) {
+                        requireStack(state, 1, "PartPose.scaled(F)");
                         state.pendingScale = popFloat(state.numStack);
+                    }
                 }
                 default -> { }
             }
@@ -727,6 +848,12 @@ public final class ToolingBlockEntities {
             final @NotNull JsonObject bones = new JsonObject();
             int texWidth = 64;
             int texHeight = 64;
+            /** The top-level source whose bytecode is being parsed. Used to tag diagnostics. */
+            @Nullable Source currentSource;
+            /** Diagnostics sink for strict-mode surfacing of silent failures. */
+            @Nullable Diagnostics diagnostics;
+            /** Set after the first overflow warn so a single parse doesn't spam the log. */
+            boolean overflowWarned;
         }
 
         /** Parent lookup data: the bone's pivot and scale in world-flattened form. */
