@@ -177,8 +177,20 @@ public final class ToolingBlockEntities {
             // the {@code ModelPart}-based models. Wired as additive overlays so the underlying
             // {@code block/lectern.json} / {@code block/enchanting_table.json} primary geometry
             // (the stand / table base) stays in place.
-            new Source("net/minecraft/client/model/object/book/BookModel.class", "createBodyLayer", "minecraft:lectern_book", YAxis.DOWN, 0f),
-            new Source("net/minecraft/client/model/object/book/BookModel.class", "createBodyLayer", "minecraft:enchant_book", YAxis.DOWN, 0f),
+            // <p>
+            // Bone-rotation override: vanilla's {@code BookModel.setupAnim} sets
+            // {@code leftLid.yRot = π + openness} - the +π baseline closes the cover (the model
+            // is authored "spread fully open" and setupAnim folds it back). For the atlas we
+            // bake this 180° flip in via {@code boneRotationOverrides} so the closed-book state
+            // appears as a closed book rather than a one-cover-flopped-on-the-ground spread.
+            // <p>
+            // Lectern's vanilla {@code state.yRot = facing.getClockWise().toYRot()} - for default
+            // facing=NORTH that's EAST.toYRot() = 270°, so the renderer applies
+            // {@code Ry(-270°) = Ry(90°)} between the outer translate and the Z roll. We bake
+            // that as an {@code inventory_y_rotation = 90°} on the parsed model so the in-atlas
+            // tile reproduces the default-facing in-world view (book opens to the right).
+            new Source("net/minecraft/client/model/object/book/BookModel.class", "createBodyLayer", "minecraft:lectern_book", YAxis.DOWN, 90f, null, null, null, Map.of("left_lid", new float[]{ 0f, 180f, 0f })),
+            new Source("net/minecraft/client/model/object/book/BookModel.class", "createBodyLayer", "minecraft:enchant_book", YAxis.DOWN, 0f, null, null, null, Map.of("left_lid", new float[]{ 0f, 180f, 0f })),
 
             // DecoratedPotRenderer authors its cubes in block-space Y-up (cube y=17..20 for the
             // neck rim sits above the block top, lid/base decals at y=16 / y=0), so the default
@@ -257,15 +269,20 @@ public final class ToolingBlockEntities {
             float inventoryYRotation,
             @Nullable Integer texWidthOverride,
             @Nullable Integer texHeightOverride,
-            int @Nullable [] paramIntValues
+            int @Nullable [] paramIntValues,
+            @Nullable Map<String, float[]> boneRotationOverrides
         ) {
 
             Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation) {
-                this(classEntry, methodName, entityId, yAxis, inventoryYRotation, null, null, null);
+                this(classEntry, methodName, entityId, yAxis, inventoryYRotation, null, null, null, null);
             }
 
             Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation, @Nullable Integer texWidthOverride, @Nullable Integer texHeightOverride) {
-                this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, null);
+                this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, null, null);
+            }
+
+            Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation, @Nullable Integer texWidthOverride, @Nullable Integer texHeightOverride, int @Nullable [] paramIntValues) {
+                this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, paramIntValues, null);
             }
 
         }
@@ -317,6 +334,13 @@ public final class ToolingBlockEntities {
                             model.addProperty("y_axis", source.yAxis.name());
                             if (source.inventoryYRotation != 0f)
                                 model.addProperty("inventory_y_rotation", source.inventoryYRotation);
+                            // Apply per-bone rotation overrides BEFORE the layer-bake. Used to
+                            // bake in static {@code setupAnim} rotations the parser doesn't
+                            // simulate (BookModel's left_lid {@code yRot = π} for the closed
+                            // state - vanilla authors the model "fully spread open" and relies on
+                            // setupAnim to close it via the +π baseline).
+                            if (source.boneRotationOverrides != null)
+                                applyBoneRotationOverrides(model, source.boneRotationOverrides);
                             results.put(source.entityId, model);
                         }
 
@@ -329,6 +353,29 @@ public final class ToolingBlockEntities {
             }
 
             return results;
+        }
+
+        /**
+         * Adds the supplied (x, y, z) rotation degrees to each named bone's existing
+         * {@code rotation} array, simulating a static {@code setupAnim} call. Used to bake the
+         * non-zero {@code yRot} baselines that vanilla's setupAnim applies even at the "default"
+         * animation state - BookModel's {@code leftLid.yRot = π} is what closes the cover when
+         * {@code openness == 0}; without this override the lid is rendered in its authored
+         * "spread open" position.
+         */
+        private static void applyBoneRotationOverrides(@NotNull JsonObject model, @NotNull Map<String, float[]> overrides) {
+            JsonObject bones = model.getAsJsonObject("bones");
+            if (bones == null) return;
+            for (Map.Entry<String, float[]> entry : overrides.entrySet()) {
+                JsonObject bone = bones.getAsJsonObject(entry.getKey());
+                if (bone == null) continue;
+                JsonArray rotation = bone.getAsJsonArray("rotation");
+                if (rotation == null || rotation.size() != 3) continue;
+                float[] delta = entry.getValue();
+                rotation.set(0, new JsonPrimitive(rotation.get(0).getAsFloat() + delta[0]));
+                rotation.set(1, new JsonPrimitive(rotation.get(1).getAsFloat() + delta[1]));
+                rotation.set(2, new JsonPrimitive(rotation.get(2).getAsFloat() + delta[2]));
+            }
         }
 
         /**
