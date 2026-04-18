@@ -21,7 +21,7 @@ import org.jetbrains.annotations.NotNull;
 /**
  * Renders vanilla end portal and end gateway blocks by CPU-baking the same parallax star-field
  * shader vanilla ships in {@code assets/minecraft/shaders/core/rendertype_end_portal.fsh}. Both
- * portals share that shader - {@link net.minecraft.client.renderer.RenderPipelines} differs only
+ * portals share that shader - {@code net.minecraft.client.renderer.RenderPipelines} differs only
  * in the {@code PORTAL_LAYERS} define (15 for end_portal, 16 for end_gateway) - so one renderer
  * covers both variants via a {@link PortalOptions.Portal} parameter.
  * <p>
@@ -74,6 +74,13 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
 
     /** {@code PORTAL_LAYERS} for {@link PortalOptions.Portal#END_GATEWAY} (from {@code RenderPipelines.END_GATEWAY}). */
     private static final int LAYER_COUNT_END_GATEWAY = 16;
+
+    /**
+     * Internal per-output-pixel supersampling factor applied inside {@link #bakeFace}. Each
+     * output pixel box-averages {@code PARALLAX_SUPERSAMPLE x PARALLAX_SUPERSAMPLE} shader
+     * evaluations at sub-pixel centres.
+     */
+    private static final int PARALLAX_SUPERSAMPLE = 2;
 
     /**
      * {@code COLORS[16]} table transcribed from {@code rendertype_end_portal.fsh} at Minecraft 26.1.
@@ -165,30 +172,96 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
         float time = Math.floorMod(gameTick, GAME_TIME_PERIOD_TICKS) / (float) GAME_TIME_PERIOD_TICKS;
         int layers = layerCount(portal);
         PixelBuffer buffer = PixelBuffer.create(size, size);
-        float invSize = 1f / size;
+        int ssaa = PARALLAX_SUPERSAMPLE;
+        float invSsaaGrid = 1f / (size * ssaa);
+        float invSampleCount = 1f / (ssaa * ssaa);
+
+        // Per-layer shader constants hoisted out of the pixel loop. The layer transform reduces
+        // to `(u, v) -> (a*(sxc*u - sxs*v) + bx, a*(sxs*u + sxc*v) + by)` where the coefficients
+        // depend only on layer index and time - at 512x512 SSAA=4 this avoids 63M Math.cos/sin
+        // calls per frame.
+        float[] layerSxc = new float[layers];
+        float[] layerSxs = new float[layers];
+        float[] layerBx = new float[layers];
+        float[] layerBy = new float[layers];
+        for (int i = 0; i < layers; i++) {
+            float layer = i + 1;
+            float s = (4.5f - layer / 4f) * 2f;
+            float angle = (float) Math.toRadians((layer * layer * 4321f + layer * 9f) * 2f);
+            float c = (float) Math.cos(angle);
+            float si = (float) Math.sin(angle);
+            float tx = 17f / layer;
+            float ty = (2f + layer / 1.5f) * (time * 1.5f);
+            // Composed (scale*rotate) -> translate -> SCALE_TRANSLATE, all pre-folded against
+            // the 0.5 scale + 0.25 post-translate of SCALE_TRANSLATE:
+            //   out_u = 0.5 * [s*(c*u - si*v) + tx] + 0.25
+            //         = (0.5*s)*c*u  -  (0.5*s)*si*v  +  (0.5*tx + 0.25)
+            // layerSxc / layerSxs absorb the 0.5*s factor so the inner loop is pure mul+add.
+            float halfS = 0.5f * s;
+            layerSxc[i] = halfS * c;
+            layerSxs[i] = halfS * si;
+            layerBx[i] = 0.5f * tx + 0.25f;
+            layerBy[i] = 0.5f * ty + 0.25f;
+        }
+
+        // Pre-scale every COLORS[i] by invSampleCount so the SSAA box-filter mean and the byte
+        // scale factor both fold into the outer accumulation - one less multiply per inner step.
+        float[] cR = new float[layers];
+        float[] cG = new float[layers];
+        float[] cB = new float[layers];
+        float base0R = COLORS[0][0] * invSampleCount;
+        float base0G = COLORS[0][1] * invSampleCount;
+        float base0B = COLORS[0][2] * invSampleCount;
+        for (int i = 0; i < layers; i++) {
+            cR[i] = COLORS[i][0] * invSampleCount;
+            cG[i] = COLORS[i][1] * invSampleCount;
+            cB[i] = COLORS[i][2] * invSampleCount;
+        }
+
+        // Also pre-scale the 1/255 byte-to-float normalisation into the per-layer colour factors
+        // so the inner loop adds raw byte values weighted by a pre-combined coefficient.
+        final float inv255 = 1f / 255f;
+        base0R *= inv255;
+        base0G *= inv255;
+        base0B *= inv255;
+        for (int i = 0; i < layers; i++) {
+            cR[i] *= inv255;
+            cG[i] *= inv255;
+            cB[i] *= inv255;
+        }
 
         for (int py = 0; py < size; py++) {
             for (int px = 0; px < size; px++) {
-                // Input texProj0 treats the face's own (u, v) as screen space, matching the
-                // divide-by-w semantics of textureProj with w = 1.
-                float u = (px + 0.5f) * invSize;
-                float v = (py + 0.5f) * invSize;
-
-                // Base layer: Sampler0 * COLORS[0].
                 float rAcc = 0f, gAcc = 0f, bAcc = 0f;
-                int baseArgb = sampleRepeat(endSky, u, v);
-                rAcc += (ColorMath.red(baseArgb)   / 255f) * COLORS[0][0];
-                gAcc += (ColorMath.green(baseArgb) / 255f) * COLORS[0][1];
-                bAcc += (ColorMath.blue(baseArgb)  / 255f) * COLORS[0][2];
 
-                // Parallax layers: Sampler1 * COLORS[i], transformed by end_portal_layer(i+1).
-                for (int i = 0; i < layers; i++) {
-                    float layer = i + 1;
-                    float[] uv = endPortalLayerUv(u, v, layer, time);
-                    int sampled = sampleRepeat(endPortalNoise, uv[0], uv[1]);
-                    rAcc += (ColorMath.red(sampled)   / 255f) * COLORS[i][0];
-                    gAcc += (ColorMath.green(sampled) / 255f) * COLORS[i][1];
-                    bAcc += (ColorMath.blue(sampled)  / 255f) * COLORS[i][2];
+                // Box-filter integral under this output pixel: ssaa x ssaa shader evaluations at
+                // sub-pixel centres. Each sub-sample re-runs the full Sampler0 base + per-layer
+                // Sampler1 accumulation, matching vanilla's per-fragment output; the outer mean
+                // reproduces the starfield look vanilla's high-res fragment stage produces before
+                // window downsample.
+                for (int sy = 0; sy < ssaa; sy++) {
+                    for (int sx = 0; sx < ssaa; sx++) {
+                        // Input texProj0 treats the face's own (u, v) as screen space, matching
+                        // the divide-by-w semantics of textureProj with w = 1.
+                        float u = (px * ssaa + sx + 0.5f) * invSsaaGrid;
+                        float v = (py * ssaa + sy + 0.5f) * invSsaaGrid;
+
+                        // Base layer: Sampler0 * COLORS[0].
+                        int baseArgb = sampleRepeat(endSky, u, v);
+                        rAcc += ColorMath.red(baseArgb)   * base0R;
+                        gAcc += ColorMath.green(baseArgb) * base0G;
+                        bAcc += ColorMath.blue(baseArgb)  * base0B;
+
+                        // Parallax layers: Sampler1 * COLORS[i], transformed by end_portal_layer(i+1).
+                        for (int i = 0; i < layers; i++) {
+                            float outU = layerSxc[i] * u - layerSxs[i] * v + layerBx[i];
+                            float outV = layerSxs[i] * u + layerSxc[i] * v + layerBy[i];
+                            int sampled = sampleRepeat(endPortalNoise, outU, outV);
+                            rAcc += ColorMath.red(sampled)   * cR[i];
+                            gAcc += ColorMath.green(sampled) * cG[i];
+                            bAcc += ColorMath.blue(sampled)  * cB[i];
+                        }
+                    }
                 }
 
                 int r = Math.clamp((int) (rAcc * 255f + 0.5f), 0, 255);
@@ -199,79 +272,6 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
         }
 
         return buffer;
-    }
-
-    /**
-     * Computes the sample UV for one parallax layer, matching vanilla's
-     * {@code texProj0 * end_portal_layer(layer)} expression from {@code rendertype_end_portal.fsh}
-     * under the {@code v * M} row-vector convention GLSL uses for {@code vec * mat}.
-     * <p>
-     * GLSL stores {@code mat4(a, b, c, d, e, f, g, h, ...)} column-major: the first four
-     * constants form column 0. So the translation values Mojang writes in the fourth position
-     * of each source-code line ({@code 0.25} in {@code SCALE_TRANSLATE}, {@code 17/layer} / {@code ty}
-     * in {@code translate}) land in row 3 of the standard-form matrix - the correct spot for
-     * {@code v * M} translation. Combined with {@code v * A * B * C = ((v * A) * B) * C}, the
-     * layer transform applies in order: {@code mat4(scale * rotate)}, then {@code translate},
-     * then {@code SCALE_TRANSLATE}.
-     *
-     * @param u the face-space u coordinate in {@code [0, 1]}
-     * @param v the face-space v coordinate in {@code [0, 1]}
-     * @param layer the {@code float} layer index, starting at {@code 1.0}
-     * @param time the {@code GameTime} uniform value - a {@code [0, 1)} day-cycle fraction
-     * @return {@code {outU, outV}} - sample UV into the noise texture (values may fall outside
-     *         {@code [0, 1]}; the caller applies GL_REPEAT wrapping)
-     */
-    private static float[] endPortalLayerUv(float u, float v, float layer, float time) {
-        // Step 1: (u, v, 0, 1) * mat4(scale * rotate). rotate literal mat2(cos, -sin, sin, cos)
-        // fills columns (cos, -sin) + (sin, cos), giving standard-form rotate = | cos   sin |
-        //                                                                       | -sin  cos |
-        // scale (diagonal mat2(s)) times rotate = | s*cos    s*sin  |
-        //                                         | -s*sin   s*cos  |
-        // For v * M: (v*M)[col] = sum_k v[k] * M[k][col]
-        //   (v*M)[0] = u * s*cos + v * (-s*sin) = s * (cos*u - sin*v)
-        //   (v*M)[1] = u * s*sin + v *  s*cos   = s * (sin*u + cos*v)
-        //   (v*M)[3] = 1 (identity passthrough on w)
-        float s = (4.5f - layer / 4f) * 2f;
-        float angle = (float) Math.toRadians((layer * layer * 4321f + layer * 9f) * 2f);
-        float c = (float) Math.cos(angle);
-        float si = (float) Math.sin(angle);
-        float t1x = s * (c * u - si * v);
-        float t1y = s * (si * u + c * v);
-        float t1w = 1f;
-
-        // Step 2: t1 * translate. Mojang writes 17/L and ty in the fourth position of columns
-        // 0 and 1; column-fill puts them in row 3 of the standard matrix:
-        //   | 1     0    0   0 |
-        //   | 0     1    0   0 |
-        //   | 0     0    1   0 |
-        //   | 17/L  ty   0   1 |
-        // For v * M:
-        //   (v*M)[0] = t1x + t1w * (17/L)
-        //   (v*M)[1] = t1y + t1w * ty
-        //   (v*M)[3] = t1w  (identity w passthrough)
-        float tx = 17f / layer;
-        float ty = (2f + layer / 1.5f) * (time * 1.5f);
-        float t2x = t1x + t1w * tx;
-        float t2y = t1y + t1w * ty;
-        float t2w = t1w;
-
-        // Step 3: t2 * SCALE_TRANSLATE. Same column-fill convention puts 0.25s in row 3:
-        //   | 0.5    0     0  0 |
-        //   | 0      0.5   0  0 |
-        //   | 0      0     1  0 |
-        //   | 0.25   0.25  0  1 |
-        // For v * M:
-        //   (v*M)[0] = 0.5 * t2x + 0.25 * t2w
-        //   (v*M)[1] = 0.5 * t2y + 0.25 * t2w
-        //   (v*M)[3] = t2w
-        float t3x = 0.5f * t2x + 0.25f * t2w;
-        float t3y = 0.5f * t2y + 0.25f * t2w;
-        float t3w = t2w;
-
-        // textureProj: sample at (t3x / t3w, t3y / t3w). With unit-w input t3w = 1 throughout
-        // (all three matrices have identity on w), so the divide is trivial; guarded for safety.
-        float inv = t3w == 0f ? 1f : 1f / t3w;
-        return new float[] { t3x * inv, t3y * inv };
     }
 
     /**

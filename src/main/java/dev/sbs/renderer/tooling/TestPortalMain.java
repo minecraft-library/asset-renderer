@@ -97,7 +97,7 @@ public final class TestPortalMain {
         int width = image.getFrames().getFirst().pixels().width();
         int height = image.getFrames().getFirst().pixels().height();
         int frameCount = image.getFrames().size();
-        boolean animated = frameCount > 1;
+        boolean animated = image.isAnimated();
 
         String extension = animated ? "webp" : "png";
         File out = OUTPUT_DIR.resolve(slug + "." + extension).toFile();
