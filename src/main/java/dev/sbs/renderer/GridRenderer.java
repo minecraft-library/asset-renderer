@@ -35,12 +35,17 @@ public final class GridRenderer implements Renderer<GridOptions> {
             PixelBuffer buffer = PixelBuffer.create(canvasW, canvasH);
             buffer.fill(options.getBackgroundArgb());
 
-            for (GridOptions.GridTile tile : options.getTiles()) {
+            // Tile-parallel blit. Each tile's (x, y, cellSize) destination rectangle is disjoint
+            // from every other tile's (separation is non-negative, so rectangles never overlap),
+            // which means blitScaled writes to non-aliasing int[] index ranges across threads.
+            // tile.image().toBufferedImage() allocates a fresh BufferedImage per call, so the
+            // PixelBuffer.wrap snapshot is thread-local.
+            options.getTiles().parallelStream().forEach(tile -> {
                 PixelBuffer tileBuffer = PixelBuffer.wrap(tile.image().toBufferedImage());
                 int x = tile.col() * (cellSize + separation) + separation;
                 int y = tile.row() * (cellSize + separation) + separation;
                 buffer.blitScaled(tileBuffer, x, y, cellSize, cellSize);
-            }
+            });
 
             return RenderEngine.staticFrame(buffer);
         }
