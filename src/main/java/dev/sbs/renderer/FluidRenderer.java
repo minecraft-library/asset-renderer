@@ -18,6 +18,8 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.stream.IntStream;
+
 /**
  * Renders vanilla fluids (water, lava) as either a full 3D isometric cube or a flat top-down
  * source-face icon by dispatching to one of two sub-renderers based on {@link FluidOptions#getType()}.
@@ -124,11 +126,14 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             if (options.getFrameCount() <= 1)
                 return RenderEngine.staticFrame(renderFrame(options, options.getStartTick()));
 
+            // Frame-parallel bake: renderFrame constructs its own IsometricEngine, TextureEngine,
+            // triangle list, and output PixelBuffer per invocation; context is the only shared
+            // reference and it is read-only. mapToObj().toList() preserves encounter order so
+            // the resulting ConcurrentList stays tick-ordered for GIF/WebP playback.
             ConcurrentList<PixelBuffer> frames = Concurrent.newList();
-            for (int f = 0; f < options.getFrameCount(); f++) {
-                int tick = options.getStartTick() + f * options.getTicksPerFrame();
-                frames.add(renderFrame(options, tick));
-            }
+            frames.addAll(IntStream.range(0, options.getFrameCount()).parallel()
+                .mapToObj(f -> renderFrame(options, options.getStartTick() + f * options.getTicksPerFrame()))
+                .toList());
             return RenderEngine.output(frames, options.getTicksPerFrame() * MILLIS_PER_TICK);
         }
 
@@ -176,11 +181,12 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             if (options.getFrameCount() <= 1)
                 return RenderEngine.staticFrame(renderFrame(options, options.getStartTick()));
 
+            // Frame-parallel bake: each tick constructs its own RasterEngine + output buffer.
+            // mapToObj().toList() preserves encounter order for the animation strip.
             ConcurrentList<PixelBuffer> frames = Concurrent.newList();
-            for (int f = 0; f < options.getFrameCount(); f++) {
-                int tick = options.getStartTick() + f * options.getTicksPerFrame();
-                frames.add(renderFrame(options, tick));
-            }
+            frames.addAll(IntStream.range(0, options.getFrameCount()).parallel()
+                .mapToObj(f -> renderFrame(options, options.getStartTick() + f * options.getTicksPerFrame()))
+                .toList());
             return RenderEngine.output(frames, options.getTicksPerFrame() * MILLIS_PER_TICK);
         }
 
