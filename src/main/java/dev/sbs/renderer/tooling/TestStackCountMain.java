@@ -34,7 +34,7 @@ public final class TestStackCountMain {
 
     private static final int[] SIZES = { 16, 32, 64, 128, 256 };
     private static final int[] COUNTS = { 2, 5, 64, 99 };
-    private static final int BG_ARGB = 0xFF404040; // mid-grey so white text + dark shadow both show.
+    private static final int BG_ARGB = 0xFF808080; // mid-light grey: white main stands out against grey, dark grey shadow stays visible.
 
     public static void main(String @NotNull [] args) throws IOException {
         Files.createDirectories(OUTPUT_DIR);
