@@ -28,6 +28,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.awt.*;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Renders every block and item model exposed by a {@link RendererContext} into a single grid
@@ -144,8 +145,6 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * when {@link AtlasOptions#isProgressLogging()} is set.
      */
     private @NotNull ConcurrentList<TileSpec> renderBlocks(@NotNull AtlasOptions options, @NotNull BlockRenderer renderer, @NotNull FluidRenderer fluids, @NotNull PortalRenderer portals) {
-        ConcurrentList<TileSpec> tiles = Concurrent.newList();
-        int count = 0;
         java.util.Set<String> blockstateOnly = this.context instanceof PipelineRendererContext prc
             ? prc.getBlockstateOnlyIds()
             : java.util.Set.of();
@@ -156,40 +155,68 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         java.util.LinkedHashSet<String> blockIds = new java.util.LinkedHashSet<>(this.context.knownBlockIds());
         blockIds.addAll(PORTAL_BLOCK_IDS);
 
-        for (String blockId : blockIds) {
-            if (options.getFilter().map(f -> !f.test(blockId)).orElse(false)) continue;
+        // Parallel dispatch across independent block renders. parallelStream preserves encounter
+        // order through the terminal toList() collector, so composeAtlas + the sidecar JSON still
+        // walk tiles in the same order a serial loop would produce. Each render owns its own
+        // PixelBuffer and reads from shared ConcurrentMap caches, so there is no aliasing.
+        AtomicInteger completed = new AtomicInteger();
+        java.util.List<TileSpec> orderedTiles = blockIds.parallelStream()
+            .filter(blockId -> options.getFilter().map(f -> f.test(blockId)).orElse(true))
+            .map(blockId -> renderBlockTile(blockId, options, renderer, fluids, portals, blockstateOnly, completed))
+            .flatMap(Optional::stream)
+            .toList();
 
-            try {
-                ImageData image;
-                TileSpec.Source source;
-                if (FLUID_BLOCK_IDS.contains(blockId)) {
-                    image = fluids.render(fluidOptionsFor(blockId, options.getTileSize()));
-                    source = TileSpec.Source.FLUID;
-                } else if (PORTAL_BLOCK_IDS.contains(blockId)) {
-                    image = portals.render(portalOptionsFor(blockId, options.getTileSize()));
-                    source = TileSpec.Source.PORTAL;
-                } else {
-                    BlockOptions blockOptions = BlockOptions.builder()
-                        .blockId(blockId)
-                        .type(BlockOptions.Type.ISOMETRIC_3D)
-                        .outputSize(options.getTileSize())
-                        .build();
-                    image = renderer.render(blockOptions);
-                    source = classifyBlockSource(blockId, blockstateOnly);
-                }
-                tiles.add(new TileSpec(blockId, TileSpec.Kind.BLOCK, source, image));
-                count++;
-                if (options.isProgressLogging() && count % PROGRESS_LOG_INTERVAL == 0)
-                    System.out.printf("  rendered %d block tiles...%n", count);
-            } catch (RendererException ex) {
-                if (options.isProgressLogging())
-                    System.err.printf("  skipped block '%s': %s%n", blockId, ex.getMessage());
-            }
-        }
+        ConcurrentList<TileSpec> tiles = Concurrent.newList();
+        tiles.addAll(orderedTiles);
 
         if (options.isProgressLogging())
             System.out.printf("Block render pass complete: %d tiles%n", tiles.size());
         return tiles;
+    }
+
+    /**
+     * Renders a single block tile, dispatching fluid and portal ids to their dedicated
+     * renderers. Returns {@link Optional#empty()} on {@link RendererException} so one failing
+     * model never aborts the atlas batch. Increments the shared completed-tile counter and
+     * logs per-{@link #PROGRESS_LOG_INTERVAL} progress - log ordering is non-deterministic
+     * under parallel dispatch but counts are accurate.
+     */
+    private @NotNull Optional<TileSpec> renderBlockTile(
+        @NotNull String blockId,
+        @NotNull AtlasOptions options,
+        @NotNull BlockRenderer renderer,
+        @NotNull FluidRenderer fluids,
+        @NotNull PortalRenderer portals,
+        @NotNull java.util.Set<String> blockstateOnly,
+        @NotNull AtomicInteger completed
+    ) {
+        try {
+            ImageData image;
+            TileSpec.Source source;
+            if (FLUID_BLOCK_IDS.contains(blockId)) {
+                image = fluids.render(fluidOptionsFor(blockId, options.getTileSize()));
+                source = TileSpec.Source.FLUID;
+            } else if (PORTAL_BLOCK_IDS.contains(blockId)) {
+                image = portals.render(portalOptionsFor(blockId, options.getTileSize()));
+                source = TileSpec.Source.PORTAL;
+            } else {
+                BlockOptions blockOptions = BlockOptions.builder()
+                    .blockId(blockId)
+                    .type(BlockOptions.Type.ISOMETRIC_3D)
+                    .outputSize(options.getTileSize())
+                    .build();
+                image = renderer.render(blockOptions);
+                source = classifyBlockSource(blockId, blockstateOnly);
+            }
+            int now = completed.incrementAndGet();
+            if (options.isProgressLogging() && now % PROGRESS_LOG_INTERVAL == 0)
+                System.out.printf("  rendered %d block tiles...%n", now);
+            return Optional.of(new TileSpec(blockId, TileSpec.Kind.BLOCK, source, image));
+        } catch (RendererException ex) {
+            if (options.isProgressLogging())
+                System.err.printf("  skipped block '%s': %s%n", blockId, ex.getMessage());
+            return Optional.empty();
+        }
     }
 
     /**
@@ -244,45 +271,62 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * when {@link AtlasOptions#isProgressLogging()} is set.
      */
     private @NotNull ConcurrentList<TileSpec> renderItems(@NotNull AtlasOptions options, @NotNull ItemRenderer renderer) {
+        // Tile-entity items (beds, chests, banners, shulkers, signs, skulls, conduit,
+        // decorated_pot, copper golem statues) render through the block pass as
+        // {@link TileSpec.Source#TILE_ENTITY} tiles - their vanilla item models have
+        // neither elements nor layer0 and would produce blank icons if we rendered them
+        // here. Skip so the atlas emits exactly one tile per TE id.
+        // <p>
+        // Additive entries (bell-overlay attached to bell_floor / bell_wall / bell_between_walls)
+        // keep their item tile because the underlying {@code item/<id>.json} carries a real
+        // {@code layer0} icon - the entity overlay only enriches the block-tile render, not
+        // the inventory icon.
+        AtomicInteger completed = new AtomicInteger();
+        java.util.List<TileSpec> orderedTiles = this.context.knownItemIds().parallelStream()
+            .filter(itemId -> options.getFilter().map(f -> f.test(itemId)).orElse(true))
+            .filter(itemId -> !this.context.findBlockEntityEntry(itemId)
+                .map(be -> !be.additive()).orElse(false))
+            .map(itemId -> renderItemTile(itemId, options, renderer, completed))
+            .flatMap(Optional::stream)
+            .toList();
+
         ConcurrentList<TileSpec> tiles = Concurrent.newList();
-        int count = 0;
-
-        for (String itemId : this.context.knownItemIds()) {
-            if (options.getFilter().map(f -> !f.test(itemId)).orElse(false)) continue;
-            // Tile-entity items (beds, chests, banners, shulkers, signs, skulls, conduit,
-            // decorated_pot, copper golem statues) render through the block pass as
-            // {@link TileSpec.Source#TILE_ENTITY} tiles - their vanilla item models have
-            // neither elements nor layer0 and would produce blank icons if we rendered them
-            // here. Skip so the atlas emits exactly one tile per TE id.
-            // <p>
-            // Additive entries (bell-overlay attached to bell_floor / bell_wall / bell_between_walls)
-            // keep their item tile because the underlying {@code item/<id>.json} carries a real
-            // {@code layer0} icon - the entity overlay only enriches the block-tile render, not
-            // the inventory icon.
-            if (this.context.findBlockEntityEntry(itemId)
-                .map(be -> !be.additive()).orElse(false)) continue;
-
-            ItemOptions itemOptions = ItemOptions.builder()
-                .itemId(itemId)
-                .type(ItemOptions.Type.GUI_2D)
-                .outputSize(options.getTileSize())
-                .build();
-
-            try {
-                ImageData image = renderer.render(itemOptions);
-                tiles.add(new TileSpec(itemId, TileSpec.Kind.ITEM, TileSpec.Source.ITEM_MODEL, image));
-                count++;
-                if (options.isProgressLogging() && count % PROGRESS_LOG_INTERVAL == 0)
-                    System.out.printf("  rendered %d item tiles...%n", count);
-            } catch (RendererException ex) {
-                if (options.isProgressLogging())
-                    System.err.printf("  skipped item '%s': %s%n", itemId, ex.getMessage());
-            }
-        }
+        tiles.addAll(orderedTiles);
 
         if (options.isProgressLogging())
             System.out.printf("Item render pass complete: %d tiles%n", tiles.size());
         return tiles;
+    }
+
+    /**
+     * Renders a single item tile through {@link ItemRenderer.Gui2D}. Returns
+     * {@link Optional#empty()} on {@link RendererException} so one failing item never aborts
+     * the atlas batch. Increments the shared completed-tile counter and logs per-
+     * {@link #PROGRESS_LOG_INTERVAL} progress - log ordering is non-deterministic under
+     * parallel dispatch but counts are accurate.
+     */
+    private @NotNull Optional<TileSpec> renderItemTile(
+        @NotNull String itemId,
+        @NotNull AtlasOptions options,
+        @NotNull ItemRenderer renderer,
+        @NotNull AtomicInteger completed
+    ) {
+        ItemOptions itemOptions = ItemOptions.builder()
+            .itemId(itemId)
+            .type(ItemOptions.Type.GUI_2D)
+            .outputSize(options.getTileSize())
+            .build();
+        try {
+            ImageData image = renderer.render(itemOptions);
+            int now = completed.incrementAndGet();
+            if (options.isProgressLogging() && now % PROGRESS_LOG_INTERVAL == 0)
+                System.out.printf("  rendered %d item tiles...%n", now);
+            return Optional.of(new TileSpec(itemId, TileSpec.Kind.ITEM, TileSpec.Source.ITEM_MODEL, image));
+        } catch (RendererException ex) {
+            if (options.isProgressLogging())
+                System.err.printf("  skipped item '%s': %s%n", itemId, ex.getMessage());
+            return Optional.empty();
+        }
     }
 
     /**
