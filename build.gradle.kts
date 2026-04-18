@@ -264,6 +264,13 @@ jmh {
     // Include pattern honours -PjmhInclude=...; smoke-runs override with e.g.
     // -PjmhInclude=FluidAnimationBenchmark to limit to a single class.
     includes.set(listOf((project.findProperty("jmhInclude") as String?) ?: ".*"))
+    // Optional JMH built-in profilers, comma-separated. Examples:
+    //   -PjmhProfilers=gc           GC stats (allocation rate, GC time %)
+    //   -PjmhProfilers=stack        sampling stack profile
+    //   -PjmhProfilers=gc,stack     both
+    (project.findProperty("jmhProfilers") as String?)?.let { spec ->
+        profilers.set(spec.split(","))
+    }
     // Keep the JVM small for benchmarks so allocator/GC behaviour is representative
     // of the CLI workload rather than a bloated dev-only heap. Include the incubator
     // Vector API module so FloatVector classes resolve in JMH forks.
