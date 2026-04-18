@@ -4,41 +4,34 @@ import com.google.gson.TypeAdapter;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
-import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
-import lombok.ToString;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 
 /**
- * A three-component float vector, mutable by default so hot rendering loops can reuse a single
- * scratch instance instead of allocating one per vertex.
+ * An immutable three-component float vector.
  * <p>
- * Cold callers and public API boundaries should prefer the immutable-style methods - {@link #add},
- * {@link #subtract}, {@link #multiply}, {@link #cross}, {@link #transform}, and so on all return a
- * freshly-allocated vector. Hot callers (the rasterizer's Pass 1 / Pass 2 loops) instead lease a
- * scratch vector, write into it via {@link #set} / {@link #setX} / {@link #setY} / {@link #setZ}
- * or via the {@code *Into} helpers ({@link #transformInto}, {@link #transformNormalInto}), and
- * never let the scratch reference escape the method that leased it.
- * <p>
- * Any vector that crosses a thread boundary - the classic case being values published into
- * {@code ModelEngine.Projected} during Pass 1 and read from Pass 2's parallel tile workers -
- * must first be frozen via {@link #toImmutable()}. The returned instance is an internal subclass
- * whose setters throw {@link UnsupportedOperationException}, so accidental writes on the
- * consumer side fail loud instead of silently racing. Static constants such as {@link #ZERO}
- * use the same mechanism.
+ * Used for 3D model-space positions, surface normals, and three-channel linear values such as
+ * scale factors. Static helpers handle the common rendering operations ({@link #transform},
+ * {@link #transformNormal}, {@link #normalize}, {@link #cross}, {@link #dot}, {@link #lerp});
+ * the SIMD-accelerated variants of {@code transform} and {@code transformNormal} live in
+ * {@link Vector3fOps}.
  *
+ * @param x the x component
+ * @param y the y component
+ * @param z the z component
+ *
+ * @see Vector2f
+ * @see Vector4f
  * @see Matrix4f
  * @see Vector3fOps
  */
-@ToString
-@EqualsAndHashCode
-public class Vector3f {
+public record Vector3f(float x, float y, float z) {
 
-    /** The zero vector - safe to share because it is frozen via {@link #toImmutable()}. */
-    public static final @NotNull Vector3f ZERO = new Vector3f(0, 0, 0).toImmutable();
+    /** The zero vector. */
+    public static final @NotNull Vector3f ZERO = new Vector3f(0, 0, 0);
 
     /**
      * Minimum length below which {@link #normalize(Vector3f)} treats a vector as degenerate and
@@ -47,123 +40,8 @@ public class Vector3f {
      */
     public static final float NORMALIZE_EPSILON = 1e-8f;
 
-    /** The x component. */
-    protected float x;
-
-    /** The y component. */
-    protected float y;
-
-    /** The z component. */
-    protected float z;
-
     /**
-     * Constructs a zero vector. Intended for scratch instances that will be populated via
-     * {@link #set} / {@link #setX} / {@link #setY} / {@link #setZ} before first use.
-     */
-    public Vector3f() {
-    }
-
-    /**
-     * Constructs a vector with the given components.
-     * <p>
-     * Assigns the fields directly rather than delegating to {@link #set(float, float, float)}
-     * so that the {@link Immutable} subclass - whose {@code set} override throws - can reach
-     * this constructor via {@code super(x, y, z)} without tripping its own guard.
-     *
-     * @param x the initial x component
-     * @param y the initial y component
-     * @param z the initial z component
-     */
-    public Vector3f(float x, float y, float z) {
-        this.x = x;
-        this.y = y;
-        this.z = z;
-    }
-
-    /**
-     * Returns the x component.
-     *
-     * @return the x component
-     */
-    public float x() {
-        return this.x;
-    }
-
-    /**
-     * Returns the y component.
-     *
-     * @return the y component
-     */
-    public float y() {
-        return this.y;
-    }
-
-    /**
-     * Returns the z component.
-     *
-     * @return the z component
-     */
-    public float z() {
-        return this.z;
-    }
-
-    /**
-     * Sets the x component, overwriting the previous value in place.
-     *
-     * @param x the new x component
-     */
-    public void setX(float x) {
-        this.x = x;
-    }
-
-    /**
-     * Sets the y component, overwriting the previous value in place.
-     *
-     * @param y the new y component
-     */
-    public void setY(float y) {
-        this.y = y;
-    }
-
-    /**
-     * Sets the z component, overwriting the previous value in place.
-     *
-     * @param z the new z component
-     */
-    public void setZ(float z) {
-        this.z = z;
-    }
-
-    /**
-     * Overwrites all three components in a single call and returns {@code this} for chaining.
-     *
-     * @param x the new x component
-     * @param y the new y component
-     * @param z the new z component
-     * @return this vector, for chaining
-     */
-    public @NotNull Vector3f set(float x, float y, float z) {
-        this.x = x;
-        this.y = y;
-        this.z = z;
-        return this;
-    }
-
-    /**
-     * Returns a frozen copy of this vector - a private {@link Immutable} instance whose setters
-     * throw {@link UnsupportedOperationException}. Callers publishing a vector across a thread
-     * boundary or storing it as a shared constant should freeze first; the {@link Immutable}
-     * instance is itself idempotent - calling {@code toImmutable()} on an already-frozen vector
-     * returns the same reference.
-     *
-     * @return a frozen copy of this vector
-     */
-    public @NotNull Vector3f toImmutable() {
-        return new Immutable(this.x, this.y, this.z);
-    }
-
-    /**
-     * Returns the sum of this vector and the given vector. Allocates a new vector.
+     * Returns the sum of this vector and the given vector.
      *
      * @param other the vector to add
      * @return a new vector representing the sum
@@ -173,7 +51,7 @@ public class Vector3f {
     }
 
     /**
-     * Returns the difference between this vector and the given vector. Allocates a new vector.
+     * Returns the difference between this vector and the given vector.
      *
      * @param other the vector to subtract
      * @return a new vector representing the difference
@@ -183,7 +61,7 @@ public class Vector3f {
     }
 
     /**
-     * Returns this vector scaled by the given factor. Allocates a new vector.
+     * Returns this vector scaled by the given factor.
      *
      * @param scalar the scale factor
      * @return a new scaled vector
@@ -193,7 +71,7 @@ public class Vector3f {
     }
 
     /**
-     * Returns this vector divided by the given scalar. Allocates a new vector.
+     * Returns this vector divided by the given scalar.
      *
      * @param scalar the divisor
      * @return a new vector with each component divided
@@ -203,7 +81,7 @@ public class Vector3f {
     }
 
     /**
-     * Returns this vector with all three components negated. Allocates a new vector.
+     * Returns this vector with all three components negated.
      *
      * @return a new negated vector
      */
@@ -286,120 +164,38 @@ public class Vector3f {
     }
 
     /**
-     * Transforms {@code v} by {@code m} as a point ({@code w=1}), allocating a new result.
-     * <p>
-     * Equivalent to {@link #transformInto} followed by a fresh allocation - use the
-     * {@code *Into} variant when running inside a hot loop with a reusable scratch vector.
+     * Transforms {@code v} by {@code m} as a point ({@code w=1}). See
+     * {@link Vector3fOps#transform} for a SIMD-accelerated variant.
      *
      * @param v the vector to transform
      * @param m the transformation matrix
      * @return a new transformed vector
      */
     public static @NotNull Vector3f transform(@NotNull Vector3f v, @NotNull Matrix4f m) {
-        Vector3f out = new Vector3f();
-        transformInto(v, m, out);
-        return out;
-    }
-
-    /**
-     * Transforms {@code v} by {@code m} as a point ({@code w=1}), writing the result into
-     * {@code out}. Bit-identical to {@link #transform} under IEEE-754 round-to-nearest-even.
-     * <p>
-     * {@code v} and {@code out} may be the same instance - all reads from {@code v} happen
-     * before any write to {@code out}.
-     *
-     * @param v the vector to transform
-     * @param m the transformation matrix
-     * @param out the vector that receives the transformed components
-     */
-    public static void transformInto(@NotNull Vector3f v, @NotNull Matrix4f m, @NotNull Vector3f out) {
         float tx = v.x * m.getM11() + v.y * m.getM21() + v.z * m.getM31() + m.getM41();
         float ty = v.x * m.getM12() + v.y * m.getM22() + v.z * m.getM32() + m.getM42();
         float tz = v.x * m.getM13() + v.y * m.getM23() + v.z * m.getM33() + m.getM43();
-        out.set(tx, ty, tz);
+        return new Vector3f(tx, ty, tz);
     }
 
     /**
      * Transforms {@code v} by {@code m} as a direction ({@code w=0}), ignoring the translation
-     * row. Allocates a new result.
+     * row. See {@link Vector3fOps#transformNormal} for a SIMD-accelerated variant.
      *
      * @param v the direction vector to transform
      * @param m the transformation matrix
      * @return a new transformed direction vector
      */
     public static @NotNull Vector3f transformNormal(@NotNull Vector3f v, @NotNull Matrix4f m) {
-        Vector3f out = new Vector3f();
-        transformNormalInto(v, m, out);
-        return out;
-    }
-
-    /**
-     * Transforms {@code v} by {@code m} as a direction ({@code w=0}), writing the result into
-     * {@code out}. Ignores the translation row of {@code m}; bit-identical to
-     * {@link #transformNormal} under IEEE-754 round-to-nearest-even.
-     * <p>
-     * {@code v} and {@code out} may be the same instance.
-     *
-     * @param v the direction vector to transform
-     * @param m the transformation matrix
-     * @param out the vector that receives the transformed direction
-     */
-    public static void transformNormalInto(@NotNull Vector3f v, @NotNull Matrix4f m, @NotNull Vector3f out) {
         float tx = v.x * m.getM11() + v.y * m.getM21() + v.z * m.getM31();
         float ty = v.x * m.getM12() + v.y * m.getM22() + v.z * m.getM32();
         float tz = v.x * m.getM13() + v.y * m.getM23() + v.z * m.getM33();
-        out.set(tx, ty, tz);
-    }
-
-    /**
-     * Frozen view of a {@link Vector3f}. Overrides every setter to throw
-     * {@link UnsupportedOperationException} so that static constants and vectors published
-     * across thread boundaries cannot be accidentally mutated by a downstream consumer.
-     * <p>
-     * Only reachable via {@link Vector3f#toImmutable()}.
-     */
-    @EqualsAndHashCode(callSuper = true)
-    private static final class Immutable extends Vector3f {
-
-        private Immutable(float x, float y, float z) {
-            super(x, y, z);
-        }
-
-        @Override
-        public void setX(float x) {
-            throw unmodifiable();
-        }
-
-        @Override
-        public void setY(float y) {
-            throw unmodifiable();
-        }
-
-        @Override
-        public void setZ(float z) {
-            throw unmodifiable();
-        }
-
-        @Override
-        public @NotNull Vector3f set(float x, float y, float z) {
-            throw unmodifiable();
-        }
-
-        @Override
-        public @NotNull Vector3f toImmutable() {
-            return this;
-        }
-
-        private static @NotNull UnsupportedOperationException unmodifiable() {
-            return new UnsupportedOperationException("Vector3f.Immutable is read-only");
-        }
-
+        return new Vector3f(tx, ty, tz);
     }
 
     /**
      * Gson adapter that serializes a {@link Vector3f} as a three-element JSON array
-     * {@code [x, y, z]} and deserializes from the same format. Deserialized values are frozen
-     * via {@link #toImmutable()} so JSON-sourced vectors behave like the old record form.
+     * {@code [x, y, z]} and deserializes from the same format.
      */
     @NoArgsConstructor
     public static final class Adapter extends TypeAdapter<Vector3f> {
@@ -431,7 +227,7 @@ public class Vector3f {
             float z = (float) in.nextDouble();
             in.endArray();
 
-            return new Vector3f(x, y, z).toImmutable();
+            return new Vector3f(x, y, z);
         }
 
     }

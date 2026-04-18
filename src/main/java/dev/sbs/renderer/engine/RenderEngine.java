@@ -57,44 +57,13 @@ public interface RenderEngine {
         float offsetY,
         @NotNull PerspectiveParams params
     ) {
-        Vector2f out = new Vector2f();
-        projectPerspectiveInto(point, scale, offsetX, offsetY, params, out);
-        return out;
-    }
-
-    /**
-     * Writes the perspective projection of {@code point} into {@code out}. Bit-identical to
-     * {@link #projectPerspective(Vector3f, float, float, float, PerspectiveParams)} under
-     * IEEE-754 round-to-nearest-even.
-     * <p>
-     * Hot callers (the rasterizer's per-vertex projection) lease a single {@link Vector2f}
-     * scratch instance per {@code projectTriangle} invocation and call this variant to avoid
-     * a fresh allocation per vertex.
-     *
-     * @param point the 3D point to project
-     * @param scale the uniform screen-space scale factor
-     * @param offsetX the horizontal screen offset to apply after scaling
-     * @param offsetY the vertical screen offset to apply after scaling
-     * @param params the perspective parameters
-     * @param out the vector that receives the projected screen point
-     */
-    static void projectPerspectiveInto(
-        @NotNull Vector3f point,
-        float scale,
-        float offsetX,
-        float offsetY,
-        @NotNull PerspectiveParams params,
-        @NotNull Vector2f out
-    ) {
-        if (params.amount() <= 0f) {
-            out.set(point.x() * scale + offsetX, -point.y() * scale + offsetY);
-            return;
-        }
+        if (params.amount() <= 0f)
+            return projectOrtho(point, scale, offsetX, offsetY);
 
         float denom = params.cameraDistance() - point.z();
         float perspectiveFactor = denom == 0f ? 1f : (params.focalLength() / denom);
         float blended = 1f + (perspectiveFactor - 1f) * params.amount();
-        out.set(point.x() * scale * blended + offsetX, -point.y() * scale * blended + offsetY);
+        return new Vector2f(point.x() * scale * blended + offsetX, -point.y() * scale * blended + offsetY);
     }
 
     // --- inventory lighting ---

@@ -18,14 +18,9 @@ import org.jetbrains.annotations.NotNull;
  * ({@code ModelEngineParallelismTest}, {@code PortalRendererParallelismTest},
  * {@code FluidRendererParallelismTest}) stay valid after this class is wired in.
  * <p>
- * Two flavours of each operation are exposed:
- * <ul>
- * <li>Allocating variants ({@link #transform}, {@link #transformNormal}) return a new
- *     {@link Vector3f} per call. Used by cold callers where allocation is negligible.</li>
- * <li>Out-param variants ({@link #transformInto}, {@link #transformNormalInto}) write the
- *     result into a caller-supplied scratch vector. Used by per-vertex hot loops to avoid
- *     allocating a {@link Vector3f} on every transform.</li>
- * </ul>
+ * Callers outside the per-vertex hot path (scene setup, diagnostic tools) should keep using
+ * {@link Vector3f#transform} / {@link Vector3f#transformNormal} - the SIMD overhead per call
+ * swamps the benefit when transforms happen once or twice per render.
  *
  * @see Vector3f
  * @see Matrix4fOps
@@ -38,72 +33,38 @@ public class Vector3fOps {
 
     /**
      * Transforms {@code v} by {@code m} as a point ({@code w=1}) and returns a new
-     * {@link Vector3f}. Bit-identical to {@link Vector3f#transform(Vector3f, Matrix4f)}.
+     * {@link Vector3f}. Bit-identical to {@link Vector3f#transform(Vector3f, Matrix4f)}; faster
+     * on vertex-heavy workloads where the method is called thousands of times per render.
      *
      * @param v the vector to transform
      * @param m the transformation matrix
      * @return a new transformed vector
      */
     public static @NotNull Vector3f transform(@NotNull Vector3f v, @NotNull Matrix4f m) {
-        Vector3f out = new Vector3f();
-        transformInto(v, m, out);
-        return out;
-    }
-
-    /**
-     * Transforms {@code v} by {@code m} as a point ({@code w=1}), writing the result into
-     * {@code out}.
-     * <p>
-     * Per-lane: {@code ((v.x * m{1,j} + v.y * m{2,j}) + v.z * m{3,j}) + m{4,j}}. Lane 0 yields
-     * tx, lane 1 yields ty, lane 2 yields tz; lane 3 (tw) is computed and discarded - harmless,
-     * and avoids a mask load on every invocation.
-     * <p>
-     * {@code v} and {@code out} may be the same instance - all reads from {@code v} complete
-     * before the final {@link Vector3f#set} writes to {@code out}.
-     *
-     * @param v the vector to transform
-     * @param m the transformation matrix
-     * @param out the vector that receives the transformed components
-     */
-    public static void transformInto(@NotNull Vector3f v, @NotNull Matrix4f m, @NotNull Vector3f out) {
         FloatVector row1 = rowVector(m.getM11(), m.getM12(), m.getM13(), m.getM14());
         FloatVector row2 = rowVector(m.getM21(), m.getM22(), m.getM23(), m.getM24());
         FloatVector row3 = rowVector(m.getM31(), m.getM32(), m.getM33(), m.getM34());
         FloatVector row4 = rowVector(m.getM41(), m.getM42(), m.getM43(), m.getM44());
 
+        // Per-lane: ((v.x * m{1,j} + v.y * m{2,j}) + v.z * m{3,j}) + m{4,j}. Lane 0 yields tx,
+        // lane 1 yields ty, lane 2 yields tz; lane 3 (tw) is computed and discarded - harmless,
+        // and avoids a mask load on every invocation.
         FloatVector acc = row1.mul(v.x())
             .add(row2.mul(v.y()))
             .add(row3.mul(v.z()))
             .add(row4);
-        out.set(acc.lane(0), acc.lane(1), acc.lane(2));
+        return new Vector3f(acc.lane(0), acc.lane(1), acc.lane(2));
     }
 
     /**
-     * Transforms {@code v} by {@code m} as a direction ({@code w=0}) and returns a new
-     * {@link Vector3f}. Ignores the translation row of {@code m}; bit-identical to
-     * {@link Vector3f#transformNormal(Vector3f, Matrix4f)}.
+     * Transforms {@code v} by {@code m} as a direction ({@code w=0}), ignoring the translation
+     * row. Bit-identical to {@link Vector3f#transformNormal(Vector3f, Matrix4f)}.
      *
      * @param v the direction vector to transform
      * @param m the transformation matrix
      * @return a new transformed direction vector
      */
     public static @NotNull Vector3f transformNormal(@NotNull Vector3f v, @NotNull Matrix4f m) {
-        Vector3f out = new Vector3f();
-        transformNormalInto(v, m, out);
-        return out;
-    }
-
-    /**
-     * Transforms {@code v} by {@code m} as a direction ({@code w=0}), writing the result into
-     * {@code out}. Ignores the translation row of {@code m}.
-     * <p>
-     * {@code v} and {@code out} may be the same instance.
-     *
-     * @param v the direction vector to transform
-     * @param m the transformation matrix
-     * @param out the vector that receives the transformed direction
-     */
-    public static void transformNormalInto(@NotNull Vector3f v, @NotNull Matrix4f m, @NotNull Vector3f out) {
         FloatVector row1 = rowVector(m.getM11(), m.getM12(), m.getM13(), m.getM14());
         FloatVector row2 = rowVector(m.getM21(), m.getM22(), m.getM23(), m.getM24());
         FloatVector row3 = rowVector(m.getM31(), m.getM32(), m.getM33(), m.getM34());
@@ -111,7 +72,7 @@ public class Vector3fOps {
         FloatVector acc = row1.mul(v.x())
             .add(row2.mul(v.y()))
             .add(row3.mul(v.z()));
-        out.set(acc.lane(0), acc.lane(1), acc.lane(2));
+        return new Vector3f(acc.lane(0), acc.lane(1), acc.lane(2));
     }
 
     /**

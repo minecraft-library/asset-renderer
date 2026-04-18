@@ -11,12 +11,19 @@ import org.jetbrains.annotations.Nullable;
 import java.io.IOException;
 
 /**
- * An immutable four-component float vector, used primarily to carry UV rectangles (where the
- * {@code (x, y)} pair is the min corner and the {@code (z, w)} pair is the max corner).
+ * An immutable four-component float vector.
  * <p>
- * Stays a record because no per-render hot path exercises {@link Vector4f} - unlike
- * {@link Vector3f} / {@link Vector2f}, there is no allocation pressure to justify the
- * mutable-class + {@code Immutable} subclass pattern.
+ * Used primarily to carry UV coordinate rectangles, where {@code (x, y)} is the min corner and
+ * {@code (z, w)} is the max corner. See {@link #createUvMap(int)} for the face-rotation-aware
+ * expansion into four per-vertex {@link Vector2f} UV coordinates.
+ *
+ * @param x the x component
+ * @param y the y component
+ * @param z the z component
+ * @param w the w component
+ *
+ * @see Vector2f
+ * @see Vector3f
  */
 public record Vector4f(float x, float y, float z, float w) {
 
@@ -79,7 +86,7 @@ public record Vector4f(float x, float y, float z, float w) {
         for (int i = 0; i < 4; i++) {
             float u = uvU(quadrant, i) / 16f;
             float v = uvV(quadrant, i) / 16f;
-            map[i] = new Vector2f(u, v).toImmutable();
+            map[i] = new Vector2f(u, v);
         }
 
         return map;
