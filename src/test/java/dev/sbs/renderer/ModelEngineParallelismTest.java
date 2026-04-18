@@ -34,7 +34,11 @@ import static org.hamcrest.Matchers.is;
  *     triangle transforms execute out-of-order.</li>
  * </ol>
  * CRC32 pins per block keep the test honest: a future rasterization-math change that silently
- * drifts output will break the pin even if determinism still holds.
+ * drifts output will break the pin even if determinism still holds. Pins are TrigLUT-aware
+ * (Task 12): the camera-pose trig in {@code Matrix4f.createRotation*} comes from the 1024-entry
+ * lookup table, not {@link Math#sin} / {@link Math#cos}, so the pinned values reflect the ~0.5
+ * ULP quantisation of that table. Any future LUT size change will break these pins and needs
+ * to be re-pinned (or swapped to a PSNR tolerance check).
  * <p>
  * Tagged {@code slow} because it boots the full asset pipeline; run with
  * {@code ./gradlew :asset-renderer:slowTest}.
@@ -67,7 +71,7 @@ class ModelEngineParallelismTest {
             .supersample(2)
             .antiAlias(false)
             .build();
-        assertDeterministicAndPinned(options, 0x29D36285L);
+        assertDeterministicAndPinned(options, 0xEC923FBDL);
     }
 
     @Test
@@ -80,7 +84,7 @@ class ModelEngineParallelismTest {
             .supersample(2)
             .antiAlias(false)
             .build();
-        assertDeterministicAndPinned(options, 0x75630F01L);
+        assertDeterministicAndPinned(options, 0x2EB94864L);
     }
 
     @Test
@@ -94,7 +98,7 @@ class ModelEngineParallelismTest {
             .supersample(1)
             .antiAlias(false)
             .build();
-        assertDeterministicAndPinned(options, 0x98FA1B4CL);
+        assertDeterministicAndPinned(options, 0x6A16A834L);
     }
 
     private void assertDeterministicAndPinned(BlockOptions options, long expectedCrc32) {
