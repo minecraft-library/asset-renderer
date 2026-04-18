@@ -18,6 +18,8 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.stream.IntStream;
+
 /**
  * Renders vanilla end portal and end gateway blocks by CPU-baking the same parallax star-field
  * shader vanilla ships in {@code assets/minecraft/shaders/core/rendertype_end_portal.fsh}. Both
@@ -259,34 +261,33 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             layerBy[i] = 0.5f * ty * UV_SCALE + 0.25f;
         }
 
-        // Pre-scale every COLORS[i] by invSampleCount so the SSAA box-filter mean and the byte
-        // scale factor both fold into the outer accumulation - one less multiply per inner step.
-        float[] cR = new float[layers];
-        float[] cG = new float[layers];
-        float[] cB = new float[layers];
-        float base0R = COLORS[0][0] * invSampleCount;
-        float base0G = COLORS[0][1] * invSampleCount;
-        float base0B = COLORS[0][2] * invSampleCount;
-        for (int i = 0; i < layers; i++) {
-            cR[i] = COLORS[i][0] * invSampleCount;
-            cG[i] = COLORS[i][1] * invSampleCount;
-            cB[i] = COLORS[i][2] * invSampleCount;
-        }
-
-        // Also pre-scale the 1/255 byte-to-float normalisation into the per-layer colour factors
-        // so the inner loop adds raw byte values weighted by a pre-combined coefficient.
+        // Pre-scale every COLORS[i] by invSampleCount AND by 1/255 so the SSAA box-filter mean,
+        // the byte scale factor, and the byte-to-float normalisation all fold into a single
+        // pre-combined coefficient - the inner loop adds raw byte values weighted directly.
         final float inv255 = 1f / 255f;
-        base0R *= inv255;
-        base0G *= inv255;
-        base0B *= inv255;
+        final float combined0 = invSampleCount * inv255;
+        final float base0R = COLORS[0][0] * combined0;
+        final float base0G = COLORS[0][1] * combined0;
+        final float base0B = COLORS[0][2] * combined0;
+        final float[] cR = new float[layers];
+        final float[] cG = new float[layers];
+        final float[] cB = new float[layers];
         for (int i = 0; i < layers; i++) {
-            cR[i] *= inv255;
-            cG[i] *= inv255;
-            cB[i] *= inv255;
+            cR[i] = COLORS[i][0] * combined0;
+            cG[i] = COLORS[i][1] * combined0;
+            cB[i] = COLORS[i][2] * combined0;
         }
 
-        for (int py = 0; py < size; py++) {
-            for (int px = 0; px < size; px++) {
+        // Row-parallel bake: each py row writes to a disjoint pixel range in `buffer` so
+        // concurrent setPixel calls never alias. All captured arrays are read-only from here
+        // on. ForkJoin's parallel terminal op establishes happens-before when the outer call
+        // returns, making the filled buffer safely publishable to the caller.
+        final int finalSize = size;
+        final int finalSsaa = ssaa;
+        final float finalInvSsaaGrid = invSsaaGrid;
+        final int finalLayers = layers;
+        IntStream.range(0, size).parallel().forEach(py -> {
+            for (int px = 0; px < finalSize; px++) {
                 float rAcc = 0f, gAcc = 0f, bAcc = 0f;
 
                 // Box-filter integral under this output pixel: ssaa x ssaa shader evaluations at
@@ -294,12 +295,12 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
                 // Sampler1 accumulation, matching vanilla's per-fragment output; the outer mean
                 // reproduces the starfield look vanilla's high-res fragment stage produces before
                 // window downsample.
-                for (int sy = 0; sy < ssaa; sy++) {
-                    for (int sx = 0; sx < ssaa; sx++) {
+                for (int sy = 0; sy < finalSsaa; sy++) {
+                    for (int sx = 0; sx < finalSsaa; sx++) {
                         // Input texProj0 treats the face's own (u, v) as screen space, matching
                         // the divide-by-w semantics of textureProj with w = 1.
-                        float u = (px * ssaa + sx + 0.5f) * invSsaaGrid;
-                        float v = (py * ssaa + sy + 0.5f) * invSsaaGrid;
+                        float u = (px * finalSsaa + sx + 0.5f) * finalInvSsaaGrid;
+                        float v = (py * finalSsaa + sy + 0.5f) * finalInvSsaaGrid;
 
                         // Base layer: Sampler0 * COLORS[0].
                         int baseArgb = sampleRepeat(endSky, u, v);
@@ -308,7 +309,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
                         bAcc += ColorMath.blue(baseArgb)  * base0B;
 
                         // Parallax layers: Sampler1 * COLORS[i], transformed by end_portal_layer(i+1).
-                        for (int i = 0; i < layers; i++) {
+                        for (int i = 0; i < finalLayers; i++) {
                             float outU = layerSxc[i] * u - layerSxs[i] * v + layerBx[i];
                             float outV = layerSxs[i] * u + layerSxc[i] * v + layerBy[i];
                             int sampled = sampleRepeat(endPortalNoise, outU, outV);
@@ -324,7 +325,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
                 int b = Math.clamp((int) (bAcc * 255f + 0.5f), 0, 255);
                 buffer.setPixel(px, py, ColorMath.pack(0xFF, r, g, b));
             }
-        }
+        });
 
         return buffer;
     }
@@ -425,10 +426,14 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
         @NotNull PixelBuffer partner,
         float alpha
     ) {
-        float invAlpha = 1f - alpha;
-        int width = frame.width();
-        int height = frame.height();
-        for (int y = 0; y < height; y++) {
+        final float invAlpha = 1f - alpha;
+        final int width = frame.width();
+        final int height = frame.height();
+        // Row-parallel blend: each y row reads from distinct getPixel offsets and writes to
+        // distinct setPixel offsets in `frame`, so concurrent workers cannot alias. `partner`
+        // is read-only; `frame` reads and writes the same pixel but only within one row's
+        // worker, so there is no cross-thread read-after-write on any pixel.
+        IntStream.range(0, height).parallel().forEach(y -> {
             for (int x = 0; x < width; x++) {
                 int fp = frame.getPixel(x, y);
                 int pp = partner.getPixel(x, y);
@@ -438,7 +443,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
                 int b = Math.clamp((int) (ColorMath.blue(fp)  * alpha + ColorMath.blue(pp)  * invAlpha + 0.5f), 0, 255);
                 frame.setPixel(x, y, ColorMath.pack(a, r, g, b));
             }
-        }
+        });
     }
 
     /**
