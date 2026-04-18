@@ -9,7 +9,6 @@ import dev.sbs.renderer.asset.model.ModelFace;
 import dev.sbs.renderer.tensor.Matrix4f;
 import dev.sbs.renderer.tensor.Vector2f;
 import dev.sbs.renderer.tensor.Vector3f;
-import dev.sbs.renderer.util.TrigLUT;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.PixelBuffer;
@@ -180,7 +179,7 @@ public class GeometryKit {
                     Matrix4f fromOrigin = Matrix4f.createTranslation(ox, oy, oz);
 
                     if (rot.rescale()) {
-                        float s = 1f / TrigLUT.cos(radians);
+                        float s = 1f / (float) Math.cos(radians);
                         Matrix4f scale = switch (rot.axis()) {
                             case "x" -> Matrix4f.createScale(1f, s, s);
                             case "y" -> Matrix4f.createScale(s, 1f, s);

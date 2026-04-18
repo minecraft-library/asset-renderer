@@ -1,6 +1,5 @@
 package dev.sbs.renderer.tensor;
 
-import dev.sbs.renderer.util.TrigLUT;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -38,8 +37,8 @@ public final class Matrix4f {
         float x = axis.x();
         float y = axis.y();
         float z = axis.z();
-        float cos = TrigLUT.cos(angle);
-        float sin = TrigLUT.sin(angle);
+        float cos = (float) Math.cos(angle);
+        float sin = (float) Math.sin(angle);
         float oneMinusCos = 1f - cos;
 
         float xx = x * x;
@@ -64,8 +63,8 @@ public final class Matrix4f {
      * @return a new rotation matrix
      */
     public static @NotNull Matrix4f createRotationX(float radians) {
-        float cos = TrigLUT.cos(radians);
-        float sin = TrigLUT.sin(radians);
+        float cos = (float) Math.cos(radians);
+        float sin = (float) Math.sin(radians);
 
         return new Matrix4f(
             1, 0,     0,   0,
@@ -82,8 +81,8 @@ public final class Matrix4f {
      * @return a new rotation matrix
      */
     public static @NotNull Matrix4f createRotationY(float radians) {
-        float cos = TrigLUT.cos(radians);
-        float sin = TrigLUT.sin(radians);
+        float cos = (float) Math.cos(radians);
+        float sin = (float) Math.sin(radians);
 
         return new Matrix4f(
             cos, 0,  -sin, 0,
@@ -100,8 +99,8 @@ public final class Matrix4f {
      * @return a new rotation matrix
      */
     public static @NotNull Matrix4f createRotationZ(float radians) {
-        float cos = TrigLUT.cos(radians);
-        float sin = TrigLUT.sin(radians);
+        float cos = (float) Math.cos(radians);
+        float sin = (float) Math.sin(radians);
 
         return new Matrix4f(
             cos,  sin,  0, 0,

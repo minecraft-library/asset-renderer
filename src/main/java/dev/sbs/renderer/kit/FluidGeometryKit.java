@@ -4,7 +4,6 @@ import dev.sbs.renderer.geometry.VisibleTriangle;
 import dev.sbs.renderer.options.FluidOptions;
 import dev.sbs.renderer.tensor.Vector2f;
 import dev.sbs.renderer.tensor.Vector3f;
-import dev.sbs.renderer.util.TrigLUT;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.PixelBuffer;
@@ -170,8 +169,8 @@ public class FluidGeometryKit {
     private static @NotNull Vector2f rotateUvAround(@NotNull Vector2f uv, float cx, float cy, float radians) {
         float dx = uv.x() - cx;
         float dy = uv.y() - cy;
-        float cos = TrigLUT.cos(radians);
-        float sin = TrigLUT.sin(radians);
+        float cos = (float) Math.cos(radians);
+        float sin = (float) Math.sin(radians);
         return new Vector2f(cx + dx * cos - dy * sin, cy + dx * sin + dy * cos);
     }
 
