@@ -8,30 +8,26 @@ import dev.sbs.renderer.pipeline.AssetPipelineOptions;
 import dev.sbs.renderer.pipeline.client.ClientJarDownloader;
 import dev.sbs.renderer.pipeline.client.HttpFetcher;
 import dev.sbs.renderer.pipeline.loader.PotionColorLoader;
+import dev.sbs.renderer.tooling.asm.AsmKit;
 import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.InsnList;
-import org.objectweb.asm.tree.IntInsnNode;
 import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 /**
@@ -126,7 +122,6 @@ public final class ToolingPotionColors {
     @UtilityClass
     static class Parser {
 
-        private static final @NotNull String MOB_EFFECTS_CLASS_ENTRY = "net/minecraft/world/effect/MobEffects.class";
         private static final @NotNull String MOB_EFFECTS_INTERNAL_NAME = "net/minecraft/world/effect/MobEffects";
         private static final @NotNull String EFFECT_PACKAGE_PREFIX = "net/minecraft/world/effect/";
         private static final @NotNull String MOB_EFFECT_INIT_DESCRIPTOR = "(Lnet/minecraft/world/effect/MobEffectCategory;I)V";
@@ -143,33 +138,15 @@ public final class ToolingPotionColors {
          * @throws AssetPipelineException if the jar cannot be read or the class is missing
          */
         public static @NotNull ConcurrentMap<String, Integer> parse(@NotNull Path jarPath) {
-            byte[] classBytes = readClassBytes(jarPath);
-            ClassNode classNode = new ClassNode();
-            new ClassReader(classBytes).accept(classNode, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
-
-            MethodNode clinit = classNode.methods.stream()
-                .filter(m -> m.name.equals(CLINIT_METHOD_NAME))
-                .findFirst()
-                .orElseThrow(() -> new AssetPipelineException(
-                    "MobEffects class does not expose a '%s' method - jar may be obfuscated or from an unsupported version",
-                    CLINIT_METHOD_NAME
-                ));
-
-            return parseClinit(clinit.instructions);
-        }
-
-        private static byte @NotNull [] readClassBytes(@NotNull Path jarPath) {
             try (ZipFile zip = new ZipFile(jarPath.toFile())) {
-                ZipEntry entry = zip.getEntry(MOB_EFFECTS_CLASS_ENTRY);
-                if (entry == null)
+                ClassNode classNode = AsmKit.requireClass(zip, MOB_EFFECTS_INTERNAL_NAME, "MobEffects");
+                MethodNode clinit = AsmKit.findMethod(classNode, CLINIT_METHOD_NAME);
+                if (clinit == null)
                     throw new AssetPipelineException(
-                        "Jar '%s' does not contain '%s' - the jar is either obfuscated (pre-26.1) or from an unsupported version",
-                        jarPath, MOB_EFFECTS_CLASS_ENTRY
+                        "MobEffects class does not expose a '%s' method - jar may be obfuscated or from an unsupported version",
+                        CLINIT_METHOD_NAME
                     );
-
-                try (InputStream stream = zip.getInputStream(entry)) {
-                    return stream.readAllBytes();
-                }
+                return parseClinit(clinit.instructions);
             } catch (IOException ex) {
                 throw new AssetPipelineException(ex, "Failed to read MobEffects class from jar '%s'", jarPath);
             }
@@ -184,15 +161,14 @@ public final class ToolingPotionColors {
 
             @Nullable String pendingEffectId = null;
             @Nullable Integer pendingColor = null;
-            ConcurrentList<Integer> intLiteralStack = Concurrent.newList();
+            AsmKit.LiteralStack intLiteralStack = new AsmKit.LiteralStack(8);
 
             for (AbstractInsnNode node = instructions.getFirst(); node != null; node = node.getNext()) {
                 int opcode = node.getOpcode();
 
-                Integer literal = readIntLiteral(node);
+                Integer literal = AsmKit.readIntLiteral(node);
                 if (literal != null) {
-                    intLiteralStack.add(literal);
-                    if (intLiteralStack.size() > 8) intLiteralStack.removeFirst();
+                    intLiteralStack.push(literal);
                     continue;
                 }
 
@@ -209,7 +185,7 @@ public final class ToolingPotionColors {
                     // A new MobEffect (or subclass) is being constructed; reset the int stack so
                     // only the literals pushed between now and the invokespecial are considered
                     // for the colour.
-                    intLiteralStack.clear();
+                    intLiteralStack.reset();
                     continue;
                 }
 
@@ -220,9 +196,8 @@ public final class ToolingPotionColors {
                     && methodInsn.desc.equals(MOB_EFFECT_INIT_DESCRIPTOR)) {
                     // Constructor signature is (MobEffectCategory, int) - the int literal on top
                     // of the stack is the ARGB colour.
-                    if (!intLiteralStack.isEmpty()) {
-                        pendingColor = intLiteralStack.removeLast();
-                    }
+                    Integer top = intLiteralStack.popInt();
+                    if (top != null) pendingColor = top;
                     continue;
                 }
 
@@ -235,26 +210,11 @@ public final class ToolingPotionColors {
                     }
                     pendingEffectId = null;
                     pendingColor = null;
-                    intLiteralStack.clear();
+                    intLiteralStack.reset();
                 }
             }
 
             return colors;
-        }
-
-        /**
-         * Decodes an int literal from a bytecode instruction, returning {@code null} for nodes
-         * that do not push a compile-time integer constant onto the stack.
-         */
-        private static @Nullable Integer readIntLiteral(@NotNull AbstractInsnNode node) {
-            int opcode = node.getOpcode();
-            if (opcode >= Opcodes.ICONST_M1 && opcode <= Opcodes.ICONST_5)
-                return opcode - Opcodes.ICONST_0;
-            if ((opcode == Opcodes.BIPUSH || opcode == Opcodes.SIPUSH) && node instanceof IntInsnNode intInsn)
-                return intInsn.operand;
-            if (opcode == Opcodes.LDC && node instanceof LdcInsnNode ldc && ldc.cst instanceof Integer value)
-                return value;
-            return null;
         }
 
     }

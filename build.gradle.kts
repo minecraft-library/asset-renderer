@@ -54,9 +54,9 @@ dependencies {
     testImplementation(libs.junit.platform.launcher)
 
     // Simplified Libraries (extracted to github.com/simplified-dev)
-    api("com.github.simplified-dev:collections:master-SNAPSHOT")
+    api("com.github.simplified-dev:collections") { version { strictly("c399e1dad3") } }
     api("com.github.simplified-dev:utils:master-SNAPSHOT")
-    api("com.github.simplified-dev:image:master-SNAPSHOT")
+    api("com.github.simplified-dev:image") { version { strictly("ba0785c409") } }
     api("com.github.simplified-dev:gson-extras:master-SNAPSHOT")
     api("com.github.simplified-dev:client:master-SNAPSHOT")
 
@@ -158,7 +158,7 @@ tasks {
     }
 
     register<JavaExec>("blockEntities") {
-        description = "Parses block entity model classes (chest, sign, bed, etc.) from the client jar via ASM and generates src/main/resources/renderer/tile_entity_models.json."
+        description = "Parses block entity model classes (chest, sign, bed, etc.) from the client jar via ASM and generates src/main/resources/renderer/block_entities.json."
         group = "tooling"
         mainClass.set("dev.sbs.renderer.tooling.ToolingBlockEntities")
         classpath = sourceSets["main"].runtimeClasspath

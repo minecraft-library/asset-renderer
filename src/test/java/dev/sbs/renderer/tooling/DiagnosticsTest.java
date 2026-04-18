@@ -1,5 +1,6 @@
 package dev.sbs.renderer.tooling;
 
+import dev.sbs.renderer.tooling.blockentity.Diagnostics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -9,10 +10,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Unit tests for the {@link ToolingBlockEntities.Diagnostics} severity pipeline introduced by
- * Tasks 16 + 18 + 20. Exercises the error/warn/info split, the strict-failing counter, and the
- * dedupe behaviour - the three invariants that gate strict-mode behaviour in
- * {@link ToolingBlockEntities#main(String[])}.
+ * Unit tests for the {@link Diagnostics} severity pipeline. Exercises the error/warn/info
+ * split, the strict-failing counter, and the dedupe behaviour - the three invariants that
+ * gate strict-mode behaviour in {@link ToolingBlockEntities#main(String[])}.
  */
 @DisplayName("Diagnostics severity pipeline")
 class DiagnosticsTest {
@@ -20,7 +20,7 @@ class DiagnosticsTest {
     @Test
     @DisplayName("error + warn fail strict; info does not")
     void severitySplit() {
-        ToolingBlockEntities.Diagnostics diag = new ToolingBlockEntities.Diagnostics();
+        Diagnostics diag = new Diagnostics();
         diag.error("missing class %s", "Foo");
         diag.warn("underflow at %s", "addBox");
         diag.info("%d leftover literals", 2);
@@ -36,7 +36,7 @@ class DiagnosticsTest {
     @Test
     @DisplayName("identical messages dedupe to a single entry")
     void dedupeSuppressesRepeats() {
-        ToolingBlockEntities.Diagnostics diag = new ToolingBlockEntities.Diagnostics();
+        Diagnostics diag = new Diagnostics();
         diag.warn("repeat");
         diag.warn("repeat");
         diag.warn("repeat");
@@ -49,7 +49,7 @@ class DiagnosticsTest {
     @Test
     @DisplayName("fresh instance is empty with zero strict-failing count")
     void initiallyEmpty() {
-        ToolingBlockEntities.Diagnostics diag = new ToolingBlockEntities.Diagnostics();
+        Diagnostics diag = new Diagnostics();
         assertThat(diag.isEmpty(), is(true));
         assertThat(diag.strictFailingCount(), equalTo(0));
         assertThat(diag.entries().isEmpty(), is(true));
@@ -58,7 +58,7 @@ class DiagnosticsTest {
     @Test
     @DisplayName("info-only diagnostics leave strict-failing at zero")
     void infoOnlyIsStrictClean() {
-        ToolingBlockEntities.Diagnostics diag = new ToolingBlockEntities.Diagnostics();
+        Diagnostics diag = new Diagnostics();
         diag.info("leftover A");
         diag.info("leftover B");
         assertThat(diag.strictFailingCount(), equalTo(0));

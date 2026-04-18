@@ -13,19 +13,21 @@ import dev.sbs.renderer.pipeline.client.ClientJarDownloader;
 import dev.sbs.renderer.pipeline.client.HttpFetcher;
 import dev.sbs.renderer.pipeline.loader.BlockEntityLoader;
 import dev.sbs.renderer.tensor.Vector3f;
+import dev.sbs.renderer.tooling.asm.AsmKit;
+import dev.sbs.renderer.tooling.blockentity.Diagnostics;
+import dev.sbs.renderer.tooling.blockentity.Source;
+import dev.sbs.renderer.tooling.blockentity.YAxis;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.InsnList;
-import org.objectweb.asm.tree.IntInsnNode;
 import org.objectweb.asm.tree.JumpInsnNode;
 import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.LookupSwitchInsnNode;
@@ -35,16 +37,11 @@ import org.objectweb.asm.tree.TableSwitchInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 /**
@@ -58,7 +55,8 @@ import java.util.zip.ZipFile;
 @UtilityClass
 public final class ToolingBlockEntities {
 
-    private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/renderer/tile_entity_models.json");
+    private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/renderer/block_entities.json");
+    private static final @NotNull String SOURCE_VERSION = "26.1";
 
     public static void main(String @NotNull [] args) throws IOException {
         List<String> argList = Arrays.asList(args);
@@ -84,63 +82,128 @@ public final class ToolingBlockEntities {
             );
 
         JsonObject blockModels = BlockModelConverter.convert(models);
+        JsonObject merged = buildMergedOutput(blockModels, models);
+
         Files.createDirectories(OUTPUT_PATH.getParent());
         Files.writeString(OUTPUT_PATH,
-            new GsonBuilder().setPrettyPrinting().create().toJson(blockModels) + System.lineSeparator());
+            new GsonBuilder().setPrettyPrinting().create().toJson(merged) + System.lineSeparator());
         System.out.println("Wrote " + OUTPUT_PATH.toAbsolutePath());
     }
 
     /**
-     * Accumulates parser diagnostics into a single flat list. Each entry carries a severity
-     * prefix ({@code ERROR:}, {@code WARN:}, {@code INFO:}) for grep-friendly log scraping.
-     * <ul>
-     * <li>{@link #error} - missing class / method / parse exception. Fails strict mode.</li>
-     * <li>{@link #warn} - suspected data corruption (numStack underflow at an addBox /
-     *     PartPose boundary, numStack overflow). Fails strict mode.</li>
-     * <li>{@link #info} - informational notes like leftover literals at end-of-method that
-     *     don't corrupt output but hint at parser accounting gaps. Does NOT fail strict
-     *     mode so the current 26.1 baseline (three known sources) stays clean.</li>
-     * </ul>
-     * A per-instance dedupe set suppresses duplicate entries so a parser loop that fires the
-     * same underflow on every banner source doesn't spam the log with 32 copies of the same
-     * message.
+     * Composes the unified {@code block_entities.json} output. Parses the existing file (if
+     * present) to preserve hand-curated fields ({@code blocks} variants, {@code parts}
+     * shape) that are not yet auto-discovered, then overwrites the auto-derivable fields
+     * ({@code model} geometry from the ASM parse, {@code y_axis} + {@code inventory_transform}
+     * + {@code tinted} from the current Java literals) so re-running the task is idempotent.
      */
-    static final class Diagnostics {
+    private static @NotNull JsonObject buildMergedOutput(
+        @NotNull JsonObject blockModels,
+        @NotNull ConcurrentMap<String, JsonObject> parsedEntityModels
+    ) throws IOException {
+        JsonObject existing = null;
+        if (Files.exists(OUTPUT_PATH)) {
+            String raw = Files.readString(OUTPUT_PATH);
+            try {
+                existing = new com.google.gson.Gson().fromJson(raw, JsonObject.class);
+            } catch (Exception ex) {
+                System.err.println("  Warning: could not parse existing " + OUTPUT_PATH + " - writing fresh output");
+            }
+        }
+        JsonObject existingEntities = existing != null && existing.has("entities")
+            ? existing.getAsJsonObject("entities")
+            : new JsonObject();
 
-        private final @NotNull List<String> entries = new ArrayList<>();
-        private final @NotNull List<String> strictFailingEntries = new ArrayList<>();
-        private final @NotNull Set<String> dedupe = new HashSet<>();
+        JsonObject root = new JsonObject();
+        root.addProperty("//", mergedHeader());
+        root.addProperty("source_version", SOURCE_VERSION);
 
-        void warn(@NotNull String format, @org.jetbrains.annotations.Nullable Object... args) {
-            add("WARN: " + String.format(format, args), true);
+        JsonObject entities = new JsonObject();
+
+        // Iterate in the existing file's key order when we have one (keeps diffs small across
+        // regeneration passes); then append any newly parsed models that did not appear in the
+        // existing file (e.g. a freshly added SOURCES entry bumped on a version rev).
+        java.util.LinkedHashSet<String> entityOrder = new java.util.LinkedHashSet<>();
+        if (!existingEntities.entrySet().isEmpty())
+            entityOrder.addAll(existingEntities.keySet());
+        entityOrder.addAll(parsedEntityModels.keySet());
+
+        for (String modelId : entityOrder) {
+            if (modelId.equals("//")) continue;
+
+            JsonObject converted = blockModels.has(modelId) && blockModels.get(modelId).isJsonObject()
+                ? blockModels.getAsJsonObject(modelId)
+                : null;
+            JsonObject parsedEntity = parsedEntityModels.get(modelId);
+            if (converted == null && parsedEntity == null) continue;
+
+            JsonObject entityOut = new JsonObject();
+            if (converted != null)
+                entityOut.add("model", buildModelSubobject(converted));
+
+            // y_axis / inventory_y_rotation_default come from the parser's intermediate per-model
+            // metadata (parseLayerMethod sets these before BlockModelConverter strips them).
+            String yAxis = parsedEntity != null && parsedEntity.has("y_axis")
+                ? parsedEntity.get("y_axis").getAsString()
+                : "DOWN";
+            entityOut.addProperty("y_axis", yAxis);
+            entityOut.addProperty("inventory_y_rotation", 0);
+
+            float[] invTransform = BlockModelConverter.INVENTORY_TRANSFORMS.get(modelId);
+            if (invTransform != null) {
+                JsonArray arr = new JsonArray();
+                for (float v : invTransform) arr.add(v);
+                entityOut.add("inventory_transform", arr);
+            }
+            entityOut.addProperty("tinted", BlockModelConverter.TINTED_MODEL_IDS.contains(modelId));
+
+            // Preserve the hand-curated parts + blocks arrays from the existing file; PR 2
+            // moves these into ASM discovery (§5 of the plan).
+            JsonObject existingEntity = existingEntities.has(modelId) ? existingEntities.getAsJsonObject(modelId) : null;
+            if (existingEntity != null) {
+                if (existingEntity.has("parts"))
+                    entityOut.add("parts", existingEntity.get("parts"));
+                if (existingEntity.has("blocks"))
+                    entityOut.add("blocks", existingEntity.get("blocks"));
+            }
+
+            entities.add(modelId, entityOut);
         }
 
-        void error(@NotNull String format, @org.jetbrains.annotations.Nullable Object... args) {
-            add("ERROR: " + String.format(format, args), true);
-        }
+        root.add("entities", entities);
+        return root;
+    }
 
-        void info(@NotNull String format, @org.jetbrains.annotations.Nullable Object... args) {
-            add("INFO: " + String.format(format, args), false);
-        }
+    /**
+     * Extracts the model-body subobject ({@code textureWidth}, {@code textureHeight},
+     * {@code elements}) from a {@link BlockModelConverter#convert converted} entry.
+     */
+    private static @NotNull JsonObject buildModelSubobject(@NotNull JsonObject converted) {
+        JsonObject model = new JsonObject();
+        if (converted.has("textureWidth"))
+            model.add("textureWidth", converted.get("textureWidth"));
+        if (converted.has("textureHeight"))
+            model.add("textureHeight", converted.get("textureHeight"));
+        if (converted.has("elements"))
+            model.add("elements", converted.get("elements"));
+        return model;
+    }
 
-        private void add(@NotNull String message, boolean strictFails) {
-            if (!this.dedupe.add(message)) return;
-            this.entries.add(message);
-            if (strictFails) this.strictFailingEntries.add(message);
-        }
-
-        @NotNull List<String> entries() {
-            return this.entries;
-        }
-
-        int strictFailingCount() {
-            return this.strictFailingEntries.size();
-        }
-
-        boolean isEmpty() {
-            return this.entries.isEmpty();
-        }
-
+    private static @NotNull String mergedHeader() {
+        return "Generated by ToolingBlockEntities (tooling/blockEntities Gradle task). Unified "
+            + "block-entity catalog keyed by entity-model id: each entry carries the ASM-extracted "
+            + "geometry (elements from LayerDefinition bytecode), metadata (y_axis source "
+            + "convention, inventory_y_rotation GUI-facing fix, inventory_transform decomposed "
+            + "from the Renderer's PoseStack, tinted flag), optional sub-model parts with their "
+            + "render offsets, and the list of block variants that render as this entity model "
+            + "along with their entity-texture paths. Supersedes the former split between "
+            + "tile_entity_models.json (generated geometry) and tile_entity_mappings.json "
+            + "(hand-edited block bindings); both source files are now derived in one pass from "
+            + "the 26.1 client jar. Hand-edited atlas/GUI fields (iconRotation, additive, "
+            + "per-block tint, forced inventory_y_rotation) live in the sibling "
+            + "block_entities_overrides.json and are merged at load time by BlockEntityLoader. "
+            + "Run the tooling/blockEntities Gradle task to refresh; BlockEntitiesGoldenTest "
+            + "guards against silent drift via a SHA-256 over the canonical JSON.";
     }
 
     /**
@@ -311,30 +374,6 @@ public final class ToolingBlockEntities {
             new Source("net/minecraft/client/model/object/skull/PiglinHeadModel.class", "createHeadModel", "minecraft:skull_piglin_head", YAxis.DOWN, 180f, 64, 64)
         );
 
-        /** The Y axis orientation used by a Java block entity model's source data. */
-        private enum YAxis { UP, DOWN }
-
-        private record Source(
-            @NotNull String classEntry,
-            @NotNull String methodName,
-            @NotNull String entityId,
-            @NotNull YAxis yAxis,
-            float inventoryYRotation,
-            @Nullable Integer texWidthOverride,
-            @Nullable Integer texHeightOverride,
-            int @Nullable [] paramIntValues
-        ) {
-
-            Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation) {
-                this(classEntry, methodName, entityId, yAxis, inventoryYRotation, null, null, null);
-            }
-
-            Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation, @Nullable Integer texWidthOverride, @Nullable Integer texHeightOverride) {
-                this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, null);
-            }
-
-        }
-
         /**
          * Parses all known block entity model classes from the supplied client jar and returns
          * the extracted models as serialised JSON objects keyed by entity id.
@@ -347,24 +386,18 @@ public final class ToolingBlockEntities {
 
             try (ZipFile zip = new ZipFile(jarPath.toFile())) {
                 for (Source source : SOURCES) {
-                    ZipEntry entry = zip.getEntry(source.classEntry);
-                    if (entry == null) {
-                        diagnostics.error("%s: class '%s' not found in client jar (renamed in MC version bump?)", source.entityId, source.classEntry);
+                    String internalName = stripClassSuffix(source.classEntry());
+                    ClassNode classNode = AsmKit.loadClass(zip, internalName);
+                    if (classNode == null) {
+                        diagnostics.error("%s: class '%s' not found in client jar (renamed in MC version bump?)", source.entityId(), source.classEntry());
                         continue;
                     }
 
-                    try (InputStream stream = zip.getInputStream(entry)) {
-                        byte[] classBytes = stream.readAllBytes();
-                        ClassNode classNode = new ClassNode();
-                        new ClassReader(classBytes).accept(classNode, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
-
-                        MethodNode method = classNode.methods.stream()
-                            .filter(m -> m.name.equals(source.methodName))
-                            .findFirst()
-                            .orElse(null);
+                    try {
+                        MethodNode method = AsmKit.findMethod(classNode, source.methodName());
 
                         if (method == null) {
-                            diagnostics.error("%s: method '%s' not found on class '%s' (renamed in MC version bump?)", source.entityId, source.methodName, source.classEntry);
+                            diagnostics.error("%s: method '%s' not found on class '%s' (renamed in MC version bump?)", source.entityId(), source.methodName(), source.classEntry());
                             continue;
                         }
 
@@ -373,20 +406,20 @@ public final class ToolingBlockEntities {
                             // Source overrides apply when the parsed method doesn't call
                             // LayerDefinition.create itself (e.g. SkullModel.createHeadModel returns
                             // a MeshDefinition; the caller supplies the texture dimensions).
-                            if (source.texWidthOverride != null)
-                                model.addProperty("textureWidth", source.texWidthOverride);
-                            if (source.texHeightOverride != null)
-                                model.addProperty("textureHeight", source.texHeightOverride);
-                            if (source.yAxis == YAxis.UP)
+                            if (source.texWidthOverride() != null)
+                                model.addProperty("textureWidth", source.texWidthOverride());
+                            if (source.texHeightOverride() != null)
+                                model.addProperty("textureHeight", source.texHeightOverride());
+                            if (source.yAxis() == YAxis.UP)
                                 flipToYDown(model);
-                            model.addProperty("y_axis", source.yAxis.name());
-                            if (source.inventoryYRotation != 0f)
-                                model.addProperty("inventory_y_rotation", source.inventoryYRotation);
-                            results.put(source.entityId, model);
+                            model.addProperty("y_axis", source.yAxis().name());
+                            if (source.inventoryYRotation() != 0f)
+                                model.addProperty("inventory_y_rotation", source.inventoryYRotation());
+                            results.put(source.entityId(), model);
                         }
 
                     } catch (Exception ex) {
-                        diagnostics.error("%s: parse failure - %s", source.entityId, ex.getMessage());
+                        diagnostics.error("%s: parse failure - %s", source.entityId(), ex.getMessage());
                     }
                 }
             } catch (IOException ex) {
@@ -441,7 +474,7 @@ public final class ToolingBlockEntities {
          */
         private static @Nullable JsonObject parseLayerMethod(@NotNull InsnList instructions, @NotNull ZipFile zip, @NotNull Source source, @NotNull Diagnostics diagnostics) {
             ParseState state = new ParseState();
-            state.paramIntValues = source.paramIntValues;
+            state.paramIntValues = source.paramIntValues();
             state.currentSource = source;
             state.diagnostics = diagnostics;
             walkInstructions(instructions, state, zip);
@@ -455,7 +488,7 @@ public final class ToolingBlockEntities {
             // {@code skull_dragon_head}) all produce correct geometry; the leftovers are
             // just accounting gaps in the parser's method-owner dispatch.
             if (!state.numStack.isEmpty())
-                diagnostics.info("%s: %d leftover literal(s) on numStack after parse - unhandled method-owner descriptor?", source.entityId, state.numStack.size());
+                diagnostics.info("%s: %d leftover literal(s) on numStack after parse - unhandled method-owner descriptor?", source.entityId(), state.numStack.size());
 
             if (state.bones.isEmpty()) return null;
 
@@ -482,7 +515,7 @@ public final class ToolingBlockEntities {
                         // is ever hit on real sources it's a bug in the parser's pop accounting,
                         // not in the source bytecode - the stack shouldn't grow unbounded.
                         if (state.diagnostics != null && !state.overflowWarned && state.currentSource != null) {
-                            state.diagnostics.warn("%s: numStack overflow (>16 literals) - oldest literals being dropped, pop accounting may be broken", state.currentSource.entityId);
+                            state.diagnostics.warn("%s: numStack overflow (>16 literals) - oldest literals being dropped, pop accounting may be broken", state.currentSource.entityId());
                             state.overflowWarned = true;
                         }
                         state.numStack.removeFirst();
@@ -532,7 +565,7 @@ public final class ToolingBlockEntities {
                         continue;
                     }
                     if (state.paramIntValues != null && state.diagnostics != null && state.currentSource != null)
-                        state.diagnostics.warn("%s: TABLESWITCH encountered with unknown value - falling through linearly, case bodies may corrupt numStack", state.currentSource.entityId);
+                        state.diagnostics.warn("%s: TABLESWITCH encountered with unknown value - falling through linearly, case bodies may corrupt numStack", state.currentSource.entityId());
                 }
                 if (node instanceof LookupSwitchInsnNode lookupSwitch) {
                     if (state.paramIntValues != null && !state.branchStack.isEmpty()) {
@@ -542,7 +575,7 @@ public final class ToolingBlockEntities {
                         continue;
                     }
                     if (state.paramIntValues != null && state.diagnostics != null && state.currentSource != null)
-                        state.diagnostics.warn("%s: LOOKUPSWITCH encountered with unknown value - falling through linearly, case bodies may corrupt numStack", state.currentSource.entityId);
+                        state.diagnostics.warn("%s: LOOKUPSWITCH encountered with unknown value - falling through linearly, case bodies may corrupt numStack", state.currentSource.entityId());
                 }
 
                 // ILOAD N: if the source declared a value for slot N, push it onto the
@@ -638,12 +671,12 @@ public final class ToolingBlockEntities {
             }
             // Invokestatic-follow: recurse into model-building statics outside the builder/geom
             // package (e.g. PiglinHeadModel.createHeadModel -> PiglinModel.addHead). The JVM
-            // resolves invokestatic through the superclass chain, so {@link #findStaticMethod}
+            // resolves invokestatic through the superclass chain, so {@link AsmKit#findMethodInHierarchy}
             // walks {@code superName} until the method is found.
             if (opcode == Opcodes.INVOKESTATIC
                 && methodInsn.owner.startsWith("net/minecraft/client/model/")
                 && !methodInsn.owner.startsWith("net/minecraft/client/model/geom/")) {
-                MethodNode inlined = findStaticMethod(zip, methodInsn.owner, methodInsn.name, methodInsn.desc);
+                MethodNode inlined = AsmKit.findMethodInHierarchy(zip, methodInsn.owner, methodInsn.name, methodInsn.desc);
                 if (inlined != null)
                     walkInstructions(inlined.instructions, state, zip);
             }
@@ -661,7 +694,7 @@ public final class ToolingBlockEntities {
             if (have < required)
                 state.diagnostics.warn(
                     "%s at %s: numStack underflow (need %d, have %d) - output coords likely wrong",
-                    state.currentSource.entityId, where, required, have
+                    state.currentSource.entityId(), where, required, have
                 );
         }
 
@@ -833,33 +866,18 @@ public final class ToolingBlockEntities {
         }
 
         /**
-         * Looks up a static method by (class, name, descriptor), walking the superclass chain
-         * as the JVM would for invokestatic. Returns {@code null} if the method isn't found or
-         * the superclass can't be loaded from the jar.
+         * Strips the trailing {@code .class} suffix from a zip entry path to recover the
+         * corresponding JVM internal name.
          */
-        private static @Nullable MethodNode findStaticMethod(@NotNull ZipFile zip, @NotNull String className, @NotNull String methodName, @NotNull String descriptor) {
-            String current = className;
-            while (current != null) {
-                ZipEntry entry = zip.getEntry(current + ".class");
-                if (entry == null) return null;
-                ClassNode classNode = new ClassNode();
-                try (InputStream stream = zip.getInputStream(entry)) {
-                    new ClassReader(stream.readAllBytes()).accept(classNode, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
-                } catch (IOException ex) {
-                    return null;
-                }
-                for (MethodNode m : classNode.methods) {
-                    if (m.name.equals(methodName) && m.desc.equals(descriptor))
-                        return m;
-                }
-                current = classNode.superName;
-            }
-            return null;
+        private static @NotNull String stripClassSuffix(@NotNull String classEntry) {
+            return classEntry.endsWith(".class") ? classEntry.substring(0, classEntry.length() - ".class".length()) : classEntry;
         }
 
         /** Mutable parse state threaded through one top-level method parse (plus any inlined invokestatic targets). */
         private static final class ParseState {
+
             final @NotNull ConcurrentList<Number> numStack = Concurrent.newList();
+
             /**
              * Int values to substitute for {@code ILOAD_N} parameters when evaluating branches.
              * {@code paramIntValues[N]} is pushed onto {@link #branchStack} whenever an iload
@@ -869,22 +887,31 @@ public final class ToolingBlockEntities {
              * conditional land on {@link #numStack}.
              */
             int @Nullable [] paramIntValues;
+
             /** Pushed by ILOAD when the slot maps to a paramIntValues entry; consumed by IFEQ / IFNE. */
             final @NotNull ConcurrentList<Integer> branchStack = Concurrent.newList();
+
             /** Most recent ldc String - tracks both bone names and inner cube names. */
             @Nullable String pendingPartName;
+
             /** Snapshot of {@link #pendingPartName} at CubeListBuilder.create(); preserved across inner ldc Strings from addBox(String, ...) variants. */
             @Nullable String boneName;
+
             /** Parent bone name captured from {@link #nextParent} at CubeListBuilder.create(). */
             @Nullable String parentBone;
+
             /** Parent bone captured from the most recent aload_N; consumed by CubeListBuilder.create(). */
             @Nullable String nextParent;
+
             /** Most recently flushed bone; the next astore_N after flush binds it to that slot. */
             @Nullable String lastFlushedBone;
+
             /** JVM local-variable slot -> bone name that was stored there via astore_N. */
             final @NotNull ConcurrentMap<Integer, String> localSlotBone = Concurrent.newMap();
+
             /** JVM local-variable slot -> captured CubeListBuilder cubes, for builders reused by multiple addOrReplaceChild calls. */
             final @NotNull ConcurrentMap<Integer, ConcurrentList<float[]>> slotToCubes = Concurrent.newMap();
+
             /** Flattened pivot + scale for each flushed bone, used to resolve child inheritance. */
             final @NotNull ConcurrentMap<String, BoneMeta> boneMeta = Concurrent.newMap();
             @NotNull ConcurrentList<float[]> pendingCubes = Concurrent.newList();
@@ -895,12 +922,16 @@ public final class ToolingBlockEntities {
             final @NotNull JsonObject bones = new JsonObject();
             int texWidth = 64;
             int texHeight = 64;
+
             /** The top-level source whose bytecode is being parsed. Used to tag diagnostics. */
             @Nullable Source currentSource;
+
             /** Diagnostics sink for strict-mode surfacing of silent failures. */
             @Nullable Diagnostics diagnostics;
+
             /** Set after the first overflow warn so a single parse doesn't spam the log. */
             boolean overflowWarned;
+
         }
 
         /** Parent lookup data: the bone's pivot and scale in world-flattened form. */
@@ -939,40 +970,17 @@ public final class ToolingBlockEntities {
             return arr;
         }
 
+        /**
+         * Decodes an int or float literal from the instruction, returning the boxed numeric
+         * value or {@code null} when the node is not a compile-time numeric push. The geometry
+         * walker tracks these on a single {@code Number}-typed stack so a downstream
+         * {@code addBox(FFFFFF)} can pop floats from the same list that earlier collected ints
+         * for an {@code addBox(name,FFFIIIII)} variant.
+         */
         private static @Nullable Number readNumericLiteral(@NotNull AbstractInsnNode node) {
-            int opcode = node.getOpcode();
-
-            // iconst_m1 through iconst_5
-            if (opcode >= Opcodes.ICONST_M1 && opcode <= Opcodes.ICONST_5)
-                return opcode - Opcodes.ICONST_0;
-
-            // fconst_0 through fconst_2
-            if (opcode >= Opcodes.FCONST_0 && opcode <= Opcodes.FCONST_2)
-                return (float) (opcode - Opcodes.FCONST_0);
-
-            // bipush, sipush
-            if ((opcode == Opcodes.BIPUSH || opcode == Opcodes.SIPUSH) && node instanceof IntInsnNode intInsn)
-                return intInsn.operand;
-
-            // ldc int or float
-            if (opcode == Opcodes.LDC && node instanceof LdcInsnNode ldc) {
-                if (ldc.cst instanceof Integer || ldc.cst instanceof Float)
-                    return (Number) ldc.cst;
-            }
-
-            return null;
-        }
-
-        private static int popInt(@NotNull ConcurrentList<Number> stack) {
-            if (stack.isEmpty()) return 0;
-            Number top = stack.remove(stack.size() - 1);
-            return top.intValue();
-        }
-
-        private static float popFloat(@NotNull ConcurrentList<Number> stack) {
-            if (stack.isEmpty()) return 0f;
-            Number top = stack.remove(stack.size() - 1);
-            return top.floatValue();
+            Integer asInt = AsmKit.readIntLiteral(node);
+            if (asInt != null) return asInt;
+            return AsmKit.readFloatLiteral(node);
         }
 
         /**
@@ -1030,7 +1038,7 @@ public final class ToolingBlockEntities {
             if (state.diagnostics == null || state.currentSource == null) return;
             state.diagnostics.warn(
                 "%s at %s: non-literal argument consumed - a local variable populated from a computation, resolved to 0",
-                state.currentSource.entityId, where
+                state.currentSource.entityId(), where
             );
         }
 

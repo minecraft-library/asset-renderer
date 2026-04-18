@@ -10,29 +10,25 @@ import dev.sbs.renderer.pipeline.AssetPipelineOptions;
 import dev.sbs.renderer.pipeline.client.ClientJarDownloader;
 import dev.sbs.renderer.pipeline.client.HttpFetcher;
 import dev.sbs.renderer.pipeline.loader.BlockTintsLoader;
+import dev.sbs.renderer.tooling.asm.AsmKit;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.InsnList;
-import org.objectweb.asm.tree.IntInsnNode;
-import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
-import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 /**
@@ -136,7 +132,6 @@ public final class ToolingBlockTints {
     @UtilityClass
     static class Parser {
 
-        private static final @NotNull String BLOCK_COLORS_CLASS_ENTRY = "net/minecraft/client/color/block/BlockColors.class";
         private static final @NotNull String BLOCK_COLORS_INTERNAL_NAME = "net/minecraft/client/color/block/BlockColors";
         private static final @NotNull String BLOCK_TINT_SOURCES_INTERNAL_NAME = "net/minecraft/client/color/block/BlockTintSources";
         private static final @NotNull String BLOCKS_INTERNAL_NAME = "net/minecraft/world/level/block/Blocks";
@@ -179,37 +174,15 @@ public final class ToolingBlockTints {
          *     is missing
          */
         public static @NotNull ConcurrentMap<String, Block.Tint> parse(@NotNull Path jarPath) {
-            byte[] classBytes = readClassBytes(jarPath);
-            ClassNode classNode = new ClassNode();
-            new ClassReader(classBytes).accept(classNode, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
-
-            MethodNode createDefault = classNode.methods.stream()
-                .filter(m -> m.name.equals(CREATE_DEFAULT_METHOD_NAME))
-                .findFirst()
-                .orElseThrow(() -> new AssetPipelineException(
-                    "BlockColors class does not expose a '%s' method - jar may be obfuscated or from an unsupported version",
-                    CREATE_DEFAULT_METHOD_NAME
-                ));
-
-            return parseCreateDefault(createDefault.instructions);
-        }
-
-        /**
-         * Opens the client jar as a zip archive and reads the raw bytes of
-         * {@code net/minecraft/client/color/block/BlockColors.class}. Caller decodes via ASM.
-         */
-        private static byte @NotNull [] readClassBytes(@NotNull Path jarPath) {
             try (ZipFile zip = new ZipFile(jarPath.toFile())) {
-                ZipEntry entry = zip.getEntry(BLOCK_COLORS_CLASS_ENTRY);
-                if (entry == null)
+                ClassNode classNode = AsmKit.requireClass(zip, BLOCK_COLORS_INTERNAL_NAME, "BlockColors");
+                MethodNode createDefault = AsmKit.findMethod(classNode, CREATE_DEFAULT_METHOD_NAME);
+                if (createDefault == null)
                     throw new AssetPipelineException(
-                        "Jar '%s' does not contain '%s' - the jar is either obfuscated (pre-26.1) or from an unsupported version",
-                        jarPath, BLOCK_COLORS_CLASS_ENTRY
+                        "BlockColors class does not expose a '%s' method - jar may be obfuscated or from an unsupported version",
+                        CREATE_DEFAULT_METHOD_NAME
                     );
-
-                try (InputStream stream = zip.getInputStream(entry)) {
-                    return stream.readAllBytes();
-                }
+                return parseCreateDefault(createDefault.instructions);
             } catch (IOException ex) {
                 throw new AssetPipelineException(ex, "Failed to read BlockColors class from jar '%s'", jarPath);
             }
@@ -229,7 +202,7 @@ public final class ToolingBlockTints {
             int pendingConstantCount = 0;
             int pendingSourceLayers = 0;
             ConcurrentList<String> pendingBlocks = Concurrent.newList();
-            ConcurrentList<Integer> intLiteralStack = Concurrent.newList();
+            AsmKit.LiteralStack intLiteralStack = new AsmKit.LiteralStack(4);
 
             for (AbstractInsnNode node = instructions.getFirst(); node != null; node = node.getNext()) {
                 int opcode = node.getOpcode();
@@ -238,13 +211,9 @@ public final class ToolingBlockTints {
                 // appears. BlockTintSources.constant(int) is preceded by one int; constant(int, int)
                 // by two. Only the last few literals matter because intervening bytecode (ANEWARRAY,
                 // AASTORE, etc.) never pushes ints that would survive to the constant() call.
-                Integer literal = readIntLiteral(node);
+                Integer literal = AsmKit.readIntLiteral(node);
                 if (literal != null) {
-                    intLiteralStack.add(literal);
-
-                    if (intLiteralStack.size() > 4)
-                        intLiteralStack.removeFirst();
-
+                    intLiteralStack.push(literal);
                     continue;
                 }
 
@@ -260,11 +229,11 @@ public final class ToolingBlockTints {
 
                             if (methodInsn.name.equals("constant") && methodInsn.desc.startsWith("(I")) {
                                 if (methodInsn.desc.equals("(I)Lnet/minecraft/client/color/block/BlockTintSource;")) {
-                                    pendingConstantA = popLastLiteral(intLiteralStack);
+                                    pendingConstantA = popIntOrZero(intLiteralStack);
                                     pendingConstantCount = 1;
                                 } else if (methodInsn.desc.equals("(II)Lnet/minecraft/client/color/block/BlockTintSource;")) {
-                                    pendingConstantB = popLastLiteral(intLiteralStack);
-                                    pendingConstantA = popLastLiteral(intLiteralStack);
+                                    pendingConstantB = popIntOrZero(intLiteralStack);
+                                    pendingConstantA = popIntOrZero(intLiteralStack);
                                     pendingConstantCount = 2;
                                 }
                             }
@@ -286,7 +255,7 @@ public final class ToolingBlockTints {
                         pendingConstantCount = 0;
                         pendingSourceLayers = 0;
                         pendingBlocks.clear();
-                        intLiteralStack.clear();
+                        intLiteralStack.reset();
                     }
                     default -> { }
                 }
@@ -297,32 +266,14 @@ public final class ToolingBlockTints {
         }
 
         /**
-         * Decodes an int literal from a bytecode instruction, returning {@code null} for nodes that
-         * do not push a compile-time integer constant onto the stack.
+         * Pops the most recent int off the running literal stack, returning {@code 0} when the
+         * stack is empty or the top is not an int. Used to grab the {@code ldc}/{@code bipush}
+         * constants that preceded a {@code BlockTintSources.constant(int)} or
+         * {@code constant(int, int)} call.
          */
-        private static @Nullable Integer readIntLiteral(@NotNull AbstractInsnNode node) {
-            int opcode = node.getOpcode();
-
-            if (opcode >= Opcodes.ICONST_M1 && opcode <= Opcodes.ICONST_5)
-                return opcode - Opcodes.ICONST_0;
-
-            if ((opcode == Opcodes.BIPUSH || opcode == Opcodes.SIPUSH) && node instanceof IntInsnNode intInsn)
-                return intInsn.operand;
-
-            if (opcode == Opcodes.LDC && node instanceof LdcInsnNode ldc && ldc.cst instanceof Integer value)
-                return value;
-
-            return null;
-        }
-
-        /**
-         * Pops the most recent value off the running integer-literal stack, returning {@code 0}
-         * when the stack is empty. Used to grab the {@code ldc}/{@code bipush} constants that
-         * preceded a {@code BlockTintSources.constant(int)} or {@code constant(int, int)} call.
-         */
-        private static int popLastLiteral(@NotNull ConcurrentList<Integer> stack) {
-            if (stack.isEmpty()) return 0;
-            return stack.remove(stack.size() - 1);
+        private static int popIntOrZero(@NotNull AsmKit.LiteralStack stack) {
+            Integer value = stack.popInt();
+            return value != null ? value : 0;
         }
 
         /**

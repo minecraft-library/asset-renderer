@@ -1,0 +1,190 @@
+{
+  "//": "Hand-edited companion to block_entities.json. Carries the small set of fields that vanilla never encodes and therefore cannot be auto-discovered by ToolingBlockEntities: iconRotation (atlas GUI rotation baked per-block, e.g. 90 degrees for beds so the head points right in the inventory icon), additive (our rendering detail that layers the entity geometry on top of an existing block model instead of replacing it, used for bell-cup hung below the bar+post supplied by block/bell_{floor,ceiling,wall,between_walls}.json), tint (per-block dye color applied to faces whose model id is marked tinted in block_entities.json, e.g. banner/wall_banner flags keyed by DyeColor enum name), and forced inventory_y_rotation for the few models where the RendererTransformDecomposer cannot cleanly separate GUI-facing yaw from the render-side PoseStack (chest, skulls, banners). Split into per_entity (keyed by entity model id, applied to every block variant) and per_block (keyed by blockId, applied to a specific variant only); BlockEntityLoader merges both onto the auto-generated block_entities.json entries at load time.",
+  "per_entity": {
+    "minecraft:chest": {
+      "inventory_y_rotation": 180
+    },
+    "minecraft:banner": {
+      "inventory_y_rotation": 180
+    },
+    "minecraft:wall_banner": {
+      "inventory_y_rotation": 180
+    },
+    "minecraft:banner_flag": {
+      "inventory_y_rotation": 180
+    },
+    "minecraft:wall_banner_flag": {
+      "inventory_y_rotation": 180
+    },
+    "minecraft:skull_head": {
+      "inventory_y_rotation": 180
+    },
+    "minecraft:skull_humanoid_head": {
+      "inventory_y_rotation": 180
+    },
+    "minecraft:skull_dragon_head": {
+      "inventory_y_rotation": 180
+    },
+    "minecraft:skull_piglin_head": {
+      "inventory_y_rotation": 180
+    }
+  },
+  "per_block": {
+    "minecraft:white_bed": {
+      "iconRotation": 90
+    },
+    "minecraft:orange_bed": {
+      "iconRotation": 90
+    },
+    "minecraft:magenta_bed": {
+      "iconRotation": 90
+    },
+    "minecraft:light_blue_bed": {
+      "iconRotation": 90
+    },
+    "minecraft:yellow_bed": {
+      "iconRotation": 90
+    },
+    "minecraft:lime_bed": {
+      "iconRotation": 90
+    },
+    "minecraft:pink_bed": {
+      "iconRotation": 90
+    },
+    "minecraft:gray_bed": {
+      "iconRotation": 90
+    },
+    "minecraft:light_gray_bed": {
+      "iconRotation": 90
+    },
+    "minecraft:cyan_bed": {
+      "iconRotation": 90
+    },
+    "minecraft:purple_bed": {
+      "iconRotation": 90
+    },
+    "minecraft:blue_bed": {
+      "iconRotation": 90
+    },
+    "minecraft:brown_bed": {
+      "iconRotation": 90
+    },
+    "minecraft:green_bed": {
+      "iconRotation": 90
+    },
+    "minecraft:red_bed": {
+      "iconRotation": 90
+    },
+    "minecraft:black_bed": {
+      "iconRotation": 90
+    },
+    "minecraft:bell_floor": {
+      "additive": true
+    },
+    "minecraft:bell_ceiling": {
+      "additive": true
+    },
+    "minecraft:bell_wall": {
+      "additive": true
+    },
+    "minecraft:bell_between_walls": {
+      "additive": true
+    },
+    "minecraft:white_banner": {
+      "tint": "WHITE"
+    },
+    "minecraft:orange_banner": {
+      "tint": "ORANGE"
+    },
+    "minecraft:magenta_banner": {
+      "tint": "MAGENTA"
+    },
+    "minecraft:light_blue_banner": {
+      "tint": "LIGHT_BLUE"
+    },
+    "minecraft:yellow_banner": {
+      "tint": "YELLOW"
+    },
+    "minecraft:lime_banner": {
+      "tint": "LIME"
+    },
+    "minecraft:pink_banner": {
+      "tint": "PINK"
+    },
+    "minecraft:gray_banner": {
+      "tint": "GRAY"
+    },
+    "minecraft:light_gray_banner": {
+      "tint": "LIGHT_GRAY"
+    },
+    "minecraft:cyan_banner": {
+      "tint": "CYAN"
+    },
+    "minecraft:purple_banner": {
+      "tint": "PURPLE"
+    },
+    "minecraft:blue_banner": {
+      "tint": "BLUE"
+    },
+    "minecraft:brown_banner": {
+      "tint": "BROWN"
+    },
+    "minecraft:green_banner": {
+      "tint": "GREEN"
+    },
+    "minecraft:red_banner": {
+      "tint": "RED"
+    },
+    "minecraft:black_banner": {
+      "tint": "BLACK"
+    },
+    "minecraft:white_wall_banner": {
+      "tint": "WHITE"
+    },
+    "minecraft:orange_wall_banner": {
+      "tint": "ORANGE"
+    },
+    "minecraft:magenta_wall_banner": {
+      "tint": "MAGENTA"
+    },
+    "minecraft:light_blue_wall_banner": {
+      "tint": "LIGHT_BLUE"
+    },
+    "minecraft:yellow_wall_banner": {
+      "tint": "YELLOW"
+    },
+    "minecraft:lime_wall_banner": {
+      "tint": "LIME"
+    },
+    "minecraft:pink_wall_banner": {
+      "tint": "PINK"
+    },
+    "minecraft:gray_wall_banner": {
+      "tint": "GRAY"
+    },
+    "minecraft:light_gray_wall_banner": {
+      "tint": "LIGHT_GRAY"
+    },
+    "minecraft:cyan_wall_banner": {
+      "tint": "CYAN"
+    },
+    "minecraft:purple_wall_banner": {
+      "tint": "PURPLE"
+    },
+    "minecraft:blue_wall_banner": {
+      "tint": "BLUE"
+    },
+    "minecraft:brown_wall_banner": {
+      "tint": "BROWN"
+    },
+    "minecraft:green_wall_banner": {
+      "tint": "GREEN"
+    },
+    "minecraft:red_wall_banner": {
+      "tint": "RED"
+    },
+    "minecraft:black_wall_banner": {
+      "tint": "BLACK"
+    }
+  }
+}
