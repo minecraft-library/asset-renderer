@@ -113,11 +113,38 @@ public class ProjectionMath {
         int canvasW,
         int canvasH
     ) {
-        int minX = Math.max(0, (int) Math.floor(Math.min(a.x(), Math.min(b.x(), c.x()))));
-        int minY = Math.max(0, (int) Math.floor(Math.min(a.y(), Math.min(b.y(), c.y()))));
-        int maxX = Math.min(canvasW - 1, (int) Math.ceil(Math.max(a.x(), Math.max(b.x(), c.x()))));
-        int maxY = Math.min(canvasH - 1, (int) Math.ceil(Math.max(a.y(), Math.max(b.y(), c.y()))));
-        return new int[]{ minX, minY, maxX, maxY };
+        int[] out = new int[4];
+        triangleBoundsInto(a, b, c, canvasW, canvasH, out);
+        return out;
+    }
+
+    /**
+     * Allocation-free variant of {@link #triangleBounds(Vector2f, Vector2f, Vector2f, int, int)}.
+     * Writes {@code [minX, minY, maxX, maxY]} into {@code out[0..3]} using a caller-supplied
+     * scratch array.
+     * <p>
+     * Math is bit-identical to the allocating variant. Bounds are clamped to
+     * {@code [0, canvasW-1]} x {@code [0, canvasH-1]} inclusive.
+     *
+     * @param a the first vertex
+     * @param b the second vertex
+     * @param c the third vertex
+     * @param canvasW the canvas width
+     * @param canvasH the canvas height
+     * @param out a caller-supplied scratch array of length at least 4
+     */
+    public static void triangleBoundsInto(
+        @NotNull Vector2f a,
+        @NotNull Vector2f b,
+        @NotNull Vector2f c,
+        int canvasW,
+        int canvasH,
+        int @NotNull [] out
+    ) {
+        out[0] = Math.max(0, (int) Math.floor(Math.min(a.x(), Math.min(b.x(), c.x()))));
+        out[1] = Math.max(0, (int) Math.floor(Math.min(a.y(), Math.min(b.y(), c.y()))));
+        out[2] = Math.min(canvasW - 1, (int) Math.ceil(Math.max(a.x(), Math.max(b.x(), c.x()))));
+        out[3] = Math.min(canvasH - 1, (int) Math.ceil(Math.max(a.y(), Math.max(b.y(), c.y()))));
     }
 
 }

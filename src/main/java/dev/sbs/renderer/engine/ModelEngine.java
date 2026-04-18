@@ -230,14 +230,16 @@ public class ModelEngine extends TextureEngine {
         int tileEnd
     ) {
         // Task A: a single barycentric scratch reused for every pixel in this tile. Each
-        // rasterizeTile call runs on one FJP worker thread, so this array is thread-confined by
-        // construction - no synchronisation needed. Replaces the per-pixel `new Vector2f(...)`
-        // + `new float[3]` from barycentric's allocating variant. At 512x512 SSAA this is
-        // ~14 MB of per-block allocations that go away.
+        // rasterizeTile call runs on one FJP worker thread, so these arrays are thread-confined
+        // by construction - no synchronisation needed. Replaces the per-pixel `new Vector2f(...)`
+        // + `new float[3]` from barycentric's allocating variant.
+        // Task B: one int[4] scratch reused for every triangle's clipped screen-space bounds,
+        // replacing the per-triangle `new int[4]` from triangleBounds.
         final float[] bary = new float[3];
+        final int[] bounds = new int[4];
 
         for (Projected t : prepared) {
-            int[] bounds = ProjectionMath.triangleBounds(t.s0, t.s1, t.s2, width, height);
+            ProjectionMath.triangleBoundsInto(t.s0, t.s1, t.s2, width, height, bounds);
             int pyStart = Math.max(bounds[1], tileStart);
             int pyEnd = Math.min(bounds[3], tileEnd - 1);
             if (pyStart > pyEnd) continue;
