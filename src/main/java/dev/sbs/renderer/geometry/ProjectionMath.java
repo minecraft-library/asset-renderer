@@ -41,13 +41,48 @@ public class ProjectionMath {
         @NotNull Vector2f c,
         @NotNull Vector2f point
     ) {
-        float denom = barycentricDenominator(a, b, c);
-        if (denom == 0f) return new float[]{ 0f, 0f, 0f };
+        float[] out = new float[3];
+        barycentricInto(a, b, c, point.x(), point.y(), out);
+        return out;
+    }
 
-        float u = ((b.y() - c.y()) * (point.x() - c.x()) + (c.x() - b.x()) * (point.y() - c.y())) / denom;
-        float v = ((c.y() - a.y()) * (point.x() - c.x()) + (a.x() - c.x()) * (point.y() - c.y())) / denom;
-        float w = 1f - u - v;
-        return new float[]{ u, v, w };
+    /**
+     * Allocation-free variant of {@link #barycentric(Vector2f, Vector2f, Vector2f, Vector2f)}.
+     * Takes the query point as two floats (so callers inside tight pixel loops do not have to
+     * allocate a {@link Vector2f}) and writes the three barycentric coordinates into
+     * {@code out[0..2]}.
+     * <p>
+     * Math is bit-identical to the allocating variant: a degenerate triangle (zero denominator)
+     * writes zeros to all three output slots, matching {@link #barycentric}'s behaviour.
+     *
+     * @param a the first vertex
+     * @param b the second vertex
+     * @param c the third vertex
+     * @param px the query point's x coordinate
+     * @param py the query point's y coordinate
+     * @param out a caller-supplied scratch array of length at least 3
+     */
+    public static void barycentricInto(
+        @NotNull Vector2f a,
+        @NotNull Vector2f b,
+        @NotNull Vector2f c,
+        float px,
+        float py,
+        float @NotNull [] out
+    ) {
+        float denom = barycentricDenominator(a, b, c);
+        if (denom == 0f) {
+            out[0] = 0f;
+            out[1] = 0f;
+            out[2] = 0f;
+            return;
+        }
+
+        float u = ((b.y() - c.y()) * (px - c.x()) + (c.x() - b.x()) * (py - c.y())) / denom;
+        float v = ((c.y() - a.y()) * (px - c.x()) + (a.x() - c.x()) * (py - c.y())) / denom;
+        out[0] = u;
+        out[1] = v;
+        out[2] = 1f - u - v;
     }
 
     /**

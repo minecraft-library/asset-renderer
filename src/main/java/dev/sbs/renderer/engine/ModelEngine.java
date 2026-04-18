@@ -229,6 +229,13 @@ public class ModelEngine extends TextureEngine {
         int tileStart,
         int tileEnd
     ) {
+        // Task A: a single barycentric scratch reused for every pixel in this tile. Each
+        // rasterizeTile call runs on one FJP worker thread, so this array is thread-confined by
+        // construction - no synchronisation needed. Replaces the per-pixel `new Vector2f(...)`
+        // + `new float[3]` from barycentric's allocating variant. At 512x512 SSAA this is
+        // ~14 MB of per-block allocations that go away.
+        final float[] bary = new float[3];
+
         for (Projected t : prepared) {
             int[] bounds = ProjectionMath.triangleBounds(t.s0, t.s1, t.s2, width, height);
             int pyStart = Math.max(bounds[1], tileStart);
@@ -239,8 +246,7 @@ public class ModelEngine extends TextureEngine {
 
             for (int py = pyStart; py <= pyEnd; py++) {
                 for (int px = bounds[0]; px <= bounds[2]; px++) {
-                    Vector2f pt = new Vector2f(px + 0.5f, py + 0.5f);
-                    float[] bary = ProjectionMath.barycentric(t.s0, t.s1, t.s2, pt);
+                    ProjectionMath.barycentricInto(t.s0, t.s1, t.s2, px + 0.5f, py + 0.5f, bary);
                     if (!ProjectionMath.isInsideTriangle(bary)) continue;
 
                     float depthVal = bary[0] * t.p0.z() + bary[1] * t.p1.z() + bary[2] * t.p2.z();
