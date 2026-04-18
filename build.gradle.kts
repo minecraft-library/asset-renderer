@@ -1,5 +1,6 @@
 plugins {
     id("java-library")
+    id("me.champeau.jmh") version "0.7.2"
     idea
 }
 
@@ -220,4 +221,32 @@ tasks {
         val version = (project.findProperty("fontVersion") as String?) ?: "26.1"
         args = listOf(version)
     }
+}
+
+// JMH benchmark harness. Benchmarks live in src/jmh/java and are run with
+// `./gradlew :asset-renderer:jmh`. Each Tier 1-3 parallelization task records
+// before/after results against the benchmarks in dev.sbs.renderer.bench.
+dependencies {
+    jmh(libs.jmh.core)
+    jmh(libs.jmh.generator.annprocess)
+    jmhAnnotationProcessor(libs.jmh.generator.annprocess)
+    jmhCompileOnly(libs.lombok)
+    jmhAnnotationProcessor(libs.lombok)
+}
+
+jmh {
+    // Iteration counts default to the plan spec (3 warmup + 5 measurement + 2 forks).
+    // Quick signal runs override via -PjmhWarmup -PjmhIters -PjmhForks; production
+    // parity runs take the defaults.
+    warmupIterations.set(((project.findProperty("jmhWarmup") as String?)?.toInt()) ?: 3)
+    iterations.set(((project.findProperty("jmhIters") as String?)?.toInt()) ?: 5)
+    fork.set(((project.findProperty("jmhForks") as String?)?.toInt()) ?: 2)
+    timeUnit.set("ms")
+    benchmarkMode.set(listOf("avgt"))
+    // Include pattern honours -PjmhInclude=...; smoke-runs override with e.g.
+    // -PjmhInclude=FluidAnimationBenchmark to limit to a single class.
+    includes.set(listOf((project.findProperty("jmhInclude") as String?) ?: ".*"))
+    // Keep the JVM small for benchmarks so allocator/GC behaviour is representative
+    // of the CLI workload rather than a bloated dev-only heap.
+    jvmArgs.set(listOf("-Xmx2g"))
 }
