@@ -41,9 +41,9 @@ public final class TestPortalMain {
 
     /**
      * Frame count for animated portal outputs. {@link PortalRenderer} plays back at a fixed
-     * 20 FPS so this count directly controls wall-clock length: 32 frames = 1.6 seconds.
+     * 20 FPS so this count directly controls wall-clock length: 120 frames = 6.0 seconds.
      */
-    private static final int ANIMATED_FRAME_COUNT = 32;
+    private static final int ANIMATED_FRAME_COUNT = 120;
 
     public static void main(String @NotNull [] args) throws IOException {
         Files.createDirectories(OUTPUT_DIR);

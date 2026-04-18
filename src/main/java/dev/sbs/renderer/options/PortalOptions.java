@@ -85,12 +85,11 @@ public class PortalOptions {
      * <p>
      * {@code 1} is vanilla-accurate (one tick's worth of {@code GameTime} per output frame) but
      * produces almost imperceptible motion since vanilla's in-game animation is inherently slow
-     * (layer-15 UV drift is {@code ~7.5e-4} per tick). The default {@code 40} gives roughly half
-     * a noise-texture period of drift on the deepest layer over a 32-frame output - the sweet
-     * spot for a visible, smooth test GIF without warp artefacts.
+     * (layer-15 UV drift is {@code ~7.5e-4} per tick). The default {@code 8} gives a calm
+     * playback rate that reads as visible parallax without feeling rushed.
      */
     @lombok.Builder.Default
-    private final int ticksPerFrame = 40;
+    private final int ticksPerFrame = 8;
 
     public @NotNull PortalOptionsBuilder mutate() {
         return this.toBuilder();
