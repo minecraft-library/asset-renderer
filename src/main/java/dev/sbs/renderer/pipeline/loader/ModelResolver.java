@@ -18,8 +18,10 @@ import org.jetbrains.annotations.NotNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -51,10 +53,13 @@ public class ModelResolver {
     public static @NotNull ConcurrentMap<String, BlockModelData> loadBlockModels(@NotNull Path packRoot) {
         ConcurrentMap<String, JsonObject> raw = scanJsonFiles(packRoot.resolve(VanillaPaths.MODEL_BLOCK_DIR), VanillaPaths.MODEL_BLOCK_ID_PREFIX);
         ConcurrentMap<String, BlockModelData> resolved = Concurrent.newMap();
-        for (Map.Entry<String, JsonObject> entry : raw.entrySet().stream().toList()) {
+        // Parallel parent-chain merge + typed Gson reparse. raw is fully populated here, so
+        // mergeParentChain is a read-only traversal; Gson is thread-safe; resolved is a
+        // ConcurrentMap. Each entry is independent so the FJP common pool can scale across cores.
+        raw.entrySet().stream().toList().parallelStream().forEach(entry -> {
             JsonObject merged = mergeParentChain(entry.getValue(), raw, packRoot, "block");
             resolved.put(entry.getKey(), GSON.fromJson(merged, BlockModelData.class));
-        }
+        });
         return resolved;
     }
 
@@ -68,10 +73,10 @@ public class ModelResolver {
     public static @NotNull ConcurrentMap<String, ItemModelData> loadItemModels(@NotNull Path packRoot) {
         ConcurrentMap<String, JsonObject> raw = scanJsonFiles(packRoot.resolve(VanillaPaths.MODEL_ITEM_DIR), VanillaPaths.MODEL_ITEM_ID_PREFIX);
         ConcurrentMap<String, ItemModelData> resolved = Concurrent.newMap();
-        for (Map.Entry<String, JsonObject> entry : raw.entrySet().stream().toList()) {
+        raw.entrySet().stream().toList().parallelStream().forEach(entry -> {
             JsonObject merged = mergeParentChain(entry.getValue(), raw, packRoot, "item");
             resolved.put(entry.getKey(), GSON.fromJson(merged, ItemModelData.class));
-        }
+        });
         return resolved;
     }
 
@@ -79,24 +84,30 @@ public class ModelResolver {
         ConcurrentMap<String, JsonObject> result = Concurrent.newMap();
         if (!Files.isDirectory(directory)) return result;
 
+        // Two-phase walk: collect paths serially (Files.walk spliterators don't split well for
+        // parallel work), then parallelise readString + Gson parse across the FJP common pool.
+        List<Path> files;
         try (Stream<Path> stream = Files.walk(directory)) {
-            stream.filter(Files::isRegularFile)
+            files = stream
+                .filter(Files::isRegularFile)
                 .filter(p -> p.toString().endsWith(".json"))
-                .forEach(p -> {
-                    String relative = directory.relativize(p).toString().replace('\\', '/');
-                    if (!relative.endsWith(".json")) return;
-                    String id = idPrefix + relative.substring(0, relative.length() - ".json".length());
-                    try {
-                        String content = Files.readString(p);
-                        JsonObject json = GSON.fromJson(content, JsonObject.class);
-                        if (json != null) result.put(id, json);
-                    } catch (IOException | JsonSyntaxException ex) {
-                        throw new AssetPipelineException(ex, "Failed to parse model '%s'", p);
-                    }
-                });
+                .collect(Collectors.toList());
         } catch (IOException ex) {
             throw new AssetPipelineException(ex, "Failed to scan model directory '%s'", directory);
         }
+
+        files.parallelStream().forEach(p -> {
+            String relative = directory.relativize(p).toString().replace('\\', '/');
+            if (!relative.endsWith(".json")) return;
+            String id = idPrefix + relative.substring(0, relative.length() - ".json".length());
+            try {
+                String content = Files.readString(p);
+                JsonObject json = GSON.fromJson(content, JsonObject.class);
+                if (json != null) result.put(id, json);
+            } catch (IOException | JsonSyntaxException ex) {
+                throw new AssetPipelineException(ex, "Failed to parse model '%s'", p);
+            }
+        });
         return result;
     }
 

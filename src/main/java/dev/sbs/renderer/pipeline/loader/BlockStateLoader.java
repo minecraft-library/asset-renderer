@@ -18,7 +18,9 @@ import org.jetbrains.annotations.NotNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -57,33 +59,41 @@ public class BlockStateLoader {
 
         if (!Files.isDirectory(blockstatesDir)) return new LoadResult(variants, multiparts);
 
-        try (Stream<Path> files = Files.list(blockstatesDir)) {
-            files.filter(p -> p.toString().endsWith(".json")).forEach(file -> {
-                String fileName = file.getFileName().toString();
-                String blockName = fileName.substring(0, fileName.length() - 5);
-                String blockId = VanillaPaths.MINECRAFT_NAMESPACE + blockName;
-
-                try {
-                    String json = Files.readString(file);
-                    JsonObject root = GSON.fromJson(json, JsonObject.class);
-                    if (root == null) return;
-
-                    if (root.has("variants")) {
-                        ConcurrentMap<String, Block.Variant> parsed = parseVariants(root.getAsJsonObject("variants"));
-                        if (!parsed.isEmpty())
-                            variants.put(blockId, parsed);
-                    } else if (root.has("multipart")) {
-                        Block.Multipart parsed = parseMultipart(root.getAsJsonArray("multipart"));
-                        if (!parsed.parts().isEmpty())
-                            multiparts.put(blockId, parsed);
-                    }
-                } catch (IOException | com.google.gson.JsonSyntaxException ex) {
-                    // Skip malformed blockstate files
-                }
-            });
+        // Two-phase walk: serial path enumeration, then parallel JSON parse per file.
+        // Per-file work is CPU-bound (Gson parse of a small blockstate JSON) plus a tiny disk
+        // read; the parallel stream scales it across cores. variants/multiparts are
+        // ConcurrentMap so concurrent puts are safe.
+        List<Path> files;
+        try (Stream<Path> stream = Files.list(blockstatesDir)) {
+            files = stream.filter(p -> p.toString().endsWith(".json")).collect(Collectors.toList());
         } catch (IOException ex) {
             // Directory scan failure is non-fatal
+            return new LoadResult(variants, multiparts);
         }
+
+        files.parallelStream().forEach(file -> {
+            String fileName = file.getFileName().toString();
+            String blockName = fileName.substring(0, fileName.length() - 5);
+            String blockId = VanillaPaths.MINECRAFT_NAMESPACE + blockName;
+
+            try {
+                String json = Files.readString(file);
+                JsonObject root = GSON.fromJson(json, JsonObject.class);
+                if (root == null) return;
+
+                if (root.has("variants")) {
+                    ConcurrentMap<String, Block.Variant> parsed = parseVariants(root.getAsJsonObject("variants"));
+                    if (!parsed.isEmpty())
+                        variants.put(blockId, parsed);
+                } else if (root.has("multipart")) {
+                    Block.Multipart parsed = parseMultipart(root.getAsJsonArray("multipart"));
+                    if (!parsed.parts().isEmpty())
+                        multiparts.put(blockId, parsed);
+                }
+            } catch (IOException | com.google.gson.JsonSyntaxException ex) {
+                // Skip malformed blockstate files
+            }
+        });
 
         return new LoadResult(variants, multiparts);
     }

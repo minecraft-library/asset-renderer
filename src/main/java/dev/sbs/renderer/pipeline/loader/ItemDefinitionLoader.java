@@ -15,6 +15,8 @@ import org.jetbrains.annotations.NotNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -52,34 +54,41 @@ public class ItemDefinitionLoader {
         ConcurrentMap<String, String> result = Concurrent.newMap();
         if (!Files.isDirectory(itemsDir)) return result;
 
+        // Two-phase walk: enumerate item definition JSON paths serially, then parallelise
+        // readString + Gson parse across the FJP common pool. Each file's parse is fully
+        // independent; result is a ConcurrentMap.
+        List<Path> files;
         try (Stream<Path> stream = Files.walk(itemsDir)) {
-            stream.filter(Files::isRegularFile)
+            files = stream
+                .filter(Files::isRegularFile)
                 .filter(p -> p.toString().endsWith(".json"))
-                .forEach(p -> {
-                    String relative = itemsDir.relativize(p).toString().replace('\\', '/');
-                    if (!relative.endsWith(".json")) return;
-                    String itemId = VanillaPaths.MINECRAFT_NAMESPACE + relative.substring(0, relative.length() - ".json".length());
-
-                    try {
-                        String content = Files.readString(p);
-                        JsonObject json = GSON.fromJson(content, JsonObject.class);
-                        if (json == null || !json.has("model")) return;
-
-                        JsonObject model = json.getAsJsonObject("model");
-                        if (model == null) return;
-                        if (!model.has("type") || !model.has("model")) return;
-                        if (!"minecraft:model".equals(model.get("type").getAsString())) return;
-
-                        String modelRef = model.get("model").getAsString();
-                        if (modelRef.startsWith(VanillaPaths.MODEL_BLOCK_ID_PREFIX))
-                            result.put(itemId, modelRef);
-                    } catch (IOException | JsonSyntaxException ex) {
-                        throw new AssetPipelineException(ex, "Failed to parse item definition '%s'", p);
-                    }
-                });
+                .collect(Collectors.toList());
         } catch (IOException ex) {
             throw new AssetPipelineException(ex, "Failed to scan item definitions in '%s'", itemsDir);
         }
+
+        files.parallelStream().forEach(p -> {
+            String relative = itemsDir.relativize(p).toString().replace('\\', '/');
+            if (!relative.endsWith(".json")) return;
+            String itemId = VanillaPaths.MINECRAFT_NAMESPACE + relative.substring(0, relative.length() - ".json".length());
+
+            try {
+                String content = Files.readString(p);
+                JsonObject json = GSON.fromJson(content, JsonObject.class);
+                if (json == null || !json.has("model")) return;
+
+                JsonObject model = json.getAsJsonObject("model");
+                if (model == null) return;
+                if (!model.has("type") || !model.has("model")) return;
+                if (!"minecraft:model".equals(model.get("type").getAsString())) return;
+
+                String modelRef = model.get("model").getAsString();
+                if (modelRef.startsWith(VanillaPaths.MODEL_BLOCK_ID_PREFIX))
+                    result.put(itemId, modelRef);
+            } catch (IOException | JsonSyntaxException ex) {
+                throw new AssetPipelineException(ex, "Failed to parse item definition '%s'", p);
+            }
+        });
 
         return result;
     }

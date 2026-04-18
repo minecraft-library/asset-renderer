@@ -20,7 +20,9 @@ import javax.imageio.ImageIO;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -90,13 +92,26 @@ public class TexturePackLoader {
         Path texturesDir = packRoot.resolve(VanillaPaths.TEXTURES_DIR);
         if (!Files.isDirectory(texturesDir)) return textures;
 
+        // Two-phase walk: materialise the PNG path list serially (Files.walk spliterators do not
+        // split well for parallel work), then parallelise the per-file decode. buildTexture is
+        // I/O-bound - ImageIO.read + mcmeta parse dominate wall-clock time - so parallelStream
+        // over the FJP common pool gives near-linear scaling on cold loads. Collect to a plain
+        // List first so the parallel terminal op is a lock-free reduce, then bulk addAll into
+        // the ConcurrentList to pay one writeLock acquisition instead of thousands.
+        List<Path> pngFiles;
         try (Stream<Path> stream = Files.walk(texturesDir)) {
-            stream.filter(Files::isRegularFile)
+            pngFiles = stream
+                .filter(Files::isRegularFile)
                 .filter(p -> p.toString().endsWith(".png"))
-                .forEach(p -> textures.add(buildTexture(p, texturesDir, packId)));
+                .collect(Collectors.toList());
         } catch (IOException ex) {
             throw new AssetPipelineException(ex, "Failed to scan texture directory '%s'", texturesDir);
         }
+
+        List<Texture> built = pngFiles.parallelStream()
+            .map(p -> buildTexture(p, texturesDir, packId))
+            .collect(Collectors.toList());
+        textures.addAll(built);
         return textures;
     }
 
