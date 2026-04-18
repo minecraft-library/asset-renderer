@@ -9,12 +9,11 @@ import org.jetbrains.annotations.NotNull;
 import java.awt.*;
 
 /**
- * A {@link PixelGraphics} subclass that provides text rendering via the {@link MinecraftFont}
- * glyph atlas. Glyphs are pre-rasterized as white-on-transparent bitmaps and tinted per-call
- * with the current drawing color - no AWT font rasterization at render time.
- * <p>
- * Supports a glyph scale factor for nearest-neighbor magnification (used by stack count
- * rendering where the logical 16px font is scaled to match the canvas size).
+ * A {@link PixelGraphics} subclass that renders {@link MinecraftFont} glyphs directly into a
+ * {@link PixelBuffer}. Callers pass glyph origins in logical mcPixel space; the graphics applies
+ * the {@code mcPixel -> output-pixel} conversion via {@link MinecraftFont#MC_PIXEL_SCALE}, plus
+ * an optional integer {@link #scale} pixel-replication factor for GUI-density use cases (e.g.
+ * rendering stack counts at 16x native size on a {@code 256x256} item icon).
  *
  * @see MinecraftFont
  * @see PixelGraphics
@@ -22,10 +21,15 @@ import java.awt.*;
 public class MinecraftGraphics extends PixelGraphics {
 
     private @NotNull MinecraftFont currentMcFont;
+
+    /**
+     * Glyph pixel-replication factor. {@code 1} renders at the font's native rasterization; {@code >= 2}
+     * replicates each glyph pixel into an {@code s x s} block for GUI-density scaling.
+     */
     private final int scale;
 
     /**
-     * Creates a Minecraft graphics context for the given buffer.
+     * Creates a Minecraft graphics context for the given buffer at native scale.
      *
      * @param target the pixel buffer to draw onto
      */
@@ -34,10 +38,14 @@ public class MinecraftGraphics extends PixelGraphics {
     }
 
     /**
-     * Creates a Minecraft graphics context with a glyph scale factor.
+     * Creates a Minecraft graphics context with a glyph pixel-replication factor. At
+     * {@code scale = N}, each bitmap pixel of a rendered glyph becomes an {@code N x N} output
+     * block and decoration geometry (line spacing, shadow offsets) is multiplied by the same
+     * factor. This path is a nearest-neighbor replication - no anti-aliasing is added, matching
+     * the Minecraft font's integer-aligned retro aesthetic.
      *
      * @param target the pixel buffer to draw onto
-     * @param scale the glyph scale factor (1 = native size)
+     * @param scale the glyph pixel-replication factor ({@code >= 1})
      */
     public MinecraftGraphics(@NotNull PixelBuffer target, int scale) {
         super(target);
@@ -51,13 +59,32 @@ public class MinecraftGraphics extends PixelGraphics {
         this.scale = source.scale;
     }
 
+    /**
+     * Returns the glyph pixel-replication factor this graphics is configured with.
+     *
+     * @return the scale factor
+     */
+    public int scale() {
+        return this.scale;
+    }
+
     // --- text rendering ---
 
+    /**
+     * Draws a string at the given mcPixel origin. The baseline sits at {@code yMcPx}; the
+     * cursor starts at {@code xMcPx}. Both are converted to output-pixel coordinates via
+     * {@code mcPx * MinecraftFont.MC_PIXEL_SCALE * scale}.
+     *
+     * @param str the text to draw
+     * @param xMcPx the starting cursor X in mcPixels
+     * @param yMcPx the baseline Y in mcPixels
+     */
     @Override
-    public void drawString(@NotNull String str, int x, int y) {
+    public void drawString(@NotNull String str, int xMcPx, int yMcPx) {
         if (str.isEmpty()) return;
-        int cx = translateX() + x;
-        int cy = translateY() + y;
+        int pxPerMcPx = MinecraftFont.MC_PIXEL_SCALE * this.scale;
+        int cx = translateX() + xMcPx * pxPerMcPx;
+        int cy = translateY() + yMcPx * pxPerMcPx;
 
         for (int i = 0; i < str.length(); i++) {
             int cp = str.charAt(i);
@@ -68,29 +95,6 @@ public class MinecraftGraphics extends PixelGraphics {
     }
 
     private void blitGlyph(@NotNull MinecraftFont.GlyphData glyph, int x, int y) {
-        // TODO: supersampled glyph edge rendering.
-        //
-        // Today every pixel of the cached glyph bitmap is nearest-neighbor replicated by
-        // `this.scale` into an s*s block. When TextRenderer renders at supersampling > 1 and
-        // box-filters the result back down, those replicated blocks collapse unchanged - the
-        // scale+downsample round-trip is the identity transform, so SSAA produces no actual
-        // glyph anti-aliasing.
-        //
-        // To make supersampling smooth glyph edges, rasterize an HD bitmap on demand (AWT at
-        // `font.getSize2D() * this.scale`) and blit directly into the buffer at 1:1, letting
-        // the downsample pass mix it with neighboring pixels. Cache keyed by
-        // (codepoint, scale) on MinecraftFont.GlyphData - lazily populated to keep ASCII warm
-        // at scale=1 and avoid rasterizing the full BMP upfront for every scale.
-        //
-        // Touch points when ready:
-        //   - MinecraftFont.rasterizeGlyph(Font, int, int scale) returns an HD GlyphData
-        //   - MinecraftFont.glyph(int, int scale) looks up the scale-specific cache
-        //   - this method picks the HD bitmap and skips the inner sx/sy replication loop
-        //
-        // Decorations (strikethrough/underline) already use sub-pixel positioning when
-        // `scale >= 2` (see TextKit#drawSegment), so once glyphs go HD the whole tooltip will
-        // benefit from SSAA uniformly.
-
         PixelBuffer bitmap = glyph.bitmap();
         int bw = bitmap.width();
         int bh = bitmap.height();

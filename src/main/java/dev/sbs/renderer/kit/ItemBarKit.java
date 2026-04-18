@@ -1,6 +1,7 @@
 package dev.sbs.renderer.kit;
 
 import dev.sbs.renderer.text.font.MinecraftFont;
+import dev.sbs.renderer.text.font.MinecraftGraphics;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lombok.experimental.UtilityClass;
@@ -80,13 +81,23 @@ public class ItemBarKit {
         if (count <= 1) return;
 
         String text = Integer.toString(count);
+        // `scale` here matches the sampling semantics of MinecraftGraphics: the font is
+        // rasterized at `FONT_POINT_SIZE * scale` so a 256-px-wide buffer (logical 16x16,
+        // scale = 16) renders the digits at 16x their native mcPixel size.
         int scale = Math.max(1, buffer.width() / LOGICAL_CANVAS);
+        MinecraftGraphics g = new MinecraftGraphics(buffer, scale);
+
+        // Text width in native output pixels = mcPixelWidth * MC_PIXEL_SCALE * scale, which
+        // collapses to measureText(native output-px) * scale.
         int textWidth = TextKit.measureText(text, font) * scale;
         int padding = scale;
-        int x = buffer.width() - textWidth - padding;
-        int y = buffer.height() - padding;
+        int xOutPx = buffer.width() - textWidth - padding;
+        int yOutPx = buffer.height() - padding;
 
-        TextKit.drawText(buffer, text, x, y, font, ColorMath.WHITE, scale);
+        // MinecraftGraphics.drawString expects mcPixel coords, which it multiplies by
+        // (MC_PIXEL_SCALE * scale) to land on buffer pixels. Invert that here.
+        int pxPerMcPx = MinecraftFont.MC_PIXEL_SCALE * scale;
+        TextKit.drawText(g, text, xOutPx / pxPerMcPx, yOutPx / pxPerMcPx, font, ColorMath.WHITE);
     }
 
 }

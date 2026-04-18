@@ -17,12 +17,12 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Smoke tests for {@link TextRenderer} covering the vanilla tooltip gradient border, the
- * background/border alpha defaults ({@code 240}/{@code 80}), and integer supersampling.
+ * Smoke tests for {@link TextRenderer} covering the vanilla tooltip gradient border and the
+ * background/border alpha defaults ({@code 240}/{@code 80}).
  */
 class TextRendererTest {
 
-    private static TextOptions singleLineLore(int sampling) {
+    private static TextOptions singleLineLore() {
         ConcurrentList<LineSegment> lines = Concurrent.newList();
         lines.add(LineSegment.builder()
             .withSegments(ColorSegment.builder().withText("Test").build())
@@ -30,7 +30,6 @@ class TextRendererTest {
         return TextOptions.builder()
             .style(TextOptions.Style.LORE)
             .lines(lines)
-            .sampling(sampling)
             .build();
     }
 
@@ -49,16 +48,16 @@ class TextRendererTest {
     }
 
     @Test
-    @DisplayName("lore background fill pixel matches 0xF0100010 at native sampling")
+    @DisplayName("lore background fill pixel matches 0xF0100010")
     void backgroundFillMatchesVanilla() {
-        TextOptions opts = singleLineLore(1);
+        TextOptions opts = singleLineLore();
         ImageData image = new TextRenderer().render(opts);
         PixelBuffer buf = image.getFrames().getFirst().pixels();
 
-        // Sample inside the padding area above the text row - inside the border stroke
-        // but above the first glyph's top-of-caps line.
+        // Border occupies y in [2, 4) (1 mcPixel inset + 1 mcPixel stroke = 4 output pixels).
+        // Sample at y=5 which is well inside the padding interior above the first glyph.
         int cx = buf.width() / 2;
-        int cy = 3;
+        int cy = 5;
         int px = buf.getPixel(cx, cy);
         assertThat("alpha in padding", ColorMath.alpha(px), is(0xF0));
         assertThat("RGB in padding", px & 0xFFFFFF, is(0x100010));
@@ -67,13 +66,13 @@ class TextRendererTest {
     @Test
     @DisplayName("lore border top row uses gradient top color (α=80, RGB=0x5000FF)")
     void borderTopMatchesVanillaGradientTop() {
-        TextOptions opts = singleLineLore(1);
+        TextOptions opts = singleLineLore();
         ImageData image = new TextRenderer().render(opts);
         PixelBuffer buf = image.getFrames().getFirst().pixels();
 
-        // Border stroke is 1 mcPixel thick inset 1 mcPixel from edge.
-        // Sample a pixel within the top stroke, well inside (away from corners).
-        int px = buf.getPixel(buf.width() / 2, 1);
+        // Border stroke is 1 mcPixel (2 output pixels) thick, inset 1 mcPixel from edge.
+        // So the top stroke spans y in [2, 4). Sample at y=2.
+        int px = buf.getPixel(buf.width() / 2, 2);
         assertThat("top border alpha", ColorMath.alpha(px), is(0x50));
         assertThat("top border RGB", px & 0xFFFFFF, is(0x5000FF));
     }
@@ -81,11 +80,12 @@ class TextRendererTest {
     @Test
     @DisplayName("lore border bottom row uses gradient bottom color (α=80, RGB=0x28007F)")
     void borderBottomMatchesVanillaGradientBottom() {
-        TextOptions opts = singleLineLore(1);
+        TextOptions opts = singleLineLore();
         ImageData image = new TextRenderer().render(opts);
         PixelBuffer buf = image.getFrames().getFirst().pixels();
 
-        int px = buf.getPixel(buf.width() / 2, buf.height() - 2);
+        // Bottom stroke spans y in [h-4, h-2). Sample at y = h - 3.
+        int px = buf.getPixel(buf.width() / 2, buf.height() - 3);
         assertThat("bottom border alpha", ColorMath.alpha(px), is(0x50));
         assertThat("bottom border RGB", px & 0xFFFFFF, is(0x28007F));
     }
@@ -93,12 +93,12 @@ class TextRendererTest {
     @Test
     @DisplayName("left edge interior row interpolates between gradient endpoints")
     void borderLeftEdgeInterpolates() {
-        TextOptions opts = singleLineLore(1);
+        TextOptions opts = singleLineLore();
         ImageData image = new TextRenderer().render(opts);
         PixelBuffer buf = image.getFrames().getFirst().pixels();
 
-        // Middle row of left edge - should be roughly halfway between 0x5000FF and 0x28007F.
-        int px = buf.getPixel(1, buf.height() / 2);
+        // Left edge spans x in [2, 4). Sample at x=2 on the middle row.
+        int px = buf.getPixel(2, buf.height() / 2);
         int r = ColorMath.red(px);
         int b = ColorMath.blue(px);
         assertThat("red is between endpoints", r, is(greaterThan(0x28 - 1)));
@@ -107,40 +107,4 @@ class TextRendererTest {
         assertThat("border alpha preserved", ColorMath.alpha(px), is(0x50));
     }
 
-    @Test
-    @DisplayName("supersampling=2 produces a buffer with the same logical dimensions as 1x")
-    void supersamplingPreservesCanvasDimensions() {
-        TextOptions opts1 = singleLineLore(1);
-        TextOptions opts2 = singleLineLore(2);
-
-        ImageData image1 = new TextRenderer().render(opts1);
-        ImageData image2 = new TextRenderer().render(opts2);
-
-        PixelBuffer buf1 = image1.getFrames().getFirst().pixels();
-        PixelBuffer buf2 = image2.getFrames().getFirst().pixels();
-
-        // Logical canvas is identical, supersampling only affects rendering precision.
-        assertThat(buf2.width(), is(buf1.width()));
-        assertThat(buf2.height(), is(buf1.height()));
-    }
-
-    @Test
-    @DisplayName("supersampling=2 produces a visually equivalent lore tooltip (center pixel stable)")
-    void supersamplingCenterPixelMatches() {
-        TextOptions opts1 = singleLineLore(1);
-        TextOptions opts2 = singleLineLore(2);
-
-        PixelBuffer buf1 = new TextRenderer().render(opts1).getFrames().getFirst().pixels();
-        PixelBuffer buf2 = new TextRenderer().render(opts2).getFrames().getFirst().pixels();
-
-        // Sample a pixel definitely inside the padding area above the text row.
-        int x = buf1.width() / 2;
-        int y = 3;
-        int px1 = buf1.getPixel(x, y);
-        int px2 = buf2.getPixel(x, y);
-        assertThat("1x padding pixel", px1 & 0xFFFFFF, is(0x100010));
-        assertThat("2x padding pixel", px2 & 0xFFFFFF, is(0x100010));
-        assertThat("1x padding alpha", ColorMath.alpha(px1), is(0xF0));
-        assertThat("2x padding alpha", ColorMath.alpha(px2), is(0xF0));
-    }
 }

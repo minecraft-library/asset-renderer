@@ -92,4 +92,33 @@ public final class MinecraftFontMetrics extends FontMetrics {
         return this.mcFont.glyph(ch).advanceWidth();
     }
 
+    /**
+     * Returns the ascent in mcPixels - the logical font unit where one mcPixel equals
+     * {@link MinecraftFont#MC_PIXEL_SCALE} native output pixels.
+     *
+     * @return the ascent in mcPixels
+     */
+    public int getAscentMcPixels() {
+        return this.ascent / MinecraftFont.MC_PIXEL_SCALE;
+    }
+
+    /**
+     * Returns the descent in mcPixels - the logical font unit where one mcPixel equals
+     * {@link MinecraftFont#MC_PIXEL_SCALE} native output pixels.
+     *
+     * @return the descent in mcPixels
+     */
+    public int getDescentMcPixels() {
+        return this.descent / MinecraftFont.MC_PIXEL_SCALE;
+    }
+
+    /**
+     * Returns the total line height (ascent + descent + leading) in mcPixels.
+     *
+     * @return the height in mcPixels
+     */
+    public int getHeightMcPixels() {
+        return this.height / MinecraftFont.MC_PIXEL_SCALE;
+    }
+
 }

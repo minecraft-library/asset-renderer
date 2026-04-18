@@ -7,12 +7,12 @@ import dev.sbs.renderer.text.ChatColor;
 import dev.sbs.renderer.text.ColorSegment;
 import dev.sbs.renderer.text.LineSegment;
 import dev.sbs.renderer.text.font.MinecraftFont;
+import dev.sbs.renderer.text.font.MinecraftGraphics;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import dev.simplified.image.pixel.PixelBufferPool;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -54,14 +54,15 @@ public final class TextRenderer implements Renderer<TextOptions> {
      */
     private static final int VANILLA_TOOLTIP_BORDER_BOTTOM_RGB = 0x28007F;
 
-    private static final int PIXEL_SIZE = MinecraftFont.MC_PIXEL_SCALE;
-
     /**
-     * Distance between consecutive text baselines in output pixels. Vanilla tooltip rendering
+     * Distance between consecutive text baselines in mcPixels. Vanilla tooltip rendering
      * (every version from 1.8.9 through 26.1) advances {@code 10} mcPixels per line -
      * 8 glyph + 1 descender + 1 row of leading.
      */
-    private static final int LINE_HEIGHT = 10 * MinecraftFont.MC_PIXEL_SCALE;
+    private static final int LINE_HEIGHT_MCPX = 10;
+
+    /** Inter-line gap between the title and body in lore tooltips, in mcPixels. */
+    private static final int LORE_GAP_MCPX = 2;
 
     private static final int DEFAULT_COLOR_ARGB = ChatColor.Legacy.GRAY.rgb();
 
@@ -72,26 +73,24 @@ public final class TextRenderer implements Renderer<TextOptions> {
 
         boolean isLore = options.getStyle() == TextOptions.Style.LORE;
         boolean animated = hasObfuscation(options.getLines());
-        int pad = isLore ? options.getPadding() : 0;
-        int loreGap = isLore && options.getLines().size() > 1 ? PIXEL_SIZE * 2 : 0;
-        int canvasW = measureWidth(options) + pad * 2;
+        int padMcPx = isLore ? options.getPadding() : 0;
+        int loreGapMcPx = isLore && options.getLines().size() > 1 ? LORE_GAP_MCPX : 0;
+        int canvasWMcPx = measureWidthMcPixels(options) + padMcPx * 2;
 
         // Canvas height measures from the top padding to the last glyph's descender plus
-        // bottom padding - NOT a full LINE_HEIGHT past the last baseline. The previous
-        // `n * LINE_HEIGHT + 2*pad` formula left `LINE_HEIGHT - ascent - descent` output
-        // pixels of dead space below the last line, which made vanilla tooltips look
-        // bottom-heavy. Symmetric padding now matches in-game rendering.
-        int ascent = MinecraftFont.REGULAR.getFontMetrics().getAscent();
-        int descent = MinecraftFont.REGULAR.getFontMetrics().getDescent();
-        int linesHeight = (options.getLines().size() - 1) * LINE_HEIGHT + ascent + descent;
-        int canvasH = linesHeight + pad * 2 + loreGap;
+        // bottom padding - NOT a full LINE_HEIGHT past the last baseline. Symmetric padding
+        // matches in-game vanilla rendering.
+        int ascentMcPx = MinecraftFont.REGULAR.getFontMetrics().getAscentMcPixels();
+        int descentMcPx = MinecraftFont.REGULAR.getFontMetrics().getDescentMcPixels();
+        int linesHeightMcPx = (options.getLines().size() - 1) * LINE_HEIGHT_MCPX + ascentMcPx + descentMcPx;
+        int canvasHMcPx = linesHeightMcPx + padMcPx * 2 + loreGapMcPx;
 
         if (!animated)
-            return RenderEngine.output(drawSingleFrame(options, canvasW, canvasH, 0L), 0);
+            return RenderEngine.output(drawSingleFrame(options, canvasWMcPx, canvasHMcPx, 0L), 0);
 
         ConcurrentList<PixelBuffer> frames = Concurrent.newList();
         for (int frameIndex = 0; frameIndex < options.getFrameCount(); frameIndex++)
-            frames.addAll(drawSingleFrame(options, canvasW, canvasH, frameIndex));
+            frames.addAll(drawSingleFrame(options, canvasWMcPx, canvasHMcPx, frameIndex));
 
         int delayMs = Math.max(1, Math.round(1000f / options.getFramesPerSecond()));
         return RenderEngine.output(frames, delayMs);
@@ -99,67 +98,37 @@ public final class TextRenderer implements Renderer<TextOptions> {
 
     private static @NotNull ConcurrentList<PixelBuffer> drawSingleFrame(
         @NotNull TextOptions options,
-        int canvasW,
-        int canvasH,
+        int canvasWMcPx,
+        int canvasHMcPx,
         long frameSeed
     ) {
         boolean isLore = options.getStyle() == TextOptions.Style.LORE;
-        int pad = isLore ? options.getPadding() : 0;
-        int sampling = Math.max(1, options.getSampling());
+        int padMcPx = isLore ? options.getPadding() : 0;
 
-        // All coordinates below operate in the supersampled buffer space; divide at the end.
-        int hiW = canvasW * sampling;
-        int hiH = canvasH * sampling;
-        ConcurrentList<PixelBuffer> frames = Concurrent.newList();
+        int w = canvasWMcPx * MinecraftFont.MC_PIXEL_SCALE;
+        int h = canvasHMcPx * MinecraftFont.MC_PIXEL_SCALE;
+        PixelBuffer buffer = PixelBuffer.create(w, h);
 
-        if (sampling > 1) {
-            // Supersampled path: the hi-res buffer is scratch - boxDownsample produces a
-            // fresh, correctly-sized output and the hi-res canvas is discarded with the lease.
-            try (PixelBufferPool.Lease lease = PixelBufferPool.acquire(hiW, hiH)) {
-                PixelBuffer buffer = lease.buffer();
-                drawFrameContent(options, buffer, hiW, hiH, sampling, pad, frameSeed, isLore);
-                frames.add(boxDownsample(buffer, sampling));
-            }
-            return frames;
-        }
-
-        // sampling == 1: buffer escapes as the frame so it owns its storage.
-        PixelBuffer buffer = PixelBuffer.create(hiW, hiH);
-        drawFrameContent(options, buffer, hiW, hiH, sampling, pad, frameSeed, isLore);
-        frames.add(buffer);
-        return frames;
-    }
-
-    /**
-     * Fills {@code buffer} with the tooltip background + border (when applicable) and all
-     * line content for a single frame. Kept as a helper so the supersampled and
-     * native-resolution paths share identical drawing logic.
-     */
-    private static void drawFrameContent(
-        @NotNull TextOptions options,
-        @NotNull PixelBuffer buffer,
-        int hiW,
-        int hiH,
-        int sampling,
-        int pad,
-        long frameSeed,
-        boolean isLore
-    ) {
         if (isLore) {
             int bgAlpha = Math.clamp(options.getBackgroundAlpha(), 0, 255);
             int borderAlpha = Math.clamp(options.getBorderAlpha(), 0, 255);
             buffer.fill((bgAlpha << 24) | VANILLA_TOOLTIP_BG_RGB);
-            drawGradientBorder(buffer, hiW, hiH, sampling, borderAlpha);
+            drawGradientBorder(buffer, w, h, borderAlpha);
         }
 
-        int baseline = pad + MinecraftFont.REGULAR.getFontMetrics().getAscent();
+        MinecraftGraphics g = new MinecraftGraphics(buffer);
+        int baselineMcPx = padMcPx + MinecraftFont.REGULAR.getFontMetrics().getAscentMcPixels();
 
         for (int i = 0; i < options.getLines().size(); i++) {
-            TextKit.drawLine(buffer, options.getLines().get(i), pad * sampling, baseline * sampling, DEFAULT_COLOR_ARGB, frameSeed, sampling);
-            baseline += LINE_HEIGHT;
+            TextKit.drawLine(g, options.getLines().get(i), padMcPx, baselineMcPx, DEFAULT_COLOR_ARGB, frameSeed);
+            baselineMcPx += LINE_HEIGHT_MCPX;
             if (isLore && i == 0)
-                baseline += PIXEL_SIZE * 2;
+                baselineMcPx += LORE_GAP_MCPX;
         }
+
+        ConcurrentList<PixelBuffer> frames = Concurrent.newList();
+        frames.add(buffer);
+        return frames;
     }
 
     /**
@@ -168,16 +137,14 @@ public final class TextRenderer implements Renderer<TextOptions> {
      * top row to {@link #VANILLA_TOOLTIP_BORDER_BOTTOM_RGB} at the bottom row. Horizontal edges receive the
      * endpoint colors; the interpolation interior runs along the vertical edges.
      *
-     * @param buffer the supersampled buffer to draw onto
+     * @param buffer the output buffer to draw onto
      * @param w the buffer width in output pixels
      * @param h the buffer height in output pixels
-     * @param sampling the supersampling factor - border stroke thickness is 1 {@code mcPixel}
-     *                 which equals {@code sampling} output pixels
      * @param alpha the border alpha channel in {@code [0, 255]}
      */
-    private static void drawGradientBorder(@NotNull PixelBuffer buffer, int w, int h, int sampling, int alpha) {
-        int inset = sampling;            // border is inset 1 mcPixel from edge
-        int stroke = sampling;           // border stroke is 1 mcPixel thick
+    private static void drawGradientBorder(@NotNull PixelBuffer buffer, int w, int h, int alpha) {
+        int inset = MinecraftFont.MC_PIXEL_SCALE;   // border is inset 1 mcPixel from edge
+        int stroke = MinecraftFont.MC_PIXEL_SCALE;  // border stroke is 1 mcPixel thick
         int topY0 = inset;
         int topY1 = inset + stroke;
         int botY0 = h - inset - stroke;
@@ -229,42 +196,6 @@ public final class TextRenderer implements Renderer<TextOptions> {
         return from + ((to - from) * t) / steps;
     }
 
-    /**
-     * Box-filter downsamples {@code src} by the given integer factor, averaging each
-     * {@code factor x factor} block into a single output pixel in straight (non-premultiplied)
-     * ARGB space.
-     *
-     * @param src the supersampled source buffer; dimensions must be divisible by {@code factor}
-     * @param factor the downsampling factor (must be {@code >= 1})
-     * @return a new buffer of size {@code src.width / factor} by {@code src.height / factor}
-     */
-    private static @NotNull PixelBuffer boxDownsample(@NotNull PixelBuffer src, int factor) {
-        int outW = src.width() / factor;
-        int outH = src.height() / factor;
-        int area = factor * factor;
-        PixelBuffer dst = PixelBuffer.create(outW, outH);
-
-        for (int oy = 0; oy < outH; oy++) {
-            int syBase = oy * factor;
-            for (int ox = 0; ox < outW; ox++) {
-                int sxBase = ox * factor;
-                int sumA = 0, sumR = 0, sumG = 0, sumB = 0;
-                for (int dy = 0; dy < factor; dy++) {
-                    int sy = syBase + dy;
-                    for (int dx = 0; dx < factor; dx++) {
-                        int px = src.getPixel(sxBase + dx, sy);
-                        sumA += ColorMath.alpha(px);
-                        sumR += ColorMath.red(px);
-                        sumG += ColorMath.green(px);
-                        sumB += ColorMath.blue(px);
-                    }
-                }
-                dst.setPixel(ox, oy, ColorMath.pack(sumA / area, sumR / area, sumG / area, sumB / area));
-            }
-        }
-        return dst;
-    }
-
     private static boolean hasObfuscation(@NotNull ConcurrentList<LineSegment> lines) {
         for (LineSegment line : lines) {
             for (ColorSegment segment : line.getSegments())
@@ -273,11 +204,11 @@ public final class TextRenderer implements Renderer<TextOptions> {
         return false;
     }
 
-    private static int measureWidth(@NotNull TextOptions options) {
+    private static int measureWidthMcPixels(@NotNull TextOptions options) {
         int max = 0;
         for (LineSegment line : options.getLines())
-            max = Math.max(max, TextKit.measureLine(line));
-        return Math.max(32, max);
+            max = Math.max(max, TextKit.measureLineMcPixels(line));
+        return Math.max(16, max);
     }
 
     private static @NotNull ConcurrentList<PixelBuffer> singleFrame(int w, int h, int fill) {

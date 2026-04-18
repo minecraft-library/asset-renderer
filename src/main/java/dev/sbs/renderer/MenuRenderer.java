@@ -11,6 +11,7 @@ import dev.sbs.renderer.text.ColorSegment;
 import dev.sbs.renderer.text.LineSegment;
 import dev.sbs.renderer.text.font.MinecraftFont;
 import dev.sbs.renderer.text.font.MinecraftFontMetrics;
+import dev.sbs.renderer.text.font.MinecraftGraphics;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentSet;
@@ -512,7 +513,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     ) {
         MinecraftFontMetrics metrics = MinecraftFont.REGULAR.getFontMetrics();
         int textY = bandTop + (bandHeight - metrics.getHeight()) / 2 + metrics.getAscent();
-        TextKit.drawLine(buffer, titleLine, titleX, textY, defaultArgb, frameSeed);
+        MinecraftGraphics g = new MinecraftGraphics(buffer);
+        TextKit.drawLine(g, titleLine, titleX / MinecraftFont.MC_PIXEL_SCALE, textY / MinecraftFont.MC_PIXEL_SCALE, defaultArgb, frameSeed);
     }
 
     /**
@@ -529,7 +531,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
 
         MinecraftFontMetrics metrics = MinecraftFont.REGULAR.getFontMetrics();
         int textY = innerY + (innerH - metrics.getHeight()) / 2 + metrics.getAscent();
-        TextKit.drawText(buffer, label, innerX + 2, textY, MinecraftFont.REGULAR, ColorMath.WHITE);
+        MinecraftGraphics g = new MinecraftGraphics(buffer);
+        TextKit.drawText(g, label, (innerX + 2) / MinecraftFont.MC_PIXEL_SCALE, textY / MinecraftFont.MC_PIXEL_SCALE, MinecraftFont.REGULAR, ColorMath.WHITE);
     }
 
     /**
@@ -545,7 +548,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         MinecraftFontMetrics metrics = MinecraftFont.REGULAR.getFontMetrics();
         int textX = canvasW - INSET - 4 - TextKit.measureText(text, MinecraftFont.REGULAR);
         int textY = areaTop + (areaHeight - metrics.getHeight()) / 2 + metrics.getAscent();
-        TextKit.drawText(buffer, text, textX, textY, MinecraftFont.REGULAR, xpGreen);
+        MinecraftGraphics g = new MinecraftGraphics(buffer);
+        TextKit.drawText(g, text, textX / MinecraftFont.MC_PIXEL_SCALE, textY / MinecraftFont.MC_PIXEL_SCALE, MinecraftFont.REGULAR, xpGreen);
     }
 
     // ---------------------------------------------------------------------------------------

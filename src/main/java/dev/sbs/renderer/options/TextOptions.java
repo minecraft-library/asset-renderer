@@ -18,8 +18,8 @@ import org.jetbrains.annotations.NotNull;
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
 public class TextOptions {
 
-    /** Default per-side inner padding between the tooltip border and the first glyph (output pixels). */
-    public static final int TOOLTIP_PADDING_PX = 10;
+    /** Default per-side inner padding between the tooltip border and the first glyph (mcPixels). */
+    public static final int TOOLTIP_PADDING_MCPX = 5;
 
     /**
      * Alpha component matching the vanilla 0xF0100010 tooltip background. {@code 0xF0 = 240}
@@ -47,9 +47,9 @@ public class TextOptions {
     @lombok.Builder.Default
     private final @NotNull ConcurrentList<LineSegment> lines = Concurrent.newList();
 
-    /** Pixel padding around the text content */
+    /** Padding in mcPixels between the tooltip border and the text content (1 mcPixel = 2 output pixels at native sampling). */
     @lombok.Builder.Default
-    private final int padding = TOOLTIP_PADDING_PX;
+    private final int padding = TOOLTIP_PADDING_MCPX;
 
     /**
      * Alpha channel for the LORE background fill, in {@code [0, 255]}. Defaults to
@@ -66,16 +66,6 @@ public class TextOptions {
      */
     @lombok.Builder.Default
     private final int borderAlpha = VANILLA_TOOLTIP_BORDER_ALPHA;
-
-    /**
-     * Supersampling factor for text rendering. {@code 1} renders at the native pixel grid
-     * exactly as the font is rasterized; values {@code > 1} render the full canvas at
-     * {@code sampling x sampling} resolution and box-filter the result back down, which
-     * smooths the gradient border and resolves sub-pixel decoration geometry
-     * (strikethrough {@code y+3.5..y+4.5} and underline {@code y+8..y+9}).
-     */
-    @lombok.Builder.Default
-    private final int sampling = 1;
 
     /** Maximum characters per line before wrapping */
     @lombok.Builder.Default
