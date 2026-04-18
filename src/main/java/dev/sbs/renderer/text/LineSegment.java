@@ -81,7 +81,7 @@ public final class LineSegment {
 
         public @NotNull LineSegment build() {
             return new LineSegment(
-                this.segments.toUnmodifiableList()
+                this.segments.toUnmodifiable()
             );
         }
 
