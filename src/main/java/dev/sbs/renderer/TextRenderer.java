@@ -12,6 +12,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.pixel.PixelBufferPool;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -109,8 +110,41 @@ public final class TextRenderer implements Renderer<TextOptions> {
         // All coordinates below operate in the supersampled buffer space; divide at the end.
         int hiW = canvasW * sampling;
         int hiH = canvasH * sampling;
-        PixelBuffer buffer = PixelBuffer.create(hiW, hiH);
+        ConcurrentList<PixelBuffer> frames = Concurrent.newList();
 
+        if (sampling > 1) {
+            // Supersampled path: the hi-res buffer is scratch - boxDownsample produces a
+            // fresh, correctly-sized output and the hi-res canvas is discarded with the lease.
+            try (PixelBufferPool.Lease lease = PixelBufferPool.acquire(hiW, hiH)) {
+                PixelBuffer buffer = lease.buffer();
+                drawFrameContent(options, buffer, hiW, hiH, sampling, pad, frameSeed, isLore);
+                frames.add(boxDownsample(buffer, sampling));
+            }
+            return frames;
+        }
+
+        // sampling == 1: buffer escapes as the frame so it owns its storage.
+        PixelBuffer buffer = PixelBuffer.create(hiW, hiH);
+        drawFrameContent(options, buffer, hiW, hiH, sampling, pad, frameSeed, isLore);
+        frames.add(buffer);
+        return frames;
+    }
+
+    /**
+     * Fills {@code buffer} with the tooltip background + border (when applicable) and all
+     * line content for a single frame. Kept as a helper so the supersampled and
+     * native-resolution paths share identical drawing logic.
+     */
+    private static void drawFrameContent(
+        @NotNull TextOptions options,
+        @NotNull PixelBuffer buffer,
+        int hiW,
+        int hiH,
+        int sampling,
+        int pad,
+        long frameSeed,
+        boolean isLore
+    ) {
         if (isLore) {
             int bgAlpha = Math.clamp(options.getBackgroundAlpha(), 0, 255);
             int borderAlpha = Math.clamp(options.getBorderAlpha(), 0, 255);
@@ -126,11 +160,6 @@ public final class TextRenderer implements Renderer<TextOptions> {
             if (isLore && i == 0)
                 baseline += PIXEL_SIZE * 2;
         }
-
-        PixelBuffer output = sampling == 1 ? buffer : boxDownsample(buffer, sampling);
-        ConcurrentList<PixelBuffer> frames = Concurrent.newList();
-        frames.add(output);
-        return frames;
     }
 
     /**

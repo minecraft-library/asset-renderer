@@ -15,6 +15,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.pixel.PixelBufferPool;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
@@ -515,13 +516,41 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             PixelBuffer[] whiteFaces = { white, white, white, white, white, white };
             ConcurrentList<VisibleTriangle> triangles = buildGeometry(options.getPortal(), whiteFaces);
 
-            PixelBuffer shadingMask = PixelBuffer.create(hiRes, hiRes);
-            engine.rasterize(triangles, shadingMask, PerspectiveParams.ISOMETRIC_BLOCK, options.getRotation());
+            // shadingMask is scope-local scratch: populated by rasterize, consumed once by
+            // the compose loop, then discarded. Always pool it.
+            try (PixelBufferPool.Lease maskLease = PixelBufferPool.acquire(hiRes, hiRes)) {
+                PixelBuffer shadingMask = maskLease.buffer();
+                engine.rasterize(triangles, shadingMask, PerspectiveParams.ISOMETRIC_BLOCK, options.getRotation());
 
-            // Compose: final[x, y] = shader_canvas[x, y] scaled by the face's shading factor.
-            // Transparent pixels in the mask (background outside the cube silhouette) stay
-            // transparent so the PNG shows the hex silhouette cleanly.
-            PixelBuffer buffer = PixelBuffer.create(hiRes, hiRes);
+                if (ssaa > 1) {
+                    // buffer is also scratch when SSAA downscales - it feeds blitScaled and is
+                    // discarded with the lease.
+                    try (PixelBufferPool.Lease bufLease = PixelBufferPool.acquire(hiRes, hiRes)) {
+                        PixelBuffer buffer = bufLease.buffer();
+                        composeShaderMask(buffer, shadingMask, shaderCanvas, hiRes);
+                        if (options.isAntiAlias()) buffer.applyFxaa();
+                        PixelBuffer output = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
+                        output.blitScaled(buffer, 0, 0, options.getOutputSize(), options.getOutputSize());
+                        return output;
+                    }
+                }
+
+                // ssaa == 1: buffer escapes as the final frame, so it has to own its storage.
+                PixelBuffer buffer = PixelBuffer.create(hiRes, hiRes);
+                composeShaderMask(buffer, shadingMask, shaderCanvas, hiRes);
+                if (options.isAntiAlias()) buffer.applyFxaa();
+                return buffer;
+            }
+        }
+
+        /**
+         * Composes the final portal pixel: for every opaque mask pixel, scales the
+         * shader-canvas RGB by the mask's red channel (which carries the per-face shading
+         * factor from the white-texture rasterize pass) and writes it to {@code out} with
+         * the mask's alpha preserved. Background (transparent mask) stays untouched so the
+         * hex silhouette reads cleanly on the output PNG.
+         */
+        private static void composeShaderMask(@NotNull PixelBuffer out, @NotNull PixelBuffer shadingMask, @NotNull PixelBuffer shaderCanvas, int hiRes) {
             for (int y = 0; y < hiRes; y++) {
                 for (int x = 0; x < hiRes; x++) {
                     int mask = shadingMask.getPixel(x, y);
@@ -533,20 +562,9 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
                     int r = Math.clamp((int) (ColorMath.red(shader)   * factor + 0.5f), 0, 255);
                     int g = Math.clamp((int) (ColorMath.green(shader) * factor + 0.5f), 0, 255);
                     int b = Math.clamp((int) (ColorMath.blue(shader)  * factor + 0.5f), 0, 255);
-                    buffer.setPixel(x, y, ColorMath.pack(maskAlpha, r, g, b));
+                    out.setPixel(x, y, ColorMath.pack(maskAlpha, r, g, b));
                 }
             }
-
-            if (options.isAntiAlias())
-                buffer.applyFxaa();
-
-            if (ssaa > 1) {
-                PixelBuffer output = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
-                output.blitScaled(buffer, 0, 0, options.getOutputSize(), options.getOutputSize());
-                return output;
-            }
-
-            return buffer;
         }
 
         /**

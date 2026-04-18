@@ -31,6 +31,7 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.pixel.PixelBufferPool;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -209,19 +210,21 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 triangles = tryFirstBlockstateApply(block, tint, untintedTint);
 
             int ssaa = Math.max(1, options.getSupersample());
-            int hiRes = options.getOutputSize() * ssaa;
-            PixelBuffer buffer = PixelBuffer.create(hiRes, hiRes);
-            engine.rasterize(triangles, buffer, PerspectiveParams.ISOMETRIC_BLOCK, options.getRotation());
-
-            if (options.isAntiAlias())
-                buffer.applyFxaa();
-
             if (ssaa > 1) {
-                PixelBuffer output = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
-                output.blitScaled(buffer, 0, 0, options.getOutputSize(), options.getOutputSize());
-                return RenderEngine.staticFrame(output);
+                int hiRes = options.getOutputSize() * ssaa;
+                try (PixelBufferPool.Lease lease = PixelBufferPool.acquire(hiRes, hiRes)) {
+                    PixelBuffer buffer = lease.buffer();
+                    engine.rasterize(triangles, buffer, PerspectiveParams.ISOMETRIC_BLOCK, options.getRotation());
+                    if (options.isAntiAlias()) buffer.applyFxaa();
+                    PixelBuffer output = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
+                    output.blitScaled(buffer, 0, 0, options.getOutputSize(), options.getOutputSize());
+                    return RenderEngine.staticFrame(output);
+                }
             }
 
+            PixelBuffer buffer = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
+            engine.rasterize(triangles, buffer, PerspectiveParams.ISOMETRIC_BLOCK, options.getRotation());
+            if (options.isAntiAlias()) buffer.applyFxaa();
             return RenderEngine.staticFrame(buffer);
         }
 
