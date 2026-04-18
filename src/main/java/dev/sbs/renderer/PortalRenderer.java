@@ -373,6 +373,87 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
     }
 
     /**
+     * Computes the number of bridge frames to bake on top of {@link PortalOptions#getFrameCount}
+     * for the seamless-loop crossfade. Returns {@code 0} when the feature is disabled or the
+     * animation is too short to blend meaningfully.
+     */
+    private static int bridgeFrameCount(@NotNull PortalOptions options) {
+        int total = options.getFrameCount();
+        if (total < 3) return 0;
+        float bridge = options.getLoopFadeBridgePct();
+        if (bridge <= 0f) return 0;
+        return Math.clamp(Math.round(bridge * total), 0, total - 1);
+    }
+
+    /**
+     * Applies the seamless-loop bridge crossfade in-place. For output frame {@code i in [0, K)}
+     * (where {@code K = bridgeFrames}), the frame is blended toward its shifted-continuation
+     * partner at {@code frames[i + N]} (the shader's natural continuation past the loop's end),
+     * weighted so {@code i=0} is pure partner content and {@code i=K-1} is pure raw content.
+     * <p>
+     * Both layers in the crossfade are animated, so the fade region never resolves to a static
+     * frame - which was the visible artifact of an anchor-based fade. After blending the caller
+     * must trim {@code frames} down to the intended {@code N} frames; the extra bridge frames
+     * are only needed as blend partners.
+     *
+     * @param frames full set of {@code N + bridgeFrames} baked frames; mutated in-place
+     * @param outputCount the intended {@code N} output frames (the first N entries of frames)
+     * @param bridgeFrames the bridge length {@code K} from {@link #bridgeFrameCount}
+     */
+    private static void applyBridgeCrossfade(
+        @NotNull ConcurrentList<PixelBuffer> frames,
+        int outputCount,
+        int bridgeFrames
+    ) {
+        if (bridgeFrames <= 0 || bridgeFrames >= outputCount) return;
+        if (frames.size() < outputCount + bridgeFrames) return;
+
+        for (int i = 0; i < bridgeFrames; i++) {
+            float alpha = (float) i / (float) bridgeFrames;
+            PixelBuffer frame = frames.get(i);
+            PixelBuffer partner = frames.get(i + outputCount);
+            blendTowardPartner(frame, partner, alpha);
+        }
+    }
+
+    /**
+     * Blends {@code frame} in-place toward {@code partner} by weight {@code alpha}: final pixel
+     * value is {@code alpha * frame + (1 - alpha) * partner} on every channel including alpha.
+     */
+    private static void blendTowardPartner(
+        @NotNull PixelBuffer frame,
+        @NotNull PixelBuffer partner,
+        float alpha
+    ) {
+        float invAlpha = 1f - alpha;
+        int width = frame.width();
+        int height = frame.height();
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int fp = frame.getPixel(x, y);
+                int pp = partner.getPixel(x, y);
+                int a = Math.clamp((int) (ColorMath.alpha(fp) * alpha + ColorMath.alpha(pp) * invAlpha + 0.5f), 0, 255);
+                int r = Math.clamp((int) (ColorMath.red(fp)   * alpha + ColorMath.red(pp)   * invAlpha + 0.5f), 0, 255);
+                int g = Math.clamp((int) (ColorMath.green(fp) * alpha + ColorMath.green(pp) * invAlpha + 0.5f), 0, 255);
+                int b = Math.clamp((int) (ColorMath.blue(fp)  * alpha + ColorMath.blue(pp)  * invAlpha + 0.5f), 0, 255);
+                frame.setPixel(x, y, ColorMath.pack(a, r, g, b));
+            }
+        }
+    }
+
+    /**
+     * Trims a frame list to {@code outputCount} entries, disposing the extra bridge frames baked
+     * only for the crossfade partner role.
+     */
+    private static void trimBridgeFrames(
+        @NotNull ConcurrentList<PixelBuffer> frames,
+        int outputCount
+    ) {
+        while (frames.size() > outputCount)
+            frames.remove(frames.size() - 1);
+    }
+
+    /**
      * Full 3D isometric portal renderer. Builds geometry via {@link GeometryKit} and rasterizes
      * through {@link IsometricEngine}'s standard {@code [30, 225, 0]} pose. {@code END_GATEWAY}
      * renders as a unit cube with the baked face on all 6 sides; {@code END_PORTAL} renders as a
@@ -389,11 +470,17 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             if (options.getFrameCount() <= 1)
                 return RenderEngine.staticFrame(renderFrame(options, options.getStartTick()));
 
+            int outputCount = options.getFrameCount();
+            int bridge = bridgeFrameCount(options);
+            int bakeCount = outputCount + bridge;
+
             ConcurrentList<PixelBuffer> frames = Concurrent.newList();
-            for (int f = 0; f < options.getFrameCount(); f++) {
+            for (int f = 0; f < bakeCount; f++) {
                 int tick = options.getStartTick() + f * options.getTicksPerFrame();
                 frames.add(renderFrame(options, tick));
             }
+            applyBridgeCrossfade(frames, outputCount, bridge);
+            trimBridgeFrames(frames, outputCount);
             return RenderEngine.output(frames, FRAME_DELAY_MS);
         }
 
@@ -497,11 +584,17 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             if (options.getFrameCount() <= 1)
                 return RenderEngine.staticFrame(renderFrame(options, options.getStartTick()));
 
+            int outputCount = options.getFrameCount();
+            int bridge = bridgeFrameCount(options);
+            int bakeCount = outputCount + bridge;
+
             ConcurrentList<PixelBuffer> frames = Concurrent.newList();
-            for (int f = 0; f < options.getFrameCount(); f++) {
+            for (int f = 0; f < bakeCount; f++) {
                 int tick = options.getStartTick() + f * options.getTicksPerFrame();
                 frames.add(renderFrame(options, tick));
             }
+            applyBridgeCrossfade(frames, outputCount, bridge);
+            trimBridgeFrames(frames, outputCount);
             return RenderEngine.output(frames, FRAME_DELAY_MS);
         }
 

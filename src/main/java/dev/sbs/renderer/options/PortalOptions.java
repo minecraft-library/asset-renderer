@@ -91,6 +91,26 @@ public class PortalOptions {
     @lombok.Builder.Default
     private final int ticksPerFrame = 8;
 
+    /**
+     * Fraction of {@link #frameCount} used as a shifted-continuation crossfade at the start of
+     * each animated output, producing a seamless loop without a visible static anchor.
+     * <p>
+     * With {@code K = round(loopFadeBridgePct * frameCount)}, the renderer bakes
+     * {@code frameCount + K} raw shader frames. For output frame {@code i in [0, K)},
+     * {@code output[i] = alpha * raw[i] + (1 - alpha) * raw[i + frameCount]} where
+     * {@code alpha = i / K}. Both layers being blended are animated (the primary is the new
+     * loop's opening content; the partner is what the shader WOULD produce if the previous loop
+     * had continued past its natural end), so nothing looks static during the transition.
+     * <p>
+     * The loop seam is hidden because {@code output[frameCount - 1] = raw[frameCount - 1]} and
+     * the next iteration's {@code output[0] = raw[frameCount]} - those are one shader-tick
+     * apart, matching the smoothness of any within-loop adjacent pair. No separate fade-out
+     * region is needed. Set to {@code 0} to disable and have raw frames play from tick
+     * {@code startTick}.
+     */
+    @lombok.Builder.Default
+    private final float loopFadeBridgePct = 0.2f;
+
     public @NotNull PortalOptionsBuilder mutate() {
         return this.toBuilder();
     }
