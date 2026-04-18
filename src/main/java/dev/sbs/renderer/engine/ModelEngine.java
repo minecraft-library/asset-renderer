@@ -15,6 +15,9 @@ import dev.simplified.image.pixel.PixelBuffer;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.IntStream;
 
 /**
  * A 3D triangle rasterizer that projects a list of {@link VisibleTriangle triangles} onto a 2D
@@ -43,6 +46,21 @@ public class ModelEngine extends TextureEngine {
      * shared plane is collapsed.
      */
     private static final float DEPTH_EPSILON = 1e-4f;
+
+    /**
+     * Minimum framebuffer height (in pixels) before tiled parallel rasterization kicks in.
+     * Below this threshold the tiled path's overhead (ForkJoin splits, per-tile depth-slice
+     * allocation, triangle iteration per tile) outweighs the parallel speedup. Small renders
+     * stay serial - relevant for the atlas tile path where each block renders at 128x128 inside
+     * an already-parallel outer dispatch.
+     */
+    private static final int MIN_TILED_HEIGHT = 256;
+
+    /**
+     * Target minimum rows per tile. Cap the tile count so each tile still has enough rasterization
+     * work to amortise the per-tile depth-slice allocation + triangle loop setup.
+     */
+    private static final int MIN_ROWS_PER_TILE = 32;
 
     private final @NotNull Matrix4f camera;
 
@@ -144,56 +162,97 @@ public class ModelEngine extends TextureEngine {
         float offsetX = width * 0.5f;
         float offsetY = height * 0.5f;
 
-        // Pass 1: transform every triangle and project its vertices. This pre-projection cache
-        // lets us compute screen-space winding once per triangle for both the cull pass and
-        // the rasterization loop.
-        ConcurrentList<Projected> prepared = Concurrent.newList();
-        for (VisibleTriangle triangle : triangles) {
-            Vector3f p0 = Vector3f.transform(triangle.position0(), transform);
-            Vector3f p1 = Vector3f.transform(triangle.position1(), transform);
-            Vector3f p2 = Vector3f.transform(triangle.position2(), transform);
-            Vector3f normal = Vector3f.normalize(Vector3f.transformNormal(triangle.normal(), transform));
+        // Pass 1 (Task 7): transform + project + backface cull, in parallel. Each triangle's
+        // projection is pure functional - reads only the per-triangle vertex data and the shared
+        // immutable transform - so a parallelStream over the FJP common pool scales this across
+        // cores. map().filter().toList() preserves encounter order, which Pass 2's painter's
+        // algorithm requires: the rasterizer iterates `prepared` in original insertion order so
+        // the DEPTH_EPSILON tie-break deterministically picks the first-drawn of any coplanar
+        // pair (see the comment on the depth test below).
+        List<Projected> prepared = triangles.stream().parallel()
+            .map(triangle -> projectTriangle(triangle, transform, scale, offsetX, offsetY, perspective))
+            .filter(Objects::nonNull)
+            .toList();
 
-            Vector2f s0 = RenderEngine.projectPerspective(p0, scale, offsetX, offsetY, perspective);
-            Vector2f s1 = RenderEngine.projectPerspective(p1, scale, offsetX, offsetY, perspective);
-            Vector2f s2 = RenderEngine.projectPerspective(p2, scale, offsetX, offsetY, perspective);
-
-            if (triangle.cullBackFaces() && isBackFacing(s0, s1, s2)) continue;
-
-            prepared.add(new Projected(triangle, p0, p1, p2, s0, s1, s2, normal));
+        // Pass 2 (Task 8): tiled rasterization. Split the framebuffer into N horizontal Y-bands
+        // and rasterize each band in parallel. Every band owns its own depth-buffer slice, so the
+        // inner raster loop never contends with sibling threads. Every band still iterates the
+        // full prepared list in original insertion order so painter's semantics - the
+        // DEPTH_EPSILON tie-break that makes the first-drawn coplanar face win - are preserved
+        // within each tile; triangles rasterize into disjoint Y ranges across tiles, so the final
+        // image is byte-identical to the serial path.
+        //
+        // Small framebuffers (height < MIN_TILED_HEIGHT) skip the tiled path - FJP overhead
+        // outweighs the parallel speedup for sub-256-pixel images and the atlas tile path already
+        // parallelises at the outer dispatch level via Task 1.
+        if (height < MIN_TILED_HEIGHT) {
+            float[] depthBuffer = new float[width * height];
+            Arrays.fill(depthBuffer, Float.NEGATIVE_INFINITY);
+            rasterizeTile(prepared, buffer, depthBuffer, width, height, 0, height);
+            return;
         }
 
-        // No painter's sort: triangles arrive in insertion order (bone -> cube -> face), which
-        // is the order authors intended for coplanar resolution. {@link DEPTH_EPSILON} in the
-        // per-pixel test absorbs FP jitter so the first-drawn of a coplanar pair wins
-        // deterministically; non-coplanar correctness is unaffected because the depth test still
-        // picks the closer fragment whichever order the triangles were rasterised in. Mirrors
-        // the GL_LESS + draw-call-order semantics of vanilla Minecraft's OpenGL pipeline.
-        float[] depthBuffer = new float[width * height];
-        Arrays.fill(depthBuffer, Float.NEGATIVE_INFINITY);
+        int cores = Runtime.getRuntime().availableProcessors();
+        int tileCount = Math.max(1, Math.min(cores, height / MIN_ROWS_PER_TILE));
+        int tileHeight = (height + tileCount - 1) / tileCount;
 
+        IntStream.range(0, tileCount).parallel().forEach(tileIdx -> {
+            int tileStart = tileIdx * tileHeight;
+            int tileEnd = Math.min(height, tileStart + tileHeight);
+            if (tileStart >= tileEnd) return;
+
+            float[] depthSlice = new float[width * (tileEnd - tileStart)];
+            Arrays.fill(depthSlice, Float.NEGATIVE_INFINITY);
+            rasterizeTile(prepared, buffer, depthSlice, width, height, tileStart, tileEnd);
+        });
+    }
+
+    /**
+     * Rasterizes every triangle in {@code prepared} into the Y-range {@code [tileStart, tileEnd)}
+     * of {@code buffer}, using {@code depth} as a local depth buffer indexed by
+     * {@code (py - tileStart) * width + px}. Triangle bounds are computed against the full image
+     * dimensions and then clipped to the tile's Y range, so triangles that span a tile boundary
+     * naturally contribute to each overlapping tile without any pre-binning.
+     * <p>
+     * Callers are responsible for pre-filling {@code depth} with {@link Float#NEGATIVE_INFINITY}
+     * and for ensuring no two concurrent invocations share overlapping {@code [tileStart, tileEnd)}
+     * ranges - that is what keeps the {@code buffer.setPixel} writes race-free across tiles.
+     */
+    private static void rasterizeTile(
+        @NotNull List<Projected> prepared,
+        @NotNull PixelBuffer buffer,
+        float @NotNull [] depth,
+        int width,
+        int height,
+        int tileStart,
+        int tileEnd
+    ) {
         for (Projected t : prepared) {
             int[] bounds = ProjectionMath.triangleBounds(t.s0, t.s1, t.s2, width, height);
+            int pyStart = Math.max(bounds[1], tileStart);
+            int pyEnd = Math.min(bounds[3], tileEnd - 1);
+            if (pyStart > pyEnd) continue;
+
             float shading = t.source.shading() * RenderEngine.computeInventoryLighting(t.source.normal());
 
-            for (int py = bounds[1]; py <= bounds[3]; py++) {
+            for (int py = pyStart; py <= pyEnd; py++) {
                 for (int px = bounds[0]; px <= bounds[2]; px++) {
                     Vector2f pt = new Vector2f(px + 0.5f, py + 0.5f);
                     float[] bary = ProjectionMath.barycentric(t.s0, t.s1, t.s2, pt);
                     if (!ProjectionMath.isInsideTriangle(bary)) continue;
 
-                    float depth = bary[0] * t.p0.z() + bary[1] * t.p1.z() + bary[2] * t.p2.z();
-                    int idx = py * width + px;
+                    float depthVal = bary[0] * t.p0.z() + bary[1] * t.p1.z() + bary[2] * t.p2.z();
+                    int idx = (py - tileStart) * width + px;
                     // Epsilon-tolerant rejection: coplanar faces (e.g. chest body SOUTH and lid
                     // SOUTH both at z=15 before camera) project to mathematically equal per-pixel
                     // depths, but barycentric interpolation over triangles with different vertex
                     // sets produces small floating-point differences. Without the epsilon, the
                     // later-drawn face occasionally wins in scattered pixels and the result is
-                    // visible speckle z-fighting in the coplanar region. The insertion-order sort
-                    // above guarantees the intended painter sequence (body < lid < lock for a
-                    // chest), so absorbing FP noise in the depth test makes the first-drawn
+                    // visible speckle z-fighting in the coplanar region. The insertion-order
+                    // iteration above guarantees the intended painter sequence (body < lid < lock
+                    // for a chest), so absorbing FP noise in the depth test makes the first-drawn
                     // coplanar face deterministically win.
-                    if (depth <= depthBuffer[idx] + DEPTH_EPSILON) continue;
+                    if (depthVal <= depth[idx] + DEPTH_EPSILON) continue;
 
                     float u = bary[0] * t.source.uv0().x() + bary[1] * t.source.uv1().x() + bary[2] * t.source.uv2().x();
                     float v = bary[0] * t.source.uv0().y() + bary[1] * t.source.uv1().y() + bary[2] * t.source.uv2().y();
@@ -209,10 +268,40 @@ public class ModelEngine extends TextureEngine {
 
                     sampled = RenderEngine.applyShading(sampled, shading);
                     buffer.setPixel(px, py, sampled);
-                    depthBuffer[idx] = depth;
+                    depth[idx] = depthVal;
                 }
             }
         }
+    }
+
+    /**
+     * Transforms a triangle's vertices and normal into camera space, projects each vertex into
+     * screen space, and returns a {@link Projected} cache. Returns {@code null} when the
+     * triangle opts into backface culling and the projected winding indicates a back face,
+     * letting the caller drop it from the rasterization list.
+     * <p>
+     * Extracted as a static helper so Pass 1 can run as a pure parallel map: the function has
+     * no shared state beyond the read-only {@code transform} and {@code perspective} inputs.
+     */
+    private static @org.jetbrains.annotations.Nullable Projected projectTriangle(
+        @NotNull VisibleTriangle triangle,
+        @NotNull Matrix4f transform,
+        float scale,
+        float offsetX,
+        float offsetY,
+        @NotNull PerspectiveParams perspective
+    ) {
+        Vector3f p0 = Vector3f.transform(triangle.position0(), transform);
+        Vector3f p1 = Vector3f.transform(triangle.position1(), transform);
+        Vector3f p2 = Vector3f.transform(triangle.position2(), transform);
+        Vector3f normal = Vector3f.normalize(Vector3f.transformNormal(triangle.normal(), transform));
+
+        Vector2f s0 = RenderEngine.projectPerspective(p0, scale, offsetX, offsetY, perspective);
+        Vector2f s1 = RenderEngine.projectPerspective(p1, scale, offsetX, offsetY, perspective);
+        Vector2f s2 = RenderEngine.projectPerspective(p2, scale, offsetX, offsetY, perspective);
+
+        if (triangle.cullBackFaces() && isBackFacing(s0, s1, s2)) return null;
+        return new Projected(triangle, p0, p1, p2, s0, s1, s2, normal);
     }
 
     /**
