@@ -9,13 +9,13 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-class ItemBarKitTest {
+class ItemStackKitTest {
 
     @Test
     @DisplayName("drawDamageBar is a no-op when damage is zero")
     void noBarForUndamagedItem() {
         PixelBuffer buffer = PixelBuffer.create(16, 16);
-        ItemBarKit.drawDamageBar(buffer, 0, 100);
+        ItemStackKit.drawDamageBar(buffer, 0, 100);
 
         for (int y = 0; y < 16; y++) {
             for (int x = 0; x < 16; x++)
@@ -27,7 +27,7 @@ class ItemBarKitTest {
     @DisplayName("drawDamageBar is a no-op when max durability is zero")
     void noBarForNonDamageableItem() {
         PixelBuffer buffer = PixelBuffer.create(16, 16);
-        ItemBarKit.drawDamageBar(buffer, 5, 0);
+        ItemStackKit.drawDamageBar(buffer, 5, 0);
 
         for (int y = 0; y < 16; y++) {
             for (int x = 0; x < 16; x++)
@@ -39,7 +39,7 @@ class ItemBarKitTest {
     @DisplayName("drawDamageBar at 50% damage fills background and partial foreground")
     void halfDamagePaintsExpectedPixels() {
         PixelBuffer buffer = PixelBuffer.create(16, 16);
-        ItemBarKit.drawDamageBar(buffer, 50, 100);
+        ItemStackKit.drawDamageBar(buffer, 50, 100);
 
         // Background row at y=13 should have the opaque black background in at least one pixel.
         boolean foundBackgroundBlack = false;

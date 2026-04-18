@@ -16,7 +16,7 @@ import org.jetbrains.annotations.NotNull;
  * GUI scale 16.
  */
 @UtilityClass
-public class ItemBarKit {
+public class ItemStackKit {
 
     private static final int LOGICAL_CANVAS = 16;
     private static final int BAR_X = 2;

@@ -1,6 +1,6 @@
 package dev.sbs.renderer.tooling;
 
-import dev.sbs.renderer.kit.ItemBarKit;
+import dev.sbs.renderer.kit.ItemStackKit;
 import dev.sbs.renderer.text.font.MinecraftFont;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
@@ -14,7 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * Diagnostic task that renders {@link ItemBarKit#drawStackCount} over a solid background at
+ * Diagnostic task that renders {@link ItemStackKit#drawStackCount} over a solid background at
  * representative icon sizes, so changes to the stack-count layout can be pixel-diffed.
  * <p>
  * Invocation modes:
@@ -60,7 +60,7 @@ public final class TestStackCountMain {
             for (int count : COUNTS) {
                 PixelBuffer buffer = PixelBuffer.create(size, size);
                 buffer.fill(BG_ARGB);
-                ItemBarKit.drawStackCount(buffer, count, MinecraftFont.REGULAR);
+                ItemStackKit.drawStackCount(buffer, count, MinecraftFont.REGULAR);
 
                 String name = "s%03d_c%02d.png".formatted(size, count);
                 Path out = labelDir.resolve(name);

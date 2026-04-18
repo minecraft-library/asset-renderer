@@ -11,7 +11,7 @@ import dev.sbs.renderer.geometry.PerspectiveParams;
 import dev.sbs.renderer.geometry.VisibleTriangle;
 import dev.sbs.renderer.kit.GeometryKit;
 import dev.sbs.renderer.kit.GlintKit;
-import dev.sbs.renderer.kit.ItemBarKit;
+import dev.sbs.renderer.kit.ItemStackKit;
 import dev.sbs.renderer.kit.TrimKit;
 import dev.sbs.renderer.asset.Entity;
 import dev.sbs.renderer.asset.Item;
@@ -468,10 +468,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                     .ifPresent(trim -> buffer.blitScaled(trim, 0, 0, options.getOutputSize(), options.getOutputSize()));
 
             if (options.isShowDamageBar())
-                ItemBarKit.drawDamageBar(buffer, options.getContext().damage(), item.getMaxDurability());
+                ItemStackKit.drawDamageBar(buffer, options.getContext().damage(), item.getMaxDurability());
 
             if (options.getContext().stackCount() > 1)
-                ItemBarKit.drawStackCount(buffer, options.getContext().stackCount(), MinecraftFont.REGULAR);
+                ItemStackKit.drawStackCount(buffer, options.getContext().stackCount(), MinecraftFont.REGULAR);
 
             return engine.finaliseWithGlint(buffer, options.isEnchanted(), GlintKit.GlintOptions.itemDefault(options.getFramesPerSecond()));
         }

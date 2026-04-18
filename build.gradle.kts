@@ -216,7 +216,7 @@ tasks {
     }
 
     register<JavaExec>("testStackCount") {
-        description = "Renders ItemBarKit.drawStackCount over a grey backdrop at several sizes. Use -Plabel=<tag> to write to cache/test-stack-count/<tag>/ or -Pdiff=A,B to pixel-diff two labels."
+        description = "Renders ItemStackKit.drawStackCount over a grey backdrop at several sizes. Use -Plabel=<tag> to write to cache/test-stack-count/<tag>/ or -Pdiff=A,B to pixel-diff two labels."
         group = "tooling"
         mainClass.set("dev.sbs.renderer.tooling.TestStackCountMain")
         classpath = sourceSets["main"].runtimeClasspath
