@@ -110,8 +110,7 @@ public class TextKit {
         if (segment.isObfuscated())
             text = ObfuscationKit.substitute(text, frameSeed);
 
-        int scale = g.scale();
-        int pxPerMcPx = MinecraftFont.MC_PIXEL_SCALE * scale;
+        int pxPerMcPx = MinecraftFont.MC_PIXEL_SCALE;
         MinecraftFont font = MinecraftFont.of(segment.fontStyle());
         int color = resolveColor(segment, defaultArgb);
         int shadow = shadowColor(segment, color);
@@ -129,7 +128,7 @@ public class TextKit {
         int underlineThicknessOut = UNDERLINE_THICKNESS_MCPX * pxPerMcPx;
         int strikeOffsetOut = STRIKETHROUGH_OFFSET_MCPX * pxPerMcPx;
         int underlineOffsetOut = UNDERLINE_OFFSET_MCPX * pxPerMcPx;
-        int decoLeftPadOut = scale; // 1 output pixel * scale of "first character" left padding (vanilla x-1).
+        int decoLeftPadOut = 1; // 1 output pixel of "first character" left padding (vanilla x-1).
 
         // Shadow pass
         g.setFont(font);

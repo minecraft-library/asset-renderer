@@ -32,6 +32,22 @@ public class ItemBarKit {
     private static final float DURABILITY_FULL_HUE_DEGREES = 120f;
 
     /**
+     * X offset from the icon origin to the right edge of the stack count text, in GUI pixels.
+     * Matches vanilla {@code GuiGraphicsExtractor.itemCount}'s {@code x + 19 - 2}, where
+     * {@code 19} is the inventory slot width and {@code 2} is the right-edge inset. For a
+     * standalone 16-wide icon this places the text's right edge 1 GUI pixel past the icon
+     * (the overhang that normally bleeds into the slot border in a full inventory UI).
+     */
+    private static final int STACK_COUNT_RIGHT_GUI = LOGICAL_CANVAS + 1;
+
+    /**
+     * Y offset from the icon origin to the top of the stack count text, in GUI pixels. Matches
+     * vanilla {@code y + 6 + 3}. Text occupies rows 9..17 and extends 1-2 GUI pixels past the
+     * icon bottom, matching vanilla's slot overhang.
+     */
+    private static final int STACK_COUNT_TOP_GUI = 9;
+
+    /**
      * Draws a durability bar at the bottom-left of a GUI item buffer.
      * <p>
      * The bar consists of a 13x1 black background row at logical Y 13, plus a 12x1 foreground row
@@ -68,12 +84,16 @@ public class ItemBarKit {
     }
 
     /**
-     * Draws a stack count in the bottom-right corner of a GUI item buffer using the supplied font.
+     * Draws a stack count in the bottom-right corner of a GUI item buffer using the supplied
+     * font, matching vanilla {@code GuiGraphicsExtractor.itemCount}: white with a drop shadow,
+     * right-aligned so the text ends one GUI pixel past the icon's right edge, top of text at
+     * row 9.
      * <p>
-     * The number is rendered with a one-pixel black drop shadow and the main glyphs in white,
-     * matching vanilla's stack count style. No-op when {@code count <= 1}.
+     * The text is rasterized at the font's native mcPixel resolution into a scratch buffer,
+     * then {@link PixelBuffer#blitScaled} copies that scratch into the target at the icon's
+     * GUI scale. No-op when {@code count <= 1}.
      *
-     * @param buffer the buffer to draw on
+     * @param buffer the buffer to draw on - expected to be a multiple of 16 pixels per side
      * @param count the stack count
      * @param font the font to use for the digits
      */
@@ -81,23 +101,38 @@ public class ItemBarKit {
         if (count <= 1) return;
 
         String text = Integer.toString(count);
-        // `scale` here matches the sampling semantics of MinecraftGraphics: the font is
-        // rasterized at `FONT_POINT_SIZE * scale` so a 256-px-wide buffer (logical 16x16,
-        // scale = 16) renders the digits at 16x their native mcPixel size.
-        int scale = Math.max(1, buffer.width() / LOGICAL_CANVAS);
-        MinecraftGraphics g = new MinecraftGraphics(buffer, scale);
+        int guiScale = Math.max(1, buffer.width() / LOGICAL_CANVAS);
 
-        // Text width in native output pixels = mcPixelWidth * MC_PIXEL_SCALE * scale, which
-        // collapses to measureText(native output-px) * scale.
-        int textWidth = TextKit.measureText(text, font) * scale;
-        int padding = scale;
-        int xOutPx = buffer.width() - textWidth - padding;
-        int yOutPx = buffer.height() - padding;
+        // Text footprint in native (mcPixel) terms.
+        int textWidthMcPx = TextKit.measureTextMcPixels(text, font);
+        int ascentMcPx = font.getFontMetrics().getAscentMcPixels();
+        int descentMcPx = font.getFontMetrics().getDescentMcPixels();
 
-        // MinecraftGraphics.drawString expects mcPixel coords, which it multiplies by
-        // (MC_PIXEL_SCALE * scale) to land on buffer pixels. Invert that here.
-        int pxPerMcPx = MinecraftFont.MC_PIXEL_SCALE * scale;
-        TextKit.drawText(g, text, xOutPx / pxPerMcPx, yOutPx / pxPerMcPx, font, ColorMath.WHITE);
+        // Shadow is 1 mcPx down-right of the main pass, so the scratch needs 1 extra mcPx on
+        // the right + bottom to catch it. The font renders 1 mcPx of left bearing for some
+        // glyphs, so include 1 extra mcPx on the left as safety margin.
+        int shadowPadMcPx = 1;
+        int leftPadMcPx = 1;
+        int scratchWMcPx = leftPadMcPx + textWidthMcPx + shadowPadMcPx;
+        int scratchHMcPx = ascentMcPx + descentMcPx + shadowPadMcPx;
+        int scratchW = scratchWMcPx * MinecraftFont.MC_PIXEL_SCALE;
+        int scratchH = scratchHMcPx * MinecraftFont.MC_PIXEL_SCALE;
+
+        PixelBuffer scratch = PixelBuffer.create(scratchW, scratchH);
+        MinecraftGraphics g = new MinecraftGraphics(scratch);
+        // Draw with the cursor offset by leftPadMcPx and the baseline at ascent-from-top.
+        TextKit.drawText(g, text, leftPadMcPx, ascentMcPx, font, ColorMath.WHITE);
+
+        // Vanilla GUI-pixel anchor: text's right edge at STACK_COUNT_RIGHT_GUI, text top at
+        // STACK_COUNT_TOP_GUI. Convert to actual buffer pixels via guiScale. The scratch's
+        // logical x=0 corresponds to (text left edge - leftPadMcPx), so shift by that pad.
+        int textLeftGui = STACK_COUNT_RIGHT_GUI - textWidthMcPx;
+        int scratchOriginX = (textLeftGui - leftPadMcPx) * guiScale;
+        int scratchOriginY = STACK_COUNT_TOP_GUI * guiScale;
+        int destW = scratchWMcPx * guiScale;
+        int destH = scratchHMcPx * guiScale;
+
+        buffer.blitScaled(scratch, scratchOriginX, scratchOriginY, destW, destH);
     }
 
 }

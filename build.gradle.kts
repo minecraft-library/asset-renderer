@@ -209,12 +209,20 @@ tasks {
     }
 
     register<JavaExec>("testLore") {
-        description = "Renders a pair of SkyBlock-style lore tooltips to cache/test-lore/ at the given supersampling factors (comma-separated, default '1,4')."
+        description = "Renders a pair of SkyBlock-style lore tooltips to cache/test-lore/ for visual inspection."
         group = "tooling"
         mainClass.set("dev.sbs.renderer.tooling.TestLoreMain")
         classpath = sourceSets["main"].runtimeClasspath
-        val samples = project.findProperty("samples") as String?
-        args = if (samples != null) listOf(samples) else listOf()
+    }
+
+    register<JavaExec>("testStackCount") {
+        description = "Renders ItemBarKit.drawStackCount over a grey backdrop at several sizes. Use -Plabel=<tag> to write to cache/test-stack-count/<tag>/ or -Pdiff=A,B to pixel-diff two labels."
+        group = "tooling"
+        mainClass.set("dev.sbs.renderer.tooling.TestStackCountMain")
+        classpath = sourceSets["main"].runtimeClasspath
+        val label = project.findProperty("label") as String?
+        val diff = project.findProperty("diff") as String?
+        args = if (diff != null) listOf("diff=$diff") else if (label != null) listOf(label) else listOf()
     }
 
     register<JavaExec>("testFluid") {

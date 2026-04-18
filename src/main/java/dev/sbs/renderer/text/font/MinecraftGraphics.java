@@ -11,9 +11,13 @@ import java.awt.*;
 /**
  * A {@link PixelGraphics} subclass that renders {@link MinecraftFont} glyphs directly into a
  * {@link PixelBuffer}. Callers pass glyph origins in logical mcPixel space; the graphics applies
- * the {@code mcPixel -> output-pixel} conversion via {@link MinecraftFont#MC_PIXEL_SCALE}, plus
- * an optional integer {@link #scale} pixel-replication factor for GUI-density use cases (e.g.
- * rendering stack counts at 16x native size on a {@code 256x256} item icon).
+ * the {@code mcPixel -> output-pixel} conversion via {@link MinecraftFont#MC_PIXEL_SCALE}.
+ * <p>
+ * Rendering is always at the font's native rasterization (no glyph pixel replication). Callers
+ * that need a larger glyph for GUI-density use cases (e.g. stack counts on a hi-res icon)
+ * should rasterize into a native-size scratch buffer and {@link PixelBuffer#blitScaled} the
+ * result - this keeps glyph compositing in a single blend step while letting the caller choose
+ * the upscale ratio independently.
  *
  * @see MinecraftFont
  * @see PixelGraphics
@@ -23,57 +27,26 @@ public class MinecraftGraphics extends PixelGraphics {
     private @NotNull MinecraftFont currentMcFont;
 
     /**
-     * Glyph pixel-replication factor. {@code 1} renders at the font's native rasterization; {@code >= 2}
-     * replicates each glyph pixel into an {@code s x s} block for GUI-density scaling.
-     */
-    private final int scale;
-
-    /**
-     * Creates a Minecraft graphics context for the given buffer at native scale.
+     * Creates a Minecraft graphics context for the given buffer.
      *
      * @param target the pixel buffer to draw onto
      */
     public MinecraftGraphics(@NotNull PixelBuffer target) {
-        this(target, 1);
-    }
-
-    /**
-     * Creates a Minecraft graphics context with a glyph pixel-replication factor. At
-     * {@code scale = N}, each bitmap pixel of a rendered glyph becomes an {@code N x N} output
-     * block and decoration geometry (line spacing, shadow offsets) is multiplied by the same
-     * factor. This path is a nearest-neighbor replication - no anti-aliasing is added, matching
-     * the Minecraft font's integer-aligned retro aesthetic.
-     *
-     * @param target the pixel buffer to draw onto
-     * @param scale the glyph pixel-replication factor ({@code >= 1})
-     */
-    public MinecraftGraphics(@NotNull PixelBuffer target, int scale) {
         super(target);
         this.currentMcFont = MinecraftFont.REGULAR;
-        this.scale = Math.max(1, scale);
     }
 
     private MinecraftGraphics(@NotNull MinecraftGraphics source) {
         super(source);
         this.currentMcFont = source.currentMcFont;
-        this.scale = source.scale;
-    }
-
-    /**
-     * Returns the glyph pixel-replication factor this graphics is configured with.
-     *
-     * @return the scale factor
-     */
-    public int scale() {
-        return this.scale;
     }
 
     // --- text rendering ---
 
     /**
      * Draws a string at the given mcPixel origin. The baseline sits at {@code yMcPx}; the
-     * cursor starts at {@code xMcPx}. Both are converted to output-pixel coordinates via
-     * {@code mcPx * MinecraftFont.MC_PIXEL_SCALE * scale}.
+     * cursor starts at {@code xMcPx}. Both are converted to buffer coordinates via
+     * {@code mcPx * MinecraftFont.MC_PIXEL_SCALE}.
      *
      * @param str the text to draw
      * @param xMcPx the starting cursor X in mcPixels
@@ -82,7 +55,7 @@ public class MinecraftGraphics extends PixelGraphics {
     @Override
     public void drawString(@NotNull String str, int xMcPx, int yMcPx) {
         if (str.isEmpty()) return;
-        int pxPerMcPx = MinecraftFont.MC_PIXEL_SCALE * this.scale;
+        int pxPerMcPx = MinecraftFont.MC_PIXEL_SCALE;
         int cx = translateX() + xMcPx * pxPerMcPx;
         int cy = translateY() + yMcPx * pxPerMcPx;
 
@@ -90,7 +63,7 @@ public class MinecraftGraphics extends PixelGraphics {
             int cp = str.charAt(i);
             MinecraftFont.GlyphData glyph = this.currentMcFont.glyph(cp);
             blitGlyph(glyph, cx, cy);
-            cx += glyph.advanceWidth() * this.scale;
+            cx += glyph.advanceWidth();
         }
     }
 
@@ -98,8 +71,8 @@ public class MinecraftGraphics extends PixelGraphics {
         PixelBuffer bitmap = glyph.bitmap();
         int bw = bitmap.width();
         int bh = bitmap.height();
-        int gx = x + glyph.bearingX() * this.scale;
-        int gy = y + glyph.bearingY() * this.scale;
+        int gx = x + glyph.bearingX();
+        int gy = y + glyph.bearingY();
         PixelBuffer target = target();
         int tw = target.width();
         int th = target.height();
@@ -115,25 +88,18 @@ public class MinecraftGraphics extends PixelGraphics {
         int clipY1 = clipShape instanceof Rectangle c ? c.y + c.height : th;
 
         for (int by = 0; by < bh; by++) {
+            int py = gy + by;
+            if (py < clipY0 || py >= clipY1) continue;
             for (int bx = 0; bx < bw; bx++) {
                 int pixel = bitmap.getPixel(bx, by);
                 int alpha = ColorMath.alpha(pixel);
                 if (alpha == 0) continue;
+                int px = gx + bx;
+                if (px < clipX0 || px >= clipX1) continue;
 
                 int tinted = ColorMath.pack(alpha, tintR, tintG, tintB);
-
-                for (int sy = 0; sy < this.scale; sy++) {
-                    int py = gy + by * this.scale + sy;
-                    if (py < clipY0 || py >= clipY1) continue;
-
-                    for (int sx = 0; sx < this.scale; sx++) {
-                        int px = gx + bx * this.scale + sx;
-                        if (px < clipX0 || px >= clipX1) continue;
-
-                        int dst = target.getPixel(px, py);
-                        target.setPixel(px, py, ColorMath.blend(tinted, dst, BlendMode.NORMAL));
-                    }
-                }
+                int dst = target.getPixel(px, py);
+                target.setPixel(px, py, ColorMath.blend(tinted, dst, BlendMode.NORMAL));
             }
         }
     }
