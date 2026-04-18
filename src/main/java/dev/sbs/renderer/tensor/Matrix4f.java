@@ -5,9 +5,18 @@ import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * An immutable 4x4 float matrix using row-major layout.
+ * An immutable 4x4 float matrix in row-major layout.
  * <p>
- * Fields are named {@code m{row}{col}} (1-indexed) to match the System.Numerics.Matrix4x4 conventions.
+ * Fields are named {@code m{row}{col}} (1-indexed) to match the System.Numerics.Matrix4x4
+ * convention, which in turn matches the field ordering of typical Minecraft and OpenGL shader
+ * math. Constructed via the {@code create*} factories or the all-args constructor; once built,
+ * a {@link Matrix4f} is never mutated.
+ * <p>
+ * Stays a class (rather than being converted to the mutable-scratch pattern used by
+ * {@link Vector3f} / {@link Vector2f}) because matrices are built once per render - there is no
+ * per-vertex or per-pixel allocation pressure to optimise.
+ *
+ * @see Matrix4fOps
  */
 @Getter
 @RequiredArgsConstructor
@@ -21,15 +30,46 @@ public final class Matrix4f {
         0, 0, 0, 1
     );
 
-    private final float m11, m12, m13, m14; // Row 1
-    private final float m21, m22, m23, m24; // Row 2
-    private final float m31, m32, m33, m34; // Row 3
-    private final float m41, m42, m43, m44; // Row 4
+    /** Row 1, column 1 component. */
+    private final float m11;
+    /** Row 1, column 2 component. */
+    private final float m12;
+    /** Row 1, column 3 component. */
+    private final float m13;
+    /** Row 1, column 4 component. */
+    private final float m14;
+
+    /** Row 2, column 1 component. */
+    private final float m21;
+    /** Row 2, column 2 component. */
+    private final float m22;
+    /** Row 2, column 3 component. */
+    private final float m23;
+    /** Row 2, column 4 component. */
+    private final float m24;
+
+    /** Row 3, column 1 component. */
+    private final float m31;
+    /** Row 3, column 2 component. */
+    private final float m32;
+    /** Row 3, column 3 component. */
+    private final float m33;
+    /** Row 3, column 4 component. */
+    private final float m34;
+
+    /** Row 4, column 1 component. */
+    private final float m41;
+    /** Row 4, column 2 component. */
+    private final float m42;
+    /** Row 4, column 3 component. */
+    private final float m43;
+    /** Row 4, column 4 component. */
+    private final float m44;
 
     /**
      * Creates a rotation matrix from an axis and angle using Rodrigues' rotation formula.
      *
-     * @param axis the rotation axis, which should be normalized
+     * @param axis the rotation axis - must be normalized
      * @param angle the rotation angle in radians
      * @return a new rotation matrix
      */
@@ -113,7 +153,7 @@ public final class Matrix4f {
     /**
      * Creates a uniform scale matrix.
      *
-     * @param uniform the scale factor applied to all axes
+     * @param uniform the scale factor applied to all three axes
      * @return a new scale matrix
      */
     public static @NotNull Matrix4f createScale(float uniform) {
@@ -175,32 +215,34 @@ public final class Matrix4f {
     }
 
     /**
-     * Returns the product of this matrix and the given matrix.
+     * Returns the product {@code this * b} as a new matrix. See {@link Matrix4fOps#multiply} for
+     * a SIMD-accelerated variant used when the caller is already multiplying many matrices per
+     * render.
      *
      * @param b the right-hand matrix
      * @return a new matrix representing the product
      */
     public @NotNull Matrix4f multiply(@NotNull Matrix4f b) {
         return new Matrix4f(
-            m11 * b.m11 + m12 * b.m21 + m13 * b.m31 + m14 * b.m41,
-            m11 * b.m12 + m12 * b.m22 + m13 * b.m32 + m14 * b.m42,
-            m11 * b.m13 + m12 * b.m23 + m13 * b.m33 + m14 * b.m43,
-            m11 * b.m14 + m12 * b.m24 + m13 * b.m34 + m14 * b.m44,
+            this.m11 * b.m11 + this.m12 * b.m21 + this.m13 * b.m31 + this.m14 * b.m41,
+            this.m11 * b.m12 + this.m12 * b.m22 + this.m13 * b.m32 + this.m14 * b.m42,
+            this.m11 * b.m13 + this.m12 * b.m23 + this.m13 * b.m33 + this.m14 * b.m43,
+            this.m11 * b.m14 + this.m12 * b.m24 + this.m13 * b.m34 + this.m14 * b.m44,
 
-            m21 * b.m11 + m22 * b.m21 + m23 * b.m31 + m24 * b.m41,
-            m21 * b.m12 + m22 * b.m22 + m23 * b.m32 + m24 * b.m42,
-            m21 * b.m13 + m22 * b.m23 + m23 * b.m33 + m24 * b.m43,
-            m21 * b.m14 + m22 * b.m24 + m23 * b.m34 + m24 * b.m44,
+            this.m21 * b.m11 + this.m22 * b.m21 + this.m23 * b.m31 + this.m24 * b.m41,
+            this.m21 * b.m12 + this.m22 * b.m22 + this.m23 * b.m32 + this.m24 * b.m42,
+            this.m21 * b.m13 + this.m22 * b.m23 + this.m23 * b.m33 + this.m24 * b.m43,
+            this.m21 * b.m14 + this.m22 * b.m24 + this.m23 * b.m34 + this.m24 * b.m44,
 
-            m31 * b.m11 + m32 * b.m21 + m33 * b.m31 + m34 * b.m41,
-            m31 * b.m12 + m32 * b.m22 + m33 * b.m32 + m34 * b.m42,
-            m31 * b.m13 + m32 * b.m23 + m33 * b.m33 + m34 * b.m43,
-            m31 * b.m14 + m32 * b.m24 + m33 * b.m34 + m34 * b.m44,
+            this.m31 * b.m11 + this.m32 * b.m21 + this.m33 * b.m31 + this.m34 * b.m41,
+            this.m31 * b.m12 + this.m32 * b.m22 + this.m33 * b.m32 + this.m34 * b.m42,
+            this.m31 * b.m13 + this.m32 * b.m23 + this.m33 * b.m33 + this.m34 * b.m43,
+            this.m31 * b.m14 + this.m32 * b.m24 + this.m33 * b.m34 + this.m34 * b.m44,
 
-            m41 * b.m11 + m42 * b.m21 + m43 * b.m31 + m44 * b.m41,
-            m41 * b.m12 + m42 * b.m22 + m43 * b.m32 + m44 * b.m42,
-            m41 * b.m13 + m42 * b.m23 + m43 * b.m33 + m44 * b.m43,
-            m41 * b.m14 + m42 * b.m24 + m43 * b.m34 + m44 * b.m44
+            this.m41 * b.m11 + this.m42 * b.m21 + this.m43 * b.m31 + this.m44 * b.m41,
+            this.m41 * b.m12 + this.m42 * b.m22 + this.m43 * b.m32 + this.m44 * b.m42,
+            this.m41 * b.m13 + this.m42 * b.m23 + this.m43 * b.m33 + this.m44 * b.m43,
+            this.m41 * b.m14 + this.m42 * b.m24 + this.m43 * b.m34 + this.m44 * b.m44
         );
     }
 

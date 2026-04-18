@@ -301,22 +301,39 @@ public class ModelEngine extends TextureEngine {
         float offsetY,
         @NotNull PerspectiveParams perspective
     ) {
-        // SIMD transforms (Task 10) - bit-identical to Vector3f.transform/transformNormal under
-        // IEEE-754 round-to-nearest-even but perform one horizontal 4-lane accumulation instead
-        // of three scalar dot products. This is the per-vertex hot path: fires 4x per triangle
-        // (3 positions + 1 normal) on every rasterize call, so it dominates Pass 1 cost on
-        // high-triangle models.
-        Vector3f p0 = Vector3fOps.transform(triangle.position0(), transform);
-        Vector3f p1 = Vector3fOps.transform(triangle.position1(), transform);
-        Vector3f p2 = Vector3fOps.transform(triangle.position2(), transform);
-        Vector3f normal = Vector3f.normalize(Vector3fOps.transformNormal(triangle.normal(), transform));
+        // Task C: per-vertex scratches reused within this single projectTriangle call. Pass 1
+        // runs in a parallelStream so each call gets its own stack frame - the scratches are
+        // thread-confined by construction. Before the projected values cross into `Projected`
+        // (which Pass 2's parallel tile workers read concurrently), each scratch is frozen via
+        // .toImmutable() so any accidental setX() on the consumer side throws loud instead of
+        // silently racing. SIMD transform paths (Task 10) stay bit-identical per IEEE-754
+        // round-to-nearest-even; all four CRC-pinned regression tests stay green.
+        Vector3f p0 = new Vector3f();
+        Vector3f p1 = new Vector3f();
+        Vector3f p2 = new Vector3f();
+        Vector3f normalScratch = new Vector3f();
+        Vector2f s0 = new Vector2f();
+        Vector2f s1 = new Vector2f();
+        Vector2f s2 = new Vector2f();
 
-        Vector2f s0 = RenderEngine.projectPerspective(p0, scale, offsetX, offsetY, perspective);
-        Vector2f s1 = RenderEngine.projectPerspective(p1, scale, offsetX, offsetY, perspective);
-        Vector2f s2 = RenderEngine.projectPerspective(p2, scale, offsetX, offsetY, perspective);
+        Vector3fOps.transformInto(triangle.position0(), transform, p0);
+        Vector3fOps.transformInto(triangle.position1(), transform, p1);
+        Vector3fOps.transformInto(triangle.position2(), transform, p2);
+        Vector3fOps.transformNormalInto(triangle.normal(), transform, normalScratch);
+
+        RenderEngine.projectPerspectiveInto(p0, scale, offsetX, offsetY, perspective, s0);
+        RenderEngine.projectPerspectiveInto(p1, scale, offsetX, offsetY, perspective, s1);
+        RenderEngine.projectPerspectiveInto(p2, scale, offsetX, offsetY, perspective, s2);
 
         if (triangle.cullBackFaces() && isBackFacing(s0, s1, s2)) return null;
-        return new Projected(triangle, p0, p1, p2, s0, s1, s2, normal);
+
+        Vector3f normal = Vector3f.normalize(normalScratch).toImmutable();
+        return new Projected(
+            triangle,
+            p0.toImmutable(), p1.toImmutable(), p2.toImmutable(),
+            s0.toImmutable(), s1.toImmutable(), s2.toImmutable(),
+            normal
+        );
     }
 
     /**

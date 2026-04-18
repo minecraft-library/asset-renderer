@@ -11,7 +11,12 @@ import org.jetbrains.annotations.Nullable;
 import java.io.IOException;
 
 /**
- * An immutable four-component float vector, used primarily for UV coordinate ranges.
+ * An immutable four-component float vector, used primarily to carry UV rectangles (where the
+ * {@code (x, y)} pair is the min corner and the {@code (z, w)} pair is the max corner).
+ * <p>
+ * Stays a record because no per-render hot path exercises {@link Vector4f} - unlike
+ * {@link Vector3f} / {@link Vector2f}, there is no allocation pressure to justify the
+ * mutable-class + {@code Immutable} subclass pattern.
  */
 public record Vector4f(float x, float y, float z, float w) {
 
@@ -25,7 +30,7 @@ public record Vector4f(float x, float y, float z, float w) {
      * @return a new vector representing the sum
      */
     public @NotNull Vector4f add(@NotNull Vector4f other) {
-        return new Vector4f(x + other.x, y + other.y, z + other.z, w + other.w);
+        return new Vector4f(this.x + other.x, this.y + other.y, this.z + other.z, this.w + other.w);
     }
 
     /**
@@ -35,7 +40,7 @@ public record Vector4f(float x, float y, float z, float w) {
      * @return a new scaled vector
      */
     public @NotNull Vector4f multiply(float scalar) {
-        return new Vector4f(x * scalar, y * scalar, z * scalar, w * scalar);
+        return new Vector4f(this.x * scalar, this.y * scalar, this.z * scalar, this.w * scalar);
     }
 
     /**
@@ -45,16 +50,19 @@ public record Vector4f(float x, float y, float z, float w) {
      * @return a new vector representing the difference
      */
     public @NotNull Vector4f subtract(@NotNull Vector4f other) {
-        return new Vector4f(x - other.x, y - other.y, z - other.z, w - other.w);
+        return new Vector4f(this.x - other.x, this.y - other.y, this.z - other.z, this.w - other.w);
     }
 
     /**
-     * Creates a four-element UV coordinate array from this UV rectangle, applying the given rotation.
+     * Builds a four-element UV coordinate map from this UV rectangle, applying the given face
+     * rotation.
+     * <p>
+     * Treats {@code (x, y)} as the UV min and {@code (z, w)} as the UV max in vanilla's 0-16
+     * space. Each resulting {@link Vector2f} is normalized to {@code [0, 1]} by dividing both
+     * components by 16. The rotation must be a multiple of 90 degrees; any other value is
+     * treated as 0.
      *
-     * <p>Treats (x, y) as the UV min and (z, w) as the UV max in 0-16 space.
-     * Each resulting {@link Vector2f} contains normalized UV coordinates (divided by 16).
-     *
-     * @param faceRotationDegrees the rotation in degrees (must be a multiple of 90)
+     * @param faceRotationDegrees the face rotation in degrees - must be a multiple of 90
      * @return an array of four {@link Vector2f} UV coordinates, one per vertex
      */
     public @NotNull Vector2f @NotNull [] createUvMap(int faceRotationDegrees) {
@@ -71,7 +79,7 @@ public record Vector4f(float x, float y, float z, float w) {
         for (int i = 0; i < 4; i++) {
             float u = uvU(quadrant, i) / 16f;
             float v = uvV(quadrant, i) / 16f;
-            map[i] = new Vector2f(u, v);
+            map[i] = new Vector2f(u, v).toImmutable();
         }
 
         return map;
@@ -79,12 +87,12 @@ public record Vector4f(float x, float y, float z, float w) {
 
     private float uvU(int rotationQuadrant, int vertexIndex) {
         int shifted = (vertexIndex + rotationQuadrant) % 4;
-        return (shifted != 0 && shifted != 1) ? z : x;
+        return (shifted != 0 && shifted != 1) ? this.z : this.x;
     }
 
     private float uvV(int rotationQuadrant, int vertexIndex) {
         int shifted = (vertexIndex + rotationQuadrant) % 4;
-        return (shifted != 0 && shifted != 3) ? w : y;
+        return (shifted != 0 && shifted != 3) ? this.w : this.y;
     }
 
     /**

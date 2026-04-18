@@ -7,26 +7,31 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * SIMD-accelerated equivalent of {@link Matrix4f#multiply} that uses the JDK incubator Vector
- * API ({@link FloatVector#SPECIES_128}, 4-lane) to compute one output row per SIMD accumulation.
+ * API ({@link FloatVector#SPECIES_128}, 4-lane) to compute one output row per SIMD
+ * accumulation.
  * <p>
- * Matrix multiplication naturally maps to row-parallel SIMD: every output row is a linear
- * combination of rows of the right-hand matrix, weighted by the corresponding row of the left
- * matrix. Scalar {@link Matrix4f#multiply} does 16 output elements x 4 mul-adds each = 64 muls
- * + 48 adds; this variant does 16 SIMD muls + 12 SIMD adds, each operating on four lanes in
- * parallel.
+ * Matrix multiplication maps naturally to row-parallel SIMD: every output row is a linear
+ * combination of the right-hand matrix's rows, weighted by the corresponding row of the
+ * left-hand matrix. Scalar {@link Matrix4f#multiply} performs 16 output elements x 4 mul-adds
+ * each = 64 muls + 48 adds; this variant performs 16 SIMD muls + 12 SIMD adds, each operating
+ * on four lanes in parallel.
  * <p>
- * Operation order matches scalar: every output lane's accumulation is
- * {@code ((a{i,1}*b{1,j} + a{i,2}*b{2,j}) + a{i,3}*b{3,j}) + a{i,4}*b{4,j}} - identical
+ * Operation order matches scalar exactly: every output lane's accumulation is
+ * {@code ((a{i,1} * b{1,j} + a{i,2} * b{2,j}) + a{i,3} * b{3,j}) + a{i,4} * b{4,j}} - identical
  * operands and identical rounding points to scalar multiply, so the result is bit-identical
  * under IEEE-754 round-to-nearest-even.
+ *
+ * @see Matrix4f
+ * @see Vector3fOps
  */
 @UtilityClass
 public class Matrix4fOps {
 
+    /** 4-lane float species used for all matrix-row loads in this class. */
     private static final @NotNull VectorSpecies<Float> SPECIES = FloatVector.SPECIES_128;
 
     /**
-     * Returns {@code a * b}. Bit-identical to {@link Matrix4f#multiply(Matrix4f)}.
+     * Returns the product {@code a * b}. Bit-identical to {@link Matrix4f#multiply(Matrix4f)}.
      *
      * @param a the left-hand matrix
      * @param b the right-hand matrix
@@ -51,6 +56,11 @@ public class Matrix4fOps {
         );
     }
 
+    /**
+     * Builds a four-lane {@link FloatVector} from four scalar components. The temporary array
+     * does not escape the method, so HotSpot escape analysis routinely stack-allocates it -
+     * no heap pressure under sustained use.
+     */
     private static @NotNull FloatVector rowVector(float a, float b, float c, float d) {
         float[] lanes = { a, b, c, d };
         return FloatVector.fromArray(SPECIES, lanes, 0);

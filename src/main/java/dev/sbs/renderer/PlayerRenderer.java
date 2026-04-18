@@ -326,33 +326,34 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     // 3D helpers - body part positions for each type.
     // ---------------------------------------------------------------------------------------
 
-    // Skull: unit head cube.
-    private static final Vector3f SKULL_HEAD_MIN = new Vector3f(-0.5f, -0.5f, -0.5f);
-    private static final Vector3f SKULL_HEAD_MAX = new Vector3f(0.5f, 0.5f, 0.5f);
+    // Skull: unit head cube. Corners are .toImmutable() so shared constants cannot be mutated
+    // by a downstream consumer (Vector3f is mutable by default after Task C).
+    private static final Vector3f SKULL_HEAD_MIN = new Vector3f(-0.5f, -0.5f, -0.5f).toImmutable();
+    private static final Vector3f SKULL_HEAD_MAX = new Vector3f(0.5f, 0.5f, 0.5f).toImmutable();
 
     // Bust: head + torso, matching the original PlayerBust3D proportions.
-    private static final Vector3f BUST_HEAD_MIN = new Vector3f(-0.25f, 0.1f, -0.25f);
-    private static final Vector3f BUST_HEAD_MAX = new Vector3f(0.25f, 0.6f, 0.25f);
-    private static final Vector3f BUST_TORSO_MIN = new Vector3f(-0.2f, -0.4f, -0.1f);
-    private static final Vector3f BUST_TORSO_MAX = new Vector3f(0.2f, 0.1f, 0.1f);
-    private static final Vector3f BUST_R_ARM_MIN = new Vector3f(-0.33f, -0.4f, -0.1f);
-    private static final Vector3f BUST_R_ARM_MAX = new Vector3f(-0.2f, 0.1f, 0.1f);
-    private static final Vector3f BUST_L_ARM_MIN = new Vector3f(0.2f, -0.4f, -0.1f);
-    private static final Vector3f BUST_L_ARM_MAX = new Vector3f(0.33f, 0.1f, 0.1f);
+    private static final Vector3f BUST_HEAD_MIN = new Vector3f(-0.25f, 0.1f, -0.25f).toImmutable();
+    private static final Vector3f BUST_HEAD_MAX = new Vector3f(0.25f, 0.6f, 0.25f).toImmutable();
+    private static final Vector3f BUST_TORSO_MIN = new Vector3f(-0.2f, -0.4f, -0.1f).toImmutable();
+    private static final Vector3f BUST_TORSO_MAX = new Vector3f(0.2f, 0.1f, 0.1f).toImmutable();
+    private static final Vector3f BUST_R_ARM_MIN = new Vector3f(-0.33f, -0.4f, -0.1f).toImmutable();
+    private static final Vector3f BUST_R_ARM_MAX = new Vector3f(-0.2f, 0.1f, 0.1f).toImmutable();
+    private static final Vector3f BUST_L_ARM_MIN = new Vector3f(0.2f, -0.4f, -0.1f).toImmutable();
+    private static final Vector3f BUST_L_ARM_MAX = new Vector3f(0.33f, 0.1f, 0.1f).toImmutable();
 
     // Full body: 1 MC pixel = 1/32 model unit, centred vertically.
-    private static final Vector3f FULL_HEAD_MIN = new Vector3f(-0.12f, 0.24f, -0.12f);
-    private static final Vector3f FULL_HEAD_MAX = new Vector3f(0.12f, 0.48f, 0.12f);
-    private static final Vector3f FULL_TORSO_MIN = new Vector3f(-0.12f, -0.12f, -0.06f);
-    private static final Vector3f FULL_TORSO_MAX = new Vector3f(0.12f, 0.24f, 0.06f);
-    private static final Vector3f FULL_R_ARM_MIN = new Vector3f(-0.24f, -0.12f, -0.06f);
-    private static final Vector3f FULL_R_ARM_MAX = new Vector3f(-0.12f, 0.24f, 0.06f);
-    private static final Vector3f FULL_L_ARM_MIN = new Vector3f(0.12f, -0.12f, -0.06f);
-    private static final Vector3f FULL_L_ARM_MAX = new Vector3f(0.24f, 0.24f, 0.06f);
-    private static final Vector3f FULL_R_LEG_MIN = new Vector3f(-0.12f, -0.48f, -0.06f);
-    private static final Vector3f FULL_R_LEG_MAX = new Vector3f(0.0f, -0.12f, 0.06f);
-    private static final Vector3f FULL_L_LEG_MIN = new Vector3f(0.0f, -0.48f, -0.06f);
-    private static final Vector3f FULL_L_LEG_MAX = new Vector3f(0.12f, -0.12f, 0.06f);
+    private static final Vector3f FULL_HEAD_MIN = new Vector3f(-0.12f, 0.24f, -0.12f).toImmutable();
+    private static final Vector3f FULL_HEAD_MAX = new Vector3f(0.12f, 0.48f, 0.12f).toImmutable();
+    private static final Vector3f FULL_TORSO_MIN = new Vector3f(-0.12f, -0.12f, -0.06f).toImmutable();
+    private static final Vector3f FULL_TORSO_MAX = new Vector3f(0.12f, 0.24f, 0.06f).toImmutable();
+    private static final Vector3f FULL_R_ARM_MIN = new Vector3f(-0.24f, -0.12f, -0.06f).toImmutable();
+    private static final Vector3f FULL_R_ARM_MAX = new Vector3f(-0.12f, 0.24f, 0.06f).toImmutable();
+    private static final Vector3f FULL_L_ARM_MIN = new Vector3f(0.12f, -0.12f, -0.06f).toImmutable();
+    private static final Vector3f FULL_L_ARM_MAX = new Vector3f(0.24f, 0.24f, 0.06f).toImmutable();
+    private static final Vector3f FULL_R_LEG_MIN = new Vector3f(-0.12f, -0.48f, -0.06f).toImmutable();
+    private static final Vector3f FULL_R_LEG_MAX = new Vector3f(0.0f, -0.12f, 0.06f).toImmutable();
+    private static final Vector3f FULL_L_LEG_MIN = new Vector3f(0.0f, -0.48f, -0.06f).toImmutable();
+    private static final Vector3f FULL_L_LEG_MAX = new Vector3f(0.12f, -0.12f, 0.06f).toImmutable();
 
     private static final float OVERLAY_INFLATE = 0.01f;
 
