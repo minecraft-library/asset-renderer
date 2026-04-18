@@ -13,6 +13,24 @@ java {
     }
 }
 
+// JDK 21 Vector API (jdk.incubator.vector) unlocks FloatVector SIMD math used by
+// dev.sbs.renderer.tensor.Vector3fOps / Matrix4fOps in ModelEngine's Pass 1 and by
+// PortalRenderer's layer-transform inner loop. The incubator module must be added to
+// the module path at both compile time AND every JVM invocation that loads our code
+// (test, JavaExec tooling tasks, JMH forks) - missing it anywhere produces a clean
+// class-not-found-at-load failure rather than silent fallback.
+val addVectorModuleArg = "--add-modules=jdk.incubator.vector"
+
+tasks.withType<JavaCompile>().configureEach {
+    options.compilerArgs.add(addVectorModuleArg)
+}
+tasks.withType<Test>().configureEach {
+    jvmArgs(addVectorModuleArg)
+}
+tasks.withType<JavaExec>().configureEach {
+    jvmArgs(addVectorModuleArg)
+}
+
 repositories {
     mavenCentral()
     maven(url = "https://central.sonatype.com/repository/maven-snapshots")
@@ -247,6 +265,7 @@ jmh {
     // -PjmhInclude=FluidAnimationBenchmark to limit to a single class.
     includes.set(listOf((project.findProperty("jmhInclude") as String?) ?: ".*"))
     // Keep the JVM small for benchmarks so allocator/GC behaviour is representative
-    // of the CLI workload rather than a bloated dev-only heap.
-    jvmArgs.set(listOf("-Xmx2g"))
+    // of the CLI workload rather than a bloated dev-only heap. Include the incubator
+    // Vector API module so FloatVector classes resolve in JMH forks.
+    jvmArgs.set(listOf("-Xmx2g", "--add-modules=jdk.incubator.vector"))
 }
