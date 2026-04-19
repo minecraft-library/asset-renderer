@@ -39,11 +39,21 @@ import java.util.Optional;
 @UtilityClass
 public final class TestFluidMain {
 
+    /** Output directory for all fluid renders. */
     private static final Path OUTPUT_DIR = Path.of("cache/test-fluid");
 
+    /** Square edge length (pixels) used for static renders. */
     private static final int STATIC_SIZE = 512;
+
+    /** Square edge length (pixels) used for animated renders; smaller to keep GIF file sizes sane. */
     private static final int ANIMATED_SIZE = 256;
 
+    /**
+     * Runs the test matrix.
+     *
+     * @param args ignored
+     * @throws IOException if the output directory cannot be created or a render cannot be written
+     */
     public static void main(String @NotNull [] args) throws IOException {
         Files.createDirectories(OUTPUT_DIR);
 
@@ -134,6 +144,11 @@ public final class TestFluidMain {
         System.out.println("Done. Outputs in " + OUTPUT_DIR.toAbsolutePath());
     }
 
+    /**
+     * Renders one fluid output, writing it to {@code <OUTPUT_DIR>/<slug>.{png|gif}} and printing
+     * a timing + dimension summary line. Animated renders go to GIF with a transparent palette;
+     * static renders go to PNG.
+     */
     private static void render(
         @NotNull FluidRenderer renderer,
         @NotNull ImageFactory imageFactory,

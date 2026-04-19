@@ -65,6 +65,13 @@ public final class ToolingAtlasDiagnose {
      */
     private static final double SPARSE_CONTENT_THRESHOLD = 0.02;
 
+    /**
+     * Runs the diagnoser.
+     *
+     * @param args optional {@code --source-filter=<name>} flag plus an optional output directory
+     *     ({@code build/atlas} by default)
+     * @throws IOException if the atlas image, sidecar JSON, or diagnostic outputs cannot be read or written
+     */
     public static void main(String @NotNull [] args) throws IOException {
         Path root = Path.of("build/atlas");
         String sourceFilter = null;

@@ -47,6 +47,7 @@ import java.util.zip.ZipFile;
 @UtilityClass
 public final class ToolingPotionColors {
 
+    /** Fixed output path for the bundled potion-colour resource. */
     private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/renderer/potion_colors.json");
 
     /**

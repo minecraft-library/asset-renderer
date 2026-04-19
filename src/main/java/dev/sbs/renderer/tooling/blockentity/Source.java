@@ -31,10 +31,33 @@ public record Source(
     int @Nullable [] paramIntValues
 ) {
 
+    /**
+     * Convenience constructor for sources whose parsed method calls {@code LayerDefinition.create}
+     * itself (so texture dimensions are extracted from bytecode) and takes no int parameter.
+     *
+     * @param classEntry the zip entry of the source class
+     * @param methodName the name of the method to parse
+     * @param entityId the output model id
+     * @param yAxis the Y axis convention used by the source bytecode
+     * @param inventoryYRotation the GUI-facing yaw applied at render time
+     */
     public Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation) {
         this(classEntry, methodName, entityId, yAxis, inventoryYRotation, null, null, null);
     }
 
+    /**
+     * Convenience constructor for sources that need explicit texture dimensions (typically a
+     * {@code MeshDefinition} factory wrapped in {@code LayerDefinition.create(mesh, W, H)} by
+     * the caller) but take no int parameter.
+     *
+     * @param classEntry the zip entry of the source class
+     * @param methodName the name of the method to parse
+     * @param entityId the output model id
+     * @param yAxis the Y axis convention used by the source bytecode
+     * @param inventoryYRotation the GUI-facing yaw applied at render time
+     * @param texWidthOverride the texture width override
+     * @param texHeightOverride the texture height override
+     */
     public Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation, @Nullable Integer texWidthOverride, @Nullable Integer texHeightOverride) {
         this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, null);
     }

@@ -42,6 +42,12 @@ public final class TestStackCountMain {
     /** Mid-light grey backdrop: white main stands out against grey, dark grey shadow stays visible. */
     private static final int BG_ARGB = 0xFF808080;
 
+    /**
+     * Dispatches to either render or diff mode based on {@code args[0]}.
+     *
+     * @param args {@code diff=<labelA>,<labelB>} runs the pixel diff; any other value (or absence) is treated as a label and renders every {@code (size, count)} pair under that label's directory
+     * @throws IOException if the output directory cannot be created or a render cannot be written
+     */
     public static void main(String @NotNull [] args) throws IOException {
         Files.createDirectories(OUTPUT_DIR);
 

@@ -638,18 +638,21 @@ public final class BlockListDiscovery {
         return handle.getOwner();
     }
 
+    /** Looks up a {@code lambda$static$N} method on {@code owner} by name. */
     private static @Nullable MethodNode findLambda(@NotNull ClassNode owner, @NotNull String lambdaName) {
         for (MethodNode m : owner.methods)
             if (m.name.equals(lambdaName)) return m;
         return null;
     }
 
+    /** Returns the internal name of the first {@code NEW} type-insn in {@code lambda}'s body. */
     private static @Nullable String findLambdaNewClass(@NotNull MethodNode lambda) {
         for (AbstractInsnNode in = lambda.instructions.getFirst(); in != null; in = in.getNext())
             if (in instanceof TypeInsnNode ti && ti.getOpcode() == Opcodes.NEW) return ti.desc;
         return null;
     }
 
+    /** Returns the first {@code GETSTATIC} field name on {@code enumInternal} within {@code lambda}. */
     private static @Nullable String findFirstEnumGetstatic(@NotNull MethodNode lambda, @NotNull String enumInternal) {
         for (AbstractInsnNode in = lambda.instructions.getFirst(); in != null; in = in.getNext())
             if (in instanceof FieldInsnNode fi && fi.getOpcode() == Opcodes.GETSTATIC && fi.owner.equals(enumInternal))
@@ -763,6 +766,7 @@ public final class BlockListDiscovery {
         return out;
     }
 
+    /** Strips a leading {@code textures/} and trailing {@code .png} from a string, returning whatever remains. */
     private static @NotNull String stripTexturesPrefixAndPngSuffix(@NotNull String s) {
         String trimmed = s;
         if (trimmed.startsWith("textures/")) trimmed = trimmed.substring("textures/".length());
@@ -836,6 +840,10 @@ public final class BlockListDiscovery {
         return out;
     }
 
+    /**
+     * Locates {@code SkullBlockRenderer}'s {@code lambda$static$N(HashMap)} helper - the
+     * lambda that populates the {@code SKIN_BY_TYPE} map inside {@code Util.make}.
+     */
     private static @Nullable MethodNode findSkullStaticLambda(@NotNull ClassNode cn) {
         // The lambda signature is (Ljava/util/HashMap;)V - it populates a freshly-built HashMap
         // passed in via Util.make.
@@ -1213,6 +1221,11 @@ public final class BlockListDiscovery {
         }
     }
 
+    /**
+     * Shared adapter body for the two sign families. Walks the BE type's {@code validBlocks},
+     * matches each block to its {@code WoodType}, and emits a texture id with the supplied
+     * prefix.
+     */
     @UtilityClass
     private static final class SignLike {
         static @NotNull EntityBlockMapping discover(

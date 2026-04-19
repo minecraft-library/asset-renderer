@@ -26,6 +26,7 @@ import java.nio.file.Path;
 @UtilityClass
 public final class TestRenderItemMain {
 
+    /** Default item id list when no {@code args[0]} is supplied; mixes plain items with trim variants. */
     private static final String[] ITEM_TEST_1 = {
         "minecraft:diamond_sword",
         "minecraft:iron_chestplate",
@@ -37,6 +38,13 @@ public final class TestRenderItemMain {
         "minecraft:compass"
     };
 
+    /**
+     * Runs the item renders.
+     *
+     * @param args {@code args[0]} is an optional semicolon-separated list of item ids;
+     *     {@code args[1]} is an optional render size (defaults to 256)
+     * @throws IOException if the output directory cannot be created or a render cannot be written
+     */
     public static void main(String @NotNull [] args) throws IOException {
         String[] itemIds = args.length > 0
             ? args[0].split(";")

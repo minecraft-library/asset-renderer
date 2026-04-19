@@ -34,9 +34,13 @@ import java.util.Locale;
 @UtilityClass
 public final class TestPortalMain {
 
+    /** Output directory for all portal renders. */
     private static final Path OUTPUT_DIR = Path.of("cache/test-portal");
 
+    /** Square edge length (pixels) used for static renders. */
     private static final int STATIC_SIZE = 512;
+
+    /** Square edge length (pixels) used for animated renders. */
     private static final int ANIMATED_SIZE = 256;
 
     /**
@@ -45,6 +49,12 @@ public final class TestPortalMain {
      */
     private static final int ANIMATED_FRAME_COUNT = 120;
 
+    /**
+     * Runs the test matrix.
+     *
+     * @param args ignored
+     * @throws IOException if the output directory cannot be created or a render cannot be written
+     */
     public static void main(String @NotNull [] args) throws IOException {
         Files.createDirectories(OUTPUT_DIR);
 
@@ -84,6 +94,12 @@ public final class TestPortalMain {
         System.out.println("Done. Outputs in " + OUTPUT_DIR.toAbsolutePath());
     }
 
+    /**
+     * Renders one portal output, writing it to {@code <OUTPUT_DIR>/<slug>.{png|webp}} and
+     * printing a timing + dimension summary line. Animated renders go to lossless WebP (GIF's
+     * palette dithers the continuous-tone shader into visible streaks); static renders go to
+     * PNG.
+     */
     private static void render(
         @NotNull PortalRenderer renderer,
         @NotNull ImageFactory imageFactory,

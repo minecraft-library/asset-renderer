@@ -77,6 +77,7 @@ public final class InventoryTransformDecomposer {
 
     private static final @NotNull Map<String, String> RENDERER_ENTRY_METHODS = buildRendererEntryMethods();
 
+    /** Builds the {@link #RENDERER_ENTRY_METHODS} table mapping renderer internal name to factory entry. */
     private static @NotNull Map<String, String> buildRendererEntryMethods() {
         Map<String, String> m = new LinkedHashMap<>();
         m.put("net/minecraft/client/renderer/blockentity/BedRenderer", "createModelTransform");
@@ -447,6 +448,7 @@ public final class InventoryTransformDecomposer {
         return nearUnit(mod, 0f) || nearUnit(mod, 180f);
     }
 
+    /** {@code true} when {@code a} is within {@link #UNIT_EPS} of {@code target}. */
     private static boolean nearUnit(float a, float target) {
         return Math.abs(a - target) < UNIT_EPS;
     }

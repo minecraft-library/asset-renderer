@@ -28,6 +28,7 @@ import java.nio.file.Path;
 @UtilityClass
 public final class TestRenderMain {
 
+    /** Alternate default block id list (standard full cubes + faced furnace + piston). */
     private static final String[] BLOCK_TEST_1 = {
         "minecraft:tnt",
         "minecraft:crafting_table",
@@ -36,6 +37,7 @@ public final class TestRenderMain {
         "minecraft:piston"
     };
 
+    /** Default block id list when no {@code args[0]} is supplied (mix of non-full cube shapes). */
     private static final String[] BLOCK_TEST_2 = {
         "minecraft:cake",
         "minecraft:oak_stairs",
@@ -44,6 +46,14 @@ public final class TestRenderMain {
         "minecraft:brewing_stand_bottle1"
     };
 
+    /**
+     * Runs the block renders.
+     *
+     * @param args {@code args[0]} is an optional semicolon-separated list of block specs (id
+     *     plus optional {@code [variant=foo]} suffix); {@code args[1]} is an optional render
+     *     size (defaults to 512); {@code args[2]} is an optional supersample factor (defaults to 2)
+     * @throws IOException if the output directory cannot be created or a render cannot be written
+     */
     public static void main(String @NotNull [] args) throws IOException {
         String[] blockIds = args.length > 0
             ? args[0].split(";")

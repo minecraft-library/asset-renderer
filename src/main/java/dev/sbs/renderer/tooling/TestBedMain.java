@@ -41,10 +41,17 @@ import java.util.Optional;
 @UtilityClass
 public final class TestBedMain {
 
+    /** Root of the mc-assets repository's hand-curated bed block-model JSONs used as ground truth. */
     private static final Path MC_ASSETS_BED = Path.of(
         "cache/mc-assets/mc-assets-main/custom/blockentities/latest/blockModels/block/bed"
     );
 
+    /**
+     * Runs the comparison.
+     *
+     * @param args {@code args[0]} is an optional edge length in pixels (defaults to 1024)
+     * @throws IOException if the output directory cannot be created or a render cannot be written
+     */
     public static void main(String @NotNull [] args) throws IOException {
         int size = args.length > 0 ? Integer.parseInt(args[0]) : 1024;
 
@@ -69,6 +76,11 @@ public final class TestBedMain {
         System.out.println("Done. Compare pipeline vs mc_assets versions.");
     }
 
+    /**
+     * Renders one block through the pipeline's entity-model path and writes it to {@code out}.
+     * Runtime exceptions are caught and reported to {@code stderr} so a single failure doesn't
+     * abort the whole comparison matrix.
+     */
     private static void render(@NotNull BlockRenderer renderer, @NotNull String blockId, int size, @NotNull Path out) throws IOException {
         System.out.printf("Rendering %s (pipeline)...%n", blockId);
         try {
@@ -85,7 +97,7 @@ public final class TestBedMain {
     /**
      * Loads mc-assets bed_head + bed_foot JSON, merges elements (foot Z+16), resolves the
      * bed texture, builds triangles via {@link GeometryKit#buildFromElements}, and rasterizes
-     * with the standard isometric engine. Pure block model rendering — no entity pipeline.
+     * with the standard isometric engine. Pure block model rendering - no entity pipeline.
      */
     private static void renderMcAssetsBed(@NotNull PipelineRendererContext context, int size, @NotNull Path out) throws IOException {
         System.out.println("Rendering mc-assets bed (block model path)...");
@@ -103,7 +115,7 @@ public final class TestBedMain {
         parseElements(headJson.getAsJsonArray("elements"), elements, 0f);
         parseElements(footJson.getAsJsonArray("elements"), elements, 16f);
 
-        // Build triangles — "#bed" maps to the bed texture
+        // Build triangles - "#bed" maps to the bed texture
         ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
         faceTextures.put("#bed", texture);
         ConcurrentList<VisibleTriangle> triangles = GeometryKit.buildFromElements(elements, faceTextures, ColorMath.WHITE);
@@ -130,7 +142,7 @@ public final class TestBedMain {
 
         // Re-center and scale: the combined bed spans 2 blocks, so buildFromElements' single-block
         // centering is off. Compute AABB and recenter + scale to fit 0.9 extent.
-        // Larger fit extent since the bed spans 2 blocks — 1.4 fills the tile well
+        // Larger fit extent since the bed spans 2 blocks - 1.4 fills the tile well
         ConcurrentList<VisibleTriangle> centered = recenterAndFit(rotated, 1.4f);
 
         // Rasterize with standard isometric engine
@@ -164,7 +176,7 @@ public final class TestBedMain {
         System.out.printf("  Built %d triangles from mc-assets chest model%n", triangles.size());
         if (triangles.isEmpty()) { System.err.println("  FAILED: zero triangles"); return; }
 
-        // No rotation needed — mc-assets chest already faces the correct direction
+        // No rotation needed - mc-assets chest already faces the correct direction
         dev.sbs.renderer.tensor.Matrix4f rotY = dev.sbs.renderer.tensor.Matrix4f.IDENTITY;
         ConcurrentList<VisibleTriangle> rotated = Concurrent.newList();
         for (VisibleTriangle t : triangles) {
@@ -253,6 +265,11 @@ public final class TestBedMain {
         }
     }
 
+    /**
+     * Recomputes the triangle AABB, centres it at origin, and scales it so the longest axis
+     * spans {@code fitExtent}. Used on the merged bed model which covers two blocks and would
+     * otherwise extend past the standard single-block framing.
+     */
     private static @NotNull ConcurrentList<VisibleTriangle> recenterAndFit(
         @NotNull ConcurrentList<VisibleTriangle> triangles, float fitExtent
     ) {
@@ -282,12 +299,14 @@ public final class TestBedMain {
         return out;
     }
 
+    /** Subtracts {@code (cx, cy, cz)} from {@code v}, then uniformly scales by {@code s}. */
     private static dev.sbs.renderer.tensor.@NotNull Vector3f scaleV(
         dev.sbs.renderer.tensor.@NotNull Vector3f v, float cx, float cy, float cz, float s
     ) {
         return new dev.sbs.renderer.tensor.Vector3f((v.x() - cx) * s, (v.y() - cy) * s, (v.z() - cz) * s);
     }
 
+    /** Reads a 3-float array field from {@code obj}. */
     private static float[] readF3(@NotNull JsonObject obj, @NotNull String key) {
         JsonArray a = obj.getAsJsonArray(key);
         return new float[]{ a.get(0).getAsFloat(), a.get(1).getAsFloat(), a.get(2).getAsFloat() };

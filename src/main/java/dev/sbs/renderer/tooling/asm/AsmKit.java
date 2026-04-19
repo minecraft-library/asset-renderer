@@ -327,6 +327,8 @@ public final class AsmKit {
         private final @NotNull ConcurrentList<Object> entries = Concurrent.newList();
 
         /**
+         * Constructs a new {@code LiteralStack} with the given retention capacity.
+         *
          * @param capacity the maximum number of retained entries; overflow evicts the oldest
          */
         public LiteralStack(int capacity) {
