@@ -219,7 +219,6 @@ public final class TestBedMain {
                 JsonObject f = e.getValue().getAsJsonObject();
                 JsonArray uv = f.getAsJsonArray("uv");
 
-                ModelFace face = new ModelFace();
                 // Use reflection-free approach: set fields via Gson roundtrip
                 JsonObject faceJson = new JsonObject();
                 faceJson.addProperty("texture", f.get("texture").getAsString());
@@ -237,22 +236,13 @@ public final class TestBedMain {
                 if (f.has("rotation"))
                     faceJson.addProperty("rotation", f.get("rotation").getAsInt());
 
-                face = GsonSettings.defaults().create().fromJson(faceJson, ModelFace.class);
+                ModelFace face = GsonSettings.defaults().create().fromJson(faceJson, ModelFace.class);
                 faces.put(e.getKey(), face);
             }
 
-            // Build element via Gson roundtrip to populate Lombok fields
-            JsonObject elemJson = new JsonObject();
             JsonArray fromArr = new JsonArray(); fromArr.add(from[0]); fromArr.add(from[1]); fromArr.add(from[2]);
             JsonArray toArr = new JsonArray(); toArr.add(to[0]); toArr.add(to[1]); toArr.add(to[2]);
-            elemJson.add("from", fromArr);
-            elemJson.add("to", toArr);
-            // We can't easily Gson-roundtrip with faces, so construct manually
-            ModelElement element = new ModelElement();
-            // Set from/to via Gson
-            ModelElement parsed = GsonSettings.defaults().create().fromJson(elemJson, ModelElement.class);
-            // But faces need the linked map... let's use a different approach.
-            // Just create via Gson with everything:
+
             JsonObject fullElem = new JsonObject();
             fullElem.add("from", fromArr);
             fullElem.add("to", toArr);
@@ -262,7 +252,7 @@ public final class TestBedMain {
             }
             fullElem.add("faces", facesJson);
 
-            element = GsonSettings.defaults().create().fromJson(fullElem, ModelElement.class);
+            ModelElement element = GsonSettings.defaults().create().fromJson(fullElem, ModelElement.class);
             out.add(element);
         }
     }

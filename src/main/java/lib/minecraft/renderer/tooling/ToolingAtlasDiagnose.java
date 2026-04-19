@@ -6,15 +6,15 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import javax.imageio.ImageIO;
-import java.awt.Graphics2D;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -74,7 +74,7 @@ public final class ToolingAtlasDiagnose {
      */
     public static void main(String @NotNull [] args) throws IOException {
         Path root = Path.of("build/atlas");
-        String sourceFilter = null;
+        @Nullable String sourceFilter = null;
         for (String arg : args) {
             if (arg.startsWith("--source-filter=")) sourceFilter = arg.substring("--source-filter=".length()).trim();
             else if (!arg.startsWith("--")) root = Path.of(arg);
@@ -208,6 +208,30 @@ public final class ToolingAtlasDiagnose {
     }
 
     /**
+     * Resolves an untrusted CLI-supplied {@code name} under {@code base}, rejecting values that
+     * attempt to escape the base directory via path separators, parent-traversal segments, or
+     * absolute paths. The returned path is guaranteed to be a strict child of {@code base} (or
+     * equal to it for the degenerate empty name, which is also rejected).
+     *
+     * @param base the trusted root directory
+     * @param name the untrusted subdirectory name from CLI args
+     * @param flag the CLI flag label used in error messages
+     * @return the normalized path {@code base/name}, proven to be contained under {@code base}
+     * @throws IOException if {@code name} would escape the base directory
+     */
+    private static @NotNull Path resolveContained(@NotNull Path base, @NotNull String name, @NotNull String flag) throws IOException {
+        if (name.isEmpty() || name.contains("/") || name.contains("\\") || name.contains("..") || Path.of(name).isAbsolute())
+            throw new IOException(flag + " '" + name + "' must be a simple directory name (no separators, parent refs, or absolute paths)");
+
+        Path normalizedBase = base.toAbsolutePath().normalize();
+        Path resolved = normalizedBase.resolve(name).normalize();
+        if (!resolved.startsWith(normalizedBase) || resolved.equals(normalizedBase))
+            throw new IOException(flag + " '" + name + "' resolves outside the base directory");
+
+        return resolved;
+    }
+
+    /**
      * Writes a mini-atlas containing only the tiles whose {@code source} matches the requested
      * value. Output lands at {@code <root>/<sourceFilter>/}: a fresh {@code atlas.png} grid
      * composed from the filtered slices, an {@code atlas.json} trimmed to just those tiles, and
@@ -216,7 +240,7 @@ public final class ToolingAtlasDiagnose {
      * {@code blockstate_only}) without hunting through the full atlas.
      */
     private static void runSourceFilter(@NotNull Path root, @NotNull Path atlasPng, @NotNull Path atlasJson, @NotNull String sourceFilter) throws IOException {
-        Path outDir = root.resolve(sourceFilter);
+        Path outDir = resolveContained(root, sourceFilter, "--source-filter");
         Files.createDirectories(outDir);
 
         System.out.printf("Reading %s...%n", atlasJson);
@@ -290,7 +314,7 @@ public final class ToolingAtlasDiagnose {
         Gson gson = new GsonBuilder().setPrettyPrinting().create();
         Files.writeString(miniJson, gson.toJson(miniRoot) + System.lineSeparator());
 
-        Collections.sort(ids, String.CASE_INSENSITIVE_ORDER);
+        ids.sort(String.CASE_INSENSITIVE_ORDER);
         Files.writeString(idsTxt, String.join(System.lineSeparator(), ids) + System.lineSeparator());
 
         System.out.printf(

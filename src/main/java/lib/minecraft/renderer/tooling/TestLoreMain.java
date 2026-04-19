@@ -3,12 +3,14 @@ package lib.minecraft.renderer.tooling;
 import lib.minecraft.renderer.TextRenderer;
 import lib.minecraft.renderer.options.TextOptions;
 import lib.minecraft.text.LineSegment;
+import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
 import dev.simplified.image.codec.gif.GifWriteOptions;
 import dev.simplified.image.codec.webp.WebPWriteOptions;
+import dev.simplified.image.data.ImageFrame;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -212,11 +214,10 @@ public final class TestLoreMain {
         System.out.println("    webp-lossy motionSearchThreads sweep:" + mvThreadTable);
     }
 
-    /** One-frame {@link dev.simplified.image.ImageData} wrapping the first frame of an animated render. */
-    private record StaticFirstFrame(@NotNull dev.simplified.image.data.ImageFrame frame, boolean alpha)
-        implements dev.simplified.image.ImageData {
-        @Override public @NotNull dev.simplified.collection.ConcurrentList<dev.simplified.image.data.ImageFrame> getFrames() {
-            dev.simplified.collection.ConcurrentList<dev.simplified.image.data.ImageFrame> list = dev.simplified.collection.Concurrent.newList();
+    /** One-frame {@link ImageData} wrapping the first frame of an animated render. */
+    private record StaticFirstFrame(@NotNull ImageFrame frame, boolean alpha) implements ImageData {
+        @Override public @NotNull ConcurrentList<ImageFrame> getFrames() {
+            ConcurrentList<ImageFrame> list = Concurrent.newList();
             list.add(frame);
             return list;
         }

@@ -37,7 +37,7 @@ import java.util.zip.ZipFile;
  * Downloads (or reuses the cached) MC 26.1 client jar, runs
  * {@link Parser} over its {@code BlockColors} class, and writes the resulting tint
  * table to {@code src/main/resources/renderer/block_tints.json}. The runtime pipeline reads
- * the JSON via {@link BlockTintsLoader VanillaTintsLoader} so the ASM walker is never on the
+ * the JSON via {@link BlockTintsLoader} so the ASM walker is never on the
  * production classpath - the only people who run it are developers bumping the bundled tint
  * snapshot when a new Minecraft version ships.
  * <p>

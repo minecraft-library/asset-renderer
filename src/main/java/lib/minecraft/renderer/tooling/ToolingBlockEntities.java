@@ -233,7 +233,7 @@ public final class ToolingBlockEntities {
         @NotNull Map<String, float[]> inventoryTransforms,
         @NotNull Set<String> tintedModelIds
     ) throws IOException {
-        JsonObject existing = null;
+        @Nullable JsonObject existing = null;
         if (Files.exists(OUTPUT_PATH)) {
             String raw = Files.readString(OUTPUT_PATH);
             try {
@@ -478,7 +478,7 @@ public final class ToolingBlockEntities {
             // to the canonical Y-DOWN form; with no INVENTORY_TRANSFORMS entry the default
             // {@code cy = -cy} unflip restores the original block-space positions exactly.
             // <p>
-            // Wired as an {@linkplain dev.sbs.renderer.asset.Block.Entity#additive() additive}
+            // Wired as an {@linkplain lib.minecraft.renderer.asset.Block.Entity#additive() additive}
             // mapping so the bar+post primary geometry from the four bell variant blocks
             // ({@code bell_floor}, {@code bell_ceiling}, {@code bell_wall}, {@code bell_between_walls})
             // is preserved and the bell cup is layered on top at render time.

@@ -18,10 +18,8 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.InsnList;
-import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
-import org.objectweb.asm.tree.TypeInsnNode;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -86,8 +84,7 @@ public final class ToolingPotionColors {
 
         JsonArray entries = new JsonArray();
         // Sort deterministically so the checked-in JSON has stable ordering.
-        Map<String, Integer> sorted = new TreeMap<>();
-        colors.forEach(sorted::put);
+        Map<String, Integer> sorted = new TreeMap<>(colors);
         sorted.forEach((effectId, color) -> {
             JsonObject entry = new JsonObject();
             entry.addProperty("effect", effectId);
@@ -165,15 +162,14 @@ public final class ToolingPotionColors {
             AsmKit.LiteralStack intLiteralStack = new AsmKit.LiteralStack(8);
 
             for (AbstractInsnNode node = instructions.getFirst(); node != null; node = node.getNext()) {
-                int opcode = node.getOpcode();
-
                 Integer literal = AsmKit.readIntLiteral(node);
                 if (literal != null) {
                     intLiteralStack.push(literal);
                     continue;
                 }
 
-                if (opcode == Opcodes.LDC && node instanceof LdcInsnNode ldc && ldc.cst instanceof String str) {
+                String str = AsmKit.readStringLiteral(node);
+                if (str != null) {
                     // Only capture the first LDC string between registrations (the effect id);
                     // subsequent strings (e.g. attribute modifier ids like "effect.speed") are
                     // ignored by keeping pendingEffectId stable once set.
@@ -181,8 +177,7 @@ public final class ToolingPotionColors {
                     continue;
                 }
 
-                if (opcode == Opcodes.NEW && node instanceof TypeInsnNode typeInsn
-                    && typeInsn.desc.startsWith(EFFECT_PACKAGE_PREFIX)) {
+                if (AsmKit.isNewInstance(node, EFFECT_PACKAGE_PREFIX)) {
                     // A new MobEffect (or subclass) is being constructed; reset the int stack so
                     // only the literals pushed between now and the invokespecial are considered
                     // for the colour.
@@ -190,22 +185,20 @@ public final class ToolingPotionColors {
                     continue;
                 }
 
-                if (node instanceof MethodInsnNode methodInsn
-                    && opcode == Opcodes.INVOKESPECIAL
+                // Prefix owner match: MobEffect has subclasses, so the exact-owner isInvoke
+                // variant in AsmKit doesn't fit. Constructor signature is (MobEffectCategory,
+                // int) - the int literal on top of the stack is the ARGB colour.
+                if (node.getOpcode() == Opcodes.INVOKESPECIAL
+                    && node instanceof MethodInsnNode methodInsn
                     && methodInsn.name.equals(INIT_METHOD_NAME)
                     && methodInsn.owner.startsWith(EFFECT_PACKAGE_PREFIX)
                     && methodInsn.desc.equals(MOB_EFFECT_INIT_DESCRIPTOR)) {
-                    // Constructor signature is (MobEffectCategory, int) - the int literal on top
-                    // of the stack is the ARGB colour.
                     Integer top = intLiteralStack.popInt();
                     if (top != null) pendingColor = top;
                     continue;
                 }
 
-                if (node instanceof MethodInsnNode methodInsn
-                    && opcode == Opcodes.INVOKESTATIC
-                    && methodInsn.owner.equals(MOB_EFFECTS_INTERNAL_NAME)
-                    && methodInsn.name.equals(REGISTER_METHOD_NAME)) {
+                if (AsmKit.isInvoke(node, Opcodes.INVOKESTATIC, MOB_EFFECTS_INTERNAL_NAME, REGISTER_METHOD_NAME)) {
                     if (pendingEffectId != null && pendingColor != null) {
                         colors.put("minecraft:" + pendingEffectId, pendingColor);
                     }

@@ -32,7 +32,7 @@ import java.util.Optional;
  * Downloads (or reuses the cached) MC client jar, extracts the vanilla assets, reads the three
  * biome colormap PNGs via {@link Parser}, and writes the pixel data to
  * {@code src/main/resources/renderer/color_maps.json}. The runtime pipeline reads the JSON via
- * {@link ColorMapLoader ColorMapLoader} so the PNG reading step
+ * {@link ColorMapLoader} so the PNG reading step
  * only runs during development when a new Minecraft version ships.
  */
 @UtilityClass
