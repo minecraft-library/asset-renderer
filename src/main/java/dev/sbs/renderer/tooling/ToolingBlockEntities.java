@@ -16,7 +16,7 @@ import dev.sbs.renderer.tensor.Vector3f;
 import dev.sbs.renderer.tooling.asm.AsmKit;
 import dev.sbs.renderer.tooling.blockentity.BlockListDiscovery;
 import dev.sbs.renderer.tooling.blockentity.Diagnostics;
-import dev.sbs.renderer.tooling.blockentity.InventoryTransformCatalog;
+import dev.sbs.renderer.tooling.blockentity.InventoryTransformDecomposer;
 import dev.sbs.renderer.tooling.blockentity.Source;
 import dev.sbs.renderer.tooling.blockentity.SourceDiscovery;
 import dev.sbs.renderer.tooling.blockentity.TintDiscovery;
@@ -89,7 +89,8 @@ public final class ToolingBlockEntities {
                 if (blockList.containsKey(s.entityId())) sources.add(s);
 
             Map<String, String> entityIdToRenderer = buildEntityIdToRendererMap(zip, sources);
-            Map<String, float[]> inventoryTransforms = InventoryTransformCatalog.lookup(zip, entityIdToRenderer, diagnostics);
+            Map<String, float[]> inventoryTransforms = InventoryTransformDecomposer.decomposeAll(zip, entityIdToRenderer, diagnostics);
+            mergeInventoryTransformOverrides(entityIdToRenderer.keySet(), inventoryTransforms, diagnostics);
             Set<String> tinted = TintDiscovery.discover(zip, sources, entityIdToRenderer, diagnostics);
 
             System.out.printf("Discovered %d sources; parsing...%n", sources.size());
@@ -159,6 +160,54 @@ public final class ToolingBlockEntities {
             case "minecraft:skull_head", "minecraft:skull_humanoid_head", "minecraft:skull_dragon_head", "minecraft:skull_piglin_head" -> "net/minecraft/client/renderer/blockentity/SkullBlockRenderer";
             default -> "net/minecraft/client/renderer/blockentity/BlockEntityRenderers";
         };
+    }
+
+    /**
+     * Merges hand-curated inventory-transform overrides from
+     * {@code block_entities_overrides.json} into the bytecode-decomposed map.
+     *
+     * <p>Used for the single entity id ({@code minecraft:skull_dragon_head}) whose
+     * distinguishing {@code tz=1.25} comes from the {@code DragonHeadModel} geometry rather
+     * than the {@code SkullBlockRenderer.createGroundTransformation} factory - the decomposer
+     * emits the shared skull tuple {@code [8, 0, 8, 180, 0, 0]} for every skull variant, and
+     * the dragon-specific override supplies the off-centre Z translate from the overrides
+     * file. The loader is unchanged: at runtime it reads {@code inventory_transform}
+     * straight from {@code block_entities.json} as the decomposer-plus-override merged value.
+     *
+     * <p>Entity ids present in {@code decomposed} keep their bytecode-extracted tuple unless
+     * the overrides file explicitly sets a different {@code inventory_transform} field. Ids
+     * missing from {@code decomposed} pull their tuple from overrides outright; ids missing
+     * from both drop out of the final map and a {@code diag.warn} surfaces so the next MC
+     * version bump can revisit.
+     */
+    private static void mergeInventoryTransformOverrides(
+        @NotNull Set<String> entityIds,
+        @NotNull Map<String, float[]> decomposed,
+        @NotNull Diagnostics diag
+    ) {
+        Path overridesPath = Path.of("src/main/resources/renderer/block_entities_overrides.json");
+        if (!Files.exists(overridesPath)) return;
+        JsonObject overrides;
+        try {
+            overrides = new com.google.gson.Gson().fromJson(Files.readString(overridesPath), JsonObject.class);
+        } catch (Exception ex) {
+            diag.warn("inventory-transform: overrides file '%s' unreadable - %s", overridesPath, ex.getMessage());
+            return;
+        }
+        if (overrides == null || !overrides.has("per_entity")) return;
+        JsonObject perEntity = overrides.getAsJsonObject("per_entity");
+
+        for (String entityId : entityIds) {
+            if (!perEntity.has(entityId)) continue;
+            JsonObject entry = perEntity.getAsJsonObject(entityId);
+            if (!entry.has("inventory_transform")) continue;
+            JsonArray arr = entry.getAsJsonArray("inventory_transform");
+            float[] tuple = new float[arr.size()];
+            for (int i = 0; i < tuple.length; i++) tuple[i] = arr.get(i).getAsFloat();
+            // Overrides always win - the field is only present for entities the decomposer
+            // cannot fully resolve (currently just minecraft:skull_dragon_head).
+            decomposed.put(entityId, tuple);
+        }
     }
 
     /**
@@ -1187,7 +1236,7 @@ public final class ToolingBlockEntities {
     static class BlockModelConverter {
 
         // The per-model inventory transform tuples and tinted-id set were removed in PR 2 -
-        // they now live in {@link InventoryTransformCatalog} and are produced by
+        // they now come from {@link InventoryTransformDecomposer} (bytecode-driven) and
         // {@link TintDiscovery} respectively. The block-level constants below are kept as a
         // diff-friendly reference of the 26.1 shapes, but are not evaluated at runtime.
         /*
@@ -1282,8 +1331,9 @@ public final class ToolingBlockEntities {
         /**
          * Converts all parsed entity models into a JSON object containing block model elements
          * keyed by entity model id. The {@code inventoryTransforms} and {@code tintedIds}
-         * parameters come from {@link InventoryTransformCatalog} and {@link TintDiscovery}
-         * respectively - see those classes for provenance.
+         * parameters come from {@link InventoryTransformDecomposer} (merged with the overrides
+         * file for {@code skull_dragon_head}) and {@link TintDiscovery} respectively - see
+         * those classes for provenance.
          */
         static @NotNull JsonObject convert(
             @NotNull ConcurrentMap<String, JsonObject> entityModels,
