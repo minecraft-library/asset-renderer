@@ -1,19 +1,19 @@
 package lib.minecraft.renderer;
 
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.ImageData;
+import dev.simplified.image.pixel.ColorMath;
+import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.RenderEngine;
-import lib.minecraft.renderer.kit.TextKit;
 import lib.minecraft.renderer.kit.ObfuscationKit;
+import lib.minecraft.renderer.kit.TextKit;
 import lib.minecraft.renderer.options.TextOptions;
 import lib.minecraft.text.ChatColor;
 import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.LineSegment;
 import lib.minecraft.text.font.MinecraftFont;
 import lib.minecraft.text.font.MinecraftGraphics;
-import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.ImageData;
-import dev.simplified.image.pixel.ColorMath;
-import dev.simplified.image.pixel.PixelBuffer;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -29,10 +29,6 @@ import org.jetbrains.annotations.NotNull;
  * When any segment across any line is marked obfuscated, the renderer produces an animated
  * output of {@link TextOptions#getFrameCount()} frames, each rendering obfuscated spans with a
  * fresh {@link ObfuscationKit ObfuscationKit} substitution.
- * <p>
- * Supersampling is supported via {@link TextOptions#getSampling()}: values above 1 render the
- * entire canvas at that integer factor and box-filter the result back down, producing smooth
- * gradient edges and sub-pixel decoration positioning.
  */
 public final class TextRenderer implements Renderer<TextOptions> {
 
