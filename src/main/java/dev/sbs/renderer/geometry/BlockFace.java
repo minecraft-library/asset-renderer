@@ -152,11 +152,11 @@ public enum BlockFace {
      * The strip layout places top and bottom in a first row sized {@code sx x sz}, then west,
      * south, east, north in a second row sized {@code sz, sx, sz, sx} wide by {@code sy} tall:
      * <pre>
-     *     +--------+--------+
-     *     |  TOP   | BOTTOM |          row 1: height sz
-     * +---+--------+--------+---+
-     * |WST|  SOUTH |  EAST  |NTH|      row 2: height sy
-     * +---+--------+--------+---+
+     *        +-------+--------+
+     *        |  TOP  | BOTTOM |              row 1: height sz
+     * +------+-------+--------+-------+
+     * | WEST | SOUTH |  EAST  | NORTH |      row 2: height sy
+     * +------+-------+--------+-------+
      * </pre>
      * Used by entity cube rendering (via {@code EntityGeometryKit.resolveFaceUv}) where one skin
      * image supplies every face of a body part, and by any other caller that owns a cube-atlas
