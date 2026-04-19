@@ -16,7 +16,7 @@ import static org.hamcrest.Matchers.is;
 
 /**
  * Unit coverage for {@link ItemRenderer}'s static helpers. Full rendering is covered end-to-end
- * by the slow {@link dev.sbs.renderer.pipeline.AssetPipelineIntegrationTest}; these tests focus on
+ * by the slow {@link lib.minecraft.renderer.pipeline.AssetPipelineIntegrationTest}; these tests focus on
  * the tintindex dispatch logic that drives the standard layered-sprite path for non-overlay
  * items.
  */
