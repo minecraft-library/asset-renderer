@@ -43,7 +43,7 @@ import java.util.zip.ZipFile;
  *       ({@code "chest"}, {@code "bed"}) to each field via a preceding {@code LDC} + eventual
  *       {@code PUTSTATIC}.</li>
  *   <li><b>LayerDefinitions walk</b> - {@code LayerDefinitions.createRoots} is vanilla's
- *       authoritative ({@link ModelLayerLocation} &rarr; geometry method) map. We scan it for
+ *       authoritative ({@code ModelLayerLocation} &rarr; geometry method) map. We scan it for
  *       {@code Builder.put(X, Y)} patterns where {@code X} is a {@code GETSTATIC ModelLayers.<N>}
  *       and {@code Y} is either an {@code INVOKESTATIC} directly (with optional
  *       {@code ICONST_0/1} in front) or an {@code ALOAD var=N} of a variable previously stored
@@ -137,7 +137,7 @@ public final class SourceDiscovery {
     /**
      * The set of "primary" layer method names that produce whole-block geometry (as opposed to
      * decorative sub-layers like eyes, wind effects, or non-default poses). When
-     * {@link LayerDefinitions#createRoots} resolves multiple layers for the same renderer into
+     * {@code LayerDefinitions.createRoots} resolves multiple layers for the same renderer into
      * different methods (conduit's shell / eye / wind / cage, copper golem's body /
      * running-pose / sitting-pose / star-pose), only those methods matching this allow list
      * survive. The list is intentionally small and composed of names that a casual reader
@@ -772,8 +772,8 @@ public final class SourceDiscovery {
      *
      * <p>The rule is {@code UP} if any {@code PartPose.offset(x, y, z)} pivot has {@code y >= 8}
      * (half-block threshold in mcPixel units). That captures vanilla's two
-     * block-space-authored model classes - {@link ChestModel} (pivot {@code (0, 9, 1)}) and
-     * {@link BellModel} (pivot {@code (8, 12, 8)}) - while leaving
+     * block-space-authored model classes - {@code ChestModel} (pivot {@code (0, 9, 1)}) and
+     * {@code BellModel} (pivot {@code (8, 12, 8)}) - while leaving
      * {@code PartPose.offsetAndRotation}-using classes like {@code DecoratedPotRenderer} on
      * the {@code DOWN} path (vanilla authors their rotated parts in flipped Y, which the
      * default Y-down handling preserves correctly).

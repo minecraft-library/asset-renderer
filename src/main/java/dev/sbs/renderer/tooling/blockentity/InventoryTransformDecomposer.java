@@ -220,7 +220,7 @@ public final class InventoryTransformDecomposer {
 
     /**
      * Picks the factory method by name, preferring the one whose return type is
-     * {@link Transformation}. Needed because some renderers overload {@code bodyTransformation}
+     * {@code Transformation}. Needed because some renderers overload {@code bodyTransformation}
      * / {@code baseTransformation} with non-Transformation return types.
      */
     private static @Nullable MethodNode findFactoryMethod(@NotNull ClassNode cn, @NotNull String name) {
@@ -260,7 +260,7 @@ public final class InventoryTransformDecomposer {
         return canonicalise(walker.finalTransform, diag);
     }
 
-    /** Walks a factory method's bytecode and decomposes the returned {@link Transformation}. */
+    /** Walks a factory method's bytecode and decomposes the returned {@code Transformation}. */
     private static float @Nullable [] decomposeMethod(
         @NotNull ZipFile zip,
         @NotNull ClassNode cn,
@@ -932,7 +932,7 @@ public final class InventoryTransformDecomposer {
         }
 
         /**
-         * Inlines a same-class static callee whose return type is {@link Transformation} or a
+         * Inlines a same-class static callee whose return type is {@code Transformation} or a
          * {@link TransformState}-producing helper. Arguments are simply popped; the callee runs
          * with slot 0 bound to the symbolic yaw the caller passed (we always pass {@code YAW}).
          */
