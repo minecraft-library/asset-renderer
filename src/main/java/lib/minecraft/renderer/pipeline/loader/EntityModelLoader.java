@@ -22,7 +22,7 @@ import java.util.Optional;
 
 /**
  * A loader that reads bundled entity model definitions from the
- * {@code /renderer/entity_models.json} classpath resource.
+ * {@code /lib/minecraft/renderer/entity_models.json} classpath resource.
  * <p>
  * Each entry maps an entity id to its geometry ({@link EntityModelData}) and an optional
  * default texture reference. Vanilla Minecraft does not ship entity model JSON files - entity
@@ -40,7 +40,7 @@ import java.util.Optional;
 @UtilityClass
 public class EntityModelLoader {
 
-    private static final @NotNull String RESOURCE_PATH = "/renderer/entity_models.json";
+    private static final @NotNull String RESOURCE_PATH = "/lib/minecraft/renderer/entity_models.json";
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**

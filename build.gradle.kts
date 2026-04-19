@@ -134,35 +134,35 @@ tasks {
     }
 
     register<JavaExec>("blockTints") {
-        description = "Parses BlockColors out of the cached client jar via ASM and rewrites src/main/resources/renderer/block_tints.json. Run on a Minecraft version bump."
+        description = "Parses BlockColors out of the cached client jar via ASM and rewrites src/main/resources/lib/minecraft/renderer/block_tints.json. Run on a Minecraft version bump."
         group = "tooling"
         mainClass.set("dev.sbs.renderer.tooling.ToolingBlockTints")
         classpath = sourceSets["main"].runtimeClasspath
     }
 
     register<JavaExec>("entityModels") {
-        description = "Downloads the Bedrock Edition vanilla resource pack and generates src/main/resources/renderer/entity_models.json from .geo.json files. Run on a Minecraft version bump."
+        description = "Downloads the Bedrock Edition vanilla resource pack and generates src/main/resources/lib/minecraft/renderer/entity_models.json from .geo.json files. Run on a Minecraft version bump."
         group = "tooling"
         mainClass.set("dev.sbs.renderer.tooling.ToolingEntityModels")
         classpath = sourceSets["main"].runtimeClasspath
     }
 
     register<JavaExec>("blockEntities") {
-        description = "Parses block entity model classes (chest, sign, bed, etc.) from the client jar via ASM and generates src/main/resources/renderer/block_entities.json."
+        description = "Parses block entity model classes (chest, sign, bed, etc.) from the client jar via ASM and generates src/main/resources/lib/minecraft/renderer/block_entities.json."
         group = "tooling"
         mainClass.set("dev.sbs.renderer.tooling.ToolingBlockEntities")
         classpath = sourceSets["main"].runtimeClasspath
     }
 
     register<JavaExec>("colorMaps") {
-        description = "Reads vanilla biome colormap PNGs and generates src/main/resources/renderer/color_maps.json. Run on a Minecraft version bump."
+        description = "Reads vanilla biome colormap PNGs and generates src/main/resources/lib/minecraft/renderer/color_maps.json. Run on a Minecraft version bump."
         group = "tooling"
         mainClass.set("dev.sbs.renderer.tooling.ToolingColorMaps")
         classpath = sourceSets["main"].runtimeClasspath
     }
 
     register<JavaExec>("potionColors") {
-        description = "Parses MobEffects out of the cached client jar via ASM and rewrites src/main/resources/renderer/potion_colors.json. Run on a Minecraft version bump."
+        description = "Parses MobEffects out of the cached client jar via ASM and rewrites src/main/resources/lib/minecraft/renderer/potion_colors.json. Run on a Minecraft version bump."
         group = "tooling"
         mainClass.set("dev.sbs.renderer.tooling.ToolingPotionColors")
         classpath = sourceSets["main"].runtimeClasspath

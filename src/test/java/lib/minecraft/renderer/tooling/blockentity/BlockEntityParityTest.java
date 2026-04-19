@@ -15,7 +15,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Slow end-to-end parity test. The full pipeline is exercised via the committed
- * {@code src/main/resources/renderer/block_entities.json} file rather than re-running the
+ * {@code src/main/resources/lib/minecraft/renderer/block_entities.json} file rather than re-running the
  * tooling in-process (which needs disk I/O and would interfere with the BlockEntitiesGoldenTest
  * fixture). Here we only confirm the committed file is internally consistent - every entity
  * id in the catalog has a matching {@code entities} entry with geometry and the expected
@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 @Tag("slow")
 class BlockEntityParityTest {
 
-    private static final Path OUTPUT = Path.of("src/main/resources/renderer/block_entities.json");
+    private static final Path OUTPUT = Path.of("src/main/resources/lib/minecraft/renderer/block_entities.json");
 
     @Test
     @DisplayName("every catalog entity id has a block_entities.json entry with elements")

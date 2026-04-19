@@ -31,7 +31,7 @@ import java.util.Optional;
  * <p>
  * Downloads (or reuses the cached) MC client jar, extracts the vanilla assets, reads the three
  * biome colormap PNGs via {@link Parser}, and writes the pixel data to
- * {@code src/main/resources/renderer/color_maps.json}. The runtime pipeline reads the JSON via
+ * {@code src/main/resources/lib/minecraft/renderer/color_maps.json}. The runtime pipeline reads the JSON via
  * {@link ColorMapLoader} so the PNG reading step
  * only runs during development when a new Minecraft version ships.
  */
@@ -39,7 +39,7 @@ import java.util.Optional;
 public final class ToolingColorMaps {
 
     /** Fixed output path for the bundled color-map resource. */
-    private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/renderer/color_maps.json");
+    private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/lib/minecraft/renderer/color_maps.json");
 
     /**
      * Runs the generator.
@@ -102,7 +102,7 @@ public final class ToolingColorMaps {
      * downstream {@link TextureEngine#sampleBiomeTint} path
      * can round-trip via {@link ByteBuffer#asIntBuffer()}. The output is consumed by the
      * {@code generateColorMaps} Gradle task, which serialises the pixel data as Base64 into the
-     * bundled {@code /renderer/color_maps.json} resource for runtime use by
+     * bundled {@code /lib/minecraft/renderer/color_maps.json} resource for runtime use by
      * {@link ColorMapLoader}.
      * <p>
      * The parser is intentionally tolerant: if a colormap file is missing the corresponding entry

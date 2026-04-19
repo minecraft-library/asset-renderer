@@ -36,7 +36,7 @@ import java.util.zip.ZipFile;
  * <p>
  * Downloads (or reuses the cached) MC 26.1 client jar, runs
  * {@link Parser} over its {@code BlockColors} class, and writes the resulting tint
- * table to {@code src/main/resources/renderer/block_tints.json}. The runtime pipeline reads
+ * table to {@code src/main/resources/lib/minecraft/renderer/block_tints.json}. The runtime pipeline reads
  * the JSON via {@link BlockTintsLoader} so the ASM walker is never on the
  * production classpath - the only people who run it are developers bumping the bundled tint
  * snapshot when a new Minecraft version ships.
@@ -50,7 +50,7 @@ import java.util.zip.ZipFile;
 public final class ToolingBlockTints {
 
     /** Fixed output path for the bundled block-tint resource. */
-    private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/renderer/block_tints.json");
+    private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/lib/minecraft/renderer/block_tints.json");
 
     /**
      * Runs the generator.
@@ -110,7 +110,7 @@ public final class ToolingBlockTints {
      * source-equivalent class names. Older obfuscated jars cannot be parsed without a remapping
      * pass, which would require multiple bytecode-shape variants and per-version mapping plumbing
      * that the project explicitly does not pursue. The runtime pipeline reads
-     * {@code /renderer/block_tints.json} from the classpath instead; this parser is invoked only
+     * {@code /lib/minecraft/renderer/block_tints.json} from the classpath instead; this parser is invoked only
      * by the {@code generateVanillaTints} Gradle task to refresh that resource on a version bump.
      * <p>
      * Parsing approach: load the class through ASM's tree model, walk

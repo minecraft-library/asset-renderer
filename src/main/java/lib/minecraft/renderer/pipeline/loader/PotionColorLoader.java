@@ -19,7 +19,7 @@ import java.nio.charset.StandardCharsets;
 
 /**
  * A loader that reads the bundled vanilla potion effect colour table from the
- * {@code /renderer/potion_colors.json} classpath resource and produces a lookup map of effect
+ * {@code /lib/minecraft/renderer/potion_colors.json} classpath resource and produces a lookup map of effect
  * id to ARGB.
  * <p>
  * The JSON resource is a checked-in snapshot of MC 26.1's
@@ -34,7 +34,7 @@ import java.nio.charset.StandardCharsets;
 @UtilityClass
 public class PotionColorLoader {
 
-    private static final @NotNull String RESOURCE_PATH = "/renderer/potion_colors.json";
+    private static final @NotNull String RESOURCE_PATH = "/lib/minecraft/renderer/potion_colors.json";
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**

@@ -33,7 +33,7 @@ import java.util.zip.ZipFile;
  * <p>
  * Downloads (or reuses the cached) MC 26.1 client jar, runs {@link Parser} over its
  * {@code MobEffects} class, and writes the resulting effect colour table to
- * {@code src/main/resources/renderer/potion_colors.json}. The runtime pipeline reads the JSON
+ * {@code src/main/resources/lib/minecraft/renderer/potion_colors.json}. The runtime pipeline reads the JSON
  * via {@link PotionColorLoader} so the ASM walker is never on the production classpath - the
  * only people who run it are developers bumping the bundled potion colour snapshot when a new
  * Minecraft version ships.
@@ -46,7 +46,7 @@ import java.util.zip.ZipFile;
 public final class ToolingPotionColors {
 
     /** Fixed output path for the bundled potion-colour resource. */
-    private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/renderer/potion_colors.json");
+    private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/lib/minecraft/renderer/potion_colors.json");
 
     /**
      * Runs the generator.

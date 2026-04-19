@@ -18,7 +18,7 @@ import java.util.Base64;
 
 /**
  * A loader that reads pre-generated biome colormap data from the bundled
- * {@code /renderer/color_maps.json} classpath resource.
+ * {@code /lib/minecraft/renderer/color_maps.json} classpath resource.
  * <p>
  * The JSON is produced by the {@code generateColorMaps} Gradle task via
  * {@link ToolingColorMaps.Parser}, which reads the vanilla colormap PNGs and encodes their raw ARGB
@@ -31,7 +31,7 @@ import java.util.Base64;
 @UtilityClass
 public class ColorMapLoader {
 
-    private static final @NotNull String RESOURCE_PATH = "/renderer/color_maps.json";
+    private static final @NotNull String RESOURCE_PATH = "/lib/minecraft/renderer/color_maps.json";
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**

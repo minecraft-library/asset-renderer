@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.*;
 class InventoryTransformDecomposerParityTest {
 
     private static final Path JAR = Path.of("cache/asset-renderer/vanilla/26.1/client.jar");
-    private static final Path BASELINE = Path.of("src/test/resources/renderer/baseline/inventory_transforms.json");
+    private static final Path BASELINE = Path.of("src/test/resources/lib/minecraft/renderer/baseline/inventory_transforms.json");
 
     /**
      * Entity id to renderer internal name. The decomposer's policy table names the factory

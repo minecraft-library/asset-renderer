@@ -32,7 +32,7 @@ import java.util.zip.ZipInputStream;
  * Downloads the Bedrock Edition vanilla resource pack from GitHub, parses every
  * {@code .geo.json} entity model file via {@link Parser}, maps each to a Java
  * Edition entity id and default texture, and writes the result to
- * {@code src/main/resources/renderer/entity_models.json}. The runtime pipeline reads the JSON
+ * {@code src/main/resources/lib/minecraft/renderer/entity_models.json}. The runtime pipeline reads the JSON
  * via {@link EntityModelLoader}.
  * <p>
  * Bedrock entity models are geometrically identical to their Java Edition counterparts for all
@@ -47,7 +47,7 @@ public final class ToolingEntityModels {
     private static final @NotNull String BEDROCK_PACK_URL = "https://github.com/ZtechNetwork/MCBVanillaResourcePack/archive/refs/heads/master.zip";
 
     /** Fixed output path for the bundled entity-models resource. */
-    private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/renderer/entity_models.json");
+    private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/lib/minecraft/renderer/entity_models.json");
 
     /** In-zip directory prefix where the Bedrock pack stores entity geometry files. */
     private static final @NotNull String MODELS_PREFIX = "models/entity/";
@@ -280,7 +280,7 @@ public final class ToolingEntityModels {
      * Both are handled transparently. Bones marked {@code neverRender: true} or lacking cubes are
      * excluded from the output. The bone {@code mirror} flag is promoted to each cube when present
      * at the bone level (Bedrock convention) since {@link EntityModelData.Cube} stores mirror
-     * per-cube. The parsed output feeds into the bundled {@code /renderer/entity_models.json}
+     * per-cube. The parsed output feeds into the bundled {@code /lib/minecraft/renderer/entity_models.json}
      * resource via the {@code generateEntityModels} Gradle task.
      *
      * @see EntityModelLoader

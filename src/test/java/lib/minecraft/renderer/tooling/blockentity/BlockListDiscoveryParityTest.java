@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 class BlockListDiscoveryParityTest {
 
     private static final Path JAR = Path.of("cache/asset-renderer/vanilla/26.1/client.jar");
-    private static final Path BASELINE = Path.of("src/test/resources/renderer/baseline/block_list.json");
+    private static final Path BASELINE = Path.of("src/test/resources/lib/minecraft/renderer/baseline/block_list.json");
 
     @Test
     @DisplayName("BlockListDiscovery matches baseline/block_list.json")

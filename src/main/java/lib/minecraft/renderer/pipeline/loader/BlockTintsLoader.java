@@ -22,7 +22,7 @@ import java.util.Optional;
 
 /**
  * A loader that reads the bundled vanilla block tint table from the
- * {@code /renderer/block_tints.json} classpath resource and produces a lookup map of block
+ * {@code /lib/minecraft/renderer/block_tints.json} classpath resource and produces a lookup map of block
  * id to {@link Block.Tint}.
  * <p>
  * The JSON resource is a checked-in snapshot of MC 26.1's
@@ -44,7 +44,7 @@ import java.util.Optional;
 @UtilityClass
 public class BlockTintsLoader {
 
-    private static final @NotNull String RESOURCE_PATH = "/renderer/block_tints.json";
+    private static final @NotNull String RESOURCE_PATH = "/lib/minecraft/renderer/block_tints.json";
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**

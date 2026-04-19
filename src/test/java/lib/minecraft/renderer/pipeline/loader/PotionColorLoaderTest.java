@@ -10,7 +10,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies {@link PotionColorLoader} against the bundled {@code /renderer/potion_colors.json}
+ * Verifies {@link PotionColorLoader} against the bundled {@code /lib/minecraft/renderer/potion_colors.json}
  * snapshot. Spot-checks a handful of representative effect colours so regressions in either the
  * ASM tooling or the JSON loader get caught early, without depending on the full 30+ entry list
  * matching byte-for-byte.

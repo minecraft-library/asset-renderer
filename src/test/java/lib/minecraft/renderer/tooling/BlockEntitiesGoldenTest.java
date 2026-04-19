@@ -30,15 +30,15 @@ import static org.hamcrest.Matchers.equalTo;
  *   <li>Run {@code ./gradlew :asset-renderer:blockEntities} to regenerate the JSON.</li>
  *   <li>Re-run this test; it fails with both the expected and actual SHA in the message.</li>
  *   <li>If the change was intentional, paste the actual SHA into
- *       {@code src/test/resources/renderer/block_entities.sha256} and commit both.</li>
+ *       {@code src/test/resources/lib/minecraft/renderer/block_entities.sha256} and commit both.</li>
  *   <li>If the change was unintentional, investigate the parser diff.</li>
  * </ol>
  */
 @DisplayName("block_entities.json matches the committed golden SHA-256")
 class BlockEntitiesGoldenTest {
 
-    private static final Path JSON_PATH = Path.of("src/main/resources/renderer/block_entities.json");
-    private static final Path SHA_PATH = Path.of("src/test/resources/renderer/block_entities.sha256");
+    private static final Path JSON_PATH = Path.of("src/main/resources/lib/minecraft/renderer/block_entities.json");
+    private static final Path SHA_PATH = Path.of("src/test/resources/lib/minecraft/renderer/block_entities.sha256");
 
     @Test
     @DisplayName("canonical SHA-256 equals fixture")

@@ -55,14 +55,14 @@ import java.util.zip.ZipFile;
  * <p>
  * Downloads the deobfuscated Minecraft client jar, parses block entity model classes via
  * {@link Parser}, and writes the result to
- * {@code src/main/resources/renderer/tile_entity_models.json}. The runtime pipeline reads
+ * {@code src/main/resources/lib/minecraft/renderer/tile_entity_models.json}. The runtime pipeline reads
  * the JSON via {@link BlockEntityLoader}.
  */
 @UtilityClass
 public final class ToolingBlockEntities {
 
     /** Fixed output path for the bundled block-entity catalog resource. */
-    private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/renderer/block_entities.json");
+    private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/lib/minecraft/renderer/block_entities.json");
 
     /** Client-jar Minecraft version this generator targets; written to the JSON header for drift tracking. */
     private static final @NotNull String SOURCE_VERSION = "26.1";
@@ -194,7 +194,7 @@ public final class ToolingBlockEntities {
         @NotNull Map<String, float[]> decomposed,
         @NotNull Diagnostics diag
     ) {
-        Path overridesPath = Path.of("src/main/resources/renderer/block_entities_overrides.json");
+        Path overridesPath = Path.of("src/main/resources/lib/minecraft/renderer/block_entities_overrides.json");
         if (!Files.exists(overridesPath)) return;
         JsonObject overrides;
         try {
