@@ -55,7 +55,7 @@ dependencies {
 
     // Simplified Libraries (extracted to github.com/simplified-dev)
     api("com.github.simplified-dev:collections") { version { strictly("c399e1dad3") } }
-    api("com.github.simplified-dev:utils:master-SNAPSHOT")
+    api("com.github.simplified-dev:utils") { version { strictly("36b2a338ce") } }
     api("com.github.simplified-dev:image") { version { strictly("ba0785c409") } }
     api("com.github.simplified-dev:gson-extras:master-SNAPSHOT")
     api("com.github.simplified-dev:client:master-SNAPSHOT")
