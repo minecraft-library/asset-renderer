@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.options;
 
-import dev.simplified.image.ImageFormat;
 import lib.minecraft.renderer.Renderer;
 import lib.minecraft.renderer.asset.binding.ArmorPiece;
 import lib.minecraft.renderer.geometry.EulerRotation;
@@ -12,9 +11,10 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Optional;
 
 /**
- * Configures a single {@code EntityRenderer} invocation for non-player entities. The entity is
- * resolved by {@code entityId} through the active {@code RendererContext} and rendered as a 3D
- * model via its {@code EntityModelData} bone/cube tree.
+ * Configures a single {@code EntityRenderer} invocation for mob entities. The entity is resolved
+ * by {@code entityId} through the active {@code RendererContext} and rendered as an isometric 3D
+ * icon via its {@code EntityModelData} bone/cube tree. The {@link #getRotation() rotation} field
+ * is the user-override layer applied on top of the engine's baked {@code [30, 225, 0]} iso pose.
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
@@ -55,10 +55,6 @@ public class EntityOptions {
     /** Whether to apply FXAA post-processing after the main render pass. */
     @lombok.Builder.Default
     private final boolean antiAlias = true;
-
-    /** Output image format */
-    @lombok.Builder.Default
-    private final @NotNull ImageFormat outputFormat = ImageFormat.PNG;
 
     public @NotNull EntityOptionsBuilder mutate() {
         return this.toBuilder();

@@ -14,7 +14,7 @@ java {
 }
 
 // JDK 21 Vector API (jdk.incubator.vector) unlocks FloatVector SIMD math used by
-// dev.sbs.renderer.tensor.Vector3fOps / Matrix4fOps in ModelEngine's Pass 1 and by
+// lib.minecraft.renderer.tensor.Vector3fOps / Matrix4fOps in ModelEngine's Pass 1 and by
 // PortalRenderer's layer-transform inner loop. The incubator module must be added to
 // the module path at both compile time AND every JVM invocation that loads our code
 // (test, JavaExec tooling tasks, JMH forks) - missing it anywhere produces a clean
@@ -61,7 +61,7 @@ dependencies {
     api("com.github.simplified-dev:client:master-SNAPSHOT")
 
     // Minecraft-Library (extracted to github.com/minecraft-library)
-    // Owns dev.sbs.renderer.text.**, dev.sbs.renderer.text.font.**, and the
+    // Owns lib.minecraft.text.**, lib.minecraft.text.font.**, and the
     // RendererException / FontException base classes that the remaining asset-renderer
     // exceptions still extend.
     api("com.github.minecraft-library:text:master-SNAPSHOT")
@@ -112,7 +112,7 @@ tasks {
     register<JavaExec>("atlas") {
         description = "Generates a block/item atlas PNG + coordinates JSON."
         group = "tooling"
-        mainClass.set("dev.sbs.renderer.tooling.ToolingAtlas")
+        mainClass.set("lib.minecraft.renderer.tooling.ToolingAtlas")
         classpath = sourceSets["main"].runtimeClasspath
         args = listOf(layout.buildDirectory.dir("atlas").get().asFile.absolutePath)
     }
@@ -120,7 +120,7 @@ tasks {
     register<JavaExec>("diagnoseAtlas") {
         description = "Slices build/atlas/atlas.png by atlas.json, flags blank tiles to build/atlas/missing.json."
         group = "tooling"
-        mainClass.set("dev.sbs.renderer.tooling.ToolingAtlasDiagnose")
+        mainClass.set("lib.minecraft.renderer.tooling.ToolingAtlasDiagnose")
         classpath = sourceSets["main"].runtimeClasspath
         args = listOf(layout.buildDirectory.dir("atlas").get().asFile.absolutePath)
     }
@@ -128,7 +128,7 @@ tasks {
     register<JavaExec>("diagnoseAtlasTask10") {
         description = "Writes a mini atlas containing only Task 10 (blockstate-only) additions to build/atlas/blockstate_only/."
         group = "tooling"
-        mainClass.set("dev.sbs.renderer.tooling.ToolingAtlasDiagnose")
+        mainClass.set("lib.minecraft.renderer.tooling.ToolingAtlasDiagnose")
         classpath = sourceSets["main"].runtimeClasspath
         args = listOf(layout.buildDirectory.dir("atlas").get().asFile.absolutePath, "--source-filter=blockstate_only")
     }
@@ -136,42 +136,42 @@ tasks {
     register<JavaExec>("blockTints") {
         description = "Parses BlockColors out of the cached client jar via ASM and rewrites src/main/resources/lib/minecraft/renderer/block_tints.json. Run on a Minecraft version bump."
         group = "tooling"
-        mainClass.set("dev.sbs.renderer.tooling.ToolingBlockTints")
+        mainClass.set("lib.minecraft.renderer.tooling.ToolingBlockTints")
         classpath = sourceSets["main"].runtimeClasspath
     }
 
     register<JavaExec>("entityModels") {
         description = "Downloads the Bedrock Edition vanilla resource pack and generates src/main/resources/lib/minecraft/renderer/entity_models.json from .geo.json files. Run on a Minecraft version bump."
         group = "tooling"
-        mainClass.set("dev.sbs.renderer.tooling.ToolingEntityModels")
+        mainClass.set("lib.minecraft.renderer.tooling.ToolingEntityModels")
         classpath = sourceSets["main"].runtimeClasspath
     }
 
     register<JavaExec>("blockEntities") {
         description = "Parses block entity model classes (chest, sign, bed, etc.) from the client jar via ASM and generates src/main/resources/lib/minecraft/renderer/block_entities.json."
         group = "tooling"
-        mainClass.set("dev.sbs.renderer.tooling.ToolingBlockEntities")
+        mainClass.set("lib.minecraft.renderer.tooling.ToolingBlockEntities")
         classpath = sourceSets["main"].runtimeClasspath
     }
 
     register<JavaExec>("colorMaps") {
         description = "Reads vanilla biome colormap PNGs and generates src/main/resources/lib/minecraft/renderer/color_maps.json. Run on a Minecraft version bump."
         group = "tooling"
-        mainClass.set("dev.sbs.renderer.tooling.ToolingColorMaps")
+        mainClass.set("lib.minecraft.renderer.tooling.ToolingColorMaps")
         classpath = sourceSets["main"].runtimeClasspath
     }
 
     register<JavaExec>("potionColors") {
         description = "Parses MobEffects out of the cached client jar via ASM and rewrites src/main/resources/lib/minecraft/renderer/potion_colors.json. Run on a Minecraft version bump."
         group = "tooling"
-        mainClass.set("dev.sbs.renderer.tooling.ToolingPotionColors")
+        mainClass.set("lib.minecraft.renderer.tooling.ToolingPotionColors")
         classpath = sourceSets["main"].runtimeClasspath
     }
 
     register<JavaExec>("testRender") {
         description = "Renders blocks to cache/test-render/ for visual inspection. -PblockId=minecraft:tnt -PrenderSize=512 -Pssaa=2"
         group = "tooling"
-        mainClass.set("dev.sbs.renderer.tooling.TestRenderMain")
+        mainClass.set("lib.minecraft.renderer.tooling.TestRenderMain")
         classpath = sourceSets["main"].runtimeClasspath
         val blockId = project.findProperty("blockId") as String?
         val renderSize = (project.findProperty("renderSize") as String?) ?: "512"
@@ -182,7 +182,7 @@ tasks {
     register<JavaExec>("testRenderItem") {
         description = "Renders items to cache/test-render-item/ for visual inspection. -PitemId=minecraft:diamond_sword -PrenderSize=256"
         group = "tooling"
-        mainClass.set("dev.sbs.renderer.tooling.TestRenderItemMain")
+        mainClass.set("lib.minecraft.renderer.tooling.TestRenderItemMain")
         classpath = sourceSets["main"].runtimeClasspath
         val itemId = project.findProperty("itemId") as String?
         val renderSize = (project.findProperty("renderSize") as String?) ?: "256"
@@ -192,7 +192,7 @@ tasks {
     register<JavaExec>("testBed") {
         description = "Renders red_bed and white_bed at 1024x1024 for visual comparison. -PrenderSize=1024"
         group = "tooling"
-        mainClass.set("dev.sbs.renderer.tooling.TestBedMain")
+        mainClass.set("lib.minecraft.renderer.tooling.TestBedMain")
         classpath = sourceSets["main"].runtimeClasspath
         val renderSize = (project.findProperty("renderSize") as String?) ?: "1024"
         args = listOf(renderSize)
@@ -201,31 +201,41 @@ tasks {
     register<JavaExec>("testLore") {
         description = "Renders a pair of SkyBlock-style lore tooltips to cache/test-lore/ for visual inspection."
         group = "tooling"
-        mainClass.set("dev.sbs.renderer.tooling.TestLoreMain")
+        mainClass.set("lib.minecraft.renderer.tooling.TestLoreMain")
         classpath = sourceSets["main"].runtimeClasspath
     }
 
     register<JavaExec>("testStackCount") {
         description = "Renders ItemStackKit.drawStackCount over a grey backdrop at several sizes. Use -Plabel=<tag> to write to cache/test-stack-count/<tag>/ or -Pdiff=A,B to pixel-diff two labels."
         group = "tooling"
-        mainClass.set("dev.sbs.renderer.tooling.TestStackCountMain")
+        mainClass.set("lib.minecraft.renderer.tooling.TestStackCountMain")
         classpath = sourceSets["main"].runtimeClasspath
         val label = project.findProperty("label") as String?
         val diff = project.findProperty("diff") as String?
         args = if (diff != null) listOf("diff=$diff") else if (label != null) listOf(label) else listOf()
     }
 
+    register<JavaExec>("testEntity") {
+        description = "Renders every entity in entity_models.json via EntityRenderer (3D) to cache/test-entity/ for visual inspection. -PrenderSize=512 -PentityId=minecraft:zombie"
+        group = "tooling"
+        mainClass.set("lib.minecraft.renderer.tooling.TestEntityMain")
+        classpath = sourceSets["main"].runtimeClasspath
+        val renderSize = (project.findProperty("renderSize") as String?) ?: "512"
+        val entityId = project.findProperty("entityId") as String?
+        args = if (entityId != null) listOf(renderSize, entityId) else listOf(renderSize)
+    }
+
     register<JavaExec>("testFluid") {
         description = "Renders every FluidRenderer code path (water/lava, iso/2D, static/animated, biome variants, override) to cache/test-fluid/ for visual inspection."
         group = "tooling"
-        mainClass.set("dev.sbs.renderer.tooling.TestFluidMain")
+        mainClass.set("lib.minecraft.renderer.tooling.TestFluidMain")
         classpath = sourceSets["main"].runtimeClasspath
     }
 
     register<JavaExec>("testPortal") {
         description = "Renders every PortalRenderer code path (end_portal/end_gateway, iso/2D, static/animated) to cache/test-portal/ for visual inspection."
         group = "tooling"
-        mainClass.set("dev.sbs.renderer.tooling.TestPortalMain")
+        mainClass.set("lib.minecraft.renderer.tooling.TestPortalMain")
         classpath = sourceSets["main"].runtimeClasspath
     }
 
@@ -236,7 +246,7 @@ tasks {
 
 // JMH benchmark harness. Benchmarks live in src/jmh/java and are run with
 // `./gradlew :asset-renderer:jmh`. Each Tier 1-3 parallelization task records
-// before/after results against the benchmarks in dev.sbs.renderer.bench.
+// before/after results against the benchmarks in lib.minecraft.renderer.bench.
 dependencies {
     jmh(libs.jmh.core)
     jmh(libs.jmh.generator.annprocess)

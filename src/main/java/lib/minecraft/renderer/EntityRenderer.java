@@ -5,7 +5,7 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.model.EntityModelData;
-import lib.minecraft.renderer.engine.ModelEngine;
+import lib.minecraft.renderer.engine.IsometricEngine;
 import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
@@ -20,9 +20,12 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Optional;
 
 /**
- * Renders non-player entities using their {@link EntityModelData} bone/cube tree. Resolves the
- * entity definition from the {@link RendererContext} by id, loads its texture through the
- * active pack stack, and rasterizes through {@link ModelEngine} with a GUI-item perspective.
+ * Renders mob entities as isometric 3D icons using their {@link EntityModelData} bone/cube tree.
+ * Resolves the entity definition from the {@link RendererContext} by id, loads its texture
+ * through the active pack stack, and rasterizes through {@link IsometricEngine} at the standard
+ * {@code [30, 225, 0]} block-icon pose so entity and block icons compose consistently. Callers
+ * who want to reorient the model supply {@link lib.minecraft.renderer.options.EntityOptions#getRotation()
+ * EntityOptions.rotation} as the user-override layer on top of the baked iso camera.
  */
 @RequiredArgsConstructor
 public final class EntityRenderer implements Renderer<EntityOptions> {
@@ -55,13 +58,15 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
         ConcurrentList<VisibleTriangle> triangles = buildResult.triangles();
 
-        // Armor overlay for humanoid entities
-        ModelEngine engine = new ModelEngine(this.context);
+        // Armor overlay for humanoid entities. The isometric engine's camera bakes the standard
+        // [30, 225, 0] block-icon pose; options.getRotation() rotates the model on top of that,
+        // mirroring BlockRenderer.Isometric3D.
+        IsometricEngine engine = IsometricEngine.standard(this.context);
         triangles.addAll(ArmorKit.buildEntityArmor3D(buildResult.boneBounds(),
             options.getHelmet(), options.getChestplate(),
             options.getLeggings(), options.getBoots(), engine));
 
-        engine.rasterize(triangles, buffer, PerspectiveParams.GUI_ITEM, options.getRotation());
+        engine.rasterize(triangles, buffer, PerspectiveParams.ISOMETRIC_BLOCK, options.getRotation());
 
         if (options.isAntiAlias())
             buffer.applyFxaa();

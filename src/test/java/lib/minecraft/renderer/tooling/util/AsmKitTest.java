@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.tooling.asm;
+package lib.minecraft.renderer.tooling.util;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;

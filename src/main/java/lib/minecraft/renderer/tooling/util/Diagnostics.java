@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.tooling.blockentity;
+package lib.minecraft.renderer.tooling.util;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

@@ -7,23 +7,33 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.geometry.EulerRotation;
+import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
+import lib.minecraft.renderer.pipeline.client.ClientJarDownloader;
 import lib.minecraft.renderer.pipeline.client.HttpFetcher;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
+import lib.minecraft.renderer.tooling.util.Diagnostics;
+import lib.minecraft.renderer.tooling.entity.BedrockEntityManifest;
+import lib.minecraft.renderer.tooling.entity.MobRegistryDiscovery;
+import lib.minecraft.renderer.tooling.entity.VariantReconciler;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.linked.ConcurrentLinkedMap;
 import dev.simplified.gson.GsonSettings;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
 
 /**
@@ -46,33 +56,20 @@ public final class ToolingEntityModels {
     /** Source URL for the Bedrock Edition vanilla resource pack zip (branch-archive download). */
     private static final @NotNull String BEDROCK_PACK_URL = "https://github.com/ZtechNetwork/MCBVanillaResourcePack/archive/refs/heads/master.zip";
 
-    /** Fixed output path for the bundled entity-models resource. */
-    private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/lib/minecraft/renderer/entity_models.json");
+    /** Output path for per-entity metadata (canonical id -&gt; geometry ref, texture, variant_of). */
+    private static final @NotNull Path MODELS_OUTPUT_PATH = Path.of("src/main/resources/lib/minecraft/renderer/entity_models.json");
+
+    /** Output path for deduplicated bone/cube trees keyed by Bedrock geometry id. */
+    private static final @NotNull Path GEOMETRY_OUTPUT_PATH = Path.of("src/main/resources/lib/minecraft/renderer/entity_geometry.json");
 
     /** In-zip directory prefix where the Bedrock pack stores entity geometry files. */
     private static final @NotNull String MODELS_PREFIX = "models/entity/";
 
-    /**
-     * Geometry identifiers to skip - these are non-entity models, armor layers, or duplicates
-     * that don't correspond to renderable entities.
-     */
-    private static final @NotNull Set<String> SKIP_IDENTIFIERS = Set.of(
-        "geometry.player.armor.base", "geometry.player.armor1", "geometry.player.armor2",
-        "geometry.player.armor.helmet", "geometry.player.armor.chestplate",
-        "geometry.player.armor.leggings", "geometry.player.armor.boots",
-        "geometry.item_sprite", "geometry.trident", "geometry.bow", "geometry.crossbow",
-        "geometry.shield", "geometry.spyglass", "geometry.minecart",
-        "geometry.leash_knot", "geometry.fishing_hook", "geometry.fireworks_rocket",
-        "geometry.fireball", "geometry.experience_orb", "geometry.arrow",
-        "geometry.ender_crystal", "geometry.wither_skull", "geometry.shulker_bullet",
-        "geometry.tripod_camera"
-    );
+    /** Namespace prefix applied to emitted entity ids. */
+    private static final @NotNull String MINECRAFT_NAMESPACE = "minecraft:";
 
-    /**
-     * Maps Bedrock geometry identifier stems to Java Edition entity texture paths. Entries
-     * not in this map fall back to the convention {@code minecraft:entity/{name}/{name}}.
-     */
-    private static final @NotNull ConcurrentMap<String, String> TEXTURE_OVERRIDES = buildTextureOverrides();
+    /** Bedrock geometry identifiers are prefixed with this string. */
+    private static final @NotNull String GEOMETRY_PREFIX = "geometry.";
 
     /**
      * Runs the generator.
@@ -81,101 +78,202 @@ public final class ToolingEntityModels {
      * @throws IOException if the Bedrock pack cannot be downloaded or the JSON file cannot be written
      */
     public static void main(String @NotNull [] args) throws IOException {
-        System.out.println("Downloading Bedrock vanilla resource pack...");
         HttpFetcher fetcher = new HttpFetcher();
+
+        // Step 1: walk the Java client jar for the authoritative living-mob set. Bedrock .entity.json
+        // provides the name/geometry/texture mapping, but cross-checking against this set ensures we
+        // only emit entries that correspond to real Java EntityType registrations (keeps armor_stand,
+        // drops Bedrock-only agent/npc/villager_v2).
+        System.out.println("Downloading Minecraft client jar for mob registry scan...");
+        Path clientJar = ClientJarDownloader.download(AssetPipelineOptions.defaults(), fetcher);
+        Set<String> knownMobIds = new LinkedHashSet<>();
+        try (ZipFile zip = new ZipFile(clientJar.toFile())) {
+            Diagnostics diagnostics = new Diagnostics();
+            for (MobRegistryDiscovery.MobEntry entry : MobRegistryDiscovery.discover(zip, diagnostics))
+                knownMobIds.add(entry.entityId());
+            System.out.println("Discovered " + knownMobIds.size() + " living-mob entity ids from the client jar");
+            diagnostics.entries().forEach(System.out::println);
+        }
+
+        // Step 2: download Bedrock pack.
+        System.out.println("Downloading Bedrock vanilla resource pack...");
         byte[] zipBytes = fetcher.get(BEDROCK_PACK_URL);
         System.out.println("Downloaded " + zipBytes.length + " bytes");
 
-        ConcurrentMap<String, JsonObject> entities = Concurrent.newMap();
-        int fileCount = 0;
+        // Step 3: parse the client-entity manifest (entity/*.entity.json) for the
+        // (identifier -> {geometry, texture}) and (geometry -> [identifier]) mappings. This
+        // replaces the previously hand-curated TEXTURE_OVERRIDES and most of the
+        // BEDROCK_NAME_ALIASES tables.
+        Diagnostics manifestDiagnostics = new Diagnostics();
+        BedrockEntityManifest.Manifest manifest = BedrockEntityManifest.parse(zipBytes, manifestDiagnostics);
+        manifestDiagnostics.entries().forEach(System.out::println);
+        System.out.println("Parsed " + manifest.byIdentifier().size() + " entity.json entries from the Bedrock pack");
 
+        // Step 4: parse every geometry file and collect the unique bone/cube trees keyed by
+        // Bedrock geometry id. Same file can contain multiple geometries; first occurrence of
+        // each id wins via LinkedHashMap insertion semantics.
+        Map<String, Parser.ParsedEntity> geometriesById = new LinkedHashMap<>();
+        int geoFileCount = 0;
         try (ZipInputStream zis = new ZipInputStream(new ByteArrayInputStream(zipBytes))) {
             ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
                 String name = entry.getName();
-                // Find .geo.json and .json files under models/entity/ inside the zip
-                int modelsIdx = name.indexOf(MODELS_PREFIX);
-                if (modelsIdx < 0) continue;
-                String fileName = name.substring(modelsIdx + MODELS_PREFIX.length());
-                if (fileName.contains("/") || fileName.isEmpty()) continue;
-                if (!fileName.endsWith(".json")) continue;
+                int idx = name.indexOf(MODELS_PREFIX);
+                if (idx < 0) continue;
+                String suffix = name.substring(idx + MODELS_PREFIX.length());
+                if (suffix.contains("/") || !suffix.endsWith(".json")) continue;
 
+                geoFileCount++;
                 String json = new String(zis.readAllBytes());
-                fileCount++;
-
                 ConcurrentList<Parser.ParsedEntity> parsed = Parser.parse(json);
-                for (Parser.ParsedEntity pe : parsed) {
-                    String identifier = pe.identifier();
-                    if (SKIP_IDENTIFIERS.contains(identifier)) continue;
+                for (Parser.ParsedEntity pe : parsed)
+                    geometriesById.putIfAbsent(pe.identifier(), pe);
+            }
+        }
+        System.out.println("Parsed " + geoFileCount + " .geo.json files, found "
+            + geometriesById.size() + " unique geometries");
 
-                    String entityId = identifierToEntityId(identifier);
-                    if (entityId == null) continue;
-                    // Skip duplicates - prefer the first occurrence (non-versioned)
-                    if (entities.containsKey(entityId)) continue;
+        // Step 5: fan out (one geometry -> N canonical entities) via the manifest. Each
+        // canonical identifier is reconciled with knownMobIds and tagged as base/variant/drop.
+        // Geometries not referenced by any .entity.json get a fallback pass where the
+        // geometry stem itself is classified (for Bedrock-only variants like cow_cold whose
+        // .geo.json file ships without a companion entity.json).
+        Map<String, JsonObject> emittedEntities = new LinkedHashMap<>();
+        Map<String, Parser.ParsedEntity> emittedGeometries = new LinkedHashMap<>();
+        int droppedNonMob = 0;
+        int keptBase = 0;
+        int keptVariant = 0;
 
-                    String textureId = resolveTextureId(entityId, identifier);
-                    JsonObject entityJson = serializeEntity(pe, textureId);
-                    entities.put(entityId, entityJson);
+        for (Map.Entry<String, Parser.ParsedEntity> geoEntry : geometriesById.entrySet()) {
+            String geometryId = geoEntry.getKey();
+            Parser.ParsedEntity pe = geoEntry.getValue();
+            List<String> manifestIdentifiers = manifest.fanOutByGeometry().getOrDefault(geometryId, List.of());
+
+            if (manifestIdentifiers.isEmpty()) {
+                // Fallback: no .entity.json references this geometry. Try classifying the
+                // geometry's own stem as a potential variant of a known mob (e.g. cow_cold).
+                String stem = bedrockStem(geometryId);
+                if (stem == null) continue;
+                VariantReconciler.Classification classification =
+                    VariantReconciler.classify(stem, knownMobIds);
+                if (!classification.isMob()) {
+                    droppedNonMob++;
+                    continue;
+                }
+                boolean added = addEmission(
+                    emittedEntities, emittedGeometries, classification, pe, geometryId,
+                    /* manifestTexture */ null
+                );
+                if (added) {
+                    if (classification.baseMobId() != null) keptVariant++; else keptBase++;
+                }
+                continue;
+            }
+
+            for (String identifier : manifestIdentifiers) {
+                VariantReconciler.Classification classification =
+                    VariantReconciler.classify(identifier, knownMobIds);
+                if (!classification.isMob()) {
+                    droppedNonMob++;
+                    continue;
+                }
+                BedrockEntityManifest.Entry manifestEntry = manifest.byIdentifier().get(identifier);
+                String manifestTexture = manifestEntry != null ? manifestEntry.textureId() : null;
+                boolean added = addEmission(
+                    emittedEntities, emittedGeometries, classification, pe, geometryId, manifestTexture
+                );
+                if (added) {
+                    if (classification.baseMobId() != null) keptVariant++; else keptBase++;
                 }
             }
         }
 
-        System.out.println("Parsed " + fileCount + " .geo.json files, produced " + entities.size() + " entity definitions");
+        System.out.printf(
+            "Emitted %d entities (%d base + %d variant) referencing %d unique geometries, dropped %d non-mob%n",
+            emittedEntities.size(), keptBase, keptVariant, emittedGeometries.size(), droppedNonMob
+        );
 
-        Files.createDirectories(OUTPUT_PATH.getParent());
-        Files.writeString(OUTPUT_PATH, buildJson(entities));
-        System.out.println("Wrote " + OUTPUT_PATH.toAbsolutePath());
+        Files.createDirectories(MODELS_OUTPUT_PATH.getParent());
+        Files.writeString(MODELS_OUTPUT_PATH, buildModelsJson(emittedEntities));
+        Files.writeString(GEOMETRY_OUTPUT_PATH, buildGeometryJson(emittedGeometries));
+        System.out.println("Wrote " + MODELS_OUTPUT_PATH.toAbsolutePath());
+        System.out.println("Wrote " + GEOMETRY_OUTPUT_PATH.toAbsolutePath());
     }
 
     /**
-     * Converts a Bedrock geometry identifier to a namespaced Java Edition entity id.
-     * Returns null for identifiers that don't map to a known entity.
+     * Adds one emission entry - an entity metadata record pointing at a shared geometry - if the
+     * canonical entity id is not already emitted. The geometry is deduplicated across all
+     * entities that share it. Returns {@code true} when a new entity row was emitted.
      */
-    private static String identifierToEntityId(@NotNull String identifier) {
-        // Strip "geometry." prefix
-        String stem = identifier.startsWith("geometry.") ? identifier.substring(9) : identifier;
-        // Strip version suffixes like ".v1.8", ".v1.0"
+    private static boolean addEmission(
+        @NotNull Map<String, JsonObject> emittedEntities,
+        @NotNull Map<String, Parser.ParsedEntity> emittedGeometries,
+        @NotNull VariantReconciler.Classification classification,
+        @NotNull Parser.ParsedEntity geometry,
+        @NotNull String geometryId,
+        @Nullable String manifestTexture
+    ) {
+        String canonicalEntityId = MINECRAFT_NAMESPACE + classification.canonicalId();
+        if (emittedEntities.containsKey(canonicalEntityId)) return false;
+
+        JsonObject entityJson = new JsonObject();
+        entityJson.addProperty("geometry_ref", geometryId);
+        entityJson.addProperty("texture_id", resolveTextureId(classification, manifestTexture));
+        entityJson.addProperty("armor_type", geometry.armorType());
+        if (classification.baseMobId() != null)
+            entityJson.addProperty("variant_of", MINECRAFT_NAMESPACE + classification.baseMobId());
+
+        emittedEntities.put(canonicalEntityId, entityJson);
+        emittedGeometries.putIfAbsent(geometryId, geometry);
+        return true;
+    }
+
+    /**
+     * Resolves the namespaced texture id for one entity emission, in this precedence:
+     * <ol>
+     *   <li>Bedrock manifest's {@code textures.default} for the identifier (after alias
+     *       resolution, the manifest entry is looked up under the <i>Bedrock</i> identifier so
+     *       aliased canonicals like {@code zombified_piglin} still get the
+     *       {@code zombie_pigman.entity.json}'s texture).</li>
+     *   <li>Convention fallback {@code minecraft:entity/<base>/<canonical>} when the entry is a
+     *       variant - base-mob folder plus variant id keeps cow_cold under entity/cow/cow_cold.</li>
+     *   <li>Convention fallback {@code minecraft:entity/<canonical>/<canonical>} for bases.</li>
+     * </ol>
+     */
+    private static @NotNull String resolveTextureId(
+        @NotNull VariantReconciler.Classification classification,
+        @Nullable String manifestTexture
+    ) {
+        if (manifestTexture != null) return manifestTexture;
+
+        String canonical = classification.canonicalId();
+        String base = classification.baseMobId();
+        if (base != null) return MINECRAFT_NAMESPACE + "entity/" + base + "/" + canonical;
+        return MINECRAFT_NAMESPACE + "entity/" + canonical + "/" + canonical;
+    }
+
+    /**
+     * Strips the {@code "geometry."} prefix from a Bedrock geometry identifier and collapses
+     * dotted segments into underscores so the result is comparable to Java registry ids.
+     * Returns {@code null} when the identifier looks like an armor/baby/saddle/versioned variant
+     * we know to skip at the fallback level.
+     */
+    private static @Nullable String bedrockStem(@NotNull String geometryId) {
+        String stem = geometryId.startsWith(GEOMETRY_PREFIX) ? geometryId.substring(GEOMETRY_PREFIX.length()) : geometryId;
         stem = stem.replaceAll("\\.v\\d+(\\.\\d+)?$", "");
-        // Skip armor variants, baby variants, and other non-base models
         if (stem.contains("armor") || stem.contains("baby") || stem.contains("_v1")
             || stem.contains("_v2") || stem.contains("_v3") || stem.contains("saddle"))
             return null;
-        // Normalize separators
-        stem = stem.replace(".", "_");
-        return "minecraft:" + stem;
+        return stem.replace(".", "_");
     }
 
     /**
-     * Resolves the default Java Edition texture path for an entity.
+     * Serialises the entities map into the bundled {@code entity_models.json} with stable
+     * alphabetical key ordering so regenerating produces byte-identical output.
      */
-    private static @NotNull String resolveTextureId(@NotNull String entityId, @NotNull String identifier) {
-        String name = entityId.substring("minecraft:".length());
-        String override = TEXTURE_OVERRIDES.get(name);
-        if (override != null) return override;
-        return "minecraft:entity/" + name + "/" + name;
-    }
-
-    /**
-     * Packs a {@link Parser.ParsedEntity} into its JSON form, tagging on the texture id and
-     * armor-type fields that the runtime loader reads.
-     */
-    private static @NotNull JsonObject serializeEntity(
-        @NotNull ToolingEntityModels.Parser.ParsedEntity pe,
-        @NotNull String textureId
-    ) {
-        JsonObject entityJson = GsonSettings.defaults().create().toJsonTree(pe.model()).getAsJsonObject();
-        entityJson.addProperty("texture_id", textureId);
-        entityJson.addProperty("armor_type", pe.armorType());
-        return entityJson;
-    }
-
-    /**
-     * Serialises the collected entities into the bundled JSON format with a stable alphabetical
-     * key ordering so regenerating the file produces byte-identical output.
-     */
-    private static @NotNull String buildJson(@NotNull ConcurrentMap<String, JsonObject> entities) {
+    private static @NotNull String buildModelsJson(@NotNull Map<String, JsonObject> entities) {
         JsonObject root = new JsonObject();
-        root.addProperty("//", "Generated by ToolingEntityModels. From Bedrock Edition vanilla resource pack. Run the tooling/generateEntityModels Gradle task to refresh.");
+        root.addProperty("//", "Generated by ToolingEntityModels. One entry per Java EntityType living mob; geometry_ref points into entity_geometry.json. Run ./gradlew :asset-renderer:entityModels to refresh.");
 
         JsonObject entitiesObj = new JsonObject();
         entities.entrySet().stream()
@@ -187,83 +285,23 @@ public final class ToolingEntityModels {
     }
 
     /**
-     * Builds the {@link #TEXTURE_OVERRIDES} table. Entries exist only for entities whose Java
-     * texture path does not match the {@code minecraft:entity/{name}/{name}} convention.
+     * Serialises the deduplicated geometries map into the bundled {@code entity_geometry.json}.
+     * Keys are Bedrock geometry ids; values are the parsed {@link EntityModelData} bone trees.
      */
-    private static @NotNull ConcurrentMap<String, String> buildTextureOverrides() {
-        ConcurrentMap<String, String> map = Concurrent.newMap();
-        map.put("zombie", "minecraft:entity/zombie/zombie");
-        map.put("skeleton", "minecraft:entity/skeleton/skeleton");
-        map.put("creeper", "minecraft:entity/creeper/creeper");
-        map.put("spider", "minecraft:entity/spider/spider");
-        map.put("enderman", "minecraft:entity/enderman/enderman");
-        map.put("zombie_pigman", "minecraft:entity/piglin/zombified_piglin");
-        map.put("zombie_villager", "minecraft:entity/zombie_villager/zombie_villager");
-        map.put("wither_skeleton", "minecraft:entity/skeleton/wither_skeleton");
-        map.put("stray", "minecraft:entity/skeleton/stray");
-        map.put("husk", "minecraft:entity/zombie/husk");
-        map.put("drowned", "minecraft:entity/zombie/drowned");
-        map.put("snow_golem", "minecraft:entity/snow_golem/snow_golem");
-        map.put("iron_golem", "minecraft:entity/iron_golem/iron_golem");
-        map.put("wolf", "minecraft:entity/wolf/wolf");
-        map.put("cat", "minecraft:entity/cat/siamese");
-        map.put("ocelot", "minecraft:entity/cat/ocelot");
-        map.put("horse", "minecraft:entity/horse/horse_brown");
-        map.put("pig", "minecraft:entity/pig/pig");
-        map.put("cow", "minecraft:entity/cow/cow");
-        map.put("sheep", "minecraft:entity/sheep/sheep");
-        map.put("chicken", "minecraft:entity/chicken/chicken");
-        map.put("squid", "minecraft:entity/squid/squid");
-        map.put("bat", "minecraft:entity/bat/bat");
-        map.put("villager", "minecraft:entity/villager/villager");
-        map.put("witch", "minecraft:entity/witch/witch");
-        map.put("ghast", "minecraft:entity/ghast/ghast");
-        map.put("blaze", "minecraft:entity/blaze/blaze");
-        map.put("slime", "minecraft:entity/slime/slime");
-        map.put("magma_cube", "minecraft:entity/slime/magmacube");
-        map.put("silverfish", "minecraft:entity/silverfish/silverfish");
-        map.put("endermite", "minecraft:entity/endermite/endermite");
-        map.put("guardian", "minecraft:entity/guardian/guardian");
-        map.put("shulker", "minecraft:entity/shulker/shulker");
-        map.put("phantom", "minecraft:entity/phantom/phantom");
-        map.put("ravager", "minecraft:entity/illager/ravager");
-        map.put("pillager", "minecraft:entity/illager/pillager");
-        map.put("vindicator", "minecraft:entity/illager/vindicator");
-        map.put("evoker", "minecraft:entity/illager/evoker");
-        map.put("vex", "minecraft:entity/vex/vex");
-        map.put("dolphin", "minecraft:entity/dolphin/dolphin");
-        map.put("turtle", "minecraft:entity/turtle/big_sea_turtle");
-        map.put("panda", "minecraft:entity/panda/panda");
-        map.put("fox", "minecraft:entity/fox/fox");
-        map.put("bee", "minecraft:entity/bee/bee");
-        map.put("hoglin", "minecraft:entity/hoglin/hoglin");
-        map.put("piglin", "minecraft:entity/piglin/piglin");
-        map.put("strider", "minecraft:entity/strider/strider");
-        map.put("axolotl", "minecraft:entity/axolotl/axolotl_lucy");
-        map.put("glow_squid", "minecraft:entity/squid/glow_squid");
-        map.put("goat", "minecraft:entity/goat/goat");
-        map.put("frog", "minecraft:entity/frog/temperate_frog");
-        map.put("tadpole", "minecraft:entity/tadpole/tadpole");
-        map.put("allay", "minecraft:entity/allay/allay");
-        map.put("warden", "minecraft:entity/warden/warden");
-        map.put("camel", "minecraft:entity/camel/camel");
-        map.put("sniffer", "minecraft:entity/sniffer/sniffer");
-        map.put("armadillo", "minecraft:entity/armadillo/armadillo");
-        map.put("breeze", "minecraft:entity/breeze/breeze");
-        map.put("bogged", "minecraft:entity/skeleton/bogged");
-        map.put("creaking", "minecraft:entity/creaking/creaking");
-        map.put("armor_stand", "minecraft:entity/armorstand/armorstand");
-        map.put("rabbit", "minecraft:entity/rabbit/brown");
-        map.put("polar_bear", "minecraft:entity/bear/polarbear");
-        map.put("llama", "minecraft:entity/llama/llama");
-        map.put("parrot", "minecraft:entity/parrot/parrot_red_blue");
-        map.put("cod", "minecraft:entity/fish/cod");
-        map.put("salmon", "minecraft:entity/fish/salmon");
-        map.put("pufferfish", "minecraft:entity/fish/pufferfish");
-        map.put("tropical_fish", "minecraft:entity/fish/tropical");
-        map.put("ender_dragon", "minecraft:entity/dragon/dragon");
-        map.put("wither_boss", "minecraft:entity/wither_boss/wither");
-        return map;
+    private static @NotNull String buildGeometryJson(@NotNull Map<String, Parser.ParsedEntity> geometries) {
+        JsonObject root = new JsonObject();
+        root.addProperty("//", "Generated by ToolingEntityModels. Deduplicated bone/cube trees keyed by Bedrock geometry id; referenced from entity_models.json.");
+
+        JsonObject geometriesObj = new JsonObject();
+        Gson gson = GsonSettings.defaults().create();
+        geometries.entrySet().stream()
+            .sorted(Map.Entry.comparingByKey())
+            .forEach(entry ->
+                geometriesObj.add(entry.getKey(), gson.toJsonTree(entry.getValue().model()))
+            );
+        root.add("geometries", geometriesObj);
+
+        return new GsonBuilder().setPrettyPrinting().create().toJson(root) + System.lineSeparator();
     }
 
     /**
@@ -371,8 +409,12 @@ public final class ToolingEntityModels {
                 if (key.equals("format_version")) continue;
                 if (!entry.getValue().isJsonObject()) continue;
 
-                // Skip inherited geometry definitions (key contains ":" indicating parent reference)
-                if (key.contains(":")) continue;
+                // Legacy Bedrock keys can use "<id>:<parent_id>" to declare geometry inheritance.
+                // The part before the colon is the geometry's own id - used by .entity.json and
+                // by every consumer of this parser. The parent reference after the colon is not
+                // resolved here (the bone tree is already flattened), so we strip it.
+                int colon = key.indexOf(':');
+                String identifier = colon >= 0 ? key.substring(0, colon) : key;
 
                 JsonObject geometry = entry.getValue().getAsJsonObject();
                 int textureWidth = geometry.has("texturewidth")
@@ -385,7 +427,7 @@ public final class ToolingEntityModels {
 
                 EntityModelData model = buildModel(bonesArray, textureWidth, textureHeight);
                 String armorType = inferArmorType(model.getBones().keySet());
-                results.add(new ParsedEntity(key, model, armorType));
+                results.add(new ParsedEntity(identifier, model, armorType));
             }
         }
 

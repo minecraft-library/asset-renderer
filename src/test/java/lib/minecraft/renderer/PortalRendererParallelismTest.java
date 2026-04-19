@@ -95,7 +95,7 @@ class PortalRendererParallelismTest {
 
     private static int[] firstFramePixels(ImageData image) {
         PixelBuffer buffer = image.getFrames().getFirst().pixels();
-        return buffer.data().clone();
+        return buffer.getPixels(0, 0, buffer.width(), buffer.height(), null, 0, 0);
     }
 
     private static long crc32(int[] pixels) {

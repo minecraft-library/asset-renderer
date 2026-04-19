@@ -1,6 +1,7 @@
 package lib.minecraft.renderer;
 
 import lib.minecraft.renderer.options.TextOptions;
+import lib.minecraft.renderer.support.MinecraftFontsExtension;
 import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.LineSegment;
 import dev.simplified.collection.Concurrent;
@@ -10,6 +11,7 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -20,6 +22,7 @@ import static org.hamcrest.Matchers.is;
  * Smoke tests for {@link TextRenderer} covering the vanilla tooltip gradient border and the
  * background/border alpha defaults ({@code 240}/{@code 80}).
  */
+@ExtendWith(MinecraftFontsExtension.class)
 class TextRendererTest {
 
     private static TextOptions singleLineLore() {

@@ -1,0 +1,551 @@
+{
+  "//": "Captured from MobRegistryDiscovery on the 26.1 client jar. Regenerate with MobRegistryDiscoveryBaselineGen -Dbaseline.regen\u003dtrue.",
+  "mobs": [
+    {
+      "entityId": "allay",
+      "fieldName": "ALLAY",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/allay/Allay",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "armadillo",
+      "fieldName": "ARMADILLO",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/armadillo/Armadillo",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "armor_stand",
+      "fieldName": "ARMOR_STAND",
+      "entityClassInternalName": "net/minecraft/world/entity/decoration/ArmorStand",
+      "mobCategory": "MISC"
+    },
+    {
+      "entityId": "axolotl",
+      "fieldName": "AXOLOTL",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/axolotl/Axolotl",
+      "mobCategory": "AXOLOTLS"
+    },
+    {
+      "entityId": "bat",
+      "fieldName": "BAT",
+      "entityClassInternalName": "net/minecraft/world/entity/ambient/Bat",
+      "mobCategory": "AMBIENT"
+    },
+    {
+      "entityId": "bee",
+      "fieldName": "BEE",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/bee/Bee",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "blaze",
+      "fieldName": "BLAZE",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/Blaze",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "bogged",
+      "fieldName": "BOGGED",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/skeleton/Bogged",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "breeze",
+      "fieldName": "BREEZE",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/breeze/Breeze",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "camel",
+      "fieldName": "CAMEL",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/camel/Camel",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "camel_husk",
+      "fieldName": "CAMEL_HUSK",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/camel/CamelHusk",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "cat",
+      "fieldName": "CAT",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/feline/Cat",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "cave_spider",
+      "fieldName": "CAVE_SPIDER",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/spider/CaveSpider",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "chicken",
+      "fieldName": "CHICKEN",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/chicken/Chicken",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "cod",
+      "fieldName": "COD",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/fish/Cod",
+      "mobCategory": "WATER_AMBIENT"
+    },
+    {
+      "entityId": "copper_golem",
+      "fieldName": "COPPER_GOLEM",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/golem/CopperGolem",
+      "mobCategory": "MISC"
+    },
+    {
+      "entityId": "cow",
+      "fieldName": "COW",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/cow/Cow",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "creaking",
+      "fieldName": "CREAKING",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/creaking/Creaking",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "creeper",
+      "fieldName": "CREEPER",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/Creeper",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "dolphin",
+      "fieldName": "DOLPHIN",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/dolphin/Dolphin",
+      "mobCategory": "WATER_CREATURE"
+    },
+    {
+      "entityId": "donkey",
+      "fieldName": "DONKEY",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/equine/Donkey",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "drowned",
+      "fieldName": "DROWNED",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/zombie/Drowned",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "elder_guardian",
+      "fieldName": "ELDER_GUARDIAN",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/ElderGuardian",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "ender_dragon",
+      "fieldName": "ENDER_DRAGON",
+      "entityClassInternalName": "net/minecraft/world/entity/boss/enderdragon/EnderDragon",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "enderman",
+      "fieldName": "ENDERMAN",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/EnderMan",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "endermite",
+      "fieldName": "ENDERMITE",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/Endermite",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "evoker",
+      "fieldName": "EVOKER",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/illager/Evoker",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "fox",
+      "fieldName": "FOX",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/fox/Fox",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "frog",
+      "fieldName": "FROG",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/frog/Frog",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "ghast",
+      "fieldName": "GHAST",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/Ghast",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "giant",
+      "fieldName": "GIANT",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/Giant",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "glow_squid",
+      "fieldName": "GLOW_SQUID",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/squid/GlowSquid",
+      "mobCategory": "UNDERGROUND_WATER_CREATURE"
+    },
+    {
+      "entityId": "goat",
+      "fieldName": "GOAT",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/goat/Goat",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "guardian",
+      "fieldName": "GUARDIAN",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/Guardian",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "happy_ghast",
+      "fieldName": "HAPPY_GHAST",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/happyghast/HappyGhast",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "hoglin",
+      "fieldName": "HOGLIN",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/hoglin/Hoglin",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "horse",
+      "fieldName": "HORSE",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/equine/Horse",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "husk",
+      "fieldName": "HUSK",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/zombie/Husk",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "illusioner",
+      "fieldName": "ILLUSIONER",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/illager/Illusioner",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "iron_golem",
+      "fieldName": "IRON_GOLEM",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/golem/IronGolem",
+      "mobCategory": "MISC"
+    },
+    {
+      "entityId": "llama",
+      "fieldName": "LLAMA",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/equine/Llama",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "magma_cube",
+      "fieldName": "MAGMA_CUBE",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/MagmaCube",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "mannequin",
+      "fieldName": "MANNEQUIN",
+      "entityClassInternalName": "net/minecraft/world/entity/decoration/Mannequin",
+      "mobCategory": "MISC"
+    },
+    {
+      "entityId": "mooshroom",
+      "fieldName": "MOOSHROOM",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/cow/MushroomCow",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "mule",
+      "fieldName": "MULE",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/equine/Mule",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "nautilus",
+      "fieldName": "NAUTILUS",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/nautilus/Nautilus",
+      "mobCategory": "WATER_CREATURE"
+    },
+    {
+      "entityId": "ocelot",
+      "fieldName": "OCELOT",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/feline/Ocelot",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "panda",
+      "fieldName": "PANDA",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/panda/Panda",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "parched",
+      "fieldName": "PARCHED",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/skeleton/Parched",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "parrot",
+      "fieldName": "PARROT",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/parrot/Parrot",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "phantom",
+      "fieldName": "PHANTOM",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/Phantom",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "pig",
+      "fieldName": "PIG",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/pig/Pig",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "piglin",
+      "fieldName": "PIGLIN",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/piglin/Piglin",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "piglin_brute",
+      "fieldName": "PIGLIN_BRUTE",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/piglin/PiglinBrute",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "pillager",
+      "fieldName": "PILLAGER",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/illager/Pillager",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "polar_bear",
+      "fieldName": "POLAR_BEAR",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/polarbear/PolarBear",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "pufferfish",
+      "fieldName": "PUFFERFISH",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/fish/Pufferfish",
+      "mobCategory": "WATER_AMBIENT"
+    },
+    {
+      "entityId": "rabbit",
+      "fieldName": "RABBIT",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/rabbit/Rabbit",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "ravager",
+      "fieldName": "RAVAGER",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/Ravager",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "salmon",
+      "fieldName": "SALMON",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/fish/Salmon",
+      "mobCategory": "WATER_AMBIENT"
+    },
+    {
+      "entityId": "sheep",
+      "fieldName": "SHEEP",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/sheep/Sheep",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "shulker",
+      "fieldName": "SHULKER",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/Shulker",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "silverfish",
+      "fieldName": "SILVERFISH",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/Silverfish",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "skeleton",
+      "fieldName": "SKELETON",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/skeleton/Skeleton",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "skeleton_horse",
+      "fieldName": "SKELETON_HORSE",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/equine/SkeletonHorse",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "slime",
+      "fieldName": "SLIME",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/Slime",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "sniffer",
+      "fieldName": "SNIFFER",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/sniffer/Sniffer",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "snow_golem",
+      "fieldName": "SNOW_GOLEM",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/golem/SnowGolem",
+      "mobCategory": "MISC"
+    },
+    {
+      "entityId": "spider",
+      "fieldName": "SPIDER",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/spider/Spider",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "squid",
+      "fieldName": "SQUID",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/squid/Squid",
+      "mobCategory": "WATER_CREATURE"
+    },
+    {
+      "entityId": "stray",
+      "fieldName": "STRAY",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/skeleton/Stray",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "strider",
+      "fieldName": "STRIDER",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/Strider",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "tadpole",
+      "fieldName": "TADPOLE",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/frog/Tadpole",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "trader_llama",
+      "fieldName": "TRADER_LLAMA",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/equine/TraderLlama",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "tropical_fish",
+      "fieldName": "TROPICAL_FISH",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/fish/TropicalFish",
+      "mobCategory": "WATER_AMBIENT"
+    },
+    {
+      "entityId": "turtle",
+      "fieldName": "TURTLE",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/turtle/Turtle",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "vex",
+      "fieldName": "VEX",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/Vex",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "villager",
+      "fieldName": "VILLAGER",
+      "entityClassInternalName": "net/minecraft/world/entity/npc/villager/Villager",
+      "mobCategory": "MISC"
+    },
+    {
+      "entityId": "vindicator",
+      "fieldName": "VINDICATOR",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/illager/Vindicator",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "wandering_trader",
+      "fieldName": "WANDERING_TRADER",
+      "entityClassInternalName": "net/minecraft/world/entity/npc/wanderingtrader/WanderingTrader",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "warden",
+      "fieldName": "WARDEN",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/warden/Warden",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "witch",
+      "fieldName": "WITCH",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/Witch",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "wither",
+      "fieldName": "WITHER",
+      "entityClassInternalName": "net/minecraft/world/entity/boss/wither/WitherBoss",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "wither_skeleton",
+      "fieldName": "WITHER_SKELETON",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/skeleton/WitherSkeleton",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "wolf",
+      "fieldName": "WOLF",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/wolf/Wolf",
+      "mobCategory": "CREATURE"
+    },
+    {
+      "entityId": "zoglin",
+      "fieldName": "ZOGLIN",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/Zoglin",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "zombie",
+      "fieldName": "ZOMBIE",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/zombie/Zombie",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "zombie_horse",
+      "fieldName": "ZOMBIE_HORSE",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/equine/ZombieHorse",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "zombie_nautilus",
+      "fieldName": "ZOMBIE_NAUTILUS",
+      "entityClassInternalName": "net/minecraft/world/entity/animal/nautilus/ZombieNautilus",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "zombie_villager",
+      "fieldName": "ZOMBIE_VILLAGER",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/zombie/ZombieVillager",
+      "mobCategory": "MONSTER"
+    },
+    {
+      "entityId": "zombified_piglin",
+      "fieldName": "ZOMBIFIED_PIGLIN",
+      "entityClassInternalName": "net/minecraft/world/entity/monster/zombie/ZombifiedPiglin",
+      "mobCategory": "MONSTER"
+    }
+  ]
+}

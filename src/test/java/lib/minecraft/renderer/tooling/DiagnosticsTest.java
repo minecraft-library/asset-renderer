@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling;
 
-import lib.minecraft.renderer.tooling.blockentity.Diagnostics;
+import lib.minecraft.renderer.tooling.util.Diagnostics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

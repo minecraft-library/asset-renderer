@@ -96,7 +96,7 @@ class FluidRendererParallelismTest {
     }
 
     private static long crc32(PixelBuffer buffer) {
-        int[] pixels = buffer.data();
+        int[] pixels = buffer.getPixels(0, 0, buffer.width(), buffer.height(), null, 0, 0);
         ByteBuffer bb = ByteBuffer.allocate(pixels.length * Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         for (int p : pixels) bb.putInt(p);
         CRC32 crc = new CRC32();

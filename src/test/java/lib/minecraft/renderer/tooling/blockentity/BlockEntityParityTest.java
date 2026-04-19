@@ -2,6 +2,7 @@ package lib.minecraft.renderer.tooling.blockentity;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import lib.minecraft.renderer.tooling.util.Diagnostics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;

@@ -8,7 +8,7 @@ import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
 import lib.minecraft.renderer.pipeline.client.ClientJarDownloader;
 import lib.minecraft.renderer.pipeline.client.HttpFetcher;
 import lib.minecraft.renderer.pipeline.loader.PotionColorLoader;
-import lib.minecraft.renderer.tooling.asm.AsmKit;
+import lib.minecraft.renderer.tooling.util.AsmKit;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lombok.experimental.UtilityClass;

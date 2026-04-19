@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.tooling.util.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;

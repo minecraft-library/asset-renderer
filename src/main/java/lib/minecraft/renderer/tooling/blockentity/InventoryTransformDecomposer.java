@@ -2,7 +2,8 @@ package lib.minecraft.renderer.tooling.blockentity;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import lib.minecraft.renderer.tooling.asm.AsmKit;
+import lib.minecraft.renderer.tooling.util.AsmKit;
+import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
