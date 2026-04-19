@@ -1,0 +1,135 @@
+{
+  "minecraft:bed_head": [
+    0.0,
+    9.0,
+    0.0,
+    90.0,
+    0.0,
+    0.0
+  ],
+  "minecraft:bed_foot": [
+    0.0,
+    9.0,
+    0.0,
+    90.0,
+    0.0,
+    0.0
+  ],
+  "minecraft:shulker_box": [
+    8.0,
+    24.0,
+    8.0,
+    180.0,
+    0.0,
+    0.0
+  ],
+  "minecraft:skull_head": [
+    8.0,
+    0.0,
+    8.0,
+    180.0,
+    0.0,
+    0.0
+  ],
+  "minecraft:skull_humanoid_head": [
+    8.0,
+    0.0,
+    8.0,
+    180.0,
+    0.0,
+    0.0
+  ],
+  "minecraft:skull_piglin_head": [
+    8.0,
+    0.0,
+    8.0,
+    180.0,
+    0.0,
+    0.0
+  ],
+  "minecraft:skull_dragon_head": [
+    8.0,
+    0.0,
+    1.25,
+    180.0,
+    0.0,
+    0.0
+  ],
+  "minecraft:decorated_pot": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "minecraft:decorated_pot_sides": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "minecraft:conduit": [
+    8.0,
+    8.0,
+    8.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "minecraft:sign": [
+    8.0,
+    8.0,
+    8.0,
+    180.0,
+    0.0,
+    0.0,
+    0.6666667
+  ],
+  "minecraft:hanging_sign": [
+    8.0,
+    10.0,
+    8.0,
+    180.0,
+    0.0,
+    0.0
+  ],
+  "minecraft:banner": [
+    8.0,
+    0.0,
+    8.0,
+    180.0,
+    0.0,
+    0.0,
+    0.6666667
+  ],
+  "minecraft:banner_flag": [
+    8.0,
+    0.0,
+    8.0,
+    180.0,
+    0.0,
+    0.0,
+    0.6666667
+  ],
+  "minecraft:wall_banner": [
+    8.0,
+    0.0,
+    8.0,
+    180.0,
+    0.0,
+    0.0,
+    0.6666667
+  ],
+  "minecraft:wall_banner_flag": [
+    8.0,
+    0.0,
+    8.0,
+    180.0,
+    0.0,
+    0.0,
+    0.6666667
+  ]
+}

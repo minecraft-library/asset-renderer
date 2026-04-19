@@ -14,8 +14,12 @@ import dev.sbs.renderer.pipeline.client.HttpFetcher;
 import dev.sbs.renderer.pipeline.loader.BlockEntityLoader;
 import dev.sbs.renderer.tensor.Vector3f;
 import dev.sbs.renderer.tooling.asm.AsmKit;
+import dev.sbs.renderer.tooling.blockentity.BlockListCatalog;
 import dev.sbs.renderer.tooling.blockentity.Diagnostics;
+import dev.sbs.renderer.tooling.blockentity.InventoryTransformCatalog;
 import dev.sbs.renderer.tooling.blockentity.Source;
+import dev.sbs.renderer.tooling.blockentity.SourceDiscovery;
+import dev.sbs.renderer.tooling.blockentity.TintDiscovery;
 import dev.sbs.renderer.tooling.blockentity.YAxis;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
@@ -40,8 +44,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.zip.ZipFile;
 
 /**
@@ -65,29 +71,92 @@ public final class ToolingBlockEntities {
         AssetPipelineOptions options = AssetPipelineOptions.defaults();
         Path jarPath = ClientJarDownloader.download(options, new HttpFetcher());
 
-        System.out.println("Parsing block entity models from client jar...");
+        System.out.println("Discovering block entity sources from client jar...");
         Diagnostics diagnostics = new Diagnostics();
-        ConcurrentMap<String, JsonObject> models = Parser.parse(jarPath, diagnostics);
-        System.out.printf("Parsed %d / %d sources%n", models.size(), Parser.SOURCES.size());
 
-        // Lenient mode prints every diagnostic for manual inspection. Strict mode (default)
-        // only prints and then fails so the output stays visible in CI logs before the error.
-        for (String entry : diagnostics.entries())
-            System.err.println("  " + entry);
+        JsonObject merged;
+        try (ZipFile zip = new ZipFile(jarPath.toFile())) {
+            ConcurrentList<Source> allSources = SourceDiscovery.discover(zip, diagnostics);
+            Map<String, BlockListCatalog.EntityBlockMapping> blockList = BlockListCatalog.lookup(zip, diagnostics);
+            // Filter discovered sources down to those listed in the block-list catalog - the
+            // catalog's keys define which entity ids ship in the atlas. BookModel-only
+            // renderers (enchanting_table, lectern) don't appear in the catalog and are
+            // dropped here.
+            ConcurrentList<Source> sources = Concurrent.newList();
+            for (Source s : allSources)
+                if (blockList.containsKey(s.entityId())) sources.add(s);
 
-        if (!lenient && diagnostics.strictFailingCount() > 0)
-            throw new AssetPipelineException(
-                "Strict mode: %d parse diagnostic(s) at WARN+ severity. Rerun with --lenient to continue.",
-                diagnostics.strictFailingCount()
-            );
+            Map<String, String> entityIdToRenderer = buildEntityIdToRendererMap(zip, sources);
+            Map<String, float[]> inventoryTransforms = InventoryTransformCatalog.lookup(zip, entityIdToRenderer, diagnostics);
+            Set<String> tinted = TintDiscovery.discover(zip, sources, entityIdToRenderer, diagnostics);
 
-        JsonObject blockModels = BlockModelConverter.convert(models);
-        JsonObject merged = buildMergedOutput(blockModels, models);
+            System.out.printf("Discovered %d sources; parsing...%n", sources.size());
+            ConcurrentMap<String, JsonObject> models = Parser.parse(jarPath, sources, diagnostics);
+            System.out.printf("Parsed %d / %d sources%n", models.size(), sources.size());
+
+            // Lenient mode prints every diagnostic for manual inspection. Strict mode (default)
+            // only prints and then fails so the output stays visible in CI logs before the error.
+            for (String entry : diagnostics.entries())
+                System.err.println("  " + entry);
+
+            if (!lenient && diagnostics.strictFailingCount() > 0)
+                throw new AssetPipelineException(
+                    "Strict mode: %d parse diagnostic(s) at WARN+ severity. Rerun with --lenient to continue.",
+                    diagnostics.strictFailingCount()
+                );
+
+            JsonObject blockModels = BlockModelConverter.convert(models, inventoryTransforms, tinted);
+            merged = buildMergedOutput(blockModels, models, blockList, inventoryTransforms, tinted);
+        }
 
         Files.createDirectories(OUTPUT_PATH.getParent());
         Files.writeString(OUTPUT_PATH,
             new GsonBuilder().setPrettyPrinting().create().toJson(merged) + System.lineSeparator());
         System.out.println("Wrote " + OUTPUT_PATH.toAbsolutePath());
+    }
+
+    /**
+     * Derives an {@code entityId -> rendererInternalName} map from the discovered sources. For
+     * each Source we look up which renderer class owns the entity id (by scanning the
+     * registrations in {@code BlockEntityRenderers.<clinit>} via {@link SourceDiscovery}
+     * internals). When the Source's target class is a renderer itself (e.g.
+     * {@code BedRenderer.createHeadLayer}), that's the renderer. Otherwise we fall back to
+     * the model class's name (the parser only uses this map for the tint + inventory-transform
+     * catalog sanity checks - any model-class string would satisfy those).
+     */
+    private static @NotNull Map<String, String> buildEntityIdToRendererMap(@NotNull ZipFile zip, @NotNull ConcurrentList<Source> sources) {
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Source s : sources) {
+            String internal = s.classEntry().replace(".class", "");
+            if (internal.startsWith("net/minecraft/client/renderer/blockentity/")) {
+                out.put(s.entityId(), internal);
+                continue;
+            }
+            // Model-class source: derive the renderer from the entityId pattern. Several entity
+            // ids point at renderers they don't live in (banner uses BannerRenderer, skull
+            // variants use SkullBlockRenderer). This lookup is pragmatic - the catalogs only
+            // use it for sanity-check drift warnings, not output geometry.
+            out.put(s.entityId(), mapEntityIdToRenderer(s.entityId()));
+        }
+        return out;
+    }
+
+    /**
+     * Small mapping of per-entity-id -> renderer internal name for use by the inventory
+     * transform + tint catalog sanity checks. This is the one place in the wire-up that
+     * statically names renderers; a future PR 5 could derive it from the same registry walk
+     * {@link SourceDiscovery} already performs.
+     */
+    private static @NotNull String mapEntityIdToRenderer(@NotNull String entityId) {
+        return switch (entityId) {
+            case "minecraft:chest" -> "net/minecraft/client/renderer/blockentity/ChestRenderer";
+            case "minecraft:banner", "minecraft:banner_flag", "minecraft:wall_banner", "minecraft:wall_banner_flag" -> "net/minecraft/client/renderer/blockentity/BannerRenderer";
+            case "minecraft:shulker_box" -> "net/minecraft/client/renderer/blockentity/ShulkerBoxRenderer";
+            case "minecraft:bell_body" -> "net/minecraft/client/renderer/blockentity/BellRenderer";
+            case "minecraft:copper_golem_statue" -> "net/minecraft/client/renderer/blockentity/CopperGolemStatueBlockRenderer";
+            case "minecraft:skull_head", "minecraft:skull_humanoid_head", "minecraft:skull_dragon_head", "minecraft:skull_piglin_head" -> "net/minecraft/client/renderer/blockentity/SkullBlockRenderer";
+            default -> "net/minecraft/client/renderer/blockentity/BlockEntityRenderers";
+        };
     }
 
     /**
@@ -99,7 +168,10 @@ public final class ToolingBlockEntities {
      */
     private static @NotNull JsonObject buildMergedOutput(
         @NotNull JsonObject blockModels,
-        @NotNull ConcurrentMap<String, JsonObject> parsedEntityModels
+        @NotNull ConcurrentMap<String, JsonObject> parsedEntityModels,
+        @NotNull Map<String, BlockListCatalog.EntityBlockMapping> blockList,
+        @NotNull Map<String, float[]> inventoryTransforms,
+        @NotNull Set<String> tintedModelIds
     ) throws IOException {
         JsonObject existing = null;
         if (Files.exists(OUTPUT_PATH)) {
@@ -121,11 +193,13 @@ public final class ToolingBlockEntities {
         JsonObject entities = new JsonObject();
 
         // Iterate in the existing file's key order when we have one (keeps diffs small across
-        // regeneration passes); then append any newly parsed models that did not appear in the
-        // existing file (e.g. a freshly added SOURCES entry bumped on a version rev).
+        // regeneration passes); then append any newly discovered models that did not appear
+        // in the existing file (e.g. a freshly added entity id from a MC version rev). The
+        // blockList catalog is the authoritative source of which entity ids ship.
         java.util.LinkedHashSet<String> entityOrder = new java.util.LinkedHashSet<>();
         if (!existingEntities.entrySet().isEmpty())
             entityOrder.addAll(existingEntities.keySet());
+        entityOrder.addAll(blockList.keySet());
         entityOrder.addAll(parsedEntityModels.keySet());
 
         for (String modelId : entityOrder) {
@@ -141,30 +215,34 @@ public final class ToolingBlockEntities {
             if (converted != null)
                 entityOut.add("model", buildModelSubobject(converted));
 
-            // y_axis / inventory_y_rotation_default come from the parser's intermediate per-model
-            // metadata (parseLayerMethod sets these before BlockModelConverter strips them).
             String yAxis = parsedEntity != null && parsedEntity.has("y_axis")
                 ? parsedEntity.get("y_axis").getAsString()
                 : "DOWN";
             entityOut.addProperty("y_axis", yAxis);
             entityOut.addProperty("inventory_y_rotation", 0);
 
-            float[] invTransform = BlockModelConverter.INVENTORY_TRANSFORMS.get(modelId);
+            float[] invTransform = inventoryTransforms.get(modelId);
             if (invTransform != null) {
                 JsonArray arr = new JsonArray();
                 for (float v : invTransform) arr.add(v);
                 entityOut.add("inventory_transform", arr);
             }
-            entityOut.addProperty("tinted", BlockModelConverter.TINTED_MODEL_IDS.contains(modelId));
+            entityOut.addProperty("tinted", tintedModelIds.contains(modelId));
 
-            // Preserve the hand-curated parts + blocks arrays from the existing file; PR 2
-            // moves these into ASM discovery (§5 of the plan).
-            JsonObject existingEntity = existingEntities.has(modelId) ? existingEntities.getAsJsonObject(modelId) : null;
-            if (existingEntity != null) {
-                if (existingEntity.has("parts"))
-                    entityOut.add("parts", existingEntity.get("parts"));
-                if (existingEntity.has("blocks"))
-                    entityOut.add("blocks", existingEntity.get("blocks"));
+            // Block list + parts come from the BlockListCatalog; only fall back to existing
+            // hand-curated arrays when the catalog doesn't carry the entity.
+            BlockListCatalog.EntityBlockMapping catalogEntry = blockList.get(modelId);
+            if (catalogEntry != null) {
+                JsonArray parts = buildPartsArray(catalogEntry);
+                if (parts != null) entityOut.add("parts", parts);
+                JsonArray blocks = buildBlocksArray(catalogEntry);
+                if (blocks != null) entityOut.add("blocks", blocks);
+            } else {
+                JsonObject existingEntity = existingEntities.has(modelId) ? existingEntities.getAsJsonObject(modelId) : null;
+                if (existingEntity != null) {
+                    if (existingEntity.has("parts")) entityOut.add("parts", existingEntity.get("parts"));
+                    if (existingEntity.has("blocks")) entityOut.add("blocks", existingEntity.get("blocks"));
+                }
             }
 
             entities.add(modelId, entityOut);
@@ -172,6 +250,50 @@ public final class ToolingBlockEntities {
 
         root.add("entities", entities);
         return root;
+    }
+
+    /**
+     * Serialises {@code parts} entries to the JSON shape the loader expects. Entries with a
+     * {@code null} offset and {@code null} texture emit just {@code {"model": ...}}; entries
+     * with only an offset emit {@code {"model": ..., "offset": [x, y, z]}}; full entries emit
+     * all three keys.
+     */
+    private static @Nullable JsonArray buildPartsArray(@NotNull BlockListCatalog.EntityBlockMapping entry) {
+        List<BlockListCatalog.PartRef> parts = entry.parts();
+        if (parts == null) return null;
+        JsonArray arr = new JsonArray();
+        for (BlockListCatalog.PartRef p : parts) {
+            JsonObject part = new JsonObject();
+            part.addProperty("model", p.model());
+            if (p.offset() != null) {
+                JsonArray off = new JsonArray();
+                for (int v : p.offset()) off.add(v);
+                part.add("offset", off);
+            }
+            if (p.texture() != null)
+                part.addProperty("texture", p.texture());
+            arr.add(part);
+        }
+        return arr;
+    }
+
+    /**
+     * Serialises {@code blocks} entries to the JSON shape the loader expects. Returns
+     * {@code null} when the entry has no blocks; the caller omits the key entirely in that
+     * case, matching how the previous hand-curated JSON was structured.
+     */
+    private static @Nullable JsonArray buildBlocksArray(@NotNull BlockListCatalog.EntityBlockMapping entry) {
+        List<BlockListCatalog.BlockMapping> blocks = entry.blocks();
+        if (blocks.isEmpty()) return null;
+        JsonArray arr = new JsonArray();
+        for (BlockListCatalog.BlockMapping b : blocks) {
+            JsonObject block = new JsonObject();
+            if (b.comment() != null) block.addProperty("//", b.comment());
+            block.addProperty("blockId", b.blockId());
+            block.addProperty("textureId", b.textureId());
+            arr.add(block);
+        }
+        return arr;
     }
 
     /**
@@ -232,18 +354,12 @@ public final class ToolingBlockEntities {
         private static final @NotNull String PART_DEFINITION = "net/minecraft/client/model/geom/builders/PartDefinition";
         private static final @NotNull String LAYER_DEFINITION = "net/minecraft/client/model/geom/builders/LayerDefinition";
 
-        /**
-         * Block entity model sources: class entry path, method name, output entity id, and the
-         * source's Y axis convention. Methods that take parameters (like
-         * {@code createFlagLayer(boolean)}) are parsed with default values - conditional branches
-         * are ignored (first path taken).
-         * <p>
-         * Most Java {@code ModelPart}-derived block entities are Y-down (standard mob-style
-         * convention - a vertex with the smallest Y points at the highest spot on the model).
-         * A few block-native models, notably {@code ChestModel}, author their cubes in Y-up
-         * block-space directly; those are marked {@link YAxis#UP} so the parser post-processes
-         * them back into the canonical Y-down form before emission.
-         */
+        // Block-entity sources are discovered by {@link SourceDiscovery} and passed through
+        // {@link #parse} at runtime; the former hardcoded {@code SOURCES} list was removed
+        // in PR 2 once {@code SourceDiscovery} demonstrated parity against the baseline.
+        // The commented-out reference set below is retained as a quick-reference of what
+        // vanilla 26.1 produces, for the maintainer diffing against a future MC version.
+        /*
         private static final @NotNull List<Source> SOURCES = List.of(
             // ChestModel is authored in Y-up block-space (positive Y is up) rather than the
             // Y-down ModelPart convention used elsewhere - the lid sits at y=9..14 and the body
@@ -373,19 +489,24 @@ public final class ToolingBlockEntities {
             // outside the /geom/ builder package to pick up this pattern.
             new Source("net/minecraft/client/model/object/skull/PiglinHeadModel.class", "createHeadModel", "minecraft:skull_piglin_head", YAxis.DOWN, 180f, 64, 64)
         );
+        */
 
         /**
-         * Parses all known block entity model classes from the supplied client jar and returns
-         * the extracted models as serialised JSON objects keyed by entity id.
+         * Parses block entity model classes from the supplied client jar and returns the
+         * extracted models as serialised JSON objects keyed by entity id. The sources list is
+         * produced by {@link SourceDiscovery#discover} - see that class for the bytecode walk
+         * that drives it.
          *
          * @param jarPath the deobfuscated client jar (MC 26.1+)
+         * @param sources the sources to parse (one per entity id)
+         * @param diagnostics diagnostic sink
          * @return a map of entity id to model JSON
          */
-        public static @NotNull ConcurrentMap<String, JsonObject> parse(@NotNull Path jarPath, @NotNull Diagnostics diagnostics) {
+        public static @NotNull ConcurrentMap<String, JsonObject> parse(@NotNull Path jarPath, @NotNull List<Source> sources, @NotNull Diagnostics diagnostics) {
             ConcurrentMap<String, JsonObject> results = Concurrent.newMap();
 
             try (ZipFile zip = new ZipFile(jarPath.toFile())) {
-                for (Source source : SOURCES) {
+                for (Source source : sources) {
                     String internalName = stripClassSuffix(source.classEntry());
                     ClassNode classNode = AsmKit.loadClass(zip, internalName);
                     if (classNode == null) {
@@ -1064,30 +1185,16 @@ public final class ToolingBlockEntities {
     @UtilityClass
     static class BlockModelConverter {
 
-        /**
-         * Model ids whose faces carry {@code tintindex: 0} in the generated block elements. The
-         * {@link dev.sbs.renderer.asset.Block.Entity#tintArgb() entity tint} is applied to these
-         * faces; untinted faces (pole + bar on a banner, wood parts of future tintable block
-         * entities) fall back to {@link dev.simplified.image.pixel.ColorMath#WHITE} so they render
-         * in their authored texture colour.
-         * <p>
-         * Banners are the primary consumer today: the body-only models ({@code banner},
-         * {@code wall_banner} - pole + bar) stay untinted, the flag-only models
-         * ({@code banner_flag}, {@code wall_banner_flag}) are fully tinted. The renderer merges
-         * the two via the {@code parts} chain in {@code tile_entity_mappings.json}, so the final
-         * banner block ends up with a wood-brown body and a dye-coloured flag.
-         */
+        // The per-model inventory transform tuples and tinted-id set were removed in PR 2 -
+        // they now live in {@link InventoryTransformCatalog} and are produced by
+        // {@link TintDiscovery} respectively. The block-level constants below are kept as a
+        // diff-friendly reference of the 26.1 shapes, but are not evaluated at runtime.
+        /*
         private static final @NotNull java.util.Set<String> TINTED_MODEL_IDS = java.util.Set.of(
             "minecraft:banner_flag",
             "minecraft:wall_banner_flag"
         );
 
-        /**
-         * Vanilla inventory transforms per model type. Each transform is applied to the
-         * model-space cube corners (in Y-down model units) before converting to Y-up block
-         * model format. Values extracted from vanilla BedRenderer.createModelTransform,
-         * ChestRenderer, and ShulkerBoxRenderer bytecode.
-         */
         private static final @NotNull Map<String, float[]> INVENTORY_TRANSFORMS = Map.ofEntries(
             // BedRenderer: translate(0, 9, 0) * Rx(90°) in model units
             Map.entry("minecraft:bed_head", new float[]{ 0, 9, 0, 90, 0, 0 }),
@@ -1169,12 +1276,19 @@ public final class ToolingBlockEntities {
             Map.entry("minecraft:wall_banner", new float[]{ 8, 0, 8, 180, 0, 0, 0.6666667f }),
             Map.entry("minecraft:wall_banner_flag", new float[]{ 8, 0, 8, 180, 0, 0, 0.6666667f })
         );
+        */
 
         /**
          * Converts all parsed entity models into a JSON object containing block model elements
-         * keyed by entity model id.
+         * keyed by entity model id. The {@code inventoryTransforms} and {@code tintedIds}
+         * parameters come from {@link InventoryTransformCatalog} and {@link TintDiscovery}
+         * respectively - see those classes for provenance.
          */
-        static @NotNull JsonObject convert(@NotNull ConcurrentMap<String, JsonObject> entityModels) {
+        static @NotNull JsonObject convert(
+            @NotNull ConcurrentMap<String, JsonObject> entityModels,
+            @NotNull Map<String, float[]> inventoryTransforms,
+            @NotNull Set<String> tintedIds
+        ) {
             JsonObject result = new JsonObject();
             result.addProperty("//", "Generated block model elements from entity model geometry. Run tooling/blockEntities to refresh.");
 
@@ -1188,7 +1302,7 @@ public final class ToolingBlockEntities {
                 JsonObject bones = entityModel.getAsJsonObject("bones");
                 if (bones == null) continue;
 
-                float[] invTransform = INVENTORY_TRANSFORMS.get(modelId);
+                float[] invTransform = inventoryTransforms.get(modelId);
 
                 // Vanilla's per-type BlockEntityRenderer applies a yaw before drawing the model -
                 // ChestRenderer's modelTransformation rotates around the BlockState facing, but the
@@ -1206,7 +1320,7 @@ public final class ToolingBlockEntities {
                 // assignments). Our entityCorners array indexes vertices by the post-flip Y values,
                 // so for Y-UP source we swap yLo <-> yHi to recover vanilla's labels.
                 boolean isYUpSource = "UP".equals(entityModel.has("y_axis") ? entityModel.get("y_axis").getAsString() : "DOWN");
-                boolean emitTintIndex = TINTED_MODEL_IDS.contains(modelId);
+                boolean emitTintIndex = tintedIds.contains(modelId);
 
                 JsonArray elements = new JsonArray();
                 for (Map.Entry<String, JsonElement> boneEntry : bones.entrySet()) {

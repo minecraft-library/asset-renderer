@@ -1,0 +1,200 @@
+[
+  {
+    "classEntry": "net/minecraft/client/model/object/chest/ChestModel.class",
+    "methodName": "createSingleBodyLayer",
+    "entityId": "minecraft:chest",
+    "yAxis": "UP",
+    "inventoryYRotation": 180.0,
+    "texWidthOverride": null,
+    "texHeightOverride": null,
+    "paramIntValues": null
+  },
+  {
+    "classEntry": "net/minecraft/client/model/object/banner/BannerModel.class",
+    "methodName": "createBodyLayer",
+    "entityId": "minecraft:banner",
+    "yAxis": "DOWN",
+    "inventoryYRotation": 180.0,
+    "texWidthOverride": null,
+    "texHeightOverride": null,
+    "paramIntValues": [
+      1
+    ]
+  },
+  {
+    "classEntry": "net/minecraft/client/model/object/banner/BannerFlagModel.class",
+    "methodName": "createFlagLayer",
+    "entityId": "minecraft:banner_flag",
+    "yAxis": "DOWN",
+    "inventoryYRotation": 180.0,
+    "texWidthOverride": null,
+    "texHeightOverride": null,
+    "paramIntValues": [
+      1
+    ]
+  },
+  {
+    "classEntry": "net/minecraft/client/model/object/banner/BannerModel.class",
+    "methodName": "createBodyLayer",
+    "entityId": "minecraft:wall_banner",
+    "yAxis": "DOWN",
+    "inventoryYRotation": 180.0,
+    "texWidthOverride": null,
+    "texHeightOverride": null,
+    "paramIntValues": [
+      0
+    ]
+  },
+  {
+    "classEntry": "net/minecraft/client/model/object/banner/BannerFlagModel.class",
+    "methodName": "createFlagLayer",
+    "entityId": "minecraft:wall_banner_flag",
+    "yAxis": "DOWN",
+    "inventoryYRotation": 180.0,
+    "texWidthOverride": null,
+    "texHeightOverride": null,
+    "paramIntValues": [
+      0
+    ]
+  },
+  {
+    "classEntry": "net/minecraft/client/renderer/blockentity/BedRenderer.class",
+    "methodName": "createHeadLayer",
+    "entityId": "minecraft:bed_head",
+    "yAxis": "DOWN",
+    "inventoryYRotation": 0.0,
+    "texWidthOverride": null,
+    "texHeightOverride": null,
+    "paramIntValues": null
+  },
+  {
+    "classEntry": "net/minecraft/client/renderer/blockentity/BedRenderer.class",
+    "methodName": "createFootLayer",
+    "entityId": "minecraft:bed_foot",
+    "yAxis": "DOWN",
+    "inventoryYRotation": 0.0,
+    "texWidthOverride": null,
+    "texHeightOverride": null,
+    "paramIntValues": null
+  },
+  {
+    "classEntry": "net/minecraft/client/model/monster/shulker/ShulkerModel.class",
+    "methodName": "createShellMesh",
+    "entityId": "minecraft:shulker_box",
+    "yAxis": "DOWN",
+    "inventoryYRotation": 0.0,
+    "texWidthOverride": null,
+    "texHeightOverride": null,
+    "paramIntValues": null
+  },
+  {
+    "classEntry": "net/minecraft/client/renderer/blockentity/StandingSignRenderer.class",
+    "methodName": "createSignLayer",
+    "entityId": "minecraft:sign",
+    "yAxis": "DOWN",
+    "inventoryYRotation": 0.0,
+    "texWidthOverride": null,
+    "texHeightOverride": null,
+    "paramIntValues": null
+  },
+  {
+    "classEntry": "net/minecraft/client/renderer/blockentity/HangingSignRenderer.class",
+    "methodName": "createHangingSignLayer",
+    "entityId": "minecraft:hanging_sign",
+    "yAxis": "DOWN",
+    "inventoryYRotation": 0.0,
+    "texWidthOverride": null,
+    "texHeightOverride": null,
+    "paramIntValues": null
+  },
+  {
+    "classEntry": "net/minecraft/client/renderer/blockentity/ConduitRenderer.class",
+    "methodName": "createShellLayer",
+    "entityId": "minecraft:conduit",
+    "yAxis": "DOWN",
+    "inventoryYRotation": 0.0,
+    "texWidthOverride": null,
+    "texHeightOverride": null,
+    "paramIntValues": null
+  },
+  {
+    "classEntry": "net/minecraft/client/model/object/bell/BellModel.class",
+    "methodName": "createBodyLayer",
+    "entityId": "minecraft:bell_body",
+    "yAxis": "UP",
+    "inventoryYRotation": 0.0,
+    "texWidthOverride": null,
+    "texHeightOverride": null,
+    "paramIntValues": null
+  },
+  {
+    "classEntry": "net/minecraft/client/renderer/blockentity/DecoratedPotRenderer.class",
+    "methodName": "createBaseLayer",
+    "entityId": "minecraft:decorated_pot",
+    "yAxis": "DOWN",
+    "inventoryYRotation": 0.0,
+    "texWidthOverride": null,
+    "texHeightOverride": null,
+    "paramIntValues": null
+  },
+  {
+    "classEntry": "net/minecraft/client/renderer/blockentity/DecoratedPotRenderer.class",
+    "methodName": "createSidesLayer",
+    "entityId": "minecraft:decorated_pot_sides",
+    "yAxis": "DOWN",
+    "inventoryYRotation": 0.0,
+    "texWidthOverride": null,
+    "texHeightOverride": null,
+    "paramIntValues": null
+  },
+  {
+    "classEntry": "net/minecraft/client/model/animal/golem/CopperGolemModel.class",
+    "methodName": "createBodyLayer",
+    "entityId": "minecraft:copper_golem_statue",
+    "yAxis": "DOWN",
+    "inventoryYRotation": 0.0,
+    "texWidthOverride": null,
+    "texHeightOverride": null,
+    "paramIntValues": null
+  },
+  {
+    "classEntry": "net/minecraft/client/model/object/skull/SkullModel.class",
+    "methodName": "createHeadModel",
+    "entityId": "minecraft:skull_head",
+    "yAxis": "DOWN",
+    "inventoryYRotation": 180.0,
+    "texWidthOverride": 64,
+    "texHeightOverride": 32,
+    "paramIntValues": null
+  },
+  {
+    "classEntry": "net/minecraft/client/model/object/skull/SkullModel.class",
+    "methodName": "createHeadModel",
+    "entityId": "minecraft:skull_humanoid_head",
+    "yAxis": "DOWN",
+    "inventoryYRotation": 180.0,
+    "texWidthOverride": 64,
+    "texHeightOverride": 64,
+    "paramIntValues": null
+  },
+  {
+    "classEntry": "net/minecraft/client/model/object/skull/DragonHeadModel.class",
+    "methodName": "createHeadLayer",
+    "entityId": "minecraft:skull_dragon_head",
+    "yAxis": "DOWN",
+    "inventoryYRotation": 180.0,
+    "texWidthOverride": null,
+    "texHeightOverride": null,
+    "paramIntValues": null
+  },
+  {
+    "classEntry": "net/minecraft/client/model/object/skull/PiglinHeadModel.class",
+    "methodName": "createHeadModel",
+    "entityId": "minecraft:skull_piglin_head",
+    "yAxis": "DOWN",
+    "inventoryYRotation": 180.0,
+    "texWidthOverride": 64,
+    "texHeightOverride": 64,
+    "paramIntValues": null
+  }
+]
