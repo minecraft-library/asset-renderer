@@ -447,14 +447,6 @@
           "textureId": "minecraft:entity/chest/normal"
         },
         {
-          "blockId": "minecraft:trapped_chest",
-          "textureId": "minecraft:entity/chest/trapped"
-        },
-        {
-          "blockId": "minecraft:ender_chest",
-          "textureId": "minecraft:entity/chest/ender"
-        },
-        {
           "blockId": "minecraft:copper_chest",
           "textureId": "minecraft:entity/chest/copper"
         },
@@ -485,6 +477,14 @@
         {
           "blockId": "minecraft:waxed_oxidized_copper_chest",
           "textureId": "minecraft:entity/chest/copper_oxidized"
+        },
+        {
+          "blockId": "minecraft:trapped_chest",
+          "textureId": "minecraft:entity/chest/trapped"
+        },
+        {
+          "blockId": "minecraft:ender_chest",
+          "textureId": "minecraft:entity/chest/ender"
         }
       ]
     },
@@ -960,36 +960,20 @@
           "textureId": "minecraft:entity/signs/birch"
         },
         {
-          "blockId": "minecraft:jungle_sign",
-          "textureId": "minecraft:entity/signs/jungle"
-        },
-        {
           "blockId": "minecraft:acacia_sign",
           "textureId": "minecraft:entity/signs/acacia"
         },
         {
-          "blockId": "minecraft:dark_oak_sign",
-          "textureId": "minecraft:entity/signs/dark_oak"
-        },
-        {
-          "blockId": "minecraft:crimson_sign",
-          "textureId": "minecraft:entity/signs/crimson"
-        },
-        {
-          "blockId": "minecraft:warped_sign",
-          "textureId": "minecraft:entity/signs/warped"
-        },
-        {
-          "blockId": "minecraft:mangrove_sign",
-          "textureId": "minecraft:entity/signs/mangrove"
-        },
-        {
-          "blockId": "minecraft:bamboo_sign",
-          "textureId": "minecraft:entity/signs/bamboo"
-        },
-        {
           "blockId": "minecraft:cherry_sign",
           "textureId": "minecraft:entity/signs/cherry"
+        },
+        {
+          "blockId": "minecraft:jungle_sign",
+          "textureId": "minecraft:entity/signs/jungle"
+        },
+        {
+          "blockId": "minecraft:dark_oak_sign",
+          "textureId": "minecraft:entity/signs/dark_oak"
         },
         {
           "blockId": "minecraft:pale_oak_sign",
@@ -1008,40 +992,56 @@
           "textureId": "minecraft:entity/signs/birch"
         },
         {
-          "blockId": "minecraft:jungle_wall_sign",
-          "textureId": "minecraft:entity/signs/jungle"
-        },
-        {
           "blockId": "minecraft:acacia_wall_sign",
           "textureId": "minecraft:entity/signs/acacia"
-        },
-        {
-          "blockId": "minecraft:dark_oak_wall_sign",
-          "textureId": "minecraft:entity/signs/dark_oak"
-        },
-        {
-          "blockId": "minecraft:crimson_wall_sign",
-          "textureId": "minecraft:entity/signs/crimson"
-        },
-        {
-          "blockId": "minecraft:warped_wall_sign",
-          "textureId": "minecraft:entity/signs/warped"
-        },
-        {
-          "blockId": "minecraft:mangrove_wall_sign",
-          "textureId": "minecraft:entity/signs/mangrove"
-        },
-        {
-          "blockId": "minecraft:bamboo_wall_sign",
-          "textureId": "minecraft:entity/signs/bamboo"
         },
         {
           "blockId": "minecraft:cherry_wall_sign",
           "textureId": "minecraft:entity/signs/cherry"
         },
         {
+          "blockId": "minecraft:jungle_wall_sign",
+          "textureId": "minecraft:entity/signs/jungle"
+        },
+        {
+          "blockId": "minecraft:dark_oak_wall_sign",
+          "textureId": "minecraft:entity/signs/dark_oak"
+        },
+        {
           "blockId": "minecraft:pale_oak_wall_sign",
           "textureId": "minecraft:entity/signs/pale_oak"
+        },
+        {
+          "blockId": "minecraft:crimson_sign",
+          "textureId": "minecraft:entity/signs/crimson"
+        },
+        {
+          "blockId": "minecraft:crimson_wall_sign",
+          "textureId": "minecraft:entity/signs/crimson"
+        },
+        {
+          "blockId": "minecraft:warped_sign",
+          "textureId": "minecraft:entity/signs/warped"
+        },
+        {
+          "blockId": "minecraft:warped_wall_sign",
+          "textureId": "minecraft:entity/signs/warped"
+        },
+        {
+          "blockId": "minecraft:mangrove_sign",
+          "textureId": "minecraft:entity/signs/mangrove"
+        },
+        {
+          "blockId": "minecraft:mangrove_wall_sign",
+          "textureId": "minecraft:entity/signs/mangrove"
+        },
+        {
+          "blockId": "minecraft:bamboo_sign",
+          "textureId": "minecraft:entity/signs/bamboo"
+        },
+        {
+          "blockId": "minecraft:bamboo_wall_sign",
+          "textureId": "minecraft:entity/signs/bamboo"
         }
       ]
     },
@@ -1409,16 +1409,24 @@
           "textureId": "minecraft:entity/signs/hanging/birch"
         },
         {
-          "blockId": "minecraft:jungle_hanging_sign",
-          "textureId": "minecraft:entity/signs/hanging/jungle"
-        },
-        {
           "blockId": "minecraft:acacia_hanging_sign",
           "textureId": "minecraft:entity/signs/hanging/acacia"
         },
         {
+          "blockId": "minecraft:cherry_hanging_sign",
+          "textureId": "minecraft:entity/signs/hanging/cherry"
+        },
+        {
+          "blockId": "minecraft:jungle_hanging_sign",
+          "textureId": "minecraft:entity/signs/hanging/jungle"
+        },
+        {
           "blockId": "minecraft:dark_oak_hanging_sign",
           "textureId": "minecraft:entity/signs/hanging/dark_oak"
+        },
+        {
+          "blockId": "minecraft:pale_oak_hanging_sign",
+          "textureId": "minecraft:entity/signs/hanging/pale_oak"
         },
         {
           "blockId": "minecraft:crimson_hanging_sign",
@@ -1437,14 +1445,6 @@
           "textureId": "minecraft:entity/signs/hanging/bamboo"
         },
         {
-          "blockId": "minecraft:cherry_hanging_sign",
-          "textureId": "minecraft:entity/signs/hanging/cherry"
-        },
-        {
-          "blockId": "minecraft:pale_oak_hanging_sign",
-          "textureId": "minecraft:entity/signs/hanging/pale_oak"
-        },
-        {
           "blockId": "minecraft:oak_wall_hanging_sign",
           "textureId": "minecraft:entity/signs/hanging/oak"
         },
@@ -1457,16 +1457,24 @@
           "textureId": "minecraft:entity/signs/hanging/birch"
         },
         {
-          "blockId": "minecraft:jungle_wall_hanging_sign",
-          "textureId": "minecraft:entity/signs/hanging/jungle"
-        },
-        {
           "blockId": "minecraft:acacia_wall_hanging_sign",
           "textureId": "minecraft:entity/signs/hanging/acacia"
         },
         {
+          "blockId": "minecraft:cherry_wall_hanging_sign",
+          "textureId": "minecraft:entity/signs/hanging/cherry"
+        },
+        {
+          "blockId": "minecraft:jungle_wall_hanging_sign",
+          "textureId": "minecraft:entity/signs/hanging/jungle"
+        },
+        {
           "blockId": "minecraft:dark_oak_wall_hanging_sign",
           "textureId": "minecraft:entity/signs/hanging/dark_oak"
+        },
+        {
+          "blockId": "minecraft:pale_oak_wall_hanging_sign",
+          "textureId": "minecraft:entity/signs/hanging/pale_oak"
         },
         {
           "blockId": "minecraft:crimson_wall_hanging_sign",
@@ -1483,14 +1491,6 @@
         {
           "blockId": "minecraft:bamboo_wall_hanging_sign",
           "textureId": "minecraft:entity/signs/hanging/bamboo"
-        },
-        {
-          "blockId": "minecraft:cherry_wall_hanging_sign",
-          "textureId": "minecraft:entity/signs/hanging/cherry"
-        },
-        {
-          "blockId": "minecraft:pale_oak_wall_hanging_sign",
-          "textureId": "minecraft:entity/signs/hanging/pale_oak"
         }
       ]
     },
@@ -1735,7 +1735,6 @@
       "tinted": false,
       "blocks": [
         {
-          "//": "Additive overlay: BellModel.createBodyLayer\u0027s bell-cup geometry hangs from the bar+post fixture supplied by block/bell_floor.json / bell_ceiling.json / bell_wall.json / bell_between_walls.json. Vanilla minecraft:bell is the loose item; the four model-named blocks are the placed variants picked by the bell blockstate\u0027s attachment property. additive\u003dtrue keeps each blockstate\u0027s primary model in place and merges the bell entity geometry on top at render time.",
           "blockId": "minecraft:bell_floor",
           "textureId": "minecraft:entity/bell/bell_body"
         },
@@ -1984,7 +1983,6 @@
       ],
       "blocks": [
         {
-          "//": "Primary model is the neck + lid/base caps from createBaseLayer (Sheets.DECORATED_POT_BASE, 32x32); the pot walls from createSidesLayer use Sheets.DECORATED_POT_SIDE (16x16 solid terracotta, the default when a pot has no sherd decorations).",
           "blockId": "minecraft:decorated_pot",
           "textureId": "minecraft:entity/decorated_pot/decorated_pot_base"
         }
@@ -2735,7 +2733,6 @@
       "tinted": false,
       "blocks": [
         {
-          "//": "skull_head variant: UV calibrated for 64x32 entity textures (skeleton/wither/creeper/piglin/dragon).",
           "blockId": "minecraft:skeleton_skull",
           "textureId": "minecraft:entity/skeleton/skeleton"
         },
@@ -2744,20 +2741,20 @@
           "textureId": "minecraft:entity/skeleton/skeleton"
         },
         {
-          "blockId": "minecraft:wither_skeleton_skull",
-          "textureId": "minecraft:entity/skeleton/wither_skeleton"
-        },
-        {
-          "blockId": "minecraft:wither_skeleton_wall_skull",
-          "textureId": "minecraft:entity/skeleton/wither_skeleton"
-        },
-        {
           "blockId": "minecraft:creeper_head",
           "textureId": "minecraft:entity/creeper/creeper"
         },
         {
           "blockId": "minecraft:creeper_wall_head",
           "textureId": "minecraft:entity/creeper/creeper"
+        },
+        {
+          "blockId": "minecraft:wither_skeleton_skull",
+          "textureId": "minecraft:entity/skeleton/wither_skeleton"
+        },
+        {
+          "blockId": "minecraft:wither_skeleton_wall_skull",
+          "textureId": "minecraft:entity/skeleton/wither_skeleton"
         }
       ]
     },
@@ -3257,7 +3254,6 @@
       "tinted": false,
       "blocks": [
         {
-          "//": "Dragon head: full snout geometry from DragonHeadModel.createHeadLayer (256x256 dragon entity texture). Extends past the 0..16 bbox; runtime recenterAndFit rescales for the atlas tile.",
           "blockId": "minecraft:dragon_head",
           "textureId": "minecraft:entity/enderdragon/dragon"
         },
@@ -3713,7 +3709,6 @@
       "tinted": false,
       "blocks": [
         {
-          "//": "Piglin head: head cube + ears from AbstractPiglinModel.addHead, reached by following the invokestatic chain from PiglinHeadModel.createHeadModel.",
           "blockId": "minecraft:piglin_head",
           "textureId": "minecraft:entity/piglin/piglin"
         },
@@ -3811,7 +3806,6 @@
       "tinted": false,
       "blocks": [
         {
-          "//": "skull_humanoid_head variant: UV calibrated for 64x64 player-skin textures (zombie, player). Same geometry as skull_head; only the V scale differs so the top-left 32x16 head region samples correctly on a double-height texture.",
           "blockId": "minecraft:zombie_head",
           "textureId": "minecraft:entity/zombie/zombie"
         },
@@ -3821,11 +3815,11 @@
         },
         {
           "blockId": "minecraft:player_head",
-          "textureId": "minecraft:entity/player/wide/steve"
+          "textureId": "minecraft:entity/player/slim/steve"
         },
         {
           "blockId": "minecraft:player_wall_head",
-          "textureId": "minecraft:entity/player/wide/steve"
+          "textureId": "minecraft:entity/player/slim/steve"
         }
       ]
     },
@@ -3991,7 +3985,6 @@
       ],
       "blocks": [
         {
-          "//": "Standing + wall banners: pole+bar (primary) merged with flag (part). All 16 dye colours share the entity/banner/banner_base 64x64 texture; per-colour appearance comes from the `tint` field, which is a DyeColor.Vanilla enum name resolved to the canonical textureDiffuseColor at load time (hex #RRGGBB / #AARRGGBB is also accepted for custom colours outside the sixteen vanilla dyes). The tint is applied as a multiplicative tint at render time via BlockRenderer.Isometric3D. Limitation: the pole+bar receive the flag tint because block-level tint is per-block, not per-face.",
           "blockId": "minecraft:white_banner",
           "textureId": "minecraft:entity/banner/banner_base"
         },
@@ -4151,7 +4144,6 @@
       ],
       "blocks": [
         {
-          "//": "Wall banners: flag + bar only, no vertical pole. Parsed from BannerModel.createBodyLayer(false) + BannerFlagModel.createFlagLayer(false), which apply wall-specific geometry: the bar sits at y\u003d-20.5 (not y\u003d-44 as on standing banners), and the flag is pivoted at (0, -20.5, 10.5) to hang from the bar against the wall surface.",
           "blockId": "minecraft:white_wall_banner",
           "textureId": "minecraft:entity/banner/banner_base"
         },

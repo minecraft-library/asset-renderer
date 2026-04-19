@@ -34,7 +34,7 @@ class BlockEntityParityTest {
         JsonObject entities = root.getAsJsonObject("entities");
         java.util.zip.ZipFile zip = new java.util.zip.ZipFile(Path.of("cache/asset-renderer/vanilla/26.1/client.jar").toFile());
         try {
-            java.util.Map<String, BlockListCatalog.EntityBlockMapping> catalog = BlockListCatalog.lookup(zip, new Diagnostics());
+            java.util.Map<String, BlockListDiscovery.EntityBlockMapping> catalog = BlockListDiscovery.discover(zip, new Diagnostics());
             for (String entityId : catalog.keySet()) {
                 assertThat("entity '" + entityId + "' present in block_entities.json", entities.has(entityId), equalTo(true));
                 JsonObject entity = entities.getAsJsonObject(entityId);

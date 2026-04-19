@@ -17,35 +17,43 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Slow parity test: locks the hardcoded {@link BlockListCatalog#lookup} output against the
- * {@code baseline/block_list.json} fixture. Confirms the catalog hasn't drifted from the
- * last-captured ground truth.
+ * Slow parity test: walks the real 26.1 client jar through {@link BlockListDiscovery#discover}
+ * and compares each entity-id's {@code blocks} list against {@code baseline/block_list.json}.
+ * Confirms the bytecode-driven discovery produces the same output as the captured ground truth.
+ *
+ * <p>Divergences are expected in the PR that replaces {@code BlockListCatalog} - when the
+ * baseline was authored against a pre-26.1 jar, new block variants may appear in discovery but
+ * not in the baseline. Such drift is surfaced by this test so the baseline can be updated
+ * deliberately.
  */
-@DisplayName("BlockListCatalog parity")
+@DisplayName("BlockListDiscovery parity")
 @Tag("slow")
-class BlockListCatalogParityTest {
+class BlockListDiscoveryParityTest {
 
     private static final Path JAR = Path.of("cache/asset-renderer/vanilla/26.1/client.jar");
     private static final Path BASELINE = Path.of("src/test/resources/renderer/baseline/block_list.json");
 
     @Test
-    @DisplayName("BlockListCatalog matches baseline/block_list.json")
+    @DisplayName("BlockListDiscovery matches baseline/block_list.json")
     void parity() throws IOException {
         try (ZipFile zip = new ZipFile(JAR.toFile())) {
-            Map<String, BlockListCatalog.EntityBlockMapping> actual = BlockListCatalog.lookup(zip, new Diagnostics());
+            Map<String, BlockListDiscovery.EntityBlockMapping> actual = BlockListDiscovery.discover(zip, new Diagnostics());
             JsonObject expectedJson = new Gson().fromJson(Files.readString(BASELINE), JsonObject.class);
             assertThat("entity-model key set", actual.keySet(), equalTo(expectedJson.keySet()));
-            for (Map.Entry<String, BlockListCatalog.EntityBlockMapping> e : actual.entrySet()) {
+            for (Map.Entry<String, BlockListDiscovery.EntityBlockMapping> e : actual.entrySet()) {
                 JsonObject exp = expectedJson.getAsJsonObject(e.getKey());
                 JsonArray expBlocks = exp.getAsJsonArray("blocks");
                 assertThat("blocks count for " + e.getKey(), e.getValue().blocks().size(), equalTo(expBlocks.size()));
                 for (int i = 0; i < e.getValue().blocks().size(); i++) {
-                    BlockListCatalog.BlockMapping actualBm = e.getValue().blocks().get(i);
+                    BlockListDiscovery.BlockMapping actualBm = e.getValue().blocks().get(i);
                     JsonObject expBm = expBlocks.get(i).getAsJsonObject();
-                    assertThat("blockId for " + e.getKey() + "[" + i + "]", actualBm.blockId(), equalTo(expBm.get("blockId").getAsString()));
-                    assertThat("textureId for " + e.getKey() + "[" + i + "]", actualBm.textureId(), equalTo(expBm.get("textureId").getAsString()));
+                    assertThat("blockId for " + e.getKey() + "[" + i + "]", actualBm.blockId(),
+                        equalTo(expBm.get("blockId").getAsString()));
+                    assertThat("textureId for " + e.getKey() + "[" + i + "]", actualBm.textureId(),
+                        equalTo(expBm.get("textureId").getAsString()));
                 }
             }
         }
     }
+
 }

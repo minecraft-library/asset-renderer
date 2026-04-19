@@ -42,7 +42,7 @@ class SourceDiscoveryParityTest {
         try (ZipFile zip = new ZipFile(JAR.toFile())) {
             Diagnostics diag = new Diagnostics();
             ConcurrentList<Source> all = SourceDiscovery.discover(zip, diag);
-            Map<String, BlockListCatalog.EntityBlockMapping> blockList = BlockListCatalog.lookup(zip, diag);
+            Map<String, BlockListDiscovery.EntityBlockMapping> blockList = BlockListDiscovery.discover(zip, diag);
 
             ConcurrentList<Source> filtered = dev.simplified.collection.Concurrent.newList();
             for (Source s : all)

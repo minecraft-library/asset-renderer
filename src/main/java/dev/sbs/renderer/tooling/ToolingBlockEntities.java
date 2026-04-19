@@ -14,7 +14,7 @@ import dev.sbs.renderer.pipeline.client.HttpFetcher;
 import dev.sbs.renderer.pipeline.loader.BlockEntityLoader;
 import dev.sbs.renderer.tensor.Vector3f;
 import dev.sbs.renderer.tooling.asm.AsmKit;
-import dev.sbs.renderer.tooling.blockentity.BlockListCatalog;
+import dev.sbs.renderer.tooling.blockentity.BlockListDiscovery;
 import dev.sbs.renderer.tooling.blockentity.Diagnostics;
 import dev.sbs.renderer.tooling.blockentity.InventoryTransformCatalog;
 import dev.sbs.renderer.tooling.blockentity.Source;
@@ -77,11 +77,13 @@ public final class ToolingBlockEntities {
         JsonObject merged;
         try (ZipFile zip = new ZipFile(jarPath.toFile())) {
             ConcurrentList<Source> allSources = SourceDiscovery.discover(zip, diagnostics);
-            Map<String, BlockListCatalog.EntityBlockMapping> blockList = BlockListCatalog.lookup(zip, diagnostics);
-            // Filter discovered sources down to those listed in the block-list catalog - the
-            // catalog's keys define which entity ids ship in the atlas. BookModel-only
-            // renderers (enchanting_table, lectern) don't appear in the catalog and are
-            // dropped here.
+            Map<String, BlockListDiscovery.EntityBlockMapping> blockList = BlockListDiscovery.discover(zip, diagnostics);
+            // Whitelist by BlockListDiscovery's known entity-ids. SourceDiscovery emits sources
+            // for every registered BlockEntityRenderer (including renderers like enchanting_table
+            // and lectern whose entity-id has no block-list binding); this filter restricts the
+            // output pipeline to the entity-ids that BlockListDiscovery actually handles.
+            // TODO: future PR could expand BlockListDiscovery to cover additional BE renderers
+            // (enchanting_table, lectern) so this filter becomes a no-op.
             ConcurrentList<Source> sources = Concurrent.newList();
             for (Source s : allSources)
                 if (blockList.containsKey(s.entityId())) sources.add(s);
@@ -169,7 +171,7 @@ public final class ToolingBlockEntities {
     private static @NotNull JsonObject buildMergedOutput(
         @NotNull JsonObject blockModels,
         @NotNull ConcurrentMap<String, JsonObject> parsedEntityModels,
-        @NotNull Map<String, BlockListCatalog.EntityBlockMapping> blockList,
+        @NotNull Map<String, BlockListDiscovery.EntityBlockMapping> blockList,
         @NotNull Map<String, float[]> inventoryTransforms,
         @NotNull Set<String> tintedModelIds
     ) throws IOException {
@@ -229,9 +231,9 @@ public final class ToolingBlockEntities {
             }
             entityOut.addProperty("tinted", tintedModelIds.contains(modelId));
 
-            // Block list + parts come from the BlockListCatalog; only fall back to existing
-            // hand-curated arrays when the catalog doesn't carry the entity.
-            BlockListCatalog.EntityBlockMapping catalogEntry = blockList.get(modelId);
+            // Block list + parts come from BlockListDiscovery; only fall back to existing
+            // hand-curated arrays when discovery doesn't carry the entity.
+            BlockListDiscovery.EntityBlockMapping catalogEntry = blockList.get(modelId);
             if (catalogEntry != null) {
                 JsonArray parts = buildPartsArray(catalogEntry);
                 if (parts != null) entityOut.add("parts", parts);
@@ -258,11 +260,11 @@ public final class ToolingBlockEntities {
      * with only an offset emit {@code {"model": ..., "offset": [x, y, z]}}; full entries emit
      * all three keys.
      */
-    private static @Nullable JsonArray buildPartsArray(@NotNull BlockListCatalog.EntityBlockMapping entry) {
-        List<BlockListCatalog.PartRef> parts = entry.parts();
+    private static @Nullable JsonArray buildPartsArray(@NotNull BlockListDiscovery.EntityBlockMapping entry) {
+        List<BlockListDiscovery.PartRef> parts = entry.parts();
         if (parts == null) return null;
         JsonArray arr = new JsonArray();
-        for (BlockListCatalog.PartRef p : parts) {
+        for (BlockListDiscovery.PartRef p : parts) {
             JsonObject part = new JsonObject();
             part.addProperty("model", p.model());
             if (p.offset() != null) {
@@ -282,13 +284,12 @@ public final class ToolingBlockEntities {
      * {@code null} when the entry has no blocks; the caller omits the key entirely in that
      * case, matching how the previous hand-curated JSON was structured.
      */
-    private static @Nullable JsonArray buildBlocksArray(@NotNull BlockListCatalog.EntityBlockMapping entry) {
-        List<BlockListCatalog.BlockMapping> blocks = entry.blocks();
+    private static @Nullable JsonArray buildBlocksArray(@NotNull BlockListDiscovery.EntityBlockMapping entry) {
+        List<BlockListDiscovery.BlockMapping> blocks = entry.blocks();
         if (blocks.isEmpty()) return null;
         JsonArray arr = new JsonArray();
-        for (BlockListCatalog.BlockMapping b : blocks) {
+        for (BlockListDiscovery.BlockMapping b : blocks) {
             JsonObject block = new JsonObject();
-            if (b.comment() != null) block.addProperty("//", b.comment());
             block.addProperty("blockId", b.blockId());
             block.addProperty("textureId", b.textureId());
             arr.add(block);
