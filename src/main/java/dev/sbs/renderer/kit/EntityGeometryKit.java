@@ -1,10 +1,10 @@
 package dev.sbs.renderer.kit;
 
+import dev.sbs.renderer.asset.model.EntityModelData;
 import dev.sbs.renderer.geometry.BlockFace;
 import dev.sbs.renderer.geometry.Box;
 import dev.sbs.renderer.geometry.EulerRotation;
 import dev.sbs.renderer.geometry.VisibleTriangle;
-import dev.sbs.renderer.asset.model.EntityModelData;
 import dev.sbs.renderer.tensor.Matrix4f;
 import dev.sbs.renderer.tensor.Vector2f;
 import dev.sbs.renderer.tensor.Vector3f;

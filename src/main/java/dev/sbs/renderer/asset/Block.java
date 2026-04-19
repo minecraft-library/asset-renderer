@@ -1,9 +1,8 @@
 package dev.sbs.renderer.asset;
 
 import com.google.gson.JsonObject;
-
-import dev.sbs.renderer.geometry.Biome;
 import dev.sbs.renderer.asset.model.BlockModelData;
+import dev.sbs.renderer.geometry.Biome;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;

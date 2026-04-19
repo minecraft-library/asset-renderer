@@ -1,12 +1,12 @@
 package dev.sbs.renderer.engine;
 
 import dev.sbs.renderer.asset.Block;
-import dev.sbs.renderer.asset.pack.ColorMap;
 import dev.sbs.renderer.asset.Entity;
 import dev.sbs.renderer.asset.Item;
+import dev.sbs.renderer.asset.pack.AnimationData;
+import dev.sbs.renderer.asset.pack.ColorMap;
 import dev.sbs.renderer.asset.pack.Texture;
 import dev.sbs.renderer.asset.pack.TexturePack;
-import dev.sbs.renderer.asset.pack.AnimationData;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.PixelBuffer;

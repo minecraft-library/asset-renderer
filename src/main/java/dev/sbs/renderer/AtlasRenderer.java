@@ -4,15 +4,15 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import dev.sbs.renderer.asset.Block;
+import dev.sbs.renderer.asset.Entity;
+import dev.sbs.renderer.asset.Item;
+import dev.sbs.renderer.asset.pack.AnimationData;
+import dev.sbs.renderer.asset.pack.ColorMap;
+import dev.sbs.renderer.asset.pack.TexturePack;
 import dev.sbs.renderer.engine.RendererContext;
 import dev.sbs.renderer.exception.RendererException;
 import dev.sbs.renderer.kit.AnimationKit;
-import dev.sbs.renderer.asset.Block;
-import dev.sbs.renderer.asset.pack.ColorMap;
-import dev.sbs.renderer.asset.Entity;
-import dev.sbs.renderer.asset.Item;
-import dev.sbs.renderer.asset.pack.TexturePack;
-import dev.sbs.renderer.asset.pack.AnimationData;
 import dev.sbs.renderer.options.AtlasOptions;
 import dev.sbs.renderer.options.BlockOptions;
 import dev.sbs.renderer.options.FluidOptions;
@@ -26,7 +26,6 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
 import org.jetbrains.annotations.NotNull;
 
-import java.awt.*;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -489,9 +488,11 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             if (strip.isEmpty()) return strip;
 
             Optional<AnimationData> animation = this.delegate.animationFor(textureId);
-            if (animation.isEmpty()) return strip;
-
-            return Optional.of(AnimationKit.sampleFrame(strip.get(), animation.get(), 0));
+            return animation.map(animationData -> AnimationKit.sampleFrame(
+                strip.get(),
+                animationData,
+                0)
+            ).or(() -> strip);
         }
 
         @Override

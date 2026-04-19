@@ -1,11 +1,11 @@
 package dev.sbs.renderer.kit;
 
+import dev.sbs.renderer.asset.model.ModelElement;
+import dev.sbs.renderer.asset.model.ModelFace;
 import dev.sbs.renderer.geometry.BlockFace;
 import dev.sbs.renderer.geometry.Box;
 import dev.sbs.renderer.geometry.ModelGrid;
 import dev.sbs.renderer.geometry.VisibleTriangle;
-import dev.sbs.renderer.asset.model.ModelElement;
-import dev.sbs.renderer.asset.model.ModelFace;
 import dev.sbs.renderer.tensor.Matrix4f;
 import dev.sbs.renderer.tensor.Vector2f;
 import dev.sbs.renderer.tensor.Vector3f;
