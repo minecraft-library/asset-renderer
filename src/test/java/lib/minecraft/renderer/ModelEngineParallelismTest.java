@@ -112,7 +112,7 @@ class ModelEngineParallelismTest {
 
     private static int[] firstFramePixels(ImageData image) {
         PixelBuffer buffer = image.getFrames().getFirst().pixels();
-        return buffer.pixels().clone();
+        return buffer.data().clone();
     }
 
     private static long crc32(int[] pixels) {

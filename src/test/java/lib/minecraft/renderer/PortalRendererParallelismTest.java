@@ -1,12 +1,12 @@
 package lib.minecraft.renderer;
 
+import dev.simplified.image.ImageData;
+import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.options.PortalOptions;
 import lib.minecraft.renderer.pipeline.AssetPipeline;
 import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.client.HttpFetcher;
-import dev.simplified.image.ImageData;
-import dev.simplified.image.pixel.PixelBuffer;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -95,7 +95,7 @@ class PortalRendererParallelismTest {
 
     private static int[] firstFramePixels(ImageData image) {
         PixelBuffer buffer = image.getFrames().getFirst().pixels();
-        return buffer.pixels().clone();
+        return buffer.data().clone();
     }
 
     private static long crc32(int[] pixels) {
