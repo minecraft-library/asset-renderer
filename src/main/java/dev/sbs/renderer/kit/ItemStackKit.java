@@ -1,7 +1,7 @@
 package dev.sbs.renderer.kit;
 
-import dev.sbs.renderer.text.font.MinecraftFont;
-import dev.sbs.renderer.text.font.MinecraftGraphics;
+import lib.minecraft.text.font.MinecraftFont;
+import lib.minecraft.text.font.MinecraftGraphics;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lombok.experimental.UtilityClass;

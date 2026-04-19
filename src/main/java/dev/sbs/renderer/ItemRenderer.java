@@ -26,7 +26,7 @@ import dev.sbs.renderer.options.BlockOptions;
 import dev.sbs.renderer.options.ItemOptions;
 import dev.sbs.renderer.tensor.Matrix4f;
 import dev.sbs.renderer.tensor.Vector3f;
-import dev.sbs.renderer.text.font.MinecraftFont;
+import lib.minecraft.text.font.MinecraftFont;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;

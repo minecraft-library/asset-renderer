@@ -1,8 +1,8 @@
 package dev.sbs.renderer;
 
 import dev.sbs.renderer.options.TextOptions;
-import dev.sbs.renderer.text.ColorSegment;
-import dev.sbs.renderer.text.LineSegment;
+import lib.minecraft.text.ColorSegment;
+import lib.minecraft.text.LineSegment;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;

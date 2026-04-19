@@ -2,7 +2,7 @@ package dev.sbs.renderer.tooling;
 
 import dev.sbs.renderer.TextRenderer;
 import dev.sbs.renderer.options.TextOptions;
-import dev.sbs.renderer.text.LineSegment;
+import lib.minecraft.text.LineSegment;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
@@ -30,6 +30,7 @@ import java.nio.file.Path;
 @UtilityClass
 public final class TestLoreMain {
 
+    /** Output directory for all lore renders. */
     private static final Path OUTPUT_DIR = Path.of("cache/test-lore");
 
     /**
@@ -66,6 +67,12 @@ public final class TestLoreMain {
         "&9&l&ka &r&9&lRARE SWORD &9&l&ka"
     );
 
+    /**
+     * Runs the test matrix.
+     *
+     * @param args ignored
+     * @throws IOException if the output directory cannot be created or a render cannot be written
+     */
     public static void main(String @NotNull [] args) throws IOException {
         Files.createDirectories(OUTPUT_DIR);
 
@@ -80,6 +87,9 @@ public final class TestLoreMain {
         System.out.println("Done. Outputs in " + OUTPUT_DIR.toAbsolutePath());
     }
 
+    /**
+     * Renders a single-frame tooltip to PNG. Used for static tooltips without obfuscated text.
+     */
     private static void renderStatic(@NotNull String slug, @NotNull String legacy) throws IOException {
         ConcurrentList<LineSegment> lines = LineSegment.fromLegacy(legacy, '&');
         TextRenderer renderer = new TextRenderer();
@@ -102,6 +112,11 @@ public final class TestLoreMain {
             slug, out.getName(), elapsedMs, w, h);
     }
 
+    /**
+     * Renders an animated tooltip to GIF + lossless WebP + lossy WebP (with a motion-search
+     * thread sweep) + a static first-frame WebP. Used for tooltips that carry obfuscated text
+     * so the codec-level palette handling and P-frame motion encoding can be eyeballed.
+     */
     private static void renderAnimated(@NotNull String slug, @NotNull String legacy) throws IOException {
         ConcurrentList<LineSegment> lines = LineSegment.fromLegacy(legacy, '&');
         TextRenderer renderer = new TextRenderer();

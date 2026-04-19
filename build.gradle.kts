@@ -60,6 +60,12 @@ dependencies {
     api("com.github.simplified-dev:gson-extras:master-SNAPSHOT")
     api("com.github.simplified-dev:client:master-SNAPSHOT")
 
+    // Minecraft-Library (extracted to github.com/minecraft-library)
+    // Owns dev.sbs.renderer.text.**, dev.sbs.renderer.text.font.**, and the
+    // RendererException / FontException base classes that the remaining asset-renderer
+    // exceptions still extend.
+    api("com.github.minecraft-library:text:master-SNAPSHOT")
+
     // ASM - used by VanillaTintsLoader to parse net.minecraft.client.color.block.BlockColors
     // straight from the extracted client jar, replacing the previously hand-curated tint table.
     // 9.8 added support for Java 25 class files (major version 69) which 26.1 emits.
@@ -79,12 +85,6 @@ idea {
     }
 }
 
-// Generated font files live outside src/main/resources so the font-generator tool never has
-// to write into the source tree. processResources picks them up and copies them onto the
-// runtime classpath at build time so MinecraftFont.initFont("fonts/X.otf", size) keeps
-// resolving via getResourceAsStream without any runtime code changes.
-val fontsCacheDir = layout.projectDirectory.dir("cache/fonts")
-
 tasks {
     test {
         useJUnitPlatform {
@@ -101,16 +101,6 @@ tasks {
         testClassesDirs = sourceSets["test"].output.classesDirs
         classpath = sourceSets["test"].runtimeClasspath
         outputs.upToDateWhen { false }
-    }
-
-    processResources {
-        // INCLUDE lets the generated fonts win over anything that might already sit in
-        // src/main/resources/fonts/ (that directory is gitignored, but a stale dev-machine
-        // copy could otherwise collide under the default FAIL strategy).
-        duplicatesStrategy = DuplicatesStrategy.INCLUDE
-        from(fontsCacheDir) {
-            into("fonts")
-        }
     }
 
     withType<JavaExec>().configureEach {
@@ -239,14 +229,9 @@ tasks {
         classpath = sourceSets["main"].runtimeClasspath
     }
 
-    register<JavaExec>("fonts") {
-        description = "Clones minecraft-library/font-generator into cache/font-generator, sets up a Python venv, and runs the generator against the given MC version (-PfontVersion=26.1 by default). Writes .otf files to cache/fonts/ - run processResources afterwards to copy them onto the classpath."
-        group = "tooling"
-        mainClass.set("dev.sbs.renderer.tooling.ToolingFonts")
-        classpath = sourceSets["main"].runtimeClasspath
-        val version = (project.findProperty("fontVersion") as String?) ?: "26.1"
-        args = listOf(version)
-    }
+    // `./gradlew fonts` now lives in the minecraft-text build at
+    // W:/Workspace/Java/Minecraft-Library/minecraft-text. Run it from there when a
+    // Minecraft version bump requires regenerating the OTF files.
 }
 
 // JMH benchmark harness. Benchmarks live in src/jmh/java and are run with

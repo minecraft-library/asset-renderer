@@ -1,6 +1,6 @@
 package dev.sbs.renderer.options;
 
-import dev.sbs.renderer.text.LineSegment;
+import lib.minecraft.text.LineSegment;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageFormat;

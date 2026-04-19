@@ -1,7 +1,7 @@
 package dev.sbs.renderer.tooling;
 
 import dev.sbs.renderer.kit.ItemStackKit;
-import dev.sbs.renderer.text.font.MinecraftFont;
+import lib.minecraft.text.font.MinecraftFont;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lombok.experimental.UtilityClass;
@@ -30,11 +30,17 @@ import java.nio.file.Path;
 @UtilityClass
 public final class TestStackCountMain {
 
+    /** Root output directory for all labelled renders + diff runs. */
     private static final Path OUTPUT_DIR = Path.of("cache/test-stack-count");
 
+    /** Icon sizes covered by a single render pass; one directory entry per size + count pair. */
     private static final int[] SIZES = { 16, 32, 64, 128, 256 };
+
+    /** Stack counts covered by a single render pass; one directory entry per size + count pair. */
     private static final int[] COUNTS = { 2, 5, 64, 99 };
-    private static final int BG_ARGB = 0xFF808080; // mid-light grey: white main stands out against grey, dark grey shadow stays visible.
+
+    /** Mid-light grey backdrop: white main stands out against grey, dark grey shadow stays visible. */
+    private static final int BG_ARGB = 0xFF808080;
 
     public static void main(String @NotNull [] args) throws IOException {
         Files.createDirectories(OUTPUT_DIR);
@@ -55,6 +61,7 @@ public final class TestStackCountMain {
         runRender(labelDir);
     }
 
+    /** Renders every (size, count) pair under {@code labelDir}. */
     private static void runRender(@NotNull Path labelDir) throws IOException {
         for (int size : SIZES) {
             for (int count : COUNTS) {
@@ -71,6 +78,10 @@ public final class TestStackCountMain {
         System.out.println("Done. Outputs in " + labelDir.toAbsolutePath());
     }
 
+    /**
+     * Pixel-diffs every {@code (size, count)} file in {@code labelA}'s directory against its twin
+     * in {@code labelB}'s, printing per-file and summary delta counts.
+     */
     private static void runDiff(@NotNull String labelA, @NotNull String labelB) throws IOException {
         Path dirA = OUTPUT_DIR.resolve(labelA);
         Path dirB = OUTPUT_DIR.resolve(labelB);
