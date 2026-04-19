@@ -3,7 +3,11 @@ package dev.sbs.renderer;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import dev.sbs.renderer.geometry.ModelGrid;
+import dev.sbs.renderer.asset.Block;
+import dev.sbs.renderer.asset.model.BlockModelData;
+import dev.sbs.renderer.asset.model.ModelElement;
+import dev.sbs.renderer.asset.model.ModelFace;
+import dev.sbs.renderer.asset.model.ModelTransform;
 import dev.sbs.renderer.engine.IsometricEngine;
 import dev.sbs.renderer.engine.RasterEngine;
 import dev.sbs.renderer.engine.RenderEngine;
@@ -12,15 +16,10 @@ import dev.sbs.renderer.engine.TextureEngine;
 import dev.sbs.renderer.exception.RendererException;
 import dev.sbs.renderer.geometry.Biome;
 import dev.sbs.renderer.geometry.EulerRotation;
+import dev.sbs.renderer.geometry.ModelGrid;
 import dev.sbs.renderer.geometry.PerspectiveParams;
 import dev.sbs.renderer.geometry.VisibleTriangle;
-import dev.sbs.renderer.pipeline.PipelineRendererContext;
 import dev.sbs.renderer.kit.GeometryKit;
-import dev.sbs.renderer.asset.Block;
-import dev.sbs.renderer.asset.model.BlockModelData;
-import dev.sbs.renderer.asset.model.ModelElement;
-import dev.sbs.renderer.asset.model.ModelFace;
-import dev.sbs.renderer.asset.model.ModelTransform;
 import dev.sbs.renderer.options.BlockOptions;
 import dev.sbs.renderer.tensor.Matrix4f;
 import dev.sbs.renderer.tensor.Vector3f;
@@ -383,22 +382,6 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         }
 
         /**
-         * Builds triangles for every {@link Block.Entity.Part part} attached to a block-entity
-         * block and translates them by each part's offset. Returns the combined triangle list
-         * ready to concatenate with the primary geometry. Called only when
-         * {@link BlockOptions#isMergeParts()} is {@code true}.
-         * <p>
-         * Translating the output triangles (rather than rewriting the element's from/to and
-         * rotation.origin up-front) is safe because rotation composes with translation:
-         * rotating around origin O then translating by D gives the same result as rotating
-         * around origin O+D after the whole element has been translated by D. That means the
-         * element's rotated-cube corners land at the correct final positions either way.
-         * <p>
-         * This is the atlas-time composition path that used to live in
-         * {@link dev.sbs.renderer.pipeline.loader.BlockEntityLoader}. Moving it to render time
-         * lets scene callers skip the merge for a per-variant-geometry render.
-         */
-        /**
          * Builds triangles for an {@linkplain Block.Entity#additive() additive} entity's primary
          * model and binds its {@link Block.Entity#textureId()} to the {@code "#entity"} face
          * variable. Used by bells (and any future overlay-style block entity) where the entity
@@ -422,6 +405,22 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             return GeometryKit.buildFromElements(entity.model().getElements(), faceTextures, tint, untintedTint);
         }
 
+        /**
+         * Builds triangles for every {@link Block.Entity.Part part} attached to a block-entity
+         * block and translates them by each part's offset. Returns the combined triangle list
+         * ready to concatenate with the primary geometry. Called only when
+         * {@link BlockOptions#isMergeParts()} is {@code true}.
+         * <p>
+         * Translating the output triangles (rather than rewriting the element's from/to and
+         * rotation.origin up-front) is safe because rotation composes with translation:
+         * rotating around origin O then translating by D gives the same result as rotating
+         * around origin O+D after the whole element has been translated by D. That means the
+         * element's rotated-cube corners land at the correct final positions either way.
+         * <p>
+         * This is the atlas-time composition path that used to live in
+         * {@link dev.sbs.renderer.pipeline.loader.BlockEntityLoader}. Moving it to render time
+         * lets scene callers skip the merge for a per-variant-geometry render.
+         */
         private @NotNull ConcurrentList<VisibleTriangle> buildFromEntityParts(@NotNull Block.Entity entity, int tint, int untintedTint) {
             ConcurrentList<VisibleTriangle> combined = Concurrent.newList();
             RasterEngine raster = new RasterEngine(this.context);
@@ -488,18 +487,22 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             Block.Variant first = null;
             if (block.getMultipart().isPresent()) {
                 ConcurrentList<Block.Multipart.Part> parts = block.getMultipart().get().parts();
+
                 if (!parts.isEmpty())
-                    first = parts.get(0).apply();
-            } else if (!block.getVariants().isEmpty()) {
+                    first = parts.getFirst().apply();
+            } else if (!block.getVariants().isEmpty())
                 first = block.getVariants().values().iterator().next();
-            }
-            if (first == null) return Concurrent.newList();
+
+            if (first == null)
+                return Concurrent.newList();
 
             String partBlockId = first.modelId().replace(":block/", ":");
             BlockModelData partModel = this.context.findBlock(partBlockId)
                 .map(Block::getModel)
                 .orElse(null);
-            if (partModel == null || partModel.getElements().isEmpty()) return Concurrent.newList();
+
+            if (partModel == null || partModel.getElements().isEmpty())
+                return Concurrent.newList();
 
             RasterEngine raster = new RasterEngine(this.context);
             ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
@@ -514,8 +517,12 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 }
             }
 
-            ConcurrentList<VisibleTriangle> triangles =
-                GeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint);
+            ConcurrentList<VisibleTriangle> triangles = GeometryKit.buildFromElements(
+                partModel.getElements(),
+                faceTextures,
+                tint,
+                untintedTint
+            );
 
             if (first.hasRotation())
                 triangles = applyRotation(triangles, buildVariantRotation(first));
@@ -554,13 +561,6 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             return block.getVariants().get(variantKey);
         }
 
-        /**
-         * Returns an {@link IsometricEngine} whose camera reflects the block's own
-         * {@code display.gui} rotation. Falls back to the standard {@code [30, 225, 0]} from
-         * {@code block/block.json} when the block doesn't supply its own gui transform, matching
-         * vanilla's inheritance behaviour - stairs ship {@code [30, 135, 0]}, slabs and fence
-         * gates override too.
-         */
         /**
          * Recenters and scales a triangle list so all geometry fits within the standard
          * 1.4 unit extent. Used for multi-block entity models that extend beyond the
@@ -606,6 +606,13 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             return result;
         }
 
+        /**
+         * Returns an {@link IsometricEngine} whose camera reflects the block's own
+         * {@code display.gui} rotation. Falls back to the standard {@code [30, 225, 0]} from
+         * {@code block/block.json} when the block doesn't supply its own gui transform, matching
+         * vanilla's inheritance behaviour - stairs ship {@code [30, 135, 0]}, slabs and fence
+         * gates override too.
+         */
         private static @NotNull IsometricEngine engineForBlockIcon(@NotNull RendererContext context, @NotNull Block block) {
             ModelTransform gui = block.getModel().getDisplay().get("gui");
             EulerRotation rotation = gui != null ? gui.getRotation() : EulerRotation.STANDARD_ISO_BLOCK;
