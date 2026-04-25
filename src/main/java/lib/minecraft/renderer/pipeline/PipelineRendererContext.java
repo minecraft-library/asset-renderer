@@ -275,7 +275,7 @@ public final class PipelineRendererContext implements RendererContext {
 
         ConcurrentMap<String, Entity> entityIndex = Concurrent.newMap();
         for (Map.Entry<String, EntityModelLoader.EntityDefinition> entityEntry : EntityModelLoader.load().entrySet())
-            entityIndex.put(entityEntry.getKey(), new Entity(entityEntry.getKey(), "minecraft", localName(entityEntry.getKey()), entityEntry.getValue().model(), entityEntry.getValue().textureId()));
+            entityIndex.put(entityEntry.getKey(), new Entity(entityEntry.getKey(), "minecraft", localName(entityEntry.getKey()), entityEntry.getValue().model(), entityEntry.getValue().textureRef()));
 
         // Block entity models now render via the block model path (GeometryKit.buildFromElements),
         // not the entity model path. Only mob entities remain in the entity index.
@@ -397,14 +397,16 @@ public final class PipelineRendererContext implements RendererContext {
      *
      * @param id the namespaced entity id (e.g. {@code "minecraft:zombie"})
      * @param model the bone/cube tree describing the entity's geometry
-     * @param textureId the default texture reference, or empty to require an override at render time
+     * @param textureRef the bundled texture sub-path under
+     *     {@code /lib/minecraft/renderer/entity_textures/} (without {@code .png}), or empty to
+     *     require a render-time override via {@code EntityOptions.textureId}
      */
     public void registerEntity(
         @NotNull String id,
         @NotNull EntityModelData model,
-        @NotNull Optional<String> textureId
+        @NotNull Optional<String> textureRef
     ) {
-        this.entityIndex.put(id, new Entity(id, "minecraft", localName(id), model, textureId));
+        this.entityIndex.put(id, new Entity(id, "minecraft", localName(id), model, textureRef));
     }
 
     /**

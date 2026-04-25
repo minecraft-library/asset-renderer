@@ -18,22 +18,21 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Objects;
 
 /**
- * A minimal entity model schema modelled on Minecraft Java Edition's hardcoded {@code ModelPart}
- * geometry. The asset pipeline parses a slim in-repo descriptor per entity that lists its bones
- * and their cube geometry without trying to express every vanilla feature.
+ * A minimal entity model schema modelled on Mojang's Bedrock Edition {@code .geo.json} format.
+ * The asset pipeline parses a slim in-repo descriptor per entity that lists its bones and their
+ * cube geometry without trying to express every vanilla feature.
  * <p>
  * Used by {@code EntityRenderer.ENTITY_3D} to turn an entity id into a list of cubes that can be
  * fed to the model engine.
  * <p>
- * The canonical coordinate convention is Java Edition's: Y-down (positive Y points toward the
- * floor - a vertex at {@code y = -8} is eight units above the entity origin), and each
- * {@link Cube#getOrigin() cube origin} is in its {@link Bone bone}'s <b>local</b> space - the
- * raw {@code addBox(x, y, z, ...)} arguments from the vanilla client. The bone's
- * {@link Bone#getPivot() pivot} doubles as the Java {@code PartPose} offset: it translates every
- * cube vertex into entity-root space and anchors rotations. Bedrock {@code .geo.json} data,
- * which is Y-up with cube origins pre-baked to world space, is converted into this convention
- * by {@link ToolingEntityModels ToolingEntityModels} at asset-generation
- * time, so the runtime only ever sees a single convention.
+ * The canonical coordinate convention is Bedrock-native: Y-up, right-handed, with every position
+ * field - {@link Bone#getPivot() bone pivot}, {@link Cube#getOrigin() cube origin},
+ * {@link Cube#getPivot() cube pivot} - stored in absolute entity-root space, exactly as authored
+ * in the source {@code .geo.json}. Bone pivots are pure rotation anchors; they do not translate
+ * the bone's subtree. Bedrock data is stored verbatim by
+ * {@link ToolingEntityModels ToolingEntityModels} at asset-generation
+ * time so the generated {@code entity_geometry.json} stays byte-diffable against Mojang's
+ * {@code bedrock-samples} source.
  *
  * @see EntityGeometryKit
  */
@@ -47,20 +46,6 @@ public class EntityModelData {
 
     /** Texture size in pixels. */
     private int textureHeight = 64;
-
-    /**
-     * The vertical-axis convention the model's author used when laying out the texture atlas.
-     * Most vanilla Java {@code ModelPart} subclasses are {@link YAxis#DOWN Y-down} (mob-style -
-     * a vertex with the smallest Y is visually highest on the model). A handful of block-native
-     * models - {@code ChestModel} is the canonical example - were authored {@link YAxis#UP Y-up}
-     * (larger Y is higher). The value affects the runtime UV slot assignment between the y-MAX
-     * and y-MIN faces: Y-down authors paint exterior content at the {@code (d, 0)} atlas slot,
-     * while Y-up authors paint it at {@code (d+w, 0)}.
-     *
-     * @see EntityGeometryKit
-     */
-    @SerializedName("y_axis")
-    private @NotNull YAxis yAxis = YAxis.DOWN;
 
     /**
      * The pitch/yaw/roll this model's inventory render should apply before rasterization, in
@@ -89,34 +74,25 @@ public class EntityModelData {
         EntityModelData that = (EntityModelData) o;
         return textureWidth == that.textureWidth
             && textureHeight == that.textureHeight
-            && yAxis == that.yAxis
             && Float.compare(inventoryYRotation, that.inventoryYRotation) == 0
             && Objects.equals(bones, that.bones);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(textureWidth, textureHeight, yAxis, inventoryYRotation, bones);
-    }
-
-    /**
-     * The vertical-axis convention an entity model's author used when authoring cube geometry
-     * and texture atlas layout.
-     */
-    public enum YAxis {
-        /** Positive Y points toward the floor. Standard Java {@code ModelPart} convention. */
-        DOWN,
-        /** Positive Y points toward the sky. Used by a handful of block-native models like
-         *  {@code ChestModel} where the artist wrote cubes with {@code y=0} at the floor and
-         *  larger Y for higher points on the model. */
-        UP
+        return Objects.hash(textureWidth, textureHeight, inventoryYRotation, bones);
     }
 
     /**
      * A single bone in an entity model, with a pivot, rotation, and one or more cubes. The
-     * {@link #pivot} is the Java {@code PartPose} offset: it translates every cube vertex from
-     * bone-local space into entity-root space and is also the point about which
-     * {@link #rotation} is applied.
+     * {@link #pivot} is the absolute entity-root point about which {@link #rotation} is applied.
+     * Unlike Java {@code ModelPart}, the pivot does not translate cube vertices - cube origins
+     * are already in entity-root space, and a bone with no rotation contributes the identity
+     * transform.
+     * <p>
+     * When {@link #parent} is non-null the bone follows its parent's full anchor chain at
+     * render time - every ancestor's pivot-centred rotation is composed in root-down order.
+     * Rotation-less intermediate bones contribute identity so they do not displace the subtree.
      */
     @Getter
     @NoArgsConstructor
@@ -124,9 +100,44 @@ public class EntityModelData {
     public static class Bone {
 
         private float @NotNull [] pivot = new float[]{ 0f, 0f, 0f };
+
+        /**
+         * The bone's dynamic pose rotation - animated in Bedrock at runtime. Propagates through
+         * the ancestor anchor chain so descendant bones swing along with this bone.
+         */
         @JsonAdapter(EulerRotation.Adapter.class)
         private @NotNull EulerRotation rotation = EulerRotation.NONE;
+
+        /**
+         * The bone's static rest-pose rotation. Applies to this bone's <b>own</b> cubes only -
+         * unlike {@link #rotation} it does NOT propagate through the ancestor chain to
+         * descendants. Vanilla v1.8 quadrupeds use this to lay their body cube horizontal
+         * ({@code [90, 0, 0]}) while keeping legs upright on the floor. Semantically equivalent
+         * to a per-cube rotation around the bone's pivot, applied uniformly to every cube the
+         * bone owns.
+         */
+        @JsonAdapter(EulerRotation.Adapter.class)
+        @com.google.gson.annotations.SerializedName("bind_pose_rotation")
+        private @NotNull EulerRotation bindPoseRotation = EulerRotation.NONE;
+
         private @NotNull ConcurrentList<Cube> cubes = Concurrent.newList();
+
+        /**
+         * The parent bone's name, or {@code null} for a root bone. Resolved at render time
+         * against the owning {@link EntityModelData}'s bone map to build the transform chain.
+         */
+        @com.google.gson.annotations.SerializedName("parent")
+        private @org.jetbrains.annotations.Nullable String parent = null;
+
+        /** Convenience constructor for the common case of no parent and no bind pose. */
+        public Bone(float @NotNull [] pivot, @NotNull EulerRotation rotation, @NotNull ConcurrentList<Cube> cubes) {
+            this(pivot, rotation, EulerRotation.NONE, cubes, null);
+        }
+
+        /** Convenience constructor preserving the historic (pivot, rotation, cubes, parent) signature. */
+        public Bone(float @NotNull [] pivot, @NotNull EulerRotation rotation, @NotNull ConcurrentList<Cube> cubes, @org.jetbrains.annotations.Nullable String parent) {
+            this(pivot, rotation, EulerRotation.NONE, cubes, parent);
+        }
 
         @Override
         public boolean equals(Object o) {
@@ -134,12 +145,14 @@ public class EntityModelData {
             Bone that = (Bone) o;
             return java.util.Arrays.equals(pivot, that.pivot)
                 && Objects.equals(rotation, that.rotation)
-                && Objects.equals(cubes, that.cubes);
+                && Objects.equals(bindPoseRotation, that.bindPoseRotation)
+                && Objects.equals(cubes, that.cubes)
+                && Objects.equals(parent, that.parent);
         }
 
         @Override
         public int hashCode() {
-            int result = Objects.hash(cubes, rotation);
+            int result = Objects.hash(cubes, rotation, bindPoseRotation, parent);
             result = 31 * result + java.util.Arrays.hashCode(pivot);
             return result;
         }
@@ -147,11 +160,10 @@ public class EntityModelData {
     }
 
     /**
-     * A single cube within a bone. {@link #origin} is the cube's minimum corner in the owning
-     * {@link Bone bone}'s local space (i.e. the raw {@code addBox(x, y, z, ...)} arguments from
-     * the Java client, before the bone's {@link Bone#getPivot() PartPose offset} is applied);
-     * {@link #size} is the cube's extent along each axis in model units; {@link #uv} is the
-     * top-left corner of the cube's texture region.
+     * A single cube within a bone. {@link #origin} is the cube's minimum corner in absolute
+     * entity-root space, exactly as authored in Bedrock {@code .geo.json}; {@link #size} is the
+     * cube's extent along each axis in model units; {@link #uv} is the top-left corner of the
+     * cube's texture region on the shared atlas.
      */
     @Getter
     @NoArgsConstructor
@@ -163,6 +175,21 @@ public class EntityModelData {
         private int @NotNull [] uv = new int[]{ 0, 0 };
         private float inflate = 0f;
         private boolean mirror = false;
+
+        /**
+         * The cube's rotation pivot in absolute entity-root space, matching {@link #origin}'s
+         * coordinate space. Modern Bedrock {@code .geo.json} (1.12+) lets individual cubes carry
+         * their own {@code pivot}/{@code rotation} pair - used by the 1.21 cow/pig variants to
+         * author body cubes vertically and then tilt them into the standard horizontal pose
+         * without affecting other cubes in the same bone. When a cube's JSON omits
+         * {@code pivot} the parser fills it from the owning bone's pivot, matching Bedrock's
+         * semantics that a cube-rotation-without-pivot anchors on the bone. Ignored when
+         * {@link #rotation} is zero.
+         */
+        private float @NotNull [] pivot = new float[]{ 0f, 0f, 0f };
+
+        @JsonAdapter(EulerRotation.Adapter.class)
+        private @NotNull EulerRotation rotation = EulerRotation.NONE;
 
         /**
          * Per-face UV overrides keyed by {@link BlockFace#direction()
@@ -188,15 +215,18 @@ public class EntityModelData {
                 && java.util.Arrays.equals(origin, that.origin)
                 && java.util.Arrays.equals(size, that.size)
                 && java.util.Arrays.equals(uv, that.uv)
+                && java.util.Arrays.equals(pivot, that.pivot)
+                && Objects.equals(rotation, that.rotation)
                 && Objects.equals(faceUv, that.faceUv);
         }
 
         @Override
         public int hashCode() {
-            int result = Objects.hash(inflate, mirror, faceUv);
+            int result = Objects.hash(inflate, mirror, rotation, faceUv);
             result = 31 * result + java.util.Arrays.hashCode(origin);
             result = 31 * result + java.util.Arrays.hashCode(size);
             result = 31 * result + java.util.Arrays.hashCode(uv);
+            result = 31 * result + java.util.Arrays.hashCode(pivot);
             return result;
         }
 

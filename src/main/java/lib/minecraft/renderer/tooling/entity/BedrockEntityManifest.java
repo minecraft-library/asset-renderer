@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
@@ -57,8 +58,8 @@ import java.util.zip.ZipInputStream;
 @UtilityClass
 public final class BedrockEntityManifest {
 
-    /** In-zip prefix for client-entity definition files. Complements {@code models/entity/}. */
-    private static final @NotNull String ENTITY_PREFIX = "entity/";
+    /** In-zip prefix for client-entity definition files. Complements {@code resource_pack/models/entity/}. */
+    private static final @NotNull String ENTITY_PREFIX = "resource_pack/entity/";
 
     /** File-name suffix for Bedrock client-entity definitions. */
     private static final @NotNull String ENTITY_SUFFIX = ".entity.json";
@@ -80,13 +81,16 @@ public final class BedrockEntityManifest {
      *
      * @param identifier the Bedrock-canonical entity id (namespace stripped), e.g. {@code "wither"}
      * @param geometryId the referenced default geometry id, e.g. {@code "geometry.witherBoss"}
-     * @param textureId the namespaced Java-style texture id built from the {@code textures.default}
-     *     path (e.g. {@code "minecraft:entity/wither_boss/wither"}), or {@code null} when absent
+     * @param textureRef the Bedrock texture sub-path under {@code textures/entity/}, with the
+     *     {@code textures/entity/} prefix stripped (e.g. {@code "wither_boss/wither"}). The
+     *     tooling locates the PNG in-zip at {@code resource_pack/textures/entity/<textureRef>.png}
+     *     and bundles it under {@code /lib/minecraft/renderer/entity_textures/<textureRef>.png}.
+     *     {@code null} when the client_entity.json has no default texture binding.
      */
     public record Entry(
         @NotNull String identifier,
         @NotNull String geometryId,
-        @Nullable String textureId
+        @Nullable String textureRef
     ) {}
 
     /**
@@ -173,28 +177,49 @@ public final class BedrockEntityManifest {
         if (!geometryBlock.has(DEFAULT_KEY)) return null;
         String geometryId = geometryBlock.get(DEFAULT_KEY).getAsString();
 
-        String textureId = null;
+        // Texture resolution precedence:
+        //   1. `textures.default` when present (most entities).
+        //   2. `textures.<identifier>` keyed by the entity's own stripped id - donkey.entity.json
+        //      declares `{ "donkey": "...", "baby_donkey": "..." }` with no `default`, and the
+        //      primary variant key is always the identifier.
+        //   3. The first key in insertion order - axolotl/cat/frog/parrot/villager all ship with
+        //      variant-only texture maps whose first key is a reasonable "primary" variant.
+        // A null return means the entity truly declares no textures.
+        String textureRef = null;
         if (description.has(TEXTURES_KEY)) {
             JsonObject textures = description.getAsJsonObject(TEXTURES_KEY);
+            String rawPath = null;
             if (textures.has(DEFAULT_KEY)) {
-                String rawPath = textures.get(DEFAULT_KEY).getAsString();
-                textureId = toNamespacedTextureId(rawPath);
+                rawPath = textures.get(DEFAULT_KEY).getAsString();
+            } else if (textures.has(identifier)) {
+                rawPath = textures.get(identifier).getAsString();
+            } else {
+                for (Map.Entry<String, JsonElement> e : textures.entrySet()) {
+                    if (e.getValue().isJsonPrimitive()) {
+                        rawPath = e.getValue().getAsString();
+                        break;
+                    }
+                }
             }
+            if (rawPath != null) textureRef = stripTextureEntityPrefix(rawPath);
         }
 
-        return new Entry(identifier, geometryId, textureId);
+        return new Entry(identifier, geometryId, textureRef);
     }
 
     /**
-     * Converts a Bedrock texture path like {@code "textures/entity/wither_boss/wither"} into the
-     * Java-style namespaced resource id {@code "minecraft:entity/wither_boss/wither"}. The leading
-     * {@code "textures/"} prefix is stripped because Java's {@code ResourceLocation}-based
-     * renderer path already scopes under {@code textures/}; keeping the prefix in the namespaced
-     * id would double it.
+     * Strips the {@code "textures/entity/"} prefix from a Bedrock texture path so the result is
+     * a stable relative sub-path (e.g. {@code "wither_boss/wither"}) usable as both the in-zip
+     * PNG lookup suffix and the bundled classpath-resource key under
+     * {@code /lib/minecraft/renderer/entity_textures/}. Paths not under {@code textures/entity/}
+     * are returned with only the {@code textures/} prefix stripped so classpath layout falls back
+     * gracefully on pack quirks (e.g. {@code map/map}).
      */
-    private static @NotNull String toNamespacedTextureId(@NotNull String rawPath) {
-        String stripped = rawPath.startsWith("textures/") ? rawPath.substring("textures/".length()) : rawPath;
-        return MINECRAFT_NAMESPACE + stripped;
+    private static @NotNull String stripTextureEntityPrefix(@NotNull String rawPath) {
+        String stripped = rawPath;
+        if (stripped.startsWith("textures/")) stripped = stripped.substring("textures/".length());
+        if (stripped.startsWith("entity/")) stripped = stripped.substring("entity/".length());
+        return stripped;
     }
 
 }

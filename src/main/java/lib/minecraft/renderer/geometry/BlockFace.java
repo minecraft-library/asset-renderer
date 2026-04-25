@@ -1,8 +1,10 @@
 package lib.minecraft.renderer.geometry;
 
+import lib.minecraft.renderer.kit.EntityGeometryKit;
 import lib.minecraft.renderer.kit.GeometryKit;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Accessors;
@@ -15,10 +17,11 @@ import java.util.Locale;
  * The six cardinal face directions of an axis-aligned Minecraft box element.
  * <p>
  * Each constant knows its lowercase direction name (the key used in vanilla block and item model
- * JSON), its four vertex indices into the canonical 8-corner box, its outward unit normal, a
- * {@link FaceLayout} that captures the data both {@link #defaultUv defaultUv} overloads need to
- * project face geometry into a UV rectangle without a per-face {@code switch}, and an inventory
- * {@link #lighting shade factor}. The box vertex layout is:
+ * JSON plus Bedrock per-face {@code cube.uv} overrides), its four vertex indices into the
+ * canonical 8-corner box, its outward unit normal, a {@link BlockLayout} plus {@link EntityLayout}
+ * that capture the data each {@link #defaultUv defaultUv} overload needs to project face geometry
+ * into a UV rectangle without a per-face {@code switch}, and an inventory {@link #lighting shade
+ * factor}. The box vertex layout is:
  * <pre>
  * 0: (x0, y0, z0)   4: (x0, y0, z1)
  * 1: (x1, y0, z0)   5: (x1, y0, z1)
@@ -28,6 +31,20 @@ import java.util.Locale;
  * The four indices per face are wound top-left, bottom-left, bottom-right, top-right when viewed
  * from the outward normal direction (CCW), matching vanilla's {@code FaceInfo} vertex order and
  * the convention used by {@link GeometryKit}'s triangle builders.
+ * <p>
+ * Two UV pipelines share this enum through two companion records:
+ * <ul>
+ * <li>{@link BlockLayout} feeds {@link #defaultUv(Box)} for Java block-model and held-item
+ *     rendering, where every face samples its own texture from the cross-section of the
+ *     element bounds.</li>
+ * <li>{@link EntityLayout} feeds {@link #defaultUv(int[], float[], float, float, boolean)} for
+ *     Bedrock entity-cube rendering, where all six faces share one skin image laid out in a
+ *     standard strip.</li>
+ * </ul>
+ * The two unwraps disagree on which face lands in which atlas slot (Java puts BACK where
+ * Bedrock expects FRONT, and LEFT where Bedrock expects RIGHT) so callers must pick the right
+ * overload for their pipeline - crossing them sends front-face pixels to the back face and
+ * mirrors right-face pixels onto the left.
  * <p>
  * The {@link #lighting} field carries the shade factor applied to this face under vanilla's
  * {@code Lighting.ITEMS_3D} GUI pose. Note the per-axis values are <b>reversed</b> relative to
@@ -46,32 +63,38 @@ public enum BlockFace {
 
     DOWN(
         "down", new int[]{ 4, 0, 1, 5 }, new Vector3f(0f, -1f, 0f),
-        new FaceLayout(0, 2, false, true, 1, 1, 0, 0),
+        new BlockLayout(0, 2, false, true),
+        new EntityLayout(0, 2, 1, 1, 0, 0),
         0.5f
     ),
     UP(
         "up", new int[]{ 3, 7, 6, 2 }, new Vector3f(0f, 1f, 0f),
-        new FaceLayout(0, 2, false, false, 0, 1, 0, 0),
+        new BlockLayout(0, 2, false, false),
+        new EntityLayout(0, 2, 0, 1, 0, 0),
         1.0f
     ),
     NORTH(
         "north", new int[]{ 2, 1, 0, 3 }, new Vector3f(0f, 0f, -1f),
-        new FaceLayout(0, 1, true, true, 1, 2, 0, 1),
+        new BlockLayout(0, 1, true, true),
+        new EntityLayout(0, 1, 0, 1, 0, 1),
         0.6f
     ),
     SOUTH(
         "south", new int[]{ 7, 4, 5, 6 }, new Vector3f(0f, 0f, 1f),
-        new FaceLayout(0, 1, false, true, 0, 1, 0, 1),
+        new BlockLayout(0, 1, false, true),
+        new EntityLayout(0, 1, 1, 2, 0, 1),
         0.6f
     ),
     WEST(
         "west", new int[]{ 3, 0, 4, 7 }, new Vector3f(-1f, 0f, 0f),
-        new FaceLayout(2, 1, false, true, 0, 0, 0, 1),
+        new BlockLayout(2, 1, false, true),
+        new EntityLayout(2, 1, 1, 1, 0, 1),
         0.8f
     ),
     EAST(
         "east", new int[]{ 6, 5, 1, 2 }, new Vector3f(1f, 0f, 0f),
-        new FaceLayout(2, 1, true, true, 1, 1, 0, 1),
+        new BlockLayout(2, 1, true, true),
+        new EntityLayout(2, 1, 0, 0, 0, 1),
         0.8f
     );
 
@@ -79,8 +102,11 @@ public enum BlockFace {
     private final int @NotNull [] vertexIndices;
     private final @NotNull Vector3f normal;
 
-    @Getter(lombok.AccessLevel.NONE)
-    private final @NotNull FaceLayout layout;
+    @Getter(AccessLevel.NONE)
+    private final @NotNull BlockLayout blockLayout;
+
+    @Getter(AccessLevel.NONE)
+    private final @NotNull EntityLayout entityLayout;
 
     /**
      * Shade factor applied to this face under vanilla {@code Lighting.ITEMS_3D} GUI pose. E/W
@@ -117,22 +143,23 @@ public enum BlockFace {
      * <p>
      * Block model elements reference an independent texture per face (via their {@code #var}
      * bindings), so every face samples the full {@code [0, 16]} UV rectangle projected onto its
-     * cross-section. This overload is used by the block and held-item rendering paths.
+     * cross-section. This overload is used by the block and held-item rendering paths and reads
+     * from {@link BlockLayout}.
      *
      * @param element the element bounds in 0-16 space
      * @return the four UV corners, ordered TL, BL, BR, TR
      */
     public @NotNull Vector2f @NotNull [] defaultUv(@NotNull Box element) {
-        int uAxis = this.layout.widthAxis();
-        int vAxis = this.layout.heightAxis();
+        int uAxis = this.blockLayout.widthAxis();
+        int vAxis = this.blockLayout.heightAxis();
         float fromU = axisComponent(element, uAxis, false);
         float toU = axisComponent(element, uAxis, true);
         float fromV = axisComponent(element, vAxis, false);
         float toV = axisComponent(element, vAxis, true);
-        float u0 = this.layout.uInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - toU : fromU;
-        float u1 = this.layout.uInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - fromU : toU;
-        float v0 = this.layout.vInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - toV : fromV;
-        float v1 = this.layout.vInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - fromV : toV;
+        float u0 = this.blockLayout.uInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - toU : fromU;
+        float u1 = this.blockLayout.uInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - fromU : toU;
+        float v0 = this.blockLayout.vInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - toV : fromV;
+        float v1 = this.blockLayout.vInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - fromV : toV;
         return uvRect(u0, v0, u1, v1, ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK, ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK, false);
     }
 
@@ -146,34 +173,42 @@ public enum BlockFace {
 
     /**
      * Returns the four default UV corners (TL, BL, BR, TR) for this face in normalized
-     * {@code [0, 1]} space, using the <b>Bedrock Edition {@code geo.json}</b> box atlas unwrap
-     * where all six faces of a single cube share one texture image.
+     * {@code [0, 1]} space, using the <b>Bedrock Edition {@code geo.json}</b> entity-cube atlas
+     * unwrap where all six faces of a single cube share one texture image.
      * <p>
-     * The strip layout places top and bottom in a first row sized {@code sx x sz}, then west,
-     * south, east, north in a second row sized {@code sz, sx, sz, sx} wide by {@code sy} tall:
+     * Bedrock lays out the strip with top and bottom in a first row sized {@code sx x sz}, then
+     * east, north, west, south in a second row sized {@code sz, sx, sz, sx} wide by {@code sy}
+     * tall - reading left-to-right that's {@code RIGHT, FRONT, LEFT, BACK}:
      * <pre>
      *        +-------+--------+
-     *        |  TOP  | BOTTOM |              row 1: height sz
+     *        |  TOP  | BOTTOM |                      row 1: height sz
      * +------+-------+--------+-------+
-     * | WEST | SOUTH |  EAST  | NORTH |      row 2: height sy
+     * | EAST | NORTH |  WEST  | SOUTH |              row 2: height sy
      * +------+-------+--------+-------+
      * </pre>
-     * Used by entity cube rendering (via {@code EntityGeometryKit.resolveFaceUv}) where one skin
-     * image supplies every face of a body part, and by any other caller that owns a cube-atlas
-     * texture in the Bedrock layout.
+     * Each face's pixel rectangle comes from the {@link EntityLayout} coefficients:
+     * {@code uOff = atlasUSxCoef*sx + atlasUSzCoef*sz}, {@code vOff = atlasVSxCoef*sx +
+     * atlasVSzCoef*sz}, with width and height drawn from {@code size[widthAxis]} and
+     * {@code size[heightAxis]}. The {@code sy} dimension never contributes to an atlas offset
+     * because vertical extent on the strip is always expressed in terms of {@code sz} (top row)
+     * or the face's own height.
      * <p>
-     * <b>Note:</b> vanilla Java Edition's {@code ModelPart$Cube} uses a <i>different</i> strip
-     * layout ({@code d+w+d+w} wide, {@code d+h} tall, with per-face offsets not expressible via
-     * the same axis coefficients). That layout is owned by
+     * Used by entity cube rendering (via {@link EntityGeometryKit}) where one skin image
+     * supplies every face of a body part. Java block elements use the {@link #defaultUv(Box)}
+     * overload instead - crossing the two sends front-face pixels to the back face and mirrors
+     * right-face pixels onto the left, which is immediately visible on asymmetric textures
+     * (cow udder, zombie face, pig snout, villager nose).
+     * <p>
+     * <b>Note:</b> Java Edition's {@code ModelPart$Cube} uses a third strip order that isn't
+     * expressible via the same axis coefficients. That layout is owned by
      * {@code ToolingBlockEntities.BlockModelConverter.ModelPartPolygonFace.uvFormula}, which is
-     * used only at tooling time to convert Java client-jar bytecode into block-model JSON. The
-     * two conventions are intentionally separate - don't merge them.
+     * only used at tooling time to convert Java client-jar bytecode into block-model JSON.
      *
      * @param uv the cube's texture origin in pixels on the source image ({@code [u, v]})
      * @param size the cube's extent along each axis in model units ({@code [sx, sy, sz]})
      * @param texWidth the total texture width in pixels
      * @param texHeight the total texture height in pixels
-     * @param mirror whether to mirror the U axis (classic MCBE {@code mirror} flag)
+     * @param mirror whether to mirror the U axis (classic MCBE cube {@code mirror} flag)
      * @return the four UV corners, ordered TL, BL, BR, TR
      */
     public @NotNull Vector2f @NotNull [] defaultUv(
@@ -185,13 +220,13 @@ public enum BlockFace {
     ) {
         float sx = size[0];
         float sz = size[2];
-        float uOff = this.layout.atlasUSxCoef() * sx + this.layout.atlasUSzCoef() * sz;
-        float vOff = this.layout.atlasVSxCoef() * sx + this.layout.atlasVSzCoef() * sz;
+        float uOff = this.entityLayout.atlasUSxCoef() * sx + this.entityLayout.atlasUSzCoef() * sz;
+        float vOff = this.entityLayout.atlasVSxCoef() * sx + this.entityLayout.atlasVSzCoef() * sz;
 
         float u0 = uv[0] + uOff;
-        float u1 = u0 + size[this.layout.widthAxis()];
+        float u1 = u0 + size[this.entityLayout.widthAxis()];
         float v0 = uv[1] + vOff;
-        float v1 = v0 + size[this.layout.heightAxis()];
+        float v1 = v0 + size[this.entityLayout.heightAxis()];
 
         return uvRect(u0, v0, u1, v1, texWidth, texHeight, mirror);
     }
@@ -202,8 +237,9 @@ public enum BlockFace {
      * the U axis is reversed by swapping the left and right corners, matching the classic MCBE
      * cube mirror flag.
      * <p>
-     * Used by both {@link #defaultUv} overloads and by callers that have an explicit pixel-space
-     * UV rectangle from a per-face override (e.g. Bedrock geo.json cube face UVs).
+     * Used by both {@link #defaultUv defaultUv} overloads and by callers that have an explicit
+     * pixel-space UV rectangle from a per-face override (e.g. Bedrock 1.12+ {@code cube.uv}
+     * object form).
      *
      * @param u0 the rectangle's minimum U in pixels
      * @param v0 the rectangle's minimum V in pixels
@@ -290,43 +326,56 @@ public enum BlockFace {
     }
 
     /**
-     * Per-face data used by both {@link #defaultUv defaultUv} overloads so the projection math
-     * stays in one place and neither method has to {@code switch} on the face direction.
-     *
-     * <p>The first four fields describe the element unwrap used by block model rendering:
+     * Per-face data used by {@link #defaultUv(Box)} for Java block-model element unwrap.
+     * Self-contained - the element-unwrap overload never touches {@link EntityLayout}.
      * <ul>
      * <li>{@link #widthAxis()} / {@link #heightAxis()} - which of {@code [x, y, z]} map to U and V
-     *     (0 = x, 1 = y, 2 = z). These are also used to pick the face's size along U and V
-     *     when laying out a cube atlas.</li>
-     * <li>{@link #uInverted()} / {@link #vInverted()} - whether the element-unwrap overload uses
+     *     ({@code 0=x}, {@code 1=y}, {@code 2=z}). Picks the face's cross-section from the
+     *     element's bounds.</li>
+     * <li>{@link #uInverted()} / {@link #vInverted()} - whether the unwrap uses
      *     {@code 16 - value} instead of {@code value} on U or V for this face.</li>
      * </ul>
      *
-     * <p>The last four fields describe the atlas unwrap used by entity cube rendering:
+     * @param widthAxis the size-axis index that maps to U ({@code 0=x}, {@code 1=y}, {@code 2=z})
+     * @param heightAxis the size-axis index that maps to V
+     * @param uInverted whether the element unwrap inverts U for this face
+     * @param vInverted whether the element unwrap inverts V for this face
+     */
+    public record BlockLayout(
+        int widthAxis,
+        int heightAxis,
+        boolean uInverted,
+        boolean vInverted
+    ) {}
+
+    /**
+     * Per-face data used by {@link #defaultUv(int[], float[], float, float, boolean)} for
+     * Bedrock entity-cube atlas unwrap. Self-contained - the entity-atlas overload never
+     * touches {@link BlockLayout}.
      * <ul>
-     * <li>{@link #atlasUSxCoef()} and {@link #atlasUSzCoef()} - coefficients for computing the
-     *     face's atlas U offset as {@code uSxCoef * sx + uSzCoef * sz}.</li>
-     * <li>{@link #atlasVSxCoef()} and {@link #atlasVSzCoef()} - coefficients for computing the
-     *     face's atlas V offset as {@code vSxCoef * sx + vSzCoef * sz}.</li>
+     * <li>{@link #widthAxis()} / {@link #heightAxis()} - which of {@code [x, y, z]} map to U and V
+     *     ({@code 0=x}, {@code 1=y}, {@code 2=z}). Picks the face's size along U and V from the
+     *     cube's {@code size} array.</li>
+     * <li>{@link #atlasUSxCoef()} / {@link #atlasUSzCoef()} - coefficients in the atlas U offset
+     *     formula {@code uOff = atlasUSxCoef*sx + atlasUSzCoef*sz}.</li>
+     * <li>{@link #atlasVSxCoef()} / {@link #atlasVSzCoef()} - coefficients in the atlas V offset
+     *     formula {@code vOff = atlasVSxCoef*sx + atlasVSzCoef*sz}.</li>
      * </ul>
      * The {@code sy} dimension never contributes to an atlas offset because vertical extent on
-     * the strip is always expressed in terms of {@code sz} (top row) or {@code sy} itself via
-     * the face height.
+     * the strip is always expressed in terms of {@code sz} (top row) or the face's own height.
+     * The coefficients encode Bedrock's {@code EAST, NORTH, WEST, SOUTH} side-strip order -
+     * swapping any pair breaks the cow udder / mob-face tests.
      *
      * @param widthAxis the size-axis index that maps to U ({@code 0=x}, {@code 1=y}, {@code 2=z})
      * @param heightAxis the size-axis index that maps to V
-     * @param uInverted whether the element-unwrap inverts U for this face
-     * @param vInverted whether the element-unwrap inverts V for this face
      * @param atlasUSxCoef the {@code sx} coefficient in the atlas U offset formula
      * @param atlasUSzCoef the {@code sz} coefficient in the atlas U offset formula
      * @param atlasVSxCoef the {@code sx} coefficient in the atlas V offset formula
      * @param atlasVSzCoef the {@code sz} coefficient in the atlas V offset formula
      */
-    public record FaceLayout(
+    public record EntityLayout(
         int widthAxis,
         int heightAxis,
-        boolean uInverted,
-        boolean vInverted,
         int atlasUSxCoef,
         int atlasUSzCoef,
         int atlasVSxCoef,

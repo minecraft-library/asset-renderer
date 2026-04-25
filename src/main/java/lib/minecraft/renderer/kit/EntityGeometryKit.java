@@ -19,30 +19,31 @@ import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
- * Generates triangle lists from {@link EntityModelData} bone/cube trees, matching the convention
- * used by {@link GeometryKit} for block elements.
+ * Generates triangle lists from {@link EntityModelData} bone/cube trees using Mojang Bedrock's
+ * native coordinate convention - the same frame authored in {@code .geo.json} and stored verbatim
+ * by {@link ToolingEntityModels ToolingEntityModels}.
  * <p>
- * The model is auto-centered and scaled to fit within the {@code [-0.5, +0.5]} unit cube so the
- * output meshes are directly compatible with the isometric and model engine rasterizers. Shared
- * by both {@link EntityRenderer EntityRenderer} (full entity rendering with
- * armor overlays) and {@link BlockRenderer BlockRenderer} (entity model
- * fallback for element-less blocks like shulker boxes and chests).
- * <p>
- * The runtime coordinate convention is Minecraft Java Edition's {@code ModelPart}:
+ * Convention:
  * <ul>
- * <li>Y-down - positive Y points toward the floor, so every transformed vertex has its Y
- * negated before centring and scaling, and triangle winding is reversed so back-face culling
- * is preserved.</li>
- * <li>Cube {@link EntityModelData.Cube#getOrigin() origin}s are bone-local - they are the raw
- * {@code addBox(x, y, z, ...)} arguments - so the bone's {@link EntityModelData.Bone#getPivot()
- * PartPose offset} is applied as a translation on every cube vertex.</li>
+ * <li>Y-up, right-handed.</li>
+ * <li>{@link EntityModelData.Cube#getOrigin() Cube origins} are the min corner in absolute
+ * entity-root space - Bedrock does not pre-relativise cubes into bone-local space; the owning
+ * bone's {@link EntityModelData.Bone#getPivot() pivot} is purely the rotation anchor.</li>
+ * <li>{@link EntityModelData.Bone#getPivot() Bone pivots} are in absolute entity-root space.</li>
+ * <li>A bone's transform is only its rotation about its pivot - translation-only bones
+ * contribute the identity. Children follow by composing their ancestors' pivot-centred rotations
+ * in root-down order, so rotation-less intermediate bones never displace the subtree.</li>
  * </ul>
- * Bedrock-sourced data from the {@code .geo.json} vanilla resource pack is converted into this
- * convention by {@link ToolingEntityModels ToolingEntityModels} at
- * asset-generation time, so the renderer never sees mixed conventions at runtime.
+ * The model is auto-centered and uniformly scaled to fit within {@code [-0.5, +0.5]} on the
+ * longest axis so the output meshes drop directly into the isometric and model engine
+ * rasterizers. Shared by {@link EntityRenderer EntityRenderer}
+ * (entities with armor overlays) and {@link BlockRenderer BlockRenderer}
+ * (entity-model fallback for element-less blocks like shulker boxes and chests).
  */
 @UtilityClass
 public class EntityGeometryKit {
@@ -71,15 +72,26 @@ public class EntityGeometryKit {
      * @return the build result containing triangles and per-bone bounding boxes
      */
     public static @NotNull BuildResult buildTriangles(@NotNull EntityModelData model, @NotNull PixelBuffer texture) {
-        ModelBounds bounds = computeBounds(model);
+        Map<String, Matrix4f> chainTransforms = buildChainTransforms(model.getBones());
+
+        ModelBounds bounds = computeBounds(model, chainTransforms);
         float extent = Math.max(bounds.maxExtent(), MIN_MODEL_EXTENT);
         float scale = ENTITY_MODEL_FIT_EXTENT / extent;
         float cx = (bounds.minX + bounds.maxX) * 0.5f;
         float cy = (bounds.minY + bounds.maxY) * 0.5f;
         float cz = (bounds.minZ + bounds.maxZ) * 0.5f;
 
-        float texW = Math.max(1f, model.getTextureWidth());
-        float texH = Math.max(1f, model.getTextureHeight());
+        // UV pixel addresses in Bedrock geo.json are authored in the declared texture_width /
+        // texture_height pixel grid. When the Bedrock pack ships an HD PNG that is a uniform
+        // upscale of the declared dims (ghast: declared 64x32, PNG 128x64; happy_ghast: 64x64
+        // vs 128x128) or a lower-res downscale (zombie_horse: declared 128x128, PNG 64x64),
+        // the content is still laid out in the declared grid and normalising by actual PNG
+        // extent collapses every face to a fraction of the texture. Declared dims are the
+        // coordinate space the authored UVs live in; actual PNG dims are just the sample
+        // resolution. Fallback to actual extent guards against malformed models that shipped
+        // without declared dims.
+        float texW = model.getTextureWidth() > 0 ? model.getTextureWidth() : Math.max(1f, texture.width());
+        float texH = model.getTextureHeight() > 0 ? model.getTextureHeight() : Math.max(1f, texture.height());
 
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
         Map<String, Vector3f[]> boneBounds = new HashMap<>();
@@ -91,7 +103,7 @@ public class EntityGeometryKit {
         for (Map.Entry<String, EntityModelData.Bone> boneEntry : model.getBones().entrySet()) {
             String boneName = boneEntry.getKey();
             EntityModelData.Bone bone = boneEntry.getValue();
-            Matrix4f boneTransform = buildBoneTransform(bone);
+            Matrix4f boneChain = chainTransforms.get(boneName);
 
             float bMinX = Float.POSITIVE_INFINITY, bMinY = Float.POSITIVE_INFINITY, bMinZ = Float.POSITIVE_INFINITY;
             float bMaxX = Float.NEGATIVE_INFINITY, bMaxY = Float.NEGATIVE_INFINITY, bMaxZ = Float.NEGATIVE_INFINITY;
@@ -101,22 +113,26 @@ public class EntityGeometryKit {
                 float[] size = cube.getSize();
                 float inflate = cube.getInflate();
 
+                // Cube vertices are in absolute entity-root space (Bedrock convention) - the min
+                // corner at (origin) and the max at (origin + size), inflated outward by inflate
+                // on each axis for armor-layer-style padding.
                 Box cubeBounds = new Box(
                     origin[0] - inflate, origin[1] - inflate, origin[2] - inflate,
                     origin[0] + size[0] + inflate, origin[1] + size[1] + inflate, origin[2] + size[2] + inflate
                 );
 
+                // Row-vector order, innermost first:
+                //   cubeAnchor  : T(-cube.pivot) * R(cube.rotation) * T(+cube.pivot)
+                //   bindPose    : T(-bone.pivot) * R(bone.bindPose) * T(+bone.pivot)  (does NOT propagate to children)
+                //   boneChain   : anchor(bone.rotation) * anchor(parent) * ...         (propagates)
+                Matrix4f fullTransform = composeCubeTransform(cube, bone, boneChain);
+
                 for (BlockFace face : BlockFace.values()) {
                     Vector3f[] corners = face.corners(cubeBounds);
                     for (int i = 0; i < 4; i++) {
-                        // Java ModelPart: vertex_world = pivot + R * cube_vertex_local. The
-                        // bone transform already folds the PartPose offset in as a translation,
-                        // so applying it here moves the bone-local corner into entity-root space.
-                        Vector3f transformed = Vector3f.transform(corners[i], boneTransform);
-                        // Y-down -> Y-up for the renderer.
-                        float ty = -transformed.y();
+                        Vector3f transformed = Vector3f.transform(corners[i], fullTransform);
                         float nx = (transformed.x() - cx) * scale;
-                        float ny = (ty - cy) * scale;
+                        float ny = (transformed.y() - cy) * scale;
                         float nz = (transformed.z() - cz) * scale;
                         corners[i] = new Vector3f(nx, ny, nz);
 
@@ -128,24 +144,19 @@ public class EntityGeometryKit {
                         bMaxZ = Math.max(bMaxZ, nz);
                     }
 
-                    Vector3f rawNormal = Vector3f.transformNormal(face.normal(), boneTransform);
-                    // Mirror normals across XZ together with the vertices.
-                    rawNormal = new Vector3f(rawNormal.x(), -rawNormal.y(), rawNormal.z());
-                    Vector3f normal = Vector3f.normalize(rawNormal);
-                    Vector2f[] uv = resolveFaceUv(face, cube, size, texW, texH, model.getYAxis());
+                    Vector3f normal = Vector3f.normalize(Vector3f.transformNormal(face.normal(), fullTransform));
+                    Vector2f[] uv = resolveFaceUv(face, cube, size, texW, texH);
 
-                    // Reverse triangle winding to match the Y-flip so back-face culling keeps
-                    // identifying the same geometric side as front/back.
                     triangles.add(new VisibleTriangle(
-                        corners[0], corners[2], corners[1],
-                        uv[0], uv[2], uv[1],
+                        corners[0], corners[1], corners[2],
+                        uv[0], uv[1], uv[2],
                         texture, ColorMath.WHITE,
                         normal, 1f,
                         true
                     ));
                     triangles.add(new VisibleTriangle(
-                        corners[0], corners[3], corners[2],
-                        uv[0], uv[3], uv[2],
+                        corners[0], corners[2], corners[3],
+                        uv[0], uv[2], uv[3],
                         texture, ColorMath.WHITE,
                         normal, 1f,
                         true
@@ -164,22 +175,35 @@ public class EntityGeometryKit {
     }
 
     /**
-     * Computes the axis-aligned bounding box of an entity model after applying all bone
-     * transforms and Y-negation.
+     * Computes the axis-aligned bounding box of an entity model after applying each bone's
+     * ancestor anchor chain, in the Bedrock-native Y-up frame.
      *
      * @param model the entity model definition
      * @return the model bounds
      */
     public static @NotNull ModelBounds computeBounds(@NotNull EntityModelData model) {
+        return computeBounds(model, buildChainTransforms(model.getBones()));
+    }
+
+    /**
+     * Internal variant that reuses an already-built chain cache so {@link #buildTriangles} and
+     * {@link #computeBounds(EntityModelData)} don't rebuild the same matrices back-to-back.
+     */
+    private static @NotNull ModelBounds computeBounds(
+        @NotNull EntityModelData model,
+        @NotNull Map<String, Matrix4f> chainTransforms
+    ) {
         float minX = Float.POSITIVE_INFINITY, minY = Float.POSITIVE_INFINITY, minZ = Float.POSITIVE_INFINITY;
         float maxX = Float.NEGATIVE_INFINITY, maxY = Float.NEGATIVE_INFINITY, maxZ = Float.NEGATIVE_INFINITY;
 
-        for (EntityModelData.Bone bone : model.getBones().values()) {
-            Matrix4f boneTransform = buildBoneTransform(bone);
+        for (Map.Entry<String, EntityModelData.Bone> entry : model.getBones().entrySet()) {
+            EntityModelData.Bone bone = entry.getValue();
+            Matrix4f boneChain = chainTransforms.get(entry.getKey());
             for (EntityModelData.Cube cube : bone.getCubes()) {
                 float[] origin = cube.getOrigin();
                 float[] size = cube.getSize();
                 float inflate = cube.getInflate();
+                Matrix4f fullTransform = composeCubeTransform(cube, bone, boneChain);
 
                 float[] xs = { origin[0] - inflate, origin[0] + size[0] + inflate };
                 float[] ys = { origin[1] - inflate, origin[1] + size[1] + inflate };
@@ -188,13 +212,12 @@ public class EntityGeometryKit {
                 for (float x : xs) {
                     for (float y : ys) {
                         for (float z : zs) {
-                            Vector3f c = Vector3f.transform(new Vector3f(x, y, z), boneTransform);
-                            float cy = -c.y();
+                            Vector3f c = Vector3f.transform(new Vector3f(x, y, z), fullTransform);
                             minX = Math.min(minX, c.x());
-                            minY = Math.min(minY, cy);
+                            minY = Math.min(minY, c.y());
                             minZ = Math.min(minZ, c.z());
                             maxX = Math.max(maxX, c.x());
-                            maxY = Math.max(maxY, cy);
+                            maxY = Math.max(maxY, c.y());
                             maxZ = Math.max(maxZ, c.z());
                         }
                     }
@@ -209,75 +232,167 @@ public class EntityGeometryKit {
     }
 
     /**
-     * Builds the Java {@code ModelPart} transform {@code T(pivot) * R(rotation)}: rotate the
-     * bone-local cube vertex around the origin, then translate by the PartPose offset so the
-     * cube ends up in entity-root space. When {@link EntityModelData.Bone#getRotation() rotation}
-     * is zero the transform collapses to a pure translation by the pivot; it is never identity
-     * because cube origins are always bone-local in this schema.
+     * Builds the ancestor-anchor chain matrix for every bone. For a bone {@code B} with parent
+     * chain {@code (P, GP, ...)} the row-vector transform is
+     * {@code v * anchor(B) * anchor(P) * anchor(GP) * ...} where
+     * {@code anchor(X) = T(-X.pivot) * R_X * T(+X.pivot)} rotates in place about the authored
+     * absolute pivot and reduces to the identity when {@code R_X} is zero.
+     * <p>
+     * Bedrock stores cube origins in absolute entity-root space, so no {@code T(pivot)} factor
+     * is needed for placement - the chain is pure rotation. A translation-only bone contributes
+     * identity and does not move its descendants.
+     * <p>
+     * Results are cached so each bone's chain is constructed once per render pass even when
+     * many children share a deep ancestry.
      */
-    private static @NotNull Matrix4f buildBoneTransform(@NotNull EntityModelData.Bone bone) {
-        float[] pivot = bone.getPivot();
-        EulerRotation rotation = bone.getRotation();
-
-        Matrix4f translate = Matrix4f.createTranslation(pivot[0], pivot[1], pivot[2]);
-        if (rotation.pitch() == 0f && rotation.yaw() == 0f && rotation.roll() == 0f) return translate;
-
-        Matrix4f transform = Matrix4f.createRotationZ(rotation.rollRadians())
-            .multiply(Matrix4f.createRotationY(rotation.yawRadians()))
-            .multiply(Matrix4f.createRotationX(rotation.pitchRadians()));
-        return transform.multiply(translate);
+    private static @NotNull Map<String, Matrix4f> buildChainTransforms(
+        @NotNull Map<String, EntityModelData.Bone> bones
+    ) {
+        Map<String, Matrix4f> cache = new HashMap<>();
+        for (String name : bones.keySet())
+            resolveChain(name, bones, cache, new LinkedHashSet<>());
+        return cache;
     }
 
+    /**
+     * Returns the composed anchor chain {@code anchor(B) * anchor(P) * anchor(GP) * ...} for
+     * {@code name}. The {@code visiting} set guards against reference cycles in malformed
+     * geometries; when a cycle is detected the bone falls back to its own anchor (identity
+     * hierarchy above) so the rest of the model still renders.
+     */
+    private static @NotNull Matrix4f resolveChain(
+        @NotNull String name,
+        @NotNull Map<String, EntityModelData.Bone> bones,
+        @NotNull Map<String, Matrix4f> cache,
+        @NotNull Set<String> visiting
+    ) {
+        Matrix4f cached = cache.get(name);
+        if (cached != null) return cached;
+        EntityModelData.Bone bone = bones.get(name);
+        if (bone == null) return Matrix4f.IDENTITY;
+        if (visiting.contains(name)) return buildAnchor(bone);
+        visiting.add(name);
+
+        Matrix4f own = buildAnchor(bone);
+        String parent = bone.getParent();
+        Matrix4f composed;
+        if (parent == null || parent.equals(name) || !bones.containsKey(parent)) {
+            composed = own;
+        } else {
+            Matrix4f parentChain = resolveChain(parent, bones, cache, visiting);
+            composed = own.multiply(parentChain);
+        }
+
+        visiting.remove(name);
+        cache.put(name, composed);
+        return composed;
+    }
+
+    /**
+     * Bone anchor: {@code T(-pivot) * R(rotation) * T(+pivot)} under row-vector convention -
+     * a pure rotate-in-place about the bone's absolute entity-root pivot. When the rotation is
+     * zero this reduces to the identity, so translation-only parents do not displace children.
+     */
+    private static @NotNull Matrix4f buildAnchor(@NotNull EntityModelData.Bone bone) {
+        EulerRotation rotation = bone.getRotation();
+        if (rotation.pitch() == 0f && rotation.yaw() == 0f && rotation.roll() == 0f)
+            return Matrix4f.IDENTITY;
+
+        return pivotCenteredRotation(bone.getPivot(), rotation);
+    }
+
+    /**
+     * Composes the full per-cube transform. Row-vector order applied left-to-right:
+     * <pre>
+     *   v' = v * cubeAnchor * bindPoseAnchor * boneChain
+     * </pre>
+     * where
+     * <ul>
+     *   <li>{@code cubeAnchor = T(-cube.pivot) * R(cube.rotation) * T(+cube.pivot)} - the
+     *       cube's own 1.12+ rotation about its own absolute pivot. Identity when the cube has
+     *       no rotation.</li>
+     *   <li>{@code bindPoseAnchor = T(-bone.pivot) * R(bone.bindPose) * T(+bone.pivot)} - the
+     *       bone's static rest-pose rotation about its own pivot. Applies only to this bone's
+     *       own cubes; does <b>not</b> propagate through the ancestor chain to descendants
+     *       (legs keep their vertical authoring while the body cube tilts horizontal).</li>
+     *   <li>{@code boneChain} - precomputed product of {@code anchor(bone.rotation) *
+     *       anchor(parent.rotation) * ...} from {@link #buildChainTransforms}, the hierarchy
+     *       rotations that do propagate.</li>
+     * </ul>
+     * Zero-rotation factors short-circuit to identity so legacy 1.8 geometries stay on the
+     * fast path.
+     */
+    private static @NotNull Matrix4f composeCubeTransform(
+        @NotNull EntityModelData.Cube cube,
+        @NotNull EntityModelData.Bone bone,
+        @NotNull Matrix4f boneChain
+    ) {
+        EulerRotation cubeRot = cube.getRotation();
+        EulerRotation bindPose = bone.getBindPoseRotation();
+        boolean hasCube = !isZero(cubeRot);
+        boolean hasBind = !isZero(bindPose);
+        if (!hasCube && !hasBind) return boneChain;
+
+        Matrix4f acc = boneChain;
+        if (hasBind) acc = pivotCenteredRotation(bone.getPivot(), bindPose).multiply(acc);
+        if (hasCube) acc = pivotCenteredRotation(cube.getPivot(), cubeRot).multiply(acc);
+        return acc;
+    }
+
+    /** Tiny helper - three-axis zero check shared by cube/bone/bind-pose rotation fast paths. */
+    private static boolean isZero(@NotNull EulerRotation r) {
+        return r.pitch() == 0f && r.yaw() == 0f && r.roll() == 0f;
+    }
+
+    /**
+     * Builds the {@code T(-pivot) * R(rotation) * T(+pivot)} row-vector matrix for rotating in
+     * place about an absolute pivot. Rotation composition order is Z-Y-X (row-vector
+     * {@code R_Z * R_Y * R_X}), matching Bedrock and Blockbench's intrinsic XYZ convention.
+     * <p>
+     * <b>Sign convention:</b> Bedrock's positive pitch tilts a bone <i>forward</i> (top moves
+     * toward the entity's front face, which is -Z in Minecraft's default facing), and positive
+     * roll rolls to the bone's <i>right</i>. Those directions are the <i>negative</i> rotations
+     * around X and Z under the right-hand rule in a Y-up frame - so the pitch and roll angles
+     * are negated when building their matrices. Yaw (Y axis) follows the right-hand rule
+     * directly and passes through unchanged. This is the only sign flip in the entire pipeline;
+     * once applied here, {@code [pitch, yaw, roll]} in the authored {@code .geo.json} maps to
+     * the visual pose Bedrock renders natively, with no per-field or per-bone tuning needed.
+     */
+    private static @NotNull Matrix4f pivotCenteredRotation(
+        float @NotNull [] pivot,
+        @NotNull EulerRotation rotation
+    ) {
+        Matrix4f toPivot = Matrix4f.createTranslation(-pivot[0], -pivot[1], -pivot[2]);
+        Matrix4f fromPivot = Matrix4f.createTranslation(pivot[0], pivot[1], pivot[2]);
+        Matrix4f rot = Matrix4f.createRotationZ(-rotation.rollRadians())
+            .multiply(Matrix4f.createRotationY(rotation.yawRadians()))
+            .multiply(Matrix4f.createRotationX(-rotation.pitchRadians()));
+        return toPivot.multiply(rot).multiply(fromPivot);
+    }
+
+    /**
+     * Resolves the four UV corners for one cube face. Delegates the atlas unwrap to
+     * {@link BlockFace#defaultUv(int[], float[], float, float, boolean)} for Bedrock's strip
+     * layout; a per-face override from {@link EntityModelData.Cube#getFaceUv()} (Bedrock 1.12+
+     * explicit {@code cube.uv} object form) bypasses the unwrap entirely and uses the authored
+     * rectangle directly.
+     */
     private static @NotNull Vector2f @NotNull [] resolveFaceUv(
         @NotNull BlockFace face,
         @NotNull EntityModelData.Cube cube,
         float @NotNull [] size,
         float texWidth,
-        float texHeight,
-        @NotNull EntityModelData.YAxis yAxis
+        float texHeight
     ) {
-        // The BlockFace atlas layout matches vanilla's UV-generation convention for Y-UP-authored
-        // cubes: BlockFace.UP (y-MAX face) maps to the {@code (d, 0)} slot, BlockFace.DOWN (y-MIN)
-        // to {@code (d+w, 0)}. A Y-UP author paints exterior top at {@code (d+w, 0)} (their
-        // y-MAX is world-up), and after the tooling flipToYDown + runtime Y-flip the y-MIN face
-        // ends up at the renderer top - so BlockFace.DOWN's {@code (d+w, 0)} slot correctly
-        // surfaces the exterior on top with no swap.
-        // <p>
-        // For Y-DOWN-authored cubes (shulker, sign, bed, etc.) the author paints exterior top at
-        // {@code (d, 0)} instead (their y-MIN is world-up). No tooling flip is applied, so at
-        // runtime the y-MIN face still reaches the renderer top via the Y-flip, but BlockFace.DOWN
-        // wants {@code (d+w, 0)} - mapping interior content to the top. The atlas-face lookup is
-        // swapped for Y-DOWN data to compensate.
-        BlockFace atlasFace = yAxis == EntityModelData.YAxis.DOWN
-            ? switch (face) {
-                case UP -> BlockFace.DOWN;
-                case DOWN -> BlockFace.UP;
-                default -> face;
-            }
-            : face;
+        EntityModelData.FaceUv override = cube.getFaceUv().get(face.direction());
+        if (override == null)
+            return face.defaultUv(cube.getUv(), size, texWidth, texHeight, cube.isMirror());
 
-        EntityModelData.FaceUv override = cube.getFaceUv().get(atlasFace.direction());
-        Vector2f[] uv;
-        if (override == null) {
-            uv = atlasFace.defaultUv(cube.getUv(), size, texWidth, texHeight, cube.isMirror());
-        } else {
-            float u0 = override.getUv()[0];
-            float v0 = override.getUv()[1];
-            float u1 = u0 + override.getUvSize()[0];
-            float v1 = v0 + override.getUvSize()[1];
-            uv = BlockFace.uvRect(u0, v0, u1, v1, texWidth, texHeight, cube.isMirror());
-        }
-
-        // Side faces (NORTH/SOUTH/EAST/WEST) have a V-down texture strip where V=min is the top
-        // edge. BlockFace's corner ordering puts UV[0] (TL) on the y-MAX vertex - correct for
-        // block-model elements where {@code +Y = up}, but for entity cubes the runtime Y-flip
-        // puts the y-MIN vertex at the face's top-in-renderer. The UV rows are swapped so V=min
-        // lands on that vertex. Up/down faces carry a V-axis along Z (not Y), so the swap is
-        // skipped for them - the atlas slot assignment above already handles their orientation.
-        if (face != BlockFace.UP && face != BlockFace.DOWN)
-            return new Vector2f[]{ uv[1], uv[0], uv[3], uv[2] };
-
-        return uv;
+        float u0 = override.getUv()[0];
+        float v0 = override.getUv()[1];
+        float u1 = u0 + override.getUvSize()[0];
+        float v1 = v0 + override.getUvSize()[1];
+        return BlockFace.uvRect(u0, v0, u1, v1, texWidth, texHeight, cube.isMirror());
     }
 
     /**

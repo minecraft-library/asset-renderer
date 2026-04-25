@@ -1,0 +1,135 @@
+{
+  "//": "Hand-edited corrections applied to the Bedrock-sourced entity_models.json / entity_geometry.json. Loaded by EntityModelLoader per entity; keys are `geometry_ref`, `texture_ref`, `inventory_y_rotation`, `bone_overrides`, `hidden_bones`. `hidden_bones` strips bones Bedrock packs into the shared geometry but Java conditionally hides at render time (saddlebags on plain horses, saddles on undead mounts).",
+  "entities": {
+    "minecraft:horse": {
+      "hidden_bones": [
+        "Bag1", "Bag2",
+        "Saddle", "SaddleB", "SaddleC",
+        "SaddleL", "SaddleL2", "SaddleR", "SaddleR2",
+        "SaddleMouthL", "SaddleMouthR", "SaddleMouthLine", "SaddleMouthLineR",
+        "HeadSaddle",
+        "MuleEarL", "MuleEarR"
+      ]
+    },
+    "minecraft:skeleton_horse": {
+      "hidden_bones": [
+        "Bag1", "Bag2",
+        "Saddle", "SaddleB", "SaddleC",
+        "SaddleL", "SaddleL2", "SaddleR", "SaddleR2",
+        "SaddleMouthL", "SaddleMouthR", "SaddleMouthLine", "SaddleMouthLineR",
+        "HeadSaddle",
+        "MuleEarL", "MuleEarR"
+      ]
+    },
+    "minecraft:zombie_horse": {
+      "hidden_bones": [
+        "Bag1", "Bag2",
+        "Saddle", "SaddleB", "SaddleC",
+        "SaddleL", "SaddleL2", "SaddleR", "SaddleR2",
+        "SaddleMouthL", "SaddleMouthR", "SaddleMouthLine", "SaddleMouthLineR",
+        "HeadSaddle",
+        "MuleEarL", "MuleEarR"
+      ]
+    },
+    "minecraft:donkey": {
+      "hidden_bones": [
+        "Saddle", "SaddleB", "SaddleC",
+        "SaddleL", "SaddleL2", "SaddleR", "SaddleR2",
+        "SaddleMouthL", "SaddleMouthR", "SaddleMouthLine", "SaddleMouthLineR",
+        "HeadSaddle"
+      ]
+    },
+    "minecraft:mule": {
+      "hidden_bones": [
+        "Saddle", "SaddleB", "SaddleC",
+        "SaddleL", "SaddleL2", "SaddleR", "SaddleR2",
+        "SaddleMouthL", "SaddleMouthR", "SaddleMouthLine", "SaddleMouthLineR",
+        "HeadSaddle"
+      ]
+    },
+    "minecraft:llama": {
+      "hidden_bones": ["chest1", "chest2"]
+    },
+    "//minecraft:blaze": "Bedrock geometry.blaze authors 12 upperBodyParts0..11 bones all stacked at the same pivot (0, 24, 0) with identical cube origins (0, 16, 0); Java BlazeModel.createBodyLayer distributes them via PartPose.offset across three rings of four rods each. Outer ring (parts 0..3) at radius 9 sits above the head pivot (Java jy=-2+cos(i*0.5)); middle ring (parts 4..7) at radius 7 just below (jy=2+cos(i*0.5), angles offset by pi/4); inner ring (parts 8..11) at radius 5 well below the head (jy=11+cos(i*0.75), angles offset by 3*pi/20). Java Y points down in model space so Bedrock dy = -jy. The bind-pose scraper only captures rotations from PartPose.offsetAndRotation, not pure translations, so the offsets don't reach entity_bind_poses.json. We materialise the 12 rod positions here as extra_bones templated from upperBodyParts0, then hide the 12 stacked originals.",
+    "minecraft:blaze": {
+      "extra_bones": [
+        { "name": "rod_0",  "template": "upperBodyParts0", "offset": [ 9.0000,  1.0000,  0.0000] },
+        { "name": "rod_1",  "template": "upperBodyParts0", "offset": [ 0.0000,  1.1224,  9.0000] },
+        { "name": "rod_2",  "template": "upperBodyParts0", "offset": [-9.0000,  1.4597,  0.0000] },
+        { "name": "rod_3",  "template": "upperBodyParts0", "offset": [ 0.0000,  1.9293, -9.0000] },
+        { "name": "rod_4",  "template": "upperBodyParts0", "offset": [ 4.9497, -1.5839,  4.9497] },
+        { "name": "rod_5",  "template": "upperBodyParts0", "offset": [-4.9497, -1.1989,  4.9497] },
+        { "name": "rod_6",  "template": "upperBodyParts0", "offset": [-4.9497, -1.0100, -4.9497] },
+        { "name": "rod_7",  "template": "upperBodyParts0", "offset": [ 4.9497, -1.0635, -4.9497] },
+        { "name": "rod_8",  "template": "upperBodyParts0", "offset": [ 4.4550, -11.9602,  2.2700] },
+        { "name": "rod_9",  "template": "upperBodyParts0", "offset": [-2.2700, -11.9135,  4.4550] },
+        { "name": "rod_10", "template": "upperBodyParts0", "offset": [-4.4550, -11.3466, -2.2700] },
+        { "name": "rod_11", "template": "upperBodyParts0", "offset": [ 2.2700, -10.5958, -4.4550] }
+      ],
+      "hidden_bones": [
+        "upperBodyParts0", "upperBodyParts1", "upperBodyParts2",  "upperBodyParts3",
+        "upperBodyParts4", "upperBodyParts5", "upperBodyParts6",  "upperBodyParts7",
+        "upperBodyParts8", "upperBodyParts9", "upperBodyParts10", "upperBodyParts11"
+      ]
+    },
+    "//minecraft:snow_golem": "Bedrock arm1/arm2 share identical cube geometry (origin [1,20,-1] size [12,2,2]) and rely on the animation system to rotate arm2 around yaw 180 for the opposite stick. With no animations here both arms stack in +X. Java SnowGolemModel's bind pose rotates the arms around Z by ~57.3 degrees; we mirror that here. arm2 also takes yaw 180 so it extends in -X instead of +X.",
+    "minecraft:snow_golem": {
+      "bone_overrides": {
+        "arm1": { "rotation": [0, 0, 57.29578] },
+        "arm2": { "rotation": [0, 180, 57.29578] }
+      }
+    },
+    "//minecraft:fox": "Bedrock fox body is authored vertically and laid horizontal via a Java-side 90 deg pitch bind pose. bindPoseRotation in this renderer only affects the bone's own cubes - tail (child of body) stays vertical and looks 90 deg off. Override tail with its own 90 deg pitch to follow the body.",
+    "minecraft:fox": {
+      "bone_overrides": {
+        "tail": { "rotation": [90, 0, 0] }
+      }
+    },
+    "//minecraft:ender_dragon": "Bedrock dragon.geo authors duplicated right-side parts (wing1, wingtip1, rearlegtip1, rearfoot1, frontlegtip1, frontfoot1) with cube origins identical to their left siblings, relying on Molang animations to translate the mirror into place. Tips and feet are also authored X-centred (origin X symmetric about 0) relying on Molang to slot them under each parent leg. We fill the gap with cube_offset shifts that land each duplicate under the correct leg column and mirror wingtip1 to the +X side.",
+    "minecraft:ender_dragon": {
+      "//head_neck_y_shift": "Bedrock authoring places head/neck bone cubes at Y=[16,32]/[19,29] centered at Y=24, well above the body's Y=[-4,20] center 8. Java's authoritative layout has head in FRONT of the body at similar Y, not above it. Corrective shift Y=-16 brings head/neck cubes down to the body's Y range so the head/neck plug into the body front rather than perching on top.",
+      "//legs_note": "Java EnderDragonModel applies pitch rotations in a leg→tip→foot hierarchy: frontleg 1.3 rad (74.48 deg), frontlegtip -0.5 rad (-28.65) relative, frontfoot 0.75 rad (42.97) relative. Rear: leg 1.0 rad (57.30), tip 0.5 rad (28.65), foot 0.75 rad (42.97). Bedrock authors tips/feet as root-level bones with cubes at X=0, relying on the animation system to chain them. We reparent each tip to its leg and each foot to its tip so the rotation chain propagates, then shift cubes so each part attaches at the end of its parent. Rotations use Bedrock sign convention (+pitch = forward tilt = top-of-bone moves toward -Z).",
+      "bone_overrides": {
+        "head":        { "cube_offset": [0, -16, -15] },
+        "jaw":         { "cube_offset": [0, -16, -15] },
+        "neck":        { "cube_offset": [0, -16, -5] },
+
+        "wing":        { "cube_overrides": [null, { "rotation": [180, 0, 0] }] },
+        "wing1":       { "cube_offset": [56, 0, 0], "cube_mirror": true,
+                          "cube_overrides": [null, { "rotation": [180, 0, 0] }] },
+        "wingtip":     { "cube_offset": [-9, 0, 0],
+                          "cube_overrides": [null, { "rotation": [180, 0, 0] }] },
+        "wingtip1":    { "cube_offset": [183, 0, 0], "cube_mirror": true,
+                          "cube_overrides": [null, { "rotation": [180, 0, 0] }] },
+
+        "frontleg":    { "rotation": [74.48, 0, 0] },
+        "frontleg1":   { "rotation": [74.48, 0, 0] },
+        "frontlegtip": { "parent": "frontleg",     "rotation": [-28.65, 0, 0], "cube_offset": [-12, -21, 3] },
+        "frontlegtip1":{ "parent": "frontleg1",    "rotation": [-28.65, 0, 0], "cube_offset": [12,  -21, 3] },
+        "frontfoot":   { "parent": "frontlegtip",  "rotation": [42.97, 0, 0],  "cube_offset": [-12, -41, 6] },
+        "frontfoot1":  { "parent": "frontlegtip1", "rotation": [42.97, 0, 0],  "cube_offset": [12,  -41, 6] },
+        "rearleg":     { "rotation": [57.30, 0, 0] },
+        "rearleg1":    { "rotation": [57.30, 0, 0] },
+        "rearlegtip":  { "parent": "rearleg",      "rotation": [28.65, 0, 0],  "cube_offset": [-16, -14, 40] },
+        "rearlegtip1": { "parent": "rearleg1",     "rotation": [28.65, 0, 0],  "cube_offset": [16,  -14, 40] },
+        "rearfoot":    { "parent": "rearlegtip",   "rotation": [42.97, 0, 0],  "cube_offset": [-16, -45, 46] },
+        "rearfoot1":   { "parent": "rearlegtip1",  "rotation": [42.97, 0, 0],  "cube_offset": [16,  -45, 46] }
+      },
+      "//extra_bones": "Dragon tail: Java EnderDragonModel builds 12 tail segments at PartPose.offset(0, 10, 60 + i*10) as copies of the shared neck cube. Templated from the (post-override) neck which is already Y-shifted down by -16, so the tail inherits the corrected Y position without a separate Y shift here.",
+      "extra_bones": [
+        { "name": "tail_0",  "template": "neck", "offset": [0, 0, 60] },
+        { "name": "tail_1",  "template": "neck", "offset": [0, 0, 70] },
+        { "name": "tail_2",  "template": "neck", "offset": [0, 0, 80] },
+        { "name": "tail_3",  "template": "neck", "offset": [0, 0, 90] },
+        { "name": "tail_4",  "template": "neck", "offset": [0, 0, 100] },
+        { "name": "tail_5",  "template": "neck", "offset": [0, 0, 110] },
+        { "name": "tail_6",  "template": "neck", "offset": [0, 0, 120] },
+        { "name": "tail_7",  "template": "neck", "offset": [0, 0, 130] },
+        { "name": "tail_8",  "template": "neck", "offset": [0, 0, 140] },
+        { "name": "tail_9",  "template": "neck", "offset": [0, 0, 150] },
+        { "name": "tail_10", "template": "neck", "offset": [0, 0, 160] },
+        { "name": "tail_11", "template": "neck", "offset": [0, 0, 170] }
+      ]
+    }
+  }
+}

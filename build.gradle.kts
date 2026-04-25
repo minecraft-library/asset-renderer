@@ -56,7 +56,7 @@ dependencies {
     // Simplified Libraries (extracted to github.com/simplified-dev)
     api("com.github.simplified-dev:collections") { version { strictly("c399e1dad3") } }
     api("com.github.simplified-dev:utils") { version { strictly("36b2a338ce") } }
-    api("com.github.simplified-dev:image") { version { strictly("ba0785c409") } }
+    api("com.github.simplified-dev:image") { version { strictly("b02632c") } }
     api("com.github.simplified-dev:gson-extras:master-SNAPSHOT")
     api("com.github.simplified-dev:client:master-SNAPSHOT")
 
@@ -144,6 +144,13 @@ tasks {
         description = "Downloads the Bedrock Edition vanilla resource pack and generates src/main/resources/lib/minecraft/renderer/entity_models.json from .geo.json files. Run on a Minecraft version bump."
         group = "tooling"
         mainClass.set("lib.minecraft.renderer.tooling.ToolingEntityModels")
+        classpath = sourceSets["main"].runtimeClasspath
+    }
+
+    register<JavaExec>("bindPoses") {
+        description = "Parses Java Edition Model subclasses via ASM and generates src/main/resources/lib/minecraft/renderer/entity_bind_poses.json - per-bone static rotations the Bedrock 1.21+ geometry expects an animation to apply. Run on a Minecraft version bump."
+        group = "tooling"
+        mainClass.set("lib.minecraft.renderer.tooling.ToolingBindPoses")
         classpath = sourceSets["main"].runtimeClasspath
     }
 
