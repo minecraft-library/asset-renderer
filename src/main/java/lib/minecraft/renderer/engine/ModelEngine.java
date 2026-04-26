@@ -252,16 +252,19 @@ public class ModelEngine extends TextureEngine {
 
                     float depthVal = bary[0] * t.p0.z() + bary[1] * t.p1.z() + bary[2] * t.p2.z();
                     int idx = (py - tileStart) * width + px;
-                    // Epsilon-tolerant rejection: coplanar faces (e.g. chest body SOUTH and lid
-                    // SOUTH both at z=15 before camera) project to mathematically equal per-pixel
-                    // depths, but barycentric interpolation over triangles with different vertex
-                    // sets produces small floating-point differences. Without the epsilon, the
-                    // later-drawn face occasionally wins in scattered pixels and the result is
-                    // visible speckle z-fighting in the coplanar region. The insertion-order
-                    // iteration above guarantees the intended painter sequence (body < lid < lock
-                    // for a chest), so absorbing FP noise in the depth test makes the first-drawn
-                    // coplanar face deterministically win.
-                    if (depthVal <= depth[idx] + DEPTH_EPSILON) continue;
+                    // Depth test, with two flavours:
+                    //   - Standard: epsilon-tolerant rejection so coplanar faces (chest body SOUTH
+                    //     vs lid SOUTH at z=15) deterministically resolve in painter order without
+                    //     barycentric FP noise speckling. First-drawn wins on equal depth.
+                    //   - Emissive: strict less-than, so an emissive overlay rendered AT the same
+                    //     depth as the base it's painted on top of (spider/enderman eye overlays
+                    //     re-using the base entity's geometry post-bone_overrides) survives the
+                    //     test and blends additively, instead of being eaten by the epsilon
+                    //     tie-break. Behind-by-more-than-FP-noise is still rejected normally.
+                    boolean depthFail = t.source.emissive()
+                        ? depthVal < depth[idx]
+                        : depthVal <= depth[idx] + DEPTH_EPSILON;
+                    if (depthFail) continue;
 
                     float u = bary[0] * t.source.uv0().x() + bary[1] * t.source.uv1().x() + bary[2] * t.source.uv2().x();
                     float v = bary[0] * t.source.uv0().y() + bary[1] * t.source.uv1().y() + bary[2] * t.source.uv2().y();

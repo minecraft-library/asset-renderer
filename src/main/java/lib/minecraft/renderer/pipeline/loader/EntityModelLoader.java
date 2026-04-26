@@ -231,11 +231,17 @@ public class EntityModelLoader {
             //   2. entity_models_overrides.json - hand-edited overlays for cases the tooling
             //      can't auto-detect (slime translucent shell, copper golem flower, charged
             //      creeper armor, etc.).
+            // Overlays whose geometry_ref matches the base entity's geometry_ref reuse the
+            // post-override base model so they inherit any bone_overrides / bind_poses /
+            // extra_bones / hidden_bones applied to the base. Critical for emissive eye
+            // overlays on entities whose head bone got shifted (enderman head cube_offset
+            // [0, 14, 0]) - without this the overlay's eye texture would land on the
+            // unshifted head position and miss the rendered head entirely.
             java.util.List<OverlayLayer> overlays = new java.util.ArrayList<>();
             if (entityJson.has("overlays") && entityJson.get("overlays").isJsonArray())
-                overlays.addAll(loadOverlays(entityJson.getAsJsonArray("overlays"), geometries, entityId));
+                overlays.addAll(loadOverlays(entityJson.getAsJsonArray("overlays"), geometries, geometryRef, model, entityId));
             if (override != null && override.has("overlays"))
-                overlays.addAll(loadOverlays(override.getAsJsonArray("overlays"), geometries, entityId));
+                overlays.addAll(loadOverlays(override.getAsJsonArray("overlays"), geometries, geometryRef, model, entityId));
 
             // force_opaque opts an entity into runtime alpha-bumping of its bundled texture.
             // Replaces the legacy ToolingEntityModels.OPAQUE_ALPHA_TEXTURE_REFS hardcoded set:
@@ -265,6 +271,8 @@ public class EntityModelLoader {
     private static @NotNull java.util.List<OverlayLayer> loadOverlays(
         @NotNull com.google.gson.JsonArray overlays,
         @NotNull Map<String, EntityModelData> geometries,
+        @NotNull String baseGeometryRef,
+        @NotNull EntityModelData baseModel,
         @NotNull String entityId
     ) {
         java.util.List<OverlayLayer> out = new java.util.ArrayList<>();
@@ -276,11 +284,20 @@ public class EntityModelLoader {
                 continue;
             }
             String geometryRef = entry.get("geometry_ref").getAsString();
-            EntityModelData overlayModel = geometries.get(geometryRef);
-            if (overlayModel == null) {
-                System.err.printf("  Warning: entity '%s' overlay references geometry '%s' which is not present in '%s'%n",
-                    entityId, geometryRef, GEOMETRY_RESOURCE_PATH);
-                continue;
+            // When the overlay shares the base entity's geometry, reuse the post-override
+            // base model so overlay cubes inherit bone_overrides / bind_poses / extra_bones
+            // applied to the base. Otherwise (different geometry, e.g. slime outer shell or
+            // creeper power overlay) resolve fresh from the geometry table.
+            EntityModelData overlayModel;
+            if (geometryRef.equals(baseGeometryRef)) {
+                overlayModel = baseModel;
+            } else {
+                overlayModel = geometries.get(geometryRef);
+                if (overlayModel == null) {
+                    System.err.printf("  Warning: entity '%s' overlay references geometry '%s' which is not present in '%s'%n",
+                        entityId, geometryRef, GEOMETRY_RESOURCE_PATH);
+                    continue;
+                }
             }
             Optional<String> overlayTexture = entry.has("texture_ref")
                 ? Optional.of(entry.get("texture_ref").getAsString())
