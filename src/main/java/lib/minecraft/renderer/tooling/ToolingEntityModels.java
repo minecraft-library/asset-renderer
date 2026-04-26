@@ -476,7 +476,20 @@ public final class ToolingEntityModels {
         Map.entry("breeze/breeze_eyes",      java.util.List.of("minecraft:breeze")),
         Map.entry("creaking/creaking_eyes",  java.util.List.of("minecraft:creaking")),
         Map.entry("copper_golem/copper_golem_eyes",
-            java.util.List.of("minecraft:copper_golem"))
+            java.util.List.of(
+                "minecraft:copper_golem",
+                "minecraft:copper_golem_running",
+                "minecraft:copper_golem_sitting",
+                "minecraft:copper_golem_star"
+                // copper_golem_flower is NOT here: its overrides JSON re-roots geometry_ref
+                // from geometry.copper_golem.flower (the flower-only mesh) to the full
+                // geometry.copper_golem and adds the flower as an overlay. The auto-extractor
+                // works against the un-overridden entity_models.json geometry, so an auto entry
+                // here would emit an overlay using geometry.copper_golem.flower - which is the
+                // flower, not the body, and the eye UVs would miss the head entirely. The
+                // flower variant's emissive overlay is added manually in
+                // entity_models_overrides.json instead.
+            ))
         // Oxidation-stage variants (copper_golem_eyes_exposed, _weathered, _oxidized) exist as
         // separate PNG files in the Java jar but are sourced via per-state texture binding
         // rather than emissive overlays on distinct entity ids. Add them here only when the

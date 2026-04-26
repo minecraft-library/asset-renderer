@@ -183,7 +183,8 @@
       "geometry_ref": "geometry.copper_golem",
       "texture_ref": "copper_golem/copper_golem",
       "overlays": [
-        { "geometry_ref": "geometry.copper_golem.flower", "texture_ref": "copper_golem/copper_golem_flower" }
+        { "geometry_ref": "geometry.copper_golem.flower", "texture_ref": "copper_golem/copper_golem_flower" },
+        { "geometry_ref": "geometry.copper_golem", "texture_ref": "copper_golem/copper_golem_eyes", "emissive": true }
       ]
     },
     "//minecraft:creeper_charged": "Vanilla Java draws the standard creeper mesh and texture, then a translucent inflated 'power' overlay using entity/creeper/creeper_armor.png - that lightning-grid texture is what makes a charged creeper visually distinct from a plain creeper. Bedrock packs the inflated geometry as geometry.creeper.charged.v1.8 so the variant ships with the right mesh; this override re-roots the entity's base layer at the plain creeper geometry/texture and adds the charged geometry with the creeper_armor texture as an overlay. The creeper_armor.png ref must be present in entity_textures/creeper/ - if it's missing (the texture isn't bundled by ToolingEntityModels until the user runs ./gradlew entityModels with the forced-extra-texture list) the overlay drops silently and the renderer degrades to a plain creeper.",

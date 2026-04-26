@@ -118,19 +118,40 @@
       "geometry_ref": "geometry.copper_golem.running",
       "texture_ref": "copper_golem/copper_golem",
       "armor_type": "humanoid",
-      "variant_of": "minecraft:copper_golem"
+      "variant_of": "minecraft:copper_golem",
+      "overlays": [
+        {
+          "geometry_ref": "geometry.copper_golem.running",
+          "texture_ref": "copper_golem/copper_golem_eyes",
+          "emissive": true
+        }
+      ]
     },
     "minecraft:copper_golem_sitting": {
       "geometry_ref": "geometry.copper_golem.sitting",
       "texture_ref": "copper_golem/copper_golem",
       "armor_type": "humanoid",
-      "variant_of": "minecraft:copper_golem"
+      "variant_of": "minecraft:copper_golem",
+      "overlays": [
+        {
+          "geometry_ref": "geometry.copper_golem.sitting",
+          "texture_ref": "copper_golem/copper_golem_eyes",
+          "emissive": true
+        }
+      ]
     },
     "minecraft:copper_golem_star": {
       "geometry_ref": "geometry.copper_golem.star",
       "texture_ref": "copper_golem/copper_golem",
       "armor_type": "humanoid",
-      "variant_of": "minecraft:copper_golem"
+      "variant_of": "minecraft:copper_golem",
+      "overlays": [
+        {
+          "geometry_ref": "geometry.copper_golem.star",
+          "texture_ref": "copper_golem/copper_golem_eyes",
+          "emissive": true
+        }
+      ]
     },
     "minecraft:cow": {
       "geometry_ref": "geometry.cow.v2",
