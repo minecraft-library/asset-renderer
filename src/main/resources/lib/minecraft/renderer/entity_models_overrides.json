@@ -11,6 +11,7 @@
         "MuleEarL", "MuleEarR"
       ]
     },
+    "//minecraft:skeleton_horse": "Bedrock authors the skeleton horse leg cubes with the bone silhouette texture pushed onto faces that don't face the camera in our standard iso pose. Front-right Leg3 (X=+4, Z=-8) needs -90 yaw and front-left Leg4 (X=-4, Z=-8) needs +90 yaw to swing their bone-face into the iso-visible set; rear legs Leg1/Leg2 (Z=11) both need 180 yaw. Each leg bone has a single cube and no parent, so bone-level rotation with no explicit pivot rotates the cube about its own bbox center (the default introduced 2026-04-26).",
     "minecraft:skeleton_horse": {
       "hidden_bones": [
         "Bag1", "Bag2",
@@ -19,7 +20,21 @@
         "SaddleMouthL", "SaddleMouthR", "SaddleMouthLine", "SaddleMouthLineR",
         "HeadSaddle",
         "MuleEarL", "MuleEarR"
-      ]
+      ],
+      "bone_overrides": {
+        "Leg1A": { "rotation": [0, 180, 0] },
+        "Leg1B": { "rotation": [0, 180, 0] },
+        "Leg1C": { "rotation": [0, 180, 0] },
+        "Leg2A": { "rotation": [0, 180, 0] },
+        "Leg2B": { "rotation": [0, 180, 0] },
+        "Leg2C": { "rotation": [0, 180, 0] },
+        "Leg3A": { "rotation": [0, -90, 0] },
+        "Leg3B": { "rotation": [0, -90, 0] },
+        "Leg3C": { "rotation": [0, -90, 0] },
+        "Leg4A": { "rotation": [0, 90, 0] },
+        "Leg4B": { "rotation": [0, 90, 0] },
+        "Leg4C": { "rotation": [0, 90, 0] }
+      }
     },
     "minecraft:zombie_horse": {
       "hidden_bones": [
