@@ -90,7 +90,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * Resolves the entity texture. Precedence: an explicit {@link EntityOptions#getTextureId()
      * texture id on options} (user override; looked up against the Java atlas via the pack
      * stack) &gt; the entity's own bundled {@link Entity#getTextureRef() texture_ref} (loaded
-     * from the Bedrock-sourced {@code /lib/minecraft/renderer/entity_textures/&lt;ref&gt;.png}
+     * from the Bedrock-sourced {@code /lib/minecraft/renderer/entity_textures/<ref>.png}
      * classpath resource).
      * <p>
      * The entity-default path is classpath-only, deliberately bypassing the Java atlas - the
