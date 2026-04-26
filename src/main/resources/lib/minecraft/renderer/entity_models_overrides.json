@@ -183,6 +183,18 @@
         "arm2": { "pivot": [0, 18, 0], "rotation": [0, 180, 57.29578] }
       }
     },
+    "//minecraft:spider": "Vanilla Java draws spider eyes as a separate full-bright additive layer on top of the body via SpiderEyesLayer + RenderType.eyes. Bedrock bakes the eye glow into the body texture as alpha=3 spots (currently bumped to opaque via OPAQUE_ALPHA_TEXTURE_REFS as a workaround). With emissive overlay support landed, layer the Java spider_eyes.png on top of the same geometry with emissive: true so the eyes glow correctly without depending on the alpha bump. The overlay reuses geometry.spider.v1.8 so eye UVs land on the head face; the rest of the overlay samples transparent pixels from the eye-only PNG and renders nothing.",
+    "minecraft:spider": {
+      "overlays": [
+        { "geometry_ref": "geometry.spider.v1.8", "texture_ref": "spider/spider_eyes", "emissive": true }
+      ]
+    },
+    "//minecraft:cave_spider": "Same emissive eye overlay as spider - vanilla Java's CaveSpiderRenderer reuses SpiderEyesLayer with the same spider_eyes.png (the cave-spider blue tint is baked into the body texture, not the eye texture). Reuses spider/spider_eyes.",
+    "minecraft:cave_spider": {
+      "overlays": [
+        { "geometry_ref": "geometry.spider.v1.8", "texture_ref": "spider/spider_eyes", "emissive": true }
+      ]
+    },
     "//minecraft:fox": "Bedrock fox body is authored vertically and laid horizontal via a Java-side 90 deg pitch bind pose. bindPoseRotation in this renderer only affects the bone's own cubes - tail (child of body) stays vertical and looks 90 deg off. Override tail with its own 90 deg pitch to follow the body. Explicit pivot is the tail's bone pivot at the body-tail joint (the default cube-center anchor would rotate the tail about its midpoint instead of swinging from its base).",
     "minecraft:fox": {
       "bone_overrides": {
@@ -246,6 +258,10 @@
         { "name": "tail_9",  "template": "neck", "offset": [0, 0, 150] },
         { "name": "tail_10", "template": "neck", "offset": [0, 0, 160] },
         { "name": "tail_11", "template": "neck", "offset": [0, 0, 170] }
+      ],
+      "//emissive_eyes": "Vanilla Java draws ender dragon eyes as a separate full-bright additive layer via EnderDragonRenderer.DragonEyes + RenderType.eyes. Layer the Java enderdragon/dragon_eyes.png on top of the same geometry with emissive: true so the eyes glow correctly. The overlay reuses geometry.dragon so eye UVs land on the head face; non-eye regions sample transparent pixels from the eye-only PNG and render nothing.",
+      "overlays": [
+        { "geometry_ref": "geometry.dragon", "texture_ref": "enderdragon/dragon_eyes", "emissive": true }
       ]
     }
   }

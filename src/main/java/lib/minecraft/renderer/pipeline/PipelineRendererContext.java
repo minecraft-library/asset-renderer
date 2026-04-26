@@ -277,7 +277,7 @@ public final class PipelineRendererContext implements RendererContext {
         for (Map.Entry<String, EntityModelLoader.EntityDefinition> entityEntry : EntityModelLoader.load().entrySet()) {
             EntityModelLoader.EntityDefinition def = entityEntry.getValue();
             java.util.List<Entity.Layer> overlayLayers = def.overlays().stream()
-                .map(o -> new Entity.Layer(o.model(), o.textureRef()))
+                .map(o -> new Entity.Layer(o.model(), o.textureRef(), o.emissive()))
                 .toList();
             entityIndex.put(entityEntry.getKey(), new Entity(entityEntry.getKey(), "minecraft", localName(entityEntry.getKey()), def.model(), def.textureRef(), overlayLayers));
         }

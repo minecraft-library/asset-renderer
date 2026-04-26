@@ -72,7 +72,7 @@ public class EntityGeometryKit {
      * @return the build result containing triangles and per-bone bounding boxes
      */
     public static @NotNull BuildResult buildTriangles(@NotNull EntityModelData model, @NotNull PixelBuffer texture) {
-        return buildTriangles(model, texture, computeBounds(model));
+        return buildTriangles(model, texture, computeBounds(model), false);
     }
 
     /**
@@ -94,6 +94,28 @@ public class EntityGeometryKit {
         @NotNull EntityModelData model,
         @NotNull PixelBuffer texture,
         @NotNull ModelBounds bounds
+    ) {
+        return buildTriangles(model, texture, bounds, false);
+    }
+
+    /**
+     * Variant that tags every produced triangle with the supplied {@code emissive} flag, used
+     * by overlay layers that should render full-bright + additive (vanilla Java's
+     * {@code RenderType.eyes} pattern - spider eyes, ender dragon eyes) instead of the default
+     * shaded src-over.
+     *
+     * @param model the entity model definition
+     * @param texture the shared texture atlas for all cubes in this layer
+     * @param bounds the bounds to fit within - typically the base layer's bounds
+     * @param emissive when {@code true}, all produced triangles carry the emissive flag and the
+     *     rasterizer will skip ambient shading and use {@link dev.simplified.image.pixel.BlendMode#ADD}
+     * @return the build result containing triangles and per-bone bounding boxes
+     */
+    public static @NotNull BuildResult buildTriangles(
+        @NotNull EntityModelData model,
+        @NotNull PixelBuffer texture,
+        @NotNull ModelBounds bounds,
+        boolean emissive
     ) {
         Map<String, Matrix4f> chainTransforms = buildChainTransforms(model.getBones());
 
@@ -176,14 +198,14 @@ public class EntityGeometryKit {
                         uv[0], uv[1], uv[2],
                         texture, ColorMath.WHITE,
                         normal, 1f,
-                        cubeCullBackFaces
+                        cubeCullBackFaces, emissive
                     ));
                     triangles.add(new VisibleTriangle(
                         corners[0], corners[2], corners[3],
                         uv[0], uv[2], uv[3],
                         texture, ColorMath.WHITE,
                         normal, 1f,
-                        cubeCullBackFaces
+                        cubeCullBackFaces, emissive
                     ));
                 }
             }

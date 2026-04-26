@@ -76,7 +76,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 ? loadBundledEntityTexture(overlay.textureRef().get())
                 : Optional.of(texture.get());
             if (overlayTex.isEmpty()) continue;
-            triangles.addAll(EntityGeometryKit.buildTriangles(overlay.model(), overlayTex.get(), baseBounds).triangles());
+            triangles.addAll(EntityGeometryKit.buildTriangles(overlay.model(), overlayTex.get(), baseBounds, overlay.emissive()).triangles());
         }
 
         // Armor overlay for humanoid entities. The isometric engine's camera bakes the standard

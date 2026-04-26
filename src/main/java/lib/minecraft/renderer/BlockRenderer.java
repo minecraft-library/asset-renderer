@@ -290,7 +290,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     tri.uv0(), tri.uv1(), tri.uv2(),
                     tri.texture(), tri.tintArgb(),
                     Vector3f.transformNormal(tri.normal(), rotation),
-                    tri.shading(), tri.cullBackFaces()
+                    tri.shading(), tri.cullBackFaces(), tri.emissive()
                 ));
             }
 
@@ -461,7 +461,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                             new Vector3f(t.position1().x() + dx, t.position1().y() + dy, t.position1().z() + dz),
                             new Vector3f(t.position2().x() + dx, t.position2().y() + dy, t.position2().z() + dz),
                             t.uv0(), t.uv1(), t.uv2(),
-                            t.texture(), t.tintArgb(), t.normal(), t.shading(), t.cullBackFaces()
+                            t.texture(), t.tintArgb(), t.normal(), t.shading(), t.cullBackFaces(), t.emissive()
                         ));
                     }
                     partTriangles = shifted;
@@ -601,7 +601,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     new Vector3f((t.position1().x() - cx) * scale, (t.position1().y() - cy) * scale, (t.position1().z() - cz) * scale),
                     new Vector3f((t.position2().x() - cx) * scale, (t.position2().y() - cy) * scale, (t.position2().z() - cz) * scale),
                     t.uv0(), t.uv1(), t.uv2(),
-                    t.texture(), t.tintArgb(), t.normal(), t.shading(), t.cullBackFaces()
+                    t.texture(), t.tintArgb(), t.normal(), t.shading(), t.cullBackFaces(), t.emissive()
                 ));
             }
             return result;

@@ -275,14 +275,25 @@ public class ModelEngine extends TextureEngine {
                     if (t.source.tintArgb() != ColorMath.WHITE)
                         sampled = ColorMath.blend(t.source.tintArgb(), sampled, BlendMode.MULTIPLY);
 
-                    sampled = RenderEngine.applyShading(sampled, shading);
-                    // Src-over composite onto whatever the depth-passing pixel previously wrote.
+                    // Emissive overlays render full-bright (no ambient shading) and additive
+                    // (BlendMode.ADD = vanilla Java's RenderType.eyes glBlendFunc(SRC_ALPHA, ONE)),
+                    // so the layer brightens the base instead of replacing or translucently
+                    // masking it. Spider eyes and ender dragon eyes are the canonical cases.
+                    // Non-emissive triangles take the standard shaded src-over path.
+                    BlendMode blendMode;
+                    if (t.source.emissive()) {
+                        blendMode = BlendMode.ADD;
+                    } else {
+                        sampled = RenderEngine.applyShading(sampled, shading);
+                        blendMode = BlendMode.NORMAL;
+                    }
+                    // Composite onto whatever the depth-passing pixel previously wrote.
                     // ColorMath.blend short-circuits at sa=0xFF (returns src) so opaque content
                     // pays only one extra getPixel + one branch. Partial-alpha samples (slime
                     // outer shell at alpha=180, fluid flow edges) blend over the existing
                     // buffer content and produce the correct translucent appearance instead of
                     // overwriting and only preserving alpha in the output PNG.
-                    sampled = ColorMath.blend(sampled, buffer.getPixel(px, py), BlendMode.NORMAL);
+                    sampled = ColorMath.blend(sampled, buffer.getPixel(px, py), blendMode);
                     buffer.setPixel(px, py, sampled);
                     // Depth is written for any pixel that survives the alpha-zero skip above,
                     // translucent fragments included. Correct rendering of partial-alpha layers

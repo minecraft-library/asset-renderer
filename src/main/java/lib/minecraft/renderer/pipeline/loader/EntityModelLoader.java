@@ -96,10 +96,14 @@ public class EntityModelLoader {
      *     they co-register under the renderer's shared auto-fit transform
      * @param textureRef the bundled texture sub-path (without {@code .png}), or empty when the
      *     overlay should reuse the base entity's texture
+     * @param emissive when {@code true} the overlay renders full-bright + additive (vanilla
+     *     Java's {@code RenderType.eyes} pattern) instead of shaded src-over. Tagged onto every
+     *     triangle the overlay produces; the rasterizer keys off the per-triangle flag
      */
     public record OverlayLayer(
         @NotNull EntityModelData model,
-        @NotNull Optional<String> textureRef
+        @NotNull Optional<String> textureRef,
+        boolean emissive
     ) {}
 
     /**
@@ -245,7 +249,8 @@ public class EntityModelLoader {
                 : Optional.empty();
             float inflate = entry.has("inflate") ? entry.get("inflate").getAsFloat() : 0f;
             EntityModelData materialised = inflate != 0f ? inflateModel(overlayModel, inflate) : overlayModel;
-            out.add(new OverlayLayer(materialised, overlayTexture));
+            boolean emissive = entry.has("emissive") && entry.get("emissive").getAsBoolean();
+            out.add(new OverlayLayer(materialised, overlayTexture, emissive));
         }
         return out;
     }

@@ -88,10 +88,26 @@ public class Entity {
      * @param textureRef the bundled texture sub-path under
      *     {@code /lib/minecraft/renderer/entity_textures/} (without {@code .png}), or empty when
      *     the overlay reuses the base texture
+     * @param emissive when {@code true} the overlay renders full-bright + additive (vanilla
+     *     Java's {@code RenderType.eyes} pattern - spider eyes, ender dragon eyes) instead of
+     *     the default shaded src-over. Tagged through every triangle the overlay produces; the
+     *     rasterizer keys off the per-triangle flag to pick blend mode and skip the ambient
+     *     shading pass
      */
     public record Layer(
         @NotNull EntityModelData model,
-        @NotNull Optional<String> textureRef
-    ) {}
+        @NotNull Optional<String> textureRef,
+        boolean emissive
+    ) {
+
+        /**
+         * Convenience constructor for non-emissive overlays - the common case ({@code emissive}
+         * defaults to {@code false}).
+         */
+        public Layer(@NotNull EntityModelData model, @NotNull Optional<String> textureRef) {
+            this(model, textureRef, false);
+        }
+
+    }
 
 }

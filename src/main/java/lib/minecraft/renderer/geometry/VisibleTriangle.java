@@ -22,6 +22,11 @@ import org.jetbrains.annotations.NotNull;
  * @param cullBackFaces when {@code true} the engine's back-face culling pass may discard this
  *     triangle; set to {@code false} for two-sided geometry such as leaves, glass panes, banners,
  *     and other semi-transparent or thin blocks that need to render both sides
+ * @param emissive when {@code true} the rasterizer skips ambient shading (full-bright) and
+ *     composites with {@code BlendMode.ADD} instead of {@code BlendMode.NORMAL}, matching
+ *     vanilla Java's {@code RenderType.eyes} additive emissive pass. Used by overlay layers
+ *     such as spider eyes and ender dragon eyes that brighten the underlying body texture
+ *     instead of replacing or translucently masking it
  */
 public record VisibleTriangle(
     @NotNull Vector3f position0,
@@ -34,5 +39,6 @@ public record VisibleTriangle(
     int tintArgb,
     @NotNull Vector3f normal,
     float shading,
-    boolean cullBackFaces
+    boolean cullBackFaces,
+    boolean emissive
 ) {}
