@@ -276,7 +276,20 @@ public class ModelEngine extends TextureEngine {
                         sampled = ColorMath.blend(t.source.tintArgb(), sampled, BlendMode.MULTIPLY);
 
                     sampled = RenderEngine.applyShading(sampled, shading);
+                    // Src-over composite onto whatever the depth-passing pixel previously wrote.
+                    // ColorMath.blend short-circuits at sa=0xFF (returns src) so opaque content
+                    // pays only one extra getPixel + one branch. Partial-alpha samples (slime
+                    // outer shell at alpha=180, fluid flow edges) blend over the existing
+                    // buffer content and produce the correct translucent appearance instead of
+                    // overwriting and only preserving alpha in the output PNG.
+                    sampled = ColorMath.blend(sampled, buffer.getPixel(px, py), BlendMode.NORMAL);
                     buffer.setPixel(px, py, sampled);
+                    // Depth is written for any pixel that survives the alpha-zero skip above,
+                    // translucent fragments included. Correct rendering of partial-alpha layers
+                    // therefore depends on painter's order - translucent geometry must be
+                    // inserted into the bone/triangle list AFTER any opaque content meant to be
+                    // visible behind it. The slime outer-shell extra_bone is appended last for
+                    // exactly this reason; emissive overlays should follow the same convention.
                     depth[idx] = depthVal;
                 }
             }
