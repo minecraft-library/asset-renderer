@@ -127,6 +127,8 @@ public class EntityGeometryKit {
                 //   boneChain   : anchor(bone.rotation) * anchor(parent) * ...         (propagates)
                 Matrix4f fullTransform = composeCubeTransform(cube, bone, boneChain);
 
+                boolean cubeCullBackFaces = shouldCullBackFaces(cube, size, texture, texW, texH);
+
                 for (BlockFace face : BlockFace.values()) {
                     Vector3f[] corners = face.corners(cubeBounds);
                     for (int i = 0; i < 4; i++) {
@@ -152,14 +154,14 @@ public class EntityGeometryKit {
                         uv[0], uv[1], uv[2],
                         texture, ColorMath.WHITE,
                         normal, 1f,
-                        true
+                        cubeCullBackFaces
                     ));
                     triangles.add(new VisibleTriangle(
                         corners[0], corners[2], corners[3],
                         uv[0], uv[2], uv[3],
                         texture, ColorMath.WHITE,
                         normal, 1f,
-                        true
+                        cubeCullBackFaces
                     ));
                 }
             }
@@ -393,6 +395,75 @@ public class EntityGeometryKit {
         float u1 = u0 + override.getUvSize()[0];
         float v1 = v0 + override.getUvSize()[1];
         return BlockFace.uvRect(u0, v0, u1, v1, texWidth, texHeight, cube.isMirror());
+    }
+
+    /**
+     * Decides whether this cube's triangles should opt into back-face culling. Bedrock entity
+     * textures occasionally author all the cube's renderable content on faces that are
+     * back-facing in our standard iso pose {@code [pitch=30, yaw=225]} - the chicken leg cube
+     * is the canonical example, with its foot-bottom 3x3 patch on DOWN and its leg silhouette
+     * on SOUTH, while TOP/NORTH/EAST UV rects are entirely empty. With culling on, the empty
+     * front faces don't write to the depth buffer (the rasterizer skips depth on transparent
+     * samples) but the back faces are dropped before they can render either, so the cube
+     * renders as nothing visible. Disabling culling for cubes in that shape lets the back
+     * faces pass through unobstructed and the foot/silhouette appear at their natural cube
+     * positions.
+     * <p>
+     * Rule: cull when any iso-visible face has opaque content (the normal case - back faces
+     * lose the depth test to the front faces anyway, so culling is just a perf win). Don't
+     * cull when all iso-visible faces are empty AND any iso-hidden face has content. When
+     * everything is empty, default back to culling (no behavioural difference).
+     * <p>
+     * The iso-visible face set ({@link BlockFace#UP}, {@link BlockFace#NORTH},
+     * {@link BlockFace#EAST}) is hardcoded for the standard block-iso pose used by
+     * {@code EntityRenderer}. If the iso pose ever changes, revisit.
+     */
+    private static boolean shouldCullBackFaces(
+        @NotNull EntityModelData.Cube cube,
+        float @NotNull [] size,
+        @NotNull PixelBuffer texture,
+        float texW,
+        float texH
+    ) {
+        boolean visibleHasContent =
+               uvHasContent(resolveFaceUv(BlockFace.UP, cube, size, texW, texH), texture)
+            || uvHasContent(resolveFaceUv(BlockFace.NORTH, cube, size, texW, texH), texture)
+            || uvHasContent(resolveFaceUv(BlockFace.EAST, cube, size, texW, texH), texture);
+        if (visibleHasContent) return true;
+        boolean hiddenHasContent =
+               uvHasContent(resolveFaceUv(BlockFace.DOWN, cube, size, texW, texH), texture)
+            || uvHasContent(resolveFaceUv(BlockFace.SOUTH, cube, size, texW, texH), texture)
+            || uvHasContent(resolveFaceUv(BlockFace.WEST, cube, size, texW, texH), texture);
+        return !hiddenHasContent;
+    }
+
+    /**
+     * Returns {@code true} when the texture has at least one fully or partially opaque pixel
+     * inside the bounding rectangle of the supplied UV corners. Used by
+     * {@link #shouldCullBackFaces} to detect the chicken-class case where the cube's
+     * iso-visible faces are entirely transparent. UVs are in {@code [0, 1]} normalised space;
+     * the helper expands them back to integer pixel bounds for the loop.
+     */
+    private static boolean uvHasContent(
+        @NotNull Vector2f @NotNull [] uv,
+        @NotNull PixelBuffer texture
+    ) {
+        int W = texture.width();
+        int H = texture.height();
+        float u0 = Math.min(Math.min(uv[0].x(), uv[1].x()), Math.min(uv[2].x(), uv[3].x())) * W;
+        float v0 = Math.min(Math.min(uv[0].y(), uv[1].y()), Math.min(uv[2].y(), uv[3].y())) * H;
+        float u1 = Math.max(Math.max(uv[0].x(), uv[1].x()), Math.max(uv[2].x(), uv[3].x())) * W;
+        float v1 = Math.max(Math.max(uv[0].y(), uv[1].y()), Math.max(uv[2].y(), uv[3].y())) * H;
+        int x0 = Math.max(0, (int) Math.floor(u0));
+        int y0 = Math.max(0, (int) Math.floor(v0));
+        int x1 = Math.min(W, (int) Math.ceil(u1));
+        int y1 = Math.min(H, (int) Math.ceil(v1));
+        for (int y = y0; y < y1; y++) {
+            for (int x = x0; x < x1; x++) {
+                if (ColorMath.alpha(texture.getPixel(x, y)) > 0) return true;
+            }
+        }
+        return false;
     }
 
     /**

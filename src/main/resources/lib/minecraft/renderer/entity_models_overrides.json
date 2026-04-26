@@ -97,19 +97,7 @@
         "head": { "cube_offset": [0, 14, 0] }
       }
     },
-    "//minecraft:chicken": "Bedrock geometry.chicken.v1.12 (and .cold) authors leg0/leg1 as 3x5x3 cubes at uv (26, 0). Bedrock's strip layout puts the leg silhouette (col 36 at rows 3-7) on the SOUTH face. In our standard iso pose [pitch=30, yaw=225] SOUTH (+Z) is back-facing and culled - only NORTH, EAST, TOP visible, all empty UV rects. Yaw 180 swaps the SOUTH face into the visible NORTH-pointing direction; with no explicit pivot the rotation anchors at the cube's own center, so the cube stays in place. Foot bottom (DOWN face content) remains hidden - the chicken's feet at the toe-end are deferred (see plan file).",
-    "minecraft:chicken": {
-      "bone_overrides": {
-        "leg0": { "rotation": [0, 180, 0] },
-        "leg1": { "rotation": [0, 180, 0] }
-      }
-    },
-    "minecraft:chicken_cold": {
-      "bone_overrides": {
-        "leg0": { "rotation": [0, 180, 0] },
-        "leg1": { "rotation": [0, 180, 0] }
-      }
-    },
+    "//minecraft:chicken": "No override needed: Bedrock authors leg0/leg1 (3x5x3 cubes at uv 26, 0) with the leg silhouette on the SOUTH face (col 36, rows 3-7) and the foot bottom on the DOWN face (cols 32-34, rows 0-2). Both are back-facing in our standard iso pose [pitch=30, yaw=225]. EntityGeometryKit.shouldCullBackFaces auto-detects this case: cubes whose iso-visible faces (TOP/NORTH/EAST) have empty UV rects but whose iso-hidden faces (DOWN/SOUTH/WEST) have content opt out of back-face culling, so the back faces render at their natural cube positions - foot at the cube's bottom, silhouette on the back face. Same applies to chicken_cold (same geometry layout).",
     "//minecraft:ender_dragon": "Bedrock dragon.geo authors duplicated right-side parts (wing1, wingtip1, rearlegtip1, rearfoot1, frontlegtip1, frontfoot1) with cube origins identical to their left siblings, relying on Molang animations to translate the mirror into place. Tips and feet are also authored X-centred (origin X symmetric about 0) relying on Molang to slot them under each parent leg. We fill the gap with cube_offset shifts that land each duplicate under the correct leg column and mirror wingtip1 to the +X side.",
     "minecraft:ender_dragon": {
       "//head_neck_y_shift": "Bedrock authoring places head/neck bone cubes at Y=[16,32]/[19,29] centered at Y=24, well above the body's Y=[-4,20] center 8. Java's authoritative layout has head in FRONT of the body at similar Y, not above it. Corrective shift Y=-16 brings head/neck cubes down to the body's Y range so the head/neck plug into the body front rather than perching on top.",
