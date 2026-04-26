@@ -170,7 +170,7 @@ public class ModelEngine extends TextureEngine {
         // algorithm requires: the rasterizer iterates `prepared` in original insertion order so
         // the DEPTH_EPSILON tie-break deterministically picks the first-drawn of any coplanar
         // pair (see the comment on the depth test below).
-        List<Projected> prepared = triangles.stream().parallel()
+        List<Projected> prepared = triangles.parallelStream()
             .map(triangle -> projectTriangle(triangle, transform, scale, offsetX, offsetY, perspective))
             .filter(Objects::nonNull)
             .toList();
@@ -194,7 +194,7 @@ public class ModelEngine extends TextureEngine {
         }
 
         int cores = Runtime.getRuntime().availableProcessors();
-        int tileCount = Math.max(1, Math.min(cores, height / MIN_ROWS_PER_TILE));
+        int tileCount = Math.clamp(cores, 1, height / MIN_ROWS_PER_TILE);
         int tileHeight = (height + tileCount - 1) / tileCount;
 
         IntStream.range(0, tileCount).parallel().forEach(tileIdx -> {
