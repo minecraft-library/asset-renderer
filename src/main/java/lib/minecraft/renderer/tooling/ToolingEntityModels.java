@@ -244,6 +244,14 @@ public final class ToolingEntityModels {
             copiedTextures.add(forcedRef);
         }
 
+        // Java-jar emissive overlay extraction: walk the cached client jar for
+        // {@code entity/**/*_eyes.png} files, copy each into entity_textures/, and append a
+        // matching `overlays` entry to every entity in EMISSIVE_PNG_FANOUT. The runtime layers
+        // these on top of the base body with emissive: true so the rasterizer renders them
+        // additive + full-bright (vanilla Java's RenderType.eyes pattern).
+        int emissiveCopied = extractJavaEmissiveOverlays(clientJar, copiedTextures, emittedEntities);
+        System.out.println("Extracted " + emissiveCopied + " emissive overlay PNGs from the Java client jar");
+
         System.out.printf(
             "Emitted %d entities (%d base + %d variant) across %d geometries, dropped %d non-mob, copied %d textures%n",
             emittedEntities.size(), keptBase, keptVariant, emittedGeometries.size(), droppedNonMob, copiedTextures.size()
@@ -305,6 +313,85 @@ public final class ToolingEntityModels {
             }
         }
         return out;
+    }
+
+    /**
+     * Walks the cached Java client jar for {@code assets/minecraft/textures/entity/**} PNGs that
+     * appear in {@link #EMISSIVE_PNG_FANOUT}, extracts each into the bundled
+     * {@link #TEXTURES_OUTPUT_DIR}, and appends an {@code overlays} entry to every fan-out
+     * entity already present in {@code emittedEntities}. The overlay reuses each entity's own
+     * {@code geometry_ref} so eye UVs land on the head face; non-eye regions sample transparent
+     * pixels from the eye-only PNG and render nothing. Logs a warning for any {@code _eyes.png}
+     * file in the jar that isn't in the fan-out (so new emissive layers in a future Minecraft
+     * version surface during regen) and for any fan-out entry whose target entity isn't in the
+     * emitted set (so pruned mobs don't silently lose their overlay).
+     *
+     * @param clientJar the cached Minecraft client jar path
+     * @param copiedTextures set of already-copied texture refs, mutated to include each new
+     *     emissive PNG so duplicates are avoided
+     * @param emittedEntities the entity-id keyed map of generated JSON rows; mutated in place to
+     *     append {@code overlays} entries
+     * @return the number of emissive PNGs successfully copied into {@link #TEXTURES_OUTPUT_DIR}
+     */
+    private static int extractJavaEmissiveOverlays(
+        @NotNull Path clientJar,
+        @NotNull Set<String> copiedTextures,
+        @NotNull Map<String, JsonObject> emittedEntities
+    ) throws IOException {
+        Set<String> wanted = EMISSIVE_PNG_FANOUT.keySet();
+        Map<String, byte[]> found = new LinkedHashMap<>();
+        Set<String> seenButUnmapped = new LinkedHashSet<>();
+        try (ZipFile zip = new ZipFile(clientJar.toFile())) {
+            java.util.Enumeration<? extends ZipEntry> entries = zip.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry entry = entries.nextElement();
+                String name = entry.getName();
+                if (!name.startsWith(JAVA_TEX_PREFIX) || !name.endsWith("_eyes.png")) continue;
+                String subPath = name.substring(JAVA_TEX_PREFIX.length(), name.length() - ".png".length());
+                if (!wanted.contains(subPath)) {
+                    seenButUnmapped.add(subPath);
+                    continue;
+                }
+                try (var in = zip.getInputStream(entry)) {
+                    found.put(subPath, in.readAllBytes());
+                }
+            }
+        }
+        for (String unmapped : seenButUnmapped)
+            System.err.printf("  Note: client jar emissive PNG '%s' has no EMISSIVE_PNG_FANOUT entry; skipped%n", unmapped);
+
+        int copied = 0;
+        for (Map.Entry<String, java.util.List<String>> e : EMISSIVE_PNG_FANOUT.entrySet()) {
+            String emissiveRef = e.getKey();
+            byte[] png = found.get(emissiveRef);
+            if (png == null) {
+                System.err.printf("  Warning: emissive overlay '%s' not found in the Java client jar%n", emissiveRef);
+                continue;
+            }
+            if (!copiedTextures.contains(emissiveRef)) {
+                copyTexture(emissiveRef, png);
+                copiedTextures.add(emissiveRef);
+                copied++;
+            }
+            for (String entityId : e.getValue()) {
+                JsonObject entityJson = emittedEntities.get(entityId);
+                if (entityJson == null) {
+                    System.err.printf("  Note: emissive fan-out target '%s' for '%s' is not in the emitted entity set; skipped%n",
+                        entityId, emissiveRef);
+                    continue;
+                }
+                JsonArray overlays = entityJson.has("overlays") && entityJson.get("overlays").isJsonArray()
+                    ? entityJson.getAsJsonArray("overlays")
+                    : new JsonArray();
+                JsonObject overlay = new JsonObject();
+                overlay.addProperty("geometry_ref", entityJson.get("geometry_ref").getAsString());
+                overlay.addProperty("texture_ref", emissiveRef);
+                overlay.addProperty("emissive", true);
+                overlays.add(overlay);
+                entityJson.add("overlays", overlays);
+            }
+        }
+        return copied;
     }
 
     /**
@@ -375,6 +462,7 @@ public final class ToolingEntityModels {
     private static final @NotNull Set<String> OPAQUE_ALPHA_TEXTURE_REFS = Set.of(
         "blaze",
         "sheep/sheep",
+        "slime/magmacube_v2",
         "spider/spider",
         "spider/cave_spider"
     );
@@ -391,6 +479,40 @@ public final class ToolingEntityModels {
     private static final @NotNull Set<String> FORCED_EXTRA_TEXTURE_REFS = Set.of(
         "creeper/creeper_armor",
         "guardian_elder"
+    );
+
+    /** In-jar prefix where vanilla Java stores entity texture PNGs. Used by the emissive-overlay
+     * extraction pass that mirrors {@link #TEX_PREFIX}'s role for the Bedrock pack. */
+    private static final @NotNull String JAVA_TEX_PREFIX =
+        "assets/minecraft/textures/entity/";
+
+    /**
+     * Vanilla Java's per-entity emissive overlay PNGs, mapped to the entity ids they should be
+     * layered on top of. Vanilla composes these via {@code RenderType.eyes} - full-bright +
+     * additive ({@code glBlendFunc(SRC_ALPHA, ONE)}) - on the same geometry as the base body so
+     * the eye pixels land on the head face and the rest of the overlay samples transparent.
+     * <p>
+     * Sourced by inspecting {@code RenderType.eyes} callers in the Java client jar; one
+     * texture-ref entry per emissive PNG (the sub-path under
+     * {@code assets/minecraft/textures/entity/}, without the {@code .png} extension), value is
+     * the entity ids that share that emissive overlay (cave spider reuses spider's eyes; the
+     * cyan body tint is in the body texture, not the eyes). The mapping changes rarely - one
+     * line per new vanilla mob with an emissive layer. Unknown emissive PNGs in the jar log a
+     * warning during extraction so they surface for review.
+     */
+    private static final @NotNull Map<String, java.util.List<String>> EMISSIVE_PNG_FANOUT = Map.ofEntries(
+        Map.entry("spider/spider_eyes",      java.util.List.of("minecraft:spider", "minecraft:cave_spider")),
+        Map.entry("enderdragon/dragon_eyes", java.util.List.of("minecraft:ender_dragon")),
+        Map.entry("enderman/enderman_eyes",  java.util.List.of("minecraft:enderman")),
+        Map.entry("phantom/phantom_eyes",    java.util.List.of("minecraft:phantom")),
+        Map.entry("breeze/breeze_eyes",      java.util.List.of("minecraft:breeze")),
+        Map.entry("creaking/creaking_eyes",  java.util.List.of("minecraft:creaking")),
+        Map.entry("copper_golem/copper_golem_eyes",
+            java.util.List.of("minecraft:copper_golem"))
+        // Oxidation-stage variants (copper_golem_eyes_exposed, _weathered, _oxidized) exist as
+        // separate PNG files in the Java jar but are sourced via per-state texture binding
+        // rather than emissive overlays on distinct entity ids. Add them here only when the
+        // pipeline emits matching minecraft:copper_golem_exposed (etc.) entity ids.
     );
 
     /**

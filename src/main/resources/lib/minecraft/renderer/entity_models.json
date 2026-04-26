@@ -44,7 +44,14 @@
     "minecraft:breeze": {
       "geometry_ref": "geometry.breeze",
       "texture_ref": "breeze/breeze",
-      "armor_type": "none"
+      "armor_type": "none",
+      "overlays": [
+        {
+          "geometry_ref": "geometry.breeze",
+          "texture_ref": "breeze/breeze_eyes",
+          "emissive": true
+        }
+      ]
     },
     "minecraft:camel": {
       "geometry_ref": "geometry.camel",
@@ -64,7 +71,14 @@
     "minecraft:cave_spider": {
       "geometry_ref": "geometry.spider.v1.8",
       "texture_ref": "spider/cave_spider",
-      "armor_type": "none"
+      "armor_type": "none",
+      "overlays": [
+        {
+          "geometry_ref": "geometry.spider.v1.8",
+          "texture_ref": "spider/spider_eyes",
+          "emissive": true
+        }
+      ]
     },
     "minecraft:chicken": {
       "geometry_ref": "geometry.chicken.v1.12",
@@ -85,7 +99,14 @@
     "minecraft:copper_golem": {
       "geometry_ref": "geometry.copper_golem",
       "texture_ref": "copper_golem/copper_golem",
-      "armor_type": "humanoid"
+      "armor_type": "humanoid",
+      "overlays": [
+        {
+          "geometry_ref": "geometry.copper_golem",
+          "texture_ref": "copper_golem/copper_golem_eyes",
+          "emissive": true
+        }
+      ]
     },
     "minecraft:copper_golem_flower": {
       "geometry_ref": "geometry.copper_golem.flower",
@@ -131,7 +152,14 @@
     "minecraft:creaking": {
       "geometry_ref": "geometry.creaking",
       "texture_ref": "creaking/creaking",
-      "armor_type": "humanoid"
+      "armor_type": "humanoid",
+      "overlays": [
+        {
+          "geometry_ref": "geometry.creaking",
+          "texture_ref": "creaking/creaking_eyes",
+          "emissive": true
+        }
+      ]
     },
     "minecraft:creeper": {
       "geometry_ref": "geometry.creeper.v1.8",
@@ -167,12 +195,26 @@
     "minecraft:ender_dragon": {
       "geometry_ref": "geometry.dragon",
       "texture_ref": "dragon/dragon",
-      "armor_type": "none"
+      "armor_type": "none",
+      "overlays": [
+        {
+          "geometry_ref": "geometry.dragon",
+          "texture_ref": "enderdragon/dragon_eyes",
+          "emissive": true
+        }
+      ]
     },
     "minecraft:enderman": {
       "geometry_ref": "geometry.enderman.v1.8",
       "texture_ref": "enderman/enderman",
-      "armor_type": "humanoid"
+      "armor_type": "humanoid",
+      "overlays": [
+        {
+          "geometry_ref": "geometry.enderman.v1.8",
+          "texture_ref": "enderman/enderman_eyes",
+          "emissive": true
+        }
+      ]
     },
     "minecraft:endermite": {
       "geometry_ref": "geometry.endermite",
@@ -293,7 +335,14 @@
     "minecraft:phantom": {
       "geometry_ref": "geometry.phantom",
       "texture_ref": "phantom",
-      "armor_type": "none"
+      "armor_type": "none",
+      "overlays": [
+        {
+          "geometry_ref": "geometry.phantom",
+          "texture_ref": "phantom/phantom_eyes",
+          "emissive": true
+        }
+      ]
     },
     "minecraft:pig": {
       "geometry_ref": "geometry.pig.v3",
@@ -389,7 +438,14 @@
     "minecraft:spider": {
       "geometry_ref": "geometry.spider.v1.8",
       "texture_ref": "spider/spider",
-      "armor_type": "none"
+      "armor_type": "none",
+      "overlays": [
+        {
+          "geometry_ref": "geometry.spider.v1.8",
+          "texture_ref": "spider/spider_eyes",
+          "emissive": true
+        }
+      ]
     },
     "minecraft:squid": {
       "geometry_ref": "geometry.squid",
