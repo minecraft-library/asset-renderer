@@ -350,14 +350,27 @@ public final class ToolingEntityModels {
     }
 
     /**
-     * Texture refs that ship from Bedrock with uniform partial alpha for additive blending in
-     * Bedrock's render engine, but should appear fully opaque under this static iso renderer.
-     * Blaze ships every non-transparent texel at alpha=90 because Bedrock's animation engine
-     * does additive blending to produce the rod glow; without that pass the rods come out at
-     * 35% opacity. We bump every non-zero alpha to 255 at extraction time so the bundled PNG
-     * matches Java's authored opacity.
+     * Texture refs that ship from Bedrock with partial-alpha pixels intended for additive /
+     * emissive blending in Bedrock's render engine, but should appear fully opaque under this
+     * static iso renderer.
+     * <ul>
+     *   <li>{@code blaze}: every non-transparent texel ships at alpha=90 because Bedrock's
+     *       animation engine does additive blending to produce the rod glow; without that pass
+     *       the rods come out at 35% opacity.</li>
+     *   <li>{@code spider/spider} and {@code spider/cave_spider}: 20 eye-pixels per variant
+     *       ship at alpha=3 - vanilla Java's {@code SpiderEyesLayer} draws
+     *       {@code entity/spider/spider_eyes.png} emissively on top to make the eyes glow,
+     *       and Bedrock relies on the same emissive path. Without it the eye positions
+     *       render see-through and the head looks like it has gaps.</li>
+     * </ul>
+     * We bump every non-zero alpha to 255 at extraction time so the bundled PNG matches the
+     * intended Java baked appearance.
      */
-    private static final @NotNull Set<String> OPAQUE_ALPHA_TEXTURE_REFS = Set.of("blaze");
+    private static final @NotNull Set<String> OPAQUE_ALPHA_TEXTURE_REFS = Set.of(
+        "blaze",
+        "spider/spider",
+        "spider/cave_spider"
+    );
 
     /**
      * Texture refs that no {@code .entity.json} references in the Bedrock pack but the override
