@@ -24,6 +24,19 @@ import java.io.IOException;
  * {@code Ry · Rx · Rz} - so matrix building stays at each call site where the semantics
  * are intentional. Treat this record like {@link PerspectiveParams}: a labelled bundle of
  * floats plus a small set of named constants, no behaviour.
+ * <p>
+ * Rotation directions follow the right-hand rule:
+ * <ul>
+ *   <li>{@code +pitch} (X-axis): {@code +Y} rotates toward {@code +Z}</li>
+ *   <li>{@code +yaw} (Y-axis): {@code +Z} rotates toward {@code +X}</li>
+ *   <li>{@code +roll} (Z-axis): {@code +X} rotates toward {@code +Y}</li>
+ * </ul>
+ * <p>
+ * The diagram below illustrates each positive rotation arc on the renderer's standard
+ * {@link #STANDARD_ISO_BLOCK} pose. Arcs are drawn for visual clarity rather than 3D-projection
+ * accuracy; the arc's plane is screen-perpendicular to its rotation axis.
+ * <p>
+ * <img src="doc-files/euler_reference.svg" alt="Euler rotation reference diagram" width="535"/>
  *
  * @param pitch the rotation about the X axis, in degrees
  * @param yaw   the rotation about the Y axis, in degrees
@@ -35,42 +48,37 @@ public record EulerRotation(float pitch, float yaw, float roll) {
     public static final @NotNull EulerRotation NONE = new EulerRotation(0f, 0f, 0f);
 
     /**
-     * Returns the pitch ({@code X}-axis angle) converted from degrees to radians as a
-     * {@code float}.
-     *
-     * @return the pitch angle in radians
-     */
-    public float pitchRadians() {
-        return (float) Math.toRadians(this.pitch);
-    }
-
-    /**
-     * Returns the yaw ({@code Y}-axis angle) converted from degrees to radians as a
-     * {@code float}.
-     *
-     * @return the yaw angle in radians
-     */
-    public float yawRadians() {
-        return (float) Math.toRadians(this.yaw);
-    }
-
-    /**
-     * Returns the roll ({@code Z}-axis angle) converted from degrees to radians as a
-     * {@code float}.
-     *
-     * @return the roll angle in radians
-     */
-    public float rollRadians() {
-        return (float) Math.toRadians(this.roll);
-    }
-
-    /**
      * Vanilla Minecraft's standard block inventory-icon pose: {@code [30, 225, 0]} pitch/yaw/roll.
      * Matches the {@code display.gui} transform baked into the root {@code block/block.json}
      * model and is the default camera used by {@link IsometricEngine#standard} when a block
      * model does not override its own GUI pose.
      */
     public static final @NotNull EulerRotation STANDARD_ISO_BLOCK = new EulerRotation(30f, 225f, 0f);
+
+    /**
+     * The rotation about the ({@code X}-axis angle), in radians.
+     */
+    public float pitchRadians() {
+        return toRadians(this.pitch);
+    }
+
+    /**
+     * The rotation about the ({@code Y}-axis angle), in radians.
+     */
+    public float yawRadians() {
+        return toRadians(this.yaw);
+    }
+
+    /**
+     * The rotation about the ({@code Z}-axis angle), in radians.
+     */
+    public float rollRadians() {
+        return toRadians(this.roll);
+    }
+
+    private static float toRadians(float value) {
+        return (float) Math.toRadians(value);
+    }
 
     /**
      * Gson adapter that serializes an {@link EulerRotation} as a three-element JSON array
