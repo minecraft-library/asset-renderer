@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.geometry;
 
+import lib.minecraft.renderer.kit.BlockModelGeometryKit;
 import lib.minecraft.renderer.kit.EntityGeometryKit;
-import lib.minecraft.renderer.kit.GeometryKit;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.AccessLevel;
@@ -30,7 +30,7 @@ import java.util.Locale;
  * </pre>
  * The four indices per face are wound top-left, bottom-left, bottom-right, top-right when viewed
  * from the outward normal direction (CCW), matching vanilla's {@code FaceInfo} vertex order and
- * the convention used by {@link GeometryKit}'s triangle builders.
+ * the convention used by {@link BlockModelGeometryKit}'s triangle builders.
  * <p>
  * Two UV pipelines share this enum through two companion records:
  * <ul>

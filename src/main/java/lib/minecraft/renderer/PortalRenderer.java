@@ -1,5 +1,11 @@
 package lib.minecraft.renderer;
 
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.ImageData;
+import dev.simplified.image.pixel.ColorMath;
+import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.pixel.PixelBufferPool;
 import lib.minecraft.renderer.engine.IsometricEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RenderEngine;
@@ -7,15 +13,9 @@ import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.TextureEngine;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
-import lib.minecraft.renderer.kit.GeometryKit;
+import lib.minecraft.renderer.kit.BlockModelGeometryKit;
 import lib.minecraft.renderer.options.PortalOptions;
 import lib.minecraft.renderer.tensor.Vector3f;
-import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.ImageData;
-import dev.simplified.image.pixel.ColorMath;
-import dev.simplified.image.pixel.PixelBuffer;
-import dev.simplified.image.pixel.PixelBufferPool;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
@@ -30,7 +30,7 @@ import java.util.stream.IntStream;
  * <p>
  * Two sub-renderers are exposed, matching the {@link FluidRenderer} shape:
  * <ul>
- * <li>{@link Isometric3D} - builds geometry via {@link GeometryKit} (full unit cube for
+ * <li>{@link Isometric3D} - builds geometry via {@link BlockModelGeometryKit} (full unit cube for
  * {@link PortalOptions.Portal#END_GATEWAY}, thin slab at vanilla's {@code BOTTOM=0.375}/
  * {@code TOP=0.75} for {@link PortalOptions.Portal#END_PORTAL}) and rasterizes through the
  * standard {@code [30, 225, 0]} isometric pose.</li>
@@ -200,7 +200,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
      * {@code PORTAL_LAYERS} further samples of {@code Sampler1} (end_portal noise) through
      * per-layer transforms composed in {@code end_portal_layer(float layer)}. Fog and alpha are
      * dropped; the atlas tile is opaque.
-     *
+     * <p>
      * The {@code gameTick} argument is converted internally to vanilla's {@code GameTime}
      * uniform value via {@code (tick % 24000) / 24000f} - matching
      * {@code GlobalSettingsUniform.update}'s formula.
@@ -460,7 +460,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
     }
 
     /**
-     * Full 3D isometric portal renderer. Builds geometry via {@link GeometryKit} and rasterizes
+     * Full 3D isometric portal renderer. Builds geometry via {@link BlockModelGeometryKit} and rasterizes
      * through {@link IsometricEngine}'s standard {@code [30, 225, 0]} pose. {@code END_GATEWAY}
      * renders as a unit cube with the baked face on all 6 sides; {@code END_PORTAL} renders as a
      * slab from {@code y = 0.375} to {@code y = 0.75} matching vanilla's
@@ -577,12 +577,12 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             @NotNull PixelBuffer @NotNull [] faces
         ) {
             if (portal == PortalOptions.Portal.END_GATEWAY)
-                return GeometryKit.unitCube(faces, ColorMath.WHITE);
+                return BlockModelGeometryKit.unitCube(faces, ColorMath.WHITE);
 
             // End portal slab: x and z span the full unit range, y clipped to vanilla's [BOTTOM, TOP].
             // Model space is [-0.5, +0.5] per axis (see GeometryKit.unitCube), so the slab's Y
             // offsets are measured from the cube's centre.
-            return GeometryKit.box(
+            return BlockModelGeometryKit.box(
                 new Vector3f(-0.5f, END_PORTAL_SLAB_BOTTOM_Y - 0.5f, -0.5f),
                 new Vector3f(0.5f, END_PORTAL_SLAB_TOP_Y - 0.5f, 0.5f),
                 faces,

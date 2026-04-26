@@ -30,7 +30,7 @@ import java.util.Map;
  * and default UV derivation - lives on {@link BlockFace}.
  */
 @UtilityClass
-public class GeometryKit {
+public class BlockModelGeometryKit {
 
     /**
      * Builds a list of 12 triangles (2 per face) describing a unit cube centered at the origin

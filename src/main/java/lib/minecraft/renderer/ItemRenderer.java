@@ -22,8 +22,8 @@ import lib.minecraft.renderer.geometry.ModelGrid;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.kit.BannerKit;
+import lib.minecraft.renderer.kit.BlockModelGeometryKit;
 import lib.minecraft.renderer.kit.EntityGeometryKit;
-import lib.minecraft.renderer.kit.GeometryKit;
 import lib.minecraft.renderer.kit.GlintKit;
 import lib.minecraft.renderer.kit.ItemStackKit;
 import lib.minecraft.renderer.kit.TrimKit;
@@ -52,7 +52,7 @@ import java.util.Optional;
  * firework stars, tipped arrows); items without an overlay fall through to the standard
  * layered-sprite path that respects per-face {@code tintindex}.</li>
  * <li>{@link Held3D} dispatches on whether the item's model provides element boxes - block items
- * build real cubes via {@link GeometryKit#buildFromElements}, flat sprite items fall back to a
+ * build real cubes via {@link BlockModelGeometryKit#buildFromElements}, flat sprite items fall back to a
  * thin textured slab. Both paths route through {@link ModelEngine} with the item model's
  * {@code thirdperson_righthand} display transform applied.</li>
  * </ul>
@@ -191,7 +191,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         }
 
         PixelBuffer[] faces = new PixelBuffer[]{ composite, composite, composite, composite, composite, composite };
-        return GeometryKit.box(
+        return BlockModelGeometryKit.box(
             new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),
             new Vector3f(FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_Z),
             faces,
@@ -205,7 +205,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * {@link ItemOptions#getLeatherColor()} → {@link ItemOptions#getTintColor()} →
      * {@link Item.Overlay.Leather#defaultColor()} ({@code #A06540}). Returns a fresh
      * {@link PixelBuffer} at the base texture's native dimensions, so the 2D path can scale it
-     * up while the 3D path can feed it directly into {@link GeometryKit#box} as the face texture.
+     * up while the 3D path can feed it directly into {@link BlockModelGeometryKit#box} as the face texture.
      */
     static @NotNull PixelBuffer composeLeatherOverlay(
         @NotNull TextureEngine engine,
@@ -377,13 +377,12 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         for (ModelElement element : elements) {
             for (ModelFace face : element.getFaces().values()) {
                 String faceRef = face.getTexture();
-                if (faceRef.equals("#" + layerKey) || faceRef.equals(layerRef)) {
+                if (faceRef.equals("#" + layerKey) || faceRef.equals(layerRef))
                     return face.getTintIndex();
-                }
+
                 String resolved = TextureEngine.dereferenceVariable(faceRef, variables);
-                if (layerRef != null && resolved.equals(layerRef)) {
+                if (resolved.equals(layerRef))
                     return face.getTintIndex();
-                }
             }
         }
         return -1;
@@ -479,7 +478,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
     /**
      * Held 3D item renderer. Dispatches on whether the item model supplies element boxes - block
-     * items with non-empty element lists build real cubes via {@link GeometryKit#buildFromElements},
+     * items with non-empty element lists build real cubes via {@link BlockModelGeometryKit#buildFromElements},
      * while flat sprite items fall back to a thin textured slab derived from {@code layer0}.
      * Both branches feed the same {@link ModelEngine#rasterize} overload with the item's
      * {@code thirdperson_righthand} display transform.
@@ -511,7 +510,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             if (item.getOverlay().isPresent()) {
                 PixelBuffer overlayTexture = composeOverlayTexture(this.context, engine, item.getOverlay().get(), options);
                 PixelBuffer[] faces = new PixelBuffer[]{ overlayTexture, overlayTexture, overlayTexture, overlayTexture, overlayTexture, overlayTexture };
-                triangles = GeometryKit.box(
+                triangles = BlockModelGeometryKit.box(
                     new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),
                     new Vector3f(FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_Z),
                     faces,
@@ -524,7 +523,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 // supplies 'elements'. The element bounds and face bindings are fully resolved
                 // at pipeline time.
                 Map<String, PixelBuffer> faceTextures = loadFaceTextures(engine, item);
-                triangles = GeometryKit.buildFromElements(item.getModel().getElements(), faceTextures, tint);
+                triangles = BlockModelGeometryKit.buildFromElements(item.getModel().getElements(), faceTextures, tint);
             } else {
                 // Flat sprite fallback - layer0 rendered as a thin Z-axis slab. Matches the
                 // previous behaviour for item/generated and item/handheld parented items.
@@ -538,7 +537,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
                 PixelBuffer texture = engine.resolveTexture(layerRef);
                 PixelBuffer[] faces = new PixelBuffer[]{ texture, texture, texture, texture, texture, texture };
-                triangles = GeometryKit.box(
+                triangles = BlockModelGeometryKit.box(
                     new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),
                     new Vector3f(FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_Z),
                     faces,
@@ -557,7 +556,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          * chains against the model's texture bindings, and loads each unique resolved id into a
          * {@link PixelBuffer}. The returned map is keyed by the original face reference string
          * (including any leading {@code #}), which matches what
-         * {@link GeometryKit#buildFromElements} expects.
+         * {@link BlockModelGeometryKit#buildFromElements} expects.
          */
         private static @NotNull Map<String, PixelBuffer> loadFaceTextures(
             @NotNull ModelEngine engine,

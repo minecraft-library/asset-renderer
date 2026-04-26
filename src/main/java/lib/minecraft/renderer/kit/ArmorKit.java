@@ -259,7 +259,7 @@ public class ArmorKit {
         Vector3f inflatedMin = new Vector3f(min.x() - inflate, min.y() - inflate, min.z() - inflate);
         Vector3f inflatedMax = new Vector3f(max.x() + inflate, max.y() + inflate, max.z() + inflate);
         PixelBuffer[] faces = part.cropAll(texture, false);
-        return GeometryKit.box(inflatedMin, inflatedMax, faces, ColorMath.WHITE);
+        return BlockModelGeometryKit.box(inflatedMin, inflatedMax, faces, ColorMath.WHITE);
     }
 
     /**

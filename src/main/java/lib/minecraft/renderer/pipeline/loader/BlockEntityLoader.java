@@ -15,7 +15,7 @@ import lib.minecraft.renderer.asset.binding.DyeColor;
 import lib.minecraft.renderer.asset.model.BlockModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.exception.AssetPipelineException;
-import lib.minecraft.renderer.kit.GeometryKit;
+import lib.minecraft.renderer.kit.BlockModelGeometryKit;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -39,7 +39,7 @@ import java.util.Map;
  * The output is a flat map of block id to {@link Block.Entity} carrying a populated
  * {@link BlockModelData} (with real {@link ModelElement elements}) and the entity texture
  * reference. These blocks render through the standard block model path
- * ({@link GeometryKit#buildFromElements}) with no entity model pipeline.
+ * ({@link BlockModelGeometryKit#buildFromElements}) with no entity model pipeline.
  */
 @UtilityClass
 public class BlockEntityLoader {

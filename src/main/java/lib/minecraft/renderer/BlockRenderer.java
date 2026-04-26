@@ -27,7 +27,7 @@ import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.geometry.ModelGrid;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
-import lib.minecraft.renderer.kit.GeometryKit;
+import lib.minecraft.renderer.kit.BlockModelGeometryKit;
 import lib.minecraft.renderer.options.BlockOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockEntityLoader;
 import lib.minecraft.renderer.tensor.Matrix4f;
@@ -117,7 +117,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
     /**
      * Full 3D isometric block tile renderer. Multi-element blocks (chests, doors, pistons) are
-     * rendered using their full element list via {@link GeometryKit#buildFromElements}; single-
+     * rendered using their full element list via {@link BlockModelGeometryKit#buildFromElements}; single-
      * element blocks use the fast unit-cube path. Biome tint is applied per face via the shared
      * {@link BlockRenderer#resolveBlockTint(RendererContext, Block, BlockOptions)} helper.
      */
@@ -263,7 +263,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 }
 
                 ConcurrentList<VisibleTriangle> partTriangles =
-                    GeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint);
+                    BlockModelGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint);
 
                 // Apply per-part rotation if specified
                 if (apply.hasRotation())
@@ -362,7 +362,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * Builds triangles from all elements in a multi-element block model. Walks every
          * element's face texture references, dereferences {@code #variable} chains against
          * the model's texture bindings, and builds geometry via
-         * {@link GeometryKit#buildFromElements}.
+         * {@link BlockModelGeometryKit#buildFromElements}.
          */
         private @NotNull ConcurrentList<VisibleTriangle> buildFromBlockElements(@NotNull Block block, int tint, int untintedTint) {
             RasterEngine raster = new RasterEngine(this.context);
@@ -379,7 +379,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 }
             }
 
-            return GeometryKit.buildFromElements(block.getModel().getElements(), faceTextures, tint, untintedTint);
+            return BlockModelGeometryKit.buildFromElements(block.getModel().getElements(), faceTextures, tint, untintedTint);
         }
 
         /**
@@ -403,7 +403,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     faceTextures.put(ref, raster.resolveTexture(resolvedId));
                 }
             }
-            return GeometryKit.buildFromElements(entity.model().getElements(), faceTextures, tint, untintedTint);
+            return BlockModelGeometryKit.buildFromElements(entity.model().getElements(), faceTextures, tint, untintedTint);
         }
 
         /**
@@ -445,7 +445,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 }
 
                 ConcurrentList<VisibleTriangle> partTriangles =
-                    GeometryKit.buildFromElements(part.model().getElements(), faceTextures, tint, untintedTint);
+                    BlockModelGeometryKit.buildFromElements(part.model().getElements(), faceTextures, tint, untintedTint);
 
                 // Apply the part's offset to every vertex. Offset is in model units (0..16);
                 // triangle vertex positions are in block units (0..1) post-GeometryKit, so
@@ -518,7 +518,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 }
             }
 
-            ConcurrentList<VisibleTriangle> triangles = GeometryKit.buildFromElements(
+            ConcurrentList<VisibleTriangle> triangles = BlockModelGeometryKit.buildFromElements(
                 partModel.getElements(),
                 faceTextures,
                 tint,

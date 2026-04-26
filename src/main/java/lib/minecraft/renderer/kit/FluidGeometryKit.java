@@ -150,7 +150,7 @@ public class FluidGeometryKit {
 
     /**
      * Emits a planar quad as two triangles with a shared surface normal. Winding matches
-     * {@link GeometryKit}'s {@code addQuad} convention (TL, BL, BR, TR viewed from the positive
+     * {@link BlockModelGeometryKit}'s {@code addQuad} convention (TL, BL, BR, TR viewed from the positive
      * normal direction).
      */
     private static void addFlatQuad(

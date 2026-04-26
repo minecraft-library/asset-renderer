@@ -1,29 +1,29 @@
 package lib.minecraft.renderer.tooling;
 
 import com.google.gson.Gson;
-import dev.simplified.gson.GsonSettings;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
+import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.collection.linked.ConcurrentLinkedMap;
+import dev.simplified.gson.GsonSettings;
+import dev.simplified.image.ImageData;
+import dev.simplified.image.pixel.ColorMath;
+import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.BlockRenderer;
+import lib.minecraft.renderer.asset.model.ModelElement;
+import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.engine.IsometricEngine;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
-import lib.minecraft.renderer.kit.GeometryKit;
+import lib.minecraft.renderer.kit.BlockModelGeometryKit;
 import lib.minecraft.renderer.options.BlockOptions;
 import lib.minecraft.renderer.pipeline.AssetPipeline;
 import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.client.HttpFetcher;
-import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
-import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.collection.linked.ConcurrentLinkedMap;
-import dev.simplified.image.ImageData;
-import dev.simplified.image.pixel.ColorMath;
-import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.model.ModelElement;
-import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.experimental.UtilityClass;
@@ -98,7 +98,7 @@ public final class TestBedMain {
 
     /**
      * Loads mc-assets bed_head + bed_foot JSON, merges elements (foot Z+16), resolves the
-     * bed texture, builds triangles via {@link GeometryKit#buildFromElements}, and rasterizes
+     * bed texture, builds triangles via {@link BlockModelGeometryKit#buildFromElements}, and rasterizes
      * with the standard isometric engine. Pure block model rendering - no entity pipeline.
      */
     private static void renderMcAssetsBed(@NotNull PipelineRendererContext context, int size, @NotNull Path out) throws IOException {
@@ -120,7 +120,7 @@ public final class TestBedMain {
         // Build triangles - "#bed" maps to the bed texture
         ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
         faceTextures.put("#bed", texture);
-        ConcurrentList<VisibleTriangle> triangles = GeometryKit.buildFromElements(elements, faceTextures, ColorMath.WHITE);
+        ConcurrentList<VisibleTriangle> triangles = BlockModelGeometryKit.buildFromElements(elements, faceTextures, ColorMath.WHITE);
 
         System.out.printf("  Built %d triangles from mc-assets bed model%n", triangles.size());
         if (triangles.isEmpty()) { System.err.println("  FAILED: zero triangles"); return; }
@@ -173,7 +173,7 @@ public final class TestBedMain {
 
         ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
         faceTextures.put("#chest", texOpt.get());
-        ConcurrentList<VisibleTriangle> triangles = GeometryKit.buildFromElements(elements, faceTextures, ColorMath.WHITE);
+        ConcurrentList<VisibleTriangle> triangles = BlockModelGeometryKit.buildFromElements(elements, faceTextures, ColorMath.WHITE);
 
         System.out.printf("  Built %d triangles from mc-assets chest model%n", triangles.size());
         if (triangles.isEmpty()) { System.err.println("  FAILED: zero triangles"); return; }
