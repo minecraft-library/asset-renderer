@@ -275,11 +275,19 @@ public class EntityModelLoader {
      * Applies per-cube override entries to {@code cubes}. Each array entry is either absent,
      * {@code null}, or a JSON object; when an entry is an object it may carry:
      * <ul>
-     *   <li>{@code origin_offset} - three-float translation applied to cube's origin and pivot.</li>
+     *   <li>{@code origin_offset} - three-float translation applied to cube's origin and (when
+     *       no {@code pivot} replacement is provided) pivot.</li>
+     *   <li>{@code pivot} - three-float absolute Bedrock-space pivot that <i>replaces</i> the
+     *       cube's pivot (does not stack with {@code origin_offset}). Used to anchor the
+     *       cube's own rotation at a point other than the bone pivot - in particular, setting
+     *       it to the cube's geometric center makes a 180-deg rotation a pure UV remap (cube
+     *       stays in place but the texture mapping rotates). Required when the bone pivot sits
+     *       at one edge of a multi-cube assembly (ender dragon wing's bone pivots at the
+     *       inner attachment but its zero-thickness membrane needs to spin about its own
+     *       center to flip the wing-tip pixel from front-outer to back-outer).</li>
      *   <li>{@code rotation} - three-float pitch/yaw/roll in degrees, replacing the cube's
-     *       own rotation. Anchored at the cube's existing pivot. Lets a single cube on a
-     *       multi-cube bone flip in place (ender dragon wing membrane 180-deg spin to align
-     *       the zigzag trailing edge) without disturbing its siblings.</li>
+     *       own rotation. Anchored at the cube's resulting pivot. Lets a single cube on a
+     *       multi-cube bone flip in place without disturbing its siblings.</li>
      * </ul>
      * Entries past the cube count are ignored; shorter arrays leave trailing cubes untouched.
      */
@@ -313,17 +321,28 @@ public class EntityModelLoader {
             }
             float[] origin = c.getOrigin();
             float[] pivot = c.getPivot();
-            // Keep the cube's existing pivot (which for unrotated bone cubes is the bone's
-            // pivot). Per-cube rotation then spins about the bone attachment point - flipping
-            // a zero-thickness wing membrane 180 deg around the leading-edge bone sweeps it
-            // from one side of the bone to the other, rather than a texture-only in-place spin.
+            // Default: pivot tracks origin_offset so per-cube rotation spins about the bone
+            // attachment point. The optional `pivot` field replaces this entirely, anchoring
+            // the rotation at an arbitrary absolute point (e.g. the cube's own center for a
+            // pure-UV-remap 180 spin).
+            float[] newPivot;
+            if (o.has("pivot") && o.get("pivot").isJsonArray()
+                && o.getAsJsonArray("pivot").size() == 3) {
+                newPivot = new float[]{
+                    o.getAsJsonArray("pivot").get(0).getAsFloat(),
+                    o.getAsJsonArray("pivot").get(1).getAsFloat(),
+                    o.getAsJsonArray("pivot").get(2).getAsFloat()
+                };
+            } else {
+                newPivot = new float[]{ pivot[0] + dx, pivot[1] + dy, pivot[2] + dz };
+            }
             out.add(new EntityModelData.Cube(
                 new float[]{ origin[0] + dx, origin[1] + dy, origin[2] + dz },
                 c.getSize(),
                 c.getUv(),
                 c.getInflate(),
                 c.isMirror(),
-                new float[]{ pivot[0] + dx, pivot[1] + dy, pivot[2] + dz },
+                newPivot,
                 rot,
                 c.getFaceUv()
             ));

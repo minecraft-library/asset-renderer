@@ -85,6 +85,18 @@
         "tail": { "rotation": [90, 0, 0] }
       }
     },
+    "//minecraft:wolf": "Bedrock authors upperBody (the mane/scruff) at pivot (-1, 10, 2) with cube Z=[-1, 6] - the back of the body. Java's upper_body bind pose anchors at pivot (-1, 14, -3) - 5 units forward, at the neck/head junction. applyBindPoses sets only the rotation, not the pivot, so our 90 deg pitch rotates around Bedrock's back-pivot and leaves the mane visually too far back. Shift the cube +5 forward in Z so the resulting pivot lands at Z=-3 (matching Java's anchor) and the bind-pose rotation hinges from the correct point.",
+    "minecraft:wolf": {
+      "bone_overrides": {
+        "upperBody": { "cube_offset": [0, 0, -5] }
+      }
+    },
+    "//minecraft:enderman": "Bedrock geometry.enderman.v1.8 authors the head cube at Y=[24,32], overlapping the bottom of the body (Y=[26,38]) - the head sits inside the chest. The hat (child of head) is correctly positioned at Y=[38,45], at the top of the body where the head should be. Java's EndermanModel places the head pivot at the top of the body (Y=38). Shift the head cube +14 in Y so it lands above the body (Y=[38,46]) and aligns with the already-correct hat.",
+    "minecraft:enderman": {
+      "bone_overrides": {
+        "head": { "cube_offset": [0, 14, 0] }
+      }
+    },
     "//minecraft:ender_dragon": "Bedrock dragon.geo authors duplicated right-side parts (wing1, wingtip1, rearlegtip1, rearfoot1, frontlegtip1, frontfoot1) with cube origins identical to their left siblings, relying on Molang animations to translate the mirror into place. Tips and feet are also authored X-centred (origin X symmetric about 0) relying on Molang to slot them under each parent leg. We fill the gap with cube_offset shifts that land each duplicate under the correct leg column and mirror wingtip1 to the +X side.",
     "minecraft:ender_dragon": {
       "//head_neck_y_shift": "Bedrock authoring places head/neck bone cubes at Y=[16,32]/[19,29] centered at Y=24, well above the body's Y=[-4,20] center 8. Java's authoritative layout has head in FRONT of the body at similar Y, not above it. Corrective shift Y=-16 brings head/neck cubes down to the body's Y range so the head/neck plug into the body front rather than perching on top.",
