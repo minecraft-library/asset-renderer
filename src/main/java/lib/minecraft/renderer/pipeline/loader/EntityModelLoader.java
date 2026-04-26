@@ -181,9 +181,14 @@ public class EntityModelLoader {
      * the geometry; values are objects carrying optional fields:
      * <ul>
      *   <li>{@code rotation} - three-element pitch/yaw/roll in degrees, overrides the bone's
-     *       propagating rotation.</li>
+     *       propagating rotation. When set without an explicit {@code pivot}, the rotation
+     *       anchor defaults to the bone's collective cube bounding-box center - "rotate in
+     *       place" is the obvious default. Set an explicit {@code pivot} when you want
+     *       joint-articulation behavior (rotate a limb about a body joint).</li>
      *   <li>{@code pivot} - three-element array in Bedrock-native Y-up absolute entity-root
-     *       space, overrides the bone's rotation anchor.</li>
+     *       space, overrides the bone's rotation anchor. Use this for limb articulation where
+     *       the rotation should hinge at a specific point (shoulder, hip, neck) rather than
+     *       the bone's center.</li>
      *   <li>{@code cube_offset} - three-element {@code [dx, dy, dz]} translation applied to
      *       every cube's {@code origin} and {@code pivot}. Fills the gap Bedrock leaves for
      *       Molang-driven positional duplicates: {@code geometry.dragon} authors
@@ -222,19 +227,13 @@ public class EntityModelLoader {
                     entityId, boneName);
                 continue;
             }
-            float[] pivot = existing.getPivot();
-            if (patch.has("pivot")) {
-                JsonElement pv = patch.get("pivot");
-                if (pv.isJsonArray() && pv.getAsJsonArray().size() == 3) {
-                    pivot = new float[]{
-                        pv.getAsJsonArray().get(0).getAsFloat(),
-                        pv.getAsJsonArray().get(1).getAsFloat(),
-                        pv.getAsJsonArray().get(2).getAsFloat()
-                    };
-                }
-            }
+            // Rotation is parsed before pivot so we can detect "rotation set without explicit
+            // pivot" and default the pivot to the bone's cube collective bbox center - making
+            // `rotation` mean "rotate in place" by default. Joint articulation (rotating a limb
+            // about a body joint) requires an explicit `pivot` to opt into bone-pivot semantics.
             lib.minecraft.renderer.geometry.EulerRotation rotation = existing.getRotation();
-            if (patch.has("rotation")) {
+            boolean rotationSet = patch.has("rotation");
+            if (rotationSet) {
                 JsonElement rot = patch.get("rotation");
                 if (rot.isJsonArray() && rot.getAsJsonArray().size() == 3) {
                     rotation = new lib.minecraft.renderer.geometry.EulerRotation(
@@ -243,6 +242,21 @@ public class EntityModelLoader {
                         rot.getAsJsonArray().get(2).getAsFloat()
                     );
                 }
+            }
+
+            float[] pivot = existing.getPivot();
+            boolean pivotExplicit = patch.has("pivot");
+            if (pivotExplicit) {
+                JsonElement pv = patch.get("pivot");
+                if (pv.isJsonArray() && pv.getAsJsonArray().size() == 3) {
+                    pivot = new float[]{
+                        pv.getAsJsonArray().get(0).getAsFloat(),
+                        pv.getAsJsonArray().get(1).getAsFloat(),
+                        pv.getAsJsonArray().get(2).getAsFloat()
+                    };
+                }
+            } else if (rotationSet && !rotation.equals(lib.minecraft.renderer.geometry.EulerRotation.NONE)) {
+                pivot = collectiveCubeCenter(existing.getCubes(), existing.getPivot());
             }
 
             dev.simplified.collection.ConcurrentList<EntityModelData.Cube> cubes = existing.getCubes();
@@ -279,15 +293,12 @@ public class EntityModelLoader {
      *       no {@code pivot} replacement is provided) pivot.</li>
      *   <li>{@code pivot} - three-float absolute Bedrock-space pivot that <i>replaces</i> the
      *       cube's pivot (does not stack with {@code origin_offset}). Used to anchor the
-     *       cube's own rotation at a point other than the bone pivot - in particular, setting
-     *       it to the cube's geometric center makes a 180-deg rotation a pure UV remap (cube
-     *       stays in place but the texture mapping rotates). Required when the bone pivot sits
-     *       at one edge of a multi-cube assembly (ender dragon wing's bone pivots at the
-     *       inner attachment but its zero-thickness membrane needs to spin about its own
-     *       center to flip the wing-tip pixel from front-outer to back-outer).</li>
+     *       cube's rotation at an arbitrary point.</li>
      *   <li>{@code rotation} - three-float pitch/yaw/roll in degrees, replacing the cube's
-     *       own rotation. Anchored at the cube's resulting pivot. Lets a single cube on a
-     *       multi-cube bone flip in place without disturbing its siblings.</li>
+     *       own rotation. When set without an explicit {@code pivot}, the rotation anchor
+     *       defaults to the cube's own (post-{@code origin_offset}) bounding-box center -
+     *       "rotate the cube in place" is the obvious default, and the rotation does not
+     *       cause a surprise translation.</li>
      * </ul>
      * Entries past the cube count are ignored; shorter arrays leave trailing cubes untouched.
      */
@@ -311,8 +322,9 @@ public class EntityModelLoader {
                 dz = o.getAsJsonArray("origin_offset").get(2).getAsFloat();
             }
             lib.minecraft.renderer.geometry.EulerRotation rot = c.getRotation();
-            if (o.has("rotation") && o.get("rotation").isJsonArray()
-                && o.getAsJsonArray("rotation").size() == 3) {
+            boolean rotSet = o.has("rotation") && o.get("rotation").isJsonArray()
+                && o.getAsJsonArray("rotation").size() == 3;
+            if (rotSet) {
                 rot = new lib.minecraft.renderer.geometry.EulerRotation(
                     o.getAsJsonArray("rotation").get(0).getAsFloat(),
                     o.getAsJsonArray("rotation").get(1).getAsFloat(),
@@ -320,11 +332,14 @@ public class EntityModelLoader {
                 );
             }
             float[] origin = c.getOrigin();
+            float[] size = c.getSize();
             float[] pivot = c.getPivot();
-            // Default: pivot tracks origin_offset so per-cube rotation spins about the bone
-            // attachment point. The optional `pivot` field replaces this entirely, anchoring
-            // the rotation at an arbitrary absolute point (e.g. the cube's own center for a
-            // pure-UV-remap 180 spin).
+            // Pivot precedence:
+            //   1. Explicit `pivot` field - absolute Bedrock-space coords, used verbatim.
+            //   2. Implicit, when `rotation` is set without `pivot`: defaults to the cube's
+            //      own (post-origin_offset) bbox center, so a per-cube rotation rotates the
+            //      cube in place without a surprise translation.
+            //   3. Default: existing cube pivot shifted by origin_offset.
             float[] newPivot;
             if (o.has("pivot") && o.get("pivot").isJsonArray()
                 && o.getAsJsonArray("pivot").size() == 3) {
@@ -332,6 +347,12 @@ public class EntityModelLoader {
                     o.getAsJsonArray("pivot").get(0).getAsFloat(),
                     o.getAsJsonArray("pivot").get(1).getAsFloat(),
                     o.getAsJsonArray("pivot").get(2).getAsFloat()
+                };
+            } else if (rotSet && !rot.equals(lib.minecraft.renderer.geometry.EulerRotation.NONE)) {
+                newPivot = new float[]{
+                    (origin[0] + dx) + size[0] * 0.5f,
+                    (origin[1] + dy) + size[1] * 0.5f,
+                    (origin[2] + dz) + size[2] * 0.5f
                 };
             } else {
                 newPivot = new float[]{ pivot[0] + dx, pivot[1] + dy, pivot[2] + dz };
@@ -348,6 +369,37 @@ public class EntityModelLoader {
             ));
         }
         return out;
+    }
+
+    /**
+     * Computes the collective bounding-box center of {@code cubes} in absolute Bedrock-space.
+     * Used as the implicit rotation pivot when {@code rotation} is set on a bone override
+     * without an explicit {@code pivot} - rotation defaults to "rotate in place about the
+     * cube assembly's own center" rather than the bone's authored pivot, which is often at
+     * a joint and would translate the cubes when rotated.
+     *
+     * @param cubes the bone's cubes, may be empty
+     * @param fallback the bone's existing pivot, returned when {@code cubes} is empty
+     * @return the collective bbox center, or {@code fallback} when empty
+     */
+    private static float @NotNull [] collectiveCubeCenter(
+        @NotNull dev.simplified.collection.ConcurrentList<EntityModelData.Cube> cubes,
+        float @NotNull [] fallback
+    ) {
+        if (cubes.isEmpty()) return fallback;
+        float minX = Float.POSITIVE_INFINITY, minY = Float.POSITIVE_INFINITY, minZ = Float.POSITIVE_INFINITY;
+        float maxX = Float.NEGATIVE_INFINITY, maxY = Float.NEGATIVE_INFINITY, maxZ = Float.NEGATIVE_INFINITY;
+        for (EntityModelData.Cube c : cubes) {
+            float[] o = c.getOrigin();
+            float[] s = c.getSize();
+            minX = Math.min(minX, o[0]);
+            minY = Math.min(minY, o[1]);
+            minZ = Math.min(minZ, o[2]);
+            maxX = Math.max(maxX, o[0] + s[0]);
+            maxY = Math.max(maxY, o[1] + s[1]);
+            maxZ = Math.max(maxZ, o[2] + s[2]);
+        }
+        return new float[]{ (minX + maxX) * 0.5f, (minY + maxY) * 0.5f, (minZ + maxZ) * 0.5f };
     }
 
     /**
