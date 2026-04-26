@@ -76,6 +76,47 @@
     "minecraft:armadillo": {
       "hidden_bones": ["body_rolled_up"]
     },
+    "//minecraft:guardian": "Bedrock geometry.guardian.v1.8 stacks all 12 'spikepart0..11' bones at the same pivot (0, 24, 0) with identical cubes; Java's GuardianModel distributes them at runtime to the 12 edge midpoints of the body cube (16x16x16 spanning Bedrock X/Z [-8, +8] and Y [0, 16]) via SPIKE_X/SPIKE_Y/SPIKE_Z arrays plus per-spike rotations from SPIKE_X_ROT/Y_ROT/Z_ROT (each multiplied by pi). Y axis is flipped between Java (Y-down) and Bedrock (Y-up), so Bedrock cube_offset Y = -16 - SPIKE_Y[i] (which lands the spike pivot at body Y = 8 - SPIKE_Y[i], with the body Y midpoint at 8). Pitch axis is also flipped so Bedrock pitch = -SPIKE_X_ROT*180; same flip on yaw and roll. Eye cube was authored at z=0 (inside body); Java's createBodyLayer offsets it z=-8.25 so it sits on the body's front face - mirror that with cube_offset.",
+    "minecraft:guardian": {
+      "bone_overrides": {
+        "eye":        { "cube_offset": [0, 0, -8.25] },
+        "tailpart1":  { "cube_offset": [-1.5, -0.5, 14.0] },
+        "tailpart2":  { "cube_offset": [-1.0, -1.0, 20.0] },
+        "spikepart0":  { "cube_offset": [0,  -8,  8], "rotation": [315.0,    0.0,   0.0] },
+        "spikepart1":  { "cube_offset": [0,  -8, -8], "rotation": [ 45.0,    0.0,   0.0] },
+        "spikepart2":  { "cube_offset": [8,  -8,  0], "rotation": [  0.0,    0.0,  45.0] },
+        "spikepart3":  { "cube_offset": [-8, -8,  0], "rotation": [  0.0,    0.0, 315.0] },
+        "spikepart4":  { "cube_offset": [-8,-16, -8], "rotation": [ 90.0,   45.0,   0.0] },
+        "spikepart5":  { "cube_offset": [8, -16, -8], "rotation": [ 90.0,  315.0,   0.0] },
+        "spikepart6":  { "cube_offset": [8, -16,  8], "rotation": [ 90.0,  225.0,   0.0] },
+        "spikepart7":  { "cube_offset": [-8,-16,  8], "rotation": [ 90.0,  135.0,   0.0] },
+        "spikepart8":  { "cube_offset": [0, -24,  8], "rotation": [225.0,    0.0,   0.0] },
+        "spikepart9":  { "cube_offset": [0, -24, -8], "rotation": [135.0,    0.0,   0.0] },
+        "spikepart10": { "cube_offset": [8, -24,  0], "rotation": [  0.0,    0.0, 135.0] },
+        "spikepart11": { "cube_offset": [-8,-24,  0], "rotation": [  0.0,    0.0, 225.0] }
+      }
+    },
+    "//minecraft:elder_guardian": "Same geometry as guardian (geometry.guardian.v1.8) so reuse all the spike/eye overrides. Vanilla Java has a separate guardian_elder.png texture (paler, larger looking variant) that the Bedrock pack doesn't ship; bundled from the Java client jar via FORCED_EXTRA_TEXTURE_REFS. The override texture_ref points at it.",
+    "minecraft:elder_guardian": {
+      "texture_ref": "guardian_elder",
+      "bone_overrides": {
+        "eye":        { "cube_offset": [0, 0, -8.25] },
+        "tailpart1":  { "cube_offset": [-1.5, -0.5, 14.0] },
+        "tailpart2":  { "cube_offset": [-1.0, -1.0, 20.0] },
+        "spikepart0":  { "cube_offset": [0,  -8,  8], "rotation": [315.0,    0.0,   0.0] },
+        "spikepart1":  { "cube_offset": [0,  -8, -8], "rotation": [ 45.0,    0.0,   0.0] },
+        "spikepart2":  { "cube_offset": [8,  -8,  0], "rotation": [  0.0,    0.0,  45.0] },
+        "spikepart3":  { "cube_offset": [-8, -8,  0], "rotation": [  0.0,    0.0, 315.0] },
+        "spikepart4":  { "cube_offset": [-8,-16, -8], "rotation": [ 90.0,   45.0,   0.0] },
+        "spikepart5":  { "cube_offset": [8, -16, -8], "rotation": [ 90.0,  315.0,   0.0] },
+        "spikepart6":  { "cube_offset": [8, -16,  8], "rotation": [ 90.0,  225.0,   0.0] },
+        "spikepart7":  { "cube_offset": [-8,-16,  8], "rotation": [ 90.0,  135.0,   0.0] },
+        "spikepart8":  { "cube_offset": [0, -24,  8], "rotation": [225.0,    0.0,   0.0] },
+        "spikepart9":  { "cube_offset": [0, -24, -8], "rotation": [135.0,    0.0,   0.0] },
+        "spikepart10": { "cube_offset": [8, -24,  0], "rotation": [  0.0,    0.0, 135.0] },
+        "spikepart11": { "cube_offset": [-8,-24,  0], "rotation": [  0.0,    0.0, 225.0] }
+      }
+    },
     "//minecraft:vindicator": "Bedrock geometry.vindicator.v1.8 ships both arm sets - 'arms' folded across the chest (idle pose) plus 'rightArm'/'leftArm' hanging straight down (aggressive pose). Java's IllagerModel toggles visibility per entity state at runtime. Without animation state we default to the folded idle pose; hide the hanging pair so only crossed arms render.",
     "minecraft:vindicator": {
       "hidden_bones": ["rightArm", "leftArm"]

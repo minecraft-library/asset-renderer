@@ -382,7 +382,8 @@ public final class ToolingEntityModels {
      * {@code entity_textures/}.
      */
     private static final @NotNull Set<String> FORCED_EXTRA_TEXTURE_REFS = Set.of(
-        "creeper/creeper_armor"
+        "creeper/creeper_armor",
+        "guardian_elder"
     );
 
     /**
