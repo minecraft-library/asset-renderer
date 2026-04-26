@@ -87,6 +87,13 @@
         "upperBodyParts8", "upperBodyParts9", "upperBodyParts10", "upperBodyParts11"
       ]
     },
+    "//minecraft:sheep": "Vanilla Java composes a normal sheep from two layers - SheepModel renders the actual sheep body (full long legs, snouted head, tan skin) and SheepFurModel overlays the white wool covering on top (wool body + short leg-stubs + small head, no snout). Bedrock ships these as separate geometries: geometry.sheep.sheared.v1.8 is the skin and geometry.sheep.v1.8 is the wool. With only the wool geometry assigned to minecraft:sheep, the actual sheep body underneath is invisible. Re-root the entity at the sheared geometry so the skin is the base layer, then overlay the wool. Both share the sheep/sheep texture which packs the skin UVs in the top half and the wool UVs in the bottom half. Texture partial-alpha is bumped to opaque at tooling time via OPAQUE_ALPHA_TEXTURE_REFS.",
+    "minecraft:sheep": {
+      "geometry_ref": "geometry.sheep.sheared.v1.8",
+      "overlays": [
+        { "geometry_ref": "geometry.sheep.v1.8" }
+      ]
+    },
     "//minecraft:armadillo": "Bedrock geometry.armadillo ships both 'body' (standing pose) and 'body_rolled_up' (defensive ball pose) bones; Java's ArmadilloModel toggles visibility per entity state at runtime. Without animation state we default to the standing pose; hide the rolled-up bone.",
     "minecraft:armadillo": {
       "hidden_bones": ["body_rolled_up"]

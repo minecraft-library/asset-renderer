@@ -362,12 +362,19 @@ public final class ToolingEntityModels {
      *       {@code entity/spider/spider_eyes.png} emissively on top to make the eyes glow,
      *       and Bedrock relies on the same emissive path. Without it the eye positions
      *       render see-through and the head looks like it has gaps.</li>
+     *   <li>{@code sheep/sheep}: ~600 partial-alpha texels across the wool and skin regions
+     *       give the bedrock wool a fluffy look in Bedrock's renderer. Without per-pixel
+     *       blending against an opaque base the body and legs render as a translucent
+     *       speckled outline. Vanilla Java ships separate {@code sheep.png} (skin) and
+     *       {@code sheep_wool.png} (wool) PNGs with binary alpha and no fluff, and Bedrock's
+     *       single combined texture shows the same baked appearance only after the bump.</li>
      * </ul>
      * We bump every non-zero alpha to 255 at extraction time so the bundled PNG matches the
      * intended Java baked appearance.
      */
     private static final @NotNull Set<String> OPAQUE_ALPHA_TEXTURE_REFS = Set.of(
         "blaze",
+        "sheep/sheep",
         "spider/spider",
         "spider/cave_spider"
     );
