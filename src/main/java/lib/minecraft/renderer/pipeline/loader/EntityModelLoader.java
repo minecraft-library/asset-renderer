@@ -404,6 +404,15 @@ public class EntityModelLoader {
      *       defaults to the cube's own (post-{@code origin_offset}) bounding-box center -
      *       "rotate the cube in place" is the obvious default, and the rotation does not
      *       cause a surprise translation.</li>
+     *   <li>{@code uv} - two-int {@code [u, v]} that replaces the cube's texture origin on
+     *       the strip atlas. Used when an extra-bone clone needs to sample a different
+     *       region of the same texture (slime outer shell at uv {@code [0, 0]} cloned from
+     *       the inner cube at uv {@code [0, 16]}).</li>
+     *   <li>{@code inflate} - float that replaces the cube's inflate value, expanding the
+     *       cube outward by N units on every face. Combine with {@code uv} to template a
+     *       slightly larger overlay shell from the same source cube.</li>
+     *   <li>{@code size} - three-float {@code [sx, sy, sz]} that replaces the cube's size.
+     *       Rare; most overlay needs are met by {@code inflate}.</li>
      * </ul>
      * Entries past the cube count are ignored; shorter arrays leave trailing cubes untouched.
      */
@@ -438,6 +447,23 @@ public class EntityModelLoader {
             }
             float[] origin = c.getOrigin();
             float[] size = c.getSize();
+            if (o.has("size") && o.get("size").isJsonArray()
+                && o.getAsJsonArray("size").size() == 3) {
+                size = new float[]{
+                    o.getAsJsonArray("size").get(0).getAsFloat(),
+                    o.getAsJsonArray("size").get(1).getAsFloat(),
+                    o.getAsJsonArray("size").get(2).getAsFloat()
+                };
+            }
+            int[] uv = c.getUv();
+            if (o.has("uv") && o.get("uv").isJsonArray()
+                && o.getAsJsonArray("uv").size() == 2) {
+                uv = new int[]{
+                    o.getAsJsonArray("uv").get(0).getAsInt(),
+                    o.getAsJsonArray("uv").get(1).getAsInt()
+                };
+            }
+            float inflate = o.has("inflate") ? o.get("inflate").getAsFloat() : c.getInflate();
             float[] pivot = c.getPivot();
             // Pivot precedence:
             //   1. Explicit `pivot` field - absolute Bedrock-space coords, used verbatim.
@@ -464,9 +490,9 @@ public class EntityModelLoader {
             }
             out.add(new EntityModelData.Cube(
                 new float[]{ origin[0] + dx, origin[1] + dy, origin[2] + dz },
-                c.getSize(),
-                c.getUv(),
-                c.getInflate(),
+                size,
+                uv,
+                inflate,
                 c.isMirror(),
                 newPivot,
                 rot,
@@ -551,6 +577,12 @@ public class EntityModelLoader {
      *       cube pivot, and the new bone's pivot.</li>
      *   <li>{@code parent} - optional parent bone name; defaults to the template's parent.</li>
      *   <li>{@code rotation} - optional three-float pitch/yaw/roll for the new bone.</li>
+     *   <li>{@code cube_overrides} - optional per-cube modifications applied to the templated
+     *       and offset cubes via {@link #applyPerCubeOverrides} - same field set as the
+     *       bone-level {@code cube_overrides} (origin_offset, rotation, pivot, uv, inflate,
+     *       size). Used to repurpose a templated cube into a translucent overlay shell that
+     *       samples a different texture region (slime outer cube cloned from the inner cube,
+     *       set to {@code uv [0, 0]} and {@code inflate 1.0}).</li>
      * </ul>
      * Fills the gap Bedrock leaves for Molang-driven segmented parts: the ender dragon tail
      * is rendered as 12 repeated neck-bone copies placed at increasing Z via animation; this
@@ -580,6 +612,8 @@ public class EntityModelLoader {
             float dz = offArr.get(2).getAsFloat();
             dev.simplified.collection.ConcurrentList<EntityModelData.Cube> shifted =
                 rewriteCubes(template.getCubes(), dx, dy, dz, false);
+            if (spec.has("cube_overrides") && spec.get("cube_overrides").isJsonArray())
+                shifted = applyPerCubeOverrides(shifted, spec.getAsJsonArray("cube_overrides"));
             float[] p = template.getPivot();
             float[] newPivot = new float[]{ p[0] + dx, p[1] + dy, p[2] + dz };
             lib.minecraft.renderer.geometry.EulerRotation rotation = template.getRotation();

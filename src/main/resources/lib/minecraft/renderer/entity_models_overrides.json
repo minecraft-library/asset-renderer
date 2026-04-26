@@ -94,6 +94,19 @@
         { "geometry_ref": "geometry.sheep.v1.8" }
       ]
     },
+    "//minecraft:slime": "Vanilla Java SlimeModel renders two stacked cubes: a 6x6x6 inner body and an 8x8x8 outer shell drawn translucent (entity/slime/slime.png with alpha=180 in the outer-shell UV strip at [0, 0]). Bedrock's geometry.slime only ships the inner cube + eyes/mouth - the outer shell isn't a separate Bedrock bone, just a UV strip on the same texture that vanilla Java composes via SlimeOuterLayer. Synthesize the outer cube as an extra bone templated from the inner cube. The outer-shell strip on slime.png is authored at 8-pixel face dimensions (TOP+BOTTOM occupy u 8..24 v 0..8, sides occupy u 0..32 v 8..16), so the override sets size=[8, 8, 8] and origin_offset=[-1, -1, -1] explicitly rather than templating from the inner's 6x6x6 with inflate - the strip-unwrap formula keys off size, not size+inflate, and a 6-sized strip would sample empty pixels. Texture's authored alpha=180 in that region renders as proper translucency without any per-overlay alpha flag.",
+    "minecraft:slime": {
+      "extra_bones": [
+        {
+          "name": "outer",
+          "template": "cube",
+          "offset": [0, 0, 0],
+          "cube_overrides": [
+            { "uv": [0, 0], "size": [8, 8, 8], "origin_offset": [-1, -1, -1] }
+          ]
+        }
+      ]
+    },
     "//minecraft:armadillo": "Bedrock geometry.armadillo ships both 'body' (standing pose) and 'body_rolled_up' (defensive ball pose) bones; Java's ArmadilloModel toggles visibility per entity state at runtime. Without animation state we default to the standing pose; hide the rolled-up bone.",
     "minecraft:armadillo": {
       "hidden_bones": ["body_rolled_up"]
