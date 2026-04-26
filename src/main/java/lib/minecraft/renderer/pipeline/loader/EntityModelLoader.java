@@ -72,18 +72,39 @@ public class EntityModelLoader {
      *     declared order; populated from the overrides {@code overlays} array for entities that
      *     vanilla composes from multiple layers (charged creeper armor, copper golem holding a
      *     flower)
+     * @param forceOpaque when {@code true} every partial-alpha texel in the entity's bundled
+     *     texture is bumped to {@code alpha=255} at load time. Used by entities whose Bedrock
+     *     texture is authored at low alpha for an additive-blending pass that the static iso
+     *     renderer doesn't reproduce (blaze rods at alpha=90, magma cube at variable low
+     *     alpha) - additive-over-transparent dims them to ~35%, while bumping to opaque shows
+     *     them at the intended baked appearance. Also used for sheep whose ~600 partial-alpha
+     *     wool-fluff texels would otherwise render as a translucent speckle. Read from the
+     *     overrides {@code force_opaque} top-level field; defaults to {@code false}
      */
     public record EntityDefinition(
         @NotNull EntityModelData model,
         @NotNull Optional<String> textureRef,
-        @NotNull java.util.List<OverlayLayer> overlays
+        @NotNull java.util.List<OverlayLayer> overlays,
+        boolean forceOpaque
     ) {
 
         /**
-         * Convenience constructor for entities with no overlays - the common case.
+         * Convenience constructor for entities with no overlays and no force-opaque flag - the
+         * common case.
          */
         public EntityDefinition(@NotNull EntityModelData model, @NotNull Optional<String> textureRef) {
-            this(model, textureRef, java.util.List.of());
+            this(model, textureRef, java.util.List.of(), false);
+        }
+
+        /**
+         * Convenience constructor for entities with overlays but no force-opaque flag.
+         */
+        public EntityDefinition(
+            @NotNull EntityModelData model,
+            @NotNull Optional<String> textureRef,
+            @NotNull java.util.List<OverlayLayer> overlays
+        ) {
+            this(model, textureRef, overlays, false);
         }
 
     }
@@ -216,7 +237,14 @@ public class EntityModelLoader {
             if (override != null && override.has("overlays"))
                 overlays.addAll(loadOverlays(override.getAsJsonArray("overlays"), geometries, entityId));
 
-            definitions.put(entityId, new EntityDefinition(model, textureRef, overlays));
+            // force_opaque opts an entity into runtime alpha-bumping of its bundled texture.
+            // Replaces the legacy ToolingEntityModels.OPAQUE_ALPHA_TEXTURE_REFS hardcoded set:
+            // the bump now lives next to the entity's other overrides instead of as a tooling
+            // constant, and the bundled PNG stays unmutated (matches what Bedrock ships).
+            boolean forceOpaque = override != null && override.has("force_opaque")
+                && override.get("force_opaque").getAsBoolean();
+
+            definitions.put(entityId, new EntityDefinition(model, textureRef, overlays, forceOpaque));
         }
 
         return definitions;

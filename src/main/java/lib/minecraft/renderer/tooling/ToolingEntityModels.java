@@ -28,7 +28,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -437,37 +436,6 @@ public final class ToolingEntityModels {
     }
 
     /**
-     * Texture refs that ship from Bedrock with partial-alpha pixels intended for additive /
-     * emissive blending in Bedrock's render engine, but should appear fully opaque under this
-     * static iso renderer.
-     * <ul>
-     *   <li>{@code blaze}: every non-transparent texel ships at alpha=90 because Bedrock's
-     *       animation engine does additive blending to produce the rod glow; without that pass
-     *       the rods come out at 35% opacity.</li>
-     *   <li>{@code spider/spider} and {@code spider/cave_spider}: 20 eye-pixels per variant
-     *       ship at alpha=3 - vanilla Java's {@code SpiderEyesLayer} draws
-     *       {@code entity/spider/spider_eyes.png} emissively on top to make the eyes glow,
-     *       and Bedrock relies on the same emissive path. Without it the eye positions
-     *       render see-through and the head looks like it has gaps.</li>
-     *   <li>{@code sheep/sheep}: ~600 partial-alpha texels across the wool and skin regions
-     *       give the bedrock wool a fluffy look in Bedrock's renderer. Without per-pixel
-     *       blending against an opaque base the body and legs render as a translucent
-     *       speckled outline. Vanilla Java ships separate {@code sheep.png} (skin) and
-     *       {@code sheep_wool.png} (wool) PNGs with binary alpha and no fluff, and Bedrock's
-     *       single combined texture shows the same baked appearance only after the bump.</li>
-     * </ul>
-     * We bump every non-zero alpha to 255 at extraction time so the bundled PNG matches the
-     * intended Java baked appearance.
-     */
-    private static final @NotNull Set<String> OPAQUE_ALPHA_TEXTURE_REFS = Set.of(
-        "blaze",
-        "sheep/sheep",
-        "slime/magmacube_v2",
-        "spider/spider",
-        "spider/cave_spider"
-    );
-
-    /**
      * Texture refs that no {@code .entity.json} references in the Bedrock pack but the override
      * layer needs for layered rendering. Vanilla Java composes some entities from a base mesh
      * plus a hardcoded overlay layer ({@code CreeperPowerLayer} draws
@@ -517,48 +485,16 @@ public final class ToolingEntityModels {
 
     /**
      * Copies one PNG from the in-memory pack index into the bundled resources tree, creating
-     * any missing parent directories. Uses {@link StandardCopyOption#REPLACE_EXISTING} so a
-     * re-run overwrites stale files. When the ref is in {@link #OPAQUE_ALPHA_TEXTURE_REFS} the
-     * PNG is decoded, every non-zero alpha is bumped to 255, and the result re-encoded.
+     * any missing parent directories. The bundled file is written verbatim - any per-entity
+     * alpha-bumping for entities whose Bedrock texture is authored at low alpha for additive
+     * blending now happens at runtime via the {@code force_opaque} entity-override flag, not
+     * at extraction time, so the bundled PNG stays exactly as Bedrock ships it.
      */
     private static void copyTexture(@NotNull String textureRef, byte @NotNull [] pngBytes) throws IOException {
         Path target = TEXTURES_OUTPUT_DIR.resolve(textureRef + ".png");
         Files.createDirectories(target.getParent());
-        byte[] outBytes = OPAQUE_ALPHA_TEXTURE_REFS.contains(textureRef)
-            ? bumpAlphaToOpaque(pngBytes, textureRef)
-            : pngBytes;
-        Files.write(target, outBytes, java.nio.file.StandardOpenOption.CREATE,
+        Files.write(target, pngBytes, java.nio.file.StandardOpenOption.CREATE,
             java.nio.file.StandardOpenOption.TRUNCATE_EXISTING);
-    }
-
-    /**
-     * Decodes a PNG, replaces every {@code alpha > 0 && alpha < 255} with {@code 255}, and
-     * re-encodes. Preserves fully-transparent texels (alpha=0). Returns the original bytes
-     * unchanged if decoding fails.
-     */
-    private static byte @NotNull [] bumpAlphaToOpaque(byte @NotNull [] pngBytes, @NotNull String textureRef) throws IOException {
-        java.awt.image.BufferedImage src;
-        try {
-            src = javax.imageio.ImageIO.read(new ByteArrayInputStream(pngBytes));
-        } catch (IOException ex) {
-            System.err.printf("  Warning: opaque-alpha bump failed to decode '%s': %s%n", textureRef, ex.getMessage());
-            return pngBytes;
-        }
-        if (src == null) return pngBytes;
-        int w = src.getWidth();
-        int h = src.getHeight();
-        java.awt.image.BufferedImage dst = new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_ARGB);
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                int argb = src.getRGB(x, y);
-                int a = (argb >>> 24) & 0xFF;
-                if (a > 0 && a < 255) argb = (argb & 0x00FFFFFF) | 0xFF000000;
-                dst.setRGB(x, y, argb);
-            }
-        }
-        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-        javax.imageio.ImageIO.write(dst, "png", baos);
-        return baos.toByteArray();
     }
 
     /**

@@ -125,10 +125,39 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (options.getTextureId().isPresent())
             return this.context.resolveTexture(options.getTextureId().get());
 
-        if (entity.getTextureRef().isPresent())
-            return loadBundledEntityTexture(entity.getTextureRef().get());
+        if (entity.getTextureRef().isPresent()) {
+            Optional<PixelBuffer> loaded = loadBundledEntityTexture(entity.getTextureRef().get());
+            if (loaded.isPresent() && entity.isForceOpaque())
+                return Optional.of(bumpAlphaToOpaque(loaded.get()));
+            return loaded;
+        }
 
         return Optional.empty();
+    }
+
+    /**
+     * Returns a copy of {@code source} with every partial-alpha texel bumped to {@code alpha=255},
+     * leaving fully-opaque and fully-transparent pixels alone. Used by entities flagged
+     * {@link Entity#isForceOpaque()} - the runtime equivalent of the legacy
+     * {@code ToolingEntityModels.OPAQUE_ALPHA_TEXTURE_REFS} extraction-time bump, applied per
+     * load instead of per extraction so the bundled PNG stays exactly as Bedrock ships it.
+     * <p>
+     * Allocates a new {@link PixelBuffer} to avoid mutating any cached or shared instance the
+     * loader might return.
+     */
+    private static @NotNull PixelBuffer bumpAlphaToOpaque(@NotNull PixelBuffer source) {
+        int w = source.width();
+        int h = source.height();
+        int[] src = source.data();
+        int[] out = new int[src.length];
+        for (int i = 0; i < src.length; i++) {
+            int p = src[i];
+            int a = dev.simplified.image.pixel.ColorMath.alpha(p);
+            out[i] = (a > 0 && a < 255)
+                ? dev.simplified.image.pixel.ColorMath.withAlpha(p, 255)
+                : p;
+        }
+        return PixelBuffer.of(out, w, h);
     }
 
     /**

@@ -65,8 +65,21 @@
     "minecraft:llama": {
       "hidden_bones": ["chest1", "chest2"]
     },
-    "//minecraft:blaze": "Bedrock geometry.blaze authors 12 upperBodyParts0..11 bones all stacked at the same pivot (0, 24, 0) with identical cube origins (0, 16, 0); Java BlazeModel.createBodyLayer distributes them via PartPose.offset across three rings of four rods each. Outer ring (parts 0..3) at radius 9 sits above the head pivot (Java jy=-2+cos(i*0.5)); middle ring (parts 4..7) at radius 7 just below (jy=2+cos(i*0.5), angles offset by pi/4); inner ring (parts 8..11) at radius 5 well below the head (jy=11+cos(i*0.75), angles offset by 3*pi/20). Java Y points down in model space so Bedrock dy = -jy. The bind-pose scraper only captures rotations from PartPose.offsetAndRotation, not pure translations, so the offsets don't reach entity_bind_poses.json. We materialise the 12 rod positions here as extra_bones templated from upperBodyParts0, then hide the 12 stacked originals.",
+    "//minecraft:magma_cube": "Bedrock authors slime/magmacube_v2.png with low partial alpha throughout, expecting their additive renderer to glow the cube. Java has no separate emissive PNG (MagmaCubeRenderer uses entityCutoutNoCull). Without an opaque world background to additively brighten over, the static iso renderer needs the texture bumped to opaque so the magma colors render at full saturation. force_opaque applies the bump at load time without mutating the bundled PNG.",
+    "minecraft:magma_cube": {
+      "force_opaque": true
+    },
+    "//minecraft:spider": "Bedrock bakes the eye glow into spider/spider.png as alpha=3 spots. With the Part 1 emissive overlay supplying the bright eye glow, the body's alpha=3 spots would render as faint translucent ghosts against the transparent canvas - force_opaque promotes them back to opaque so the body face is solid behind the emissive glow.",
+    "minecraft:spider": {
+      "force_opaque": true
+    },
+    "//minecraft:cave_spider": "Same partial-alpha eye-spot pattern as spider; same force_opaque rationale.",
+    "minecraft:cave_spider": {
+      "force_opaque": true
+    },
+    "//minecraft:blaze": "Bedrock geometry.blaze authors 12 upperBodyParts0..11 bones all stacked at the same pivot (0, 24, 0) with identical cube origins (0, 16, 0); Java BlazeModel.createBodyLayer distributes them via PartPose.offset across three rings of four rods each. Outer ring (parts 0..3) at radius 9 sits above the head pivot (Java jy=-2+cos(i*0.5)); middle ring (parts 4..7) at radius 7 just below (jy=2+cos(i*0.5), angles offset by pi/4); inner ring (parts 8..11) at radius 5 well below the head (jy=11+cos(i*0.75), angles offset by 3*pi/20). Java Y points down in model space so Bedrock dy = -jy. The bind-pose scraper only captures rotations from PartPose.offsetAndRotation, not pure translations, so the offsets don't reach entity_bind_poses.json. We materialise the 12 rod positions here as extra_bones templated from upperBodyParts0, then hide the 12 stacked originals. force_opaque bumps the alpha=90 baked rod texture to opaque at load time - additive over the transparent canvas would dim the rods to ~35% saturation.",
     "minecraft:blaze": {
+      "force_opaque": true,
       "extra_bones": [
         { "name": "rod_0",  "template": "upperBodyParts0", "offset": [ 9.0000,  1.0000,  0.0000] },
         { "name": "rod_1",  "template": "upperBodyParts0", "offset": [ 0.0000,  1.1224,  9.0000] },
@@ -87,12 +100,17 @@
         "upperBodyParts8", "upperBodyParts9", "upperBodyParts10", "upperBodyParts11"
       ]
     },
-    "//minecraft:sheep": "Vanilla Java composes a normal sheep from two layers - SheepModel renders the actual sheep body (full long legs, snouted head, tan skin) and SheepFurModel overlays the white wool covering on top (wool body + short leg-stubs + small head, no snout). Bedrock ships these as separate geometries: geometry.sheep.sheared.v1.8 is the skin and geometry.sheep.v1.8 is the wool. With only the wool geometry assigned to minecraft:sheep, the actual sheep body underneath is invisible. Re-root the entity at the sheared geometry so the skin is the base layer, then overlay the wool. Both share the sheep/sheep texture which packs the skin UVs in the top half and the wool UVs in the bottom half. Texture partial-alpha is bumped to opaque at tooling time via OPAQUE_ALPHA_TEXTURE_REFS.",
+    "//minecraft:sheep": "Vanilla Java composes a normal sheep from two layers - SheepModel renders the actual sheep body (full long legs, snouted head, tan skin) and SheepFurModel overlays the white wool covering on top (wool body + short leg-stubs + small head, no snout). Bedrock ships these as separate geometries: geometry.sheep.sheared.v1.8 is the skin and geometry.sheep.v1.8 is the wool. With only the wool geometry assigned to minecraft:sheep, the actual sheep body underneath is invisible. Re-root the entity at the sheared geometry so the skin is the base layer, then overlay the wool. Both share the sheep/sheep texture which packs the skin UVs in the top half and the wool UVs in the bottom half. force_opaque bumps the ~600 wool-fluff partial-alpha texels to opaque at load time so the body and legs render solid instead of as a translucent speckled outline.",
     "minecraft:sheep": {
       "geometry_ref": "geometry.sheep.sheared.v1.8",
+      "force_opaque": true,
       "overlays": [
         { "geometry_ref": "geometry.sheep.v1.8" }
       ]
+    },
+    "//minecraft:sheep_sheared": "Bedrock's standalone sheared sheep geometry uses the same sheep/sheep texture as the woolly sheep above. The wool-fluff partial-alpha texels would render the body+legs as a translucent speckle without force_opaque.",
+    "minecraft:sheep_sheared": {
+      "force_opaque": true
     },
     "//minecraft:slime": "Vanilla Java SlimeModel renders two stacked cubes: a 6x6x6 inner body and an 8x8x8 outer shell drawn translucent (entity/slime/slime.png with alpha=180 in the outer-shell UV strip at [0, 0]). Bedrock's geometry.slime only ships the inner cube + eyes/mouth - the outer shell isn't a separate Bedrock bone, just a UV strip on the same texture that vanilla Java composes via SlimeOuterLayer. Synthesize the outer cube as an extra bone templated from the inner cube. The outer-shell strip on slime.png is authored at 8-pixel face dimensions (TOP+BOTTOM occupy u 8..24 v 0..8, sides occupy u 0..32 v 8..16), so the override sets size=[8, 8, 8] and origin_offset=[-1, -1, -1] explicitly rather than templating from the inner's 6x6x6 with inflate - the strip-unwrap formula keys off size, not size+inflate, and a 6-sized strip would sample empty pixels. Texture's authored alpha=180 in that region renders as proper translucency without any per-overlay alpha flag.",
     "minecraft:slime": {

@@ -48,6 +48,17 @@ public class Entity {
     private @NotNull List<Layer> overlays = Collections.emptyList();
 
     /**
+     * When {@code true} the entity's bundled base texture has every partial-alpha texel bumped
+     * to {@code alpha=255} at load time. Used by entities whose Bedrock texture is authored at
+     * low alpha for an additive-blending pass that the static iso renderer can't reproduce
+     * (blaze rods at alpha=90, magma cube), or for aesthetic partial alpha that should render
+     * opaque under this renderer's binary-canvas convention (sheep wool fluff). Replaces the
+     * legacy {@code ToolingEntityModels.OPAQUE_ALPHA_TEXTURE_REFS} hardcoded set with a
+     * per-entity opt-in, so the bundled PNG stays exactly as Bedrock ships it.
+     */
+    private boolean forceOpaque = false;
+
+    /**
      * Convenience constructor for the no-overlay case so existing call sites don't have to
      * supply an empty list.
      */
@@ -58,7 +69,21 @@ public class Entity {
         @NotNull EntityModelData model,
         @NotNull Optional<String> textureRef
     ) {
-        this(id, namespace, name, model, textureRef, Collections.emptyList());
+        this(id, namespace, name, model, textureRef, Collections.emptyList(), false);
+    }
+
+    /**
+     * Convenience constructor for entities with overlays but no force-opaque flag.
+     */
+    public Entity(
+        @NotNull String id,
+        @NotNull String namespace,
+        @NotNull String name,
+        @NotNull EntityModelData model,
+        @NotNull Optional<String> textureRef,
+        @NotNull List<Layer> overlays
+    ) {
+        this(id, namespace, name, model, textureRef, overlays, false);
     }
 
     @Override
@@ -70,12 +95,13 @@ public class Entity {
             && Objects.equals(this.getName(), entity.getName())
             && Objects.equals(this.getModel(), entity.getModel())
             && Objects.equals(this.getTextureRef(), entity.getTextureRef())
-            && Objects.equals(this.getOverlays(), entity.getOverlays());
+            && Objects.equals(this.getOverlays(), entity.getOverlays())
+            && this.isForceOpaque() == entity.isForceOpaque();
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.getId(), this.getNamespace(), this.getName(), this.getModel(), this.getTextureRef(), this.getOverlays());
+        return Objects.hash(this.getId(), this.getNamespace(), this.getName(), this.getModel(), this.getTextureRef(), this.getOverlays(), this.isForceOpaque());
     }
 
     /**

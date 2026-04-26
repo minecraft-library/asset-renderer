@@ -279,7 +279,7 @@ public final class PipelineRendererContext implements RendererContext {
             java.util.List<Entity.Layer> overlayLayers = def.overlays().stream()
                 .map(o -> new Entity.Layer(o.model(), o.textureRef(), o.emissive()))
                 .toList();
-            entityIndex.put(entityEntry.getKey(), new Entity(entityEntry.getKey(), "minecraft", localName(entityEntry.getKey()), def.model(), def.textureRef(), overlayLayers));
+            entityIndex.put(entityEntry.getKey(), new Entity(entityEntry.getKey(), "minecraft", localName(entityEntry.getKey()), def.model(), def.textureRef(), overlayLayers, def.forceOpaque()));
         }
 
         // Block entity models now render via the block model path (GeometryKit.buildFromElements),
