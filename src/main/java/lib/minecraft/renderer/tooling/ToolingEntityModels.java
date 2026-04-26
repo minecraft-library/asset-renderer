@@ -230,6 +230,20 @@ public final class ToolingEntityModels {
             }
         }
 
+        // Pull in overlay-only textures (creeper_armor, etc.) that no entity.json references.
+        // The per-entity copy loop above is gated on manifest entries, so without this pass these
+        // refs would never land under entity_textures/ even though the override layer needs them.
+        for (String forcedRef : FORCED_EXTRA_TEXTURE_REFS) {
+            if (copiedTextures.contains(forcedRef)) continue;
+            byte[] png = texturePngs.get(forcedRef);
+            if (png == null) {
+                System.err.printf("  Warning: forced extra texture '%s' not found in the Bedrock pack%n", forcedRef);
+                continue;
+            }
+            copyTexture(forcedRef, png);
+            copiedTextures.add(forcedRef);
+        }
+
         System.out.printf(
             "Emitted %d entities (%d base + %d variant) across %d geometries, dropped %d non-mob, copied %d textures%n",
             emittedEntities.size(), keptBase, keptVariant, emittedGeometries.size(), droppedNonMob, copiedTextures.size()
@@ -344,6 +358,19 @@ public final class ToolingEntityModels {
      * matches Java's authored opacity.
      */
     private static final @NotNull Set<String> OPAQUE_ALPHA_TEXTURE_REFS = Set.of("blaze");
+
+    /**
+     * Texture refs that no {@code .entity.json} references in the Bedrock pack but the override
+     * layer needs for layered rendering. Vanilla Java composes some entities from a base mesh
+     * plus a hardcoded overlay layer ({@code CreeperPowerLayer} draws
+     * {@code creeper/creeper_armor.png} on top of charged creepers) - those overlay textures
+     * never appear in any client-entity manifest, so the per-entity copy loop misses them. We
+     * extract them here as an explicit allowlist so the runtime override can find them under
+     * {@code entity_textures/}.
+     */
+    private static final @NotNull Set<String> FORCED_EXTRA_TEXTURE_REFS = Set.of(
+        "creeper/creeper_armor"
+    );
 
     /**
      * Copies one PNG from the in-memory pack index into the bundled resources tree, creating

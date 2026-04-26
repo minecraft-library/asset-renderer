@@ -72,6 +72,22 @@
         "upperBodyParts8", "upperBodyParts9", "upperBodyParts10", "upperBodyParts11"
       ]
     },
+    "//minecraft:copper_golem_flower": "Bedrock authors geometry.copper_golem.flower as a thin overlay carrying just the right_arm holding the flower (no body, head, or legs); vanilla Java composes the full golem by rendering the base mesh first and the flower mesh on top. Re-root the entity's base at geometry.copper_golem so the auto-fit anchors on the full body silhouette (matching the plain copper_golem icon size), then layer the flower-only geometry on top with its own texture. Same coordinate frame on both geometries means no per-overlay placement is needed.",
+    "minecraft:copper_golem_flower": {
+      "geometry_ref": "geometry.copper_golem",
+      "texture_ref": "copper_golem/copper_golem",
+      "overlays": [
+        { "geometry_ref": "geometry.copper_golem.flower", "texture_ref": "copper_golem/copper_golem_flower" }
+      ]
+    },
+    "//minecraft:creeper_charged": "Vanilla Java draws the standard creeper mesh and texture, then a translucent inflated 'power' overlay using entity/creeper/creeper_armor.png - that lightning-grid texture is what makes a charged creeper visually distinct from a plain creeper. Bedrock packs the inflated geometry as geometry.creeper.charged.v1.8 so the variant ships with the right mesh; this override re-roots the entity's base layer at the plain creeper geometry/texture and adds the charged geometry with the creeper_armor texture as an overlay. The creeper_armor.png ref must be present in entity_textures/creeper/ - if it's missing (the texture isn't bundled by ToolingEntityModels until the user runs ./gradlew entityModels with the forced-extra-texture list) the overlay drops silently and the renderer degrades to a plain creeper.",
+    "minecraft:creeper_charged": {
+      "geometry_ref": "geometry.creeper.v1.8",
+      "texture_ref": "creeper/creeper",
+      "overlays": [
+        { "geometry_ref": "geometry.creeper.charged.v1.8", "texture_ref": "creeper/creeper_armor", "inflate": 0.5 }
+      ]
+    },
     "//minecraft:snow_golem": "Bedrock arm1/arm2 share identical cube geometry (origin [1,20,-1] size [12,2,2]) and rely on the animation system to rotate arm2 around yaw 180 for the opposite stick. With no animations here both arms stack in +X. Java SnowGolemModel's bind pose rotates the arms around Z by ~57.3 degrees; we mirror that here. arm2 also takes yaw 180 so it extends in -X instead of +X. Explicit pivot is the arm's bone pivot at the body shoulder so the rotations articulate at the joint (the default cube-center anchor would not flip arm2 to the body's other side and would not roll arm1 outward from the shoulder).",
     "minecraft:snow_golem": {
       "bone_overrides": {

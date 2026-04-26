@@ -53,11 +53,31 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (model.getBones().isEmpty())
             return RenderEngine.staticFrame(buffer);
 
-        EntityGeometryKit.BuildResult buildResult = EntityGeometryKit.buildTriangles(model, texture.get());
+        // Auto-fit bounds come from the base model only - overlays that extend beyond the base
+        // (charged creeper armor, glowing eyes, copper golem holding a flower above its head)
+        // would otherwise expand the union bbox and shrink the base entity to keep the overlay
+        // inside the unit cube. Pinning the fit to the base preserves a consistent silhouette
+        // size across plain and overlaid variants; overlays render at the same scale and may
+        // extend past the cube edge, which is the right tradeoff for icon framing.
+        EntityGeometryKit.ModelBounds baseBounds = EntityGeometryKit.computeBounds(model);
+
+        EntityGeometryKit.BuildResult buildResult = EntityGeometryKit.buildTriangles(model, texture.get(), baseBounds);
         if (buildResult.triangles().isEmpty())
             return RenderEngine.staticFrame(buffer);
 
         ConcurrentList<VisibleTriangle> triangles = buildResult.triangles();
+
+        // Overlays whose texture cannot be loaded drop silently so a missing bundled PNG
+        // (creeper_armor when the user hasn't run the entityModels tooling refresh) degrades
+        // to base-only rendering rather than a hard failure.
+        for (Entity.Layer overlay : entity.getOverlays()) {
+            if (overlay.model().getBones().isEmpty()) continue;
+            Optional<PixelBuffer> overlayTex = overlay.textureRef().isPresent()
+                ? loadBundledEntityTexture(overlay.textureRef().get())
+                : Optional.of(texture.get());
+            if (overlayTex.isEmpty()) continue;
+            triangles.addAll(EntityGeometryKit.buildTriangles(overlay.model(), overlayTex.get(), baseBounds).triangles());
+        }
 
         // Armor overlay for humanoid entities. The isometric engine's camera bakes the standard
         // [30, 225, 0] block-icon pose; model.inventoryYRotation composes the entity's GUI-facing

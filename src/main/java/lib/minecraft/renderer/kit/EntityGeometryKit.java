@@ -72,9 +72,31 @@ public class EntityGeometryKit {
      * @return the build result containing triangles and per-bone bounding boxes
      */
     public static @NotNull BuildResult buildTriangles(@NotNull EntityModelData model, @NotNull PixelBuffer texture) {
+        return buildTriangles(model, texture, computeBounds(model));
+    }
+
+    /**
+     * Variant of {@link #buildTriangles(EntityModelData, PixelBuffer)} that uses caller-supplied
+     * bounds for the auto-fit step instead of measuring the model in isolation. Enables layered
+     * entity rendering (charged creeper armor over the creeper mesh, copper golem holding a
+     * flower) by sharing one scale/center across every layer so the layers stay co-registered
+     * after the unit-cube fit. Pass the base layer's {@link #computeBounds} to every layer's
+     * call so the base entity keeps a consistent silhouette size across plain and overlaid
+     * variants - overlays render at the same scale and may extend past the cube edge, which is
+     * the right tradeoff for icon framing.
+     *
+     * @param model the entity model definition
+     * @param texture the shared texture atlas for all cubes in this layer
+     * @param bounds the bounds to fit within - typically the base layer's bounds
+     * @return the build result containing triangles and per-bone bounding boxes
+     */
+    public static @NotNull BuildResult buildTriangles(
+        @NotNull EntityModelData model,
+        @NotNull PixelBuffer texture,
+        @NotNull ModelBounds bounds
+    ) {
         Map<String, Matrix4f> chainTransforms = buildChainTransforms(model.getBones());
 
-        ModelBounds bounds = computeBounds(model, chainTransforms);
         float extent = Math.max(bounds.maxExtent(), MIN_MODEL_EXTENT);
         float scale = ENTITY_MODEL_FIT_EXTENT / extent;
         float cx = (bounds.minX + bounds.maxX) * 0.5f;

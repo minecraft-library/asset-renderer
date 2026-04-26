@@ -68,8 +68,36 @@ public class EntityModelLoader {
      * @param textureRef the bundled texture sub-path under
      *     {@code /lib/minecraft/renderer/entity_textures/} (without the {@code .png} suffix), or
      *     empty when the Bedrock client_entity.json did not declare a default texture
+     * @param overlays additional geometry/texture pairs rendered on top of the base model in
+     *     declared order; populated from the overrides {@code overlays} array for entities that
+     *     vanilla composes from multiple layers (charged creeper armor, copper golem holding a
+     *     flower)
      */
     public record EntityDefinition(
+        @NotNull EntityModelData model,
+        @NotNull Optional<String> textureRef,
+        @NotNull java.util.List<OverlayLayer> overlays
+    ) {
+
+        /**
+         * Convenience constructor for entities with no overlays - the common case.
+         */
+        public EntityDefinition(@NotNull EntityModelData model, @NotNull Optional<String> textureRef) {
+            this(model, textureRef, java.util.List.of());
+        }
+
+    }
+
+    /**
+     * One overlay layer on an {@link EntityDefinition}: an independent geometry plus its own
+     * bundled texture sub-path. Resolved from the overrides {@code overlays} array at load time.
+     *
+     * @param model the overlay's bone/cube tree, sharing the base model's coordinate frame so
+     *     they co-register under the renderer's shared auto-fit transform
+     * @param textureRef the bundled texture sub-path (without {@code .png}), or empty when the
+     *     overlay should reuse the base entity's texture
+     */
+    public record OverlayLayer(
         @NotNull EntityModelData model,
         @NotNull Optional<String> textureRef
     ) {}
@@ -170,10 +198,87 @@ public class EntityModelLoader {
                 );
             }
 
-            definitions.put(entityId, new EntityDefinition(model, textureRef));
+            java.util.List<OverlayLayer> overlays = override != null && override.has("overlays")
+                ? loadOverlays(override.getAsJsonArray("overlays"), geometries, entityId)
+                : java.util.List.of();
+
+            definitions.put(entityId, new EntityDefinition(model, textureRef, overlays));
         }
 
         return definitions;
+    }
+
+    /**
+     * Resolves the overrides {@code overlays} array into a list of {@link OverlayLayer}s. Each
+     * entry is an object with a {@code geometry_ref} (resolved against the geometry table), an
+     * optional {@code texture_ref} (the bundled PNG sub-path; absent means the overlay reuses
+     * the base entity's texture), and an optional {@code inflate} (additive cube inflate applied
+     * to every cube on the overlay model so it surrounds the base mesh instead of z-fighting -
+     * the {@link EntityModelData.Cube#getInflate() inflate} field grows the cube outward by N
+     * units on each face, matching the Bedrock cube semantics and Java's armor-layer convention).
+     * Entries that name an unknown geometry log a warning and drop - matches the lenient
+     * handling in {@link #applyBoneOverrides} so a stale override after a geometry regen doesn't
+     * abort the whole load.
+     */
+    private static @NotNull java.util.List<OverlayLayer> loadOverlays(
+        @NotNull com.google.gson.JsonArray overlays,
+        @NotNull Map<String, EntityModelData> geometries,
+        @NotNull String entityId
+    ) {
+        java.util.List<OverlayLayer> out = new java.util.ArrayList<>();
+        for (JsonElement el : overlays) {
+            if (!el.isJsonObject()) continue;
+            JsonObject entry = el.getAsJsonObject();
+            if (!entry.has("geometry_ref")) {
+                System.err.printf("  Warning: entity '%s' overlay missing 'geometry_ref'%n", entityId);
+                continue;
+            }
+            String geometryRef = entry.get("geometry_ref").getAsString();
+            EntityModelData overlayModel = geometries.get(geometryRef);
+            if (overlayModel == null) {
+                System.err.printf("  Warning: entity '%s' overlay references geometry '%s' which is not present in '%s'%n",
+                    entityId, geometryRef, GEOMETRY_RESOURCE_PATH);
+                continue;
+            }
+            Optional<String> overlayTexture = entry.has("texture_ref")
+                ? Optional.of(entry.get("texture_ref").getAsString())
+                : Optional.empty();
+            float inflate = entry.has("inflate") ? entry.get("inflate").getAsFloat() : 0f;
+            EntityModelData materialised = inflate != 0f ? inflateModel(overlayModel, inflate) : overlayModel;
+            out.add(new OverlayLayer(materialised, overlayTexture));
+        }
+        return out;
+    }
+
+    /**
+     * Returns a deep-cloned copy of {@code model} with every cube's {@link
+     * EntityModelData.Cube#getInflate() inflate} field bumped by {@code delta}. Used by the
+     * overlay loader to surround the base mesh with an inflated overlay (creeper armor mesh
+     * needs ~2 units of inflate so its translucent lightning grid sits around the base creeper
+     * instead of z-fighting with it). Bones, pivots, rotations, UVs, and parent links are
+     * preserved verbatim - only the per-cube inflate changes.
+     */
+    private static @NotNull EntityModelData inflateModel(@NotNull EntityModelData source, float delta) {
+        dev.simplified.collection.linked.ConcurrentLinkedMap<String, EntityModelData.Bone> inflated =
+            dev.simplified.collection.Concurrent.newLinkedMap();
+        for (Map.Entry<String, EntityModelData.Bone> e : source.getBones().entrySet()) {
+            EntityModelData.Bone bone = e.getValue();
+            dev.simplified.collection.ConcurrentList<EntityModelData.Cube> cubes =
+                dev.simplified.collection.Concurrent.newList();
+            for (EntityModelData.Cube cube : bone.getCubes())
+                cubes.add(new EntityModelData.Cube(
+                    cube.getOrigin(), cube.getSize(), cube.getUv(),
+                    cube.getInflate() + delta, cube.isMirror(),
+                    cube.getPivot(), cube.getRotation(), cube.getFaceUv()
+                ));
+            inflated.put(e.getKey(), new EntityModelData.Bone(
+                bone.getPivot(), bone.getRotation(), bone.getBindPoseRotation(), cubes, bone.getParent()
+            ));
+        }
+        return new EntityModelData(
+            source.getTextureWidth(), source.getTextureHeight(),
+            source.getInventoryYRotation(), inflated
+        );
     }
 
     /**

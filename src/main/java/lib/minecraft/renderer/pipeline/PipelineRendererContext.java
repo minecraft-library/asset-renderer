@@ -274,8 +274,13 @@ public final class PipelineRendererContext implements RendererContext {
         System.out.printf("Atlas parent/template filter: removed %d blocks, %d items%n", removedBlocks, removedItems);
 
         ConcurrentMap<String, Entity> entityIndex = Concurrent.newMap();
-        for (Map.Entry<String, EntityModelLoader.EntityDefinition> entityEntry : EntityModelLoader.load().entrySet())
-            entityIndex.put(entityEntry.getKey(), new Entity(entityEntry.getKey(), "minecraft", localName(entityEntry.getKey()), entityEntry.getValue().model(), entityEntry.getValue().textureRef()));
+        for (Map.Entry<String, EntityModelLoader.EntityDefinition> entityEntry : EntityModelLoader.load().entrySet()) {
+            EntityModelLoader.EntityDefinition def = entityEntry.getValue();
+            java.util.List<Entity.Layer> overlayLayers = def.overlays().stream()
+                .map(o -> new Entity.Layer(o.model(), o.textureRef()))
+                .toList();
+            entityIndex.put(entityEntry.getKey(), new Entity(entityEntry.getKey(), "minecraft", localName(entityEntry.getKey()), def.model(), def.textureRef(), overlayLayers));
+        }
 
         // Block entity models now render via the block model path (GeometryKit.buildFromElements),
         // not the entity model path. Only mob entities remain in the entity index.
