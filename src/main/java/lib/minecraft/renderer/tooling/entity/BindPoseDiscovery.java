@@ -17,6 +17,8 @@ import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.zip.ZipFile;
@@ -343,7 +345,7 @@ public final class BindPoseDiscovery {
         boolean returnsLayer = method.desc.endsWith(")Lnet/minecraft/client/model/geom/builders/LayerDefinition;");
         if (!returnsMesh && !returnsLayer) return;
 
-        java.util.Deque<Float> floats = new java.util.ArrayDeque<>();
+        Deque<Float> floats = new ArrayDeque<>();
         String pendingBone = null;
         float[] pendingPose = null;
 
@@ -422,7 +424,7 @@ public final class BindPoseDiscovery {
      * reversed so index 0 is the float that was pushed first (the {@code x} argument, say).
      * Returns {@code null} when the stack didn't have enough entries.
      */
-    private static float @Nullable [] popFloats(@NotNull java.util.Deque<Float> stack, int count) {
+    private static float @Nullable [] popFloats(@NotNull Deque<Float> stack, int count) {
         if (stack.size() < count) return null;
         float[] out = new float[count];
         for (int i = count - 1; i >= 0; i--) out[i] = stack.pop();

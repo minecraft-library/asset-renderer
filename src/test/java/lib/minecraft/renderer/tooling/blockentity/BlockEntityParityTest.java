@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -35,7 +36,7 @@ class BlockEntityParityTest {
         JsonObject entities = root.getAsJsonObject("entities");
         java.util.zip.ZipFile zip = new java.util.zip.ZipFile(Path.of("cache/asset-renderer/vanilla/26.1/client.jar").toFile());
         try {
-            java.util.Map<String, BlockListDiscovery.EntityBlockMapping> catalog = BlockListDiscovery.discover(zip, new Diagnostics());
+            Map<String, BlockListDiscovery.EntityBlockMapping> catalog = BlockListDiscovery.discover(zip, new Diagnostics());
             for (String entityId : catalog.keySet()) {
                 assertThat("entity '" + entityId + "' present in block_entities.json", entities.has(entityId), equalTo(true));
                 JsonObject entity = entities.getAsJsonObject(entityId);

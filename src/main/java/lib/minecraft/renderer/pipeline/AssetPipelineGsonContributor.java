@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pipeline;
 
+import com.google.gson.Gson;
 import dev.simplified.gson.GsonContributor;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.tensor.Vector2f;
@@ -7,13 +8,15 @@ import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tensor.Vector4f;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ServiceLoader;
+
 /**
  * Registers asset-renderer type adapters with {@link GsonSettings#defaults()} via the
- * {@link GsonContributor} {@link java.util.ServiceLoader} SPI.
+ * {@link GsonContributor} {@link ServiceLoader} SPI.
  * <p>
  * Discovered through {@code META-INF/services/dev.simplified.gson.GsonContributor}; downstream
- * callers that build a {@link com.google.gson.Gson} via {@code GsonSettings.defaults().create()}
- * pick up these adapters automatically.
+ * callers that build a {@link Gson} via {@code GsonSettings.defaults().create()} pick up these
+ * adapters automatically.
  */
 public class AssetPipelineGsonContributor implements GsonContributor {
 

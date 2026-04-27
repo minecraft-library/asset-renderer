@@ -143,8 +143,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // leaving the normal biome-tint path intact.
             //
             // The {@link Block.Entity} is attached directly to the {@link Block} at
-            // {@link dev.sbs.renderer.pipeline.PipelineRendererContext} construction time,
-            // so the renderer reads it straight off the block - no sidecar lookup through
+            // {@code PipelineRendererContext} construction time, so the renderer reads it
+            // straight off the block - no sidecar lookup through
             // {@link RendererContext#findBlockEntityEntry} is needed.
             Block.Entity be = block.getEntity().orElse(null);
             boolean entityTinted = be != null && be.tintArgb() != ColorMath.WHITE;

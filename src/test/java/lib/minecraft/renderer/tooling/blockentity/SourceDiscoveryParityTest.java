@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import org.junit.jupiter.api.DisplayName;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -45,7 +47,7 @@ class SourceDiscoveryParityTest {
             ConcurrentList<Source> all = SourceDiscovery.discover(zip, diag);
             Map<String, BlockListDiscovery.EntityBlockMapping> blockList = BlockListDiscovery.discover(zip, diag);
 
-            ConcurrentList<Source> filtered = dev.simplified.collection.Concurrent.newList();
+            ConcurrentList<Source> filtered = Concurrent.newList();
             for (Source s : all)
                 if (blockList.containsKey(s.entityId())) filtered.add(s);
 
@@ -84,7 +86,7 @@ class SourceDiscoveryParityTest {
     }
 
     private static String sourceKey(Source s) {
-        String pi = s.paramIntValues() == null ? "null" : java.util.Arrays.toString(s.paramIntValues()).replace(" ", "");
+        String pi = s.paramIntValues() == null ? "null" : Arrays.toString(s.paramIntValues()).replace(" ", "");
         return s.entityId() + "|" + s.methodName() + "|" + pi;
     }
 

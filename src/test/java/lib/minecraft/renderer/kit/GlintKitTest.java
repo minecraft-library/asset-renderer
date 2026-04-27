@@ -6,6 +6,8 @@ import dev.simplified.image.pixel.PixelBuffer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
+
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
@@ -111,7 +113,7 @@ class GlintKitTest {
 
     private static PixelBuffer solidBuffer(int width, int height, int argb) {
         int[] pixels = new int[width * height];
-        java.util.Arrays.fill(pixels, argb);
+        Arrays.fill(pixels, argb);
         return PixelBuffer.of(pixels, width, height);
     }
 

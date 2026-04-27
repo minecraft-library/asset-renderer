@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Predicate;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -58,7 +59,7 @@ class AtlasRendererParallelismTest {
                 || id.equals("minecraft:diamond_sword")
                 || id.equals("minecraft:golden_apple");
         AtlasOptions options = AtlasOptions.builder()
-            .filter(java.util.Optional.of(filter))
+            .filter(Optional.of(filter))
             .tileSize(64)
             .build();
 

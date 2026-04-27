@@ -3,6 +3,7 @@ package lib.minecraft.renderer.tooling.blockentity;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
+import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import org.junit.jupiter.api.DisplayName;
@@ -39,7 +40,7 @@ class TintDiscoveryParityTest {
             Diagnostics diag = new Diagnostics();
             ConcurrentList<Source> all = SourceDiscovery.discover(zip, diag);
             Map<String, BlockListDiscovery.EntityBlockMapping> blockList = BlockListDiscovery.discover(zip, diag);
-            ConcurrentList<Source> filtered = dev.simplified.collection.Concurrent.newList();
+            ConcurrentList<Source> filtered = Concurrent.newList();
             for (Source s : all) if (blockList.containsKey(s.entityId())) filtered.add(s);
 
             Map<String, String> entityIdToRenderer = new LinkedHashMap<>();

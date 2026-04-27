@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -31,13 +32,13 @@ public class ColorMap {
         return Objects.equals(this.getId(), that.getId())
             && Objects.equals(this.getPackId(), that.getPackId())
             && this.getType() == that.getType()
-            && java.util.Arrays.equals(this.getPixels(), that.getPixels());
+            && Arrays.equals(this.getPixels(), that.getPixels());
     }
 
     @Override
     public int hashCode() {
         int result = Objects.hash(this.getId(), this.getPackId(), this.getType());
-        result = 31 * result + java.util.Arrays.hashCode(this.getPixels());
+        result = 31 * result + Arrays.hashCode(this.getPixels());
         return result;
     }
 

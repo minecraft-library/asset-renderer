@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
@@ -643,7 +644,7 @@ class SourceDiscoveryTest {
     void entityOrderMatchesRegistryOrder() throws IOException {
         ConcurrentList<Source> out = run(new TestRenderer[]{ TestRenderer.A, TestRenderer.B }, new Mutations());
         assertThat("emission order follows registry order",
-            java.util.List.of(out.get(0).entityId(), out.get(1).entityId()),
+            List.of(out.get(0).entityId(), out.get(1).entityId()),
             containsInAnyOrder("minecraft:foo", "minecraft:bar"));
     }
 }

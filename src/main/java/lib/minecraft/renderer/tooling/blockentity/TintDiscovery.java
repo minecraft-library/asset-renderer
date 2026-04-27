@@ -11,6 +11,8 @@ import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -67,8 +69,8 @@ public final class TintDiscovery {
         @NotNull Diagnostics diag
     ) {
         // Build: renderer -> set of entity ids (from the provided sources list).
-        Map<String, Set<String>> rendererToEntityIds = new java.util.LinkedHashMap<>();
-        Map<String, String> entityIdToClassEntry = new java.util.HashMap<>();
+        Map<String, Set<String>> rendererToEntityIds = new LinkedHashMap<>();
+        Map<String, String> entityIdToClassEntry = new HashMap<>();
         for (Source s : sources) entityIdToClassEntry.put(s.entityId(), s.classEntry());
         for (Map.Entry<String, String> e : entityIdToRenderer.entrySet())
             rendererToEntityIds.computeIfAbsent(e.getValue(), k -> new LinkedHashSet<>()).add(e.getKey());

@@ -1,26 +1,38 @@
 package lib.minecraft.renderer.pipeline.loader;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.collection.linked.ConcurrentLinkedMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.exception.AssetPipelineException;
+import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
+import lib.minecraft.renderer.tooling.ToolingBindPoses;
 import lib.minecraft.renderer.tooling.ToolingEntityModels;
+import lib.minecraft.renderer.tooling.entity.BindPoseDiscovery;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Loads bundled entity model definitions from three paired classpath resources:
@@ -83,7 +95,7 @@ public class EntityModelLoader {
     public record EntityDefinition(
         @NotNull EntityModelData model,
         @NotNull Optional<String> textureRef,
-        @NotNull java.util.List<OverlayLayer> overlays,
+        @NotNull List<OverlayLayer> overlays,
         boolean forceOpaque
     ) {
 
@@ -92,7 +104,7 @@ public class EntityModelLoader {
          * common case.
          */
         public EntityDefinition(@NotNull EntityModelData model, @NotNull Optional<String> textureRef) {
-            this(model, textureRef, java.util.List.of(), false);
+            this(model, textureRef, List.of(), false);
         }
 
         /**
@@ -101,7 +113,7 @@ public class EntityModelLoader {
         public EntityDefinition(
             @NotNull EntityModelData model,
             @NotNull Optional<String> textureRef,
-            @NotNull java.util.List<OverlayLayer> overlays
+            @NotNull List<OverlayLayer> overlays
         ) {
             this(model, textureRef, overlays, false);
         }
@@ -199,8 +211,8 @@ public class EntityModelLoader {
                 float yRotation = yMutated
                     ? override.get("inventory_y_rotation").getAsFloat()
                     : baseModel.getInventoryYRotation();
-                dev.simplified.collection.linked.ConcurrentLinkedMap<String, EntityModelData.Bone> bones =
-                    dev.simplified.collection.Concurrent.newLinkedMap();
+                ConcurrentLinkedMap<String, EntityModelData.Bone> bones =
+                    Concurrent.newLinkedMap();
                 bones.putAll(baseModel.getBones());
                 if (bindPoseMutated)
                     applyBindPoses(bones, bindPose, entityId);
@@ -236,7 +248,7 @@ public class EntityModelLoader {
             // overlays on entities whose head bone got shifted (enderman head cube_offset
             // [0, 14, 0]) - without this the overlay's eye texture would land on the
             // unshifted head position and miss the rendered head entirely.
-            java.util.List<OverlayLayer> overlays = new java.util.ArrayList<>();
+            List<OverlayLayer> overlays = new ArrayList<>();
             if (entityJson.has("overlays") && entityJson.get("overlays").isJsonArray())
                 overlays.addAll(loadOverlays(entityJson.getAsJsonArray("overlays"), geometries, geometryRef, model, entityId));
             if (override != null && override.has("overlays"))
@@ -267,14 +279,14 @@ public class EntityModelLoader {
      * handling in {@link #applyBoneOverrides} so a stale override after a geometry regen doesn't
      * abort the whole load.
      */
-    private static @NotNull java.util.List<OverlayLayer> loadOverlays(
-        @NotNull com.google.gson.JsonArray overlays,
+    private static @NotNull List<OverlayLayer> loadOverlays(
+        @NotNull JsonArray overlays,
         @NotNull Map<String, EntityModelData> geometries,
         @NotNull String baseGeometryRef,
         @NotNull EntityModelData baseModel,
         @NotNull String entityId
     ) {
-        java.util.List<OverlayLayer> out = new java.util.ArrayList<>();
+        List<OverlayLayer> out = new ArrayList<>();
         for (JsonElement el : overlays) {
             if (!el.isJsonObject()) continue;
             JsonObject entry = el.getAsJsonObject();
@@ -318,12 +330,12 @@ public class EntityModelLoader {
      * preserved verbatim - only the per-cube inflate changes.
      */
     private static @NotNull EntityModelData inflateModel(@NotNull EntityModelData source, float delta) {
-        dev.simplified.collection.linked.ConcurrentLinkedMap<String, EntityModelData.Bone> inflated =
-            dev.simplified.collection.Concurrent.newLinkedMap();
+        ConcurrentLinkedMap<String, EntityModelData.Bone> inflated =
+            Concurrent.newLinkedMap();
         for (Map.Entry<String, EntityModelData.Bone> e : source.getBones().entrySet()) {
             EntityModelData.Bone bone = e.getValue();
-            dev.simplified.collection.ConcurrentList<EntityModelData.Cube> cubes =
-                dev.simplified.collection.Concurrent.newList();
+            ConcurrentList<EntityModelData.Cube> cubes =
+                Concurrent.newList();
             for (EntityModelData.Cube cube : bone.getCubes())
                 cubes.add(new EntityModelData.Cube(
                     cube.getOrigin(), cube.getSize(), cube.getUv(),
@@ -377,7 +389,7 @@ public class EntityModelLoader {
      * geometry regen doesn't break the whole load.
      */
     private static void applyBoneOverrides(
-        @NotNull dev.simplified.collection.linked.ConcurrentLinkedMap<String, EntityModelData.Bone> bones,
+        @NotNull ConcurrentLinkedMap<String, EntityModelData.Bone> bones,
         @NotNull JsonObject boneOverrides,
         @NotNull String entityId
     ) {
@@ -395,12 +407,12 @@ public class EntityModelLoader {
             // pivot" and default the pivot to the bone's cube collective bbox center - making
             // `rotation` mean "rotate in place" by default. Joint articulation (rotating a limb
             // about a body joint) requires an explicit `pivot` to opt into bone-pivot semantics.
-            lib.minecraft.renderer.geometry.EulerRotation rotation = existing.getRotation();
+            EulerRotation rotation = existing.getRotation();
             boolean rotationSet = patch.has("rotation");
             if (rotationSet) {
                 JsonElement rot = patch.get("rotation");
                 if (rot.isJsonArray() && rot.getAsJsonArray().size() == 3) {
-                    rotation = new lib.minecraft.renderer.geometry.EulerRotation(
+                    rotation = new EulerRotation(
                         rot.getAsJsonArray().get(0).getAsFloat(),
                         rot.getAsJsonArray().get(1).getAsFloat(),
                         rot.getAsJsonArray().get(2).getAsFloat()
@@ -419,11 +431,11 @@ public class EntityModelLoader {
                         pv.getAsJsonArray().get(2).getAsFloat()
                     );
                 }
-            } else if (rotationSet && !rotation.equals(lib.minecraft.renderer.geometry.EulerRotation.NONE)) {
+            } else if (rotationSet && !rotation.equals(EulerRotation.NONE)) {
                 pivot = collectiveCubeCenter(existing.getCubes(), existing.getPivot());
             }
 
-            dev.simplified.collection.ConcurrentList<EntityModelData.Cube> cubes = existing.getCubes();
+            ConcurrentList<EntityModelData.Cube> cubes = existing.getCubes();
             float dx = 0f, dy = 0f, dz = 0f;
             if (patch.has("cube_offset")) {
                 JsonElement off = patch.get("cube_offset");
@@ -475,11 +487,11 @@ public class EntityModelLoader {
      * </ul>
      * Entries past the cube count are ignored; shorter arrays leave trailing cubes untouched.
      */
-    private static @NotNull dev.simplified.collection.ConcurrentList<EntityModelData.Cube> applyPerCubeOverrides(
-        @NotNull dev.simplified.collection.ConcurrentList<EntityModelData.Cube> cubes,
-        @NotNull com.google.gson.JsonArray overrides
+    private static @NotNull ConcurrentList<EntityModelData.Cube> applyPerCubeOverrides(
+        @NotNull ConcurrentList<EntityModelData.Cube> cubes,
+        @NotNull JsonArray overrides
     ) {
-        dev.simplified.collection.ConcurrentList<EntityModelData.Cube> out = dev.simplified.collection.Concurrent.newList();
+        ConcurrentList<EntityModelData.Cube> out = Concurrent.newList();
         for (int i = 0; i < cubes.size(); i++) {
             EntityModelData.Cube c = cubes.get(i);
             if (i >= overrides.size() || !overrides.get(i).isJsonObject()) {
@@ -494,11 +506,11 @@ public class EntityModelLoader {
                 dy = o.getAsJsonArray("origin_offset").get(1).getAsFloat();
                 dz = o.getAsJsonArray("origin_offset").get(2).getAsFloat();
             }
-            lib.minecraft.renderer.geometry.EulerRotation rot = c.getRotation();
+            EulerRotation rot = c.getRotation();
             boolean rotSet = o.has("rotation") && o.get("rotation").isJsonArray()
                 && o.getAsJsonArray("rotation").size() == 3;
             if (rotSet) {
-                rot = new lib.minecraft.renderer.geometry.EulerRotation(
+                rot = new EulerRotation(
                     o.getAsJsonArray("rotation").get(0).getAsFloat(),
                     o.getAsJsonArray("rotation").get(1).getAsFloat(),
                     o.getAsJsonArray("rotation").get(2).getAsFloat()
@@ -539,7 +551,7 @@ public class EntityModelLoader {
                     o.getAsJsonArray("pivot").get(1).getAsFloat(),
                     o.getAsJsonArray("pivot").get(2).getAsFloat()
                 );
-            } else if (rotSet && !rot.equals(lib.minecraft.renderer.geometry.EulerRotation.NONE)) {
+            } else if (rotSet && !rot.equals(EulerRotation.NONE)) {
                 newPivot = origin.add(offset).add(size.multiply(0.5f));
             } else {
                 newPivot = pivot.add(offset);
@@ -570,7 +582,7 @@ public class EntityModelLoader {
      * @return the collective bbox center, or {@code fallback} when empty
      */
     private static @NotNull Vector3f collectiveCubeCenter(
-        @NotNull dev.simplified.collection.ConcurrentList<EntityModelData.Cube> cubes,
+        @NotNull ConcurrentList<EntityModelData.Cube> cubes,
         @NotNull Vector3f fallback
     ) {
         if (cubes.isEmpty()) return fallback;
@@ -600,11 +612,11 @@ public class EntityModelLoader {
      * non-mirror UVs - the duplicate needs mirrored textures so its outward-facing features
      * (zigzag fins on the ender dragon wing membrane) point outward instead of toward the body.
      */
-    private static @NotNull dev.simplified.collection.ConcurrentList<EntityModelData.Cube> rewriteCubes(
-        @NotNull dev.simplified.collection.ConcurrentList<EntityModelData.Cube> source,
+    private static @NotNull ConcurrentList<EntityModelData.Cube> rewriteCubes(
+        @NotNull ConcurrentList<EntityModelData.Cube> source,
         float dx, float dy, float dz, boolean mirror
     ) {
-        dev.simplified.collection.ConcurrentList<EntityModelData.Cube> out = dev.simplified.collection.Concurrent.newList();
+        ConcurrentList<EntityModelData.Cube> out = Concurrent.newList();
         Vector3f offset = new Vector3f(dx, dy, dz);
         for (EntityModelData.Cube c : source) {
             EntityModelData.Cube rewritten = new EntityModelData.Cube(
@@ -644,8 +656,8 @@ public class EntityModelLoader {
      * override materialises them as real bones without the animation engine.
      */
     private static void applyExtraBones(
-        @NotNull dev.simplified.collection.linked.ConcurrentLinkedMap<String, EntityModelData.Bone> bones,
-        @NotNull com.google.gson.JsonArray extra,
+        @NotNull ConcurrentLinkedMap<String, EntityModelData.Bone> bones,
+        @NotNull JsonArray extra,
         @NotNull String entityId
     ) {
         for (JsonElement el : extra) {
@@ -660,20 +672,20 @@ public class EntityModelLoader {
                     entityId, newName, templateName);
                 continue;
             }
-            com.google.gson.JsonArray offArr = spec.getAsJsonArray("offset");
+            JsonArray offArr = spec.getAsJsonArray("offset");
             if (offArr.size() != 3) continue;
             float dx = offArr.get(0).getAsFloat();
             float dy = offArr.get(1).getAsFloat();
             float dz = offArr.get(2).getAsFloat();
-            dev.simplified.collection.ConcurrentList<EntityModelData.Cube> shifted =
+            ConcurrentList<EntityModelData.Cube> shifted =
                 rewriteCubes(template.getCubes(), dx, dy, dz, false);
             if (spec.has("cube_overrides") && spec.get("cube_overrides").isJsonArray())
                 shifted = applyPerCubeOverrides(shifted, spec.getAsJsonArray("cube_overrides"));
             Vector3f newPivot = template.getPivot().add(new Vector3f(dx, dy, dz));
-            lib.minecraft.renderer.geometry.EulerRotation rotation = template.getRotation();
+            EulerRotation rotation = template.getRotation();
             if (spec.has("rotation") && spec.get("rotation").isJsonArray()
                 && spec.getAsJsonArray("rotation").size() == 3) {
-                rotation = new lib.minecraft.renderer.geometry.EulerRotation(
+                rotation = new EulerRotation(
                     spec.getAsJsonArray("rotation").get(0).getAsFloat(),
                     spec.getAsJsonArray("rotation").get(1).getAsFloat(),
                     spec.getAsJsonArray("rotation").get(2).getAsFloat()
@@ -698,8 +710,8 @@ public class EntityModelLoader {
      * like {@link #applyBoneOverrides}.
      */
     private static void applyHiddenBones(
-        @NotNull dev.simplified.collection.linked.ConcurrentLinkedMap<String, EntityModelData.Bone> bones,
-        @NotNull com.google.gson.JsonArray hiddenBones,
+        @NotNull ConcurrentLinkedMap<String, EntityModelData.Bone> bones,
+        @NotNull JsonArray hiddenBones,
         @NotNull String entityId
     ) {
         for (JsonElement el : hiddenBones) {
@@ -724,7 +736,7 @@ public class EntityModelLoader {
     /**
      * Maximum permitted {@code |dy|} when positionally matching. The Java scraper emits
      * parent-local pivots (see
-     * {@link lib.minecraft.renderer.tooling.entity.BindPoseDiscovery.Pose}, which calls out
+     * {@link BindPoseDiscovery.Pose}, which calls out
      * the drift on nested bones) - humanoid {@code hat_rim} reports {@code pivot=(0,0,0)}
      * even though its world-space anchor is at the head, and the villager family's
      * {@code hat_rim} was snapping onto the body bone at {@code (0, 0, 0)} and tilting the
@@ -746,7 +758,7 @@ public class EntityModelLoader {
     private static final float PIVOT_MATCH_AMBIGUITY_EPS = 0.25f;
 
     /**
-     * Overlays {@link lib.minecraft.renderer.tooling.ToolingBindPoses bind-pose rotations}
+     * Overlays {@link ToolingBindPoses bind-pose rotations}
      * scraped from Java client Model factories onto each bone's
      * {@link EntityModelData.Bone#getBindPoseRotation() bindPoseRotation}.
      * <p>
@@ -772,11 +784,11 @@ public class EntityModelLoader {
      * a cube-level {@code rotation: [90, 0, 0]}).
      */
     private static void applyBindPoses(
-        @NotNull dev.simplified.collection.linked.ConcurrentLinkedMap<String, EntityModelData.Bone> bones,
+        @NotNull ConcurrentLinkedMap<String, EntityModelData.Bone> bones,
         @NotNull JsonObject bindPose,
         @NotNull String entityId
     ) {
-        java.util.Set<String> consumedBedrockBones = new java.util.HashSet<>();
+        Set<String> consumedBedrockBones = new HashSet<>();
         for (Map.Entry<String, JsonElement> e : bindPose.entrySet()) {
             if (!e.getValue().isJsonObject()) continue;
             JsonObject boneEntry = e.getValue().getAsJsonObject();
@@ -790,14 +802,14 @@ public class EntityModelLoader {
             if (poseBone == null) continue;
 
             EntityModelData.Bone existing = bones.get(poseBone);
-            if (!existing.getBindPoseRotation().equals(lib.minecraft.renderer.geometry.EulerRotation.NONE))
+            if (!existing.getBindPoseRotation().equals(EulerRotation.NONE))
                 continue;
-            if (!existing.getRotation().equals(lib.minecraft.renderer.geometry.EulerRotation.NONE))
+            if (!existing.getRotation().equals(EulerRotation.NONE))
                 continue;
             if (anyCubeHasRotation(existing))
                 continue;
 
-            lib.minecraft.renderer.geometry.EulerRotation pose = new lib.minecraft.renderer.geometry.EulerRotation(
+            EulerRotation pose = new EulerRotation(
                 rotArr.get(0).getAsFloat(),
                 rotArr.get(1).getAsFloat(),
                 rotArr.get(2).getAsFloat()
@@ -818,7 +830,7 @@ public class EntityModelLoader {
      * when absent (legacy bind-pose files without pivot data). Pivot-less entries fall through
      * to name-only matching at the call site.
      */
-    private static @org.jetbrains.annotations.Nullable Vector3f readPivot(@NotNull JsonObject boneEntry) {
+    private static @Nullable Vector3f readPivot(@NotNull JsonObject boneEntry) {
         JsonElement pivotEl = boneEntry.get("pivot");
         if (pivotEl == null || !pivotEl.isJsonArray()) return null;
         var arr = pivotEl.getAsJsonArray();
@@ -834,7 +846,7 @@ public class EntityModelLoader {
      */
     private static boolean anyCubeHasRotation(@NotNull EntityModelData.Bone bone) {
         for (EntityModelData.Cube cube : bone.getCubes()) {
-            lib.minecraft.renderer.geometry.EulerRotation r = cube.getRotation();
+            EulerRotation r = cube.getRotation();
             if (r.pitch() != 0f || r.yaw() != 0f || r.roll() != 0f) return true;
         }
         return false;
@@ -847,11 +859,11 @@ public class EntityModelLoader {
      * have already been paired with a Java bone so a second leg with a similar pivot can't
      * claim the same target.
      */
-    private static @org.jetbrains.annotations.Nullable String matchBone(
+    private static @Nullable String matchBone(
         @NotNull Map<String, EntityModelData.Bone> bones,
         @NotNull String key,
-        @org.jetbrains.annotations.Nullable Vector3f javaPivot,
-        @NotNull java.util.Set<String> consumedBedrockBones
+        @Nullable Vector3f javaPivot,
+        @NotNull Set<String> consumedBedrockBones
     ) {
         if (bones.containsKey(key) && !consumedBedrockBones.contains(key)) return key;
 
@@ -877,10 +889,10 @@ public class EntityModelLoader {
      * matches lets the rotation drop rather than land on the wrong bone. Returns {@code null}
      * when no unique match survives the filters.
      */
-    private static @org.jetbrains.annotations.Nullable String nearestBoneByPivot(
+    private static @Nullable String nearestBoneByPivot(
         @NotNull Map<String, EntityModelData.Bone> bones,
         @NotNull Vector3f target,
-        @NotNull java.util.Set<String> consumedBedrockBones
+        @NotNull Set<String> consumedBedrockBones
     ) {
         String best = null;
         float bestXz = Float.POSITIVE_INFINITY;
@@ -952,7 +964,7 @@ public class EntityModelLoader {
                 throw new AssetPipelineException("Entity geometry resource '%s' has no 'geometries' object", GEOMETRY_RESOURCE_PATH);
 
             JsonObject geometriesJson = root.getAsJsonObject("geometries");
-            Map<String, EntityModelData> out = new java.util.LinkedHashMap<>();
+            Map<String, EntityModelData> out = new LinkedHashMap<>();
             for (Map.Entry<String, JsonElement> entry : geometriesJson.entrySet()) {
                 EntityModelData model = GSON.fromJson(entry.getValue(), EntityModelData.class);
                 out.put(entry.getKey(), model);
@@ -1004,7 +1016,7 @@ public class EntityModelLoader {
     /**
      * Parses {@code entity_bind_poses.json} and returns its {@code entities} object (empty when
      * the file is absent). Generated by
-     * {@link lib.minecraft.renderer.tooling.ToolingBindPoses ToolingBindPoses} from the Java
+     * {@link ToolingBindPoses} from the Java
      * client jar; stands in for the Bedrock animation system on mobs whose modern
      * {@code .geo.json} dropped {@code bind_pose_rotation}.
      */

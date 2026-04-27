@@ -3,6 +3,7 @@ package lib.minecraft.renderer.kit;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.ColorMath;
+import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.EntityRenderer;
@@ -109,7 +110,7 @@ public class EntityGeometryKit {
      * @param texture the shared texture atlas for all cubes in this layer
      * @param bounds the bounds to fit within - typically the base layer's bounds
      * @param emissive when {@code true}, all produced triangles carry the emissive flag and the
-     *     rasterizer will skip ambient shading and use {@link dev.simplified.image.pixel.BlendMode#ADD}
+     *     rasterizer will skip ambient shading and use {@link BlendMode#ADD}
      * @return the build result containing triangles and per-bone bounding boxes
      */
     public static @NotNull BuildResult buildTriangles(

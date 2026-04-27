@@ -16,6 +16,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Objects;
 
@@ -129,7 +130,7 @@ public class EntityModelData {
          * against the owning {@link EntityModelData}'s bone map to build the transform chain.
          */
         @com.google.gson.annotations.SerializedName("parent")
-        private @org.jetbrains.annotations.Nullable String parent = null;
+        private @Nullable String parent = null;
 
         /** Convenience constructor for the common case of no parent and no bind pose. */
         public Bone(@NotNull Vector3f pivot, @NotNull EulerRotation rotation, @NotNull ConcurrentList<Cube> cubes) {
@@ -137,7 +138,7 @@ public class EntityModelData {
         }
 
         /** Convenience constructor preserving the historic (pivot, rotation, cubes, parent) signature. */
-        public Bone(@NotNull Vector3f pivot, @NotNull EulerRotation rotation, @NotNull ConcurrentList<Cube> cubes, @org.jetbrains.annotations.Nullable String parent) {
+        public Bone(@NotNull Vector3f pivot, @NotNull EulerRotation rotation, @NotNull ConcurrentList<Cube> cubes, @Nullable String parent) {
             this(pivot, rotation, EulerRotation.NONE, cubes, parent);
         }
 

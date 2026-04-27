@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
 import lib.minecraft.renderer.pipeline.client.ClientJarDownloader;
 import lib.minecraft.renderer.pipeline.client.HttpFetcher;
+import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.tooling.entity.BindPoseDiscovery;
 import lib.minecraft.renderer.tooling.entity.MobRegistryDiscovery;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
@@ -25,7 +26,7 @@ import java.util.zip.ZipFile;
  * Downloads the Java client jar, scans for {@code Model} constructor rotations via
  * {@link BindPoseDiscovery}, and writes the results to
  * {@code src/main/resources/lib/minecraft/renderer/entity_bind_poses.json}. The runtime loader
- * ({@link lib.minecraft.renderer.pipeline.loader.EntityModelLoader EntityModelLoader}) overlays
+ * ({@link EntityModelLoader}) overlays
  * these onto each bone's {@code bindPoseRotation} field, standing in for the Bedrock animation
  * system that our static renderer can't execute.
  * <p>

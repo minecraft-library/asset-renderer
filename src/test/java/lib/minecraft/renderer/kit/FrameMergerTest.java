@@ -11,6 +11,8 @@ import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
+
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
@@ -41,7 +43,7 @@ class FrameMergerTest {
 
     private static @NotNull PixelBuffer solidImage(int w, int h, int argb) {
         int[] pixels = new int[w * h];
-        java.util.Arrays.fill(pixels, argb);
+        Arrays.fill(pixels, argb);
         return PixelBuffer.of(pixels, w, h);
     }
 

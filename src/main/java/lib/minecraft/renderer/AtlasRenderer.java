@@ -26,7 +26,11 @@ import lib.minecraft.renderer.options.PortalOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockEntityLoader;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -57,7 +61,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * The atlas intercepts these ids in {@link #renderBlocks} and dispatches to
      * {@link FluidRenderer.FluidFace2D} so each fluid emits a flat still-texture icon.
      */
-    private static final java.util.Set<String> FLUID_BLOCK_IDS = java.util.Set.of(
+    private static final Set<String> FLUID_BLOCK_IDS = Set.of(
         "minecraft:water", "minecraft:lava"
     );
 
@@ -69,7 +73,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * and dispatches to {@link PortalRenderer.PortalFace2D} so each portal emits a baked
      * parallax star-field tile.
      */
-    private static final java.util.Set<String> PORTAL_BLOCK_IDS = java.util.Set.of(
+    private static final Set<String> PORTAL_BLOCK_IDS = Set.of(
         "minecraft:end_portal", "minecraft:end_gateway"
     );
 
@@ -147,7 +151,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         // end_gateway has no block-model file; the primary {@code knownBlockIds()} walk doesn't
         // surface it. Task 8 intercepts it here as a portal tile, so ensure it's part of the
         // iteration set even when the primary pipeline didn't register it.
-        java.util.LinkedHashSet<String> blockIds = new java.util.LinkedHashSet<>(this.context.knownBlockIds());
+        LinkedHashSet<String> blockIds = new LinkedHashSet<>(this.context.knownBlockIds());
         blockIds.addAll(PORTAL_BLOCK_IDS);
 
         // Parallel dispatch across independent block renders. parallelStream preserves encounter
@@ -155,7 +159,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         // walk tiles in the same order a serial loop would produce. Each render owns its own
         // PixelBuffer and reads from shared ConcurrentMap caches, so there is no aliasing.
         AtomicInteger completed = new AtomicInteger();
-        java.util.List<TileSpec> orderedTiles = blockIds.parallelStream()
+        List<TileSpec> orderedTiles = blockIds.parallelStream()
             .filter(blockId -> options.getFilter().map(f -> f.test(blockId)).orElse(true))
             .map(blockId -> renderBlockTile(blockId, options, renderer, fluids, portals, completed))
             .flatMap(Optional::stream)
@@ -282,7 +286,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         // {@code layer0} icon - the entity overlay only enriches the block-tile render, not
         // the inventory icon.
         AtomicInteger completed = new AtomicInteger();
-        java.util.List<TileSpec> orderedTiles = this.context.knownItemIds().parallelStream()
+        List<TileSpec> orderedTiles = this.context.knownItemIds().parallelStream()
             .filter(itemId -> options.getFilter().map(f -> f.test(itemId)).orElse(true))
             .filter(itemId -> !this.context.findBlockEntityEntry(itemId)
                 .map(be -> !be.additive()).orElse(false))
@@ -408,7 +412,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
 
             /** The lowercase kind name used in the sidecar JSON schema. */
             public @NotNull String jsonName() {
-                return this.name().toLowerCase(java.util.Locale.ROOT);
+                return this.name().toLowerCase(Locale.ROOT);
             }
 
         }
@@ -453,7 +457,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
 
             /** The lowercase source name used in the sidecar JSON schema. */
             public @NotNull String jsonName() {
-                return this.name().toLowerCase(java.util.Locale.ROOT);
+                return this.name().toLowerCase(Locale.ROOT);
             }
 
         }

@@ -10,6 +10,9 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.collection.linked.ConcurrentLinkedMap;
 import dev.simplified.gson.GsonSettings;
+import dev.simplified.image.ImageData;
+import dev.simplified.image.codec.png.PngImageWriter;
+import dev.simplified.image.codec.tga.TgaImageReader;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
@@ -30,9 +33,12 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipEntry;
@@ -208,7 +214,7 @@ public final class ToolingEntityModels {
 
         for (Map.Entry<String, Parser.ParsedEntity> g : geometriesById.entrySet()) {
             String geometryId = g.getKey();
-            if (!manifest.fanOutByGeometry().getOrDefault(geometryId, java.util.List.of()).isEmpty()) continue;
+            if (!manifest.fanOutByGeometry().getOrDefault(geometryId, List.of()).isEmpty()) continue;
 
             String stem = bedrockStem(geometryId);
             if (stem == null) continue;
@@ -274,12 +280,12 @@ public final class ToolingEntityModels {
 
     /** TGA reader - used directly because Bedrock ships TGA 1.0 files that {@code ImageFactory}'s
      * magic-byte auto-detect (which keys on the TGA 2.0 footer) would reject. */
-    private static final @NotNull dev.simplified.image.codec.tga.TgaImageReader TGA_READER =
-        new dev.simplified.image.codec.tga.TgaImageReader();
+    private static final @NotNull TgaImageReader TGA_READER =
+        new TgaImageReader();
 
     /** PNG writer used to re-encode Bedrock's TGA sources into bundled PNGs. */
-    private static final @NotNull dev.simplified.image.codec.png.PngImageWriter PNG_WRITER =
-        new dev.simplified.image.codec.png.PngImageWriter();
+    private static final @NotNull PngImageWriter PNG_WRITER =
+        new PngImageWriter();
 
     /**
      * Indexes every {@code resource_pack/textures/entity/**} PNG and TGA in the pack by its
@@ -307,7 +313,7 @@ public final class ToolingEntityModels {
                     key = subPath.substring(0, subPath.length() - ".tga".length());
                     if (out.containsKey(key)) continue; // PNG already indexed for this ref.
                     try {
-                        dev.simplified.image.ImageData decoded = TGA_READER.read(zis.readAllBytes(), null);
+                        ImageData decoded = TGA_READER.read(zis.readAllBytes(), null);
                         png = PNG_WRITER.write(decoded, null);
                     } catch (RuntimeException ex) {
                         System.err.printf("  Warning: failed to decode TGA '%s': %s%n", name, ex.getMessage());
@@ -349,7 +355,7 @@ public final class ToolingEntityModels {
         Map<String, byte[]> found = new LinkedHashMap<>();
         Set<String> seenButUnmapped = new LinkedHashSet<>();
         try (ZipFile zip = new ZipFile(clientJar.toFile())) {
-            java.util.Enumeration<? extends ZipEntry> entries = zip.entries();
+            Enumeration<? extends ZipEntry> entries = zip.entries();
             while (entries.hasMoreElements()) {
                 ZipEntry entry = entries.nextElement();
                 String name = entry.getName();
@@ -368,7 +374,7 @@ public final class ToolingEntityModels {
             System.err.printf("  Note: client jar emissive PNG '%s' has no EMISSIVE_PNG_FANOUT entry; skipped%n", unmapped);
 
         int copied = 0;
-        for (Map.Entry<String, java.util.List<String>> e : EMISSIVE_PNG_FANOUT.entrySet()) {
+        for (Map.Entry<String, List<String>> e : EMISSIVE_PNG_FANOUT.entrySet()) {
             String emissiveRef = e.getKey();
             byte[] png = found.get(emissiveRef);
             if (png == null) {
@@ -476,15 +482,15 @@ public final class ToolingEntityModels {
      * line per new vanilla mob with an emissive layer. Unknown emissive PNGs in the jar log a
      * warning during extraction so they surface for review.
      */
-    private static final @NotNull Map<String, java.util.List<String>> EMISSIVE_PNG_FANOUT = Map.ofEntries(
-        Map.entry("spider/spider_eyes",      java.util.List.of("minecraft:spider", "minecraft:cave_spider")),
-        Map.entry("enderdragon/dragon_eyes", java.util.List.of("minecraft:ender_dragon")),
-        Map.entry("enderman/enderman_eyes",  java.util.List.of("minecraft:enderman")),
-        Map.entry("phantom/phantom_eyes",    java.util.List.of("minecraft:phantom")),
-        Map.entry("breeze/breeze_eyes",      java.util.List.of("minecraft:breeze")),
-        Map.entry("creaking/creaking_eyes",  java.util.List.of("minecraft:creaking")),
+    private static final @NotNull Map<String, List<String>> EMISSIVE_PNG_FANOUT = Map.ofEntries(
+        Map.entry("spider/spider_eyes",      List.of("minecraft:spider", "minecraft:cave_spider")),
+        Map.entry("enderdragon/dragon_eyes", List.of("minecraft:ender_dragon")),
+        Map.entry("enderman/enderman_eyes",  List.of("minecraft:enderman")),
+        Map.entry("phantom/phantom_eyes",    List.of("minecraft:phantom")),
+        Map.entry("breeze/breeze_eyes",      List.of("minecraft:breeze")),
+        Map.entry("creaking/creaking_eyes",  List.of("minecraft:creaking")),
         Map.entry("copper_golem/copper_golem_eyes",
-            java.util.List.of(
+            List.of(
                 "minecraft:copper_golem",
                 "minecraft:copper_golem_running",
                 "minecraft:copper_golem_sitting",
@@ -514,8 +520,7 @@ public final class ToolingEntityModels {
     private static void copyTexture(@NotNull String textureRef, byte @NotNull [] pngBytes) throws IOException {
         Path target = TEXTURES_OUTPUT_DIR.resolve(textureRef + ".png");
         Files.createDirectories(target.getParent());
-        Files.write(target, pngBytes, java.nio.file.StandardOpenOption.CREATE,
-            java.nio.file.StandardOpenOption.TRUNCATE_EXISTING);
+        Files.write(target, pngBytes, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
     }
 
     /**

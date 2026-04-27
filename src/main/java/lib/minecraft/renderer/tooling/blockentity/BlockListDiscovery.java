@@ -17,9 +17,12 @@ import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 
+import java.lang.invoke.LambdaMetafactory;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.zip.ZipFile;
 
 /**
@@ -457,7 +460,7 @@ public final class BlockListDiscovery {
             diag.warn("Blocks class missing - cannot resolve block -> %s map", enumInternal);
             return Map.of();
         }
-        java.util.Set<String> fieldSet = new java.util.HashSet<>(blockFields);
+        Set<String> fieldSet = new HashSet<>(blockFields);
         LinkedHashMap<String, String> out = new LinkedHashMap<>();
         MethodNode clinit = AsmKit.findMethod(blocksClass, "<clinit>");
         if (clinit == null) return out;
@@ -614,7 +617,7 @@ public final class BlockListDiscovery {
     }
 
     /**
-     * Resolves an {@code INVOKEDYNAMIC apply} bootstrapped via {@link java.lang.invoke.LambdaMetafactory}
+     * Resolves an {@code INVOKEDYNAMIC apply} bootstrapped via {@link LambdaMetafactory}
      * to the {@code lambda$static$N} name when the handle is {@code H_INVOKESTATIC} and targets
      * the enclosing class.
      */
@@ -627,7 +630,7 @@ public final class BlockListDiscovery {
     }
 
     /**
-     * Resolves an {@code INVOKEDYNAMIC apply} bootstrapped via {@link java.lang.invoke.LambdaMetafactory}
+     * Resolves an {@code INVOKEDYNAMIC apply} bootstrapped via {@link LambdaMetafactory}
      * to the ctor class ({@code Foo} in {@code Foo::new}) when the handle is
      * {@code H_NEWINVOKESPECIAL}. Returns {@code null} for other handle tags.
      */

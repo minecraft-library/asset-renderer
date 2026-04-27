@@ -13,8 +13,11 @@ import org.objectweb.asm.Opcodes;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Consumer;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
@@ -460,12 +463,12 @@ class BlockListDiscoveryTest {
         void putstaticBeType(String field);
     }
 
-    private static byte[] buildBlockEntityTypeClass(@NotNull java.util.function.Consumer<BlockEntityTypeClinitBuilder> body) {
+    private static byte[] buildBlockEntityTypeClass(@NotNull Consumer<BlockEntityTypeClinitBuilder> body) {
         ClassWriter cw = new ClassWriter(0);
         cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC, "net/minecraft/world/level/block/entity/BlockEntityType", null, "java/lang/Object", null);
         MethodVisitor mv = cw.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
         mv.visitCode();
-        java.util.Set<String> declaredFields = new java.util.LinkedHashSet<>();
+        Set<String> declaredFields = new LinkedHashSet<>();
         BlockEntityTypeClinitBuilder builder = new BlockEntityTypeClinitBuilder() {
             @Override public void ldc(String id) {
                 mv.visitLdcInsn(id);

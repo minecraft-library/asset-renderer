@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling;
 
+import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -46,6 +47,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -199,7 +201,7 @@ public final class ToolingBlockEntities {
         if (!Files.exists(overridesPath)) return;
         JsonObject overrides;
         try {
-            overrides = new com.google.gson.Gson().fromJson(Files.readString(overridesPath), JsonObject.class);
+            overrides = new Gson().fromJson(Files.readString(overridesPath), JsonObject.class);
         } catch (Exception ex) {
             diag.warn("inventory-transform: overrides file '%s' unreadable - %s", overridesPath, ex.getMessage());
             return;
@@ -238,7 +240,7 @@ public final class ToolingBlockEntities {
         if (Files.exists(OUTPUT_PATH)) {
             String raw = Files.readString(OUTPUT_PATH);
             try {
-                existing = new com.google.gson.Gson().fromJson(raw, JsonObject.class);
+                existing = new Gson().fromJson(raw, JsonObject.class);
             } catch (Exception ex) {
                 System.err.println("  Warning: could not parse existing " + OUTPUT_PATH + " - writing fresh output");
             }
@@ -257,7 +259,7 @@ public final class ToolingBlockEntities {
         // regeneration passes); then append any newly discovered models that did not appear
         // in the existing file (e.g. a freshly added entity id from a MC version rev). The
         // blockList catalog is the authoritative source of which entity ids ship.
-        java.util.LinkedHashSet<String> entityOrder = new java.util.LinkedHashSet<>();
+        LinkedHashSet<String> entityOrder = new LinkedHashSet<>();
         if (!existingEntities.entrySet().isEmpty())
             entityOrder.addAll(existingEntities.keySet());
         entityOrder.addAll(blockList.keySet());
@@ -479,7 +481,7 @@ public final class ToolingBlockEntities {
             // to the canonical Y-DOWN form; with no INVENTORY_TRANSFORMS entry the default
             // {@code cy = -cy} unflip restores the original block-space positions exactly.
             // <p>
-            // Wired as an {@linkplain lib.minecraft.renderer.asset.Block.Entity#additive() additive}
+            // Wired as an {@code additive}
             // mapping so the bar+post primary geometry from the four bell variant blocks
             // ({@code bell_floor}, {@code bell_ceiling}, {@code bell_wall}, {@code bell_between_walls})
             // is preserved and the bell cup is layered on top at render time.
@@ -1307,7 +1309,7 @@ public final class ToolingBlockEntities {
         // {@link TintDiscovery} respectively. The block-level constants below are kept as a
         // diff-friendly reference of the 26.1 shapes, but are not evaluated at runtime.
         /*
-        private static final @NotNull java.util.Set<String> TINTED_MODEL_IDS = java.util.Set.of(
+        private static final @NotNull Set<String> TINTED_MODEL_IDS = Set.of(
             "minecraft:banner_flag",
             "minecraft:wall_banner_flag"
         );

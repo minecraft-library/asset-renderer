@@ -18,6 +18,7 @@ import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
+import java.lang.invoke.LambdaMetafactory;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -309,7 +310,7 @@ public final class SourceDiscovery {
 
     /**
      * Resolves an {@code INVOKEDYNAMIC} built via
-     * {@code java.lang.invoke.LambdaMetafactory.metafactory} to the internal name of the
+     * {@link LambdaMetafactory#metafactory} to the internal name of the
      * renderer class the lambda produces. Handles both the direct constructor reference pattern
      * ({@code tag=8 Renderer.<init>}) and the synthetic lambda wrapper pattern
      * ({@code tag=6 lambda$static$N}, whose body {@code NEW}s the renderer).

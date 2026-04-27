@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -90,7 +91,7 @@ public class BlockStateLoader {
                     if (!parsed.parts().isEmpty())
                         multiparts.put(blockId, parsed);
                 }
-            } catch (IOException | com.google.gson.JsonSyntaxException ex) {
+            } catch (IOException | JsonSyntaxException ex) {
                 // Skip malformed blockstate files
             }
         });

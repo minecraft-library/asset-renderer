@@ -2,6 +2,7 @@ package lib.minecraft.renderer;
 
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
+import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.model.EntityModelData;
@@ -19,6 +20,8 @@ import lib.minecraft.renderer.options.EntityOptions;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Optional;
 
 /**
@@ -26,7 +29,7 @@ import java.util.Optional;
  * Resolves the entity definition from the {@link RendererContext} by id, loads its texture
  * through the active pack stack, and rasterizes through {@link IsometricEngine} at the standard
  * {@code [30, 225, 0]} block-icon pose so entity and block icons compose consistently. Callers
- * who want to reorient the model supply {@link lib.minecraft.renderer.options.EntityOptions#getRotation()
+ * who want to reorient the model supply {@link EntityOptions#getRotation()
  * EntityOptions.rotation} as the user-override layer on top of the baked iso camera.
  */
 @RequiredArgsConstructor
@@ -153,9 +156,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         int[] out = new int[src.length];
         for (int i = 0; i < src.length; i++) {
             int p = src[i];
-            int a = dev.simplified.image.pixel.ColorMath.alpha(p);
+            int a = ColorMath.alpha(p);
             out[i] = (a > 0 && a < 255)
-                ? dev.simplified.image.pixel.ColorMath.withAlpha(p, 255)
+                ? ColorMath.withAlpha(p, 255)
                 : p;
         }
         return PixelBuffer.of(out, w, h);
@@ -169,12 +172,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     private static @NotNull Optional<PixelBuffer> loadBundledEntityTexture(@NotNull String ref) {
         String path = "/lib/minecraft/renderer/entity_textures/" + ref + ".png";
-        try (java.io.InputStream stream = EntityRenderer.class.getResourceAsStream(path)) {
+        try (InputStream stream = EntityRenderer.class.getResourceAsStream(path)) {
             if (stream == null) return Optional.empty();
             java.awt.image.BufferedImage img = javax.imageio.ImageIO.read(stream);
             if (img == null) return Optional.empty();
             return Optional.of(PixelBuffer.wrap(img));
-        } catch (java.io.IOException ex) {
+        } catch (IOException ex) {
             return Optional.empty();
         }
     }

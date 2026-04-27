@@ -9,12 +9,14 @@ import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.geometry.Biome;
 import lib.minecraft.renderer.options.BlockOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockEntityLoader;
+import dev.simplified.image.pixel.ColorMath;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -179,7 +181,7 @@ public class Block {
      * @param textureId entity texture id bound to the {@code "#entity"} texture variable, e.g.
      *     {@code "minecraft:entity/bed/red"}
      * @param tintArgb ARGB tint multiplied against every sampled texel - used for per-dye banner
-     *     colouring; {@link dev.simplified.image.pixel.ColorMath#WHITE} for no tint
+     *     colouring; {@link ColorMath#WHITE} for no tint
      * @param iconRotation Y-axis rotation in degrees applied only to the atlas icon (beds use 90°
      *     to angle the headboard toward the camera)
      * @param multiBlock {@code true} when the geometry extends outside the {@code 0..16} block
@@ -242,12 +244,12 @@ public class Block {
                 return Objects.equals(this.modelId, part.modelId)
                     && Objects.equals(this.model, part.model)
                     && Objects.equals(this.texture, part.texture)
-                    && java.util.Arrays.equals(this.offset, part.offset);
+                    && Arrays.equals(this.offset, part.offset);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(this.modelId, this.model, this.texture, java.util.Arrays.hashCode(this.offset));
+                return Objects.hash(this.modelId, this.model, this.texture, Arrays.hashCode(this.offset));
             }
 
         }

@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.support;
 
+import lib.minecraft.text.font.MinecraftFont;
 import lib.minecraft.text.tooling.ToolingFonts;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.Extension;
@@ -14,7 +15,7 @@ import java.util.stream.Stream;
 
 /**
  * JUnit 5 {@link Extension} that pre-warms the Minecraft OTF fonts before any annotated test
- * class touches {@link lib.minecraft.text.font.MinecraftFont}. Invokes {@link ToolingFonts}
+ * class touches {@link MinecraftFont}. Invokes {@link ToolingFonts}
  * exactly once per test JVM and materialises the produced {@code .otf} files into
  * {@code build/resources/test/fonts/}, which is already on the test classpath - the classloader
  * picks them up on the next {@code getResourceAsStream} call, so {@code MinecraftFont.<clinit>}

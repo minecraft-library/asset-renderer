@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -47,8 +48,8 @@ public class ModelElement {
         if (o == null || getClass() != o.getClass()) return false;
         ModelElement that = (ModelElement) o;
         return shade == that.shade
-            && java.util.Arrays.equals(from, that.from)
-            && java.util.Arrays.equals(to, that.to)
+            && Arrays.equals(from, that.from)
+            && Arrays.equals(to, that.to)
             && Objects.equals(faces, that.faces)
             && Objects.equals(rotation, that.rotation);
     }
@@ -56,8 +57,8 @@ public class ModelElement {
     @Override
     public int hashCode() {
         int result = Objects.hash(faces, rotation, shade);
-        result = 31 * result + java.util.Arrays.hashCode(from);
-        result = 31 * result + java.util.Arrays.hashCode(to);
+        result = 31 * result + Arrays.hashCode(from);
+        result = 31 * result + Arrays.hashCode(to);
         return result;
     }
 
@@ -84,13 +85,13 @@ public class ModelElement {
             return Float.compare(angle, that.angle) == 0
                 && rescale == that.rescale
                 && Objects.equals(axis, that.axis)
-                && java.util.Arrays.equals(origin, that.origin);
+                && Arrays.equals(origin, that.origin);
         }
 
         @Override
         public int hashCode() {
             int result = Objects.hash(axis, angle, rescale);
-            result = 31 * result + java.util.Arrays.hashCode(origin);
+            result = 31 * result + Arrays.hashCode(origin);
             return result;
         }
 

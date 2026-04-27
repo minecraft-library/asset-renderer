@@ -12,6 +12,7 @@ import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
 import java.util.List;
@@ -317,7 +318,7 @@ public class ModelEngine extends TextureEngine {
      * Extracted as a static helper so Pass 1 can run as a pure parallel map: the function has
      * no shared state beyond the read-only {@code transform} and {@code perspective} inputs.
      */
-    private static @org.jetbrains.annotations.Nullable Projected projectTriangle(
+    private static @Nullable Projected projectTriangle(
         @NotNull VisibleTriangle triangle,
         @NotNull Matrix4f transform,
         float scale,

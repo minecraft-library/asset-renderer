@@ -3,6 +3,7 @@ package lib.minecraft.renderer.pipeline.loader;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -62,7 +63,7 @@ public class BlockTagLoader {
                         for (int i = 0; i < values.size(); i++)
                             entries.add(values.get(i).getAsString());
                         raw.put(tagId, entries);
-                    } catch (IOException | com.google.gson.JsonSyntaxException ex) {
+                    } catch (IOException | JsonSyntaxException ex) {
                         // Skip malformed tag files
                     }
                 });

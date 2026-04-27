@@ -33,7 +33,12 @@ import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -299,8 +304,8 @@ public final class PipelineRendererContext implements RendererContext {
         ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap = result.getBlockStates();
         ConcurrentMap<String, Block.Multipart> multipartMap = result.getBlockMultiparts();
 
-        Set<String> blockstateOnlyIds = new java.util.HashSet<>();
-        java.util.Set<String> candidateBlockstateIds = new java.util.LinkedHashSet<>();
+        Set<String> blockstateOnlyIds = new HashSet<>();
+        Set<String> candidateBlockstateIds = new LinkedHashSet<>();
         candidateBlockstateIds.addAll(variantMap.keySet());
         candidateBlockstateIds.addAll(multipartMap.keySet());
         for (String blockId : candidateBlockstateIds) {
@@ -378,14 +383,14 @@ public final class PipelineRendererContext implements RendererContext {
         @NotNull ConcurrentMap<String, Item> itemIndex
     ) {
         int removedBlocks = 0;
-        for (String blockId : new java.util.ArrayList<>(blockIndex.keySet())) {
+        for (String blockId : new ArrayList<>(blockIndex.keySet())) {
             if (isParentOrTemplateBlockId(blockId)) {
                 blockIndex.remove(blockId);
                 removedBlocks++;
             }
         }
         int removedItems = 0;
-        for (String itemId : new java.util.ArrayList<>(itemIndex.keySet())) {
+        for (String itemId : new ArrayList<>(itemIndex.keySet())) {
             if (isParentOrTemplateItemId(itemId)) {
                 itemIndex.remove(itemId);
                 removedItems++;
@@ -406,7 +411,7 @@ public final class PipelineRendererContext implements RendererContext {
         ConcurrentMap<String, Entity> entityIndex = Concurrent.newMap();
         for (Map.Entry<String, EntityModelLoader.EntityDefinition> entityEntry : EntityModelLoader.load().entrySet()) {
             EntityModelLoader.EntityDefinition def = entityEntry.getValue();
-            java.util.List<Entity.Layer> overlayLayers = def.overlays().stream()
+            List<Entity.Layer> overlayLayers = def.overlays().stream()
                 .map(o -> new Entity.Layer(o.model(), o.textureRef(), o.emissive()))
                 .toList();
             entityIndex.put(entityEntry.getKey(), new Entity(entityEntry.getKey(), "minecraft", localName(entityEntry.getKey()), def.model(), def.textureRef(), overlayLayers, def.forceOpaque()));
@@ -561,7 +566,7 @@ public final class PipelineRendererContext implements RendererContext {
             return block.getTags()
                 .stream()
                 .filter(this.blockTagIndex::containsKey)
-                .min(java.util.Comparator.comparingInt(tag -> this.blockTagIndex.get(tag).getValues().size()))
+                .min(Comparator.comparingInt(tag -> this.blockTagIndex.get(tag).getValues().size()))
                 .orElse(blockId);
         }
 
@@ -618,7 +623,7 @@ public final class PipelineRendererContext implements RendererContext {
      *     sparse partial renders that add no atlas value.</li>
      * </ul>
      */
-    private static final java.util.Set<String> TEMPLATE_BLOCK_NAMES = java.util.Set.of(
+    private static final Set<String> TEMPLATE_BLOCK_NAMES = Set.of(
         // Parent templates - empty block.json files that concrete blocks inherit from. Kept
         // out of the atlas because they have no own geometry. {@code banner}, {@code bed},
         // {@code skull} stay in this list even after the Block.Entity refactor: they are still
@@ -677,7 +682,7 @@ public final class PipelineRendererContext implements RendererContext {
      * {@link PortalRenderer} through {@link AtlasRenderer}'s
      * {@code PORTAL_BLOCK_IDS} intercept.
      */
-    private static final java.util.Set<String> INVISIBLE_BLOCK_NAMES = java.util.Set.of(
+    private static final Set<String> INVISIBLE_BLOCK_NAMES = Set.of(
         "air", "barrier", "moving_piston", "structure_void"
     );
 
@@ -690,7 +695,7 @@ public final class PipelineRendererContext implements RendererContext {
      * real inventory items - they are the result of vanilla's held-pose predicate dispatch and
      * have no place in a GUI atlas.
      */
-    private static final java.util.Set<String> TEMPLATE_ITEM_NAMES = java.util.Set.of(
+    private static final Set<String> TEMPLATE_ITEM_NAMES = Set.of(
         // Parent item templates - empty item.json files that concrete items inherit from.
         // Kept out of the atlas because they have no own content. Block-entity-item templates
         // ({@code template_bed}, {@code template_chest}, etc.) stay in this list: they are
