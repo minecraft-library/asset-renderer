@@ -198,7 +198,7 @@ public class BlockModelGeometryKit {
             }
 
             // Flat planes (zero thickness on any axis) must disable backface culling so
-            // both sides render — used by brewing stand bottles, banners, item frames, etc.
+            // both sides render - used by brewing stand bottles, banners, item frames, etc.
             boolean twoSided = x0 == x1 || y0 == y1 || z0 == z1;
 
             for (Map.Entry<String, ModelFace> entry : element.getFaces().entrySet()) {

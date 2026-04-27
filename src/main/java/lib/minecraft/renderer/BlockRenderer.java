@@ -569,10 +569,10 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * <p>
          * Applies two distinct behaviours depending on how far the geometry overflows:
          * <ul>
-         * <li><b>Horizontal multi-block (beds):</b> extent &gt; 1.4 — shrinks uniformly to
+         * <li><b>Horizontal multi-block (beds):</b> extent &gt; 1.4 - shrinks uniformly to
          *     1.4 and recenters around the bbox midpoint so both halves fit one tile.</li>
          * <li><b>Slightly tall single-block (decorated_pot rim y=17..20):</b> extent just
-         *     above 1.0 — leaves scale at 1 and skips recentering, so the element keeps
+         *     above 1.0 - leaves scale at 1 and skips recentering, so the element keeps
          *     its authored Y levels and the rim naturally extends above the block top
          *     line just like vanilla's inventory icon. Previously the pot got scaled up
          *     1.12× and shifted down, which stretched the wall→rim gap and broke

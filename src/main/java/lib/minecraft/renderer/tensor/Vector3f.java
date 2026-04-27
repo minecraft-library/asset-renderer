@@ -80,11 +80,7 @@ public record Vector3f(float x, float y, float z) {
         return new Vector3f(this.x / scalar, this.y / scalar, this.z / scalar);
     }
 
-    /**
-     * Returns this vector with all three components negated.
-     *
-     * @return a new negated vector
-     */
+    /** This vector with all three components negated. */
     public @NotNull Vector3f negate() {
         return new Vector3f(-this.x, -this.y, -this.z);
     }
@@ -107,20 +103,15 @@ public record Vector3f(float x, float y, float z) {
         };
     }
 
-    /**
-     * Returns the Euclidean length of this vector.
-     *
-     * @return the length
-     */
+    /** The Euclidean length of this vector. */
     public float length() {
         return (float) Math.sqrt(this.lengthSquared());
     }
 
     /**
-     * Returns the squared Euclidean length of this vector. Cheaper than {@link #length()} when
-     * only magnitude comparisons are needed.
-     *
-     * @return the squared length
+     * The squared Euclidean length of this vector.
+     * <p>
+     * Cheaper than {@link #length()} when only magnitude comparisons are needed.
      */
     public float lengthSquared() {
         return this.x * this.x + this.y * this.y + this.z * this.z;

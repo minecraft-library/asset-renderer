@@ -93,25 +93,22 @@ public interface RendererContext {
     }
 
     /**
-     * Returns every block id this context knows about, in no guaranteed order.
+     * Every block id this context knows about, in no guaranteed order.
      * <p>
      * Used by the bulk-iteration consumers ({@link AtlasRenderer AtlasRenderer},
      * future bulk preview tools) that want to render every available block without going through
      * a separate model registry. The default returns an empty list so individual-lookup callers
      * do not need to override it; production contexts ({@code PipelineRendererContext}) supply
      * the full set.
-     *
-     * @return the list of known block ids
      */
     default @NotNull ConcurrentList<String> knownBlockIds() {
         return Concurrent.newList();
     }
 
     /**
-     * Returns every item id this context knows about, in no guaranteed order. See
-     * {@link #knownBlockIds()} for the contract.
-     *
-     * @return the list of known item ids
+     * Every item id this context knows about, in no guaranteed order.
+     * <p>
+     * See {@link #knownBlockIds()} for the contract.
      */
     default @NotNull ConcurrentList<String> knownItemIds() {
         return Concurrent.newList();
@@ -144,10 +141,9 @@ public interface RendererContext {
     }
 
     /**
-     * Returns every banner pattern the context knows about, in no guaranteed order. Used by
-     * bulk consumers (pattern pickers, preview grids) that want the whole set.
-     *
-     * @return the list of known patterns
+     * Every banner pattern the context knows about, in no guaranteed order.
+     * <p>
+     * Used by bulk consumers (pattern pickers, preview grids) that want the whole set.
      */
     default @NotNull ConcurrentList<BannerPattern> knownBannerPatterns() {
         return Concurrent.newList();

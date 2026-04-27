@@ -120,7 +120,7 @@ public class EntityModelData {
          * bone owns.
          */
         @JsonAdapter(EulerRotation.Adapter.class)
-        @com.google.gson.annotations.SerializedName("bind_pose_rotation")
+        @SerializedName("bind_pose_rotation")
         private @NotNull EulerRotation bindPoseRotation = EulerRotation.NONE;
 
         private @NotNull ConcurrentList<Cube> cubes = Concurrent.newList();
@@ -129,7 +129,7 @@ public class EntityModelData {
          * The parent bone's name, or {@code null} for a root bone. Resolved at render time
          * against the owning {@link EntityModelData}'s bone map to build the transform chain.
          */
-        @com.google.gson.annotations.SerializedName("parent")
+        @SerializedName("parent")
         private @Nullable String parent = null;
 
         /** Convenience constructor for the common case of no parent and no bind pose. */

@@ -37,20 +37,12 @@ public class LayoutOptions {
         this.outputFormat = outputFormat;
     }
 
-    /**
-     * Returns a new builder.
-     *
-     * @return the builder
-     */
+    /** A new builder. */
     public static @NotNull Builder builder() {
         return new Builder();
     }
 
-    /**
-     * Returns the default layout options (a row of nothing at 30 fps).
-     *
-     * @return the default options
-     */
+    /** The default layout options (a row of nothing at 30 fps). */
     public static @NotNull LayoutOptions defaults() {
         return builder().build();
     }

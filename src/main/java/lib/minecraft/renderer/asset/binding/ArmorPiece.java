@@ -11,7 +11,7 @@ import java.util.Optional;
  * @param material the armor material that selects the base texture atlas
  * @param trimColor the trim colour palette for paletted permutation, or empty for no trim
  * @param trimPattern the trim pattern shape for 3D entity rendering, or empty for no trim
- * @param enchanted whether to apply the enchantment glint overlay
+ * @param enchanted whether the piece carries the enchantment glint overlay
  */
 public record ArmorPiece(
     @NotNull ArmorMaterial material,
