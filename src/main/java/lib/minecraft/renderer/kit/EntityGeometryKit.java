@@ -14,6 +14,7 @@ import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
+import lib.minecraft.renderer.tensor.Vector4f;
 import lib.minecraft.renderer.tooling.ToolingEntityModels;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -431,14 +432,17 @@ public class EntityGeometryKit {
         float texHeight
     ) {
         EntityModelData.FaceUv override = cube.getFaceUv().get(face.direction());
-        if (override == null)
-            return face.defaultUv(cube.getUv(), size, texWidth, texHeight, cube.isMirror());
-
-        float u0 = override.getUv()[0];
-        float v0 = override.getUv()[1];
-        float u1 = u0 + override.getUvSize()[0];
-        float v1 = v0 + override.getUvSize()[1];
-        return BlockFace.uvRect(u0, v0, u1, v1, texWidth, texHeight, cube.isMirror());
+        Vector4f rect;
+        if (override == null) {
+            rect = face.defaultUv(cube.getUv(), size);
+        } else {
+            float u0 = override.getUv()[0];
+            float v0 = override.getUv()[1];
+            float u1 = u0 + override.getUvSize()[0];
+            float v1 = v0 + override.getUvSize()[1];
+            rect = new Vector4f(u0, v0, u1, v1);
+        }
+        return rect.toUvCorners(texWidth, texHeight, 0, cube.isMirror());
     }
 
     /**
@@ -494,14 +498,11 @@ public class EntityGeometryKit {
     ) {
         int W = texture.width();
         int H = texture.height();
-        float u0 = Math.min(Math.min(uv[0].x(), uv[1].x()), Math.min(uv[2].x(), uv[3].x())) * W;
-        float v0 = Math.min(Math.min(uv[0].y(), uv[1].y()), Math.min(uv[2].y(), uv[3].y())) * H;
-        float u1 = Math.max(Math.max(uv[0].x(), uv[1].x()), Math.max(uv[2].x(), uv[3].x())) * W;
-        float v1 = Math.max(Math.max(uv[0].y(), uv[1].y()), Math.max(uv[2].y(), uv[3].y())) * H;
-        int x0 = Math.max(0, (int) Math.floor(u0));
-        int y0 = Math.max(0, (int) Math.floor(v0));
-        int x1 = Math.min(W, (int) Math.ceil(u1));
-        int y1 = Math.min(H, (int) Math.ceil(v1));
+        Vector4f bounds = Vector4f.bounds(uv);
+        int x0 = Math.max(0, (int) Math.floor(bounds.x() * W));
+        int y0 = Math.max(0, (int) Math.floor(bounds.y() * H));
+        int x1 = Math.min(W, (int) Math.ceil(bounds.z() * W));
+        int y1 = Math.min(H, (int) Math.ceil(bounds.w() * H));
         for (int y = y0; y < y1; y++) {
             for (int x = x0; x < x1; x++) {
                 if (ColorMath.alpha(texture.getPixel(x, y)) > 0) return true;

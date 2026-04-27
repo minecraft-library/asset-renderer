@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.asset.model;
 
 import com.google.gson.annotations.SerializedName;
+import lib.minecraft.renderer.tensor.Vector4f;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -20,10 +21,11 @@ public class ModelFace {
     private @NotNull String texture = "";
 
     /**
-     * The UV rectangle in 0-16 space: {@code [u0, v0, u1, v1]}. Optional; when absent the face
-     * inherits its UVs from its parent element's projection.
+     * The UV rectangle in 0-16 space, with {@code (x, y)} the min corner and {@code (z, w)} the
+     * max corner. Optional; when absent the face inherits its UVs from its parent element's
+     * projection.
      */
-    private @NotNull Optional<float[]> uv = Optional.empty();
+    private @NotNull Optional<Vector4f> uv = Optional.empty();
 
     /** The face to cull against. Present for solid block faces that hide behind neighbors. */
     @SerializedName("cullface")

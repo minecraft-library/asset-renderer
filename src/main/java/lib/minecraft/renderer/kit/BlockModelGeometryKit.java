@@ -15,6 +15,7 @@ import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
+import lib.minecraft.renderer.tensor.Vector4f;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -235,39 +236,25 @@ public class BlockModelGeometryKit {
 
     /**
      * Resolves the four UV corners (TL, BL, BR, TR) for a face in normalized {@code [0, 1]}
-     * space. When the face supplies an explicit UV rectangle in 0-16 space it is converted
-     * directly; otherwise the UV is delegated to {@link BlockFace#defaultUv}. Face rotation of
-     * {@code 90}/{@code 180}/{@code 270} rotates the corners clockwise via a forward cyclic
-     * shift matching vanilla's {@code Quadrant}-based UV rotation.
+     * space. When the face supplies an explicit UV rectangle in 0-16 space it is used directly;
+     * otherwise the rectangle is delegated to {@link BlockFace#defaultUv}. Face rotation of
+     * {@code 90}/{@code 180}/{@code 270} is applied by
+     * {@link Vector4f#toUvCorners(float, float, int, boolean)} via a forward cyclic shift
+     * matching vanilla's {@code Quadrant}-based UV rotation.
      */
     private static @NotNull Vector2f @NotNull [] resolveFaceUv(
         @NotNull ModelFace face,
         @NotNull BlockFace blockFace,
         @NotNull ModelElement element
     ) {
-        Vector2f[] corners;
-        if (face.getUv().isPresent()) {
-            float[] raw = face.getUv().get();
-            corners = BlockFace.uvCorners(
-                raw[0] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK,
-                raw[1] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK,
-                raw[2] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK,
-                raw[3] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK
-            );
-        } else {
-            corners = blockFace.defaultUv(Box.of(element.getFrom(), element.getTo()));
-        }
-
-        int rotation = ((face.getRotation() % 360) + 360) % 360;
-        int shifts = rotation / 90;
-        for (int i = 0; i < shifts; i++) {
-            Vector2f first = corners[0];
-            corners[0] = corners[1];
-            corners[1] = corners[2];
-            corners[2] = corners[3];
-            corners[3] = first;
-        }
-        return corners;
+        Vector4f rect = face.getUv()
+            .orElseGet(() -> blockFace.defaultUv(Box.of(element.getFrom(), element.getTo())));
+        return rect.toUvCorners(
+            ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK,
+            ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK,
+            face.getRotation(),
+            false
+        );
     }
 
     /**

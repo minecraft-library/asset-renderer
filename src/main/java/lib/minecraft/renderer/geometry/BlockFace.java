@@ -4,6 +4,7 @@ import lib.minecraft.renderer.kit.BlockModelGeometryKit;
 import lib.minecraft.renderer.kit.EntityGeometryKit;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
+import lib.minecraft.renderer.tensor.Vector4f;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -37,7 +38,7 @@ import java.util.Locale;
  * <li>{@link BlockLayout} feeds {@link #defaultUv(Box)} for Java block-model and held-item
  *     rendering, where every face samples its own texture from the cross-section of the
  *     element bounds.</li>
- * <li>{@link EntityLayout} feeds {@link #defaultUv(int[], float[], float, float, boolean)} for
+ * <li>{@link EntityLayout} feeds {@link #defaultUv(int[], float[])} for
  *     Bedrock entity-cube rendering, where all six faces share one skin image laid out in a
  *     standard strip.</li>
  * </ul>
@@ -137,19 +138,22 @@ public enum BlockFace {
     }
 
     /**
-     * Returns the four default UV corners (TL, BL, BR, TR) for this face in normalized
-     * {@code [0, 1]} space, derived from the element bounds using vanilla's block-model
-     * projection formulas (see {@code FaceBakery.defaultFaceUV}).
+     * Returns the default UV rectangle for this face in pixel space ({@code [0, 16]}), derived
+     * from the element bounds using vanilla's block-model projection formulas (see
+     * {@code FaceBakery.defaultFaceUV}).
      * <p>
      * Block model elements reference an independent texture per face (via their {@code #var}
      * bindings), so every face samples the full {@code [0, 16]} UV rectangle projected onto its
      * cross-section. This overload is used by the block and held-item rendering paths and reads
-     * from {@link BlockLayout}.
+     * from {@link BlockLayout}. Callers compose
+     * {@link Vector4f#toUvCorners(float, float, int, boolean)} with
+     * {@link ModelGrid#VANILLA_PIXEL_UNITS_PER_BLOCK} on the result to obtain normalized
+     * per-vertex corners.
      *
      * @param element the element bounds in 0-16 space
-     * @return the four UV corners, ordered TL, BL, BR, TR
+     * @return the UV rectangle as {@code (uMin, vMin, uMax, vMax)} in 0-16 space
      */
-    public @NotNull Vector2f @NotNull [] defaultUv(@NotNull Box element) {
+    public @NotNull Vector4f defaultUv(@NotNull Box element) {
         int uAxis = this.blockLayout.widthAxis();
         int vAxis = this.blockLayout.heightAxis();
         float fromU = axisComponent(element, uAxis, false);
@@ -160,7 +164,7 @@ public enum BlockFace {
         float u1 = this.blockLayout.uInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - fromU : toU;
         float v0 = this.blockLayout.vInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - toV : fromV;
         float v1 = this.blockLayout.vInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - fromV : toV;
-        return uvRect(u0, v0, u1, v1, ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK, ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK, false);
+        return new Vector4f(u0, v0, u1, v1);
     }
 
     private static float axisComponent(@NotNull Box box, int axis, boolean max) {
@@ -172,9 +176,9 @@ public enum BlockFace {
     }
 
     /**
-     * Returns the four default UV corners (TL, BL, BR, TR) for this face in normalized
-     * {@code [0, 1]} space, using the <b>Bedrock Edition {@code geo.json}</b> entity-cube atlas
-     * unwrap where all six faces of a single cube share one texture image.
+     * Returns the default UV rectangle for this face in pixel space, using the <b>Bedrock
+     * Edition {@code geo.json}</b> entity-cube atlas unwrap where all six faces of a single cube
+     * share one texture image.
      * <p>
      * Bedrock lays out the strip with top and bottom in a first row sized {@code sx x sz}, then
      * east, north, west, south in a second row sized {@code sz, sx, sz, sx} wide by {@code sy}
@@ -194,10 +198,13 @@ public enum BlockFace {
      * or the face's own height.
      * <p>
      * Used by entity cube rendering (via {@link EntityGeometryKit}) where one skin image
-     * supplies every face of a body part. Java block elements use the {@link #defaultUv(Box)}
-     * overload instead - crossing the two sends front-face pixels to the back face and mirrors
-     * right-face pixels onto the left, which is immediately visible on asymmetric textures
-     * (cow udder, zombie face, pig snout, villager nose).
+     * supplies every face of a body part. Callers compose
+     * {@link Vector4f#toUvCorners(float, float, int, boolean)} with the texture dimensions and
+     * the cube's {@code mirror} flag on the result to obtain normalized per-vertex corners.
+     * Java block elements use the {@link #defaultUv(Box)} overload instead - crossing the two
+     * sends front-face pixels to the back face and mirrors right-face pixels onto the left,
+     * which is immediately visible on asymmetric textures (cow udder, zombie face, pig snout,
+     * villager nose).
      * <p>
      * <b>Note:</b> Java Edition's {@code ModelPart$Cube} uses a third strip order that isn't
      * expressible via the same axis coefficients. That layout is owned by
@@ -206,18 +213,9 @@ public enum BlockFace {
      *
      * @param uv the cube's texture origin in pixels on the source image ({@code [u, v]})
      * @param size the cube's extent along each axis in model units ({@code [sx, sy, sz]})
-     * @param texWidth the total texture width in pixels
-     * @param texHeight the total texture height in pixels
-     * @param mirror whether to mirror the U axis (classic MCBE cube {@code mirror} flag)
-     * @return the four UV corners, ordered TL, BL, BR, TR
+     * @return the UV rectangle as {@code (uMin, vMin, uMax, vMax)} in pixel space
      */
-    public @NotNull Vector2f @NotNull [] defaultUv(
-        int @NotNull [] uv,
-        float @NotNull [] size,
-        float texWidth,
-        float texHeight,
-        boolean mirror
-    ) {
+    public @NotNull Vector4f defaultUv(int @NotNull [] uv, float @NotNull [] size) {
         float sx = size[0];
         float sz = size[2];
         float uOff = this.entityLayout.atlasUSxCoef() * sx + this.entityLayout.atlasUSzCoef() * sz;
@@ -228,60 +226,7 @@ public enum BlockFace {
         float v0 = uv[1] + vOff;
         float v1 = v0 + size[this.entityLayout.heightAxis()];
 
-        return uvRect(u0, v0, u1, v1, texWidth, texHeight, mirror);
-    }
-
-    /**
-     * Normalizes a raw pixel-space UV rectangle {@code (u0, v0) - (u1, v1)} into {@code [0, 1]}
-     * space and wraps the result as four corner vectors. When {@code mirror} is {@code true}
-     * the U axis is reversed by swapping the left and right corners, matching the classic MCBE
-     * cube mirror flag.
-     * <p>
-     * Used by both {@link #defaultUv defaultUv} overloads and by callers that have an explicit
-     * pixel-space UV rectangle from a per-face override (e.g. Bedrock 1.12+ {@code cube.uv}
-     * object form).
-     *
-     * @param u0 the rectangle's minimum U in pixels
-     * @param v0 the rectangle's minimum V in pixels
-     * @param u1 the rectangle's maximum U in pixels
-     * @param v1 the rectangle's maximum V in pixels
-     * @param uScale the total texture width in pixels
-     * @param vScale the total texture height in pixels
-     * @param mirror whether to mirror the U axis
-     * @return the four UV corners, ordered TL, BL, BR, TR
-     */
-    public static @NotNull Vector2f @NotNull [] uvRect(
-        float u0, float v0, float u1, float v1,
-        float uScale, float vScale,
-        boolean mirror
-    ) {
-        float nu0 = u0 / uScale;
-        float nv0 = v0 / vScale;
-        float nu1 = u1 / uScale;
-        float nv1 = v1 / vScale;
-        if (mirror)
-            return uvCorners(nu1, nv0, nu0, nv1);
-        return uvCorners(nu0, nv0, nu1, nv1);
-    }
-
-    /**
-     * Builds four UV corners (TL, BL, BR, TR) from a UV rectangle already in normalized
-     * {@code [0, 1]} space, matching vanilla's vertex-to-UV assignment order. Shared by the
-     * derivation paths above and by callers that have explicit UVs to convert.
-     *
-     * @param u0 the minimum U
-     * @param v0 the minimum V
-     * @param u1 the maximum U
-     * @param v1 the maximum V
-     * @return the four UV corners, ordered TL, BL, BR, TR
-     */
-    public static @NotNull Vector2f @NotNull [] uvCorners(float u0, float v0, float u1, float v1) {
-        return new Vector2f[]{
-            new Vector2f(u0, v0),
-            new Vector2f(u0, v1),
-            new Vector2f(u1, v1),
-            new Vector2f(u1, v0)
-        };
+        return new Vector4f(u0, v0, u1, v1);
     }
 
     /**
@@ -349,7 +294,7 @@ public enum BlockFace {
     ) {}
 
     /**
-     * Per-face data used by {@link #defaultUv(int[], float[], float, float, boolean)} for
+     * Per-face data used by {@link #defaultUv(int[], float[])} for
      * Bedrock entity-cube atlas unwrap. Self-contained - the entity-atlas overload never
      * touches {@link BlockLayout}.
      * <ul>

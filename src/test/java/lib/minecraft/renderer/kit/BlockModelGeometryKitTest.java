@@ -7,6 +7,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
+import lib.minecraft.renderer.tensor.Vector4f;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -137,7 +138,7 @@ class BlockModelGeometryKitTest {
             ModelFace face = new ModelFace();
             setField(face, "texture", texture);
             if (uv != null)
-                setField(face, "uv", Optional.of(uv));
+                setField(face, "uv", Optional.of(new Vector4f(uv[0], uv[1], uv[2], uv[3])));
             if (rotation != 0)
                 setField(face, "rotation", rotation);
             return face;

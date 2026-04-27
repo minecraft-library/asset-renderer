@@ -13,6 +13,7 @@ import lib.minecraft.renderer.pipeline.client.ClientJarDownloader;
 import lib.minecraft.renderer.pipeline.client.HttpFetcher;
 import lib.minecraft.renderer.pipeline.loader.BlockEntityLoader;
 import lib.minecraft.renderer.tensor.Vector3f;
+import lib.minecraft.renderer.tensor.Vector4f;
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.blockentity.BlockListDiscovery;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
@@ -1590,16 +1591,17 @@ public final class ToolingBlockEntities {
             // wraps past the texture edge (SOUTH formula gives u1 = u + 2w, which lands beyond
             // the 0..16 block-UV range for anything wider than half the texture). Skip those
             // out-of-bounds faces so we don't spray garbage texels onto the back of panels.
-            if (uvRect.u0 < -0.01f || uvRect.u1 < -0.01f || uvRect.u0 > 16.01f || uvRect.u1 > 16.01f
-                || uvRect.v0 < -0.01f || uvRect.v1 < -0.01f || uvRect.v0 > 16.01f || uvRect.v1 > 16.01f)
+            Vector4f bounds = uvRect.bounds();
+            if (bounds.x() < -0.01f || bounds.z() < -0.01f || bounds.x() > 16.01f || bounds.z() > 16.01f
+                || bounds.y() < -0.01f || bounds.w() < -0.01f || bounds.y() > 16.01f || bounds.w() > 16.01f)
                 return;
 
             JsonObject blockFace = new JsonObject();
             blockFace.addProperty("texture", "#entity");
             JsonArray uvArr = new JsonArray();
-            uvArr.add(round2(uvRect.u0)); uvArr.add(round2(uvRect.v0)); uvArr.add(round2(uvRect.u1)); uvArr.add(round2(uvRect.v1));
+            uvArr.add(round2(bounds.x())); uvArr.add(round2(bounds.y())); uvArr.add(round2(bounds.z())); uvArr.add(round2(bounds.w()));
             blockFace.add("uv", uvArr);
-            if (uvRect.rotation != 0) blockFace.addProperty("rotation", uvRect.rotation);
+            if (uvRect.rotation() != 0) blockFace.addProperty("rotation", uvRect.rotation());
             if (emitTintIndex) blockFace.addProperty("tintindex", 0);
             facesOut.add(BlockFace.values()[blockFaceIdx].direction(), blockFace);
         }
@@ -1621,9 +1623,9 @@ public final class ToolingBlockEntities {
                 float[] trOld = blockCornerUv[(3 - r + 4) % 4];
                 if (approxEqual(tlOld[0], blOld[0]) && approxEqual(trOld[0], brOld[0])
                     && approxEqual(tlOld[1], trOld[1]) && approxEqual(blOld[1], brOld[1]))
-                    return new UvRect(tlOld[0], tlOld[1], brOld[0], brOld[1], r * 90);
+                    return new UvRect(new Vector4f(tlOld[0], tlOld[1], brOld[0], brOld[1]), r * 90);
             }
-            return new UvRect(0, 0, 0, 0, 0);
+            return new UvRect(Vector4f.ZERO, 0);
         }
 
         /** Returns the index (0=TL, 1=BL, 2=BR, 3=TR) of {@code blockFaceCorners} closest to {@code position}. */
@@ -1935,7 +1937,7 @@ public final class ToolingBlockEntities {
         private record EntityFace(int @NotNull [] vertexIndices, float u0, float v0, float u1, float v1) {}
 
         /** The resolved UV rectangle plus a rotation tag from per-corner UV sampling. */
-        private record UvRect(float u0, float v0, float u1, float v1, int rotation) {}
+        private record UvRect(@NotNull Vector4f bounds, int rotation) {}
 
     }
 
