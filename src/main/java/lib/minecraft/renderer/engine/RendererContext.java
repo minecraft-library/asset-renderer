@@ -18,13 +18,16 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Optional;
 
 /**
- * Ambient state supplied to every {@link TextureEngine} instance, abstracting the renderer's view
- * of the active texture packs, biome colormaps, and model repositories without coupling the
- * engine layer to the pipeline layer.
+ * Ambient state supplied to renderers and the {@link TextureEngine}, abstracting the renderer's
+ * view of active texture packs, biome colormaps, model repositories, and other lookup-side state
+ * without coupling consumers to a specific pipeline implementation.
  * <p>
- * The production implementation is {@code dev.sbs.renderer.pipeline.PipelineRendererContext},
- * built once at bootstrap from an {@code AssetPipeline.Result}; tests and in-memory callers can
- * supply lightweight stub implementations directly.
+ * The production implementation is
+ * {@link lib.minecraft.renderer.pipeline.PipelineRendererContext PipelineRendererContext}, built
+ * once at bootstrap from an {@code AssetPipeline.Result}; tests and in-memory callers can supply
+ * lightweight stub implementations directly. Lookup methods return {@link Optional} so missing
+ * keys don't surprise the caller; bulk-iteration accessors return empty defaults so individual
+ * stubs only need to override what they care about.
  */
 public interface RendererContext {
 
@@ -154,14 +157,13 @@ public interface RendererContext {
      * Looks up the block-entity metadata for a block id. Returns the {@link Block.Entity} carrying
      * the extracted geometry (from {@code tile_entity_models.json}), entity texture binding, icon
      * rotation, multi-block flag, per-entry tint, and atlas-time composition parts used by
-     * {@link BlockRenderer BlockRenderer} for blocks whose vanilla rendering is
-     * hardcoded in tile-entity renderers (banners, beds, chests, shulker boxes, signs, skulls,
-     * conduit, decorated_pot, etc.).
+     * {@link BlockRenderer BlockRenderer} for blocks whose vanilla rendering is hardcoded in
+     * tile-entity renderers (banners, beds, chests, shulker boxes, signs, skulls, conduit,
+     * decorated_pot, etc.).
      * <p>
-     * Equivalent to {@code findBlock(blockId).flatMap(Block::getEntity)} once step 4 of the
-     * refactor drops the synthetic-Block injection. Kept as a first-class lookup so atlas
-     * rendering and context wrappers like {@code StaticTextureContext} can forward a single
-     * method call without chaining through {@link Block}.
+     * Kept as a first-class lookup so atlas rendering and context wrappers like
+     * {@code StaticTextureContext} can forward a single method call without chaining through
+     * {@link Block}.
      *
      * @param blockId the block id
      * @return the entity metadata, or empty when the block has no block-entity mapping

@@ -47,9 +47,6 @@ import java.util.Optional;
  * At runtime the loader joins them back together - each entity's {@code geometry_ref} is
  * resolved against the geometry file, overlaid with any override row, and packaged into a
  * combined {@link EntityDefinition}, so callers see the same API as before the split.
- * <p>
- * Callers can register additional entities at runtime via
- * {@link PipelineRendererContext#registerEntity(String, EntityModelData, Optional)}.
  *
  * @see ToolingEntityModels.Parser
  * @see PipelineRendererContext

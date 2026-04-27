@@ -60,6 +60,13 @@ public class Block {
      */
     private @NotNull Optional<Entity> entity = Optional.empty();
 
+    /**
+     * Where this block's registration originated. Used by atlas tile classification to label the
+     * source path (block-model file, blockstate-only fallback, or block-entity geometry override)
+     * without forcing consumers to type-check the {@link RendererContext} implementation.
+     */
+    private @NotNull Source source = Source.PRIMARY;
+
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
@@ -73,12 +80,37 @@ public class Block {
             && Objects.equals(this.getMultipart(), block.getMultipart())
             && Objects.equals(this.getTags(), block.getTags())
             && Objects.equals(this.getTint(), block.getTint())
-            && Objects.equals(this.getEntity(), block.getEntity());
+            && Objects.equals(this.getEntity(), block.getEntity())
+            && this.getSource() == block.getSource();
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.getId(), this.getNamespace(), this.getName(), this.getModel(), this.getTextures(), this.getVariants(), this.getMultipart(), this.getTags(), this.getTint(), this.getEntity());
+        return Objects.hash(this.getId(), this.getNamespace(), this.getName(), this.getModel(), this.getTextures(), this.getVariants(), this.getMultipart(), this.getTags(), this.getTint(), this.getEntity(), this.getSource());
+    }
+
+    /**
+     * The provenance of a {@link Block}'s registration. Drives atlas tile classification and any
+     * future caller that needs to know how the block reached the {@link RendererContext}.
+     */
+    public enum Source {
+
+        /** Registered from a primary {@code block/<id>.json} model file. */
+        PRIMARY,
+
+        /**
+         * Registered via the blockstate-only fallback path - the blockstate definition exists but
+         * no matching block-model file was found, so the model is resolved through the first
+         * variant or multipart entry instead.
+         */
+        BLOCKSTATE_ONLY,
+
+        /**
+         * Geometry is sourced from a vanilla {@code BlockEntityRenderer} (beds, chests, banners,
+         * shulkers, signs, skulls, conduit, decorated_pot, etc.) rather than a model file.
+         */
+        TILE_ENTITY
+
     }
 
     /**

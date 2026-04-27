@@ -8,7 +8,6 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.binding.BannerPattern;
 import lib.minecraft.renderer.asset.model.BlockModelData;
-import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.ItemModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
@@ -30,7 +29,6 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.pixel.PixelBuffer;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
@@ -42,11 +40,15 @@ import java.util.Set;
 /**
  * A {@link RendererContext} backed by a single {@link AssetPipeline.Result}.
  * <p>
- * The factory method materialises every parsed {@link BlockModelData} and {@link ItemModelData}
- * entry into a corresponding {@link Block} / {@link Item} entity eagerly, keyed by the derived
- * namespaced id ({@code minecraft:block/grass_block} - &gt; {@code minecraft:grass_block}). Texture
- * pixels are loaded lazily from disk on first {@link #resolveTexture(String)} call and memoised
- * in a per-context cache so repeated lookups stay cheap.
+ * Construction goes through {@link #of(AssetPipeline.Result)}, which materialises every parsed
+ * {@link BlockModelData} and {@link ItemModelData} entry into a {@link Block} / {@link Item} DTO
+ * eagerly, keyed by the derived namespaced id ({@code minecraft:block/grass_block} - &gt;
+ * {@code minecraft:grass_block}). Each block carries a {@link Block.Source} tag identifying the
+ * registration path that produced it ({@link Block.Source#PRIMARY},
+ * {@link Block.Source#BLOCKSTATE_ONLY}, or {@link Block.Source#TILE_ENTITY}) so atlas tile
+ * classification and similar consumers don't need to type-check the context implementation.
+ * Texture pixels stay on disk until the first {@link #resolveTexture(String)} call and are
+ * memoised in a per-context cache.
  * <p>
  * Block face bindings are flattened eagerly: the first element's face map is walked, each face's
  * {@code #variable} reference is dereferenced against the model's texture variable map, and the
@@ -56,12 +58,16 @@ import java.util.Set;
  * {@code all} / {@code side} / {@code particle} fallback chain.
  * <p>
  * Biome colormaps and the {@link Biome.TintTarget} of every known vanilla tinted block are wired
- * through to render time: {@link ToolingColorMaps.Parser} loads {@code grass.png}, {@code foliage.png},
- * and {@code dry_foliage.png} into {@link ColorMap} entities, and {@link BlockTintsLoader}
- * supplies the {@code minecraft:grass_block} - to - {@code GRASS} (etc.) mapping verified against
- * the bytecode of {@code BlockColors$createDefault} in the 26.1 client jar. Entity definitions
- * are still empty - {@link #findEntity(String)} returns {@link Optional#empty()} until a future
- * pipeline phase ships an entity loader.
+ * through to render time: {@link ToolingColorMaps.Parser} loads {@code grass.png},
+ * {@code foliage.png}, and {@code dry_foliage.png} into {@link ColorMap} entities, and
+ * {@link BlockTintsLoader} supplies the {@code minecraft:grass_block} - to - {@code GRASS} (etc.)
+ * mapping verified against the bytecode of {@code BlockColors$createDefault} in the 26.1 client
+ * jar. Entities come from {@link EntityModelLoader#load()} keyed by namespaced id.
+ * <p>
+ * Every stored index is wrapped through {@link ConcurrentMap#toUnmodifiable()} after
+ * construction; the read paths bypass the source map's read lock since the unmodifiable wrapper
+ * is itself thread-safe by virtue of being immutable. The lazy {@code textureCache} is the only
+ * mutable map on the context.
  */
 @RequiredArgsConstructor
 public final class PipelineRendererContext implements RendererContext {
@@ -76,15 +82,6 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull ConcurrentMap<String, BlockTag> blockTagIndex;
     private final @NotNull ConcurrentMap<String, Integer> potionEffectColors;
     private final @NotNull ConcurrentMap<String, BannerPattern> bannerPatterns;
-    /**
-     * Block ids that were registered via the blockstate-only fallback path (Task 10) rather than
-     * the primary block-model iteration. Exposed so downstream diagnostics can tag tiles by
-     * registration source.
-     */
-    @Getter
-    private final @NotNull Set<String> blockstateOnlyIds;
-    /** Block entity metadata for multi-block centering and icon rotation at render time. */
-    @Getter
     private final @NotNull ConcurrentMap<String, Block.Entity> blockEntityEntries;
     private final @NotNull ImageFactory imageFactory = new ImageFactory();
     private final @NotNull ConcurrentMap<String, PixelBuffer> textureCache = Concurrent.newMap();
@@ -103,19 +100,88 @@ public final class PipelineRendererContext implements RendererContext {
         ConcurrentList<TexturePack> packs = Concurrent.newList();
         packs.add(result.getVanillaPack());
 
-        ConcurrentMap<String, Block.Tint> tints = result.getBlockTints();
-        ConcurrentMap<String, String> itemDefs = result.getItemDefinitions();
-        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap = result.getBlockStates();
-        ConcurrentMap<String, Block.Multipart> multipartMap = result.getBlockMultiparts();
         ConcurrentMap<String, Block.Entity> blockEntityEntries = BlockEntityLoader.load();
+        ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex = buildReverseTagIndex(result.getBlockTags());
 
-        // Build reverse tag index (tag id → block ids becomes block id → tag names)
-        ConcurrentMap<String, BlockTag> tagMap = result.getBlockTags();
+        ConcurrentMap<String, Block> blockIndex = buildPrimaryBlockIndex(result, blockEntityEntries, reverseTagIndex);
+        attachOrphanBlockEntities(blockIndex, blockEntityEntries, result, reverseTagIndex);
+        Set<String> blockstateOnlyIds = attachBlockstateOnlyBlocks(blockIndex, blockEntityEntries, result, reverseTagIndex);
+        System.out.printf("Atlas blockstate-only registration: added %d blocks%n", blockstateOnlyIds.size());
+
+        ConcurrentMap<String, Item> itemIndex = buildItemIndex(result, blockEntityEntries);
+        dropParentTemplates(blockIndex, itemIndex);
+
+        ConcurrentMap<String, Entity> entityIndex = loadEntityIndex();
+        ConcurrentMap<String, Texture> textureIndex = buildTextureIndex(result);
+        ConcurrentMap<ColorMap.Type, ColorMap> colorMapIndex = buildColorMapIndex(result);
+        Path textureRoot = resolveTextureRoot(result);
+
+        return new PipelineRendererContext(
+            textureRoot,
+            packs.toUnmodifiable(),
+            blockIndex.toUnmodifiable(),
+            itemIndex.toUnmodifiable(),
+            entityIndex.toUnmodifiable(),
+            textureIndex.toUnmodifiable(),
+            colorMapIndex.toUnmodifiable(),
+            result.getBlockTags().toUnmodifiable(),
+            result.getPotionEffectColors().toUnmodifiable(),
+            result.getBannerPatterns().toUnmodifiable(),
+            blockEntityEntries.toUnmodifiable()
+        );
+    }
+
+    /**
+     * Inverts the tag-to-blocks map into a block-to-tags map. The primary {@link AssetPipeline}
+     * keys block tags by tag id with the member block ids as the value list; the renderer wants
+     * the reverse so each block's {@code tags} field can be populated in a single hash lookup
+     * during block index construction.
+     *
+     * @param tagMap tag id keyed to its membership descriptor
+     * @return block id keyed to the tag names that include it
+     */
+    private static @NotNull ConcurrentMap<String, ConcurrentList<String>> buildReverseTagIndex(
+        @NotNull ConcurrentMap<String, BlockTag> tagMap
+    ) {
         ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex = Concurrent.newMap();
         for (Map.Entry<String, BlockTag> tagEntry : tagMap.entrySet()) {
             for (String blockId : tagEntry.getValue().getValues())
                 reverseTagIndex.computeIfAbsent(blockId, k -> Concurrent.newList()).add(tagEntry.getKey());
         }
+        return reverseTagIndex;
+    }
+
+    /**
+     * Builds the primary block index by walking every parsed {@link BlockModelData} entry and
+     * materialising a {@link Block} per id.
+     * <p>
+     * Three subtleties are folded in. <b>Item-def overrides</b>: when the inventory rendering
+     * model differs from the blockstate model (e.g. {@code piston} -&gt; {@code piston_inventory}),
+     * the item-def's model id wins so the atlas tile matches the inventory view. <b>Tile-entity
+     * overrides</b>: non-additive {@link Block.Entity} mappings replace the vanilla block.json
+     * model entirely (the template block.json is usually empty - just a {@code particle} texture
+     * - and the real geometry is hardcoded in a {@code BlockEntityRenderer}). The texture map
+     * rebinds to the entity texture under the {@code "#entity"} face reference, the
+     * {@link Block.Tint} resets to {@link Biome.TintTarget#NONE} (per-entry tints are applied
+     * via {@link Block.Entity#tintArgb()} at render time), and the block is tagged
+     * {@link Block.Source#TILE_ENTITY}. <b>Additive entries</b> (e.g. the bell body) leave the
+     * primary block.json model in place and only attach the entity for the renderer to merge
+     * on top; these stay {@link Block.Source#PRIMARY}.
+     *
+     * @param result the pipeline result supplying block models, tints, item-defs, variants, and multiparts
+     * @param blockEntityEntries the block-entity geometry table from {@link BlockEntityLoader}
+     * @param reverseTagIndex block id -&gt; tag names, from {@link #buildReverseTagIndex}
+     * @return a fresh map keyed by stripped block id
+     */
+    private static @NotNull ConcurrentMap<String, Block> buildPrimaryBlockIndex(
+        @NotNull AssetPipeline.Result result,
+        @NotNull ConcurrentMap<String, Block.Entity> blockEntityEntries,
+        @NotNull ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex
+    ) {
+        ConcurrentMap<String, Block.Tint> tints = result.getBlockTints();
+        ConcurrentMap<String, String> itemDefs = result.getItemDefinitions();
+        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap = result.getBlockStates();
+        ConcurrentMap<String, Block.Multipart> multipartMap = result.getBlockMultiparts();
 
         ConcurrentMap<String, Block> blockIndex = Concurrent.newMap();
         for (Map.Entry<String, BlockModelData> blockEntry : result.getBlockModels().entrySet()) {
@@ -124,8 +190,6 @@ public final class PipelineRendererContext implements RendererContext {
             String blockId = stripPrefix(modelId, ":block/");
             String name = localName(modelId);
 
-            // Use the item definition's model override when the inventory rendering model
-            // differs from the blockstate model (e.g. piston -> piston_inventory).
             BlockModelData modelToUse = model;
             String itemModelRef = itemDefs.get(blockId);
             if (itemModelRef != null && !itemModelRef.equals(modelId)) {
@@ -143,38 +207,44 @@ public final class PipelineRendererContext implements RendererContext {
             Optional<Block.Multipart> multipart = Optional.ofNullable(multipartMap.get(blockId));
             ConcurrentList<String> tags = reverseTagIndex.getOrDefault(blockId, Concurrent.newList());
 
-            // Tile entities (beds, chests, banners, shulkers, signs, etc.) override the
-            // vanilla {@code block.json} model - the template block.json is usually empty
-            // (just a {@code particle} texture) and the real geometry is hardcoded in a
-            // {@code BlockEntityRenderer}. {@link BlockEntityLoader} has extracted that
-            // geometry into {@link Block.Entity#model()} for us; swap it in here and
-            // rebind the texture map to the entity texture via the {@code "#entity"} face
-            // reference. The {@link Block.Tint} goes to {@link Biome.TintTarget#NONE}
-            // because per-entry tints are applied via {@link Block.Entity#tintArgb()} at
-            // render time (see {@link BlockRenderer.Isometric3D}).
-            // <p>
-            // Additive entries (bell body) instead leave the primary block.json model in
-            // place and only attach the entity for {@link BlockRenderer.Isometric3D} to
-            // merge on top at render time.
             Block.Entity entity = blockEntityEntries.get(blockId);
+            Block.Source source = Block.Source.PRIMARY;
             if (entity != null && !entity.additive()) {
                 modelToUse = entity.model();
                 textures = Concurrent.newMap();
                 textures.put("#entity", entity.textureId());
                 tint = new Block.Tint(Biome.TintTarget.NONE, Optional.empty());
+                source = Block.Source.TILE_ENTITY;
             }
 
-            blockIndex.put(blockId, new Block(blockId, "minecraft", name, modelToUse, textures, variants, multipart, tags, tint, Optional.ofNullable(entity)));
+            blockIndex.put(blockId, new Block(blockId, "minecraft", name, modelToUse, textures, variants, multipart, tags, tint, Optional.ofNullable(entity), source));
         }
+        return blockIndex;
+    }
 
-        // Block-entity ids may not appear in the primary block-model loop when their
-        // vanilla {@code block.json} is missing entirely (e.g. some skull variants that
-        // have no template model file). Backstop: for any {@link Block.Entity} not yet
-        // registered above, emit a fresh Block carrying the extracted geometry.
-        // <p>
-        // Additive entries are skipped here - they need a primary model from elsewhere
-        // (the blockstate-only loop below for bells, the primary loop above for blocks
-        // that already had a {@code block/<id>.json}).
+    /**
+     * Backstops the primary block index with synthetic blocks for any non-additive
+     * {@link Block.Entity} whose vanilla {@code block/<id>.json} is missing entirely (some skull
+     * variants ship without a template model file). Each backstop block is tagged
+     * {@link Block.Source#TILE_ENTITY}; additive entries are skipped here because they need a
+     * primary model from elsewhere - either the primary loop (for blocks with a
+     * {@code block/<id>.json}) or {@link #attachBlockstateOnlyBlocks} (for blockstate-only ids
+     * like {@code bell}).
+     *
+     * @param blockIndex the primary index produced by {@link #buildPrimaryBlockIndex}; mutated in place
+     * @param blockEntityEntries the block-entity geometry table from {@link BlockEntityLoader}
+     * @param result the pipeline result supplying variants and multiparts
+     * @param reverseTagIndex block id -&gt; tag names, from {@link #buildReverseTagIndex}
+     */
+    private static void attachOrphanBlockEntities(
+        @NotNull ConcurrentMap<String, Block> blockIndex,
+        @NotNull ConcurrentMap<String, Block.Entity> blockEntityEntries,
+        @NotNull AssetPipeline.Result result,
+        @NotNull ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex
+    ) {
+        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap = result.getBlockStates();
+        ConcurrentMap<String, Block.Multipart> multipartMap = result.getBlockMultiparts();
+
         for (Map.Entry<String, Block.Entity> entry : blockEntityEntries.entrySet()) {
             String blockId = entry.getKey();
             if (blockIndex.containsKey(blockId)) continue;
@@ -191,16 +261,44 @@ public final class PipelineRendererContext implements RendererContext {
                 be.model(), textures,
                 variants, multipart, tags,
                 new Block.Tint(Biome.TintTarget.NONE, Optional.empty()),
-                Optional.of(be)
+                Optional.of(be),
+                Block.Source.TILE_ENTITY
             ));
         }
+    }
 
-        // Task 10: register blockstate-only blocks - ids whose blockstate exists but whose model
-        // file lives under a different name (fence/wall/door inventories, small_dripleaf, etc.).
-        // These are invisible to the primary block-model loop because it keys on model files and
-        // these ids have no matching {@code block/<id>.json}. Resolution precedence is item-def
-        // override first (for correct inventory icons on fences/walls), then the first variant's
-        // model id, then the first multipart part's apply model id. See {@link #resolveBlockStateModel}.
+    /**
+     * Registers the Task-10 blockstate-only fallbacks: ids whose blockstate exists but whose
+     * {@code block/<id>.json} model is absent (fence/wall/door inventories, {@code small_dripleaf},
+     * etc.). The primary block-model loop misses these because it keys on model files; this pass
+     * walks {@code blockStates} + {@code blockMultiparts} keys, skips parent/template ids, and
+     * resolves each remaining id through {@link #resolveBlockStateModel} (item-def override first,
+     * then the first variant's model id - multipart-only blocks deliberately resolve to empty).
+     * <p>
+     * If an id also carries an additive {@link Block.Entity} (e.g. {@code bell}'s bell-cup
+     * overlay) the entity attaches to the resulting block and the source flips to
+     * {@link Block.Source#TILE_ENTITY} so atlas classification matches the entity-bearing path
+     * elsewhere; otherwise the block is tagged {@link Block.Source#BLOCKSTATE_ONLY}.
+     *
+     * @param blockIndex the index from {@link #buildPrimaryBlockIndex} +
+     *     {@link #attachOrphanBlockEntities}; mutated in place
+     * @param blockEntityEntries the block-entity geometry table from {@link BlockEntityLoader}
+     * @param result the pipeline result supplying block models, tints, item-defs, variants, and multiparts
+     * @param reverseTagIndex block id -&gt; tag names, from {@link #buildReverseTagIndex}
+     * @return the set of ids registered through this fallback path (kept by the caller for the
+     *     diagnostic count line)
+     */
+    private static @NotNull Set<String> attachBlockstateOnlyBlocks(
+        @NotNull ConcurrentMap<String, Block> blockIndex,
+        @NotNull ConcurrentMap<String, Block.Entity> blockEntityEntries,
+        @NotNull AssetPipeline.Result result,
+        @NotNull ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex
+    ) {
+        ConcurrentMap<String, Block.Tint> tints = result.getBlockTints();
+        ConcurrentMap<String, String> itemDefs = result.getItemDefinitions();
+        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap = result.getBlockStates();
+        ConcurrentMap<String, Block.Multipart> multipartMap = result.getBlockMultiparts();
+
         Set<String> blockstateOnlyIds = new java.util.HashSet<>();
         java.util.Set<String> candidateBlockstateIds = new java.util.LinkedHashSet<>();
         candidateBlockstateIds.addAll(variantMap.keySet());
@@ -223,40 +321,62 @@ public final class PipelineRendererContext implements RendererContext {
             Optional<Block.Multipart> multipart = Optional.ofNullable(multipartMap.get(blockId));
             ConcurrentList<String> tags = reverseTagIndex.getOrDefault(blockId, Concurrent.newList());
 
-            // Additive entity geometry attaches here so blockstate-driven blocks (bell)
-            // pick up their entity overlay (BellModel bell-cup) at render time.
             Block.Entity additiveEntity = blockEntityEntries.get(blockId);
             Optional<Block.Entity> attachedEntity = additiveEntity != null && additiveEntity.additive()
                 ? Optional.of(additiveEntity) : Optional.empty();
-            blockIndex.put(blockId, new Block(blockId, "minecraft", shortName, modelToUse, textures, variants, multipart, tags, tint, attachedEntity));
+            Block.Source source = attachedEntity.isPresent() ? Block.Source.TILE_ENTITY : Block.Source.BLOCKSTATE_ONLY;
+            blockIndex.put(blockId, new Block(blockId, "minecraft", shortName, modelToUse, textures, variants, multipart, tags, tint, attachedEntity, source));
             blockstateOnlyIds.add(blockId);
         }
-        System.out.printf("Atlas blockstate-only registration: added %d blocks%n", blockstateOnlyIds.size());
+        return blockstateOnlyIds;
+    }
 
+    /**
+     * Builds the item index by walking every parsed {@link ItemModelData} entry. Items whose
+     * matching block carries a {@link Block.Entity} (beds, chests, banners, shulkers, signs,
+     * skulls, conduit, decorated_pot, copper golem statues) are skipped because their vanilla
+     * item models have neither elements nor a {@code layer0} and would render as blank 2D
+     * sprites; those tiles render through the block path instead, as
+     * {@link Block.Source#TILE_ENTITY}. Filtering them out here lets the renderer stay free of
+     * a separate "redirect to block render" bridge.
+     *
+     * @param result the pipeline result supplying item models
+     * @param blockEntityEntries the block-entity geometry table; ids in here are filtered out
+     * @return the populated item index, keyed by stripped item id
+     */
+    private static @NotNull ConcurrentMap<String, Item> buildItemIndex(
+        @NotNull AssetPipeline.Result result,
+        @NotNull ConcurrentMap<String, Block.Entity> blockEntityEntries
+    ) {
         ConcurrentMap<String, Item> itemIndex = Concurrent.newMap();
         for (Map.Entry<String, ItemModelData> itemEntry : result.getItemModels().entrySet()) {
             String modelId = itemEntry.getKey();
             ItemModelData model = itemEntry.getValue();
             String itemId = stripPrefix(modelId, ":item/");
             String name = localName(modelId);
-            // Skip items whose matching block carries a {@link Block.Entity} - beds, chests,
-            // banners, shulkers, signs, skulls, conduit, decorated_pot, copper golem statues.
-            // Their vanilla item models have neither elements nor a layer0 and would render as
-            // blank 2D sprites; the {@link Block.Entity} geometry renders through the block
-            // path as a {@code TILE_ENTITY} atlas tile. Filtering them out here lets us delete
-            // the old {@code ItemRenderer.shouldRedirectToBlockRender} bridge entirely.
             if (blockEntityEntries.containsKey(itemId)) continue;
             ConcurrentMap<String, String> textures = Concurrent.newMap();
             textures.putAll(model.getTextures());
             Optional<Item.Overlay> overlay = OverlayResolver.resolve(itemId, model);
             itemIndex.put(itemId, new Item(itemId, "minecraft", name, model, textures, 0, 64, overlay));
         }
+        return itemIndex;
+    }
 
-        // Task 1: drop parent/template ids and intentionally-invisible blocks. Every id removed
-        // here was confirmed fully-transparent in missing.json; the filter never touches a tile
-        // that was rendering. See plans/AssetRenderer-AtlasGaps.md -> Task 1 for the allow-list
-        // rationale and {@link #isParentOrTemplateBlockId}/{@link #isParentOrTemplateItemId} for
-        // the exact id predicate.
+    /**
+     * Drops parent / template ids and intentionally-invisible blocks from both indices. Every id
+     * removed here was confirmed fully transparent in {@code missing.json}; the filter never
+     * touches a tile that was rendering. The exact id predicate lives in
+     * {@link #isParentOrTemplateBlockId} / {@link #isParentOrTemplateItemId} along with the
+     * allow-list rationale.
+     *
+     * @param blockIndex the block index from the build / orphan / blockstate-only passes; mutated in place
+     * @param itemIndex the item index from {@link #buildItemIndex}; mutated in place
+     */
+    private static void dropParentTemplates(
+        @NotNull ConcurrentMap<String, Block> blockIndex,
+        @NotNull ConcurrentMap<String, Item> itemIndex
+    ) {
         int removedBlocks = 0;
         for (String blockId : new java.util.ArrayList<>(blockIndex.keySet())) {
             if (isParentOrTemplateBlockId(blockId)) {
@@ -272,7 +392,17 @@ public final class PipelineRendererContext implements RendererContext {
             }
         }
         System.out.printf("Atlas parent/template filter: removed %d blocks, %d items%n", removedBlocks, removedItems);
+    }
 
+    /**
+     * Loads the entity index from {@link EntityModelLoader#load()}, materialising each
+     * {@link EntityModelLoader.EntityDefinition} into an {@link Entity} DTO with overlay layers
+     * flattened into the entity's own {@code Entity.Layer} list. Block-entity models render via
+     * the block path now, so only mob entities reach the entity index.
+     *
+     * @return the populated entity index, keyed by namespaced entity id
+     */
+    private static @NotNull ConcurrentMap<String, Entity> loadEntityIndex() {
         ConcurrentMap<String, Entity> entityIndex = Concurrent.newMap();
         for (Map.Entry<String, EntityModelLoader.EntityDefinition> entityEntry : EntityModelLoader.load().entrySet()) {
             EntityModelLoader.EntityDefinition def = entityEntry.getValue();
@@ -281,24 +411,50 @@ public final class PipelineRendererContext implements RendererContext {
                 .toList();
             entityIndex.put(entityEntry.getKey(), new Entity(entityEntry.getKey(), "minecraft", localName(entityEntry.getKey()), def.model(), def.textureRef(), overlayLayers, def.forceOpaque()));
         }
+        return entityIndex;
+    }
 
-        // Block entity models now render via the block model path (GeometryKit.buildFromElements),
-        // not the entity model path. Only mob entities remain in the entity index.
-
+    /**
+     * Indexes the pipeline's flat {@link Texture} list by namespaced texture id for
+     * {@link #resolveTexture(String)} lookups.
+     *
+     * @param result the pipeline result supplying parsed textures
+     * @return the populated texture index
+     */
+    private static @NotNull ConcurrentMap<String, Texture> buildTextureIndex(@NotNull AssetPipeline.Result result) {
         ConcurrentMap<String, Texture> textureIndex = Concurrent.newMap();
         for (Texture texture : result.getTextures())
             textureIndex.put(texture.getId(), texture);
+        return textureIndex;
+    }
 
+    /**
+     * Indexes the pipeline's biome colormaps by {@link ColorMap.Type} for
+     * {@link #colorMap(ColorMap.Type)} lookups.
+     *
+     * @param result the pipeline result supplying parsed colormaps
+     * @return the populated colormap index
+     */
+    private static @NotNull ConcurrentMap<ColorMap.Type, ColorMap> buildColorMapIndex(@NotNull AssetPipeline.Result result) {
         ConcurrentMap<ColorMap.Type, ColorMap> colorMapIndex = Concurrent.newMap();
         for (ColorMap colorMap : result.getColorMaps())
             colorMapIndex.put(colorMap.getType(), colorMap);
+        return colorMapIndex;
+    }
 
-        Path textureRoot = result.getPackRoot()
+    /**
+     * Resolves the on-disk {@code assets/minecraft/textures} directory under the pipeline's
+     * unpacked vanilla pack root - the directory {@link #resolveTexture(String)} reads PNGs
+     * from on its first miss for a given texture id.
+     *
+     * @param result the pipeline result carrying the pack root path
+     * @return the resolved textures directory
+     */
+    private static @NotNull Path resolveTextureRoot(@NotNull AssetPipeline.Result result) {
+        return result.getPackRoot()
             .resolve("assets")
             .resolve("minecraft")
             .resolve("textures");
-
-        return new PipelineRendererContext(textureRoot, packs, blockIndex, itemIndex, entityIndex, textureIndex, colorMapIndex, tagMap, result.getPotionEffectColors(), result.getBannerPatterns(), java.util.Collections.unmodifiableSet(blockstateOnlyIds), blockEntityEntries);
     }
 
     @Override
@@ -392,26 +548,6 @@ public final class PipelineRendererContext implements RendererContext {
     @Override
     public @NotNull Optional<Block.Entity> findBlockEntityEntry(@NotNull String blockId) {
         return this.blockEntityEntries.getOptional(blockId);
-    }
-
-    /**
-     * Registers an entity definition so it can be looked up by
-     * {@link #findEntity(String)}. Callers supply the model data directly since vanilla
-     * Minecraft does not ship entity model JSON files - entity geometry is hardcoded in the
-     * client source and changes between versions.
-     *
-     * @param id the namespaced entity id (e.g. {@code "minecraft:zombie"})
-     * @param model the bone/cube tree describing the entity's geometry
-     * @param textureRef the bundled texture sub-path under
-     *     {@code /lib/minecraft/renderer/entity_textures/} (without {@code .png}), or empty to
-     *     require a render-time override via {@code EntityOptions.textureId}
-     */
-    public void registerEntity(
-        @NotNull String id,
-        @NotNull EntityModelData model,
-        @NotNull Optional<String> textureRef
-    ) {
-        this.entityIndex.put(id, new Entity(id, "minecraft", localName(id), model, textureRef));
     }
 
     /**

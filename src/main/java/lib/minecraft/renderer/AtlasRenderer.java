@@ -23,7 +23,6 @@ import lib.minecraft.renderer.options.FluidOptions;
 import lib.minecraft.renderer.options.GridOptions;
 import lib.minecraft.renderer.options.ItemOptions;
 import lib.minecraft.renderer.options.PortalOptions;
-import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.loader.BlockEntityLoader;
 import org.jetbrains.annotations.NotNull;
 
@@ -145,10 +144,6 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * when {@link AtlasOptions#isProgressLogging()} is set.
      */
     private @NotNull ConcurrentList<TileSpec> renderBlocks(@NotNull AtlasOptions options, @NotNull BlockRenderer renderer, @NotNull FluidRenderer fluids, @NotNull PortalRenderer portals) {
-        java.util.Set<String> blockstateOnly = this.context instanceof PipelineRendererContext prc
-            ? prc.getBlockstateOnlyIds()
-            : java.util.Set.of();
-
         // end_gateway has no block-model file; the primary {@code knownBlockIds()} walk doesn't
         // surface it. Task 8 intercepts it here as a portal tile, so ensure it's part of the
         // iteration set even when the primary pipeline didn't register it.
@@ -162,7 +157,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         AtomicInteger completed = new AtomicInteger();
         java.util.List<TileSpec> orderedTiles = blockIds.parallelStream()
             .filter(blockId -> options.getFilter().map(f -> f.test(blockId)).orElse(true))
-            .map(blockId -> renderBlockTile(blockId, options, renderer, fluids, portals, blockstateOnly, completed))
+            .map(blockId -> renderBlockTile(blockId, options, renderer, fluids, portals, completed))
             .flatMap(Optional::stream)
             .toList();
 
@@ -187,7 +182,6 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         @NotNull BlockRenderer renderer,
         @NotNull FluidRenderer fluids,
         @NotNull PortalRenderer portals,
-        @NotNull java.util.Set<String> blockstateOnly,
         @NotNull AtomicInteger completed
     ) {
         try {
@@ -206,7 +200,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
                     .outputSize(options.getTileSize())
                     .build();
                 image = renderer.render(blockOptions);
-                source = classifyBlockSource(blockId, blockstateOnly);
+                source = classifyBlockSource(blockId);
             }
             int now = completed.incrementAndGet();
             if (options.isProgressLogging() && now % PROGRESS_LOG_INTERVAL == 0)
@@ -255,14 +249,20 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     }
 
     /**
-     * Classifies a block tile by its registration origin. Priority order: tile-entity blocks
-     * (carrying a {@link Block.Entity}) first; blockstate-only Task 10 fallbacks next; plain
-     * block-model blocks last.
+     * Classifies a block tile by its registration origin, reading the source flag the
+     * {@link RendererContext} stores on the {@link Block} itself. Falls back to
+     * {@link TileSpec.Source#BLOCK_MODEL} if the block is missing from the context (which would
+     * mean we just rendered it from a synthetic id like one of {@code PORTAL_BLOCK_IDS} - those
+     * paths are handled before this call).
      */
-    private @NotNull TileSpec.Source classifyBlockSource(@NotNull String blockId, @NotNull java.util.Set<String> blockstateOnly) {
-        if (this.context.findBlockEntityEntry(blockId).isPresent()) return TileSpec.Source.TILE_ENTITY;
-        if (blockstateOnly.contains(blockId)) return TileSpec.Source.BLOCKSTATE_ONLY;
-        return TileSpec.Source.BLOCK_MODEL;
+    private @NotNull TileSpec.Source classifyBlockSource(@NotNull String blockId) {
+        return this.context.findBlock(blockId)
+            .map(block -> switch (block.getSource()) {
+                case TILE_ENTITY -> TileSpec.Source.TILE_ENTITY;
+                case BLOCKSTATE_ONLY -> TileSpec.Source.BLOCKSTATE_ONLY;
+                case PRIMARY -> TileSpec.Source.BLOCK_MODEL;
+            })
+            .orElse(TileSpec.Source.BLOCK_MODEL);
     }
 
     /**
