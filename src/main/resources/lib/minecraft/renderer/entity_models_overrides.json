@@ -1261,6 +1261,30 @@
           ]
         }
       ]
+    },
+    "//minecraft:breeze": "Bedrock geometry.breeze authors three 2x8x2 rod cubes for the 'wind funnel' that vanilla animates around the central Y axis. We render a static inverted-pyramid tripod: rod tops anchored near the body silhouette edge, bottoms tilted inward toward a near-converging apex below the body center. Pivots: cube[0] (front) at (0, 21, -5), cube[1]/cube[2] (rear) at (+/-5.196, 21, 4) - radii ~5-6 in their respective directions, all raised 2 units in Y from the authored geometry so rod tops sit at body bottom (Y=21). Rotations target each rod's bottom at 35deg inward tilt while preserving cube orientation consistency: cube[0] uses pure pitch [35, 0, 0]; cube[1]/cube[2] use compound Euler angles [131, +/-40.5, -/+143.2] solved so the rotated cube's NORTH face matches cube[0]'s NORTH after a Y-rotation - keeps the texture wrap visually consistent across all three rods (without this 'twist' constraint the side rods looked rotated wrong on their long axis). Origin offsets shift each cube to keep the authored +2 Z pivot-to-cube-top offset.",
+    "minecraft:breeze": {
+      "bone_overrides": {
+        "rods": {
+          "cube_overrides": [
+            {
+              "origin_offset": [0, 2, -2],
+              "pivot": [0, 21, -5],
+              "rotation": [35, 0, 0]
+            },
+            {
+              "origin_offset": [-2.598, 2, 2.5],
+              "pivot": [-5.196, 21, 4],
+              "rotation": [131, 40.5, -143.2]
+            },
+            {
+              "origin_offset": [2.598, 2, 2.5],
+              "pivot": [5.196, 21, 4],
+              "rotation": [131, -40.5, 143.2]
+            }
+          ]
+        }
+      }
     }
   }
 }
