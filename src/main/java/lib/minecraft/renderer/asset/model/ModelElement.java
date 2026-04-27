@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.asset.model;
 
 import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.linked.ConcurrentLinkedMap;
+import dev.simplified.collection.ConcurrentLinkedMap;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
