@@ -4,7 +4,7 @@ Headless renderer for Minecraft blocks/items/entities/fluids/portals. Outputs `I
 
 ## Build
 - JDK 21 + **Vector API incubator** (`--add-modules=jdk.incubator.vector`). Wired into JavaCompile/Test/JavaExec/JMH in `build.gradle.kts` - missing it anywhere = class-not-found at load, not silent fallback.
-- Deps: Gradle Kotlin DSL, `libs.versions.toml`. Strictly-pinned jitpack snapshots from `simplified-dev` (`collections`, `utils`, `image`, `gson-extras`, `client`) and `minecraft-library` (`text`). Bump by editing the version string.
+- Deps: Gradle Kotlin DSL, `libs.versions.toml`. Strictly-pinned jitpack snapshots from `simplified-dev` (`collections`, `utils`, `image`, `gson-extras`, `client`), `simplified-api` (`mojang`, owns the Feign `MojangContract` for client-jar / textures fetches that `AssetPipeline` proxies), and `minecraft-library` (`text`). Bump by editing the version string.
 - ASM 9.8 (Java 25 class files) - `VanillaTintsLoader` parses `BlockColors` from the extracted client jar.
 
 ## Tests

@@ -32,7 +32,7 @@ public class PlayerOptions {
     @lombok.Builder.Default
     private final @NotNull Optional<byte[]> skinBytes = Optional.empty();
 
-    /** Absolute URL to a player skin PNG (priority 2, fetched through {@code HttpFetcher}). */
+    /** Absolute URL to a player skin PNG (priority 2, streamed through {@code MojangContract.downloadTexture}). */
     @lombok.Builder.Default
     private final @NotNull Optional<String> skinUrl = Optional.empty();
 

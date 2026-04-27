@@ -67,7 +67,7 @@ dependencies {
     api("com.github.simplified-dev:client:master-SNAPSHOT")
 
     // Simplified API (extracted to github.com/simplified-api) - typed Feign contract for
-    // Mojang's launcher / Piston / textures endpoints, replaces the hand-rolled HttpFetcher.
+    // Mojang's launcher / Piston / textures endpoints, owns all renderer HTTP via AssetPipeline.
     api("com.github.simplified-api:mojang") { version { strictly("46af96a88b") } }
 
     // Minecraft-Library (extracted to github.com/minecraft-library)

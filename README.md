@@ -83,9 +83,10 @@ Run the pipeline once to produce an `AssetPipeline.Result`, wrap it in a `Pipeli
 
 ```java
 // 1. Configure and run the pipeline. Downloads the client JAR on first call and
-//    caches it under AssetPipelineOptions.cacheRoot for subsequent runs.
-HttpFetcher fetcher = new HttpFetcher();
-AssetPipeline pipeline = new AssetPipeline(fetcher);
+//    caches it under AssetPipelineOptions.cacheRoot for subsequent runs. All
+//    Mojang network access flows through a shared MojangContract proxy on
+//    AssetPipeline (see api.simplified.mojang for the upstream contract).
+AssetPipeline pipeline = new AssetPipeline();
 
 AssetPipelineOptions pipelineOptions = AssetPipelineOptions.builder()
     .version("26.1")
@@ -174,7 +175,7 @@ These tasks rewrite the bundled JSON snapshots in `src/main/resources/lib/minecr
 | `colorMaps` | `color_maps.json` | Vanilla biome colormap PNGs |
 
 > [!NOTE]
-> `blockTints` and `potionColors` depend on a cached client JAR. They fetch it automatically on first run through `ClientJarDownloader`, then reuse `cache/clients/<version>/`.
+> `blockTints` and `potionColors` depend on a cached client JAR. They fetch it automatically on first run through `AssetPipeline.downloadJarToCache(options)`, then reuse `<cacheRoot>/vanilla/<version>/client.jar`.
 
 ### JMH Benchmarks
 
@@ -217,12 +218,11 @@ asset-renderer/
 │   │   │   ├── model/      # BlockModelData, EntityModelData, ModelElement, ...
 │   │   │   └── pack/       # Texture, TexturePack, AnimationData, ColorMap
 │   │   ├── engine/         # IsometricEngine, RasterEngine, ModelEngine, TextureEngine
-│   │   ├── exception/      # RendererException, HttpFetchException, AssetPipelineException
+│   │   ├── exception/      # RendererException, AssetPipelineException
 │   │   ├── geometry/       # Biome, BlockFace, Box, ProjectionMath, ...
 │   │   ├── kit/            # AnimationKit, BannerKit, GeometryKit, GlintKit, ItemStackKit, ...
 │   │   ├── options/        # BlockOptions, ItemOptions, EntityOptions, ... (records)
-│   │   ├── pipeline/       # AssetPipeline, client JAR download, resource-pack loaders
-│   │   │   ├── client/     # ClientJarDownloader, ClientJarExtractor, HttpFetcher
+│   │   ├── pipeline/       # AssetPipeline (owns client-jar download/extract via simplified-api/mojang), resource-pack loaders
 │   │   │   ├── loader/     # BlockStateLoader, CitLoader, CtmLoader, ModelResolver, ...
 │   │   │   └── pack/       # CitMatcher, CtmMatcher, ColorProperties, NbtCondition, ...
 │   │   ├── tensor/         # FloatVector-backed Matrix4fOps, Vector3fOps

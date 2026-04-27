@@ -261,7 +261,7 @@ lib.minecraft.renderer/
 ├── kit/                   # Reusable drawing helpers (glint, banners, stack counts, ...)
 ├── options/               # Immutable options records, one per renderer
 ├── pipeline/              # Pack stack assembly
-│   ├── client/            # ClientJarDownloader, ClientJarExtractor, HttpFetcher
+│   ├── AssetPipeline.java # Owns Mojang HTTP via simplified-api/mojang, jar download + extract
 │   ├── loader/            # One loader per asset type (blockstates, CIT, CTM, ...)
 │   └── pack/              # Match rules that loaders feed back into options
 ├── tensor/                # FloatVector-backed Matrix4fOps, Vector3fOps
@@ -271,9 +271,9 @@ lib.minecraft.renderer/
 ### Pipeline flow
 
 ```
-AssetPipeline.builder()
-  -> ClientJarDownloader.fetch(version)
-  -> ClientJarExtractor.extract()
+new AssetPipeline().run(options)
+  -> AssetPipeline.downloadJarToCache(options)   # MojangContract via simplified-api/mojang
+  -> AssetPipeline.extractClientJar(jarPath, packRoot)
   -> TexturePackLoader.stack(user packs)
   -> BlockStateLoader / ItemDefinitionLoader / EntityModelLoader / ...
   -> PipelineRendererContext
