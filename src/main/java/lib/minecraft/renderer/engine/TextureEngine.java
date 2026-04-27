@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.engine;
 
-import lib.minecraft.renderer.exception.RendererException;
+import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.geometry.Biome;
 
 import lib.minecraft.renderer.kit.AnimationKit;
@@ -77,10 +77,10 @@ public class TextureEngine implements RenderEngine {
      *
      * @param textureId the namespaced texture identifier
      * @return the decoded texture
-     * @throws RendererException if no pack provides the texture
+     * @throws RenderException if no pack provides the texture
      */
     public @NotNull PixelBuffer resolveTexture(@NotNull String textureId) {
-        return this.context.resolveTexture(textureId).orElseThrow(() -> new RendererException("No texture registered for id '%s'", textureId));
+        return this.context.resolveTexture(textureId).orElseThrow(() -> new RenderException("No texture registered for id '%s'", textureId));
     }
 
     /**
@@ -115,7 +115,7 @@ public class TextureEngine implements RenderEngine {
      * @param textureId the namespaced texture identifier
      * @param tick the current animation tick (free-running, signed)
      * @return the frame to render at this tick
-     * @throws RendererException when no pack provides the texture
+     * @throws RenderException when no pack provides the texture
      */
     public @NotNull PixelBuffer resolveTextureAtTick(@NotNull String textureId, int tick) {
         PixelBuffer strip = resolveTexture(textureId);

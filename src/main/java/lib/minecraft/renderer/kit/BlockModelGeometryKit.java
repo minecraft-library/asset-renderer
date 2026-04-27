@@ -8,6 +8,7 @@ import lib.minecraft.renderer.asset.model.BlockModelData;
 import lib.minecraft.renderer.asset.model.ItemModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
+import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.geometry.BlockFace;
 import lib.minecraft.renderer.geometry.Box;
 import lib.minecraft.renderer.geometry.ModelGrid;
@@ -72,7 +73,7 @@ public class BlockModelGeometryKit {
         int tintArgb
     ) {
         if (faces.length != 6)
-            throw new IllegalArgumentException("Box requires exactly 6 face textures");
+            throw new RenderException("Box requires exactly 6 face textures");
 
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
         Box box = Box.of(min, max);

@@ -14,6 +14,7 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.codec.png.PngImageWriter;
 import dev.simplified.image.codec.tga.TgaImageReader;
 import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.exception.ToolingException;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.pipeline.AssetPipeline;
 import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
@@ -101,11 +102,11 @@ public final class ToolingEntityModels {
                 HttpResponse.BodyHandlers.ofByteArray()
             );
             if (response.statusCode() / 100 != 2)
-                throw new IOException("GET '" + url + "' returned HTTP " + response.statusCode());
+                throw new ToolingException("GET '%s' returned HTTP '%d'", url, response.statusCode());
             return response.body();
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
-            throw new IOException("Interrupted while downloading '" + url + "'", ex);
+            throw new ToolingException(ex, "Interrupted while downloading '%s'", url);
         }
     }
 

@@ -2,7 +2,7 @@ package lib.minecraft.renderer.pipeline.loader;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import lib.minecraft.renderer.exception.RendererException;
+import lib.minecraft.renderer.exception.AssetPipelineException;
 import lib.minecraft.renderer.pipeline.VanillaPaths;
 import lib.minecraft.renderer.pipeline.pack.CtmMethod;
 import lib.minecraft.renderer.pipeline.pack.CtmRule;
@@ -53,7 +53,7 @@ public class CtmLoader {
                     .filter(p -> p.toString().endsWith(".properties"))
                     .forEach(p -> parseFile(p).ifPresent(rules::add));
             } catch (IOException ex) {
-                throw new RendererException(ex, "Failed to scan CTM directory '%s'", rootPath);
+                throw new AssetPipelineException(ex, "Failed to scan CTM directory '%s'", rootPath);
             }
         }
 
@@ -66,7 +66,7 @@ public class CtmLoader {
         try (var reader = Files.newBufferedReader(file)) {
             props.load(reader);
         } catch (IOException ex) {
-            throw new RendererException(ex, "Failed to read CTM file '%s'", file);
+            throw new AssetPipelineException(ex, "Failed to read CTM file '%s'", file);
         }
 
         String methodString = props.getProperty("method", "fixed");

@@ -5,6 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import lib.minecraft.renderer.engine.TextureEngine;
 import lib.minecraft.renderer.exception.AssetPipelineException;
+import lib.minecraft.renderer.exception.ToolingException;
 import lib.minecraft.renderer.asset.pack.ColorMap;
 import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
 import lib.minecraft.renderer.pipeline.AssetPipeline;
@@ -162,10 +163,10 @@ public final class ToolingColorMaps {
             try {
                 image = ImageIO.read(file.toFile());
             } catch (IOException ex) {
-                throw new AssetPipelineException(ex, "Failed to read colormap '%s'", file);
+                throw new ToolingException(ex, "Failed to read colormap '%s'", file);
             }
             if (image == null)
-                throw new AssetPipelineException("Colormap '%s' could not be decoded", file);
+                throw new ToolingException("Colormap '%s' could not be decoded", file);
 
             int width = image.getWidth();
             int height = image.getHeight();

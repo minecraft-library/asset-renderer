@@ -4,6 +4,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import lib.minecraft.renderer.exception.AssetPipelineException;
+import lib.minecraft.renderer.exception.ToolingException;
 import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
 import lib.minecraft.renderer.pipeline.AssetPipeline;
 import lib.minecraft.renderer.pipeline.loader.PotionColorLoader;
@@ -132,20 +133,20 @@ public final class ToolingPotionColors {
          *
          * @param jarPath the deobfuscated client jar to read from (MC 26.1+)
          * @return a map of effect id to ARGB colour
-         * @throws AssetPipelineException if the jar cannot be read or the class is missing
+         * @throws ToolingException if the jar cannot be read or the class is missing
          */
         public static @NotNull ConcurrentMap<String, Integer> parse(@NotNull Path jarPath) {
             try (ZipFile zip = new ZipFile(jarPath.toFile())) {
                 ClassNode classNode = AsmKit.requireClass(zip, MOB_EFFECTS_INTERNAL_NAME, "MobEffects");
                 MethodNode clinit = AsmKit.findMethod(classNode, CLINIT_METHOD_NAME);
                 if (clinit == null)
-                    throw new AssetPipelineException(
+                    throw new ToolingException(
                         "MobEffects class does not expose a '%s' method - jar may be obfuscated or from an unsupported version",
                         CLINIT_METHOD_NAME
                     );
                 return parseClinit(clinit.instructions);
             } catch (IOException ex) {
-                throw new AssetPipelineException(ex, "Failed to read MobEffects class from jar '%s'", jarPath);
+                throw new ToolingException(ex, "Failed to read MobEffects class from jar '%s'", jarPath);
             }
         }
 

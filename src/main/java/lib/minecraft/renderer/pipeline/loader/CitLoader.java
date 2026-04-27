@@ -3,7 +3,7 @@ package lib.minecraft.renderer.pipeline.loader;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import lib.minecraft.renderer.exception.RendererException;
+import lib.minecraft.renderer.exception.AssetPipelineException;
 import lib.minecraft.renderer.pipeline.VanillaPaths;
 import lib.minecraft.renderer.pipeline.pack.CitRule;
 import lib.minecraft.renderer.pipeline.pack.IntRange;
@@ -56,7 +56,7 @@ public class CitLoader {
                     .filter(p -> p.toString().endsWith(".properties"))
                     .forEach(p -> parseFile(p).ifPresent(rules::add));
             } catch (IOException ex) {
-                throw new RendererException(ex, "Failed to scan CIT directory '%s'", rootPath);
+                throw new AssetPipelineException(ex, "Failed to scan CIT directory '%s'", rootPath);
             }
         }
 
@@ -69,7 +69,7 @@ public class CitLoader {
         try (var reader = Files.newBufferedReader(file)) {
             props.load(reader);
         } catch (IOException ex) {
-            throw new RendererException(ex, "Failed to read CIT file '%s'", file);
+            throw new AssetPipelineException(ex, "Failed to read CIT file '%s'", file);
         }
 
         String type = props.getProperty("type", "item");

@@ -15,6 +15,7 @@ import lib.minecraft.renderer.asset.pack.AnimationData;
 import lib.minecraft.renderer.asset.pack.ColorMap;
 import lib.minecraft.renderer.asset.pack.TexturePack;
 import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.exception.RendererException;
 import lib.minecraft.renderer.kit.AnimationKit;
 import lib.minecraft.renderer.options.AtlasOptions;
@@ -134,7 +135,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             tiles.addAll(renderItems(options, items));
 
         if (tiles.isEmpty())
-            throw new RendererException("Atlas render produced zero tiles - nothing to compose");
+            throw new RenderException("Atlas render produced zero tiles - nothing to compose");
 
         ImageData image = composeAtlas(tiles, options);
         String sidecarJson = buildSidecarJson(tiles, options.getColumns(), options.getTileSize());

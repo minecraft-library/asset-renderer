@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import lib.minecraft.renderer.exception.ToolingException;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -85,9 +86,9 @@ public final class ToolingAtlasDiagnose {
         Path missingJson = root.resolve("missing.json");
 
         if (!Files.isRegularFile(atlasPng))
-            throw new IOException("Missing atlas image: " + atlasPng.toAbsolutePath());
+            throw new ToolingException("Missing atlas image '%s'", atlasPng.toAbsolutePath());
         if (!Files.isRegularFile(atlasJson))
-            throw new IOException("Missing atlas sidecar: " + atlasJson.toAbsolutePath());
+            throw new ToolingException("Missing atlas sidecar '%s'", atlasJson.toAbsolutePath());
 
         if (sourceFilter != null) {
             runSourceFilter(root, atlasPng, atlasJson, sourceFilter);
@@ -103,7 +104,7 @@ public final class ToolingAtlasDiagnose {
         System.out.printf("Reading %s (%d tiles)...%n", atlasPng, total);
         BufferedImage atlas = ImageIO.read(atlasPng.toFile());
         if (atlas == null)
-            throw new IOException("Could not decode atlas PNG: " + atlasPng.toAbsolutePath());
+            throw new ToolingException("Could not decode atlas PNG '%s'", atlasPng.toAbsolutePath());
 
         System.out.printf("Slicing %d tiles into %s...%n", total, sliceDir);
         JsonArray flagged = new JsonArray();
@@ -217,16 +218,16 @@ public final class ToolingAtlasDiagnose {
      * @param name the untrusted subdirectory name from CLI args
      * @param flag the CLI flag label used in error messages
      * @return the normalized path {@code base/name}, proven to be contained under {@code base}
-     * @throws IOException if {@code name} would escape the base directory
+     * @throws ToolingException if {@code name} would escape the base directory
      */
-    private static @NotNull Path resolveContained(@NotNull Path base, @NotNull String name, @NotNull String flag) throws IOException {
+    private static @NotNull Path resolveContained(@NotNull Path base, @NotNull String name, @NotNull String flag) {
         if (name.isEmpty() || name.contains("/") || name.contains("\\") || name.contains("..") || Path.of(name).isAbsolute())
-            throw new IOException(flag + " '" + name + "' must be a simple directory name (no separators, parent refs, or absolute paths)");
+            throw new ToolingException("%s '%s' must be a simple directory name (no separators, parent refs, or absolute paths)", flag, name);
 
         Path normalizedBase = base.toAbsolutePath().normalize();
         Path resolved = normalizedBase.resolve(name).normalize();
         if (!resolved.startsWith(normalizedBase) || resolved.equals(normalizedBase))
-            throw new IOException(flag + " '" + name + "' resolves outside the base directory");
+            throw new ToolingException("%s '%s' resolves outside the base directory", flag, name);
 
         return resolved;
     }
@@ -251,7 +252,7 @@ public final class ToolingAtlasDiagnose {
         System.out.printf("Reading %s...%n", atlasPng);
         BufferedImage atlas = ImageIO.read(atlasPng.toFile());
         if (atlas == null)
-            throw new IOException("Could not decode atlas PNG: " + atlasPng.toAbsolutePath());
+            throw new ToolingException("Could not decode atlas PNG '%s'", atlasPng.toAbsolutePath());
 
         List<JsonObject> matching = new ArrayList<>();
         for (int i = 0; i < tiles.size(); i++) {

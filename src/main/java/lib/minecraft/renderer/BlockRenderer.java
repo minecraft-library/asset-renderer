@@ -21,7 +21,7 @@ import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.TextureEngine;
-import lib.minecraft.renderer.exception.RendererException;
+import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.geometry.Biome;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.geometry.ModelGrid;
@@ -78,10 +78,10 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
     /**
      * Looks up a block by id in the renderer context, throwing a descriptive
-     * {@link RendererException} when the block is missing.
+     * {@link RenderException} when the block is missing.
      */
     static @NotNull Block requireBlock(@NotNull RendererContext context, @NotNull String blockId) {
-        return context.findBlock(blockId).orElseThrow(() -> new RendererException("No block registered for id '%s'", blockId));
+        return context.findBlock(blockId).orElseThrow(() -> new RenderException("No block registered for id '%s'", blockId));
     }
 
     /**

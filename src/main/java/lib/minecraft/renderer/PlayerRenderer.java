@@ -12,7 +12,7 @@ import lib.minecraft.renderer.asset.binding.ArmorTrim;
 import lib.minecraft.renderer.engine.IsometricEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.exception.RendererException;
+import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.geometry.BlockFace;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.SkinFace;
@@ -28,7 +28,6 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Optional;
@@ -99,7 +98,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         }
 
         return parent.context.resolveTexture("minecraft:entity/steve")
-            .orElseThrow(() -> new RendererException("No default Steve skin registered and no skin supplied"));
+            .orElseThrow(() -> new RenderException("No default Steve skin registered and no skin supplied"));
     }
 
     /**
@@ -117,7 +116,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         try (InputStream stream = AssetPipeline.mojang().downloadTexture(hash)) {
             return stream.readAllBytes();
         } catch (IOException ex) {
-            throw new UncheckedIOException("Failed to fetch texture from '" + url + "'", ex);
+            throw new RenderException(ex, "Failed to fetch texture from '%s'", url);
         }
     }
 

@@ -9,6 +9,7 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.kit.FrameMerger;
 import lib.minecraft.renderer.kit.TextKit;
 import lib.minecraft.renderer.options.BlockOptions;
@@ -127,7 +128,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
                 .type(ItemOptions.Type.GUI_2D)
                 .outputSize(SLOT_SIZE - 4)
                 .build();
-            case EMPTY -> throw new IllegalStateException("EMPTY handled above");
+            case EMPTY -> throw new RenderException("EMPTY handled above");
         };
         ImageData fillerImage = itemRenderer.render(fillerOptions);
         boolean fillerAnimated = fillerImage.isAnimated();
@@ -178,8 +179,9 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         if (options.getFill() == MenuOptions.Fill.EMPTY) return;
         if (isSkyblockType(options.getType())) return;
 
-        throw new IllegalArgumentException(
-            "Fill option " + options.getFill() + " is only supported for SKYBLOCK menu types; got " + options.getType()
+        throw new RenderException(
+            "Fill option '%s' is only supported for SKYBLOCK menu types; got '%s'",
+            options.getFill(), options.getType()
         );
     }
 
@@ -207,7 +209,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
 
         for (Integer slot : options.getSlots().keySet()) {
             if (slot < 0 || slot > maxSlot)
-                throw new IllegalArgumentException("Slot " + slot + " is out of range for menu type " + options.getType() + " (max " + maxSlot + ")");
+                throw new RenderException("Slot '%d' is out of range for menu type '%s' (max '%d')", slot, options.getType(), maxSlot);
         }
     }
 
@@ -608,7 +610,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
                 case CHEST, CUSTOM -> options.getRows();
                 case SLOT -> 1;
                 case VANILLA_CRAFTING, VANILLA_ANVIL, SKYBLOCK_CRAFTING, SKYBLOCK_ANVIL ->
-                    throw new IllegalStateException("Type " + options.getType() + " uses a dedicated renderer");
+                    throw new RenderException("Type '%s' uses a dedicated renderer", options.getType());
             };
         }
 
@@ -618,7 +620,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
                 case CUSTOM -> options.getColumns();
                 case SLOT -> 1;
                 case VANILLA_CRAFTING, VANILLA_ANVIL, SKYBLOCK_CRAFTING, SKYBLOCK_ANVIL ->
-                    throw new IllegalStateException("Type " + options.getType() + " uses a dedicated renderer");
+                    throw new RenderException("Type '%s' uses a dedicated renderer", options.getType());
             };
         }
 

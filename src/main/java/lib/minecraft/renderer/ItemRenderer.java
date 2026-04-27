@@ -16,7 +16,7 @@ import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.TextureEngine;
-import lib.minecraft.renderer.exception.RendererException;
+import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.geometry.ModelGrid;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
@@ -80,11 +80,11 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
     /**
      * Looks up an item by id in the renderer context, throwing a descriptive
-     * {@link RendererException} when the item is missing.
+     * {@link RenderException} when the item is missing.
      */
     static @NotNull Item requireItem(@NotNull RendererContext context, @NotNull String itemId) {
         return context.findItem(itemId)
-            .orElseThrow(() -> new RendererException("No item registered for id '%s'", itemId));
+            .orElseThrow(() -> new RenderException("No item registered for id '%s'", itemId));
     }
 
     /** The "water" potion colour - used as the fallback when no potion effect is supplied. */
@@ -533,7 +533,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 // here has a layer0 by construction.
                 String layerRef = item.getTextures().get("layer0");
                 if (layerRef == null || layerRef.isBlank())
-                    throw new RendererException("Item '%s' has no elements and no layer0 - nothing to render in Held3D path", options.getItemId());
+                    throw new RenderException("Item '%s' has no elements and no layer0 - nothing to render in Held3D path", options.getItemId());
 
                 PixelBuffer texture = engine.resolveTexture(layerRef);
                 PixelBuffer[] faces = new PixelBuffer[]{ texture, texture, texture, texture, texture, texture };

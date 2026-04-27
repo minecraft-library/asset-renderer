@@ -2,7 +2,7 @@ package lib.minecraft.renderer.tooling.util;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import lib.minecraft.renderer.exception.AssetPipelineException;
+import lib.minecraft.renderer.exception.ToolingException;
 import lib.minecraft.renderer.tooling.ToolingBlockEntities;
 import lib.minecraft.renderer.tooling.ToolingBlockTints;
 import lib.minecraft.renderer.tooling.ToolingPotionColors;
@@ -60,7 +60,7 @@ public final class AsmKit {
      * @param zip the jar to read from
      * @param internalName the class's JVM internal name (e.g. {@code net/minecraft/X})
      * @return the populated {@link ClassNode}, or {@code null} if the archive has no matching entry
-     * @throws AssetPipelineException if the jar entry exists but cannot be read
+     * @throws ToolingException if the jar entry exists but cannot be read
      */
     public static @Nullable ClassNode loadClass(@NotNull ZipFile zip, @NotNull String internalName) {
         ZipEntry entry = zip.getEntry(internalName + CLASS_SUFFIX);
@@ -72,24 +72,24 @@ public final class AsmKit {
             new ClassReader(bytes).accept(classNode, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
             return classNode;
         } catch (IOException ex) {
-            throw new AssetPipelineException(ex, "Failed to read class '%s' from jar", internalName);
+            throw new ToolingException(ex, "Failed to read class '%s' from jar", internalName);
         }
     }
 
     /**
-     * Loads a class from the supplied jar, throwing an {@link AssetPipelineException} with
+     * Loads a class from the supplied jar, throwing a {@link ToolingException} with
      * a context-tagged "obfuscated or unsupported version" message when the class is missing.
      *
      * @param zip the jar to read from
      * @param internalName the class's JVM internal name
      * @param context a short label (e.g. {@code "BlockColors"}, {@code "MobEffects"}) identifying the caller in the error message
      * @return the populated {@link ClassNode}
-     * @throws AssetPipelineException if the class is not in the jar or cannot be read
+     * @throws ToolingException if the class is not in the jar or cannot be read
      */
     public static @NotNull ClassNode requireClass(@NotNull ZipFile zip, @NotNull String internalName, @NotNull String context) {
         ClassNode classNode = loadClass(zip, internalName);
         if (classNode == null)
-            throw new AssetPipelineException(
+            throw new ToolingException(
                 "Jar does not contain '%s.class' for %s - the jar is either obfuscated (pre-26.1) or from an unsupported version",
                 internalName, context
             );

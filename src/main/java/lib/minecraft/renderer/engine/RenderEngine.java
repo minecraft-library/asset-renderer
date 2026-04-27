@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.engine;
 
+import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.geometry.BlockFace;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.tensor.Vector2f;
@@ -118,7 +119,7 @@ public interface RenderEngine {
      */
     static @NotNull ImageData output(@NotNull ConcurrentList<PixelBuffer> frames, int frameDelayMs) {
         if (frames.isEmpty())
-            throw new IllegalArgumentException("Frame list must contain at least one frame");
+            throw new RenderException("Frame list must contain at least one frame");
 
         if (frames.size() == 1)
             return StaticImageData.of(frames.getFirst().toBufferedImage());

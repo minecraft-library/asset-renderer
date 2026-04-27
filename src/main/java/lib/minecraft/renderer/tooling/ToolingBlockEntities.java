@@ -6,7 +6,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
-import lib.minecraft.renderer.exception.AssetPipelineException;
+import lib.minecraft.renderer.exception.ToolingException;
 import lib.minecraft.renderer.geometry.BlockFace;
 import lib.minecraft.renderer.geometry.Box;
 import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
@@ -114,7 +114,7 @@ public final class ToolingBlockEntities {
                 System.err.println("  " + entry);
 
             if (!lenient && diagnostics.strictFailingCount() > 0)
-                throw new AssetPipelineException(
+                throw new ToolingException(
                     "Strict mode: %d parse diagnostic(s) at WARN+ severity. Rerun with --lenient to continue.",
                     diagnostics.strictFailingCount()
                 );
@@ -606,7 +606,7 @@ public final class ToolingBlockEntities {
                     }
                 }
             } catch (IOException ex) {
-                throw new AssetPipelineException(ex, "Failed to read client jar '%s'", jarPath);
+                throw new ToolingException(ex, "Failed to read client jar '%s'", jarPath);
             }
 
             return results;

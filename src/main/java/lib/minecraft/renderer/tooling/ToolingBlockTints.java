@@ -4,6 +4,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import lib.minecraft.renderer.exception.AssetPipelineException;
+import lib.minecraft.renderer.exception.ToolingException;
 import lib.minecraft.renderer.geometry.Biome;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
@@ -170,7 +171,7 @@ public final class ToolingBlockTints {
          *
          * @param jarPath the deobfuscated client jar to read from (MC 26.1+)
          * @return a map of block id to tint binding
-         * @throws AssetPipelineException if the jar cannot be read, the BlockColors class is not
+         * @throws ToolingException if the jar cannot be read, the BlockColors class is not
          *     present (jar is obfuscated or from an unsupported version), or {@code createDefault}
          *     is missing
          */
@@ -179,13 +180,13 @@ public final class ToolingBlockTints {
                 ClassNode classNode = AsmKit.requireClass(zip, BLOCK_COLORS_INTERNAL_NAME, "BlockColors");
                 MethodNode createDefault = AsmKit.findMethod(classNode, CREATE_DEFAULT_METHOD_NAME);
                 if (createDefault == null)
-                    throw new AssetPipelineException(
+                    throw new ToolingException(
                         "BlockColors class does not expose a '%s' method - jar may be obfuscated or from an unsupported version",
                         CREATE_DEFAULT_METHOD_NAME
                     );
                 return parseCreateDefault(createDefault.instructions);
             } catch (IOException ex) {
-                throw new AssetPipelineException(ex, "Failed to read BlockColors class from jar '%s'", jarPath);
+                throw new ToolingException(ex, "Failed to read BlockColors class from jar '%s'", jarPath);
             }
         }
 
