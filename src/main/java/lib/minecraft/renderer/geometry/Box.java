@@ -86,4 +86,15 @@ public record Box(float minX, float minY, float minZ, float maxX, float maxY, fl
         return new Box(minX, minY, minZ, maxX, maxY, maxZ);
     }
 
+    /**
+     * Returns the largest extent across all three axes - {@code max(maxX-minX, maxY-minY,
+     * maxZ-minZ)}. Used by entity rendering to size the camera so the model fits regardless of
+     * which axis happens to be the dominant one.
+     *
+     * @return the maximum dimension
+     */
+    public float maxExtent() {
+        return Math.max(maxX - minX, Math.max(maxY - minY, maxZ - minZ));
+    }
+
 }

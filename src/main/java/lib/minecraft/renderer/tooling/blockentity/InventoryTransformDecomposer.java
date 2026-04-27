@@ -2,6 +2,7 @@ package lib.minecraft.renderer.tooling.blockentity;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lombok.experimental.UtilityClass;
@@ -304,17 +305,17 @@ public final class InventoryTransformDecomposer {
     private static final class Value {
         final @NotNull ValueKind kind;
         final float floatVal;       // FLOAT / YAW (YAW is treated as 0 for reduction)
-        final float @Nullable [] vec;  // VECTOR: [x, y, z]
+        final @Nullable Vector3f vec;  // VECTOR
         final @Nullable Quat quat;  // QUATERNION
         final @Nullable TransformState matrix; // MATRIX (current transform state)
 
-        private Value(@NotNull ValueKind kind, float floatVal, float @Nullable [] vec, @Nullable Quat quat, @Nullable TransformState matrix) {
+        private Value(@NotNull ValueKind kind, float floatVal, @Nullable Vector3f vec, @Nullable Quat quat, @Nullable TransformState matrix) {
             this.kind = kind; this.floatVal = floatVal; this.vec = vec; this.quat = quat; this.matrix = matrix;
         }
 
         static @NotNull Value ofFloat(float f) { return new Value(ValueKind.FLOAT, f, null, null, null); }
         static @NotNull Value ofYaw() { return new Value(ValueKind.YAW, 0f, null, null, null); }
-        static @NotNull Value ofVec(float x, float y, float z) { return new Value(ValueKind.VECTOR, 0f, new float[]{ x, y, z }, null, null); }
+        static @NotNull Value ofVec(@NotNull Vector3f v) { return new Value(ValueKind.VECTOR, 0f, v, null, null); }
         static @NotNull Value ofQuat(@NotNull Quat q) { return new Value(ValueKind.QUATERNION, 0f, null, q, null); }
         static @NotNull Value ofMatrix(@NotNull TransformState m) { return new Value(ValueKind.MATRIX, 0f, null, null, m); }
         static @NotNull Value ofNull() { return new Value(ValueKind.NULL, 0f, null, null, null); }
@@ -348,19 +349,19 @@ public final class InventoryTransformDecomposer {
             }
         }
 
-        /** Sets translation to {@code (x, y, z)}, resetting everything else. Matrix4f.translation() semantics. */
-        void setTranslation(float x, float y, float z) {
-            this.tx = x; this.ty = y; this.tz = z;
+        /** Sets translation to {@code v}, resetting everything else. Matrix4f.translation() semantics. */
+        void setTranslation(@NotNull Vector3f v) {
+            this.tx = v.x(); this.ty = v.y(); this.tz = v.z();
             this.rotations = Concurrent.newList();
             this.sx = 1f; this.sy = 1f; this.sz = 1f;
         }
 
-        /** Right-multiplies by {@code T(x, y, z)}. */
-        void postTranslate(float x, float y, float z) {
-            // M' = M * T(x, y, z). Decomposed: if M = T * R * S, then M' = T * R * S * T(x, y, z).
+        /** Right-multiplies by {@code T(v)}. */
+        void postTranslate(@NotNull Vector3f v) {
+            // M' = M * T(v). Decomposed: if M = T * R * S, then M' = T * R * S * T(v).
             // We only track T on the outside and S on the inside; rotations are tracked
             // separately. Fold rule:
-            //   - If rotations are all identity, T' = T + S*T(x, y, z).
+            //   - If rotations are all identity, T' = T + S*T(v).
             //   - If S's magnitude is near unity (a z-fight fudge like 0.9995), snap it to
             //     ±1 when folding; canonicalise() will then drop the fudge entirely.
             //   - If rotations are non-identity, poison (unsupported).
@@ -370,9 +371,9 @@ public final class InventoryTransformDecomposer {
             float ex = foldScaleFactor(this.sx);
             float ey = foldScaleFactor(this.sy);
             float ez = foldScaleFactor(this.sz);
-            this.tx += ex * x;
-            this.ty += ey * y;
-            this.tz += ez * z;
+            this.tx += ex * v.x();
+            this.ty += ey * v.y();
+            this.tz += ez * v.z();
         }
 
         /**
@@ -395,9 +396,9 @@ public final class InventoryTransformDecomposer {
             this.rotations.add(q);
         }
 
-        /** Right-multiplies by {@code S(x, y, z)}. */
-        void postScale(float x, float y, float z) {
-            this.sx *= x; this.sy *= y; this.sz *= z;
+        /** Right-multiplies by {@code S(v)}. */
+        void postScale(@NotNull Vector3f v) {
+            this.sx *= v.x(); this.sy *= v.y(); this.sz *= v.z();
         }
 
         /** Right-multiplies by {@code T(c) * R(q) * T(-c)}. */
@@ -761,7 +762,7 @@ public final class InventoryTransformDecomposer {
                     // remaining NEW placeholder on the stack becomes the constructed Vector3f.
                     pop(); // 'this' (dup'd copy)
                     pop(); // NEW placeholder - we replace it with the constructed value
-                    push(Value.ofVec(x, y, z));
+                    push(Value.ofVec(new Vector3f(x, y, z)));
                     return;
                 }
                 poison("Vector3f ctor desc " + desc);
@@ -869,7 +870,7 @@ public final class InventoryTransformDecomposer {
                     if (vx == null || vy == null || vz == null) { poison("translation args"); return; }
                     float x = valueAsFloat(vx); float y = valueAsFloat(vy); float z = valueAsFloat(vz);
                     if (Float.isNaN(x) || Float.isNaN(y) || Float.isNaN(z)) { poison("translation non-literal component"); return; }
-                    m.matrix.setTranslation(x, y, z);
+                    m.matrix.setTranslation(new Vector3f(x, y, z));
                     push(Value.ofMatrix(m.matrix));
                 }
                 case "translate" -> {
@@ -880,7 +881,7 @@ public final class InventoryTransformDecomposer {
                         if (vx == null || vy == null || vz == null) { poison("translate args"); return; }
                         float x = valueAsFloat(vx); float y = valueAsFloat(vy); float z = valueAsFloat(vz);
                         if (Float.isNaN(x) || Float.isNaN(y) || Float.isNaN(z)) { poison("translate non-literal component"); return; }
-                        m.matrix.postTranslate(x, y, z);
+                        m.matrix.postTranslate(new Vector3f(x, y, z));
                         push(Value.ofMatrix(m.matrix));
                         return;
                     }
@@ -914,7 +915,7 @@ public final class InventoryTransformDecomposer {
                         if (vx == null || vy == null || vz == null) { poison("scale args"); return; }
                         float x = valueAsFloat(vx); float y = valueAsFloat(vy); float z = valueAsFloat(vz);
                         if (Float.isNaN(x) || Float.isNaN(y) || Float.isNaN(z)) { poison("scale non-literal component"); return; }
-                        m.matrix.postScale(x, y, z);
+                        m.matrix.postScale(new Vector3f(x, y, z));
                         push(Value.ofMatrix(m.matrix));
                         return;
                     }
@@ -999,7 +1000,7 @@ public final class InventoryTransformDecomposer {
             TransformState ts = new TransformState();
             // Translation
             if (trans.kind == ValueKind.VECTOR && trans.vec != null) {
-                ts.tx = trans.vec[0]; ts.ty = trans.vec[1]; ts.tz = trans.vec[2];
+                ts.tx = trans.vec.x(); ts.ty = trans.vec.y(); ts.tz = trans.vec.z();
             } else if (trans.kind == ValueKind.NULL) {
                 // translation=null is a 0-vector
             } else {
@@ -1013,7 +1014,7 @@ public final class InventoryTransformDecomposer {
             }
             // Scale
             if (scale.kind == ValueKind.VECTOR && scale.vec != null) {
-                ts.postScale(scale.vec[0], scale.vec[1], scale.vec[2]);
+                ts.postScale(scale.vec);
             } else if (scale.kind != ValueKind.NULL) {
                 poison("ctor B scale is not a Vector3f / null"); return null;
             }

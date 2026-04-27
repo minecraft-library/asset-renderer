@@ -90,6 +90,24 @@ public record Vector3f(float x, float y, float z) {
     }
 
     /**
+     * Returns the component at the given axis index ({@code 0=x, 1=y, 2=z}). Useful when an
+     * algorithm picks an axis at runtime, e.g. an {@code EntityLayout} that maps a face's
+     * {@code widthAxis} to one of the three components.
+     *
+     * @param axis the axis index, must be {@code 0}, {@code 1}, or {@code 2}
+     * @return the component value
+     * @throws IndexOutOfBoundsException if {@code axis} is not in {@code [0, 2]}
+     */
+    public float get(int axis) {
+        return switch (axis) {
+            case 0 -> this.x;
+            case 1 -> this.y;
+            case 2 -> this.z;
+            default -> throw new IndexOutOfBoundsException("axis must be 0, 1, or 2 (got " + axis + ")");
+        };
+    }
+
+    /**
      * Returns the Euclidean length of this vector.
      *
      * @return the length

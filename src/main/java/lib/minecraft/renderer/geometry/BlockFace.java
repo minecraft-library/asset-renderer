@@ -215,16 +215,16 @@ public enum BlockFace {
      * @param size the cube's extent along each axis in model units ({@code [sx, sy, sz]})
      * @return the UV rectangle as {@code (uMin, vMin, uMax, vMax)} in pixel space
      */
-    public @NotNull Vector4f defaultUv(int @NotNull [] uv, float @NotNull [] size) {
-        float sx = size[0];
-        float sz = size[2];
+    public @NotNull Vector4f defaultUv(@NotNull Vector2f uv, @NotNull Vector3f size) {
+        float sx = size.x();
+        float sz = size.z();
         float uOff = this.entityLayout.atlasUSxCoef() * sx + this.entityLayout.atlasUSzCoef() * sz;
         float vOff = this.entityLayout.atlasVSxCoef() * sx + this.entityLayout.atlasVSzCoef() * sz;
 
-        float u0 = uv[0] + uOff;
-        float u1 = u0 + size[this.entityLayout.widthAxis()];
-        float v0 = uv[1] + vOff;
-        float v1 = v0 + size[this.entityLayout.heightAxis()];
+        float u0 = uv.x() + uOff;
+        float u1 = u0 + size.get(this.entityLayout.widthAxis());
+        float v0 = uv.y() + vOff;
+        float v1 = v0 + size.get(this.entityLayout.heightAxis());
 
         return new Vector4f(u0, v0, u1, v1);
     }

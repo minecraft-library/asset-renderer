@@ -94,7 +94,7 @@ public class EntityGeometryKit {
     public static @NotNull BuildResult buildTriangles(
         @NotNull EntityModelData model,
         @NotNull PixelBuffer texture,
-        @NotNull ModelBounds bounds
+        @NotNull Box bounds
     ) {
         return buildTriangles(model, texture, bounds, false);
     }
@@ -115,16 +115,16 @@ public class EntityGeometryKit {
     public static @NotNull BuildResult buildTriangles(
         @NotNull EntityModelData model,
         @NotNull PixelBuffer texture,
-        @NotNull ModelBounds bounds,
+        @NotNull Box bounds,
         boolean emissive
     ) {
         Map<String, Matrix4f> chainTransforms = buildChainTransforms(model.getBones());
 
         float extent = Math.max(bounds.maxExtent(), MIN_MODEL_EXTENT);
         float scale = ENTITY_MODEL_FIT_EXTENT / extent;
-        float cx = (bounds.minX + bounds.maxX) * 0.5f;
-        float cy = (bounds.minY + bounds.maxY) * 0.5f;
-        float cz = (bounds.minZ + bounds.maxZ) * 0.5f;
+        float cx = (bounds.minX() + bounds.maxX()) * 0.5f;
+        float cy = (bounds.minY() + bounds.maxY()) * 0.5f;
+        float cz = (bounds.minZ() + bounds.maxZ()) * 0.5f;
 
         // UV pixel addresses in Bedrock geo.json are authored in the declared texture_width /
         // texture_height pixel grid. When the Bedrock pack ships an HD PNG that is a uniform
@@ -154,16 +154,16 @@ public class EntityGeometryKit {
             float bMaxX = Float.NEGATIVE_INFINITY, bMaxY = Float.NEGATIVE_INFINITY, bMaxZ = Float.NEGATIVE_INFINITY;
 
             for (EntityModelData.Cube cube : bone.getCubes()) {
-                float[] origin = cube.getOrigin();
-                float[] size = cube.getSize();
+                Vector3f origin = cube.getOrigin();
+                Vector3f size = cube.getSize();
                 float inflate = cube.getInflate();
 
                 // Cube vertices are in absolute entity-root space (Bedrock convention) - the min
                 // corner at (origin) and the max at (origin + size), inflated outward by inflate
                 // on each axis for armor-layer-style padding.
                 Box cubeBounds = new Box(
-                    origin[0] - inflate, origin[1] - inflate, origin[2] - inflate,
-                    origin[0] + size[0] + inflate, origin[1] + size[1] + inflate, origin[2] + size[2] + inflate
+                    origin.x() - inflate, origin.y() - inflate, origin.z() - inflate,
+                    origin.x() + size.x() + inflate, origin.y() + size.y() + inflate, origin.z() + size.z() + inflate
                 );
 
                 // Row-vector order, innermost first:
@@ -228,7 +228,7 @@ public class EntityGeometryKit {
      * @param model the entity model definition
      * @return the model bounds
      */
-    public static @NotNull ModelBounds computeBounds(@NotNull EntityModelData model) {
+    public static @NotNull Box computeBounds(@NotNull EntityModelData model) {
         return computeBounds(model, buildChainTransforms(model.getBones()));
     }
 
@@ -236,7 +236,7 @@ public class EntityGeometryKit {
      * Internal variant that reuses an already-built chain cache so {@link #buildTriangles} and
      * {@link #computeBounds(EntityModelData)} don't rebuild the same matrices back-to-back.
      */
-    private static @NotNull ModelBounds computeBounds(
+    private static @NotNull Box computeBounds(
         @NotNull EntityModelData model,
         @NotNull Map<String, Matrix4f> chainTransforms
     ) {
@@ -247,14 +247,14 @@ public class EntityGeometryKit {
             EntityModelData.Bone bone = entry.getValue();
             Matrix4f boneChain = chainTransforms.get(entry.getKey());
             for (EntityModelData.Cube cube : bone.getCubes()) {
-                float[] origin = cube.getOrigin();
-                float[] size = cube.getSize();
+                Vector3f origin = cube.getOrigin();
+                Vector3f size = cube.getSize();
                 float inflate = cube.getInflate();
                 Matrix4f fullTransform = composeCubeTransform(cube, bone, boneChain);
 
-                float[] xs = { origin[0] - inflate, origin[0] + size[0] + inflate };
-                float[] ys = { origin[1] - inflate, origin[1] + size[1] + inflate };
-                float[] zs = { origin[2] - inflate, origin[2] + size[2] + inflate };
+                float[] xs = { origin.x() - inflate, origin.x() + size.x() + inflate };
+                float[] ys = { origin.y() - inflate, origin.y() + size.y() + inflate };
+                float[] zs = { origin.z() - inflate, origin.z() + size.z() + inflate };
 
                 for (float x : xs) {
                     for (float y : ys) {
@@ -273,9 +273,9 @@ public class EntityGeometryKit {
         }
 
         if (minX == Float.POSITIVE_INFINITY)
-            return new ModelBounds(0f, 0f, 0f, 0f, 0f, 0f);
+            return new Box(0f, 0f, 0f, 0f, 0f, 0f);
 
-        return new ModelBounds(minX, minY, minZ, maxX, maxY, maxZ);
+        return new Box(minX, minY, minZ, maxX, maxY, maxZ);
     }
 
     /**
@@ -406,11 +406,11 @@ public class EntityGeometryKit {
      * the visual pose Bedrock renders natively, with no per-field or per-bone tuning needed.
      */
     private static @NotNull Matrix4f pivotCenteredRotation(
-        float @NotNull [] pivot,
+        @NotNull Vector3f pivot,
         @NotNull EulerRotation rotation
     ) {
-        Matrix4f toPivot = Matrix4f.createTranslation(-pivot[0], -pivot[1], -pivot[2]);
-        Matrix4f fromPivot = Matrix4f.createTranslation(pivot[0], pivot[1], pivot[2]);
+        Matrix4f toPivot = Matrix4f.createTranslation(pivot.negate());
+        Matrix4f fromPivot = Matrix4f.createTranslation(pivot);
         Matrix4f rot = Matrix4f.createRotationZ(-rotation.rollRadians())
             .multiply(Matrix4f.createRotationY(rotation.yawRadians()))
             .multiply(Matrix4f.createRotationX(-rotation.pitchRadians()));
@@ -427,7 +427,7 @@ public class EntityGeometryKit {
     private static @NotNull Vector2f @NotNull [] resolveFaceUv(
         @NotNull BlockFace face,
         @NotNull EntityModelData.Cube cube,
-        float @NotNull [] size,
+        @NotNull Vector3f size,
         float texWidth,
         float texHeight
     ) {
@@ -436,11 +436,9 @@ public class EntityGeometryKit {
         if (override == null) {
             rect = face.defaultUv(cube.getUv(), size);
         } else {
-            float u0 = override.getUv()[0];
-            float v0 = override.getUv()[1];
-            float u1 = u0 + override.getUvSize()[0];
-            float v1 = v0 + override.getUvSize()[1];
-            rect = new Vector4f(u0, v0, u1, v1);
+            Vector2f uv = override.getUv();
+            Vector2f uvSize = override.getUvSize();
+            rect = new Vector4f(uv.x(), uv.y(), uv.x() + uvSize.x(), uv.y() + uvSize.y());
         }
         return rect.toUvCorners(texWidth, texHeight, 0, cube.isMirror());
     }
@@ -468,7 +466,7 @@ public class EntityGeometryKit {
      */
     private static boolean shouldCullBackFaces(
         @NotNull EntityModelData.Cube cube,
-        float @NotNull [] size,
+        @NotNull Vector3f size,
         @NotNull PixelBuffer texture,
         float texW,
         float texH
@@ -522,28 +520,5 @@ public class EntityGeometryKit {
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull Map<String, Vector3f[]> boneBounds
     ) {}
-
-    /**
-     * Axis-aligned bounding box of an entity model in its native coordinate space.
-     *
-     * @param minX the minimum X
-     * @param minY the minimum Y
-     * @param minZ the minimum Z
-     * @param maxX the maximum X
-     * @param maxY the maximum Y
-     * @param maxZ the maximum Z
-     */
-    public record ModelBounds(float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
-
-        /**
-         * Returns the largest extent across all three axes.
-         *
-         * @return the maximum dimension
-         */
-        public float maxExtent() {
-            return Math.max(maxX - minX, Math.max(maxY - minY, maxZ - minZ));
-        }
-
-    }
 
 }

@@ -8,6 +8,7 @@ import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.IsometricEngine;
 import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.geometry.Box;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
@@ -59,7 +60,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // inside the unit cube. Pinning the fit to the base preserves a consistent silhouette
         // size across plain and overlaid variants; overlays render at the same scale and may
         // extend past the cube edge, which is the right tradeoff for icon framing.
-        EntityGeometryKit.ModelBounds baseBounds = EntityGeometryKit.computeBounds(model);
+        Box baseBounds = EntityGeometryKit.computeBounds(model);
 
         EntityGeometryKit.BuildResult buildResult = EntityGeometryKit.buildTriangles(model, texture.get(), baseBounds);
         if (buildResult.triangles().isEmpty())

@@ -9,6 +9,8 @@ import dev.simplified.collection.linked.ConcurrentLinkedMap;
 import lib.minecraft.renderer.geometry.BlockFace;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.kit.EntityGeometryKit;
+import lib.minecraft.renderer.tensor.Vector2f;
+import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tooling.ToolingEntityModels;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -99,7 +101,7 @@ public class EntityModelData {
     @AllArgsConstructor
     public static class Bone {
 
-        private float @NotNull [] pivot = new float[]{ 0f, 0f, 0f };
+        private @NotNull Vector3f pivot = Vector3f.ZERO;
 
         /**
          * The bone's dynamic pose rotation - animated in Bedrock at runtime. Propagates through
@@ -130,12 +132,12 @@ public class EntityModelData {
         private @org.jetbrains.annotations.Nullable String parent = null;
 
         /** Convenience constructor for the common case of no parent and no bind pose. */
-        public Bone(float @NotNull [] pivot, @NotNull EulerRotation rotation, @NotNull ConcurrentList<Cube> cubes) {
+        public Bone(@NotNull Vector3f pivot, @NotNull EulerRotation rotation, @NotNull ConcurrentList<Cube> cubes) {
             this(pivot, rotation, EulerRotation.NONE, cubes, null);
         }
 
         /** Convenience constructor preserving the historic (pivot, rotation, cubes, parent) signature. */
-        public Bone(float @NotNull [] pivot, @NotNull EulerRotation rotation, @NotNull ConcurrentList<Cube> cubes, @org.jetbrains.annotations.Nullable String parent) {
+        public Bone(@NotNull Vector3f pivot, @NotNull EulerRotation rotation, @NotNull ConcurrentList<Cube> cubes, @org.jetbrains.annotations.Nullable String parent) {
             this(pivot, rotation, EulerRotation.NONE, cubes, parent);
         }
 
@@ -143,7 +145,7 @@ public class EntityModelData {
         public boolean equals(Object o) {
             if (o == null || getClass() != o.getClass()) return false;
             Bone that = (Bone) o;
-            return java.util.Arrays.equals(pivot, that.pivot)
+            return Objects.equals(pivot, that.pivot)
                 && Objects.equals(rotation, that.rotation)
                 && Objects.equals(bindPoseRotation, that.bindPoseRotation)
                 && Objects.equals(cubes, that.cubes)
@@ -152,9 +154,7 @@ public class EntityModelData {
 
         @Override
         public int hashCode() {
-            int result = Objects.hash(cubes, rotation, bindPoseRotation, parent);
-            result = 31 * result + java.util.Arrays.hashCode(pivot);
-            return result;
+            return Objects.hash(pivot, cubes, rotation, bindPoseRotation, parent);
         }
 
     }
@@ -170,9 +170,9 @@ public class EntityModelData {
     @AllArgsConstructor
     public static class Cube {
 
-        private float @NotNull [] origin = new float[]{ 0f, 0f, 0f };
-        private float @NotNull [] size = new float[]{ 1f, 1f, 1f };
-        private int @NotNull [] uv = new int[]{ 0, 0 };
+        private @NotNull Vector3f origin = Vector3f.ZERO;
+        private @NotNull Vector3f size = new Vector3f(1f, 1f, 1f);
+        private @NotNull Vector2f uv = Vector2f.ZERO;
         private float inflate = 0f;
         private boolean mirror = false;
 
@@ -186,7 +186,7 @@ public class EntityModelData {
          * semantics that a cube-rotation-without-pivot anchors on the bone. Ignored when
          * {@link #rotation} is zero.
          */
-        private float @NotNull [] pivot = new float[]{ 0f, 0f, 0f };
+        private @NotNull Vector3f pivot = Vector3f.ZERO;
 
         @JsonAdapter(EulerRotation.Adapter.class)
         private @NotNull EulerRotation rotation = EulerRotation.NONE;
@@ -212,22 +212,17 @@ public class EntityModelData {
             Cube that = (Cube) o;
             return Float.compare(inflate, that.inflate) == 0
                 && mirror == that.mirror
-                && java.util.Arrays.equals(origin, that.origin)
-                && java.util.Arrays.equals(size, that.size)
-                && java.util.Arrays.equals(uv, that.uv)
-                && java.util.Arrays.equals(pivot, that.pivot)
+                && Objects.equals(origin, that.origin)
+                && Objects.equals(size, that.size)
+                && Objects.equals(uv, that.uv)
+                && Objects.equals(pivot, that.pivot)
                 && Objects.equals(rotation, that.rotation)
                 && Objects.equals(faceUv, that.faceUv);
         }
 
         @Override
         public int hashCode() {
-            int result = Objects.hash(inflate, mirror, rotation, faceUv);
-            result = 31 * result + java.util.Arrays.hashCode(origin);
-            result = 31 * result + java.util.Arrays.hashCode(size);
-            result = 31 * result + java.util.Arrays.hashCode(uv);
-            result = 31 * result + java.util.Arrays.hashCode(pivot);
-            return result;
+            return Objects.hash(origin, size, uv, inflate, mirror, pivot, rotation, faceUv);
         }
 
     }
@@ -243,28 +238,27 @@ public class EntityModelData {
      */
     @Getter
     @NoArgsConstructor
+    @AllArgsConstructor
     public static class FaceUv {
 
         /** The rectangle's top-left origin on the texture image in pixels ({@code [u, v]}). */
-        private float @NotNull [] uv = new float[]{ 0f, 0f };
+        private @NotNull Vector2f uv = Vector2f.ZERO;
 
         /** The rectangle's size on the texture image in pixels ({@code [width, height]}). */
         @SerializedName("uv_size")
-        private float @NotNull [] uvSize = new float[]{ 0f, 0f };
+        private @NotNull Vector2f uvSize = Vector2f.ZERO;
 
         @Override
         public boolean equals(Object o) {
             if (o == null || getClass() != o.getClass()) return false;
             FaceUv that = (FaceUv) o;
-            return java.util.Arrays.equals(uv, that.uv)
-                && java.util.Arrays.equals(uvSize, that.uvSize);
+            return Objects.equals(uv, that.uv)
+                && Objects.equals(uvSize, that.uvSize);
         }
 
         @Override
         public int hashCode() {
-            int result = java.util.Arrays.hashCode(uv);
-            result = 31 * result + java.util.Arrays.hashCode(uvSize);
-            return result;
+            return Objects.hash(uv, uvSize);
         }
 
     }

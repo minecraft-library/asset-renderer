@@ -102,15 +102,15 @@ public final class ToolingBindPoses {
             .forEach(bone -> {
                 JsonObject boneEntry = new JsonObject();
                 JsonArray rot = new JsonArray();
-                rot.add(bone.getValue().pitch());
-                rot.add(bone.getValue().yaw());
-                rot.add(bone.getValue().roll());
+                rot.add(bone.getValue().rotation().pitch());
+                rot.add(bone.getValue().rotation().yaw());
+                rot.add(bone.getValue().rotation().roll());
                 boneEntry.add("rotation", rot);
 
                 JsonArray piv = new JsonArray();
-                piv.add(bone.getValue().pivotX());
-                piv.add(bone.getValue().pivotY());
-                piv.add(bone.getValue().pivotZ());
+                piv.add(bone.getValue().pivot().x());
+                piv.add(bone.getValue().pivot().y());
+                piv.add(bone.getValue().pivot().z());
                 boneEntry.add("pivot", piv);
 
                 entry.add(bone.getKey(), boneEntry);

@@ -10,6 +10,8 @@ import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.exception.AssetPipelineException;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
+import lib.minecraft.renderer.tensor.Vector2f;
+import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tooling.ToolingEntityModels;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -409,16 +411,16 @@ public class EntityModelLoader {
                 }
             }
 
-            float[] pivot = existing.getPivot();
+            Vector3f pivot = existing.getPivot();
             boolean pivotExplicit = patch.has("pivot");
             if (pivotExplicit) {
                 JsonElement pv = patch.get("pivot");
                 if (pv.isJsonArray() && pv.getAsJsonArray().size() == 3) {
-                    pivot = new float[]{
+                    pivot = new Vector3f(
                         pv.getAsJsonArray().get(0).getAsFloat(),
                         pv.getAsJsonArray().get(1).getAsFloat(),
                         pv.getAsJsonArray().get(2).getAsFloat()
-                    };
+                    );
                 }
             } else if (rotationSet && !rotation.equals(lib.minecraft.renderer.geometry.EulerRotation.NONE)) {
                 pivot = collectiveCubeCenter(existing.getCubes(), existing.getPivot());
@@ -432,7 +434,7 @@ public class EntityModelLoader {
                     dx = off.getAsJsonArray().get(0).getAsFloat();
                     dy = off.getAsJsonArray().get(1).getAsFloat();
                     dz = off.getAsJsonArray().get(2).getAsFloat();
-                    pivot = new float[]{ pivot[0] + dx, pivot[1] + dy, pivot[2] + dz };
+                    pivot = pivot.add(new Vector3f(dx, dy, dz));
                 }
             }
             boolean mirror = patch.has("cube_mirror") && patch.get("cube_mirror").getAsBoolean();
@@ -505,51 +507,48 @@ public class EntityModelLoader {
                     o.getAsJsonArray("rotation").get(2).getAsFloat()
                 );
             }
-            float[] origin = c.getOrigin();
-            float[] size = c.getSize();
+            Vector3f origin = c.getOrigin();
+            Vector3f size = c.getSize();
             if (o.has("size") && o.get("size").isJsonArray()
                 && o.getAsJsonArray("size").size() == 3) {
-                size = new float[]{
+                size = new Vector3f(
                     o.getAsJsonArray("size").get(0).getAsFloat(),
                     o.getAsJsonArray("size").get(1).getAsFloat(),
                     o.getAsJsonArray("size").get(2).getAsFloat()
-                };
+                );
             }
-            int[] uv = c.getUv();
+            Vector2f uv = c.getUv();
             if (o.has("uv") && o.get("uv").isJsonArray()
                 && o.getAsJsonArray("uv").size() == 2) {
-                uv = new int[]{
+                uv = new Vector2f(
                     o.getAsJsonArray("uv").get(0).getAsInt(),
                     o.getAsJsonArray("uv").get(1).getAsInt()
-                };
+                );
             }
             float inflate = o.has("inflate") ? o.get("inflate").getAsFloat() : c.getInflate();
-            float[] pivot = c.getPivot();
+            Vector3f pivot = c.getPivot();
             // Pivot precedence:
             //   1. Explicit `pivot` field - absolute Bedrock-space coords, used verbatim.
             //   2. Implicit, when `rotation` is set without `pivot`: defaults to the cube's
             //      own (post-origin_offset) bbox center, so a per-cube rotation rotates the
             //      cube in place without a surprise translation.
             //   3. Default: existing cube pivot shifted by origin_offset.
-            float[] newPivot;
+            Vector3f offset = new Vector3f(dx, dy, dz);
+            Vector3f newPivot;
             if (o.has("pivot") && o.get("pivot").isJsonArray()
                 && o.getAsJsonArray("pivot").size() == 3) {
-                newPivot = new float[]{
+                newPivot = new Vector3f(
                     o.getAsJsonArray("pivot").get(0).getAsFloat(),
                     o.getAsJsonArray("pivot").get(1).getAsFloat(),
                     o.getAsJsonArray("pivot").get(2).getAsFloat()
-                };
+                );
             } else if (rotSet && !rot.equals(lib.minecraft.renderer.geometry.EulerRotation.NONE)) {
-                newPivot = new float[]{
-                    (origin[0] + dx) + size[0] * 0.5f,
-                    (origin[1] + dy) + size[1] * 0.5f,
-                    (origin[2] + dz) + size[2] * 0.5f
-                };
+                newPivot = origin.add(offset).add(size.multiply(0.5f));
             } else {
-                newPivot = new float[]{ pivot[0] + dx, pivot[1] + dy, pivot[2] + dz };
+                newPivot = pivot.add(offset);
             }
             out.add(new EntityModelData.Cube(
-                new float[]{ origin[0] + dx, origin[1] + dy, origin[2] + dz },
+                origin.add(offset),
                 size,
                 uv,
                 inflate,
@@ -573,24 +572,24 @@ public class EntityModelLoader {
      * @param fallback the bone's existing pivot, returned when {@code cubes} is empty
      * @return the collective bbox center, or {@code fallback} when empty
      */
-    private static float @NotNull [] collectiveCubeCenter(
+    private static @NotNull Vector3f collectiveCubeCenter(
         @NotNull dev.simplified.collection.ConcurrentList<EntityModelData.Cube> cubes,
-        float @NotNull [] fallback
+        @NotNull Vector3f fallback
     ) {
         if (cubes.isEmpty()) return fallback;
         float minX = Float.POSITIVE_INFINITY, minY = Float.POSITIVE_INFINITY, minZ = Float.POSITIVE_INFINITY;
         float maxX = Float.NEGATIVE_INFINITY, maxY = Float.NEGATIVE_INFINITY, maxZ = Float.NEGATIVE_INFINITY;
         for (EntityModelData.Cube c : cubes) {
-            float[] o = c.getOrigin();
-            float[] s = c.getSize();
-            minX = Math.min(minX, o[0]);
-            minY = Math.min(minY, o[1]);
-            minZ = Math.min(minZ, o[2]);
-            maxX = Math.max(maxX, o[0] + s[0]);
-            maxY = Math.max(maxY, o[1] + s[1]);
-            maxZ = Math.max(maxZ, o[2] + s[2]);
+            Vector3f o = c.getOrigin();
+            Vector3f s = c.getSize();
+            minX = Math.min(minX, o.x());
+            minY = Math.min(minY, o.y());
+            minZ = Math.min(minZ, o.z());
+            maxX = Math.max(maxX, o.x() + s.x());
+            maxY = Math.max(maxY, o.y() + s.y());
+            maxZ = Math.max(maxZ, o.z() + s.z());
         }
-        return new float[]{ (minX + maxX) * 0.5f, (minY + maxY) * 0.5f, (minZ + maxZ) * 0.5f };
+        return new Vector3f((minX + maxX) * 0.5f, (minY + maxY) * 0.5f, (minZ + maxZ) * 0.5f);
     }
 
     /**
@@ -609,16 +608,15 @@ public class EntityModelLoader {
         float dx, float dy, float dz, boolean mirror
     ) {
         dev.simplified.collection.ConcurrentList<EntityModelData.Cube> out = dev.simplified.collection.Concurrent.newList();
+        Vector3f offset = new Vector3f(dx, dy, dz);
         for (EntityModelData.Cube c : source) {
-            float[] o = c.getOrigin();
-            float[] p = c.getPivot();
             EntityModelData.Cube rewritten = new EntityModelData.Cube(
-                new float[]{ o[0] + dx, o[1] + dy, o[2] + dz },
+                c.getOrigin().add(offset),
                 c.getSize(),
                 c.getUv(),
                 c.getInflate(),
                 mirror ? !c.isMirror() : c.isMirror(),
-                new float[]{ p[0] + dx, p[1] + dy, p[2] + dz },
+                c.getPivot().add(offset),
                 c.getRotation(),
                 c.getFaceUv()
             );
@@ -674,8 +672,7 @@ public class EntityModelLoader {
                 rewriteCubes(template.getCubes(), dx, dy, dz, false);
             if (spec.has("cube_overrides") && spec.get("cube_overrides").isJsonArray())
                 shifted = applyPerCubeOverrides(shifted, spec.getAsJsonArray("cube_overrides"));
-            float[] p = template.getPivot();
-            float[] newPivot = new float[]{ p[0] + dx, p[1] + dy, p[2] + dz };
+            Vector3f newPivot = template.getPivot().add(new Vector3f(dx, dy, dz));
             lib.minecraft.renderer.geometry.EulerRotation rotation = template.getRotation();
             if (spec.has("rotation") && spec.get("rotation").isJsonArray()
                 && spec.getAsJsonArray("rotation").size() == 3) {
@@ -791,7 +788,7 @@ public class EntityModelLoader {
             var rotArr = rotEl.getAsJsonArray();
             if (rotArr.size() != 3) continue;
 
-            float[] javaPivot = readPivot(boneEntry);
+            Vector3f javaPivot = readPivot(boneEntry);
             String poseBone = matchBone(bones, e.getKey(), javaPivot, consumedBedrockBones);
             if (poseBone == null) continue;
 
@@ -824,12 +821,12 @@ public class EntityModelLoader {
      * when absent (legacy bind-pose files without pivot data). Pivot-less entries fall through
      * to name-only matching at the call site.
      */
-    private static float @org.jetbrains.annotations.Nullable [] readPivot(@NotNull JsonObject boneEntry) {
+    private static @org.jetbrains.annotations.Nullable Vector3f readPivot(@NotNull JsonObject boneEntry) {
         JsonElement pivotEl = boneEntry.get("pivot");
         if (pivotEl == null || !pivotEl.isJsonArray()) return null;
         var arr = pivotEl.getAsJsonArray();
         if (arr.size() != 3) return null;
-        return new float[]{ arr.get(0).getAsFloat(), arr.get(1).getAsFloat(), arr.get(2).getAsFloat() };
+        return new Vector3f(arr.get(0).getAsFloat(), arr.get(1).getAsFloat(), arr.get(2).getAsFloat());
     }
 
     /**
@@ -856,7 +853,7 @@ public class EntityModelLoader {
     private static @org.jetbrains.annotations.Nullable String matchBone(
         @NotNull Map<String, EntityModelData.Bone> bones,
         @NotNull String key,
-        float @org.jetbrains.annotations.Nullable [] javaPivot,
+        @org.jetbrains.annotations.Nullable Vector3f javaPivot,
         @NotNull java.util.Set<String> consumedBedrockBones
     ) {
         if (bones.containsKey(key) && !consumedBedrockBones.contains(key)) return key;
@@ -885,7 +882,7 @@ public class EntityModelLoader {
      */
     private static @org.jetbrains.annotations.Nullable String nearestBoneByPivot(
         @NotNull Map<String, EntityModelData.Bone> bones,
-        float @NotNull [] target,
+        @NotNull Vector3f target,
         @NotNull java.util.Set<String> consumedBedrockBones
     ) {
         String best = null;
@@ -893,10 +890,10 @@ public class EntityModelLoader {
         float bestDy = Float.POSITIVE_INFINITY;
         for (Map.Entry<String, EntityModelData.Bone> e : bones.entrySet()) {
             if (consumedBedrockBones.contains(e.getKey())) continue;
-            float[] p = e.getValue().getPivot();
-            float dx = p[0] - target[0];
-            float dy = p[1] - target[1];
-            float dz = p[2] - target[2];
+            Vector3f p = e.getValue().getPivot();
+            float dx = p.x() - target.x();
+            float dy = p.y() - target.y();
+            float dz = p.z() - target.z();
             float xz = (float) Math.sqrt(dx * dx + dz * dz);
             if (xz > PIVOT_MATCH_TOLERANCE) continue;
             if (Math.abs(dy) > PIVOT_MATCH_Y_CAP) continue;
@@ -920,9 +917,9 @@ public class EntityModelLoader {
         for (Map.Entry<String, EntityModelData.Bone> e : bones.entrySet()) {
             if (consumedBedrockBones.contains(e.getKey())) continue;
             if (e.getKey().equals(best)) continue;
-            float[] p = e.getValue().getPivot();
-            float dx = p[0] - target[0];
-            float dz = p[2] - target[2];
+            Vector3f p = e.getValue().getPivot();
+            float dx = p.x() - target.x();
+            float dz = p.z() - target.z();
             float xz = (float) Math.sqrt(dx * dx + dz * dz);
             if (xz > PIVOT_MATCH_TOLERANCE) continue;
             if (Math.abs(xz - bestXz) <= PIVOT_MATCH_AMBIGUITY_EPS) similar++;

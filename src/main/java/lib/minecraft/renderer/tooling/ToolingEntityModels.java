@@ -16,6 +16,8 @@ import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
 import lib.minecraft.renderer.pipeline.client.ClientJarDownloader;
 import lib.minecraft.renderer.pipeline.client.HttpFetcher;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
+import lib.minecraft.renderer.tensor.Vector2f;
+import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tooling.entity.BedrockEntityManifest;
 import lib.minecraft.renderer.tooling.entity.MobRegistryDiscovery;
 import lib.minecraft.renderer.tooling.entity.VariantReconciler;
@@ -64,6 +66,12 @@ import java.util.zip.ZipFile;
  *   <li>{@code entity_geometry.json} - deduplicated bone/cube trees keyed by Bedrock geometry id.</li>
  *   <li>{@code entity_textures/&lt;ref&gt;.png} - Bedrock entity PNGs, copied verbatim.</li>
  * </ul>
+ * <p>
+ * TODO: deferred entity-pose / texture issues are tracked in
+ * {@code ~/.claude/plans/entity-pipeline-deferred.md}. Currently open: ender_dragon
+ * wing/wingtip orientation (strip-layout UV symmetry + unsolved wing1 mirror puzzle)
+ * and zombie_horse texture coverage (Bedrock pack ships a 64x64 Java-layout PNG against
+ * a 128x128 Bedrock-layout geometry, leaving most UVs sampling empty pixels).
  */
 @UtilityClass
 public final class ToolingEntityModels {
@@ -760,43 +768,40 @@ public final class ToolingEntityModels {
                     ? boneJson.get("parent").getAsString() : null;
                 boolean boneMirror = boneJson.has("mirror") && boneJson.get("mirror").getAsBoolean();
 
-                float[] pivot = readFloatArray(boneJson, "pivot", new float[]{ 0, 0, 0 });
-                float[] r = readFloatArray(boneJson, "rotation", new float[]{ 0, 0, 0 });
-                float[] bp = readFloatArray(boneJson, "bind_pose_rotation", new float[]{ 0, 0, 0 });
+                Vector3f pivot = readVector3f(boneJson, "pivot", Vector3f.ZERO);
+                EulerRotation rotation = readEulerRotation(boneJson, "rotation");
                 // rotation propagates through the ancestor chain (children inherit); bind_pose_rotation
                 // is a static per-bone pose that applies ONLY to this bone's own cubes. Vanilla v1.8
                 // sheep/cow/pig bodies use bind_pose_rotation=[90,0,0] to lay a vertically-authored
                 // torso horizontal without also rotating their child leg bones.
-                EulerRotation rotation = new EulerRotation(r[0], r[1], r[2]);
-                EulerRotation bindPoseRotation = new EulerRotation(bp[0], bp[1], bp[2]);
+                EulerRotation bindPoseRotation = readEulerRotation(boneJson, "bind_pose_rotation");
 
                 JsonArray cubesArray = boneJson.has("cubes") ? boneJson.getAsJsonArray("cubes") : new JsonArray();
                 ConcurrentList<EntityModelData.Cube> cubes = Concurrent.newList();
 
                 for (JsonElement cubeElement : cubesArray) {
                     JsonObject cubeJson = cubeElement.getAsJsonObject();
-                    float[] origin = readFloatArray(cubeJson, "origin", new float[]{ 0, 0, 0 });
-                    float[] size = readFloatArray(cubeJson, "size", new float[]{ 1, 1, 1 });
+                    Vector3f origin = readVector3f(cubeJson, "origin", Vector3f.ZERO);
+                    Vector3f size = readVector3f(cubeJson, "size", new Vector3f(1, 1, 1));
                     float inflate = cubeJson.has("inflate") ? cubeJson.get("inflate").getAsFloat() : 0f;
                     boolean mirror = cubeJson.has("mirror")
                         ? cubeJson.get("mirror").getAsBoolean()
                         : boneMirror;
 
-                    int[] uv = new int[]{ 0, 0 };
+                    Vector2f uv = Vector2f.ZERO;
                     ConcurrentMap<String, EntityModelData.FaceUv> faceUv = Concurrent.newMap();
                     if (cubeJson.has("uv")) {
                         JsonElement uvEl = cubeJson.get("uv");
                         if (uvEl.isJsonArray()) {
                             JsonArray arr = uvEl.getAsJsonArray();
-                            uv = new int[]{ (int) arr.get(0).getAsFloat(), (int) arr.get(1).getAsFloat() };
+                            uv = new Vector2f((int) arr.get(0).getAsFloat(), (int) arr.get(1).getAsFloat());
                         } else if (uvEl.isJsonObject()) {
                             for (Map.Entry<String, JsonElement> fe : uvEl.getAsJsonObject().entrySet()) {
                                 if (!fe.getValue().isJsonObject()) continue;
                                 JsonObject faceObj = fe.getValue().getAsJsonObject();
-                                EntityModelData.FaceUv fu = new EntityModelData.FaceUv();
-                                if (faceObj.has("uv")) copyFloat2(readFloatArray(faceObj, "uv", new float[]{0,0}), fu.getUv());
-                                if (faceObj.has("uv_size")) copyFloat2(readFloatArray(faceObj, "uv_size", new float[]{0,0}), fu.getUvSize());
-                                faceUv.put(fe.getKey(), fu);
+                                Vector2f faceUvOrigin = readVector2f(faceObj, "uv", Vector2f.ZERO);
+                                Vector2f faceUvSize = readVector2f(faceObj, "uv_size", Vector2f.ZERO);
+                                faceUv.put(fe.getKey(), new EntityModelData.FaceUv(faceUvOrigin, faceUvSize));
                             }
                         }
                     }
@@ -808,21 +813,18 @@ public final class ToolingEntityModels {
                     // When the cube has no rotation the pivot is irrelevant (fast path in
                     // EntityGeometryKit.composeCubeTransform); we still populate it from the bone
                     // pivot as a safe placeholder so downstream equals/hashCode stays meaningful.
-                    float[] cr = readFloatArray(cubeJson, "rotation", new float[]{ 0, 0, 0 });
-                    boolean cubeHasRotation = cr[0] != 0f || cr[1] != 0f || cr[2] != 0f;
-                    float[] cubePivot;
+                    EulerRotation cubeRotation = readEulerRotation(cubeJson, "rotation");
+                    boolean cubeHasRotation = cubeRotation.pitch() != 0f
+                        || cubeRotation.yaw() != 0f
+                        || cubeRotation.roll() != 0f;
+                    Vector3f cubePivot;
                     if (cubeJson.has("pivot")) {
-                        cubePivot = readFloatArray(cubeJson, "pivot", pivot);
+                        cubePivot = readVector3f(cubeJson, "pivot", pivot);
                     } else if (cubeHasRotation) {
-                        cubePivot = new float[]{
-                            origin[0] + size[0] * 0.5f,
-                            origin[1] + size[1] * 0.5f,
-                            origin[2] + size[2] * 0.5f
-                        };
+                        cubePivot = origin.add(size.multiply(0.5f));
                     } else {
                         cubePivot = pivot;
                     }
-                    EulerRotation cubeRotation = new EulerRotation(cr[0], cr[1], cr[2]);
 
                     cubes.add(new EntityModelData.Cube(origin, size, uv, inflate, mirror, cubePivot, cubeRotation, faceUv));
                 }
@@ -831,10 +833,6 @@ public final class ToolingEntityModels {
             }
 
             return new EntityModelData(textureWidth, textureHeight, 0f, bones);
-        }
-
-        private static void copyFloat2(float @NotNull [] src, float @NotNull [] dst) {
-            if (src.length >= 2 && dst.length >= 2) { dst[0] = src[0]; dst[1] = src[1]; }
         }
 
         /** Classifies armor wearability from bone names alone. */
@@ -846,14 +844,27 @@ public final class ToolingEntityModels {
             return (hasHead && hasBody && hasArms && hasLegs) ? "humanoid" : "none";
         }
 
-        private static float @NotNull [] readFloatArray(@NotNull JsonObject obj, @NotNull String key, float @NotNull [] fallback) {
+        private static @NotNull Vector3f readVector3f(@NotNull JsonObject obj, @NotNull String key, @NotNull Vector3f fallback) {
             if (!obj.has(key)) return fallback;
             JsonElement el = obj.get(key);
             if (!el.isJsonArray()) return fallback;
             JsonArray arr = el.getAsJsonArray();
-            float[] out = new float[arr.size()];
-            for (int i = 0; i < arr.size(); i++) out[i] = arr.get(i).getAsFloat();
-            return out;
+            if (arr.size() < 3) return fallback;
+            return new Vector3f(arr.get(0).getAsFloat(), arr.get(1).getAsFloat(), arr.get(2).getAsFloat());
+        }
+
+        private static @NotNull Vector2f readVector2f(@NotNull JsonObject obj, @NotNull String key, @NotNull Vector2f fallback) {
+            if (!obj.has(key)) return fallback;
+            JsonElement el = obj.get(key);
+            if (!el.isJsonArray()) return fallback;
+            JsonArray arr = el.getAsJsonArray();
+            if (arr.size() < 2) return fallback;
+            return new Vector2f(arr.get(0).getAsFloat(), arr.get(1).getAsFloat());
+        }
+
+        private static @NotNull EulerRotation readEulerRotation(@NotNull JsonObject obj, @NotNull String key) {
+            Vector3f v = readVector3f(obj, key, Vector3f.ZERO);
+            return new EulerRotation(v.x(), v.y(), v.z());
         }
 
     }

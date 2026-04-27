@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.entity;
 
+import lib.minecraft.renderer.geometry.EulerRotation;
+import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lombok.experimental.UtilityClass;
@@ -77,27 +79,25 @@ public final class BindPoseDiscovery {
     private static final @NotNull String RENDERER_PACKAGE_PREFIX = "net/minecraft/client/renderer/entity/";
 
     /**
-     * One bone's discovered rest pose: three rotation axes in degrees plus the pivot position
-     * the rotation anchors on. The pivot lets the runtime loader match a Java bind-pose to a
+     * One bone's discovered rest pose: rotation axes in degrees plus the pivot position the
+     * rotation anchors on. The pivot lets the runtime loader match a Java bind-pose to a
      * Bedrock bone by position even when the bone names disagree - Java's spider legs are
      * {@code left_front_leg} / {@code right_middle_hind_leg} / etc., while Bedrock's are
      * {@code leg0} through {@code leg7}, so a pivot-based fallback is the only way to pair
      * them up without a hand-rolled dictionary.
      *
-     * @param pitch pitch (rotation about X) in degrees
-     * @param yaw yaw (rotation about Y) in degrees
-     * @param roll roll (rotation about Z) in degrees
-     * @param pivotX pivot X in entity-root units (matches Bedrock's bone pivot space for
+     * @param rotation pitch/yaw/roll about the entity-root axes in degrees
+     * @param pivot pivot in entity-root units (matches Bedrock's bone pivot space for
      *     root-level bones; nested bones carry parent-local values which may drift from the
      *     Bedrock pivot by the parent's offset)
-     * @param pivotY pivot Y in entity-root units
-     * @param pivotZ pivot Z in entity-root units
      */
-    public record Pose(float pitch, float yaw, float roll, float pivotX, float pivotY, float pivotZ) {
+    public record Pose(@NotNull EulerRotation rotation, @NotNull Vector3f pivot) {
 
         /** Returns {@code true} when all three rotation axes are zero within a sub-degree epsilon. */
         public boolean isZero() {
-            return Math.abs(this.pitch) < 1e-3f && Math.abs(this.yaw) < 1e-3f && Math.abs(this.roll) < 1e-3f;
+            return Math.abs(this.rotation.pitch()) < 1e-3f
+                && Math.abs(this.rotation.yaw()) < 1e-3f
+                && Math.abs(this.rotation.roll()) < 1e-3f;
         }
     }
 
@@ -302,10 +302,12 @@ public final class BindPoseDiscovery {
         for (Map.Entry<String, float[]> entry : rawData.entrySet()) {
             float[] v = entry.getValue();
             Pose pose = new Pose(
-                (float) Math.toDegrees(v[3]),
-                (float) Math.toDegrees(v[4]),
-                (float) Math.toDegrees(v[5]),
-                v[0], v[1], v[2]
+                new EulerRotation(
+                    (float) Math.toDegrees(v[3]),
+                    (float) Math.toDegrees(v[4]),
+                    (float) Math.toDegrees(v[5])
+                ),
+                new Vector3f(v[0], v[1], v[2])
             );
             if (!pose.isZero())
                 out.put(entry.getKey(), pose);
