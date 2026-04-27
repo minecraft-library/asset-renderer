@@ -2,7 +2,6 @@ package lib.minecraft.renderer.pipeline;
 
 import api.simplified.mojang.MojangContract;
 import api.simplified.mojang.exception.MojangApiException;
-import api.simplified.mojang.response.PistonManifest;
 import api.simplified.mojang.response.PistonMetadata;
 import dev.simplified.client.ClientConfig;
 import dev.simplified.client.Proxy;
@@ -104,17 +103,21 @@ public final class AssetPipeline {
      */
     public static @NotNull Path downloadJarToCache(@NotNull AssetPipelineOptions options) {
         Path target = packRoot(options).resolve("client.jar");
-        if (Files.isRegularFile(target) && !options.isForceDownload()) return target;
+        if (Files.isRegularFile(target) && !options.isForceDownload())
+            return target;
+
         try {
             Files.createDirectories(target.getParent());
             MojangContract mojang = mojang();
             PistonMetadata.Downloads.Entry clientEntry = resolveClientEntry(mojang, options.getVersion());
+
             try (InputStream stream = mojang.downloadClientJar(clientEntry)) {
                 Files.copy(stream, target, StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (IOException ex) {
             throw new AssetPipelineException(ex, "Failed to cache client jar at '%s'", target);
         }
+
         return target;
     }
 
@@ -150,11 +153,16 @@ public final class AssetPipeline {
      * {@link AssetPipelineException} when the version id is missing from the manifest.
      */
     private static @NotNull PistonMetadata.Downloads.Entry resolveClientEntry(@NotNull MojangContract mojang, @NotNull String version) {
-        PistonManifest.Entry entry = mojang.getVersionManifest().getVersions().stream()
-            .filter(v -> v.getVersion().equals(version))
-            .findFirst()
-            .orElseThrow(() -> new AssetPipelineException("Version '%s' is not in the Piston manifest", version));
-        return mojang.getVersionMetadata(entry).getDownloads().getClient();
+        return mojang.getVersionMetadata(
+            mojang.getVersionManifest()
+                .getVersions()
+                .stream()
+                .filter(v -> v.getVersion().equals(version))
+                .findFirst()
+                .orElseThrow(() -> new AssetPipelineException("Version '%s' is not in the Piston manifest", version))
+            )
+            .getDownloads()
+            .getClient();
     }
 
     /**
@@ -190,7 +198,10 @@ public final class AssetPipeline {
 
     /** The standard {@code <cacheRoot>/vanilla/<version>} pack-root path for the given options. */
     private static @NotNull Path packRoot(@NotNull AssetPipelineOptions options) {
-        return options.getCacheRoot().toPath().resolve("vanilla").resolve(options.getVersion());
+        return options.getCacheRoot()
+            .toPath()
+            .resolve("vanilla")
+            .resolve(options.getVersion());
     }
 
     /**
