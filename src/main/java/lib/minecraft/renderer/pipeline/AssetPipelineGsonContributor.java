@@ -2,6 +2,8 @@ package lib.minecraft.renderer.pipeline;
 
 import dev.simplified.gson.GsonContributor;
 import dev.simplified.gson.GsonSettings;
+import lib.minecraft.renderer.tensor.Vector2f;
+import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tensor.Vector4f;
 import org.jetbrains.annotations.NotNull;
 
@@ -17,7 +19,10 @@ public class AssetPipelineGsonContributor implements GsonContributor {
 
     @Override
     public void contribute(GsonSettings.@NotNull Builder builder) {
-        builder.withTypeAdapter(Vector4f.class, new Vector4f.Adapter());
+        builder
+            .withTypeAdapter(Vector2f.class, new Vector2f.Adapter())
+            .withTypeAdapter(Vector3f.class, new Vector3f.Adapter())
+            .withTypeAdapter(Vector4f.class, new Vector4f.Adapter());
     }
 
 }
