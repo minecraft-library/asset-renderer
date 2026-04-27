@@ -8,7 +8,6 @@ import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.collection.linked.ConcurrentLinkedMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.exception.AssetPipelineException;
@@ -27,6 +26,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -152,7 +152,7 @@ public class EntityModelLoader {
         JsonObject overrides = loadOverridesBlock();
         JsonObject bindPoses = loadBindPosesBlock();
 
-        ConcurrentMap<String, EntityDefinition> definitions = Concurrent.newMap();
+        HashMap<String, EntityDefinition> definitions = new HashMap<>();
         for (Map.Entry<String, JsonElement> entry : entities.entrySet()) {
             String entityId = entry.getKey();
             JsonObject entityJson = entry.getValue().getAsJsonObject();
@@ -211,9 +211,7 @@ public class EntityModelLoader {
                 float yRotation = yMutated
                     ? override.get("inventory_y_rotation").getAsFloat()
                     : baseModel.getInventoryYRotation();
-                ConcurrentLinkedMap<String, EntityModelData.Bone> bones =
-                    Concurrent.newLinkedMap();
-                bones.putAll(baseModel.getBones());
+                LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>(baseModel.getBones());
                 if (bindPoseMutated)
                     applyBindPoses(bones, bindPose, entityId);
                 if (boneMutated)
@@ -230,7 +228,7 @@ public class EntityModelLoader {
                     baseModel.getTextureWidth(),
                     baseModel.getTextureHeight(),
                     yRotation,
-                    bones
+                    Concurrent.adoptLinkedMap(bones)
                 );
             }
 
@@ -264,7 +262,7 @@ public class EntityModelLoader {
             definitions.put(entityId, new EntityDefinition(model, textureRef, overlays, forceOpaque));
         }
 
-        return definitions;
+        return Concurrent.adoptMap(definitions);
     }
 
     /**
@@ -330,12 +328,10 @@ public class EntityModelLoader {
      * preserved verbatim - only the per-cube inflate changes.
      */
     private static @NotNull EntityModelData inflateModel(@NotNull EntityModelData source, float delta) {
-        ConcurrentLinkedMap<String, EntityModelData.Bone> inflated =
-            Concurrent.newLinkedMap();
+        LinkedHashMap<String, EntityModelData.Bone> inflated = new LinkedHashMap<>();
         for (Map.Entry<String, EntityModelData.Bone> e : source.getBones().entrySet()) {
             EntityModelData.Bone bone = e.getValue();
-            ConcurrentList<EntityModelData.Cube> cubes =
-                Concurrent.newList();
+            ArrayList<EntityModelData.Cube> cubes = new ArrayList<>(bone.getCubes().size());
             for (EntityModelData.Cube cube : bone.getCubes())
                 cubes.add(new EntityModelData.Cube(
                     cube.getOrigin(), cube.getSize(), cube.getUv(),
@@ -343,12 +339,12 @@ public class EntityModelLoader {
                     cube.getPivot(), cube.getRotation(), cube.getFaceUv()
                 ));
             inflated.put(e.getKey(), new EntityModelData.Bone(
-                bone.getPivot(), bone.getRotation(), bone.getBindPoseRotation(), cubes, bone.getParent()
+                bone.getPivot(), bone.getRotation(), bone.getBindPoseRotation(), Concurrent.adoptList(cubes), bone.getParent()
             ));
         }
         return new EntityModelData(
             source.getTextureWidth(), source.getTextureHeight(),
-            source.getInventoryYRotation(), inflated
+            source.getInventoryYRotation(), Concurrent.adoptLinkedMap(inflated)
         );
     }
 
@@ -389,7 +385,7 @@ public class EntityModelLoader {
      * geometry regen doesn't break the whole load.
      */
     private static void applyBoneOverrides(
-        @NotNull ConcurrentLinkedMap<String, EntityModelData.Bone> bones,
+        @NotNull Map<String, EntityModelData.Bone> bones,
         @NotNull JsonObject boneOverrides,
         @NotNull String entityId
     ) {
@@ -491,7 +487,7 @@ public class EntityModelLoader {
         @NotNull ConcurrentList<EntityModelData.Cube> cubes,
         @NotNull JsonArray overrides
     ) {
-        ConcurrentList<EntityModelData.Cube> out = Concurrent.newList();
+        ArrayList<EntityModelData.Cube> out = new ArrayList<>(cubes.size());
         for (int i = 0; i < cubes.size(); i++) {
             EntityModelData.Cube c = cubes.get(i);
             if (i >= overrides.size() || !overrides.get(i).isJsonObject()) {
@@ -567,7 +563,7 @@ public class EntityModelLoader {
                 c.getFaceUv()
             ));
         }
-        return out;
+        return Concurrent.adoptList(out);
     }
 
     /**
@@ -656,7 +652,7 @@ public class EntityModelLoader {
      * override materialises them as real bones without the animation engine.
      */
     private static void applyExtraBones(
-        @NotNull ConcurrentLinkedMap<String, EntityModelData.Bone> bones,
+        @NotNull Map<String, EntityModelData.Bone> bones,
         @NotNull JsonArray extra,
         @NotNull String entityId
     ) {
@@ -710,7 +706,7 @@ public class EntityModelLoader {
      * like {@link #applyBoneOverrides}.
      */
     private static void applyHiddenBones(
-        @NotNull ConcurrentLinkedMap<String, EntityModelData.Bone> bones,
+        @NotNull Map<String, EntityModelData.Bone> bones,
         @NotNull JsonArray hiddenBones,
         @NotNull String entityId
     ) {
@@ -784,7 +780,7 @@ public class EntityModelLoader {
      * a cube-level {@code rotation: [90, 0, 0]}).
      */
     private static void applyBindPoses(
-        @NotNull ConcurrentLinkedMap<String, EntityModelData.Bone> bones,
+        @NotNull Map<String, EntityModelData.Bone> bones,
         @NotNull JsonObject bindPose,
         @NotNull String entityId
     ) {

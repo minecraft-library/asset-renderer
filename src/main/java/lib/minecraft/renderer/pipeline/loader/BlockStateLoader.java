@@ -19,10 +19,13 @@ import org.jetbrains.annotations.NotNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.Objects;
 import java.util.stream.Stream;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * A loader that reads blockstate JSON files from {@code assets/minecraft/blockstates/} and
@@ -55,52 +58,64 @@ public class BlockStateLoader {
      */
     public static @NotNull LoadResult load(@NotNull Path packRoot) {
         Path blockstatesDir = packRoot.resolve(VanillaPaths.BLOCKSTATES_DIR);
-        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variants = Concurrent.newMap();
-        ConcurrentMap<String, Block.Multipart> multiparts = Concurrent.newMap();
 
-        if (!Files.isDirectory(blockstatesDir)) return new LoadResult(variants, multiparts);
+        if (!Files.isDirectory(blockstatesDir)) return new LoadResult(Concurrent.newMap(), Concurrent.newMap());
 
-        // Two-phase walk: serial path enumeration, then parallel JSON parse per file.
-        // Per-file work is CPU-bound (Gson parse of a small blockstate JSON) plus a tiny disk
-        // read; the parallel stream scales it across cores. variants/multiparts are
-        // ConcurrentMap so concurrent puts are safe.
+        // Two-phase walk: serial path enumeration, then parallel JSON parse per file. Per-file
+        // work is CPU-bound (Gson parse of a small blockstate JSON) plus a tiny disk read; the
+        // parallel stream scales it across cores. Each file produces at most one Parsed record;
+        // the partition into variants/multiparts happens in a sequential pass over the gathered
+        // list so neither concurrent map pays per-element write-lock cost.
         List<Path> files;
         try (Stream<Path> stream = Files.list(blockstatesDir)) {
-            files = stream.filter(p -> p.toString().endsWith(".json")).collect(Collectors.toList());
+            files = stream.filter(p -> p.toString().endsWith(".json")).toList();
         } catch (IOException ex) {
             // Directory scan failure is non-fatal
-            return new LoadResult(variants, multiparts);
+            return new LoadResult(Concurrent.newMap(), Concurrent.newMap());
         }
 
-        files.parallelStream().forEach(file -> {
-            String fileName = file.getFileName().toString();
-            String blockName = fileName.substring(0, fileName.length() - 5);
-            String blockId = VanillaPaths.MINECRAFT_NAMESPACE + blockName;
+        List<Parsed> parsedAll = files.parallelStream()
+            .map(BlockStateLoader::parseBlockstateFile)
+            .filter(Objects::nonNull)
+            .toList();
 
-            try {
-                String json = Files.readString(file);
-                JsonObject root = GSON.fromJson(json, JsonObject.class);
-                if (root == null) return;
+        HashMap<String, ConcurrentMap<String, Block.Variant>> variants = new HashMap<>();
+        HashMap<String, Block.Multipart> multiparts = new HashMap<>();
+        for (Parsed p : parsedAll) {
+            if (p.variants != null) variants.put(p.blockId, p.variants);
+            else if (p.multipart != null) multiparts.put(p.blockId, p.multipart);
+        }
 
-                if (root.has("variants")) {
-                    ConcurrentMap<String, Block.Variant> parsed = parseVariants(root.getAsJsonObject("variants"));
-                    if (!parsed.isEmpty())
-                        variants.put(blockId, parsed);
-                } else if (root.has("multipart")) {
-                    Block.Multipart parsed = parseMultipart(root.getAsJsonArray("multipart"));
-                    if (!parsed.parts().isEmpty())
-                        multiparts.put(blockId, parsed);
-                }
-            } catch (IOException | JsonSyntaxException ex) {
-                // Skip malformed blockstate files
-            }
-        });
-
-        return new LoadResult(variants, multiparts);
+        return new LoadResult(Concurrent.adoptMap(variants), Concurrent.adoptMap(multiparts));
     }
 
+    private static @Nullable Parsed parseBlockstateFile(@NotNull Path file) {
+        String fileName = file.getFileName().toString();
+        String blockName = fileName.substring(0, fileName.length() - 5);
+        String blockId = VanillaPaths.MINECRAFT_NAMESPACE + blockName;
+
+        try {
+            String json = Files.readString(file);
+            JsonObject root = GSON.fromJson(json, JsonObject.class);
+            if (root == null) return null;
+
+            if (root.has("variants")) {
+                ConcurrentMap<String, Block.Variant> parsed = parseVariants(root.getAsJsonObject("variants"));
+                return parsed.isEmpty() ? null : new Parsed(blockId, parsed, null);
+            } else if (root.has("multipart")) {
+                Block.Multipart parsed = parseMultipart(root.getAsJsonArray("multipart"));
+                return parsed.parts().isEmpty() ? null : new Parsed(blockId, null, parsed);
+            }
+        } catch (IOException | JsonSyntaxException ex) {
+            // Skip malformed blockstate files
+        }
+        return null;
+    }
+
+    private record Parsed(@NotNull String blockId, @Nullable ConcurrentMap<String, Block.Variant> variants, @Nullable Block.Multipart multipart) {}
+
     private static @NotNull ConcurrentMap<String, Block.Variant> parseVariants(@NotNull JsonObject variants) {
-        ConcurrentMap<String, Block.Variant> result = Concurrent.newMap();
+        HashMap<String, Block.Variant> result = new HashMap<>();
 
         for (Map.Entry<String, JsonElement> entry : variants.entrySet()) {
             JsonElement value = entry.getValue();
@@ -119,11 +134,11 @@ public class BlockStateLoader {
             result.put(entry.getKey(), parseApply(variantObj));
         }
 
-        return result;
+        return Concurrent.adoptMap(result);
     }
 
     private static @NotNull Block.Multipart parseMultipart(@NotNull JsonArray parts) {
-        ConcurrentList<Block.Multipart.Part> result = Concurrent.newList();
+        ArrayList<Block.Multipart.Part> result = new ArrayList<>();
 
         for (JsonElement element : parts) {
             if (!element.isJsonObject()) continue;
@@ -149,7 +164,7 @@ public class BlockStateLoader {
             result.add(new Block.Multipart.Part(when, parseApply(applyObj)));
         }
 
-        return new Block.Multipart(result);
+        return new Block.Multipart(Concurrent.adoptList(result));
     }
 
     private static @NotNull Block.Variant parseApply(@NotNull JsonObject obj) {

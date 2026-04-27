@@ -16,8 +16,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Stream;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * A loader that reads MC 26.1 item definition files from {@code assets/minecraft/items/} and
@@ -51,46 +53,49 @@ public class ItemDefinitionLoader {
      */
     public static @NotNull ConcurrentMap<String, String> load(@NotNull Path packRoot) {
         Path itemsDir = packRoot.resolve(VanillaPaths.ITEMS_DIR);
-        ConcurrentMap<String, String> result = Concurrent.newMap();
-        if (!Files.isDirectory(itemsDir)) return result;
+        if (!Files.isDirectory(itemsDir)) return Concurrent.newMap();
 
         // Two-phase walk: enumerate item definition JSON paths serially, then parallelise
-        // readString + Gson parse across the FJP common pool. Each file's parse is fully
-        // independent; result is a ConcurrentMap.
+        // readString + Gson parse across the FJP common pool. Concurrent.toMap collects per-shard
+        // HashMaps and adopts the merged result, so the build pays zero per-entry write-locks.
         List<Path> files;
         try (Stream<Path> stream = Files.walk(itemsDir)) {
             files = stream
                 .filter(Files::isRegularFile)
                 .filter(p -> p.toString().endsWith(".json"))
-                .collect(Collectors.toList());
+                .toList();
         } catch (IOException ex) {
             throw new AssetPipelineException(ex, "Failed to scan item definitions in '%s'", itemsDir);
         }
 
-        files.parallelStream().forEach(p -> {
-            String relative = itemsDir.relativize(p).toString().replace('\\', '/');
-            if (!relative.endsWith(".json")) return;
-            String itemId = VanillaPaths.MINECRAFT_NAMESPACE + relative.substring(0, relative.length() - ".json".length());
+        return files.parallelStream()
+            .map(p -> parseItemDef(p, itemsDir))
+            .filter(Objects::nonNull)
+            .collect(Concurrent.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
 
-            try {
-                String content = Files.readString(p);
-                JsonObject json = GSON.fromJson(content, JsonObject.class);
-                if (json == null || !json.has("model")) return;
+    private static @Nullable Map.Entry<String, String> parseItemDef(@NotNull Path p, @NotNull Path itemsDir) {
+        String relative = itemsDir.relativize(p).toString().replace('\\', '/');
+        if (!relative.endsWith(".json")) return null;
+        String itemId = VanillaPaths.MINECRAFT_NAMESPACE + relative.substring(0, relative.length() - ".json".length());
 
-                JsonObject model = json.getAsJsonObject("model");
-                if (model == null) return;
-                if (!model.has("type") || !model.has("model")) return;
-                if (!"minecraft:model".equals(model.get("type").getAsString())) return;
+        try {
+            String content = Files.readString(p);
+            JsonObject json = GSON.fromJson(content, JsonObject.class);
+            if (json == null || !json.has("model")) return null;
 
-                String modelRef = model.get("model").getAsString();
-                if (modelRef.startsWith(VanillaPaths.MODEL_BLOCK_ID_PREFIX))
-                    result.put(itemId, modelRef);
-            } catch (IOException | JsonSyntaxException ex) {
-                throw new AssetPipelineException(ex, "Failed to parse item definition '%s'", p);
-            }
-        });
+            JsonObject model = json.getAsJsonObject("model");
+            if (model == null) return null;
+            if (!model.has("type") || !model.has("model")) return null;
+            if (!"minecraft:model".equals(model.get("type").getAsString())) return null;
 
-        return result;
+            String modelRef = model.get("model").getAsString();
+            return modelRef.startsWith(VanillaPaths.MODEL_BLOCK_ID_PREFIX)
+                ? Map.entry(itemId, modelRef)
+                : null;
+        } catch (IOException | JsonSyntaxException ex) {
+            throw new AssetPipelineException(ex, "Failed to parse item definition '%s'", p);
+        }
     }
 
 }

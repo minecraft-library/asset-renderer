@@ -35,10 +35,11 @@ import org.jetbrains.annotations.NotNull;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.Map;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -102,8 +103,7 @@ public final class PipelineRendererContext implements RendererContext {
      * @return a new context scoped to the given result
      */
     public static @NotNull PipelineRendererContext of(@NotNull AssetPipeline.Result result) {
-        ConcurrentList<TexturePack> packs = Concurrent.newList();
-        packs.add(result.getVanillaPack());
+        ConcurrentList<TexturePack> packs = Concurrent.newList(result.getVanillaPack());
 
         ConcurrentMap<String, Block.Entity> blockEntityEntries = BlockEntityLoader.load();
         ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex = buildReverseTagIndex(result.getBlockTags());
@@ -148,12 +148,17 @@ public final class PipelineRendererContext implements RendererContext {
     private static @NotNull ConcurrentMap<String, ConcurrentList<String>> buildReverseTagIndex(
         @NotNull ConcurrentMap<String, BlockTag> tagMap
     ) {
-        ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex = Concurrent.newMap();
+        // Two-phase build: walk into raw HashMap<String, ArrayList<String>> with no lock cost,
+        // then wrap each tag list and the outer map via Concurrent.adopt at finish. Mutating the
+        // adopted ConcurrentList during the build would re-introduce a writeLock per add.
+        HashMap<String, ArrayList<String>> raw = new HashMap<>();
         for (Map.Entry<String, BlockTag> tagEntry : tagMap.entrySet()) {
             for (String blockId : tagEntry.getValue().getValues())
-                reverseTagIndex.computeIfAbsent(blockId, k -> Concurrent.newList()).add(tagEntry.getKey());
+                raw.computeIfAbsent(blockId, k -> new ArrayList<>()).add(tagEntry.getKey());
         }
-        return reverseTagIndex;
+        HashMap<String, ConcurrentList<String>> wrapped = new HashMap<>(raw.size());
+        raw.forEach((k, v) -> wrapped.put(k, Concurrent.adoptList(v)));
+        return Concurrent.adoptMap(wrapped);
     }
 
     /**
@@ -188,7 +193,7 @@ public final class PipelineRendererContext implements RendererContext {
         ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap = result.getBlockStates();
         ConcurrentMap<String, Block.Multipart> multipartMap = result.getBlockMultiparts();
 
-        ConcurrentMap<String, Block> blockIndex = Concurrent.newMap();
+        HashMap<String, Block> blockIndex = new HashMap<>();
         for (Map.Entry<String, BlockModelData> blockEntry : result.getBlockModels().entrySet()) {
             String modelId = blockEntry.getKey();
             BlockModelData model = blockEntry.getValue();
@@ -203,8 +208,7 @@ public final class PipelineRendererContext implements RendererContext {
                     modelToUse = override;
             }
 
-            ConcurrentMap<String, String> textures = Concurrent.newMap();
-            textures.putAll(modelToUse.getTextures());
+            HashMap<String, String> textures = new HashMap<>(modelToUse.getTextures());
             flattenElementFaces(modelToUse, textures);
 
             Block.Tint tint = tints.getOrDefault(blockId, new Block.Tint(Biome.TintTarget.NONE, Optional.empty()));
@@ -216,15 +220,15 @@ public final class PipelineRendererContext implements RendererContext {
             Block.Source source = Block.Source.PRIMARY;
             if (entity != null && !entity.additive()) {
                 modelToUse = entity.model();
-                textures = Concurrent.newMap();
+                textures = new HashMap<>();
                 textures.put("#entity", entity.textureId());
                 tint = new Block.Tint(Biome.TintTarget.NONE, Optional.empty());
                 source = Block.Source.TILE_ENTITY;
             }
 
-            blockIndex.put(blockId, new Block(blockId, "minecraft", name, modelToUse, textures, variants, multipart, tags, tint, Optional.ofNullable(entity), source));
+            blockIndex.put(blockId, new Block(blockId, "minecraft", name, modelToUse, Concurrent.adoptMap(textures), variants, multipart, tags, tint, Optional.ofNullable(entity), source));
         }
-        return blockIndex;
+        return Concurrent.adoptMap(blockIndex);
     }
 
     /**
@@ -259,11 +263,11 @@ public final class PipelineRendererContext implements RendererContext {
             ConcurrentList<String> tags = reverseTagIndex.getOrDefault(blockId, Concurrent.newList());
             ConcurrentMap<String, Block.Variant> variants = variantMap.getOrDefault(blockId, Concurrent.newMap());
             Optional<Block.Multipart> multipart = Optional.ofNullable(multipartMap.get(blockId));
-            ConcurrentMap<String, String> textures = Concurrent.newMap();
+            HashMap<String, String> textures = new HashMap<>();
             textures.put("#entity", be.textureId());
             blockIndex.put(blockId, new Block(
                 blockId, "minecraft", shortName,
-                be.model(), textures,
+                be.model(), Concurrent.adoptMap(textures),
                 variants, multipart, tags,
                 new Block.Tint(Biome.TintTarget.NONE, Optional.empty()),
                 Optional.of(be),
@@ -317,8 +321,7 @@ public final class PipelineRendererContext implements RendererContext {
 
             String shortName = blockId.contains(":") ? blockId.substring(blockId.indexOf(':') + 1) : blockId;
             BlockModelData modelToUse = hit.model();
-            ConcurrentMap<String, String> textures = Concurrent.newMap();
-            textures.putAll(modelToUse.getTextures());
+            HashMap<String, String> textures = new HashMap<>(modelToUse.getTextures());
             flattenElementFaces(modelToUse, textures);
 
             Block.Tint tint = tints.getOrDefault(blockId, new Block.Tint(Biome.TintTarget.NONE, Optional.empty()));
@@ -330,7 +333,7 @@ public final class PipelineRendererContext implements RendererContext {
             Optional<Block.Entity> attachedEntity = additiveEntity != null && additiveEntity.additive()
                 ? Optional.of(additiveEntity) : Optional.empty();
             Block.Source source = attachedEntity.isPresent() ? Block.Source.TILE_ENTITY : Block.Source.BLOCKSTATE_ONLY;
-            blockIndex.put(blockId, new Block(blockId, "minecraft", shortName, modelToUse, textures, variants, multipart, tags, tint, attachedEntity, source));
+            blockIndex.put(blockId, new Block(blockId, "minecraft", shortName, modelToUse, Concurrent.adoptMap(textures), variants, multipart, tags, tint, attachedEntity, source));
             blockstateOnlyIds.add(blockId);
         }
         return blockstateOnlyIds;
@@ -353,19 +356,18 @@ public final class PipelineRendererContext implements RendererContext {
         @NotNull AssetPipeline.Result result,
         @NotNull ConcurrentMap<String, Block.Entity> blockEntityEntries
     ) {
-        ConcurrentMap<String, Item> itemIndex = Concurrent.newMap();
+        HashMap<String, Item> itemIndex = new HashMap<>();
         for (Map.Entry<String, ItemModelData> itemEntry : result.getItemModels().entrySet()) {
             String modelId = itemEntry.getKey();
             ItemModelData model = itemEntry.getValue();
             String itemId = stripPrefix(modelId, ":item/");
             String name = localName(modelId);
             if (blockEntityEntries.containsKey(itemId)) continue;
-            ConcurrentMap<String, String> textures = Concurrent.newMap();
-            textures.putAll(model.getTextures());
+            HashMap<String, String> textures = new HashMap<>(model.getTextures());
             Optional<Item.Overlay> overlay = OverlayResolver.resolve(itemId, model);
-            itemIndex.put(itemId, new Item(itemId, "minecraft", name, model, textures, 0, 64, overlay));
+            itemIndex.put(itemId, new Item(itemId, "minecraft", name, model, Concurrent.adoptMap(textures), 0, 64, overlay));
         }
-        return itemIndex;
+        return Concurrent.adoptMap(itemIndex);
     }
 
     /**
@@ -408,7 +410,7 @@ public final class PipelineRendererContext implements RendererContext {
      * @return the populated entity index, keyed by namespaced entity id
      */
     private static @NotNull ConcurrentMap<String, Entity> loadEntityIndex() {
-        ConcurrentMap<String, Entity> entityIndex = Concurrent.newMap();
+        HashMap<String, Entity> entityIndex = new HashMap<>();
         for (Map.Entry<String, EntityModelLoader.EntityDefinition> entityEntry : EntityModelLoader.load().entrySet()) {
             EntityModelLoader.EntityDefinition def = entityEntry.getValue();
             List<Entity.Layer> overlayLayers = def.overlays().stream()
@@ -416,7 +418,7 @@ public final class PipelineRendererContext implements RendererContext {
                 .toList();
             entityIndex.put(entityEntry.getKey(), new Entity(entityEntry.getKey(), "minecraft", localName(entityEntry.getKey()), def.model(), def.textureRef(), overlayLayers, def.forceOpaque()));
         }
-        return entityIndex;
+        return Concurrent.adoptMap(entityIndex);
     }
 
     /**
@@ -427,10 +429,10 @@ public final class PipelineRendererContext implements RendererContext {
      * @return the populated texture index
      */
     private static @NotNull ConcurrentMap<String, Texture> buildTextureIndex(@NotNull AssetPipeline.Result result) {
-        ConcurrentMap<String, Texture> textureIndex = Concurrent.newMap();
+        HashMap<String, Texture> textureIndex = new HashMap<>();
         for (Texture texture : result.getTextures())
             textureIndex.put(texture.getId(), texture);
-        return textureIndex;
+        return Concurrent.adoptMap(textureIndex);
     }
 
     /**
@@ -441,10 +443,10 @@ public final class PipelineRendererContext implements RendererContext {
      * @return the populated colormap index
      */
     private static @NotNull ConcurrentMap<ColorMap.Type, ColorMap> buildColorMapIndex(@NotNull AssetPipeline.Result result) {
-        ConcurrentMap<ColorMap.Type, ColorMap> colorMapIndex = Concurrent.newMap();
+        HashMap<ColorMap.Type, ColorMap> colorMapIndex = new HashMap<>();
         for (ColorMap colorMap : result.getColorMaps())
             colorMapIndex.put(colorMap.getType(), colorMap);
-        return colorMapIndex;
+        return Concurrent.adoptMap(colorMapIndex);
     }
 
     /**
@@ -511,26 +513,24 @@ public final class PipelineRendererContext implements RendererContext {
 
     @Override
     public @NotNull ConcurrentList<String> knownBlockIds() {
-        ConcurrentList<String> ids = Concurrent.newList();
-        ids.addAll(this.blockIndex.keySet());
+        ArrayList<String> ids = new ArrayList<>(this.blockIndex.keySet());
         ids.sort((a, b) -> {
             String groupA = primaryTag(a);
             String groupB = primaryTag(b);
             int cmp = String.CASE_INSENSITIVE_ORDER.compare(groupA, groupB);
             return cmp != 0 ? cmp : String.CASE_INSENSITIVE_ORDER.compare(a, b);
         });
-        return ids;
+        return Concurrent.adoptList(ids);
     }
 
     @Override
     public @NotNull ConcurrentList<String> knownItemIds() {
-        ConcurrentList<String> ids = Concurrent.newList();
-        ids.addAll(this.itemIndex.keySet());
+        ArrayList<String> ids = new ArrayList<>(this.itemIndex.keySet());
         ids.sort((a, b) -> {
             int cmp = String.CASE_INSENSITIVE_ORDER.compare(idPrefix(a), idPrefix(b));
             return cmp != 0 ? cmp : String.CASE_INSENSITIVE_ORDER.compare(a, b);
         });
-        return ids;
+        return Concurrent.adoptList(ids);
     }
 
     @Override
@@ -545,9 +545,7 @@ public final class PipelineRendererContext implements RendererContext {
 
     @Override
     public @NotNull ConcurrentList<BannerPattern> knownBannerPatterns() {
-        ConcurrentList<BannerPattern> patterns = Concurrent.newList();
-        patterns.addAll(this.bannerPatterns.values());
-        return patterns;
+        return Concurrent.adoptList(new ArrayList<>(this.bannerPatterns.values()));
     }
 
     @Override
@@ -816,7 +814,7 @@ public final class PipelineRendererContext implements RendererContext {
      * contradictory bindings into the same direction key. A later pipeline phase will walk all
      * elements and pick a representative face per direction for multi-element blocks.
      */
-    private static void flattenElementFaces(@NotNull BlockModelData model, @NotNull ConcurrentMap<String, String> textures) {
+    private static void flattenElementFaces(@NotNull BlockModelData model, @NotNull Map<String, String> textures) {
         if (model.getElements().isEmpty()) return;
         ModelElement element = model.getElements().getFirst();
 

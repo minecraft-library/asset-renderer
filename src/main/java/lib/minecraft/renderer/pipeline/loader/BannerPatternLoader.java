@@ -13,6 +13,7 @@ import org.jetbrains.annotations.NotNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.stream.Stream;
 
 /**
@@ -42,9 +43,9 @@ public class BannerPatternLoader {
      */
     public static @NotNull ConcurrentMap<String, BannerPattern> load(@NotNull Path packRoot) {
         Path patternDir = packRoot.resolve("data/minecraft/banner_pattern");
-        ConcurrentMap<String, BannerPattern> result = Concurrent.newMap();
-        if (!Files.isDirectory(patternDir)) return result;
+        if (!Files.isDirectory(patternDir)) return Concurrent.newMap();
 
+        HashMap<String, BannerPattern> result = new HashMap<>();
         try (Stream<Path> files = Files.walk(patternDir)) {
             files.filter(Files::isRegularFile)
                 .filter(p -> p.toString().endsWith(".json"))
@@ -52,13 +53,13 @@ public class BannerPatternLoader {
         } catch (IOException ex) {
             throw new RuntimeException("Failed to walk banner pattern directory " + patternDir, ex);
         }
-        return result;
+        return Concurrent.adoptMap(result);
     }
 
     private static void parsePattern(
         @NotNull Path patternDir,
         @NotNull Path file,
-        @NotNull ConcurrentMap<String, BannerPattern> result
+        @NotNull HashMap<String, BannerPattern> result
     ) {
         String relative = patternDir.relativize(file).toString().replace('\\', '/');
         String patternId = VanillaPaths.MINECRAFT_NAMESPACE + relative.substring(0, relative.length() - ".json".length());

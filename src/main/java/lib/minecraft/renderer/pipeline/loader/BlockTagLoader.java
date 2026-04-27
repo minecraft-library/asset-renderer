@@ -16,7 +16,10 @@ import org.jetbrains.annotations.NotNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -44,11 +47,12 @@ public class BlockTagLoader {
      */
     public static @NotNull ConcurrentMap<String, BlockTag> load(@NotNull Path packRoot) {
         Path tagsDir = packRoot.resolve("data/minecraft/tags/block");
-        ConcurrentMap<String, BlockTag> result = Concurrent.newMap();
-        if (!Files.isDirectory(tagsDir)) return result;
+        if (!Files.isDirectory(tagsDir)) return Concurrent.newMap();
 
-        // First pass: parse all tag files into raw value lists
-        ConcurrentMap<String, ConcurrentList<String>> raw = Concurrent.newMap();
+        // First pass: parse all tag files into raw value lists. Build into plain HashMap /
+        // ArrayList during the load phase to skip per-element write-locks; the resolved second
+        // pass and the public return wrap with Concurrent.adopt at finish.
+        HashMap<String, List<String>> raw = new HashMap<>();
         try (Stream<Path> files = Files.walk(tagsDir)) {
             files.filter(Files::isRegularFile)
                 .filter(p -> p.toString().endsWith(".json"))
@@ -59,7 +63,7 @@ public class BlockTagLoader {
                         JsonObject root = GSON.fromJson(Files.readString(file), JsonObject.class);
                         if (root == null || !root.has("values")) return;
                         JsonArray values = root.getAsJsonArray("values");
-                        ConcurrentList<String> entries = Concurrent.newList();
+                        ArrayList<String> entries = new ArrayList<>(values.size());
                         for (int i = 0; i < values.size(); i++)
                             entries.add(values.get(i).getAsString());
                         raw.put(tagId, entries);
@@ -72,23 +76,24 @@ public class BlockTagLoader {
         }
 
         // Second pass: recursively resolve tag references
+        HashMap<String, BlockTag> result = new HashMap<>(raw.size());
         for (String tagId : raw.keySet()) {
-            ConcurrentList<String> resolved = Concurrent.newList();
+            ArrayList<String> resolved = new ArrayList<>();
             resolve(tagId, raw, resolved, new HashSet<>());
-            result.put(tagId, new BlockTag(tagId, resolved));
+            result.put(tagId, new BlockTag(tagId, Concurrent.adoptList(resolved)));
         }
 
-        return result;
+        return Concurrent.adoptMap(result);
     }
 
     private static void resolve(
         @NotNull String tagId,
-        @NotNull ConcurrentMap<String, ConcurrentList<String>> raw,
-        @NotNull ConcurrentList<String> out,
+        @NotNull HashMap<String, List<String>> raw,
+        @NotNull ArrayList<String> out,
         @NotNull Set<String> visited
     ) {
         if (!visited.add(tagId)) return; // cycle guard
-        ConcurrentList<String> entries = raw.get(tagId);
+        List<String> entries = raw.get(tagId);
         if (entries == null) return;
 
         for (String entry : entries) {

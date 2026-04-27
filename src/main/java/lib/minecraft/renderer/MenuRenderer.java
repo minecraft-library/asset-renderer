@@ -809,7 +809,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             claimed.add(ARROW_SLOT);
 
             boolean anyAnimated = chromeData.isAnimated();
-            for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet().stream().toList()) {
+            for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet()) {
                 int callerSlot = entry.getKey();
                 int chestSlot = SLOT_MAP[callerSlot];
                 MenuOptions.MenuSlotContent content = entry.getValue();

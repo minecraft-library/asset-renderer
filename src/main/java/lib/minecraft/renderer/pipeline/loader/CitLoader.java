@@ -14,7 +14,9 @@ import org.jetbrains.annotations.NotNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.stream.Stream;
@@ -43,7 +45,7 @@ public class CitLoader {
      * @return the parsed rules, or an empty list when the pack has no CIT files
      */
     public static @NotNull ConcurrentList<CitRule> load(@NotNull Path packRoot) {
-        ConcurrentList<CitRule> rules = Concurrent.newList();
+        ArrayList<CitRule> rules = new ArrayList<>();
 
         for (String root : CIT_ROOTS) {
             Path rootPath = packRoot.resolve(root);
@@ -59,7 +61,7 @@ public class CitLoader {
         }
 
         rules.sort(Comparator.comparingInt(CitRule::weight).reversed());
-        return rules;
+        return Concurrent.adoptList(rules);
     }
 
     private static @NotNull Optional<CitRule> parseFile(@NotNull Path file) {
@@ -78,7 +80,7 @@ public class CitLoader {
 
         int weight = parseIntOrDefault(props.getProperty("weight"), 0);
 
-        ConcurrentList<String> matchedItems = Concurrent.newList();
+        ArrayList<String> matchedItems = new ArrayList<>();
         String itemsProperty = props.getProperty("items", props.getProperty("matchItems", ""));
         for (String id : itemsProperty.split("\\s+")) {
             if (!id.isBlank()) matchedItems.add(id.contains(":") ? id : VanillaPaths.MINECRAFT_NAMESPACE + id);
@@ -88,13 +90,13 @@ public class CitLoader {
         Optional<IntRange> damageRange = parseRange(props.getProperty("damage"));
         Optional<IntRange> stackSizeRange = parseRange(props.getProperty("stackSize"));
 
-        ConcurrentList<String> enchantmentIds = Concurrent.newList();
+        ArrayList<String> enchantmentIds = new ArrayList<>();
         String enchantments = props.getProperty("enchantmentIDs", "");
         for (String id : enchantments.split("\\s+")) {
             if (!id.isBlank()) enchantmentIds.add(id.contains(":") ? id : VanillaPaths.MINECRAFT_NAMESPACE + id);
         }
 
-        ConcurrentMap<String, IntRange> enchantmentLevels = Concurrent.newMap();
+        HashMap<String, IntRange> enchantmentLevels = new HashMap<>();
         String levels = props.getProperty("enchantmentLevels", "");
         for (String token : levels.split("\\s+")) {
             if (token.isBlank()) continue;
@@ -105,7 +107,7 @@ public class CitLoader {
             enchantmentLevels.put(key.contains(":") ? key : VanillaPaths.MINECRAFT_NAMESPACE + key, range);
         }
 
-        ConcurrentMap<String, NbtCondition> nbtConditions = Concurrent.newMap();
+        HashMap<String, NbtCondition> nbtConditions = new HashMap<>();
         for (String name : props.stringPropertyNames()) {
             if (!name.startsWith("nbt.")) continue;
             nbtConditions.put(name.substring("nbt.".length()), NbtCondition.parse(props.getProperty(name)));
@@ -114,12 +116,12 @@ public class CitLoader {
         return Optional.of(new CitRule(
             file.toString(),
             weight,
-            matchedItems,
+            Concurrent.adoptList(matchedItems),
             damageRange,
             stackSizeRange,
-            nbtConditions,
-            enchantmentIds,
-            enchantmentLevels,
+            Concurrent.adoptMap(nbtConditions),
+            Concurrent.adoptList(enchantmentIds),
+            Concurrent.adoptMap(enchantmentLevels),
             normalizeTextureId(texture)
         ));
     }

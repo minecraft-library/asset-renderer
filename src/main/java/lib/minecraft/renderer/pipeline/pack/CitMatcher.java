@@ -37,12 +37,12 @@ public class CitMatcher {
             if (!context.enchantments().containsKey(required)) return false;
         }
 
-        for (Map.Entry<String, IntRange> entry : rule.enchantmentLevels().entrySet().stream().toList()) {
+        for (Map.Entry<String, IntRange> entry : rule.enchantmentLevels().entrySet()) {
             Integer level = context.enchantments().get(entry.getKey());
             if (level == null || !entry.getValue().contains(level)) return false;
         }
 
-        for (Map.Entry<String, NbtCondition> entry : rule.nbtConditions().entrySet().stream().toList()) {
+        for (Map.Entry<String, NbtCondition> entry : rule.nbtConditions().entrySet()) {
             String path = entry.getKey();
             String actual = path.equals("display.Name") && context.displayName().isPresent()
                 ? context.displayName().get()

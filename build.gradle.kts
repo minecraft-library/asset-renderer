@@ -60,7 +60,7 @@ dependencies {
     testImplementation(libs.junit.platform.launcher)
 
     // Simplified Libraries (extracted to github.com/simplified-dev)
-    api("com.github.simplified-dev:collections") { version { strictly("c399e1dad3") } }
+    api("com.github.simplified-dev:collections") { version { strictly("464b51db21") } }
     api("com.github.simplified-dev:utils") { version { strictly("36b2a338ce") } }
     api("com.github.simplified-dev:image") { version { strictly("b02632c") } }
     api("com.github.simplified-dev:gson-extras:master-SNAPSHOT")

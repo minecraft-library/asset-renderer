@@ -18,6 +18,7 @@ import org.jetbrains.annotations.NotNull;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.Optional;
 
 /**
@@ -54,7 +55,7 @@ public class BlockTintsLoader {
      * @throws AssetPipelineException if the resource is missing or cannot be parsed
      */
     public static @NotNull ConcurrentMap<String, Block.Tint> load() {
-        ConcurrentMap<String, Block.Tint> tints = Concurrent.newMap();
+        HashMap<String, Block.Tint> tints = new HashMap<>();
 
         try (InputStream stream = BlockTintsLoader.class.getResourceAsStream(RESOURCE_PATH)) {
             if (stream == null)
@@ -79,7 +80,7 @@ public class BlockTintsLoader {
             throw new AssetPipelineException(ex, "Failed to load vanilla tints resource '%s'", RESOURCE_PATH);
         }
 
-        return tints;
+        return Concurrent.adoptMap(tints);
     }
 
 }

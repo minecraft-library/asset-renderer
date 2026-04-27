@@ -12,6 +12,7 @@ import org.jetbrains.annotations.NotNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.Optional;
@@ -41,7 +42,7 @@ public class CtmLoader {
      * @return the parsed rules, or an empty list when the pack has no CTM files
      */
     public static @NotNull ConcurrentList<CtmRule> load(@NotNull Path packRoot) {
-        ConcurrentList<CtmRule> rules = Concurrent.newList();
+        ArrayList<CtmRule> rules = new ArrayList<>();
 
         for (String root : CTM_ROOTS) {
             Path rootPath = packRoot.resolve(root);
@@ -57,7 +58,7 @@ public class CtmLoader {
         }
 
         rules.sort(Comparator.comparingInt(CtmRule::weight).reversed());
-        return rules;
+        return Concurrent.adoptList(rules);
     }
 
     private static @NotNull Optional<CtmRule> parseFile(@NotNull Path file) {
@@ -72,26 +73,26 @@ public class CtmLoader {
         CtmMethod method = CtmMethod.parse(methodString);
         int weight = parseIntOrDefault(props.getProperty("weight"), 0);
 
-        ConcurrentList<String> matchedBlocks = Concurrent.newList();
+        ArrayList<String> matchedBlocks = new ArrayList<>();
         String blocksValue = props.getProperty("matchBlocks", "");
         for (String id : blocksValue.split("\\s+")) {
             if (!id.isBlank()) matchedBlocks.add(id.contains(":") ? id : VanillaPaths.MINECRAFT_NAMESPACE + id);
         }
 
-        ConcurrentList<String> matchedTiles = Concurrent.newList();
+        ArrayList<String> matchedTiles = new ArrayList<>();
         String tilesMatch = props.getProperty("matchTiles", "");
         for (String tile : tilesMatch.split("\\s+")) {
             if (!tile.isBlank()) matchedTiles.add(tile);
         }
 
-        ConcurrentList<String> tiles = Concurrent.newList();
+        ArrayList<String> tiles = new ArrayList<>();
         String tilesProperty = props.getProperty("tiles", "");
         for (String tile : tilesProperty.split("\\s+")) {
             if (!tile.isBlank()) tiles.add(tile);
         }
         if (tiles.isEmpty() && matchedBlocks.isEmpty() && matchedTiles.isEmpty()) return Optional.empty();
 
-        ConcurrentList<Integer> weights = Concurrent.newList();
+        ArrayList<Integer> weights = new ArrayList<>();
         String weightsProperty = props.getProperty("weights", "");
         for (String token : weightsProperty.split("\\s+")) {
             if (token.isBlank()) continue;
@@ -118,10 +119,10 @@ public class CtmLoader {
             file.toString(),
             weight,
             method,
-            matchedBlocks,
-            matchedTiles,
-            tiles,
-            weights,
+            Concurrent.adoptList(matchedBlocks),
+            Concurrent.adoptList(matchedTiles),
+            Concurrent.adoptList(tiles),
+            Concurrent.adoptList(weights),
             faces
         ));
     }

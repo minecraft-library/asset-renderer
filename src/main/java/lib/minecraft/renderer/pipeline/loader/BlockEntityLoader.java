@@ -23,6 +23,8 @@ import org.jetbrains.annotations.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -68,7 +70,7 @@ public class BlockEntityLoader {
             ? overridesRoot.getAsJsonObject("per_block")
             : new JsonObject();
 
-        ConcurrentMap<String, Block.Entity> result = Concurrent.newMap();
+        HashMap<String, Block.Entity> result = new HashMap<>();
 
         for (Map.Entry<String, JsonElement> entityEntry : entities.entrySet()) {
             String modelId = entityEntry.getKey();
@@ -95,7 +97,7 @@ public class BlockEntityLoader {
 
                 BlockModelData modelData = parseBlockModelData(modelJson, textureId);
 
-                ConcurrentList<Block.Entity.Part> parts = Concurrent.newList();
+                ArrayList<Block.Entity.Part> parts = new ArrayList<>();
                 if (entityParts != null) {
                     for (JsonElement partEl : entityParts) {
                         JsonObject partObj = partEl.getAsJsonObject();
@@ -142,7 +144,7 @@ public class BlockEntityLoader {
                     && blockOverride.has("additive")
                     && blockOverride.get("additive").getAsBoolean();
 
-                result.put(blockId, new Block.Entity(modelId, modelData, textureId, tintArgb, iconRotation, multiBlock, parts, additive));
+                result.put(blockId, new Block.Entity(modelId, modelData, textureId, tintArgb, iconRotation, multiBlock, Concurrent.adoptList(parts), additive));
             }
 
             // Per-entity overrides (e.g. inventory_y_rotation) are currently not propagated
@@ -157,7 +159,7 @@ public class BlockEntityLoader {
                 System.err.printf("  Warning: unsupported per_entity override key for '%s'%n", modelId);
         }
 
-        return result;
+        return Concurrent.adoptMap(result);
     }
 
     /**

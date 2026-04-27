@@ -23,7 +23,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -89,31 +88,28 @@ public class TexturePackLoader {
      * @return the texture metadata list
      */
     public static @NotNull ConcurrentList<Texture> scanTextures(@NotNull Path packRoot, @NotNull String packId) {
-        ConcurrentList<Texture> textures = Concurrent.newList();
         Path texturesDir = packRoot.resolve(VanillaPaths.TEXTURES_DIR);
-        if (!Files.isDirectory(texturesDir)) return textures;
+        if (!Files.isDirectory(texturesDir)) return Concurrent.newList();
 
         // Two-phase walk: materialise the PNG path list serially (Files.walk spliterators do not
         // split well for parallel work), then parallelise the per-file decode. buildTexture is
         // I/O-bound - ImageIO.read + mcmeta parse dominate wall-clock time - so parallelStream
-        // over the FJP common pool gives near-linear scaling on cold loads. Collect to a plain
-        // List first so the parallel terminal op is a lock-free reduce, then bulk addAll into
-        // the ConcurrentList to pay one writeLock acquisition instead of thousands.
+        // over the FJP common pool gives near-linear scaling on cold loads. Concurrent.toList()
+        // accumulates into a thread-confined ArrayList per shard and adopts the merged result at
+        // finish, so the build phase pays zero ConcurrentList writeLock acquisitions.
         List<Path> pngFiles;
         try (Stream<Path> stream = Files.walk(texturesDir)) {
             pngFiles = stream
                 .filter(Files::isRegularFile)
                 .filter(p -> p.toString().endsWith(".png"))
-                .collect(Collectors.toList());
+                .toList();
         } catch (IOException ex) {
             throw new AssetPipelineException(ex, "Failed to scan texture directory '%s'", texturesDir);
         }
 
-        List<Texture> built = pngFiles.parallelStream()
+        return pngFiles.parallelStream()
             .map(p -> buildTexture(p, texturesDir, packId))
-            .collect(Collectors.toList());
-        textures.addAll(built);
-        return textures;
+            .collect(Concurrent.toList());
     }
 
     private static @NotNull Texture buildTexture(@NotNull Path file, @NotNull Path texturesRoot, @NotNull String packId) {
@@ -184,7 +180,7 @@ public class TexturePackLoader {
      * animation-level {@code frametime}; explicit objects are read directly.
      */
     private static @NotNull ConcurrentList<AnimationData.FrameEntry> parseFrames(@NotNull JsonArray elements) {
-        ConcurrentList<AnimationData.FrameEntry> frames = Concurrent.newList();
+        java.util.ArrayList<AnimationData.FrameEntry> frames = new java.util.ArrayList<>(elements.size());
         for (JsonElement element : elements) {
             if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isNumber())
                 frames.add(new AnimationData.FrameEntry(element.getAsInt(), -1));
@@ -195,7 +191,7 @@ public class TexturePackLoader {
                 frames.add(new AnimationData.FrameEntry(index, time));
             }
         }
-        return frames;
+        return Concurrent.adoptList(frames);
     }
 
 }

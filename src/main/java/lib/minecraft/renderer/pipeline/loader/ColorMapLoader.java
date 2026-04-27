@@ -14,6 +14,7 @@ import org.jetbrains.annotations.NotNull;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
 
 /**
@@ -46,7 +47,7 @@ public class ColorMapLoader {
 
         JsonObject root = GSON.fromJson(new InputStreamReader(stream, StandardCharsets.UTF_8), JsonObject.class);
         JsonArray entries = root.getAsJsonArray("color_maps");
-        ConcurrentList<ColorMap> colorMaps = Concurrent.newList();
+        ArrayList<ColorMap> colorMaps = new ArrayList<>(entries.size());
 
         for (int i = 0; i < entries.size(); i++) {
             JsonObject entry = entries.get(i).getAsJsonObject();
@@ -57,7 +58,7 @@ public class ColorMapLoader {
             colorMaps.add(new ColorMap(id, "vanilla", type, pixels));
         }
 
-        return colorMaps;
+        return Concurrent.adoptList(colorMaps);
     }
 
 }

@@ -16,6 +16,7 @@ import org.jetbrains.annotations.NotNull;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 
 /**
  * A loader that reads the bundled vanilla potion effect colour table from the
@@ -62,11 +63,11 @@ public class PotionColorLoader {
      * @return a map of effect id to ARGB colour
      */
     static @NotNull ConcurrentMap<String, Integer> parse(@NotNull String json) {
-        ConcurrentMap<String, Integer> colors = Concurrent.newMap();
+        HashMap<String, Integer> colors = new HashMap<>();
         try {
             JsonObject root = GSON.fromJson(json, JsonObject.class);
             JsonArray effects = root.getAsJsonArray("effects");
-            if (effects == null) return colors;
+            if (effects == null) return Concurrent.adoptMap(colors);
 
             for (JsonElement element : effects) {
                 JsonObject entry = element.getAsJsonObject();
@@ -78,7 +79,7 @@ public class PotionColorLoader {
         } catch (JsonSyntaxException | IllegalStateException | NumberFormatException ex) {
             throw new AssetPipelineException(ex, "Malformed '%s' resource", RESOURCE_PATH);
         }
-        return colors;
+        return Concurrent.adoptMap(colors);
     }
 
     private static @NotNull String stripHexPrefix(@NotNull String hex) {

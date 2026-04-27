@@ -14,14 +14,16 @@ import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.VanillaPaths;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -52,15 +54,16 @@ public class ModelResolver {
      */
     public static @NotNull ConcurrentMap<String, BlockModelData> loadBlockModels(@NotNull Path packRoot) {
         ConcurrentMap<String, JsonObject> raw = scanJsonFiles(packRoot.resolve(VanillaPaths.MODEL_BLOCK_DIR), VanillaPaths.MODEL_BLOCK_ID_PREFIX);
-        ConcurrentMap<String, BlockModelData> resolved = Concurrent.newMap();
         // Parallel parent-chain merge + typed Gson reparse. raw is fully populated here, so
-        // mergeParentChain is a read-only traversal; Gson is thread-safe; resolved is a
-        // ConcurrentMap. Each entry is independent so the FJP common pool can scale across cores.
-        raw.entrySet().stream().toList().parallelStream().forEach(entry -> {
-            JsonObject merged = mergeParentChain(entry.getValue(), raw, packRoot, "block");
-            resolved.put(entry.getKey(), GSON.fromJson(merged, BlockModelData.class));
-        });
-        return resolved;
+        // mergeParentChain is a read-only traversal; Gson is thread-safe. Each entry is
+        // independent so the FJP common pool can scale across cores. ConcurrentMap.parallelStream
+        // is a PairStream over the cached entry-set snapshot, so we skip the .toList() snapshot
+        // copy. Concurrent.toMap collects into per-shard HashMaps and adopts the merged result,
+        // paying zero per-entry locks.
+        return raw.parallelStream().collect(Concurrent.toMap(
+            Map.Entry::getKey,
+            entry -> GSON.fromJson(mergeParentChain(entry.getValue(), raw, packRoot, "block"), BlockModelData.class)
+        ));
     }
 
     /**
@@ -72,43 +75,45 @@ public class ModelResolver {
      */
     public static @NotNull ConcurrentMap<String, ItemModelData> loadItemModels(@NotNull Path packRoot) {
         ConcurrentMap<String, JsonObject> raw = scanJsonFiles(packRoot.resolve(VanillaPaths.MODEL_ITEM_DIR), VanillaPaths.MODEL_ITEM_ID_PREFIX);
-        ConcurrentMap<String, ItemModelData> resolved = Concurrent.newMap();
-        raw.entrySet().stream().toList().parallelStream().forEach(entry -> {
-            JsonObject merged = mergeParentChain(entry.getValue(), raw, packRoot, "item");
-            resolved.put(entry.getKey(), GSON.fromJson(merged, ItemModelData.class));
-        });
-        return resolved;
+        return raw.parallelStream().collect(Concurrent.toMap(
+            Map.Entry::getKey,
+            entry -> GSON.fromJson(mergeParentChain(entry.getValue(), raw, packRoot, "item"), ItemModelData.class)
+        ));
     }
 
     private static @NotNull ConcurrentMap<String, JsonObject> scanJsonFiles(@NotNull Path directory, @NotNull String idPrefix) {
-        ConcurrentMap<String, JsonObject> result = Concurrent.newMap();
-        if (!Files.isDirectory(directory)) return result;
+        if (!Files.isDirectory(directory)) return Concurrent.newMap();
 
         // Two-phase walk: collect paths serially (Files.walk spliterators don't split well for
         // parallel work), then parallelise readString + Gson parse across the FJP common pool.
+        // Concurrent.toMap collects per-shard HashMaps lock-free and adopts the merged result.
         List<Path> files;
         try (Stream<Path> stream = Files.walk(directory)) {
             files = stream
                 .filter(Files::isRegularFile)
                 .filter(p -> p.toString().endsWith(".json"))
-                .collect(Collectors.toList());
+                .toList();
         } catch (IOException ex) {
             throw new AssetPipelineException(ex, "Failed to scan model directory '%s'", directory);
         }
 
-        files.parallelStream().forEach(p -> {
-            String relative = directory.relativize(p).toString().replace('\\', '/');
-            if (!relative.endsWith(".json")) return;
-            String id = idPrefix + relative.substring(0, relative.length() - ".json".length());
-            try {
-                String content = Files.readString(p);
-                JsonObject json = GSON.fromJson(content, JsonObject.class);
-                if (json != null) result.put(id, json);
-            } catch (IOException | JsonSyntaxException ex) {
-                throw new AssetPipelineException(ex, "Failed to parse model '%s'", p);
-            }
-        });
-        return result;
+        return files.parallelStream()
+            .map(p -> parseModelFile(p, directory, idPrefix))
+            .filter(Objects::nonNull)
+            .collect(Concurrent.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    private static @Nullable Map.Entry<String, JsonObject> parseModelFile(@NotNull Path p, @NotNull Path directory, @NotNull String idPrefix) {
+        String relative = directory.relativize(p).toString().replace('\\', '/');
+        if (!relative.endsWith(".json")) return null;
+        String id = idPrefix + relative.substring(0, relative.length() - ".json".length());
+        try {
+            String content = Files.readString(p);
+            JsonObject json = GSON.fromJson(content, JsonObject.class);
+            return json == null ? null : Map.entry(id, json);
+        } catch (IOException | JsonSyntaxException ex) {
+            throw new AssetPipelineException(ex, "Failed to parse model '%s'", p);
+        }
     }
 
     /**
@@ -160,7 +165,7 @@ public class ModelResolver {
         if (!model.has("textures") || !model.get("textures").isJsonObject()) return;
 
         JsonObject textures = model.getAsJsonObject("textures");
-        ConcurrentMap<String, String> normalized = Concurrent.newMap();
+        HashMap<String, String> normalized = new HashMap<>();
 
         for (Map.Entry<String, JsonElement> entry : textures.entrySet()) {
             JsonElement value = entry.getValue();
