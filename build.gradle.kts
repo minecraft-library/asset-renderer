@@ -14,11 +14,17 @@ java {
 }
 
 // JDK 21 Vector API (jdk.incubator.vector) unlocks FloatVector SIMD math used by
-// lib.minecraft.renderer.tensor.Vector3fOps / Matrix4fOps in ModelEngine's Pass 1 and by
-// PortalRenderer's layer-transform inner loop. The incubator module must be added to
-// the module path at both compile time AND every JVM invocation that loads our code
-// (test, JavaExec tooling tasks, JMH forks) - missing it anywhere produces a clean
-// class-not-found-at-load failure rather than silent fallback.
+// lib.minecraft.renderer.tensor.Vector3fOps / Matrix4fOps - the package-private SIMD
+// implementations that Vector3f.transform / Matrix4f.multiply silently dispatch to in
+// ModelEngine's Pass 1 hot path.
+//
+// The flag is required at compile time (the *Ops sources reference jdk.incubator.vector.*)
+// and is also added to every JVM this project starts (Test, JavaExec tooling, JMH) so our
+// own dev workflow stays on the SIMD path. Downstream consumers of the published JAR do
+// NOT need to add the flag themselves: SimdSupport probes for the module via Class.forName
+// at runtime and falls back to a bit-identical scalar implementation when it is absent. The
+// two-class split keeps the JVM from ever resolving the incubator imports on a consumer
+// JVM that runs without the module.
 val addVectorModuleArg = "--add-modules=jdk.incubator.vector"
 
 tasks.withType<JavaCompile>().configureEach {

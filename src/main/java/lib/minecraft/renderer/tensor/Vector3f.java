@@ -15,9 +15,10 @@ import java.io.IOException;
  * <p>
  * Used for 3D model-space positions, surface normals, and three-channel linear values such as
  * scale factors. Static helpers handle the common rendering operations ({@link #transform},
- * {@link #transformNormal}, {@link #normalize}, {@link #cross}, {@link #dot}, {@link #lerp});
- * the SIMD-accelerated variants of {@code transform} and {@code transformNormal} live in
- * {@link Vector3fOps}.
+ * {@link #transformNormal}, {@link #normalize}, {@link #cross}, {@link #dot}, {@link #lerp}).
+ * {@link #transform} and {@link #transformNormal} silently dispatch to a JDK Vector API
+ * implementation when the incubator module is loaded; otherwise they run a bit-identical
+ * scalar fallback. Callers never see the difference.
  *
  * @param x the x component
  * @param y the y component
@@ -26,7 +27,6 @@ import java.io.IOException;
  * @see Vector2f
  * @see Vector4f
  * @see Matrix4f
- * @see Vector3fOps
  */
 public record Vector3f(float x, float y, float z) {
 
@@ -164,14 +164,16 @@ public record Vector3f(float x, float y, float z) {
     }
 
     /**
-     * Transforms {@code v} by {@code m} as a point ({@code w=1}). See
-     * {@link Vector3fOps#transform} for a SIMD-accelerated variant.
+     * Transforms {@code v} by {@code m} as a point ({@code w=1}). Auto-dispatches to a 4-lane
+     * SIMD implementation when the JDK Vector API module is available; otherwise computes the
+     * three components scalar.
      *
      * @param v the vector to transform
      * @param m the transformation matrix
      * @return a new transformed vector
      */
     public static @NotNull Vector3f transform(@NotNull Vector3f v, @NotNull Matrix4f m) {
+        if (SimdSupport.ENABLED) return SimdOps.transform(v, m);
         float tx = v.x * m.getM11() + v.y * m.getM21() + v.z * m.getM31() + m.getM41();
         float ty = v.x * m.getM12() + v.y * m.getM22() + v.z * m.getM32() + m.getM42();
         float tz = v.x * m.getM13() + v.y * m.getM23() + v.z * m.getM33() + m.getM43();
@@ -180,13 +182,15 @@ public record Vector3f(float x, float y, float z) {
 
     /**
      * Transforms {@code v} by {@code m} as a direction ({@code w=0}), ignoring the translation
-     * row. See {@link Vector3fOps#transformNormal} for a SIMD-accelerated variant.
+     * row. Auto-dispatches to a 4-lane SIMD implementation when the JDK Vector API module is
+     * available; otherwise computes the three components scalar.
      *
      * @param v the direction vector to transform
      * @param m the transformation matrix
      * @return a new transformed direction vector
      */
     public static @NotNull Vector3f transformNormal(@NotNull Vector3f v, @NotNull Matrix4f m) {
+        if (SimdSupport.ENABLED) return SimdOps.transformNormal(v, m);
         float tx = v.x * m.getM11() + v.y * m.getM21() + v.z * m.getM31();
         float ty = v.x * m.getM12() + v.y * m.getM22() + v.z * m.getM32();
         float tz = v.x * m.getM13() + v.y * m.getM23() + v.z * m.getM33();

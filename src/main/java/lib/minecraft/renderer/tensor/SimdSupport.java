@@ -1,0 +1,38 @@
+package lib.minecraft.renderer.tensor;
+
+import lombok.experimental.UtilityClass;
+
+/**
+ * Runtime probe for the JDK incubator Vector API ({@code jdk.incubator.vector}).
+ * <p>
+ * Detection runs once during class initialization via {@link Class#forName} on
+ * {@code jdk.incubator.vector.FloatVector} and is cached in {@link #ENABLED}. The probe is
+ * side-effect-free - it does not initialize the probed class - and silently returns
+ * {@code false} on any throwable, including {@link NoClassDefFoundError} from a JVM that
+ * was started without {@code --add-modules=jdk.incubator.vector}.
+ * <p>
+ * Public tensor classes ({@link Vector3f}, {@link Matrix4f}) read this flag inside their
+ * hot-path methods and dispatch to {@link Vector3fOps} / {@link Matrix4fOps} when it is
+ * {@code true}. The dispatcher classes themselves carry zero {@code jdk.incubator.*}
+ * imports, so the JVM never resolves the SIMD classes when the module is absent and the
+ * library degrades silently to the scalar fallback.
+ *
+ * @see Vector3f#transform
+ * @see Matrix4f#multiply
+ */
+@UtilityClass
+final class SimdSupport {
+
+    /** Whether {@code jdk.incubator.vector.FloatVector} is resolvable on this JVM. */
+    static final boolean ENABLED = detect();
+
+    private static boolean detect() {
+        try {
+            Class.forName("jdk.incubator.vector.FloatVector", false, SimdSupport.class.getClassLoader());
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+}

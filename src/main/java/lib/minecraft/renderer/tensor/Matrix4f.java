@@ -14,9 +14,9 @@ import org.jetbrains.annotations.NotNull;
  * <p>
  * Stays a class (rather than being converted to the mutable-scratch pattern used by
  * {@link Vector3f} / {@link Vector2f}) because matrices are built once per render - there is no
- * per-vertex or per-pixel allocation pressure to optimise.
- *
- * @see Matrix4fOps
+ * per-vertex or per-pixel allocation pressure to optimise. {@link #multiply} silently dispatches
+ * to a JDK Vector API implementation when the incubator module is loaded; otherwise it runs a
+ * bit-identical scalar fallback. Callers never see the difference.
  */
 @Getter
 @RequiredArgsConstructor
@@ -215,14 +215,15 @@ public final class Matrix4f {
     }
 
     /**
-     * Returns the product {@code this * b} as a new matrix. See {@link Matrix4fOps#multiply} for
-     * a SIMD-accelerated variant used when the caller is already multiplying many matrices per
-     * render.
+     * Returns the product {@code this * b} as a new matrix. Auto-dispatches to a row-parallel
+     * SIMD implementation when the JDK Vector API module is available; otherwise computes the
+     * 16 output elements scalar.
      *
      * @param b the right-hand matrix
      * @return a new matrix representing the product
      */
     public @NotNull Matrix4f multiply(@NotNull Matrix4f b) {
+        if (SimdSupport.ENABLED) return SimdOps.multiply(this, b);
         return new Matrix4f(
             this.m11 * b.m11 + this.m12 * b.m21 + this.m13 * b.m31 + this.m14 * b.m41,
             this.m11 * b.m12 + this.m12 * b.m22 + this.m13 * b.m32 + this.m14 * b.m42,

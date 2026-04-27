@@ -9,10 +9,8 @@ import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.ProjectionMath;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.tensor.Matrix4f;
-import lib.minecraft.renderer.tensor.Matrix4fOps;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
-import lib.minecraft.renderer.tensor.Vector3fOps;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;
@@ -127,7 +125,7 @@ public class ModelEngine extends TextureEngine {
         @NotNull EulerRotation rotation
     ) {
         Matrix4f modelRotation = buildModelRotation(rotation);
-        Matrix4f transform = Matrix4fOps.multiply(modelRotation, this.camera);
+        Matrix4f transform = modelRotation.multiply(this.camera);
         rasterizeInternal(triangles, buffer, perspective, transform);
     }
 
@@ -147,7 +145,7 @@ public class ModelEngine extends TextureEngine {
         @NotNull PerspectiveParams perspective,
         @NotNull Matrix4f modelTransform
     ) {
-        Matrix4f transform = Matrix4fOps.multiply(modelTransform, this.camera);
+        Matrix4f transform = modelTransform.multiply(this.camera);
         rasterizeInternal(triangles, buffer, perspective, transform);
     }
 
@@ -327,15 +325,14 @@ public class ModelEngine extends TextureEngine {
         float offsetY,
         @NotNull PerspectiveParams perspective
     ) {
-        // SIMD transforms (Task 10) - bit-identical to Vector3f.transform/transformNormal under
-        // IEEE-754 round-to-nearest-even but perform one horizontal 4-lane accumulation instead
-        // of three scalar dot products. This is the per-vertex hot path: fires 4x per triangle
-        // (3 positions + 1 normal) on every rasterize call, so it dominates Pass 1 cost on
-        // high-triangle models.
-        Vector3f p0 = Vector3fOps.transform(triangle.position0(), transform);
-        Vector3f p1 = Vector3fOps.transform(triangle.position1(), transform);
-        Vector3f p2 = Vector3fOps.transform(triangle.position2(), transform);
-        Vector3f normal = Vector3f.normalize(Vector3fOps.transformNormal(triangle.normal(), transform));
+        // Per-vertex hot path: fires 4x per triangle (3 positions + 1 normal) on every rasterize
+        // call, so it dominates Pass 1 cost on high-triangle models. Vector3f.transform /
+        // transformNormal silently dispatch to a 4-lane SIMD implementation when the JDK Vector
+        // API module is loaded.
+        Vector3f p0 = Vector3f.transform(triangle.position0(), transform);
+        Vector3f p1 = Vector3f.transform(triangle.position1(), transform);
+        Vector3f p2 = Vector3f.transform(triangle.position2(), transform);
+        Vector3f normal = Vector3f.normalize(Vector3f.transformNormal(triangle.normal(), transform));
 
         Vector2f s0 = RenderEngine.projectPerspective(p0, scale, offsetX, offsetY, perspective);
         Vector2f s1 = RenderEngine.projectPerspective(p1, scale, offsetX, offsetY, perspective);
