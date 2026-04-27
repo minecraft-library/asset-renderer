@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline.util;
+package lib.minecraft.renderer.pipeline;
 
 import dev.simplified.gson.GsonContributor;
 import dev.simplified.gson.GsonSettings;
@@ -13,7 +13,7 @@ import org.jetbrains.annotations.NotNull;
  * callers that build a {@link com.google.gson.Gson} via {@code GsonSettings.defaults().create()}
  * pick up these adapters automatically.
  */
-public class AssetRendererGsonContributor implements GsonContributor {
+public class AssetPipelineGsonContributor implements GsonContributor {
 
     @Override
     public void contribute(GsonSettings.@NotNull Builder builder) {
