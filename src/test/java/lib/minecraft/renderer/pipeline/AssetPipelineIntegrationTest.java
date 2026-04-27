@@ -5,7 +5,6 @@ import lib.minecraft.renderer.asset.model.BlockModelData;
 import lib.minecraft.renderer.asset.model.ItemModelData;
 import lib.minecraft.renderer.asset.pack.Texture;
 import lib.minecraft.renderer.geometry.Biome;
-import lib.minecraft.renderer.pipeline.client.HttpFetcher;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -49,7 +48,7 @@ class AssetPipelineIntegrationTest {
             .cacheRoot(CACHE_ROOT)
             .build();
 
-        AssetPipeline pipeline = new AssetPipeline(new HttpFetcher());
+        AssetPipeline pipeline = new AssetPipeline();
         result = pipeline.run(options);
         packRoot = result.getPackRoot();
     }

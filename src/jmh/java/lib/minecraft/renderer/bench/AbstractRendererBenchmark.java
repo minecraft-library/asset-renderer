@@ -3,7 +3,6 @@ package lib.minecraft.renderer.bench;
 import lib.minecraft.renderer.pipeline.AssetPipeline;
 import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
-import lib.minecraft.renderer.pipeline.client.HttpFetcher;
 import org.jetbrains.annotations.NotNull;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Scope;
@@ -36,7 +35,7 @@ public abstract class AbstractRendererBenchmark {
 
     @Setup(Level.Trial)
     public final void bootstrapPipeline() throws Exception {
-        this.pipelineResult = new AssetPipeline(new HttpFetcher()).run(AssetPipelineOptions.defaults());
+        this.pipelineResult = new AssetPipeline().run(AssetPipelineOptions.defaults());
         this.context = PipelineRendererContext.of(this.pipelineResult);
         onSetupTrial();
     }

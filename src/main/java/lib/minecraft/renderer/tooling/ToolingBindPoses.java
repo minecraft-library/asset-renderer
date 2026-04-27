@@ -4,8 +4,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
-import lib.minecraft.renderer.pipeline.client.ClientJarDownloader;
-import lib.minecraft.renderer.pipeline.client.HttpFetcher;
+import lib.minecraft.renderer.pipeline.AssetPipeline;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.tooling.entity.BindPoseDiscovery;
 import lib.minecraft.renderer.tooling.entity.MobRegistryDiscovery;
@@ -51,10 +50,8 @@ public final class ToolingBindPoses {
      * @throws IOException if the client jar can't be downloaded or the output file can't be written
      */
     public static void main(String @NotNull [] args) throws IOException {
-        HttpFetcher fetcher = new HttpFetcher();
-
         System.out.println("Downloading Minecraft client jar for bind-pose discovery...");
-        Path clientJar = ClientJarDownloader.download(AssetPipelineOptions.defaults(), fetcher);
+        Path clientJar = AssetPipeline.downloadJarToCache(AssetPipelineOptions.defaults());
 
         Diagnostics diagnostics = new Diagnostics();
         Map<String, Map<String, BindPoseDiscovery.Pose>> poses;

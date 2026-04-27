@@ -21,11 +21,14 @@ import lib.minecraft.renderer.kit.ArmorKit;
 import lib.minecraft.renderer.kit.BlockModelGeometryKit;
 import lib.minecraft.renderer.kit.GlintKit;
 import lib.minecraft.renderer.options.PlayerOptions;
-import lib.minecraft.renderer.pipeline.client.HttpFetcher;
+import lib.minecraft.renderer.pipeline.AssetPipeline;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Optional;
@@ -51,7 +54,6 @@ import java.util.Optional;
 public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
     private final @NotNull RendererContext context;
-    private final @NotNull HttpFetcher fetcher = new HttpFetcher();
     private final @NotNull ImageFactory imageFactory = new ImageFactory();
     private final @NotNull ConcurrentMap<String, PixelBuffer> skinCache = Concurrent.newMap();
 
@@ -86,7 +88,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         if (options.getSkinUrl().isPresent()) {
             String url = options.getSkinUrl().get();
             return parent.skinCache.computeIfAbsent(url, u -> {
-                byte[] bytes = parent.fetcher.get(u);
+                byte[] bytes = fetchTexture(u);
                 return PixelBuffer.wrap(parent.imageFactory.fromByteArray(bytes).toBufferedImage());
             });
         }
@@ -98,6 +100,25 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         return parent.context.resolveTexture("minecraft:entity/steve")
             .orElseThrow(() -> new RendererException("No default Steve skin registered and no skin supplied"));
+    }
+
+    /**
+     * Reads a Mojang skin or cape texture by extracting the trailing path segment from the URL
+     * (the texture hash) and streaming the PNG bytes through
+     * {@link AssetPipeline#mojang() AssetPipeline.mojang()}'s
+     * {@link api.simplified.mojang.MojangContract#downloadTexture(String) downloadTexture}.
+     * <p>
+     * The URL format is the {@code http://textures.minecraft.net/texture/<hash>} pattern Mojang's
+     * session API returns in {@code MojangProperties}; the routing and rate limiting come from
+     * the contract's {@link api.simplified.mojang.request.MojangDomain#MINECRAFT_TEXTURES} entry.
+     */
+    private static byte @NotNull [] fetchTexture(@NotNull String url) {
+        String hash = url.substring(url.lastIndexOf('/') + 1);
+        try (InputStream stream = AssetPipeline.mojang().downloadTexture(hash)) {
+            return stream.readAllBytes();
+        } catch (IOException ex) {
+            throw new UncheckedIOException("Failed to fetch texture from '" + url + "'", ex);
+        }
     }
 
     /** Whether any of the four armor slots carries an enchanted piece. */
@@ -131,7 +152,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         if (options.getCapeUrl().isPresent()) {
             String url = options.getCapeUrl().get();
             return Optional.of(parent.skinCache.computeIfAbsent("cape:" + url, ignored -> {
-                byte[] bytes = parent.fetcher.get(url);
+                byte[] bytes = fetchTexture(url);
                 return PixelBuffer.wrap(parent.imageFactory.fromByteArray(bytes).toBufferedImage());
             }));
         }

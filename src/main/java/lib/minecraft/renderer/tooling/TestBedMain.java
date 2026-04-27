@@ -23,7 +23,6 @@ import lib.minecraft.renderer.options.BlockOptions;
 import lib.minecraft.renderer.pipeline.AssetPipeline;
 import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
-import lib.minecraft.renderer.pipeline.client.HttpFetcher;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.experimental.UtilityClass;
@@ -57,7 +56,7 @@ public final class TestBedMain {
     public static void main(String @NotNull [] args) throws IOException {
         int size = args.length > 0 ? Integer.parseInt(args[0]) : 1024;
 
-        AssetPipeline.Result result = new AssetPipeline(new HttpFetcher()).run(AssetPipelineOptions.defaults());
+        AssetPipeline.Result result = new AssetPipeline().run(AssetPipelineOptions.defaults());
         PipelineRendererContext context = PipelineRendererContext.of(result);
         BlockRenderer renderer = new BlockRenderer(context);
         Path outputDir = Path.of("cache/test-bed");

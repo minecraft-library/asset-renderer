@@ -7,8 +7,7 @@ import lib.minecraft.renderer.exception.AssetPipelineException;
 import lib.minecraft.renderer.geometry.Biome;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
-import lib.minecraft.renderer.pipeline.client.ClientJarDownloader;
-import lib.minecraft.renderer.pipeline.client.HttpFetcher;
+import lib.minecraft.renderer.pipeline.AssetPipeline;
 import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import dev.simplified.collection.Concurrent;
@@ -62,7 +61,7 @@ public final class ToolingBlockTints {
         AssetPipelineOptions options = AssetPipelineOptions.defaults();
         Path jarPath;
         try {
-            jarPath = ClientJarDownloader.download(options, new HttpFetcher());
+            jarPath = AssetPipeline.downloadJarToCache(options);
         } catch (AssetPipelineException ex) {
             System.err.println("Failed to download client jar for vanilla tints generation: " + ex.getMessage());
             throw ex;

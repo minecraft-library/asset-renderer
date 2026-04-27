@@ -7,7 +7,6 @@ import lib.minecraft.renderer.options.EntityOptions;
 import lib.minecraft.renderer.pipeline.AssetPipeline;
 import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
-import lib.minecraft.renderer.pipeline.client.HttpFetcher;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -55,7 +54,7 @@ public final class TestEntityMain {
 
         AssetPipeline.Result result;
         try {
-            result = new AssetPipeline(new HttpFetcher()).run(AssetPipelineOptions.defaults());
+            result = new AssetPipeline().run(AssetPipelineOptions.defaults());
         } catch (AssetPipelineException ex) {
             System.err.println("Pipeline bootstrap failed: " + ex.getMessage());
             throw ex;

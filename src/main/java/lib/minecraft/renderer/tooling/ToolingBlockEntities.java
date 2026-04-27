@@ -10,8 +10,7 @@ import lib.minecraft.renderer.exception.AssetPipelineException;
 import lib.minecraft.renderer.geometry.BlockFace;
 import lib.minecraft.renderer.geometry.Box;
 import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
-import lib.minecraft.renderer.pipeline.client.ClientJarDownloader;
-import lib.minecraft.renderer.pipeline.client.HttpFetcher;
+import lib.minecraft.renderer.pipeline.AssetPipeline;
 import lib.minecraft.renderer.pipeline.loader.BlockEntityLoader;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tensor.Vector4f;
@@ -81,7 +80,7 @@ public final class ToolingBlockEntities {
         boolean lenient = argList.contains("--lenient");
 
         AssetPipelineOptions options = AssetPipelineOptions.defaults();
-        Path jarPath = ClientJarDownloader.download(options, new HttpFetcher());
+        Path jarPath = AssetPipeline.downloadJarToCache(options);
 
         System.out.println("Discovering block entity sources from client jar...");
         Diagnostics diagnostics = new Diagnostics();

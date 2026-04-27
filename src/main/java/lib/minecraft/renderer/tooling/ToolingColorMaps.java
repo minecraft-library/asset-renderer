@@ -7,9 +7,7 @@ import lib.minecraft.renderer.engine.TextureEngine;
 import lib.minecraft.renderer.exception.AssetPipelineException;
 import lib.minecraft.renderer.asset.pack.ColorMap;
 import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
-import lib.minecraft.renderer.pipeline.client.ClientJarDownloader;
-import lib.minecraft.renderer.pipeline.client.ClientJarExtractor;
-import lib.minecraft.renderer.pipeline.client.HttpFetcher;
+import lib.minecraft.renderer.pipeline.AssetPipeline;
 import lib.minecraft.renderer.pipeline.loader.ColorMapLoader;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
@@ -49,18 +47,17 @@ public final class ToolingColorMaps {
      */
     public static void main(String @NotNull [] args) throws IOException {
         AssetPipelineOptions options = AssetPipelineOptions.defaults();
-        HttpFetcher fetcher = new HttpFetcher();
 
         Path jarPath;
         try {
-            jarPath = ClientJarDownloader.download(options, fetcher);
+            jarPath = AssetPipeline.downloadJarToCache(options);
         } catch (AssetPipelineException ex) {
             System.err.println("Failed to download client jar: " + ex.getMessage());
             throw ex;
         }
 
         Path packRoot = options.getCacheRoot().toPath().resolve("vanilla").resolve(options.getVersion());
-        ClientJarExtractor.extract(jarPath, packRoot);
+        AssetPipeline.extractClientJar(jarPath, packRoot);
 
         ConcurrentList<ColorMap> colorMaps = Parser.parse(packRoot);
         System.out.println("Parsed " + colorMaps.size() + " colormaps");

@@ -6,7 +6,6 @@ import lib.minecraft.renderer.options.ItemOptions;
 import lib.minecraft.renderer.pipeline.AssetPipeline;
 import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
-import lib.minecraft.renderer.pipeline.client.HttpFetcher;
 import dev.simplified.image.ImageData;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -53,7 +52,7 @@ public final class TestRenderItemMain {
 
         AssetPipeline.Result result;
         try {
-            result = new AssetPipeline(new HttpFetcher()).run(AssetPipelineOptions.defaults());
+            result = new AssetPipeline().run(AssetPipelineOptions.defaults());
         } catch (AssetPipelineException ex) {
             System.err.println("Pipeline bootstrap failed: " + ex.getMessage());
             throw ex;

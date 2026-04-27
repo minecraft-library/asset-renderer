@@ -66,6 +66,10 @@ dependencies {
     api("com.github.simplified-dev:gson-extras:master-SNAPSHOT")
     api("com.github.simplified-dev:client:master-SNAPSHOT")
 
+    // Simplified API (extracted to github.com/simplified-api) - typed Feign contract for
+    // Mojang's launcher / Piston / textures endpoints, replaces the hand-rolled HttpFetcher.
+    api("com.github.simplified-api:mojang") { version { strictly("46af96a88b") } }
+
     // Minecraft-Library (extracted to github.com/minecraft-library)
     // Owns lib.minecraft.text.**, lib.minecraft.text.font.**, and the
     // RendererException / FontException base classes that the remaining asset-renderer

@@ -5,8 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import lib.minecraft.renderer.exception.AssetPipelineException;
 import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
-import lib.minecraft.renderer.pipeline.client.ClientJarDownloader;
-import lib.minecraft.renderer.pipeline.client.HttpFetcher;
+import lib.minecraft.renderer.pipeline.AssetPipeline;
 import lib.minecraft.renderer.pipeline.loader.PotionColorLoader;
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import dev.simplified.collection.Concurrent;
@@ -58,7 +57,7 @@ public final class ToolingPotionColors {
         AssetPipelineOptions options = AssetPipelineOptions.defaults();
         Path jarPath;
         try {
-            jarPath = ClientJarDownloader.download(options, new HttpFetcher());
+            jarPath = AssetPipeline.downloadJarToCache(options);
         } catch (AssetPipelineException ex) {
             System.err.println("Failed to download client jar for potion colour generation: " + ex.getMessage());
             throw ex;

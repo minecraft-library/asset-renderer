@@ -6,7 +6,6 @@ import lib.minecraft.renderer.options.AtlasOptions;
 import lib.minecraft.renderer.pipeline.AssetPipeline;
 import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
-import lib.minecraft.renderer.pipeline.client.HttpFetcher;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
 import dev.simplified.image.codec.webp.WebPWriteOptions;
@@ -43,7 +42,7 @@ public final class ToolingAtlas {
 
         AssetPipeline.Result result;
         try {
-            result = new AssetPipeline(new HttpFetcher()).run(AssetPipelineOptions.defaults());
+            result = new AssetPipeline().run(AssetPipelineOptions.defaults());
         } catch (AssetPipelineException ex) {
             System.err.println("Atlas generation failed during pipeline bootstrap: " + ex.getMessage());
             throw ex;

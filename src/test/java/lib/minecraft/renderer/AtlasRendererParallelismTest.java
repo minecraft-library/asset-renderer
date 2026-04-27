@@ -4,7 +4,6 @@ import lib.minecraft.renderer.options.AtlasOptions;
 import lib.minecraft.renderer.pipeline.AssetPipeline;
 import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
-import lib.minecraft.renderer.pipeline.client.HttpFetcher;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -37,7 +36,7 @@ class AtlasRendererParallelismTest {
 
     @BeforeAll
     static void bootstrapPipeline() {
-        AssetPipeline.Result result = new AssetPipeline(new HttpFetcher()).run(
+        AssetPipeline.Result result = new AssetPipeline().run(
             AssetPipelineOptions.builder()
                 .version("26.1")
                 .cacheRoot(CACHE_ROOT)

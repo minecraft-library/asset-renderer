@@ -16,8 +16,7 @@ import dev.simplified.image.codec.tga.TgaImageReader;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
-import lib.minecraft.renderer.pipeline.client.ClientJarDownloader;
-import lib.minecraft.renderer.pipeline.client.HttpFetcher;
+import lib.minecraft.renderer.pipeline.AssetPipeline;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -31,6 +30,10 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -86,6 +89,26 @@ public final class ToolingEntityModels {
     private static final @NotNull String BEDROCK_PACK_URL =
         "https://github.com/Mojang/bedrock-samples/archive/refs/heads/main.zip";
 
+    /**
+     * Downloads {@code url} as a byte array via the JDK {@link HttpClient}. Inlined here because
+     * the only call site is the Bedrock pack zip on GitHub, which sits outside any
+     * {@link api.simplified.mojang.MojangContract} route.
+     */
+    private static byte @NotNull [] downloadGithubArchive(@NotNull String url) throws IOException {
+        try {
+            HttpResponse<byte[]> response = HttpClient.newHttpClient().send(
+                HttpRequest.newBuilder(URI.create(url)).GET().build(),
+                HttpResponse.BodyHandlers.ofByteArray()
+            );
+            if (response.statusCode() / 100 != 2)
+                throw new IOException("GET '" + url + "' returned HTTP " + response.statusCode());
+            return response.body();
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Interrupted while downloading '" + url + "'", ex);
+        }
+    }
+
     /** Bundled output - per-entity metadata rows. */
     private static final @NotNull Path MODELS_OUTPUT_PATH =
         Path.of("src/main/resources/lib/minecraft/renderer/entity_models.json");
@@ -127,12 +150,10 @@ public final class ToolingEntityModels {
      * @throws IOException if the pack cannot be downloaded or an output file cannot be written
      */
     public static void main(String @NotNull [] args) throws IOException {
-        HttpFetcher fetcher = new HttpFetcher();
-
         // Java client jar: the mob-id filter only. No textures, no models - just the set of
         // Java-registered living-mob EntityType ids so Bedrock-only experimentals drop out.
         System.out.println("Downloading Minecraft client jar for mob-registry filter...");
-        Path clientJar = ClientJarDownloader.download(AssetPipelineOptions.defaults(), fetcher);
+        Path clientJar = AssetPipeline.downloadJarToCache(AssetPipelineOptions.defaults());
         Set<String> knownMobIds = new LinkedHashSet<>();
         try (ZipFile zip = new ZipFile(clientJar.toFile())) {
             Diagnostics diag = new Diagnostics();
@@ -144,8 +165,10 @@ public final class ToolingEntityModels {
 
         // Bedrock pack: the sole entity data source. Buffered in memory so every pass - manifest,
         // geometry, texture copy - reads from the same snapshot without re-downloading.
+        // Direct GitHub-archive download stays inline since the URL is outside MojangContract's
+        // routed domains and only this generator ever hits it.
         System.out.println("Downloading Bedrock vanilla resource pack...");
-        byte[] zipBytes = fetcher.get(BEDROCK_PACK_URL);
+        byte[] zipBytes = downloadGithubArchive(BEDROCK_PACK_URL);
         System.out.println("Downloaded " + zipBytes.length + " bytes");
 
         // Pass 1: client-entity manifest (identifier -> {geometryId, textureRef}).

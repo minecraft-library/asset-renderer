@@ -2,7 +2,6 @@ package lib.minecraft.renderer.bench;
 
 import lib.minecraft.renderer.pipeline.AssetPipeline;
 import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
-import lib.minecraft.renderer.pipeline.client.HttpFetcher;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;
@@ -29,7 +28,7 @@ public class TexturePackLoadBenchmark {
 
     @Benchmark
     public void coldLoad(Blackhole bh) throws Exception {
-        AssetPipeline pipeline = new AssetPipeline(new HttpFetcher());
+        AssetPipeline pipeline = new AssetPipeline();
         bh.consume(pipeline.run(AssetPipelineOptions.defaults()));
     }
 
