@@ -60,15 +60,15 @@ dependencies {
     testImplementation(libs.junit.platform.launcher)
 
     // Simplified Libraries (extracted to github.com/simplified-dev)
-    api("com.github.simplified-dev:collections") { version { strictly("f394e077a3") } }
-    api("com.github.simplified-dev:utils") { version { strictly("36b2a338ce") } }
-    api("com.github.simplified-dev:image") { version { strictly("b02632c") } }
+    api("com.github.simplified-dev:collections:master-SNAPSHOT")
+    api("com.github.simplified-dev:utils:master-SNAPSHOT")
+    api("com.github.simplified-dev:image:master-SNAPSHOT")
     api("com.github.simplified-dev:gson-extras:master-SNAPSHOT")
     api("com.github.simplified-dev:client:master-SNAPSHOT")
 
     // Simplified API (extracted to github.com/simplified-api) - typed Feign contract for
     // Mojang's launcher / Piston / textures endpoints, owns all renderer HTTP via AssetPipeline.
-    api("com.github.simplified-api:mojang") { version { strictly("46af96a88b") } }
+    api("com.github.simplified-api:mojang:master-SNAPSHOT")
 
     // Minecraft-Library (extracted to github.com/minecraft-library)
     // Owns lib.minecraft.text.**, lib.minecraft.text.font.**, and the
