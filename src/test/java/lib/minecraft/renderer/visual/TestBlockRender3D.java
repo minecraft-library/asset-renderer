@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.tooling;
+package lib.minecraft.renderer.visual;
 
 import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.exception.AssetPipelineException;
@@ -22,10 +22,10 @@ import java.nio.file.Path;
  * {@code minecraft:tnt} at 512px with 2x supersampling - the TNT block has text and distinct
  * top/side/bottom faces that make orientation issues immediately obvious.
  * <p>
- * Usage: {@code ./gradlew :asset-renderer:testRender [-PblockId=minecraft:tnt] [-PrenderSize=512]}
+ * Usage: {@code ./gradlew :asset-renderer:blockRender3D [-PblockId=minecraft:tnt] [-PrenderSize=512]}
  */
 @UtilityClass
-public final class TestRenderMain {
+public final class TestBlockRender3D {
 
     /** Alternate default block id list (standard full cubes + faced furnace + piston). */
     private static final String[] BLOCK_TEST_1 = {
@@ -70,7 +70,7 @@ public final class TestRenderMain {
 
         PipelineRendererContext context = PipelineRendererContext.of(result);
         BlockRenderer renderer = new BlockRenderer(context);
-        Path outputDir = Path.of("cache/test-render");
+        Path outputDir = Path.of("cache/visual/block-render-3d");
         Files.createDirectories(outputDir);
 
         for (String blockSpec : blockIds) {

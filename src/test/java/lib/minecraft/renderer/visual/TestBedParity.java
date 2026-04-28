@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.tooling;
+package lib.minecraft.renderer.visual;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -40,7 +40,7 @@ import java.util.Optional;
  * and our entity model pipeline, side by side at 1024x1024.
  */
 @UtilityClass
-public final class TestBedMain {
+public final class TestBedParity {
 
     /** Root of the mc-assets repository's hand-curated bed block-model JSONs used as ground truth. */
     private static final Path MC_ASSETS_BED = Path.of(
@@ -59,7 +59,7 @@ public final class TestBedMain {
         AssetPipeline.Result result = new AssetPipeline().run(AssetPipelineOptions.defaults());
         PipelineRendererContext context = PipelineRendererContext.of(result);
         BlockRenderer renderer = new BlockRenderer(context);
-        Path outputDir = Path.of("cache/test-bed");
+        Path outputDir = Path.of("cache/visual/bed-parity");
         Files.createDirectories(outputDir);
 
         // 1. Pipeline entity model version

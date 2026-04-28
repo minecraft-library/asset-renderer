@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.tooling;
+package lib.minecraft.renderer.visual;
 
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.exception.AssetPipelineException;
@@ -20,10 +20,10 @@ import java.nio.file.Path;
  * Diagnostic task that renders items to PNG files for visual inspection. Defaults to a mix of
  * normal items and trim variants to verify sprite layering and paletted permutation.
  * <p>
- * Usage: {@code ./gradlew :asset-renderer:testRenderItem [-PitemId=minecraft:diamond_sword] [-PrenderSize=256]}
+ * Usage: {@code ./gradlew :asset-renderer:itemRender2D [-PitemId=minecraft:diamond_sword] [-PrenderSize=256]}
  */
 @UtilityClass
-public final class TestRenderItemMain {
+public final class TestItemRender2D {
 
     /** Default item id list when no {@code args[0]} is supplied; mixes plain items with trim variants. */
     private static final String[] ITEM_TEST_1 = {
@@ -60,7 +60,7 @@ public final class TestRenderItemMain {
 
         PipelineRendererContext context = PipelineRendererContext.of(result);
         ItemRenderer renderer = new ItemRenderer(context);
-        Path outputDir = Path.of("cache/test-render-item");
+        Path outputDir = Path.of("cache/visual/item-render-2d");
         Files.createDirectories(outputDir);
 
         for (String itemId : itemIds) {

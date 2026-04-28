@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.tooling;
+package lib.minecraft.renderer.visual;
 
 import lib.minecraft.renderer.FluidRenderer;
 import lib.minecraft.renderer.exception.AssetPipelineException;
@@ -23,8 +23,8 @@ import java.util.Optional;
 
 /**
  * Diagnostic task that exercises every {@link FluidRenderer} code path and dumps the output to
- * {@code cache/test-fluid/} for visual inspection. Static renders dump as PNG, animated renders
- * as GIF. Covers:
+ * {@code cache/visual/fluid-renderer/} for visual inspection. Static renders dump as PNG, animated
+ * renders as GIF. Covers:
  * <ul>
  * <li>Source-block renders for both water and lava in both render types (phase 1).</li>
  * <li>Animated renders that sample the {@code water_still} / {@code lava_still} strips across
@@ -34,13 +34,13 @@ import java.util.Optional;
  * <li>Biome-tint variants and the explicit ARGB override (phase 4 biome variants will all look
  * identical until {@link Biome.TintTarget#WATER} is wired; the override path works today).</li>
  * </ul>
- * Usage: {@code ./gradlew :asset-renderer:testFluid}.
+ * Usage: {@code ./gradlew :asset-renderer:fluidRenderer}.
  */
 @UtilityClass
-public final class TestFluidMain {
+public final class TestFluidRenderer {
 
     /** Output directory for all fluid renders. */
-    private static final Path OUTPUT_DIR = Path.of("cache/test-fluid");
+    private static final Path OUTPUT_DIR = Path.of("cache/visual/fluid-renderer");
 
     /** Square edge length (pixels) used for static renders. */
     private static final int STATIC_SIZE = 512;

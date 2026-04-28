@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.tooling;
+package lib.minecraft.renderer.visual;
 
 import lib.minecraft.renderer.PortalRenderer;
 import lib.minecraft.renderer.exception.AssetPipelineException;
@@ -21,20 +21,20 @@ import java.util.Locale;
 
 /**
  * Diagnostic task that exercises every {@link PortalRenderer} code path and dumps the output to
- * {@code cache/test-portal/} for visual inspection. Static renders dump as PNG, animated renders
- * as lossless WebP - GIF's 256-colour palette dithers a continuous-tone parallax field into
- * visible diagonal streak artefacts, so WebP's full RGB output is the correct choice for the
- * end-portal shader output. Covers the full matrix of {@link PortalOptions.Portal} (end_portal /
- * end_gateway) {@code ×} {@link PortalOptions.Type} (3D / 2D) {@code ×} (static / animated) -
- * 8 outputs.
+ * {@code cache/visual/portal-renderer/} for visual inspection. Static renders dump as PNG,
+ * animated renders as lossless WebP - GIF's 256-colour palette dithers a continuous-tone parallax
+ * field into visible diagonal streak artefacts, so WebP's full RGB output is the correct choice
+ * for the end-portal shader output. Covers the full matrix of {@link PortalOptions.Portal}
+ * (end_portal / end_gateway) {@code ×} {@link PortalOptions.Type} (3D / 2D) {@code ×}
+ * (static / animated) - 8 outputs.
  * <p>
- * Usage: {@code ./gradlew :asset-renderer:testPortal}.
+ * Usage: {@code ./gradlew :asset-renderer:portalRenderer}.
  */
 @UtilityClass
-public final class TestPortalMain {
+public final class TestPortalRenderer {
 
     /** Output directory for all portal renders. */
-    private static final Path OUTPUT_DIR = Path.of("cache/test-portal");
+    private static final Path OUTPUT_DIR = Path.of("cache/visual/portal-renderer");
 
     /** Square edge length (pixels) used for static renders. */
     private static final int STATIC_SIZE = 512;

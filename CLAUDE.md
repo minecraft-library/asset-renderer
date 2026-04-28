@@ -20,8 +20,8 @@ Rewrites JSON in `src/main/resources/lib/minecraft/renderer/`:
 - `colorMaps` -> `color_maps.json` (vanilla biome colormap PNGs)
 - `atlas` / `diagnoseAtlas` / `diagnoseAtlasTask10` -> `build/atlas/`
 
-## Visual inspection (writes to `cache/`)
-`testRender -PblockId=minecraft:tnt -PrenderSize=512 -Pssaa=2`, `testRenderItem -PitemId=...`, `testBed`, `testLore`, `testStackCount [-Plabel= | -Pdiff=A,B]`, `testFluid`, `testPortal`.
+## Visual inspection (writes to `cache/visual/`)
+Group `visual` - main() entry points live in `src/test/java/lib/minecraft/renderer/visual/`. Tasks: `blockRender3D -PblockId=minecraft:tnt -PrenderSize=512 -Pssaa=2`, `itemRender2D -PitemId=...`, `bedParity`, `loreTooltip`, `stackCountBadge [-Plabel= | -Pdiff=A,B]`, `entityRender3D [-PentityId=... -PrenderSize=512]`, `fluidRenderer`, `portalRenderer`.
 
 ## JMH
 `./gradlew jmh` with `-PjmhWarmup` (3), `-PjmhIters` (5), `-PjmhForks` (2), `-PjmhInclude=<regex>`, `-PjmhProfilers=gc,stack`. JVM forks get `-Xmx2g` + Vector module. Benches in `src/jmh/java/lib/minecraft/renderer/bench/`.

@@ -185,75 +185,78 @@ tasks {
         classpath = sourceSets["main"].runtimeClasspath
     }
 
-    register<JavaExec>("testRender") {
-        description = "Renders blocks to cache/test-render/ for visual inspection. -PblockId=minecraft:tnt -PrenderSize=512 -Pssaa=2"
-        group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.TestRenderMain")
-        classpath = sourceSets["main"].runtimeClasspath
+    // Visual diagnostics - main() entry points in src/test/java/lib/minecraft/renderer/visual/.
+    // Run with `./gradlew tasks --group visual` to list. Outputs land under cache/visual/.
+
+    register<JavaExec>("blockRender3D") {
+        description = "Renders blocks to cache/visual/block-render-3d/ for visual inspection. -PblockId=minecraft:tnt -PrenderSize=512 -Pssaa=2"
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestBlockRender3D")
+        classpath = sourceSets["test"].runtimeClasspath
         val blockId = project.findProperty("blockId") as String?
         val renderSize = (project.findProperty("renderSize") as String?) ?: "512"
         val ssaa = (project.findProperty("ssaa") as String?) ?: "2"
         args = if (blockId != null) listOf(blockId, renderSize, ssaa) else listOf()
     }
 
-    register<JavaExec>("testRenderItem") {
-        description = "Renders items to cache/test-render-item/ for visual inspection. -PitemId=minecraft:diamond_sword -PrenderSize=256"
-        group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.TestRenderItemMain")
-        classpath = sourceSets["main"].runtimeClasspath
+    register<JavaExec>("itemRender2D") {
+        description = "Renders items to cache/visual/item-render-2d/ for visual inspection. -PitemId=minecraft:diamond_sword -PrenderSize=256"
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestItemRender2D")
+        classpath = sourceSets["test"].runtimeClasspath
         val itemId = project.findProperty("itemId") as String?
         val renderSize = (project.findProperty("renderSize") as String?) ?: "256"
         args = if (itemId != null) listOf(itemId, renderSize) else listOf()
     }
 
-    register<JavaExec>("testBed") {
-        description = "Renders red_bed and white_bed at 1024x1024 for visual comparison. -PrenderSize=1024"
-        group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.TestBedMain")
-        classpath = sourceSets["main"].runtimeClasspath
+    register<JavaExec>("bedParity") {
+        description = "Renders beds and chest via pipeline vs mc-assets ground truth side-by-side at cache/visual/bed-parity/. -PrenderSize=1024"
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestBedParity")
+        classpath = sourceSets["test"].runtimeClasspath
         val renderSize = (project.findProperty("renderSize") as String?) ?: "1024"
         args = listOf(renderSize)
     }
 
-    register<JavaExec>("testLore") {
-        description = "Renders a pair of SkyBlock-style lore tooltips to cache/test-lore/ for visual inspection."
-        group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.TestLoreMain")
-        classpath = sourceSets["main"].runtimeClasspath
+    register<JavaExec>("loreTooltip") {
+        description = "Renders a pair of SkyBlock-style lore tooltips to cache/visual/lore-tooltip/ for visual inspection."
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestLoreTooltip")
+        classpath = sourceSets["test"].runtimeClasspath
     }
 
-    register<JavaExec>("testStackCount") {
-        description = "Renders ItemStackKit.drawStackCount over a grey backdrop at several sizes. Use -Plabel=<tag> to write to cache/test-stack-count/<tag>/ or -Pdiff=A,B to pixel-diff two labels."
-        group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.TestStackCountMain")
-        classpath = sourceSets["main"].runtimeClasspath
+    register<JavaExec>("stackCountBadge") {
+        description = "Renders ItemStackKit.drawStackCount over a grey backdrop at several sizes. Use -Plabel=<tag> to write to cache/visual/stack-count-badge/<tag>/ or -Pdiff=A,B to pixel-diff two labels."
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestStackCountBadge")
+        classpath = sourceSets["test"].runtimeClasspath
         val label = project.findProperty("label") as String?
         val diff = project.findProperty("diff") as String?
         args = if (diff != null) listOf("diff=$diff") else if (label != null) listOf(label) else listOf()
     }
 
-    register<JavaExec>("testEntity") {
-        description = "Renders every entity in entity_models.json via EntityRenderer (3D) to cache/test-entity/ for visual inspection. -PrenderSize=512 -PentityId=minecraft:zombie"
-        group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.TestEntityMain")
-        classpath = sourceSets["main"].runtimeClasspath
+    register<JavaExec>("entityRender3D") {
+        description = "Renders every entity in entity_models.json via EntityRenderer (3D) to cache/visual/entity-render-3d/ for visual inspection. -PrenderSize=512 -PentityId=minecraft:zombie"
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestEntityRender3D")
+        classpath = sourceSets["test"].runtimeClasspath
         val renderSize = (project.findProperty("renderSize") as String?) ?: "512"
         val entityId = project.findProperty("entityId") as String?
         args = if (entityId != null) listOf(renderSize, entityId) else listOf(renderSize)
     }
 
-    register<JavaExec>("testFluid") {
-        description = "Renders every FluidRenderer code path (water/lava, iso/2D, static/animated, biome variants, override) to cache/test-fluid/ for visual inspection."
-        group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.TestFluidMain")
-        classpath = sourceSets["main"].runtimeClasspath
+    register<JavaExec>("fluidRenderer") {
+        description = "Renders every FluidRenderer code path (water/lava, iso/2D, static/animated, biome variants, override) to cache/visual/fluid-renderer/ for visual inspection."
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestFluidRenderer")
+        classpath = sourceSets["test"].runtimeClasspath
     }
 
-    register<JavaExec>("testPortal") {
-        description = "Renders every PortalRenderer code path (end_portal/end_gateway, iso/2D, static/animated) to cache/test-portal/ for visual inspection."
-        group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.TestPortalMain")
-        classpath = sourceSets["main"].runtimeClasspath
+    register<JavaExec>("portalRenderer") {
+        description = "Renders every PortalRenderer code path (end_portal/end_gateway, iso/2D, static/animated) to cache/visual/portal-renderer/ for visual inspection."
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestPortalRenderer")
+        classpath = sourceSets["test"].runtimeClasspath
     }
 
     // `./gradlew fonts` now lives in the minecraft-text build at

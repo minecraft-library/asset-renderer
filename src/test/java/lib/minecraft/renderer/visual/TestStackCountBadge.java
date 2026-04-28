@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.tooling;
+package lib.minecraft.renderer.visual;
 
 import lib.minecraft.renderer.kit.ItemStackKit;
 import lib.minecraft.text.font.MinecraftFont;
@@ -19,19 +19,19 @@ import java.nio.file.Path;
  * <p>
  * Invocation modes:
  * <ul>
- *   <li>{@code testStackCount -Plabel=before} - renders every combination to
- *       {@code cache/test-stack-count/before/}.</li>
- *   <li>{@code testStackCount -Plabel=after} - renders every combination to
- *       {@code cache/test-stack-count/after/}.</li>
- *   <li>{@code testStackCount -Pdiff=before,after} - pixel-diffs every filename in
+ *   <li>{@code stackCountBadge -Plabel=before} - renders every combination to
+ *       {@code cache/visual/stack-count-badge/before/}.</li>
+ *   <li>{@code stackCountBadge -Plabel=after} - renders every combination to
+ *       {@code cache/visual/stack-count-badge/after/}.</li>
+ *   <li>{@code stackCountBadge -Pdiff=before,after} - pixel-diffs every filename in
  *       {@code before/} against its twin in {@code after/} and prints a per-file delta summary.</li>
  * </ul>
  */
 @UtilityClass
-public final class TestStackCountMain {
+public final class TestStackCountBadge {
 
     /** Root output directory for all labelled renders + diff runs. */
-    private static final Path OUTPUT_DIR = Path.of("cache/test-stack-count");
+    private static final Path OUTPUT_DIR = Path.of("cache/visual/stack-count-badge");
 
     /** Icon sizes covered by a single render pass; one directory entry per size + count pair. */
     private static final int[] SIZES = { 16, 32, 64, 128, 256 };

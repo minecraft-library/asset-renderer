@@ -147,17 +147,18 @@ ImageIO.write(image.toBufferedImage(), "PNG", new File("diamond_ore.png"));
 
 ### Visual Inspection
 
-Each task writes into `cache/<task-name>/` for side-by-side comparison. Flags use Gradle's `-P` property syntax.
+Each task writes into `cache/visual/<task-name>/` for side-by-side comparison. Flags use Gradle's `-P` property syntax. Run `./gradlew tasks --group visual` to list. The underlying `main()` entry points live in `src/test/java/lib/minecraft/renderer/visual/`.
 
 ```bash
-./gradlew testRender       -PblockId=minecraft:tnt -PrenderSize=512 -Pssaa=2
-./gradlew testRenderItem   -PitemId=minecraft:diamond_sword -PrenderSize=256
-./gradlew testBed          -PrenderSize=1024
-./gradlew testLore
-./gradlew testStackCount   -Plabel=experiment1
-./gradlew testStackCount   -Pdiff=experiment1,experiment2
-./gradlew testFluid
-./gradlew testPortal
+./gradlew blockRender3D    -PblockId=minecraft:tnt -PrenderSize=512 -Pssaa=2
+./gradlew itemRender2D     -PitemId=minecraft:diamond_sword -PrenderSize=256
+./gradlew bedParity        -PrenderSize=1024
+./gradlew loreTooltip
+./gradlew stackCountBadge  -Plabel=experiment1
+./gradlew stackCountBadge  -Pdiff=experiment1,experiment2
+./gradlew entityRender3D   -PentityId=minecraft:zombie -PrenderSize=512
+./gradlew fluidRenderer
+./gradlew portalRenderer
 ```
 
 ### Asset Regeneration

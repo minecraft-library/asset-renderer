@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.tooling;
+package lib.minecraft.renderer.visual;
 
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.EntityRenderer;
@@ -23,18 +23,18 @@ import java.util.TreeSet;
 /**
  * Diagnostic task that renders every entity listed in the bundled
  * {@code /lib/minecraft/renderer/entity_models.json} snapshot through {@link EntityRenderer} in
- * its default 3D GUI-item pose and dumps each output to {@code cache/test-entity/} for visual
- * inspection. Per-entity failures are logged to stderr and the run continues, so a single broken
- * model never aborts the sweep.
+ * its default 3D GUI-item pose and dumps each output to {@code cache/visual/entity-render-3d/}
+ * for visual inspection. Per-entity failures are logged to stderr and the run continues, so a
+ * single broken model never aborts the sweep.
  * <p>
- * Usage: {@code ./gradlew :asset-renderer:testEntity [-PrenderSize=512] [-PentityId=minecraft:zombie]}.
+ * Usage: {@code ./gradlew :asset-renderer:entityRender3D [-PrenderSize=512] [-PentityId=minecraft:zombie]}.
  * Passing {@code -PentityId} limits the run to a single entity; omitting it renders the full set.
  */
 @UtilityClass
-public final class TestEntityMain {
+public final class TestEntityRender3D {
 
     /** Output directory for every entity render. */
-    private static final Path OUTPUT_DIR = Path.of("cache/test-entity");
+    private static final Path OUTPUT_DIR = Path.of("cache/visual/entity-render-3d");
 
     /** Square edge length (pixels) for each render. */
     private static final int DEFAULT_SIZE = 512;

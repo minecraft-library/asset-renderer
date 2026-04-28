@@ -173,7 +173,7 @@ Bite-sized, testable steps:
    `entity_models_overrides.json` so they address the new Bedrock-native
    coordinate frame.
 
-7. **Full sweep + commit.** `./gradlew test` + `./gradlew testEntity` + spot
+7. **Full sweep + commit.** `./gradlew test` + `./gradlew entityRender3D` + spot
    check 10 representative entities (humanoid, quadruped-Y-up-body,
    quadruped-Y-down-body, fish, flying, block-entity-reused-as-mob if any).
 
@@ -201,7 +201,7 @@ Bite-sized, testable steps:
   `EntityGeometryKit`. Bounds will now be in Y-up. If armor positioning maths
   assume Y-down (pivoting armor around a "head" bound with Y-min at the top),
   armor renders will invert. Manual check with a humanoid wearing diamond
-  armor (e.g. `testEntity -PentityId=minecraft:zombie` with armor options).
+  armor (e.g. `entityRender3D -PentityId=minecraft:zombie` with armor options).
 
 - **Rotation sign convention regressions.** The current `bone_overrides`
   entries were tuned empirically against the Y-down frame. Even if most work

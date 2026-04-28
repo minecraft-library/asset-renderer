@@ -73,7 +73,7 @@ Thank you for your interest in contributing! This document explains how to get s
 1. Open the project root (the directory containing `settings.gradle.kts`). IntelliJ auto-imports the Gradle build.
 2. Ensure the **Project SDK** under **File > Project Structure** is set to a JDK 21 installation.
 3. The build script excludes `cache/` and `texturepacks/` from the IDE module, so indexing stays fast even after the client JAR is downloaded.
-4. For per-task runs, open the **Gradle** tool window and expand the `tooling` group to see `atlas`, `testRender`, `testFluid`, etc.
+4. For per-task runs, open the **Gradle** tool window. The `tooling` group holds resource-regenerators (`atlas`, `blockTints`, etc.); the `visual` group holds the renderer diagnostics (`blockRender3D`, `fluidRenderer`, `portalRenderer`, etc.).
 
 ## Making Changes
 
@@ -190,11 +190,11 @@ still-texture icon in the atlas.
   ./gradlew slowTest
   ```
 
-- **Visual inspection** - required when your change touches a renderer, kit, or engine. Run the relevant `testRender*`, `testFluid`, or `testPortal` task and diff the output against `master` before and after:
+- **Visual inspection** - required when your change touches a renderer, kit, or engine. Run the relevant task from the `visual` group (`blockRender3D`, `itemRender2D`, `bedParity`, `loreTooltip`, `stackCountBadge`, `entityRender3D`, `fluidRenderer`, `portalRenderer`) and diff the output under `cache/visual/<task>/` against `master` before and after:
 
   ```bash
-  ./gradlew testRender -PblockId=minecraft:tnt -PrenderSize=512
-  ./gradlew testStackCount -Pdiff=before,after
+  ./gradlew blockRender3D -PblockId=minecraft:tnt -PrenderSize=512
+  ./gradlew stackCountBadge -Pdiff=before,after
   ```
 
 - **JMH benchmarks** - required when your change touches hot paths in `ModelEngine`, `RasterEngine`, `FluidRenderer`, `PortalRenderer`, or the `tensor` package. Run the relevant benchmark before and after and include both results in the PR description:
@@ -226,7 +226,7 @@ still-texture icon in the atlas.
 
 ### What gets reviewed
 
-- **Correctness** of renderer output against the vanilla client. Regressions in `testRender`, `testFluid`, `testPortal`, or atlas diagnostics block a merge.
+- **Correctness** of renderer output against the vanilla client. Regressions in `blockRender3D`, `fluidRenderer`, `portalRenderer`, or atlas diagnostics block a merge.
 - **Performance** of changes in hot paths (model rasterization, fluid animation, atlas bake). JMH regressions require discussion.
 - **Resource loading** behaviour. CIT, CTM, and overlay-pack semantics must stay faithful to the vanilla + OptiFine conventions they emulate.
 - **Javadoc and exception style** as documented above. Inconsistent style will be flagged.
@@ -244,7 +244,7 @@ When reporting a bug, include:
 - **Block / item / entity ID** that reproduces the issue
 - **Full stack trace** (if applicable)
 - **Expected vs. actual rendered output** - attach PNGs where helpful
-- **Steps to reproduce** - ideally a minimal Gradle invocation (`./gradlew testRender -PblockId=...`) or a code snippet
+- **Steps to reproduce** - ideally a minimal Gradle invocation (`./gradlew blockRender3D -PblockId=...`) or a code snippet
 
 ## Project Architecture
 
