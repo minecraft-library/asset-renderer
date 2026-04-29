@@ -106,10 +106,7 @@ class AssetPipelineIntegrationTest {
     void cataloguesTextures() {
         assertThat("texture catalogue is populated", result.getTextures().size(), is(greaterThan(500)));
 
-        Texture grassTop = result.getTextures().stream()
-            .filter(t -> t.getId().equals("minecraft:block/grass_block_top"))
-            .findFirst()
-            .orElse(null);
+        Texture grassTop = result.getTextures().get("minecraft:block/grass_block_top");
         assertThat("grass_block_top texture catalogued", grassTop, is(notNullValue()));
         assertThat(grassTop.getWidth(), is(greaterThanOrEqualTo(16)));
         assertThat(grassTop.getHeight(), is(greaterThanOrEqualTo(16)));

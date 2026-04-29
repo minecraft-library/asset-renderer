@@ -80,7 +80,7 @@ public class BlockTintsLoader {
             throw new AssetPipelineException(ex, "Failed to load vanilla tints resource '%s'", RESOURCE_PATH);
         }
 
-        return Concurrent.adoptMap(tints);
+        return Concurrent.adoptMap(tints).toUnmodifiable();
     }
 
 }

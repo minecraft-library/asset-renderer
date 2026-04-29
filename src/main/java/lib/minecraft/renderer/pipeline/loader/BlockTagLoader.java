@@ -47,7 +47,7 @@ public class BlockTagLoader {
      */
     public static @NotNull ConcurrentMap<String, BlockTag> load(@NotNull Path packRoot) {
         Path tagsDir = packRoot.resolve("data/minecraft/tags/block");
-        if (!Files.isDirectory(tagsDir)) return Concurrent.newMap();
+        if (!Files.isDirectory(tagsDir)) return Concurrent.<String, BlockTag>newMap().toUnmodifiable();
 
         // First pass: parse all tag files into raw value lists. Build into plain HashMap /
         // ArrayList during the load phase to skip per-element write-locks; the resolved second
@@ -80,10 +80,10 @@ public class BlockTagLoader {
         for (String tagId : raw.keySet()) {
             ArrayList<String> resolved = new ArrayList<>();
             resolve(tagId, raw, resolved, new HashSet<>());
-            result.put(tagId, new BlockTag(tagId, Concurrent.adoptList(resolved)));
+            result.put(tagId, new BlockTag(tagId, Concurrent.adoptList(resolved).toUnmodifiable()));
         }
 
-        return Concurrent.adoptMap(result);
+        return Concurrent.adoptMap(result).toUnmodifiable();
     }
 
     private static void resolve(

@@ -53,7 +53,7 @@ public class ItemDefinitionLoader {
      */
     public static @NotNull ConcurrentMap<String, String> load(@NotNull Path packRoot) {
         Path itemsDir = packRoot.resolve(VanillaPaths.ITEMS_DIR);
-        if (!Files.isDirectory(itemsDir)) return Concurrent.newMap();
+        if (!Files.isDirectory(itemsDir)) return Concurrent.<String, String>newMap().toUnmodifiable();
 
         // Two-phase walk: enumerate item definition JSON paths serially, then parallelise
         // readString + Gson parse across the FJP common pool. Concurrent.toMap collects per-shard
@@ -71,7 +71,8 @@ public class ItemDefinitionLoader {
         return files.parallelStream()
             .map(p -> parseItemDef(p, itemsDir))
             .filter(Objects::nonNull)
-            .collect(Concurrent.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            .collect(Concurrent.toMap(Map.Entry::getKey, Map.Entry::getValue))
+            .toUnmodifiable();
     }
 
     private static @Nullable Map.Entry<String, String> parseItemDef(@NotNull Path p, @NotNull Path itemsDir) {

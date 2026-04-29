@@ -159,7 +159,7 @@ public class BlockEntityLoader {
                 System.err.printf("  Warning: unsupported per_entity override key for '%s'%n", modelId);
         }
 
-        return Concurrent.adoptMap(result);
+        return Concurrent.adoptMap(result).toUnmodifiable();
     }
 
     /**

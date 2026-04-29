@@ -6,7 +6,6 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Block;
@@ -15,6 +14,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
-import org.jetbrains.annotations.Nullable;
 
 /**
  * A loader that reads blockstate JSON files from {@code assets/minecraft/blockstates/} and
@@ -59,7 +58,10 @@ public class BlockStateLoader {
     public static @NotNull LoadResult load(@NotNull Path packRoot) {
         Path blockstatesDir = packRoot.resolve(VanillaPaths.BLOCKSTATES_DIR);
 
-        if (!Files.isDirectory(blockstatesDir)) return new LoadResult(Concurrent.newMap(), Concurrent.newMap());
+        if (!Files.isDirectory(blockstatesDir)) return new LoadResult(
+            Concurrent.<String, ConcurrentMap<String, Block.Variant>>newMap().toUnmodifiable(),
+            Concurrent.<String, Block.Multipart>newMap().toUnmodifiable()
+        );
 
         // Two-phase walk: serial path enumeration, then parallel JSON parse per file. Per-file
         // work is CPU-bound (Gson parse of a small blockstate JSON) plus a tiny disk read; the
@@ -71,7 +73,10 @@ public class BlockStateLoader {
             files = stream.filter(p -> p.toString().endsWith(".json")).toList();
         } catch (IOException ex) {
             // Directory scan failure is non-fatal
-            return new LoadResult(Concurrent.newMap(), Concurrent.newMap());
+            return new LoadResult(
+                Concurrent.<String, ConcurrentMap<String, Block.Variant>>newMap().toUnmodifiable(),
+                Concurrent.<String, Block.Multipart>newMap().toUnmodifiable()
+            );
         }
 
         List<Parsed> parsedAll = files.parallelStream()
@@ -86,7 +91,7 @@ public class BlockStateLoader {
             else if (p.multipart != null) multiparts.put(p.blockId, p.multipart);
         }
 
-        return new LoadResult(Concurrent.adoptMap(variants), Concurrent.adoptMap(multiparts));
+        return new LoadResult(Concurrent.adoptMap(variants).toUnmodifiable(), Concurrent.adoptMap(multiparts).toUnmodifiable());
     }
 
     private static @Nullable Parsed parseBlockstateFile(@NotNull Path file) {
@@ -134,7 +139,7 @@ public class BlockStateLoader {
             result.put(entry.getKey(), parseApply(variantObj));
         }
 
-        return Concurrent.adoptMap(result);
+        return Concurrent.adoptMap(result).toUnmodifiable();
     }
 
     private static @NotNull Block.Multipart parseMultipart(@NotNull JsonArray parts) {
@@ -164,7 +169,7 @@ public class BlockStateLoader {
             result.add(new Block.Multipart.Part(when, parseApply(applyObj)));
         }
 
-        return new Block.Multipart(Concurrent.adoptList(result));
+        return new Block.Multipart(Concurrent.adoptList(result).toUnmodifiable());
     }
 
     private static @NotNull Block.Variant parseApply(@NotNull JsonObject obj) {

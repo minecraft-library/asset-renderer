@@ -63,7 +63,7 @@ public class ModelResolver {
         return raw.parallelStream().collect(Concurrent.toMap(
             Map.Entry::getKey,
             entry -> GSON.fromJson(mergeParentChain(entry.getValue(), raw, packRoot, "block"), BlockModelData.class)
-        ));
+        )).toUnmodifiable();
     }
 
     /**
@@ -78,7 +78,7 @@ public class ModelResolver {
         return raw.parallelStream().collect(Concurrent.toMap(
             Map.Entry::getKey,
             entry -> GSON.fromJson(mergeParentChain(entry.getValue(), raw, packRoot, "item"), ItemModelData.class)
-        ));
+        )).toUnmodifiable();
     }
 
     private static @NotNull ConcurrentMap<String, JsonObject> scanJsonFiles(@NotNull Path directory, @NotNull String idPrefix) {

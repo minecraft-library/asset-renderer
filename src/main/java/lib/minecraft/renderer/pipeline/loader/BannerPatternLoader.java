@@ -43,7 +43,7 @@ public class BannerPatternLoader {
      */
     public static @NotNull ConcurrentMap<String, BannerPattern> load(@NotNull Path packRoot) {
         Path patternDir = packRoot.resolve("data/minecraft/banner_pattern");
-        if (!Files.isDirectory(patternDir)) return Concurrent.newMap();
+        if (!Files.isDirectory(patternDir)) return Concurrent.<String, BannerPattern>newMap().toUnmodifiable();
 
         HashMap<String, BannerPattern> result = new HashMap<>();
         try (Stream<Path> files = Files.walk(patternDir)) {
@@ -53,7 +53,7 @@ public class BannerPatternLoader {
         } catch (IOException ex) {
             throw new RuntimeException("Failed to walk banner pattern directory " + patternDir, ex);
         }
-        return Concurrent.adoptMap(result);
+        return Concurrent.adoptMap(result).toUnmodifiable();
     }
 
     private static void parsePattern(

@@ -5,7 +5,6 @@ import api.simplified.mojang.exception.MojangApiException;
 import api.simplified.mojang.response.PistonMetadata;
 import dev.simplified.client.ClientConfig;
 import dev.simplified.client.Proxy;
-import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Block;
@@ -74,8 +73,8 @@ public final class AssetPipeline {
         ConcurrentMap<String, ItemModelData> itemModels = ModelResolver.loadItemModels(packRoot);
 
         TexturePack vanillaPack = TexturePackLoader.loadVanilla(packRoot);
-        ConcurrentList<Texture> textures = TexturePackLoader.scanTextures(packRoot, vanillaPack.getId());
-        ConcurrentList<ColorMap> colorMaps = ColorMapLoader.load();
+        ConcurrentMap<String, Texture> textures = TexturePackLoader.scanTextures(packRoot, vanillaPack.getId());
+        ConcurrentMap<ColorMap.Type, ColorMap> colorMaps = ColorMapLoader.load();
         ConcurrentMap<String, Block.Tint> blockTints = BlockTintsLoader.load();
         BlockStateLoader.LoadResult blockStateResult = BlockStateLoader.load(packRoot);
         ConcurrentMap<String, String> itemDefinitions = ItemDefinitionLoader.load(packRoot);
@@ -213,8 +212,8 @@ public final class AssetPipeline {
 
         private final @NotNull Path packRoot;
         private final @NotNull TexturePack vanillaPack;
-        private final @NotNull ConcurrentList<Texture> textures;
-        private final @NotNull ConcurrentList<ColorMap> colorMaps;
+        private final @NotNull ConcurrentMap<String, Texture> textures;
+        private final @NotNull ConcurrentMap<ColorMap.Type, ColorMap> colorMaps;
         private final @NotNull ConcurrentMap<String, Block.Tint> blockTints;
         private final @NotNull ConcurrentMap<String, BlockModelData> blockModels;
         private final @NotNull ConcurrentMap<String, ItemModelData> itemModels;

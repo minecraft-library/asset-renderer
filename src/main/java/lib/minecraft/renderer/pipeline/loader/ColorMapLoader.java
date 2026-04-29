@@ -4,7 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
+import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.pack.ColorMap;
 import lib.minecraft.renderer.tooling.ToolingColorMaps;
@@ -14,8 +14,8 @@ import org.jetbrains.annotations.NotNull;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HashMap;
 
 /**
  * A loader that reads pre-generated biome colormap data from the bundled
@@ -36,18 +36,19 @@ public class ColorMapLoader {
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**
-     * Loads all colormaps from the bundled JSON resource.
+     * Loads all colormaps from the bundled JSON resource, indexed by their {@link ColorMap.Type}.
      *
-     * @return the list of colormap entities
+     * @return the colormap entities keyed by type, wrapped unmodifiable so downstream reads bypass
+     *     the read lock
      */
-    public static @NotNull ConcurrentList<ColorMap> load() {
+    public static @NotNull ConcurrentMap<ColorMap.Type, ColorMap> load() {
         InputStream stream = ColorMapLoader.class.getResourceAsStream(RESOURCE_PATH);
         if (stream == null)
-            return Concurrent.newList();
+            return Concurrent.<ColorMap.Type, ColorMap>newMap().toUnmodifiable();
 
         JsonObject root = GSON.fromJson(new InputStreamReader(stream, StandardCharsets.UTF_8), JsonObject.class);
         JsonArray entries = root.getAsJsonArray("color_maps");
-        ArrayList<ColorMap> colorMaps = new ArrayList<>(entries.size());
+        HashMap<ColorMap.Type, ColorMap> colorMaps = new HashMap<>(entries.size());
 
         for (int i = 0; i < entries.size(); i++) {
             JsonObject entry = entries.get(i).getAsJsonObject();
@@ -55,10 +56,10 @@ public class ColorMapLoader {
             byte[] pixels = Base64.getDecoder().decode(entry.get("pixels").getAsString());
 
             String id = "vanilla:" + type.name().toLowerCase();
-            colorMaps.add(new ColorMap(id, "vanilla", type, pixels));
+            colorMaps.put(type, new ColorMap(id, "vanilla", type, pixels));
         }
 
-        return Concurrent.adoptList(colorMaps);
+        return Concurrent.adoptMap(colorMaps).toUnmodifiable();
     }
 
 }

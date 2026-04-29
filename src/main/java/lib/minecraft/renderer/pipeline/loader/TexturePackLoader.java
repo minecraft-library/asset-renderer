@@ -13,6 +13,7 @@ import lib.minecraft.renderer.kit.AnimationKit;
 import lib.minecraft.renderer.pipeline.VanillaPaths;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -23,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
@@ -79,24 +81,26 @@ public class TexturePackLoader {
     }
 
     /**
-     * Scans the {@code assets/minecraft/textures} tree for PNG files and returns metadata rows
-     * suitable for persisting as {@link Texture} entities. Adjacent {@code .png.mcmeta} sidecars
-     * are parsed during the walk and attached to the texture's {@code animation} field.
+     * Scans the {@code assets/minecraft/textures} tree for PNG files and returns metadata indexed
+     * by namespaced texture id. Adjacent {@code .png.mcmeta} sidecars are parsed during the walk
+     * and attached to the texture's {@code animation} field.
      *
      * @param packRoot the pack root directory
      * @param packId the owning pack identifier
-     * @return the texture metadata list
+     * @return the texture metadata indexed by namespaced texture id, wrapped unmodifiable so
+     *     downstream reads bypass the read lock
      */
-    public static @NotNull ConcurrentList<Texture> scanTextures(@NotNull Path packRoot, @NotNull String packId) {
+    public static @NotNull ConcurrentMap<String, Texture> scanTextures(@NotNull Path packRoot, @NotNull String packId) {
         Path texturesDir = packRoot.resolve(VanillaPaths.TEXTURES_DIR);
-        if (!Files.isDirectory(texturesDir)) return Concurrent.newList();
+        if (!Files.isDirectory(texturesDir)) return Concurrent.<String, Texture>newMap().toUnmodifiable();
 
         // Two-phase walk: materialise the PNG path list serially (Files.walk spliterators do not
         // split well for parallel work), then parallelise the per-file decode. buildTexture is
         // I/O-bound - ImageIO.read + mcmeta parse dominate wall-clock time - so parallelStream
-        // over the FJP common pool gives near-linear scaling on cold loads. Concurrent.toList()
-        // accumulates into a thread-confined ArrayList per shard and adopts the merged result at
-        // finish, so the build phase pays zero ConcurrentList writeLock acquisitions.
+        // over the FJP common pool gives near-linear scaling on cold loads. Concurrent.toMap()
+        // accumulates into a thread-confined HashMap per shard and adopts the merged result at
+        // finish, so the build phase pays zero ConcurrentMap writeLock acquisitions; the final
+        // toUnmodifiable() wrapper makes per-id lookups read-lock-free downstream.
         List<Path> pngFiles;
         try (Stream<Path> stream = Files.walk(texturesDir)) {
             pngFiles = stream
@@ -109,7 +113,8 @@ public class TexturePackLoader {
 
         return pngFiles.parallelStream()
             .map(p -> buildTexture(p, texturesDir, packId))
-            .collect(Concurrent.toList());
+            .collect(Concurrent.toMap(Texture::getId, Function.identity()))
+            .toUnmodifiable();
     }
 
     private static @NotNull Texture buildTexture(@NotNull Path file, @NotNull Path texturesRoot, @NotNull String packId) {

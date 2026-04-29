@@ -70,10 +70,14 @@ import java.util.Set;
  * mapping verified against the bytecode of {@code BlockColors$createDefault} in the 26.1 client
  * jar. Entities come from {@link EntityModelLoader#load()} keyed by namespaced id.
  * <p>
- * Every stored index is wrapped through {@link ConcurrentMap#toUnmodifiable()} after
- * construction; the read paths bypass the source map's read lock since the unmodifiable wrapper
- * is itself thread-safe by virtue of being immutable. The lazy {@code textureCache} is the only
- * mutable map on the context.
+ * Every stored index is unmodifiable: indexes built locally inside {@link #of(AssetPipeline.Result)}
+ * ({@code blockIndex}, {@code itemIndex}, {@code entityIndex}, {@code packs}) are wrapped via
+ * {@link ConcurrentMap#toUnmodifiable()} at construction; indexes that came in already
+ * keyed off the {@link AssetPipeline.Result} (or {@link BlockEntityLoader#load()}) are wrapped at
+ * the loader exit so consumers between pipeline finish and context construction see the same
+ * read-lock-free semantics. Read paths bypass the source map's read lock since the unmodifiable
+ * wrapper is itself thread-safe by virtue of being immutable. The lazy {@code textureCache} is
+ * the only mutable map on the context.
  */
 @RequiredArgsConstructor
 public final class PipelineRendererContext implements RendererContext {
@@ -117,8 +121,6 @@ public final class PipelineRendererContext implements RendererContext {
         dropParentTemplates(blockIndex, itemIndex);
 
         ConcurrentMap<String, Entity> entityIndex = loadEntityIndex();
-        ConcurrentMap<String, Texture> textureIndex = buildTextureIndex(result);
-        ConcurrentMap<ColorMap.Type, ColorMap> colorMapIndex = buildColorMapIndex(result);
         Path textureRoot = resolveTextureRoot(result);
 
         return new PipelineRendererContext(
@@ -127,12 +129,12 @@ public final class PipelineRendererContext implements RendererContext {
             blockIndex.toUnmodifiable(),
             itemIndex.toUnmodifiable(),
             entityIndex.toUnmodifiable(),
-            textureIndex.toUnmodifiable(),
-            colorMapIndex.toUnmodifiable(),
-            result.getBlockTags().toUnmodifiable(),
-            result.getPotionEffectColors().toUnmodifiable(),
-            result.getBannerPatterns().toUnmodifiable(),
-            blockEntityEntries.toUnmodifiable()
+            result.getTextures(),
+            result.getColorMaps(),
+            result.getBlockTags(),
+            result.getPotionEffectColors(),
+            result.getBannerPatterns(),
+            blockEntityEntries
         );
     }
 
@@ -419,34 +421,6 @@ public final class PipelineRendererContext implements RendererContext {
             entityIndex.put(entityEntry.getKey(), new Entity(entityEntry.getKey(), "minecraft", localName(entityEntry.getKey()), def.model(), def.textureRef(), overlayLayers, def.forceOpaque()));
         }
         return Concurrent.adoptMap(entityIndex);
-    }
-
-    /**
-     * Indexes the pipeline's flat {@link Texture} list by namespaced texture id for
-     * {@link #resolveTexture(String)} lookups.
-     *
-     * @param result the pipeline result supplying parsed textures
-     * @return the populated texture index
-     */
-    private static @NotNull ConcurrentMap<String, Texture> buildTextureIndex(@NotNull AssetPipeline.Result result) {
-        HashMap<String, Texture> textureIndex = new HashMap<>();
-        for (Texture texture : result.getTextures())
-            textureIndex.put(texture.getId(), texture);
-        return Concurrent.adoptMap(textureIndex);
-    }
-
-    /**
-     * Indexes the pipeline's biome colormaps by {@link ColorMap.Type} for
-     * {@link #colorMap(ColorMap.Type)} lookups.
-     *
-     * @param result the pipeline result supplying parsed colormaps
-     * @return the populated colormap index
-     */
-    private static @NotNull ConcurrentMap<ColorMap.Type, ColorMap> buildColorMapIndex(@NotNull AssetPipeline.Result result) {
-        HashMap<ColorMap.Type, ColorMap> colorMapIndex = new HashMap<>();
-        for (ColorMap colorMap : result.getColorMaps())
-            colorMapIndex.put(colorMap.getType(), colorMap);
-        return Concurrent.adoptMap(colorMapIndex);
     }
 
     /**

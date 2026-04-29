@@ -89,8 +89,8 @@ class PipelineRendererContextTest {
         // can still be exercised in isolation. The end-to-end loader is exercised by the
         // slowTest against the cached vanilla 26.1 jar.
         TexturePack vanillaPack = TexturePackLoader.loadVanilla(packRoot);
-        ConcurrentList<Texture> textures = TexturePackLoader.scanTextures(packRoot, vanillaPack.getId());
-        ConcurrentList<ColorMap> colorMaps = ColorMapLoader.load();
+        ConcurrentMap<String, Texture> textures = TexturePackLoader.scanTextures(packRoot, vanillaPack.getId());
+        ConcurrentMap<ColorMap.Type, ColorMap> colorMaps = ColorMapLoader.load();
         ConcurrentMap<String, Block.Tint> blockTints = Concurrent.newMap();
         blockTints.put("minecraft:grass_block", new Block.Tint(Biome.TintTarget.GRASS, Optional.empty()));
         blockTints.put("minecraft:oak_leaves", new Block.Tint(Biome.TintTarget.FOLIAGE, Optional.empty()));
@@ -341,10 +341,8 @@ class PipelineRendererContextTest {
     @Test
     @DisplayName("Texture.animation is populated by the scanner for sidecar-equipped PNGs")
     void textureAnimationFieldIsPopulated() {
-        Texture fixture = result.getTextures().stream()
-            .filter(t -> t.getId().equals("minecraft:block/fixture"))
-            .findFirst()
-            .orElseThrow();
+        Texture fixture = result.getTextures().get("minecraft:block/fixture");
+        assertThat(fixture, is(notNullValue()));
         assertThat(fixture.getAnimation().isPresent(), is(true));
         assertThat(fixture.getAnimation().get().getFrametime(), equalTo(4));
     }

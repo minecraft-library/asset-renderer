@@ -262,7 +262,7 @@ public class EntityModelLoader {
             definitions.put(entityId, new EntityDefinition(model, textureRef, overlays, forceOpaque));
         }
 
-        return Concurrent.adoptMap(definitions);
+        return Concurrent.adoptMap(definitions).toUnmodifiable();
     }
 
     /**

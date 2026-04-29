@@ -79,7 +79,7 @@ public class PotionColorLoader {
         } catch (JsonSyntaxException | IllegalStateException | NumberFormatException ex) {
             throw new AssetPipelineException(ex, "Malformed '%s' resource", RESOURCE_PATH);
         }
-        return Concurrent.adoptMap(colors);
+        return Concurrent.adoptMap(colors).toUnmodifiable();
     }
 
     private static @NotNull String stripHexPrefix(@NotNull String hex) {
