@@ -59,22 +59,36 @@ dependencies {
     testRuntimeOnly(libs.junit.jupiter.engine)
     testImplementation(libs.junit.platform.launcher)
 
-    // Simplified Libraries (extracted to github.com/simplified-dev)
-    api("com.github.simplified-dev:collections:master-SNAPSHOT")
-    api("com.github.simplified-dev:utils:master-SNAPSHOT")
-    api("com.github.simplified-dev:image:master-SNAPSHOT")
-    api("com.github.simplified-dev:gson-extras:master-SNAPSHOT")
-    api("com.github.simplified-dev:client:master-SNAPSHOT")
+    // Simplified Libraries (extracted to github.com/simplified-dev). Temporarily pinned to
+    // explicit master commits so JitPack rebuilds each artifact against the latest
+    // collections snapshot (ConcurrentMap was flipped from class to interface; cached
+    // master-SNAPSHOT jars of gson-extras / reflection were still bound to the old class
+    // form, surfacing as IncompatibleClassChangeError under Gson reflection). Revert each
+    // line back to master-SNAPSHOT once JitPack's master-SNAPSHOT cache catches up.
+    api("com.github.simplified-dev:collections:afa6fb1")
+    api("com.github.simplified-dev:utils:70529fc")
+    api("com.github.simplified-dev:image:31d5c38")
+    // gson-extras:1b65ed3 is master HEAD but JitPack failed to build it (SDKMan Java 21
+    // install glitch); 939e783 is the prior commit, also carries the Concurrent* factory
+    // wiring needed against the new collections interface.
+    api("com.github.simplified-dev:gson-extras:939e783")
+    // reflection is pulled in transitively by gson-extras as master-SNAPSHOT - JitPack's
+    // stale cache is the binary that triggers IncompatibleClassChangeError against the
+    // new collections interface. Direct-pinning to a freshly-built commit overrides the
+    // transitive resolution.
+    api("com.github.simplified-dev:reflection:2fb4888")
+    api("com.github.simplified-dev:client:2ac6479")
 
     // Simplified API (extracted to github.com/simplified-api) - typed Feign contract for
     // Mojang's launcher / Piston / textures endpoints, owns all renderer HTTP via AssetPipeline.
-    api("com.github.simplified-api:mojang:master-SNAPSHOT")
+    // Pinned for the same reason as the simplified-dev block above.
+    api("com.github.simplified-api:mojang:46af96a")
 
     // Minecraft-Library (extracted to github.com/minecraft-library)
     // Owns lib.minecraft.text.**, lib.minecraft.text.font.**, and the
     // RendererException / FontException base classes that the remaining asset-renderer
-    // exceptions still extend.
-    api("com.github.minecraft-library:text:master-SNAPSHOT")
+    // exceptions still extend. Pinned for the same reason as the simplified-dev block above.
+    api("com.github.minecraft-library:text:5968fd9")
 
     // ASM - used by VanillaTintsLoader to parse net.minecraft.client.color.block.BlockColors
     // straight from the extracted client jar, replacing the previously hand-curated tint table.
