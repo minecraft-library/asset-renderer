@@ -120,7 +120,7 @@ tasks {
     // Tooling
 
     register<JavaExec>("atlas") {
-        description = "Generates a block/item atlas PNG + coordinates JSON."
+        description = "Generates a block/item atlas PNG + coordinates JSON to build/atlas/."
         group = "tooling"
         mainClass.set("lib.minecraft.renderer.tooling.ToolingAtlas")
         classpath = sourceSets["main"].runtimeClasspath
@@ -136,7 +136,7 @@ tasks {
     }
 
     register<JavaExec>("diagnoseAtlasTask10") {
-        description = "Writes a mini atlas containing only Task 10 (blockstate-only) additions to build/atlas/blockstate_only/."
+        description = "Writes a mini atlas containing only blockstate additions to build/atlas/blockstate_only/."
         group = "tooling"
         mainClass.set("lib.minecraft.renderer.tooling.ToolingAtlasDiagnose")
         classpath = sourceSets["main"].runtimeClasspath
