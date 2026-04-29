@@ -88,7 +88,7 @@ dependencies {
     // Owns lib.minecraft.text.**, lib.minecraft.text.font.**, and the
     // RendererException / FontException base classes that the remaining asset-renderer
     // exceptions still extend. Pinned for the same reason as the simplified-dev block above.
-    api("com.github.minecraft-library:text:5968fd9")
+    api("com.github.minecraft-library:text:998f04d")
 
     // ASM - used by VanillaTintsLoader to parse net.minecraft.client.color.block.BlockColors
     // straight from the extracted client jar, replacing the previously hand-curated tint table.
