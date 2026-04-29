@@ -60,35 +60,30 @@ dependencies {
     testImplementation(libs.junit.platform.launcher)
 
     // Simplified Libraries (extracted to github.com/simplified-dev). Temporarily pinned to
-    // explicit master commits so JitPack rebuilds each artifact against the latest
-    // collections snapshot (ConcurrentMap was flipped from class to interface; cached
-    // master-SNAPSHOT jars of gson-extras / reflection were still bound to the old class
-    // form, surfacing as IncompatibleClassChangeError under Gson reflection). Revert each
-    // line back to master-SNAPSHOT once JitPack's master-SNAPSHOT cache catches up.
-    api("com.github.simplified-dev:collections:76ef254")
-    api("com.github.simplified-dev:utils:70529fc")
-    api("com.github.simplified-dev:image:31d5c38")
-    // gson-extras:1b65ed3 is master HEAD but JitPack failed to build it (SDKMan Java 21
-    // install glitch); 939e783 is the prior commit, also carries the Concurrent* factory
-    // wiring needed against the new collections interface.
-    api("com.github.simplified-dev:gson-extras:939e783")
-    // reflection is pulled in transitively by gson-extras as master-SNAPSHOT - JitPack's
-    // stale cache is the binary that triggers IncompatibleClassChangeError against the
-    // new collections interface. Direct-pinning to a freshly-built commit overrides the
-    // transitive resolution.
-    api("com.github.simplified-dev:reflection:2fb4888")
-    api("com.github.simplified-dev:client:2ac6479")
+    // explicit master commits while JitPack's master-SNAPSHOT cache catches up across the
+    // chain after the upstream collections ConcurrentMap class -> interface migration. Each
+    // pin below maps to a fresh JitPack rebuild against the latest collections; revert each
+    // line back to master-SNAPSHOT once JitPack's master-SNAPSHOT cache settles.
+    api("com.github.simplified-dev:collections:c2d6b6c")
+    api("com.github.simplified-dev:utils:3f20b02")
+    api("com.github.simplified-dev:image:bec9b70")
+    api("com.github.simplified-dev:gson-extras:60bb06c")
+    // reflection is transitively required by gson-extras / client / mojang at
+    // master-SNAPSHOT; pinning a direct dep overrides the transitive resolution and
+    // guarantees the freshly-built jar wins over any stale cached snapshot.
+    api("com.github.simplified-dev:reflection:402f695")
+    api("com.github.simplified-dev:client:65ffa0a")
 
     // Simplified API (extracted to github.com/simplified-api) - typed Feign contract for
     // Mojang's launcher / Piston / textures endpoints, owns all renderer HTTP via AssetPipeline.
     // Pinned for the same reason as the simplified-dev block above.
-    api("com.github.simplified-api:mojang:46af96a")
+    api("com.github.simplified-api:mojang:59d6f7d")
 
     // Minecraft-Library (extracted to github.com/minecraft-library)
     // Owns lib.minecraft.text.**, lib.minecraft.text.font.**, and the
     // RendererException / FontException base classes that the remaining asset-renderer
     // exceptions still extend. Pinned for the same reason as the simplified-dev block above.
-    api("com.github.minecraft-library:text:6999aa0")
+    api("com.github.minecraft-library:text:a1cdf4f")
 
     // ASM - used by VanillaTintsLoader to parse net.minecraft.client.color.block.BlockColors
     // straight from the extracted client jar, replacing the previously hand-curated tint table.
