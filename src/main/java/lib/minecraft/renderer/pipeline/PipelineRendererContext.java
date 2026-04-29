@@ -1,5 +1,10 @@
 package lib.minecraft.renderer.pipeline;
 
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
+import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.image.ImageFactory;
+import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.AtlasRenderer;
 import lib.minecraft.renderer.PortalRenderer;
 import lib.minecraft.renderer.asset.Block;
@@ -24,11 +29,6 @@ import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.pipeline.loader.OverlayResolver;
 import lib.minecraft.renderer.tooling.ToolingColorMaps;
-import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
-import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.image.ImageFactory;
-import dev.simplified.image.pixel.PixelBuffer;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
@@ -38,10 +38,10 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * A {@link RendererContext} backed by a single {@link AssetPipeline.Result}.
@@ -150,17 +150,29 @@ public final class PipelineRendererContext implements RendererContext {
     private static @NotNull ConcurrentMap<String, ConcurrentList<String>> buildReverseTagIndex(
         @NotNull ConcurrentMap<String, BlockTag> tagMap
     ) {
-        // Two-phase build: walk into raw HashMap<String, ArrayList<String>> with no lock cost,
-        // then wrap each tag list and the outer map via Concurrent.adopt at finish. Mutating the
-        // adopted ConcurrentList during the build would re-introduce a writeLock per add.
-        HashMap<String, ArrayList<String>> raw = new HashMap<>();
-        for (Map.Entry<String, BlockTag> tagEntry : tagMap.entrySet()) {
-            for (String blockId : tagEntry.getValue().getValues())
-                raw.computeIfAbsent(blockId, k -> new ArrayList<>()).add(tagEntry.getKey());
-        }
-        HashMap<String, ConcurrentList<String>> wrapped = new HashMap<>(raw.size());
-        raw.forEach((k, v) -> wrapped.put(k, Concurrent.adoptList(v)));
-        return Concurrent.adoptMap(wrapped);
+        // flatMap each tag's member block ids into (blockId, tagName) pairs, group by block id,
+        // then adopt each per-block tag list and the outer map at finish. groupingBy collects
+        // into plain ArrayLists, so the build phase pays no ConcurrentList write locks.
+        return tagMap.entrySet().stream()
+            .flatMap(tagEntry -> tagEntry.getValue()
+                .getValues()
+                .stream()
+                .map(blockId -> Map.entry(blockId, tagEntry.getKey()))
+            )
+            .collect(Collectors.groupingBy(
+                Map.Entry::getKey,
+                Collectors.mapping(
+                    Map.Entry::getValue,
+                    Collectors.toCollection(ArrayList::new)
+                )
+            ))
+            .entrySet()
+            .stream()
+            .collect(Concurrent.toMap(
+                Map.Entry::getKey,
+                e -> Concurrent.adoptList(e.getValue()).toUnmodifiable())
+            )
+            .toUnmodifiable();
     }
 
     /**
@@ -386,21 +398,12 @@ public final class PipelineRendererContext implements RendererContext {
         @NotNull ConcurrentMap<String, Block> blockIndex,
         @NotNull ConcurrentMap<String, Item> itemIndex
     ) {
-        int removedBlocks = 0;
-        for (String blockId : new ArrayList<>(blockIndex.keySet())) {
-            if (isParentOrTemplateBlockId(blockId)) {
-                blockIndex.remove(blockId);
-                removedBlocks++;
-            }
-        }
-        int removedItems = 0;
-        for (String itemId : new ArrayList<>(itemIndex.keySet())) {
-            if (isParentOrTemplateItemId(itemId)) {
-                itemIndex.remove(itemId);
-                removedItems++;
-            }
-        }
-        System.out.printf("Atlas parent/template filter: removed %d blocks, %d items%n", removedBlocks, removedItems);
+        int blocksBefore = blockIndex.size();
+        blockIndex.keySet().removeIf(PipelineRendererContext::isParentOrTemplateBlockId);
+        int itemsBefore = itemIndex.size();
+        itemIndex.keySet().removeIf(PipelineRendererContext::isParentOrTemplateItemId);
+        System.out.printf("Atlas parent/template filter: removed %d blocks, %d items%n",
+            blocksBefore - blockIndex.size(), itemsBefore - itemIndex.size());
     }
 
     /**
@@ -412,15 +415,26 @@ public final class PipelineRendererContext implements RendererContext {
      * @return the populated entity index, keyed by namespaced entity id
      */
     private static @NotNull ConcurrentMap<String, Entity> loadEntityIndex() {
-        HashMap<String, Entity> entityIndex = new HashMap<>();
-        for (Map.Entry<String, EntityModelLoader.EntityDefinition> entityEntry : EntityModelLoader.load().entrySet()) {
-            EntityModelLoader.EntityDefinition def = entityEntry.getValue();
-            List<Entity.Layer> overlayLayers = def.overlays().stream()
-                .map(o -> new Entity.Layer(o.model(), o.textureRef(), o.emissive()))
-                .toList();
-            entityIndex.put(entityEntry.getKey(), new Entity(entityEntry.getKey(), "minecraft", localName(entityEntry.getKey()), def.model(), def.textureRef(), overlayLayers, def.forceOpaque()));
-        }
-        return Concurrent.adoptMap(entityIndex);
+        return EntityModelLoader.load()
+            .stream()
+            .collect(Concurrent.toMap(Map.Entry::getKey, entry -> {
+                String entityId = entry.getKey();
+                EntityModelLoader.EntityDefinition definition = entry.getValue();
+
+                return new Entity(
+                    entityId,
+                    "minecraft",
+                    localName(entityId),
+                    definition.model(),
+                    definition.textureRef(),
+                    definition.overlays()
+                        .stream()
+                        .map(o -> new Entity.Layer(o.model(), o.textureRef(), o.emissive()))
+                        .collect(Concurrent.toList())
+                        .toUnmodifiable(),
+                    definition.forceOpaque()
+                );
+            }));
     }
 
     /**

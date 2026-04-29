@@ -1,13 +1,13 @@
 package lib.minecraft.renderer.asset;
 
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -45,7 +45,7 @@ public class Entity {
      * on top of the body. Each layer is built with the same auto-fit transform as the base so
      * coordinates stay co-registered after the unit-cube fit.
      */
-    private @NotNull List<Layer> overlays = Collections.emptyList();
+    private @NotNull ConcurrentList<Layer> overlays = Concurrent.newList();
 
     /**
      * When {@code true} the entity's bundled base texture has every partial-alpha texel bumped
@@ -69,7 +69,7 @@ public class Entity {
         @NotNull EntityModelData model,
         @NotNull Optional<String> textureRef
     ) {
-        this(id, namespace, name, model, textureRef, Collections.emptyList(), false);
+        this(id, namespace, name, model, textureRef, Concurrent.newList(), false);
     }
 
     /**
@@ -81,7 +81,7 @@ public class Entity {
         @NotNull String name,
         @NotNull EntityModelData model,
         @NotNull Optional<String> textureRef,
-        @NotNull List<Layer> overlays
+        @NotNull ConcurrentList<Layer> overlays
     ) {
         this(id, namespace, name, model, textureRef, overlays, false);
     }

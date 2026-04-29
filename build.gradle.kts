@@ -65,7 +65,7 @@ dependencies {
     // master-SNAPSHOT jars of gson-extras / reflection were still bound to the old class
     // form, surfacing as IncompatibleClassChangeError under Gson reflection). Revert each
     // line back to master-SNAPSHOT once JitPack's master-SNAPSHOT cache catches up.
-    api("com.github.simplified-dev:collections:afa6fb1")
+    api("com.github.simplified-dev:collections:76ef254")
     api("com.github.simplified-dev:utils:70529fc")
     api("com.github.simplified-dev:image:31d5c38")
     // gson-extras:1b65ed3 is master HEAD but JitPack failed to build it (SDKMan Java 21
@@ -88,7 +88,7 @@ dependencies {
     // Owns lib.minecraft.text.**, lib.minecraft.text.font.**, and the
     // RendererException / FontException base classes that the remaining asset-renderer
     // exceptions still extend. Pinned for the same reason as the simplified-dev block above.
-    api("com.github.minecraft-library:text:998f04d")
+    api("com.github.minecraft-library:text:6999aa0")
 
     // ASM - used by VanillaTintsLoader to parse net.minecraft.client.color.block.BlockColors
     // straight from the extracted client jar, replacing the previously hand-curated tint table.
