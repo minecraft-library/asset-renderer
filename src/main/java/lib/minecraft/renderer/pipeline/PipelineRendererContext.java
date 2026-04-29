@@ -153,7 +153,7 @@ public final class PipelineRendererContext implements RendererContext {
         // flatMap each tag's member block ids into (blockId, tagName) pairs, group by block id,
         // then adopt each per-block tag list and the outer map at finish. groupingBy collects
         // into plain ArrayLists, so the build phase pays no ConcurrentList write locks.
-        return tagMap.entrySet().stream()
+        return tagMap.stream()
             .flatMap(tagEntry -> tagEntry.getValue()
                 .getValues()
                 .stream()
