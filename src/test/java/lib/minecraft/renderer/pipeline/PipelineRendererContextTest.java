@@ -13,6 +13,9 @@ import lib.minecraft.renderer.asset.model.BlockModelData;
 import lib.minecraft.renderer.asset.model.ItemModelData;
 import lib.minecraft.renderer.pipeline.loader.ColorMapLoader;
 import lib.minecraft.renderer.pipeline.loader.TexturePackLoader;
+import lib.minecraft.renderer.pipeline.pack.CtmMethod;
+import lib.minecraft.renderer.pipeline.pack.CtmResolution;
+import lib.minecraft.renderer.pipeline.pack.CtmRule;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -156,7 +159,7 @@ class PipelineRendererContextTest {
             textures, colorMaps, blockTints, blockModels, itemModels,
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
-            Concurrent.newMap(), Concurrent.newList()
+            Concurrent.newMap(), Concurrent.newList(), Concurrent.newList()
         );
         context = PipelineRendererContext.of(result);
     }
@@ -285,6 +288,53 @@ class PipelineRendererContextTest {
         assertThat(packs.size(), equalTo(1));
         assertThat(packs.getFirst().getId(), equalTo("vanilla"));
         assertThat(packs.getFirst().getAssetRoots().isEmpty(), is(false));
+    }
+
+    @Test
+    @DisplayName("resolveCtm walks rules in sort order and returns the first applicable resolution")
+    void resolveCtmReturnsFirstApplicableRule() {
+        // Two rules: the first applies to a different block, the second matches our query.
+        // resolveCtm walks in declaration order (which mirrors weight-descending sort upstream)
+        // and returns the second's resolution.
+        CtmRule miss = new CtmRule(
+            "miss.properties", 10, CtmMethod.FIXED,
+            Concurrent.newList("minecraft:cobblestone"),
+            Concurrent.newList(),
+            Concurrent.newList("pack:block/cobblestone_custom"),
+            Concurrent.newList(),
+            java.util.EnumSet.of(CtmRule.Face.ALL)
+        );
+        CtmRule hit = new CtmRule(
+            "hit.properties", 5, CtmMethod.FIXED,
+            Concurrent.newList("minecraft:stone"),
+            Concurrent.newList(),
+            Concurrent.newList("pack:block/stone_custom"),
+            Concurrent.newList(),
+            java.util.EnumSet.of(CtmRule.Face.ALL)
+        );
+
+        Pipeline.Result resultWithCtm = new Pipeline.Result(
+            packRoot,
+            result.getVanillaPack(),
+            result.getPacks(),
+            result.getTextures(), result.getColorMaps(), result.getBlockTints(),
+            result.getBlockModels(), result.getItemModels(),
+            result.getBlockStates(), result.getBlockMultiparts(),
+            result.getItemDefinitions(), result.getBlockTags(),
+            result.getPotionEffectColors(), result.getBannerPatterns(),
+            result.getColorOverrides(), result.getCitRules(),
+            Concurrent.newList(miss, hit)
+        );
+        PipelineRendererContext ctx = PipelineRendererContext.of(resultWithCtm);
+
+        Optional<CtmResolution> resolution = ctx.resolveCtm("minecraft:stone", "minecraft:block/stone", CtmRule.Face.UP);
+        assertThat(resolution.isPresent(), is(true));
+        assertThat(resolution.get().textureId(), equalTo("pack:block/stone_custom"));
+        assertThat(resolution.get().overlayTextureId().isPresent(), is(false));
+
+        // Block id with no matching rule returns empty.
+        Optional<CtmResolution> miss2 = ctx.resolveCtm("minecraft:gravel", "minecraft:block/gravel", CtmRule.Face.UP);
+        assertThat(miss2.isPresent(), is(false));
     }
 
     @Test

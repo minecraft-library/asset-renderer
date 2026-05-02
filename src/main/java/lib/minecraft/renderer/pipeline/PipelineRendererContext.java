@@ -30,6 +30,9 @@ import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.pipeline.resolver.OverlayResolver;
 import lib.minecraft.renderer.pipeline.pack.CitMatcher;
 import lib.minecraft.renderer.pipeline.pack.CitRule;
+import lib.minecraft.renderer.pipeline.pack.CtmMatcher;
+import lib.minecraft.renderer.pipeline.pack.CtmResolution;
+import lib.minecraft.renderer.pipeline.pack.CtmRule;
 import lib.minecraft.renderer.pipeline.pack.ItemContext;
 import lib.minecraft.renderer.tooling.ToolingColorMaps;
 import lombok.RequiredArgsConstructor;
@@ -98,6 +101,7 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull ConcurrentMap<String, Block.Entity> blockEntityEntries;
     private final @NotNull ConcurrentMap<String, Integer> colorOverrides;
     private final @NotNull ConcurrentList<CitRule> citRules;
+    private final @NotNull ConcurrentList<CtmRule> ctmRules;
     private final @NotNull ImageFactory imageFactory = new ImageFactory();
     private final @NotNull ConcurrentMap<String, PixelBuffer> textureCache = Concurrent.newMap();
 
@@ -137,7 +141,8 @@ public final class PipelineRendererContext implements RendererContext {
             result.getBannerPatterns(),
             blockEntityEntries,
             result.getColorOverrides(),
-            result.getCitRules()
+            result.getCitRules(),
+            result.getCtmRules()
         );
     }
 
@@ -553,6 +558,20 @@ public final class PipelineRendererContext implements RendererContext {
     public @NotNull Optional<String> findItemTextureOverride(@NotNull ItemContext context) {
         for (CitRule rule : this.citRules)
             if (CitMatcher.match(rule, context)) return Optional.of(rule.outputTextureId());
+        return Optional.empty();
+    }
+
+    @Override
+    public @NotNull Optional<CtmResolution> resolveCtm(
+        @NotNull String blockId,
+        @NotNull String baseTextureId,
+        @NotNull CtmRule.Face face
+    ) {
+        for (CtmRule rule : this.ctmRules) {
+            if (!rule.appliesTo(blockId, baseTextureId, face)) continue;
+            Optional<CtmResolution> resolution = CtmMatcher.resolve(rule, blockId, baseTextureId);
+            if (resolution.isPresent()) return resolution;
+        }
         return Optional.empty();
     }
 

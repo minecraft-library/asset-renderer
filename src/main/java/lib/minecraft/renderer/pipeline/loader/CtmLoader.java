@@ -35,6 +35,22 @@ public class CtmLoader {
     };
 
     /**
+     * Walks every asset root for CTM property files and returns the merged rule list, sorted by
+     * descending weight. Each root is scanned independently via {@link #load(Path)}; ties on
+     * weight preserve declaration order, so later-priority packs naturally win on weight-tied
+     * collisions when {@code assetRoots} is in ascending-priority order.
+     *
+     * @param assetRoots the ordered asset roots
+     * @return the parsed rules, weight-sorted
+     */
+    public static @NotNull ConcurrentList<CtmRule> load(@NotNull ConcurrentList<Path> assetRoots) {
+        ArrayList<CtmRule> rules = new ArrayList<>();
+        for (Path root : assetRoots) rules.addAll(load(root));
+        rules.sort(Comparator.comparingInt(CtmRule::weight).reversed());
+        return Concurrent.adoptList(rules);
+    }
+
+    /**
      * Walks {@code packRoot} looking for CTM property files and returns the parsed rule list,
      * sorted by descending weight.
      *

@@ -28,12 +28,14 @@ import lib.minecraft.renderer.pipeline.loader.BlockTagLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
 import lib.minecraft.renderer.pipeline.loader.CitLoader;
 import lib.minecraft.renderer.pipeline.loader.ColorMapLoader;
+import lib.minecraft.renderer.pipeline.loader.CtmLoader;
 import lib.minecraft.renderer.pipeline.loader.ItemDefinitionLoader;
 import lib.minecraft.renderer.pipeline.resolver.ModelResolver;
 import lib.minecraft.renderer.pipeline.loader.PotionColorLoader;
 import lib.minecraft.renderer.pipeline.loader.TexturePackLoader;
 import lib.minecraft.renderer.pipeline.pack.CitRule;
 import lib.minecraft.renderer.pipeline.pack.ColorProperties;
+import lib.minecraft.renderer.pipeline.pack.CtmRule;
 import lib.minecraft.renderer.pipeline.resolver.PackResolver;
 import lib.minecraft.renderer.pipeline.util.PackAcquirer;
 import lombok.Getter;
@@ -106,6 +108,9 @@ public class Pipeline {
             ascendingPacks.add(PackResolver.resolve(userRoot, packId, priority, targetPackFormat));
         }
 
+        // TODO: Move the ascendingPacks processing into a separate method (lines 92-111)
+        //       include other lines that reference ascending? lines 118, 127-130, 133?
+
         ConcurrentList<TexturePack> ascending = Concurrent.adoptList(ascendingPacks).toUnmodifiable();
         ConcurrentList<Path> combinedRoots = combineRoots(ascending);
 
@@ -128,10 +133,11 @@ public class Pipeline {
 
         ConcurrentMap<String, Integer> colorOverrides = collectColorOverrides(ascending);
         ConcurrentList<CitRule> citRules = collectCitRules(ascending);
+        ConcurrentList<CtmRule> ctmRules = collectCtmRules(ascending);
 
         return new Result(packRoot, vanillaPack, packs, textures, colorMaps, blockTints, blockModels, itemModels,
             blockStateResult.getVariants(), blockStateResult.getMultiparts(), itemDefinitions, blockTags,
-            potionEffectColors, bannerPatterns, colorOverrides, citRules);
+            potionEffectColors, bannerPatterns, colorOverrides, citRules, ctmRules);
     }
 
     /**
@@ -161,6 +167,22 @@ public class Pipeline {
             for (Path root : pack.getAssetRoots())
                 rules.addAll(CitLoader.load(root));
         rules.sort(Comparator.comparingInt(CitRule::weight).reversed());
+        return Concurrent.adoptList(rules).toUnmodifiable();
+    }
+
+    /**
+     * Walks every pack's asset roots in ascending-priority order, calling
+     * {@link CtmLoader#load(Path)} per root and concatenating the resulting rules. The combined
+     * list is sorted by descending weight so the highest-priority rules appear first; ties
+     * preserve their declaration order, which means later-priority packs naturally win on
+     * weight-tied collisions.
+     */
+    private static @NotNull ConcurrentList<CtmRule> collectCtmRules(@NotNull ConcurrentList<TexturePack> ascending) {
+        ArrayList<CtmRule> rules = new ArrayList<>();
+        for (TexturePack pack : ascending)
+            for (Path root : pack.getAssetRoots())
+                rules.addAll(CtmLoader.load(root));
+        rules.sort(Comparator.comparingInt(CtmRule::weight).reversed());
         return Concurrent.adoptList(rules).toUnmodifiable();
     }
 
@@ -352,6 +374,14 @@ public class Pipeline {
          * weight so the highest-priority rules appear first.
          */
         private final @NotNull ConcurrentList<CitRule> citRules;
+
+        /**
+         * Connected Textures rules parsed from every pack's
+         * {@code optifine/ctm/**} and {@code mcpatcher/ctm/**} subtrees, sorted by descending
+         * weight. Currently consumable via the renderer context's {@code resolveCtm} for tooling
+         * and external callers; the renderer itself doesn't yet apply them.
+         */
+        private final @NotNull ConcurrentList<CtmRule> ctmRules;
 
     }
 

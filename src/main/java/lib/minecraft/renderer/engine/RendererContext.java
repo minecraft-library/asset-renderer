@@ -199,4 +199,31 @@ public interface RendererContext {
         return Optional.empty();
     }
 
+    /**
+     * Resolves a Connected Textures rule for the given block face, walking the parsed
+     * {@code optifine/ctm/**} and {@code mcpatcher/ctm/**} rule list in descending weight order
+     * and returning the first rule whose {@code appliesTo} predicate accepts the
+     * {@code (blockId, baseTextureId, face)} triple.
+     * <p>
+     * Non-neighbor methods (FIXED, RANDOM, REPEAT, OVERLAY, OVERLAY_FIXED) resolve fully via
+     * {@code CtmMatcher.resolve}. Neighbor-based methods currently fall back to {@code tiles[0]}
+     * when called through this entry point - resolving them properly requires a pre-computed
+     * {@code NeighborPattern} which the single-block renderer doesn't yet supply. The
+     * {@code BlockRenderer} hot path also doesn't yet consult this method, so no actual texture
+     * substitution happens in render output today; the data is available for tooling and
+     * external consumers.
+     *
+     * @param blockId the block id, e.g. {@code "minecraft:stone_bricks"}
+     * @param baseTextureId the vanilla base texture id for the face, e.g. {@code "minecraft:block/stone_bricks"}
+     * @param face the face being rendered
+     * @return the resolution, or empty when no rule matches
+     */
+    default @NotNull Optional<lib.minecraft.renderer.pipeline.pack.CtmResolution> resolveCtm(
+        @NotNull String blockId,
+        @NotNull String baseTextureId,
+        @NotNull lib.minecraft.renderer.pipeline.pack.CtmRule.Face face
+    ) {
+        return Optional.empty();
+    }
+
 }
