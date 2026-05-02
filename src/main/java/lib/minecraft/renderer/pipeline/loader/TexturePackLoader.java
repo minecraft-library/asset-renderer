@@ -22,6 +22,7 @@ import javax.imageio.ImageIO;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
@@ -49,58 +50,39 @@ public class TexturePackLoader {
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**
-     * Loads the vanilla texture pack from a previously-extracted client jar root.
+     * Scans every pack's asset roots in priority order (lowest priority first, highest last) and
+     * returns the merged texture index. Later roots override earlier ones for any colliding
+     * texture id, which is how within-pack overlays and across-pack priority both produce the
+     * right rendering. Each {@link Texture} carries the id of the pack whose root registered the
+     * winning row.
      *
-     * @param packRoot the root directory containing {@code assets/minecraft/textures}
-     * @return the pack entity
+     * @param packs the packs in ascending-priority order
+     * @return the merged texture index, wrapped unmodifiable
      */
-    public static @NotNull TexturePack loadVanilla(@NotNull Path packRoot) {
-        return load(packRoot, "vanilla", "Vanilla Minecraft client", 0);
+    public static @NotNull ConcurrentMap<String, Texture> scanTextures(@NotNull ConcurrentList<TexturePack> packs) {
+        HashMap<String, Texture> merged = new HashMap<>();
+        for (TexturePack pack : packs)
+            for (Path root : pack.getAssetRoots())
+                merged.putAll(scanRoot(root, pack.getId()));
+        return Concurrent.adoptMap(merged).toUnmodifiable();
     }
 
     /**
-     * Loads a pack from a directory. Zip archives are expected to be extracted by the caller
-     * before this method is invoked.
-     *
-     * @param packRoot the pack root directory
-     * @param packId the unique pack identifier
-     * @param description the pack description
-     * @param priority the pack priority; higher values win when texture ids collide
-     * @return the pack entity
+     * Scans one asset root and returns the texture index keyed by namespaced texture id. Each
+     * resulting {@link Texture} carries the supplied {@code packId} so the renderer can look up
+     * the right pack root at PNG-read time. Returns an empty map when the textures subtree is
+     * absent.
      */
-    public static @NotNull TexturePack load(
-        @NotNull Path packRoot,
-        @NotNull String packId,
-        @NotNull String description,
-        int priority
-    ) {
-        if (!Files.isDirectory(packRoot))
-            throw new AssetPipelineException("Pack root '%s' does not exist or is not a directory", packRoot);
-
-        return new TexturePack(packId, "minecraft", description, packRoot.toString(), priority);
-    }
-
-    /**
-     * Scans the {@code assets/minecraft/textures} tree for PNG files and returns metadata indexed
-     * by namespaced texture id. Adjacent {@code .png.mcmeta} sidecars are parsed during the walk
-     * and attached to the texture's {@code animation} field.
-     *
-     * @param packRoot the pack root directory
-     * @param packId the owning pack identifier
-     * @return the texture metadata indexed by namespaced texture id, wrapped unmodifiable so
-     *     downstream reads bypass the read lock
-     */
-    public static @NotNull ConcurrentMap<String, Texture> scanTextures(@NotNull Path packRoot, @NotNull String packId) {
+    private static @NotNull ConcurrentMap<String, Texture> scanRoot(@NotNull Path packRoot, @NotNull String packId) {
         Path texturesDir = packRoot.resolve(VanillaPaths.TEXTURES_DIR);
-        if (!Files.isDirectory(texturesDir)) return Concurrent.<String, Texture>newMap().toUnmodifiable();
+        if (!Files.isDirectory(texturesDir)) return Concurrent.newMap();
 
         // Two-phase walk: materialise the PNG path list serially (Files.walk spliterators do not
         // split well for parallel work), then parallelise the per-file decode. buildTexture is
         // I/O-bound - ImageIO.read + mcmeta parse dominate wall-clock time - so parallelStream
         // over the FJP common pool gives near-linear scaling on cold loads. Concurrent.toMap()
         // accumulates into a thread-confined HashMap per shard and adopts the merged result at
-        // finish, so the build phase pays zero ConcurrentMap writeLock acquisitions; the final
-        // toUnmodifiable() wrapper makes per-id lookups read-lock-free downstream.
+        // finish, so the build phase pays zero ConcurrentMap writeLock acquisitions.
         List<Path> pngFiles;
         try (Stream<Path> stream = Files.walk(texturesDir)) {
             pngFiles = stream
@@ -113,8 +95,7 @@ public class TexturePackLoader {
 
         return pngFiles.parallelStream()
             .map(p -> buildTexture(p, texturesDir, packId))
-            .collect(Concurrent.toMap(Texture::getId, Function.identity()))
-            .toUnmodifiable();
+            .collect(Concurrent.toMap(Texture::getId, Function.identity()));
     }
 
     private static @NotNull Texture buildTexture(@NotNull Path file, @NotNull Path texturesRoot, @NotNull String packId) {

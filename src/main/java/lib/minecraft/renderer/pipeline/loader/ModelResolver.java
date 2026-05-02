@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.model.BlockModelData;
@@ -53,17 +54,21 @@ public class ModelResolver {
      * @return a map of model id to resolved block model data
      */
     public static @NotNull ConcurrentMap<String, BlockModelData> loadBlockModels(@NotNull Path packRoot) {
-        ConcurrentMap<String, JsonObject> raw = scanJsonFiles(packRoot.resolve(VanillaPaths.MODEL_BLOCK_DIR), VanillaPaths.MODEL_BLOCK_ID_PREFIX);
-        // Parallel parent-chain merge + typed Gson reparse. raw is fully populated here, so
-        // mergeParentChain is a read-only traversal; Gson is thread-safe. Each entry is
-        // independent so the FJP common pool can scale across cores. ConcurrentMap.parallelStream
-        // is a PairStream over the cached entry-set snapshot, so we skip the .toList() snapshot
-        // copy. Concurrent.toMap collects into per-shard HashMaps and adopts the merged result,
-        // paying zero per-entry locks.
-        return raw.parallelStream().collect(Concurrent.toMap(
-            Map.Entry::getKey,
-            entry -> GSON.fromJson(mergeParentChain(entry.getValue(), raw, packRoot, "block"), BlockModelData.class)
-        )).toUnmodifiable();
+        return loadBlockModels(Concurrent.newList(packRoot));
+    }
+
+    /**
+     * Loads block models from every asset root in priority order (lowest first, highest last).
+     * Raw JSON merges later-wins so an overlay or higher-priority pack supersedes earlier roots
+     * before parent-chain inheritance runs - this is what lets a Hypixel+ child model still
+     * inherit from a vanilla parent that lives only in the base pack.
+     *
+     * @param assetRoots the ordered asset roots
+     * @return a map of model id to resolved block model data
+     */
+    public static @NotNull ConcurrentMap<String, BlockModelData> loadBlockModels(@NotNull ConcurrentList<Path> assetRoots) {
+        ConcurrentMap<String, JsonObject> raw = mergeRawAcrossRoots(assetRoots, VanillaPaths.MODEL_BLOCK_DIR, VanillaPaths.MODEL_BLOCK_ID_PREFIX);
+        return resolveTypedModels(raw, BlockModelData.class, "block");
     }
 
     /**
@@ -74,10 +79,49 @@ public class ModelResolver {
      * @return a map of model id to resolved item model data
      */
     public static @NotNull ConcurrentMap<String, ItemModelData> loadItemModels(@NotNull Path packRoot) {
-        ConcurrentMap<String, JsonObject> raw = scanJsonFiles(packRoot.resolve(VanillaPaths.MODEL_ITEM_DIR), VanillaPaths.MODEL_ITEM_ID_PREFIX);
+        return loadItemModels(Concurrent.newList(packRoot));
+    }
+
+    /**
+     * Loads item models from every asset root in priority order. See
+     * {@link #loadBlockModels(ConcurrentList)} for merge semantics.
+     *
+     * @param assetRoots the ordered asset roots
+     * @return a map of model id to resolved item model data
+     */
+    public static @NotNull ConcurrentMap<String, ItemModelData> loadItemModels(@NotNull ConcurrentList<Path> assetRoots) {
+        ConcurrentMap<String, JsonObject> raw = mergeRawAcrossRoots(assetRoots, VanillaPaths.MODEL_ITEM_DIR, VanillaPaths.MODEL_ITEM_ID_PREFIX);
+        return resolveTypedModels(raw, ItemModelData.class, "item");
+    }
+
+    /**
+     * Walks every asset root, scans its model subtree into a raw JSON map, then merges across
+     * roots with later-wins semantics on the resolved model id.
+     */
+    private static @NotNull ConcurrentMap<String, JsonObject> mergeRawAcrossRoots(
+        @NotNull ConcurrentList<Path> assetRoots,
+        @NotNull String modelSubdir,
+        @NotNull String idPrefix
+    ) {
+        HashMap<String, JsonObject> merged = new HashMap<>();
+        for (Path root : assetRoots)
+            merged.putAll(scanJsonFiles(root.resolve(modelSubdir), idPrefix));
+        return Concurrent.adoptMap(merged);
+    }
+
+    /**
+     * Resolves a raw model map into typed DTOs by walking each entry's parent chain (against the
+     * fully merged raw map) and Gson-reparsing the merged JSON. Parallel - the read-only chain
+     * walk and thread-safe Gson scale across the FJP common pool.
+     */
+    private static <T> @NotNull ConcurrentMap<String, T> resolveTypedModels(
+        @NotNull ConcurrentMap<String, JsonObject> raw,
+        @NotNull Class<T> dtoClass,
+        @NotNull String kindPrefix
+    ) {
         return raw.parallelStream().collect(Concurrent.toMap(
             Map.Entry::getKey,
-            entry -> GSON.fromJson(mergeParentChain(entry.getValue(), raw, packRoot, "item"), ItemModelData.class)
+            entry -> GSON.fromJson(mergeParentChain(entry.getValue(), raw, kindPrefix), dtoClass)
         )).toUnmodifiable();
     }
 
@@ -111,20 +155,26 @@ public class ModelResolver {
             String content = Files.readString(p);
             JsonObject json = GSON.fromJson(content, JsonObject.class);
             return json == null ? null : Map.entry(id, json);
-        } catch (IOException | JsonSyntaxException ex) {
-            throw new AssetPipelineException(ex, "Failed to parse model '%s'", p);
+        } catch (IOException ex) {
+            throw new AssetPipelineException(ex, "Failed to read model '%s'", p);
+        } catch (JsonSyntaxException ex) {
+            // Resource packs occasionally ship malformed or pathologically-nested model JSON. Skip
+            // so the merge falls back to a lower-priority pack's version.
+            System.err.printf("Skipping malformed model '%s': %s%n", p, ex.getMessage());
+            return null;
         }
     }
 
     /**
      * Recursively merges a model's parent chain, returning a new JSON object whose textures and
      * elements inherit from every ancestor. Cycle detection is not needed - vanilla chains are
-     * acyclic and shallow (at most 3 deep).
+     * acyclic and shallow (at most 3 deep). The {@code kindPrefix} is preserved for future
+     * use in fully-qualifying ambiguous parent ids; today every parent reference already carries
+     * its kind segment ({@code block/} or {@code item/}).
      */
     private static @NotNull JsonObject mergeParentChain(
         @NotNull JsonObject model,
         @NotNull ConcurrentMap<String, JsonObject> raw,
-        @NotNull Path packRoot,
         @NotNull String kindPrefix
     ) {
         Optional<String> parentId = Optional.ofNullable(model.get("parent")).map(JsonElement::getAsString);
@@ -137,7 +187,7 @@ public class ModelResolver {
             // and stop walking.
             return model;
         }
-        JsonObject merged = mergeParentChain(parentJson, raw, packRoot, kindPrefix).deepCopy();
+        JsonObject merged = mergeParentChain(parentJson, raw, kindPrefix).deepCopy();
 
         // Child values override parent for keys present on both sides.
         for (String key : model.keySet()) {

@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.exception.AssetPipelineException;
@@ -15,6 +16,7 @@ import org.jetbrains.annotations.NotNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -52,8 +54,31 @@ public class ItemDefinitionLoader {
      * @return the item-to-block-model mapping for block items
      */
     public static @NotNull ConcurrentMap<String, String> load(@NotNull Path packRoot) {
+        return load(Concurrent.newList(packRoot));
+    }
+
+    /**
+     * Loads item definitions from every asset root in priority order (lowest first, highest
+     * last). Per item id, a higher root's definition fully replaces lower roots'.
+     *
+     * @param assetRoots the ordered asset roots
+     * @return the item-to-block-model mapping for block items
+     */
+    public static @NotNull ConcurrentMap<String, String> load(@NotNull ConcurrentList<Path> assetRoots) {
+        HashMap<String, String> merged = new HashMap<>();
+        for (Path root : assetRoots)
+            merged.putAll(scanRoot(root));
+        return Concurrent.adoptMap(merged).toUnmodifiable();
+    }
+
+    /**
+     * Scans one asset root's {@code assets/minecraft/items/} subtree and returns the item-id ->
+     * block-model-id map for every block item it carries. Returns an empty map when the items
+     * subtree is absent.
+     */
+    private static @NotNull ConcurrentMap<String, String> scanRoot(@NotNull Path packRoot) {
         Path itemsDir = packRoot.resolve(VanillaPaths.ITEMS_DIR);
-        if (!Files.isDirectory(itemsDir)) return Concurrent.<String, String>newMap().toUnmodifiable();
+        if (!Files.isDirectory(itemsDir)) return Concurrent.newMap();
 
         // Two-phase walk: enumerate item definition JSON paths serially, then parallelise
         // readString + Gson parse across the FJP common pool. Concurrent.toMap collects per-shard
@@ -71,8 +96,7 @@ public class ItemDefinitionLoader {
         return files.parallelStream()
             .map(p -> parseItemDef(p, itemsDir))
             .filter(Objects::nonNull)
-            .collect(Concurrent.toMap(Map.Entry::getKey, Map.Entry::getValue))
-            .toUnmodifiable();
+            .collect(Concurrent.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     private static @Nullable Map.Entry<String, String> parseItemDef(@NotNull Path p, @NotNull Path itemsDir) {
@@ -94,8 +118,14 @@ public class ItemDefinitionLoader {
             return modelRef.startsWith(VanillaPaths.MODEL_BLOCK_ID_PREFIX)
                 ? Map.entry(itemId, modelRef)
                 : null;
-        } catch (IOException | JsonSyntaxException ex) {
-            throw new AssetPipelineException(ex, "Failed to parse item definition '%s'", p);
+        } catch (IOException ex) {
+            throw new AssetPipelineException(ex, "Failed to read item definition '%s'", p);
+        } catch (JsonSyntaxException ex) {
+            // Resource packs sometimes ship deeply nested or otherwise malformed item definitions
+            // (e.g. Hypixel+ player_head.json with 255+ levels of conditional nesting). Skip the
+            // entry so the merge falls back to a lower-priority pack's version of this id.
+            System.err.printf("Skipping malformed item definition '%s': %s%n", p, ex.getMessage());
+            return null;
         }
     }
 

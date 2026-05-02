@@ -32,6 +32,7 @@ import lib.minecraft.renderer.tooling.ToolingColorMaps;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -82,7 +83,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public final class PipelineRendererContext implements RendererContext {
 
-    private final @NotNull Path textureRoot;
     private final @NotNull ConcurrentList<TexturePack> packs;
     private final @NotNull ConcurrentMap<String, Block> blockIndex;
     private final @NotNull ConcurrentMap<String, Item> itemIndex;
@@ -99,7 +99,7 @@ public final class PipelineRendererContext implements RendererContext {
     /**
      * Builds a context from a completed pipeline result.
      * <p>
-     * Block and item entity materialisation happens eagerly so every {@code findBlock} /
+     * Block and item entity materialization happens eagerly so every {@code findBlock} /
      * {@code findItem} lookup is a pure map access. Textures stay on disk until
      * {@link #resolveTexture(String)} is called for them the first time.
      *
@@ -107,8 +107,6 @@ public final class PipelineRendererContext implements RendererContext {
      * @return a new context scoped to the given result
      */
     public static @NotNull PipelineRendererContext of(@NotNull AssetPipeline.Result result) {
-        ConcurrentList<TexturePack> packs = Concurrent.newList(result.getVanillaPack());
-
         ConcurrentMap<String, Block.Entity> blockEntityEntries = BlockEntityLoader.load();
         ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex = buildReverseTagIndex(result.getBlockTags());
 
@@ -121,11 +119,9 @@ public final class PipelineRendererContext implements RendererContext {
         dropParentTemplates(blockIndex, itemIndex);
 
         ConcurrentMap<String, Entity> entityIndex = loadEntityIndex();
-        Path textureRoot = resolveTextureRoot(result);
 
         return new PipelineRendererContext(
-            textureRoot,
-            packs.toUnmodifiable(),
+            result.getPacks(),
             blockIndex.toUnmodifiable(),
             itemIndex.toUnmodifiable(),
             entityIndex.toUnmodifiable(),
@@ -437,21 +433,6 @@ public final class PipelineRendererContext implements RendererContext {
             }));
     }
 
-    /**
-     * Resolves the on-disk {@code assets/minecraft/textures} directory under the pipeline's
-     * unpacked vanilla pack root - the directory {@link #resolveTexture(String)} reads PNGs
-     * from on its first miss for a given texture id.
-     *
-     * @param result the pipeline result carrying the pack root path
-     * @return the resolved textures directory
-     */
-    private static @NotNull Path resolveTextureRoot(@NotNull AssetPipeline.Result result) {
-        return result.getPackRoot()
-            .resolve("assets")
-            .resolve("minecraft")
-            .resolve("textures");
-    }
-
     @Override
     public @NotNull ConcurrentList<TexturePack> activePacks() {
         return this.packs;
@@ -466,8 +447,23 @@ public final class PipelineRendererContext implements RendererContext {
         Texture texture = this.textureIndex.get(normalized);
         if (texture == null) return Optional.empty();
 
-        Path file = this.textureRoot.resolve(texture.getRelativePath());
-        PixelBuffer buffer = PixelBuffer.wrap(this.imageFactory.fromFile(file.toFile()).toBufferedImage());
+        TexturePack owner = null;
+        for (TexturePack pack : this.packs) {
+            if (pack.getId().equals(texture.getPackId())) {
+                owner = pack;
+                break;
+            }
+        }
+        if (owner == null) return Optional.empty();
+
+        Path winning = null;
+        for (Path root : owner.getAssetRoots()) {
+            Path candidate = root.resolve(VanillaPaths.TEXTURES_DIR).resolve(texture.getRelativePath());
+            if (Files.isRegularFile(candidate)) winning = candidate;
+        }
+        if (winning == null) return Optional.empty();
+
+        PixelBuffer buffer = PixelBuffer.wrap(this.imageFactory.fromFile(winning.toFile()).toBufferedImage());
         this.textureCache.put(normalized, buffer);
         return Optional.of(buffer);
     }

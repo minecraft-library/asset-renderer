@@ -88,8 +88,8 @@ class PipelineRendererContextTest {
         // directly so the context wiring (Block.tintTarget population, colorMap pass-through)
         // can still be exercised in isolation. The end-to-end loader is exercised by the
         // slowTest against the cached vanilla 26.1 jar.
-        TexturePack vanillaPack = TexturePackLoader.loadVanilla(packRoot);
-        ConcurrentMap<String, Texture> textures = TexturePackLoader.scanTextures(packRoot, vanillaPack.getId());
+        TexturePack vanillaPack = new TexturePack("vanilla", "minecraft", "Vanilla Minecraft client", Concurrent.newList(packRoot), 0);
+        ConcurrentMap<String, Texture> textures = TexturePackLoader.scanTextures(Concurrent.newList(vanillaPack));
         ConcurrentMap<ColorMap.Type, ColorMap> colorMaps = ColorMapLoader.load();
         ConcurrentMap<String, Block.Tint> blockTints = Concurrent.newMap();
         blockTints.put("minecraft:grass_block", new Block.Tint(Biome.TintTarget.GRASS, Optional.empty()));
@@ -149,7 +149,14 @@ class PipelineRendererContextTest {
             )
         );
 
-        result = new AssetPipeline.Result(packRoot, vanillaPack, textures, colorMaps, blockTints, blockModels, itemModels, Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap());
+        result = new AssetPipeline.Result(
+            packRoot,
+            vanillaPack,
+            Concurrent.newList(vanillaPack),
+            textures, colorMaps, blockTints, blockModels, itemModels,
+            Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
+            Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap()
+        );
         context = PipelineRendererContext.of(result);
     }
 
@@ -276,7 +283,7 @@ class PipelineRendererContextTest {
         ConcurrentList<TexturePack> packs = context.activePacks();
         assertThat(packs.size(), equalTo(1));
         assertThat(packs.getFirst().getId(), equalTo("vanilla"));
-        assertThat(packs.getFirst().getRootPath(), not(equalTo("")));
+        assertThat(packs.getFirst().getAssetRoots().isEmpty(), is(false));
     }
 
     @Test

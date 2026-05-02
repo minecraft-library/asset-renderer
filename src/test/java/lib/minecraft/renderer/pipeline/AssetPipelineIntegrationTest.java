@@ -73,7 +73,7 @@ class AssetPipelineIntegrationTest {
         assertThat(result.getVanillaPack(), is(notNullValue()));
         assertThat(result.getVanillaPack().getId(), equalTo("vanilla"));
         assertThat(result.getVanillaPack().getNamespace(), equalTo("minecraft"));
-        assertThat(result.getVanillaPack().getRootPath(), containsString("vanilla"));
+        assertThat(result.getVanillaPack().getAssetRoots().getFirst().toString(), containsString("vanilla"));
         assertThat(result.getVanillaPack().getPriority(), is(0));
     }
 

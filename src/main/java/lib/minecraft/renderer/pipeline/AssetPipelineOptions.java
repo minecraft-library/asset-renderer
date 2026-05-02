@@ -30,6 +30,14 @@ public class AssetPipelineOptions {
     @lombok.Builder.Default
     private final @NotNull ConcurrentList<File> texturePacks = Concurrent.newList();
 
+    /**
+     * Target pack format used when matching {@code overlays.entries[].formats} ranges against
+     * each pack's overlay subtrees. {@code 0} means auto-derive from the vanilla
+     * {@code pack.mcmeta} produced by the client jar extraction; positive values override.
+     */
+    @lombok.Builder.Default
+    private final int targetPackFormat = 0;
+
     /** When true, re-download the client jar even if a cached copy exists. */
     @lombok.Builder.Default
     private final boolean forceDownload = false;

@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -46,13 +47,44 @@ public class BlockTagLoader {
      * @return a map of tag id to resolved tag entity
      */
     public static @NotNull ConcurrentMap<String, BlockTag> load(@NotNull Path packRoot) {
-        Path tagsDir = packRoot.resolve("data/minecraft/tags/block");
-        if (!Files.isDirectory(tagsDir)) return Concurrent.<String, BlockTag>newMap().toUnmodifiable();
+        return load(Concurrent.newList(packRoot));
+    }
 
-        // First pass: parse all tag files into raw value lists. Build into plain HashMap /
-        // ArrayList during the load phase to skip per-element write-locks; the resolved second
-        // pass and the public return wrap with Concurrent.adopt at finish.
+    /**
+     * Loads and resolves block tags from every asset root in priority order. Raw tag values
+     * merge later-wins per tag id; the recursive resolution pass runs once on the merged map so
+     * a tag definition supplied by a higher pack still resolves through references that live
+     * only in vanilla.
+     *
+     * @param assetRoots the ordered asset roots
+     * @return a map of tag id to resolved tag entity
+     */
+    public static @NotNull ConcurrentMap<String, BlockTag> load(@NotNull ConcurrentList<Path> assetRoots) {
+        HashMap<String, List<String>> merged = new HashMap<>();
+        for (Path root : assetRoots) {
+            for (Map.Entry<String, List<String>> entry : scanRawTags(root).entrySet())
+                merged.put(entry.getKey(), entry.getValue());
+        }
+
+        HashMap<String, BlockTag> result = new HashMap<>(merged.size());
+        for (String tagId : merged.keySet()) {
+            ArrayList<String> resolved = new ArrayList<>();
+            resolve(tagId, merged, resolved, new HashSet<>());
+            result.put(tagId, new BlockTag(tagId, Concurrent.adoptList(resolved).toUnmodifiable()));
+        }
+        return Concurrent.adoptMap(result).toUnmodifiable();
+    }
+
+    /**
+     * Scans one asset root's {@code data/minecraft/tags/block/} subtree and returns the raw
+     * value lists keyed by namespaced tag id. Walks tag files into plain HashMap / ArrayList to
+     * skip per-element write-locks - callers wrap with {@link Concurrent#adoptMap} at the end.
+     */
+    private static @NotNull HashMap<String, List<String>> scanRawTags(@NotNull Path packRoot) {
+        Path tagsDir = packRoot.resolve("data/minecraft/tags/block");
         HashMap<String, List<String>> raw = new HashMap<>();
+        if (!Files.isDirectory(tagsDir)) return raw;
+
         try (Stream<Path> files = Files.walk(tagsDir)) {
             files.filter(Files::isRegularFile)
                 .filter(p -> p.toString().endsWith(".json"))
@@ -74,16 +106,7 @@ public class BlockTagLoader {
         } catch (IOException ex) {
             // Directory scan failure is non-fatal
         }
-
-        // Second pass: recursively resolve tag references
-        HashMap<String, BlockTag> result = new HashMap<>(raw.size());
-        for (String tagId : raw.keySet()) {
-            ArrayList<String> resolved = new ArrayList<>();
-            resolve(tagId, raw, resolved, new HashSet<>());
-            result.put(tagId, new BlockTag(tagId, Concurrent.adoptList(resolved).toUnmodifiable()));
-        }
-
-        return Concurrent.adoptMap(result).toUnmodifiable();
+        return raw;
     }
 
     private static void resolve(

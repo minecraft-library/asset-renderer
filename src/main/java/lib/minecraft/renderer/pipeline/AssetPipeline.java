@@ -3,8 +3,13 @@ package lib.minecraft.renderer.pipeline;
 import api.simplified.mojang.MojangContract;
 import api.simplified.mojang.exception.MojangApiException;
 import api.simplified.mojang.response.PistonMetadata;
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonSyntaxException;
 import dev.simplified.client.ClientConfig;
 import dev.simplified.client.Proxy;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Block;
@@ -25,16 +30,21 @@ import lib.minecraft.renderer.pipeline.loader.ItemDefinitionLoader;
 import lib.minecraft.renderer.pipeline.loader.ModelResolver;
 import lib.minecraft.renderer.pipeline.loader.PotionColorLoader;
 import lib.minecraft.renderer.pipeline.loader.TexturePackLoader;
+import lib.minecraft.renderer.pipeline.pack.PackResolver;
+import lib.minecraft.renderer.pipeline.util.PackAcquirer;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -56,6 +66,8 @@ import java.util.zip.ZipFile;
  */
 public final class AssetPipeline {
 
+    private static final @NotNull Gson MCMETA_GSON = GsonSettings.defaults().create();
+
     private static volatile @Nullable Proxy<MojangContract> mojangProxy;
 
     /**
@@ -69,22 +81,83 @@ public final class AssetPipeline {
         Path jarPath = downloadJarToCache(options);
         extractClientJar(jarPath, packRoot);
 
-        ConcurrentMap<String, BlockModelData> blockModels = ModelResolver.loadBlockModels(packRoot);
-        ConcurrentMap<String, ItemModelData> itemModels = ModelResolver.loadItemModels(packRoot);
+        int targetPackFormat = options.getTargetPackFormat() > 0
+            ? options.getTargetPackFormat()
+            : readVanillaPackFormat(jarPath);
 
-        TexturePack vanillaPack = TexturePackLoader.loadVanilla(packRoot);
-        ConcurrentMap<String, Texture> textures = TexturePackLoader.scanTextures(packRoot, vanillaPack.getId());
+        TexturePack vanillaPack = PackResolver.resolve(packRoot, "vanilla", 0, targetPackFormat);
+
+        ArrayList<TexturePack> ascendingPacks = new ArrayList<>();
+        ascendingPacks.add(vanillaPack);
+
+        for (int i = 0; i < options.getTexturePacks().size(); i++) {
+            File source = options.getTexturePacks().get(i);
+            int priority = i + 1;
+            String packId = PackAcquirer.derivePackId(source);
+            Path userRoot = PackAcquirer.materialize(source, options.getCacheRoot().toPath());
+            ascendingPacks.add(PackResolver.resolve(userRoot, packId, priority, targetPackFormat));
+        }
+
+        ConcurrentList<TexturePack> ascending = Concurrent.adoptList(ascendingPacks).toUnmodifiable();
+        ConcurrentList<Path> combinedRoots = combineRoots(ascending);
+
+        ConcurrentMap<String, BlockModelData> blockModels = ModelResolver.loadBlockModels(combinedRoots);
+        ConcurrentMap<String, ItemModelData> itemModels = ModelResolver.loadItemModels(combinedRoots);
+
+        ConcurrentMap<String, Texture> textures = TexturePackLoader.scanTextures(ascending);
         ConcurrentMap<ColorMap.Type, ColorMap> colorMaps = ColorMapLoader.load();
         ConcurrentMap<String, Block.Tint> blockTints = BlockTintsLoader.load();
-        BlockStateLoader.LoadResult blockStateResult = BlockStateLoader.load(packRoot);
-        ConcurrentMap<String, String> itemDefinitions = ItemDefinitionLoader.load(packRoot);
-        ConcurrentMap<String, BlockTag> blockTags = BlockTagLoader.load(packRoot);
+        BlockStateLoader.LoadResult blockStateResult = BlockStateLoader.load(combinedRoots);
+        ConcurrentMap<String, String> itemDefinitions = ItemDefinitionLoader.load(combinedRoots);
+        ConcurrentMap<String, BlockTag> blockTags = BlockTagLoader.load(combinedRoots);
         ConcurrentMap<String, Integer> potionEffectColors = PotionColorLoader.load();
-        ConcurrentMap<String, BannerPattern> bannerPatterns = BannerPatternLoader.load(packRoot);
+        ConcurrentMap<String, BannerPattern> bannerPatterns = BannerPatternLoader.load(combinedRoots);
 
-        return new Result(packRoot, vanillaPack, textures, colorMaps, blockTints, blockModels, itemModels,
+        ConcurrentList<TexturePack> packs = ascending.stream()
+            .sorted(Comparator.comparingInt(TexturePack::getPriority).reversed())
+            .collect(Concurrent.toList())
+            .toUnmodifiable();
+
+        return new Result(packRoot, vanillaPack, packs, textures, colorMaps, blockTints, blockModels, itemModels,
             blockStateResult.getVariants(), blockStateResult.getMultiparts(), itemDefinitions, blockTags,
             potionEffectColors, bannerPatterns);
+    }
+
+    /**
+     * Reads the {@code pack_format} declared by the {@code pack.mcmeta} entry inside the cached
+     * client jar. {@link #extractClientJar} only extracts the {@code assets/} and {@code data/}
+     * subtrees, so the jar's root-level {@code pack.mcmeta} never lands on disk - this opens the
+     * jar directly. Used as the default target pack format when callers don't override it,
+     * keeping the renderer free of a hardcoded version-to-format mapping table.
+     */
+    private static int readVanillaPackFormat(@NotNull Path jarPath) {
+        try (ZipFile zip = new ZipFile(jarPath.toFile())) {
+            ZipEntry entry = zip.getEntry("pack.mcmeta");
+            if (entry == null) return 0;
+            try (InputStream in = zip.getInputStream(entry)) {
+                String content = new String(in.readAllBytes());
+                JsonObject root = MCMETA_GSON.fromJson(content, JsonObject.class);
+                if (root == null || !root.has("pack") || !root.get("pack").isJsonObject()) return 0;
+                JsonObject pack = root.getAsJsonObject("pack");
+                if (pack.has("pack_format")) return pack.get("pack_format").getAsInt();
+                if (pack.has("format")) return pack.get("format").getAsInt();
+                return 0;
+            }
+        } catch (IOException | JsonSyntaxException ex) {
+            return 0;
+        }
+    }
+
+    /**
+     * Concatenates every pack's asset roots in ascending-priority order. Loaders that don't need
+     * pack attribution take this list directly so a higher-priority pack's overlay roots win
+     * over lower-priority packs and earlier overlays via the loaders' later-wins merge.
+     */
+    private static @NotNull ConcurrentList<Path> combineRoots(@NotNull ConcurrentList<TexturePack> ascending) {
+        ArrayList<Path> roots = new ArrayList<>();
+        for (TexturePack pack : ascending)
+            roots.addAll(pack.getAssetRoots());
+        return Concurrent.adoptList(roots).toUnmodifiable();
     }
 
     /**
@@ -212,6 +285,16 @@ public final class AssetPipeline {
 
         private final @NotNull Path packRoot;
         private final @NotNull TexturePack vanillaPack;
+
+        /**
+         * Every registered pack in render priority order - highest priority first. Always
+         * contains the vanilla pack at minimum; user packs from
+         * {@link AssetPipelineOptions#getTexturePacks()} appear before vanilla when present.
+         * Each pack's {@link TexturePack#getAssetRoots()} carries the on-disk directories the
+         * renderer walks when reading raw PNG bytes for a texture attributed to that pack.
+         */
+        private final @NotNull ConcurrentList<TexturePack> packs;
+
         private final @NotNull ConcurrentMap<String, Texture> textures;
         private final @NotNull ConcurrentMap<ColorMap.Type, ColorMap> colorMaps;
         private final @NotNull ConcurrentMap<String, Block.Tint> blockTints;

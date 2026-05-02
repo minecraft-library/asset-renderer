@@ -3,6 +3,7 @@ package lib.minecraft.renderer.pipeline.loader;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.binding.BannerPattern;
@@ -42,10 +43,32 @@ public class BannerPatternLoader {
      * @return a map of pattern id to pattern descriptor
      */
     public static @NotNull ConcurrentMap<String, BannerPattern> load(@NotNull Path packRoot) {
-        Path patternDir = packRoot.resolve("data/minecraft/banner_pattern");
-        if (!Files.isDirectory(patternDir)) return Concurrent.<String, BannerPattern>newMap().toUnmodifiable();
+        return load(Concurrent.newList(packRoot));
+    }
 
-        HashMap<String, BannerPattern> result = new HashMap<>();
+    /**
+     * Loads banner pattern definitions from every asset root in priority order. Per pattern id,
+     * a higher root replaces lower roots' definition.
+     *
+     * @param assetRoots the ordered asset roots
+     * @return a map of pattern id to pattern descriptor
+     */
+    public static @NotNull ConcurrentMap<String, BannerPattern> load(@NotNull ConcurrentList<Path> assetRoots) {
+        HashMap<String, BannerPattern> merged = new HashMap<>();
+        for (Path root : assetRoots)
+            scanRoot(root, merged);
+        return Concurrent.adoptMap(merged).toUnmodifiable();
+    }
+
+    /**
+     * Scans one asset root's {@code data/minecraft/banner_pattern/} subtree and merges its
+     * pattern entries into the running map. Caller provides the map so multiple roots can layer
+     * later-wins without intermediate copies.
+     */
+    private static void scanRoot(@NotNull Path packRoot, @NotNull HashMap<String, BannerPattern> result) {
+        Path patternDir = packRoot.resolve("data/minecraft/banner_pattern");
+        if (!Files.isDirectory(patternDir)) return;
+
         try (Stream<Path> files = Files.walk(patternDir)) {
             files.filter(Files::isRegularFile)
                 .filter(p -> p.toString().endsWith(".json"))
@@ -53,7 +76,6 @@ public class BannerPatternLoader {
         } catch (IOException ex) {
             throw new RuntimeException("Failed to walk banner pattern directory " + patternDir, ex);
         }
-        return Concurrent.adoptMap(result).toUnmodifiable();
     }
 
     private static void parsePattern(

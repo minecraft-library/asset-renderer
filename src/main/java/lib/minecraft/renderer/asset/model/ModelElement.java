@@ -2,6 +2,7 @@ package lib.minecraft.renderer.asset.model;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentLinkedMap;
+import dev.simplified.collection.ConcurrentMap;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -35,7 +36,7 @@ public class ModelElement {
      * paint order at tied depth, and authors occasionally rely on a specific face winning when
      * two elements share a plane.
      */
-    private @NotNull ConcurrentLinkedMap<String, ModelFace> faces = Concurrent.newLinkedMap();
+    private @NotNull ConcurrentMap<String, ModelFace> faces = Concurrent.newLinkedMap();
 
     /** An optional element-level rotation, matching vanilla's {@code rotation} object. */
     private @NotNull Optional<ElementRotation> rotation = Optional.empty();

@@ -6,6 +6,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Block;
@@ -56,27 +57,50 @@ public class BlockStateLoader {
      * @return the parsed blockstate data
      */
     public static @NotNull LoadResult load(@NotNull Path packRoot) {
-        Path blockstatesDir = packRoot.resolve(VanillaPaths.BLOCKSTATES_DIR);
+        return load(Concurrent.newList(packRoot));
+    }
 
-        if (!Files.isDirectory(blockstatesDir)) return new LoadResult(
-            Concurrent.<String, ConcurrentMap<String, Block.Variant>>newMap().toUnmodifiable(),
-            Concurrent.<String, Block.Multipart>newMap().toUnmodifiable()
-        );
+    /**
+     * Loads blockstate JSON files from every asset root in priority order (lowest first, highest
+     * last). Per block id, a higher root's blockstate fully replaces any lower root's variants
+     * or multipart - matches Minecraft, which loads exactly one blockstate file per id from the
+     * topmost matching pack.
+     *
+     * @param assetRoots the ordered asset roots
+     * @return the parsed blockstate data
+     */
+    public static @NotNull LoadResult load(@NotNull ConcurrentList<Path> assetRoots) {
+        HashMap<String, ConcurrentMap<String, Block.Variant>> variants = new HashMap<>();
+        HashMap<String, Block.Multipart> multiparts = new HashMap<>();
+        for (Path root : assetRoots)
+            mergeRoot(root, variants, multiparts);
+        return new LoadResult(Concurrent.adoptMap(variants).toUnmodifiable(), Concurrent.adoptMap(multiparts).toUnmodifiable());
+    }
+
+    /**
+     * Scans one asset root and merges its parsed blockstate entries into the running per-id
+     * variant / multipart maps. A higher root's variant entry deletes any earlier multipart entry
+     * for the same id (and vice versa) - this preserves "exactly one blockstate file wins" even
+     * when packs convert a block from variants to multipart or back.
+     */
+    private static void mergeRoot(
+        @NotNull Path packRoot,
+        @NotNull HashMap<String, ConcurrentMap<String, Block.Variant>> variants,
+        @NotNull HashMap<String, Block.Multipart> multiparts
+    ) {
+        Path blockstatesDir = packRoot.resolve(VanillaPaths.BLOCKSTATES_DIR);
+        if (!Files.isDirectory(blockstatesDir)) return;
 
         // Two-phase walk: serial path enumeration, then parallel JSON parse per file. Per-file
         // work is CPU-bound (Gson parse of a small blockstate JSON) plus a tiny disk read; the
         // parallel stream scales it across cores. Each file produces at most one Parsed record;
         // the partition into variants/multiparts happens in a sequential pass over the gathered
-        // list so neither concurrent map pays per-element write-lock cost.
+        // list so neither map pays per-element write-lock cost.
         List<Path> files;
         try (Stream<Path> stream = Files.list(blockstatesDir)) {
             files = stream.filter(p -> p.toString().endsWith(".json")).toList();
         } catch (IOException ex) {
-            // Directory scan failure is non-fatal
-            return new LoadResult(
-                Concurrent.<String, ConcurrentMap<String, Block.Variant>>newMap().toUnmodifiable(),
-                Concurrent.<String, Block.Multipart>newMap().toUnmodifiable()
-            );
+            return;
         }
 
         List<Parsed> parsedAll = files.parallelStream()
@@ -84,14 +108,15 @@ public class BlockStateLoader {
             .filter(Objects::nonNull)
             .toList();
 
-        HashMap<String, ConcurrentMap<String, Block.Variant>> variants = new HashMap<>();
-        HashMap<String, Block.Multipart> multiparts = new HashMap<>();
         for (Parsed p : parsedAll) {
-            if (p.variants != null) variants.put(p.blockId, p.variants);
-            else if (p.multipart != null) multiparts.put(p.blockId, p.multipart);
+            if (p.variants != null) {
+                variants.put(p.blockId, p.variants);
+                multiparts.remove(p.blockId);
+            } else if (p.multipart != null) {
+                multiparts.put(p.blockId, p.multipart);
+                variants.remove(p.blockId);
+            }
         }
-
-        return new LoadResult(Concurrent.adoptMap(variants).toUnmodifiable(), Concurrent.adoptMap(multiparts).toUnmodifiable());
     }
 
     private static @Nullable Parsed parseBlockstateFile(@NotNull Path file) {

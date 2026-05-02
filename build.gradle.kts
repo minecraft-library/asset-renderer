@@ -64,26 +64,27 @@ dependencies {
     // chain after the upstream collections ConcurrentMap class -> interface migration. Each
     // pin below maps to a fresh JitPack rebuild against the latest collections; revert each
     // line back to master-SNAPSHOT once JitPack's master-SNAPSHOT cache settles.
-    api("com.github.simplified-dev:collections:c2d6b6c")
-    api("com.github.simplified-dev:utils:3f20b02")
-    api("com.github.simplified-dev:image:bec9b70")
-    api("com.github.simplified-dev:gson-extras:60bb06c")
-    // reflection is transitively required by gson-extras / client / mojang at
-    // master-SNAPSHOT; pinning a direct dep overrides the transitive resolution and
-    // guarantees the freshly-built jar wins over any stale cached snapshot.
-    api("com.github.simplified-dev:reflection:402f695")
-    api("com.github.simplified-dev:client:65ffa0a")
+    // strictly() rejects transitive master-SNAPSHOT resolutions that JitPack hasn't yet
+    // bumped to the freshly-rebuilt commits below; without it Gradle's conflict resolver
+    // picks the stale SNAPSHOT JAR over our pin and produces NoSuchMethodError at runtime.
+    // Each upstream lib also strict-pins its own internal deps to these same hashes so
+    // master-SNAPSHOT consumers of any single lib see a consistent transitive chain.
+    api("com.github.simplified-dev:collections") { version { strictly("a5f41e0") } }
+    api("com.github.simplified-dev:utils") { version { strictly("5c6c96a") } }
+    api("com.github.simplified-dev:image") { version { strictly("4140130") } }
+    api("com.github.simplified-dev:gson-extras") { version { strictly("c1b9a84") } }
+    api("com.github.simplified-dev:reflection") { version { strictly("ed2e17c") } }
+    api("com.github.simplified-dev:client") { version { strictly("8435d8d") } }
 
     // Simplified API (extracted to github.com/simplified-api) - typed Feign contract for
     // Mojang's launcher / Piston / textures endpoints, owns all renderer HTTP via AssetPipeline.
-    // Pinned for the same reason as the simplified-dev block above.
-    api("com.github.simplified-api:mojang:59d6f7d")
+    api("com.github.simplified-api:mojang") { version { strictly("82d9652") } }
 
     // Minecraft-Library (extracted to github.com/minecraft-library)
     // Owns lib.minecraft.text.**, lib.minecraft.text.font.**, and the
     // RendererException / FontException base classes that the remaining asset-renderer
-    // exceptions still extend. Pinned for the same reason as the simplified-dev block above.
-    api("com.github.minecraft-library:text:a1cdf4f")
+    // exceptions still extend.
+    api("com.github.minecraft-library:text") { version { strictly("2a75527") } }
 
     // ASM - used by VanillaTintsLoader to parse net.minecraft.client.color.block.BlockColors
     // straight from the extracted client jar, replacing the previously hand-curated tint table.
@@ -266,6 +267,15 @@ tasks {
         group = "visual"
         mainClass.set("lib.minecraft.renderer.visual.TestPortalRenderer")
         classpath = sourceSets["test"].runtimeClasspath
+    }
+
+    register<JavaExec>("packOverlay") {
+        description = "Downloads the Defrosted 16x pack and renders items / tools / armor side-by-side (vanilla vs pack) at cache/visual/pack-overlay/. -PrenderSize=256"
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestPackOverlay")
+        classpath = sourceSets["test"].runtimeClasspath
+        val renderSize = (project.findProperty("renderSize") as String?) ?: "256"
+        args = listOf(renderSize)
     }
 
     // `./gradlew fonts` now lives in the minecraft-text build at
