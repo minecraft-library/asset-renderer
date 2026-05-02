@@ -1,10 +1,10 @@
 package lib.minecraft.renderer.tooling;
 
 import lib.minecraft.renderer.AtlasRenderer;
-import lib.minecraft.renderer.exception.AssetPipelineException;
+import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.options.AtlasOptions;
-import lib.minecraft.renderer.pipeline.AssetPipeline;
-import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
+import lib.minecraft.renderer.pipeline.Pipeline;
+import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
@@ -40,10 +40,10 @@ public final class ToolingAtlas {
         File outputDir = Path.of(args.length > 0 ? args[0] : "build/atlas").toFile();
         Files.createDirectories(outputDir.toPath());
 
-        AssetPipeline.Result result;
+        Pipeline.Result result;
         try {
-            result = new AssetPipeline().run(AssetPipelineOptions.defaults());
-        } catch (AssetPipelineException ex) {
+            result = Pipeline.run(PipelineOptions.defaults());
+        } catch (PipelineException ex) {
             System.err.println("Atlas generation failed during pipeline bootstrap: " + ex.getMessage());
             throw ex;
         }

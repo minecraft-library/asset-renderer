@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.bench;
 
-import lib.minecraft.renderer.pipeline.AssetPipeline;
-import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
+import lib.minecraft.renderer.pipeline.Pipeline;
+import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import org.jetbrains.annotations.NotNull;
 import org.openjdk.jmh.annotations.Level;
@@ -31,11 +31,11 @@ public abstract class AbstractRendererBenchmark {
      * Raw pipeline result kept alongside {@link #context} for benchmarks that need the on-disk
      * pack root or the loaded-model counts for sanity-checking before a measurement kicks off.
      */
-    protected AssetPipeline.Result pipelineResult;
+    protected Pipeline.Result pipelineResult;
 
     @Setup(Level.Trial)
     public final void bootstrapPipeline() throws Exception {
-        this.pipelineResult = new AssetPipeline().run(AssetPipelineOptions.defaults());
+        this.pipelineResult = Pipeline.run(PipelineOptions.defaults());
         this.context = PipelineRendererContext.of(this.pipelineResult);
         onSetupTrial();
     }

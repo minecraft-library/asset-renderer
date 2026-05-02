@@ -34,22 +34,21 @@ import static org.hamcrest.Matchers.*;
  * {@code asset-renderer/cache/}, so nothing leaks into commits.
  */
 @Tag("slow")
-@DisplayName("AssetPipeline end-to-end integration")
-class AssetPipelineIntegrationTest {
+@DisplayName("Pipeline end-to-end integration")
+class PipelineIntegrationTest {
 
     private static final File CACHE_ROOT = new File("cache/it");
-    private static AssetPipeline.Result result;
+    private static Pipeline.Result result;
     private static Path packRoot;
 
     @BeforeAll
     static void downloadAndExtract() {
-        AssetPipelineOptions options = AssetPipelineOptions.builder()
+        PipelineOptions options = PipelineOptions.builder()
             .version("26.1")
             .cacheRoot(CACHE_ROOT)
             .build();
 
-        AssetPipeline pipeline = new AssetPipeline();
-        result = pipeline.run(options);
+        result = Pipeline.run(options);
         packRoot = result.getPackRoot();
     }
 

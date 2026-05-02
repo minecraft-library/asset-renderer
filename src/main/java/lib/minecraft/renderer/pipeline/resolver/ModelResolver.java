@@ -10,7 +10,7 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.model.BlockModelData;
 import lib.minecraft.renderer.asset.model.ItemModelData;
-import lib.minecraft.renderer.exception.AssetPipelineException;
+import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.VanillaPaths;
 import lombok.experimental.UtilityClass;
@@ -138,7 +138,7 @@ public class ModelResolver {
                 .filter(p -> p.toString().endsWith(".json"))
                 .toList();
         } catch (IOException ex) {
-            throw new AssetPipelineException(ex, "Failed to scan model directory '%s'", directory);
+            throw new PipelineException(ex, "Failed to scan model directory '%s'", directory);
         }
 
         return files.parallelStream()
@@ -156,7 +156,7 @@ public class ModelResolver {
             JsonObject json = GSON.fromJson(content, JsonObject.class);
             return json == null ? null : Map.entry(id, json);
         } catch (IOException ex) {
-            throw new AssetPipelineException(ex, "Failed to read model '%s'", p);
+            throw new PipelineException(ex, "Failed to read model '%s'", p);
         } catch (JsonSyntaxException ex) {
             // Resource packs occasionally ship malformed or pathologically-nested model JSON. Skip
             // so the merge falls back to a lower-priority pack's version.

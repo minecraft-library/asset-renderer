@@ -2,10 +2,10 @@ package lib.minecraft.renderer.visual;
 
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.EntityRenderer;
-import lib.minecraft.renderer.exception.AssetPipelineException;
+import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.options.EntityOptions;
-import lib.minecraft.renderer.pipeline.AssetPipeline;
-import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
+import lib.minecraft.renderer.pipeline.Pipeline;
+import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lombok.experimental.UtilityClass;
@@ -52,10 +52,10 @@ public final class TestEntityRender3D {
 
         Files.createDirectories(OUTPUT_DIR);
 
-        AssetPipeline.Result result;
+        Pipeline.Result result;
         try {
-            result = new AssetPipeline().run(AssetPipelineOptions.defaults());
-        } catch (AssetPipelineException ex) {
+            result = Pipeline.run(PipelineOptions.defaults());
+        } catch (PipelineException ex) {
             System.err.println("Pipeline bootstrap failed: " + ex.getMessage());
             throw ex;
         }

@@ -1,1 +1,1 @@
-lib.minecraft.renderer.pipeline.AssetPipelineGsonContributor
+lib.minecraft.renderer.pipeline.PipelineGsonContributor

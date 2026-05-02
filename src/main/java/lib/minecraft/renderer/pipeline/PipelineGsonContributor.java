@@ -18,7 +18,7 @@ import java.util.ServiceLoader;
  * callers that build a {@link Gson} via {@code GsonSettings.defaults().create()} pick up these
  * adapters automatically.
  */
-public class AssetPipelineGsonContributor implements GsonContributor {
+public class PipelineGsonContributor implements GsonContributor {
 
     @Override
     public void contribute(GsonSettings.@NotNull Builder builder) {

@@ -16,8 +16,8 @@ import dev.simplified.image.codec.tga.TgaImageReader;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.exception.ToolingException;
 import lib.minecraft.renderer.geometry.EulerRotation;
-import lib.minecraft.renderer.pipeline.AssetPipeline;
-import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
+import lib.minecraft.renderer.pipeline.Pipeline;
+import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -154,7 +154,7 @@ public final class ToolingEntityModels {
         // Java client jar: the mob-id filter only. No textures, no models - just the set of
         // Java-registered living-mob EntityType ids so Bedrock-only experimentals drop out.
         System.out.println("Downloading Minecraft client jar for mob-registry filter...");
-        Path clientJar = AssetPipeline.downloadJarToCache(AssetPipelineOptions.defaults());
+        Path clientJar = Pipeline.downloadJarToCache(PipelineOptions.defaults());
         Set<String> knownMobIds = new LinkedHashSet<>();
         try (ZipFile zip = new ZipFile(clientJar.toFile())) {
             Diagnostics diag = new Diagnostics();

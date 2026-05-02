@@ -3,8 +3,8 @@ package lib.minecraft.renderer.tooling;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
-import lib.minecraft.renderer.pipeline.AssetPipeline;
+import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.tooling.entity.BindPoseDiscovery;
 import lib.minecraft.renderer.tooling.entity.MobRegistryDiscovery;
@@ -51,7 +51,7 @@ public final class ToolingBindPoses {
      */
     public static void main(String @NotNull [] args) throws IOException {
         System.out.println("Downloading Minecraft client jar for bind-pose discovery...");
-        Path clientJar = AssetPipeline.downloadJarToCache(AssetPipelineOptions.defaults());
+        Path clientJar = Pipeline.downloadJarToCache(PipelineOptions.defaults());
 
         Diagnostics diagnostics = new Diagnostics();
         Map<String, Map<String, BindPoseDiscovery.Pose>> poses;

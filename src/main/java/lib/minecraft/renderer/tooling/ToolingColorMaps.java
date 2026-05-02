@@ -4,11 +4,11 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import lib.minecraft.renderer.engine.TextureEngine;
-import lib.minecraft.renderer.exception.AssetPipelineException;
+import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.exception.ToolingException;
 import lib.minecraft.renderer.asset.pack.ColorMap;
-import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
-import lib.minecraft.renderer.pipeline.AssetPipeline;
+import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.loader.ColorMapLoader;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
@@ -47,18 +47,18 @@ public final class ToolingColorMaps {
      * @throws IOException if writing the JSON file fails
      */
     public static void main(String @NotNull [] args) throws IOException {
-        AssetPipelineOptions options = AssetPipelineOptions.defaults();
+        PipelineOptions options = PipelineOptions.defaults();
 
         Path jarPath;
         try {
-            jarPath = AssetPipeline.downloadJarToCache(options);
-        } catch (AssetPipelineException ex) {
+            jarPath = Pipeline.downloadJarToCache(options);
+        } catch (PipelineException ex) {
             System.err.println("Failed to download client jar: " + ex.getMessage());
             throw ex;
         }
 
         Path packRoot = options.getCacheRoot().toPath().resolve("vanilla").resolve(options.getVersion());
-        AssetPipeline.extractClientJar(jarPath, packRoot);
+        Pipeline.extractClientJar(jarPath, packRoot);
 
         ConcurrentList<ColorMap> colorMaps = Parser.parse(packRoot);
         System.out.println("Parsed " + colorMaps.size() + " colormaps");

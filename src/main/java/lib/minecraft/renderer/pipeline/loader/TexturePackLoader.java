@@ -5,7 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
-import lib.minecraft.renderer.exception.AssetPipelineException;
+import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.asset.pack.Texture;
 import lib.minecraft.renderer.asset.pack.TexturePack;
 import lib.minecraft.renderer.asset.pack.AnimationData;
@@ -90,7 +90,7 @@ public class TexturePackLoader {
                 .filter(p -> p.toString().endsWith(".png"))
                 .toList();
         } catch (IOException ex) {
-            throw new AssetPipelineException(ex, "Failed to scan texture directory '%s'", texturesDir);
+            throw new PipelineException(ex, "Failed to scan texture directory '%s'", texturesDir);
         }
 
         return pngFiles.parallelStream()
@@ -112,7 +112,7 @@ public class TexturePackLoader {
                 height = image.getHeight();
             }
         } catch (IOException ex) {
-            throw new AssetPipelineException(ex, "Failed to read texture '%s'", file);
+            throw new PipelineException(ex, "Failed to read texture '%s'", file);
         }
 
         Optional<AnimationData> animation = parseMcMeta(mcmetaSibling(file));
@@ -145,7 +145,7 @@ public class TexturePackLoader {
         try {
             root = GSON.fromJson(Files.readString(mcmetaFile), JsonObject.class);
         } catch (IOException | JsonSyntaxException ex) {
-            throw new AssetPipelineException(ex, "Failed to parse mcmeta '%s'", mcmetaFile);
+            throw new PipelineException(ex, "Failed to parse mcmeta '%s'", mcmetaFile);
         }
         if (root == null || !root.has("animation")) return Optional.empty();
 

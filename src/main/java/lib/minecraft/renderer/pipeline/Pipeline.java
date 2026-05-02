@@ -12,6 +12,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
+import dev.simplified.util.Lazy;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockTag;
 import lib.minecraft.renderer.asset.binding.BannerPattern;
@@ -20,7 +21,7 @@ import lib.minecraft.renderer.asset.model.ItemModelData;
 import lib.minecraft.renderer.asset.pack.ColorMap;
 import lib.minecraft.renderer.asset.pack.Texture;
 import lib.minecraft.renderer.asset.pack.TexturePack;
-import lib.minecraft.renderer.exception.AssetPipelineException;
+import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.loader.BannerPatternLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockStateLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockTagLoader;
@@ -37,8 +38,8 @@ import lib.minecraft.renderer.pipeline.resolver.PackResolver;
 import lib.minecraft.renderer.pipeline.util.PackAcquirer;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 import java.io.IOException;
@@ -64,11 +65,18 @@ import java.util.zip.ZipFile;
  * ({@link #run}, {@link #downloadJarToCache}, the player skin / cape paths) share the same
  * limiter state.
  */
-public final class AssetPipeline {
+@UtilityClass
+public class Pipeline {
 
     private static final @NotNull Gson MCMETA_GSON = GsonSettings.defaults().create();
 
-    private static volatile @Nullable Proxy<MojangContract> mojangProxy;
+    private static final @NotNull Lazy<Proxy<MojangContract>> MOJANG_PROXY = Lazy.of(() ->
+        Proxy.builder(
+            ClientConfig.builder(MojangContract.class, GsonSettings.defaults().create())
+                .withErrorDecoder(MojangApiException::new)
+                .build()
+        ).build()
+    );
 
     /**
      * Runs the pipeline with the given options and returns the parsed result.
@@ -76,7 +84,7 @@ public final class AssetPipeline {
      * @param options the pipeline options
      * @return the parsed asset result
      */
-    public @NotNull Result run(@NotNull AssetPipelineOptions options) {
+    public static @NotNull Result run(@NotNull PipelineOptions options) {
         Path packRoot = packRoot(options);
         Path jarPath = downloadJarToCache(options);
         extractClientJar(jarPath, packRoot);
@@ -206,7 +214,7 @@ public final class AssetPipeline {
      * @param options the pipeline options
      * @return the path to the cached client jar
      */
-    public static @NotNull Path downloadJarToCache(@NotNull AssetPipelineOptions options) {
+    public static @NotNull Path downloadJarToCache(@NotNull PipelineOptions options) {
         Path target = packRoot(options).resolve("client.jar");
         if (Files.isRegularFile(target) && !options.isForceDownload())
             return target;
@@ -220,15 +228,15 @@ public final class AssetPipeline {
                 Files.copy(stream, target, StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (IOException ex) {
-            throw new AssetPipelineException(ex, "Failed to cache client jar at '%s'", target);
+            throw new PipelineException(ex, "Failed to cache client jar at '%s'", target);
         }
 
         return target;
     }
 
     /**
-     * The lazily-initialised shared {@link MojangContract}. Single proxy per JVM, double-checked
-     * under the class monitor so concurrent callers ({@link #run}, {@link #downloadJarToCache},
+     * The lazily-initialised shared {@link MojangContract}. Single proxy per JVM via
+     * {@link #MOJANG_PROXY}, so concurrent callers ({@link #run}, {@link #downloadJarToCache},
      * the player skin / cape paths in
      * {@link lib.minecraft.renderer.PlayerRenderer PlayerRenderer}) share the same domain-aware
      * rate limiter.
@@ -236,26 +244,12 @@ public final class AssetPipeline {
      * @return the shared Mojang contract
      */
     public static @NotNull MojangContract mojang() {
-        Proxy<MojangContract> local = mojangProxy;
-        if (local == null) {
-            synchronized (AssetPipeline.class) {
-                local = mojangProxy;
-                if (local == null) {
-                    local = Proxy.builder(
-                        ClientConfig.builder(MojangContract.class, GsonSettings.defaults().create())
-                            .withErrorDecoder(MojangApiException::new)
-                            .build()
-                    ).build();
-                    mojangProxy = local;
-                }
-            }
-        }
-        return local.getContract();
+        return MOJANG_PROXY.get().getContract();
     }
 
     /**
      * Resolves the {@code Piston} client-jar entry for the given version, surfacing an
-     * {@link AssetPipelineException} when the version id is missing from the manifest.
+     * {@link PipelineException} when the version id is missing from the manifest.
      */
     private static @NotNull PistonMetadata.Downloads.Entry resolveClientEntry(@NotNull MojangContract mojang, @NotNull String version) {
         return mojang.getVersionMetadata(
@@ -264,7 +258,7 @@ public final class AssetPipeline {
                 .stream()
                 .filter(v -> v.getVersion().equals(version))
                 .findFirst()
-                .orElseThrow(() -> new AssetPipelineException("Version '%s' is not in the Piston manifest", version))
+                .orElseThrow(() -> new PipelineException("Version '%s' is not in the Piston manifest", version))
             )
             .getDownloads()
             .getClient();
@@ -277,7 +271,7 @@ public final class AssetPipeline {
      * <p>
      * Public so tooling generators that need an extracted asset tree without running the parse
      * phases (e.g. {@code ToolingColorMaps} reading the biome colormap PNGs) can pair this with
-     * {@link #downloadJarToCache(AssetPipelineOptions)}.
+     * {@link #downloadJarToCache(PipelineOptions)}.
      *
      * @param jarPath the cached client jar path
      * @param packRoot the destination pack root
@@ -297,12 +291,12 @@ public final class AssetPipeline {
                 }
             }
         } catch (IOException ex) {
-            throw new AssetPipelineException(ex, "Failed to extract '%s' into '%s'", jarPath, packRoot);
+            throw new PipelineException(ex, "Failed to extract '%s' into '%s'", jarPath, packRoot);
         }
     }
 
     /** The standard {@code <cacheRoot>/vanilla/<version>} pack-root path for the given options. */
-    private static @NotNull Path packRoot(@NotNull AssetPipelineOptions options) {
+    private static @NotNull Path packRoot(@NotNull PipelineOptions options) {
         return options.getCacheRoot()
             .toPath()
             .resolve("vanilla")
@@ -322,7 +316,7 @@ public final class AssetPipeline {
         /**
          * Every registered pack in render priority order - highest priority first. Always
          * contains the vanilla pack at minimum; user packs from
-         * {@link AssetPipelineOptions#getTexturePacks()} appear before vanilla when present.
+         * {@link PipelineOptions#getTexturePacks()} appear before vanilla when present.
          * Each pack's {@link TexturePack#getAssetRoots()} carries the on-disk directories the
          * renderer walks when reading raw PNG bytes for a texture attributed to that pack.
          */

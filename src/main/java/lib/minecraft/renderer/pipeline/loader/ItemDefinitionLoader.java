@@ -7,7 +7,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
-import lib.minecraft.renderer.exception.AssetPipelineException;
+import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.VanillaPaths;
 import lombok.experimental.UtilityClass;
@@ -90,7 +90,7 @@ public class ItemDefinitionLoader {
                 .filter(p -> p.toString().endsWith(".json"))
                 .toList();
         } catch (IOException ex) {
-            throw new AssetPipelineException(ex, "Failed to scan item definitions in '%s'", itemsDir);
+            throw new PipelineException(ex, "Failed to scan item definitions in '%s'", itemsDir);
         }
 
         return files.parallelStream()
@@ -119,7 +119,7 @@ public class ItemDefinitionLoader {
                 ? Map.entry(itemId, modelRef)
                 : null;
         } catch (IOException ex) {
-            throw new AssetPipelineException(ex, "Failed to read item definition '%s'", p);
+            throw new PipelineException(ex, "Failed to read item definition '%s'", p);
         } catch (JsonSyntaxException ex) {
             // Resource packs sometimes ship deeply nested or otherwise malformed item definitions
             // (e.g. Hypixel+ player_head.json with 255+ levels of conditional nesting). Skip the

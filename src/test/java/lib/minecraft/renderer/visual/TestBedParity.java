@@ -20,8 +20,8 @@ import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.kit.BlockModelGeometryKit;
 import lib.minecraft.renderer.options.BlockOptions;
-import lib.minecraft.renderer.pipeline.AssetPipeline;
-import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
+import lib.minecraft.renderer.pipeline.Pipeline;
+import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -56,7 +56,7 @@ public final class TestBedParity {
     public static void main(String @NotNull [] args) throws IOException {
         int size = args.length > 0 ? Integer.parseInt(args[0]) : 1024;
 
-        AssetPipeline.Result result = new AssetPipeline().run(AssetPipelineOptions.defaults());
+        Pipeline.Result result = Pipeline.run(PipelineOptions.defaults());
         PipelineRendererContext context = PipelineRendererContext.of(result);
         BlockRenderer renderer = new BlockRenderer(context);
         Path outputDir = Path.of("cache/visual/bed-parity");

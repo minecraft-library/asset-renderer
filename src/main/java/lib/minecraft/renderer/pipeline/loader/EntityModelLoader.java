@@ -10,7 +10,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.model.EntityModelData;
-import lib.minecraft.renderer.exception.AssetPipelineException;
+import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.tensor.Vector2f;
@@ -143,7 +143,7 @@ public class EntityModelLoader {
      * deduplicated geometry table.
      *
      * @return a map of entity id to definition
-     * @throws AssetPipelineException if either resource is missing or cannot be parsed, or any
+     * @throws PipelineException if either resource is missing or cannot be parsed, or any
      *     entity metadata row references a geometry id absent from the geometry table
      */
     public static @NotNull ConcurrentMap<String, EntityDefinition> load() {
@@ -158,7 +158,7 @@ public class EntityModelLoader {
             JsonObject entityJson = entry.getValue().getAsJsonObject();
 
             if (!entityJson.has("geometry_ref"))
-                throw new AssetPipelineException(
+                throw new PipelineException(
                     "Entity '%s' in '%s' has no geometry_ref", entityId, MODELS_RESOURCE_PATH
                 );
             JsonObject override = overrides.has(entityId) && overrides.get(entityId).isJsonObject()
@@ -175,7 +175,7 @@ public class EntityModelLoader {
                 : entityJson.get("geometry_ref").getAsString();
             EntityModelData baseModel = geometries.get(geometryRef);
             if (baseModel == null)
-                throw new AssetPipelineException(
+                throw new PipelineException(
                     "Entity '%s' references geometry '%s' which is not present in '%s'",
                     entityId, geometryRef, GEOMETRY_RESOURCE_PATH
                 );
@@ -952,12 +952,12 @@ public class EntityModelLoader {
     private static @NotNull Map<String, EntityModelData> loadGeometries() {
         try (InputStream stream = EntityModelLoader.class.getResourceAsStream(GEOMETRY_RESOURCE_PATH)) {
             if (stream == null)
-                throw new AssetPipelineException("Entity geometry resource '%s' not found on the classpath", GEOMETRY_RESOURCE_PATH);
+                throw new PipelineException("Entity geometry resource '%s' not found on the classpath", GEOMETRY_RESOURCE_PATH);
 
             String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
             JsonObject root = GSON.fromJson(json, JsonObject.class);
             if (root == null || !root.has("geometries"))
-                throw new AssetPipelineException("Entity geometry resource '%s' has no 'geometries' object", GEOMETRY_RESOURCE_PATH);
+                throw new PipelineException("Entity geometry resource '%s' has no 'geometries' object", GEOMETRY_RESOURCE_PATH);
 
             JsonObject geometriesJson = root.getAsJsonObject("geometries");
             Map<String, EntityModelData> out = new LinkedHashMap<>();
@@ -967,7 +967,7 @@ public class EntityModelLoader {
             }
             return out;
         } catch (IOException | JsonSyntaxException ex) {
-            throw new AssetPipelineException(ex, "Failed to load entity geometry resource '%s'", GEOMETRY_RESOURCE_PATH);
+            throw new PipelineException(ex, "Failed to load entity geometry resource '%s'", GEOMETRY_RESOURCE_PATH);
         }
     }
 
@@ -977,16 +977,16 @@ public class EntityModelLoader {
     private static @NotNull JsonObject loadEntitiesBlock() {
         try (InputStream stream = EntityModelLoader.class.getResourceAsStream(MODELS_RESOURCE_PATH)) {
             if (stream == null)
-                throw new AssetPipelineException("Entity models resource '%s' not found on the classpath", MODELS_RESOURCE_PATH);
+                throw new PipelineException("Entity models resource '%s' not found on the classpath", MODELS_RESOURCE_PATH);
 
             String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
             JsonObject root = GSON.fromJson(json, JsonObject.class);
             if (root == null || !root.has("entities"))
-                throw new AssetPipelineException("Entity models resource '%s' has no 'entities' object", MODELS_RESOURCE_PATH);
+                throw new PipelineException("Entity models resource '%s' has no 'entities' object", MODELS_RESOURCE_PATH);
 
             return root.getAsJsonObject("entities");
         } catch (IOException | JsonSyntaxException ex) {
-            throw new AssetPipelineException(ex, "Failed to load entity models resource '%s'", MODELS_RESOURCE_PATH);
+            throw new PipelineException(ex, "Failed to load entity models resource '%s'", MODELS_RESOURCE_PATH);
         }
     }
 
@@ -1005,7 +1005,7 @@ public class EntityModelLoader {
 
             return root.getAsJsonObject("entities");
         } catch (IOException | JsonSyntaxException ex) {
-            throw new AssetPipelineException(ex, "Failed to load entity model overrides resource '%s'", OVERRIDES_RESOURCE_PATH);
+            throw new PipelineException(ex, "Failed to load entity model overrides resource '%s'", OVERRIDES_RESOURCE_PATH);
         }
     }
 
@@ -1026,7 +1026,7 @@ public class EntityModelLoader {
 
             return root.getAsJsonObject("entities");
         } catch (IOException | JsonSyntaxException ex) {
-            throw new AssetPipelineException(ex, "Failed to load entity bind poses resource '%s'", BIND_POSES_RESOURCE_PATH);
+            throw new PipelineException(ex, "Failed to load entity bind poses resource '%s'", BIND_POSES_RESOURCE_PATH);
         }
     }
 

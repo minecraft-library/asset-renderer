@@ -1,12 +1,12 @@
 package lib.minecraft.renderer.visual;
 
 import lib.minecraft.renderer.FluidRenderer;
-import lib.minecraft.renderer.exception.AssetPipelineException;
+import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.geometry.Biome;
 import lib.minecraft.renderer.kit.FluidGeometryKit;
 import lib.minecraft.renderer.options.FluidOptions;
-import lib.minecraft.renderer.pipeline.AssetPipeline;
-import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
+import lib.minecraft.renderer.pipeline.Pipeline;
+import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
@@ -57,10 +57,10 @@ public final class TestFluidRenderer {
     public static void main(String @NotNull [] args) throws IOException {
         Files.createDirectories(OUTPUT_DIR);
 
-        AssetPipeline.Result result;
+        Pipeline.Result result;
         try {
-            result = new AssetPipeline().run(AssetPipelineOptions.defaults());
-        } catch (AssetPipelineException ex) {
+            result = Pipeline.run(PipelineOptions.defaults());
+        } catch (PipelineException ex) {
             System.err.println("Pipeline bootstrap failed: " + ex.getMessage());
             throw ex;
         }

@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.pipeline.util;
 
-import lib.minecraft.renderer.exception.AssetPipelineException;
+import lib.minecraft.renderer.exception.PipelineException;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -15,7 +15,7 @@ import java.nio.file.StandardCopyOption;
 /**
  * Downloads resource pack archives from a remote URL into a local cache path. Skips the network
  * round trip when the destination file already exists and the caller has not requested a forced
- * refresh, mirroring {@code AssetPipeline.downloadJarToCache}'s caching semantics.
+ * refresh, mirroring {@code Pipeline.downloadJarToCache}'s caching semantics.
  */
 @UtilityClass
 public class PackDownloader {
@@ -39,7 +39,7 @@ public class PackDownloader {
                 Files.copy(stream, destination, StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (IOException ex) {
-            throw new AssetPipelineException(ex, "Failed to download '%s' to '%s'", url, destination);
+            throw new PipelineException(ex, "Failed to download '%s' to '%s'", url, destination);
         }
 
         return destination;
@@ -59,7 +59,7 @@ public class PackDownloader {
         try {
             return download(URI.create(url).toURL(), destination, force);
         } catch (IOException | IllegalArgumentException ex) {
-            throw new AssetPipelineException(ex, "Invalid pack URL '%s'", url);
+            throw new PipelineException(ex, "Invalid pack URL '%s'", url);
         }
     }
 

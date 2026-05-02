@@ -1,8 +1,8 @@
 package lib.minecraft.renderer;
 
 import lib.minecraft.renderer.options.AtlasOptions;
-import lib.minecraft.renderer.pipeline.AssetPipeline;
-import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
+import lib.minecraft.renderer.pipeline.Pipeline;
+import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -36,8 +36,8 @@ class AtlasRendererParallelismTest {
 
     @BeforeAll
     static void bootstrapPipeline() {
-        AssetPipeline.Result result = new AssetPipeline().run(
-            AssetPipelineOptions.builder()
+        Pipeline.Result result = Pipeline.run(
+            PipelineOptions.builder()
                 .version("26.1")
                 .cacheRoot(CACHE_ROOT)
                 .build()

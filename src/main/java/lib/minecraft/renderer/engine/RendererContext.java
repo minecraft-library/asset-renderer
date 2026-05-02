@@ -24,7 +24,7 @@ import java.util.Optional;
  * <p>
  * The production implementation is
  * {@code PipelineRendererContext} (in {@code lib.minecraft.renderer.pipeline}), built
- * once at bootstrap from an {@code AssetPipeline.Result}; tests and in-memory callers can supply
+ * once at bootstrap from an {@code Pipeline.Result}; tests and in-memory callers can supply
  * lightweight stub implementations directly. Lookup methods return {@link Optional} so missing
  * keys don't surprise the caller; bulk-iteration accessors return empty defaults so individual
  * stubs only need to override what they care about.

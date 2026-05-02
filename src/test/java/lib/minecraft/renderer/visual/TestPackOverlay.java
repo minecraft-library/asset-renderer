@@ -4,10 +4,10 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.ItemRenderer;
-import lib.minecraft.renderer.exception.AssetPipelineException;
+import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.options.ItemOptions;
-import lib.minecraft.renderer.pipeline.AssetPipeline;
-import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
+import lib.minecraft.renderer.pipeline.Pipeline;
+import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.util.PackDownloader;
 import lombok.experimental.UtilityClass;
@@ -111,14 +111,14 @@ public final class TestPackOverlay {
      * and rethrows pipeline failures so the caller sees a clear bootstrap error message.
      */
     private static @NotNull PipelineRendererContext buildContext(@NotNull ConcurrentList<File> userPacks) {
-        AssetPipelineOptions options = AssetPipelineOptions.defaults()
+        PipelineOptions options = PipelineOptions.defaults()
             .mutate()
             .texturePacks(userPacks)
             .build();
         try {
-            AssetPipeline.Result result = new AssetPipeline().run(options);
+            Pipeline.Result result = Pipeline.run(options);
             return PipelineRendererContext.of(result);
-        } catch (AssetPipelineException ex) {
+        } catch (PipelineException ex) {
             System.err.println("Pipeline bootstrap failed: " + ex.getMessage());
             throw ex;
         }

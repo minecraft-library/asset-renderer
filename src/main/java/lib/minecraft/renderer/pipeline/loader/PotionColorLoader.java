@@ -5,7 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
-import lib.minecraft.renderer.exception.AssetPipelineException;
+import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.tooling.ToolingPotionColors;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
@@ -42,17 +42,17 @@ public class PotionColorLoader {
      * Loads the bundled effect colour table.
      *
      * @return a map of namespaced effect id to ARGB colour
-     * @throws AssetPipelineException if the classpath resource is missing or malformed
+     * @throws PipelineException if the classpath resource is missing or malformed
      */
     public static @NotNull ConcurrentMap<String, Integer> load() {
         try (InputStream stream = PotionColorLoader.class.getResourceAsStream(RESOURCE_PATH)) {
             if (stream == null)
-                throw new AssetPipelineException("Classpath resource '%s' not found - run the 'potionColors' Gradle task to generate it", RESOURCE_PATH);
+                throw new PipelineException("Classpath resource '%s' not found - run the 'potionColors' Gradle task to generate it", RESOURCE_PATH);
 
             String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
             return parse(json);
         } catch (IOException ex) {
-            throw new AssetPipelineException(ex, "Failed to read classpath resource '%s'", RESOURCE_PATH);
+            throw new PipelineException(ex, "Failed to read classpath resource '%s'", RESOURCE_PATH);
         }
     }
 
@@ -77,7 +77,7 @@ public class PotionColorLoader {
                 colors.put(effectId, argb);
             }
         } catch (JsonSyntaxException | IllegalStateException | NumberFormatException ex) {
-            throw new AssetPipelineException(ex, "Malformed '%s' resource", RESOURCE_PATH);
+            throw new PipelineException(ex, "Malformed '%s' resource", RESOURCE_PATH);
         }
         return Concurrent.adoptMap(colors).toUnmodifiable();
     }

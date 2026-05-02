@@ -48,9 +48,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * A {@link RendererContext} backed by a single {@link AssetPipeline.Result}.
+ * A {@link RendererContext} backed by a single {@link Pipeline.Result}.
  * <p>
- * Construction goes through {@link #of(AssetPipeline.Result)}, which materialises every parsed
+ * Construction goes through {@link #of(Pipeline.Result)}, which materialises every parsed
  * {@link BlockModelData} and {@link ItemModelData} entry into a {@link Block} / {@link Item} DTO
  * eagerly, keyed by the derived namespaced id ({@code minecraft:block/grass_block} - &gt;
  * {@code minecraft:grass_block}). Each block carries a {@link Block.Source} tag identifying the
@@ -74,10 +74,10 @@ import java.util.stream.Collectors;
  * mapping verified against the bytecode of {@code BlockColors$createDefault} in the 26.1 client
  * jar. Entities come from {@link EntityModelLoader#load()} keyed by namespaced id.
  * <p>
- * Every stored index is unmodifiable: indexes built locally inside {@link #of(AssetPipeline.Result)}
+ * Every stored index is unmodifiable: indexes built locally inside {@link #of(Pipeline.Result)}
  * ({@code blockIndex}, {@code itemIndex}, {@code entityIndex}, {@code packs}) are wrapped via
  * {@link ConcurrentMap#toUnmodifiable()} at construction; indexes that came in already
- * keyed off the {@link AssetPipeline.Result} (or {@link BlockEntityLoader#load()}) are wrapped at
+ * keyed off the {@link Pipeline.Result} (or {@link BlockEntityLoader#load()}) are wrapped at
  * the loader exit so consumers between pipeline finish and context construction see the same
  * read-lock-free semantics. Read paths bypass the source map's read lock since the unmodifiable
  * wrapper is itself thread-safe by virtue of being immutable. The lazy {@code textureCache} is
@@ -111,7 +111,7 @@ public final class PipelineRendererContext implements RendererContext {
      * @param result the pipeline result to wrap
      * @return a new context scoped to the given result
      */
-    public static @NotNull PipelineRendererContext of(@NotNull AssetPipeline.Result result) {
+    public static @NotNull PipelineRendererContext of(@NotNull Pipeline.Result result) {
         ConcurrentMap<String, Block.Entity> blockEntityEntries = BlockEntityLoader.load();
         ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex = buildReverseTagIndex(result.getBlockTags());
 
@@ -142,7 +142,7 @@ public final class PipelineRendererContext implements RendererContext {
     }
 
     /**
-     * Inverts the tag-to-blocks map into a block-to-tags map. The primary {@link AssetPipeline}
+     * Inverts the tag-to-blocks map into a block-to-tags map. The primary {@link Pipeline}
      * keys block tags by tag id with the member block ids as the value list; the renderer wants
      * the reverse so each block's {@code tags} field can be populated in a single hash lookup
      * during block index construction.
@@ -201,7 +201,7 @@ public final class PipelineRendererContext implements RendererContext {
      * @return a fresh map keyed by stripped block id
      */
     private static @NotNull ConcurrentMap<String, Block> buildPrimaryBlockIndex(
-        @NotNull AssetPipeline.Result result,
+        @NotNull Pipeline.Result result,
         @NotNull ConcurrentMap<String, Block.Entity> blockEntityEntries,
         @NotNull ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex
     ) {
@@ -265,7 +265,7 @@ public final class PipelineRendererContext implements RendererContext {
     private static void attachOrphanBlockEntities(
         @NotNull ConcurrentMap<String, Block> blockIndex,
         @NotNull ConcurrentMap<String, Block.Entity> blockEntityEntries,
-        @NotNull AssetPipeline.Result result,
+        @NotNull Pipeline.Result result,
         @NotNull ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex
     ) {
         ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap = result.getBlockStates();
@@ -317,7 +317,7 @@ public final class PipelineRendererContext implements RendererContext {
     private static @NotNull Set<String> attachBlockstateOnlyBlocks(
         @NotNull ConcurrentMap<String, Block> blockIndex,
         @NotNull ConcurrentMap<String, Block.Entity> blockEntityEntries,
-        @NotNull AssetPipeline.Result result,
+        @NotNull Pipeline.Result result,
         @NotNull ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex
     ) {
         ConcurrentMap<String, Block.Tint> tints = result.getBlockTints();
@@ -370,7 +370,7 @@ public final class PipelineRendererContext implements RendererContext {
      * @return the populated item index, keyed by stripped item id
      */
     private static @NotNull ConcurrentMap<String, Item> buildItemIndex(
-        @NotNull AssetPipeline.Result result,
+        @NotNull Pipeline.Result result,
         @NotNull ConcurrentMap<String, Block.Entity> blockEntityEntries
     ) {
         HashMap<String, Item> itemIndex = new HashMap<>();

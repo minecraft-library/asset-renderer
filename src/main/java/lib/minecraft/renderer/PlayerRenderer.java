@@ -1,5 +1,7 @@
 package lib.minecraft.renderer;
 
+import api.simplified.mojang.MojangContract;
+import api.simplified.mojang.request.MojangDomain;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -21,7 +23,7 @@ import lib.minecraft.renderer.kit.ArmorKit;
 import lib.minecraft.renderer.kit.BlockModelGeometryKit;
 import lib.minecraft.renderer.kit.GlintKit;
 import lib.minecraft.renderer.options.PlayerOptions;
-import lib.minecraft.renderer.pipeline.AssetPipeline;
+import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -103,17 +105,16 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
     /**
      * Reads a Mojang skin or cape texture by extracting the trailing path segment from the URL
-     * (the texture hash) and streaming the PNG bytes through
-     * {@link AssetPipeline#mojang() AssetPipeline.mojang()}'s
-     * {@link api.simplified.mojang.MojangContract#downloadTexture(String) downloadTexture}.
+     * (the texture hash) and streaming the PNG bytes through {@link Pipeline#mojang() Pipeline.mojang()}'s
+     * {@link MojangContract#downloadTexture(String) downloadTexture}.
      * <p>
      * The URL format is the {@code http://textures.minecraft.net/texture/<hash>} pattern Mojang's
      * session API returns in {@code MojangProperties}; the routing and rate limiting come from
-     * the contract's {@link api.simplified.mojang.request.MojangDomain#MINECRAFT_TEXTURES} entry.
+     * the contract's {@link MojangDomain#MINECRAFT_TEXTURES} entry.
      */
     private static byte @NotNull [] fetchTexture(@NotNull String url) {
         String hash = url.substring(url.lastIndexOf('/') + 1);
-        try (InputStream stream = AssetPipeline.mojang().downloadTexture(hash)) {
+        try (InputStream stream = Pipeline.mojang().downloadTexture(hash)) {
             return stream.readAllBytes();
         } catch (IOException ex) {
             throw new RenderException(ex, "Failed to fetch texture from '%s'", url);

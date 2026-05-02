@@ -1,11 +1,11 @@
 package lib.minecraft.renderer.visual;
 
 import lib.minecraft.renderer.BlockRenderer;
-import lib.minecraft.renderer.exception.AssetPipelineException;
+import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.geometry.BlockFace;
 import lib.minecraft.renderer.options.BlockOptions;
-import lib.minecraft.renderer.pipeline.AssetPipeline;
-import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
+import lib.minecraft.renderer.pipeline.Pipeline;
+import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import dev.simplified.image.ImageData;
 import lombok.experimental.UtilityClass;
@@ -60,10 +60,10 @@ public final class TestBlockRender3D {
         int size = args.length > 1 ? Integer.parseInt(args[1]) : 512;
         int ssaa = args.length > 2 ? Integer.parseInt(args[2]) : 2;
 
-        AssetPipeline.Result result;
+        Pipeline.Result result;
         try {
-            result = new AssetPipeline().run(AssetPipelineOptions.defaults());
-        } catch (AssetPipelineException ex) {
+            result = Pipeline.run(PipelineOptions.defaults());
+        } catch (PipelineException ex) {
             System.err.println("Pipeline bootstrap failed: " + ex.getMessage());
             throw ex;
         }

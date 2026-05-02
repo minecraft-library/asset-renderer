@@ -14,7 +14,7 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.binding.DyeColor;
 import lib.minecraft.renderer.asset.model.BlockModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
-import lib.minecraft.renderer.exception.AssetPipelineException;
+import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.kit.BlockModelGeometryKit;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -54,7 +54,7 @@ public class BlockEntityLoader {
      * Loads block entity geometry and wiring, producing a map of block id to model + texture.
      *
      * @return the loaded block entity entries keyed by block id
-     * @throws AssetPipelineException if either resource is missing or cannot be parsed
+     * @throws PipelineException if either resource is missing or cannot be parsed
      */
     public static @NotNull ConcurrentMap<String, Block.Entity> load() {
         JsonObject entitiesRoot = readJson(BLOCK_ENTITIES_PATH);
@@ -163,20 +163,20 @@ public class BlockEntityLoader {
     }
 
     /**
-     * Reads a JSON resource off the classpath, throwing {@link AssetPipelineException} on
+     * Reads a JSON resource off the classpath, throwing {@link PipelineException} on
      * missing resource, empty payload, or parse failure.
      */
     private static @NotNull JsonObject readJson(@NotNull String path) {
         try (InputStream stream = BlockEntityLoader.class.getResourceAsStream(path)) {
             if (stream == null)
-                throw new AssetPipelineException("Block entity resource '%s' not found", path);
+                throw new PipelineException("Block entity resource '%s' not found", path);
             String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
             JsonObject root = GSON.fromJson(json, JsonObject.class);
             if (root == null)
-                throw new AssetPipelineException("Block entity resource '%s' is empty", path);
+                throw new PipelineException("Block entity resource '%s' is empty", path);
             return root;
         } catch (IOException | JsonSyntaxException ex) {
-            throw new AssetPipelineException(ex, "Failed to load block entity resource '%s'", path);
+            throw new PipelineException(ex, "Failed to load block entity resource '%s'", path);
         }
     }
 

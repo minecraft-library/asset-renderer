@@ -2,7 +2,7 @@ package lib.minecraft.renderer.pipeline.pack;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
-import lib.minecraft.renderer.exception.AssetPipelineException;
+import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.VanillaPaths;
 import org.jetbrains.annotations.NotNull;
 
@@ -47,7 +47,7 @@ public record ColorProperties(@NotNull ConcurrentMap<String, Integer> overrides)
             try (var reader = Files.newBufferedReader(candidate)) {
                 props.load(reader);
             } catch (IOException ex) {
-                throw new AssetPipelineException(ex, "Failed to read color.properties '%s'", candidate);
+                throw new PipelineException(ex, "Failed to read color.properties '%s'", candidate);
             }
 
             ConcurrentMap<String, Integer> overrides = Concurrent.newMap();

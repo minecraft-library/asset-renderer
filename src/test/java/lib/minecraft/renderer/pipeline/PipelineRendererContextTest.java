@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.*;
  * Unit tests for {@link PipelineRendererContext}.
  * <p>
  * The fixtures build a real on-disk pack layout in a temporary directory and synthesise a
- * minimal {@link AssetPipeline.Result} around it, so the tests exercise the same code paths
+ * minimal {@link Pipeline.Result} around it, so the tests exercise the same code paths
  * a production pipeline run would hit without needing to download the client jar.
  */
 @DisplayName("PipelineRendererContext wraps a pipeline result into a rendering context")
@@ -47,7 +47,7 @@ class PipelineRendererContextTest {
     static Path packRoot;
 
     private static PipelineRendererContext context;
-    private static AssetPipeline.Result result;
+    private static Pipeline.Result result;
 
     @BeforeAll
     static void buildFixture() throws IOException {
@@ -149,7 +149,7 @@ class PipelineRendererContextTest {
             )
         );
 
-        result = new AssetPipeline.Result(
+        result = new Pipeline.Result(
             packRoot,
             vanillaPack,
             Concurrent.newList(vanillaPack),
@@ -356,7 +356,7 @@ class PipelineRendererContextTest {
     }
 
     @Test
-    @DisplayName("Synthetic block tint map is wired through to AssetPipeline.Result")
+    @DisplayName("Synthetic block tint map is wired through to Pipeline.Result")
     void blockTintsExposedFromResult() {
         ConcurrentMap<String, Block.Tint> tints = result.getBlockTints();
         assertThat(tints.size(), equalTo(3));

@@ -10,13 +10,13 @@ import org.jetbrains.annotations.NotNull;
 import java.io.File;
 
 /**
- * Configuration for a single {@link AssetPipeline} run. Controls the target Minecraft version,
+ * Configuration for a single {@link Pipeline} run. Controls the target Minecraft version,
  * the cache root, additional texture pack directories, and whether to force a re-download of an
  * existing cached client jar.
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
-public class AssetPipelineOptions {
+public class PipelineOptions {
 
     /** The target Minecraft client version; defaults to the hardcoded 26.1 build. */
     @lombok.Builder.Default
@@ -42,11 +42,11 @@ public class AssetPipelineOptions {
     @lombok.Builder.Default
     private final boolean forceDownload = false;
 
-    public @NotNull AssetPipelineOptionsBuilder mutate() {
+    public @NotNull PipelineOptionsBuilder mutate() {
         return this.toBuilder();
     }
 
-    public static @NotNull AssetPipelineOptions defaults() {
+    public static @NotNull PipelineOptions defaults() {
         return builder().build();
     }
 

@@ -15,7 +15,7 @@ import java.util.Optional;
 /**
  * A fully-parsed item definition backed by its vanilla model JSON.
  * <p>
- * Every field is populated once during {@code AssetPipeline} bootstrap and stored verbatim. A
+ * Every field is populated once during {@code Pipeline} bootstrap and stored verbatim. A
  * non-zero {@link #getMaxDurability()} gates the GUI damage bar overlay at render time. The
  * optional {@link #getOverlay() overlay} carries per-item metadata for vanilla overlay renders
  * (leather armor dye layers, potion liquid, spawn egg spots, firework star center, tipped-arrow

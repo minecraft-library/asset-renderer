@@ -3,8 +3,8 @@ package lib.minecraft.renderer;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.options.FluidOptions;
-import lib.minecraft.renderer.pipeline.AssetPipeline;
-import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
+import lib.minecraft.renderer.pipeline.Pipeline;
+import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -39,8 +39,8 @@ class FluidRendererParallelismTest {
 
     @BeforeAll
     static void bootstrapPipeline() {
-        AssetPipeline.Result result = new AssetPipeline().run(
-            AssetPipelineOptions.builder()
+        Pipeline.Result result = Pipeline.run(
+            PipelineOptions.builder()
                 .version("26.1")
                 .cacheRoot(CACHE_ROOT)
                 .build()

@@ -9,7 +9,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.pack.TexturePack;
-import lib.minecraft.renderer.exception.AssetPipelineException;
+import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.pack.FormatSpec;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -49,7 +49,7 @@ public class PackResolver {
         int targetPackFormat
     ) {
         if (!Files.isDirectory(packRoot))
-            throw new AssetPipelineException("Pack root '%s' does not exist or is not a directory", packRoot);
+            throw new PipelineException("Pack root '%s' does not exist or is not a directory", packRoot);
 
         Path mcmeta = packRoot.resolve("pack.mcmeta");
         if (!Files.isRegularFile(mcmeta))
@@ -59,7 +59,7 @@ public class PackResolver {
         try {
             root = GSON.fromJson(Files.readString(mcmeta), JsonObject.class);
         } catch (IOException | JsonSyntaxException ex) {
-            throw new AssetPipelineException(ex, "Failed to parse pack.mcmeta in '%s'", packRoot);
+            throw new PipelineException(ex, "Failed to parse pack.mcmeta in '%s'", packRoot);
         }
         if (root == null)
             return new TexturePack(packId, "minecraft", "", Concurrent.newList(packRoot), priority);
@@ -117,18 +117,18 @@ public class PackResolver {
         if (formats.isJsonArray()) {
             JsonArray arr = formats.getAsJsonArray();
             if (arr.size() != 2)
-                throw new AssetPipelineException("Pack '%s' has overlay 'formats' array of size %d (expected 2)", packId, arr.size());
+                throw new PipelineException("Pack '%s' has overlay 'formats' array of size %d (expected 2)", packId, arr.size());
             return new FormatSpec.RangeSpec(arr.get(0).getAsInt(), arr.get(1).getAsInt());
         }
 
         if (formats.isJsonObject()) {
             JsonObject obj = formats.getAsJsonObject();
             if (!obj.has("min_inclusive") || !obj.has("max_inclusive"))
-                throw new AssetPipelineException("Pack '%s' overlay 'formats' object missing min_inclusive/max_inclusive", packId);
+                throw new PipelineException("Pack '%s' overlay 'formats' object missing min_inclusive/max_inclusive", packId);
             return new FormatSpec.RangeSpec(obj.get("min_inclusive").getAsInt(), obj.get("max_inclusive").getAsInt());
         }
 
-        throw new AssetPipelineException("Pack '%s' has unrecognised overlay 'formats' encoding", packId);
+        throw new PipelineException("Pack '%s' has unrecognised overlay 'formats' encoding", packId);
     }
 
 }

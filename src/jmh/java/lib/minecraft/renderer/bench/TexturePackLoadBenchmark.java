@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.bench;
 
-import lib.minecraft.renderer.pipeline.AssetPipeline;
-import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
+import lib.minecraft.renderer.pipeline.Pipeline;
+import lib.minecraft.renderer.pipeline.PipelineOptions;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;
@@ -13,7 +13,7 @@ import org.openjdk.jmh.infra.Blackhole;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Cold texture pack load benchmark - measures a fresh {@link AssetPipeline#run} invocation on
+ * Cold texture pack load benchmark - measures a fresh {@link Pipeline#run} invocation on
  * an already-cached pack root (so the network hop is excluded but all PNG decode, JSON parse,
  * and {@code ImageIO.read} work is on the critical path). Primary measurement target for
  * Task 2 (parallel pack loading).
@@ -28,8 +28,7 @@ public class TexturePackLoadBenchmark {
 
     @Benchmark
     public void coldLoad(Blackhole bh) throws Exception {
-        AssetPipeline pipeline = new AssetPipeline();
-        bh.consume(pipeline.run(AssetPipelineOptions.defaults()));
+        bh.consume(Pipeline.run(PipelineOptions.defaults()));
     }
 
 }

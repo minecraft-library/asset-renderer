@@ -77,7 +77,7 @@ dependencies {
     api("com.github.simplified-dev:client") { version { strictly("8435d8d") } }
 
     // Simplified API (extracted to github.com/simplified-api) - typed Feign contract for
-    // Mojang's launcher / Piston / textures endpoints, owns all renderer HTTP via AssetPipeline.
+    // Mojang's launcher / Piston / textures endpoints, owns all renderer HTTP via Pipeline.
     api("com.github.simplified-api:mojang") { version { strictly("82d9652") } }
 
     // Minecraft-Library (extracted to github.com/minecraft-library)

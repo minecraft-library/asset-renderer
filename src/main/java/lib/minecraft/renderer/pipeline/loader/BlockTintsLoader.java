@@ -9,7 +9,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.exception.AssetPipelineException;
+import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.geometry.Biome;
 import lib.minecraft.renderer.tooling.ToolingBlockTints;
 import lombok.experimental.UtilityClass;
@@ -52,19 +52,19 @@ public class BlockTintsLoader {
      * Loads the bundled vanilla tint table into a map of block id to {@link Block.Tint}.
      *
      * @return a map keyed by namespaced block id
-     * @throws AssetPipelineException if the resource is missing or cannot be parsed
+     * @throws PipelineException if the resource is missing or cannot be parsed
      */
     public static @NotNull ConcurrentMap<String, Block.Tint> load() {
         HashMap<String, Block.Tint> tints = new HashMap<>();
 
         try (InputStream stream = BlockTintsLoader.class.getResourceAsStream(RESOURCE_PATH)) {
             if (stream == null)
-                throw new AssetPipelineException("Vanilla tints resource '%s' not found on the classpath", RESOURCE_PATH);
+                throw new PipelineException("Vanilla tints resource '%s' not found on the classpath", RESOURCE_PATH);
 
             String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
             JsonObject root = GSON.fromJson(json, JsonObject.class);
             if (root == null || !root.has("tints"))
-                throw new AssetPipelineException("Vanilla tints resource '%s' has no 'tints' array", RESOURCE_PATH);
+                throw new PipelineException("Vanilla tints resource '%s' has no 'tints' array", RESOURCE_PATH);
 
             JsonArray entries = root.getAsJsonArray("tints");
             for (JsonElement element : entries) {
@@ -77,7 +77,7 @@ public class BlockTintsLoader {
                 tints.put(blockId, new Block.Tint(target, constant));
             }
         } catch (IOException | JsonSyntaxException ex) {
-            throw new AssetPipelineException(ex, "Failed to load vanilla tints resource '%s'", RESOURCE_PATH);
+            throw new PipelineException(ex, "Failed to load vanilla tints resource '%s'", RESOURCE_PATH);
         }
 
         return Concurrent.adoptMap(tints).toUnmodifiable();

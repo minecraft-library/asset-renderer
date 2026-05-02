@@ -1,10 +1,10 @@
 package lib.minecraft.renderer.visual;
 
 import lib.minecraft.renderer.ItemRenderer;
-import lib.minecraft.renderer.exception.AssetPipelineException;
+import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.options.ItemOptions;
-import lib.minecraft.renderer.pipeline.AssetPipeline;
-import lib.minecraft.renderer.pipeline.AssetPipelineOptions;
+import lib.minecraft.renderer.pipeline.Pipeline;
+import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import dev.simplified.image.ImageData;
 import lombok.experimental.UtilityClass;
@@ -50,10 +50,10 @@ public final class TestItemRender2D {
             : ITEM_TEST_1;
         int size = args.length > 1 ? Integer.parseInt(args[1]) : 256;
 
-        AssetPipeline.Result result;
+        Pipeline.Result result;
         try {
-            result = new AssetPipeline().run(AssetPipelineOptions.defaults());
-        } catch (AssetPipelineException ex) {
+            result = Pipeline.run(PipelineOptions.defaults());
+        } catch (PipelineException ex) {
             System.err.println("Pipeline bootstrap failed: " + ex.getMessage());
             throw ex;
         }

@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.pipeline.util;
 
-import lib.minecraft.renderer.exception.AssetPipelineException;
+import lib.minecraft.renderer.exception.PipelineException;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -40,7 +40,7 @@ public class PackAcquirer {
     public static @NotNull Path materialize(@NotNull File source, @NotNull Path cacheRoot) {
         if (source.isDirectory()) return source.toPath();
         if (!source.isFile())
-            throw new AssetPipelineException("Pack source '%s' is neither a directory nor a regular file", source);
+            throw new PipelineException("Pack source '%s' is neither a directory nor a regular file", source);
 
         String packId = derivePackId(source);
         Path destination = cacheRoot.resolve("packs").resolve(packId);
@@ -50,7 +50,7 @@ public class PackAcquirer {
         try {
             Files.createDirectories(destination);
         } catch (IOException ex) {
-            throw new AssetPipelineException(ex, "Failed to create pack extraction directory '%s'", destination);
+            throw new PipelineException(ex, "Failed to create pack extraction directory '%s'", destination);
         }
 
         extractZip(source, destination, packId);
@@ -89,7 +89,7 @@ public class PackAcquirer {
 
     /**
      * Streams every entry from a pack zip into the destination directory, mirroring the same
-     * loop {@code AssetPipeline.extractClientJar} uses for the client jar. Directory entries are
+     * loop {@code Pipeline.extractClientJar} uses for the client jar. Directory entries are
      * skipped; regular entries are extracted via {@link Files#copy} with REPLACE_EXISTING.
      */
     private static void extractZip(@NotNull File source, @NotNull Path destination, @NotNull String packId) {
@@ -100,14 +100,14 @@ public class PackAcquirer {
                 if (entry.isDirectory()) continue;
                 Path target = destination.resolve(entry.getName()).normalize();
                 if (!target.startsWith(destination))
-                    throw new AssetPipelineException("Pack '%s' contains a zip-slip entry '%s'", packId, entry.getName());
+                    throw new PipelineException("Pack '%s' contains a zip-slip entry '%s'", packId, entry.getName());
                 Files.createDirectories(target.getParent());
                 try (InputStream in = zip.getInputStream(entry)) {
                     Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
                 }
             }
         } catch (IOException ex) {
-            throw new AssetPipelineException(ex, "Failed to extract pack '%s' from '%s' into '%s'", packId, source, destination);
+            throw new PipelineException(ex, "Failed to extract pack '%s' from '%s' into '%s'", packId, source, destination);
         }
     }
 
