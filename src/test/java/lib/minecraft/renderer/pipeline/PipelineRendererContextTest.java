@@ -156,6 +156,7 @@ class PipelineRendererContextTest {
 
         result = new Pipeline.Result(
             packRoot,
+            packRoot,
             vanillaPack,
             Concurrent.newList(vanillaPack),
             textures, colorMaps, blockTints, blockModels, itemModels,
@@ -317,6 +318,7 @@ class PipelineRendererContextTest {
 
         Pipeline.Result resultWithCtm = new Pipeline.Result(
             packRoot,
+            result.getBedrockRoot(),
             result.getVanillaPack(),
             result.getPacks(),
             result.getTextures(), result.getColorMaps(), result.getBlockTints(),

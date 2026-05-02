@@ -46,9 +46,13 @@ import java.util.Set;
  * <p>
  * A {@code texture_ref} is the Bedrock {@code textures/entity/} sub-path stripped of its prefix
  * ({@code "cow/cow_v2"}, {@code "wither_boss/wither"}) - resolved at render time against the
- * bundled {@code /lib/minecraft/renderer/entity_textures/&lt;ref&gt;.png} classpath resource that
- * {@link ToolingEntityModels} copies out of the Bedrock pack alongside the geometry. The entity
- * pipeline has no dependency on Java's texture atlas.
+ * on-disk bedrock cache at
+ * {@code <cacheRoot>/bedrock/<bedrockRef>/textures/entity/&lt;ref&gt;.png} via
+ * {@link PipelineRendererContext#resolveBedrockEntityTexture(String)}. The PNGs themselves are
+ * extracted verbatim from the pinned {@code Mojang/bedrock-samples} pack by
+ * {@link lib.minecraft.renderer.pipeline.Pipeline#extractBedrockEntityTextures(java.nio.file.Path,
+ * java.nio.file.Path, java.nio.file.Path, boolean) Pipeline.extractBedrockEntityTextures}; the
+ * entity pipeline has no dependency on Java's texture atlas.
  * <p>
  * Bedrock ships one geometry file per <i>base</i> model but the Java {@code EntityType} registry
  * has many entities sharing one geometry (e.g. {@code horse}, {@code donkey}, {@code mule},
@@ -76,9 +80,10 @@ public class EntityModelLoader {
      * An entity definition loaded from the bundled resources.
      *
      * @param model the parsed bone/cube tree (shared across all entities with the same geometry_ref)
-     * @param textureRef the bundled texture sub-path under
-     *     {@code /lib/minecraft/renderer/entity_textures/} (without the {@code .png} suffix), or
-     *     empty when the Bedrock client_entity.json did not declare a default texture
+     * @param textureRef the Bedrock-namespace texture sub-path (without the {@code .png} suffix)
+     *     resolved at render time against {@code <cacheRoot>/bedrock/<bedrockRef>/textures/entity/}
+     *     via {@link PipelineRendererContext#resolveBedrockEntityTexture(String)}, or empty when
+     *     the Bedrock client_entity.json did not declare a default texture
      * @param overlays additional geometry/texture pairs rendered on top of the base model in
      *     declared order; populated from the overrides {@code overlays} array for entities that
      *     vanilla composes from multiple layers (charged creeper armor, copper golem holding a

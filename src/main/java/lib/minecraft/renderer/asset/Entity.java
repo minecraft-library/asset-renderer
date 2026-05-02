@@ -31,10 +31,14 @@ public class Entity {
     private @NotNull EntityModelData model = new EntityModelData();
 
     /**
-     * The bundled texture sub-path under {@code /lib/minecraft/renderer/entity_textures/}
-     * (without {@code .png}), or empty when the entity has no default texture binding. Refers
-     * to a classpath PNG copied verbatim from the Bedrock resource pack by
-     * {@code ToolingEntityModels} - no Java atlas involvement.
+     * The Bedrock-namespace texture sub-path (without {@code .png}), or empty when the entity has
+     * no default texture binding. Resolved at render time against the on-disk bedrock cache via
+     * {@link lib.minecraft.renderer.engine.RendererContext#resolveBedrockEntityTexture(String)
+     * RendererContext.resolveBedrockEntityTexture}; no Java atlas involvement. The PNG itself is
+     * extracted verbatim from {@code Mojang/bedrock-samples} by
+     * {@link lib.minecraft.renderer.pipeline.Pipeline#extractBedrockEntityTextures(java.nio.file.Path,
+     * java.nio.file.Path, java.nio.file.Path, boolean) Pipeline.extractBedrockEntityTextures} into
+     * {@code <cacheRoot>/bedrock/<bedrockRef>/textures/entity/<ref>.png}.
      */
     private @NotNull Optional<String> textureRef = Optional.empty();
 
@@ -111,9 +115,11 @@ public class Entity {
      *
      * @param model the overlay's bone/cube tree, in the same Bedrock-native coordinate frame as
      *     the base model so the layers register without per-overlay placement
-     * @param textureRef the bundled texture sub-path under
-     *     {@code /lib/minecraft/renderer/entity_textures/} (without {@code .png}), or empty when
-     *     the overlay reuses the base texture
+     * @param textureRef the Bedrock-namespace texture sub-path (without {@code .png}), resolved
+     *     against the on-disk bedrock cache by
+     *     {@link lib.minecraft.renderer.engine.RendererContext#resolveBedrockEntityTexture(String)
+     *     RendererContext.resolveBedrockEntityTexture}, or empty when the overlay reuses the
+     *     base texture
      * @param emissive when {@code true} the overlay renders full-bright + additive (vanilla
      *     Java's {@code RenderType.eyes} pattern - spider eyes, ender dragon eyes) instead of
      *     the default shaded src-over. Tagged through every triangle the overlay produces; the

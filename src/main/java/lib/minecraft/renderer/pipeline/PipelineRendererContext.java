@@ -107,8 +107,17 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull ConcurrentMap<String, Integer> colorOverrides;
     private final @NotNull ConcurrentList<CitRule> citRules;
     private final @NotNull ConcurrentList<CtmRule> ctmRules;
+
+    /**
+     * On-disk root for the bedrock-derived entity texture cache, populated by
+     * {@link Pipeline#extractBedrockEntityTextures(Path, Path, Path, boolean)} during
+     * {@link Pipeline#run(PipelineOptions)}. Read by {@link #resolveBedrockEntityTexture(String)}.
+     */
+    private final @NotNull Path bedrockRoot;
+
     private final @NotNull ImageFactory imageFactory = new ImageFactory();
     private final @NotNull ConcurrentMap<String, PixelBuffer> textureCache = Concurrent.newMap();
+    private final @NotNull ConcurrentMap<String, PixelBuffer> bedrockTextureCache = Concurrent.newMap();
 
     /**
      * Builds a context from a completed pipeline result.
@@ -147,7 +156,8 @@ public final class PipelineRendererContext implements RendererContext {
             blockEntityEntries,
             result.getColorOverrides(),
             result.getCitRules(),
-            result.getCtmRules()
+            result.getCtmRules(),
+            result.getBedrockRoot()
         );
     }
 
@@ -477,6 +487,19 @@ public final class PipelineRendererContext implements RendererContext {
 
         PixelBuffer buffer = PixelBuffer.wrap(this.imageFactory.fromFile(winning.toFile()).toBufferedImage());
         this.textureCache.put(normalized, buffer);
+        return Optional.of(buffer);
+    }
+
+    @Override
+    public @NotNull Optional<PixelBuffer> resolveBedrockEntityTexture(@NotNull String textureRef) {
+        PixelBuffer cached = this.bedrockTextureCache.get(textureRef);
+        if (cached != null) return Optional.of(cached);
+
+        Path candidate = this.bedrockRoot.resolve("textures").resolve("entity").resolve(textureRef + ".png");
+        if (!Files.isRegularFile(candidate)) return Optional.empty();
+
+        PixelBuffer buffer = PixelBuffer.wrap(this.imageFactory.fromFile(candidate.toFile()).toBufferedImage());
+        this.bedrockTextureCache.put(textureRef, buffer);
         return Optional.of(buffer);
     }
 

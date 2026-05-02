@@ -20,8 +20,6 @@ import lib.minecraft.renderer.options.EntityOptions;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.Optional;
 
 /**
@@ -71,13 +69,13 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
         ConcurrentList<VisibleTriangle> triangles = buildResult.triangles();
 
-        // Overlays whose texture cannot be loaded drop silently so a missing bundled PNG
-        // (creeper_armor when the user hasn't run the entityModels tooling refresh) degrades
+        // Overlays whose texture cannot be loaded drop silently so a missing cached PNG
+        // (creeper_armor when the bedrock cache hasn't been populated for this ref yet) degrades
         // to base-only rendering rather than a hard failure.
         for (Entity.Layer overlay : entity.getOverlays()) {
             if (overlay.model().getBones().isEmpty()) continue;
             Optional<PixelBuffer> overlayTex = overlay.textureRef().isPresent()
-                ? loadBundledEntityTexture(overlay.textureRef().get())
+                ? this.context.resolveBedrockEntityTexture(overlay.textureRef().get())
                 : Optional.of(texture.get());
             if (overlayTex.isEmpty()) continue;
             triangles.addAll(EntityGeometryKit.buildTriangles(overlay.model(), overlayTex.get(), baseBounds, overlay.emissive()).triangles());
@@ -113,14 +111,13 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     /**
      * Resolves the entity texture. Precedence: an explicit {@link EntityOptions#getTextureId()
      * texture id on options} (user override; looked up against the Java atlas via the pack
-     * stack) &gt; the entity's own bundled {@link Entity#getTextureRef() texture_ref} (loaded
-     * from the Bedrock-sourced {@code /lib/minecraft/renderer/entity_textures/<ref>.png}
-     * classpath resource).
+     * stack) &gt; the entity's own {@link Entity#getTextureRef() texture_ref} resolved against
+     * the on-disk bedrock cache via {@link RendererContext#resolveBedrockEntityTexture(String)}.
      * <p>
-     * The entity-default path is classpath-only, deliberately bypassing the Java atlas - the
-     * entire point of the entity pipeline is that its textures come from Bedrock and do not
-     * depend on Java's texture naming. The user-override path remains atlas-aware so callers
-     * can point a render at any arbitrary texture the pack stack knows about.
+     * The entity-default path deliberately bypasses the Java atlas - the entire point of the
+     * entity pipeline is that its textures come from Bedrock and do not depend on Java's
+     * texture naming. The user-override path remains atlas-aware so callers can point a render
+     * at any arbitrary texture the pack stack knows about.
      */
     private @NotNull Optional<PixelBuffer> resolveEntityTexture(
         @NotNull Entity entity,
@@ -130,7 +127,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             return this.context.resolveTexture(options.getTextureId().get());
 
         if (entity.getTextureRef().isPresent()) {
-            Optional<PixelBuffer> loaded = loadBundledEntityTexture(entity.getTextureRef().get());
+            Optional<PixelBuffer> loaded = this.context.resolveBedrockEntityTexture(entity.getTextureRef().get());
             if (loaded.isPresent() && entity.isForceOpaque())
                 return Optional.of(bumpAlphaToOpaque(loaded.get()));
             return loaded;
@@ -144,7 +141,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * leaving fully-opaque and fully-transparent pixels alone. Used by entities flagged
      * {@link Entity#isForceOpaque()} - the runtime equivalent of the legacy
      * {@code ToolingEntityModels.OPAQUE_ALPHA_TEXTURE_REFS} extraction-time bump, applied per
-     * load instead of per extraction so the bundled PNG stays exactly as Bedrock ships it.
+     * load instead of per extraction so the cached PNG stays exactly as Bedrock ships it.
      * <p>
      * Allocates a new {@link PixelBuffer} to avoid mutating any cached or shared instance the
      * loader might return.
@@ -162,24 +159,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 : p;
         }
         return PixelBuffer.of(out, w, h);
-    }
-
-    /**
-     * Loads a Bedrock-bundled entity PNG from the classpath. The {@code ref} is the sub-path
-     * under {@code /lib/minecraft/renderer/entity_textures/} without the {@code .png} suffix
-     * (e.g. {@code "cow/cow_v2"}). Missing resources return empty; callers fall back to a
-     * static blank frame.
-     */
-    private static @NotNull Optional<PixelBuffer> loadBundledEntityTexture(@NotNull String ref) {
-        String path = "/lib/minecraft/renderer/entity_textures/" + ref + ".png";
-        try (InputStream stream = EntityRenderer.class.getResourceAsStream(path)) {
-            if (stream == null) return Optional.empty();
-            java.awt.image.BufferedImage img = javax.imageio.ImageIO.read(stream);
-            if (img == null) return Optional.empty();
-            return Optional.of(PixelBuffer.wrap(img));
-        } catch (IOException ex) {
-            return Optional.empty();
-        }
     }
 
 }

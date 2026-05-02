@@ -10,11 +10,7 @@ import dev.simplified.collection.ConcurrentLinkedMap;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
-import dev.simplified.image.ImageData;
-import dev.simplified.image.codec.png.PngImageWriter;
-import dev.simplified.image.codec.tga.TgaImageReader;
 import lib.minecraft.renderer.asset.model.EntityModelData;
-import lib.minecraft.renderer.exception.ToolingException;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
@@ -31,13 +27,8 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.LinkedHashMap;
@@ -51,30 +42,37 @@ import java.util.zip.ZipFile;
 /**
  * Entry point invoked by the {@code entityModels} Gradle task.
  * <p>
- * Produces a self-contained Bedrock-native entity bundle from a single source-of-truth zip
- * ({@link #BEDROCK_PACK_URL Mojang's {@code bedrock-samples}}). In one pass the tooling:
+ * Produces a Bedrock-native entity metadata bundle from
+ * {@code Mojang/bedrock-samples} pinned at {@link PipelineOptions#getBedrockRef()}. The tooling:
  * <ol>
  *   <li>Scans the Java client jar for living-mob {@code EntityType} ids - the <b>only</b> use of
  *       Java data in this pipeline. Used as an inclusion filter so Bedrock-only experimental
  *       entities (agent, npc, villager_v2) drop out.</li>
+ *   <li>Delegates the bedrock pack download and entity-texture extraction to
+ *       {@link Pipeline#downloadBedrockPackToCache(PipelineOptions)} and
+ *       {@link Pipeline#extractBedrockEntityTextures(Path, Path, Path, boolean)} so a tooling
+ *       regen and a runtime startup share exactly one extraction code path.</li>
  *   <li>Parses every {@code resource_pack/entity/*.entity.json} into a
  *       {@link BedrockEntityManifest.Manifest manifest} of (identifier -&gt; geometry + texture
  *       reference).</li>
  *   <li>Parses every {@code resource_pack/models/entity/*.geo.json} into bone/cube trees,
  *       resolves geometry inheritance, and stores the result verbatim in Bedrock's authored
  *       Y-up absolute-coord frame.</li>
- *   <li>For each surviving entity: copies its referenced PNG out of the same zip into
- *       {@code src/main/resources/lib/minecraft/renderer/entity_textures/&lt;ref&gt;.png} so the
- *       runtime ships with its own texture set independent of Java's client atlas.</li>
  *   <li>Writes the paired metadata JSONs to {@code src/main/resources/lib/minecraft/renderer/}.</li>
  * </ol>
  * <p>
  * Outputs:
  * <ul>
- *   <li>{@code entity_models.json} - per-entity row with {@code geometry_ref}, {@code texture_ref}
- *       (path under {@code entity_textures/}), {@code armor_type}, optional {@code variant_of}.</li>
- *   <li>{@code entity_geometry.json} - deduplicated bone/cube trees keyed by Bedrock geometry id.</li>
- *   <li>{@code entity_textures/&lt;ref&gt;.png} - Bedrock entity PNGs, copied verbatim.</li>
+ *   <li>{@code src/main/resources/lib/minecraft/renderer/entity_models.json} - per-entity row
+ *       with {@code geometry_ref}, {@code texture_ref}, {@code armor_type}, optional
+ *       {@code variant_of}.</li>
+ *   <li>{@code src/main/resources/lib/minecraft/renderer/entity_geometry.json} - deduplicated
+ *       bone/cube trees keyed by Bedrock geometry id.</li>
+ *   <li>{@code <cacheRoot>/bedrock/<bedrockRef>/textures/entity/<ref>.png} - Bedrock entity
+ *       PNGs, written into the on-disk cache (not the source repo) so copyrighted Mojang assets
+ *       never enter version control. Read at runtime by
+ *       {@link lib.minecraft.renderer.engine.RendererContext#resolveBedrockEntityTexture(String)
+ *       RendererContext.resolveBedrockEntityTexture}.</li>
  * </ul>
  * <p>
  * TODO: deferred entity-pose / texture issues are tracked in
@@ -86,30 +84,6 @@ import java.util.zip.ZipFile;
 @UtilityClass
 public final class ToolingEntityModels {
 
-    /** Mojang's {@code bedrock-samples} branch archive - the sole data source for entities. */
-    private static final @NotNull String BEDROCK_PACK_URL =
-        "https://github.com/Mojang/bedrock-samples/archive/refs/heads/main.zip";
-
-    /**
-     * Downloads {@code url} as a byte array via the JDK {@link HttpClient}. Inlined here because
-     * the only call site is the Bedrock pack zip on GitHub, which sits outside any
-     * {@link api.simplified.mojang.MojangContract} route.
-     */
-    private static byte @NotNull [] downloadGithubArchive(@NotNull String url) throws IOException {
-        try {
-            HttpResponse<byte[]> response = HttpClient.newHttpClient().send(
-                HttpRequest.newBuilder(URI.create(url)).GET().build(),
-                HttpResponse.BodyHandlers.ofByteArray()
-            );
-            if (response.statusCode() / 100 != 2)
-                throw new ToolingException("GET '%s' returned HTTP '%d'", url, response.statusCode());
-            return response.body();
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            throw new ToolingException(ex, "Interrupted while downloading '%s'", url);
-        }
-    }
-
     /** Bundled output - per-entity metadata rows. */
     private static final @NotNull Path MODELS_OUTPUT_PATH =
         Path.of("src/main/resources/lib/minecraft/renderer/entity_models.json");
@@ -117,10 +91,6 @@ public final class ToolingEntityModels {
     /** Bundled output - deduplicated geometry trees keyed by Bedrock geometry id. */
     private static final @NotNull Path GEOMETRY_OUTPUT_PATH =
         Path.of("src/main/resources/lib/minecraft/renderer/entity_geometry.json");
-
-    /** Bundled output - directory under which each entity's PNG lives at {@code <texture_ref>.png}. */
-    private static final @NotNull Path TEXTURES_OUTPUT_DIR =
-        Path.of("src/main/resources/lib/minecraft/renderer/entity_textures");
 
     /** In-zip prefix where Bedrock stores entity geometry files. */
     private static final @NotNull String GEO_PREFIX = "resource_pack/models/entity/";
@@ -151,10 +121,14 @@ public final class ToolingEntityModels {
      * @throws IOException if the pack cannot be downloaded or an output file cannot be written
      */
     public static void main(String @NotNull [] args) throws IOException {
-        // Java client jar: the mob-id filter only. No textures, no models - just the set of
-        // Java-registered living-mob EntityType ids so Bedrock-only experimentals drop out.
+        // Force the bedrock download / texture extraction to refresh on every tooling run, so a
+        // version bump always re-pulls the pinned bedrockRef even when an older copy is in the
+        // cache from a previous regen.
+        PipelineOptions options = PipelineOptions.defaults().mutate().forceBedrockDownload(true).build();
+
+        // Java client jar: the mob-id filter and the source of emissive _eyes overlays.
         System.out.println("Downloading Minecraft client jar for mob-registry filter...");
-        Path clientJar = Pipeline.downloadJarToCache(PipelineOptions.defaults());
+        Path clientJar = Pipeline.downloadJarToCache(options);
         Set<String> knownMobIds = new LinkedHashSet<>();
         try (ZipFile zip = new ZipFile(clientJar.toFile())) {
             Diagnostics diag = new Diagnostics();
@@ -164,12 +138,17 @@ public final class ToolingEntityModels {
             diag.entries().forEach(System.out::println);
         }
 
-        // Bedrock pack: the sole entity data source. Buffered in memory so every pass - manifest,
-        // geometry, texture copy - reads from the same snapshot without re-downloading.
-        // Direct GitHub-archive download stays inline since the URL is outside MojangContract's
-        // routed domains and only this generator ever hits it.
+        // Bedrock pack: the sole entity data source. Cached on disk via Pipeline so the same
+        // pinned ref is shared with the runtime path; bytes are read back into memory for the
+        // JSON-derivation passes below. The actual texture extraction is delegated to
+        // Pipeline.extractBedrockEntityTextures so a tooling regen and a runtime startup share
+        // exactly one extraction code path - no duplicate per-entity copy logic.
         System.out.println("Downloading Bedrock vanilla resource pack...");
-        byte[] zipBytes = downloadGithubArchive(BEDROCK_PACK_URL);
+        Path bedrockZip = Pipeline.downloadBedrockPackToCache(options);
+        Path bedrockRoot = Pipeline.bedrockRoot(options);
+        Pipeline.extractBedrockEntityTextures(bedrockZip, clientJar, bedrockRoot, true);
+        Path texturesOutputDir = bedrockRoot.resolve("textures").resolve("entity");
+        byte[] zipBytes = Files.readAllBytes(bedrockZip);
         System.out.println("Downloaded " + zipBytes.length + " bytes");
 
         // Pass 1: client-entity manifest (identifier -> {geometryId, textureRef}).
@@ -208,16 +187,16 @@ public final class ToolingEntityModels {
         // the pack does not ship (cow_cold, pig_warm, etc.).
         Map<String, JsonObject> emittedEntities = new LinkedHashMap<>();
         Map<String, Parser.ParsedEntity> emittedGeometries = new LinkedHashMap<>();
-        // Snapshot of copies already performed so identical textures referenced by multiple
-        // entity ids (horse/donkey/mule reusing the horse texture) copy exactly once.
-        Set<String> copiedTextures = new LinkedHashSet<>();
         int droppedNonMob = 0;
         int keptBase = 0;
         int keptVariant = 0;
 
-        // Build a one-shot zip index so the texture-copy pass doesn't rescan for every PNG.
-        Map<String, byte[]> texturePngs = loadTexturePngs(zipBytes);
-        System.out.println("Indexed " + texturePngs.size() + " entity texture PNGs from the pack");
+        // In-memory index of every entity-texture ref shipped in the bedrock pack. Used purely as
+        // a validation oracle - the actual on-disk extraction has already run via
+        // Pipeline.extractBedrockEntityTextures above. Lets the per-entity emission warn cleanly
+        // when an entity.json points at a texture the pack does not actually ship.
+        Set<String> availableTextureRefs = loadTextureRefIndex(zipBytes);
+        System.out.println("Indexed " + availableTextureRefs.size() + " entity texture refs from the pack");
 
         for (Map.Entry<String, BedrockEntityManifest.Entry> e : manifest.byIdentifier().entrySet()) {
             BedrockEntityManifest.Entry manifestEntry = e.getValue();
@@ -228,7 +207,7 @@ public final class ToolingEntityModels {
             if (!c.isMob()) { droppedNonMob++; continue; }
 
             boolean added = addEmission(
-                emittedEntities, emittedGeometries, copiedTextures, texturePngs,
+                emittedEntities, emittedGeometries, availableTextureRefs,
                 c, pe, manifestEntry.geometryId(), manifestEntry.textureRef()
             );
             if (added) {
@@ -254,12 +233,12 @@ public final class ToolingEntityModels {
             String base = c.baseMobId();
             if (canonical != null) {
                 String guess = (base != null ? base : canonical) + "/" + canonical;
-                if (texturePngs.containsKey(guess)) fallbackRef = guess;
-                else if (base != null && texturePngs.containsKey(base + "/" + base)) fallbackRef = base + "/" + base;
+                if (availableTextureRefs.contains(guess)) fallbackRef = guess;
+                else if (base != null && availableTextureRefs.contains(base + "/" + base)) fallbackRef = base + "/" + base;
             }
 
             boolean added = addEmission(
-                emittedEntities, emittedGeometries, copiedTextures, texturePngs,
+                emittedEntities, emittedGeometries, availableTextureRefs,
                 c, g.getValue(), geometryId, fallbackRef
             );
             if (added) {
@@ -267,31 +246,25 @@ public final class ToolingEntityModels {
             }
         }
 
-        // Pull in overlay-only textures (creeper_armor, etc.) that no entity.json references.
-        // The per-entity copy loop above is gated on manifest entries, so without this pass these
-        // refs would never land under entity_textures/ even though the override layer needs them.
+        // Validate overlay-only refs (creeper_armor, etc.) that no entity.json references but the
+        // override layer needs for layered rendering. Pipeline.extractBedrockEntityTextures has
+        // already extracted them as part of the bulk copy; this loop only warns when the pinned
+        // bedrockRef no longer ships one.
         for (String forcedRef : FORCED_EXTRA_TEXTURE_REFS) {
-            if (copiedTextures.contains(forcedRef)) continue;
-            byte[] png = texturePngs.get(forcedRef);
-            if (png == null) {
+            if (!availableTextureRefs.contains(forcedRef))
                 System.err.printf("  Warning: forced extra texture '%s' not found in the Bedrock pack%n", forcedRef);
-                continue;
-            }
-            copyTexture(forcedRef, png);
-            copiedTextures.add(forcedRef);
         }
 
-        // Java-jar emissive overlay extraction: walk the cached client jar for
-        // {@code entity/**/*_eyes.png} files, copy each into entity_textures/, and append a
-        // matching `overlays` entry to every entity in EMISSIVE_PNG_FANOUT. The runtime layers
-        // these on top of the base body with emissive: true so the rasterizer renders them
-        // additive + full-bright (vanilla Java's RenderType.eyes pattern).
-        int emissiveCopied = extractJavaEmissiveOverlays(clientJar, copiedTextures, emittedEntities);
-        System.out.println("Extracted " + emissiveCopied + " emissive overlay PNGs from the Java client jar");
+        // Java-jar emissive overlay JSON wiring: walk the cached client jar for
+        // {@code entity/**/*_eyes.png} files and append a matching {@code overlays} entry to every
+        // entity in EMISSIVE_PNG_FANOUT. The actual PNG copy already ran inside
+        // Pipeline.extractBedrockEntityTextures; this pass only mutates the entity_models JSON.
+        int emissiveAttached = attachJavaEmissiveOverlays(clientJar, emittedEntities);
+        System.out.println("Attached " + emissiveAttached + " emissive overlay rows to entity_models.json");
 
         System.out.printf(
-            "Emitted %d entities (%d base + %d variant) across %d geometries, dropped %d non-mob, copied %d textures%n",
-            emittedEntities.size(), keptBase, keptVariant, emittedGeometries.size(), droppedNonMob, copiedTextures.size()
+            "Emitted %d entities (%d base + %d variant) across %d geometries, dropped %d non-mob%n",
+            emittedEntities.size(), keptBase, keptVariant, emittedGeometries.size(), droppedNonMob
         );
 
         Files.createDirectories(MODELS_OUTPUT_PATH.getParent());
@@ -299,27 +272,19 @@ public final class ToolingEntityModels {
         Files.writeString(GEOMETRY_OUTPUT_PATH, buildGeometryJson(emittedGeometries));
         System.out.println("Wrote " + MODELS_OUTPUT_PATH.toAbsolutePath());
         System.out.println("Wrote " + GEOMETRY_OUTPUT_PATH.toAbsolutePath());
-        System.out.println("Wrote " + copiedTextures.size() + " PNGs under " + TEXTURES_OUTPUT_DIR.toAbsolutePath());
+        System.out.println("Bedrock entity textures live under " + texturesOutputDir.toAbsolutePath());
     }
-
-    /** TGA reader - used directly because Bedrock ships TGA 1.0 files that {@code ImageFactory}'s
-     * magic-byte auto-detect (which keys on the TGA 2.0 footer) would reject. */
-    private static final @NotNull TgaImageReader TGA_READER =
-        new TgaImageReader();
-
-    /** PNG writer used to re-encode Bedrock's TGA sources into bundled PNGs. */
-    private static final @NotNull PngImageWriter PNG_WRITER =
-        new PngImageWriter();
 
     /**
      * Indexes every {@code resource_pack/textures/entity/**} PNG and TGA in the pack by its
-     * sub-path below {@code textures/entity/} (without extension). TGA sources are decoded via
-     * {@link #TGA_READER} and re-encoded through {@link #PNG_WRITER} so the bundled classpath
-     * layout stays pure PNG and the runtime loader only needs Java's built-in PNG codec. When
-     * both formats exist for the same ref, PNG wins.
+     * sub-path below {@code textures/entity/} (without extension). Used as a validation oracle by
+     * the per-entity emission pass to warn when an {@code entity.json} references a texture the
+     * pinned bedrockRef does not actually ship; the on-disk PNG extraction already ran via
+     * {@link Pipeline#extractBedrockEntityTextures(Path, Path, Path, boolean)} so this pass only
+     * needs the keys, not the bytes.
      */
-    private static @NotNull Map<String, byte[]> loadTexturePngs(byte @NotNull [] zipBytes) throws IOException {
-        Map<String, byte[]> out = new LinkedHashMap<>();
+    private static @NotNull Set<String> loadTextureRefIndex(byte @NotNull [] zipBytes) throws IOException {
+        Set<String> out = new LinkedHashSet<>();
         try (var zis = new java.util.zip.ZipInputStream(new ByteArrayInputStream(zipBytes))) {
             ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
@@ -327,26 +292,8 @@ public final class ToolingEntityModels {
                 int idx = name.indexOf(TEX_PREFIX);
                 if (idx < 0) continue;
                 String subPath = name.substring(idx + TEX_PREFIX.length());
-
-                String key;
-                byte[] png;
-                if (subPath.endsWith(".png")) {
-                    key = subPath.substring(0, subPath.length() - ".png".length());
-                    png = zis.readAllBytes();
-                } else if (subPath.endsWith(".tga")) {
-                    key = subPath.substring(0, subPath.length() - ".tga".length());
-                    if (out.containsKey(key)) continue; // PNG already indexed for this ref.
-                    try {
-                        ImageData decoded = TGA_READER.read(zis.readAllBytes(), null);
-                        png = PNG_WRITER.write(decoded, null);
-                    } catch (RuntimeException ex) {
-                        System.err.printf("  Warning: failed to decode TGA '%s': %s%n", name, ex.getMessage());
-                        continue;
-                    }
-                } else {
-                    continue;
-                }
-                out.put(key, png);
+                if (subPath.endsWith(".png")) out.add(subPath.substring(0, subPath.length() - ".png".length()));
+                else if (subPath.endsWith(".tga")) out.add(subPath.substring(0, subPath.length() - ".tga".length()));
             }
         }
         return out;
@@ -354,9 +301,10 @@ public final class ToolingEntityModels {
 
     /**
      * Walks the cached Java client jar for {@code assets/minecraft/textures/entity/**} PNGs that
-     * appear in {@link #EMISSIVE_PNG_FANOUT}, extracts each into the bundled
-     * {@link #TEXTURES_OUTPUT_DIR}, and appends an {@code overlays} entry to every fan-out
-     * entity already present in {@code emittedEntities}. The overlay reuses each entity's own
+     * appear in {@link #EMISSIVE_PNG_FANOUT} and appends an {@code overlays} entry to every
+     * fan-out entity already present in {@code emittedEntities}. The PNG copy itself was done
+     * by {@link Pipeline#extractBedrockEntityTextures(Path, Path, Path, boolean)} during the
+     * initial cache population - this pass is JSON-only. The overlay reuses each entity's own
      * {@code geometry_ref} so eye UVs land on the head face; non-eye regions sample transparent
      * pixels from the eye-only PNG and render nothing. Logs a warning for any {@code _eyes.png}
      * file in the jar that isn't in the fan-out (so new emissive layers in a future Minecraft
@@ -364,19 +312,16 @@ public final class ToolingEntityModels {
      * emitted set (so pruned mobs don't silently lose their overlay).
      *
      * @param clientJar the cached Minecraft client jar path
-     * @param copiedTextures set of already-copied texture refs, mutated to include each new
-     *     emissive PNG so duplicates are avoided
      * @param emittedEntities the entity-id keyed map of generated JSON rows; mutated in place to
      *     append {@code overlays} entries
-     * @return the number of emissive PNGs successfully copied into {@link #TEXTURES_OUTPUT_DIR}
+     * @return the number of emissive overlay rows attached to {@code emittedEntities}
      */
-    private static int extractJavaEmissiveOverlays(
+    private static int attachJavaEmissiveOverlays(
         @NotNull Path clientJar,
-        @NotNull Set<String> copiedTextures,
         @NotNull Map<String, JsonObject> emittedEntities
     ) throws IOException {
         Set<String> wanted = EMISSIVE_PNG_FANOUT.keySet();
-        Map<String, byte[]> found = new LinkedHashMap<>();
+        Set<String> presentInJar = new LinkedHashSet<>();
         Set<String> seenButUnmapped = new LinkedHashSet<>();
         try (ZipFile zip = new ZipFile(clientJar.toFile())) {
             Enumeration<? extends ZipEntry> entries = zip.entries();
@@ -385,30 +330,19 @@ public final class ToolingEntityModels {
                 String name = entry.getName();
                 if (!name.startsWith(JAVA_TEX_PREFIX) || !name.endsWith("_eyes.png")) continue;
                 String subPath = name.substring(JAVA_TEX_PREFIX.length(), name.length() - ".png".length());
-                if (!wanted.contains(subPath)) {
-                    seenButUnmapped.add(subPath);
-                    continue;
-                }
-                try (var in = zip.getInputStream(entry)) {
-                    found.put(subPath, in.readAllBytes());
-                }
+                if (wanted.contains(subPath)) presentInJar.add(subPath);
+                else seenButUnmapped.add(subPath);
             }
         }
         for (String unmapped : seenButUnmapped)
             System.err.printf("  Note: client jar emissive PNG '%s' has no EMISSIVE_PNG_FANOUT entry; skipped%n", unmapped);
 
-        int copied = 0;
+        int attached = 0;
         for (Map.Entry<String, List<String>> e : EMISSIVE_PNG_FANOUT.entrySet()) {
             String emissiveRef = e.getKey();
-            byte[] png = found.get(emissiveRef);
-            if (png == null) {
+            if (!presentInJar.contains(emissiveRef)) {
                 System.err.printf("  Warning: emissive overlay '%s' not found in the Java client jar%n", emissiveRef);
                 continue;
-            }
-            if (!copiedTextures.contains(emissiveRef)) {
-                copyTexture(emissiveRef, png);
-                copiedTextures.add(emissiveRef);
-                copied++;
             }
             for (String entityId : e.getValue()) {
                 JsonObject entityJson = emittedEntities.get(entityId);
@@ -426,26 +360,28 @@ public final class ToolingEntityModels {
                 overlay.addProperty("emissive", true);
                 overlays.add(overlay);
                 entityJson.add("overlays", overlays);
+                attached++;
             }
         }
-        return copied;
+        return attached;
     }
 
     /**
-     * Emits one entity row and, on first sight of its texture_ref, copies the Bedrock PNG out
-     * of the in-memory pack index into {@link #TEXTURES_OUTPUT_DIR}. Returns {@code true} when a
-     * new entity row was added; returns {@code false} when the canonical id is already emitted.
+     * Emits one entity row, validating its {@code textureRef} against the in-memory texture
+     * index. Returns {@code true} when a new entity row was added; {@code false} when the
+     * canonical id is already emitted. The on-disk PNG itself is populated by
+     * {@link Pipeline#extractBedrockEntityTextures(Path, Path, Path, boolean)}; this method only
+     * writes JSON metadata.
      */
     private static boolean addEmission(
         @NotNull Map<String, JsonObject> emittedEntities,
         @NotNull Map<String, Parser.ParsedEntity> emittedGeometries,
-        @NotNull Set<String> copiedTextures,
-        @NotNull Map<String, byte[]> texturePngs,
+        @NotNull Set<String> availableTextureRefs,
         @NotNull VariantReconciler.Classification classification,
         @NotNull Parser.ParsedEntity geometry,
         @NotNull String geometryId,
         @Nullable String textureRef
-    ) throws IOException {
+    ) {
         String canonicalEntityId = MINECRAFT_NAMESPACE + classification.canonicalId();
         if (emittedEntities.containsKey(canonicalEntityId)) return false;
 
@@ -453,16 +389,9 @@ public final class ToolingEntityModels {
         entityJson.addProperty("geometry_ref", geometryId);
         if (textureRef != null) {
             entityJson.addProperty("texture_ref", textureRef);
-            if (!copiedTextures.contains(textureRef)) {
-                byte[] png = texturePngs.get(textureRef);
-                if (png != null) {
-                    copyTexture(textureRef, png);
-                    copiedTextures.add(textureRef);
-                } else {
-                    System.err.printf("  Warning: entity '%s' references texture '%s' which is not in the Bedrock pack%n",
-                        canonicalEntityId, textureRef);
-                }
-            }
+            if (!availableTextureRefs.contains(textureRef))
+                System.err.printf("  Warning: entity '%s' references texture '%s' which is not in the Bedrock pack%n",
+                    canonicalEntityId, textureRef);
         }
         entityJson.addProperty("armor_type", geometry.armorType());
         if (classification.baseMobId() != null)
@@ -533,19 +462,6 @@ public final class ToolingEntityModels {
         // rather than emissive overlays on distinct entity ids. Add them here only when the
         // pipeline emits matching minecraft:copper_golem_exposed (etc.) entity ids.
     );
-
-    /**
-     * Copies one PNG from the in-memory pack index into the bundled resources tree, creating
-     * any missing parent directories. The bundled file is written verbatim - any per-entity
-     * alpha-bumping for entities whose Bedrock texture is authored at low alpha for additive
-     * blending now happens at runtime via the {@code force_opaque} entity-override flag, not
-     * at extraction time, so the bundled PNG stays exactly as Bedrock ships it.
-     */
-    private static void copyTexture(@NotNull String textureRef, byte @NotNull [] pngBytes) throws IOException {
-        Path target = TEXTURES_OUTPUT_DIR.resolve(textureRef + ".png");
-        Files.createDirectories(target.getParent());
-        Files.write(target, pngBytes, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-    }
 
     /**
      * Strips the {@code "geometry."} prefix and collapses dotted segments into underscores so
