@@ -286,7 +286,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * via {@link BlendMode#MULTIPLY}. Tint precedence is {@link ItemOptions#getPotionColor()}
      * → the first potion effect in
      * {@link ItemContext#potionEffects()} resolved via
-     * {@link RendererContext#potionEffectColor(String)} → {@link ItemOptions#getTintColor()} →
+     * {@link RendererContext#findPotionEffectColor(String)} → {@link ItemOptions#getTintColor()} →
      * the water fallback ({@code #385DC6}).
      */
     static @NotNull PixelBuffer composePotionOverlay(
@@ -299,7 +299,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         int tint = options.getPotionColor()
             .or(() -> options.getContext().potionEffects().stream()
                 .findFirst()
-                .flatMap(context::potionEffectColor))
+                .flatMap(context::findPotionEffectColor))
             .or(options::getTintColor)
             .orElse(DEFAULT_POTION_ARGB);
 

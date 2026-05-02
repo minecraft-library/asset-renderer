@@ -89,7 +89,7 @@ class PipelineRendererContextTest {
         //
         // VanillaTintsLoader is intentionally NOT called here: it now parses BlockColors from
         // a real client jar, which the unit test does not have. Tint entries are synthesised
-        // directly so the context wiring (Block.tintTarget population, colorMap pass-through)
+        // directly so the context wiring (Block.tintTarget population, findColorMap pass-through)
         // can still be exercised in isolation. The end-to-end loader is exercised by the
         // slowTest against the cached vanilla 26.1 jar.
         PackMeta vanillaMeta = new PackMeta(46, "Vanilla Minecraft client", Concurrent.newList());
@@ -257,9 +257,9 @@ class PipelineRendererContextTest {
     }
 
     @Test
-    @DisplayName("colorMap returns the GRASS map loaded from the bundled resource")
-    void colorMapReturnsLoadedGrass() {
-        Optional<ColorMap> grass = context.colorMap(ColorMap.Type.GRASS);
+    @DisplayName("findColorMap returns the GRASS map loaded from the bundled resource")
+    void findColorMapReturnsLoadedGrass() {
+        Optional<ColorMap> grass = context.findColorMap(ColorMap.Type.GRASS);
         assertThat(grass.isPresent(), is(true));
         assertThat(grass.get().getType(), equalTo(ColorMap.Type.GRASS));
         assertThat(grass.get().getPackId(), equalTo("vanilla"));
@@ -268,10 +268,10 @@ class PipelineRendererContextTest {
     }
 
     @Test
-    @DisplayName("colorMap returns all three types from the bundled resource")
-    void colorMapReturnsAllTypes() {
-        assertThat(context.colorMap(ColorMap.Type.FOLIAGE).isPresent(), is(true));
-        assertThat(context.colorMap(ColorMap.Type.DRY_FOLIAGE).isPresent(), is(true));
+    @DisplayName("findColorMap returns all three types from the bundled resource")
+    void findColorMapReturnsAllTypes() {
+        assertThat(context.findColorMap(ColorMap.Type.FOLIAGE).isPresent(), is(true));
+        assertThat(context.findColorMap(ColorMap.Type.DRY_FOLIAGE).isPresent(), is(true));
     }
 
     @Test
@@ -371,9 +371,9 @@ class PipelineRendererContextTest {
     }
 
     @Test
-    @DisplayName("animationFor returns the parsed mcmeta sidecar with mixed-form frames")
-    void animationForReturnsParsedMcmeta() {
-        Optional<AnimationData> animation = context.animationFor("minecraft:block/fixture");
+    @DisplayName("findAnimation returns the parsed mcmeta sidecar with mixed-form frames")
+    void findAnimationReturnsParsedMcmeta() {
+        Optional<AnimationData> animation = context.findAnimation("minecraft:block/fixture");
         assertThat(animation.isPresent(), is(true));
 
         AnimationData a = animation.get();
@@ -393,9 +393,9 @@ class PipelineRendererContextTest {
     }
 
     @Test
-    @DisplayName("animationFor returns empty for textures without an mcmeta sidecar")
-    void animationForReturnsEmptyForUnknownTextures() {
-        assertThat(context.animationFor("minecraft:block/missing").isPresent(), is(false));
+    @DisplayName("findAnimation returns empty for textures without an mcmeta sidecar")
+    void findAnimationReturnsEmptyForUnknownTextures() {
+        assertThat(context.findAnimation("minecraft:block/missing").isPresent(), is(false));
     }
 
     @Test

@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * Verifies the per-power resolution path under both a vanilla-only context (no override map) and
  * an override-bearing context (every {@code redstone.0..15} key remapped). The two assertions
- * together pin the wiring: if {@link RendererContext#colorOverride(String)} is broken, the
+ * together pin the wiring: if {@link RendererContext#findColorOverride(String)} is broken, the
  * override row equals the vanilla row and the second batch of asserts fails.
  */
 class RedstoneKitTest {
@@ -79,7 +79,7 @@ class RedstoneKitTest {
 
     /**
      * Minimal {@link RendererContext} stub that returns no textures, no colormaps, and no entities,
-     * but honours the supplied {@code colorOverride} map.
+     * but honours the supplied {@code findColorOverride} map.
      */
     static @NotNull RendererContext stubContext(@NotNull Map<String, Integer> overrides) {
         return new RendererContext() {
@@ -91,7 +91,7 @@ class RedstoneKitTest {
                 return Optional.empty();
             }
 
-            @Override public @NotNull Optional<ColorMap> colorMap(@NotNull ColorMap.Type type) {
+            @Override public @NotNull Optional<ColorMap> findColorMap(@NotNull ColorMap.Type type) {
                 return Optional.empty();
             }
 
@@ -107,7 +107,7 @@ class RedstoneKitTest {
                 return Optional.empty();
             }
 
-            @Override public @NotNull Optional<Integer> colorOverride(@NotNull String key) {
+            @Override public @NotNull Optional<Integer> findColorOverride(@NotNull String key) {
                 return Optional.ofNullable(overrides.get(key));
             }
         };

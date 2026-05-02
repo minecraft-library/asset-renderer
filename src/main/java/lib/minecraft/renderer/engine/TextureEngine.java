@@ -99,13 +99,13 @@ public class TextureEngine implements RenderEngine {
 
     /**
      * Returns the parsed {@code .mcmeta} animation sidecar for the given texture, if any. Wraps
-     * {@link RendererContext#animationFor(String)}.
+     * {@link RendererContext#findAnimation(String)}.
      *
      * @param textureId the namespaced texture identifier
      * @return the animation metadata, or empty when the texture has no sidecar
      */
-    public @NotNull Optional<AnimationData> animationFor(@NotNull String textureId) {
-        return this.context.animationFor(textureId);
+    public @NotNull Optional<AnimationData> findAnimation(@NotNull String textureId) {
+        return this.context.findAnimation(textureId);
     }
 
     /**
@@ -122,7 +122,7 @@ public class TextureEngine implements RenderEngine {
      */
     public @NotNull PixelBuffer resolveTextureAtTick(@NotNull String textureId, int tick) {
         PixelBuffer strip = resolveTexture(textureId);
-        Optional<AnimationData> animation = animationFor(textureId);
+        Optional<AnimationData> animation = findAnimation(textureId);
         return animation.map(animationData -> AnimationKit.sampleFrame(strip, animationData, tick)).orElse(strip);
     }
 
@@ -189,7 +189,7 @@ public class TextureEngine implements RenderEngine {
         // grass modifier.
         String packKey = packOverrideKeyFor(target, biome);
         if (packKey != null) {
-            Optional<Integer> packOverride = this.context.colorOverride(packKey);
+            Optional<Integer> packOverride = this.context.findColorOverride(packKey);
             if (packOverride.isPresent()) {
                 if (target == Biome.TintTarget.WATER) return packOverride.get();
                 return applyModifier(packOverride.get(), biome.grassColorModifier(), target);
@@ -220,7 +220,7 @@ public class TextureEngine implements RenderEngine {
         };
         if (type == null) return ColorMath.WHITE;
 
-        Optional<ColorMap> map = this.context.colorMap(type);
+        Optional<ColorMap> map = this.context.findColorMap(type);
         if (map.isEmpty()) return ColorMath.WHITE;
 
         int sampled = sampleColormap(unpackColorMap(map.get()), biome.temperature(), biome.downfall());
@@ -261,7 +261,7 @@ public class TextureEngine implements RenderEngine {
 
     /**
      * Resolves the {@code layer0} texture id for an item, consulting any matching CIT rule via
-     * {@link RendererContext#findItemTextureOverride(ItemContext)} before falling back to the
+     * {@link RendererContext#resolveItemTextureOverride(ItemContext)} before falling back to the
      * model's bound layer0. Returns {@code null} when the item supplies no layer0 binding and no
      * CIT rule matches; callers raise their own error in that case.
      * <p>
@@ -277,7 +277,7 @@ public class TextureEngine implements RenderEngine {
      */
     public String resolveLayer0(@NotNull Item item, @NotNull ItemOptions options) {
         if (options.getContext() != ItemContext.EMPTY) {
-            Optional<String> override = this.context.findItemTextureOverride(options.getContext());
+            Optional<String> override = this.context.resolveItemTextureOverride(options.getContext());
             if (override.isPresent()) return override.get();
         }
         return item.getTextures().get("layer0");

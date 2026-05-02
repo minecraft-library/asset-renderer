@@ -150,7 +150,7 @@ class BannerKitTest {
         }
 
         @Override
-        public @NotNull Optional<ColorMap> colorMap(
+        public @NotNull Optional<ColorMap> findColorMap(
             ColorMap.@NotNull Type type
         ) {
             return Optional.empty();

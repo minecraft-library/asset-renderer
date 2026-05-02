@@ -41,7 +41,7 @@ public class RedstoneKit {
     public static int resolve(@NotNull RendererContext context, int power) {
         if (power < 0 || power >= VANILLA.length)
             throw new IllegalArgumentException("Redstone power '%d' is outside [0, 15]".formatted(power));
-        return context.colorOverride("redstone." + power).orElse(VANILLA[power]);
+        return context.findColorOverride("redstone." + power).orElse(VANILLA[power]);
     }
 
 }

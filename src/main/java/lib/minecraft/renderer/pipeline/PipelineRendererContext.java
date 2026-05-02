@@ -27,15 +27,17 @@ import lib.minecraft.renderer.geometry.BlockFace;
 import lib.minecraft.renderer.pipeline.loader.BlockEntityLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
-import lib.minecraft.renderer.pipeline.resolver.OverlayResolver;
 import lib.minecraft.renderer.pipeline.pack.CitMatcher;
 import lib.minecraft.renderer.pipeline.pack.CitRule;
 import lib.minecraft.renderer.pipeline.pack.CtmMatcher;
 import lib.minecraft.renderer.pipeline.pack.CtmResolution;
 import lib.minecraft.renderer.pipeline.pack.CtmRule;
 import lib.minecraft.renderer.pipeline.pack.ItemContext;
+import lib.minecraft.renderer.pipeline.resolver.OverlayResolver;
 import lib.minecraft.renderer.tooling.ToolingColorMaps;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.Accessors;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.file.Files;
@@ -51,7 +53,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * A {@link RendererContext} backed by a single {@link Pipeline.Result}.
+ * The production {@link RendererContext} implementation, built once at bootstrap from a single
+ * {@link Pipeline.Result}. Every {@code findX} / {@code resolveX} method is backed by an
+ * eagerly-materialised index so warm-path lookups are pure map accesses; texture pixels stay on
+ * disk until the first {@link #resolveTexture(String)} call and are memoised in a per-context cache.
  * <p>
  * Construction goes through {@link #of(Pipeline.Result)}, which materialises every parsed
  * {@link BlockModelData} and {@link ItemModelData} entry into a {@link Block} / {@link Item} DTO
@@ -60,8 +65,6 @@ import java.util.stream.Collectors;
  * registration path that produced it ({@link Block.Source#PRIMARY},
  * {@link Block.Source#BLOCKSTATE_ONLY}, or {@link Block.Source#TILE_ENTITY}) so atlas tile
  * classification and similar consumers don't need to type-check the context implementation.
- * Texture pixels stay on disk until the first {@link #resolveTexture(String)} call and are
- * memoised in a per-context cache.
  * <p>
  * Block face bindings are flattened eagerly: the first element's face map is walked, each face's
  * {@code #variable} reference is dereferenced against the model's texture variable map, and the
@@ -89,7 +92,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public final class PipelineRendererContext implements RendererContext {
 
-    private final @NotNull ConcurrentList<TexturePack> packs;
+    @Getter
+    @Accessors(fluent = true)
+    private final @NotNull ConcurrentList<TexturePack> activePacks;
     private final @NotNull ConcurrentMap<String, Block> blockIndex;
     private final @NotNull ConcurrentMap<String, Item> itemIndex;
     private final @NotNull ConcurrentMap<String, Entity> entityIndex;
@@ -446,11 +451,6 @@ public final class PipelineRendererContext implements RendererContext {
     }
 
     @Override
-    public @NotNull ConcurrentList<TexturePack> activePacks() {
-        return this.packs;
-    }
-
-    @Override
     public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
         String normalized = textureId.contains(":") ? textureId : VanillaPaths.MINECRAFT_NAMESPACE + textureId;
         PixelBuffer cached = this.textureCache.get(normalized);
@@ -460,7 +460,7 @@ public final class PipelineRendererContext implements RendererContext {
         if (texture == null) return Optional.empty();
 
         TexturePack owner = null;
-        for (TexturePack pack : this.packs) {
+        for (TexturePack pack : this.activePacks) {
             if (pack.getId().equals(texture.getPackId())) {
                 owner = pack;
                 break;
@@ -481,7 +481,7 @@ public final class PipelineRendererContext implements RendererContext {
     }
 
     @Override
-    public @NotNull Optional<ColorMap> colorMap(@NotNull ColorMap.Type type) {
+    public @NotNull Optional<ColorMap> findColorMap(@NotNull ColorMap.Type type) {
         return this.colorMapIndex.getOptional(type);
     }
 
@@ -501,7 +501,7 @@ public final class PipelineRendererContext implements RendererContext {
     }
 
     @Override
-    public @NotNull Optional<AnimationData> animationFor(@NotNull String textureId) {
+    public @NotNull Optional<AnimationData> findAnimation(@NotNull String textureId) {
         String normalized = textureId.contains(":") ? textureId : VanillaPaths.MINECRAFT_NAMESPACE + textureId;
         Texture texture = this.textureIndex.get(normalized);
         return texture == null ? Optional.empty() : texture.getAnimation();
@@ -530,7 +530,7 @@ public final class PipelineRendererContext implements RendererContext {
     }
 
     @Override
-    public @NotNull Optional<Integer> potionEffectColor(@NotNull String effectId) {
+    public @NotNull Optional<Integer> findPotionEffectColor(@NotNull String effectId) {
         return this.potionEffectColors.getOptional(effectId);
     }
 
@@ -550,12 +550,12 @@ public final class PipelineRendererContext implements RendererContext {
     }
 
     @Override
-    public @NotNull Optional<Integer> colorOverride(@NotNull String key) {
+    public @NotNull Optional<Integer> findColorOverride(@NotNull String key) {
         return this.colorOverrides.getOptional(key);
     }
 
     @Override
-    public @NotNull Optional<String> findItemTextureOverride(@NotNull ItemContext context) {
+    public @NotNull Optional<String> resolveItemTextureOverride(@NotNull ItemContext context) {
         for (CitRule rule : this.citRules)
             if (CitMatcher.match(rule, context)) return Optional.of(rule.outputTextureId());
         return Optional.empty();

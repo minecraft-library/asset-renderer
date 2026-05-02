@@ -478,7 +478,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     /**
      * A context wrapper that flattens animated textures to their first frame. Delegates
      * every method to the wrapped context except {@link #resolveTexture} (which extracts
-     * frame 0 from animation strips) and {@link #animationFor} (which returns empty so
+     * frame 0 from animation strips) and {@link #findAnimation} (which returns empty so
      * downstream renderers treat every texture as static).
      */
     private record StaticTextureContext(@NotNull RendererContext delegate) implements RendererContext {
@@ -493,7 +493,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             Optional<PixelBuffer> strip = this.delegate.resolveTexture(textureId);
             if (strip.isEmpty()) return strip;
 
-            Optional<AnimationData> animation = this.delegate.animationFor(textureId);
+            Optional<AnimationData> animation = this.delegate.findAnimation(textureId);
             return animation.map(animationData -> AnimationKit.sampleFrame(
                 strip.get(),
                 animationData,
@@ -502,8 +502,8 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         }
 
         @Override
-        public @NotNull Optional<ColorMap> colorMap(ColorMap.@NotNull Type type) {
-            return this.delegate.colorMap(type);
+        public @NotNull Optional<ColorMap> findColorMap(ColorMap.@NotNull Type type) {
+            return this.delegate.findColorMap(type);
         }
 
         @Override
