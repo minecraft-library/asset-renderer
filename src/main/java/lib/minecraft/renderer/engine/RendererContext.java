@@ -168,4 +168,35 @@ public interface RendererContext {
         return Optional.empty();
     }
 
+    /**
+     * Looks up a pack-supplied colour override by its raw {@code color.properties} key
+     * ({@code grass.plains}, {@code foliage.dark_oak}, {@code redstone.0}, etc.). Returns the
+     * highest-priority pack's override when multiple packs supply the same key, or empty when no
+     * pack does. The default returns empty so test stubs do not need to override it.
+     *
+     * @param key the property key as it appears in {@code optifine/color.properties} or
+     *     {@code mcpatcher/color.properties}
+     * @return the ARGB override, or empty when no pack supplies this key
+     */
+    default @NotNull Optional<Integer> colorOverride(@NotNull String key) {
+        return Optional.empty();
+    }
+
+    /**
+     * Looks up the highest-priority Custom Item Texture override for a render-time
+     * {@link lib.minecraft.renderer.pipeline.pack.ItemContext ItemContext}, walking the parsed
+     * {@code optifine/cit/**} and {@code mcpatcher/cit/**} rule list in descending weight order
+     * and returning the first rule whose
+     * {@link lib.minecraft.renderer.pipeline.pack.CitMatcher} predicate accepts the context. The
+     * default returns empty so test stubs do not need to override it.
+     *
+     * @param context the per-render item context (item id + NBT + enchantments + display name)
+     * @return the namespaced output texture id, or empty when no rule matches
+     */
+    default @NotNull Optional<String> findItemTextureOverride(
+        @NotNull lib.minecraft.renderer.pipeline.pack.ItemContext context
+    ) {
+        return Optional.empty();
+    }
+
 }

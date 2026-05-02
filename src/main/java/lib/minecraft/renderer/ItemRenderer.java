@@ -407,7 +407,12 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         int layerIndex = 0;
         while (true) {
             String layerKey = LAYER_TEXTURE_PREFIX + layerIndex;
-            String textureRef = item.getTextures().get(layerKey);
+            // CIT replaces only layer0; layer1+ pass through unchanged. resolveLayer0 returns the
+            // model-bound id when no rule matches or the context is empty, matching the existing
+            // textures-map lookup.
+            String textureRef = layerIndex == 0
+                ? engine.resolveLayer0(item, options)
+                : item.getTextures().get(layerKey);
             if (textureRef == null || textureRef.isBlank()) break;
 
             if (TrimKit.isTrimTexture(textureRef)) {
@@ -531,7 +536,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 // now that tile-entity items are filtered out of {@code itemIndex} and the
                 // {@code shouldRedirectToBlockRender} bridge is gone - every id surviving to
                 // here has a layer0 by construction.
-                String layerRef = item.getTextures().get("layer0");
+                String layerRef = engine.resolveLayer0(item, options);
                 if (layerRef == null || layerRef.isBlank())
                     throw new RenderException("Item '%s' has no elements and no layer0 - nothing to render in Held3D path", options.getItemId());
 

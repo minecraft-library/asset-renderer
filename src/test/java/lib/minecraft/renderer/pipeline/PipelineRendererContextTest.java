@@ -155,7 +155,8 @@ class PipelineRendererContextTest {
             Concurrent.newList(vanillaPack),
             textures, colorMaps, blockTints, blockModels, itemModels,
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
-            Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap()
+            Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
+            Concurrent.newMap(), Concurrent.newList()
         );
         context = PipelineRendererContext.of(result);
     }

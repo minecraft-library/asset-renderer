@@ -25,12 +25,15 @@ import lib.minecraft.renderer.pipeline.loader.BannerPatternLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockStateLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockTagLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
+import lib.minecraft.renderer.pipeline.loader.CitLoader;
 import lib.minecraft.renderer.pipeline.loader.ColorMapLoader;
 import lib.minecraft.renderer.pipeline.loader.ItemDefinitionLoader;
-import lib.minecraft.renderer.pipeline.loader.ModelResolver;
+import lib.minecraft.renderer.pipeline.resolver.ModelResolver;
 import lib.minecraft.renderer.pipeline.loader.PotionColorLoader;
 import lib.minecraft.renderer.pipeline.loader.TexturePackLoader;
-import lib.minecraft.renderer.pipeline.pack.PackResolver;
+import lib.minecraft.renderer.pipeline.pack.CitRule;
+import lib.minecraft.renderer.pipeline.pack.ColorProperties;
+import lib.minecraft.renderer.pipeline.resolver.PackResolver;
 import lib.minecraft.renderer.pipeline.util.PackAcquirer;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -46,6 +49,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -53,10 +57,6 @@ import java.util.zip.ZipFile;
  * Orchestrates the end-to-end asset extraction flow: download the client jar through
  * {@link MojangContract}, extract the {@code minecraft/} subtrees, parse every model JSON, read
  * the texture catalogue, and hand the results back to the caller as a {@link Result} record.
- * <p>
- * Actual persistence of the parsed data into the {@code SessionManager} repositories is the
- * caller's responsibility - the pipeline produces pure data and does not touch any database
- * sessions. This keeps the pipeline unit-testable without a live JPA setup.
  * <p>
  * All Mojang network access flows through a single lazily-initialised {@link Proxy} of
  * {@link MojangContract}, accessible to siblings in this module via {@link #mojang()}. The proxy
@@ -118,9 +118,42 @@ public final class AssetPipeline {
             .collect(Concurrent.toList())
             .toUnmodifiable();
 
+        ConcurrentMap<String, Integer> colorOverrides = collectColorOverrides(ascending);
+        ConcurrentList<CitRule> citRules = collectCitRules(ascending);
+
         return new Result(packRoot, vanillaPack, packs, textures, colorMaps, blockTints, blockModels, itemModels,
             blockStateResult.getVariants(), blockStateResult.getMultiparts(), itemDefinitions, blockTags,
-            potionEffectColors, bannerPatterns);
+            potionEffectColors, bannerPatterns, colorOverrides, citRules);
+    }
+
+    /**
+     * Walks every pack's asset roots in ascending-priority order, calling
+     * {@link ColorProperties#loadFrom(Path)} per root and merging overrides with later-wins
+     * semantics. Packs that ship no {@code optifine/color.properties} or
+     * {@code mcpatcher/color.properties} contribute zero entries.
+     */
+    private static @NotNull ConcurrentMap<String, Integer> collectColorOverrides(@NotNull ConcurrentList<TexturePack> ascending) {
+        HashMap<String, Integer> merged = new HashMap<>();
+        for (TexturePack pack : ascending)
+            for (Path root : pack.getAssetRoots())
+                merged.putAll(ColorProperties.loadFrom(root).overrides());
+        return Concurrent.adoptMap(merged).toUnmodifiable();
+    }
+
+    /**
+     * Walks every pack's asset roots in ascending-priority order, calling
+     * {@link CitLoader#load(Path)} per root and concatenating the resulting rules. The combined
+     * list is sorted by descending weight so the highest-priority rules appear first; ties
+     * preserve their declaration order, which means later-priority packs naturally win on
+     * weight-tied collisions.
+     */
+    private static @NotNull ConcurrentList<CitRule> collectCitRules(@NotNull ConcurrentList<TexturePack> ascending) {
+        ArrayList<CitRule> rules = new ArrayList<>();
+        for (TexturePack pack : ascending)
+            for (Path root : pack.getAssetRoots())
+                rules.addAll(CitLoader.load(root));
+        rules.sort(Comparator.comparingInt(CitRule::weight).reversed());
+        return Concurrent.adoptList(rules).toUnmodifiable();
     }
 
     /**
@@ -310,6 +343,21 @@ public final class AssetPipeline {
 
         /** Namespaced banner pattern id to descriptor, parsed from {@code data/minecraft/banner_pattern/} by the banner pattern loader. */
         private final @NotNull ConcurrentMap<String, BannerPattern> bannerPatterns;
+
+        /**
+         * Pack-supplied colour overrides keyed by raw {@code optifine/color.properties} or
+         * {@code mcpatcher/color.properties} property name (e.g. {@code grass.plains},
+         * {@code redstone.0}). Higher-priority packs win on key collisions via the per-pack
+         * later-wins merge in {@link #collectColorOverrides}.
+         */
+        private final @NotNull ConcurrentMap<String, Integer> colorOverrides;
+
+        /**
+         * Custom Item Texture rules parsed from every pack's
+         * {@code optifine/cit/**} and {@code mcpatcher/cit/**} subtrees, sorted by descending
+         * weight so the highest-priority rules appear first.
+         */
+        private final @NotNull ConcurrentList<CitRule> citRules;
 
     }
 

@@ -27,7 +27,10 @@ import lib.minecraft.renderer.geometry.BlockFace;
 import lib.minecraft.renderer.pipeline.loader.BlockEntityLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
-import lib.minecraft.renderer.pipeline.loader.OverlayResolver;
+import lib.minecraft.renderer.pipeline.resolver.OverlayResolver;
+import lib.minecraft.renderer.pipeline.pack.CitMatcher;
+import lib.minecraft.renderer.pipeline.pack.CitRule;
+import lib.minecraft.renderer.pipeline.pack.ItemContext;
 import lib.minecraft.renderer.tooling.ToolingColorMaps;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -93,6 +96,8 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull ConcurrentMap<String, Integer> potionEffectColors;
     private final @NotNull ConcurrentMap<String, BannerPattern> bannerPatterns;
     private final @NotNull ConcurrentMap<String, Block.Entity> blockEntityEntries;
+    private final @NotNull ConcurrentMap<String, Integer> colorOverrides;
+    private final @NotNull ConcurrentList<CitRule> citRules;
     private final @NotNull ImageFactory imageFactory = new ImageFactory();
     private final @NotNull ConcurrentMap<String, PixelBuffer> textureCache = Concurrent.newMap();
 
@@ -130,7 +135,9 @@ public final class PipelineRendererContext implements RendererContext {
             result.getBlockTags(),
             result.getPotionEffectColors(),
             result.getBannerPatterns(),
-            blockEntityEntries
+            blockEntityEntries,
+            result.getColorOverrides(),
+            result.getCitRules()
         );
     }
 
@@ -535,6 +542,18 @@ public final class PipelineRendererContext implements RendererContext {
     @Override
     public @NotNull Optional<Block.Entity> findBlockEntityEntry(@NotNull String blockId) {
         return this.blockEntityEntries.getOptional(blockId);
+    }
+
+    @Override
+    public @NotNull Optional<Integer> colorOverride(@NotNull String key) {
+        return this.colorOverrides.getOptional(key);
+    }
+
+    @Override
+    public @NotNull Optional<String> findItemTextureOverride(@NotNull ItemContext context) {
+        for (CitRule rule : this.citRules)
+            if (CitMatcher.match(rule, context)) return Optional.of(rule.outputTextureId());
+        return Optional.empty();
     }
 
     /**

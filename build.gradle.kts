@@ -278,6 +278,15 @@ tasks {
         args = listOf(renderSize)
     }
 
+    register<JavaExec>("redstoneTints") {
+        description = "Renders the 16 redstone power-level swatches twice (vanilla / synthetic-override pack) to cache/visual/redstone-tints/. -PrenderSize=64"
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestRedstoneTints")
+        classpath = sourceSets["test"].runtimeClasspath
+        val renderSize = (project.findProperty("renderSize") as String?) ?: "64"
+        args = listOf(renderSize)
+    }
+
     // `./gradlew fonts` now lives in the minecraft-text build at
     // W:/Workspace/Java/Minecraft-Library/minecraft-text. Run it from there when a
     // Minecraft version bump requires regenerating the OTF files.

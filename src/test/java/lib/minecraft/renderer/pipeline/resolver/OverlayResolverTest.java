@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline.loader;
+package lib.minecraft.renderer.pipeline.resolver;
 
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.model.ItemModelData;

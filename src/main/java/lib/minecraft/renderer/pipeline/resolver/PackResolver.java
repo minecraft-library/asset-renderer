@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline.pack;
+package lib.minecraft.renderer.pipeline.resolver;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -10,6 +10,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.pack.TexturePack;
 import lib.minecraft.renderer.exception.AssetPipelineException;
+import lib.minecraft.renderer.pipeline.pack.FormatSpec;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 

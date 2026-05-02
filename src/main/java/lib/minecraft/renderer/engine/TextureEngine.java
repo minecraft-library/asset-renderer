@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.engine;
 
+import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.geometry.Biome;
 
@@ -7,6 +8,8 @@ import lib.minecraft.renderer.kit.AnimationKit;
 import lib.minecraft.renderer.kit.GlintKit;
 import lib.minecraft.renderer.asset.pack.ColorMap;
 import lib.minecraft.renderer.asset.pack.AnimationData;
+import lib.minecraft.renderer.options.ItemOptions;
+import lib.minecraft.renderer.pipeline.pack.ItemContext;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -179,6 +182,20 @@ public class TextureEngine implements RenderEngine {
         if (target == Biome.TintTarget.NONE || target == Biome.TintTarget.CONSTANT)
             return ColorMath.WHITE;
 
+        // Pack-supplied colour overrides win over both biome-hardcoded overrides and the colormap
+        // sample. The grassColorModifier still applies post-override so dark-forest darkening and
+        // swamp warm-grass substitution match vanilla behaviour even when an Optifine pack swaps
+        // the base colour. Water short-circuits below: it has its own override key shape and no
+        // grass modifier.
+        String packKey = packOverrideKeyFor(target, biome);
+        if (packKey != null) {
+            Optional<Integer> packOverride = this.context.colorOverride(packKey);
+            if (packOverride.isPresent()) {
+                if (target == Biome.TintTarget.WATER) return packOverride.get();
+                return applyModifier(packOverride.get(), biome.grassColorModifier(), target);
+            }
+        }
+
         // Water has no colormap in vanilla - the tint is either the per-biome override or the
         // engine-level default. Skip the colormap path entirely and skip grassColorModifier
         // (water is unaffected by the dark-forest / swamp modifiers that only apply to grass).
@@ -240,6 +257,52 @@ public class TextureEngine implements RenderEngine {
             }
         }
         return PixelBuffer.of(result, w, h);
+    }
+
+    /**
+     * Resolves the {@code layer0} texture id for an item, consulting any matching CIT rule via
+     * {@link RendererContext#findItemTextureOverride(ItemContext)} before falling back to the
+     * model's bound layer0. Returns {@code null} when the item supplies no layer0 binding and no
+     * CIT rule matches; callers raise their own error in that case.
+     * <p>
+     * The {@link ItemContext#EMPTY} sentinel short-circuits the override lookup so callers that
+     * never populate {@link ItemOptions#getContext()} pay zero rule-walk cost. CIT in vanilla
+     * Optifine semantics replaces only {@code layer0}; {@code layer1+} overlays (potion liquid,
+     * leather armor overlay, leather helmet pattern) pass through unchanged via
+     * {@link Item#getTextures()} and don't go through this helper.
+     *
+     * @param item the item DTO
+     * @param options the per-render options carrying the optional {@link ItemContext}
+     * @return the namespaced layer0 texture id, or {@code null} when none is bound
+     */
+    public String resolveLayer0(@NotNull Item item, @NotNull ItemOptions options) {
+        if (options.getContext() != ItemContext.EMPTY) {
+            Optional<String> override = this.context.findItemTextureOverride(options.getContext());
+            if (override.isPresent()) return override.get();
+        }
+        return item.getTextures().get("layer0");
+    }
+
+    /**
+     * Returns the {@code optifine/color.properties} key that addresses the given biome-target
+     * combination, or {@code null} when the target has no override key shape ({@code NONE},
+     * {@code CONSTANT}). The key format mirrors Optifine's grammar:
+     * {@code grass.<biome>}, {@code foliage.<biome>}, {@code dryfoliage.<biome>},
+     * {@code water.<biome>}, where {@code <biome>} is the biome's local name (everything after
+     * the {@code minecraft:} namespace prefix).
+     */
+    private static String packOverrideKeyFor(@NotNull Biome.TintTarget target, @NotNull Biome biome) {
+        String prefix = switch (target) {
+            case GRASS -> "grass.";
+            case FOLIAGE -> "foliage.";
+            case DRY_FOLIAGE -> "dryfoliage.";
+            case WATER -> "water.";
+            default -> null;
+        };
+        if (prefix == null) return null;
+        String id = biome.id();
+        int colon = id.indexOf(':');
+        return prefix + (colon >= 0 ? id.substring(colon + 1) : id);
     }
 
     private int applyModifier(int argb, @NotNull Biome.GrassColorModifier modifier, @NotNull Biome.TintTarget target) {
