@@ -16,6 +16,7 @@ import lib.minecraft.renderer.pipeline.loader.TexturePackLoader;
 import lib.minecraft.renderer.pipeline.pack.CtmMethod;
 import lib.minecraft.renderer.pipeline.pack.CtmResolution;
 import lib.minecraft.renderer.pipeline.pack.CtmRule;
+import lib.minecraft.renderer.pipeline.pack.PackMeta;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -91,7 +92,8 @@ class PipelineRendererContextTest {
         // directly so the context wiring (Block.tintTarget population, colorMap pass-through)
         // can still be exercised in isolation. The end-to-end loader is exercised by the
         // slowTest against the cached vanilla 26.1 jar.
-        TexturePack vanillaPack = new TexturePack("vanilla", "minecraft", "Vanilla Minecraft client", Concurrent.newList(packRoot), 0);
+        PackMeta vanillaMeta = new PackMeta(46, "Vanilla Minecraft client", Concurrent.newList());
+        TexturePack vanillaPack = new TexturePack("vanilla", "minecraft", vanillaMeta, Concurrent.newList(packRoot), 0);
         ConcurrentMap<String, Texture> textures = TexturePackLoader.scanTextures(Concurrent.newList(vanillaPack));
         ConcurrentMap<ColorMap.Type, ColorMap> colorMaps = ColorMapLoader.load();
         ConcurrentMap<String, Block.Tint> blockTints = Concurrent.newMap();

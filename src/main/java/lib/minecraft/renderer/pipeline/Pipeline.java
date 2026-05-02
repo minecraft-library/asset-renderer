@@ -3,9 +3,6 @@ package lib.minecraft.renderer.pipeline;
 import api.simplified.mojang.MojangContract;
 import api.simplified.mojang.exception.MojangApiException;
 import api.simplified.mojang.response.PistonMetadata;
-import com.google.gson.Gson;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonSyntaxException;
 import dev.simplified.client.ClientConfig;
 import dev.simplified.client.Proxy;
 import dev.simplified.collection.Concurrent;
@@ -70,8 +67,6 @@ import java.util.zip.ZipFile;
 @UtilityClass
 public class Pipeline {
 
-    private static final @NotNull Gson MCMETA_GSON = GsonSettings.defaults().create();
-
     private static final @NotNull Lazy<Proxy<MojangContract>> MOJANG_PROXY = Lazy.of(() ->
         Proxy.builder(
             ClientConfig.builder(MojangContract.class, GsonSettings.defaults().create())
@@ -91,54 +86,88 @@ public class Pipeline {
         Path jarPath = downloadJarToCache(options);
         extractClientJar(jarPath, packRoot);
 
-        int targetPackFormat = options.getTargetPackFormat() > 0
-            ? options.getTargetPackFormat()
-            : readVanillaPackFormat(jarPath);
+        PackBundle packs = resolvePacks(options, packRoot);
 
-        TexturePack vanillaPack = PackResolver.resolve(packRoot, "vanilla", 0, targetPackFormat);
+        ConcurrentMap<String, BlockModelData> blockModels = ModelResolver.loadBlockModels(packs.combinedRoots());
+        ConcurrentMap<String, ItemModelData> itemModels = ModelResolver.loadItemModels(packs.combinedRoots());
 
-        ArrayList<TexturePack> ascendingPacks = new ArrayList<>();
-        ascendingPacks.add(vanillaPack);
-
-        for (int i = 0; i < options.getTexturePacks().size(); i++) {
-            File source = options.getTexturePacks().get(i);
-            int priority = i + 1;
-            String packId = PackAcquirer.derivePackId(source);
-            Path userRoot = PackAcquirer.materialize(source, options.getCacheRoot().toPath());
-            ascendingPacks.add(PackResolver.resolve(userRoot, packId, priority, targetPackFormat));
-        }
-
-        // TODO: Move the ascendingPacks processing into a separate method (lines 92-111)
-        //       include other lines that reference ascending? lines 118, 127-130, 133?
-
-        ConcurrentList<TexturePack> ascending = Concurrent.adoptList(ascendingPacks).toUnmodifiable();
-        ConcurrentList<Path> combinedRoots = combineRoots(ascending);
-
-        ConcurrentMap<String, BlockModelData> blockModels = ModelResolver.loadBlockModels(combinedRoots);
-        ConcurrentMap<String, ItemModelData> itemModels = ModelResolver.loadItemModels(combinedRoots);
-
-        ConcurrentMap<String, Texture> textures = TexturePackLoader.scanTextures(ascending);
+        ConcurrentMap<String, Texture> textures = TexturePackLoader.scanTextures(packs.ascending());
         ConcurrentMap<ColorMap.Type, ColorMap> colorMaps = ColorMapLoader.load();
         ConcurrentMap<String, Block.Tint> blockTints = BlockTintsLoader.load();
-        BlockStateLoader.LoadResult blockStateResult = BlockStateLoader.load(combinedRoots);
-        ConcurrentMap<String, String> itemDefinitions = ItemDefinitionLoader.load(combinedRoots);
-        ConcurrentMap<String, BlockTag> blockTags = BlockTagLoader.load(combinedRoots);
+        BlockStateLoader.LoadResult blockStateResult = BlockStateLoader.load(packs.combinedRoots());
+        ConcurrentMap<String, String> itemDefinitions = ItemDefinitionLoader.load(packs.combinedRoots());
+        ConcurrentMap<String, BlockTag> blockTags = BlockTagLoader.load(packs.combinedRoots());
         ConcurrentMap<String, Integer> potionEffectColors = PotionColorLoader.load();
-        ConcurrentMap<String, BannerPattern> bannerPatterns = BannerPatternLoader.load(combinedRoots);
+        ConcurrentMap<String, BannerPattern> bannerPatterns = BannerPatternLoader.load(packs.combinedRoots());
 
-        ConcurrentList<TexturePack> packs = ascending.stream()
-            .sorted(Comparator.comparingInt(TexturePack::getPriority).reversed())
-            .collect(Concurrent.toList())
-            .toUnmodifiable();
+        ConcurrentMap<String, Integer> colorOverrides = collectColorOverrides(packs.ascending());
+        ConcurrentList<CitRule> citRules = collectCitRules(packs.ascending());
+        ConcurrentList<CtmRule> ctmRules = collectCtmRules(packs.ascending());
 
-        ConcurrentMap<String, Integer> colorOverrides = collectColorOverrides(ascending);
-        ConcurrentList<CitRule> citRules = collectCitRules(ascending);
-        ConcurrentList<CtmRule> ctmRules = collectCtmRules(ascending);
-
-        return new Result(packRoot, vanillaPack, packs, textures, colorMaps, blockTints, blockModels, itemModels,
+        return new Result(packRoot, packs.vanilla(), packs.descending(), textures, colorMaps, blockTints, blockModels, itemModels,
             blockStateResult.getVariants(), blockStateResult.getMultiparts(), itemDefinitions, blockTags,
             potionEffectColors, bannerPatterns, colorOverrides, citRules, ctmRules);
     }
+
+    /**
+     * Resolves the vanilla pack and every user-supplied pack into a single {@link PackBundle},
+     * eagerly computing the four projections downstream loaders and collectors consume:
+     * the vanilla {@link TexturePack} itself, the ascending-priority list, the
+     * descending-priority list (for {@link Result#getPacks()}), and the flat list of every
+     * pack's asset roots in ascending priority order (for loaders that don't need pack
+     * attribution).
+     * <p>
+     * Each pack's overlay matching uses its own declared {@code pack_format} (read from the
+     * pack's own {@code pack.mcmeta} by {@link PackResolver}) - vanilla matches its own format,
+     * each user pack matches its own. A pack missing or with malformed mcmeta throws a
+     * {@code PipelineException}; the renderer can't function against a broken jar or a
+     * non-conforming user pack, so loud failure is the right call.
+     * <p>
+     * User packs are materialised through {@link PackAcquirer} (zip extraction with caching),
+     * keyed by a sanitised id derived from the source filename, and assigned priorities {@code 1..N}
+     * so they all win over vanilla (priority {@code 0}) on overlay merges.
+     */
+    private static @NotNull PackBundle resolvePacks(
+        @NotNull PipelineOptions options,
+        @NotNull Path vanillaPackRoot
+    ) {
+        TexturePack vanilla = PackResolver.resolve(vanillaPackRoot, "vanilla", 0);
+
+        ArrayList<TexturePack> packs = new ArrayList<>();
+        packs.add(vanilla);
+        for (int i = 0; i < options.getTexturePacks().size(); i++) {
+            File source = options.getTexturePacks().get(i);
+            String packId = PackAcquirer.derivePackId(source);
+            Path userRoot = PackAcquirer.materialize(source, options.getCacheRoot().toPath());
+            packs.add(PackResolver.resolve(userRoot, packId, i + 1));
+        }
+
+        ConcurrentList<TexturePack> ascending = Concurrent.adoptList(packs).toUnmodifiable();
+        ConcurrentList<TexturePack> descending = ascending.stream()
+            .sorted(Comparator.comparingInt(TexturePack::getPriority).reversed())
+            .collect(Concurrent.toUnmodifiableList());
+
+        ArrayList<Path> roots = new ArrayList<>();
+        for (TexturePack pack : ascending)
+            roots.addAll(pack.getAssetRoots());
+        ConcurrentList<Path> combinedRoots = Concurrent.adoptList(roots).toUnmodifiable();
+
+        return new PackBundle(vanilla, ascending, descending, combinedRoots);
+    }
+
+    /**
+     * Eager projection of the resolved pack stack into the four views downstream consumers need.
+     * {@code ascending} drives per-pack walks (texture scan, CIT / CTM / colour collectors);
+     * {@code combinedRoots} is the flattened root list every loader that doesn't need pack
+     * attribution consumes; {@code descending} is the render-priority view passed through to
+     * {@link Result}; {@code vanilla} is the bundled minimum every pipeline run carries.
+     */
+    private record PackBundle(
+        @NotNull TexturePack vanilla,
+        @NotNull ConcurrentList<TexturePack> ascending,
+        @NotNull ConcurrentList<TexturePack> descending,
+        @NotNull ConcurrentList<Path> combinedRoots
+    ) {}
 
     /**
      * Walks every pack's asset roots in ascending-priority order, calling
@@ -148,9 +177,12 @@ public class Pipeline {
      */
     private static @NotNull ConcurrentMap<String, Integer> collectColorOverrides(@NotNull ConcurrentList<TexturePack> ascending) {
         HashMap<String, Integer> merged = new HashMap<>();
-        for (TexturePack pack : ascending)
+
+        for (TexturePack pack : ascending) {
             for (Path root : pack.getAssetRoots())
                 merged.putAll(ColorProperties.loadFrom(root).overrides());
+        }
+
         return Concurrent.adoptMap(merged).toUnmodifiable();
     }
 
@@ -163,9 +195,12 @@ public class Pipeline {
      */
     private static @NotNull ConcurrentList<CitRule> collectCitRules(@NotNull ConcurrentList<TexturePack> ascending) {
         ArrayList<CitRule> rules = new ArrayList<>();
-        for (TexturePack pack : ascending)
+
+        for (TexturePack pack : ascending) {
             for (Path root : pack.getAssetRoots())
                 rules.addAll(CitLoader.load(root));
+        }
+
         rules.sort(Comparator.comparingInt(CitRule::weight).reversed());
         return Concurrent.adoptList(rules).toUnmodifiable();
     }
@@ -179,48 +214,14 @@ public class Pipeline {
      */
     private static @NotNull ConcurrentList<CtmRule> collectCtmRules(@NotNull ConcurrentList<TexturePack> ascending) {
         ArrayList<CtmRule> rules = new ArrayList<>();
-        for (TexturePack pack : ascending)
+
+        for (TexturePack pack : ascending) {
             for (Path root : pack.getAssetRoots())
                 rules.addAll(CtmLoader.load(root));
+        }
+
         rules.sort(Comparator.comparingInt(CtmRule::weight).reversed());
         return Concurrent.adoptList(rules).toUnmodifiable();
-    }
-
-    /**
-     * Reads the {@code pack_format} declared by the {@code pack.mcmeta} entry inside the cached
-     * client jar. {@link #extractClientJar} only extracts the {@code assets/} and {@code data/}
-     * subtrees, so the jar's root-level {@code pack.mcmeta} never lands on disk - this opens the
-     * jar directly. Used as the default target pack format when callers don't override it,
-     * keeping the renderer free of a hardcoded version-to-format mapping table.
-     */
-    private static int readVanillaPackFormat(@NotNull Path jarPath) {
-        try (ZipFile zip = new ZipFile(jarPath.toFile())) {
-            ZipEntry entry = zip.getEntry("pack.mcmeta");
-            if (entry == null) return 0;
-            try (InputStream in = zip.getInputStream(entry)) {
-                String content = new String(in.readAllBytes());
-                JsonObject root = MCMETA_GSON.fromJson(content, JsonObject.class);
-                if (root == null || !root.has("pack") || !root.get("pack").isJsonObject()) return 0;
-                JsonObject pack = root.getAsJsonObject("pack");
-                if (pack.has("pack_format")) return pack.get("pack_format").getAsInt();
-                if (pack.has("format")) return pack.get("format").getAsInt();
-                return 0;
-            }
-        } catch (IOException | JsonSyntaxException ex) {
-            return 0;
-        }
-    }
-
-    /**
-     * Concatenates every pack's asset roots in ascending-priority order. Loaders that don't need
-     * pack attribution take this list directly so a higher-priority pack's overlay roots win
-     * over lower-priority packs and earlier overlays via the loaders' later-wins merge.
-     */
-    private static @NotNull ConcurrentList<Path> combineRoots(@NotNull ConcurrentList<TexturePack> ascending) {
-        ArrayList<Path> roots = new ArrayList<>();
-        for (TexturePack pack : ascending)
-            roots.addAll(pack.getAssetRoots());
-        return Concurrent.adoptList(roots).toUnmodifiable();
     }
 
     /**
@@ -287,9 +288,14 @@ public class Pipeline {
     }
 
     /**
-     * Streams the {@code assets/minecraft/} and {@code data/minecraft/} subtrees out of a cached
-     * client jar into {@code packRoot}. Skips {@code .class} files, manifests, and other
-     * non-resource entries. Idempotent - safe to re-run with the same {@code packRoot}.
+     * Streams the {@code assets/minecraft/} and {@code data/minecraft/} subtrees plus the root
+     * {@code pack.mcmeta} out of a cached client jar into {@code packRoot}. Skips
+     * {@code .class} files, manifests, and other non-resource entries. Idempotent - safe to
+     * re-run with the same {@code packRoot}.
+     * <p>
+     * The root mcmeta is included so {@link PackResolver} can resolve the vanilla pack the same
+     * way it resolves user packs - reading the format and overlay entries from the extracted
+     * tree rather than reaching back into the jar.
      * <p>
      * Public so tooling generators that need an extracted asset tree without running the parse
      * phases (e.g. {@code ToolingColorMaps} reading the biome colormap PNGs) can pair this with
@@ -301,13 +307,18 @@ public class Pipeline {
     public static void extractClientJar(@NotNull Path jarPath, @NotNull Path packRoot) {
         try (ZipFile zip = new ZipFile(jarPath.toFile())) {
             Enumeration<? extends ZipEntry> entries = zip.entries();
+
             while (entries.hasMoreElements()) {
                 ZipEntry entry = entries.nextElement();
                 if (entry.isDirectory()) continue;
                 String name = entry.getName();
-                if (!name.startsWith(VanillaPaths.VANILLA_ASSET_ROOT) && !name.startsWith(VanillaPaths.VANILLA_DATA_ROOT)) continue;
+                boolean isAssetTree = name.startsWith(VanillaPaths.VANILLA_ASSET_ROOT)
+                    || name.startsWith(VanillaPaths.VANILLA_DATA_ROOT);
+                boolean isRootMcmeta = name.equals("pack.mcmeta");
+                if (!isAssetTree && !isRootMcmeta) continue;
                 Path destination = packRoot.resolve(name);
                 Files.createDirectories(destination.getParent());
+
                 try (InputStream in = zip.getInputStream(entry)) {
                     Files.copy(in, destination, StandardCopyOption.REPLACE_EXISTING);
                 }
