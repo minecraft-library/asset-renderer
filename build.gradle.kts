@@ -69,7 +69,7 @@ dependencies {
     // picks the stale SNAPSHOT JAR over our pin and produces NoSuchMethodError at runtime.
     // Each upstream lib also strict-pins its own internal deps to these same hashes so
     // master-SNAPSHOT consumers of any single lib see a consistent transitive chain.
-    api("com.github.simplified-dev:collections") { version { strictly("a5f41e0") } }
+    api("com.github.simplified-dev:collections") { version { strictly("6586657") } }
     api("com.github.simplified-dev:utils") { version { strictly("5c6c96a") } }
     api("com.github.simplified-dev:image") { version { strictly("4140130") } }
     api("com.github.simplified-dev:gson-extras") { version { strictly("c1b9a84") } }
