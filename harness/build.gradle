@@ -1,0 +1,99 @@
+plugins {
+    id 'net.fabricmc.fabric-loom' version "${loom_version}"
+    id 'maven-publish'
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+    archivesName = project.archives_base_name
+}
+
+loom {
+    splitEnvironmentSourceSets()
+
+    mods {
+        "refharness" {
+            sourceSet sourceSets.main
+            sourceSet sourceSets.client
+        }
+    }
+
+    runs {
+        // Headless reference-render run. The mod detects the TitleScreen, programmatically
+        // creates a fresh flat world, waits for it to load, sweeps blocks + entities to PNG,
+        // then asks the client to stop. The world is deleted between runs (resetRefharnessWorld)
+        // so each invocation starts clean.
+        //
+        // Filter to a specific subset with:
+        //   ./gradlew runRenderReferences -PrefharnessTargets=minecraft:stone,minecraft:cow
+        renderReferences {
+            client()
+            configName = 'Render References'
+            property 'refharness.headless', 'true'
+            property 'refharness.outputDir', project.hasProperty('refharnessOutputDir')
+                ? project.property('refharnessOutputDir').toString()
+                : "${rootProject.layout.buildDirectory.get().asFile}/refharness-output"
+            property 'refharness.size', '512'
+            if (project.hasProperty('refharnessTargets')) {
+                property 'refharness.targets', project.property('refharnessTargets').toString()
+            }
+            if (project.hasProperty('refharnessPitchRollSweep')) {
+                property 'refharness.pitchRollSweep', project.property('refharnessPitchRollSweep').toString()
+            }
+        }
+    }
+}
+
+repositories {
+    // Loom adds Mojang/Fabric maven automatically; nothing extra needed.
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    // No `mappings` line: Minecraft 26.1+ ships unobfuscated.
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+}
+
+processResources {
+    def v = project.version
+    inputs.property "version", v
+    filesMatching("fabric.mod.json") {
+        expand "version": v
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = 25
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+    withSourcesJar()
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
+}
+
+// Wipe run/saves/refharness_world/ before each renderReferences run so the mod can
+// always createFreshLevel(...) without colliding with stale state.
+def resetRefharnessWorld = tasks.register('resetRefharnessWorld', Delete) {
+    group = 'refharness'
+    description = 'Removes run/saves/refharness_world/ so the next renderReferences starts clean.'
+    delete layout.projectDirectory.dir('run/saves/refharness_world')
+}
+
+tasks.matching { it.name == 'runRenderReferences' }.configureEach {
+    dependsOn resetRefharnessWorld
+}
+
+publishing {
+    publications {
+        create("mavenJava", MavenPublication) {
+            from components.java
+        }
+    }
+}

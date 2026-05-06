@@ -1,0 +1,24 @@
+{
+  "required": true,
+  "package": "lib.minecraft.refharness.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "BeeStateMixin",
+    "EnderDragonModelMixin",
+    "FlipFaceShadingMixin",
+    "FreezeAnimationStateMixin",
+    "GuardianStateMixin",
+    "HeadlessWindowMixin",
+    "HideHandMixin",
+    "HideSkyMixin",
+    "HideCloudsMixin",
+    "PhantomStateMixin",
+    "PufferfishStateMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
+}

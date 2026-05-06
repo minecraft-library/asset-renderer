@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "refharness",
+  "version": "${version}",
+  "name": "Vanilla Reference Harness",
+  "description": "Headless mod that renders every vanilla block and living entity to PNG so asset-renderer can pixel-diff against ground truth.",
+  "authors": ["asset-renderer"],
+  "license": "All-Rights-Reserved",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["lib.minecraft.refharness.RefHarnessClient"]
+  },
+  "mixins": [
+    {
+      "config": "refharness.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=0.19.2",
+    "minecraft": "~26.1",
+    "java": ">=25",
+    "fabric-api": "*"
+  }
+}
