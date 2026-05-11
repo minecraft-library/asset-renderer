@@ -4,6 +4,7 @@ import api.simplified.mojang.MojangContract;
 import api.simplified.mojang.exception.MojangApiException;
 import api.simplified.mojang.response.PistonMetadata;
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import dev.simplified.client.ClientConfig;
@@ -550,11 +551,18 @@ public class Pipeline {
         }
         if (versionJson == null || !versionJson.has("pack_version") || !versionJson.get("pack_version").isJsonObject()) return;
         JsonObject packVersion = versionJson.getAsJsonObject("pack_version");
-        if (!packVersion.has("resource_major")) return;
+
+        // Modern jars (26.1+) use {resource_major, resource_minor, data_major, data_minor};
+        // legacy jars (verified on 1.21.4) use the flat {resource, data} shape. Prefer the
+        // newer key when both are present.
+        JsonElement formatElement;
+        if (packVersion.has("resource_major")) formatElement = packVersion.get("resource_major");
+        else if (packVersion.has("resource")) formatElement = packVersion.get("resource");
+        else return;
 
         int packFormat;
         try {
-            packFormat = packVersion.get("resource_major").getAsInt();
+            packFormat = formatElement.getAsInt();
         } catch (UnsupportedOperationException | IllegalStateException ex) {
             return;
         }
