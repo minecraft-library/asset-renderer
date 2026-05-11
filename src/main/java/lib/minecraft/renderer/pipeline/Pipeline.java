@@ -3,6 +3,9 @@ package lib.minecraft.renderer.pipeline;
 import api.simplified.mojang.MojangContract;
 import api.simplified.mojang.exception.MojangApiException;
 import api.simplified.mojang.response.PistonMetadata;
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonSyntaxException;
 import dev.simplified.client.ClientConfig;
 import dev.simplified.client.Proxy;
 import dev.simplified.collection.Concurrent;
@@ -51,6 +54,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -464,7 +468,16 @@ public class Pipeline {
      * <p>
      * The root mcmeta is included so {@link PackResolver} can resolve the vanilla pack the same
      * way it resolves user packs - reading the format and overlay entries from the extracted
-     * tree rather than reaching back into the jar.
+     * tree rather than reaching back into the jar. Modern Mojang client jars (verified across
+     * 1.21.4 and 26.1) no longer ship a root {@code pack.mcmeta} - the launcher synthesises one
+     * from the jar's own {@code version.json} at runtime. To keep
+     * {@link #run(PipelineOptions) Pipeline.run} working without external scaffolding, the same
+     * zip-entry iteration that extracts the asset tree also captures {@code version.json}'s
+     * bytes in memory (without writing them to disk); when no root {@code pack.mcmeta} was
+     * streamed out, {@link #synthesiseVanillaPackMeta(byte[], Path)} reads
+     * {@code pack_version.resource_major} from those bytes and writes a minimal mcmeta to
+     * {@code packRoot}. Jars that still ship a real root mcmeta retain it unchanged (the
+     * extracted file takes precedence over the synthetic fallback).
      * <p>
      * Public so tooling generators that need an extracted asset tree without running the parse
      * phases (e.g. {@code ToolingColorMaps} reading the biome colormap PNGs) can pair this with
@@ -475,6 +488,8 @@ public class Pipeline {
      */
     public static void extractClientJar(@NotNull Path jarPath, @NotNull Path packRoot) {
         try (ZipFile zip = new ZipFile(jarPath.toFile())) {
+            boolean extractedRootMcmeta = false;
+            byte[] versionJsonBytes = null;
             Enumeration<? extends ZipEntry> entries = zip.entries();
 
             while (entries.hasMoreElements()) {
@@ -484,18 +499,82 @@ public class Pipeline {
                 boolean isAssetTree = name.startsWith(VanillaPaths.VANILLA_ASSET_ROOT)
                     || name.startsWith(VanillaPaths.VANILLA_DATA_ROOT);
                 boolean isRootMcmeta = name.equals("pack.mcmeta");
+                boolean isVersionJson = name.equals("version.json");
+
+                if (isVersionJson) {
+                    try (InputStream in = zip.getInputStream(entry)) {
+                        versionJsonBytes = in.readAllBytes();
+                    }
+                    continue;
+                }
                 if (!isAssetTree && !isRootMcmeta) continue;
+
                 Path destination = packRoot.resolve(name);
                 Files.createDirectories(destination.getParent());
-
                 try (InputStream in = zip.getInputStream(entry)) {
                     Files.copy(in, destination, StandardCopyOption.REPLACE_EXISTING);
                 }
+                if (isRootMcmeta) extractedRootMcmeta = true;
+            }
+
+            if (!extractedRootMcmeta && versionJsonBytes != null) {
+                synthesiseVanillaPackMeta(versionJsonBytes, packRoot);
             }
         } catch (IOException ex) {
             throw new PipelineException(ex, "Failed to extract '%s' into '%s'", jarPath, packRoot);
         }
     }
+
+    /**
+     * Writes a minimal {@code pack.mcmeta} to {@code packRoot} from the supplied
+     * {@code version.json} bytes - reads {@code pack_version.resource_major} for the
+     * {@code pack_format} and the {@code name} field for a human-readable description.
+     * No-op when the JSON is malformed or missing the required keys - downstream
+     * {@link PackResolver#resolve} will then throw the usual missing-mcmeta error.
+     * <p>
+     * This mirrors what the Minecraft launcher does at runtime for vanilla resource packs in
+     * recent versions, where {@code pack.mcmeta} was dropped as a static jar entry in favour
+     * of launcher-side synthesis.
+     *
+     * @param versionJsonBytes the raw bytes of the jar's root {@code version.json}, captured
+     *     during the single zip-entry iteration in {@link #extractClientJar}
+     * @param packRoot the destination pack root
+     * @throws IOException if writing the synthesised file fails
+     */
+    private static void synthesiseVanillaPackMeta(@NotNull byte[] versionJsonBytes, @NotNull Path packRoot) throws IOException {
+        JsonObject versionJson;
+        try {
+            versionJson = MCMETA_GSON.fromJson(new String(versionJsonBytes, StandardCharsets.UTF_8), JsonObject.class);
+        } catch (JsonSyntaxException ex) {
+            return;
+        }
+        if (versionJson == null || !versionJson.has("pack_version") || !versionJson.get("pack_version").isJsonObject()) return;
+        JsonObject packVersion = versionJson.getAsJsonObject("pack_version");
+        if (!packVersion.has("resource_major")) return;
+
+        int packFormat;
+        try {
+            packFormat = packVersion.get("resource_major").getAsInt();
+        } catch (UnsupportedOperationException | IllegalStateException ex) {
+            return;
+        }
+
+        String name = versionJson.has("name") && versionJson.get("name").isJsonPrimitive()
+            ? versionJson.get("name").getAsString()
+            : "vanilla";
+
+        JsonObject pack = new JsonObject();
+        pack.addProperty("pack_format", packFormat);
+        pack.addProperty("description", "Minecraft " + name + " vanilla resources (synthesised by asset-renderer Pipeline.extractClientJar)");
+        JsonObject mcmeta = new JsonObject();
+        mcmeta.add("pack", pack);
+
+        Path destination = packRoot.resolve("pack.mcmeta");
+        Files.createDirectories(packRoot);
+        Files.writeString(destination, MCMETA_GSON.toJson(mcmeta));
+    }
+
+    private static final @NotNull Gson MCMETA_GSON = GsonSettings.defaults().create();
 
     /** The standard {@code <cacheRoot>/vanilla/<version>} pack-root path for the given options. */
     private static @NotNull Path packRoot(@NotNull PipelineOptions options) {
