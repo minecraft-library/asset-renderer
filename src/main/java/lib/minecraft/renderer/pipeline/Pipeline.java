@@ -471,12 +471,13 @@ public class Pipeline {
      * tree rather than reaching back into the jar. Modern Mojang client jars (verified across
      * 1.21.4 and 26.1) no longer ship a root {@code pack.mcmeta} - the launcher synthesises one
      * from the jar's own {@code version.json} at runtime. To keep
-     * {@link #run(PipelineOptions) Pipeline.run} working without external scaffolding,
-     * {@link #synthesiseVanillaPackMeta(ZipFile, Path)} is invoked after the extraction loop
-     * when no root mcmeta was streamed out - it reads {@code version.json}'s
-     * {@code pack_version.resource_major} and writes a minimal mcmeta to {@code packRoot}. Jars
-     * that still ship a real root mcmeta retain it unchanged (the extracted file takes
-     * precedence over the synthetic fallback).
+     * {@link #run(PipelineOptions) Pipeline.run} working without external scaffolding, the same
+     * zip-entry iteration that extracts the asset tree also captures {@code version.json}'s
+     * bytes in memory (without writing them to disk); when no root {@code pack.mcmeta} was
+     * streamed out, {@link #synthesiseVanillaPackMeta(byte[], Path)} reads
+     * {@code pack_version.resource_major} from those bytes and writes a minimal mcmeta to
+     * {@code packRoot}. Jars that still ship a real root mcmeta retain it unchanged (the
+     * extracted file takes precedence over the synthetic fallback).
      * <p>
      * Public so tooling generators that need an extracted asset tree without running the parse
      * phases (e.g. {@code ToolingColorMaps} reading the biome colormap PNGs) can pair this with
@@ -488,6 +489,7 @@ public class Pipeline {
     public static void extractClientJar(@NotNull Path jarPath, @NotNull Path packRoot) {
         try (ZipFile zip = new ZipFile(jarPath.toFile())) {
             boolean extractedRootMcmeta = false;
+            byte[] versionJsonBytes = null;
             Enumeration<? extends ZipEntry> entries = zip.entries();
 
             while (entries.hasMoreElements()) {
@@ -497,44 +499,52 @@ public class Pipeline {
                 boolean isAssetTree = name.startsWith(VanillaPaths.VANILLA_ASSET_ROOT)
                     || name.startsWith(VanillaPaths.VANILLA_DATA_ROOT);
                 boolean isRootMcmeta = name.equals("pack.mcmeta");
+                boolean isVersionJson = name.equals("version.json");
+
+                if (isVersionJson) {
+                    try (InputStream in = zip.getInputStream(entry)) {
+                        versionJsonBytes = in.readAllBytes();
+                    }
+                    continue;
+                }
                 if (!isAssetTree && !isRootMcmeta) continue;
+
                 Path destination = packRoot.resolve(name);
                 Files.createDirectories(destination.getParent());
-
                 try (InputStream in = zip.getInputStream(entry)) {
                     Files.copy(in, destination, StandardCopyOption.REPLACE_EXISTING);
                 }
                 if (isRootMcmeta) extractedRootMcmeta = true;
             }
 
-            if (!extractedRootMcmeta) synthesiseVanillaPackMeta(zip, packRoot);
+            if (!extractedRootMcmeta && versionJsonBytes != null) {
+                synthesiseVanillaPackMeta(versionJsonBytes, packRoot);
+            }
         } catch (IOException ex) {
             throw new PipelineException(ex, "Failed to extract '%s' into '%s'", jarPath, packRoot);
         }
     }
 
     /**
-     * Writes a minimal {@code pack.mcmeta} to {@code packRoot} when the source jar does not
-     * ship one - reads {@code version.json}'s {@code pack_version.resource_major} for the
-     * {@code pack_format} and the jar's {@code name} field for a human-readable description.
-     * No-op when {@code version.json} is missing or cannot be parsed for the required keys -
-     * downstream {@link PackResolver#resolve} will then throw the usual missing-mcmeta error.
+     * Writes a minimal {@code pack.mcmeta} to {@code packRoot} from the supplied
+     * {@code version.json} bytes - reads {@code pack_version.resource_major} for the
+     * {@code pack_format} and the {@code name} field for a human-readable description.
+     * No-op when the JSON is malformed or missing the required keys - downstream
+     * {@link PackResolver#resolve} will then throw the usual missing-mcmeta error.
      * <p>
      * This mirrors what the Minecraft launcher does at runtime for vanilla resource packs in
      * recent versions, where {@code pack.mcmeta} was dropped as a static jar entry in favour
      * of launcher-side synthesis.
      *
-     * @param zip the opened client jar
+     * @param versionJsonBytes the raw bytes of the jar's root {@code version.json}, captured
+     *     during the single zip-entry iteration in {@link #extractClientJar}
      * @param packRoot the destination pack root
      * @throws IOException if writing the synthesised file fails
      */
-    private static void synthesiseVanillaPackMeta(@NotNull ZipFile zip, @NotNull Path packRoot) throws IOException {
-        ZipEntry versionEntry = zip.getEntry("version.json");
-        if (versionEntry == null) return;
-
+    private static void synthesiseVanillaPackMeta(@NotNull byte[] versionJsonBytes, @NotNull Path packRoot) throws IOException {
         JsonObject versionJson;
-        try (InputStream in = zip.getInputStream(versionEntry)) {
-            versionJson = MCMETA_GSON.fromJson(new String(in.readAllBytes(), StandardCharsets.UTF_8), JsonObject.class);
+        try {
+            versionJson = MCMETA_GSON.fromJson(new String(versionJsonBytes, StandardCharsets.UTF_8), JsonObject.class);
         } catch (JsonSyntaxException ex) {
             return;
         }

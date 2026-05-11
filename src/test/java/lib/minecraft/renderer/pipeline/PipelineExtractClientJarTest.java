@@ -65,6 +65,9 @@ class PipelineExtractClientJarTest {
         assertThat(parsed.packFormat(), is(84));
         assertThat(parsed.description(), containsString("Test Pack"));
         assertThat(Files.isRegularFile(packRoot.resolve("assets/minecraft/textures/block/stone.png")), is(true));
+
+        // version.json is captured in memory for synthesis - it must NOT be extracted to disk.
+        assertThat(Files.exists(packRoot.resolve("version.json")), is(false));
     }
 
     @Test
