@@ -107,6 +107,64 @@ class PipelineExtractClientJarTest {
     }
 
     @Test
+    @DisplayName("Synthesises pack.mcmeta from legacy {resource, data} schema (1.21.4-era jars)")
+    void synthesisesFromLegacyResourceFieldShape(@TempDir Path tempDir) throws IOException {
+        Path jarPath = tempDir.resolve("client.jar");
+        Path packRoot = tempDir.resolve("pack");
+
+        writeZip(jarPath, zip -> {
+            zip.putNextEntry(new ZipEntry("version.json"));
+            zip.write(json(o -> {
+                o.addProperty("id", "1.21.4");
+                o.addProperty("name", "1.21.4");
+                JsonObject pv = new JsonObject();
+                // Legacy flat shape - verified on the real 1.21.4 client jar shipped by Mojang.
+                pv.addProperty("resource", 46);
+                pv.addProperty("data", 61);
+                o.add("pack_version", pv);
+            }).getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+
+            zip.putNextEntry(new ZipEntry("assets/minecraft/textures/block/stone.png"));
+            zip.write(new byte[]{1, 2, 3});
+            zip.closeEntry();
+        });
+
+        Pipeline.extractClientJar(jarPath, packRoot);
+
+        PackMeta parsed = PackMeta.parse(packRoot.resolve("pack.mcmeta"), "vanilla");
+        assertThat(parsed.packFormat(), is(46));
+        assertThat(parsed.description(), containsString("1.21.4"));
+    }
+
+    @Test
+    @DisplayName("Prefers resource_major over resource when both shapes are present")
+    void prefersResourceMajorWhenBothShapesPresent(@TempDir Path tempDir) throws IOException {
+        Path jarPath = tempDir.resolve("client.jar");
+        Path packRoot = tempDir.resolve("pack");
+
+        writeZip(jarPath, zip -> {
+            zip.putNextEntry(new ZipEntry("version.json"));
+            zip.write(json(o -> {
+                JsonObject pv = new JsonObject();
+                pv.addProperty("resource_major", 84);
+                pv.addProperty("resource", 46);
+                o.add("pack_version", pv);
+            }).getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+
+            zip.putNextEntry(new ZipEntry("assets/minecraft/textures/block/stone.png"));
+            zip.write(new byte[]{1, 2, 3});
+            zip.closeEntry();
+        });
+
+        Pipeline.extractClientJar(jarPath, packRoot);
+
+        PackMeta parsed = PackMeta.parse(packRoot.resolve("pack.mcmeta"), "vanilla");
+        assertThat(parsed.packFormat(), is(84));
+    }
+
+    @Test
     @DisplayName("Skips synthesis when version.json is missing (preserves original failure mode)")
     void skipsSynthesisWhenVersionJsonAbsent(@TempDir Path tempDir) throws IOException {
         Path jarPath = tempDir.resolve("client.jar");
@@ -124,16 +182,20 @@ class PipelineExtractClientJarTest {
     }
 
     @Test
-    @DisplayName("Skips synthesis when version.json lacks pack_version.resource_major")
-    void skipsSynthesisWhenResourceMajorAbsent(@TempDir Path tempDir) throws IOException {
+    @DisplayName("Skips synthesis when version.json has neither pack_version.resource_major nor pack_version.resource")
+    void skipsSynthesisWhenBothFormatKeysAbsent(@TempDir Path tempDir) throws IOException {
         Path jarPath = tempDir.resolve("client.jar");
         Path packRoot = tempDir.resolve("pack");
 
         writeZip(jarPath, zip -> {
             zip.putNextEntry(new ZipEntry("version.json"));
             zip.write(json(o -> {
-                o.addProperty("id", "no-pack-version");
-                o.addProperty("name", "Has Name But No pack_version");
+                o.addProperty("id", "neither-key");
+                o.addProperty("name", "Has Name But No format keys");
+                JsonObject pv = new JsonObject();
+                // Neither resource_major nor resource - synthesis must bail.
+                pv.addProperty("data", 61);
+                o.add("pack_version", pv);
             }).getBytes(StandardCharsets.UTF_8));
             zip.closeEntry();
 
