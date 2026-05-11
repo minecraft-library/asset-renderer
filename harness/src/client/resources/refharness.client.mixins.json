@@ -9,11 +9,13 @@
     "FreezeAnimationStateMixin",
     "GuardianStateMixin",
     "HeadlessWindowMixin",
+    "HideCloudsMixin",
     "HideHandMixin",
     "HideSkyMixin",
-    "HideCloudsMixin",
     "PhantomStateMixin",
-    "PufferfishStateMixin"
+    "PufferfishStateMixin",
+    "SkipSetupAnimMixin",
+    "WitherBossModelMixin"
   ],
   "injectors": {
     "defaultRequire": 1
