@@ -306,20 +306,27 @@ public class EntityGeometryKitJava {
                     // bee leashes) where a {@link BlockFace#fromNormal} approximation would
                     // collapse adjacent faces to the same shade.
                     float shading = RenderEngine.computeEntityInUiLighting(normal);
-                    // Y-flipped positions reverse triangle winding (CCW -> CW); emit the quad's
-                    // two triangles in the reversed-winding order {@code (0, 2, 1)} and
-                    // {@code (0, 3, 2)} so the rasterizer's signed-area-positive front-face
-                    // check stays consistent with the cube's front-facing normal.
+                    // Natural CCW emission {@code (0, 1, 2)} and {@code (0, 2, 3)}. Total pipeline
+                    // chirality: kit FLIP_Y (det -1) × engine_camera (det -1 due to entity iso's
+                    // trailing Y-flip for projection-convention compensation) × projection's -y
+                    // (det -1) = det -1. Model CCW → screen CW → rasterizer's
+                    // {@code signedArea < 0} check correctly classifies these as front-facing.
+                    // <p>
+                    // The earlier reversed emission {@code (0, 2, 1)} / {@code (0, 3, 2)} was
+                    // designed for the OLD block-iso engine_camera (pure rotation det +1) where
+                    // the kit's Y-flip alone reversed chirality. With the entity iso's det=-1
+                    // engine_camera, the kit's Y-flip no longer needs winding compensation -
+                    // emission stays natural CCW.
                     triangles.add(new VisibleTriangle(
-                        corners[0], corners[2], corners[1],
-                        effUv[0], effUv[2], effUv[1],
+                        corners[0], corners[1], corners[2],
+                        effUv[0], effUv[1], effUv[2],
                         texture, ColorMath.WHITE,
                         normal, shading,
                         cubeCullBackFaces, emissive
                     ));
                     triangles.add(new VisibleTriangle(
-                        corners[0], corners[3], corners[2],
-                        effUv[0], effUv[3], effUv[2],
+                        corners[0], corners[2], corners[3],
+                        effUv[0], effUv[2], effUv[3],
                         texture, ColorMath.WHITE,
                         normal, shading,
                         cubeCullBackFaces, emissive
@@ -595,8 +602,13 @@ public class EntityGeometryKitJava {
     }
 
     /**
-     * Java-frame {@code T(-pivot) * R(rotation) * T(+pivot)} matrix. Rotation composition order
-     * Z-Y-X matches vanilla Java's {@code Matrix4f.rotateZYX} used by {@code ModelPart}.
+     * Java-frame {@code T(-pivot) * R(rotation) * T(+pivot)} matrix.
+     * <p>
+     * <b>Rotation composition:</b> {@code R = R_X * R_Y * R_Z} in our row-vector convention,
+     * so {@code v_row * R} applies X first, then Y, then Z. This mirrors vanilla
+     * {@code ModelPart.translateAndRotate} which calls {@code mulPose(Z); mulPose(Y); mulPose(X)}
+     * on the column-vector pose stack - the column composite {@code R_Z * R_Y * R_X} also has
+     * {@code R_X} innermost (applied first to v_col).
      * <p>
      * <b>Sign convention:</b> Java's {@code +xRot} (pitch) tilts a bone forward, {@code +yRot}
      * (yaw) turns right, {@code +zRot} (roll) rolls right, applied directly with no negation -
@@ -609,9 +621,9 @@ public class EntityGeometryKitJava {
     ) {
         Matrix4f toPivot = Matrix4f.createTranslation(pivot.negate());
         Matrix4f fromPivot = Matrix4f.createTranslation(pivot);
-        Matrix4f rot = Matrix4f.createRotationZ(rotation.rollRadians())
+        Matrix4f rot = Matrix4f.createRotationX(rotation.pitchRadians())
             .multiply(Matrix4f.createRotationY(rotation.yawRadians()))
-            .multiply(Matrix4f.createRotationX(rotation.pitchRadians()));
+            .multiply(Matrix4f.createRotationZ(rotation.rollRadians()));
         return toPivot.multiply(rot).multiply(fromPivot);
     }
 
@@ -635,7 +647,14 @@ public class EntityGeometryKitJava {
         return rect.toUvCorners(texWidth, texHeight, 0, cube.isMirror());
     }
 
-    /** Back-face culling heuristic - identical to {@link EntityGeometryKit#shouldCullBackFaces}. */
+    /**
+     * Back-face culling heuristic. Plane cubes (any size component equal to zero - e.g.
+     * tadpole tail, top fins, warden tendrils) disable culling so both sides render -
+     * vanilla treats these as double-sided geometry, and with the entity-iso det=-1 chain
+     * one side would otherwise get culled while the other side often samples transparent
+     * texture pixels. Solid cubes use the content-based heuristic
+     * (identical to {@link EntityGeometryKit#shouldCullBackFaces}).
+     */
     private static boolean shouldCullBackFaces(
         @NotNull EntityModelData.Cube cube,
         @NotNull Vector3f size,
@@ -643,6 +662,7 @@ public class EntityGeometryKitJava {
         float texW,
         float texH
     ) {
+        if (size.x() == 0f || size.y() == 0f || size.z() == 0f) return false;
         boolean visibleHasContent =
                uvHasContent(resolveFaceUv(EntityFace.UP, cube, size, texW, texH), texture)
             || uvHasContent(resolveFaceUv(EntityFace.NORTH, cube, size, texW, texH), texture)

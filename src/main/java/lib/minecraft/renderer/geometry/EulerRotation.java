@@ -56,6 +56,17 @@ public record EulerRotation(float pitch, float yaw, float roll) {
     public static final @NotNull EulerRotation STANDARD_ISO_BLOCK = new EulerRotation(30f, 225f, 0f);
 
     /**
+     * Vanilla Minecraft's standard entity inventory-preview pose: {@code [210, 45, 0]}
+     * pitch/yaw/roll. Matches {@code vanilla-reference-harness}'s
+     * {@code EntityFrameRenderer.ISO_ROTATION = new Quaternionf().rotationXYZ(210°, 45°, 0°)},
+     * which is itself derived from the empirical 24-step yaw + 576-frame pitch/roll sweep that
+     * locked vanilla's entity-preview pipeline camera. NOT equivalent to
+     * {@link #STANDARD_ISO_BLOCK} - they differ by a yaw mirror + transpose-like permutation, so
+     * entity rendering must use this constant rather than borrowing the block-icon pose.
+     */
+    public static final @NotNull EulerRotation STANDARD_ISO_ENTITY = new EulerRotation(210f, 45f, 0f);
+
+    /**
      * The rotation about the ({@code X}-axis angle), in radians.
      */
     public float pitchRadians() {

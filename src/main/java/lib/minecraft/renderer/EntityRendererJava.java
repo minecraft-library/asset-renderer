@@ -207,7 +207,7 @@ public final class EntityRendererJava implements Renderer<EntityOptions> {
                 triangles.addAll(buildBlockOverlayTriangles(blockOverlay, model, entityFit));
         }
 
-        IsometricEngine engine = IsometricEngine.standard(this.context);
+        IsometricEngine engine = IsometricEngine.entityStandard(this.context);
         triangles.addAll(ArmorKit.buildEntityArmor3D(buildResult.boneBounds(),
             options.getHelmet(), options.getChestplate(),
             options.getLeggings(), options.getBoots(), engine));
@@ -423,41 +423,62 @@ public final class EntityRendererJava implements Renderer<EntityOptions> {
     }
 
     /**
-     * Inverse of {@link #composeIsoTransform}. Iso is a pure rotation (orthogonal matrix) so
-     * the inverse is the transpose. We compose it directly from the negated rotation angles
-     * in reversed order: {@code (modelRotation × camera)^-1 = camera^-1 × modelRotation^-1}
-     * with {@code R(θ)^-1 = R(-θ)} for each axis-aligned rotation factor.
+     * Inverse of {@link #composeIsoTransform}. The composite is
+     * {@code FLIP_Y × modelRotation × engine_camera_row} which has det=-1 (FLIP_Y) × det=+1
+     * (rotation) × det=-1 (engine_camera_row from two scale(1,1,-1) outer factors with one
+     * R_Y(45°) × R_X(210°) inside) actually det(engine_camera_row) = +1 so overall det=-1. But
+     * the composite is still invertible; we build the inverse as the reversed-order product of
+     * factor inverses: {@code engine_camera_row^-1 × modelRotation^-1 × FLIP_Y^-1}. FLIP_Y is
+     * self-inverse (scale(1,-1,1) twice = identity).
      */
     private static @NotNull Matrix4f composeIsoInverse(@NotNull EulerRotation userRotation) {
-        EulerRotation iso = EulerRotation.STANDARD_ISO_BLOCK;
-        Matrix4f cameraInverse = Matrix4f.createRotationX(-iso.pitchRadians())
+        EulerRotation iso = EulerRotation.STANDARD_ISO_ENTITY;
+        // engine_camera_row = scale(1,1,-1) × R_Y(yaw) × R_X(pitch) × scale(1,1,-1) × scale(1,-1,1).
+        // Inverse: scale(1,-1,1) × scale(1,1,-1) × R_X(-pitch) × R_Y(-yaw) × scale(1,1,-1).
+        Matrix4f cameraInverse = Matrix4f.createScale(1f, -1f, 1f)
+            .multiply(Matrix4f.createScale(1f, 1f, -1f))
+            .multiply(Matrix4f.createRotationX(-iso.pitchRadians()))
             .multiply(Matrix4f.createRotationY(-iso.yawRadians()))
-            .multiply(Matrix4f.createRotationZ(-iso.rollRadians()));
-        if (userRotation.pitch() == 0f && userRotation.yaw() == 0f && userRotation.roll() == 0f)
-            return cameraInverse;
-        Matrix4f modelRotInverse = Matrix4f.createRotationZ(-userRotation.rollRadians())
-            .multiply(Matrix4f.createRotationX(-userRotation.pitchRadians()))
-            .multiply(Matrix4f.createRotationY(-userRotation.yawRadians()));
-        return cameraInverse.multiply(modelRotInverse);
+            .multiply(Matrix4f.createScale(1f, 1f, -1f));
+        Matrix4f modelRotInverse = (userRotation.pitch() == 0f && userRotation.yaw() == 0f && userRotation.roll() == 0f)
+            ? Matrix4f.IDENTITY
+            : Matrix4f.createRotationZ(-userRotation.rollRadians())
+                .multiply(Matrix4f.createRotationX(-userRotation.pitchRadians()))
+                .multiply(Matrix4f.createRotationY(-userRotation.yawRadians()));
+        Matrix4f flipYInverse = Matrix4f.createScale(1f, -1f, 1f);
+        return cameraInverse.multiply(modelRotInverse).multiply(flipYInverse);
     }
 
     /**
-     * Builds the transform applied to model vertices during rasterization (model rotation × iso
-     * camera). Mirrors the composition done internally by
-     * {@code ModelEngine.rasterize(..., EulerRotation)}; duplicated here so canvas sizing can
-     * project bounds through the same matrix without a second rasterize call.
+     * Builds the orientation-only transform that maps a Y-down model vertex to its pre-projection
+     * screen position - matching what the rasterizer applies internally for entity rendering.
+     * The composite is {@code FLIP_Y × modelRotation × engine_camera_row}:
+     * <ul>
+     * <li>{@code FLIP_Y = scale(1, -1, 1)} - the kit's Y-down-to-Y-up flip applied to vertex
+     *     positions inside {@code EntityGeometryKitJava.buildTrianglesWithScale}.</li>
+     * <li>{@code modelRotation} - per-render user rotation (yaw × pitch × roll), composed by
+     *     {@code ModelEngine.buildModelRotation}.</li>
+     * <li>{@code engine_camera_row = scale(1,1,-1) × R_Y(45°) × R_X(210°) × scale(1,1,-1)} -
+     *     {@link IsometricEngine#entityStandard}'s camera matrix.</li>
+     * </ul>
+     * Mirrors the engine's per-vertex chain so {@link EntityGeometryKitJava#computeScreenBounds}
+     * sees the same model-to-screen mapping. Centering / NDC scaling are translation + uniform
+     * scale that the canvas-fit math handles separately, so they aren't included here.
      */
     private static @NotNull Matrix4f composeIsoTransform(@NotNull EulerRotation userRotation) {
+        EulerRotation iso = EulerRotation.STANDARD_ISO_ENTITY;
+        Matrix4f flipY = Matrix4f.createScale(1f, -1f, 1f);
         Matrix4f modelRotation = (userRotation.pitch() == 0f && userRotation.yaw() == 0f && userRotation.roll() == 0f)
             ? Matrix4f.IDENTITY
             : Matrix4f.createRotationY(userRotation.yawRadians())
                 .multiply(Matrix4f.createRotationX(userRotation.pitchRadians()))
                 .multiply(Matrix4f.createRotationZ(userRotation.rollRadians()));
-        EulerRotation iso = EulerRotation.STANDARD_ISO_BLOCK;
-        Matrix4f camera = Matrix4f.createRotationZ(iso.rollRadians())
+        Matrix4f cameraEntity = Matrix4f.createScale(1f, 1f, -1f)
             .multiply(Matrix4f.createRotationY(iso.yawRadians()))
-            .multiply(Matrix4f.createRotationX(iso.pitchRadians()));
-        return modelRotation.multiply(camera);
+            .multiply(Matrix4f.createRotationX(iso.pitchRadians()))
+            .multiply(Matrix4f.createScale(1f, 1f, -1f))
+            .multiply(Matrix4f.createScale(1f, -1f, 1f));
+        return flipY.multiply(modelRotation).multiply(cameraEntity);
     }
 
     /**

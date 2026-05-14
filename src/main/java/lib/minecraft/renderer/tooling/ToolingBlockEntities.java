@@ -1248,6 +1248,17 @@ public final class ToolingBlockEntities {
             // into the runtime geometry (the renderer applies its own per-renderer scale).
             // Gated on {@code paramFloatValues != null} so bedrock block entities, which never
             // call MeshTransformer, are unaffected.
+            //
+            // <b>Why not bake into JSON</b>: vanilla {@code MeshTransformer.scaling(F)} expands as
+            // {@code pose.scaled(F).translated(0, 24.016*(1-F), 0)} on each PartPose - it scales
+            // pivots around the entity's feet anchor (y=24.016) AND multiplies the bone's
+            // PartPose.scale field by F, which the renderer reads at submit time to scale child
+            // cube vertices. Our pipeline has no bone-scale support in the kit, so a naive
+            // "multiply pivot+origin+size by F" bake (a) scales around origin instead of the feet
+            // anchor and (b) double-applies the scale to UV regions (cube UV width comes from
+            // size). Tracked as a separate fix; for now {@link EntityRendererJava}'s
+            // RENDERER_SCALE_OVERRIDES applies a uniform vertex scale around the screen-midpoint
+            // anchor which is "close enough" for flat-hierarchy entities (polar_bear T3).
             if (state.paramFloatValues != null
                 && opcode == Opcodes.INVOKESTATIC
                 && methodInsn.owner.equals("net/minecraft/client/model/geom/builders/MeshTransformer")

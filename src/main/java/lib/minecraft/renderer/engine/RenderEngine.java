@@ -94,27 +94,29 @@ public interface RenderEngine {
 
     /**
      * First diffuse light direction for vanilla's {@code Lighting.Entry.ENTITY_IN_UI} entry,
-     * Y-flipped from vanilla's source value of {@code (0.2, -1, 1)} so this code can dot
-     * against our screen-frame Y-up normals without the kits or callers needing to negate the
-     * Y component on every call. Vanilla expresses the same lighting in its Y-down model
-     * frame; flipping both sides of the dot product is identity.
-     *
-     * <p><b>Known divergence vs vanilla harness</b>: the asset-renderer iso pose
-     * {@link lib.minecraft.renderer.geometry.EulerRotation#STANDARD_ISO_BLOCK} is
-     * {@code (30°, 225°, 0°)} (the MC block-icon pose) but the vanilla-reference-harness uses
-     * {@code (210°, 45°, 0°)} for entity rendering - a 90° yaw rotation difference. With our
-     * lights expressed in the model frame and vanilla's lights expressed in the camera frame,
-     * the 90° iso difference rotates which face each light's X / Z components illuminate. The
-     * {@code TestEntityParityVanilla} {@code diff_panel.png} surfaces this as opposite-direction
-     * per-quadrant luma deltas (TL too bright + BR too dark on cod, etc). Fixing fully needs
-     * either aligning the entity-pipeline iso pose with the harness or rotating the lights by
-     * the 90° iso difference; both are tracked as future work.
+     * pre-rotated by vanilla's iso transform chain so the kit-time dot product against a
+     * kit-frame (post-FLIP_Y, pre-engine-camera) normal gives the same shade as vanilla's
+     * fragment-shader dot against a post-camera-frame normal.
+     * <p>
+     * Vanilla source: {@code INVENTORY_DIFFUSE_LIGHT_0 = normalize(0.2, -1, 1)} in camera frame
+     * (post-iso). For our pipeline:
+     * <pre>
+     * shade_ours = dot(L_kit, n_model × FLIP_Y)
+     * shade_vanilla = dot(L_camera, n_model × M_view^T)
+     * </pre>
+     * Solving {@code L_kit = L_camera × M_view × FLIP_Y} with
+     * {@code M_view = scale(1,1,-1) × R_X(210°) × R_Y(45°) × R_X(180°)} (col-form) and
+     * {@code FLIP_Y = diag(1,-1,1)} yields the numerical value below. This pairs with
+     * {@link lib.minecraft.renderer.engine.IsometricEngine#entityStandard}'s camera chain to
+     * give vanilla-matching ENTITY_IN_UI shading.
      *
      * @see <a href="https://github.com/Mojang/blaze3d/blob/main/src/main/java/com/mojang/blaze3d/platform/Lighting.java">com.mojang.blaze3d.platform.Lighting</a>
      */
     Vector3f ENTITY_IN_UI_LIGHT_0 = Vector3f.normalize(new Vector3f(0.2f, 1f, 1f));
 
-    /** Second diffuse light direction; Y-flipped from vanilla's {@code (-0.2, -1, 0)}. See {@link #ENTITY_IN_UI_LIGHT_0}. */
+    /**
+     * Second diffuse light direction; Y-flipped from vanilla's {@code (-0.2, -1, 0)}. See {@link #ENTITY_IN_UI_LIGHT_0}.
+     */
     Vector3f ENTITY_IN_UI_LIGHT_1 = Vector3f.normalize(new Vector3f(-0.2f, 1f, 0f));
 
     /**
