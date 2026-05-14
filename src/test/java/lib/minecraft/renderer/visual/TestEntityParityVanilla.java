@@ -76,8 +76,16 @@ public final class TestEntityParityVanilla {
      * vanilla harness baseline. Starts empty - this baseline differs from the bedrock-vs-java
      * comparison in {@link TestEntityParity} so its allowlist is independent. Populate after
      * inspecting per-entity {@code diff.png}; entries here split the focus pool reporting.
+     *
+     * <p>Tier definitions live in {@code notes/JAVA_PIPELINE_RESEARCH.md}; the python helper
+     * {@code scripts/parity_analysis/iterate_entity.py} validates that an entity actually meets
+     * its assigned tier before it lands here. Promote candidates by running
+     * {@code python scripts/parity_analysis/iterate_entity.py <entity>} and adding the entry
+     * only when the script exits 0.
      */
-    private static final @NotNull Set<String> ACHIEVED_PARITY = Set.of();
+    private static final @NotNull Set<String> ACHIEVED_PARITY = Set.of(
+        "minecraft:polar_bear"
+    );
 
     /**
      * Runs the parity sweep.

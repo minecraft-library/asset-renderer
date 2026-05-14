@@ -67,22 +67,32 @@ public final class EntityRendererJava implements Renderer<EntityOptions> {
     private static final int MAX_CANVAS_SIZE = Integer.getInteger("refharness.maxCanvasSize", 1024);
 
     /**
-     * Effective entity-render scale per entity id. Combines vanilla's two scaling sources:
+     * Effective entity-render scale per entity id. Combines three vanilla scaling sources:
      * <ul>
      * <li>Per-renderer {@code scale(state, ps)} overrides - {@code WitherBossRenderer} bakes
-     * a constant {@code scale(2, 2, 2)} into its submit chain, for example.</li>
+     * a constant {@code scale(2, 2, 2)} into its submit chain.</li>
      * <li>{@code state.scale} set by {@code extractRenderState} from the entity's own scale
      * field - the {@code Giant} entity carries scale 6 on its instance, applied by
      * {@code LivingEntityRenderer.submit}'s {@code scale(state.scale, ...)} call.</li>
+     * <li>{@code MeshTransformer.scaling(F)} wraps applied at LayerDefinition build time -
+     * the wrap recursively multiplies every cube + bone pivot in the layer definition, so a
+     * model with no internal bone hierarchy (e.g. polar_bear: cubes hang off a few flat bones)
+     * comes out correct under the simpler "scale every kit output vertex by F" approximation
+     * we apply here. Models with deeper bone trees (elder_guardian's spike loop, happy_ghast's
+     * leash anchor) get wrong final positions under this approximation because the bone pivot
+     * stays at its raw value while the cube vertices get scaled out from under it. Those
+     * entities need the scaling baked into JSON at parse time, tracked as a separate fix.</li>
      * </ul>
-     * Hardcoded for now; later sessions can ASM-extract these from the renderer's {@code scale}
-     * override and the entity's constructor (see {@code feedback_pipeline_util_package} for the
-     * resolver location convention). Unlisted entities default to 1. Excluded baby/conditional
-     * cases (zoglin baby 0.5x) since the static renderer never renders babies.
+     * Hardcoded for now; later sessions can ASM-extract from the renderer's {@code scale}
+     * override + entity constructor + the {@code MeshTransformer.scaling(F)} call site in the
+     * model factory. Unlisted entities default to 1. Excluded baby/conditional cases (zoglin
+     * baby 0.5x) since the static renderer never renders babies.
      */
-    private static final @NotNull Map<String, Float> RENDERER_SCALE_OVERRIDES = Map.of(
-        "minecraft:wither", 2.0f,
-        "minecraft:giant", 6.0f
+    private static final @NotNull Map<String, Float> RENDERER_SCALE_OVERRIDES = Map.ofEntries(
+        Map.entry("minecraft:wither", 2.0f),
+        Map.entry("minecraft:giant", 6.0f),
+        Map.entry("minecraft:ghast", 4.5f),
+        Map.entry("minecraft:polar_bear", 1.2f)
     );
 
     /** Renderer context for texture resolution + isometric engine setup; not used for entity lookup. */
