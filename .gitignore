@@ -134,3 +134,4 @@ notes/
 
 # Parity analysis output is regenerated from cache/ — keep scripts, drop outputs.
 scripts/parity_analysis/out/
+scripts/**/__pycache__/
