@@ -242,7 +242,15 @@ public class ModelEngine extends TextureEngine {
             int pyEnd = Math.min(bounds[3], tileEnd - 1);
             if (pyStart > pyEnd) continue;
 
-            float shading = t.source.shading() * RenderEngine.computeInventoryLighting(t.source.normal());
+            // The kit baked the lighting term (per-face for blocks/fluids via
+            // {@link RenderEngine#computeInventoryLighting}, dual-light Lambertian for entities
+            // via {@link RenderEngine#computeEntityInUiLighting}) into the source triangle's
+            // shading at geometry-build time, so no further normal-based shading is applied here.
+            // Centralising the computation in the kit lets each kit pick the lighting model that
+            // matches its vanilla render path - {@code Lighting.ITEMS_3D} for blocks vs
+            // {@code Lighting.ENTITY_IN_UI} for entities - without the rasterizer needing to
+            // dispatch on triangle type.
+            float shading = t.source.shading();
 
             for (int py = pyStart; py <= pyEnd; py++) {
                 for (int px = bounds[0]; px <= bounds[2]; px++) {

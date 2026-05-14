@@ -122,3 +122,15 @@ src/main/resources/lib/minecraft/renderer/entity_textures/
 # Generated H2 schema for IntelliJ JPA resolution
 .schema/
 .gitnexus
+
+# Reference / known-good upstream snapshots used for diffing during dev.
+# Held next to the working file for easy comparison; never loaded at runtime.
+src/main/resources/**/entity_geometry.upstream.json
+
+# Local planning notes / scratch design docs that aren't part of the project's
+# committed artifacts. Pick-up-where-we-left-off documents for follow-up work
+# (vanilla-render-mod plan, etc.) live here.
+notes/
+
+# Parity analysis output is regenerated from cache/ — keep scripts, drop outputs.
+scripts/parity_analysis/out/

@@ -127,6 +127,13 @@ tasks {
         workingDir = layout.projectDirectory.asFile
     }
 
+    // Dev-time reference snapshots (entity_geometry.upstream.json etc.) sit beside their working
+    // counterparts under src/main/resources for easy diffing but never load at runtime - keep
+    // them out of the published JAR.
+    processResources {
+        exclude("**/*.upstream.json")
+    }
+
     // Tooling
 
     register<JavaExec>("atlas") {
@@ -164,6 +171,13 @@ tasks {
         description = "Downloads the Bedrock Edition vanilla resource pack and generates src/main/resources/lib/minecraft/renderer/entity_models.json from .geo.json files. Run on a Minecraft version bump."
         group = "tooling"
         mainClass.set("lib.minecraft.renderer.tooling.ToolingEntityModels")
+        classpath = sourceSets["main"].runtimeClasspath
+    }
+
+    register<JavaExec>("entityModelsJava") {
+        description = "Side-by-side Java-derived entity-model pipeline (variant 2a). Phase A: walks the client jar to map every living mob from MobRegistryDiscovery to its registered renderer class, writes a coverage diagnostic to cache/asset-renderer/diagnostics/java_entity_renderers.json. See ~/.claude/plans/java-derived-entity-models-research.md."
+        group = "tooling"
+        mainClass.set("lib.minecraft.renderer.tooling.ToolingJavaEntityModels")
         classpath = sourceSets["main"].runtimeClasspath
     }
 
@@ -255,6 +269,49 @@ tasks {
         args = if (entityId != null) listOf(renderSize, entityId) else listOf(renderSize)
     }
 
+    register<JavaExec>("entityRender3DJava") {
+        description = "Side-by-side counterpart of entityRender3D using the Java-derived pipeline (entity_models_java.json + EntityRendererJava). Output -> cache/visual/entity-render-3d-java/. -PrenderSize=512 -PentityId=minecraft:zombie"
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestEntityRender3DJava")
+        classpath = sourceSets["test"].runtimeClasspath
+        val renderSize = (project.findProperty("renderSize") as String?) ?: "512"
+        val entityId = project.findProperty("entityId") as String?
+        args = if (entityId != null) listOf(renderSize, entityId) else listOf(renderSize)
+    }
+
+    register<JavaExec>("entityParity") {
+        description = "Per-entity parity report comparing Java pipeline vs bedrock pipeline (mean ARGB delta + side-by-side PNGs). Output -> cache/visual/entity-parity/. -PrenderSize=256 -PentityId=minecraft:zombie"
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestEntityParity")
+        classpath = sourceSets["test"].runtimeClasspath
+        val renderSize = (project.findProperty("renderSize") as String?) ?: "256"
+        val entityId = project.findProperty("entityId") as String?
+        args = if (entityId != null) listOf(renderSize, entityId) else listOf(renderSize)
+    }
+
+    register<JavaExec>("entityParityVanilla") {
+        description = "Per-entity parity report comparing Java pipeline vs vanilla-reference-harness ground truth (mean ARGB delta + per-entity vanilla/java/diff PNGs). Output -> cache/visual/entity-parity-vanilla/<entity>/. Run :asset-renderer:renderVanillaReferences first if the cache is missing. -PentityId=minecraft:zombie"
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestEntityParityVanilla")
+        classpath = sourceSets["test"].runtimeClasspath
+        val entityId = project.findProperty("entityId") as String?
+        args = if (entityId != null) listOf(entityId) else listOf()
+    }
+
+    register<JavaExec>("entityBodyPartParity") {
+        description = "Per-bone parity report for ONE entity (axis-isolation harness). Renders each bone in isolation through both pipelines + writes side-by-side PNGs. -PentityId=minecraft:cave_spider [-PrenderSize=256] -Dentity.flipX=true -Dentity.flipY=false -Dentity.flipZ=true -Dentity.flipNX=true -Dentity.flipNY=false -Dentity.flipNZ=true -Dentity.translateByPivot=false"
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestEntityBodyPartParity")
+        classpath = sourceSets["test"].runtimeClasspath
+        val renderSize = (project.findProperty("renderSize") as String?) ?: "256"
+        val entityId = (project.findProperty("entityId") as String?) ?: "minecraft:cave_spider"
+        args = listOf(renderSize, entityId)
+        // Forward Java system properties so -Dentity.flipY=false works on the gradle command line
+        systemProperties = System.getProperties().toMap()
+            .filter { it.key.toString().startsWith("entity.") }
+            .mapKeys { it.key.toString() }
+    }
+
     register<JavaExec>("fluidRenderer") {
         description = "Renders every FluidRenderer code path (water/lava, iso/2D, static/animated, biome variants, override) to cache/visual/fluid-renderer/ for visual inspection."
         group = "visual"
@@ -285,6 +342,52 @@ tasks {
         classpath = sourceSets["test"].runtimeClasspath
         val renderSize = (project.findProperty("renderSize") as String?) ?: "64"
         args = listOf(renderSize)
+    }
+
+    // Delegates to the sibling vanilla-reference-harness Fabric mod, which boots a
+    // headless Minecraft 26.1.2 client, renders every block + living entity to PNG
+    // via the in-game vanilla pipeline, then exits. Output lands under
+    // cache/asset-renderer/vanilla/<version>/references/{blocks,entities}/ so
+    // parity tests can diff against ground truth.
+    //
+    // Run on a Minecraft version bump (~5 minutes total). Regenerated PNGs are
+    // gitignored via the cache/ exclusion.
+    //
+    // Filter to a subset for iteration:
+    //   ./gradlew :asset-renderer:renderVanillaReferences -PrefharnessTargets=minecraft:cow,minecraft:stone
+    register<Exec>("renderVanillaReferences") {
+        description = "Runs the sibling vanilla-reference-harness mod and copies its PNG output into asset-renderer's vanilla cache. Re-run on Minecraft version bump."
+        group = "tooling"
+        workingDir = file("../vanilla-reference-harness")
+        // The sibling project's renderReferences run-config writes PNGs into its own
+        // build/refharness-output/. We point it at asset-renderer's vanilla cache
+        // directly via -Drefharness.outputDir, no copy step needed.
+        val outputDir = layout.projectDirectory.dir("cache/asset-renderer/vanilla/26.1/references")
+        val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
+        val gradlewPath = file("../vanilla-reference-harness/${if (isWindows) "gradlew.bat" else "gradlew"}").absolutePath
+        val baseArgs = mutableListOf<String>()
+        if (isWindows) {
+            baseArgs.add("cmd")
+            baseArgs.add("/c")
+        }
+        baseArgs.add(gradlewPath)
+        baseArgs.add("runRenderReferences")
+        baseArgs.add("--no-daemon")
+        // -P (project property) propagates through the sibling's build.gradle to its
+        // Loom run config, which sets the system property the mod actually reads.
+        // -D would only affect the wrapper's JVM, not the forked Minecraft process.
+        baseArgs.add("-PrefharnessOutputDir=${outputDir.asFile.absolutePath}")
+        if (project.hasProperty("refharnessTargets")) {
+            baseArgs.add("-PrefharnessTargets=${project.property("refharnessTargets")}")
+        }
+        if (project.hasProperty("refharnessPitchRollSweep")) {
+            baseArgs.add("-PrefharnessPitchRollSweep=${project.property("refharnessPitchRollSweep")}")
+        }
+        commandLine = baseArgs
+        doFirst {
+            println("renderVanillaReferences: writing to ${outputDir.asFile.absolutePath}")
+            outputDir.asFile.mkdirs()
+        }
     }
 
     // `./gradlew fonts` now lives in the minecraft-text build at

@@ -8,8 +8,9 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.model.EntityModelData;
-import lib.minecraft.renderer.geometry.BlockFace;
+import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.geometry.Box;
+import lib.minecraft.renderer.geometry.EntityFace;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.tensor.Matrix4f;
@@ -175,7 +176,7 @@ public class EntityGeometryKit {
 
                 boolean cubeCullBackFaces = shouldCullBackFaces(cube, size, texture, texW, texH);
 
-                for (BlockFace face : BlockFace.values()) {
+                for (EntityFace face : EntityFace.values()) {
                     Vector3f[] corners = face.corners(cubeBounds);
                     for (int i = 0; i < 4; i++) {
                         Vector3f transformed = Vector3f.transform(corners[i], fullTransform);
@@ -195,18 +196,41 @@ public class EntityGeometryKit {
                     Vector3f normal = Vector3f.normalize(Vector3f.transformNormal(face.normal(), fullTransform));
                     Vector2f[] uv = resolveFaceUv(face, cube, size, texW, texH);
 
+                    // V-flip permutation for UP / DOWN faces only. {@link EntityFace#corners}
+                    // returns vertical-face vertices in {@code (NW, SW, SE, NE)} order while
+                    // vanilla MC's UP/DOWN UV unwrap places TL at the SOUTH-WEST corner of the
+                    // cube top (V increases NORTH → SOUTH on the cube). Pairing pos[i] with
+                    // uv[i] without this permutation puts the texture's TL at NW of the cube,
+                    // which is a V-flip vs vanilla. The {@code [1, 0, 3, 2]} permutation
+                    // (TL↔BL, BR↔TR) brings each visual-position vertex to its correct UV.
+                    // Side faces don't need this - their U axis follows the cube's left/right
+                    // and V follows top/bottom in the standard orientation. Mirrors the analogous
+                    // fix in {@link EntityGeometryKitJava}; see that kit for the Y-flipped
+                    // variant which uses {@code [3, 2, 1, 0]} U-flip on UP/DOWN to compensate
+                    // for its position Y-flip too.
+                    Vector2f[] effUv = (face == EntityFace.UP || face == EntityFace.DOWN)
+                        ? new Vector2f[]{ uv[1], uv[0], uv[3], uv[2] }
+                        : uv;
+
+                    // Bake vanilla's {@code Lighting.ENTITY_IN_UI} dual-directional Lambertian
+                    // shade factor into each triangle. The bedrock kit's normal is already in
+                    // screen Y-up frame (Bedrock's authored Y is up natively), so it dots directly
+                    // against the screen-frame Y-up light vectors in
+                    // {@link RenderEngine#computeEntityInUiLighting} - no flip needed unlike
+                    // {@link EntityGeometryKitJava} which builds in Y-down then flips on output.
+                    float shading = RenderEngine.computeEntityInUiLighting(normal);
                     triangles.add(new VisibleTriangle(
                         corners[0], corners[1], corners[2],
-                        uv[0], uv[1], uv[2],
+                        effUv[0], effUv[1], effUv[2],
                         texture, ColorMath.WHITE,
-                        normal, 1f,
+                        normal, shading,
                         cubeCullBackFaces, emissive
                     ));
                     triangles.add(new VisibleTriangle(
                         corners[0], corners[2], corners[3],
-                        uv[0], uv[2], uv[3],
+                        effUv[0], effUv[2], effUv[3],
                         texture, ColorMath.WHITE,
-                        normal, 1f,
+                        normal, shading,
                         cubeCullBackFaces, emissive
                     ));
                 }
@@ -420,13 +444,12 @@ public class EntityGeometryKit {
 
     /**
      * Resolves the four UV corners for one cube face. Delegates the atlas unwrap to
-     * {@link BlockFace#defaultUv(int[], float[], float, float, boolean)} for Bedrock's strip
-     * layout; a per-face override from {@link EntityModelData.Cube#getFaceUv()} (Bedrock 1.12+
-     * explicit {@code cube.uv} object form) bypasses the unwrap entirely and uses the authored
-     * rectangle directly.
+     * {@link EntityFace#defaultUv} for Bedrock's strip layout; a per-face override from
+     * {@link EntityModelData.Cube#getFaceUv()} (Bedrock 1.12+ explicit {@code cube.uv} object
+     * form) bypasses the unwrap entirely and uses the authored rectangle directly.
      */
     private static @NotNull Vector2f @NotNull [] resolveFaceUv(
-        @NotNull BlockFace face,
+        @NotNull EntityFace face,
         @NotNull EntityModelData.Cube cube,
         @NotNull Vector3f size,
         float texWidth,
@@ -461,8 +484,8 @@ public class EntityGeometryKit {
      * cull when all iso-visible faces are empty AND any iso-hidden face has content. When
      * everything is empty, default back to culling (no behavioural difference).
      * <p>
-     * The iso-visible face set ({@link BlockFace#UP}, {@link BlockFace#NORTH},
-     * {@link BlockFace#EAST}) is hardcoded for the standard block-iso pose used by
+     * The iso-visible face set ({@link EntityFace#UP}, {@link EntityFace#NORTH},
+     * {@link EntityFace#EAST}) is hardcoded for the standard block-iso pose used by
      * {@code EntityRenderer}. If the iso pose ever changes, revisit.
      */
     private static boolean shouldCullBackFaces(
@@ -473,14 +496,14 @@ public class EntityGeometryKit {
         float texH
     ) {
         boolean visibleHasContent =
-               uvHasContent(resolveFaceUv(BlockFace.UP, cube, size, texW, texH), texture)
-            || uvHasContent(resolveFaceUv(BlockFace.NORTH, cube, size, texW, texH), texture)
-            || uvHasContent(resolveFaceUv(BlockFace.EAST, cube, size, texW, texH), texture);
+               uvHasContent(resolveFaceUv(EntityFace.UP, cube, size, texW, texH), texture)
+            || uvHasContent(resolveFaceUv(EntityFace.NORTH, cube, size, texW, texH), texture)
+            || uvHasContent(resolveFaceUv(EntityFace.EAST, cube, size, texW, texH), texture);
         if (visibleHasContent) return true;
         boolean hiddenHasContent =
-               uvHasContent(resolveFaceUv(BlockFace.DOWN, cube, size, texW, texH), texture)
-            || uvHasContent(resolveFaceUv(BlockFace.SOUTH, cube, size, texW, texH), texture)
-            || uvHasContent(resolveFaceUv(BlockFace.WEST, cube, size, texW, texH), texture);
+               uvHasContent(resolveFaceUv(EntityFace.DOWN, cube, size, texW, texH), texture)
+            || uvHasContent(resolveFaceUv(EntityFace.SOUTH, cube, size, texW, texH), texture)
+            || uvHasContent(resolveFaceUv(EntityFace.WEST, cube, size, texW, texH), texture);
         return !hiddenHasContent;
     }
 

@@ -34,6 +34,7 @@ import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.JumpInsnNode;
+import org.objectweb.asm.tree.LabelNode;
 import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.LookupSwitchInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
@@ -415,6 +416,8 @@ public final class ToolingBlockEntities {
         private static final @NotNull String PART_POSE = "net/minecraft/client/model/geom/PartPose";
         private static final @NotNull String PART_DEFINITION = "net/minecraft/client/model/geom/builders/PartDefinition";
         private static final @NotNull String LAYER_DEFINITION = "net/minecraft/client/model/geom/builders/LayerDefinition";
+        private static final @NotNull String CUBE_DEFORMATION = "net/minecraft/client/model/geom/builders/CubeDeformation";
+        private static final @NotNull String PART_NAMES = "net/minecraft/client/model/geom/PartNames";
 
         // Block-entity sources are discovered by {@link SourceDiscovery} and passed through
         // {@link #parse} at runtime; the former hardcoded {@code SOURCES} list was removed
@@ -658,6 +661,15 @@ public final class ToolingBlockEntities {
         private static @Nullable JsonObject parseLayerMethod(@NotNull InsnList instructions, @NotNull ZipFile zip, @NotNull Source source, @NotNull Diagnostics diagnostics) {
             ParseState state = new ParseState();
             state.paramIntValues = source.paramIntValues();
+            state.paramFloatValues = source.paramFloatValues();
+            // Pre-seed pendingInflate from the source's defaultInflate so factory methods that
+            // take a {@code CubeDeformation} arg (instead of constructing one inline) emit cubes
+            // with the call-site-provided inflate. The composite-overlay flow uses this for
+            // {@code DROWNED_OUTER_LAYER} -> {@code DrownedModel.createBodyLayer(new
+            // CubeDeformation(0.25F))}: the parser starts inside createBodyLayer where the 0.25
+            // is invisible, but the synthetic Source carries it through {@code defaultInflate}.
+            state.defaultInflate = source.defaultInflate();
+            state.pendingInflate = source.defaultInflate();
             state.currentSource = source;
             state.diagnostics = diagnostics;
             walkInstructions(instructions, state, zip);
@@ -673,6 +685,8 @@ public final class ToolingBlockEntities {
             if (!state.numStack.isEmpty())
                 diagnostics.info("%s: %d leftover literal(s) on numStack after parse - unhandled method-owner descriptor?", source.entityId(), state.numStack.size());
 
+            applyRetainedNamesFilter(state);
+
             if (state.bones.isEmpty()) return null;
 
             JsonObject model = new JsonObject();
@@ -680,6 +694,49 @@ public final class ToolingBlockEntities {
             model.addProperty("textureHeight", state.texHeight);
             model.add("bones", state.bones);
             return model;
+        }
+
+        /**
+         * Drops bones whose ancestor chain (self -> root) contains no name in
+         * {@link ParseState#retainedNames}. Mirrors the effect of
+         * {@code PartDefinition.retainPartsAndChildren(Set)} on the mesh root: vanilla replaces
+         * every non-retained bone's cubes with empty (recursing through children, leaving
+         * subtrees rooted at a retained name fully intact). Since {@link #flushPendingBone}
+         * skips JSON emission for cube-less bones, removing the JSON entry produces the same
+         * render output as vanilla's "strip cubes, keep empty placeholder" path.
+         *
+         * <p>No-op when {@code retainedNames} is null (no filter requested) or empty (vanishingly
+         * unusual, would drop every bone). Walks via {@link ParseState#boneParents} populated
+         * during {@link #flushPendingBone}.
+         */
+        private static void applyRetainedNamesFilter(@NotNull ParseState state) {
+            Set<String> retained = state.retainedNames;
+            if (retained == null) return;
+            List<String> toRemove = new java.util.ArrayList<>();
+            for (Map.Entry<String, JsonElement> entry : state.bones.entrySet()) {
+                if (!hasRetainedAncestor(entry.getKey(), retained, state.boneParents))
+                    toRemove.add(entry.getKey());
+            }
+            for (String name : toRemove) state.bones.remove(name);
+        }
+
+        /**
+         * Returns {@code true} if {@code name} or any of its ancestors (walked via
+         * {@code parents}) appears in {@code retained}. Traversal stops at the first cycle or
+         * when the parent chain bottoms out at {@code null} (root).
+         */
+        private static boolean hasRetainedAncestor(
+            @NotNull String name,
+            @NotNull Set<String> retained,
+            @NotNull Map<String, String> parents
+        ) {
+            Set<String> seen = new LinkedHashSet<>();
+            String cursor = name;
+            while (cursor != null && seen.add(cursor)) {
+                if (retained.contains(cursor)) return true;
+                cursor = parents.get(cursor);
+            }
+            return false;
         }
 
         /**
@@ -708,26 +765,72 @@ public final class ToolingBlockEntities {
 
                 int opcode = node.getOpcode();
 
-                // Conditional / unconditional jumps. Only followed when {@code paramIntValues}
-                // is supplied - without a known parameter value, the parser falls back to its
-                // default linear walk (which picks up LDCs on both branches of an if/else).
-                // GOTO always jumps (target is determined statically by javac); IFEQ / IFNE
-                // consume the top of {@link ParseState#branchStack} so the taken branch is
-                // decided by the ILOAD slot's known value. Other jump opcodes (icmp, ifnull,
-                // etc.) aren't emitted by the layer-build patterns we parse and are treated
-                // as no-ops for now.
-                if (state.paramIntValues != null && node instanceof JumpInsnNode jumpInsn) {
-                    if (opcode == Opcodes.GOTO) {
-                        node = jumpInsn.label;
-                        continue;
-                    }
-                    if ((opcode == Opcodes.IFEQ || opcode == Opcodes.IFNE) && !state.branchStack.isEmpty()) {
-                        int value = state.branchStack.remove(state.branchStack.size() - 1);
-                        boolean jump = opcode == Opcodes.IFEQ ? value == 0 : value != 0;
-                        if (jump) {
-                            node = jumpInsn.label;
-                            continue;
+                // Conditional / unconditional jumps + their JVM-stack-pop accounting. The pop
+                // accounting is gated on {@code paramFloatValues != null} (Java pipeline opt-in)
+                // so bedrock block entities keep their literal-only walk. Branch-following
+                // remains gated on {@code paramIntValues != null} - without a known parameter
+                // value the parser falls through linearly. Decoupling the two gates means Java
+                // entities at the top-level Source (where {@code paramIntValues == null} but
+                // {@code paramFloatValues != null}) still pop the comparison values, preventing
+                // the leftover-literal warnings produced by for-loop {@code IF_ICMPGE} etc.
+                if (node instanceof JumpInsnNode jumpInsn) {
+                    boolean canFollow = state.paramIntValues != null;
+                    switch (opcode) {
+                        case Opcodes.GOTO -> {
+                            // Forward GOTO only - skips the not-taken branch of an if/else
+                            // (vanilla model factories use this for variant dispatch). Backward
+                            // GOTOs (loop tails, e.g. the spike loop in
+                            // {@code GuardianModel.createBodyMesh}) would loop the linear walker
+                            // forever, so they fall through linearly, walking the loop body once.
+                            if (canFollow && isForwardJump(instructions, node, jumpInsn.label)) {
+                                node = jumpInsn.label;
+                                continue;
+                            }
                         }
+                        case Opcodes.IFEQ, Opcodes.IFNE,
+                             Opcodes.IFLT, Opcodes.IFGE,
+                             Opcodes.IFGT, Opcodes.IFLE -> {
+                            // Unary int comparison: pops 1 int. Java pipeline pops from
+                            // numStack (where ILOAD / arithmetic results live); bedrock pipeline
+                            // pops from branchStack (where ILOAD-of-paramIntValues lives, used
+                            // by the banner standing/wall split).
+                            Integer value = null;
+                            if (state.paramFloatValues != null && !state.numStack.isEmpty()) {
+                                value = state.numStack.remove(state.numStack.size() - 1).intValue();
+                            } else if (canFollow && !state.branchStack.isEmpty()) {
+                                value = state.branchStack.remove(state.branchStack.size() - 1);
+                            }
+                            // Branch-following only for IFEQ / IFNE with a resolved value
+                            // (others are loop-exit comparisons whose RHS is dynamic).
+                            if (canFollow && value != null
+                                && (opcode == Opcodes.IFEQ || opcode == Opcodes.IFNE)) {
+                                boolean jump = opcode == Opcodes.IFEQ ? value == 0 : value != 0;
+                                if (jump && isForwardJump(instructions, node, jumpInsn.label)) {
+                                    node = jumpInsn.label;
+                                    continue;
+                                }
+                            }
+                        }
+                        case Opcodes.IF_ICMPEQ, Opcodes.IF_ICMPNE,
+                             Opcodes.IF_ICMPLT, Opcodes.IF_ICMPGE,
+                             Opcodes.IF_ICMPGT, Opcodes.IF_ICMPLE -> {
+                            // Binary int comparison: pops 2 ints. Used by for-loop exit checks
+                            // ({@code iload_N; bipush <limit>; if_icmpge end}) which the parser
+                            // doesn't follow back to the loop top, so the operands need cleaning
+                            // up to keep numStack aligned for the post-loop code.
+                            if (state.paramFloatValues != null) {
+                                if (!state.numStack.isEmpty())
+                                    state.numStack.remove(state.numStack.size() - 1);
+                                if (!state.numStack.isEmpty())
+                                    state.numStack.remove(state.numStack.size() - 1);
+                            }
+                        }
+                        case Opcodes.IF_ACMPEQ, Opcodes.IF_ACMPNE,
+                             Opcodes.IFNULL, Opcodes.IFNONNULL -> {
+                            // Object-reference comparisons. Object refs aren't tracked on
+                            // numStack, so nothing to pop here.
+                        }
+                        default -> { /* not a jump opcode we model */ }
                     }
                 }
 
@@ -739,25 +842,31 @@ public final class ToolingBlockEntities {
                 // behaviour, and - when {@code paramIntValues} is set but the switch value is
                 // unknown - surfaces a {@code WARN:} so the maintainer knows an unmodelled
                 // dispatch slipped through.
-                if (node instanceof TableSwitchInsnNode tableSwitch) {
-                    if (state.paramIntValues != null && !state.branchStack.isEmpty()) {
-                        int value = state.branchStack.remove(state.branchStack.size() - 1);
-                        node = value >= tableSwitch.min && value <= tableSwitch.max
+                if (node instanceof TableSwitchInsnNode tableSwitch && state.paramIntValues != null) {
+                    Integer value = popIntForBranch(state);
+                    if (value != null) {
+                        LabelNode target = value >= tableSwitch.min && value <= tableSwitch.max
                             ? tableSwitch.labels.get(value - tableSwitch.min)
                             : tableSwitch.dflt;
-                        continue;
+                        if (isForwardJump(instructions, node, target)) {
+                            node = target;
+                            continue;
+                        }
                     }
-                    if (state.paramIntValues != null && state.diagnostics != null && state.currentSource != null)
+                    if (state.diagnostics != null && state.currentSource != null)
                         state.diagnostics.warn("%s: TABLESWITCH encountered with unknown value - falling through linearly, case bodies may corrupt numStack", state.currentSource.entityId());
                 }
-                if (node instanceof LookupSwitchInsnNode lookupSwitch) {
-                    if (state.paramIntValues != null && !state.branchStack.isEmpty()) {
-                        int value = state.branchStack.remove(state.branchStack.size() - 1);
+                if (node instanceof LookupSwitchInsnNode lookupSwitch && state.paramIntValues != null) {
+                    Integer value = popIntForBranch(state);
+                    if (value != null) {
                         int idx = lookupSwitch.keys.indexOf(value);
-                        node = idx >= 0 ? lookupSwitch.labels.get(idx) : lookupSwitch.dflt;
-                        continue;
+                        LabelNode target = idx >= 0 ? lookupSwitch.labels.get(idx) : lookupSwitch.dflt;
+                        if (isForwardJump(instructions, node, target)) {
+                            node = target;
+                            continue;
+                        }
                     }
-                    if (state.paramIntValues != null && state.diagnostics != null && state.currentSource != null)
+                    if (state.diagnostics != null && state.currentSource != null)
                         state.diagnostics.warn("%s: LOOKUPSWITCH encountered with unknown value - falling through linearly, case bodies may corrupt numStack", state.currentSource.entityId());
                 }
 
@@ -771,10 +880,21 @@ public final class ToolingBlockEntities {
                 if (node instanceof VarInsnNode varInsn && opcode == Opcodes.ILOAD) {
                     int slot = varInsn.var;
                     boolean resolved = state.paramIntValues != null && slot >= 0 && slot < state.paramIntValues.length;
-                    if (resolved)
-                        state.branchStack.add(state.paramIntValues[slot]);
-                    else
+                    if (resolved) {
+                        // Java pipeline (paramFloatValues != null) routes ILOAD through numStack
+                        // so call-site-propagated literals (pig's {@code legSize=6}) feed the
+                        // subsequent {@code 18 - legSize} {@link Opcodes#ISUB} arithmetic. The
+                        // matching IFEQ / IFNE / switch consumer above pops from numStack in
+                        // the same gated branch. Bedrock pipeline keeps the legacy branchStack
+                        // path so banner standing/wall and similar paramIntValues uses are
+                        // unaffected.
+                        if (state.paramFloatValues != null)
+                            state.numStack.add(state.paramIntValues[slot]);
+                        else
+                            state.branchStack.add(state.paramIntValues[slot]);
+                    } else {
                         state.numStack.add(NON_LITERAL);
+                    }
                 }
 
                 // FLOAD / DLOAD / LLOAD: the value comes from a local variable the parser
@@ -782,9 +902,217 @@ public final class ToolingBlockEntities {
                 // / {@link #popIntWithDiagnostics} surfaces the attribution instead of silently
                 // consuming a stale zero off an earlier literal or a fresh zero from an empty
                 // stack.
-                if (node instanceof VarInsnNode
-                    && (opcode == Opcodes.FLOAD || opcode == Opcodes.DLOAD || opcode == Opcodes.LLOAD))
+                //
+                // When {@code paramFloatValues} is supplied (Java-derived entity sources opt in
+                // for arithmetic evaluation), {@code FLOAD slot} substitutes the known value
+                // so adjacent {@code FADD}/{@code FMUL}/etc. ops can fold in the parameter.
+                if (node instanceof VarInsnNode varInsn
+                    && (opcode == Opcodes.FLOAD || opcode == Opcodes.DLOAD || opcode == Opcodes.LLOAD)) {
+                    int slot = varInsn.var;
+                    if (state.paramFloatValues != null && slot >= 0 && slot < state.paramFloatValues.length)
+                        state.numStack.add(state.paramFloatValues[slot]);
+                    else
+                        state.numStack.add(NON_LITERAL);
+                }
+
+                // ISTORE / FSTORE / DSTORE / LSTORE: consume the value that the matching
+                // LDC / arithmetic op pushed onto numStack so the JVM stack and our symbolic
+                // stack stay in sync. Without this, a {@code ldc <value>; fstore_N} sequence
+                // (e.g. {@code WitherBossModel.createBodyLayer}'s {@code RIBCAGE_X_ROT_OFFSET = 0.20420352f})
+                // leaks the LDC value, which then sits at the bottom of every subsequent pop
+                // and surfaces as a "leftover literal" warning at end-of-parse. Gated on
+                // {@code paramFloatValues != null} for bedrock byte-stability - bedrock block
+                // entities use {@code ASTORE} (handled in the switch below) for their bone
+                // slot tracking, never primitive STOREs in {@code createBodyLayer}-shaped code.
+                // ASTORE is intentionally NOT included here; its bone-slot tracking remains in
+                // the existing switch case below.
+                if (state.paramFloatValues != null
+                    && (opcode == Opcodes.ISTORE || opcode == Opcodes.FSTORE
+                        || opcode == Opcodes.DSTORE || opcode == Opcodes.LSTORE)
+                    && !state.numStack.isEmpty()) {
+                    state.numStack.remove(state.numStack.size() - 1);
+                }
+
+                // Explicit stack pops: {@code POP} discards 1 category-1 slot (int / float /
+                // ref); {@code POP2} discards 1 category-2 slot (long / double) or 2 category-1
+                // slots. Our numStack treats long / double as single Number entries, so POP2
+                // of a wide value pops 1 entry. javac never emits POP2 for two narrow values
+                // (it uses POP; POP), so the single-entry pop is correct in practice.
+                if (state.paramFloatValues != null
+                    && (opcode == Opcodes.POP || opcode == Opcodes.POP2)
+                    && !state.numStack.isEmpty()) {
+                    state.numStack.remove(state.numStack.size() - 1);
+                }
+
+                // Array load / store / metadata ops. The JVM stack effects of these aren't
+                // visible to the literal walk so the index ints and any result ints leak as
+                // leftovers - silverfish's {@code BODY_SIZES[i][j]} pattern produces 9
+                // {@code AALOAD; ICONST j; IALOAD} chains, every one leaving the {@code i}
+                // and the {@code IALOAD} result hanging.
+                //
+                // <ul>
+                //   <li>AALOAD pops 1 ref + 1 int, pushes 1 ref. numStack effect: pop 1 int.</li>
+                //   <li>IALOAD / BALOAD / SALOAD / CALOAD: pop 1 ref + 1 int, push 1 int.
+                //       numStack effect: pop 1 int, push 1 NL int.</li>
+                //   <li>FALOAD / DALOAD / LALOAD: same shape with float / double / long result -
+                //       still represented as a single {@link #NON_LITERAL} on numStack.</li>
+                //   <li>ARRAYLENGTH: pop 1 ref, push 1 int. Push NL.</li>
+                // </ul>
+                // Gated on {@code paramFloatValues != null} for bedrock byte-stability.
+                if (state.paramFloatValues != null) {
+                    if (opcode == Opcodes.AALOAD) {
+                        if (!state.numStack.isEmpty()) state.numStack.remove(state.numStack.size() - 1);
+                    } else if (opcode == Opcodes.IALOAD || opcode == Opcodes.BALOAD
+                            || opcode == Opcodes.SALOAD || opcode == Opcodes.CALOAD
+                            || opcode == Opcodes.FALOAD || opcode == Opcodes.DALOAD
+                            || opcode == Opcodes.LALOAD) {
+                        if (!state.numStack.isEmpty()) state.numStack.remove(state.numStack.size() - 1);
+                        state.numStack.add(NON_LITERAL);
+                    } else if (opcode == Opcodes.ARRAYLENGTH) {
+                        state.numStack.add(NON_LITERAL);
+                    } else if (opcode == Opcodes.NEWARRAY || opcode == Opcodes.ANEWARRAY) {
+                        // Pop 1 int (length); push ref (refs aren't tracked on numStack).
+                        if (!state.numStack.isEmpty()) state.numStack.remove(state.numStack.size() - 1);
+                    } else if (opcode == Opcodes.IASTORE || opcode == Opcodes.BASTORE
+                            || opcode == Opcodes.SASTORE || opcode == Opcodes.CASTORE
+                            || opcode == Opcodes.FASTORE || opcode == Opcodes.DASTORE
+                            || opcode == Opcodes.LASTORE) {
+                        // Array element store: JVM pops ref + int + value. numStack effect:
+                        // pop value (1 entry) + index (1 int). Used by SilverfishModel's
+                        // {@code float[7]} segment-position cache via {@code FASTORE}.
+                        if (!state.numStack.isEmpty()) state.numStack.remove(state.numStack.size() - 1);
+                        if (!state.numStack.isEmpty()) state.numStack.remove(state.numStack.size() - 1);
+                    } else if (opcode == Opcodes.AASTORE) {
+                        // Array reference store: JVM pops ref + int + ref. numStack effect:
+                        // pop index only (the value ref isn't on numStack).
+                        if (!state.numStack.isEmpty()) state.numStack.remove(state.numStack.size() - 1);
+                    }
+                }
+
+                // Comparison ops that push an int result: {@code LCMP} (long / long),
+                // {@code FCMPL} / {@code FCMPG} (float / float), {@code DCMPL} / {@code DCMPG}
+                // (double / double). Each pops two operands and pushes -1 / 0 / 1 onto the JVM
+                // stack. Our walker can't statically know the result so push {@link #NON_LITERAL}
+                // - the next IFEQ / IFNE / IF_ICMP* handler above pops it and falls through
+                // linearly without taking the branch.
+                if (state.paramFloatValues != null
+                    && (opcode == Opcodes.LCMP || opcode == Opcodes.FCMPL || opcode == Opcodes.FCMPG
+                        || opcode == Opcodes.DCMPL || opcode == Opcodes.DCMPG)) {
+                    if (!state.numStack.isEmpty()) state.numStack.remove(state.numStack.size() - 1);
+                    if (!state.numStack.isEmpty()) state.numStack.remove(state.numStack.size() - 1);
                     state.numStack.add(NON_LITERAL);
+                }
+
+                // Binary integer arithmetic: pops two ints, pushes the result. Same
+                // {@code paramFloatValues != null} gate as the float / double block below so
+                // bedrock block-entity sources keep the legacy literal-stack-only walk. Vanilla
+                // shares parameterised quadruped construction in {@code QuadrupedModel
+                // .createBodyMesh(int legSize, ...)} which computes head/body Y as
+                // {@code bipush 18; iload_0; isub; i2f}; without this block the {@code isub}
+                // is a no-op and pig head ends up at world Y=18 instead of 12.
+                if (state.paramFloatValues != null
+                    && (opcode == Opcodes.IADD || opcode == Opcodes.ISUB
+                        || opcode == Opcodes.IMUL || opcode == Opcodes.IDIV
+                        || opcode == Opcodes.IREM)
+                    && state.numStack.size() >= 2) {
+                    int b = state.numStack.remove(state.numStack.size() - 1).intValue();
+                    int a = state.numStack.remove(state.numStack.size() - 1).intValue();
+                    int r = switch (opcode) {
+                        case Opcodes.IADD -> a + b;
+                        case Opcodes.ISUB -> a - b;
+                        case Opcodes.IMUL -> a * b;
+                        case Opcodes.IDIV -> b == 0 ? 0 : a / b;
+                        case Opcodes.IREM -> b == 0 ? 0 : a % b;
+                        default -> 0;
+                    };
+                    state.numStack.add(r);
+                }
+
+                // Unary numeric negation: pops 1, pushes 1. INEG = -i, FNEG = -f, etc.
+                if (state.paramFloatValues != null
+                    && (opcode == Opcodes.INEG || opcode == Opcodes.FNEG
+                        || opcode == Opcodes.DNEG || opcode == Opcodes.LNEG)
+                    && !state.numStack.isEmpty()) {
+                    Number top = state.numStack.remove(state.numStack.size() - 1);
+                    Number negated = switch (opcode) {
+                        case Opcodes.INEG -> -top.intValue();
+                        case Opcodes.FNEG -> -top.floatValue();
+                        case Opcodes.DNEG -> -top.doubleValue();
+                        case Opcodes.LNEG -> -top.longValue();
+                        default -> top;
+                    };
+                    state.numStack.add(negated);
+                }
+
+                // Binary float / double arithmetic: only fires when the source opted into
+                // arithmetic evaluation via {@code paramFloatValues != null}. Bedrock-side
+                // sources never set this so the legacy linear walk is preserved unchanged.
+                // For Java-side sources, this fixes patterns like
+                // {@code HumanoidModel.createMesh}'s arm pivot {@code 2 + yOffset} where
+                // yOffset is a parameter and the {@code FADD} would otherwise leave the stack
+                // mis-aligned. Non-literal markers are treated as zero during the operation.
+                if (state.paramFloatValues != null
+                    && (opcode == Opcodes.FADD || opcode == Opcodes.FSUB || opcode == Opcodes.FMUL || opcode == Opcodes.FDIV || opcode == Opcodes.FREM
+                        || opcode == Opcodes.DADD || opcode == Opcodes.DSUB || opcode == Opcodes.DMUL || opcode == Opcodes.DDIV || opcode == Opcodes.DREM)) {
+                    if (state.numStack.size() >= 2) {
+                        Number bN = state.numStack.remove(state.numStack.size() - 1);
+                        Number aN = state.numStack.remove(state.numStack.size() - 1);
+                        // JVM float / double arithmetic opcodes interleave (FADD=98, DADD=99,
+                        // FSUB=102, DSUB=103, FMUL=106, DMUL=107, FDIV=110, DDIV=111, FREM=114,
+                        // DREM=115) - a {@code >= DADD && <= DDIV} range check would misclassify
+                        // FSUB / FMUL / FDIV / FREM as double, causing the switch below to fall
+                        // to its zero-return default. Use explicit equality.
+                        boolean isDouble = opcode == Opcodes.DADD || opcode == Opcodes.DSUB
+                            || opcode == Opcodes.DMUL || opcode == Opcodes.DDIV
+                            || opcode == Opcodes.DREM;
+                        if (isDouble) {
+                            double a = aN.doubleValue();
+                            double b = bN.doubleValue();
+                            double r = switch (opcode) {
+                                case Opcodes.DADD -> a + b;
+                                case Opcodes.DSUB -> a - b;
+                                case Opcodes.DMUL -> a * b;
+                                case Opcodes.DDIV -> b == 0.0 ? 0.0 : a / b;
+                                case Opcodes.DREM -> b == 0.0 ? 0.0 : a % b;
+                                default -> 0.0;
+                            };
+                            state.numStack.add(r);
+                        } else {
+                            float a = aN.floatValue();
+                            float b = bN.floatValue();
+                            float r = switch (opcode) {
+                                case Opcodes.FADD -> a + b;
+                                case Opcodes.FSUB -> a - b;
+                                case Opcodes.FMUL -> a * b;
+                                case Opcodes.FDIV -> b == 0f ? 0f : a / b;
+                                case Opcodes.FREM -> b == 0f ? 0f : a % b;
+                                default -> 0f;
+                            };
+                            state.numStack.add(r);
+                        }
+                    }
+                }
+
+                // Type-conversion ops between numeric stack slots. Mirrored on the literal
+                // stack so subsequent arithmetic / argument-pop sees the correct precision.
+                // Gated on paramFloatValues for the same bedrock-safety reason as the
+                // arithmetic block above.
+                if (state.paramFloatValues != null
+                    && (opcode == Opcodes.I2F || opcode == Opcodes.I2D || opcode == Opcodes.F2D
+                        || opcode == Opcodes.D2F || opcode == Opcodes.F2I || opcode == Opcodes.D2I)
+                    && !state.numStack.isEmpty()) {
+                    Number top = state.numStack.remove(state.numStack.size() - 1);
+                    Number converted = switch (opcode) {
+                        case Opcodes.I2F -> (float) top.intValue();
+                        case Opcodes.I2D -> (double) top.intValue();
+                        case Opcodes.F2D -> (double) top.floatValue();
+                        case Opcodes.D2F -> (float) top.doubleValue();
+                        case Opcodes.F2I -> (int) top.floatValue();
+                        case Opcodes.D2I -> (int) top.doubleValue();
+                        default -> top;
+                    };
+                    state.numStack.add(converted);
+                }
 
                 switch (node) {
                     case FieldInsnNode fieldInsn when opcode == Opcodes.GETSTATIC -> {
@@ -853,10 +1181,99 @@ public final class ToolingBlockEntities {
                 flushPendingBone(state);
                 return;
             }
+            // Java pipeline filters: {@code retainPartsAndChildren(Set)} on a PartDefinition strips
+            // cubes from any bone whose ancestor chain doesn't contain a name in the set (vanilla
+            // recurses through children, replacing cubes with empty along the way; subtrees rooted
+            // at a retained name are left untouched). Captured here on the trailing
+            // {@code retainPartsAndChildren} dispatch using {@link ParseState#pendingRetainSet}
+            // populated by the preceding {@code Set.of} branch below; consumed post-walk in
+            // {@link #parseLayerMethod} once the full bone tree has flushed. Gated on
+            // {@code paramFloatValues != null} so bedrock block-entity sources (which never call
+            // retainPartsAndChildren) keep their byte-stable output.
+            if (methodInsn.owner.equals(PART_DEFINITION)
+                && methodInsn.name.equals("retainPartsAndChildren")
+                && state.paramFloatValues != null) {
+                if (state.pendingRetainSet != null) {
+                    state.retainedNames = state.pendingRetainSet;
+                    state.pendingRetainSet = null;
+                }
+                return;
+            }
+            // Set.of(name, ...) immediately precedes retainPartsAndChildren in vanilla model
+            // factories ({@code BreezeModel.createBodyLayer} -> {@code Set.of("head", "rods")},
+            // {@code BreezeModel.createWindLayer} -> {@code Set.of("wind_body")}, etc). Walks
+            // back from the methodInsn collecting the N preceding LDC strings (where N is the
+            // descriptor's ref-arg count) and stashes them on {@link ParseState#pendingRetainSet}
+            // for the next {@code retainPartsAndChildren} dispatch. Skips line / frame / label
+            // pseudo-nodes during the walkback. The varargs {@code Set.of([Ljava/lang/Object;)}
+            // overload would need an anewarray walker; not used by any vanilla entity factory
+            // observed so far so the implementation is deferred. Gated on
+            // {@code paramFloatValues != null}.
+            if (methodInsn.owner.equals("java/util/Set")
+                && methodInsn.name.equals("of")
+                && opcode == Opcodes.INVOKESTATIC
+                && state.paramFloatValues != null) {
+                state.pendingRetainSet = collectSetOfStringArgs(methodInsn);
+                return;
+            }
             if (methodInsn.owner.equals(LAYER_DEFINITION) && methodInsn.name.equals("create")) {
                 requireStack(state, 2, "LayerDefinition.create(mesh,II)");
                 state.texHeight = popIntWithDiagnostics(state, "LayerDefinition.create(mesh,II) texHeight");
                 state.texWidth = popIntWithDiagnostics(state, "LayerDefinition.create(mesh,II) texWidth");
+                return;
+            }
+            // PartNames is a vanilla utility class with String constants and indexed name
+            // generators ({@code tentacle(int)}, etc.). The indexed methods compile to
+            // {@code makeConcatWithConstants} which the parser can't follow; intercept the
+            // call and synthesise the {@code "name" + i} the JVM produces, so subsequent
+            // {@code addOrReplaceChild} flushes pick up a name. The HappyGhastModel uses
+            // {@code PartNames.tentacle(0)}..{@code (8)} for its 9 explicit tentacle bones.
+            if (methodInsn.owner.equals(PART_NAMES)
+                && opcode == Opcodes.INVOKESTATIC
+                && methodInsn.desc.startsWith("(I)") && methodInsn.desc.endsWith("Ljava/lang/String;")
+                && !state.numStack.isEmpty()) {
+                int i = state.numStack.remove(state.numStack.size() - 1).intValue();
+                state.pendingPartName = methodInsn.name + i;
+                return;
+            }
+            if (methodInsn.owner.equals(CUBE_DEFORMATION)) {
+                handleCubeDeformation(methodInsn, state);
+                return;
+            }
+            // MeshTransformer.scaling(F): some entity models append a uniform scale to the final
+            // {@code LayerDefinition.create(...).apply(MeshTransformer.scaling(N))} chain
+            // (PolarBearModel = 1.2, EquineModel donkey/mule variants, etc). The float arg sits
+            // on the JVM stack but our parser never consumed it; the resulting leftover-literal
+            // surfaced as a parse warning. Just pop it - we don't currently propagate this scale
+            // into the runtime geometry (the renderer applies its own per-renderer scale).
+            // Gated on {@code paramFloatValues != null} so bedrock block entities, which never
+            // call MeshTransformer, are unaffected.
+            if (state.paramFloatValues != null
+                && opcode == Opcodes.INVOKESTATIC
+                && methodInsn.owner.equals("net/minecraft/client/model/geom/builders/MeshTransformer")
+                && methodInsn.name.equals("scaling")
+                && methodInsn.desc.equals("(F)Lnet/minecraft/client/model/geom/builders/MeshTransformer;")
+                && !state.numStack.isEmpty()) {
+                state.numStack.remove(state.numStack.size() - 1);
+                return;
+            }
+            // Mth.cos(D)F / Mth.sin(D)F: vanilla model factories occasionally precompute bind-pose
+            // offsets via {@code -2 + cos(0.2042) * 10} (WitherBossModel.createBodyLayer's tail
+            // offset) or similar inline trig. Pop the top double from numStack, compute the
+            // result, push the float so the surrounding FMUL / FADD chain folds correctly.
+            // Gated on {@code paramFloatValues != null} so bedrock block-entity sources keep
+            // their byte-stable parse - none observed call Mth.cos/sin during their layer build.
+            if (state.paramFloatValues != null
+                && opcode == Opcodes.INVOKESTATIC
+                && methodInsn.owner.equals("net/minecraft/util/Mth")
+                && (methodInsn.name.equals("cos") || methodInsn.name.equals("sin"))
+                && methodInsn.desc.equals("(D)F")
+                && !state.numStack.isEmpty()) {
+                double arg = state.numStack.remove(state.numStack.size() - 1).doubleValue();
+                float result = methodInsn.name.equals("cos")
+                    ? (float) Math.cos(arg)
+                    : (float) Math.sin(arg);
+                state.numStack.add(result);
                 return;
             }
             // Invokestatic-follow: recurse into model-building statics outside the builder/geom
@@ -867,9 +1284,207 @@ public final class ToolingBlockEntities {
                 && methodInsn.owner.startsWith("net/minecraft/client/model/")
                 && !methodInsn.owner.startsWith("net/minecraft/client/model/geom/")) {
                 MethodNode inlined = AsmKit.findMethodInHierarchy(zip, methodInsn.owner, methodInsn.name, methodInsn.desc);
-                if (inlined != null)
-                    walkInstructions(inlined.instructions, state, zip);
+                if (inlined != null) {
+                    // Propagate the call-site's numeric literal args to the inlined method as
+                    // {@code paramIntValues} / {@code paramFloatValues} for slot-N reads. Vanilla
+                    // shares quadruped construction in {@code QuadrupedModel.createBodyMesh(int
+                    // legSize, boolean fur, boolean other, CubeDeformation)} and similar
+                    // helpers - the call site pushes literal ints (pig's {@code bipush 6,
+                    // iconst_1, iconst_0}); without this the inlined method's {@code iload_0}
+                    // resolves to {@link #NON_LITERAL} and downstream {@code 18 - legSize}
+                    // arithmetic produces 18 instead of 12. Saved/restored around the recurse so
+                    // the outer parse state stays unaffected.
+                    int[] previousInts = state.paramIntValues;
+                    float[] previousFloats = state.paramFloatValues;
+                    if (state.paramFloatValues != null) {
+                        InlineParams params = captureInlineParams(methodInsn.desc, state, inlined.maxLocals);
+                        state.paramIntValues = params.ints;
+                        state.paramFloatValues = params.floats;
+                    }
+                    // Save call-frame-local state and reset it for the callee. JVM local
+                    // variable slots are method-scoped: {@code astore_2} inside
+                    // {@code QuadrupedModel.createBodyMesh} writes to a slot independent of
+                    // the caller's slot 2, so the caller's {@code aload_2} after the helper
+                    // returns must not pick up the helper's bone bindings. Without this reset,
+                    // the helper's last flushed bone (e.g. {@code left_front_leg}) leaks into
+                    // the caller's slot map and the caller's next {@code addOrReplaceChild}
+                    // mis-parents to a leg instead of the mesh root.
+                    ConcurrentMap<Integer, String> savedLocalSlotBone = state.localSlotBone;
+                    ConcurrentMap<Integer, ConcurrentList<float[]>> savedSlotToCubes = state.slotToCubes;
+                    String savedPendingPartName = state.pendingPartName;
+                    String savedBoneName = state.boneName;
+                    String savedParentBone = state.parentBone;
+                    String savedNextParent = state.nextParent;
+                    String savedLastFlushedBone = state.lastFlushedBone;
+                    ConcurrentList<float[]> savedPendingCubes = state.pendingCubes;
+                    int[] savedPendingUv = state.pendingUv;
+                    float[] savedPendingPivot = state.pendingPivot;
+                    float[] savedPendingRotation = state.pendingRotation;
+                    float savedPendingScale = state.pendingScale;
+                    state.localSlotBone = Concurrent.newMap();
+                    state.slotToCubes = Concurrent.newMap();
+                    state.pendingPartName = null;
+                    state.boneName = null;
+                    state.parentBone = null;
+                    state.nextParent = null;
+                    state.lastFlushedBone = null;
+                    state.pendingCubes = Concurrent.newList();
+                    state.pendingUv = new int[]{ 0, 0 };
+                    state.pendingPivot = new float[]{ 0, 0, 0 };
+                    state.pendingRotation = new float[]{ 0, 0, 0 };
+                    state.pendingScale = 1f;
+                    try {
+                        walkInstructions(inlined.instructions, state, zip);
+                    } finally {
+                        state.paramIntValues = previousInts;
+                        state.paramFloatValues = previousFloats;
+                        state.localSlotBone = savedLocalSlotBone;
+                        state.slotToCubes = savedSlotToCubes;
+                        state.pendingPartName = savedPendingPartName;
+                        state.boneName = savedBoneName;
+                        state.parentBone = savedParentBone;
+                        state.nextParent = savedNextParent;
+                        state.lastFlushedBone = savedLastFlushedBone;
+                        state.pendingCubes = savedPendingCubes;
+                        state.pendingUv = savedPendingUv;
+                        state.pendingPivot = savedPendingPivot;
+                        state.pendingRotation = savedPendingRotation;
+                        state.pendingScale = savedPendingScale;
+                    }
+                }
             }
+        }
+
+        /**
+         * Snapshot of the captured inlined-method parameters; just a pair of arrays sized to
+         * the callee's local-variable count.
+         */
+        private record InlineParams(int @NotNull [] ints, float @NotNull [] floats) {}
+
+        /**
+         * Captures call-site numeric literals as parameter slot values for an inlined static
+         * method. Walks the descriptor's arg types in reverse, popping one numeric off
+         * {@link ParseState#numStack} per primitive arg, and writes the value into the
+         * matching slot of two parallel arrays sized to {@code maxLocals}. Reference args
+         * (CubeDeformation, PartDefinition, etc.) skip the pop since they never appear on
+         * {@code numStack}. Long / double args occupy two slots per JVM convention; only the
+         * first slot receives the captured value.
+         *
+         * <p>Mirrors what the JVM does at an actual {@code invokestatic}: the args are popped
+         * from the operand stack in reverse, then bound to slots 0..N for the callee. The
+         * parser's symbolic stack carries only numeric values, so the capture pops only the
+         * numeric subset and leaves slot bindings for refs as zero (the inlined method's
+         * {@code aload} for a ref slot already doesn't touch {@code numStack}, so leaving the
+         * slot zero is harmless).
+         */
+        private static @NotNull InlineParams captureInlineParams(
+            @NotNull String descriptor,
+            @NotNull ParseState state,
+            int maxLocals
+        ) {
+            int slots = Math.max(maxLocals, 8);
+            int[] ints = new int[slots];
+            float[] floats = new float[slots];
+            char[] argTypes = parseArgTypes(descriptor);
+            int slotCursor = 0;
+            int[] slotPerArg = new int[argTypes.length];
+            for (int i = 0; i < argTypes.length; i++) {
+                slotPerArg[i] = slotCursor;
+                slotCursor += (argTypes[i] == 'D' || argTypes[i] == 'J') ? 2 : 1;
+            }
+            // Pop numeric args from top (last) to bottom (first) - matches stack reverse order.
+            for (int i = argTypes.length - 1; i >= 0; i--) {
+                char t = argTypes[i];
+                if (t != 'L' && t != '[') {
+                    Number popped = !state.numStack.isEmpty()
+                        ? state.numStack.remove(state.numStack.size() - 1)
+                        : NON_LITERAL;
+                    int slot = slotPerArg[i];
+                    if (slot < slots) {
+                        ints[slot] = popped.intValue();
+                        floats[slot] = popped.floatValue();
+                    }
+                }
+            }
+            return new InlineParams(ints, floats);
+        }
+
+        /**
+         * Returns the arg-type characters from a JVM method descriptor in source order.
+         * E.g. {@code (IZZLnet/minecraft/X;)V} yields {@code ['I', 'Z', 'Z', 'L']}. Reference
+         * types collapse to {@code 'L'}; arrays collapse to {@code '['}. Used by
+         * {@link #captureInlineParams} to decide which args are primitives that pop a numeric
+         * off {@link ParseState#numStack}.
+         */
+        private static char @NotNull [] parseArgTypes(@NotNull String descriptor) {
+            int paren = descriptor.indexOf('(');
+            int close = descriptor.indexOf(')');
+            if (paren < 0 || close < 0) return new char[0];
+            java.util.List<Character> out = new java.util.ArrayList<>();
+            int i = paren + 1;
+            while (i < close) {
+                char c = descriptor.charAt(i);
+                if (c == 'L') {
+                    out.add('L');
+                    int end = descriptor.indexOf(';', i);
+                    if (end < 0) return new char[0];
+                    i = end + 1;
+                } else if (c == '[') {
+                    out.add('[');
+                    while (i < close && descriptor.charAt(i) == '[') i++;
+                    if (i < close && descriptor.charAt(i) == 'L') {
+                        int end = descriptor.indexOf(';', i);
+                        if (end < 0) return new char[0];
+                        i = end + 1;
+                    } else {
+                        i++;
+                    }
+                } else {
+                    out.add(c);
+                    i++;
+                }
+            }
+            char[] arr = new char[out.size()];
+            for (int j = 0; j < out.size(); j++) arr[j] = out.get(j);
+            return arr;
+        }
+
+        /**
+         * Collects the string-typed args of an immediately-preceding {@code Set.of(...)} call.
+         * Walks backwards from {@code methodInsn} through the InsnList, skipping pseudo-nodes
+         * (line numbers, frames, labels) until {@code expectedCount} {@link LdcInsnNode} String
+         * loads have been gathered or a non-string instruction is hit. Source order is preserved
+         * (oldest LDC first). Returns {@code null} when the expected count couldn't be matched
+         * - the caller treats null as "no filter" so a malformed walk doesn't drop every bone.
+         *
+         * <p>Used by the {@code Set.of} dispatch in {@link #handleMethodInsn} to capture the
+         * retained bone names ahead of a {@code retainPartsAndChildren} call. Only the
+         * fixed-arity overloads ({@code Set.of()} through {@code Set.of(Object x10)}) are
+         * recognised; the varargs {@code Set.of(Object[])} overload would need an
+         * {@code anewarray}/{@code aastore} walker and isn't used by any vanilla entity factory
+         * observed so far.
+         */
+        private static @Nullable Set<String> collectSetOfStringArgs(@NotNull MethodInsnNode methodInsn) {
+            char[] argTypes = parseArgTypes(methodInsn.desc);
+            // Varargs Set.of([Ljava/lang/Object;) collapses to a single '[' arg - skip it for now.
+            for (char t : argTypes) if (t != 'L') return null;
+            int expectedCount = argTypes.length;
+            Set<String> names = new LinkedHashSet<>();
+            java.util.Deque<String> collected = new java.util.ArrayDeque<>();
+            AbstractInsnNode prev = methodInsn.getPrevious();
+            while (prev != null && collected.size() < expectedCount) {
+                if (prev instanceof LdcInsnNode ldc && ldc.cst instanceof String s) {
+                    collected.addFirst(s);
+                } else if (prev.getOpcode() < 0) {
+                    // line number / frame / label nodes - skip silently
+                } else {
+                    return null;
+                }
+                prev = prev.getPrevious();
+            }
+            if (collected.size() != expectedCount) return null;
+            names.addAll(collected);
+            return names;
         }
 
         /**
@@ -919,12 +1534,17 @@ public final class ToolingBlockEntities {
                     }
                 }
                 case "addBox" -> {
-                    // Four addBox variants observed in vanilla (names/CubeDeformation args don't
-                    // land on numStack, so only the numeric literals drive the pop order):
+                    // Five addBox variants observed in vanilla (names/CubeDeformation refs don't
+                    // land on numStack, so only the numeric literals + boolean mirror flag drive
+                    // the pop order):
                     //  1. (FFFFFF) or (FFFFFF + CubeDeformation) - origin xyz + size whd; uses current texOffs.
-                    //  2. (Ljava/lang/String;FFFFFF) - named single-cube, uses current texOffs. Dragon's jaw bone.
-                    //  3. (Ljava/lang/String;FFFIIIII) - named multi-cube with inline (w,h,d,u,v) ints. Dragon's head bone
-                    //     stacks 6 cubes this way, each with its own UV.
+                    //  2. (FFFFFFZ) or (FFFFFFZ + CubeDeformation) - origin + size + mirror flag.
+                    //     {@code GuardianModel.createBodyLayer}'s third head cube uses this with
+                    //     {@code mirror=true}; without popping the boolean, the numStack top
+                    //     consumed as the d-size is the mirror int (1), not the actual depth.
+                    //  3. (Ljava/lang/String;FFFFFF) - named single-cube, uses current texOffs.
+                    //  4. (Ljava/lang/String;FFFIIIII) - named multi-cube with inline (w,h,d,u,v) ints.
+                    //     Dragon's head bone stacks 6 cubes this way, each with its own UV.
                     if (methodInsn.desc.startsWith("(Ljava/lang/String;FFFIIIII")) {
                         requireStack(state, 8, "CubeListBuilder.addBox(name,FFFIIIII)");
                         int v = popIntWithDiagnostics(state, "CubeListBuilder.addBox(name,FFFIIIII) v");
@@ -935,7 +1555,38 @@ public final class ToolingBlockEntities {
                         float z = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(name,FFFIIIII) z");
                         float y = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(name,FFFIIIII) y");
                         float x = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(name,FFFIIIII) x");
-                        state.pendingCubes.add(new float[]{ x, y, z, w, h, d, u, v });
+                        emitCube(state, x, y, z, w, h, d, u, v);
+                    } else if (methodInsn.desc.startsWith("(Ljava/lang/String;FFFIII")
+                            && methodInsn.desc.contains("CubeDeformation;II")) {
+                        // Variant: addBox(name, F, F, F, I, I, I, CubeDeformation, I, I) - named
+                        // multi-cube with int dimensions (w, h, d) plus per-cube UV (u, v) split by
+                        // a CubeDeformation arg. Used by AdultFelineModel.createBodyMesh's nose /
+                        // ear / tail bones (cat / ocelot family). The CubeDeformation is an object
+                        // ref, not on numStack; pop the 5 ints + 3 floats around it.
+                        requireStack(state, 8, "CubeListBuilder.addBox(name,FFFIII,CubeDeformation,II)");
+                        int v = popIntWithDiagnostics(state, "addBox(name,FFFIII,CubeDeformation,II) v");
+                        int u = popIntWithDiagnostics(state, "addBox(name,FFFIII,CubeDeformation,II) u");
+                        int d = popIntWithDiagnostics(state, "addBox(name,FFFIII,CubeDeformation,II) d");
+                        int h = popIntWithDiagnostics(state, "addBox(name,FFFIII,CubeDeformation,II) h");
+                        int w = popIntWithDiagnostics(state, "addBox(name,FFFIII,CubeDeformation,II) w");
+                        float z = popFloatWithDiagnostics(state, "addBox(name,FFFIII,CubeDeformation,II) z");
+                        float y = popFloatWithDiagnostics(state, "addBox(name,FFFIII,CubeDeformation,II) y");
+                        float x = popFloatWithDiagnostics(state, "addBox(name,FFFIII,CubeDeformation,II) x");
+                        emitCube(state, x, y, z, w, h, d, u, v);
+                    } else if (methodInsn.desc.startsWith("(FFFFFFZ") || methodInsn.desc.startsWith("(Ljava/lang/String;FFFFFFZ")) {
+                        // Mirror-flagged addBox: pop the trailing boolean first so the float
+                        // pop order isn't shifted by one. {@code mirror=true} flips face UVs on
+                        // this cube; the parser doesn't currently model per-cube mirror, but the
+                        // pop is still required for correct stack accounting.
+                        requireStack(state, 7, "CubeListBuilder.addBox(FFFFFFZ)");
+                        popIntWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFFZ) mirror");
+                        float d = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFFZ) d");
+                        float h = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFFZ) h");
+                        float w = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFFZ) w");
+                        float z = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFFZ) z");
+                        float y = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFFZ) y");
+                        float x = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFFZ) x");
+                        emitCube(state, x, y, z, w, h, d, state.pendingUv[0], state.pendingUv[1]);
                     } else if (methodInsn.desc.startsWith("(FFFFFF") || methodInsn.desc.startsWith("(Ljava/lang/String;FFFFFF")) {
                         requireStack(state, 6, "CubeListBuilder.addBox(FFFFFF)");
                         float d = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFF) d");
@@ -944,7 +1595,7 @@ public final class ToolingBlockEntities {
                         float z = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFF) z");
                         float y = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFF) y");
                         float x = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFF) x");
-                        state.pendingCubes.add(new float[]{ x, y, z, w, h, d, state.pendingUv[0], state.pendingUv[1] });
+                        emitCube(state, x, y, z, w, h, d, state.pendingUv[0], state.pendingUv[1]);
                     }
                 }
                 case "mirror" -> {
@@ -957,6 +1608,67 @@ public final class ToolingBlockEntities {
                     }
                 }
                 default -> { }
+            }
+        }
+
+        /**
+         * Appends one cube to {@link ParseState#pendingCubes}, capturing the current
+         * {@link ParseState#pendingInflate} as the cube's inflate scalar, then resets the
+         * pending inflate to {@code 0f} so it doesn't leak into the next addBox in the same
+         * builder chain. Cube layout is {@code [x, y, z, w, h, d, u, v, inflate]}.
+         */
+        private static void emitCube(@NotNull ParseState state, float x, float y, float z, float w, float h, float d, int u, int v) {
+            state.pendingCubes.add(new float[]{ x, y, z, w, h, d, u, v, state.pendingInflate });
+            // Reset to the source's defaultInflate (zero for normal entity sources, non-zero for
+            // composite-overlay sources whose factory takes a {@code CubeDeformation} arg) so
+            // every cube in the chain picks up the call-site's deformation by default. Inline
+            // {@code new CubeDeformation(F)} / {@code .extend(F)} per-cube overrides still run
+            // through their handlers and replace pendingInflate before the next emitCube fires.
+            state.pendingInflate = state.defaultInflate;
+        }
+
+        /**
+         * Handles {@code CubeDeformation.extend(F)} / {@code .extend(FFF)} which consume float
+         * inflate args from the operand stack adjacent to a subsequent {@code CubeListBuilder
+         * .addBox}. Without this, the inflate arg leaks onto {@link ParseState#numStack} and
+         * shifts the addBox pop order, producing garbage cube dimensions (HumanoidModel's hat
+         * bone is the canonical example: a {@code .extend(0.5f)} on the deformation arg
+         * leaves {@code 0.5} above the addBox's d-arg, so addBox sees d=0.5 and h/w/z/y/x
+         * shifted one slot down).
+         *
+         * <p>Constructor variants ({@code CubeDeformation.<init>(F)} / {@code <init>(FFF)})
+         * are gated behind {@code paramFloatValues != null} for bedrock safety - the existing
+         * leftover-at-bottom behaviour for inline-constructed deformations doesn't corrupt
+         * subsequent addBox pops in the bedrock-side patterns we currently parse, but the new
+         * Java-side sources benefit from the cleaner numStack.
+         */
+        private static void handleCubeDeformation(@NotNull MethodInsnNode methodInsn, @NotNull ParseState state) {
+            if ("extend".equals(methodInsn.name)) {
+                if (methodInsn.desc.startsWith("(FFF")) {
+                    requireStack(state, 3, "CubeDeformation.extend(FFF)");
+                    float ez = popFloatWithDiagnostics(state, "CubeDeformation.extend(FFF) z");
+                    float ey = popFloatWithDiagnostics(state, "CubeDeformation.extend(FFF) y");
+                    float ex = popFloatWithDiagnostics(state, "CubeDeformation.extend(FFF) x");
+                    if (state.paramFloatValues != null)
+                        state.pendingInflate = state.pendingInflate + (ex + ey + ez) / 3f;
+                } else if (methodInsn.desc.startsWith("(F")) {
+                    requireStack(state, 1, "CubeDeformation.extend(F)");
+                    float e = popFloatWithDiagnostics(state, "CubeDeformation.extend(F)");
+                    if (state.paramFloatValues != null) state.pendingInflate = state.pendingInflate + e;
+                }
+                return;
+            }
+            if ("<init>".equals(methodInsn.name) && state.paramFloatValues != null) {
+                if (methodInsn.desc.startsWith("(FFF")) {
+                    requireStack(state, 3, "CubeDeformation.<init>(FFF)");
+                    float dz = popFloatWithDiagnostics(state, "CubeDeformation.<init>(FFF) z");
+                    float dy = popFloatWithDiagnostics(state, "CubeDeformation.<init>(FFF) y");
+                    float dx = popFloatWithDiagnostics(state, "CubeDeformation.<init>(FFF) x");
+                    state.pendingInflate = (dx + dy + dz) / 3f;
+                } else if (methodInsn.desc.startsWith("(F")) {
+                    requireStack(state, 1, "CubeDeformation.<init>(F)");
+                    state.pendingInflate = popFloatWithDiagnostics(state, "CubeDeformation.<init>(F)");
+                }
             }
         }
 
@@ -1037,29 +1749,68 @@ public final class ToolingBlockEntities {
             // for models that set the name immediately before addOrReplaceChild (no builder
             // chain - rare, but cheap to support).
             String name = state.boneName != null ? state.boneName : state.pendingPartName;
-            if (name != null && !state.pendingCubes.isEmpty()) {
-                // Flatten parent-child hierarchy at parse time: a child bone's world pivot
-                // and world scale fold in the parent's already-flattened values. Vanilla renders
-                // children with pose T(parent.pivot) * S(parent.scale) * T(child.pivot) * S(child.scale)
-                // then draws child cubes. Ignoring parent rotation (none of our current sources use
-                // a rotated parent with children), that collapses to
-                //   world_pivot = parent.world_pivot + parent.world_scale * child.local_pivot
+            if (name != null) {
+                // Flatten parent-child hierarchy at parse time. Vanilla renders children with
+                // pose T(parent.pivot) * R(parent.rot) * S(parent.scale) * T(child.local_pivot)
+                // * R(child.local_rot) * S(child.scale), then draws child cubes from the bone's
+                // local frame. To present the entity_geometry JSON consumer with a flat
+                // (world_pivot, world_rotation, world_scale) per bone, fold the parent's
+                // already-flattened transform into the child's:
+                //   world_pivot = parent.world_pivot + parent.world_rot * (parent.world_scale * child.local_pivot)
+                //   world_rot   = parent.world_rot * R_zyx(child.local_rot)
                 //   world_scale = parent.world_scale * child.local_scale
+                // For parents with no rotation (every Bedrock block-entity source) this collapses
+                // back to the legacy additive-translation behaviour, so unrotated parents are a
+                // no-op. Java entity factories like FoxModel.createBodyLayer DO have rotated
+                // parents (body 90deg pitch with tail / legs as children) - flattening with
+                // rotation propagation is what places the tail behind the body instead of
+                // pointing straight down at the unrotated body.pivot + tail.local_pivot location.
+                // Fall back to nextParent when parentBone wasn't captured at a
+                // CubeListBuilder.create() call. Vanilla's pre-built-builder pattern
+                // ({@code AdultAxolotlModel.createBodyLayer} pre-builds gill / leg cube lists into
+                // local slots 5-9 before reusing them across multiple {@code addOrReplaceChild}
+                // calls) doesn't fire {@code create()} between the parent's {@code aload} and the
+                // child's flush, so parentBone stays null. nextParent is still set from the most
+                // recent {@code aload} of the parent's PartDefinition slot, so it's the right
+                // fallback. For the standard chain (where create() captures parentBone) nextParent
+                // is null at flush time so this fallback is a no-op.
+                String resolvedParent = state.parentBone != null ? state.parentBone : state.nextParent;
                 float[] worldPivot = state.pendingPivot;
+                float[] worldRotation = state.pendingRotation;
+                float[] worldRotMatrix = eulerZyxToMatrix(state.pendingRotation);
                 float worldScale = state.pendingScale;
-                if (state.parentBone != null) {
-                    BoneMeta parent = state.boneMeta.get(state.parentBone);
+                if (resolvedParent != null) {
+                    BoneMeta parent = state.boneMeta.get(resolvedParent);
                     if (parent != null) {
+                        float[] scaledLocal = {
+                            parent.scale * state.pendingPivot[0],
+                            parent.scale * state.pendingPivot[1],
+                            parent.scale * state.pendingPivot[2]
+                        };
+                        float[] rotatedLocal = rotateVec(parent.rotMatrix, scaledLocal);
                         worldPivot = new float[]{
-                            parent.pivot[0] + parent.scale * state.pendingPivot[0],
-                            parent.pivot[1] + parent.scale * state.pendingPivot[1],
-                            parent.pivot[2] + parent.scale * state.pendingPivot[2]
+                            parent.pivot[0] + rotatedLocal[0],
+                            parent.pivot[1] + rotatedLocal[1],
+                            parent.pivot[2] + rotatedLocal[2]
                         };
                         worldScale = parent.scale * state.pendingScale;
+                        worldRotMatrix = mulMatrix(parent.rotMatrix, worldRotMatrix);
+                        worldRotation = matrixToEulerZyx(worldRotMatrix);
                     }
                 }
-                state.bones.add(name, buildBone(worldPivot, state.pendingRotation, worldScale, state.pendingCubes));
-                state.boneMeta.put(name, new BoneMeta(worldPivot, worldScale));
+                // Pose-only parent bones (e.g. wolf "head" / "tail" - holds the pivot for cube-
+                // bearing children "real_head" / "real_tail") are flushed with empty cubes. They
+                // still need a {@link BoneMeta} entry so the next child's flatten can find them
+                // through the parent chain; just skip the JSON emission since a cube-less bone
+                // contributes no triangles. Without this, child bones that name a pose-only parent
+                // miss the boneMeta lookup and inherit a world pivot of (0, 0, 0).
+                if (!state.pendingCubes.isEmpty())
+                    state.bones.add(name, buildBone(worldPivot, worldRotation, worldScale, state.pendingCubes));
+                state.boneMeta.put(name, new BoneMeta(worldPivot, worldScale, worldRotMatrix));
+                // Record the resolved parent so the post-walk retainedNames filter
+                // ({@link #parseLayerMethod}) can chase the ancestor chain. Root-level bones
+                // (children of the mesh root, no PartDefinition parent) map to a null parent.
+                state.boneParents.put(name, resolvedParent);
                 state.lastFlushedBone = name;
             }
             state.pendingPartName = null;
@@ -1095,6 +1846,14 @@ public final class ToolingBlockEntities {
              */
             int @Nullable [] paramIntValues;
 
+            /**
+             * Float values to substitute for {@code FLOAD slot} parameter loads when
+             * evaluating arithmetic. {@code null} disables float param substitution AND
+             * arithmetic evaluation entirely (the legacy bedrock behaviour). When non-null,
+             * see {@link Source#paramFloatValues()} for the substitution rules.
+             */
+            float @Nullable [] paramFloatValues;
+
             /** Pushed by ILOAD when the slot maps to a paramIntValues entry; consumed by IFEQ / IFNE. */
             final @NotNull ConcurrentList<Integer> branchStack = Concurrent.newList();
 
@@ -1114,13 +1873,42 @@ public final class ToolingBlockEntities {
             @Nullable String lastFlushedBone;
 
             /** JVM local-variable slot -> bone name that was stored there via astore_N. */
-            final @NotNull ConcurrentMap<Integer, String> localSlotBone = Concurrent.newMap();
+            @NotNull ConcurrentMap<Integer, String> localSlotBone = Concurrent.newMap();
 
             /** JVM local-variable slot -> captured CubeListBuilder cubes, for builders reused by multiple addOrReplaceChild calls. */
-            final @NotNull ConcurrentMap<Integer, ConcurrentList<float[]>> slotToCubes = Concurrent.newMap();
+            @NotNull ConcurrentMap<Integer, ConcurrentList<float[]>> slotToCubes = Concurrent.newMap();
 
             /** Flattened pivot + scale for each flushed bone, used to resolve child inheritance. */
             final @NotNull ConcurrentMap<String, BoneMeta> boneMeta = Concurrent.newMap();
+
+            /**
+             * Child-bone -> resolved-parent-bone, populated by {@link #flushPendingBone}. Walks
+             * with {@link #retainedNames} to decide which bones to keep after a
+             * {@code PartDefinition.retainPartsAndChildren} call. Root-level bones (children of
+             * the mesh root, no PartDefinition parent) map to {@code null}.
+             */
+            final @NotNull Map<String, String> boneParents = new LinkedHashMap<>();
+
+            /**
+             * Bone names captured from a {@code Set.of(...)} call immediately preceding a
+             * {@link #retainedNames}-bound {@code retainPartsAndChildren} dispatch. Walked back
+             * from the {@code Set.of} {@code MethodInsnNode} since the parser doesn't carry a
+             * reference stack. Null when no pending capture is active.
+             */
+            @Nullable Set<String> pendingRetainSet;
+
+            /**
+             * Bones to keep when filtering after the parse. Populated by
+             * {@code PartDefinition.retainPartsAndChildren(Set)} from {@link #pendingRetainSet}.
+             * After {@link #walkInstructions} returns, every emitted bone whose ancestor chain
+             * (self -> root) contains no name in this set is dropped from {@link #bones}. Null
+             * means no filter was applied. Vanilla's {@code retainPartsAndChildren} replaces a
+             * non-retained bone's cubes with empty (recursing into its children); since
+             * {@link #flushPendingBone} skips JSON emission for cube-less bones, "strip cubes"
+             * and "drop bone from JSON" produce the same render output. Only set when
+             * {@code paramFloatValues != null} so bedrock parses are unaffected.
+             */
+            @Nullable Set<String> retainedNames;
 
             /** Cubes accumulated for the current builder chain, flushed by the next {@code addOrReplaceChild}. */
             @NotNull ConcurrentList<float[]> pendingCubes = Concurrent.newList();
@@ -1136,6 +1924,29 @@ public final class ToolingBlockEntities {
 
             /** Uniform scale from {@code PartPose.scaled}; {@code 1f} when no scale was applied. */
             float pendingScale = 1f;
+
+            /**
+             * Uniform inflate captured from the most recent {@code new CubeDeformation(F)} or
+             * {@code .extend(F)} call; consumed by the next {@code addBox} variant and reset
+             * to {@code 0f} after the cube emits. Asymmetric {@code (FFF)} variants average
+             * the three components since {@link lib.minecraft.renderer.asset.model.EntityModelData.Cube}
+             * only carries a scalar inflate. Only populated when {@code paramFloatValues != null}
+             * (the Java pipeline opts in); bedrock-side block-entity sources never set the
+             * gating field so existing parses emit {@code inflate: 0} unchanged.
+             */
+            float pendingInflate = 0f;
+
+            /**
+             * The factory's default {@code CubeDeformation} inflate, captured at the call site
+             * in {@link JavaEntityLayerDefinitionResolver} (e.g. {@code 0.25} for
+             * {@code DROWNED_OUTER_LAYER}'s {@code DrownedModel.createBodyLayer(new
+             * CubeDeformation(0.25F))}). {@link #pendingInflate} resets to this value after every
+             * {@code emitCube} so all cubes in the factory pick up the call-site-provided inflate
+             * by default, while inline {@code new CubeDeformation(F)} / {@code .extend(F)}
+             * per-cube overrides still take precedence on the next addBox. Zero for normal entity
+             * sources whose factory takes no {@code CubeDeformation} arg.
+             */
+            float defaultInflate = 0f;
 
             /** Accumulated per-bone JSON objects keyed by bone name. Written to the final model. */
             final @NotNull JsonObject bones = new JsonObject();
@@ -1157,8 +1968,17 @@ public final class ToolingBlockEntities {
 
         }
 
-        /** Parent lookup data: the bone's pivot and scale in world-flattened form. */
-        private record BoneMeta(float @NotNull [] pivot, float scale) {}
+        /**
+         * Parent lookup data: the bone's pivot, scale, and accumulated rotation in
+         * world-flattened form. The rotation matrix carries the entire parent-chain composition
+         * (Z * Y * X applied right-to-left, matching {@link
+         * net.minecraft.client.model.geom.PartPose}'s convention) so child bones can rotate
+         * their local pivots into the parent's frame before adding the parent's translation.
+         * Bedrock block-entity sources never set a non-identity rotation on a bone with
+         * children, so {@code rotMatrix} stays identity and the math collapses to the legacy
+         * additive-translation behaviour for them.
+         */
+        private record BoneMeta(float @NotNull [] pivot, float scale, float @NotNull [] rotMatrix) {}
 
         /**
          * Builds the JSON object for one bone from its flattened pivot, rotation, scale, and
@@ -1182,7 +2002,11 @@ public final class ToolingBlockEntities {
                 uv.add((int) c[7]);
                 cube.add("uv", uv);
 
-                cube.addProperty("inflate", 0.0);
+                // Bedrock-side block-entity sources never set paramFloatValues so their cubes
+                // carry length-8 arrays with no inflate slot - write 0 in that case to keep the
+                // wire format identical. Java sources go through emitCube which captures the
+                // CubeDeformation inflate at index 8.
+                cube.addProperty("inflate", c.length >= 9 ? c[8] : 0.0f);
                 cube.addProperty("mirror", false);
                 cube.add("face_uv", new JsonObject());
                 cubeArray.add(cube);
@@ -1199,16 +2023,123 @@ public final class ToolingBlockEntities {
         }
 
         /**
-         * Decodes an int or float literal from the instruction, returning the boxed numeric
-         * value or {@code null} when the node is not a compile-time numeric push. The geometry
-         * walker tracks these on a single {@code Number}-typed stack so a downstream
+         * Builds a 3x3 row-major rotation matrix from Euler angles in degrees, applied as
+         * {@code R = Rz(roll) * Ry(yaw) * Rx(pitch)} - the same Z * Y * X order vanilla Java's
+         * {@code Matrix4f.rotateZYX} uses for {@link
+         * net.minecraft.client.model.geom.PartPose#offsetAndRotation PartPose.offsetAndRotation}.
+         * Input array is {@code [pitch_deg, yaw_deg, roll_deg]}.
+         */
+        private static float @NotNull [] eulerZyxToMatrix(float @NotNull [] eulerDegrees) {
+            double rx = Math.toRadians(eulerDegrees[0]);
+            double ry = Math.toRadians(eulerDegrees[1]);
+            double rz = Math.toRadians(eulerDegrees[2]);
+            double cx = Math.cos(rx), sx = Math.sin(rx);
+            double cy = Math.cos(ry), sy = Math.sin(ry);
+            double cz = Math.cos(rz), sz = Math.sin(rz);
+            return new float[]{
+                (float) (cz * cy),                      (float) (cz * sy * sx - sz * cx),       (float) (cz * sy * cx + sz * sx),
+                (float) (sz * cy),                      (float) (sz * sy * sx + cz * cx),       (float) (sz * sy * cx - cz * sx),
+                (float) -sy,                            (float) (cy * sx),                      (float) (cy * cx)
+            };
+        }
+
+        /** Multiplies two row-major 3x3 matrices: returns {@code a * b}. */
+        private static float @NotNull [] mulMatrix(float @NotNull [] a, float @NotNull [] b) {
+            float[] r = new float[9];
+            for (int row = 0; row < 3; row++)
+                for (int col = 0; col < 3; col++)
+                    r[row * 3 + col] = a[row * 3] * b[col]
+                                     + a[row * 3 + 1] * b[3 + col]
+                                     + a[row * 3 + 2] * b[6 + col];
+            return r;
+        }
+
+        /** Rotates a 3-vector by a row-major 3x3 matrix. */
+        private static float @NotNull [] rotateVec(float @NotNull [] m, float @NotNull [] v) {
+            return new float[]{
+                m[0] * v[0] + m[1] * v[1] + m[2] * v[2],
+                m[3] * v[0] + m[4] * v[1] + m[5] * v[2],
+                m[6] * v[0] + m[7] * v[1] + m[8] * v[2]
+            };
+        }
+
+        /**
+         * Decomposes a row-major 3x3 rotation matrix back into {@code [pitch_deg, yaw_deg,
+         * roll_deg]} for the Z * Y * X convention. The closed-form recovery uses
+         * {@code yaw = -asin(m[6])}, {@code pitch = atan2(m[7], m[8])},
+         * {@code roll = atan2(m[3], m[0])}; it agrees with the inverse of {@link
+         * #eulerZyxToMatrix} on every input that doesn't sit at the {@code yaw = +/- 90deg}
+         * gimbal-lock pole. None of the entity factories observed compose rotations near that
+         * pole (vanilla animations stay in single-axis pitches like body 90deg X), so the
+         * canonical decomposition is used; if a future model lands at the pole the recovered
+         * Euler triple still represents the same rotation, just split differently between
+         * yaw and roll.
+         */
+        private static float @NotNull [] matrixToEulerZyx(float @NotNull [] m) {
+            float syNeg = m[6];
+            float clamped = Math.max(-1f, Math.min(1f, syNeg));
+            double yaw = -Math.asin(clamped);
+            double pitch;
+            double roll;
+            if (Math.abs(clamped) > 0.9999f) {
+                // Gimbal-lock fallback: pitch and roll merge; pin roll to 0 and put the
+                // combined rotation on pitch via atan2 of the now-decoupled m[1] / m[4] cell.
+                pitch = Math.atan2(-m[5], m[4]);
+                roll = 0f;
+            } else {
+                pitch = Math.atan2(m[7], m[8]);
+                roll = Math.atan2(m[3], m[0]);
+            }
+            return new float[]{
+                (float) Math.toDegrees(pitch),
+                (float) Math.toDegrees(yaw),
+                (float) Math.toDegrees(roll)
+            };
+        }
+
+        /**
+         * Pops an int from whichever stack the current parser config feeds branch evaluators.
+         * When {@code paramFloatValues != null} (Java pipeline) ints flow through {@code numStack}
+         * so the call-site-propagated literal can also feed {@code IADD/ISUB/...} arithmetic;
+         * when {@code paramFloatValues == null} (bedrock block-entity sources) the legacy
+         * branchStack consumer is preserved. Returns {@code null} when neither stack has a
+         * value, signalling the caller to fall through linearly.
+         */
+        /**
+         * Returns whether {@code target} occurs after {@code source} in {@code instructions}.
+         * The walker follows forward jumps to skip the not-taken branch of an if/else; backward
+         * jumps (loop tails) would loop the linear walker forever, so this guard returns
+         * {@code false} for them and the caller falls through linearly. {@code InsnList.indexOf}
+         * caches indices after first call, so the lookup is amortised O(1) per method.
+         */
+        private static boolean isForwardJump(@NotNull InsnList instructions, @NotNull AbstractInsnNode source, @Nullable LabelNode target) {
+            return target != null && instructions.indexOf(target) > instructions.indexOf(source);
+        }
+
+        private static @Nullable Integer popIntForBranch(@NotNull ParseState state) {
+            if (state.paramFloatValues != null && !state.numStack.isEmpty())
+                return state.numStack.remove(state.numStack.size() - 1).intValue();
+            if (!state.branchStack.isEmpty())
+                return state.branchStack.remove(state.branchStack.size() - 1);
+            return null;
+        }
+
+        /**
+         * Decodes an int, float, or double literal from the instruction, returning the boxed
+         * numeric value or {@code null} when the node is not a compile-time numeric push. The
+         * geometry walker tracks these on a single {@code Number}-typed stack so a downstream
          * {@code addBox(FFFFFF)} can pop floats from the same list that earlier collected ints
-         * for an {@code addBox(name,FFFIIIII)} variant.
+         * for an {@code addBox(name,FFFIIIII)} variant. Doubles ({@code DCONST_0/1},
+         * {@code LDC2_W}) feed the {@code Mth.cos(D)F} / {@code Mth.sin(D)F} dispatch in
+         * {@link #handleMethodInsn} so vanilla's inline trig in {@code createBodyLayer} (e.g.
+         * {@code WitherBossModel}'s tail offset {@code -2 + cos(0.2042) * 10}) folds at parse time.
          */
         private static @Nullable Number readNumericLiteral(@NotNull AbstractInsnNode node) {
             Integer asInt = AsmKit.readIntLiteral(node);
             if (asInt != null) return asInt;
-            return AsmKit.readFloatLiteral(node);
+            Float asFloat = AsmKit.readFloatLiteral(node);
+            if (asFloat != null) return asFloat;
+            return AsmKit.readDoubleLiteral(node);
         }
 
         /**

@@ -3,6 +3,7 @@ package lib.minecraft.renderer.kit;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.options.FluidOptions;
 import lib.minecraft.renderer.tensor.Vector2f;
@@ -34,7 +35,6 @@ public class FluidGeometryKit {
 
     private static final float CUBE_HALF = 0.5f;
     private static final float UV_CENTRE = 0.5f;
-    private static final float SHADING = 1f;
 
     /**
      * Builds the fluid cube triangle list.
@@ -115,8 +115,8 @@ public class FluidGeometryKit {
         Vector3f normal1 = triangleNormal(nw, sw, se);
         Vector3f normal2 = triangleNormal(nw, se, ne);
 
-        out.add(new VisibleTriangle(nw, sw, se, uvNW, uvSW, uvSE, texture, argbTint, normal1, SHADING, true, false));
-        out.add(new VisibleTriangle(nw, se, ne, uvNW, uvSE, uvNE, texture, argbTint, normal2, SHADING, true, false));
+        out.add(new VisibleTriangle(nw, sw, se, uvNW, uvSW, uvSE, texture, argbTint, normal1, RenderEngine.computeInventoryLighting(normal1), true, false));
+        out.add(new VisibleTriangle(nw, se, ne, uvNW, uvSE, uvNE, texture, argbTint, normal2, RenderEngine.computeInventoryLighting(normal2), true, false));
     }
 
     /**
@@ -159,8 +159,9 @@ public class FluidGeometryKit {
         @NotNull Vector2f uvTL, @NotNull Vector2f uvBL, @NotNull Vector2f uvBR, @NotNull Vector2f uvTR,
         @NotNull PixelBuffer texture, int argbTint, @NotNull Vector3f normal
     ) {
-        out.add(new VisibleTriangle(pTL, pBL, pBR, uvTL, uvBL, uvBR, texture, argbTint, normal, SHADING, true, false));
-        out.add(new VisibleTriangle(pTL, pBR, pTR, uvTL, uvBR, uvTR, texture, argbTint, normal, SHADING, true, false));
+        float shading = RenderEngine.computeInventoryLighting(normal);
+        out.add(new VisibleTriangle(pTL, pBL, pBR, uvTL, uvBL, uvBR, texture, argbTint, normal, shading, true, false));
+        out.add(new VisibleTriangle(pTL, pBR, pTR, uvTL, uvBR, uvTR, texture, argbTint, normal, shading, true, false));
     }
 
     /**

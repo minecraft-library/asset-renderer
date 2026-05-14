@@ -74,6 +74,13 @@ public class EntityModelLoader {
     private static final @NotNull String GEOMETRY_RESOURCE_PATH = "/lib/minecraft/renderer/entity_geometry.json";
     private static final @NotNull String OVERRIDES_RESOURCE_PATH = "/lib/minecraft/renderer/entity_models_overrides.json";
     private static final @NotNull String BIND_POSES_RESOURCE_PATH = "/lib/minecraft/renderer/entity_bind_poses.json";
+
+    /** Java-derived models file; produced by {@code ToolingJavaEntityModels} (variant 2a research plan). */
+    private static final @NotNull String MODELS_JAVA_RESOURCE_PATH = "/lib/minecraft/renderer/entity_models_java.json";
+
+    /** Java-derived geometry file; bones in Java-native Y-down absolute entity-root frame. */
+    private static final @NotNull String GEOMETRY_JAVA_RESOURCE_PATH = "/lib/minecraft/renderer/entity_geometry_java.json";
+
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**
@@ -101,6 +108,7 @@ public class EntityModelLoader {
         @NotNull EntityModelData model,
         @NotNull Optional<String> textureRef,
         @NotNull List<OverlayLayer> overlays,
+        @NotNull List<BlockOverlayLayer> blockOverlays,
         boolean forceOpaque
     ) {
 
@@ -109,7 +117,7 @@ public class EntityModelLoader {
          * common case.
          */
         public EntityDefinition(@NotNull EntityModelData model, @NotNull Optional<String> textureRef) {
-            this(model, textureRef, List.of(), false);
+            this(model, textureRef, List.of(), List.of(), false);
         }
 
         /**
@@ -120,10 +128,68 @@ public class EntityModelLoader {
             @NotNull Optional<String> textureRef,
             @NotNull List<OverlayLayer> overlays
         ) {
-            this(model, textureRef, overlays, false);
+            this(model, textureRef, overlays, List.of(), false);
+        }
+
+        /**
+         * Convenience constructor for entities with overlays and force-opaque - drops block overlays.
+         */
+        public EntityDefinition(
+            @NotNull EntityModelData model,
+            @NotNull Optional<String> textureRef,
+            @NotNull List<OverlayLayer> overlays,
+            boolean forceOpaque
+        ) {
+            this(model, textureRef, overlays, List.of(), forceOpaque);
         }
 
     }
+
+    /**
+     * One block-model overlay attached to an entity: a vanilla block (e.g. red mushroom block)
+     * rendered at a specific transform on top of the entity body. Used by mooshroom (mushrooms
+     * on back / between horns), enderman (carried block), iron golem (poppy), etc.
+     *
+     * <p>The {@code transforms} list is applied in order at render time, one push/pop scope per
+     * block-overlay row (each row = one mushroom/flower/etc). Transforms operate in entity-local
+     * coordinates - the block model's 0..1 unit cube is placed in the entity's frame after the
+     * transform chain. Optionally pre-pended by an entity-bone pose ({@code attachedBone}) so
+     * head-attached overlays (mooshroom's third mushroom between the horns) follow the head's
+     * runtime / bind-pose rotation.
+     *
+     * @param blockId the block id to render (e.g. {@code "minecraft:red_mushroom_block"})
+     * @param attachedBone optional entity-bone whose pose stack pre-multiplies the transforms
+     *     (e.g. {@code "head"} for the mooshroom horn-mushroom). {@code null} when the overlay
+     *     is positioned in the entity's root frame
+     * @param transforms ordered list of {@code translate} / {@code rotate_y} / {@code scale} ops
+     *     applied to the block model after the optional bone pose
+     */
+    public record BlockOverlayLayer(
+        @NotNull String blockId,
+        @Nullable String attachedBone,
+        @NotNull List<TransformOp> transforms
+    ) {}
+
+    /**
+     * One transform operation in a {@link BlockOverlayLayer}'s chain. Mirrors the vanilla
+     * {@code PoseStack} ops a render layer issues between {@code pushPose} / {@code popPose}:
+     * {@code translate(F, F, F)} -> {@link Translate}, {@code mulPose(rotationDegrees(deg))} on
+     * the Y axis -> {@link RotateY}, {@code scale(F, F, F)} -> {@link Scale}.
+     *
+     * <p>Sealed so the renderer can pattern-match without a default branch. Add a new op kind
+     * (e.g. {@code RotateX}) by extending the seal and updating both the JSON serialiser and
+     * the renderer dispatch.
+     */
+    public sealed interface TransformOp permits Translate, RotateY, Scale {}
+
+    /** Translation by {@code (x, y, z)} in entity-local units. */
+    public record Translate(float x, float y, float z) implements TransformOp {}
+
+    /** Rotation around the Y axis by {@code degrees}. */
+    public record RotateY(float degrees) implements TransformOp {}
+
+    /** Per-axis scale {@code (x, y, z)}. Negative components flip the axis. */
+    public record Scale(float x, float y, float z) implements TransformOp {}
 
     /**
      * One overlay layer on an {@link EntityDefinition}: an independent geometry plus its own
@@ -1011,6 +1077,136 @@ public class EntityModelLoader {
             return root.getAsJsonObject("entities");
         } catch (IOException | JsonSyntaxException ex) {
             throw new PipelineException(ex, "Failed to load entity model overrides resource '%s'", OVERRIDES_RESOURCE_PATH);
+        }
+    }
+
+    /**
+     * Side-by-side counterpart of {@link #load()} for the Java-derived pipeline. Reads
+     * {@code entity_models_java.json} + {@code entity_geometry_java.json} (both produced by
+     * {@code ToolingJavaEntityModels}) and emits the same {@link EntityDefinition} shape so the
+     * sibling {@code EntityRendererJava} can drop in. Skips overrides and bind poses entirely
+     * for the first pass - those layers exist in the bedrock pipeline to compensate for Bedrock
+     * authoring quirks the Java pipeline doesn't share, and the Java side will get its own
+     * {@code entity_models_java_overrides.json} only when residual gaps surface.
+     *
+     * @return Java-derived definitions keyed by namespaced entity id (empty when files absent)
+     * @throws PipelineException when one file is present but unparseable, or when an entity
+     *     references a geometry id not in the geometry file
+     */
+    public static @NotNull ConcurrentMap<String, EntityDefinition> loadJava() {
+        Map<String, EntityModelData> geometries = loadGeometriesJava();
+        if (geometries.isEmpty()) return Concurrent.newMap();
+
+        JsonObject entities = loadEntitiesBlockJava();
+        HashMap<String, EntityDefinition> definitions = new HashMap<>();
+        for (Map.Entry<String, JsonElement> entry : entities.entrySet()) {
+            String entityId = entry.getKey();
+            JsonObject entityJson = entry.getValue().getAsJsonObject();
+            if (!entityJson.has("geometry_ref")) continue;
+
+            String geometryRef = entityJson.get("geometry_ref").getAsString();
+            EntityModelData baseModel = geometries.get(geometryRef);
+            if (baseModel == null)
+                throw new PipelineException(
+                    "Java entity '%s' references geometry '%s' which is not present in '%s'",
+                    entityId, geometryRef, GEOMETRY_JAVA_RESOURCE_PATH
+                );
+
+            Optional<String> textureRef = entityJson.has("texture_ref")
+                ? Optional.of(entityJson.get("texture_ref").getAsString())
+                : Optional.empty();
+
+            // Phase E.4: overlays produced by JavaEntityOverlayResolver (emissive eye layers
+            // first; composite layers in later passes). Mirrors the bedrock loader's overlay
+            // flow but skips the override layer + bind-pose stack since the Java pipeline
+            // ships without those. An overlay sharing the base geometry_ref reuses baseModel
+            // verbatim (eye PNGs land on the same UV layout); a distinct geometry_ref resolves
+            // freshly from the geometry table.
+            List<OverlayLayer> overlays = entityJson.has("overlays") && entityJson.get("overlays").isJsonArray()
+                ? loadOverlays(entityJson.getAsJsonArray("overlays"), geometries, geometryRef, baseModel, entityId)
+                : List.of();
+
+            List<BlockOverlayLayer> blockOverlays = entityJson.has("block_overlays") && entityJson.get("block_overlays").isJsonArray()
+                ? loadBlockOverlays(entityJson.getAsJsonArray("block_overlays"))
+                : List.of();
+
+            definitions.put(entityId, new EntityDefinition(baseModel, textureRef, overlays, blockOverlays, false));
+        }
+        return Concurrent.adoptMap(definitions);
+    }
+
+    /**
+     * Resolves the Java pipeline's {@code block_overlays} JSON array into {@link BlockOverlayLayer}
+     * rows. Each entry has a {@code block_id}, optional {@code attached_bone}, and a
+     * {@code transforms} array whose entries are tagged objects: {@code {"op":"translate","x":...,"y":...,"z":...}}
+     * / {@code {"op":"rotate_y","degrees":...}} / {@code {"op":"scale","x":...,"y":...,"z":...}}.
+     */
+    private static @NotNull List<BlockOverlayLayer> loadBlockOverlays(@NotNull JsonArray array) {
+        List<BlockOverlayLayer> out = new ArrayList<>();
+        for (JsonElement element : array) {
+            if (!element.isJsonObject()) continue;
+            JsonObject row = element.getAsJsonObject();
+            if (!row.has("block_id")) continue;
+            String blockId = row.get("block_id").getAsString();
+            String attachedBone = row.has("attached_bone") && !row.get("attached_bone").isJsonNull()
+                ? row.get("attached_bone").getAsString()
+                : null;
+            List<TransformOp> ops = new ArrayList<>();
+            if (row.has("transforms") && row.get("transforms").isJsonArray()) {
+                for (JsonElement opElement : row.getAsJsonArray("transforms")) {
+                    if (!opElement.isJsonObject()) continue;
+                    JsonObject opObj = opElement.getAsJsonObject();
+                    String kind = opObj.has("op") ? opObj.get("op").getAsString() : "";
+                    switch (kind) {
+                        case "translate" -> ops.add(new Translate(
+                            opObj.get("x").getAsFloat(),
+                            opObj.get("y").getAsFloat(),
+                            opObj.get("z").getAsFloat()));
+                        case "rotate_y" -> ops.add(new RotateY(opObj.get("degrees").getAsFloat()));
+                        case "scale" -> ops.add(new Scale(
+                            opObj.get("x").getAsFloat(),
+                            opObj.get("y").getAsFloat(),
+                            opObj.get("z").getAsFloat()));
+                        default -> { }
+                    }
+                }
+            }
+            out.add(new BlockOverlayLayer(blockId, attachedBone, List.copyOf(ops)));
+        }
+        return List.copyOf(out);
+    }
+
+    /**
+     * Reads {@link #GEOMETRY_JAVA_RESOURCE_PATH}. Returns an empty map when the file is absent
+     * (so {@link #loadJava()} can short-circuit to "no Java pipeline available" without throwing
+     * during environments that haven't run {@code ToolingJavaEntityModels} yet).
+     */
+    private static @NotNull Map<String, EntityModelData> loadGeometriesJava() {
+        try (InputStream stream = EntityModelLoader.class.getResourceAsStream(GEOMETRY_JAVA_RESOURCE_PATH)) {
+            if (stream == null) return Map.of();
+            String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+            JsonObject root = GSON.fromJson(json, JsonObject.class);
+            if (root == null || !root.has("geometries")) return Map.of();
+            JsonObject geometriesJson = root.getAsJsonObject("geometries");
+            Map<String, EntityModelData> out = new LinkedHashMap<>();
+            for (Map.Entry<String, JsonElement> entry : geometriesJson.entrySet())
+                out.put(entry.getKey(), GSON.fromJson(entry.getValue(), EntityModelData.class));
+            return out;
+        } catch (IOException | JsonSyntaxException ex) {
+            throw new PipelineException(ex, "Failed to load Java entity geometry resource '%s'", GEOMETRY_JAVA_RESOURCE_PATH);
+        }
+    }
+
+    /** Reads {@link #MODELS_JAVA_RESOURCE_PATH}. Returns an empty {@link JsonObject} when absent. */
+    private static @NotNull JsonObject loadEntitiesBlockJava() {
+        try (InputStream stream = EntityModelLoader.class.getResourceAsStream(MODELS_JAVA_RESOURCE_PATH)) {
+            if (stream == null) return new JsonObject();
+            String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+            JsonObject root = GSON.fromJson(json, JsonObject.class);
+            if (root == null || !root.has("entities")) return new JsonObject();
+            return root.getAsJsonObject("entities");
+        } catch (IOException | JsonSyntaxException ex) {
+            throw new PipelineException(ex, "Failed to load Java entity models resource '%s'", MODELS_JAVA_RESOURCE_PATH);
         }
     }
 

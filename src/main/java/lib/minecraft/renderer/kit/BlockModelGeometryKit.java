@@ -8,6 +8,7 @@ import lib.minecraft.renderer.asset.model.BlockModelData;
 import lib.minecraft.renderer.asset.model.ItemModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
+import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.geometry.BlockFace;
 import lib.minecraft.renderer.geometry.Box;
@@ -318,7 +319,13 @@ public class BlockModelGeometryKit {
         @NotNull Vector3f normal,
         boolean cullBackFaces
     ) {
-        float shading = 1f;
+        // Bake the inventory shade factor into each triangle so the rasterizer can apply shading
+        // directly without a per-triangle face lookup. {@link RenderEngine#computeInventoryLighting}
+        // resolves the dominant cardinal of the (post-element-rotation) face normal and returns
+        // the matching {@code Lighting.ITEMS_3D} approximation - cardinal-aligned faces produce
+        // exactly the per-face values from {@link BlockFace#lighting} (1.0/0.5/0.6/0.8), and faces
+        // rotated by {@code element.rotation} resolve to the closest cardinal's shade.
+        float shading = RenderEngine.computeInventoryLighting(normal);
         out.add(new VisibleTriangle(topLeft, bottomLeft, bottomRight, uvTL, uvBL, uvBR, texture, tintArgb, normal, shading, cullBackFaces, false));
         out.add(new VisibleTriangle(topLeft, bottomRight, topRight, uvTL, uvBR, uvTR, texture, tintArgb, normal, shading, cullBackFaces, false));
     }
