@@ -81,6 +81,14 @@ public class EntityModelLoader {
     /** Java-derived geometry file; bones in Java-native Y-down absolute entity-root frame. */
     private static final @NotNull String GEOMETRY_JAVA_RESOURCE_PATH = "/lib/minecraft/renderer/entity_geometry_java.json";
 
+    /**
+     * Hand-edited geometries merged on top of {@link #GEOMETRY_JAVA_RESOURCE_PATH}. The bytecode
+     * tooling can't reach every Java-pipeline geometry (e.g. {@code HumanoidModel.createMesh}'s
+     * standalone player-humanoid output, used by {@code SkeletonClothingLayer}-shaped overlays);
+     * this file is the escape hatch for those. Entries here survive tooling regenerations.
+     */
+    private static final @NotNull String GEOMETRY_JAVA_HANDEDITS_RESOURCE_PATH = "/lib/minecraft/renderer/entity_geometry_java_handedits.json";
+
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**
@@ -1209,23 +1217,38 @@ public class EntityModelLoader {
     }
 
     /**
-     * Reads {@link #GEOMETRY_JAVA_RESOURCE_PATH}. Returns an empty map when the file is absent
-     * (so {@link #loadJava()} can short-circuit to "no Java pipeline available" without throwing
-     * during environments that haven't run {@code ToolingJavaEntityModels} yet).
+     * Reads {@link #GEOMETRY_JAVA_RESOURCE_PATH} and merges
+     * {@link #GEOMETRY_JAVA_HANDEDITS_RESOURCE_PATH} on top (hand-edits take precedence on key
+     * collision). Returns an empty map when the primary file is absent (so {@link #loadJava()}
+     * can short-circuit to "no Java pipeline available" without throwing during environments
+     * that haven't run {@code ToolingJavaEntityModels} yet).
      */
     private static @NotNull Map<String, EntityModelData> loadGeometriesJava() {
-        try (InputStream stream = EntityModelLoader.class.getResourceAsStream(GEOMETRY_JAVA_RESOURCE_PATH)) {
-            if (stream == null) return Map.of();
+        Map<String, EntityModelData> out = readGeometriesJsonResource(GEOMETRY_JAVA_RESOURCE_PATH, /*required*/ false);
+        Map<String, EntityModelData> handedits = readGeometriesJsonResource(GEOMETRY_JAVA_HANDEDITS_RESOURCE_PATH, /*required*/ false);
+        out.putAll(handedits);
+        return out;
+    }
+
+    private static @NotNull Map<String, EntityModelData> readGeometriesJsonResource(@NotNull String path, boolean required) {
+        try (InputStream stream = EntityModelLoader.class.getResourceAsStream(path)) {
+            if (stream == null) {
+                if (required)
+                    throw new PipelineException("Entity geometry resource '%s' not found on the classpath", path);
+                return new LinkedHashMap<>();
+            }
             String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
             JsonObject root = GSON.fromJson(json, JsonObject.class);
-            if (root == null || !root.has("geometries")) return Map.of();
+            if (root == null || !root.has("geometries")) return new LinkedHashMap<>();
             JsonObject geometriesJson = root.getAsJsonObject("geometries");
             Map<String, EntityModelData> out = new LinkedHashMap<>();
-            for (Map.Entry<String, JsonElement> entry : geometriesJson.entrySet())
+            for (Map.Entry<String, JsonElement> entry : geometriesJson.entrySet()) {
+                if (entry.getKey().startsWith("//")) continue;
                 out.put(entry.getKey(), GSON.fromJson(entry.getValue(), EntityModelData.class));
+            }
             return out;
         } catch (IOException | JsonSyntaxException ex) {
-            throw new PipelineException(ex, "Failed to load Java entity geometry resource '%s'", GEOMETRY_JAVA_RESOURCE_PATH);
+            throw new PipelineException(ex, "Failed to load entity geometry resource '%s'", path);
         }
     }
 

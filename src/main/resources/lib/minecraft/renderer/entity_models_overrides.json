@@ -202,7 +202,7 @@
     "minecraft:stray": {
       "overlays": [
         {
-          "geometry_ref": "geometry.skeleton_1",
+          "geometry_ref": "geometry.humanoid_outer",
           "texture_ref": "skeleton/stray_overlay",
           "inflate": 0.25
         }
@@ -212,7 +212,7 @@
     "minecraft:bogged": {
       "overlays": [
         {
-          "geometry_ref": "geometry.skeleton_1",
+          "geometry_ref": "geometry.humanoid_outer",
           "texture_ref": "skeleton/bogged_overlay",
           "inflate": 0.2
         }

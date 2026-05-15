@@ -1,0 +1,111 @@
+{
+  "//": "Hand-edited Java-pipeline geometries that the bytecode-scanning tooling can't reach. Merged into the entity_geometry_java.json output by EntityModelLoader.loadGeometriesJava with hand-edits taking precedence on key collision. Entries here survive tooling regenerations (entity_geometry_java.json is rewritten from scratch by ToolingJavaEntityModels; this file is not). Keep entries minimal and document their vanilla source so a Minecraft version bump can confirm them.",
+  "geometries": {
+    "//geometry.humanoid_outer": "HumanoidModel.createMesh(CubeDeformation.NONE, 0.0F) at 64x32 texture. Used by SkeletonClothingLayer's outer-layer models (STRAY_OUTER_LAYER inflate 0.25, BOGGED_OUTER_LAYER inflate 0.2) - these are the player-sized humanoid (4x12x4 arms/legs) rendered with *_overlay.png textures on top of the slim skeleton body. Our extracted skeleton_1 has slim 2x12x2 arms; this entry carries the player-sized variant explicitly so overlays don't miss the wider silhouette.",
+    "geometry.humanoid_outer": {
+      "textureWidth": 64,
+      "textureHeight": 32,
+      "y_axis": "DOWN",
+      "bones": {
+        "head": {
+          "pivot": [0.0, 0.0, 0.0],
+          "rotation": [0.0, 0.0, 0.0],
+          "cubes": [
+            {
+              "origin": [-4.0, -8.0, -4.0],
+              "size": [8.0, 8.0, 8.0],
+              "uv": [0, 0],
+              "inflate": 0.0,
+              "mirror": false,
+              "face_uv": {}
+            }
+          ]
+        },
+        "hat": {
+          "pivot": [0.0, 0.0, 0.0],
+          "rotation": [0.0, 0.0, 0.0],
+          "cubes": [
+            {
+              "origin": [-4.0, -8.0, -4.0],
+              "size": [8.0, 8.0, 8.0],
+              "uv": [32, 0],
+              "inflate": 0.5,
+              "mirror": false,
+              "face_uv": {}
+            }
+          ]
+        },
+        "body": {
+          "pivot": [0.0, 0.0, 0.0],
+          "rotation": [0.0, 0.0, 0.0],
+          "cubes": [
+            {
+              "origin": [-4.0, 0.0, -2.0],
+              "size": [8.0, 12.0, 4.0],
+              "uv": [16, 16],
+              "inflate": 0.0,
+              "mirror": false,
+              "face_uv": {}
+            }
+          ]
+        },
+        "right_arm": {
+          "pivot": [-5.0, 2.0, 0.0],
+          "rotation": [0.0, 0.0, 0.0],
+          "cubes": [
+            {
+              "origin": [-3.0, -2.0, -2.0],
+              "size": [4.0, 12.0, 4.0],
+              "uv": [40, 16],
+              "inflate": 0.0,
+              "mirror": false,
+              "face_uv": {}
+            }
+          ]
+        },
+        "left_arm": {
+          "pivot": [5.0, 2.0, 0.0],
+          "rotation": [0.0, 0.0, 0.0],
+          "cubes": [
+            {
+              "origin": [-1.0, -2.0, -2.0],
+              "size": [4.0, 12.0, 4.0],
+              "uv": [40, 16],
+              "inflate": 0.0,
+              "mirror": true,
+              "face_uv": {}
+            }
+          ]
+        },
+        "right_leg": {
+          "pivot": [-1.9, 12.0, 0.0],
+          "rotation": [0.0, 0.0, 0.0],
+          "cubes": [
+            {
+              "origin": [-2.0, 0.0, -2.0],
+              "size": [4.0, 12.0, 4.0],
+              "uv": [0, 16],
+              "inflate": 0.0,
+              "mirror": false,
+              "face_uv": {}
+            }
+          ]
+        },
+        "left_leg": {
+          "pivot": [1.9, 12.0, 0.0],
+          "rotation": [0.0, 0.0, 0.0],
+          "cubes": [
+            {
+              "origin": [-2.0, 0.0, -2.0],
+              "size": [4.0, 12.0, 4.0],
+              "uv": [0, 16],
+              "inflate": 0.0,
+              "mirror": true,
+              "face_uv": {}
+            }
+          ]
+        }
+      }
+    }
+  }
+}
