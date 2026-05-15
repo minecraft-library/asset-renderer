@@ -1,6 +1,12 @@
 {
   "//": "Hand-edited corrections applied to the Bedrock-sourced entity_models.json / entity_geometry.json. Loaded by EntityModelLoader per entity; keys are `geometry_ref`, `texture_ref`, `inventory_y_rotation`, `bone_overrides`, `hidden_bones`. `hidden_bones` strips bones Bedrock packs into the shared geometry but Java conditionally hides at render time (saddlebags on plain horses, saddles on undead mounts).",
   "entities": {
+    "//minecraft:armor_stand": "ArmorStandModel constructor statically sets this.hat.visible = false; vanilla bounds-walker honours visibility and excludes the hat extent. Our pipeline doesn't track per-bone visibility, so strip the hat at load time. Same applies to any model whose constructor statically toggles visibility before render. Detect at tooling time when convenient and remove this hand-edited entry.",
+    "minecraft:armor_stand": {
+      "hidden_bones": [
+        "hat"
+      ]
+    },
     "minecraft:horse": {
       "hidden_bones": [
         "Bag1",

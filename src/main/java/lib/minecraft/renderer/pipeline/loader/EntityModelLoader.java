@@ -1102,6 +1102,7 @@ public class EntityModelLoader {
         if (geometries.isEmpty()) return Concurrent.newMap();
 
         JsonObject entities = loadEntitiesBlockJava();
+        JsonObject overrides = loadOverridesBlock();
         HashMap<String, EntityDefinition> definitions = new HashMap<>();
         for (Map.Entry<String, JsonElement> entry : entities.entrySet()) {
             String entityId = entry.getKey();
@@ -1119,6 +1120,28 @@ public class EntityModelLoader {
             Optional<String> textureRef = entityJson.has("texture_ref")
                 ? Optional.of(entityJson.get("texture_ref").getAsString())
                 : Optional.empty();
+
+            // Apply hand-edited overrides shared with the bedrock pipeline. The Java pipeline
+            // currently only honours {@code hidden_bones} (vanilla models whose constructors
+            // statically set {@code part.visible = false} before any setupAnim - armor_stand's
+            // hat is the canonical case, where vanilla's bounds walker honours visibility but
+            // ours doesn't yet, so we strip the bone at load time). Other override keys
+            // ({@code geometry_ref}, {@code texture_ref}, {@code inventory_y_rotation},
+            // {@code bone_overrides}, {@code bind_poses}, {@code extra_bones}) target the
+            // bedrock pipeline's Bedrock-sourced geometry quirks and aren't applied here.
+            JsonObject override = overrides.has(entityId) && overrides.get(entityId).isJsonObject()
+                ? overrides.getAsJsonObject(entityId)
+                : null;
+            if (override != null && override.has("hidden_bones") && override.get("hidden_bones").isJsonArray()) {
+                LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>(baseModel.getBones());
+                applyHiddenBones(bones, override.getAsJsonArray("hidden_bones"), entityId);
+                baseModel = new EntityModelData(
+                    baseModel.getTextureWidth(),
+                    baseModel.getTextureHeight(),
+                    baseModel.getInventoryYRotation(),
+                    Concurrent.adoptLinkedMap(bones)
+                );
+            }
 
             // Phase E.4: overlays produced by JavaEntityOverlayResolver (emissive eye layers
             // first; composite layers in later passes). Mirrors the bedrock loader's overlay
