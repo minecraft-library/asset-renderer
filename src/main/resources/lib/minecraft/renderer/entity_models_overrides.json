@@ -214,6 +214,14 @@
     "minecraft:pig_cold": {
       "geometry_ref": "geometry.cold_pig"
     },
+    "//minecraft:rabbit": "RabbitRenderer.getTextureLocation reads state.variant via state.isToast check then RABBIT_LOCATIONS map. Vanilla's zero-state Rabbit constructor defaults variant to BROWN (the first Rabbit.Variant enum value); our tooling-extracted texture_ref defaulted to rabbit_toast. Sampling the vanilla render's body pixels confirms dark brown (97, 72, 52) - matches rabbit_brown.",
+    "minecraft:rabbit": {
+      "texture_ref": "rabbit/rabbit_brown"
+    },
+    "//minecraft:axolotl": "AxolotlRenderer.getTextureLocation looks up state.variant in TEXTURE_BY_TYPE. Vanilla's zero-state default is LUCY (pink/white); the central body pixel of the vanilla render is (227, 132, 188) which matches axolotl_lucy's signature pink. Ours was set to axolotl_blue.",
+    "minecraft:axolotl": {
+      "texture_ref": "axolotl/axolotl_lucy"
+    },
     "//minecraft:stray": "Vanilla StrayRenderer adds a SkeletonClothingLayer (ModelLayers.STRAY_OUTER_LAYER + stray_overlay.png). STRAY_OUTER_LAYER is HumanoidModel.createMesh(CubeDeformation(0.25F), 0.0F) - the standard skeleton mesh with every cube inflated by 0.25 pixels. Without this overlay the skeleton-only silhouette is missing the frost-cloak content that protrudes laterally.",
     "minecraft:stray": {
       "overlays": [

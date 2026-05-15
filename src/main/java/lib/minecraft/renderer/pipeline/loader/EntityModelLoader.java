@@ -1150,13 +1150,22 @@ public class EntityModelLoader {
                     entityId, geometryRef, GEOMETRY_JAVA_RESOURCE_PATH
                 );
 
-            Optional<String> textureRef = entityJson.has("texture_ref")
-                ? Optional.of(entityJson.get("texture_ref").getAsString())
-                : Optional.empty();
+            // texture_ref precedence: override > generated entity row > absent. Used by
+            // TEXTURE_VARIANT entities whose vanilla renderer's getTextureLocation(state) picks
+            // a specific variant texture at zero state (rabbit brown, villager farmer/profession,
+            // axolotl lucy / wild, etc.) - the override pins that variant texture in place of
+            // the tooling-extracted default.
+            Optional<String> textureRef;
+            if (override != null && override.has("texture_ref"))
+                textureRef = Optional.of(override.get("texture_ref").getAsString());
+            else if (entityJson.has("texture_ref"))
+                textureRef = Optional.of(entityJson.get("texture_ref").getAsString());
+            else
+                textureRef = Optional.empty();
 
             // Apply hand-edited overrides shared with the bedrock pipeline. The Java pipeline
-            // honours {@code geometry_ref} (above), {@code hidden_bones}, and {@code overlays}.
-            // Other override keys ({@code texture_ref}, {@code inventory_y_rotation},
+            // honours {@code geometry_ref}, {@code texture_ref} (both above), {@code hidden_bones},
+            // and {@code overlays}. Other override keys ({@code inventory_y_rotation},
             // {@code bone_overrides}, {@code bind_poses}, {@code extra_bones}) target the
             // bedrock pipeline's Bedrock-sourced geometry quirks and aren't applied here.
             if (override != null && override.has("hidden_bones") && override.get("hidden_bones").isJsonArray()) {
