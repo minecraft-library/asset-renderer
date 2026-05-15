@@ -310,113 +310,13 @@ public class EntityGeometryKitJava {
                         (FLIP_NORMAL_Y ? -1f : 1f) * rawNormal.y(),
                         (FLIP_NORMAL_Z ? -1f : 1f) * rawNormal.z()
                     );
-                    // For {@code cube.isMirror()} cubes, vanilla's {@code ModelPart.Cube} ctor
-                    // swaps the {@code x} and {@code maxX} variables before building the 8
-                    // vertices, which has the net effect of swapping which UV strip is applied
-                    // to the cube's +X vs -X face (vanilla's WEST polygon UV ends up on the +X
-                    // face, EAST polygon UV on the -X face). The polygon ctor also reverses each
-                    // polygon's vertex array, which U-flips every face's UV mapping. Replicate
-                    // both effects here for mirror=true cubes; non-mirror cubes use the natural
-                    // face-to-UV mapping.
-                    Vector2f[] uv = resolveFaceUv(mirrorFace(face, cube.isMirror()), cube, size, texW, texH);
 
-                    // Per-face UV permutation derived from vanilla {@code ModelPart.Cube}'s polygon
-                    // ctor + the kit's corner ordering relative to vanilla's polygon vertex order:
-                    // <ul>
-                    //   <li><b>UP</b> (vanilla v1 > v2, V-inverted on atlas): {@code [1, 0, 3, 2]}.</li>
-                    //   <li><b>DOWN</b> (vanilla v1 < v2): identity {@code [0, 1, 2, 3]}.</li>
-                    //   <li><b>SIDE faces</b> (NORTH/SOUTH/EAST/WEST, v1 < v2): {@code [2, 3, 0, 1]}.</li>
-                    // </ul>
-                    // Each face's kit corner order ({@link EntityFace#vertexIndices}) is cyclic-
-                    // shifted by 1 from vanilla's polygon vertex array; combined with vanilla's
-                    // (TR/TL/BL/BR) UV slot pattern this produces a per-face cyclic-shift that
-                    // depends on V inversion. Independent of FLIP_X/FLIP_Y: those change where
-                    // vertices project to screen, but each vertex's vanilla-spec UV is unchanged.
-                    Vector2f[] effUv = switch (face) {
-                        case UP -> new Vector2f[]{ uv[1], uv[0], uv[3], uv[2] };
-                        case DOWN -> new Vector2f[]{ uv[0], uv[1], uv[2], uv[3] };
-                        default -> new Vector2f[]{ uv[2], uv[3], uv[0], uv[1] };
-                    };
-
-                    // Bake vanilla's {@code Lighting.ENTITY_IN_UI} shade factor (two-directional
-                    // Lambertian with ambient floor) into the triangle so the rasterizer applies
-                    // it directly without a second per-face lookup. Computed against the post-flip
-                    // screen-frame normal because {@link RenderEngine#ENTITY_IN_UI_LIGHT_0} and
-                    // {@link RenderEngine#ENTITY_IN_UI_LIGHT_1} are likewise expressed in screen
-                    // Y-up - vanilla's source values are Y-down, but we Y-flip both sides of the
-                    // dot product (lights and normal) which leaves the result identical and lets
-                    // every kit and renderer downstream of this point reason in one consistent
-                    // frame. The continuous (rather than per-face-bucketed) result matters for
-                    // bones whose rotation produces non-cardinal normals (running zombie legs,
-                    // bee leashes) where a {@link BlockFace#fromNormal} approximation would
-                    // collapse adjacent faces to the same shade.
-                    // PER_FACE_LIGHTING: vanilla's entity render types (entityCutoutNoCull
-                    // for fish fins / warden tendrils / skeleton horse rib cage) bind a shader
-                    // that pre-computes BOTH a front-color (max(0, dot(L, n))) and a back-color
-                    // (max(0, dot(-L, n))) per vertex; the fragment shader picks one via
-                    // {@code gl_FrontFacing} based on screen-space winding.
-                    // <p>
-                    // For PLANE cubes (one size component == 0) the DOWN/UP polygons cover the
-                    // same screen pixels at the same depth with opposite windings - one is
-                    // {@code gl_FrontFacing=true}, the other false. Vanilla's back-facing
-                    // polygon picks the back color = shade against -normal, which equals the
-                    // front color of the OTHER polygon at the same pixel. Net result: both
-                    // polygons render at the BRIGHTER of the two opposing-normal shades.
-                    // We model this as {@code max(shade(n), shade(-n))} for plane cubes.
-                    // <p>
-                    // For 3D no-cull cubes (skeleton horse rib cage) the back-facing polygons
-                    // are GEOMETRICALLY behind the front-facing ones; depth-test rejects them
-                    // unless the front polygon was alpha-discarded. Vanilla's back color shines
-                    // through in those alpha-cutout interior pixels, but in our kit applying
-                    // max-abs to all 6 faces over-bright the back faces that DO get exposed
-                    // (skeleton_horse rib cage delta jumped 60 → 64). Restrict the max-abs
-                    // tweak to plane cubes only - the geometry where vanilla's per-face split
-                    // is observable matters and our depth-tie tie-break handles the same case.
                     boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
-                    // Degenerate face: a face whose plane normal lies along the size==0 axis
-                    // collapses to a line (its 4 vertices reduce to 2 distinct points). E.g. for
-                    // a vertical-plane top_fin (size.x=0), the UP/DOWN/NORTH/SOUTH faces all
-                    // collapse - only WEST/EAST have full area. Vanilla emits these polygons too
-                    // but the rasterizer drops them at 0-area; ours rasterizes a thin line at
-                    // a few pixels' worth due to FP error in the bary inside-test, then paints
-                    // wrong-shade artifact pixels (cod top_fin UP painted x=133-135 strip at
-                    // shade 1.0 over the body's WEST shade 0.45). Skip emitting these.
-                    if (isPlaneCube) {
-                        boolean isDegenerate = (size.x() == 0f && (face == EntityFace.WEST || face == EntityFace.EAST)) ? false :
-                                               (size.y() == 0f && (face == EntityFace.UP || face == EntityFace.DOWN)) ? false :
-                                               (size.z() == 0f && (face == EntityFace.NORTH || face == EntityFace.SOUTH)) ? false :
-                                               true;
-                        if (isDegenerate) continue;
-                    }
-                    float shading;
-                    if (!cubeCullBackFaces && isPlaneCube) {
-                        // Plane no-cull cubes: BOTH polygons (the face F and its opposite F')
-                        // emit and cover the same screen pixels. The OPAQUE-UV polygon paints.
-                        // Vanilla's PER_FACE_LIGHTING fragment shader picks front vs back color
-                        // via gl_FrontFacing, which is determined by SCREEN-SPACE WINDING. For a
-                        // polygon whose outward normal points TOWARD the camera (camera-facing),
-                        // gl_FrontFacing=TRUE and front color is used. For one pointing AWAY,
-                        // gl_FrontFacing=FALSE and back color is used. By construction, front
-                        // color of A = back color of B for opposite-normal polygons (n_B = -n_A,
-                        // dot(L, n_B) = dot(-L, n_A)) - so both polygons of a plane cube compute
-                        // the SAME shade, namely shade against the CAMERA-FACING normal.
-                        // <p>
-                        // For face F we bake whichever shade matches the camera-facing direction.
-                        // dot({@link #VIEW_DIRECTION_KIT}, n_F_kit) {@code < 0} means n_F points
-                        // TOWARD camera (front), so we use {@code shade(n_F_kit)}. {@code >= 0}
-                        // means n_F points AWAY (back-facing), so we use {@code shade(-n_F_kit)}.
-                        // Either way the value equals what vanilla's PER_FACE_LIGHTING resolves
-                        // to for whichever polygon's UV is opaque.
-                        float vDot = Vector3f.dot(VIEW_DIRECTION_KIT, normal);
-                        if (vDot < 0f) {
-                            shading = RenderEngine.computeEntityInUiLighting(normal);
-                        } else {
-                            Vector3f flipped = new Vector3f(-normal.x(), -normal.y(), -normal.z());
-                            shading = RenderEngine.computeEntityInUiLighting(flipped);
-                        }
-                    } else {
-                        shading = RenderEngine.computeEntityInUiLighting(normal);
-                    }
+                    if (isPlaneCube && isDegeneratePlaneFace(size, face)) continue;
+
+                    Vector2f[] effUv = resolvePolygonUv(face, cube, size, texW, texH);
+                    float shading = computeFaceShading(normal, isPlaneCube, cubeCullBackFaces);
+
                     // Natural CCW emission {@code (0, 1, 2)} and {@code (0, 2, 3)}. Total
                     // pipeline chirality: kit FLIP_Y (det -1) × engine_camera (det -1) ×
                     // projection's -y (det -1) = det -1. Model CCW → screen CW → rasterizer's
@@ -775,6 +675,132 @@ public class EntityGeometryKitJava {
             rect = new Vector4f(uv.x(), uv.y(), uv.x() + uvSize.x(), uv.y() + uvSize.y());
         }
         return rect.toUvCorners(texWidth, texHeight, 0, cube.isMirror());
+    }
+
+    /**
+     * Resolves the per-vertex UV array for one polygon, including mirror handling and the
+     * vanilla-spec slot permutation. The output is indexed in the kit's corner order
+     * ({@link EntityFace#vertexIndices}).
+     * <p>
+     * For {@code cube.isMirror()} cubes, vanilla's {@code ModelPart.Cube} ctor swaps the cube's
+     * {@code x} and {@code maxX} variables before building the 8 vertices, which has the net
+     * effect of swapping which UV strip is applied to the cube's +X vs -X face (vanilla's WEST
+     * polygon UV ends up on the +X face, EAST polygon UV on the -X face). The polygon ctor also
+     * reverses each polygon's vertex array, which U-flips every face's UV mapping. Both effects
+     * are replicated for {@code mirror=true} cubes via {@link #mirrorFace} and the
+     * {@link Vector4f#toUvCorners} mirror flag inside {@link #resolveFaceUv}.
+     * <p>
+     * The per-face slot permutation (the {@code switch} below) compensates for the kit's corner
+     * order being cyclic-shifted by 1 from vanilla's polygon vertex array. Combined with vanilla's
+     * (TR/TL/BL/BR) UV slot pattern this produces a per-face cyclic-shift that depends on
+     * V-inversion in the polygon's UV row:
+     * <ul>
+     * <li><b>UP</b> (vanilla v1 &gt; v2, V-inverted on atlas): {@code [1, 0, 3, 2]}.</li>
+     * <li><b>DOWN</b> (vanilla v1 &lt; v2): identity {@code [0, 1, 2, 3]}.</li>
+     * <li><b>SIDE faces</b> (NORTH/SOUTH/EAST/WEST, v1 &lt; v2): {@code [2, 3, 0, 1]}.</li>
+     * </ul>
+     * Independent of {@link #FLIP_X} / {@link #FLIP_Y}: those change where vertices project to
+     * screen, but each vertex's vanilla-spec UV is unchanged.
+     *
+     * @param face the geometric face being rendered
+     * @param cube the cube whose UV is being resolved
+     * @param size the cube's size vector
+     * @param texWidth the texture width
+     * @param texHeight the texture height
+     * @return the four per-vertex UVs in the kit's corner order
+     */
+    private static @NotNull Vector2f @NotNull [] resolvePolygonUv(
+        @NotNull EntityFace face,
+        @NotNull EntityModelData.Cube cube,
+        @NotNull Vector3f size,
+        float texWidth,
+        float texHeight
+    ) {
+        Vector2f[] uv = resolveFaceUv(mirrorFace(face, cube.isMirror()), cube, size, texWidth, texHeight);
+        return switch (face) {
+            case UP -> new Vector2f[]{ uv[1], uv[0], uv[3], uv[2] };
+            case DOWN -> new Vector2f[]{ uv[0], uv[1], uv[2], uv[3] };
+            default -> new Vector2f[]{ uv[2], uv[3], uv[0], uv[1] };
+        };
+    }
+
+    /**
+     * Tests whether a plane cube's face polygon is degenerate - its 4 vertices collapse to 2
+     * distinct points because the face's plane normal lies along the cube's zero-extent axis.
+     * <p>
+     * E.g. for a vertical-plane top_fin ({@code size.x=0}), the UP/DOWN/NORTH/SOUTH faces all
+     * collapse - only WEST/EAST have full area. Vanilla emits these polygons too but the GPU
+     * rasterizer drops them at 0-area; ours rasterizes a thin line worth a few pixels due to FP
+     * error in the barycentric inside-test, then paints wrong-shade artifact pixels (cod top_fin
+     * UP painted x=133-135 strip at shade 1.0 over the body's WEST shade 0.45). Caller uses this
+     * predicate to skip emitting these triangles entirely.
+     *
+     * @param size the cube's size vector
+     * @param face the geometric face being rendered
+     * @return {@code true} if the polygon collapses to a line; {@code false} when the face has
+     *     full plane area
+     */
+    private static boolean isDegeneratePlaneFace(@NotNull Vector3f size, @NotNull EntityFace face) {
+        if (size.x() == 0f) return face != EntityFace.WEST && face != EntityFace.EAST;
+        if (size.y() == 0f) return face != EntityFace.UP && face != EntityFace.DOWN;
+        if (size.z() == 0f) return face != EntityFace.NORTH && face != EntityFace.SOUTH;
+        return false;
+    }
+
+    /**
+     * Computes the per-face shade factor baked into emitted triangles, modeling vanilla's
+     * {@code Lighting.ENTITY_IN_UI} two-directional Lambertian shader plus
+     * {@code PER_FACE_LIGHTING} for plane no-cull cubes.
+     * <p>
+     * The shade is computed against the post-flip screen-frame normal because
+     * {@link RenderEngine#ENTITY_IN_UI_LIGHT_0} and {@link RenderEngine#ENTITY_IN_UI_LIGHT_1}
+     * are likewise expressed in screen Y-up. The continuous (rather than per-face-bucketed)
+     * result matters for bones whose rotation produces non-cardinal normals (running zombie
+     * legs, bee leashes) where a {@code BlockFace.fromNormal} approximation would collapse
+     * adjacent faces to the same shade.
+     * <p>
+     * <b>Plane no-cull cubes</b> ({@code !cubeCullBackFaces && isPlaneCube}) require an extra
+     * tweak. Vanilla's entity render types (entityCutoutNoCull for fish fins, warden tendrils,
+     * skeleton_horse rib cage) bind a shader with {@code #define PER_FACE_LIGHTING}: the vertex
+     * stage pre-computes both a front-color ({@code max(0, dot(L, n))}) and a back-color
+     * ({@code max(0, dot(-L, n))}) per vertex; the fragment shader picks one via
+     * {@code gl_FrontFacing} based on screen-space winding. For PLANE cubes (one size component
+     * == 0) the two opposing-normal polygons (e.g. DOWN and UP) cover the same screen pixels
+     * with opposite windings - one is {@code gl_FrontFacing=true}, the other false. By
+     * construction front color of A == back color of B for opposite-normal polygons
+     * ({@code n_B = -n_A}, {@code dot(L, n_B) = dot(-L, n_A)}) - so both polygons of a plane
+     * cube compute the same shade, namely the shade against the CAMERA-FACING normal.
+     * <p>
+     * For face F we bake whichever shade matches the camera-facing direction.
+     * {@code dot(VIEW_DIRECTION_KIT, n_F_kit) < 0} means n_F points TOWARD camera (front-facing),
+     * so {@code shade(n_F_kit)}. {@code >= 0} means n_F points AWAY (back-facing), so
+     * {@code shade(-n_F_kit)}. Either way the value equals what vanilla's
+     * {@code PER_FACE_LIGHTING} resolves to for whichever polygon's UV is opaque.
+     * <p>
+     * <b>3D no-cull cubes</b> (skeleton_horse rib cage) skip the front/back picker because their
+     * back-facing polygons are GEOMETRICALLY behind the front-facing ones; depth-test rejects
+     * them unless the front polygon was alpha-discarded, in which case our depth-tie tie-break
+     * handles the per-face split correctly. Applying the picker to all 6 faces over-brightens
+     * interior faces that vanilla's depth-test would otherwise keep dark (skeleton_horse rib
+     * cage delta jumped 60 → 64 during early experiments).
+     *
+     * @param normal the post-flip kit-frame outward face normal
+     * @param isPlaneCube {@code true} when the cube has a zero-extent axis
+     * @param cubeCullBackFaces the cube's effective back-face culling flag
+     * @return the shade factor in {@code [0.4, 1.0]}
+     */
+    private static float computeFaceShading(
+        @NotNull Vector3f normal,
+        boolean isPlaneCube,
+        boolean cubeCullBackFaces
+    ) {
+        if (cubeCullBackFaces || !isPlaneCube)
+            return RenderEngine.computeEntityInUiLighting(normal);
+
+        Vector3f cameraFacing = Vector3f.dot(VIEW_DIRECTION_KIT, normal) < 0f
+            ? normal
+            : new Vector3f(-normal.x(), -normal.y(), -normal.z());
+        return RenderEngine.computeEntityInUiLighting(cameraFacing);
     }
 
     /**

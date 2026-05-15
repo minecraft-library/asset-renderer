@@ -242,14 +242,9 @@ public class ModelEngine extends TextureEngine {
             int pyEnd = Math.min(bounds[3], tileEnd - 1);
             if (pyStart > pyEnd) continue;
 
-            // The kit baked the lighting term (per-face for blocks/fluids via
-            // {@link RenderEngine#computeInventoryLighting}, dual-light Lambertian for entities
-            // via {@link RenderEngine#computeEntityInUiLighting}) into the source triangle's
-            // shading at geometry-build time, so no further normal-based shading is applied here.
-            // Centralising the computation in the kit lets each kit pick the lighting model that
-            // matches its vanilla render path - {@code Lighting.ITEMS_3D} for blocks vs
-            // {@code Lighting.ENTITY_IN_UI} for entities - without the rasterizer needing to
-            // dispatch on triangle type.
+            // The kit baked the lighting term per-vanilla-render-path at geometry-build time
+            // (RenderEngine.computeInventoryLighting for blocks/fluids, computeEntityInUiLighting
+            // for entities); the rasterizer just multiplies it in.
             float shading = t.source.shading();
 
             for (int py = pyStart; py <= pyEnd; py++) {
@@ -259,19 +254,7 @@ public class ModelEngine extends TextureEngine {
 
                     float depthVal = bary[0] * t.p0.z() + bary[1] * t.p1.z() + bary[2] * t.p2.z();
                     int idx = (py - tileStart) * width + px;
-                    // Depth test, with two flavours:
-                    //   - Standard: epsilon-tolerant rejection so coplanar faces (chest body SOUTH
-                    //     vs lid SOUTH at z=15) deterministically resolve in painter order without
-                    //     barycentric FP noise speckling. First-drawn wins on equal depth.
-                    //   - Emissive: strict less-than, so an emissive overlay rendered AT the same
-                    //     depth as the base it's painted on top of (spider/enderman eye overlays
-                    //     re-using the base entity's geometry post-bone_overrides) survives the
-                    //     test and blends additively, instead of being eaten by the epsilon
-                    //     tie-break. Behind-by-more-than-FP-noise is still rejected normally.
-                    boolean depthFail = t.source.emissive()
-                        ? depthVal < depth[idx]
-                        : depthVal <= depth[idx] + DEPTH_EPSILON;
-                    if (depthFail) continue;
+                    if (depthFails(depthVal, depth[idx], t.source.emissive())) continue;
 
                     float u = bary[0] * t.source.uv0().x() + bary[1] * t.source.uv1().x() + bary[2] * t.source.uv2().x();
                     float v = bary[0] * t.source.uv0().y() + bary[1] * t.source.uv1().y() + bary[2] * t.source.uv2().y();
@@ -285,36 +268,66 @@ public class ModelEngine extends TextureEngine {
                     if (t.source.tintArgb() != ColorMath.WHITE)
                         sampled = ColorMath.blend(t.source.tintArgb(), sampled, BlendMode.MULTIPLY);
 
-                    // Emissive overlays render full-bright (no ambient shading) and additive
-                    // (BlendMode.ADD = vanilla Java's RenderType.eyes glBlendFunc(SRC_ALPHA, ONE)),
-                    // so the layer brightens the base instead of replacing or translucently
-                    // masking it. Spider eyes and ender dragon eyes are the canonical cases.
-                    // Non-emissive triangles take the standard shaded src-over path.
-                    BlendMode blendMode;
-                    if (t.source.emissive()) {
-                        blendMode = BlendMode.ADD;
-                    } else {
+                    if (!t.source.emissive())
                         sampled = RenderEngine.applyShading(sampled, shading);
-                        blendMode = BlendMode.NORMAL;
-                    }
-                    // Composite onto whatever the depth-passing pixel previously wrote.
-                    // ColorMath.blend short-circuits at sa=0xFF (returns src) so opaque content
-                    // pays only one extra getPixel + one branch. Partial-alpha samples (slime
-                    // outer shell at alpha=180, fluid flow edges) blend over the existing
-                    // buffer content and produce the correct translucent appearance instead of
-                    // overwriting and only preserving alpha in the output PNG.
+                    BlendMode blendMode = selectBlendMode(t.source.emissive());
+
                     sampled = ColorMath.blend(sampled, buffer.getPixel(px, py), blendMode);
                     buffer.setPixel(px, py, sampled);
-                    // Depth is written for any pixel that survives the alpha-zero skip above,
+                    // Depth written for any pixel that survives the alpha-zero skip above,
                     // translucent fragments included. Correct rendering of partial-alpha layers
                     // therefore depends on painter's order - translucent geometry must be
-                    // inserted into the bone/triangle list AFTER any opaque content meant to be
-                    // visible behind it. The slime outer-shell extra_bone is appended last for
-                    // exactly this reason; emissive overlays should follow the same convention.
+                    // inserted into the bone/triangle list AFTER any opaque content meant to
+                    // be visible behind it. The slime outer-shell extra_bone is appended last
+                    // for exactly this reason; emissive overlays should follow the same
+                    // convention.
                     depth[idx] = depthVal;
                 }
             }
         }
+    }
+
+    /**
+     * Tests whether a fragment fails the depth test against the existing depth-buffer value at
+     * its pixel. Two flavours:
+     * <ul>
+     * <li><b>Standard</b>: epsilon-tolerant rejection so coplanar faces (chest body SOUTH vs
+     *     lid SOUTH at z=15) deterministically resolve in painter order without barycentric FP
+     *     noise speckling. First-drawn wins on equal depth.</li>
+     * <li><b>Emissive</b>: strict less-than, so an emissive overlay rendered AT the same depth
+     *     as the base it's painted on top of (spider/enderman eye overlays re-using the base
+     *     entity's geometry post-bone_overrides) survives the test and blends additively,
+     *     instead of being eaten by the epsilon tie-break. Behind-by-more-than-FP-noise is
+     *     still rejected normally.</li>
+     * </ul>
+     *
+     * @param depthVal the candidate fragment's depth
+     * @param existingDepth the depth currently stored at this pixel
+     * @param emissive whether the source triangle is an emissive overlay
+     * @return {@code true} if the fragment should be rejected
+     */
+    private static boolean depthFails(float depthVal, float existingDepth, boolean emissive) {
+        return emissive
+            ? depthVal < existingDepth
+            : depthVal <= existingDepth + DEPTH_EPSILON;
+    }
+
+    /**
+     * Picks the destination-blend mode for a fragment based on the source triangle's emissive
+     * flag.
+     * <p>
+     * Emissive overlays render full-bright (no ambient shading) and additive
+     * ({@link BlendMode#ADD} = vanilla Java's {@code RenderType.eyes}'s
+     * {@code glBlendFunc(SRC_ALPHA, ONE)}), so the layer brightens the base instead of replacing
+     * or translucently masking it. Spider eyes and ender dragon eyes are the canonical cases.
+     * Non-emissive triangles take the standard shaded src-over path ({@link BlendMode#NORMAL});
+     * the caller multiplies the texel by {@code shading} before invoking the blend.
+     *
+     * @param emissive whether the source triangle is an emissive overlay
+     * @return {@link BlendMode#ADD} for emissive, {@link BlendMode#NORMAL} otherwise
+     */
+    private static @NotNull BlendMode selectBlendMode(boolean emissive) {
+        return emissive ? BlendMode.ADD : BlendMode.NORMAL;
     }
 
     /**
