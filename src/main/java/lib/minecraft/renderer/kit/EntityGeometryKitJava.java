@@ -357,17 +357,24 @@ public class EntityGeometryKitJava {
     }
 
     /**
-     * Walks every cube of every bone, projects each cube's 8 corners through the bone chain,
-     * the per-render {@code modelScale}, and the supplied screen-space transform, and returns
-     * the tight screen-space AABB of the rendered silhouette.
+     * Walks every visible cube face, alpha-clips each face to its opaque-texel sub-rectangle,
+     * projects the resulting 4 bilinear-interpolated corners through the bone chain, the per-
+     * render {@code modelScale}, and the supplied screen-space transform, and returns the tight
+     * screen-space AABB of the rendered silhouette.
      *
      * <p>Used by {@link lib.minecraft.renderer.EntityRendererJava#render render()} to size the
-     * output canvas. The 8-corners-of-the-outer-AABB approach the previous implementation used
-     * over-estimates the silhouette for non-brick-shaped entities: the cod's body extends 7
-     * pixels in Z while the model's outer Z extent (with tail_fin and head) reaches 15, so the
-     * AABB-projection padded the canvas by ~25% beyond what the actual cubes occupy on screen.
-     * This walker mirrors the vanilla-reference-harness's per-cube vertex measurement so the
-     * two pipelines size their canvases off the same metric.
+     * output canvas. Mirrors the vanilla-reference-harness's
+     * {@code EntityFrameRenderer.contributePolygonExtents}: instead of taking the full cube AABB,
+     * each face contributes only the 3D extent of its opaque-pixel sub-rectangle. Faces with
+     * fully-transparent UV regions contribute nothing; faces with sparse opaque stickers
+     * (skeleton_horse rib-cage, warden tendrils, wither plane fins) tighten the bounds to the
+     * actual rendered silhouette rather than the authored cube extent. For fully-opaque faces
+     * the alpha sub-rect equals the polygon UV box and the four bilinear corners collapse to the
+     * polygon's four vertices, matching the legacy AABB walk.
+     *
+     * <p>When {@code texture} is {@code null}, falls back to walking the 8 outer-AABB corners
+     * per cube (the pre-alpha-tight behaviour) - used by callers that don't have a texture
+     * resolved (slow tests, tooling).
      *
      * @param model the entity model definition (Java Y-down frame)
      * @param screenTransform model-to-screen transform to apply BEFORE bounds accumulation;
@@ -375,17 +382,21 @@ public class EntityGeometryKitJava {
      *     screen space (X = horizontal, Y = vertical, Z = depth - ignored)
      * @param modelScale per-entity scale applied to every cube vertex before the screen
      *     transform; pass 1 when no per-renderer scale is in effect
+     * @param texture the entity texture used for per-face alpha-tight clipping; pass
+     *     {@code null} to fall back to AABB-corner walk
      * @return tight screen-space bounds; the X and Y extents drive canvas sizing, the Z extent
      *     is depth and not consumed by the canvas-fit math
      */
     public static @NotNull Box computeScreenBounds(
         @NotNull EntityModelData model,
         @NotNull Matrix4f screenTransform,
-        float modelScale
+        float modelScale,
+        PixelBuffer texture
     ) {
         Map<String, Matrix4f> chainTransforms = buildChainTransforms(model.getBones());
-        float minX = Float.POSITIVE_INFINITY, minY = Float.POSITIVE_INFINITY, minZ = Float.POSITIVE_INFINITY;
-        float maxX = Float.NEGATIVE_INFINITY, maxY = Float.NEGATIVE_INFINITY, maxZ = Float.NEGATIVE_INFINITY;
+        float texW = model.getTextureWidth() > 0 ? model.getTextureWidth() : Math.max(1f, texture == null ? 1 : texture.width());
+        float texH = model.getTextureHeight() > 0 ? model.getTextureHeight() : Math.max(1f, texture == null ? 1 : texture.height());
+        BoundsAccumulator acc = new BoundsAccumulator();
 
         for (Map.Entry<String, EntityModelData.Bone> entry : model.getBones().entrySet()) {
             EntityModelData.Bone bone = entry.getValue();
@@ -402,28 +413,161 @@ public class EntityGeometryKitJava {
                 float ox = TRANSLATE_BY_PIVOT ? bonePivot.x() + s * origin.x() : s * origin.x();
                 float oy = TRANSLATE_BY_PIVOT ? bonePivot.y() + s * origin.y() : s * origin.y();
                 float oz = TRANSLATE_BY_PIVOT ? bonePivot.z() + s * origin.z() : s * origin.z();
-                float[] xs = { ox - scaledInflate, ox + s * size.x() + scaledInflate };
-                float[] ys = { oy - scaledInflate, oy + s * size.y() + scaledInflate };
-                float[] zs = { oz - scaledInflate, oz + s * size.z() + scaledInflate };
+                Box cubeBounds = new Box(
+                    ox - scaledInflate, oy - scaledInflate, oz - scaledInflate,
+                    ox + s * size.x() + scaledInflate, oy + s * size.y() + scaledInflate, oz + s * size.z() + scaledInflate
+                );
 
-                for (float x : xs) for (float y : ys) for (float z : zs) {
-                    Vector3f cubeSpace = Vector3f.transform(new Vector3f(x, y, z), cubeTransform);
-                    Vector3f scaled = new Vector3f(cubeSpace.x() * modelScale, cubeSpace.y() * modelScale, cubeSpace.z() * modelScale);
-                    Vector3f screen = Vector3f.transform(scaled, screenTransform);
-                    if (screen.x() < minX) minX = screen.x();
-                    if (screen.x() > maxX) maxX = screen.x();
-                    if (screen.y() < minY) minY = screen.y();
-                    if (screen.y() > maxY) maxY = screen.y();
-                    if (screen.z() < minZ) minZ = screen.z();
-                    if (screen.z() > maxZ) maxZ = screen.z();
+                if (texture == null) {
+                    float[] xs = { cubeBounds.minX(), cubeBounds.maxX() };
+                    float[] ys = { cubeBounds.minY(), cubeBounds.maxY() };
+                    float[] zs = { cubeBounds.minZ(), cubeBounds.maxZ() };
+                    for (float x : xs) for (float y : ys) for (float z : zs)
+                        accumulate(new Vector3f(x, y, z), cubeTransform, modelScale, screenTransform, acc);
+                    continue;
+                }
+
+                boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
+                for (EntityFace face : EntityFace.values()) {
+                    if (isPlaneCube && isDegeneratePlaneFace(size, face)) continue;
+                    Vector3f[] corners3d = face.corners(cubeBounds);
+                    Vector2f[] uvs = resolveFaceUv(mirrorFace(face, cube.isMirror()), cube, size, texW, texH);
+                    contributeFaceAlphaTight(corners3d, uvs, cubeTransform, modelScale, screenTransform, texture, acc);
                 }
             }
         }
 
-        if (minX == Float.POSITIVE_INFINITY)
-            return new Box(0f, 0f, 0f, 0f, 0f, 0f);
+        return acc.toBox();
+    }
 
-        return new Box(minX, minY, minZ, maxX, maxY, maxZ);
+    /**
+     * Per-face alpha-tight bounds contribution mirroring
+     * {@code EntityFrameRenderer.contributePolygonExtents}. Walks every texel inside the face's
+     * UV bounding box on {@code texture}, accumulates the opaque sub-rectangle, bilinearly
+     * interpolates the sub-rect's four corners through the polygon's TL/BL/BR/TR 3D positions,
+     * and forwards each to {@code acc} via {@code cubeTransform → modelScale → screenTransform}.
+     * <p>
+     * Skips degenerate polygons ({@code uMin==uMax} or {@code vMin==vMax}). Falls back to
+     * contributing all four raw 3D corners when the polygon's UVs aren't axis-aligned (rare for
+     * vanilla cube faces; an upstream invariant breakage rather than a real geometry case).
+     */
+    private static void contributeFaceAlphaTight(
+        @NotNull Vector3f[] corners3d, @NotNull Vector2f[] uvs,
+        @NotNull Matrix4f cubeTransform, float modelScale, @NotNull Matrix4f screenTransform,
+        @NotNull PixelBuffer texture, @NotNull BoundsAccumulator acc
+    ) {
+        float uMin = Float.POSITIVE_INFINITY, uMax = Float.NEGATIVE_INFINITY;
+        float vMin = Float.POSITIVE_INFINITY, vMax = Float.NEGATIVE_INFINITY;
+        for (Vector2f uv : uvs) {
+            if (uv.x() < uMin) uMin = uv.x();
+            if (uv.x() > uMax) uMax = uv.x();
+            if (uv.y() < vMin) vMin = uv.y();
+            if (uv.y() > vMax) vMax = uv.y();
+        }
+        if (uMin == uMax || vMin == vMax) return;
+
+        Vector3f bl3 = null, br3 = null, tr3 = null, tl3 = null;
+        float eps = 1e-4f;
+        for (int i = 0; i < 4; i++) {
+            boolean atUMin = Math.abs(uvs[i].x() - uMin) < eps;
+            boolean atUMax = Math.abs(uvs[i].x() - uMax) < eps;
+            boolean atVMin = Math.abs(uvs[i].y() - vMin) < eps;
+            boolean atVMax = Math.abs(uvs[i].y() - vMax) < eps;
+            if (atUMin && atVMin) bl3 = corners3d[i];
+            else if (atUMax && atVMin) br3 = corners3d[i];
+            else if (atUMax && atVMax) tr3 = corners3d[i];
+            else if (atUMin && atVMax) tl3 = corners3d[i];
+        }
+        if (bl3 == null || br3 == null || tr3 == null || tl3 == null) {
+            for (Vector3f c : corners3d) accumulate(c, cubeTransform, modelScale, screenTransform, acc);
+            return;
+        }
+
+        int W = texture.width();
+        int H = texture.height();
+        if (W <= 0 || H <= 0) {
+            for (Vector3f c : corners3d) accumulate(c, cubeTransform, modelScale, screenTransform, acc);
+            return;
+        }
+        int pxMin = clampPixel((int) Math.floor(uMin * W), W);
+        int pxMax = clampPixel((int) Math.floor(uMax * W), W);
+        int pyMin = clampPixel((int) Math.floor(vMin * H), H);
+        int pyMax = clampPixel((int) Math.floor(vMax * H), H);
+        int firstOpaquePx = Integer.MAX_VALUE, lastOpaquePx = Integer.MIN_VALUE;
+        int firstOpaquePy = Integer.MAX_VALUE, lastOpaquePy = Integer.MIN_VALUE;
+        for (int py = pyMin; py <= pyMax; py++) {
+            for (int px = pxMin; px <= pxMax; px++) {
+                if (ColorMath.alpha(texture.getPixel(px, py)) == 0) continue;
+                if (px < firstOpaquePx) firstOpaquePx = px;
+                if (px > lastOpaquePx) lastOpaquePx = px;
+                if (py < firstOpaquePy) firstOpaquePy = py;
+                if (py > lastOpaquePy) lastOpaquePy = py;
+            }
+        }
+        if (firstOpaquePx == Integer.MAX_VALUE) return;
+
+        float opaqueUMin = Math.max(uMin, (float) firstOpaquePx / W);
+        float opaqueUMax = Math.min(uMax, (float) (lastOpaquePx + 1) / W);
+        float opaqueVMin = Math.max(vMin, (float) firstOpaquePy / H);
+        float opaqueVMax = Math.min(vMax, (float) (lastOpaquePy + 1) / H);
+
+        contributeBilinear(opaqueUMin, opaqueVMin, uMin, uMax, vMin, vMax, bl3, br3, tr3, tl3, cubeTransform, modelScale, screenTransform, acc);
+        contributeBilinear(opaqueUMax, opaqueVMin, uMin, uMax, vMin, vMax, bl3, br3, tr3, tl3, cubeTransform, modelScale, screenTransform, acc);
+        contributeBilinear(opaqueUMax, opaqueVMax, uMin, uMax, vMin, vMax, bl3, br3, tr3, tl3, cubeTransform, modelScale, screenTransform, acc);
+        contributeBilinear(opaqueUMin, opaqueVMax, uMin, uMax, vMin, vMax, bl3, br3, tr3, tl3, cubeTransform, modelScale, screenTransform, acc);
+    }
+
+    private static void contributeBilinear(
+        float u, float v, float uMin, float uMax, float vMin, float vMax,
+        @NotNull Vector3f bl3, @NotNull Vector3f br3, @NotNull Vector3f tr3, @NotNull Vector3f tl3,
+        @NotNull Matrix4f cubeTransform, float modelScale, @NotNull Matrix4f screenTransform,
+        @NotNull BoundsAccumulator acc
+    ) {
+        float sBar = (u - uMin) / (uMax - uMin);
+        float tBar = (v - vMin) / (vMax - vMin);
+        float w00 = (1f - sBar) * (1f - tBar);
+        float w10 = sBar * (1f - tBar);
+        float w11 = sBar * tBar;
+        float w01 = (1f - sBar) * tBar;
+        float px = w00 * bl3.x() + w10 * br3.x() + w11 * tr3.x() + w01 * tl3.x();
+        float py = w00 * bl3.y() + w10 * br3.y() + w11 * tr3.y() + w01 * tl3.y();
+        float pz = w00 * bl3.z() + w10 * br3.z() + w11 * tr3.z() + w01 * tl3.z();
+        accumulate(new Vector3f(px, py, pz), cubeTransform, modelScale, screenTransform, acc);
+    }
+
+    private static void accumulate(
+        @NotNull Vector3f p, @NotNull Matrix4f cubeTransform, float modelScale,
+        @NotNull Matrix4f screenTransform, @NotNull BoundsAccumulator acc
+    ) {
+        Vector3f cubeSpace = Vector3f.transform(p, cubeTransform);
+        Vector3f scaled = new Vector3f(cubeSpace.x() * modelScale, cubeSpace.y() * modelScale, cubeSpace.z() * modelScale);
+        acc.add(Vector3f.transform(scaled, screenTransform));
+    }
+
+    private static int clampPixel(int value, int size) {
+        if (value < 0) return 0;
+        if (value >= size) return size - 1;
+        return value;
+    }
+
+    private static final class BoundsAccumulator {
+        float minX = Float.POSITIVE_INFINITY, minY = Float.POSITIVE_INFINITY, minZ = Float.POSITIVE_INFINITY;
+        float maxX = Float.NEGATIVE_INFINITY, maxY = Float.NEGATIVE_INFINITY, maxZ = Float.NEGATIVE_INFINITY;
+
+        void add(@NotNull Vector3f p) {
+            if (p.x() < minX) minX = p.x();
+            if (p.x() > maxX) maxX = p.x();
+            if (p.y() < minY) minY = p.y();
+            if (p.y() > maxY) maxY = p.y();
+            if (p.z() < minZ) minZ = p.z();
+            if (p.z() > maxZ) maxZ = p.z();
+        }
+
+        @NotNull Box toBox() {
+            if (minX == Float.POSITIVE_INFINITY)
+                return new Box(0f, 0f, 0f, 0f, 0f, 0f);
+            return new Box(minX, minY, minZ, maxX, maxY, maxZ);
+        }
     }
 
     /**

@@ -198,7 +198,7 @@ public final class EntityRendererJava implements Renderer<EntityOptions> {
         // resolution, no auto-fit. EntityOptions#getOutputSize is intentionally ignored here so
         // the Java pipeline matches the harness's PNG dimensions byte-for-byte where the same
         // entity is being rendered in both projects.
-        CanvasFit fit = computeCanvasFit(definition, effective, modelScale);
+        CanvasFit fit = computeCanvasFit(definition, effective, modelScale, texture.get());
         PixelBuffer buffer = PixelBuffer.create(fit.canvasW(), fit.canvasH());
 
         // Centre the silhouette on the canvas. The kit subtracts a model-space "anchor" point
@@ -214,7 +214,7 @@ public final class EntityRendererJava implements Renderer<EntityOptions> {
         // subtracting the shift from the anchor adds it to every vertex). For squid that's a
         // {@code (0, +11.2, 0)} pixel pre-translate; pufferfish gets {@code (0, -1.28, 0)};
         // shulker has zero translate but a 180° yaw addend folded into {@code effective} above.
-        Vector3f modelAnchor = computeCentreAnchor(definition, effective, modelScale, fit)
+        Vector3f modelAnchor = computeCentreAnchor(definition, effective, modelScale, fit, texture.get())
             .subtract(override.modelAnchorShift());
 
         EntityGeometryKit.BuildResult buildResult = EntityGeometryKitJava.buildTriangles(
@@ -415,10 +415,11 @@ public final class EntityRendererJava implements Renderer<EntityOptions> {
     private static @NotNull CanvasFit computeCanvasFit(
         @NotNull EntityModelLoader.EntityDefinition definition,
         @NotNull EulerRotation userRotation,
-        float modelScale
+        float modelScale,
+        @NotNull PixelBuffer texture
     ) {
         Matrix4f transform = composeIsoTransform(userRotation);
-        Box screenBounds = computeUnionScreenBounds(definition, transform, modelScale);
+        Box screenBounds = computeUnionScreenBounds(definition, transform, modelScale, texture);
         float extentX = Math.max(0f, screenBounds.maxX() - screenBounds.minX());
         float extentY = Math.max(0f, screenBounds.maxY() - screenBounds.minY());
         float pxPerEntityUnit = PIXELS_PER_BLOCK / 16f;
@@ -450,10 +451,11 @@ public final class EntityRendererJava implements Renderer<EntityOptions> {
         @NotNull EntityModelLoader.EntityDefinition definition,
         @NotNull EulerRotation userRotation,
         float modelScale,
-        @NotNull CanvasFit fit
+        @NotNull CanvasFit fit,
+        @NotNull PixelBuffer texture
     ) {
         Matrix4f isoTransform = composeIsoTransform(userRotation);
-        Box screenBounds = computeUnionScreenBounds(definition, isoTransform, modelScale);
+        Box screenBounds = computeUnionScreenBounds(definition, isoTransform, modelScale, texture);
         float sxMid = (screenBounds.minX() + screenBounds.maxX()) * 0.5f;
         float syMid = (screenBounds.minY() + screenBounds.maxY()) * 0.5f;
         float szMid = (screenBounds.minZ() + screenBounds.maxZ()) * 0.5f;
@@ -479,12 +481,13 @@ public final class EntityRendererJava implements Renderer<EntityOptions> {
     private static @NotNull Box computeUnionScreenBounds(
         @NotNull EntityModelLoader.EntityDefinition definition,
         @NotNull Matrix4f transform,
-        float modelScale
+        float modelScale,
+        @NotNull PixelBuffer texture
     ) {
-        Box bounds = EntityGeometryKitJava.computeScreenBounds(definition.model(), transform, modelScale);
+        Box bounds = EntityGeometryKitJava.computeScreenBounds(definition.model(), transform, modelScale, texture);
         for (EntityModelLoader.OverlayLayer overlay : definition.overlays()) {
             if (overlay.model().getBones().isEmpty()) continue;
-            Box overlayBounds = EntityGeometryKitJava.computeScreenBounds(overlay.model(), transform, modelScale);
+            Box overlayBounds = EntityGeometryKitJava.computeScreenBounds(overlay.model(), transform, modelScale, texture);
             bounds = new Box(
                 Math.min(bounds.minX(), overlayBounds.minX()),
                 Math.min(bounds.minY(), overlayBounds.minY()),
