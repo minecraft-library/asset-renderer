@@ -1,5 +1,6 @@
 package lib.minecraft.refharness.mixin;
 
+import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.model.monster.dragon.EnderDragonModel;
 import net.minecraft.client.renderer.entity.state.EnderDragonRenderState;
 import org.spongepowered.asm.mixin.Mixin;
@@ -26,7 +27,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * for asset-renderer to reproduce, since asset-renderer doesn't yet do animation.
  *
  * <h2>What this skips</h2>
- * Cancelling {@code setupAnim} entirely leaves every {@link net.minecraft.client.model.geom.ModelPart
+ * Cancelling {@code setupAnim} entirely leaves every {@link ModelPart
  * ModelPart} at its authored {@code PartPose} (the values fixed in
  * {@link EnderDragonModel#createBodyLayer createBodyLayer}). That gives the dragon's
  * rest pose - flat wings, level body, neck/tail straight back from the body.

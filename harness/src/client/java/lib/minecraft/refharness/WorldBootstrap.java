@@ -35,7 +35,9 @@ public final class WorldBootstrap {
 
     private WorldBootstrap() {}
 
-    /** Hooks {@link ScreenEvents#AFTER_INIT} so the first {@link TitleScreen} triggers world creation. */
+    /**
+     * Hooks {@link ScreenEvents#AFTER_INIT} so the first {@link TitleScreen} triggers world creation.
+     */
     public static void install() {
         ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
             if (!(screen instanceof TitleScreen)) return;

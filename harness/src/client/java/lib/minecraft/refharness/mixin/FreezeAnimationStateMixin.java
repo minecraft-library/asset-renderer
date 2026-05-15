@@ -1,6 +1,7 @@
 package lib.minecraft.refharness.mixin;
 
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
+import net.minecraft.client.renderer.entity.state.EntityRenderState;
 import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.animal.fish.AbstractFish;
@@ -35,14 +36,14 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  *       - hit-stagger rotation overlay.</li>
  *   <li>{@link LivingEntityRenderState#wornHeadAnimationPos wornHeadAnimationPos} - bobbing
  *       offset for entities wearing helmets / pumpkins / mob heads.</li>
- *   <li>{@link net.minecraft.client.renderer.entity.state.EntityRenderState#ageInTicks ageInTicks}
+ *   <li>{@link EntityRenderState#ageInTicks ageInTicks}
  *       (inherited) - drives idle animations on most models (allay arm bob, ghast tentacle
  *       drift, fish swim wiggle, hoglin tail flick, ...).</li>
  * </ul>
  *
  * <p>Does <b>not</b> touch dimension fields ({@link LivingEntityRenderState#scale scale},
  * {@link LivingEntityRenderState#ageScale ageScale},
- * {@link net.minecraft.client.renderer.entity.state.EntityRenderState#boundingBoxWidth
+ * {@link EntityRenderState#boundingBoxWidth
  * boundingBoxWidth}, {@code boundingBoxHeight}, {@code eyeHeight},
  * {@link LivingEntityRenderState#bodyRot bodyRot}/{@code yRot}/{@code xRot}) - those are
  * geometric properties zeroed earlier in

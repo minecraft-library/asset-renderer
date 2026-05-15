@@ -78,7 +78,9 @@ public final class EntityFrameRenderer implements AutoCloseable {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");
 
-    /** Packed light value for "fully lit" (skylight 15 << 20 | blocklight 15 << 4). */
+    /**
+     * Packed light value for "fully lit" (skylight 15 << 20 | blocklight 15 << 4).
+     */
     private static final int FULL_BRIGHT_LIGHT = 15728880;
 
     /**
@@ -1001,7 +1003,9 @@ public final class EntityFrameRenderer implements AutoCloseable {
         return null;
     }
 
-    /** Mutable 2D bounds accumulator. */
+    /**
+     * Mutable 2D bounds accumulator.
+     */
     private static final class ScreenBounds {
         float minX = Float.POSITIVE_INFINITY;
         float minY = Float.POSITIVE_INFINITY;

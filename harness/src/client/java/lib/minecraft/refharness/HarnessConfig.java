@@ -12,14 +12,20 @@ import java.nio.file.Paths;
  */
 public final class HarnessConfig {
 
-    /** Master switch. Without this, the mod loads but never renders or exits. */
+    /**
+     * Master switch. Without this, the mod loads but never renders or exits.
+     */
     public static final boolean ENABLED = Boolean.getBoolean("refharness.headless");
 
-    /** Where PNGs are written. Defaults to {@code build/refharness-output/} relative to the run dir. */
+    /**
+     * Where PNGs are written. Defaults to {@code build/refharness-output/} relative to the run dir.
+     */
     public static final Path OUTPUT_DIR = Paths.get(
         System.getProperty("refharness.outputDir", "build/refharness-output"));
 
-    /** Square edge length (pixels) of every rendered <em>block</em> PNG. Entity renders use {@link #PIXELS_PER_BLOCK} instead. */
+    /**
+     * Square edge length (pixels) of every rendered <em>block</em> PNG. Entity renders use {@link #PIXELS_PER_BLOCK} instead.
+     */
     public static final int IMAGE_SIZE = Integer.getInteger("refharness.size", 512);
 
     /**

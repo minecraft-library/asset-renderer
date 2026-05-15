@@ -1,6 +1,8 @@
 package lib.minecraft.refharness.mixin;
 
 import net.minecraft.client.model.EntityModel;
+import net.minecraft.client.model.geom.ModelPart;
+import net.minecraft.client.renderer.entity.EnderDragonRenderer;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -23,10 +25,10 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  * The single {@code invokevirtual EntityModel.setupAnim(Ljava/lang/Object;)V} call inside
  * {@link LivingEntityRenderer#submit submit} is redirected to a no-op. Every model's
  * {@code setupAnim} override is therefore never invoked from the harness's render path; each
- * {@link net.minecraft.client.model.geom.ModelPart ModelPart} keeps its authored
+ * {@link ModelPart ModelPart} keeps its authored
  * {@code PartPose} from {@code createBodyLayer}. {@link FreezeAnimationStateMixin} still pins
  * the per-tick animation state fields so any non-{@code LivingEntityRenderer} path (e.g.
- * {@link net.minecraft.client.renderer.entity.EnderDragonRenderer EnderDragonRenderer} which
+ * {@link EnderDragonRenderer EnderDragonRenderer} which
  * extends the base {@code EntityRenderer}, not {@code LivingEntityRenderer}) gets a stable
  * frame-0 input.
  *

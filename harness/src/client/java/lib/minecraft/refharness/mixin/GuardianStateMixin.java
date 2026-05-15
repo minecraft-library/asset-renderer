@@ -2,6 +2,7 @@ package lib.minecraft.refharness.mixin;
 
 import net.minecraft.client.renderer.entity.GuardianRenderer;
 import net.minecraft.client.renderer.entity.state.GuardianRenderState;
+import net.minecraft.world.entity.monster.ElderGuardian;
 import net.minecraft.world.entity.monster.Guardian;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -62,7 +63,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * before the subclass writes the fields and have its values overwritten. Injecting at
  * the subclass return point captures the post-vanilla-write state and overrides it.
  *
- * <p>Both regular {@link Guardian} and {@link net.minecraft.world.entity.monster.ElderGuardian}
+ * <p>Both regular {@link Guardian} and {@link ElderGuardian}
  * use this single renderer + state class, so this mixin handles both targets.
  */
 @Mixin(GuardianRenderer.class)

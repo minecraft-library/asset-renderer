@@ -9,7 +9,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
+import com.mojang.blaze3d.platform.Lighting.Entry;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -37,7 +39,7 @@ import org.slf4j.LoggerFactory;
  *       pose, not the entity's spawn rotation.</li>
  *   <li>Renders through {@link EntityFrameRenderer} - the same pipeline vanilla uses for
  *       inventory entity previews ({@code GuiEntityRenderer} PIP +
- *       {@link com.mojang.blaze3d.platform.Lighting.Entry#ENTITY_IN_UI ENTITY_IN_UI}
+ *       {@link Entry#ENTITY_IN_UI ENTITY_IN_UI}
  *       lighting).</li>
  *   <li>Drops the entity (just becomes GC-eligible).</li>
  * </ol>
@@ -57,7 +59,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>The block sweeper still drives the camera-less PIP path through {@link ItemFrameRenderer}
  * at the fixed {@link HarnessConfig#IMAGE_SIZE}. Both phases are level-independent at render
- * time, but a {@link net.minecraft.client.multiplayer.ClientLevel} is still required as the
+ * time, but a {@link ClientLevel} is still required as the
  * {@code Level} argument to {@code EntityType.create} (most entity constructors call
  * {@code level.registryAccess()} during init).
  */

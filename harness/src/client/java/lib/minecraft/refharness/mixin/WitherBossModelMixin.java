@@ -1,6 +1,8 @@
 package lib.minecraft.refharness.mixin;
 
+import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.model.monster.wither.WitherBossModel;
+import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.client.renderer.entity.state.WitherRenderState;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -9,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
  * <b>Now redundant.</b> {@link SkipSetupAnimMixin} redirects every {@code setupAnim} call from
- * {@link net.minecraft.client.renderer.entity.LivingEntityRenderer LivingEntityRenderer.submit}
+ * {@link LivingEntityRenderer LivingEntityRenderer.submit}
  * generically; this per-model HEAD cancel still works (idempotent with the redirect) but is
  * no longer load-bearing. Kept as documentation of the wither-specific reasoning until the
  * generic mixin matures.
@@ -31,7 +33,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * </ul>
  * Net effect: the wither ships with a noticeably bent body that diverges from the static
  * {@code createBodyLayer} authored pose. Cancelling {@code setupAnim} leaves every
- * {@link net.minecraft.client.model.geom.ModelPart ModelPart} at its authored {@code PartPose}.
+ * {@link ModelPart ModelPart} at its authored {@code PartPose}.
  *
  * <h2>When to remove this mixin</h2>
  * <b>If asset-renderer ever gains animation support, delete this mixin so the harness goes back
