@@ -198,6 +198,22 @@
         "chest2"
       ]
     },
+    "//minecraft:cow_cold": "ColdCowModel registers a separate LayerDefinition (ModelLayers.COLD_COW) with a 3-cube body (base + inflated 0.5 fur + udder strip) and a head whose horns are child bones with PartPose.offsetAndRotation(±, -2.5, -3.5 or -5, PI/2, 0, 0). Bytecode tooling only scans top-level renderer registrations; variant ModelLayers aren't surfaced. Hand-edit redirects minecraft:cow_cold at geometry.cold_cow.",
+    "minecraft:cow_cold": {
+      "geometry_ref": "geometry.cold_cow"
+    },
+    "//minecraft:cow_warm": "WarmCowModel REPLACES head with an inline 6-cube list (base head + muzzle + 4 horn cubes including 2 mirrored at +X positions). Same tooling miss as cow_cold; hand-edit redirects at geometry.warm_cow.",
+    "minecraft:cow_warm": {
+      "geometry_ref": "geometry.warm_cow"
+    },
+    "//minecraft:chicken_cold": "ColdChickenModel REPLACES body (base + 0x3x5 plane-cube tail at uv (38, 9)) and head (base + 6x3x4 crown at uv (44, 0)). Replacing head wipes beak + red_thing children since addOrReplaceChild's new CubeListBuilder doesn't re-register them. Variant ModelLayers.COLD_CHICKEN not surfaced by tooling; hand-edit redirects at geometry.cold_chicken. The warm chicken variant (chicken_variant/warm.json) has no model override and falls through to AdultChickenModel - it's a family-fit canvas issue, not a geometry issue, so chicken_warm stays on geometry.adultchicken.",
+    "minecraft:chicken_cold": {
+      "geometry_ref": "geometry.cold_chicken"
+    },
+    "//minecraft:pig_cold": "ColdPigModel REPLACES body with base 10x16x8 + inflated 0.5 fur layer (uv (28, 32)). Head and legs inherited. Variant ModelLayers.COLD_PIG not surfaced by tooling; hand-edit redirects at geometry.cold_pig. The warm pig variant (pig_variant/warm.json) has no model override and falls through to PigModel - same family-fit canvas issue as chicken_warm.",
+    "minecraft:pig_cold": {
+      "geometry_ref": "geometry.cold_pig"
+    },
     "//minecraft:stray": "Vanilla StrayRenderer adds a SkeletonClothingLayer (ModelLayers.STRAY_OUTER_LAYER + stray_overlay.png). STRAY_OUTER_LAYER is HumanoidModel.createMesh(CubeDeformation(0.25F), 0.0F) - the standard skeleton mesh with every cube inflated by 0.25 pixels. Without this overlay the skeleton-only silhouette is missing the frost-cloak content that protrudes laterally.",
     "minecraft:stray": {
       "overlays": [

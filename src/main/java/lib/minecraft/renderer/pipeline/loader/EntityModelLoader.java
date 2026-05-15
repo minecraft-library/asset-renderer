@@ -248,10 +248,16 @@ public class EntityModelLoader {
             // e.g. the wool-overlay geometry.sheep.v1.8 inherits from geometry.sheep.sheared.v1.8
             // via the `A:B` Bedrock syntax, which the generator's flat-bones parser does not
             // honour; pointing plain sheep at the sheared geometry renders the base body correctly
-            // until the parser learns the inheritance rules.
-            String geometryRef = override != null && override.has("geometry_ref")
+            // until the parser learns the inheritance rules. Override values that don't resolve
+            // here (Java-pipeline-only redirects like {@code geometry.cold_cow}) fall back to the
+            // entity's own bedrock-side geometry so the bedrock pipeline keeps loading.
+            String overrideGeometryRef = override != null && override.has("geometry_ref")
                 ? override.get("geometry_ref").getAsString()
-                : entityJson.get("geometry_ref").getAsString();
+                : null;
+            String entityGeometryRef = entityJson.get("geometry_ref").getAsString();
+            String geometryRef = overrideGeometryRef != null && geometries.containsKey(overrideGeometryRef)
+                ? overrideGeometryRef
+                : entityGeometryRef;
             EntityModelData baseModel = geometries.get(geometryRef);
             if (baseModel == null)
                 throw new PipelineException(
@@ -1117,7 +1123,26 @@ public class EntityModelLoader {
             JsonObject entityJson = entry.getValue().getAsJsonObject();
             if (!entityJson.has("geometry_ref")) continue;
 
-            String geometryRef = entityJson.get("geometry_ref").getAsString();
+            JsonObject override = overrides.has(entityId) && overrides.get(entityId).isJsonObject()
+                ? overrides.getAsJsonObject(entityId)
+                : null;
+
+            // {@code geometry_ref} override redirects an entity to a different geometry,
+            // matching the bedrock pipeline's contract. Used by cow_cold / chicken_cold etc.
+            // to point variant entities at hand-edited variant geometries
+            // ({@code geometry.cold_cow}, etc.) that the bytecode tooling can't reach -
+            // ColdCowModel and friends bake separate {@code LayerDefinition}s registered under
+            // {@code ModelLayers.COLD_COW} that don't surface as top-level rows in the
+            // tooling's per-renderer scan. Overrides whose value doesn't resolve here
+            // (bedrock-pipeline-only redirects like {@code geometry.sheep.sheared.v1.8}) fall
+            // back to the entity's own Java-side {@code geometry_ref}.
+            String overrideGeometryRef = override != null && override.has("geometry_ref")
+                ? override.get("geometry_ref").getAsString()
+                : null;
+            String entityGeometryRef = entityJson.get("geometry_ref").getAsString();
+            String geometryRef = overrideGeometryRef != null && geometries.containsKey(overrideGeometryRef)
+                ? overrideGeometryRef
+                : entityGeometryRef;
             EntityModelData baseModel = geometries.get(geometryRef);
             if (baseModel == null)
                 throw new PipelineException(
@@ -1130,16 +1155,10 @@ public class EntityModelLoader {
                 : Optional.empty();
 
             // Apply hand-edited overrides shared with the bedrock pipeline. The Java pipeline
-            // currently only honours {@code hidden_bones} (vanilla models whose constructors
-            // statically set {@code part.visible = false} before any setupAnim - armor_stand's
-            // hat is the canonical case, where vanilla's bounds walker honours visibility but
-            // ours doesn't yet, so we strip the bone at load time). Other override keys
-            // ({@code geometry_ref}, {@code texture_ref}, {@code inventory_y_rotation},
+            // honours {@code geometry_ref} (above), {@code hidden_bones}, and {@code overlays}.
+            // Other override keys ({@code texture_ref}, {@code inventory_y_rotation},
             // {@code bone_overrides}, {@code bind_poses}, {@code extra_bones}) target the
             // bedrock pipeline's Bedrock-sourced geometry quirks and aren't applied here.
-            JsonObject override = overrides.has(entityId) && overrides.get(entityId).isJsonObject()
-                ? overrides.getAsJsonObject(entityId)
-                : null;
             if (override != null && override.has("hidden_bones") && override.get("hidden_bones").isJsonArray()) {
                 LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>(baseModel.getBones());
                 applyHiddenBones(bones, override.getAsJsonArray("hidden_bones"), entityId);
