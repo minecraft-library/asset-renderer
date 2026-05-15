@@ -431,7 +431,16 @@ public class EntityGeometryKitJava {
                 for (EntityFace face : EntityFace.values()) {
                     if (isPlaneCube && isDegeneratePlaneFace(size, face)) continue;
                     Vector3f[] corners3d = face.corners(cubeBounds);
-                    Vector2f[] uvs = resolveFaceUv(mirrorFace(face, cube.isMirror()), cube, size, texW, texH);
+                    // Must match the renderer's UV resolver. {@link #resolveFaceUv} alone
+                    // pairs uvs[i] with corners3d[i] at DIAGONALLY OPPOSITE vertices of the
+                    // face (kit corner order is cyclic-shifted by 1 from vanilla's polygon
+                    // vertex array); the BL/BR/TR/TL classifier then maps each 3D corner to
+                    // the wrong UV role and the bilinear sub-rect corners land outside the
+                    // visible silhouette whenever the opaque sub-rect is strictly smaller
+                    // than the face UV bbox (warden tendrils, silverfish setae, fish fins).
+                    // Fully-opaque faces are unaffected: the 4 contributed positions are then
+                    // the 4 cube corners regardless of pairing.
+                    Vector2f[] uvs = resolvePolygonUv(face, cube, size, texW, texH);
                     contributeFaceAlphaTight(corners3d, uvs, cubeTransform, modelScale, screenTransform, texture, acc);
                 }
             }
