@@ -960,6 +960,89 @@ public class EntityGeometryKitJava {
     private static final float NO_CULL_TRANSPARENCY_THRESHOLD = 0.20f;
 
     /**
+     * Stricter threshold than {@link #NO_CULL_TRANSPARENCY_THRESHOLD 20%} used by
+     * {@link #shouldCullBackFaces} for cutout-no-cull detection. The bounds-anchor gate
+     * {@link #hasAlphaCutoutCubes} needs a stricter signal so opaque-bodied entities with minor
+     * UV-padding transparency (bee body cubes whose UV box includes a few atlas-gap pixels at
+     * ~25% transparency, frog eye cubes with eye-socket alpha-cutout, humanoid sleeves with
+     * trim transparency) aren't mis-classified as skeleton-style cutout entities and force the
+     * AABB-anchor branch that would clobber their already-good alpha-tight midpoint. Skeleton-
+     * style cubes carry ~75% transparency (horse_skeleton.png, skeleton.png, wither_skeleton.png)
+     * so 50% cleanly separates them from incidental UV-margin transparency.
+     */
+    private static final float SKELETON_CUTOUT_THRESHOLD = 0.50f;
+
+    /**
+     * Returns {@code true} when any 3D (non-plane) cube in {@code model} carries the
+     * skeleton-style alpha-cutout signature - more than
+     * {@link #SKELETON_CUTOUT_THRESHOLD 50%} of its UP / NORTH / EAST UV texels are at
+     * {@code alpha=0}. Skeleton-cutout entities (skeleton_horse rib cage, wither_skeleton bone
+     * outlines, ...) match; opaque-bodied entities with plane cubes (bee wings, fish fins,
+     * frog webbed feet) do <em>not</em>, because plane cubes are excluded - they're double-sided
+     * by geometry, not by texture transparency.
+     *
+     * <p>Used by {@link lib.minecraft.renderer.EntityRendererJava#computeCentreAnchor} as a
+     * gating signal: cutout-cubed entities use the AABB-midpoint anchor to keep the visible
+     * silhouette centred against vanilla's harness output, while opaque-cubed entities use the
+     * alpha-tight midpoint that {@code computeCanvasFit} produces. The asymmetry compensates
+     * for vanilla's harness walking layer-model bounds (saddle / armor / equipment models) that
+     * re-symmetrise the cutout entities' midpoint - bounds we don't yet reproduce.
+     */
+    public static boolean hasAlphaCutoutCubes(@NotNull EntityModelData model, @NotNull PixelBuffer texture) {
+        float texW = model.getTextureWidth() > 0 ? model.getTextureWidth() : Math.max(1f, texture.width());
+        float texH = model.getTextureHeight() > 0 ? model.getTextureHeight() : Math.max(1f, texture.height());
+        int cutoutCubes = 0;
+        int totalCubes = 0;
+        for (EntityModelData.Bone bone : model.getBones().values()) {
+            for (EntityModelData.Cube cube : bone.getCubes()) {
+                Vector3f size = cube.getSize();
+                if (size.x() == 0f || size.y() == 0f || size.z() == 0f) continue;
+                totalCubes++;
+                if (faceCutoutSignature(EntityFace.UP, cube, size, texture, texW, texH)
+                    || faceCutoutSignature(EntityFace.NORTH, cube, size, texture, texW, texH)
+                    || faceCutoutSignature(EntityFace.EAST, cube, size, texture, texW, texH))
+                    cutoutCubes++;
+            }
+        }
+        // Entity is classified as "skeleton-cutout style" when more than half its 3D cubes
+        // carry the cutout signature. Skeleton_horse / skeleton / wither_skeleton / etc.
+        // saturate near 100% (every body/leg/head cube draws bone outlines). Opaque-bodied
+        // entities with one or two incidental cutout cubes (frog eye sockets, pillager hat,
+        // witch hat rim, guardian spike head) stay well below 50%, so the gate keeps their
+        // alpha-tight anchor.
+        return totalCubes > 0 && cutoutCubes * 2 > totalCubes;
+    }
+
+    /** Skeleton-cutout signature requires both {@code >50%} transparency and {@code >=32} cutout pixels. */
+    private static final int SKELETON_CUTOUT_MIN_PIXELS = 32;
+
+    private static boolean faceCutoutSignature(
+        @NotNull EntityFace face,
+        @NotNull EntityModelData.Cube cube,
+        @NotNull Vector3f size,
+        @NotNull PixelBuffer texture,
+        float texW,
+        float texH
+    ) {
+        Vector2f[] uv = resolveFaceUv(face, cube, size, texW, texH);
+        int W = texture.width();
+        int H = texture.height();
+        Vector4f bounds = Vector4f.bounds(uv);
+        int x0 = Math.max(0, (int) Math.floor(bounds.x() * W));
+        int y0 = Math.max(0, (int) Math.floor(bounds.y() * H));
+        int x1 = Math.min(W, (int) Math.ceil(bounds.z() * W));
+        int y1 = Math.min(H, (int) Math.ceil(bounds.w() * H));
+        int total = (x1 - x0) * (y1 - y0);
+        if (total <= 0) return false;
+        int transparent = 0;
+        for (int y = y0; y < y1; y++)
+            for (int x = x0; x < x1; x++)
+                if (ColorMath.alpha(texture.getPixel(x, y)) == 0) transparent++;
+        return transparent >= SKELETON_CUTOUT_MIN_PIXELS
+            && (float) transparent / total > SKELETON_CUTOUT_THRESHOLD;
+    }
+
+    /**
      * Back-face culling heuristic. Disables culling for plane cubes (any size component equal
      * to zero - e.g. tadpole tail, top fins, warden tendrils) since vanilla treats these as
      * double-sided geometry. Also disables culling for cubes whose visible-face UV regions

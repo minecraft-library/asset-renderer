@@ -454,8 +454,21 @@ public final class EntityRendererJava implements Renderer<EntityOptions> {
         @NotNull CanvasFit fit,
         @NotNull PixelBuffer texture
     ) {
+        // Entities with cutout-no-cull 3D cubes (skeleton_horse rib cage, wither_skeleton bone
+        // outlines) take their anchor from the geometric AABB midpoint instead of the alpha-tight
+        // midpoint that {@link #computeCanvasFit} uses for canvas sizing. The asymmetric opaque-
+        // texel distribution on these cubes (bone outlines bias toward one face edge) shifts the
+        // alpha-tight midpoint visibly off the silhouette centre; vanilla's harness compensates
+        // via layer-model bounds walking (saddle / armor / equipment models walked even when
+        // unequipped) that re-symmetrises the midpoint. We don't yet reproduce that, so for the
+        // narrow case where we know the bias exists we use AABB-midpoint and accept that the
+        // canvas-size mismatch from alpha-tight extents stays. Verified empirically:
+        // skeleton_horse 131 -> 62 with this gate, no regression on frog / bee / pillager / witch
+        // (none have cutout 3D cubes - their no-cull cubes are plane cubes which this predicate
+        // intentionally excludes).
+        boolean cutoutEntity = EntityGeometryKitJava.hasAlphaCutoutCubes(definition.model(), texture);
         Matrix4f isoTransform = composeIsoTransform(userRotation);
-        Box screenBounds = computeUnionScreenBounds(definition, isoTransform, modelScale, texture);
+        Box screenBounds = computeUnionScreenBounds(definition, isoTransform, modelScale, cutoutEntity ? null : texture);
         float sxMid = (screenBounds.minX() + screenBounds.maxX()) * 0.5f;
         float syMid = (screenBounds.minY() + screenBounds.maxY()) * 0.5f;
         float szMid = (screenBounds.minZ() + screenBounds.maxZ()) * 0.5f;
@@ -482,7 +495,7 @@ public final class EntityRendererJava implements Renderer<EntityOptions> {
         @NotNull EntityModelLoader.EntityDefinition definition,
         @NotNull Matrix4f transform,
         float modelScale,
-        @NotNull PixelBuffer texture
+        PixelBuffer texture
     ) {
         Box bounds = EntityGeometryKitJava.computeScreenBounds(definition.model(), transform, modelScale, texture);
         for (EntityModelLoader.OverlayLayer overlay : definition.overlays()) {
