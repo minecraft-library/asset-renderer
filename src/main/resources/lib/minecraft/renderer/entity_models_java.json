@@ -316,7 +316,7 @@
       "armor_type": "none"
     },
     "minecraft:husk": {
-      "geometry_ref": "geometry.humanoid",
+      "geometry_ref": "geometry.humanoid_1",
       "texture_ref": "zombie/husk",
       "armor_type": "humanoid"
     },
@@ -440,7 +440,7 @@
       ]
     },
     "minecraft:mule": {
-      "geometry_ref": "geometry.donkey",
+      "geometry_ref": "geometry.donkey_1",
       "texture_ref": "horse/mule",
       "armor_type": "none"
     },
@@ -450,7 +450,7 @@
       "armor_type": "none"
     },
     "minecraft:ocelot": {
-      "geometry_ref": "geometry.adultfeline",
+      "geometry_ref": "geometry.adultfeline_1",
       "texture_ref": "cat/ocelot",
       "armor_type": "none"
     },
@@ -460,7 +460,7 @@
       "armor_type": "none"
     },
     "minecraft:parched": {
-      "geometry_ref": "geometry.skeleton_1",
+      "geometry_ref": "geometry.skeleton_2",
       "texture_ref": "skeleton/parched",
       "armor_type": "humanoid"
     },
@@ -564,12 +564,12 @@
       "armor_type": "none"
     },
     "minecraft:skeleton": {
-      "geometry_ref": "geometry.skeleton",
+      "geometry_ref": "geometry.skeleton_1",
       "texture_ref": "skeleton/skeleton",
       "armor_type": "humanoid"
     },
     "minecraft:skeleton_horse": {
-      "geometry_ref": "geometry.abstractequine",
+      "geometry_ref": "geometry.abstractequine_1",
       "texture_ref": "horse/horse_skeleton",
       "armor_type": "none"
     },
@@ -612,7 +612,7 @@
       "armor_type": "none"
     },
     "minecraft:stray": {
-      "geometry_ref": "geometry.skeleton",
+      "geometry_ref": "geometry.skeleton_1",
       "texture_ref": "skeleton/stray",
       "armor_type": "humanoid"
     },
@@ -746,12 +746,12 @@
       "armor_type": "none"
     },
     "minecraft:zombie": {
-      "geometry_ref": "geometry.humanoid",
+      "geometry_ref": "geometry.humanoid_2",
       "texture_ref": "zombie/zombie",
       "armor_type": "humanoid"
     },
     "minecraft:zombie_horse": {
-      "geometry_ref": "geometry.abstractequine",
+      "geometry_ref": "geometry.abstractequine_1",
       "texture_ref": "horse/horse_zombie",
       "armor_type": "none"
     },

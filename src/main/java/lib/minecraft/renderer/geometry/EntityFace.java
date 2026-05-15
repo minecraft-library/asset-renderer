@@ -58,11 +58,11 @@ public enum EntityFace {
 
     DOWN(
         "down", new int[]{ 4, 0, 1, 5 }, new Vector3f(0f, -1f, 0f),
-        0, 2, 1, 1, 0, 0
+        0, 2, 0, 1, 0, 0
     ),
     UP(
         "up", new int[]{ 3, 7, 6, 2 }, new Vector3f(0f, 1f, 0f),
-        0, 2, 0, 1, 0, 0
+        0, 2, 1, 1, 0, 0
     ),
     NORTH(
         "north", new int[]{ 2, 1, 0, 3 }, new Vector3f(0f, 0f, -1f),
@@ -74,11 +74,11 @@ public enum EntityFace {
     ),
     WEST(
         "west", new int[]{ 3, 0, 4, 7 }, new Vector3f(-1f, 0f, 0f),
-        2, 1, 1, 1, 0, 1
+        2, 1, 0, 0, 0, 1
     ),
     EAST(
         "east", new int[]{ 6, 5, 1, 2 }, new Vector3f(1f, 0f, 0f),
-        2, 1, 0, 0, 0, 1
+        2, 1, 1, 1, 0, 1
     );
 
     private final @NotNull String direction;
@@ -144,18 +144,20 @@ public enum EntityFace {
     }
 
     /**
-     * Returns the default UV rectangle for this face in pixel space, using the <b>Bedrock
-     * Edition {@code geo.json}</b> entity-cube atlas unwrap where all six faces of a single cube
-     * share one texture image.
+     * Returns the default UV rectangle for this face in pixel space, using the <b>vanilla Java
+     * Edition</b> entity-cube atlas unwrap where all six faces of a single cube share one
+     * texture image. Mirrors {@link net.minecraft.client.model.geom.ModelPart.Cube}'s polygon
+     * UV layout.
      * <p>
-     * Bedrock lays out the strip with top and bottom in a first row sized {@code sx x sz}, then
-     * east, north, west, south in a second row sized {@code sz, sx, sz, sx} wide by {@code sy}
-     * tall - reading left-to-right that's {@code RIGHT, FRONT, LEFT, BACK}:
+     * Vanilla lays out the strip with bottom (DOWN polygon) and top (UP polygon) in a first row
+     * sized {@code sx x sz}, then west, north, east, south in a second row sized {@code sz, sx,
+     * sz, sx} wide by {@code sy} tall - reading left-to-right that's {@code LEFT, FRONT, RIGHT,
+     * BACK}:
      * <pre>
      *        +-------+--------+
-     *        |  TOP  | BOTTOM |                      row 1: height sz
+     *        |  BOT  |  TOP   |                       row 1: height sz
      * +------+-------+--------+-------+
-     * | EAST | NORTH |  WEST  | SOUTH |              row 2: height sy
+     * | WEST | NORTH |  EAST  | SOUTH |               row 2: height sy
      * +------+-------+--------+-------+
      * </pre>
      * Each face's pixel rectangle comes from the layout coefficients:
@@ -165,15 +167,10 @@ public enum EntityFace {
      * because vertical extent on the strip is always expressed in terms of {@code sz} (top row)
      * or the face's own height.
      * <p>
-     * Used by entity cube rendering (via {@link EntityGeometryKit}) where one skin image
-     * supplies every face of a body part. Callers compose
-     * {@link Vector4f#toUvCorners(float, float, int, boolean)} with the texture dimensions and
-     * the cube's {@code mirror} flag on the result to obtain normalized per-vertex corners.
-     * <p>
-     * <b>Note:</b> Java Edition's {@code ModelPart$Cube} uses a third strip order that isn't
-     * expressible via these axis coefficients. That layout is owned by the tooling-time bytecode
-     * converter ({@code ToolingBlockEntities}), so the kit consuming this enum sees Bedrock-style
-     * pre-flattened UVs after the tooling step normalises the two layouts to one.
+     * Used by entity cube rendering (via {@link EntityGeometryKit} and {@code
+     * EntityGeometryKitJava}) where one skin image supplies every face of a body part. Callers
+     * compose {@link Vector4f#toUvCorners(float, float, int, boolean)} with the texture
+     * dimensions on the result to obtain normalized per-vertex corners.
      *
      * @param uv the cube's texture origin in pixels on the source image ({@code [u, v]})
      * @param size the cube's extent along each axis in model units ({@code [sx, sy, sz]})

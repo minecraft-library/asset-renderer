@@ -155,7 +155,7 @@ public final class TestEntityParityVanilla {
 
                 EntityOptions options = EntityOptions.builder()
                     .entityId(Optional.of(entityId))
-                    .antiAlias(true)
+                    .antiAlias(false)
                     .build();
                 ImageData java = javaRenderer.render(options);
                 BufferedImage javaImg = java.toBufferedImage();
@@ -258,10 +258,18 @@ public final class TestEntityParityVanilla {
     }
 
     /**
-     * Computes per-pixel ARGB statistics between two same-size images. Mean delta is the
-     * average of {@code |Aj - Av| + |Rj - Rv| + |Gj - Gv| + |Bj - Bv|} over all pixels - a
-     * pixel that's pure transparent in both images contributes 0; a fully different pixel
-     * contributes up to 4 * 255 = 1020. Coverage is the fraction of pixels with non-zero alpha.
+     * Computes per-pixel ARGB statistics between two same-size images. Mean delta uses
+     * <b>over-white compositing</b>: each pixel is first composited onto a fully-opaque white
+     * background ({@code C_out = C_src * A_src/255 + 255 * (1 - A_src/255)}), then the absolute
+     * RGB difference is taken. This matches what a viewer perceives looking at the rendered PNG
+     * over the standard image-viewer white background: a transparent pixel and a 50%-transparent
+     * pixel with the same underlying RGB show only their compositing-blend difference, not the
+     * raw alpha gap. Without compositing, AA edge spill ({@code vanilla [0,0,0,0]} vs
+     * {@code java [246,246,246,127]}) was counted as an 865+ diff per pixel; with compositing
+     * the same pixels contribute around {@code 14} (the slight tint a half-white pixel adds over
+     * white). A pixel that's pure transparent in both images contributes 0; a fully different
+     * opaque pixel contributes up to {@code 3 * 255 = 765}. Coverage is the fraction of pixels
+     * with non-zero alpha.
      */
     private static @NotNull Stats compareImages(@NotNull BufferedImage a, @NotNull BufferedImage b) {
         int w = Math.min(a.getWidth(), b.getWidth());
@@ -275,19 +283,34 @@ public final class TestEntityParityVanilla {
             for (int x = 0; x < w; x++) {
                 int pa = a.getRGB(x, y);
                 int pb = b.getRGB(x, y);
-                int da = Math.abs(ColorMath.alpha(pa) - ColorMath.alpha(pb));
-                int dr = Math.abs(ColorMath.red(pa) - ColorMath.red(pb));
-                int dg = Math.abs(ColorMath.green(pa) - ColorMath.green(pb));
-                int db = Math.abs(ColorMath.blue(pa) - ColorMath.blue(pb));
-                int sum = da + dr + dg + db;
+                int aa = ColorMath.alpha(pa);
+                int ab = ColorMath.alpha(pb);
+                int sum = compositeDiff(pa, aa, pb, ab);
                 totalDelta += sum;
                 if (sum > 0) differing++;
-                if (ColorMath.alpha(pa) > 0) vanillaCoveredPx++;
-                if (ColorMath.alpha(pb) > 0) javaCoveredPx++;
+                if (aa > 0) vanillaCoveredPx++;
+                if (ab > 0) javaCoveredPx++;
             }
         }
         double mean = (double) totalDelta / (double) count;
         return new Stats(mean, differing, (double) javaCoveredPx / count, (double) vanillaCoveredPx / count);
+    }
+
+    /**
+     * Absolute RGB difference of two pixels after each has been composited onto a fully-opaque
+     * white background. See {@link #compareImages} for why this is the perceptually-accurate
+     * metric over a raw {@code |Rv - Rj| + |Gv - Gj| + |Bv - Bj|} that ignores alpha.
+     */
+    private static int compositeDiff(int pa, int aa, int pb, int ab) {
+        int rOver = compositeOverWhite(ColorMath.red(pa), aa) - compositeOverWhite(ColorMath.red(pb), ab);
+        int gOver = compositeOverWhite(ColorMath.green(pa), aa) - compositeOverWhite(ColorMath.green(pb), ab);
+        int bOver = compositeOverWhite(ColorMath.blue(pa), aa) - compositeOverWhite(ColorMath.blue(pb), ab);
+        return Math.abs(rOver) + Math.abs(gOver) + Math.abs(bOver);
+    }
+
+    /** {@code C_src * A/255 + 255 * (1 - A/255)} rounded to integer. */
+    private static int compositeOverWhite(int channel, int alpha) {
+        return (channel * alpha + 255 * (255 - alpha) + 127) / 255;
     }
 
     /**
@@ -379,7 +402,7 @@ public final class TestEntityParityVanilla {
             g.setColor(new Color(220, 220, 230));
             g.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 11));
             int sy = 2 * (cellH + labelH) + 3 * gap + 14;
-            g.drawString(String.format("mean |delta|     : %8.2f / 1020   mean signed luma: %+8.2f   (+ = vanilla brighter)", ds.meanAbsDelta, ds.meanSignedLuma), gap, sy);
+            g.drawString(String.format("mean |delta|     : %8.2f / 765   mean signed luma: %+8.2f   (+ = vanilla brighter)", ds.meanAbsDelta, ds.meanSignedLuma), gap, sy);
             g.drawString(String.format("coverage         : v=%-5d j=%-5d both=%-5d vanilla-only=%-4d java-only=%-4d",
                 ds.vanillaPx, ds.javaPx, ds.bothPx, ds.vanillaOnlyPx, ds.javaOnlyPx), gap, sy + 14);
             // Per-quadrant signed luma + mean abs delta - localises which side of the silhouette
@@ -443,11 +466,8 @@ public final class TestEntityParityVanilla {
                 int pa = a.getRGB(x, y);
                 int pb = b.getRGB(x, y);
                 int aa = ColorMath.alpha(pa), ab = ColorMath.alpha(pb);
-                int dr = Math.abs(ColorMath.red(pa) - ColorMath.red(pb));
-                int dg = Math.abs(ColorMath.green(pa) - ColorMath.green(pb));
-                int db = Math.abs(ColorMath.blue(pa) - ColorMath.blue(pb));
-                int da = Math.abs(aa - ab);
-                absSum += da + dr + dg + db;
+                int absDelta = compositeDiff(pa, aa, pb, ab);
+                absSum += absDelta;
                 if (aa > 0) vAny++;
                 if (ab > 0) jAny++;
                 if (aa > 0 && ab > 0) {
@@ -459,7 +479,7 @@ public final class TestEntityParityVanilla {
                     lumaN++;
                     int qIdx = (y < cy ? 0 : 2) + (x < cx ? 0 : 1);
                     qSum[qIdx] += lumaDelta;
-                    qAbsSum[qIdx] += da + dr + dg + db;
+                    qAbsSum[qIdx] += absDelta;
                     qN[qIdx]++;
                 } else if (aa > 0) vOnly++;
                 else if (ab > 0) jOnly++;
@@ -655,15 +675,19 @@ public final class TestEntityParityVanilla {
                 int pb = b.getRGB(x, y);
                 int aa = ColorMath.alpha(pa);
                 int ab = ColorMath.alpha(pb);
-                int dr = Math.abs(ColorMath.red(pa) - ColorMath.red(pb));
-                int dg = Math.abs(ColorMath.green(pa) - ColorMath.green(pb));
-                int db = Math.abs(ColorMath.blue(pa) - ColorMath.blue(pb));
-                int da = Math.abs(aa - ab);
-                if (da == 0 && dr == 0 && dg == 0 && db == 0) {
+                // Compositing over white gives the same per-channel diff a viewer would
+                // perceive looking at the PNGs over their default white viewer background -
+                // AA edge spill no longer reads as a huge raw RGB diff at transparent pixels.
+                int dr = Math.abs(compositeOverWhite(ColorMath.red(pa), aa) - compositeOverWhite(ColorMath.red(pb), ab));
+                int dg = Math.abs(compositeOverWhite(ColorMath.green(pa), aa) - compositeOverWhite(ColorMath.green(pb), ab));
+                int db = Math.abs(compositeOverWhite(ColorMath.blue(pa), aa) - compositeOverWhite(ColorMath.blue(pb), ab));
+                if (dr == 0 && dg == 0 && db == 0) {
                     out.setRGB(x, y, 0);
                     continue;
                 }
                 if ((aa == 0) ^ (ab == 0)) {
+                    // Surface coverage-only mismatches as magenta so they still pop visually
+                    // even when their composited RGB diff is tiny.
                     out.setRGB(x, y, 0xFFFF00FF);
                     continue;
                 }

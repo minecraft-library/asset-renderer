@@ -298,7 +298,13 @@ public final class ToolingJavaEntityModels {
                 // {@code 2 + yOffset} resolve to 0 and arms / legs land at the wrong position.
                 // Bedrock-side block-entity sources don't set this, preserving the legacy
                 // literal-stack-only walk for them.
+                // Slot 0 is overridden from the resolution's captured factory-arg literal when
+                // present - DonkeyModel.createBodyLayer(F) reads its base body scale from
+                // fload_0, and LayerDefinitions.createRoots passes the call-site constant
+                // (DONKEY: 0.87f, MULE: 0.92f) which the resolver picks up.
                 float[] paramFloats = new float[8];
+                if (resolution.defaultFloatParam() != null)
+                    paramFloats[0] = resolution.defaultFloatParam();
                 sources.add(new Source(
                     resolution.targetClass() + ".class",
                     resolution.targetMethod(),
@@ -308,7 +314,9 @@ public final class ToolingJavaEntityModels {
                     resolution.texWidthOverride(),
                     resolution.texHeightOverride(),
                     null,
-                    paramFloats
+                    paramFloats,
+                    0f,
+                    resolution.appliedMeshTransformerScale()
                 ));
             }
             System.out.println("Resolved " + sources.size() + " primary LayerDefinition factories for geometry parsing");
@@ -625,7 +633,9 @@ public final class ToolingJavaEntityModels {
             // vs {@code .createBodyLayer(0.25)} for the outer-layer overlay) gets distinct
             // geometry entries instead of collapsing onto a single inflate=0 row.
             String factoryKey = res.targetClass() + "#" + res.targetMethod()
-                + (res.defaultInflate() != 0f ? "#inflate=" + res.defaultInflate() : "");
+                + (res.defaultInflate() != 0f ? "#inflate=" + res.defaultInflate() : "")
+                + (res.defaultFloatParam() != null ? "#fparam=" + res.defaultFloatParam() : "")
+                + (res.appliedMeshTransformerScale() != 1f ? "#appliedMT=" + res.appliedMeshTransformerScale() : "");
             String geometryId = factoryKeyToGeometryId.computeIfAbsent(factoryKey, k -> {
                 String simple = res.targetClass().substring(res.targetClass().lastIndexOf('/') + 1);
                 String entityName = stripModelSuffix(simple).toLowerCase(java.util.Locale.ROOT);
@@ -657,7 +667,9 @@ public final class ToolingJavaEntityModels {
             JavaEntityLayerDefinitionResolver.Resolution res = entityToResolution.get(entityId);
             String geometryId = res == null ? null : factoryKeyToGeometryId.get(
                 res.targetClass() + "#" + res.targetMethod()
-                + (res.defaultInflate() != 0f ? "#inflate=" + res.defaultInflate() : ""));
+                + (res.defaultInflate() != 0f ? "#inflate=" + res.defaultInflate() : "")
+                + (res.defaultFloatParam() != null ? "#fparam=" + res.defaultFloatParam() : "")
+                + (res.appliedMeshTransformerScale() != 1f ? "#appliedMT=" + res.appliedMeshTransformerScale() : ""));
             if (geometryId == null) continue;
 
             JsonObject row = new JsonObject();
@@ -697,7 +709,9 @@ public final class ToolingJavaEntityModels {
                             overlayFieldToResolution.get(desc.modelLayerField());
                         if (overlayRes == null) continue;
                         String overlayFactoryKey = overlayRes.targetClass() + "#" + overlayRes.targetMethod()
-                            + (overlayRes.defaultInflate() != 0f ? "#inflate=" + overlayRes.defaultInflate() : "");
+                            + (overlayRes.defaultInflate() != 0f ? "#inflate=" + overlayRes.defaultInflate() : "")
+                            + (overlayRes.defaultFloatParam() != null ? "#fparam=" + overlayRes.defaultFloatParam() : "")
+                            + (overlayRes.appliedMeshTransformerScale() != 1f ? "#appliedMT=" + overlayRes.appliedMeshTransformerScale() : "");
                         overlayGeometryId = factoryKeyToGeometryId.get(overlayFactoryKey);
                         if (overlayGeometryId == null) continue;
                     }

@@ -123,6 +123,22 @@ public class EntityModelData {
         @SerializedName("bind_pose_rotation")
         private @NotNull EulerRotation bindPoseRotation = EulerRotation.NONE;
 
+        /**
+         * Uniform multiplier applied to this bone's own cube vertices after positioning at
+         * {@link #pivot} and before the cubes are emitted to the kit. Defaults to {@code 1f}
+         * - the identity. Captures both vanilla {@code PartPose.scaled(F)} (per-bone) and
+         * {@code MeshTransformer.scaling(F)} (whole-layer) which write {@code F} into the
+         * underlying {@code PartPose.scale} field; {@code ModelPart.render} consumes that via
+         * {@code poseStack.scale(...)} AFTER positioning the bone at its pivot and BEFORE
+         * rendering the cube list. Unlike a JSON-bake onto {@link Cube#getOrigin() cube origin}
+         * or {@link Cube#getSize() size}, this post-positioning scale does not affect UV
+         * resolution (cube UV regions stay tied to the authored {@code size} value), matching
+         * vanilla's per-vertex scale semantics.
+         *
+         * @see lib.minecraft.renderer.kit.EntityGeometryKitJava
+         */
+        private float scale = 1f;
+
         private @NotNull ConcurrentList<Cube> cubes = Concurrent.newList();
 
         /**
@@ -134,12 +150,22 @@ public class EntityModelData {
 
         /** Convenience constructor for the common case of no parent and no bind pose. */
         public Bone(@NotNull Vector3f pivot, @NotNull EulerRotation rotation, @NotNull ConcurrentList<Cube> cubes) {
-            this(pivot, rotation, EulerRotation.NONE, cubes, null);
+            this(pivot, rotation, EulerRotation.NONE, 1f, cubes, null);
         }
 
         /** Convenience constructor preserving the historic (pivot, rotation, cubes, parent) signature. */
         public Bone(@NotNull Vector3f pivot, @NotNull EulerRotation rotation, @NotNull ConcurrentList<Cube> cubes, @Nullable String parent) {
-            this(pivot, rotation, EulerRotation.NONE, cubes, parent);
+            this(pivot, rotation, EulerRotation.NONE, 1f, cubes, parent);
+        }
+
+        /**
+         * Convenience constructor preserving the (pivot, rotation, bindPoseRotation, cubes, parent)
+         * signature in use before {@link #scale} was added. Sets {@code scale} to its identity
+         * default {@code 1f} so all existing call sites stay compile-stable until they choose to
+         * opt in to the new field.
+         */
+        public Bone(@NotNull Vector3f pivot, @NotNull EulerRotation rotation, @NotNull EulerRotation bindPoseRotation, @NotNull ConcurrentList<Cube> cubes, @Nullable String parent) {
+            this(pivot, rotation, bindPoseRotation, 1f, cubes, parent);
         }
 
         @Override
@@ -149,13 +175,14 @@ public class EntityModelData {
             return Objects.equals(pivot, that.pivot)
                 && Objects.equals(rotation, that.rotation)
                 && Objects.equals(bindPoseRotation, that.bindPoseRotation)
+                && Float.compare(scale, that.scale) == 0
                 && Objects.equals(cubes, that.cubes)
                 && Objects.equals(parent, that.parent);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(pivot, cubes, rotation, bindPoseRotation, parent);
+            return Objects.hash(pivot, cubes, rotation, bindPoseRotation, scale, parent);
         }
 
     }

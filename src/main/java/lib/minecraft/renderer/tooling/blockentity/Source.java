@@ -39,7 +39,8 @@ public record Source(
     @Nullable Integer texHeightOverride,
     int @Nullable [] paramIntValues,
     float @Nullable [] paramFloatValues,
-    float defaultInflate
+    float defaultInflate,
+    float appliedMeshTransformerScale
 ) {
 
     /**
@@ -53,7 +54,7 @@ public record Source(
      * @param inventoryYRotation the GUI-facing yaw applied at render time
      */
     public Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation) {
-        this(classEntry, methodName, entityId, yAxis, inventoryYRotation, null, null, null, null, 0f);
+        this(classEntry, methodName, entityId, yAxis, inventoryYRotation, null, null, null, null, 0f, 1f);
     }
 
     /**
@@ -70,7 +71,7 @@ public record Source(
      * @param texHeightOverride the texture height override
      */
     public Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation, @Nullable Integer texWidthOverride, @Nullable Integer texHeightOverride) {
-        this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, null, null, 0f);
+        this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, null, null, 0f, 1f);
     }
 
     /**
@@ -79,7 +80,7 @@ public record Source(
      * {@code paramFloatValues} field is a non-behavioural change for them.
      */
     public Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation, @Nullable Integer texWidthOverride, @Nullable Integer texHeightOverride, int @Nullable [] paramIntValues) {
-        this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, paramIntValues, null, 0f);
+        this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, paramIntValues, null, 0f, 1f);
     }
 
     /**
@@ -88,7 +89,16 @@ public record Source(
      * non-behavioural change for them.
      */
     public Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation, @Nullable Integer texWidthOverride, @Nullable Integer texHeightOverride, int @Nullable [] paramIntValues, float @Nullable [] paramFloatValues) {
-        this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, paramIntValues, paramFloatValues, 0f);
+        this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, paramIntValues, paramFloatValues, 0f, 1f);
+    }
+
+    /**
+     * Convenience constructor preserving the prior 10-arg shape (no
+     * {@code appliedMeshTransformerScale}). All existing bedrock-side block-entity sources flow
+     * through this so adding the new field is non-behavioural for them.
+     */
+    public Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation, @Nullable Integer texWidthOverride, @Nullable Integer texHeightOverride, int @Nullable [] paramIntValues, float @Nullable [] paramFloatValues, float defaultInflate) {
+        this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, paramIntValues, paramFloatValues, defaultInflate, 1f);
     }
 
 }

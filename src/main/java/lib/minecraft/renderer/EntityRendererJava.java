@@ -67,33 +67,63 @@ public final class EntityRendererJava implements Renderer<EntityOptions> {
     private static final int MAX_CANVAS_SIZE = Integer.getInteger("refharness.maxCanvasSize", 1024);
 
     /**
-     * Effective entity-render scale per entity id. Combines three vanilla scaling sources:
+     * Effective entity-render scale per entity id. The single remaining vanilla scale source the
+     * pipeline can't bake into geometry: per-renderer {@code scale(state, ps)} overrides like
+     * {@code WitherBossRenderer} which bakes a constant {@code scale(2, 2, 2)} into its submit
+     * chain.
+     * <p>
+     * {@code MeshTransformer.scaling(F)} wraps (polar_bear 1.2, ghast 4.5, happy_ghast 4.0,
+     * cat 0.8, horse 1.1, giant 6.0, villager / witch / illager-family 0.9375, husk 1.0625,
+     * wither_skeleton 1.2, elder_guardian 2.35, donkey 0.87, mule 0.92, ...) are now baked into
+     * bone {@code pivot} + {@code scale} fields at tooling time across three patterns:
      * <ul>
-     * <li>Per-renderer {@code scale(state, ps)} overrides - {@code WitherBossRenderer} bakes
-     * a constant {@code scale(2, 2, 2)} into its submit chain.</li>
-     * <li>{@code state.scale} set by {@code extractRenderState} from the entity's own scale
-     * field - the {@code Giant} entity carries scale 6 on its instance, applied by
-     * {@code LivingEntityRenderer.submit}'s {@code scale(state.scale, ...)} call.</li>
-     * <li>{@code MeshTransformer.scaling(F)} wraps applied at LayerDefinition build time -
-     * the wrap recursively multiplies every cube + bone pivot in the layer definition, so a
-     * model with no internal bone hierarchy (e.g. polar_bear: cubes hang off a few flat bones)
-     * comes out correct under the simpler "scale every kit output vertex by F" approximation
-     * we apply here. Models with deeper bone trees (elder_guardian's spike loop, happy_ghast's
-     * leash anchor) get wrong final positions under this approximation because the bone pivot
-     * stays at its raw value while the cube vertices get scaled out from under it. Those
-     * entities need the scaling baked into JSON at parse time, tracked as a separate fix.</li>
+     * <li>inline {@code .apply(MeshTransformer.scaling(F))} in the model's createBodyLayer
+     *     (polar_bear, ghast, happy_ghast)</li>
+     * <li>static-field MeshTransformer in the model class's {@code <clinit>}, applied via
+     *     getstatic in another factory (elder_guardian's {@code ELDER_GUARDIAN_SCALE})</li>
+     * <li>LayerDefinitions-level chains: either {@code .apply(getstatic <Y>_TRANSFORMER)} on
+     *     class fields (cat) or {@code .apply(aload <slot>)} from a local-slot scaling result
+     *     (horse, villager, husk, giant, ...)</li>
      * </ul>
-     * Hardcoded for now; later sessions can ASM-extract from the renderer's {@code scale}
-     * override + entity constructor + the {@code MeshTransformer.scaling(F)} call site in the
-     * model factory. Unlisted entities default to 1. Excluded baby/conditional cases (zoglin
-     * baby 0.5x) since the static renderer never renders babies.
+     * Same applies to the {@code state.scale} sourced from {@code state.scale} - notably
+     * {@code Giant.scale=6} which we used to model here but is now baked via the LayerDefinitions
+     * pattern (the F=6.0 lives on a local slot in {@code LayerDefinitions.createRoots} applied to
+     * the {@code GIANT} layer via {@code .apply(MeshTransformer)}). Unlisted entities default to 1.
+     * Excluded baby / conditional cases since the static renderer never renders babies.
      */
     private static final @NotNull Map<String, Float> RENDERER_SCALE_OVERRIDES = Map.ofEntries(
-        Map.entry("minecraft:wither", 2.0f),
-        Map.entry("minecraft:giant", 6.0f),
-        Map.entry("minecraft:ghast", 4.5f),
-        Map.entry("minecraft:polar_bear", 1.2f)
+        Map.entry("minecraft:wither", 2.0f)
     );
+
+    /**
+     * Per-entity-id model-space pre-transform that mirrors a vanilla
+     * {@code setupRotations(state, ps, bodyRot, scale)} override producing a different LER chain
+     * than the default {@code rotateY(180 - bodyRot)}. Currently always empty: the frozen-state
+     * audit (see {@code notes/JAVA_PIPELINE_RESEARCH.md} "A4 audit") found 11 of the 14 overriders
+     * collapse to the default under our zero-tick state, and empirical parity (2026-05-14)
+     * showed the remaining three are also no-ops for our auto-centered pipeline:
+     * <ul>
+     * <li>{@code SquidRenderer} (translates {@code 0.5} / {@code -1.2}) and
+     *     {@code PufferfishRenderer} (translate {@code 0.08}) - the kit's family-fit centring
+     *     (anchor = {@code inverse-iso(screen-midpoint)}) absorbs pure translates; applying them
+     *     as a {@code modelAnchor} shift uncentred squid (6.26 -> 145.23) and reverting restored
+     *     the original. Vanilla's harness family-fit centring does the same cancellation.</li>
+     * <li>{@code ShulkerRenderer} with default {@code attachFace=DOWN}: collapses to "no
+     *     rotateY(180)" which would require a 180° yaw addend. Empirical test moved shulker
+     *     11.50 -> 22.97 - either the model is rotationally symmetric enough that the wrong
+     *     direction reads correctly, or the diff exposes a separate texture-seam mismatch.
+     *     Leaving the wiring in place against future state-dependent overrides (e.g. when we
+     *     start respecting {@code attachFace} for placed shulkers, or {@code lieDownAmount}
+     *     for tame cats / wolves) - those will be NON-translation transforms that actually
+     *     affect the rendered pixels.</li>
+     * </ul>
+     * Unlisted entities get the identity override.
+     */
+    private record SetupRotationsOverride(@NotNull Vector3f modelAnchorShift, float yawDegrees) {
+        static final @NotNull SetupRotationsOverride IDENTITY = new SetupRotationsOverride(Vector3f.ZERO, 0f);
+    }
+
+    private static final @NotNull Map<String, SetupRotationsOverride> SETUP_ROTATIONS_OVERRIDES = Map.of();
 
     /** Renderer context for texture resolution + isometric engine setup; not used for entity lookup. */
     private final @NotNull RendererContext context;
@@ -142,10 +172,13 @@ public final class EntityRendererJava implements Renderer<EntityOptions> {
             );
         }
 
+        SetupRotationsOverride override = SETUP_ROTATIONS_OVERRIDES.getOrDefault(
+            options.getEntityId().get(), SetupRotationsOverride.IDENTITY);
+
         EulerRotation user = options.getRotation();
         EulerRotation effective = new EulerRotation(
             user.pitch(),
-            user.yaw() + model.getInventoryYRotation(),
+            user.yaw() + model.getInventoryYRotation() + override.yawDegrees(),
             user.roll()
         );
         // Apply the per-entity scale override (vanilla's combined renderer-scale + state-scale)
@@ -165,7 +198,7 @@ public final class EntityRendererJava implements Renderer<EntityOptions> {
         // resolution, no auto-fit. EntityOptions#getOutputSize is intentionally ignored here so
         // the Java pipeline matches the harness's PNG dimensions byte-for-byte where the same
         // entity is being rendered in both projects.
-        CanvasFit fit = computeCanvasFit(model, effective, modelScale);
+        CanvasFit fit = computeCanvasFit(definition, effective, modelScale);
         PixelBuffer buffer = PixelBuffer.create(fit.canvasW(), fit.canvasH());
 
         // Centre the silhouette on the canvas. The kit subtracts a model-space "anchor" point
@@ -176,7 +209,13 @@ public final class EntityRendererJava implements Renderer<EntityOptions> {
         // tight silhouette midpoint. Inverse-projecting the screen-space silhouette midpoint
         // through the iso transform gives the model-space point whose iso image IS the
         // silhouette midpoint - using it as the kit anchor centres the silhouette exactly.
-        Vector3f modelAnchor = computeCentreAnchor(model, effective, modelScale, fit);
+        // Per-entity setupRotations overrides translate the model vertex by
+        // {@code override.modelAnchorShift} (the kit subtracts modelAnchor from every vertex, so
+        // subtracting the shift from the anchor adds it to every vertex). For squid that's a
+        // {@code (0, +11.2, 0)} pixel pre-translate; pufferfish gets {@code (0, -1.28, 0)};
+        // shulker has zero translate but a 180° yaw addend folded into {@code effective} above.
+        Vector3f modelAnchor = computeCentreAnchor(definition, effective, modelScale, fit)
+            .subtract(override.modelAnchorShift());
 
         EntityGeometryKit.BuildResult buildResult = EntityGeometryKitJava.buildTriangles(
             model, texture.get(), modelAnchor, false, fit.ndcScale(), modelScale);
@@ -374,12 +413,12 @@ public final class EntityRendererJava implements Renderer<EntityOptions> {
      * ratio at the rasterization step.
      */
     private static @NotNull CanvasFit computeCanvasFit(
-        @NotNull EntityModelData model,
+        @NotNull EntityModelLoader.EntityDefinition definition,
         @NotNull EulerRotation userRotation,
         float modelScale
     ) {
         Matrix4f transform = composeIsoTransform(userRotation);
-        Box screenBounds = EntityGeometryKitJava.computeScreenBounds(model, transform, modelScale);
+        Box screenBounds = computeUnionScreenBounds(definition, transform, modelScale);
         float extentX = Math.max(0f, screenBounds.maxX() - screenBounds.minX());
         float extentY = Math.max(0f, screenBounds.maxY() - screenBounds.minY());
         float pxPerEntityUnit = PIXELS_PER_BLOCK / 16f;
@@ -408,18 +447,54 @@ public final class EntityRendererJava implements Renderer<EntityOptions> {
      * right/bottom edge.
      */
     private static @NotNull Vector3f computeCentreAnchor(
-        @NotNull EntityModelData model,
+        @NotNull EntityModelLoader.EntityDefinition definition,
         @NotNull EulerRotation userRotation,
         float modelScale,
         @NotNull CanvasFit fit
     ) {
         Matrix4f isoTransform = composeIsoTransform(userRotation);
-        Box screenBounds = EntityGeometryKitJava.computeScreenBounds(model, isoTransform, modelScale);
+        Box screenBounds = computeUnionScreenBounds(definition, isoTransform, modelScale);
         float sxMid = (screenBounds.minX() + screenBounds.maxX()) * 0.5f;
         float syMid = (screenBounds.minY() + screenBounds.maxY()) * 0.5f;
         float szMid = (screenBounds.minZ() + screenBounds.maxZ()) * 0.5f;
         Matrix4f isoInverse = composeIsoInverse(userRotation);
         return Vector3f.transform(new Vector3f(sxMid, syMid, szMid), isoInverse);
+    }
+
+    /**
+     * Unions the screen-space bounds of the base entity model with each non-empty entity-model
+     * overlay. Vanilla's family-fit pre-pass walks every {@link
+     * net.minecraft.client.renderer.entity.layers.RenderLayer}'s {@code EntityModel}-typed field
+     * through the same pose stack as the primary model and expands the bounds. Mirrors
+     * {@code EntityFrameRenderer.walkLayerExtents} in the vanilla-reference-harness.
+     * <p>
+     * Block-model overlays (mooshroom mushrooms, copper-golem flower, iron-golem flower) are
+     * deliberately NOT included - vanilla's family-fit reflection only matches {@code Model<?>}
+     * fields, so block-rendering RenderLayer subclasses don't contribute either. If they did,
+     * mooshroom's mushrooms would extend the canvas; matching vanilla means accepting the
+     * mushrooms render slightly past the canvas edge (same as vanilla). Empirically: including
+     * block overlays at unit-cube {@code [-0.5, 0.5]^3} bounds expanded mooshroom canvas
+     * 442x482 -> 505x726 vs vanilla's 442x482; reverting matches vanilla's canvas exactly.
+     */
+    private static @NotNull Box computeUnionScreenBounds(
+        @NotNull EntityModelLoader.EntityDefinition definition,
+        @NotNull Matrix4f transform,
+        float modelScale
+    ) {
+        Box bounds = EntityGeometryKitJava.computeScreenBounds(definition.model(), transform, modelScale);
+        for (EntityModelLoader.OverlayLayer overlay : definition.overlays()) {
+            if (overlay.model().getBones().isEmpty()) continue;
+            Box overlayBounds = EntityGeometryKitJava.computeScreenBounds(overlay.model(), transform, modelScale);
+            bounds = new Box(
+                Math.min(bounds.minX(), overlayBounds.minX()),
+                Math.min(bounds.minY(), overlayBounds.minY()),
+                Math.min(bounds.minZ(), overlayBounds.minZ()),
+                Math.max(bounds.maxX(), overlayBounds.maxX()),
+                Math.max(bounds.maxY(), overlayBounds.maxY()),
+                Math.max(bounds.maxZ(), overlayBounds.maxZ())
+            );
+        }
+        return bounds;
     }
 
     /**
@@ -452,14 +527,18 @@ public final class EntityRendererJava implements Renderer<EntityOptions> {
     /**
      * Builds the orientation-only transform that maps a Y-down model vertex to its pre-projection
      * screen position - matching what the rasterizer applies internally for entity rendering.
-     * The composite is {@code FLIP_Y × modelRotation × engine_camera_row}:
+     * The composite is {@code FLIP_X × FLIP_Y × modelRotation × engine_camera_row}:
      * <ul>
+     * <li>{@code FLIP_X = scale(-1, 1, 1)} - the kit's X-axis chirality compensation applied to
+     *     vertex positions inside {@code EntityGeometryKitJava.buildTrianglesWithScale}; balances
+     *     out the iso camera chain's embedded reflection so total pipeline chirality matches
+     *     vanilla's harness output (model-LEFT renders at camera-LEFT).</li>
      * <li>{@code FLIP_Y = scale(1, -1, 1)} - the kit's Y-down-to-Y-up flip applied to vertex
      *     positions inside {@code EntityGeometryKitJava.buildTrianglesWithScale}.</li>
      * <li>{@code modelRotation} - per-render user rotation (yaw × pitch × roll), composed by
      *     {@code ModelEngine.buildModelRotation}.</li>
-     * <li>{@code engine_camera_row = scale(1,1,-1) × R_Y(45°) × R_X(210°) × scale(1,1,-1)} -
-     *     {@link IsometricEngine#entityStandard}'s camera matrix.</li>
+     * <li>{@code engine_camera_row = scale(1,1,-1) × R_Y(45°) × R_X(210°) × scale(1,1,-1)
+     *     × scale(1,-1,1)} - {@link IsometricEngine#entityStandard}'s camera matrix.</li>
      * </ul>
      * Mirrors the engine's per-vertex chain so {@link EntityGeometryKitJava#computeScreenBounds}
      * sees the same model-to-screen mapping. Centering / NDC scaling are translation + uniform

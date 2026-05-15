@@ -418,6 +418,8 @@ public final class ToolingBlockEntities {
         private static final @NotNull String LAYER_DEFINITION = "net/minecraft/client/model/geom/builders/LayerDefinition";
         private static final @NotNull String CUBE_DEFORMATION = "net/minecraft/client/model/geom/builders/CubeDeformation";
         private static final @NotNull String PART_NAMES = "net/minecraft/client/model/geom/PartNames";
+        private static final @NotNull String MESH_TRANSFORMER = "net/minecraft/client/model/geom/builders/MeshTransformer";
+        private static final @NotNull String MESH_TRANSFORMER_DESC = "L" + MESH_TRANSFORMER + ";";
 
         // Block-entity sources are discovered by {@link SourceDiscovery} and passed through
         // {@link #parse} at runtime; the former hardcoded {@code SOURCES} list was removed
@@ -670,6 +672,13 @@ public final class ToolingBlockEntities {
             // is invisible, but the synthetic Source carries it through {@code defaultInflate}.
             state.defaultInflate = source.defaultInflate();
             state.pendingInflate = source.defaultInflate();
+            // Pre-seed meshTransformerScale from the resolver-captured chain on the synthetic
+            // Source. The resolver picks up LayerDefinitions-level {@code .apply(MeshTransformer)}
+            // chains that don't appear inline in the factory body (cat / horse) - the F lives
+            // on a class-level static field or a local slot in {@code createRoots}, not in the
+            // model's own {@code createBodyLayer}. Folds with inline {@code MeshTransformer.scaling}
+            // captures during the walk so both layers compose correctly.
+            state.meshTransformerScale = source.appliedMeshTransformerScale();
             state.currentSource = source;
             state.diagnostics = diagnostics;
             walkInstructions(instructions, state, zip);
@@ -686,6 +695,7 @@ public final class ToolingBlockEntities {
                 diagnostics.info("%s: %d leftover literal(s) on numStack after parse - unhandled method-owner descriptor?", source.entityId(), state.numStack.size());
 
             applyRetainedNamesFilter(state);
+            applyMeshTransformerScaling(state);
 
             if (state.bones.isEmpty()) return null;
 
@@ -709,6 +719,125 @@ public final class ToolingBlockEntities {
          * unusual, would drop every bone). Walks via {@link ParseState#boneParents} populated
          * during {@link #flushPendingBone}.
          */
+        /**
+         * Resolves a {@code GETSTATIC <owner>.<name> : MeshTransformer} reference back to the
+         * scaling factor F by walking the owning class's {@code <clinit>}. Matches the canonical
+         * pattern
+         * <pre>
+         *   ldc F
+         *   invokestatic MeshTransformer.scaling(F)MeshTransformer
+         *   putstatic &lt;name&gt; : MeshTransformer
+         * </pre>
+         * Tracks a tiny synthetic stack: an {@code LDC} of a {@code Float} pushes the float; an
+         * {@code INVOKESTATIC} on {@code MeshTransformer.scaling} consumes the float and pushes a
+         * sentinel "scaled" marker carrying F; a {@code PUTSTATIC} of a {@code MeshTransformer}
+         * field consumes the marker and records {@code field -> F}. Any other instruction that
+         * mutates a slot the walker tracks clears the marker - so non-canonical initialisers
+         * (combined transformers from {@code invokedynamic}, math on F, etc.) are simply not
+         * captured and the caller defaults to no scale.
+         * <p>
+         * Cached on {@link ParseState#resolvedMeshTransformers} keyed by
+         * {@code "owner.name"} so repeat references inside one parse don't re-walk.
+         *
+         * @return F when the field's {@code <clinit>} initialiser is a literal
+         *     {@code MeshTransformer.scaling(F)}; {@code null} for unhandled patterns
+         */
+        private static @Nullable Float resolveStaticMeshTransformer(
+            @NotNull String owner, @NotNull String name, @NotNull ParseState state, @NotNull ZipFile zip
+        ) {
+            String key = owner + "." + name;
+            if (state.resolvedMeshTransformers.containsKey(key))
+                return state.resolvedMeshTransformers.get(key);
+
+            ClassNode cls = AsmKit.loadClass(zip, owner);
+            MethodNode clinit = cls != null ? AsmKit.findMethod(cls, "<clinit>") : null;
+            if (clinit == null) {
+                state.resolvedMeshTransformers.put(key, null);
+                return null;
+            }
+
+            Float pendingFloat = null;
+            Float pendingScaled = null;
+            for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+                int op = in.getOpcode();
+                if (op < 0) continue; // labels / line numbers / frame
+                if (in instanceof LdcInsnNode ldc && ldc.cst instanceof Float f) {
+                    pendingFloat = f;
+                    pendingScaled = null;
+                } else if (in instanceof MethodInsnNode mi
+                    && op == Opcodes.INVOKESTATIC
+                    && MESH_TRANSFORMER.equals(mi.owner)
+                    && "scaling".equals(mi.name)
+                    && ("(F)" + MESH_TRANSFORMER_DESC).equals(mi.desc)
+                    && pendingFloat != null) {
+                    pendingScaled = pendingFloat;
+                    pendingFloat = null;
+                } else if (in instanceof FieldInsnNode fi
+                    && op == Opcodes.PUTSTATIC
+                    && MESH_TRANSFORMER_DESC.equals(fi.desc)
+                    && fi.owner.equals(owner)) {
+                    state.resolvedMeshTransformers.put(owner + "." + fi.name, pendingScaled);
+                    pendingScaled = null;
+                    pendingFloat = null;
+                } else {
+                    // Any unrelated instruction clears the synthetic stack so we don't accidentally
+                    // bind a stale F to a putstatic that's preceded by other initialisation work.
+                    pendingFloat = null;
+                    // Keep pendingScaled across no-op-ish instructions so the canonical
+                    // ldc/invokestatic/putstatic triplet still binds.
+                }
+            }
+
+            // After the walk, the key is set if its putstatic was canonical; otherwise mark null.
+            state.resolvedMeshTransformers.putIfAbsent(key, null);
+            return state.resolvedMeshTransformers.get(key);
+        }
+
+        /**
+         * Bakes the captured {@link ParseState#meshTransformerScale} (from
+         * {@code MeshTransformer.scaling(F)} call(s) on the {@code LayerDefinition}) into every
+         * emitted bone. Vanilla's expansion is, per {@code PartPose},
+         * {@code pose.scaled(F).translated(0, 24.016*(1-F), 0)} - scales bone pivots uniformly
+         * around the entity's feet anchor at {@code y=24.016 pixels} (= {@code 1.501 blocks * 16
+         * px/block}, the LER chain's {@code translate(0, -1.501, 0)}) and multiplies the bone's
+         * {@code PartPose.scale} field by F. Both halves land here together; the kit's
+         * {@link lib.minecraft.renderer.kit.EntityGeometryKitJava#buildTriangles} consumes the
+         * {@code scale} field to multiply local cube vertices by F at the pivot translate, which
+         * is algebraically equivalent to vanilla's per-vertex {@code poseStack.scale(F)} call
+         * sitting AFTER the pivot translate and BEFORE the cube render.
+         * <p>
+         * Cubes ({@code origin}, {@code size}, {@code inflate}, {@code uv}) are left untouched -
+         * the kit applies the scale to cube vertices at render time without affecting UV
+         * resolution. No-op when {@code meshTransformerScale == 1f} (the common case) so
+         * byte-stable bedrock + non-scaling entity parses stay byte-stable.
+         */
+        private static void applyMeshTransformerScaling(@NotNull ParseState state) {
+            float f = state.meshTransformerScale;
+            if (f == 1f) return;
+            float dy = 24.016f * (1f - f);
+            for (Map.Entry<String, JsonElement> entry : state.bones.entrySet()) {
+                JsonObject bone = entry.getValue().getAsJsonObject();
+                JsonArray pivot = bone.getAsJsonArray("pivot");
+                if (pivot != null && pivot.size() == 3) {
+                    float px = pivot.get(0).getAsFloat();
+                    float py = pivot.get(1).getAsFloat();
+                    float pz = pivot.get(2).getAsFloat();
+                    JsonArray scaled = new JsonArray();
+                    scaled.add(f * px);
+                    scaled.add(f * py + dy);
+                    scaled.add(f * pz);
+                    bone.add("pivot", scaled);
+                }
+                float existing = bone.has("scale") ? bone.get("scale").getAsFloat() : 1f;
+                float combined = existing * f;
+                if (combined == 1f) {
+                    bone.remove("scale");
+                } else {
+                    bone.addProperty("scale", combined);
+                }
+            }
+        }
+
         private static void applyRetainedNamesFilter(@NotNull ParseState state) {
             Set<String> retained = state.retainedNames;
             if (retained == null) return;
@@ -1121,6 +1250,25 @@ public final class ToolingBlockEntities {
                             state.pendingRotation = new float[]{ 0, 0, 0 };
                             state.pendingScale = 1f;
                         }
+                        // {@code GETSTATIC <field>: MeshTransformer} - vanilla static-field pattern
+                        // for layer-level scale wraps that don't appear inline in the factory body.
+                        // {@code GuardianModel.createElderGuardianLayer} reads
+                        // {@code ELDER_GUARDIAN_SCALE} (a private static final MeshTransformer
+                        // initialised in {@code <clinit>} as
+                        // {@code MeshTransformer.scaling(2.35f)}) via {@code getstatic} then
+                        // {@code LayerDefinition.apply(MeshTransformer)} - the parser sees the
+                        // getstatic but not the scaling literal. Lazily walk the field owner's
+                        // {@code <clinit>} for the matching {@code putstatic} and fold the captured
+                        // F into {@link ParseState#meshTransformerScale}; the subsequent
+                        // {@code apply()} call is then a no-op for our tracking (we don't track
+                        // LayerDefinition refs anyway). Cached per-class so repeated parses of the
+                        // same source don't reload. Gated on {@code paramFloatValues != null} so
+                        // bedrock block-entity sources keep their byte-stable behaviour.
+                        else if (state.paramFloatValues != null
+                            && MESH_TRANSFORMER_DESC.equals(fieldInsn.desc)) {
+                            Float f = resolveStaticMeshTransformer(fieldInsn.owner, fieldInsn.name, state, zip);
+                            if (f != null) state.meshTransformerScale *= f;
+                        }
                     }
                     case MethodInsnNode methodInsn -> handleMethodInsn(methodInsn, opcode, state, zip);
                     // Track local-variable slot -> bone mapping so child bones inherit their
@@ -1242,30 +1390,38 @@ public final class ToolingBlockEntities {
             }
             // MeshTransformer.scaling(F): some entity models append a uniform scale to the final
             // {@code LayerDefinition.create(...).apply(MeshTransformer.scaling(N))} chain
-            // (PolarBearModel = 1.2, EquineModel donkey/mule variants, etc). The float arg sits
-            // on the JVM stack but our parser never consumed it; the resulting leftover-literal
-            // surfaced as a parse warning. Just pop it - we don't currently propagate this scale
-            // into the runtime geometry (the renderer applies its own per-renderer scale).
-            // Gated on {@code paramFloatValues != null} so bedrock block entities, which never
-            // call MeshTransformer, are unaffected.
-            //
-            // <b>Why not bake into JSON</b>: vanilla {@code MeshTransformer.scaling(F)} expands as
-            // {@code pose.scaled(F).translated(0, 24.016*(1-F), 0)} on each PartPose - it scales
-            // pivots around the entity's feet anchor (y=24.016) AND multiplies the bone's
-            // PartPose.scale field by F, which the renderer reads at submit time to scale child
-            // cube vertices. Our pipeline has no bone-scale support in the kit, so a naive
-            // "multiply pivot+origin+size by F" bake (a) scales around origin instead of the feet
-            // anchor and (b) double-applies the scale to UV regions (cube UV width comes from
-            // size). Tracked as a separate fix; for now {@link EntityRendererJava}'s
-            // RENDERER_SCALE_OVERRIDES applies a uniform vertex scale around the screen-midpoint
-            // anchor which is "close enough" for flat-hierarchy entities (polar_bear T3).
+            // (PolarBearModel = 1.2, GhastModel = 4.5, HappyGhastModel = 4.0, etc). Vanilla
+            // expands this per {@code PartPose} as {@code pose.scaled(F).translated(0,
+            // 24.016*(1-F), 0)} - scales pivots around the entity's feet anchor (y=24.016) AND
+            // multiplies the bone's {@code PartPose.scale} field by F, which the kit consumes
+            // via {@link lib.minecraft.renderer.asset.model.EntityModelData.Bone#getScale()}
+            // when emitting the bone's cubes. We capture F here, then re-walk the emitted bone
+            // tree in {@link #applyMeshTransformerScaling} post-walk so the math agrees with
+            // vanilla's apply-after-build semantics. Multiplies into any existing capture so
+            // sequential {@code .apply(scaling(a)).apply(scaling(b))} chains compose (none
+            // observed in vanilla 26.1, but cheap to support). Gated on
+            // {@code paramFloatValues != null} so bedrock block entities, which never call
+            // MeshTransformer, are unaffected.
             if (state.paramFloatValues != null
                 && opcode == Opcodes.INVOKESTATIC
                 && methodInsn.owner.equals("net/minecraft/client/model/geom/builders/MeshTransformer")
                 && methodInsn.name.equals("scaling")
                 && methodInsn.desc.equals("(F)Lnet/minecraft/client/model/geom/builders/MeshTransformer;")
                 && !state.numStack.isEmpty()) {
-                state.numStack.remove(state.numStack.size() - 1);
+                float f = state.numStack.remove(state.numStack.size() - 1).floatValue();
+                // Vanilla never calls {@code scaling(0)}; a captured 0 means the synthetic
+                // {@link Source}'s {@code paramFloatValues} didn't supply the {@code createBodyLayer}
+                // float parameter that this site references via {@code fload_0}. Donkey / mule hit
+                // this: their {@code createBodyLayer(float)} reads the renderer's per-variant scale,
+                // which our tooling-side source builder doesn't currently populate. Skip the capture
+                // so the bone tree stays unscaled rather than collapsing to a flat plane; the static-
+                // field {@code DONKEY_TRANSFORMER} side (also unhandled) remains an open A5 gap.
+                if (f == 0f) {
+                    if (state.diagnostics != null && state.currentSource != null)
+                        state.diagnostics.info("%s: MeshTransformer.scaling(0) skipped - synthetic source missing paramFloatValues", state.currentSource.entityId());
+                    return;
+                }
+                state.meshTransformerScale *= f;
                 return;
             }
             // Mth.cos(D)F / Mth.sin(D)F: vanilla model factories occasionally precompute bind-pose
@@ -1536,6 +1692,11 @@ public final class ToolingBlockEntities {
                     state.parentBone = state.nextParent;
                     state.nextParent = null;
                     state.lastFlushedBone = null;
+                    // Each new builder starts fresh - clear the mirror flag so it doesn't leak
+                    // from a previous bone's CubeListBuilder.mirror() call. Vanilla constructs a
+                    // new CubeListBuilder per addOrReplaceChild via create(), and the new
+                    // builder's mirror starts false.
+                    state.pendingMirror = false;
                 }
                 case "texOffs" -> {
                     if (methodInsn.desc.startsWith("(II")) {
@@ -1587,17 +1748,20 @@ public final class ToolingBlockEntities {
                     } else if (methodInsn.desc.startsWith("(FFFFFFZ") || methodInsn.desc.startsWith("(Ljava/lang/String;FFFFFFZ")) {
                         // Mirror-flagged addBox: pop the trailing boolean first so the float
                         // pop order isn't shifted by one. {@code mirror=true} flips face UVs on
-                        // this cube; the parser doesn't currently model per-cube mirror, but the
-                        // pop is still required for correct stack accounting.
+                        // this cube only (does not affect the builder's pendingMirror state for
+                        // subsequent cubes).
                         requireStack(state, 7, "CubeListBuilder.addBox(FFFFFFZ)");
-                        popIntWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFFZ) mirror");
+                        int cubeMirror = popIntWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFFZ) mirror");
                         float d = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFFZ) d");
                         float h = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFFZ) h");
                         float w = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFFZ) w");
                         float z = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFFZ) z");
                         float y = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFFZ) y");
                         float x = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFFZ) x");
+                        boolean savedMirror = state.pendingMirror;
+                        if (state.paramFloatValues != null) state.pendingMirror = cubeMirror != 0;
                         emitCube(state, x, y, z, w, h, d, state.pendingUv[0], state.pendingUv[1]);
+                        state.pendingMirror = savedMirror;
                     } else if (methodInsn.desc.startsWith("(FFFFFF") || methodInsn.desc.startsWith("(Ljava/lang/String;FFFFFF")) {
                         requireStack(state, 6, "CubeListBuilder.addBox(FFFFFF)");
                         float d = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFF) d");
@@ -1610,12 +1774,24 @@ public final class ToolingBlockEntities {
                     }
                 }
                 case "mirror" -> {
-                    // mirror(Z) flips face-UVs on subsequent addBox cubes in vanilla. The atlas
-                    // pipeline doesn't model per-cube mirror yet; pop the boolean to keep the
-                    // literal stack aligned so it doesn't leak into the next builder call.
+                    // CubeListBuilder.mirror(Z) sets the builder's mirror flag explicitly.
+                    // CubeListBuilder.mirror() is a no-arg shortcut for mirror(true) - vanilla's
+                    // AbstractEquineModel.createBodyMesh / similar use this for the right-side
+                    // legs / right ear to flip UVs so the leg's outer face draws the same texture
+                    // region as the left leg's outer face. Captured into
+                    // {@link ParseState#pendingMirror} so it propagates to the cube's emitted
+                    // {@code mirror} field; the kit's UV resolution then flips face UVs
+                    // horizontally for those cubes (already wired via
+                    // {@code rect.toUvCorners(..., mirror)}).
                     if (methodInsn.desc.startsWith("(Z")) {
                         requireStack(state, 1, "CubeListBuilder.mirror(Z)");
-                        popIntWithDiagnostics(state, "CubeListBuilder.mirror(Z)");
+                        int mirrorVal = popIntWithDiagnostics(state, "CubeListBuilder.mirror(Z)");
+                        if (state.paramFloatValues != null)
+                            state.pendingMirror = mirrorVal != 0;
+                    } else if (methodInsn.desc.startsWith("()")) {
+                        // No-arg mirror() is the equivalent of mirror(true).
+                        if (state.paramFloatValues != null)
+                            state.pendingMirror = true;
                     }
                 }
                 default -> { }
@@ -1629,7 +1805,12 @@ public final class ToolingBlockEntities {
          * builder chain. Cube layout is {@code [x, y, z, w, h, d, u, v, inflate]}.
          */
         private static void emitCube(@NotNull ParseState state, float x, float y, float z, float w, float h, float d, int u, int v) {
-            state.pendingCubes.add(new float[]{ x, y, z, w, h, d, u, v, state.pendingInflate });
+            // Cube layout slot 9: mirror flag (0f = not mirrored, 1f = mirrored). Per-cube
+            // mirror-flagged addBox variants pre-set {@code state.pendingMirror} and restore it
+            // after; builder-level {@code mirror(Z)} state persists until changed.
+            state.pendingCubes.add(new float[]{
+                x, y, z, w, h, d, u, v, state.pendingInflate, state.pendingMirror ? 1f : 0f
+            });
             // Reset to the source's defaultInflate (zero for normal entity sources, non-zero for
             // composite-overlay sources whose factory takes a {@code CubeDeformation} arg) so
             // every cube in the chain picks up the call-site's deformation by default. Inline
@@ -1937,6 +2118,25 @@ public final class ToolingBlockEntities {
             float pendingScale = 1f;
 
             /**
+             * Whole-layer uniform scale captured from {@code MeshTransformer.scaling(F)} call(s)
+             * on the {@code LayerDefinition}; {@code 1f} when no MeshTransformer is applied.
+             * Re-walked into the emitted bone tree by {@link #applyMeshTransformerScaling} after
+             * {@link #walkInstructions} returns. Multiplies on subsequent calls so
+             * {@code .apply(scaling(a)).apply(scaling(b))} composes as {@code a * b}.
+             */
+            float meshTransformerScale = 1f;
+
+            /**
+             * Cache of {@code <clinit>}-resolved {@code static final MeshTransformer} field values
+             * keyed by {@code "owner/internal/Name.FIELD_NAME"}. Populated lazily by
+             * {@link #resolveStaticMeshTransformer} when the body walker hits a {@code GETSTATIC}
+             * on a MeshTransformer field. Stores {@code null} for fields whose {@code <clinit>}
+             * initialiser uses a non-scaling MeshTransformer factory (combined, invokedynamic) so
+             * we don't re-walk those repeatedly.
+             */
+            final @NotNull ConcurrentMap<String, Float> resolvedMeshTransformers = Concurrent.newMap();
+
+            /**
              * Uniform inflate captured from the most recent {@code new CubeDeformation(F)} or
              * {@code .extend(F)} call; consumed by the next {@code addBox} variant and reset
              * to {@code 0f} after the cube emits. Asymmetric {@code (FFF)} variants average
@@ -1946,6 +2146,22 @@ public final class ToolingBlockEntities {
              * gating field so existing parses emit {@code inflate: 0} unchanged.
              */
             float pendingInflate = 0f;
+
+            /**
+             * Current builder-level mirror flag set by {@code CubeListBuilder.mirror(true)} -
+             * applies to every subsequent {@code addBox} cube until the builder hits a
+             * {@code mirror(false)} call or the chain ends. Captured on the
+             * {@code CubeListBuilder.mirror(Z)} dispatch (the boolean is popped into this slot
+             * instead of being discarded). The {@code addBox(..., Z, ...)} mirror-flagged
+             * variants override this on a per-cube basis. Vanilla's
+             * {@code AbstractEquineModel.createBodyMesh} flips {@code mirror=true} for the
+             * right-side legs / right ear so the leg's outer-face UV draws the same texture
+             * region as the left leg's outer face rather than its mirror; without propagating
+             * this through to the kit, both right legs render facing the wrong way (the
+             * skeleton-horse user report). The kit already consumes
+             * {@link EntityModelData.Cube#isMirror()} via {@code rect.toUvCorners(..., mirror)}.
+             */
+            boolean pendingMirror = false;
 
             /**
              * The factory's default {@code CubeDeformation} inflate, captured at the call site
@@ -2014,11 +2230,12 @@ public final class ToolingBlockEntities {
                 cube.add("uv", uv);
 
                 // Bedrock-side block-entity sources never set paramFloatValues so their cubes
-                // carry length-8 arrays with no inflate slot - write 0 in that case to keep the
-                // wire format identical. Java sources go through emitCube which captures the
-                // CubeDeformation inflate at index 8.
+                // carry length-8 arrays with no inflate / mirror slot - write 0 / false in that
+                // case to keep the wire format identical. Java sources go through emitCube which
+                // captures the CubeDeformation inflate at index 8 and the {@code mirror} flag at
+                // index 9 (propagated from CubeListBuilder.mirror or per-cube addBox(...Z...)).
                 cube.addProperty("inflate", c.length >= 9 ? c[8] : 0.0f);
-                cube.addProperty("mirror", false);
+                cube.addProperty("mirror", c.length >= 10 && c[9] != 0f);
                 cube.add("face_uv", new JsonObject());
                 cubeArray.add(cube);
             }

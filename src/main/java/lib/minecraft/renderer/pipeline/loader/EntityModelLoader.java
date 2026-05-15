@@ -410,7 +410,8 @@ public class EntityModelLoader {
                     cube.getPivot(), cube.getRotation(), cube.getFaceUv()
                 ));
             inflated.put(e.getKey(), new EntityModelData.Bone(
-                bone.getPivot(), bone.getRotation(), bone.getBindPoseRotation(), Concurrent.adoptList(cubes), bone.getParent()
+                bone.getPivot(), bone.getRotation(), bone.getBindPoseRotation(),
+                bone.getScale(), Concurrent.adoptList(cubes), bone.getParent()
             ));
         }
         return new EntityModelData(
@@ -523,7 +524,8 @@ public class EntityModelLoader {
                 parent = patch.get("parent").isJsonNull() ? null : patch.get("parent").getAsString();
 
             bones.put(boneName, new EntityModelData.Bone(
-                pivot, rotation, existing.getBindPoseRotation(), cubes, parent
+                pivot, rotation, existing.getBindPoseRotation(),
+                existing.getScale(), cubes, parent
             ));
         }
     }
@@ -762,7 +764,8 @@ public class EntityModelLoader {
             if (spec.has("parent") && !spec.get("parent").isJsonNull())
                 parent = spec.get("parent").getAsString();
             bones.put(newName, new EntityModelData.Bone(
-                newPivot, rotation, template.getBindPoseRotation(), shifted, parent
+                newPivot, rotation, template.getBindPoseRotation(),
+                template.getScale(), shifted, parent
             ));
         }
     }
@@ -885,6 +888,7 @@ public class EntityModelLoader {
                 existing.getPivot(),
                 existing.getRotation(),
                 pose,
+                existing.getScale(),
                 existing.getCubes(),
                 existing.getParent()
             ));

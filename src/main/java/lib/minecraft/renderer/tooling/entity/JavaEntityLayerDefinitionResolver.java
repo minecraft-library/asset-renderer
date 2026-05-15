@@ -11,6 +11,7 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
@@ -63,6 +64,15 @@ public final class JavaEntityLayerDefinitionResolver {
     /** Suffix of every {@code (...)MeshDefinition} method descriptor. */
     private static final @NotNull String MESH_DEFINITION_DESC_RETURN = ")Lnet/minecraft/client/model/geom/builders/MeshDefinition;";
 
+    /** JVM internal name of {@code net.minecraft.client.model.geom.builders.MeshTransformer}. */
+    private static final @NotNull String MESH_TRANSFORMER = "net/minecraft/client/model/geom/builders/MeshTransformer";
+
+    /** Field descriptor for a {@code MeshTransformer}-typed field or local. */
+    private static final @NotNull String MESH_TRANSFORMER_DESC = "L" + MESH_TRANSFORMER + ";";
+
+    /** Method descriptor of {@code LayerDefinition.apply(MeshTransformer)LayerDefinition}. */
+    private static final @NotNull String APPLY_DESC = "(" + MESH_TRANSFORMER_DESC + ")L" + LAYER_DEFINITION_CLASS + ";";
+
     /**
      * The resolved factory target for one entity's primary mesh.
      *
@@ -83,7 +93,9 @@ public final class JavaEntityLayerDefinitionResolver {
         @Nullable Integer texWidthOverride,
         @Nullable Integer texHeightOverride,
         @NotNull String sourceLayerField,
-        float defaultInflate
+        float defaultInflate,
+        @Nullable Float defaultFloatParam,
+        float appliedMeshTransformerScale
     ) {
 
         /** Convenience constructor for resolutions whose factory takes no {@code CubeDeformation} arg. */
@@ -95,7 +107,45 @@ public final class JavaEntityLayerDefinitionResolver {
             @Nullable Integer texHeightOverride,
             @NotNull String sourceLayerField
         ) {
-            this(targetClass, targetMethod, targetDesc, texWidthOverride, texHeightOverride, sourceLayerField, 0f);
+            this(targetClass, targetMethod, targetDesc, texWidthOverride, texHeightOverride, sourceLayerField, 0f, null, 1f);
+        }
+
+        /** Convenience constructor preserving the prior 7-arg signature (no {@code defaultFloatParam}, no applied MT). */
+        public Resolution(
+            @NotNull String targetClass,
+            @NotNull String targetMethod,
+            @NotNull String targetDesc,
+            @Nullable Integer texWidthOverride,
+            @Nullable Integer texHeightOverride,
+            @NotNull String sourceLayerField,
+            float defaultInflate
+        ) {
+            this(targetClass, targetMethod, targetDesc, texWidthOverride, texHeightOverride, sourceLayerField, defaultInflate, null, 1f);
+        }
+
+        /** Convenience constructor preserving the prior 8-arg signature (no applied MT). */
+        public Resolution(
+            @NotNull String targetClass,
+            @NotNull String targetMethod,
+            @NotNull String targetDesc,
+            @Nullable Integer texWidthOverride,
+            @Nullable Integer texHeightOverride,
+            @NotNull String sourceLayerField,
+            float defaultInflate,
+            @Nullable Float defaultFloatParam
+        ) {
+            this(targetClass, targetMethod, targetDesc, texWidthOverride, texHeightOverride, sourceLayerField, defaultInflate, defaultFloatParam, 1f);
+        }
+
+        /**
+         * Returns a copy with {@code appliedMeshTransformerScale} multiplied by {@code factor}.
+         * Used by the resolver when a chain of {@code .apply(MeshTransformer)} calls follows the
+         * factory invocation - each one composes by multiplication with the prior captures.
+         */
+        public Resolution composeAppliedScale(float factor) {
+            return new Resolution(targetClass, targetMethod, targetDesc, texWidthOverride,
+                texHeightOverride, sourceLayerField, defaultInflate, defaultFloatParam,
+                appliedMeshTransformerScale * factor);
         }
     }
 
@@ -246,6 +296,17 @@ public final class JavaEntityLayerDefinitionResolver {
         }
 
         Map<Integer, Resolution> slotState = new LinkedHashMap<>();
+        // Track {@code astore N} of MeshTransformer references built locally via
+        // {@code ldc F; invokestatic MeshTransformer.scaling(F)}. When a later {@code aload N}
+        // precedes an {@code invokevirtual LayerDefinition.apply(MeshTransformer)}, the F here
+        // is the scale we want to fold into the {@link Resolution#appliedMeshTransformerScale()}.
+        // The horse layer uses this pattern: {@code ldc 1.1f; invokestatic scaling; astore 75; ...
+        // aload 75; invokevirtual apply}.
+        Map<Integer, Float> meshTransformerSlots = new LinkedHashMap<>();
+        // Per-class <clinit> cache for static MeshTransformer fields; lazily populated by
+        // {@link #resolveStaticMeshTransformer}. Cat uses this pattern:
+        // {@code getstatic AdultCatModel.CAT_TRANSFORMER; invokevirtual apply}.
+        Map<String, Float> staticMeshTransformerCache = new LinkedHashMap<>();
         String pendingLayerField = null;
         Resolution pendingDirect = null;
         Resolution pendingMesh = null;
@@ -258,6 +319,14 @@ public final class JavaEntityLayerDefinitionResolver {
         // Reset on each new ModelLayers field so the value can't leak across registrations.
         Float pendingDeformationInflate = null;
         Float pendingFloat = null;
+        // F of the {@code MeshTransformer.scaling(F)} that just returned to the operand stack but
+        // hasn't yet been astored to a slot or applied. Cleared by ASTORE (captures into
+        // {@code meshTransformerSlots}) or by other consuming opcodes.
+        Float pendingScalingMTFloat = null;
+        // F of the MeshTransformer most recently pushed onto the operand stack (via GETSTATIC of a
+        // static MeshTransformer field, or ALOAD of a tracked slot). Consumed by the next
+        // {@code invokevirtual apply(MeshTransformer)} to fold into {@link #pendingDirect}.
+        Float pendingAppliedMTScale = null;
 
         for (AbstractInsnNode in = createRoots.instructions.getFirst(); in != null; in = in.getNext()) {
             int opcode = in.getOpcode();
@@ -299,6 +368,32 @@ public final class JavaEntityLayerDefinitionResolver {
                 pendingInt = null;
                 pendingDeformationInflate = null;
                 pendingFloat = null;
+                pendingAppliedMTScale = null;
+                continue;
+            }
+
+            // {@code GETSTATIC <field>: MeshTransformer} - cat / horse-family pattern that
+            // chains a class-level static transformer onto the LayerDefinition via apply().
+            // Resolve via the field owner's {@code <clinit>} walker; missing or
+            // non-canonically-initialised fields resolve to null, leaving the chain at the
+            // base scale of 1f. The subsequent invokevirtual apply consumes pendingAppliedMTScale.
+            if (in instanceof FieldInsnNode fi && opcode == Opcodes.GETSTATIC
+                && MESH_TRANSFORMER_DESC.equals(fi.desc)) {
+                pendingAppliedMTScale = resolveStaticMeshTransformer(fi.owner, fi.name, staticMeshTransformerCache, zip);
+                continue;
+            }
+
+            // {@code invokestatic MeshTransformer.scaling(F)MeshTransformer} - the horse-family
+            // pattern that builds a local MeshTransformer and astores it for later .apply() use.
+            // Mark the pending scaling result so the next ASTORE binds it to a slot.
+            if (in instanceof MethodInsnNode mi
+                && opcode == Opcodes.INVOKESTATIC
+                && MESH_TRANSFORMER.equals(mi.owner)
+                && "scaling".equals(mi.name)
+                && ("(F)" + MESH_TRANSFORMER_DESC).equals(mi.desc)
+                && pendingFloat != null) {
+                pendingScalingMTFloat = pendingFloat;
+                pendingFloat = null;
                 continue;
             }
 
@@ -325,23 +420,63 @@ public final class JavaEntityLayerDefinitionResolver {
                     continue;
                 }
                 if (mi.desc.endsWith(LAYER_DEFINITION_DESC_RETURN) && !LAYER_DEFINITION_CLASS.equals(mi.owner)) {
+                    // When the factory takes a single {@code float} arg (e.g.
+                    // {@code DonkeyModel.createBodyLayer(F)}), capture the call-site literal so
+                    // the parser can substitute it via {@code paramFloatValues[0]}. The donkey
+                    // call site is {@code ldc 0.87f; invokestatic createBodyLayer(F)} - so
+                    // {@code pendingFloat} carries the F we want. Other arities (no args, or
+                    // CubeDeformation only) leave {@code defaultFloatParam} null.
+                    Float floatParam = (pendingFloat != null && mi.desc.startsWith("(F)")) ? pendingFloat : null;
                     pendingDirect = new Resolution(mi.owner, mi.name, mi.desc, null, null,
                         pendingLayerField == null ? "" : pendingLayerField,
-                        pendingDeformationInflate != null ? pendingDeformationInflate : 0f);
+                        pendingDeformationInflate != null ? pendingDeformationInflate : 0f,
+                        floatParam);
                     pendingDeformationInflate = null;
+                    pendingFloat = null;
                 }
                 continue;
             }
 
-            if (in instanceof VarInsnNode vi && opcode == Opcodes.ASTORE && pendingDirect != null) {
-                slotState.put(vi.var, pendingDirect);
-                pendingDirect = null;
+            if (in instanceof VarInsnNode vi && opcode == Opcodes.ASTORE) {
+                if (pendingScalingMTFloat != null) {
+                    meshTransformerSlots.put(vi.var, pendingScalingMTFloat);
+                    pendingScalingMTFloat = null;
+                    continue;
+                }
+                if (pendingDirect != null) {
+                    slotState.put(vi.var, pendingDirect);
+                    pendingDirect = null;
+                    continue;
+                }
                 continue;
             }
 
             if (in instanceof VarInsnNode vi && opcode == Opcodes.ALOAD) {
                 Resolution stored = slotState.get(vi.var);
-                if (stored != null) pendingDirect = stored;
+                if (stored != null) {
+                    pendingDirect = stored;
+                    continue;
+                }
+                Float mtSlot = meshTransformerSlots.get(vi.var);
+                if (mtSlot != null) pendingAppliedMTScale = mtSlot;
+                continue;
+            }
+
+            // {@code invokevirtual LayerDefinition.apply(MeshTransformer)LayerDefinition} - the
+            // chain that wraps a per-class MeshTransformer onto a LayerDefinition right before
+            // the ImmutableMap.put. Cat puts CAT_TRANSFORMER (0.8f) here for ModelLayers.CAT;
+            // horse pulls the scaling result from local slot 75 for ModelLayers.HORSE.
+            // Fold the resolved F into {@code pendingDirect} so the downstream put step writes
+            // the composed scale into the {@link Resolution}.
+            if (in instanceof MethodInsnNode mi
+                && opcode == Opcodes.INVOKEVIRTUAL
+                && LAYER_DEFINITION_CLASS.equals(mi.owner)
+                && "apply".equals(mi.name)
+                && APPLY_DESC.equals(mi.desc)
+                && pendingDirect != null
+                && pendingAppliedMTScale != null) {
+                pendingDirect = pendingDirect.composeAppliedScale(pendingAppliedMTScale);
+                pendingAppliedMTScale = null;
                 continue;
             }
 
@@ -358,15 +493,83 @@ public final class JavaEntityLayerDefinitionResolver {
                     pendingDirect.texWidthOverride,
                     pendingDirect.texHeightOverride,
                     pendingLayerField,
-                    pendingDirect.defaultInflate
+                    pendingDirect.defaultInflate,
+                    pendingDirect.defaultFloatParam,
+                    pendingDirect.appliedMeshTransformerScale
                 ));
                 pendingLayerField = null;
                 pendingDirect = null;
                 pendingMesh = null;
                 pendingInt = null;
+                pendingAppliedMTScale = null;
             }
         }
         return out;
+    }
+
+    /**
+     * Resolves a {@code static final MeshTransformer} field reference to its scaling factor F by
+     * walking the owning class's {@code <clinit>}. Matches the canonical
+     * {@code ldc F; invokestatic MeshTransformer.scaling(F); putstatic <name>} pattern.
+     * Cat ({@code AdultCatModel.CAT_TRANSFORMER = scaling(0.8f)}) is the primary consumer; same
+     * logic supports any per-class static MeshTransformer like dolphin / salmon / squid /
+     * pufferfish family fields. Compound initialisations (multiple applies in {@code <clinit>},
+     * {@code invokedynamic}-backed transformers such as {@code DonkeyModel.DONKEY_TRANSFORMER})
+     * fall through and return {@code null}, causing the caller to leave
+     * {@code appliedMeshTransformerScale} at its identity default of {@code 1f}.
+     *
+     * <p>Cached per-field across the entire {@code LayerDefinitions.createRoots} walk so a single
+     * class's {@code <clinit>} is walked at most once even if multiple {@code ModelLayers.X}
+     * entries reference its fields. Mirrors the parser-side
+     * {@code ToolingBlockEntities.Parser.resolveStaticMeshTransformer} walker; kept separate so
+     * the resolver doesn't reach into block-entity-package internals.
+     *
+     * @return F when the field's initialiser is a literal {@code MeshTransformer.scaling(F)},
+     *     {@code null} for unhandled patterns
+     */
+    private static @Nullable Float resolveStaticMeshTransformer(
+        @NotNull String owner, @NotNull String name,
+        @NotNull Map<String, Float> cache, @NotNull ZipFile zip
+    ) {
+        String key = owner + "." + name;
+        if (cache.containsKey(key)) return cache.get(key);
+
+        ClassNode cls = AsmKit.loadClass(zip, owner);
+        MethodNode clinit = cls != null ? AsmKit.findMethod(cls, "<clinit>") : null;
+        if (clinit == null) {
+            cache.put(key, null);
+            return null;
+        }
+
+        Float pendingFloat = null;
+        Float pendingScaled = null;
+        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+            int op = in.getOpcode();
+            if (op < 0) continue;
+            if (in instanceof LdcInsnNode ldc && ldc.cst instanceof Float f) {
+                pendingFloat = f;
+            } else if (in instanceof MethodInsnNode mi
+                && op == Opcodes.INVOKESTATIC
+                && MESH_TRANSFORMER.equals(mi.owner)
+                && "scaling".equals(mi.name)
+                && ("(F)" + MESH_TRANSFORMER_DESC).equals(mi.desc)
+                && pendingFloat != null) {
+                pendingScaled = pendingFloat;
+                pendingFloat = null;
+            } else if (in instanceof FieldInsnNode fi
+                && op == Opcodes.PUTSTATIC
+                && MESH_TRANSFORMER_DESC.equals(fi.desc)
+                && fi.owner.equals(owner)) {
+                cache.put(owner + "." + fi.name, pendingScaled);
+                pendingScaled = null;
+                pendingFloat = null;
+            } else {
+                pendingFloat = null;
+            }
+        }
+
+        cache.putIfAbsent(key, null);
+        return cache.get(key);
     }
 
 }

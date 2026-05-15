@@ -59,12 +59,10 @@ public class EntityGeometryKitJava {
     private static final float MIN_MODEL_EXTENT = 0.001f;
 
     /**
-     * Per-axis flip / negation switches for the iteration harness in Phase E.6. Each switch
-     * defaults to the production setting; override at runtime via {@code -Dentity.flipX=true}
-     * etc. so the parity script can sweep combinations without recompiling. The Y-flip and
-     * Y-normal-flip are the legacy production defaults (matching the bedrock kit's Y-up
-     * screen output). Other knobs default to identity. Read once at class load - changing
-     * after the first render is a no-op until JVM restart.
+     * Per-axis flip / negation switches - debug/test only. Defaults to the production setting
+     * (Y-flip on positions and Y-flip on normals; other axes identity). Override at runtime
+     * via {@code -Dentity.flipX=true} etc. for parity sweeps. Will be removed once bedrock-era
+     * iteration tooling is fully retired - do not reference these for production logic.
      */
     private static final boolean FLIP_X = Boolean.getBoolean("entity.flipX");
     private static final boolean FLIP_Y = !"false".equalsIgnoreCase(System.getProperty("entity.flipY", "true"));
@@ -221,17 +219,28 @@ public class EntityGeometryKitJava {
             // the bone's absolute pivot here so the rendered cubes land in world space.
             // {@link #TRANSLATE_BY_PIVOT} can disable this for the iteration harness.
             Vector3f bonePivot = bone.getPivot();
+            // Bone-level uniform scale captured from {@code MeshTransformer.scaling(F)} /
+            // {@code PartPose.scaled(F)}. Vanilla {@code ModelPart.render} translates by pivot,
+            // rotates, then {@code poseStack.scale(s, s, s)} the local cube space - so each cube
+            // vertex world-position is {@code pivot + R * (s * v_local)}. Our chain pivot-translates
+            // post-rotation via {@link #composeCubeTransform}; multiplying {@code origin}, {@code
+            // size}, and {@code inflate} by {@code s} here puts the cube in scaled-local space
+            // before the bone-pivot translate, which is algebraically equivalent for any rotation
+            // R that commutes with uniform scale (every R does). UVs stay tied to the unscaled
+            // {@code size} field, matching vanilla's per-vertex scale-after-UV-resolve order.
+            float s = bone.getScale();
             for (EntityModelData.Cube cube : bone.getCubes()) {
                 Vector3f origin = cube.getOrigin();
                 Vector3f size = cube.getSize();
                 float inflate = cube.getInflate();
 
-                float ox = TRANSLATE_BY_PIVOT ? bonePivot.x() + origin.x() : origin.x();
-                float oy = TRANSLATE_BY_PIVOT ? bonePivot.y() + origin.y() : origin.y();
-                float oz = TRANSLATE_BY_PIVOT ? bonePivot.z() + origin.z() : origin.z();
+                float scaledInflate = s * inflate;
+                float ox = TRANSLATE_BY_PIVOT ? bonePivot.x() + s * origin.x() : s * origin.x();
+                float oy = TRANSLATE_BY_PIVOT ? bonePivot.y() + s * origin.y() : s * origin.y();
+                float oz = TRANSLATE_BY_PIVOT ? bonePivot.z() + s * origin.z() : s * origin.z();
                 Box cubeBounds = new Box(
-                    ox - inflate, oy - inflate, oz - inflate,
-                    ox + size.x() + inflate, oy + size.y() + inflate, oz + size.z() + inflate
+                    ox - scaledInflate, oy - scaledInflate, oz - scaledInflate,
+                    ox + s * size.x() + scaledInflate, oy + s * size.y() + scaledInflate, oz + s * size.z() + scaledInflate
                 );
 
                 Matrix4f fullTransform = composeCubeTransform(cube, bone, boneChain);
@@ -261,37 +270,33 @@ public class EntityGeometryKitJava {
                         (FLIP_NORMAL_Y ? -1f : 1f) * rawNormal.y(),
                         (FLIP_NORMAL_Z ? -1f : 1f) * rawNormal.z()
                     );
-                    // The Y-flip applied to positions above (Y-down model frame -> Y-up screen
-                    // frame) leaves UP and DOWN faces visually swapped: maxY-vertices of the cube
-                    // (which {@link EntityFace#UP} indexes) now sit at the screen-bottom of the
-                    // cube. Resolve UV against the OPPOSITE face for vertical faces so the
-                    // texture region matches what's visually at that location.
-                    EntityFace uvFace = switch (face) {
-                        case UP -> EntityFace.DOWN;
-                        case DOWN -> EntityFace.UP;
-                        default -> face;
-                    };
-                    Vector2f[] uv = resolveFaceUv(uvFace, cube, size, texW, texH);
+                    // For {@code cube.isMirror()} cubes, vanilla's {@code ModelPart.Cube} ctor
+                    // swaps the {@code x} and {@code maxX} variables before building the 8
+                    // vertices, which has the net effect of swapping which UV strip is applied
+                    // to the cube's +X vs -X face (vanilla's WEST polygon UV ends up on the +X
+                    // face, EAST polygon UV on the -X face). The polygon ctor also reverses each
+                    // polygon's vertex array, which U-flips every face's UV mapping. Replicate
+                    // both effects here for mirror=true cubes; non-mirror cubes use the natural
+                    // face-to-UV mapping.
+                    Vector2f[] uv = resolveFaceUv(mirrorFace(face, cube.isMirror()), cube, size, texW, texH);
 
-                    // The Y-flip on positions interacts differently with each face's UV mapping:
-                    //
+                    // Per-face UV permutation derived from vanilla {@code ModelPart.Cube}'s polygon
+                    // ctor + the kit's corner ordering relative to vanilla's polygon vertex order:
                     // <ul>
-                    //   <li><b>SIDE faces</b> (NORTH / SOUTH / EAST / WEST): V is along world Y,
-                    //       so the position Y-flip mirrors V across the face mid-line. Counteract
-                    //       with a V-flip permutation {@code [1, 0, 3, 2]} (TL↔BL, BR↔TR) so
-                    //       each visual-position vertex pairs with the right texture corner.</li>
-                    //   <li><b>UP / DOWN faces</b>: V is along world Z (not Y) so the Y-flip
-                    //       doesn't mirror V. But {@link EntityFace#corners} walks the cube top in
-                    //       {@code (NW, SW, SE, NE)} order while vanilla MC's TOP-face UV unwrap
-                    //       places its TL at the SE corner - net mismatch is a U-flip across the
-                    //       face. Counteract with {@code [3, 2, 1, 0]} (TL↔TR, BL↔BR). Without
-                    //       this the top-of-head and back-of-body textures rendered east-west
-                    //       flipped (eg. "dark splat that should sit under the hair" appearing
-                    //       on the wrong end of the cube top).</li>
+                    //   <li><b>UP</b> (vanilla v1 > v2, V-inverted on atlas): {@code [1, 0, 3, 2]}.</li>
+                    //   <li><b>DOWN</b> (vanilla v1 < v2): identity {@code [0, 1, 2, 3]}.</li>
+                    //   <li><b>SIDE faces</b> (NORTH/SOUTH/EAST/WEST, v1 < v2): {@code [2, 3, 0, 1]}.</li>
                     // </ul>
-                    Vector2f[] effUv = (face == EntityFace.UP || face == EntityFace.DOWN)
-                        ? new Vector2f[]{ uv[3], uv[2], uv[1], uv[0] }
-                        : new Vector2f[]{ uv[1], uv[0], uv[3], uv[2] };
+                    // Each face's kit corner order ({@link EntityFace#vertexIndices}) is cyclic-
+                    // shifted by 1 from vanilla's polygon vertex array; combined with vanilla's
+                    // (TR/TL/BL/BR) UV slot pattern this produces a per-face cyclic-shift that
+                    // depends on V inversion. Independent of FLIP_X/FLIP_Y: those change where
+                    // vertices project to screen, but each vertex's vanilla-spec UV is unchanged.
+                    Vector2f[] effUv = switch (face) {
+                        case UP -> new Vector2f[]{ uv[1], uv[0], uv[3], uv[2] };
+                        case DOWN -> new Vector2f[]{ uv[0], uv[1], uv[2], uv[3] };
+                        default -> new Vector2f[]{ uv[2], uv[3], uv[0], uv[1] };
+                    };
 
                     // Bake vanilla's {@code Lighting.ENTITY_IN_UI} shade factor (two-directional
                     // Lambertian with ambient floor) into the triangle so the rasterizer applies
@@ -305,18 +310,58 @@ public class EntityGeometryKitJava {
                     // bones whose rotation produces non-cardinal normals (running zombie legs,
                     // bee leashes) where a {@link BlockFace#fromNormal} approximation would
                     // collapse adjacent faces to the same shade.
-                    float shading = RenderEngine.computeEntityInUiLighting(normal);
-                    // Natural CCW emission {@code (0, 1, 2)} and {@code (0, 2, 3)}. Total pipeline
-                    // chirality: kit FLIP_Y (det -1) × engine_camera (det -1 due to entity iso's
-                    // trailing Y-flip for projection-convention compensation) × projection's -y
-                    // (det -1) = det -1. Model CCW → screen CW → rasterizer's
-                    // {@code signedArea < 0} check correctly classifies these as front-facing.
+                    // PER_FACE_LIGHTING: vanilla's entity render types (entityCutoutNoCull
+                    // for fish fins / warden tendrils / skeleton horse rib cage) bind a shader
+                    // that pre-computes BOTH a front-color (max(0, dot(L, n))) and a back-color
+                    // (max(0, dot(-L, n))) per vertex; the fragment shader picks one via
+                    // {@code gl_FrontFacing} based on screen-space winding.
                     // <p>
-                    // The earlier reversed emission {@code (0, 2, 1)} / {@code (0, 3, 2)} was
-                    // designed for the OLD block-iso engine_camera (pure rotation det +1) where
-                    // the kit's Y-flip alone reversed chirality. With the entity iso's det=-1
-                    // engine_camera, the kit's Y-flip no longer needs winding compensation -
-                    // emission stays natural CCW.
+                    // For PLANE cubes (one size component == 0) the DOWN/UP polygons cover the
+                    // same screen pixels at the same depth with opposite windings - one is
+                    // {@code gl_FrontFacing=true}, the other false. Vanilla's back-facing
+                    // polygon picks the back color = shade against -normal, which equals the
+                    // front color of the OTHER polygon at the same pixel. Net result: both
+                    // polygons render at the BRIGHTER of the two opposing-normal shades.
+                    // We model this as {@code max(shade(n), shade(-n))} for plane cubes.
+                    // <p>
+                    // For 3D no-cull cubes (skeleton horse rib cage) the back-facing polygons
+                    // are GEOMETRICALLY behind the front-facing ones; depth-test rejects them
+                    // unless the front polygon was alpha-discarded. Vanilla's back color shines
+                    // through in those alpha-cutout interior pixels, but in our kit applying
+                    // max-abs to all 6 faces over-bright the back faces that DO get exposed
+                    // (skeleton_horse rib cage delta jumped 60 → 64). Restrict the max-abs
+                    // tweak to plane cubes only - the geometry where vanilla's per-face split
+                    // is observable matters and our depth-tie tie-break handles the same case.
+                    boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
+                    // Degenerate face: a face whose plane normal lies along the size==0 axis
+                    // collapses to a line (its 4 vertices reduce to 2 distinct points). E.g. for
+                    // a vertical-plane top_fin (size.x=0), the UP/DOWN/NORTH/SOUTH faces all
+                    // collapse - only WEST/EAST have full area. Vanilla emits these polygons too
+                    // but the rasterizer drops them at 0-area; ours rasterizes a thin line at
+                    // a few pixels' worth due to FP error in the bary inside-test, then paints
+                    // wrong-shade artifact pixels (cod top_fin UP painted x=133-135 strip at
+                    // shade 1.0 over the body's WEST shade 0.45). Skip emitting these.
+                    if (isPlaneCube) {
+                        boolean isDegenerate = (size.x() == 0f && (face == EntityFace.WEST || face == EntityFace.EAST)) ? false :
+                                               (size.y() == 0f && (face == EntityFace.UP || face == EntityFace.DOWN)) ? false :
+                                               (size.z() == 0f && (face == EntityFace.NORTH || face == EntityFace.SOUTH)) ? false :
+                                               true;
+                        if (isDegenerate) continue;
+                    }
+                    float shading;
+                    if (!cubeCullBackFaces && isPlaneCube) {
+                        Vector3f flipped = new Vector3f(-normal.x(), -normal.y(), -normal.z());
+                        shading = Math.max(
+                            RenderEngine.computeEntityInUiLighting(normal),
+                            RenderEngine.computeEntityInUiLighting(flipped)
+                        );
+                    } else {
+                        shading = RenderEngine.computeEntityInUiLighting(normal);
+                    }
+                    // Natural CCW emission {@code (0, 1, 2)} and {@code (0, 2, 3)}. Total
+                    // pipeline chirality: kit FLIP_Y (det -1) × engine_camera (det -1) ×
+                    // projection's -y (det -1) = det -1. Model CCW → screen CW → rasterizer's
+                    // {@code signedArea < 0} check correctly classifies these as front-facing.
                     triangles.add(new VisibleTriangle(
                         corners[0], corners[1], corners[2],
                         effUv[0], effUv[1], effUv[2],
@@ -387,18 +432,20 @@ public class EntityGeometryKitJava {
             EntityModelData.Bone bone = entry.getValue();
             Matrix4f boneChain = chainTransforms.get(entry.getKey());
             Vector3f bonePivot = bone.getPivot();
+            float s = bone.getScale();
             for (EntityModelData.Cube cube : bone.getCubes()) {
                 Vector3f origin = cube.getOrigin();
                 Vector3f size = cube.getSize();
                 float inflate = cube.getInflate();
                 Matrix4f cubeTransform = composeCubeTransform(cube, bone, boneChain);
 
-                float ox = TRANSLATE_BY_PIVOT ? bonePivot.x() + origin.x() : origin.x();
-                float oy = TRANSLATE_BY_PIVOT ? bonePivot.y() + origin.y() : origin.y();
-                float oz = TRANSLATE_BY_PIVOT ? bonePivot.z() + origin.z() : origin.z();
-                float[] xs = { ox - inflate, ox + size.x() + inflate };
-                float[] ys = { oy - inflate, oy + size.y() + inflate };
-                float[] zs = { oz - inflate, oz + size.z() + inflate };
+                float scaledInflate = s * inflate;
+                float ox = TRANSLATE_BY_PIVOT ? bonePivot.x() + s * origin.x() : s * origin.x();
+                float oy = TRANSLATE_BY_PIVOT ? bonePivot.y() + s * origin.y() : s * origin.y();
+                float oz = TRANSLATE_BY_PIVOT ? bonePivot.z() + s * origin.z() : s * origin.z();
+                float[] xs = { ox - scaledInflate, ox + s * size.x() + scaledInflate };
+                float[] ys = { oy - scaledInflate, oy + s * size.y() + scaledInflate };
+                float[] zs = { oz - scaledInflate, oz + s * size.z() + scaledInflate };
 
                 for (float x : xs) for (float y : ys) for (float z : zs) {
                     Vector3f cubeSpace = Vector3f.transform(new Vector3f(x, y, z), cubeTransform);
@@ -502,20 +549,22 @@ public class EntityGeometryKitJava {
         for (Map.Entry<String, EntityModelData.Bone> entry : model.getBones().entrySet()) {
             EntityModelData.Bone bone = entry.getValue();
             Matrix4f boneChain = chainTransforms.get(entry.getKey());
-            // Same pivot-translation as in {@link #buildTriangles}.
+            // Same pivot-translation + bone-scale as in {@link #buildTriangles}.
             Vector3f bonePivot = bone.getPivot();
+            float s = bone.getScale();
             for (EntityModelData.Cube cube : bone.getCubes()) {
                 Vector3f origin = cube.getOrigin();
                 Vector3f size = cube.getSize();
                 float inflate = cube.getInflate();
                 Matrix4f fullTransform = composeCubeTransform(cube, bone, boneChain);
 
-                float ox = TRANSLATE_BY_PIVOT ? bonePivot.x() + origin.x() : origin.x();
-                float oy = TRANSLATE_BY_PIVOT ? bonePivot.y() + origin.y() : origin.y();
-                float oz = TRANSLATE_BY_PIVOT ? bonePivot.z() + origin.z() : origin.z();
-                float[] xs = { ox - inflate, ox + size.x() + inflate };
-                float[] ys = { oy - inflate, oy + size.y() + inflate };
-                float[] zs = { oz - inflate, oz + size.z() + inflate };
+                float scaledInflate = s * inflate;
+                float ox = TRANSLATE_BY_PIVOT ? bonePivot.x() + s * origin.x() : s * origin.x();
+                float oy = TRANSLATE_BY_PIVOT ? bonePivot.y() + s * origin.y() : s * origin.y();
+                float oz = TRANSLATE_BY_PIVOT ? bonePivot.z() + s * origin.z() : s * origin.z();
+                float[] xs = { ox - scaledInflate, ox + s * size.x() + scaledInflate };
+                float[] ys = { oy - scaledInflate, oy + s * size.y() + scaledInflate };
+                float[] zs = { oz - scaledInflate, oz + s * size.z() + scaledInflate };
 
                 for (float x : xs) for (float y : ys) for (float z : zs) {
                     Vector3f c = Vector3f.transform(new Vector3f(x, y, z), fullTransform);
@@ -627,7 +676,29 @@ public class EntityGeometryKitJava {
         return toPivot.multiply(rot).multiply(fromPivot);
     }
 
-    /** UV resolution - identical to {@link EntityGeometryKit#resolveFaceUv} since UV is frame-agnostic. */
+    /**
+     * Swaps EAST<->WEST face lookup when {@code mirror} is true. Vanilla's
+     * {@code ModelPart.Cube} ctor swaps the cube's {@code x} and {@code maxX} variables
+     * before building polygon vertices when {@code mirror=true}, which has the net effect
+     * of placing vanilla's WEST polygon UV onto the +X face and vanilla's EAST polygon UV
+     * onto the -X face. Other faces (UP/DOWN/NORTH/SOUTH) stay on their natural UV strip;
+     * their U axis is U-flipped via {@link Vector4f#toUvCorners}'s mirror arg in
+     * {@link #resolveFaceUv}.
+     *
+     * @param face the geometric face being rendered
+     * @param mirror the cube's {@code isMirror} flag
+     * @return the face whose UV strip should be sampled for the given geometric face
+     */
+    private static @NotNull EntityFace mirrorFace(@NotNull EntityFace face, boolean mirror) {
+        if (!mirror) return face;
+        return switch (face) {
+            case EAST -> EntityFace.WEST;
+            case WEST -> EntityFace.EAST;
+            default -> face;
+        };
+    }
+
+    /** UV resolution. Forwards the cube's {@code mirror} flag to {@link Vector4f#toUvCorners} for the U-flip. */
     private static @NotNull Vector2f @NotNull [] resolveFaceUv(
         @NotNull EntityFace face,
         @NotNull EntityModelData.Cube cube,
@@ -648,11 +719,25 @@ public class EntityGeometryKitJava {
     }
 
     /**
-     * Back-face culling heuristic. Plane cubes (any size component equal to zero - e.g.
-     * tadpole tail, top fins, warden tendrils) disable culling so both sides render -
-     * vanilla treats these as double-sided geometry, and with the entity-iso det=-1 chain
-     * one side would otherwise get culled while the other side often samples transparent
-     * texture pixels. Solid cubes use the content-based heuristic
+     * Threshold of alpha-cutout texels on a cube's visible faces above which back-face culling is
+     * disabled - the cube's texture is then treated as {@code entityCutoutNoCull} (vanilla's
+     * render type for skeletons / skeleton_horse / mob armor / leashed bees etc.) rather than
+     * the more common {@code entityCutout}. {@code 0.20} = 20%: well above the small-edge
+     * transparency typical of solid-skinned entities (zombie face cubes have a couple of eye
+     * pixels at alpha=0, far below 20%), well below the large alpha-cutout patterns that vanilla
+     * deliberately renders no-cull ({@code horse_skeleton.png} is 75% transparent, with the
+     * body's side-face UV region similarly perforated for the ribcage silhouette).
+     */
+    private static final float NO_CULL_TRANSPARENCY_THRESHOLD = 0.20f;
+
+    /**
+     * Back-face culling heuristic. Disables culling for plane cubes (any size component equal
+     * to zero - e.g. tadpole tail, top fins, warden tendrils) since vanilla treats these as
+     * double-sided geometry. Also disables culling for cubes whose visible-face UV regions
+     * contain {@link #NO_CULL_TRANSPARENCY_THRESHOLD significant alpha-cutout texels} so
+     * vanilla's {@code entityCutoutNoCull} render type's see-through behaviour (skeleton-horse
+     * ribcage through transparent body cube, wither-skeleton armour through bone outlines) is
+     * mirrored. Solid cubes use the legacy content-based heuristic
      * (identical to {@link EntityGeometryKit#shouldCullBackFaces}).
      */
     private static boolean shouldCullBackFaces(
@@ -663,6 +748,15 @@ public class EntityGeometryKitJava {
         float texH
     ) {
         if (size.x() == 0f || size.y() == 0f || size.z() == 0f) return false;
+        // entityCutoutNoCull detection: cubes with significant alpha-cutout on visible faces
+        // need their back faces to render too so they're visible through the cutouts. Sampling
+        // the three iso-visible faces (UP/NORTH/EAST) is sufficient - cutout textures are
+        // typically symmetric across face pairs (the rib pattern on body NORTH appears on
+        // SOUTH too) and we'd rather miss a one-sided cutout than over-disable culling.
+        if (uvTransparencyExceeds(resolveFaceUv(EntityFace.UP, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD)
+            || uvTransparencyExceeds(resolveFaceUv(EntityFace.NORTH, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD)
+            || uvTransparencyExceeds(resolveFaceUv(EntityFace.EAST, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD))
+            return false;
         boolean visibleHasContent =
                uvHasContent(resolveFaceUv(EntityFace.UP, cube, size, texW, texH), texture)
             || uvHasContent(resolveFaceUv(EntityFace.NORTH, cube, size, texW, texH), texture)
@@ -673,6 +767,36 @@ public class EntityGeometryKitJava {
             || uvHasContent(resolveFaceUv(EntityFace.SOUTH, cube, size, texW, texH), texture)
             || uvHasContent(resolveFaceUv(EntityFace.WEST, cube, size, texW, texH), texture);
         return !hiddenHasContent;
+    }
+
+    /**
+     * Returns {@code true} when the proportion of fully-transparent texels in the supplied face
+     * UV region exceeds {@code threshold}. Walks the rectangle bounded by the face UVs and
+     * counts {@code alpha==0} pixels; returns {@code false} when the UV region is empty (zero
+     * area). Used by {@link #shouldCullBackFaces} to detect {@code entityCutoutNoCull}-style
+     * textures whose visible-face alpha-cutout regions require the back faces to render too.
+     */
+    private static boolean uvTransparencyExceeds(
+        @NotNull Vector2f @NotNull [] uv,
+        @NotNull PixelBuffer texture,
+        float threshold
+    ) {
+        int W = texture.width();
+        int H = texture.height();
+        Vector4f bounds = Vector4f.bounds(uv);
+        int x0 = Math.max(0, (int) Math.floor(bounds.x() * W));
+        int y0 = Math.max(0, (int) Math.floor(bounds.y() * H));
+        int x1 = Math.min(W, (int) Math.ceil(bounds.z() * W));
+        int y1 = Math.min(H, (int) Math.ceil(bounds.w() * H));
+        int total = (x1 - x0) * (y1 - y0);
+        if (total <= 0) return false;
+        int transparent = 0;
+        for (int y = y0; y < y1; y++) {
+            for (int x = x0; x < x1; x++) {
+                if (ColorMath.alpha(texture.getPixel(x, y)) == 0) transparent++;
+            }
+        }
+        return (float) transparent / total > threshold;
     }
 
     private static boolean uvHasContent(
