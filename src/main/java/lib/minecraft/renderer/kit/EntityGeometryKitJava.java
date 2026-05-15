@@ -74,6 +74,46 @@ public class EntityGeometryKitJava {
     private static final boolean TRANSLATE_BY_PIVOT = !"false".equalsIgnoreCase(System.getProperty("entity.translateByPivot", "true"));
 
     /**
+     * Standard GL view direction in vanilla's screen frame: camera at origin looking toward
+     * {@code -Z}. Pre-rotated through the inverse iso pose chain plus our kit's {@code FLIP_Y}
+     * to land in the same coordinate frame our face normals live in (after
+     * {@link Vector3f#transformNormal(Vector3f, Matrix4f)} and the kit's
+     * {@link #FLIP_NORMAL_Y}).
+     * <p>
+     * Used by {@link #computeViewAlignedShade} to pick front-vs-back PER_FACE_LIGHTING shade
+     * for plane no-cull cubes. {@code dot(VIEW_DIRECTION_KIT, n_kit) < 0} means the polygon's
+     * outward normal points TOWARD the camera (front-facing per vanilla's
+     * {@code gl_FrontFacing}); {@code >= 0} means it points AWAY (back-facing).
+     * <p>
+     * Derived as {@code FLIP_Y * M_view^T * (0, 0, -1)} where {@code M_view = scale(1,1,-1) *
+     * R_X(pitch) * R_Y(yaw) * R_X(180°)} is vanilla's iso transform chain (the trailing
+     * {@code R_X(180°)} folds in vanilla's {@code LivingEntityRenderer.submit}'s
+     * {@code rotateY(180°) + scale(-1,-1,1)} as a single equivalent X-axis rotation - see
+     * {@link lib.minecraft.renderer.engine.IsometricEngine#CAMERA_ENTITY} for the full
+     * derivation). For the standard {@code [210°, 45°, 0°]} iso pose this evaluates to
+     * approximately {@code (0.6124, -0.5, 0.6124)}; the X and Z components are
+     * {@code cos(30°) * sin(45°) = √6/4 ≈ 0.6124} (45° yaw splits horizontal direction
+     * symmetrically into X and Z, modulated by {@code cos(30°)} from the pitch tilt), the Y
+     * component is {@code -sin(30°) = -0.5} (30° pitch contribution, negated by the trailing
+     * FLIP_Y compensation).
+     */
+    private static final @NotNull Vector3f VIEW_DIRECTION_KIT = computeKitFrameViewDirection();
+
+    private static @NotNull Vector3f computeKitFrameViewDirection() {
+        EulerRotation iso = EulerRotation.STANDARD_ISO_ENTITY;
+        // Row-form chain that, when applied to a row vector via right-to-left composition,
+        // performs the col-form operation `FLIP_Y * M_view^T * v`. Each rotation transposes to
+        // its negated-angle counterpart; scales are diagonal so transpose is identity.
+        // Order: scale(1,1,-1) -> R_X(-pitch) -> R_Y(-yaw) -> R_X(-180°) -> FLIP_Y.
+        Matrix4f viewToKit = Matrix4f.createScale(1f, 1f, -1f)
+            .multiply(Matrix4f.createRotationX(-iso.pitchRadians()))
+            .multiply(Matrix4f.createRotationY(-iso.yawRadians()))
+            .multiply(Matrix4f.createRotationX((float) -Math.PI))
+            .multiply(Matrix4f.createScale(1f, -1f, 1f));
+        return Vector3f.transformNormal(new Vector3f(0f, 0f, -1f), viewToKit);
+    }
+
+    /**
      * Convenience overload that auto-computes bounds for a single-layer render.
      *
      * @param model the entity model definition (Java Y-down frame)
@@ -362,16 +402,12 @@ public class EntityGeometryKitJava {
                         // the SAME shade, namely shade against the CAMERA-FACING normal.
                         // <p>
                         // For face F we bake whichever shade matches the camera-facing direction.
-                        // dot(view_dir_kit, n_F_kit) < 0 means n_F points TOWARD camera (front),
-                        // so we use shade(n_F_kit). dot >= 0 means n_F points AWAY (back-facing),
-                        // so we use shade(-n_F_kit). Either way the value equals what vanilla's
-                        // PER_FACE_LIGHTING resolves to for whichever polygon's UV is opaque.
-                        // <p>
-                        // view_dir_kit = FLIP_Y * M_view^T * view_dir_camera, derived the same
-                        // way as L_kit. For our M_view = scale(1,1,-1) * R_X(210°) * R_Y(45°) *
-                        // R_X(180°) and view_dir_camera = (0, 0, -1) (standard GL view), this
-                        // yields V_kit = (0.6124, -0.5, 0.6124).
-                        float vDot = 0.6124f * normal.x() + -0.5f * normal.y() + 0.6124f * normal.z();
+                        // dot({@link #VIEW_DIRECTION_KIT}, n_F_kit) {@code < 0} means n_F points
+                        // TOWARD camera (front), so we use {@code shade(n_F_kit)}. {@code >= 0}
+                        // means n_F points AWAY (back-facing), so we use {@code shade(-n_F_kit)}.
+                        // Either way the value equals what vanilla's PER_FACE_LIGHTING resolves
+                        // to for whichever polygon's UV is opaque.
+                        float vDot = Vector3f.dot(VIEW_DIRECTION_KIT, normal);
                         if (vDot < 0f) {
                             shading = RenderEngine.computeEntityInUiLighting(normal);
                         } else {
