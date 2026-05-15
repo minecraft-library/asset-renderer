@@ -1150,14 +1150,23 @@ public class EntityModelLoader {
                     entityId, geometryRef, GEOMETRY_JAVA_RESOURCE_PATH
                 );
 
-            // texture_ref precedence: override > generated entity row > absent. Used by
-            // TEXTURE_VARIANT entities whose vanilla renderer's getTextureLocation(state) picks
-            // a specific variant texture at zero state (rabbit brown, villager farmer/profession,
-            // axolotl lucy / wild, etc.) - the override pins that variant texture in place of
-            // the tooling-extracted default.
+            // texture_ref precedence: java-style override > generated entity row > absent.
+            // Used by TEXTURE_VARIANT entities whose vanilla renderer's getTextureLocation(state)
+            // picks a specific variant texture at zero state (rabbit brown, axolotl lucy, cat
+            // black) - the override pins that variant texture in place of the tooling-extracted
+            // default. The override's value MUST contain a {@code /} (subdirectory separator)
+            // to apply to the Java pipeline: Java's vanilla pack stores entity textures at
+            // {@code textures/entity/<subdir>/<file>.png}, while the bedrock cache stores them
+            // flat at {@code textures/entity/<file>.png}. Bedrock-style overrides (no slash,
+            // e.g. {@code guardian_elder}) are intentionally skipped here so they don't break
+            // the Java pipeline's vanilla-pack lookups - the bedrock-pipeline loader still
+            // honours them.
             Optional<String> textureRef;
-            if (override != null && override.has("texture_ref"))
-                textureRef = Optional.of(override.get("texture_ref").getAsString());
+            String overrideTextureRef = override != null && override.has("texture_ref")
+                ? override.get("texture_ref").getAsString()
+                : null;
+            if (overrideTextureRef != null && overrideTextureRef.contains("/"))
+                textureRef = Optional.of(overrideTextureRef);
             else if (entityJson.has("texture_ref"))
                 textureRef = Optional.of(entityJson.get("texture_ref").getAsString());
             else
