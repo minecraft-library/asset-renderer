@@ -344,12 +344,28 @@ public final class EntityFrameRenderer implements AutoCloseable {
 
         @SuppressWarnings({"unchecked", "rawtypes"})
         Model rawModel = model;
-        try {
-            rawModel.setupAnim(state);
-        } catch (RuntimeException ignored) {
-            // Some renderers' setupAnim assumes additional state fields; if they fail,
-            // bounds will still be measured from the model's rest pose.
+        if (!Boolean.getBoolean("refharness.headless")) {
+            try {
+                rawModel.setupAnim(state);
+            } catch (RuntimeException ignored) {
+                // Some renderers' setupAnim assumes additional state fields; if they fail,
+                // bounds will still be measured from the model's rest pose.
+            }
         }
+        // In headless mode {@link SkipSetupAnimMixin} suppresses {@code setupAnim} on the
+        // submit-side render path so the primary body renders at its authored bind pose.
+        // The bounds walker must agree with the render path or the canvas-fit math anchors
+        // off a pose vanilla then doesn't draw. Worse, {@code setupAnim} MUTATES the model's
+        // bone rotations - calling it here for a bounds-only measurement would leave the
+        // model in the setupAnim'd pose, and the {@code SkipSetupAnimMixin}-protected submit
+        // would then queue a deferred render reading those mutated bones. Result before this
+        // skip: vanilla zombie / husk / drowned / piglin / villager all rendered with the
+        // iconic forward-arm pose (because {@code AbstractZombieModel.animateZombieArms}
+        // unconditionally rotates arms at zero state with {@code armDrop = -pi/2.25 ~ -80
+        // degrees}), even though the submit-side {@code setupAnim} was being skipped. The
+        // resulting silhouette ran ~38% wider than asset-renderer's bind-pose render and the
+        // family-fit canvas absorbed the asymmetric extra extent. Skipping {@code setupAnim}
+        // here too keeps both bounds AND render aligned to the bind pose.
 
         PoseStack ps = new PoseStack();
         ps.scale(1.0f, 1.0f, -1.0f);  // chirality compensation - matches renderAndWrite
@@ -436,15 +452,26 @@ public final class EntityFrameRenderer implements AutoCloseable {
         NativeImage texture,
         Consumer<? super org.joml.Vector3fc> expand
     ) {
+        boolean headless = Boolean.getBoolean("refharness.headless");
         List<? extends RenderLayer<?, ?>> layers = layersOf(renderer);
         for (RenderLayer<?, ?> layer : layers) {
             if (!isLayerActiveForState(layer, state)) continue;
             for (Model<?> layerModel : findLayerModels(layer)) {
                 @SuppressWarnings({"unchecked", "rawtypes"})
                 Model raw = layerModel;
-                try {
-                    raw.setupAnim(state);
-                } catch (RuntimeException ignored) {
+                // Same reasoning as the primary-model {@code setupAnim} skip in
+                // {@link #computeScreenBounds}: in headless mode the render-side
+                // {@code setupAnim} call is no-op'd, and calling it here would mutate the
+                // layer model into a pose vanilla then doesn't draw. Plus most layer
+                // {@code setupAnim} reads from {@code state.rightArmPose} /
+                // {@code state.leftArmPose} / {@code state.isAggressive}, all of which are
+                // either equipment-driven (zero at headless) or already frozen by
+                // {@link FreezeAnimationStateMixin}.
+                if (!headless) {
+                    try {
+                        raw.setupAnim(state);
+                    } catch (RuntimeException ignored) {
+                    }
                 }
                 walkVisibleExtents(layerModel.root(), ps, texture, expand);
             }
@@ -452,34 +479,103 @@ public final class EntityFrameRenderer implements AutoCloseable {
     }
 
     /**
+     * Class-name suffixes / exact matches for {@link RenderLayer} subclasses whose
+     * {@code submit()} renders nothing for the zero-state entity the harness uses (no
+     * equipment, no held items, no stuck arrows, no special poses). The family-fit pre-pass
+     * walks each layer's {@code Model<?>} fields to pad bounds; including these layers
+     * over-pads the canvas with margin around invisible geometry, because the model exists
+     * (constructed at layer-init time) but is never rasterised at zero state. Silhouette-bbox
+     * audit 2026-05-15 confirmed: wolf_pale / pig_warm / horse / skeleton_horse have vanilla
+     * canvases with 5-47px transparent margin from layer-model bounds that never render.
+     * <p>
+     * Patterns:
+     * <ul>
+     *   <li>{@code *ArmorLayer} - HumanoidArmorLayer, WolfArmorLayer, HorseArmorLayer,
+     *       LeatherHorseArmorLayer, ... - gates on {@code state.equipment.X.isEmpty()} or
+     *       analogous variant-armor fields, all empty at zero state</li>
+     *   <li>{@code *EquipmentLayer} - generic equipment overlay base class on horses, wolves,
+     *       skeletons in 1.21+; same gating shape</li>
+     *   <li>{@code ItemInHandLayer} / {@code PlayerItemInHandLayer} - submits the held-item
+     *       model; bails when both hands hold {@code ItemStack.EMPTY}</li>
+     *   <li>{@code ElytraLayer} - gates on the elytra equipment slot being non-empty</li>
+     *   <li>{@code SaddleLayer} / {@code HorseSaddleLayer} - pig / equine saddle, gates on
+     *       {@code state.saddle.isEmpty()}</li>
+     *   <li>{@code *CollarLayer} - wolf / cat dyed collar, gates on {@code state.isTame}</li>
+     *   <li>{@code StuckInBodyLayer} - parent of arrow / bee-stinger layers, gates on stack
+     *       count {@code > 0}</li>
+     *   <li>{@code TridentLayer} / {@code ShieldLayer} / {@code BeeStingerLayer} -
+     *       held-item variants for specific items, all empty at zero state</li>
+     *   <li>{@code SnowLayer} (powdered-snow stack) / {@code LlamaDecorLayer} (carpet) -
+     *       cosmetic state overlays, all absent at zero state</li>
+     *   <li>{@code ParrotOnShoulderLayer} - player-only; zero state has no parrot</li>
+     *   <li>{@code CapeLayer} / {@code Deadmau5EarsLayer} / {@code EarsLayer} - player cosmetic
+     *       overlays, zero state has none</li>
+     *   <li>{@code DolphinCarryingItemLayer} - dolphin-specific held item</li>
+     *   <li>{@code FoxHeldItemLayer} - fox-specific held item</li>
+     * </ul>
+     * The match walks the layer's class hierarchy so subclasses still hit the gate. If a
+     * vanilla refactor renames a class, the default-true branch preserves current
+     * behaviour (over-padded canvases) until the list is updated.
+     */
+    private static final java.util.Set<String> NO_RENDER_LAYER_SUFFIXES = java.util.Set.of(
+        "ArmorLayer",
+        "EquipmentLayer",
+        "ItemInHandLayer",
+        "ElytraLayer",
+        "WingsLayer",  // 1.21+ rename of ElytraLayer; HumanoidMobRenderer adds it for every humanoid
+        "CustomHeadLayer",  // renders mob-head / pumpkin / dragon-head equipment; HumanoidMobRenderer adds it for every humanoid
+        "SaddleLayer",
+        "CollarLayer",
+        "StuckInBodyLayer",
+        "TridentLayer",
+        "ShieldLayer",
+        "BeeStingerLayer",
+        "SnowLayer",
+        "LlamaDecorLayer",
+        "ParrotOnShoulderLayer",
+        "CapeLayer",
+        "Deadmau5EarsLayer",
+        "EarsLayer",
+        "DolphinCarryingItemLayer",
+        "FoxHeldItemLayer"
+    );
+
+    /**
      * Checks whether a layer would actually render for the given state. Returns {@code true}
      * by default - we walk the layer's geometry. Returns {@code false} when the layer's submit
      * is known to skip rendering for this state, so the layer's model shouldn't pad bounds.
      * <p>
-     * Currently handles {@code EnergySwirlLayer} (parent of {@code CreeperPowerLayer},
-     * {@code WitherArmorLayer}, etc.) which gates on {@code isPowered(state)} - the charged-
-     * creeper electric overlay's mesh is visibly larger than the creeper body, so when an
-     * unpowered creeper rendered through the harness, the bounds were ~2× the actual silhouette
-     * and the canvas had a wide empty margin all around.
-     * <p>
-     * Detects the layer type by walking its class hierarchy looking for a class named
-     * {@code EnergySwirlLayer}, then reflectively invokes the protected {@code isPowered(state)}
-     * method. If reflection fails (vanilla rename, missing method, etc), defaults to walking
-     * the layer - over-padded bounds is preferable to clipped bounds. Other conditional layers
-     * ({@code LivingEntityEmissiveLayer} with alpha=0, etc.) aren't yet handled here; add cases
+     * Two gate families:
+     * <ol>
+     *   <li><b>{@code EnergySwirlLayer}</b> (charged creeper, wither armor electric overlay)
+     *       - reflectively invokes {@code isPowered(state)} to detect the un-powered case.
+     *       Specific because the charged-creeper mesh is visibly larger than the body, so
+     *       over-padding here used to ~2x the silhouette.</li>
+     *   <li><b>{@link #NO_RENDER_LAYER_SUFFIXES Equipment-driven layers}</b> - any layer in
+     *       the well-known no-render-at-zero-state class list returns {@code false}. Catches
+     *       HumanoidArmorLayer / ItemInHandLayer / ElytraLayer / SaddleLayer / etc. without
+     *       reflectively probing per-state-class equipment fields.</li>
+     * </ol>
+     * Falls back to walking the layer when reflection / class-lookup fails - over-padded
+     * bounds is preferable to clipped bounds. Other conditional layers
+     * ({@code LivingEntityEmissiveLayer} with alpha=0, etc.) aren't handled here; add cases
      * as new entities surface bounds-padding regressions.
      */
     private static boolean isLayerActiveForState(RenderLayer<?, ?> layer, EntityRenderState state) {
         for (Class<?> c = layer.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
-            if (!c.getSimpleName().equals("EnergySwirlLayer")) continue;
-            try {
-                Method m = c.getDeclaredMethod("isPowered", EntityRenderState.class);
-                m.setAccessible(true);
-                Object result = m.invoke(layer, state);
-                return result instanceof Boolean b ? b : true;
-            } catch (ReflectiveOperationException ignored) {
-                return true;
+            String simpleName = c.getSimpleName();
+            if (simpleName.equals("EnergySwirlLayer")) {
+                try {
+                    Method m = c.getDeclaredMethod("isPowered", EntityRenderState.class);
+                    m.setAccessible(true);
+                    Object result = m.invoke(layer, state);
+                    return result instanceof Boolean b ? b : true;
+                } catch (ReflectiveOperationException ignored) {
+                    return true;
+                }
             }
+            for (String suffix : NO_RENDER_LAYER_SUFFIXES)
+                if (simpleName.endsWith(suffix)) return false;
         }
         return true;
     }
