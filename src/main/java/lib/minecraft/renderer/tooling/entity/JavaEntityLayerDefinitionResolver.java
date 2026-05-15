@@ -383,9 +383,25 @@ public final class JavaEntityLayerDefinitionResolver {
                 continue;
             }
 
-            // {@code invokestatic MeshTransformer.scaling(F)MeshTransformer} - the horse-family
-            // pattern that builds a local MeshTransformer and astores it for later .apply() use.
-            // Mark the pending scaling result so the next ASTORE binds it to a slot.
+            // {@code invokestatic MeshTransformer.scaling(F)MeshTransformer} - two consumption
+            // patterns from this call site:
+            // <ul>
+            //   <li><b>Horse pattern</b> ({@code aload <slot>}-mediated): the result is
+            //       {@code astore <slot>}d for later {@code aload + apply()}. Captured into
+            //       {@link #pendingScalingMTFloat} for the ASTORE handler below.</li>
+            //   <li><b>Cave_spider pattern</b> (inline): the result is consumed immediately by
+            //       the next {@code invokevirtual apply(MeshTransformer)} with no intervening
+            //       ASTORE. Vanilla {@code LayerDefinitions.createRoots} writes
+            //       {@code spiderBodyLayer.apply(MeshTransformer.scaling(0.7F))} for
+            //       {@code ModelLayers.CAVE_SPIDER}; the bytecode is {@code aload spiderBodyLayer;
+            //       ldc 0.7f; invokestatic scaling; invokevirtual apply}, no astore. Capture
+            //       into {@link #pendingAppliedMTScale} too so the apply handler at line ~471
+            //       finds a non-null value when consumed inline.</li>
+            // </ul>
+            // The ASTORE handler clears {@code pendingScalingMTFloat} on store; the apply
+            // handler clears {@code pendingAppliedMTScale} on direct consumption; if both
+            // patterns somehow coexist on one call site (no vanilla example exists today), the
+            // ASTORE wins because it fires first in bytecode order.
             if (in instanceof MethodInsnNode mi
                 && opcode == Opcodes.INVOKESTATIC
                 && MESH_TRANSFORMER.equals(mi.owner)
@@ -393,6 +409,7 @@ public final class JavaEntityLayerDefinitionResolver {
                 && ("(F)" + MESH_TRANSFORMER_DESC).equals(mi.desc)
                 && pendingFloat != null) {
                 pendingScalingMTFloat = pendingFloat;
+                pendingAppliedMTScale = pendingFloat;
                 pendingFloat = null;
                 continue;
             }
@@ -441,6 +458,9 @@ public final class JavaEntityLayerDefinitionResolver {
                 if (pendingScalingMTFloat != null) {
                     meshTransformerSlots.put(vi.var, pendingScalingMTFloat);
                     pendingScalingMTFloat = null;
+                    // Also clear the inline-apply mirror so a horse-pattern store doesn't
+                    // leave a stale scale dangling for an unrelated downstream {@code apply}.
+                    pendingAppliedMTScale = null;
                     continue;
                 }
                 if (pendingDirect != null) {
@@ -477,6 +497,10 @@ public final class JavaEntityLayerDefinitionResolver {
                 && pendingAppliedMTScale != null) {
                 pendingDirect = pendingDirect.composeAppliedScale(pendingAppliedMTScale);
                 pendingAppliedMTScale = null;
+                // Inline {@code apply(MeshTransformer.scaling(F))} consumes the MT result
+                // directly off the operand stack with no intervening ASTORE - clear the
+                // scaling mirror so a subsequent unrelated ASTORE doesn't pick it up.
+                pendingScalingMTFloat = null;
                 continue;
             }
 

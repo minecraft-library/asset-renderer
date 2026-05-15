@@ -595,12 +595,12 @@
       "armor_type": "none"
     },
     "minecraft:spider": {
-      "geometry_ref": "geometry.spider",
+      "geometry_ref": "geometry.spider_1",
       "texture_ref": "spider/spider",
       "armor_type": "none",
       "overlays": [
         {
-          "geometry_ref": "geometry.spider",
+          "geometry_ref": "geometry.spider_1",
           "texture_ref": "spider/spider_eyes",
           "emissive": true
         }
