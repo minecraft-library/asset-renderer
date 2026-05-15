@@ -350,11 +350,34 @@ public class EntityGeometryKitJava {
                     }
                     float shading;
                     if (!cubeCullBackFaces && isPlaneCube) {
-                        Vector3f flipped = new Vector3f(-normal.x(), -normal.y(), -normal.z());
-                        shading = Math.max(
-                            RenderEngine.computeEntityInUiLighting(normal),
-                            RenderEngine.computeEntityInUiLighting(flipped)
-                        );
+                        // Plane no-cull cubes: BOTH polygons (the face F and its opposite F')
+                        // emit and cover the same screen pixels. The OPAQUE-UV polygon paints.
+                        // Vanilla's PER_FACE_LIGHTING fragment shader picks front vs back color
+                        // via gl_FrontFacing, which is determined by SCREEN-SPACE WINDING. For a
+                        // polygon whose outward normal points TOWARD the camera (camera-facing),
+                        // gl_FrontFacing=TRUE and front color is used. For one pointing AWAY,
+                        // gl_FrontFacing=FALSE and back color is used. By construction, front
+                        // color of A = back color of B for opposite-normal polygons (n_B = -n_A,
+                        // dot(L, n_B) = dot(-L, n_A)) - so both polygons of a plane cube compute
+                        // the SAME shade, namely shade against the CAMERA-FACING normal.
+                        // <p>
+                        // For face F we bake whichever shade matches the camera-facing direction.
+                        // dot(view_dir_kit, n_F_kit) < 0 means n_F points TOWARD camera (front),
+                        // so we use shade(n_F_kit). dot >= 0 means n_F points AWAY (back-facing),
+                        // so we use shade(-n_F_kit). Either way the value equals what vanilla's
+                        // PER_FACE_LIGHTING resolves to for whichever polygon's UV is opaque.
+                        // <p>
+                        // view_dir_kit = FLIP_Y * M_view^T * view_dir_camera, derived the same
+                        // way as L_kit. For our M_view = scale(1,1,-1) * R_X(210°) * R_Y(45°) *
+                        // R_X(180°) and view_dir_camera = (0, 0, -1) (standard GL view), this
+                        // yields V_kit = (0.6124, -0.5, 0.6124).
+                        float vDot = 0.6124f * normal.x() + -0.5f * normal.y() + 0.6124f * normal.z();
+                        if (vDot < 0f) {
+                            shading = RenderEngine.computeEntityInUiLighting(normal);
+                        } else {
+                            Vector3f flipped = new Vector3f(-normal.x(), -normal.y(), -normal.z());
+                            shading = RenderEngine.computeEntityInUiLighting(flipped);
+                        }
                     } else {
                         shading = RenderEngine.computeEntityInUiLighting(normal);
                     }
