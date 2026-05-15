@@ -7,6 +7,12 @@
         "hat"
       ]
     },
+    "//illager-family": "IllagerModel constructor sets this.hat.visible = false. Pillager / vindicator / evoker keep that default; their renderers don't re-enable the hat. IllusionerRenderer explicitly sets this.model.getHat().visible = true so illusioner DOES render with a hat - it must NOT be on this hidden_bones list. The vindicator / evoker entries below also list 'rightArm' / 'leftArm' for bedrock-pipeline cleanup; those are unrelated to the Java-pipeline hat-visibility issue.",
+    "minecraft:pillager": {
+      "hidden_bones": [
+        "hat"
+      ]
+    },
     "minecraft:horse": {
       "hidden_bones": [
         "Bag1",
@@ -759,18 +765,20 @@
         }
       }
     },
-    "//minecraft:vindicator": "Bedrock geometry.vindicator.v1.8 ships both arm sets - 'arms' folded across the chest (idle pose) plus 'rightArm'/'leftArm' hanging straight down (aggressive pose). Java's IllagerModel toggles visibility per entity state at runtime. Without animation state we default to the folded idle pose; hide the hanging pair so only crossed arms render.",
+    "//minecraft:vindicator": "Bedrock geometry.vindicator.v1.8 ships both arm sets - 'arms' folded across the chest (idle pose) plus 'rightArm'/'leftArm' hanging straight down (aggressive pose). Java's IllagerModel toggles visibility per entity state at runtime. Without animation state we default to the folded idle pose; hide the hanging pair so only crossed arms render. Also hide the hat (java-pipeline IllagerModel constructor sets hat.visible=false).",
     "minecraft:vindicator": {
       "hidden_bones": [
         "rightArm",
-        "leftArm"
+        "leftArm",
+        "hat"
       ]
     },
-    "//minecraft:evoker": "Same illager rig as vindicator - both arm sets ship together. Hide the hanging pair so only the folded idle pose renders.",
+    "//minecraft:evoker": "Same illager rig as vindicator - both arm sets ship together. Hide the hanging pair so only the folded idle pose renders. Also hide the hat (java-pipeline IllagerModel constructor sets hat.visible=false).",
     "minecraft:evoker": {
       "hidden_bones": [
         "rightArm",
-        "leftArm"
+        "leftArm",
+        "hat"
       ]
     },
     "//minecraft:copper_golem_flower": "Bedrock authors geometry.copper_golem.flower as a thin overlay carrying just the right_arm holding the flower (no body, head, or legs); vanilla Java composes the full golem by rendering the base mesh first and the flower mesh on top. Re-root the entity's base at geometry.copper_golem so the auto-fit anchors on the full body silhouette (matching the plain copper_golem icon size), then layer the flower-only geometry on top with its own texture. Same coordinate frame on both geometries means no per-overlay placement is needed.",
