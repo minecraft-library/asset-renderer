@@ -1249,6 +1249,61 @@ public class EntityModelLoader {
         return out;
     }
 
+    /**
+     * Cross-{@link EntityType}-style family overrides for the Java pipeline's family-fit pre-pass.
+     * Mirrors the vanilla harness's {@code EntitySweeper.FAMILY_OVERRIDES} (variant-of-same-entity
+     * groupings are derived from {@code variant_of} in entity_models_java.json; this map is for
+     * distinct entities that should share a family canvas). Mooshroom uses the cow body geometry
+     * + mushroom block overlays - vanilla family-fits it under cow so the mushrooms protrude into
+     * the cold-cow-sized canvas's empty top space instead of squishing the body to fit a mooshroom-
+     * tight canvas. Other candidates if vanilla adds them: zombified_piglin -> piglin,
+     * wither_skeleton -> skeleton, husk -> zombie.
+     */
+    private static final @NotNull Map<String, String> FAMILY_OVERRIDES = Map.of(
+        "minecraft:mooshroom", "minecraft:cow"
+    );
+
+    private static volatile Map<String, List<String>> FAMILIES_CACHE;
+
+    /**
+     * Returns {@code entityId -> familyMembers} keyed by every Java-pipeline entity id. Family
+     * membership is derived from {@code variant_of} in entity_models_java.json (variant entities
+     * roll up to their declared root) plus {@link #FAMILY_OVERRIDES} (cross-entity groupings).
+     * Singletons return a single-element list containing themselves so callers can iterate
+     * uniformly without special-casing. The result is cached on first call - the JSON is loaded
+     * once for the lifetime of the JVM.
+     */
+    public static @NotNull Map<String, List<String>> loadFamiliesJava() {
+        Map<String, List<String>> cached = FAMILIES_CACHE;
+        if (cached != null) return cached;
+        synchronized (EntityModelLoader.class) {
+            if (FAMILIES_CACHE != null) return FAMILIES_CACHE;
+            JsonObject entities = loadEntitiesBlockJava();
+            // Two-pass: first pass assigns each entity to its family root via variant_of /
+            // FAMILY_OVERRIDES; second pass inverts the map to family -> [members] so any member
+            // looking up by its own id sees the whole family.
+            Map<String, String> entityToFamily = new LinkedHashMap<>();
+            for (Map.Entry<String, JsonElement> entry : entities.entrySet()) {
+                String entityId = entry.getKey();
+                if (!entry.getValue().isJsonObject()) continue;
+                JsonObject obj = entry.getValue().getAsJsonObject();
+                String family = FAMILY_OVERRIDES.get(entityId);
+                if (family == null && obj.has("variant_of"))
+                    family = obj.get("variant_of").getAsString();
+                if (family == null) family = entityId;
+                entityToFamily.put(entityId, family);
+            }
+            Map<String, List<String>> familyToMembers = new LinkedHashMap<>();
+            for (Map.Entry<String, String> e : entityToFamily.entrySet())
+                familyToMembers.computeIfAbsent(e.getValue(), k -> new java.util.ArrayList<>()).add(e.getKey());
+            Map<String, List<String>> result = new LinkedHashMap<>();
+            for (Map.Entry<String, String> e : entityToFamily.entrySet())
+                result.put(e.getKey(), List.copyOf(familyToMembers.get(e.getValue())));
+            FAMILIES_CACHE = result;
+            return result;
+        }
+    }
+
     private static @NotNull Map<String, EntityModelData> readGeometriesJsonResource(@NotNull String path, boolean required) {
         try (InputStream stream = EntityModelLoader.class.getResourceAsStream(path)) {
             if (stream == null) {

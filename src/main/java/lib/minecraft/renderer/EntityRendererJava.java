@@ -30,6 +30,7 @@ import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -198,7 +199,7 @@ public final class EntityRendererJava implements Renderer<EntityOptions> {
         // resolution, no auto-fit. EntityOptions#getOutputSize is intentionally ignored here so
         // the Java pipeline matches the harness's PNG dimensions byte-for-byte where the same
         // entity is being rendered in both projects.
-        CanvasFit fit = computeCanvasFit(definition, effective, modelScale, texture.get());
+        CanvasFit fit = computeCanvasFit(options.getEntityId().get(), definition, effective, modelScale, texture.get());
         PixelBuffer buffer = PixelBuffer.create(fit.canvasW(), fit.canvasH());
 
         // Centre the silhouette on the canvas. The kit subtracts a model-space "anchor" point
@@ -214,7 +215,7 @@ public final class EntityRendererJava implements Renderer<EntityOptions> {
         // subtracting the shift from the anchor adds it to every vertex). For squid that's a
         // {@code (0, +11.2, 0)} pixel pre-translate; pufferfish gets {@code (0, -1.28, 0)};
         // shulker has zero translate but a 180° yaw addend folded into {@code effective} above.
-        Vector3f modelAnchor = computeCentreAnchor(definition, effective, modelScale, fit, texture.get())
+        Vector3f modelAnchor = computeCentreAnchor(options.getEntityId().get(), definition, effective, modelScale, fit, texture.get())
             .subtract(override.modelAnchorShift());
 
         EntityGeometryKit.BuildResult buildResult = EntityGeometryKitJava.buildTriangles(
@@ -412,14 +413,15 @@ public final class EntityRendererJava implements Renderer<EntityOptions> {
      * applying it as the kit's model-units-to-NDC scale produces the desired pixels-per-block
      * ratio at the rasterization step.
      */
-    private static @NotNull CanvasFit computeCanvasFit(
+    private @NotNull CanvasFit computeCanvasFit(
+        @NotNull String entityId,
         @NotNull EntityModelLoader.EntityDefinition definition,
         @NotNull EulerRotation userRotation,
         float modelScale,
         @NotNull PixelBuffer texture
     ) {
         Matrix4f transform = composeIsoTransform(userRotation);
-        Box screenBounds = computeUnionScreenBounds(definition, transform, modelScale, texture);
+        Box screenBounds = computeFamilyUnionScreenBounds(entityId, definition, transform, modelScale, texture);
         float extentX = Math.max(0f, screenBounds.maxX() - screenBounds.minX());
         float extentY = Math.max(0f, screenBounds.maxY() - screenBounds.minY());
         float pxPerEntityUnit = PIXELS_PER_BLOCK / 16f;
@@ -447,7 +449,8 @@ public final class EntityRendererJava implements Renderer<EntityOptions> {
      * vanilla-only pixels along the left/top silhouette edge and java-only pixels along the
      * right/bottom edge.
      */
-    private static @NotNull Vector3f computeCentreAnchor(
+    private @NotNull Vector3f computeCentreAnchor(
+        @NotNull String entityId,
         @NotNull EntityModelLoader.EntityDefinition definition,
         @NotNull EulerRotation userRotation,
         float modelScale,
@@ -455,7 +458,7 @@ public final class EntityRendererJava implements Renderer<EntityOptions> {
         @NotNull PixelBuffer texture
     ) {
         Matrix4f isoTransform = composeIsoTransform(userRotation);
-        Box screenBounds = computeUnionScreenBounds(definition, isoTransform, modelScale, texture);
+        Box screenBounds = computeFamilyUnionScreenBounds(entityId, definition, isoTransform, modelScale, texture);
         float sxMid = (screenBounds.minX() + screenBounds.maxX()) * 0.5f;
         float syMid = (screenBounds.minY() + screenBounds.maxY()) * 0.5f;
         float szMid = (screenBounds.minZ() + screenBounds.maxZ()) * 0.5f;
@@ -488,16 +491,75 @@ public final class EntityRendererJava implements Renderer<EntityOptions> {
         for (EntityModelLoader.OverlayLayer overlay : definition.overlays()) {
             if (overlay.model().getBones().isEmpty()) continue;
             Box overlayBounds = EntityGeometryKitJava.computeScreenBounds(overlay.model(), transform, modelScale, texture);
-            bounds = new Box(
-                Math.min(bounds.minX(), overlayBounds.minX()),
-                Math.min(bounds.minY(), overlayBounds.minY()),
-                Math.min(bounds.minZ(), overlayBounds.minZ()),
-                Math.max(bounds.maxX(), overlayBounds.maxX()),
-                Math.max(bounds.maxY(), overlayBounds.maxY()),
-                Math.max(bounds.maxZ(), overlayBounds.maxZ())
-            );
+            bounds = unionBoxes(bounds, overlayBounds);
         }
         return bounds;
+    }
+
+    /**
+     * Unions screen-space bounds across every family member of {@code entityId}, mirroring the
+     * vanilla harness's {@code EntitySweeper.computeFamilyFits} pre-pass so variant siblings
+     * (cow_cold / cow_warm, chicken_cold / chicken_warm, mooshroom in cow's family) render into
+     * a single canvas sized to the largest member. Without this the family's smaller variants
+     * canvas-fit to their own (tighter) bound and the family-locked geometry shifts position
+     * between variants - vanilla's pixel-identical-canvas guarantee requires every family
+     * member to share the same canvas dimensions, scale, and anchor.
+     * <p>
+     * Per-member: load the variant's own definition + default texture (NOT the current render's
+     * options-override texture), apply the variant's {@link #RENDERER_SCALE_OVERRIDES} model
+     * scale, run {@code computeUnionScreenBounds}, union the result. Family members whose
+     * texture / definition can't be resolved (missing PNG, unloaded variant) are skipped - the
+     * union degrades to the available members rather than throwing.
+     * <p>
+     * Members are sourced from {@code EntityModelLoader.loadFamiliesJava()} - {@code variant_of}
+     * for variant-of-same-entity groupings plus {@code FAMILY_OVERRIDES} for cross-entity ones
+     * (mooshroom -> cow). Singleton entities return a 1-element family list so this method
+     * collapses to {@link #computeUnionScreenBounds} for non-family-bearing entities.
+     */
+    private @NotNull Box computeFamilyUnionScreenBounds(
+        @NotNull String entityId,
+        @NotNull EntityModelLoader.EntityDefinition definition,
+        @NotNull Matrix4f transform,
+        float modelScale,
+        @NotNull PixelBuffer texture
+    ) {
+        Box bounds = computeUnionScreenBounds(definition, transform, modelScale, texture);
+        List<String> members = EntityModelLoader.loadFamiliesJava().getOrDefault(entityId, List.of(entityId));
+        if (members.size() <= 1) return bounds;
+        for (String memberId : members) {
+            if (memberId.equals(entityId)) continue;
+            EntityModelLoader.EntityDefinition memberDef = this.javaEntities.get(memberId);
+            if (memberDef == null || memberDef.model().getBones().isEmpty()) continue;
+            Optional<PixelBuffer> memberTexture = resolveFamilyMemberTexture(memberDef);
+            if (memberTexture.isEmpty()) continue;
+            float memberScale = RENDERER_SCALE_OVERRIDES.getOrDefault(memberId, 1.0f);
+            Box memberBounds = computeUnionScreenBounds(memberDef, transform, memberScale, memberTexture.get());
+            bounds = unionBoxes(bounds, memberBounds);
+        }
+        return bounds;
+    }
+
+    /**
+     * Resolves a family-member's default texture for the family-fit bound walk. Unlike
+     * {@link #resolveEntityTexture} this ignores {@code options.textureId} (family-fit measures
+     * each variant's OWN bound, not the current-render texture override) and skips the
+     * {@code forceOpaque} alpha bump (the bound walker only checks alpha != 0, so partial-alpha
+     * texels contribute either way).
+     */
+    private @NotNull Optional<PixelBuffer> resolveFamilyMemberTexture(@NotNull EntityModelLoader.EntityDefinition definition) {
+        if (definition.textureRef().isEmpty()) return Optional.empty();
+        return this.context.resolveTexture("minecraft:entity/" + definition.textureRef().get());
+    }
+
+    private static @NotNull Box unionBoxes(@NotNull Box a, @NotNull Box b) {
+        return new Box(
+            Math.min(a.minX(), b.minX()),
+            Math.min(a.minY(), b.minY()),
+            Math.min(a.minZ(), b.minZ()),
+            Math.max(a.maxX(), b.maxX()),
+            Math.max(a.maxY(), b.maxY()),
+            Math.max(a.maxZ(), b.maxZ())
+        );
     }
 
     /**
