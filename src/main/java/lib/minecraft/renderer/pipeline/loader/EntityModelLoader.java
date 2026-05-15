@@ -1148,10 +1148,15 @@ public class EntityModelLoader {
             // flow but skips the override layer + bind-pose stack since the Java pipeline
             // ships without those. An overlay sharing the base geometry_ref reuses baseModel
             // verbatim (eye PNGs land on the same UV layout); a distinct geometry_ref resolves
-            // freshly from the geometry table.
-            List<OverlayLayer> overlays = entityJson.has("overlays") && entityJson.get("overlays").isJsonArray()
-                ? loadOverlays(entityJson.getAsJsonArray("overlays"), geometries, geometryRef, baseModel, entityId)
-                : List.of();
+            // freshly from the geometry table. Hand-edited overlays from
+            // entity_models_overrides.json are appended after the auto-generated ones so the
+            // override list adds to (rather than replaces) the tooling output - matches the
+            // bedrock pipeline's order.
+            List<OverlayLayer> overlays = new ArrayList<>();
+            if (entityJson.has("overlays") && entityJson.get("overlays").isJsonArray())
+                overlays.addAll(loadOverlays(entityJson.getAsJsonArray("overlays"), geometries, geometryRef, baseModel, entityId));
+            if (override != null && override.has("overlays") && override.get("overlays").isJsonArray())
+                overlays.addAll(loadOverlays(override.getAsJsonArray("overlays"), geometries, geometryRef, baseModel, entityId));
 
             List<BlockOverlayLayer> blockOverlays = entityJson.has("block_overlays") && entityJson.get("block_overlays").isJsonArray()
                 ? loadBlockOverlays(entityJson.getAsJsonArray("block_overlays"))

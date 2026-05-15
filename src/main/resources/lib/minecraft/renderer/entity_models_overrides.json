@@ -198,6 +198,26 @@
         "chest2"
       ]
     },
+    "//minecraft:stray": "Vanilla StrayRenderer adds a SkeletonClothingLayer (ModelLayers.STRAY_OUTER_LAYER + stray_overlay.png). STRAY_OUTER_LAYER is HumanoidModel.createMesh(CubeDeformation(0.25F), 0.0F) - the standard skeleton mesh with every cube inflated by 0.25 pixels. Without this overlay the skeleton-only silhouette is missing the frost-cloak content that protrudes laterally.",
+    "minecraft:stray": {
+      "overlays": [
+        {
+          "geometry_ref": "geometry.skeleton_1",
+          "texture_ref": "skeleton/stray_overlay",
+          "inflate": 0.25
+        }
+      ]
+    },
+    "//minecraft:bogged": "Vanilla BoggedRenderer adds a SkeletonClothingLayer (ModelLayers.BOGGED_OUTER_LAYER + bogged_overlay.png). BOGGED_OUTER_LAYER is HumanoidModel.createMesh(CubeDeformation(0.2F), 0.0F) - skeleton mesh with inflate 0.2. Bogged's base geometry already includes the mushroom bones; this overlay supplies the inflated humanoid silhouette that vanilla renders on top.",
+    "minecraft:bogged": {
+      "overlays": [
+        {
+          "geometry_ref": "geometry.skeleton_1",
+          "texture_ref": "skeleton/bogged_overlay",
+          "inflate": 0.2
+        }
+      ]
+    },
     "//minecraft:magma_cube": "Bedrock authors slime/magmacube_v2.png with low partial alpha throughout, expecting their additive renderer to glow the cube. Java has no separate emissive PNG (MagmaCubeRenderer uses entityCutoutNoCull). Without an opaque world background to additively brighten over, the static iso renderer needs the texture bumped to opaque so the magma colors render at full saturation. force_opaque applies the bump at load time without mutating the bundled PNG.",
     "minecraft:magma_cube": {
       "force_opaque": true
