@@ -819,10 +819,21 @@ public final class EntityFrameRenderer implements AutoCloseable {
             return;
         }
         // Walk every texel inside the polygon's UV box and accumulate the opaque-texel bbox.
+        // Each texel at (px, py) covers the half-open UV rect [px/W, (px+1)/W) x
+        // [py/H, (py+1)/H), so the inclusive upper bound is ceil(uMax*W) - 1, not
+        // floor(uMax*W). The floor form over-includes the adjacent texel row when uMax*W
+        // (or vMax*H) lands exactly on an integer boundary - which happens whenever a face
+        // UV is texel-aligned, i.e. for every standard 16x16 / 32x32 / 64x64 cube face
+        // including all HumanoidModel sleeves / pants / jacket outer-layer faces. This was
+        // surfaced by the asset-renderer side's identical bug: piglin_brute's right_sleeve
+        // WEST face has vMax = 48/64 = 0.75 exactly; with floor() the walker admitted texel
+        // row 48 which is part of the adjacent left_arm UP face, making the (otherwise
+        // transparent) sleeve "look" opaque and contribute its inflated extent to the
+        // bounds.
         int pxMin = clampPixel((int) Math.floor(uMin * width), width);
-        int pxMax = clampPixel((int) Math.floor(uMax * width), width);
+        int pxMax = clampPixel((int) Math.ceil(uMax * width) - 1, width);
         int pyMin = clampPixel((int) Math.floor(vMin * height), height);
-        int pyMax = clampPixel((int) Math.floor(vMax * height), height);
+        int pyMax = clampPixel((int) Math.ceil(vMax * height) - 1, height);
         int firstOpaquePx = Integer.MAX_VALUE, lastOpaquePx = Integer.MIN_VALUE;
         int firstOpaquePy = Integer.MAX_VALUE, lastOpaquePy = Integer.MIN_VALUE;
         for (int py = pyMin; py <= pyMax; py++) {
