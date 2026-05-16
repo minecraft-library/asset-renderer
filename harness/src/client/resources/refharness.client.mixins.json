@@ -4,6 +4,7 @@
   "compatibilityLevel": "JAVA_25",
   "client": [
     "BeeStateMixin",
+    "DonkeyModelMixin",
     "EnderDragonModelMixin",
     "FlipFaceShadingMixin",
     "FreezeAnimationStateMixin",
@@ -12,10 +13,12 @@
     "HideCloudsMixin",
     "HideHandMixin",
     "HideSkyMixin",
+    "LlamaModelMixin",
     "PhantomStateMixin",
     "PufferfishStateMixin",
     "SkipSetupAnimMixin",
-    "WitherBossModelMixin"
+    "WitherBossModelMixin",
+    "ZombieVillagerStateMixin"
   ],
   "injectors": {
     "defaultRequire": 1
