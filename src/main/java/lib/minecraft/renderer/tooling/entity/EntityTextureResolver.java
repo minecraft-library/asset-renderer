@@ -42,7 +42,7 @@ import java.util.zip.ZipFile;
  *       .texturePath()} - no static constant is involved. The walker recognises the
  *       {@code Holder<XVariant>}/{@code modelAndTexture}/{@code texturePath} call chain and
  *       flags the binding as variant-driven; the actual texture paths come from
- *       {@link JavaEntityVariantResolver}.</li>
+ *       {@link EntityVariantResolver}.</li>
  * </ol>
  *
  * <p>For all three patterns the walker traverses the renderer's superclass chain via
@@ -54,7 +54,7 @@ import java.util.zip.ZipFile;
  * {@code minecraft:} if they need a namespaced id.
  */
 @UtilityClass
-public final class JavaEntityTextureResolver {
+public final class EntityTextureResolver {
 
     /** JVM internal name of {@code net.minecraft.resources.Identifier}. */
     private static final @NotNull String IDENTIFIER = "net/minecraft/resources/Identifier";
@@ -127,7 +127,7 @@ public final class JavaEntityTextureResolver {
         // Data-driven variant check (Cow / Pig / Chicken / Frog): an INVOKEVIRTUAL on
         // X.modelAndTexture() / X.texturePath() / X.babyTexture() with owner ending in "Variant"
         // means the texture path lives in data/minecraft/X_variant/*.json - bypass the
-        // bytecode walker and let JavaEntityVariantResolver supply the path. This case
+        // bytecode walker and let EntityVariantResolver supply the path. This case
         // genuinely has no static Identifier in the renderer; the default-path walker would
         // return null anyway, so check first to keep the diagnostic accurate.
         String dataDrivenSource = detectDataDrivenVariant(resolved.method);
@@ -294,8 +294,8 @@ public final class JavaEntityTextureResolver {
      * <p>Genuinely impossible to resolve to a static path: the renderer reads from the
      * {@code Holder<XVariant>} at runtime; the actual paths live in
      * {@code data/minecraft/X_variant/*.json} and are loaded by
-     * {@link JavaEntityVariantResolver}. The base entity's primary texture is then defaulted
-     * by {@link ToolingJavaEntityModels} to the temperate / first variant.
+     * {@link EntityVariantResolver}. The base entity's primary texture is then defaulted
+     * by {@link ToolingEntityModels} to the temperate / first variant.
      */
     private static @Nullable String detectDataDrivenVariant(@NotNull MethodNode method) {
         for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {

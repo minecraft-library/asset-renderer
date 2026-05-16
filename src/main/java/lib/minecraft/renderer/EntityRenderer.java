@@ -35,8 +35,8 @@ import java.util.Optional;
 
 /**
  * Renders mob entities as isometric 3D icons from the Java-derived entity pipeline
- * ({@code entity_models_java.json} + {@code entity_geometry_java.json}, produced by
- * {@code ToolingJavaEntityModels} from the vanilla client jar) via {@link EntityGeometryKit}'s
+ * ({@code entity_models.json} + {@code entity_geometry.json}, produced by
+ * {@code ToolingEntityModels} from the vanilla client jar) via {@link EntityGeometryKit}'s
  * Y-down engine path. Texture resolution flows through the vanilla pack via
  * {@link RendererContext#resolveTexture}; missing textures surface as missing entities rather
  * than being papered over with cache fallbacks.

@@ -15,7 +15,7 @@ import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tensor.Vector4f;
-import lib.minecraft.renderer.tooling.ToolingJavaEntityModels;
+import lib.minecraft.renderer.tooling.ToolingEntityModels;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -27,7 +27,7 @@ import java.util.Set;
 /**
  * Builds rasterizer-ready triangles from a Java-derived {@link EntityModelData} in vanilla's
  * native {@code ModelPart}-style coordinate frame. Consumes geometry produced by
- * {@link ToolingJavaEntityModels} (entity_geometry_java.json) which ships in this frame natively
+ * {@link ToolingEntityModels} (entity_geometry.json) which ships in this frame natively
  * (no parse-time conversion).
  * <p>
  * Convention:

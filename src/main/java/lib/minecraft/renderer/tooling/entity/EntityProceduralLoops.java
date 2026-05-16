@@ -33,21 +33,21 @@ import org.jetbrains.annotations.NotNull;
  * {@code SquidModel.createBodyLayer}) all benefit from a single template.
  */
 @UtilityClass
-public final class JavaEntityProceduralLoops {
+public final class EntityProceduralLoops {
 
     /** Source of mathematical constants used by the squid template. */
     private static final double TAU = 2.0 * Math.PI;
 
     /**
      * Returns {@code true} when a procedural-loop template is registered for the given
-     * resolution. Used by {@link lib.minecraft.renderer.tooling.ToolingJavaEntityModels} to
+     * resolution. Used by {@link lib.minecraft.renderer.tooling.ToolingEntityModels} to
      * detect entities that need a stub geometry injected when the {@code Parser} produces no
      * bones (silverfish / endermite both fail the {@code Parser}'s linear walk because their
      * factory methods loop over static {@code int[][]} arrays the parser can't decode; without
      * a stub the {@code Parser} returns {@code null} and the entity drops out of
-     * {@code entity_models_java.json}).
+     * {@code entity_models.json}).
      */
-    public static boolean hasTemplate(@NotNull JavaEntityLayerDefinitionResolver.Resolution resolution) {
+    public static boolean hasTemplate(@NotNull EntityLayerDefinitionResolver.Resolution resolution) {
         return switch (resolution.targetClass() + "#" + resolution.targetMethod()) {
             case "net/minecraft/client/model/animal/squid/SquidModel#createBodyLayer",
                  "net/minecraft/client/model/monster/blaze/BlazeModel#createBodyLayer",
@@ -76,7 +76,7 @@ public final class JavaEntityProceduralLoops {
      */
     public static @NotNull JsonObject augment(
         @NotNull JsonObject geometry,
-        @NotNull JavaEntityLayerDefinitionResolver.Resolution resolution
+        @NotNull EntityLayerDefinitionResolver.Resolution resolution
     ) {
         String key = resolution.targetClass() + "#" + resolution.targetMethod();
         switch (key) {

@@ -21,7 +21,7 @@ import java.util.Objects;
 
 /**
  * A minimal entity model schema produced by the Java-derived entity-models pipeline
- * ({@code ToolingJavaEntityModels} bytecode walk of the vanilla client jar). Lists each entity's
+ * ({@code ToolingEntityModels} bytecode walk of the vanilla client jar). Lists each entity's
  * bones and their cube geometry without trying to express every vanilla feature.
  * <p>
  * Used by {@link EntityGeometryKit}'s triangle builders to turn an entity id into a list of cubes

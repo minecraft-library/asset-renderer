@@ -29,12 +29,12 @@ import java.util.zip.ZipFile;
  * poppy via {@code IronGolemFlowerLayer}, enderman carried block via {@code CarriedBlockLayer},
  * generic via {@code BlockDecorationLayer}).
  *
- * <p>Generalises what {@link lib.minecraft.renderer.tooling.ToolingJavaEntityModels}
+ * <p>Generalises what {@link lib.minecraft.renderer.tooling.ToolingEntityModels}
  * previously hardcoded for mooshroom: walks the renderer constructor for {@code addLayer(new
  * RecognisedLayer(this[, args]))} dispatches, then walks the matched layer's {@code submit}
  * method for each {@code pushPose / popPose} pair, extracting the pose-stack ops issued
  * between them. Each pair becomes one {@link BlockOverlayDescriptor} - one block-overlay row
- * in {@code entity_models_java.json}.
+ * in {@code entity_models.json}.
  *
  * <p>Op extraction recognises:
  * <ul>
@@ -53,7 +53,7 @@ import java.util.zip.ZipFile;
  * variant enum's getBlockState path.
  */
 @UtilityClass
-public final class JavaEntityBlockOverlayResolver {
+public final class EntityBlockOverlayResolver {
 
     /** JVM internal name of {@code PoseStack} - layer submit methods invoke its push / translate / rotate / scale ops. */
     private static final @NotNull String POSE_STACK = "com/mojang/blaze3d/vertex/PoseStack";
@@ -367,7 +367,7 @@ public final class JavaEntityBlockOverlayResolver {
      * Wire-format-friendly representation of one block overlay row. Carries the block id, an
      * optional bone name the overlay attaches to (its bind pose pre-applies), and the ordered
      * pose-stack op list. Consumed by
-     * {@link lib.minecraft.renderer.tooling.ToolingJavaEntityModels} which serialises into the
+     * {@link lib.minecraft.renderer.tooling.ToolingEntityModels} which serialises into the
      * {@code block_overlays} JSON array consumed by {@link
      * lib.minecraft.renderer.pipeline.loader.EntityModelLoader.BlockOverlayLayer}.
      */

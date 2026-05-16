@@ -44,13 +44,13 @@ import java.util.zip.ZipFile;
  * variants.
  *
  * <p>Variant directory names are bytecode-stable - the {@code XVariant} class name returned by
- * {@link JavaEntityTextureResolver.Binding#variantSourceClass()} ends in
+ * {@link EntityTextureResolver.Binding#variantSourceClass()} ends in
  * {@code "Variant"} and corresponds 1:1 to a {@code data/minecraft/<X>_variant/} directory.
  * The mapping is computed via {@link #directoryFor(String)} so future variant types pick up
  * automatically.
  */
 @UtilityClass
-public final class JavaEntityVariantResolver {
+public final class EntityVariantResolver {
 
     /** Prefix every variant data directory shares. */
     private static final @NotNull String DATA_PREFIX = "data/minecraft/";
@@ -161,7 +161,7 @@ public final class JavaEntityVariantResolver {
      * {@code "WolfVariants"} -&gt; {@code "wolf"} (defensive trailing-s).
      *
      * @param variantClassInternalName the JVM internal name from
-     *     {@link JavaEntityTextureResolver.Binding#variantSourceClass()}
+     *     {@link EntityTextureResolver.Binding#variantSourceClass()}
      * @return the variant directory stem, or {@code null} when the class doesn't conform to the
      *     {@code XVariant} naming convention
      */

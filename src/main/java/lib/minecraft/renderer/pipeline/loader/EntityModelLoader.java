@@ -33,7 +33,7 @@ import java.util.Set;
 
 /**
  * Loads bundled entity model definitions from three paired classpath resources produced by
- * {@code ToolingJavaEntityModels}: {@link #MODELS_RESOURCE_PATH} holds per-entity metadata
+ * {@code ToolingEntityModels}: {@link #MODELS_RESOURCE_PATH} holds per-entity metadata
  * (geometry reference, texture reference, optional {@code variant_of} back-link, overlays);
  * {@link #GEOMETRY_RESOURCE_PATH} holds the deduplicated bone/cube trees; and
  * {@link #OVERRIDES_RESOURCE_PATH} carries hand-edited corrections that cannot be auto-derived
@@ -60,11 +60,11 @@ import java.util.Set;
 @UtilityClass
 public class EntityModelLoader {
 
-    /** Per-entity metadata file; produced by {@code ToolingJavaEntityModels}. */
-    private static final @NotNull String MODELS_RESOURCE_PATH = "/lib/minecraft/renderer/entity_models_java.json";
+    /** Per-entity metadata file; produced by {@code ToolingEntityModels}. */
+    private static final @NotNull String MODELS_RESOURCE_PATH = "/lib/minecraft/renderer/entity_models.json";
 
     /** Per-geometry bone tree file; bones in Java-native Y-down absolute entity-root frame. */
-    private static final @NotNull String GEOMETRY_RESOURCE_PATH = "/lib/minecraft/renderer/entity_geometry_java.json";
+    private static final @NotNull String GEOMETRY_RESOURCE_PATH = "/lib/minecraft/renderer/entity_geometry.json";
 
     /**
      * Hand-edited geometries merged on top of {@link #GEOMETRY_RESOURCE_PATH}. The bytecode
@@ -72,7 +72,7 @@ public class EntityModelLoader {
      * standalone player-humanoid output, used by {@code SkeletonClothingLayer}-shaped overlays);
      * this file is the escape hatch for those. Entries here survive tooling regenerations.
      */
-    private static final @NotNull String GEOMETRY_HANDEDITS_RESOURCE_PATH = "/lib/minecraft/renderer/entity_geometry_java_handedits.json";
+    private static final @NotNull String GEOMETRY_HANDEDITS_RESOURCE_PATH = "/lib/minecraft/renderer/entity_geometry_handedits.json";
 
     private static final @NotNull String OVERRIDES_RESOURCE_PATH = "/lib/minecraft/renderer/entity_models_overrides.json";
 
@@ -397,8 +397,8 @@ public class EntityModelLoader {
 
             // Overlays come from two sources, concatenated in this order so hand-edited entries
             // always extend (never replace) the auto-generated ones:
-            //   1. entity_models_java.json - emissive eye layers + composite layers emitted by
-            //      JavaEntityOverlayResolver during tooling.
+            //   1. entity_models.json - emissive eye layers + composite layers emitted by
+            //      EntityOverlayResolver during tooling.
             //   2. entity_models_overrides.json - hand-edited overlays for cases the tooling
             //      can't auto-detect (slime translucent shell, copper golem flower).
             // An overlay sharing the base geometry_ref reuses baseModel verbatim (eye PNGs land
@@ -465,7 +465,7 @@ public class EntityModelLoader {
      * {@link #GEOMETRY_HANDEDITS_RESOURCE_PATH} on top (hand-edits take precedence on key
      * collision). Returns an empty map when the primary file is absent (so {@link #load()}
      * can short-circuit to "no Java pipeline available" without throwing during environments
-     * that haven't run {@code ToolingJavaEntityModels} yet).
+     * that haven't run {@code ToolingEntityModels} yet).
      */
     private static @NotNull Map<String, EntityModelData> loadGeometries() {
         Map<String, EntityModelData> out = readGeometriesJsonResource(GEOMETRY_RESOURCE_PATH, /*required*/ false);
@@ -477,7 +477,7 @@ public class EntityModelLoader {
     /**
      * Cross-entity family overrides for the family-fit pre-pass.
      * Mirrors the vanilla harness's {@code EntitySweeper.FAMILY_OVERRIDES} (variant-of-same-entity
-     * groupings are derived from {@code variant_of} in entity_models_java.json; this map is for
+     * groupings are derived from {@code variant_of} in entity_models.json; this map is for
      * distinct entities that should share a family canvas). Mooshroom uses the cow body geometry
      * + mushroom block overlays - vanilla family-fits it under cow so the mushrooms protrude into
      * the cold-cow-sized canvas's empty top space instead of squishing the body to fit a mooshroom-
@@ -492,7 +492,7 @@ public class EntityModelLoader {
 
     /**
      * Returns {@code entityId -> familyMembers} keyed by every Java-pipeline entity id. Family
-     * membership is derived from {@code variant_of} in entity_models_java.json (variant entities
+     * membership is derived from {@code variant_of} in entity_models.json (variant entities
      * roll up to their declared root) plus {@link #FAMILY_OVERRIDES} (cross-entity groupings).
      * Singletons return a single-element list containing themselves so callers can iterate
      * uniformly without special-casing. The result is cached on first call - the JSON is loaded

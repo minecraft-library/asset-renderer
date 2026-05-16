@@ -80,7 +80,7 @@ public final class EntityRendererDiscovery {
      *     ({@code DonkeyRenderer$Type.DONKEY} vs {@code .MULE}; {@code UndeadHorseRenderer$Type.ZOMBIE}
      *     vs {@code .SKELETON}) into the renderer's constructor, which then stores
      *     {@code Type.texture} into instance fields read by {@code getTextureLocation}.
-     *     {@link JavaEntityTextureResolver} walks these to extract the per-entity texture path
+     *     {@link EntityTextureResolver} walks these to extract the per-entity texture path
      *     when the renderer's binding is otherwise flagged as {@code "(instance-field-driven)"}.
      */
     public record Registration(
@@ -92,7 +92,7 @@ public final class EntityRendererDiscovery {
 
     /**
      * Owner + field-name pair for a {@code GETSTATIC <Owner>$Type.<NAME>} reference seen in
-     * a renderer-factory lambda body. Used by {@link JavaEntityTextureResolver} to resolve
+     * a renderer-factory lambda body. Used by {@link EntityTextureResolver} to resolve
      * instance-field-driven renderers (donkey / horse) by matching the per-entity Type enum
      * constant the lambda passes into the constructor against the constant's
      * {@code .texture} field initialiser in the {@code Type} enum's {@code <clinit>}.

@@ -32,7 +32,7 @@ import java.util.stream.Stream;
 
 /**
  * Per-entity parity report comparing the Java pipeline output (via {@link EntityRenderer} +
- * {@code entity_models_java.json} / {@code entity_geometry_java.json}) against the
+ * {@code entity_models.json} / {@code entity_geometry.json}) against the
  * vanilla-reference-harness ground truth PNGs in
  * {@code cache/asset-renderer/vanilla/26.1/references/entities/}. The harness drives a real
  * Minecraft client to render each entity through vanilla's actual render path, so its output is
@@ -117,7 +117,7 @@ public final class TestEntityParityVanilla {
         PipelineRendererContext context = PipelineRendererContext.of(result);
         ConcurrentMap<String, EntityModelLoader.EntityDefinition> javaEntities = EntityModelLoader.load();
         if (javaEntities.isEmpty()) {
-            System.err.println("entity_models_java.json missing - run :asset-renderer:entityModelsJava first");
+            System.err.println("entity_models.json missing - run :asset-renderer:entityModelsJava first");
             return;
         }
         EntityRenderer javaRenderer = new EntityRenderer(context, javaEntities);

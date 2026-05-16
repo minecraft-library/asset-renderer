@@ -22,8 +22,8 @@ import java.util.Optional;
 import java.util.TreeSet;
 
 /**
- * Renders every entity from the Java-derived pipeline ({@code entity_models_java.json} /
- * {@code entity_geometry_java.json}) through {@link EntityRenderer}'s Y-down engine path. Output
+ * Renders every entity from the Java-derived pipeline ({@code entity_models.json} /
+ * {@code entity_geometry.json}) through {@link EntityRenderer}'s Y-down engine path. Output
  * lands in {@code cache/visual/entity-render-3d/} for visual inspection.
  * <p>
  * Usage: {@code ./gradlew :asset-renderer:entityRender3D [-PrenderSize=512] [-PentityId=minecraft:zombie]}.
@@ -59,7 +59,7 @@ public final class TestEntityRender3D {
         PipelineRendererContext context = PipelineRendererContext.of(result);
         ConcurrentMap<String, EntityModelLoader.EntityDefinition> javaEntities = EntityModelLoader.load();
         if (javaEntities.isEmpty()) {
-            System.err.println("entity_models_java.json / entity_geometry_java.json not present on the classpath - run ./gradlew :asset-renderer:entityModelsJava first");
+            System.err.println("entity_models.json / entity_geometry.json not present on the classpath - run ./gradlew :asset-renderer:entityModelsJava first");
             return;
         }
         EntityRenderer renderer = new EntityRenderer(context, javaEntities);

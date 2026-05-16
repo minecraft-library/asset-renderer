@@ -1,5 +1,5 @@
 {
-  "//": "Hand-edited corrections applied to entity_models_java.json + entity_geometry_java.json. Loaded by EntityModelLoader per entity; honoured keys are `geometry_ref`, `texture_ref`, `hidden_bones`, `overlays`, `force_opaque`. `hidden_bones` strips bones the geometry packs into a shared tree but the entity should not show (illager hat, equine saddle, armor stand hat).",
+  "//": "Hand-edited corrections applied to entity_models.json + entity_geometry.json. Loaded by EntityModelLoader per entity; honoured keys are `geometry_ref`, `texture_ref`, `hidden_bones`, `overlays`, `force_opaque`. `hidden_bones` strips bones the geometry packs into a shared tree but the entity should not show (illager hat, equine saddle, armor stand hat).",
   "entities": {
     "//minecraft:armor_stand": "ArmorStandModel constructor statically sets this.hat.visible = false; vanilla bounds-walker honours visibility and excludes the hat extent. Our pipeline doesn't track per-bone visibility, so strip the hat at load time. Same applies to any model whose constructor statically toggles visibility before render. Detect at tooling time when convenient and remove this hand-edited entry.",
     "minecraft:armor_stand": {
@@ -81,7 +81,7 @@
     "minecraft:sheep": {
       "force_opaque": true
     },
-    "//minecraft:elder_guardian": "Redirect at geometry.guardian_elder (in entity_geometry_java_handedits.json), which carries MeshTransformer.scaling(2.35F) applied to ALL 17 bones - the bytecode tooling missed scaling the 12 loop-added spike bones in geometry.guardian_1, so spikes were rendered tiny and detached from the scaled body.",
+    "//minecraft:elder_guardian": "Redirect at geometry.guardian_elder (in entity_geometry_handedits.json), which carries MeshTransformer.scaling(2.35F) applied to ALL 17 bones - the bytecode tooling missed scaling the 12 loop-added spike bones in geometry.guardian_1, so spikes were rendered tiny and detached from the scaled body.",
     "minecraft:elder_guardian": {
       "geometry_ref": "geometry.guardian_elder"
     },

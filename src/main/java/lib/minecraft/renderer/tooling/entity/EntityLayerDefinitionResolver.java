@@ -40,14 +40,14 @@ import java.util.zip.ZipFile;
  *       until parity surfaces an example.</li>
  * </ol>
  *
- * <p>The result is consumed by {@link ToolingJavaEntityModels} which feeds each
+ * <p>The result is consumed by {@link ToolingEntityModels} which feeds each
  * {@link Resolution} as a synthetic {@code Source} into
  * {@code ToolingBlockEntities.Parser.parse} - the same bytecode walker used by block entities,
  * since the {@code LayerDefinition.create} / {@code CubeListBuilder} / {@code PartPose} /
  * {@code addOrReplaceChild} bytecode patterns are identical between block and mob models.
  */
 @UtilityClass
-public final class JavaEntityLayerDefinitionResolver {
+public final class EntityLayerDefinitionResolver {
 
     /** JVM internal name of {@code net.minecraft.client.model.geom.LayerDefinitions}. */
     private static final @NotNull String LAYER_DEFINITIONS = "net/minecraft/client/model/geom/LayerDefinitions";

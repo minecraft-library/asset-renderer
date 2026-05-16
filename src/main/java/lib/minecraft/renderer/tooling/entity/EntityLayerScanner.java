@@ -49,7 +49,7 @@ import java.util.zip.ZipFile;
  * fans into helper methods or builds layer args via further constructor chains.
  */
 @UtilityClass
-public final class JavaEntityLayerScanner {
+public final class EntityLayerScanner {
 
     /** Method name used by every {@code LivingEntityRenderer.addLayer} call. */
     private static final @NotNull String ADD_LAYER = "addLayer";

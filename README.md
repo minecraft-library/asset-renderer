@@ -172,7 +172,7 @@ These tasks rewrite the bundled JSON snapshots in `src/main/resources/lib/minecr
 | `blockTints` | `block_tints.json` | ASM scan of `net.minecraft.client.color.block.BlockColors` |
 | `potionColors` | `potion_colors.json` | ASM scan of `net.minecraft.world.effect.MobEffects` |
 | `blockEntities` | `block_entities.json` | ASM scan of block-entity model classes |
-| `entityModels` | `entity_models_java.json` + `entity_geometry_java.json` | ASM scan of vanilla client jar Model factories |
+| `entityModels` | `entity_models.json` + `entity_geometry.json` | ASM scan of vanilla client jar Model factories |
 | `colorMaps` | `color_maps.json` | Vanilla biome colormap PNGs |
 
 > [!NOTE]
@@ -248,7 +248,7 @@ asset-renderer/
 | `block_entities_overrides.json` | Hand-curated fixes on top of the ASM scan |
 | `block_tints.json` | Block-colour tint hooks extracted from `BlockColors` |
 | `color_maps.json` | Grass/foliage/water biome tint maps |
-| `entity_models_java.json` + `entity_geometry_java.json` | Vanilla-client-derived entity geometry |
+| `entity_models.json` + `entity_geometry.json` | Vanilla-client-derived entity geometry |
 | `entity_models_overrides.json` | Hand-curated overrides applied on top of the geometry scan |
 | `potion_colors.json` | Vanilla `MobEffects` colour values |
 

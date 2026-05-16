@@ -2165,7 +2165,7 @@ public final class ToolingBlockEntities {
 
             /**
              * The factory's default {@code CubeDeformation} inflate, captured at the call site
-             * in {@link JavaEntityLayerDefinitionResolver} (e.g. {@code 0.25} for
+             * in {@link EntityLayerDefinitionResolver} (e.g. {@code 0.25} for
              * {@code DROWNED_OUTER_LAYER}'s {@code DrownedModel.createBodyLayer(new
              * CubeDeformation(0.25F))}). {@link #pendingInflate} resets to this value after every
              * {@code emitCube} so all cubes in the factory pick up the call-site-provided inflate

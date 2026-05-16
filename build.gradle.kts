@@ -168,9 +168,9 @@ tasks {
     }
 
     register<JavaExec>("entityModels") {
-        description = "Walks the Java client jar via ASM and generates src/main/resources/lib/minecraft/renderer/entity_models_java.json + entity_geometry_java.json (per-entity bone trees + variant metadata). Run on a Minecraft version bump."
+        description = "Walks the Java client jar via ASM and generates src/main/resources/lib/minecraft/renderer/entity_models.json + entity_geometry.json (per-entity bone trees + variant metadata). Run on a Minecraft version bump."
         group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.ToolingJavaEntityModels")
+        mainClass.set("lib.minecraft.renderer.tooling.ToolingEntityModels")
         classpath = sourceSets["main"].runtimeClasspath
     }
 
@@ -246,7 +246,7 @@ tasks {
     }
 
     register<JavaExec>("entityRender3D") {
-        description = "Renders every entity in entity_models_java.json via EntityRenderer (3D) to cache/visual/entity-render-3d/ for visual inspection. -PrenderSize=512 -PentityId=minecraft:zombie"
+        description = "Renders every entity in entity_models.json via EntityRenderer (3D) to cache/visual/entity-render-3d/ for visual inspection. -PrenderSize=512 -PentityId=minecraft:zombie"
         group = "visual"
         mainClass.set("lib.minecraft.renderer.visual.TestEntityRender3D")
         classpath = sourceSets["test"].runtimeClasspath

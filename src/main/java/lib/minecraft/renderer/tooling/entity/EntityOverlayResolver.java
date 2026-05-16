@@ -19,8 +19,8 @@ import java.util.zip.ZipFile;
 
 /**
  * Walks each {@code RenderLayer} subclass attached to an entity renderer (per
- * {@link JavaEntityLayerScanner}) and extracts the data needed to emit a runtime overlay row
- * into {@code entity_models_java.json}. Phase E.4 first-pass scope is emissive eye overlays -
+ * {@link EntityLayerScanner}) and extracts the data needed to emit a runtime overlay row
+ * into {@code entity_models.json}. Phase E.4 first-pass scope is emissive eye overlays -
  * {@code SpiderEyesLayer}, {@code EnderEyesLayer}, {@code PhantomEyesLayer},
  * {@code BreezeEyesLayer}, plus any future vanilla mob whose layer's {@code <clinit>}
  * pre-builds a {@link net.minecraft.client.renderer.rendertype.RenderType} via an
@@ -50,7 +50,7 @@ import java.util.zip.ZipFile;
  * </ul>
  */
 @UtilityClass
-public final class JavaEntityOverlayResolver {
+public final class EntityOverlayResolver {
 
     /** Resource path prefix for entity texture LDCs - matches what the texture resolver uses. */
     private static final @NotNull String TEXTURE_PATH_PREFIX = "textures/entity/";
@@ -108,8 +108,8 @@ public final class JavaEntityOverlayResolver {
 
     /**
      * One overlay descriptor extracted from a layer class. The runtime emission step in
-     * {@link lib.minecraft.renderer.tooling.ToolingJavaEntityModels} maps this onto an
-     * {@code overlays} entry in {@code entity_models_java.json}.
+     * {@link lib.minecraft.renderer.tooling.ToolingEntityModels} maps this onto an
+     * {@code overlays} entry in {@code entity_models.json}.
      *
      * @param layerClass JVM internal name of the source layer subclass (diagnostic provenance)
      * @param texturePath the raw texture path ({@code textures/entity/X/Y_eyes.png}) - callers
@@ -122,8 +122,8 @@ public final class JavaEntityOverlayResolver {
      *     from a separate {@code LayerDefinition} factory (e.g. {@code "SLIME_OUTER"},
      *     {@code "SHEEP_WOOL"}, {@code "SHEEP_WOOL_UNDERCOAT"}). {@code null} for eye overlays
      *     whose UVs reuse the base entity's geometry. {@link
-     *     lib.minecraft.renderer.tooling.ToolingJavaEntityModels} resolves this against
-     *     {@link JavaEntityLayerDefinitionResolver}'s layer-definition map to get an actual
+     *     lib.minecraft.renderer.tooling.ToolingEntityModels} resolves this against
+     *     {@link EntityLayerDefinitionResolver}'s layer-definition map to get an actual
      *     factory target, parses it as an extra geometry, and assigns a deduped geometry id
      */
     public record OverlayDescriptor(
@@ -135,13 +135,13 @@ public final class JavaEntityOverlayResolver {
 
     /**
      * Resolves overlay descriptors from the layer class names produced by
-     * {@link JavaEntityLayerScanner}. Layer classes that don't match any known overlay shape
+     * {@link EntityLayerScanner}. Layer classes that don't match any known overlay shape
      * are silently dropped - they're either runtime-driven (armor / equipment / item-in-hand)
      * or deferred to a later phase.
      *
      * @param zip the deobfuscated client jar
      * @param layerClasses ordered list of layer-class internal names from
-     *     {@link JavaEntityLayerScanner#scan(ZipFile, String, Diagnostics)}
+     *     {@link EntityLayerScanner#scan(ZipFile, String, Diagnostics)}
      * @param entityId the entity-id this layer set belongs to (diagnostic context only)
      * @param diagnostics the diagnostic sink shared with sibling discovery walks
      * @return overlay descriptors in source order; empty when no recognised overlay was found
@@ -204,7 +204,7 @@ public final class JavaEntityOverlayResolver {
      * layer doesn't bake its own model. Detection: walk the constructor for
      * {@code GETSTATIC ModelLayers.X} immediately preceding an
      * {@code INVOKEVIRTUAL EntityModelSet.bakeLayer(ModelLayerLocation) ModelPart} call. The
-     * returned field name is what {@link JavaEntityLayerDefinitionResolver#loadLayerDefinitions}
+     * returned field name is what {@link EntityLayerDefinitionResolver#loadLayerDefinitions}
      * uses as its map key, so the caller can resolve it to a factory target.
      *
      * <p>Skips layers whose field name contains {@code "BABY"} - the babe-sized variants share the
