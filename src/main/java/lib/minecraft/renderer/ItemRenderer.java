@@ -6,7 +6,6 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.binding.DyeColor;
 import lib.minecraft.renderer.asset.model.ModelElement;
@@ -23,7 +22,6 @@ import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.kit.BannerKit;
 import lib.minecraft.renderer.kit.BlockModelGeometryKit;
-import lib.minecraft.renderer.kit.EntityGeometryKit;
 import lib.minecraft.renderer.kit.GlintKit;
 import lib.minecraft.renderer.kit.ItemStackKit;
 import lib.minecraft.renderer.kit.TrimKit;
@@ -152,13 +150,11 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
     /**
      * Composites a fresh banner / shield texture via {@link BannerKit#composite2D} and folds it
-     * into the 3D held-item render path. Banners route through the
-     * {@code minecraft:banner} block-entity model (single flag bone) when the context knows it,
-     * so the HELD_3D view shows proper 3D flag geometry rather than a flat sprite. Shields - and
-     * banners when the block-entity model is absent - fall back to the existing thin-Z-slab
-     * treatment so callers still get a 3D frame with the correct pattern stack applied.
+     * into the 3D held-item render path. Banners and shields both fall back to a thin-Z-slab using
+     * the composited texture so the HELD_3D view reflects the pattern stack. Using the composited
+     * texture for all six slab faces mirrors the flat-sprite fallback already used for other item
+     * kinds.
      *
-     * @param context the renderer context used to resolve the banner entity model
      * @param engine the model engine that also serves as the {@link TextureEngine} for pattern
      *     resolution
      * @param itemId the item id (used to pick the banner vs. shield atlas variant)
@@ -166,7 +162,6 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * @return the list of triangles ready for rasterisation
      */
     static @NotNull ConcurrentList<VisibleTriangle> buildBannerOrShield3D(
-        @NotNull RendererContext context,
         @NotNull ModelEngine engine,
         @NotNull String itemId,
         @NotNull ItemOptions options
@@ -178,17 +173,6 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             : BannerKit.Variant.BANNER_BLOCK_3D;
 
         PixelBuffer composite = BannerKit.composite2D(engine, baseDye, options.getBannerLayers(), variant);
-
-        // Banners get real 3D geometry when the block-entity model is registered; shields and
-        // banners-without-model fall back to a thin Z-slab using the composited texture so the
-        // HELD_3D view still reflects the pattern stack. Using the composited texture for all
-        // six slab faces mirrors the flat-sprite fallback already used for other item kinds.
-        if (!isShield) {
-            Optional<Entity> bannerEntity = context.findEntity("minecraft:banner");
-            if (bannerEntity.isPresent()) {
-                return EntityGeometryKit.buildTriangles(bannerEntity.get().getModel(), composite).triangles();
-            }
-        }
 
         PixelBuffer[] faces = new PixelBuffer[]{ composite, composite, composite, composite, composite, composite };
         return BlockModelGeometryKit.box(
@@ -522,7 +506,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                     ColorMath.WHITE
                 );
             } else if (isBannerOrShield(options.getItemId())) {
-                triangles = buildBannerOrShield3D(this.context, engine, options.getItemId(), options);
+                triangles = buildBannerOrShield3D(engine, options.getItemId(), options);
             } else if (!item.getModel().getElements().isEmpty()) {
                 // Element-based path - held block items and any custom item whose model JSON
                 // supplies 'elements'. The element bounds and face bindings are fully resolved

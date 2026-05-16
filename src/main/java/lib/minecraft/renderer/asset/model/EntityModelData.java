@@ -135,7 +135,7 @@ public class EntityModelData {
          * resolution (cube UV regions stay tied to the authored {@code size} value), matching
          * vanilla's per-vertex scale semantics.
          *
-         * @see lib.minecraft.renderer.kit.EntityGeometryKitJava
+         * @see lib.minecraft.renderer.kit.EntityGeometryKit
          */
         private float scale = 1f;
 

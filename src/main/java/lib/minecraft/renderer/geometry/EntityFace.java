@@ -167,8 +167,8 @@ public enum EntityFace {
      * because vertical extent on the strip is always expressed in terms of {@code sz} (top row)
      * or the face's own height.
      * <p>
-     * Used by entity cube rendering (via {@link EntityGeometryKit} and {@code
-     * EntityGeometryKitJava}) where one skin image supplies every face of a body part. Callers
+     * Used by entity cube rendering (via {@link EntityGeometryKit}) where one skin image
+     * supplies every face of a body part. Callers
      * compose {@link Vector4f#toUvCorners(float, float, int, boolean)} with the texture
      * dimensions on the result to obtain normalized per-vertex corners.
      *

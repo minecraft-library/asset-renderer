@@ -3,7 +3,7 @@ package lib.minecraft.renderer.visual;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
-import lib.minecraft.renderer.EntityRendererJava;
+import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.options.EntityOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
@@ -31,7 +31,7 @@ import java.util.TreeSet;
 import java.util.stream.Stream;
 
 /**
- * Per-entity parity report comparing the Java pipeline output (via {@link EntityRendererJava} +
+ * Per-entity parity report comparing the Java pipeline output (via {@link EntityRenderer} +
  * {@code entity_models_java.json} / {@code entity_geometry_java.json}) against the
  * vanilla-reference-harness ground truth PNGs in
  * {@code cache/asset-renderer/vanilla/26.1/references/entities/}. The harness drives a real
@@ -39,7 +39,7 @@ import java.util.stream.Stream;
  * the canonical baseline; the Java pipeline aims to match it.
  *
  * <p>Both sides are now rendered at native resolution: the harness uses
- * {@code pixelsPerBlock=256} with a {@code maxCanvasSize=1024} cap, and {@code EntityRendererJava}
+ * {@code pixelsPerBlock=256} with a {@code maxCanvasSize=1024} cap, and {@code EntityRenderer}
  * mirrors that math (see its {@code computeCanvasFit}) so for entities present in both pipelines
  * the dimensions agree. When dimensions still differ (e.g. variant family-fit not yet ported to
  * the Java side), both PNGs are pasted onto a common {@code (max(vw,jw), max(vh,jh))} canvas with
@@ -120,7 +120,7 @@ public final class TestEntityParityVanilla {
             System.err.println("entity_models_java.json missing - run :asset-renderer:entityModelsJava first");
             return;
         }
-        EntityRendererJava javaRenderer = new EntityRendererJava(context, javaEntities);
+        EntityRenderer javaRenderer = new EntityRenderer(context, javaEntities);
 
         TreeSet<String> javaKeys = new TreeSet<>(javaEntities.keySet());
         TreeSet<String> vanillaKeys = collectVanillaEntityIds();

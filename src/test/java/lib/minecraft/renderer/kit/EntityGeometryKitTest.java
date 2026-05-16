@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
- * Foundation invariants for {@link EntityGeometryKitJava} verified against a clean single-bone,
+ * Foundation invariants for {@link EntityGeometryKit} verified against a clean single-bone,
  * single-cube fixture - no bone hierarchy, no rotations, no overrides. Locks down the kit's
  * Y-flip + winding-reversal + UV-swap + UV-permutation contract so future refactors can detect
  * drift before propagating to entities.
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * possible input so a defect in one shows as a focused assertion failure rather than a
  * downstream entity-render regression.
  */
-class EntityGeometryKitJavaTest {
+class EntityGeometryKitTest {
 
     /** Half-extent of the cube fixture in model units (cube spans {@code [-HALF, +HALF]} per axis). */
     private static final float HALF = 1f;
@@ -190,7 +190,7 @@ class EntityGeometryKitJavaTest {
         bones.put("body", bone);
 
         EntityModelData model = new EntityModelData(64, 64, 0f, bones);
-        return EntityGeometryKitJava.buildTriangles(model, solidTexture(64, 64));
+        return EntityGeometryKit.buildTriangles(model, solidTexture(64, 64));
     }
 
     private static PixelBuffer solidTexture(int w, int h) {

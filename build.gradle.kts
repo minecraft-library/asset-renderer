@@ -260,31 +260,11 @@ tasks {
     }
 
     register<JavaExec>("entityRender3D") {
-        description = "Renders every entity in entity_models.json via EntityRenderer (3D) to cache/visual/entity-render-3d/ for visual inspection. -PrenderSize=512 -PentityId=minecraft:zombie"
+        description = "Renders every entity in entity_models_java.json via EntityRenderer (3D) to cache/visual/entity-render-3d/ for visual inspection. -PrenderSize=512 -PentityId=minecraft:zombie"
         group = "visual"
         mainClass.set("lib.minecraft.renderer.visual.TestEntityRender3D")
         classpath = sourceSets["test"].runtimeClasspath
         val renderSize = (project.findProperty("renderSize") as String?) ?: "512"
-        val entityId = project.findProperty("entityId") as String?
-        args = if (entityId != null) listOf(renderSize, entityId) else listOf(renderSize)
-    }
-
-    register<JavaExec>("entityRender3DJava") {
-        description = "Side-by-side counterpart of entityRender3D using the Java-derived pipeline (entity_models_java.json + EntityRendererJava). Output -> cache/visual/entity-render-3d-java/. -PrenderSize=512 -PentityId=minecraft:zombie"
-        group = "visual"
-        mainClass.set("lib.minecraft.renderer.visual.TestEntityRender3DJava")
-        classpath = sourceSets["test"].runtimeClasspath
-        val renderSize = (project.findProperty("renderSize") as String?) ?: "512"
-        val entityId = project.findProperty("entityId") as String?
-        args = if (entityId != null) listOf(renderSize, entityId) else listOf(renderSize)
-    }
-
-    register<JavaExec>("entityParity") {
-        description = "Per-entity parity report comparing Java pipeline vs bedrock pipeline (mean ARGB delta + side-by-side PNGs). Output -> cache/visual/entity-parity/. -PrenderSize=256 -PentityId=minecraft:zombie"
-        group = "visual"
-        mainClass.set("lib.minecraft.renderer.visual.TestEntityParity")
-        classpath = sourceSets["test"].runtimeClasspath
-        val renderSize = (project.findProperty("renderSize") as String?) ?: "256"
         val entityId = project.findProperty("entityId") as String?
         args = if (entityId != null) listOf(renderSize, entityId) else listOf(renderSize)
     }

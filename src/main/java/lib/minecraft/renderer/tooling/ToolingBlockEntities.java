@@ -801,7 +801,7 @@ public final class ToolingBlockEntities {
          * around the entity's feet anchor at {@code y=24.016 pixels} (= {@code 1.501 blocks * 16
          * px/block}, the LER chain's {@code translate(0, -1.501, 0)}) and multiplies the bone's
          * {@code PartPose.scale} field by F. Both halves land here together; the kit's
-         * {@link lib.minecraft.renderer.kit.EntityGeometryKitJava#buildTriangles} consumes the
+         * {@link lib.minecraft.renderer.kit.EntityGeometryKit#buildTriangles} consumes the
          * {@code scale} field to multiply local cube vertices by F at the pivot translate, which
          * is algebraically equivalent to vanilla's per-vertex {@code poseStack.scale(F)} call
          * sitting AFTER the pivot translate and BEFORE the cube render.

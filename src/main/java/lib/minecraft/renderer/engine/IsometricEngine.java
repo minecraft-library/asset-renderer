@@ -96,7 +96,7 @@ public class IsometricEngine extends ModelEngine {
      * Returns an engine wired to vanilla Minecraft's standard entity inventory-preview pose
      * ({@code [210, 45, 0]} pitch/yaw/roll), matching {@code EntityFrameRenderer.ISO_ROTATION}
      * in the vanilla-reference-harness. Use for entity rendering through
-     * {@link lib.minecraft.renderer.EntityRendererJava} so the output pose aligns with the
+     * {@link lib.minecraft.renderer.EntityRenderer} so the output pose aligns with the
      * harness ground-truth PNGs. Block / item rendering should continue using
      * {@link #standard(RendererContext)}.
      *

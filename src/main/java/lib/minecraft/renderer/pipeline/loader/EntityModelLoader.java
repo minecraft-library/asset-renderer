@@ -1102,7 +1102,7 @@ public class EntityModelLoader {
      * Side-by-side counterpart of {@link #load()} for the Java-derived pipeline. Reads
      * {@code entity_models_java.json} + {@code entity_geometry_java.json} (both produced by
      * {@code ToolingJavaEntityModels}) and emits the same {@link EntityDefinition} shape so the
-     * sibling {@code EntityRendererJava} can drop in. Skips overrides and bind poses entirely
+     * sibling {@code EntityRenderer} can drop in. Skips overrides and bind poses entirely
      * for the first pass - those layers exist in the bedrock pipeline to compensate for Bedrock
      * authoring quirks the Java pipeline doesn't share, and the Java side will get its own
      * {@code entity_models_java_overrides.json} only when residual gaps surface.
