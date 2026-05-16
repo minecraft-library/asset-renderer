@@ -31,14 +31,10 @@ public class Entity {
     private @NotNull EntityModelData model = new EntityModelData();
 
     /**
-     * The Bedrock-namespace texture sub-path (without {@code .png}), or empty when the entity has
-     * no default texture binding. Resolved at render time against the on-disk bedrock cache via
-     * {@link lib.minecraft.renderer.engine.RendererContext#resolveBedrockEntityTexture(String)
-     * RendererContext.resolveBedrockEntityTexture}; no Java atlas involvement. The PNG itself is
-     * extracted verbatim from {@code Mojang/bedrock-samples} by
-     * {@link lib.minecraft.renderer.pipeline.Pipeline#extractBedrockEntityTextures(java.nio.file.Path,
-     * java.nio.file.Path, java.nio.file.Path, boolean) Pipeline.extractBedrockEntityTextures} into
-     * {@code <cacheRoot>/bedrock/<bedrockRef>/textures/entity/<ref>.png}.
+     * The vanilla {@code textures/entity/} sub-path (without {@code .png}), or empty when the
+     * entity has no default texture binding. Resolved at render time through the active pack
+     * stack via {@link lib.minecraft.renderer.engine.RendererContext#resolveTexture(String)
+     * RendererContext.resolveTexture} as {@code minecraft:entity/<ref>}.
      */
     private @NotNull Optional<String> textureRef = Optional.empty();
 
@@ -53,12 +49,11 @@ public class Entity {
 
     /**
      * When {@code true} the entity's bundled base texture has every partial-alpha texel bumped
-     * to {@code alpha=255} at load time. Used by entities whose Bedrock texture is authored at
+     * to {@code alpha=255} at load time. Used by entities whose vanilla texture is authored at
      * low alpha for an additive-blending pass that the static iso renderer can't reproduce
-     * (blaze rods at alpha=90, magma cube), or for aesthetic partial alpha that should render
-     * opaque under this renderer's binary-canvas convention (sheep wool fluff). Replaces the
-     * legacy {@code ToolingEntityModels.OPAQUE_ALPHA_TEXTURE_REFS} hardcoded set with a
-     * per-entity opt-in, so the bundled PNG stays exactly as Bedrock ships it.
+     * (blaze rods, magma cube), or for aesthetic partial alpha that should render opaque under
+     * this renderer's binary-canvas convention (sheep wool fluff). Opt-in via the
+     * {@code force_opaque} field on the entity's overrides row.
      */
     private boolean forceOpaque = false;
 
@@ -113,13 +108,12 @@ public class Entity {
      * own bundled texture sub-path; combined with the base model under one shared auto-fit
      * transform at render time.
      *
-     * @param model the overlay's bone/cube tree, in the same Bedrock-native coordinate frame as
-     *     the base model so the layers register without per-overlay placement
-     * @param textureRef the Bedrock-namespace texture sub-path (without {@code .png}), resolved
-     *     against the on-disk bedrock cache by
-     *     {@link lib.minecraft.renderer.engine.RendererContext#resolveBedrockEntityTexture(String)
-     *     RendererContext.resolveBedrockEntityTexture}, or empty when the overlay reuses the
-     *     base texture
+     * @param model the overlay's bone/cube tree, in the same Y-down entity-root coordinate frame
+     *     as the base model so the layers register without per-overlay placement
+     * @param textureRef the vanilla {@code textures/entity/} sub-path (without {@code .png}),
+     *     resolved through {@link lib.minecraft.renderer.engine.RendererContext#resolveTexture(String)
+     *     RendererContext.resolveTexture} as {@code minecraft:entity/<ref>}, or empty when the
+     *     overlay reuses the base texture
      * @param emissive when {@code true} the overlay renders full-bright + additive (vanilla
      *     Java's {@code RenderType.eyes} pattern - spider eyes, ender dragon eyes) instead of
      *     the default shaded src-over. Tagged through every triangle the overlay produces; the

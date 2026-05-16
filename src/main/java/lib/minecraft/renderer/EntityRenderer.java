@@ -127,7 +127,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
     /**
      * Java-derived entity definitions keyed by namespaced id, loaded via
-     * {@link EntityModelLoader#loadJava()}. Replaces the bedrock-side {@code context.findEntity()}
+     * {@link EntityModelLoader#load()}. Replaces the bedrock-side {@code context.findEntity()}
      * call so the two pipelines stay decoupled.
      */
     private final @NotNull Map<String, EntityModelLoader.EntityDefinition> javaEntities;
@@ -509,7 +509,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * texture / definition can't be resolved (missing PNG, unloaded variant) are skipped - the
      * union degrades to the available members rather than throwing.
      * <p>
-     * Members are sourced from {@code EntityModelLoader.loadFamiliesJava()} - {@code variant_of}
+     * Members are sourced from {@code EntityModelLoader.loadFamilies()} - {@code variant_of}
      * for variant-of-same-entity groupings plus {@code FAMILY_OVERRIDES} for cross-entity ones
      * (mooshroom -> cow). Singleton entities return a 1-element family list so this method
      * collapses to {@link #computeUnionScreenBounds} for non-family-bearing entities.
@@ -522,7 +522,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull PixelBuffer texture
     ) {
         Box bounds = computeUnionScreenBounds(definition, transform, modelScale, texture);
-        List<String> members = EntityModelLoader.loadFamiliesJava().getOrDefault(entityId, List.of(entityId));
+        List<String> members = EntityModelLoader.loadFamilies().getOrDefault(entityId, List.of(entityId));
         if (members.size() <= 1) return bounds;
         for (String memberId : members) {
             if (memberId.equals(entityId)) continue;

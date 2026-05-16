@@ -183,23 +183,6 @@ public interface RendererContext {
     }
 
     /**
-     * Resolves a Bedrock-derived entity PNG out of the on-disk bedrock cache.
-     * <p>
-     * The {@code ref} is the Bedrock {@code textures/entity/} sub-path stripped of its prefix
-     * and {@code .png} suffix (e.g. {@code "cow/cow_v2"}, {@code "wither_boss/wither"}) - the
-     * same key shape stored as {@code texture_ref} in {@code entity_models.json}. Production
-     * contexts read the file from {@code <cacheRoot>/bedrock/<bedrockRef>/textures/entity/<ref>.png}
-     * and memoise the decoded buffer; the default returns empty so non-entity contexts and test
-     * stubs do not need to override it.
-     *
-     * @param textureRef the Bedrock-namespace texture reference without {@code .png}
-     * @return the decoded texture, or empty when the ref is unknown or the cache is empty
-     */
-    default @NotNull Optional<PixelBuffer> resolveBedrockEntityTexture(@NotNull String textureRef) {
-        return Optional.empty();
-    }
-
-    /**
      * Resolves a Connected Textures rule for the given block face, walking the parsed
      * {@code optifine/ctm/**} and {@code mcpatcher/ctm/**} rule list in descending weight order
      * and returning the first rule whose {@code appliesTo} predicate accepts the

@@ -108,16 +108,8 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull ConcurrentList<CitRule> citRules;
     private final @NotNull ConcurrentList<CtmRule> ctmRules;
 
-    /**
-     * On-disk root for the bedrock-derived entity texture cache, populated by
-     * {@link Pipeline#extractBedrockEntityTextures(Path, Path, Path, boolean)} during
-     * {@link Pipeline#run(PipelineOptions)}. Read by {@link #resolveBedrockEntityTexture(String)}.
-     */
-    private final @NotNull Path bedrockRoot;
-
     private final @NotNull ImageFactory imageFactory = new ImageFactory();
     private final @NotNull ConcurrentMap<String, PixelBuffer> textureCache = Concurrent.newMap();
-    private final @NotNull ConcurrentMap<String, PixelBuffer> bedrockTextureCache = Concurrent.newMap();
 
     /**
      * Builds a context from a completed pipeline result.
@@ -156,8 +148,7 @@ public final class PipelineRendererContext implements RendererContext {
             blockEntityEntries,
             result.getColorOverrides(),
             result.getCitRules(),
-            result.getCtmRules(),
-            result.getBedrockRoot()
+            result.getCtmRules()
         );
     }
 
@@ -430,7 +421,7 @@ public final class PipelineRendererContext implements RendererContext {
     }
 
     /**
-     * Loads the entity index from {@link EntityModelLoader#loadJava()}, materialising each
+     * Loads the entity index from {@link EntityModelLoader#load()}, materialising each
      * {@link EntityModelLoader.EntityDefinition} into an {@link Entity} DTO with overlay layers
      * flattened into the entity's own {@code Entity.Layer} list. Block-entity models render via
      * the block path now, so only mob entities reach the entity index.
@@ -438,7 +429,7 @@ public final class PipelineRendererContext implements RendererContext {
      * @return the populated entity index, keyed by namespaced entity id
      */
     private static @NotNull ConcurrentMap<String, Entity> loadEntityIndex() {
-        return EntityModelLoader.loadJava()
+        return EntityModelLoader.load()
             .stream()
             .collect(Concurrent.toMap(Map.Entry::getKey, entry -> {
                 String entityId = entry.getKey();
@@ -487,19 +478,6 @@ public final class PipelineRendererContext implements RendererContext {
 
         PixelBuffer buffer = PixelBuffer.wrap(this.imageFactory.fromFile(winning.toFile()).toBufferedImage());
         this.textureCache.put(normalized, buffer);
-        return Optional.of(buffer);
-    }
-
-    @Override
-    public @NotNull Optional<PixelBuffer> resolveBedrockEntityTexture(@NotNull String textureRef) {
-        PixelBuffer cached = this.bedrockTextureCache.get(textureRef);
-        if (cached != null) return Optional.of(cached);
-
-        Path candidate = this.bedrockRoot.resolve("textures").resolve("entity").resolve(textureRef + ".png");
-        if (!Files.isRegularFile(candidate)) return Optional.empty();
-
-        PixelBuffer buffer = PixelBuffer.wrap(this.imageFactory.fromFile(candidate.toFile()).toBufferedImage());
-        this.bedrockTextureCache.put(textureRef, buffer);
         return Optional.of(buffer);
     }
 

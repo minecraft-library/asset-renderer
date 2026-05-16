@@ -639,10 +639,9 @@
         }
       }
     },
-    "//minecraft:elder_guardian": "Bedrock pipeline: same geometry as guardian (geometry.guardian.v1.8) so reuse all the spike/eye overrides. Vanilla Java has a separate guardian_elder.png texture (paler, larger-looking variant) that the Bedrock pack doesn't ship; bundled from the Java client jar via FORCED_EXTRA_TEXTURE_REFS. The bedrock-style texture_ref 'guardian_elder' resolves against the flat bedrock cache. Java pipeline: redirect at geometry.guardian_elder (in entity_geometry_java_handedits.json), which carries the MeshTransformer.scaling(2.35F) applied to ALL 17 bones - the bytecode tooling missed scaling the 12 loop-added spike bones in geometry.guardian_1, so spikes were rendered tiny and detached from the scaled body. The java pipeline's texture_ref precedence requires a slash, so bedrock-style 'guardian_elder' here is skipped for Java and Java's entity-row 'guardian/guardian_elder' takes over.",
+    "//minecraft:elder_guardian": "Redirect at geometry.guardian_elder (in entity_geometry_java_handedits.json), which carries MeshTransformer.scaling(2.35F) applied to ALL 17 bones - the bytecode tooling missed scaling the 12 loop-added spike bones in geometry.guardian_1, so spikes were rendered tiny and detached from the scaled body.",
     "minecraft:elder_guardian": {
       "geometry_ref": "geometry.guardian_elder",
-      "texture_ref": "guardian_elder",
       "bone_overrides": {
         "eye": {
           "cube_offset": [

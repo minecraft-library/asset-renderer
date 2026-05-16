@@ -57,7 +57,7 @@ public final class TestEntityRender3D {
         }
 
         PipelineRendererContext context = PipelineRendererContext.of(result);
-        ConcurrentMap<String, EntityModelLoader.EntityDefinition> javaEntities = EntityModelLoader.loadJava();
+        ConcurrentMap<String, EntityModelLoader.EntityDefinition> javaEntities = EntityModelLoader.load();
         if (javaEntities.isEmpty()) {
             System.err.println("entity_models_java.json / entity_geometry_java.json not present on the classpath - run ./gradlew :asset-renderer:entityModelsJava first");
             return;

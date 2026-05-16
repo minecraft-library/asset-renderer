@@ -115,7 +115,7 @@ public final class TestEntityParityVanilla {
         }
 
         PipelineRendererContext context = PipelineRendererContext.of(result);
-        ConcurrentMap<String, EntityModelLoader.EntityDefinition> javaEntities = EntityModelLoader.loadJava();
+        ConcurrentMap<String, EntityModelLoader.EntityDefinition> javaEntities = EntityModelLoader.load();
         if (javaEntities.isEmpty()) {
             System.err.println("entity_models_java.json missing - run :asset-renderer:entityModelsJava first");
             return;
