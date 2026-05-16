@@ -960,24 +960,34 @@ public class EntityGeometryKit {
      * {@code shade(-n_F_kit)}. Either way the value equals what vanilla's
      * {@code PER_FACE_LIGHTING} resolves to for whichever polygon's UV is opaque.
      * <p>
-     * <b>3D no-cull cubes</b> (skeleton_horse rib cage) skip the front/back picker because their
-     * back-facing polygons are GEOMETRICALLY behind the front-facing ones; depth-test rejects
-     * them unless the front polygon was alpha-discarded, in which case our depth-tie tie-break
-     * handles the per-face split correctly. Applying the picker to all 6 faces over-brightens
-     * interior faces that vanilla's depth-test would otherwise keep dark (skeleton_horse rib
-     * cage delta jumped 60 → 64 during early experiments).
+     * <b>3D no-cull cubes</b> (skeleton_horse rib cage, chicken legs - both 3D cubes flagged
+     * {@code cullBackFaces=false} because a visible face's UV region exceeds the alpha-cutout
+     * threshold) ALSO need the picker. Vanilla's {@code ENTITY_CUTOUT} pipeline composes
+     * {@code withCull(false) + withShaderDefine("PER_FACE_LIGHTING")} - the same
+     * shader-side per-pixel front/back-color choice applies regardless of whether the cube is
+     * a plane or solid. For interior cube faces whose back-facing polygons are geometrically
+     * behind the front-facing ones, depth-test rejects the back fragments before the shade
+     * difference can over-brighten (the rasterizer's strict {@code <=} depth rejection mirrors
+     * vanilla's {@code GL_LEQUAL} default - first-drawn wins on coplanar, deeper rejects on
+     * separated faces). For polygons that DON'T overlap a front-facing companion in screen
+     * (chicken leg's UP face = foot underside, visible at the canvas bottom after iso flip),
+     * the back-facing triangle survives depth-test and the back color is what vanilla shows.
+     * Empirical sweep (2026-05-16) confirmed that lifting the {@code !isPlaneCube} guard
+     * fixes chicken_cold 15.13 -> sub-1 and chicken_warm 8.32 -> sub-1 without regressing
+     * skeleton_horse - the earlier {@code 60 → 64} concern was a pre-Task-#42 measurement
+     * confounded by walker / canvas-bound bugs since fixed.
      *
      * @param normal the post-flip kit-frame outward face normal
-     * @param isPlaneCube {@code true} when the cube has a zero-extent axis
+     * @param isPlaneCube unused as of the chicken-family fix; retained for call-site clarity
      * @param cubeCullBackFaces the cube's effective back-face culling flag
      * @return the shade factor in {@code [0.4, 1.0]}
      */
     private static float computeFaceShading(
         @NotNull Vector3f normal,
-        boolean isPlaneCube,
+        @SuppressWarnings("unused") boolean isPlaneCube,
         boolean cubeCullBackFaces
     ) {
-        if (cubeCullBackFaces || !isPlaneCube)
+        if (cubeCullBackFaces)
             return RenderEngine.computeEntityInUiLighting(normal);
 
         Vector3f cameraFacing = Vector3f.dot(VIEW_DIRECTION_KIT, normal) < 0f
