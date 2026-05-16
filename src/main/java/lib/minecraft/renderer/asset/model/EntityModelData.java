@@ -11,7 +11,6 @@ import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.kit.EntityGeometryKit;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
-import lib.minecraft.renderer.tooling.ToolingEntityModels;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -21,21 +20,16 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Objects;
 
 /**
- * A minimal entity model schema modelled on Mojang's Bedrock Edition {@code .geo.json} format.
- * The asset pipeline parses a slim in-repo descriptor per entity that lists its bones and their
- * cube geometry without trying to express every vanilla feature.
+ * A minimal entity model schema produced by the Java-derived entity-models pipeline
+ * ({@code ToolingJavaEntityModels} bytecode walk of the vanilla client jar). Lists each entity's
+ * bones and their cube geometry without trying to express every vanilla feature.
  * <p>
- * Used by {@code EntityRenderer.ENTITY_3D} to turn an entity id into a list of cubes that can be
- * fed to the model engine.
+ * Used by {@link EntityGeometryKit}'s triangle builders to turn an entity id into a list of cubes
+ * that can be fed to the rasterizer.
  * <p>
- * The canonical coordinate convention is Bedrock-native: Y-up, right-handed, with every position
- * field - {@link Bone#getPivot() bone pivot}, {@link Cube#getOrigin() cube origin},
- * {@link Cube#getPivot() cube pivot} - stored in absolute entity-root space, exactly as authored
- * in the source {@code .geo.json}. Bone pivots are pure rotation anchors; they do not translate
- * the bone's subtree. Bedrock data is stored verbatim by
- * {@link ToolingEntityModels ToolingEntityModels} at asset-generation
- * time so the generated {@code entity_geometry.json} stays byte-diffable against Mojang's
- * {@code bedrock-samples} source.
+ * The canonical coordinate convention is vanilla Java's native frame: Y-down, right-handed, with
+ * every position field - {@link Bone#getPivot() bone pivot}, {@link Cube#getOrigin() cube origin},
+ * {@link Cube#getPivot() cube pivot} - stored in absolute entity-root space.
  *
  * @see EntityGeometryKit
  */

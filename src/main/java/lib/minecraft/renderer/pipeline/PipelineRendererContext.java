@@ -430,7 +430,7 @@ public final class PipelineRendererContext implements RendererContext {
     }
 
     /**
-     * Loads the entity index from {@link EntityModelLoader#load()}, materialising each
+     * Loads the entity index from {@link EntityModelLoader#loadJava()}, materialising each
      * {@link EntityModelLoader.EntityDefinition} into an {@link Entity} DTO with overlay layers
      * flattened into the entity's own {@code Entity.Layer} list. Block-entity models render via
      * the block path now, so only mob entities reach the entity index.
@@ -438,7 +438,7 @@ public final class PipelineRendererContext implements RendererContext {
      * @return the populated entity index, keyed by namespaced entity id
      */
     private static @NotNull ConcurrentMap<String, Entity> loadEntityIndex() {
-        return EntityModelLoader.load()
+        return EntityModelLoader.loadJava()
             .stream()
             .collect(Concurrent.toMap(Map.Entry::getKey, entry -> {
                 String entityId = entry.getKey();

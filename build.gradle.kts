@@ -168,23 +168,9 @@ tasks {
     }
 
     register<JavaExec>("entityModels") {
-        description = "Downloads the Bedrock Edition vanilla resource pack and generates src/main/resources/lib/minecraft/renderer/entity_models.json from .geo.json files. Run on a Minecraft version bump."
-        group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.ToolingEntityModels")
-        classpath = sourceSets["main"].runtimeClasspath
-    }
-
-    register<JavaExec>("entityModelsJava") {
-        description = "Side-by-side Java-derived entity-model pipeline (variant 2a). Phase A: walks the client jar to map every living mob from MobRegistryDiscovery to its registered renderer class, writes a coverage diagnostic to cache/asset-renderer/diagnostics/java_entity_renderers.json. See ~/.claude/plans/java-derived-entity-models-research.md."
+        description = "Walks the Java client jar via ASM and generates src/main/resources/lib/minecraft/renderer/entity_models_java.json + entity_geometry_java.json (per-entity bone trees + variant metadata). Run on a Minecraft version bump."
         group = "tooling"
         mainClass.set("lib.minecraft.renderer.tooling.ToolingJavaEntityModels")
-        classpath = sourceSets["main"].runtimeClasspath
-    }
-
-    register<JavaExec>("bindPoses") {
-        description = "Parses Java Edition Model subclasses via ASM and generates src/main/resources/lib/minecraft/renderer/entity_bind_poses.json - per-bone static rotations the Bedrock 1.21+ geometry expects an animation to apply. Run on a Minecraft version bump."
-        group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.ToolingBindPoses")
         classpath = sourceSets["main"].runtimeClasspath
     }
 
