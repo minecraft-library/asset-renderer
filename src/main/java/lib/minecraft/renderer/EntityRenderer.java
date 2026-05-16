@@ -373,14 +373,22 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
         ConcurrentList<VisibleTriangle> out = Concurrent.newList();
         for (VisibleTriangle tri : blockTris) {
+            Vector3f transformedNormal = Vector3f.normalize(Vector3f.transformNormal(tri.normal(), finalMatrix));
+            // Re-shade with entity Lambertian lighting on the post-transform normal. The block kit
+            // baked cardinal-bucket shading (Lighting.ITEMS_3D-style: 1.0/0.8/0.6/0.5), but vanilla
+            // submits these mushroom/flower block models through the entity render type which dots
+            // the post-pose-stack normal against ENTITY_IN_UI lights per pixel - continuous, not
+            // bucketed. Sampling mooshroom mushroom red showed our 0.67-0.90 block-cardinal range
+            // vs vanilla's 0.45-0.71 Lambertian range.
+            float shading = RenderEngine.computeEntityInUiLighting(transformedNormal);
             out.add(new VisibleTriangle(
                 Vector3f.transform(tri.position0(), finalMatrix),
                 Vector3f.transform(tri.position1(), finalMatrix),
                 Vector3f.transform(tri.position2(), finalMatrix),
                 tri.uv0(), tri.uv1(), tri.uv2(),
                 tri.texture(), tri.tintArgb(),
-                Vector3f.transformNormal(tri.normal(), finalMatrix),
-                tri.shading(), tri.cullBackFaces(), tri.emissive()
+                transformedNormal,
+                shading, tri.cullBackFaces(), tri.emissive()
             ));
         }
         return out;
