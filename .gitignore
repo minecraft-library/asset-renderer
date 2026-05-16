@@ -113,10 +113,9 @@ gradle-app.setting
 cache/
 texturepacks/
 
-# Copyrighted Bedrock entity PNGs must live in cache/, never in src/main/resources/.
-# ToolingEntityModels writes them to <cacheRoot>/bedrock/<bedrockRef>/textures/entity/
-# at runtime; this guard catches accidental regressions if an older tooling build
-# or manual copy puts them back into the resources tree.
+# Copyrighted vanilla entity PNGs must live in cache/, never in src/main/resources/.
+# This guard catches accidental regressions if a manual copy puts them back into
+# the resources tree.
 src/main/resources/lib/minecraft/renderer/entity_textures/
 
 # Generated H2 schema for IntelliJ JPA resolution

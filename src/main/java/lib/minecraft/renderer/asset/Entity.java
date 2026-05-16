@@ -12,7 +12,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * A fully-parsed entity definition - geometry and Bedrock-sourced texture reference - for use by
+ * A fully-parsed entity definition - geometry and vanilla texture reference - for use by
  * the entity renderer's {@code ENTITY_3D} mode. Player skins are never stored on this DTO; they
  * are supplied at render time through the {@code EntityOptions.skinBytes}/{@code skinUrl}/
  * {@code skinTextureId} fields.

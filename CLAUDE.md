@@ -16,7 +16,7 @@ Rewrites JSON in `src/main/resources/lib/minecraft/renderer/`:
 - `blockTints` -> `block_tints.json` (ASM scan of `BlockColors`)
 - `potionColors` -> `potion_colors.json` (ASM scan of `MobEffects`)
 - `blockEntities` -> `block_entities.json` (ASM scan of block-entity model classes)
-- `entityModels` -> `entity_models.json` (Bedrock `.geo.json`)
+- `entityModels` -> `entity_models_java.json` + `entity_geometry_java.json` (ASM scan of vanilla client jar)
 - `colorMaps` -> `color_maps.json` (vanilla biome colormap PNGs)
 - `atlas` / `diagnoseAtlas` / `diagnoseAtlasTask10` -> `build/atlas/`
 

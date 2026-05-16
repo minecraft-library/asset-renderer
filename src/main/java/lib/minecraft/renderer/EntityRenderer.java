@@ -37,10 +37,9 @@ import java.util.Optional;
  * Renders mob entities as isometric 3D icons from the Java-derived entity pipeline
  * ({@code entity_models_java.json} + {@code entity_geometry_java.json}, produced by
  * {@code ToolingJavaEntityModels} from the vanilla client jar) via {@link EntityGeometryKit}'s
- * Y-down engine path. Texture resolution flows through the vanilla pack only via
- * {@link RendererContext#resolveTexture} - the renderer renders Java throughput end-to-end and
- * surfaces missing textures as missing entities rather than papering over them with bedrock
- * fallbacks.
+ * Y-down engine path. Texture resolution flows through the vanilla pack via
+ * {@link RendererContext#resolveTexture}; missing textures surface as missing entities rather
+ * than being papered over with cache fallbacks.
  */
 @RequiredArgsConstructor
 public final class EntityRenderer implements Renderer<EntityOptions> {
@@ -126,9 +125,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     private final @NotNull RendererContext context;
 
     /**
-     * Java-derived entity definitions keyed by namespaced id, loaded via
-     * {@link EntityModelLoader#load()}. Replaces the bedrock-side {@code context.findEntity()}
-     * call so the two pipelines stay decoupled.
+     * Entity definitions keyed by namespaced id, loaded via {@link EntityModelLoader#load()}.
+     * Passed in directly rather than queried through {@code context.findEntity()} so visual tests
+     * can swap in custom fixtures.
      */
     private final @NotNull Map<String, EntityModelLoader.EntityDefinition> javaEntities;
 
@@ -276,12 +275,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
         if (definition.textureRef().isPresent()) {
             String ref = definition.textureRef().get();
-            // Vanilla pack only - the Java pipeline tests Java throughput end-to-end. The
-            // bedrock cache exists for the bedrock-derived sibling pipeline; mixing the two
-            // here masks Java-side gaps (overlay PNGs missing from bedrock, HD resamples
-            // sampled with 64x64 UVs reading only the upper-left quadrant, etc.). When a
-            // texture isn't in the vanilla pack the entity drops out, which surfaces the
-            // gap rather than papering over it.
             Optional<PixelBuffer> loaded = this.context.resolveTexture("minecraft:entity/" + ref);
             if (loaded.isPresent() && definition.forceOpaque())
                 return Optional.of(bumpAlphaToOpaque(loaded.get()));
@@ -643,10 +636,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     /**
      * Returns a copy of {@code source} with every partial-alpha texel bumped to {@code alpha=255},
      * leaving fully-opaque and fully-transparent pixels alone. Used by entities flagged
-     * {@link EntityModelLoader.EntityDefinition#forceOpaque() forceOpaque} - the runtime
-     * equivalent of the bedrock pipeline's authored alpha bump, applied per load so the bundled
-     * PNG stays unchanged. Allocates a new {@link PixelBuffer} so cached or shared instances are
-     * never mutated.
+     * {@link EntityModelLoader.EntityDefinition#forceOpaque() forceOpaque}; the bump is applied
+     * per load so the underlying PNG stays unchanged. Allocates a new {@link PixelBuffer} so
+     * cached or shared instances are never mutated.
      */
     private static @NotNull PixelBuffer bumpAlphaToOpaque(@NotNull PixelBuffer source) {
         int w = source.width();

@@ -57,8 +57,8 @@ public class EntityGeometryKit {
     /**
      * Per-axis flip / negation switches - debug/test only. Defaults to the production setting
      * (Y-flip on positions and Y-flip on normals; other axes identity). Override at runtime
-     * via {@code -Dentity.flipX=true} etc. for parity sweeps. Will be removed once bedrock-era
-     * iteration tooling is fully retired - do not reference these for production logic.
+     * via {@code -Dentity.flipX=true} etc. for parity sweeps; do not reference these for
+     * production logic.
      */
     private static final boolean FLIP_X = Boolean.getBoolean("entity.flipX");
     private static final boolean FLIP_Y = !"false".equalsIgnoreCase(System.getProperty("entity.flipY", "true"));

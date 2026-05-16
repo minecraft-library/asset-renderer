@@ -122,7 +122,7 @@ ImageIO.write(image.toBufferedImage(), "PNG", new File("diamond_ore.png"));
 |----------|---------|--------|-------|
 | `BlockRenderer` | `BlockOptions` | Static or animated | Isometric cube preview |
 | `ItemRenderer` | `ItemOptions` | Static or animated | Handles held-item transforms, durability bars, glint |
-| `EntityRenderer` | `EntityOptions` | Static or animated | Parses Bedrock `.geo.json` entity models |
+| `EntityRenderer` | `EntityOptions` | Static or animated | Vanilla-client-jar-derived entity models |
 | `PlayerRenderer` | `PlayerOptions` | Static | Player skins with armor and held items |
 | `FluidRenderer` | `FluidOptions` | Static or animated | Water, lava, biome variants, still + flowing |
 | `PortalRenderer` | `PortalOptions` | Static or animated | End portal / end gateway, layered shader effect |
@@ -172,7 +172,7 @@ These tasks rewrite the bundled JSON snapshots in `src/main/resources/lib/minecr
 | `blockTints` | `block_tints.json` | ASM scan of `net.minecraft.client.color.block.BlockColors` |
 | `potionColors` | `potion_colors.json` | ASM scan of `net.minecraft.world.effect.MobEffects` |
 | `blockEntities` | `block_entities.json` | ASM scan of block-entity model classes |
-| `entityModels` | `entity_models.json` | Bedrock resource-pack `.geo.json` files |
+| `entityModels` | `entity_models_java.json` + `entity_geometry_java.json` | ASM scan of vanilla client jar Model factories |
 | `colorMaps` | `color_maps.json` | Vanilla biome colormap PNGs |
 
 > [!NOTE]
@@ -248,7 +248,8 @@ asset-renderer/
 | `block_entities_overrides.json` | Hand-curated fixes on top of the ASM scan |
 | `block_tints.json` | Block-colour tint hooks extracted from `BlockColors` |
 | `color_maps.json` | Grass/foliage/water biome tint maps |
-| `entity_models.json` | Bedrock-derived entity geometry |
+| `entity_models_java.json` + `entity_geometry_java.json` | Vanilla-client-derived entity geometry |
+| `entity_models_overrides.json` | Hand-curated overrides applied on top of the geometry scan |
 | `potion_colors.json` | Vanilla `MobEffects` colour values |
 
 > [!NOTE]
