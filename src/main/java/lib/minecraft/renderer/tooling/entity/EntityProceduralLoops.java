@@ -1,9 +1,13 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Per-class supplemental bone tables for procedural-loop model factories. Vanilla's
@@ -78,6 +82,12 @@ public final class EntityProceduralLoops {
         @NotNull JsonObject geometry,
         @NotNull EntityLayerDefinitionResolver.Resolution resolution
     ) {
+        // Snapshot bone refs before dispatching so the post-pass can identify which bones the
+        // applier emitted (new key OR same key but different JsonObject reference, i.e. replaced -
+        // applyGhastTentacles overwrites the partial {@code tentacle0} the parser's linear walk
+        // emitted with garbage values).
+        Map<String, JsonObject> preExisting = snapshotBones(geometry);
+
         String key = resolution.targetClass() + "#" + resolution.targetMethod();
         switch (key) {
             case "net/minecraft/client/model/animal/squid/SquidModel#createBodyLayer" ->
@@ -99,7 +109,89 @@ public final class EntityProceduralLoops {
                 applyEnderDragonNeckAndTail(geometry);
             default -> { /* no template registered yet */ }
         }
+
+        // Post-pass: scale every applier-emitted bone to match the parsed body bone's scale.
+        // Without this each per-entity applier would need to know its factory's
+        // {@code MeshTransformer.scaling(F)} factor and bake the {@code pose.scaled(F)
+        // .translated(0, 24.016*(1-F), 0)} formula into every pivot - ghast lived with the
+        // hardcoded version for a release (Task #39) and elder_guardian carried a
+        // {@code geometry.guardian_elder} hand-edit in {@code entity_geometry_handedits.json}
+        // re-baking all 17 bones. Centralising it here keeps individual appliers as raw
+        // {@code addBox} bytecode-literal mirrors and matches the Parser's
+        // {@code applyMeshTransformerScaling} formula exactly.
+        scaleAugmentedBones(geometry, preExisting);
         return geometry;
+    }
+
+    /**
+     * Captures a name-to-reference snapshot of the geometry's bones so the post-pass in
+     * {@link #augment} can tell which bones the applier inserted or replaced. Reference identity
+     * is what matters: an applier that does {@code bones.add(name, freshObject)} swaps the
+     * reference even if the name was already present, and the post-pass treats the new object as
+     * "applier-emitted".
+     */
+    private static @NotNull Map<String, JsonObject> snapshotBones(@NotNull JsonObject geometry) {
+        JsonObject bones = geometry.getAsJsonObject("bones");
+        if (bones == null) return Map.of();
+        Map<String, JsonObject> snapshot = new HashMap<>();
+        for (Map.Entry<String, JsonElement> entry : bones.entrySet()) {
+            if (entry.getValue().isJsonObject())
+                snapshot.put(entry.getKey(), entry.getValue().getAsJsonObject());
+        }
+        return snapshot;
+    }
+
+    /**
+     * Applies the vanilla {@code MeshTransformer.scaling(F)} formula to every bone the applier
+     * emitted, where F is read from the post-parse {@code body} bone's {@code scale} field. The
+     * Parser already baked F into pre-existing bones (via
+     * {@link lib.minecraft.renderer.tooling.ToolingBlockEntities ToolingBlockEntities}'s
+     * {@code applyMeshTransformerScaling}); this completes the job for applier-emitted bones so
+     * pre-existing and procedurally-emitted bones share the same coordinate frame.
+     *
+     * <p>Transform per bone: {@code pivot' = (F*x, F*y + 24.016*(1-F), F*z)} and
+     * {@code scale' = F}. Cubes ({@code origin / size / inflate}) stay in bone-local space; the
+     * kit multiplies them by {@code bone.scale} at vertex time, so leaving them untouched gives
+     * the right effective render size.
+     *
+     * <p>No-op when F is 1f (no scaling to apply) or when the body bone is missing. Bones
+     * present in {@code preExisting} with the same {@link JsonObject} reference are skipped -
+     * the Parser already scaled them. Bones present under the same name with a different
+     * reference (replaced by the applier) are scaled here.
+     */
+    private static void scaleAugmentedBones(@NotNull JsonObject geometry, @NotNull Map<String, JsonObject> preExisting) {
+        // Scan pre-existing bones for the Parser-baked MT scale - the Parser scales every
+        // surviving bone uniformly so any one of them carries the right F. Don't anchor on
+        // {@code body} specifically: GuardianModel's elder layer has no body bone (just
+        // head / eye / tail), and grabbing the scale off the first such bone works there too.
+        float f = 1f;
+        for (JsonObject bone : preExisting.values()) {
+            if (bone.has("scale")) {
+                float candidate = bone.get("scale").getAsFloat();
+                if (candidate != 1f) { f = candidate; break; }
+            }
+        }
+        if (f == 1f) return;
+        JsonObject bones = geometry.getAsJsonObject("bones");
+        if (bones == null) return;
+        float dy = 24.016f * (1f - f);
+        for (Map.Entry<String, JsonElement> entry : bones.entrySet()) {
+            if (!entry.getValue().isJsonObject()) continue;
+            JsonObject bone = entry.getValue().getAsJsonObject();
+            if (preExisting.get(entry.getKey()) == bone) continue;
+            JsonArray pivot = bone.getAsJsonArray("pivot");
+            if (pivot != null && pivot.size() == 3) {
+                float px = pivot.get(0).getAsFloat();
+                float py = pivot.get(1).getAsFloat();
+                float pz = pivot.get(2).getAsFloat();
+                JsonArray scaled = new JsonArray();
+                scaled.add(f * px);
+                scaled.add(f * py + dy);
+                scaled.add(f * pz);
+                bone.add("pivot", scaled);
+            }
+            if (!bone.has("scale")) bone.addProperty("scale", f);
+        }
     }
 
     /**
@@ -327,9 +419,13 @@ public final class EntityProceduralLoops {
      * {@code addBox(-1, 0, -1, 2, height, 2)} at {@code texOffs(0, 0)}.
      *
      * <p>The factory's final step wraps the LayerDefinition with
-     * {@code MeshTransformer.scaling(4.5f)}; we emit unscaled values because the renderer's
-     * auto-fit-to-bounds normalisation handles the size at render time, so scaling has no
-     * visual effect on the parity comparison.
+     * {@code MeshTransformer.scaling(4.5f)} (inline, not via a class-level static MT field);
+     * this applier emits the raw addBox-literal values and the shared
+     * {@link #scaleAugmentedBones} post-pass in {@link #augment} bakes the scaling into the
+     * pivot + {@code scale} field uniformly across every appender, matching what the Parser
+     * does for the body bone via
+     * {@code lib.minecraft.renderer.tooling.ToolingBlockEntities}'s
+     * {@code applyMeshTransformerScaling}.
      */
     private static void applyGhastTentacles(@NotNull JsonObject geometry) {
         JsonObject bones = geometry.getAsJsonObject("bones");

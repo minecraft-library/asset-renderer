@@ -151,7 +151,7 @@ public class EntityGeometryKit {
         float cx = (bounds.minX() + bounds.maxX()) * 0.5f;
         float cy = (bounds.minY() + bounds.maxY()) * 0.5f;
         float cz = (bounds.minZ() + bounds.maxZ()) * 0.5f;
-        return buildTrianglesWithScale(model, texture, new Vector3f(cx, cy, cz), emissive, ENTITY_MODEL_FIT_EXTENT / extent, 1f);
+        return buildTrianglesWithScale(model, texture, new Vector3f(cx, cy, cz), emissive, ENTITY_MODEL_FIT_EXTENT / extent, 1f, ColorMath.WHITE);
     }
 
     /**
@@ -178,7 +178,7 @@ public class EntityGeometryKit {
         float cx = (bounds.minX() + bounds.maxX()) * 0.5f;
         float cy = (bounds.minY() + bounds.maxY()) * 0.5f;
         float cz = (bounds.minZ() + bounds.maxZ()) * 0.5f;
-        return buildTrianglesWithScale(model, texture, new Vector3f(cx, cy, cz), emissive, ndcScale, 1f);
+        return buildTrianglesWithScale(model, texture, new Vector3f(cx, cy, cz), emissive, ndcScale, 1f, ColorMath.WHITE);
     }
 
     /**
@@ -199,7 +199,7 @@ public class EntityGeometryKit {
         float cx = (bounds.minX() + bounds.maxX()) * 0.5f;
         float cy = (bounds.minY() + bounds.maxY()) * 0.5f;
         float cz = (bounds.minZ() + bounds.maxZ()) * 0.5f;
-        return buildTrianglesWithScale(model, texture, new Vector3f(cx, cy, cz), emissive, ndcScale, modelScale);
+        return buildTrianglesWithScale(model, texture, new Vector3f(cx, cy, cz), emissive, ndcScale, modelScale, ColorMath.WHITE);
     }
 
     /**
@@ -217,7 +217,30 @@ public class EntityGeometryKit {
         float ndcScale,
         float modelScale
     ) {
-        return buildTrianglesWithScale(model, texture, modelCentreAnchor, emissive, ndcScale, modelScale);
+        return buildTrianglesWithScale(model, texture, modelCentreAnchor, emissive, ndcScale, modelScale, ColorMath.WHITE);
+    }
+
+    /**
+     * Variant taking a per-render ARGB tint that the rasterizer multiplies into every sampled
+     * texel ({@code MULTIPLY} blend). Mirrors vanilla {@code LivingEntityRenderer.getModelTint}
+     * (passed via {@code coloredCutoutModelRender}) and the per-layer pattern colors in
+     * {@code TropicalFishPatternLayer} / {@code SheepWoolLayer}. {@link
+     * dev.simplified.image.pixel.ColorMath#WHITE} is a no-op tint - same as the
+     * non-tint overload.
+     *
+     * @param tintArgb the ARGB tint applied to every triangle this call produces. Use
+     *     {@code 0xFFFFFFFF} ({@link dev.simplified.image.pixel.ColorMath#WHITE}) for no tint
+     */
+    public static @NotNull BuildResult buildTriangles(
+        @NotNull EntityModelData model,
+        @NotNull PixelBuffer texture,
+        @NotNull Vector3f modelCentreAnchor,
+        boolean emissive,
+        float ndcScale,
+        float modelScale,
+        int tintArgb
+    ) {
+        return buildTrianglesWithScale(model, texture, modelCentreAnchor, emissive, ndcScale, modelScale, tintArgb);
     }
 
     private static @NotNull BuildResult buildTrianglesWithScale(
@@ -226,7 +249,8 @@ public class EntityGeometryKit {
         @NotNull Vector3f centre,
         boolean emissive,
         float scale,
-        float modelScale
+        float modelScale,
+        int tintArgb
     ) {
         Map<String, Matrix4f> chainTransforms = buildChainTransforms(model.getBones());
 
@@ -320,14 +344,14 @@ public class EntityGeometryKit {
                     triangles.add(new VisibleTriangle(
                         corners[0], corners[1], corners[2],
                         effUv[0], effUv[1], effUv[2],
-                        texture, ColorMath.WHITE,
+                        texture, tintArgb,
                         normal, shading,
                         cubeCullBackFaces, emissive
                     ));
                     triangles.add(new VisibleTriangle(
                         corners[0], corners[2], corners[3],
                         effUv[0], effUv[2], effUv[3],
-                        texture, ColorMath.WHITE,
+                        texture, tintArgb,
                         normal, shading,
                         cubeCullBackFaces, emissive
                     ));
@@ -494,10 +518,21 @@ public class EntityGeometryKit {
             for (Vector3f c : corners3d) accumulate(c, cubeTransform, modelScale, screenTransform, acc);
             return;
         }
+        // Texel at integer pixel position {@code (px, py)} covers the half-open UV rect
+        // {@code [px/W, (px+1)/W) x [py/H, (py+1)/H)}. The polygon's UV rect is
+        // {@code [uMin, uMax] x [vMin, vMax]} (closed). A texel partially overlaps the polygon
+        // when {@code (px+1)/W > uMin AND px/W < uMax}, which gives
+        // {@code px >= floor(uMin*W) AND px < ceil(uMax*W)} (or equivalently
+        // {@code px <= ceil(uMax*W) - 1}). Using {@code floor(uMax*W)} as the inclusive upper
+        // bound over-includes the next-row texel when {@code uMax*W} lands exactly on an
+        // integer boundary (e.g. piglin_brute right_sleeve face has {@code vMax = 48/64 = 0.75}
+        // exactly, so {@code floor(48) = 48} admits texel row 48 which is part of the adjacent
+        // left_arm UP face's UV region - that wraparound made our walker count the sleeve as
+        // opaque even though its own UV bbox is fully transparent).
         int pxMin = clampPixel((int) Math.floor(uMin * W), W);
-        int pxMax = clampPixel((int) Math.floor(uMax * W), W);
+        int pxMax = clampPixel((int) Math.ceil(uMax * W) - 1, W);
         int pyMin = clampPixel((int) Math.floor(vMin * H), H);
-        int pyMax = clampPixel((int) Math.floor(vMax * H), H);
+        int pyMax = clampPixel((int) Math.ceil(vMax * H) - 1, H);
         int firstOpaquePx = Integer.MAX_VALUE, lastOpaquePx = Integer.MIN_VALUE;
         int firstOpaquePy = Integer.MAX_VALUE, lastOpaquePy = Integer.MIN_VALUE;
         for (int py = pyMin; py <= pyMax; py++) {

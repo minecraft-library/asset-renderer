@@ -125,12 +125,20 @@ public final class EntityOverlayResolver {
      *     lib.minecraft.renderer.tooling.ToolingEntityModels} resolves this against
      *     {@link EntityLayerDefinitionResolver}'s layer-definition map to get an actual
      *     factory target, parses it as an extra geometry, and assigns a deduped geometry id
+     * @param tintArgb the multiplicative ARGB tint vanilla applies to this overlay's sampled
+     *     texels, extracted from the layer's submit-method bytecode by tracing the
+     *     {@code color} argument to its source ({@code state.getXxxColor()} ->
+     *     {@code ColorLerper.Type.X.getColor(defaultDye)}). {@code 0xFFFFFFFF} when the layer
+     *     either doesn't tint (eye overlays use {@code RenderType.eyes} which ignores vertex
+     *     color) or when extraction couldn't statically resolve a literal (e.g., the color
+     *     comes from a runtime calculation we can't pre-compute)
      */
     public record OverlayDescriptor(
         @NotNull String layerClass,
         @NotNull String texturePath,
         boolean emissive,
-        @Nullable String modelLayerField
+        @Nullable String modelLayerField,
+        int tintArgb
     ) {}
 
     /**
@@ -160,7 +168,7 @@ public final class EntityOverlayResolver {
             // Eye overlay first - shares the base entity's geometry, so no extra parse.
             String eyesTexture = findEyesOverlayTexture(cn);
             if (eyesTexture != null) {
-                out.add(new OverlayDescriptor(layerClass, eyesTexture, true, null));
+                out.add(new OverlayDescriptor(layerClass, eyesTexture, true, null, 0xFFFFFFFF));
                 continue;
             }
             // Composite-model overlay (sheep wool, sheep wool undercoat) - detected by an
@@ -179,7 +187,8 @@ public final class EntityOverlayResolver {
                 diagnostics.info("entity '%s' overlay '%s' bakes ModelLayers.%s but no texture path resolved", entityId, layerClass, modelLayerField);
                 continue;
             }
-            out.add(new OverlayDescriptor(layerClass, compositeTexture, false, modelLayerField));
+            int tintArgb = extractColoredCutoutTint(zip, cn);
+            out.add(new OverlayDescriptor(layerClass, compositeTexture, false, modelLayerField, tintArgb));
         }
         return out;
     }
@@ -367,6 +376,153 @@ public final class EntityOverlayResolver {
                 && pendingPath != null
                 && pendingIdentifier)
                 return pendingPath;
+        }
+        return null;
+    }
+
+    /** JVM internal name of {@code ColorLerper$Type} - the enum carrying {@code SHEEP} / {@code MUSIC_NOTE} tint tables. */
+    private static final @NotNull String COLOR_LERPER_TYPE = "net/minecraft/client/color/ColorLerper$Type";
+
+    /** JVM internal name of {@code DyeColor} - the per-dye color enum whose {@code WHITE} constant tints to {@code 0xFFE6E6E6} under {@code ColorLerper}. */
+    private static final @NotNull String DYE_COLOR = "net/minecraft/world/item/DyeColor";
+
+    /**
+     * The literal {@code ColorLerper.getModifiedColor(DyeColor.WHITE, brightness)} returns for the
+     * {@code WHITE} branch - {@code -1644826} = {@code 0xFFE6E6E6} = {@code (230, 230, 230)} RGB.
+     * The brightness parameter is ignored when the input color is {@code DyeColor.WHITE}; vanilla's
+     * source returns this constant unconditionally for the WHITE branch.
+     */
+    private static final int COLOR_LERPER_WHITE_MODIFIED = -1644826;
+
+    /**
+     * Walks the composite-overlay layer's render-side methods to find a call to
+     * {@code RenderLayer.coloredCutoutModelCopyLayerRender(... , int color, int packedOverlay)} and
+     * statically resolves the {@code color} argument to a literal ARGB. Returns {@code 0xFFFFFFFF}
+     * (no tint) when the layer doesn't call the helper, or when the color argument can't be
+     * statically resolved (runtime-dependent expression).
+     *
+     * <p>Recognised chain - matches both {@code SheepWoolLayer} and {@code SheepWoolUndercoatLayer}:
+     * <ol>
+     *   <li>Layer's {@code submit} method contains {@code INVOKESTATIC coloredCutoutModelCopyLayerRender}
+     *       with the {@code color} arg coming from {@code INVOKEVIRTUAL <stateClass>.get<X>Color()I};</li>
+     *   <li>Recursing into that state method finds {@code INVOKEVIRTUAL ColorLerper$Type.getColor(DyeColor)I}
+     *       whose receiver is one of the {@code Type} enum constants and whose dye-color argument is a
+     *       {@code GETFIELD} on a state field;</li>
+     *   <li>Walking the state class's {@code <init>} for that field finds its default
+     *       {@code GETSTATIC DyeColor.<NAME> + PUTFIELD <field>} initialiser; if the default is
+     *       {@code DyeColor.WHITE} we return {@link #COLOR_LERPER_WHITE_MODIFIED}
+     *       ({@code 0xFFE6E6E6}) - the hardcoded vanilla return for WHITE under any
+     *       {@code ColorLerper.Type} (the {@code brightness} parameter is ignored for WHITE).</li>
+     * </ol>
+     * Non-WHITE defaults aren't pre-computed: {@code ColorLerper.getModifiedColor} for non-WHITE
+     * runs an srgb-to-linear multiplied by {@code Type}'s {@code brightness}, which we don't
+     * static-eval here; the caller falls back to {@code 0xFFFFFFFF} so the runtime tints with
+     * the un-modified texel (slight over-bright but better than failing the regen).
+     */
+    private static int extractColoredCutoutTint(@NotNull ZipFile zip, @NotNull ClassNode layerCn) {
+        for (MethodNode method : layerCn.methods) {
+            if ("<init>".equals(method.name) || "<clinit>".equals(method.name)) continue;
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                if (in.getOpcode() != Opcodes.INVOKESTATIC) continue;
+                if (!(in instanceof MethodInsnNode mi)) continue;
+                if (!"coloredCutoutModelCopyLayerRender".equals(mi.name)) continue;
+                // Color arg is second-to-last positional (just before packedOverlay int).
+                // Walk back from the call to find the INVOKEVIRTUAL on a state class that supplied it.
+                AbstractInsnNode stateColorCall = findPrecedingStateColorCall(in);
+                if (stateColorCall == null) continue;
+                int resolved = resolveStateColorMethod(zip, (MethodInsnNode) stateColorCall);
+                if (resolved != 0xFFFFFFFF) return resolved;
+            }
+        }
+        return 0xFFFFFFFF;
+    }
+
+    /**
+     * Walks backwards from a {@code coloredCutoutModelCopyLayerRender} call site to find the
+     * {@code INVOKEVIRTUAL} that supplied the {@code color} argument. Returns the matching
+     * instruction or {@code null} when no state-method invocation precedes the call.
+     *
+     * <p>Resilient to the {@code isBaby ? 1 : 0} ternary that wraps {@code packedOverlay}: the
+     * loop skips over branch / int-literal nodes until it finds the first {@code INVOKEVIRTUAL}
+     * returning {@code int} (descriptor ends in {@code )I}). That's the color expression.
+     */
+    private static @Nullable AbstractInsnNode findPrecedingStateColorCall(@NotNull AbstractInsnNode call) {
+        for (AbstractInsnNode prev = call.getPrevious(); prev != null; prev = prev.getPrevious()) {
+            if (prev.getOpcode() != Opcodes.INVOKEVIRTUAL) continue;
+            if (!(prev instanceof MethodInsnNode mi)) continue;
+            if (!mi.desc.endsWith(")I")) continue;
+            // Skip getter-style methods on non-state classes (e.g., LivingEntityRenderer.getOverlayCoords);
+            // matching by descriptor-shape `()I` keeps us on parameterless int-returning state methods.
+            if (!"()I".equals(mi.desc)) continue;
+            return prev;
+        }
+        return null;
+    }
+
+    /**
+     * Recursively resolves the integer returned by a state class's parameterless int-method.
+     * Looks for the {@code ColorLerper.Type.X.getColor(DyeColor)} chain and statically evaluates
+     * the result for the field's default dye color. Returns {@code 0xFFFFFFFF} when the method
+     * doesn't match the recognised pattern.
+     */
+    private static int resolveStateColorMethod(@NotNull ZipFile zip, @NotNull MethodInsnNode stateColorCall) {
+        ClassNode stateClass = AsmKit.loadClass(zip, stateColorCall.owner);
+        if (stateClass == null) return 0xFFFFFFFF;
+        MethodNode stateMethod = AsmKit.findMethod(stateClass, stateColorCall.name, stateColorCall.desc);
+        if (stateMethod == null) return 0xFFFFFFFF;
+        for (AbstractInsnNode in = stateMethod.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (in.getOpcode() != Opcodes.INVOKEVIRTUAL) continue;
+            if (!(in instanceof MethodInsnNode mi)) continue;
+            if (!COLOR_LERPER_TYPE.equals(mi.owner)) continue;
+            if (!"getColor".equals(mi.name)) continue;
+            // The dye-color argument is the immediately preceding GETFIELD on this.<field>.
+            // Walk back from the getColor() call until we find the GETFIELD whose desc points at DyeColor.
+            String dyeFieldName = findPrecedingDyeFieldRead(in);
+            if (dyeFieldName == null) continue;
+            String defaultDye = findFieldDefaultDyeColor(stateClass, dyeFieldName);
+            if ("WHITE".equals(defaultDye)) return COLOR_LERPER_WHITE_MODIFIED;
+        }
+        return 0xFFFFFFFF;
+    }
+
+    /**
+     * Walks backwards from a {@code ColorLerper.Type.getColor} call to find the
+     * {@code GETFIELD this.<X>:DyeColor} that supplied the dye argument. Returns the field name or
+     * {@code null} when no matching read precedes the call.
+     */
+    private static @Nullable String findPrecedingDyeFieldRead(@NotNull AbstractInsnNode call) {
+        String dyeDesc = "L" + DYE_COLOR + ";";
+        for (AbstractInsnNode prev = call.getPrevious(); prev != null; prev = prev.getPrevious()) {
+            if (prev.getOpcode() != Opcodes.GETFIELD) continue;
+            if (!(prev instanceof FieldInsnNode fi)) continue;
+            if (!dyeDesc.equals(fi.desc)) continue;
+            return fi.name;
+        }
+        return null;
+    }
+
+    /**
+     * Walks the class's {@code <init>} for a {@code GETSTATIC DyeColor.<NAME> + PUTFIELD <field>}
+     * pair, returning the {@code DyeColor} enum constant name bound to {@code field} as the
+     * declared default initialiser. Returns {@code null} when no such pair is found (no default
+     * initialiser, or default comes from a non-literal expression).
+     */
+    private static @Nullable String findFieldDefaultDyeColor(@NotNull ClassNode stateClass, @NotNull String fieldName) {
+        MethodNode init = AsmKit.findMethod(stateClass, "<init>");
+        if (init == null) return null;
+        String pendingDye = null;
+        for (AbstractInsnNode in = init.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (in.getOpcode() == Opcodes.GETSTATIC
+                && in instanceof FieldInsnNode fi
+                && DYE_COLOR.equals(fi.owner)) {
+                pendingDye = fi.name;
+                continue;
+            }
+            if (in.getOpcode() == Opcodes.PUTFIELD
+                && in instanceof FieldInsnNode fi
+                && fi.name.equals(fieldName)
+                && pendingDye != null)
+                return pendingDye;
         }
         return null;
     }

@@ -103,7 +103,8 @@ public class EntityModelLoader {
         @NotNull Optional<String> textureRef,
         @NotNull List<OverlayLayer> overlays,
         @NotNull List<BlockOverlayLayer> blockOverlays,
-        boolean forceOpaque
+        boolean forceOpaque,
+        int baseTintArgb
     ) {
 
         /**
@@ -111,7 +112,7 @@ public class EntityModelLoader {
          * common case.
          */
         public EntityDefinition(@NotNull EntityModelData model, @NotNull Optional<String> textureRef) {
-            this(model, textureRef, List.of(), List.of(), false);
+            this(model, textureRef, List.of(), List.of(), false, 0xFFFFFFFF);
         }
 
         /**
@@ -122,7 +123,7 @@ public class EntityModelLoader {
             @NotNull Optional<String> textureRef,
             @NotNull List<OverlayLayer> overlays
         ) {
-            this(model, textureRef, overlays, List.of(), false);
+            this(model, textureRef, overlays, List.of(), false, 0xFFFFFFFF);
         }
 
         /**
@@ -134,7 +135,22 @@ public class EntityModelLoader {
             @NotNull List<OverlayLayer> overlays,
             boolean forceOpaque
         ) {
-            this(model, textureRef, overlays, List.of(), forceOpaque);
+            this(model, textureRef, overlays, List.of(), forceOpaque, 0xFFFFFFFF);
+        }
+
+        /**
+         * Convenience constructor preserving the historic {@code (model, textureRef, overlays,
+         * blockOverlays, forceOpaque)} signature in use before {@link #baseTintArgb} was added.
+         * Defaults the tint to {@code 0xFFFFFFFF} (white = no-op multiplicative tint).
+         */
+        public EntityDefinition(
+            @NotNull EntityModelData model,
+            @NotNull Optional<String> textureRef,
+            @NotNull List<OverlayLayer> overlays,
+            @NotNull List<BlockOverlayLayer> blockOverlays,
+            boolean forceOpaque
+        ) {
+            this(model, textureRef, overlays, blockOverlays, forceOpaque, 0xFFFFFFFF);
         }
 
     }
@@ -200,8 +216,24 @@ public class EntityModelLoader {
     public record OverlayLayer(
         @NotNull EntityModelData model,
         @NotNull Optional<String> textureRef,
-        boolean emissive
-    ) {}
+        boolean emissive,
+        int tintArgb
+    ) {
+
+        /**
+         * Convenience constructor preserving the historic {@code (model, textureRef, emissive)}
+         * signature in use before {@link #tintArgb} was added. Defaults the tint to
+         * {@code 0xFFFFFFFF} (white = no-op multiplicative tint).
+         */
+        public OverlayLayer(
+            @NotNull EntityModelData model,
+            @NotNull Optional<String> textureRef,
+            boolean emissive
+        ) {
+            this(model, textureRef, emissive, 0xFFFFFFFF);
+        }
+
+    }
 
     /**
      * Resolves an overlays JSON array into a list of {@link OverlayLayer}s. Each entry is an
@@ -249,7 +281,13 @@ public class EntityModelLoader {
             float inflate = entry.has("inflate") ? entry.get("inflate").getAsFloat() : 0f;
             EntityModelData materialised = inflate != 0f ? inflateModel(overlayModel, inflate) : overlayModel;
             boolean emissive = entry.has("emissive") && entry.get("emissive").getAsBoolean();
-            out.add(new OverlayLayer(materialised, overlayTexture, emissive));
+            // Per-overlay multiplicative tint. Vanilla wires per-layer color through
+            // {@code coloredCutoutModelRender(model, texture, ..., color, order)} - sheep wool
+            // gets {@code state.getWoolColor()}, tropical fish pattern gets {@code state.patternColor},
+            // etc. JSON expects a hex string ("0xFFFFFFFF" / "#F9FFFE" / "0xF9FFFE") so it survives
+            // round-trip with hand-edits. Defaults to 0xFFFFFFFF (white = no-op MULTIPLY tint).
+            int overlayTint = entry.has("tint_color") ? parseTintArgb(entry.get("tint_color").getAsString()) : 0xFFFFFFFF;
+            out.add(new OverlayLayer(materialised, overlayTexture, emissive, overlayTint));
         }
         return out;
     }
@@ -282,6 +320,31 @@ public class EntityModelLoader {
             source.getTextureWidth(), source.getTextureHeight(),
             source.getInventoryYRotation(), Concurrent.adoptLinkedMap(inflated)
         );
+    }
+
+    /**
+     * Parses a JSON tint string into an ARGB int the rasterizer's {@code MULTIPLY} blend
+     * consumes. Accepted forms:
+     * <ul>
+     * <li>{@code "0xRRGGBB"} / {@code "RRGGBB"} - 6 hex digits, alpha defaults to {@code FF};</li>
+     * <li>{@code "0xAARRGGBB"} / {@code "AARRGGBB"} - 8 hex digits, full ARGB;</li>
+     * <li>{@code "#RRGGBB"} / {@code "#AARRGGBB"} - CSS-style hash prefix.</li>
+     * </ul>
+     * Malformed strings log a warning and return {@code 0xFFFFFFFF} (the white = no-op
+     * MULTIPLY tint) so a typo in the overrides file doesn't tint the entity entirely black.
+     */
+    private static int parseTintArgb(@NotNull String spec) {
+        String hex = spec.startsWith("0x") || spec.startsWith("0X") ? spec.substring(2)
+            : spec.startsWith("#") ? spec.substring(1)
+            : spec;
+        try {
+            long value = Long.parseLong(hex, 16);
+            if (hex.length() <= 6) value |= 0xFF000000L;
+            return (int) value;
+        } catch (NumberFormatException ex) {
+            System.err.printf("  Warning: malformed tint_color / base_tint value '%s' (expected hex); falling back to 0xFFFFFFFF%n", spec);
+            return 0xFFFFFFFF;
+        }
     }
 
     /**
@@ -414,7 +477,17 @@ public class EntityModelLoader {
                 ? loadBlockOverlays(entityJson.getAsJsonArray("block_overlays"))
                 : List.of();
 
-            definitions.put(entityId, new EntityDefinition(baseModel, textureRef, overlays, blockOverlays, false));
+            // Per-entity base-mesh multiplicative tint. Mirrors vanilla
+            // {@code LivingEntityRenderer.getModelTint(state)} which returns a per-entity
+            // ARGB color the rasterizer multiplies into every sampled texel. Tropical fish use
+            // {@code state.baseColor} (DyeColor.WHITE = 0xF9FFFE at zero state); the parser keeps
+            // a tunable knob here so other variant-textured entities can adopt the same
+            // mechanism without each one needing a new code path. Defaults to 0xFFFFFFFF.
+            int baseTint = override != null && override.has("base_tint")
+                ? parseTintArgb(override.get("base_tint").getAsString())
+                : 0xFFFFFFFF;
+
+            definitions.put(entityId, new EntityDefinition(baseModel, textureRef, overlays, blockOverlays, false, baseTint));
         }
         return Concurrent.adoptMap(definitions);
     }

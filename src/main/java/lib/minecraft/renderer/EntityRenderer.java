@@ -214,7 +214,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             .subtract(override.modelAnchorShift());
 
         EntityGeometryKit.BuildResult buildResult = EntityGeometryKit.buildTriangles(
-            model, texture.get(), modelAnchor, false, fit.ndcScale(), modelScale);
+            model, texture.get(), modelAnchor, false, fit.ndcScale(), modelScale, definition.baseTintArgb());
         if (buildResult.triangles().isEmpty())
             return RenderEngine.staticFrame(buffer);
 
@@ -227,7 +227,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 : Optional.of(texture.get());
             if (overlayTex.isEmpty()) continue;
             triangles.addAll(EntityGeometryKit.buildTriangles(
-                overlay.model(), overlayTex.get(), modelAnchor, overlay.emissive(), fit.ndcScale(), modelScale).triangles());
+                overlay.model(), overlayTex.get(), modelAnchor, overlay.emissive(), fit.ndcScale(), modelScale, overlay.tintArgb()).triangles());
         }
 
         // Phase E.5: block-model overlays (mooshroom mushrooms, copper-golem flower, etc).

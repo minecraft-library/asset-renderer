@@ -316,18 +316,26 @@ public class ModelEngine extends TextureEngine {
      * Picks the destination-blend mode for a fragment based on the source triangle's emissive
      * flag.
      * <p>
-     * Emissive overlays render full-bright (no ambient shading) and additive
-     * ({@link BlendMode#ADD} = vanilla Java's {@code RenderType.eyes}'s
-     * {@code glBlendFunc(SRC_ALPHA, ONE)}), so the layer brightens the base instead of replacing
-     * or translucently masking it. Spider eyes and ender dragon eyes are the canonical cases.
-     * Non-emissive triangles take the standard shaded src-over path ({@link BlendMode#NORMAL});
-     * the caller multiplies the texel by {@code shading} before invoking the blend.
+     * Both emissive and non-emissive overlays use {@link BlendMode#NORMAL} - the source-over
+     * alpha blend, which at the {@code alpha == 255} cutout-texture-edge case collapses to a
+     * straight REPLACE of the destination pixel. This matches vanilla's
+     * {@code RenderPipelines.EYES} which composes with {@code BlendFunction.TRANSLUCENT}
+     * ({@code glBlendFunc(SRC_ALPHA, ONE_MINUS_SRC_ALPHA)}) - not additive. The emissive
+     * differentiator is the {@code EMISSIVE} + {@code NO_CARDINAL_LIGHTING} shader define
+     * (the caller skips {@code applyShading} for emissive triangles) plus the strict-LT depth
+     * test in {@link #depthFails} - the actual color composition is the same alpha-blend as
+     * any other entity layer. Earlier revisions used {@link BlendMode#ADD} for emissive on the
+     * assumption that {@code RenderType.eyes} was additive; sampling the rendered eye pixels
+     * vs vanilla showed Java was producing {@code lit_skin + eye_texel} (e.g. enderman
+     * {@code (255,144,255)} vs vanilla's pure {@code (204,0,250)}), confirming that vanilla
+     * is replacing the base pixel rather than adding to it.
      *
-     * @param emissive whether the source triangle is an emissive overlay
-     * @return {@link BlendMode#ADD} for emissive, {@link BlendMode#NORMAL} otherwise
+     * @param emissive ignored - kept for call-site clarity until the parameter is removed
+     * @return {@link BlendMode#NORMAL}
      */
+    @SuppressWarnings("unused")
     private static @NotNull BlendMode selectBlendMode(boolean emissive) {
-        return emissive ? BlendMode.ADD : BlendMode.NORMAL;
+        return BlendMode.NORMAL;
     }
 
     /**

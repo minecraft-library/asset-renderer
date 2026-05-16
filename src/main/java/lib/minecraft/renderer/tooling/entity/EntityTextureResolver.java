@@ -104,6 +104,12 @@ public final class EntityTextureResolver {
      *
      * @param zip the deobfuscated client jar
      * @param rendererInternalName the renderer's JVM internal name
+     * @param entityId the entity-id (without namespace) being resolved. Used to disambiguate
+     *     state-conditional renderers shared across multiple entities - e.g.
+     *     {@code PiglinRenderer.getTextureLocation} branches on {@code state.isBrute} and serves
+     *     both {@code minecraft:piglin} and {@code minecraft:piglin_brute}; matching the entityId
+     *     to a static texture field whose path ends with {@code <entityId>.png} picks the right
+     *     branch without re-implementing the conditional in the bytecode walker
      * @param lambdaTypeArgs Type-enum constants pushed by the renderer's factory lambda
      *     (donkey vs mule both share {@code DonkeyRenderer} but each lambda passes a distinct
      *     {@code DonkeyRenderer$Type} constant). Used to resolve the instance-field-driven
@@ -115,6 +121,7 @@ public final class EntityTextureResolver {
     public static @NotNull Binding resolve(
         @NotNull ZipFile zip,
         @NotNull String rendererInternalName,
+        @NotNull String entityId,
         @NotNull ConcurrentList<lib.minecraft.renderer.tooling.entity.EntityRendererDiscovery.TypeFieldRef> lambdaTypeArgs,
         @NotNull Diagnostics diagnostics
     ) {
@@ -141,6 +148,19 @@ public final class EntityTextureResolver {
         // RED_FOX_TEXTURE;`). When that returns null the body is a pure dispatch (parrot /
         // shulker / copper_golem) - chase the INVOKESTATIC into its target.
         Map<String, String> classFieldToPath = collectStaticTextureFields(zip, resolved.declaringClass, diagnostics);
+        // EntityId-match first: when a renderer is shared across multiple entity ids and branches
+        // on a render-state field ({@code PiglinRenderer} returns {@code PIGLIN_BRUTE_LOCATION}
+        // when {@code state.isBrute} else {@code PIGLIN_LOCATION}), the default-branch walker
+        // returns {@code PIGLIN_LOCATION} for both {@code piglin} and {@code piglin_brute}. If
+        // one of the renderer's collected texture fields points at a path whose basename matches
+        // the entity-id ({@code piglin_brute.png} for {@code piglin_brute}), prefer that field
+        // - it's the matching branch's texture without needing to evaluate the conditional.
+        String entityMatchedField = pickFieldByEntityIdMatch(classFieldToPath, entityId);
+        if (entityMatchedField != null) {
+            String entityMatchedPath = classFieldToPath.get(entityMatchedField);
+            String babyByPair = findBabyPathByPair(entityMatchedPath, classFieldToPath);
+            return new Binding(entityMatchedPath, babyByPair, null, sourceLabel(resolved, rendererInternalName));
+        }
         String primaryField = findPrimaryByDefaultPath(resolved.method);
         if (primaryField != null && classFieldToPath.containsKey(primaryField)) {
             String primaryPath = classFieldToPath.get(primaryField);
@@ -894,6 +914,31 @@ public final class EntityTextureResolver {
         String derived = stem + "_baby.png";
         for (String path : classFieldToPath.values())
             if (derived.equals(path)) return derived;
+        return null;
+    }
+
+    /**
+     * Picks the texture field whose path's basename exactly matches {@code <entityId>.png}, so a
+     * renderer shared across multiple entities (e.g. {@code PiglinRenderer} serves both
+     * {@code piglin} and {@code piglin_brute}) routes each entity to its own texture branch.
+     * Skips fields whose path ends in {@code _baby.png} - those go through the paired baby
+     * extraction instead. Returns {@code null} when no field's basename matches, leaving the
+     * caller to fall through to the existing default-branch / dispatch walkers.
+     *
+     * <p>The basename match is anchored on the slash boundary ({@code /piglin_brute.png}) so a
+     * field path of {@code .../piglin/piglin.png} doesn't accidentally match {@code piglin_brute}
+     * via substring overlap.
+     */
+    private static @Nullable String pickFieldByEntityIdMatch(
+        @NotNull Map<String, String> classFieldToPath,
+        @NotNull String entityId
+    ) {
+        String wantedSuffix = "/" + entityId + ".png";
+        for (Map.Entry<String, String> entry : classFieldToPath.entrySet()) {
+            String path = entry.getValue();
+            if (path.endsWith("_baby.png")) continue;
+            if (path.endsWith(wantedSuffix)) return entry.getKey();
+        }
         return null;
     }
 

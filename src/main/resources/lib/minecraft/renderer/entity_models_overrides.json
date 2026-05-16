@@ -37,6 +37,17 @@
     "minecraft:axolotl": {
       "texture_ref": "axolotl/axolotl_lucy"
     },
+    "//minecraft:ender_dragon": "EnderDragonRenderer holds a static `RenderTypes.eyes(DRAGON_EYES_LOCATION)` field and dispatches it inline in `submit()` rather than via the standard `addLayer(new EyesLayer(...))` pattern that `EntityOverlayResolver` scans. The eye-overlay PNG (`enderdragon/dragon_eyes.png`) is therefore not auto-emitted in `entity_models.json`; without it, the eye region falls back to dragon.png's baked-in purple pixels which then get cardinal-shaded (vanilla pixel (224,121,250) -> Java (127,68,142) at ~0.567x shading). Hand-edited overlay supplies the full-bright emissive eye matching vanilla `RenderPipelines.EYES` (emissive + NO_CARDINAL_LIGHTING + TRANSLUCENT alpha blend = at alpha=255 the texel replaces the underlying lit body pixel). Same `inflate: 0.001` as the auto-emitted eye overlays for the equal-Z depth-fail clearance.",
+    "minecraft:ender_dragon": {
+      "overlays": [
+        {
+          "geometry_ref": "geometry.enderdragon",
+          "texture_ref": "enderdragon/dragon_eyes",
+          "emissive": true,
+          "inflate": 0.001
+        }
+      ]
+    },
     "//minecraft:stray": "Vanilla StrayRenderer adds a SkeletonClothingLayer (ModelLayers.STRAY_OUTER_LAYER + stray_overlay.png). STRAY_OUTER_LAYER is HumanoidModel.createMesh(CubeDeformation(0.25F), 0.0F) - the standard skeleton mesh with every cube inflated by 0.25 pixels. Without this overlay the skeleton-only silhouette is missing the frost-cloak content that protrudes laterally.",
     "minecraft:stray": {
       "overlays": [
@@ -81,10 +92,6 @@
     "minecraft:sheep": {
       "force_opaque": true
     },
-    "//minecraft:elder_guardian": "Redirect at geometry.guardian_elder (in entity_geometry_handedits.json), which carries MeshTransformer.scaling(2.35F) applied to ALL 17 bones - the bytecode tooling missed scaling the 12 loop-added spike bones in geometry.guardian_1, so spikes were rendered tiny and detached from the scaled body.",
-    "minecraft:elder_guardian": {
-      "geometry_ref": "geometry.guardian_elder"
-    },
     "//minecraft:vindicator": "Bedrock geometry.vindicator.v1.8 ships both arm sets - 'arms' folded across the chest (idle pose) plus 'rightArm'/'leftArm' hanging straight down (aggressive pose). Java's IllagerModel toggles visibility per entity state at runtime. Without animation state we default to the folded idle pose; hide the hanging pair so only crossed arms render. Also hide the hat (java-pipeline IllagerModel constructor sets hat.visible=false).",
     "minecraft:vindicator": {
       "hidden_bones": [
@@ -95,6 +102,63 @@
     "minecraft:evoker": {
       "hidden_bones": [
         "hat"
+      ]
+    },
+    "//minecraft:zombified_piglin": "AdultZombifiedPiglinModel.createBodyLayer just returns AdultPiglinModel.createBodyLayer() - the two layers are bytecode-identical. Bytecode tooling emits them as separate entries (geometry.adultpiglin + geometry.adultzombifiedpiglin) with the same bones; redirect to the hand-edited geometry.adultpiglin so the right_sleeve / right_pants pivot fixes and the dropped hat bone apply uniformly across the piglin family.",
+    "minecraft:zombified_piglin": {
+      "geometry_ref": "geometry.adultpiglin"
+    },
+    "//llama-family-chest": "LlamaModel.createBodyLayer unconditionally adds right_chest / left_chest bones; LlamaModel.setupAnim toggles their visibility via state.hasChest, which is equipment-driven and false at zero state. Bytecode tooling captures the bones from createBodyLayer but doesn't see the setupAnim visibility toggle, so the chests render by default. Hide them to match a freshly-spawned (no chest equipped) llama. Same applies to trader_llama: the chest is still equipment - the trader-signature decoration is the carpet rendered by LlamaDecorLayer on top of the inflated decor model, NOT the chest.",
+    "minecraft:llama": {
+      "hidden_bones": [
+        "right_chest",
+        "left_chest"
+      ]
+    },
+    "//minecraft:villager": "VillagerRenderer adds VillagerProfessionLayer which submits an additional textured pass on top of the base villager.png: type/<type_id>.png (clothing for the biome variant), profession/<profession_id>.png (job clothing) when profession is non-NONE, and profession_level/<level>.png (badge tier) when profession is non-NITWIT. For a freshly-spawned villager (Villager.createDefaultVillagerData) type=PLAINS, profession=NONE, level=1, so only the type/plains.png pass renders. Modeled here as an overlay using the same geometry.villager. inflate 0.001 nudges the overlay cubes a fraction of a unit outward so they win ModelEngine's depthFails check (depthVal <= existingDepth + epsilon REJECTS at equal Z, so equal-Z overlay would lose to the already-drawn base mesh). Without the bias the overlay drew on body via the built-in jacket bone but lost on arms / legs - rendered villager appeared to be 'wearing a jacket with nothing underneath', skin tone visible past the robe.",
+    "minecraft:villager": {
+      "overlays": [
+        {
+          "geometry_ref": "geometry.villager",
+          "texture_ref": "villager/type/plains",
+          "inflate": 0.001
+        }
+      ]
+    },
+    "//minecraft:tropical_fish": "TropicalFishRenderer.getModelTint returns state.baseColor (DyeColor.WHITE.textureDiffuseColor = 0xFFF9FFFE at zero state, just shy of pure white). TropicalFishPatternLayer submits a second textured pass with state.patternColor (also 0xFFF9FFFE at zero state DEFAULT_VARIANT = (KOB, WHITE, WHITE)). Both tints are multiplicative against the sampled texel - tiny shift visible across the silhouette. Inflate 0.001 on the pattern overlay clears the equal-Z depth test against the base mesh.",
+    "minecraft:tropical_fish": {
+      "base_tint": "0xFFF9FFFE",
+      "overlays": [
+        {
+          "geometry_ref": "geometry.tropicalfishsmall",
+          "texture_ref": "fish/tropical_a_pattern_1",
+          "inflate": 0.001,
+          "tint_color": "0xFFF9FFFE"
+        }
+      ]
+    },
+    "//minecraft:zombie_villager": "ZombieVillagerRenderer adds the same VillagerProfessionLayer as VillagerRenderer (different path: zombie_villager/...). ZombieVillager.initializeVillagerData randomly assigns a profession + biome-derived type, but the vanilla-reference-harness ZombieVillagerStateMixin pins the render state to Villager.createDefaultVillagerData (type=PLAINS, profession=NONE, level=1) so the harness output is deterministic. Same overlay shape as villager including inflate 0.001 to win the equal-Z depth test against the base mesh.",
+    "minecraft:zombie_villager": {
+      "overlays": [
+        {
+          "geometry_ref": "geometry.zombievillager",
+          "texture_ref": "zombie_villager/type/plains",
+          "inflate": 0.001
+        }
+      ]
+    },
+    "//minecraft:trader_llama": "Trader llamas additionally have LlamaDecorLayer rendering EquipmentAssets.TRADER_LLAMA on top of an inflated copy of the llama mesh (ModelLayers.LLAMA_DECOR = LlamaModel.createBodyLayer(CubeDeformation(0.5))). The TRADER_LLAMA equipment asset points at textures/entity/equipment/llama_body/trader_llama.png which carries the carpet pattern; chest UV is transparent so the overlay's still-present chest bones contribute nothing visible. The overlay carries inflate 0.5 to wrap the base llama body, matching vanilla's CubeDeformation(0.5F) on the decor layer.",
+    "minecraft:trader_llama": {
+      "hidden_bones": [
+        "right_chest",
+        "left_chest"
+      ],
+      "overlays": [
+        {
+          "geometry_ref": "geometry.llama",
+          "texture_ref": "equipment/llama_body/trader_llama",
+          "inflate": 0.5
+        }
       ]
     }
   }

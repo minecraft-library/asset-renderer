@@ -194,7 +194,7 @@ public final class ToolingEntityModels {
                 ConcurrentList<EntityRendererDiscovery.TypeFieldRef> typeArgs =
                     lambdaTypeArgsByEntityField.getOrDefault(mob.fieldName(), Concurrent.newList());
                 EntityTextureResolver.Binding binding =
-                    EntityTextureResolver.resolve(zip, renderer, typeArgs, diagnostics);
+                    EntityTextureResolver.resolve(zip, renderer, mob.entityId(), typeArgs, diagnostics);
                 // Hardcoded fallback for renderers whose texture binding is genuinely
                 // unresolvable from the renderer class alone (axolotl format-string template,
                 // shulker Sheets indirection, copper_golem chained dispatch). See
@@ -719,6 +719,21 @@ public final class ToolingEntityModels {
                     overlay.addProperty("geometry_ref", overlayGeometryId);
                     overlay.addProperty("texture_ref", stripTexturesPrefix(desc.texturePath()));
                     if (desc.emissive()) overlay.addProperty("emissive", true);
+                    if (desc.tintArgb() != 0xFFFFFFFF)
+                        overlay.addProperty("tint_color", String.format("0x%08X", desc.tintArgb()));
+                    // Emissive overlays sharing the base geometry need a microscopic outward
+                    // inflate to clear ModelEngine's equal-Z depth-fail (depthVal <= existingDepth
+                    // REJECTS at equal Z). Without it, eye additive overlays land on the same
+                    // depth as the lit skin texel and the eye RGB never wins - enderman renders
+                    // pink instead of pure purple, breeze / cave_spider / phantom likewise. Spider
+                    // accidentally works only because its rotated leg bones introduce FP noise
+                    // that breaks the equal-Z tie. Non-emissive overlays sharing base geometry
+                    // are NOT auto-inflated: vanilla often gates them on runtime state
+                    // ({@code SheepWoolUndercoatLayer} guards on {@code woolColor != WHITE}) and
+                    // the depth-fail rejection is what hides them at zero state.
+                    boolean sharesBaseGeometry = desc.modelLayerField() == null;
+                    if (sharesBaseGeometry && desc.emissive())
+                        overlay.addProperty("inflate", 0.001f);
                     overlaysJson.add(overlay);
                 }
                 if (!overlaysJson.isEmpty()) row.add("overlays", overlaysJson);

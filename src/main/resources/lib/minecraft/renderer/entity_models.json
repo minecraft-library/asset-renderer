@@ -49,7 +49,8 @@
         {
           "geometry_ref": "geometry.breeze",
           "texture_ref": "breeze/breeze_eyes",
-          "emissive": true
+          "emissive": true,
+          "inflate": 0.001
         }
       ]
     },
@@ -142,7 +143,8 @@
         {
           "geometry_ref": "geometry.spider",
           "texture_ref": "spider/spider_eyes",
-          "emissive": true
+          "emissive": true,
+          "inflate": 0.001
         }
       ]
     },
@@ -234,7 +236,8 @@
         {
           "geometry_ref": "geometry.enderman",
           "texture_ref": "enderman/enderman_eyes",
-          "emissive": true
+          "emissive": true,
+          "inflate": 0.001
         }
       ]
     },
@@ -477,7 +480,8 @@
         {
           "geometry_ref": "geometry.phantom",
           "texture_ref": "phantom/phantom_eyes",
-          "emissive": true
+          "emissive": true,
+          "inflate": 0.001
         }
       ]
     },
@@ -505,7 +509,7 @@
     },
     "minecraft:piglin_brute": {
       "geometry_ref": "geometry.adultpiglin",
-      "texture_ref": "piglin/piglin",
+      "texture_ref": "piglin/piglin_brute",
       "armor_type": "humanoid"
     },
     "minecraft:pillager": {
@@ -545,11 +549,13 @@
       "overlays": [
         {
           "geometry_ref": "geometry.sheep",
-          "texture_ref": "sheep/sheep_wool_undercoat"
+          "texture_ref": "sheep/sheep_wool_undercoat",
+          "tint_color": "0xFFE6E6E6"
         },
         {
           "geometry_ref": "geometry.sheepfur",
-          "texture_ref": "sheep/sheep_wool"
+          "texture_ref": "sheep/sheep_wool",
+          "tint_color": "0xFFE6E6E6"
         }
       ]
     },
@@ -602,7 +608,8 @@
         {
           "geometry_ref": "geometry.spider_1",
           "texture_ref": "spider/spider_eyes",
-          "emissive": true
+          "emissive": true,
+          "inflate": 0.001
         }
       ]
     },
