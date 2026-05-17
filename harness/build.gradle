@@ -42,6 +42,9 @@ loom {
             if (project.hasProperty('refharnessPitchRollSweep')) {
                 property 'refharness.pitchRollSweep', project.property('refharnessPitchRollSweep').toString()
             }
+            if (project.hasProperty('refharnessBoundsDump')) {
+                property 'refharness.boundsDump', project.property('refharnessBoundsDump').toString()
+            }
         }
     }
 }

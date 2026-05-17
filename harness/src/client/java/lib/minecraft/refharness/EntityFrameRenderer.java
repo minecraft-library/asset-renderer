@@ -717,6 +717,10 @@ public final class EntityFrameRenderer implements AutoCloseable {
      * textures) still expand the bounds.
      */
     private static void walkVisibleExtents(ModelPart part, PoseStack ps, NativeImage texture, Consumer<? super org.joml.Vector3fc> output) {
+        walkVisibleExtentsImpl(part, "root", ps, texture, output);
+    }
+
+    private static void walkVisibleExtentsImpl(ModelPart part, String bonePath, PoseStack ps, NativeImage texture, Consumer<? super org.joml.Vector3fc> output) {
         if (!part.visible) return;
         Map<String, ModelPart> children = childrenOf(part);
         List<ModelPart.Cube> cubes = cubesOf(part);
@@ -725,14 +729,16 @@ public final class EntityFrameRenderer implements AutoCloseable {
         part.translateAndRotate(ps);
         if (!part.skipDraw) {
             PoseStack.Pose pose = ps.last();
+            int cubeIndex = 0;
             for (ModelPart.Cube cube : cubes) {
                 for (ModelPart.Polygon polygon : cube.polygons) {
-                    contributePolygonExtents(polygon, pose, texture, output);
+                    contributePolygonExtents(polygon, pose, texture, output, bonePath, cubeIndex, cube);
                 }
+                cubeIndex++;
             }
         }
-        for (ModelPart child : children.values()) {
-            walkVisibleExtents(child, ps, texture, output);
+        for (Map.Entry<String, ModelPart> entry : children.entrySet()) {
+            walkVisibleExtentsImpl(entry.getValue(), bonePath + "/" + entry.getKey(), ps, texture, output);
         }
         ps.popPose();
     }
@@ -770,7 +776,10 @@ public final class EntityFrameRenderer implements AutoCloseable {
      * is ~1.3M lookups - tens of milliseconds in practice, dominated by setupAnim and pose
      * stack work.
      */
-    private static void contributePolygonExtents(ModelPart.Polygon polygon, PoseStack.Pose pose, NativeImage texture, Consumer<? super org.joml.Vector3fc> output) {
+    private static final boolean BOUNDS_DUMP = Boolean.getBoolean("refharness.boundsDump");
+
+    private static void contributePolygonExtents(ModelPart.Polygon polygon, PoseStack.Pose pose, NativeImage texture, Consumer<? super org.joml.Vector3fc> output,
+                                                  String bonePath, int cubeIndex, ModelPart.Cube cube) {
         if (texture == null) {
             for (ModelPart.Vertex vertex : polygon.vertices()) {
                 Vector3f p = pose.pose().transformPosition(vertex.worldX(), vertex.worldY(), vertex.worldZ(), new Vector3f());
@@ -795,12 +804,21 @@ public final class EntityFrameRenderer implements AutoCloseable {
             vMin = Math.min(vMin, vertex.v());
             vMax = Math.max(vMax, vertex.v());
         }
+        String dumpPrefix = BOUNDS_DUMP
+            ? String.format("[BD] bone=%s cube=%d cubebbox=(%g,%g,%g)-(%g,%g,%g)",
+                bonePath, cubeIndex,
+                cube.minX, cube.minY, cube.minZ,
+                cube.maxX, cube.maxY, cube.maxZ)
+            : null;
         // Skip degenerate (zero-area) polygons. Plane cubes (e.g. warden tendril at 16×16×0)
         // contribute four zero-area edge polygons whose UVs collapse to a line; they render
         // no pixels, but their 4 vertex positions span the full cube extent. Dropping them
         // is bounds-preserving because the visible-face polygons already cover the screen
         // extent through their per-opaque-texel contributions.
-        if (uMin == uMax || vMin == vMax) return;
+        if (uMin == uMax || vMin == vMax) {
+            if (dumpPrefix != null) System.out.println(dumpPrefix + " DEGEN_UV");
+            return;
+        }
         // Classify the 4 vertices by which corner of the UV rect they sit on.
         ModelPart.Vertex[] verts = polygon.vertices();
         ModelPart.Vertex bl = null, br = null, tr = null, tl = null;
@@ -820,6 +838,7 @@ public final class EntityFrameRenderer implements AutoCloseable {
                 Vector3f p = pose.pose().transformPosition(vertex.worldX(), vertex.worldY(), vertex.worldZ(), new Vector3f());
                 output.accept(p);
             }
+            if (dumpPrefix != null) System.out.println(dumpPrefix + " NON_AXIS_UV_FALLBACK_4_CORNERS");
             return;
         }
         // Walk every texel inside the polygon's UV box and accumulate the opaque-texel bbox.
@@ -850,7 +869,11 @@ public final class EntityFrameRenderer implements AutoCloseable {
                 if (py > lastOpaquePy) lastOpaquePy = py;
             }
         }
-        if (firstOpaquePx == Integer.MAX_VALUE) return;
+        if (firstOpaquePx == Integer.MAX_VALUE) {
+            if (dumpPrefix != null) System.out.printf("%s uv_px=%d,%d,%d,%d ALL_TRANSPARENT%n",
+                dumpPrefix, pxMin, pyMin, pxMax, pyMax);
+            return;
+        }
         // Convert opaque-pixel range to UV-space using texel edges (a texel at (px, py)
         // covers UV [px/W, (px+1)/W] × [py/H, (py+1)/H]). Clamp the resulting UV box to the
         // polygon's UV range so we don't overshoot the geometry.
@@ -859,13 +882,22 @@ public final class EntityFrameRenderer implements AutoCloseable {
         float opaqueVMin = Math.max(vMin, (float) firstOpaquePy / height);
         float opaqueVMax = Math.min(vMax, (float) (lastOpaquePy + 1) / height);
         // Contribute the four bilinear-interpolated corners of the opaque sub-rect.
-        contributeBilinearCorner(opaqueUMin, opaqueVMin, uMin, uMax, vMin, vMax, bl, br, tr, tl, pose, output);
-        contributeBilinearCorner(opaqueUMax, opaqueVMin, uMin, uMax, vMin, vMax, bl, br, tr, tl, pose, output);
-        contributeBilinearCorner(opaqueUMax, opaqueVMax, uMin, uMax, vMin, vMax, bl, br, tr, tl, pose, output);
-        contributeBilinearCorner(opaqueUMin, opaqueVMax, uMin, uMax, vMin, vMax, bl, br, tr, tl, pose, output);
+        Vector3f cBl = contributeBilinearCorner(opaqueUMin, opaqueVMin, uMin, uMax, vMin, vMax, bl, br, tr, tl, pose, output);
+        Vector3f cBr = contributeBilinearCorner(opaqueUMax, opaqueVMin, uMin, uMax, vMin, vMax, bl, br, tr, tl, pose, output);
+        Vector3f cTr = contributeBilinearCorner(opaqueUMax, opaqueVMax, uMin, uMax, vMin, vMax, bl, br, tr, tl, pose, output);
+        Vector3f cTl = contributeBilinearCorner(opaqueUMin, opaqueVMax, uMin, uMax, vMin, vMax, bl, br, tr, tl, pose, output);
+        if (dumpPrefix != null) System.out.printf(
+            "%s uv_px=%d,%d,%d,%d opaque_px=%d,%d,%d,%d screen_bl=(%g,%g,%g) screen_br=(%g,%g,%g) screen_tr=(%g,%g,%g) screen_tl=(%g,%g,%g)%n",
+            dumpPrefix,
+            pxMin, pyMin, pxMax, pyMax,
+            firstOpaquePx, firstOpaquePy, lastOpaquePx, lastOpaquePy,
+            cBl.x(), cBl.y(), cBl.z(),
+            cBr.x(), cBr.y(), cBr.z(),
+            cTr.x(), cTr.y(), cTr.z(),
+            cTl.x(), cTl.y(), cTl.z());
     }
 
-    private static void contributeBilinearCorner(
+    private static Vector3f contributeBilinearCorner(
         float u, float v,
         float uMin, float uMax, float vMin, float vMax,
         ModelPart.Vertex bl, ModelPart.Vertex br, ModelPart.Vertex tr, ModelPart.Vertex tl,
@@ -882,6 +914,7 @@ public final class EntityFrameRenderer implements AutoCloseable {
         float pz = w00 * bl.worldZ() + w10 * br.worldZ() + w11 * tr.worldZ() + w01 * tl.worldZ();
         Vector3f p = pose.pose().transformPosition(px, py, pz, new Vector3f());
         output.accept(p);
+        return p;
     }
 
     /**
