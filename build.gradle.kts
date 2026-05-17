@@ -262,6 +262,11 @@ tasks {
         classpath = sourceSets["test"].runtimeClasspath
         val entityId = project.findProperty("entityId") as String?
         args = if (entityId != null) listOf(entityId) else listOf()
+        // Forward -Dentity.bounds.dump=true so the per-polygon screen-bounds dump in
+        // EntityGeometryKit.contributeFaceAlphaTight surfaces when the caller asks for it.
+        systemProperties = System.getProperties().toMap()
+            .filter { it.key.toString().startsWith("entity.") }
+            .mapKeys { it.key.toString() }
     }
 
     register<JavaExec>("entityBodyPartParity") {

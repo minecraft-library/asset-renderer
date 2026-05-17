@@ -18,6 +18,7 @@ import lib.minecraft.renderer.tensor.Vector4f;
 import lib.minecraft.renderer.tooling.ToolingEntityModels;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -417,12 +418,15 @@ public class EntityGeometryKit {
         float texW = model.getTextureWidth() > 0 ? model.getTextureWidth() : Math.max(1f, texture == null ? 1 : texture.width());
         float texH = model.getTextureHeight() > 0 ? model.getTextureHeight() : Math.max(1f, texture == null ? 1 : texture.height());
         BoundsAccumulator acc = new BoundsAccumulator();
+        boolean dump = BOUNDS_DUMP.get();
 
         for (Map.Entry<String, EntityModelData.Bone> entry : model.getBones().entrySet()) {
             EntityModelData.Bone bone = entry.getValue();
-            Matrix4f boneChain = chainTransforms.get(entry.getKey());
+            String boneName = entry.getKey();
+            Matrix4f boneChain = chainTransforms.get(boneName);
             Vector3f bonePivot = bone.getPivot();
             float s = bone.getScale();
+            int cubeIndex = 0;
             for (EntityModelData.Cube cube : bone.getCubes()) {
                 Vector3f origin = cube.getOrigin();
                 Vector3f size = cube.getSize();
@@ -444,6 +448,7 @@ public class EntityGeometryKit {
                     float[] zs = { cubeBounds.minZ(), cubeBounds.maxZ() };
                     for (float x : xs) for (float y : ys) for (float z : zs)
                         accumulate(new Vector3f(x, y, z), cubeTransform, modelScale, screenTransform, acc);
+                    cubeIndex++;
                     continue;
                 }
 
@@ -461,12 +466,35 @@ public class EntityGeometryKit {
                     // Fully-opaque faces are unaffected: the 4 contributed positions are then
                     // the 4 cube corners regardless of pairing.
                     Vector2f[] uvs = resolvePolygonUv(face, cube, size, texW, texH);
-                    contributeFaceAlphaTight(corners3d, uvs, cubeTransform, modelScale, screenTransform, texture, acc);
+                    String dumpLabel = dump
+                        ? String.format("bone=%s cube=%d face=%s orig=(%g,%g,%g) size=(%g,%g,%g) inflate=%g mirror=%s",
+                            boneName, cubeIndex, face.direction(),
+                            origin.x(), origin.y(), origin.z(),
+                            size.x(), size.y(), size.z(),
+                            inflate, cube.isMirror())
+                        : null;
+                    contributeFaceAlphaTight(corners3d, uvs, cubeTransform, modelScale, screenTransform, texture, acc, dumpLabel);
                 }
+                cubeIndex++;
             }
         }
 
         return acc.toBox();
+    }
+
+    /**
+     * Thread-local toggle for per-polygon screen-bounds diagnostic dumps. Use
+     * {@link #setBoundsDump(boolean)} from the calling thread (visual / parity test) to
+     * activate; reset to {@code false} when done. Output goes to {@code System.out} as a
+     * single line per polygon prefixed {@code [BD]} so callers can capture and diff against
+     * the equivalent {@code vanilla-reference-harness} dump (see
+     * {@code EntityFrameRenderer.dumpPolygonExtents}).
+     */
+    private static final ThreadLocal<Boolean> BOUNDS_DUMP = ThreadLocal.withInitial(() -> false);
+
+    /** Enable / disable per-polygon screen-bounds dump on the current thread. */
+    public static void setBoundsDump(boolean enable) {
+        BOUNDS_DUMP.set(enable);
     }
 
     /**
@@ -483,7 +511,8 @@ public class EntityGeometryKit {
     private static void contributeFaceAlphaTight(
         @NotNull Vector3f[] corners3d, @NotNull Vector2f[] uvs,
         @NotNull Matrix4f cubeTransform, float modelScale, @NotNull Matrix4f screenTransform,
-        @NotNull PixelBuffer texture, @NotNull BoundsAccumulator acc
+        @NotNull PixelBuffer texture, @NotNull BoundsAccumulator acc,
+        @Nullable String dumpLabel
     ) {
         float uMin = Float.POSITIVE_INFINITY, uMax = Float.NEGATIVE_INFINITY;
         float vMin = Float.POSITIVE_INFINITY, vMax = Float.NEGATIVE_INFINITY;
@@ -493,7 +522,10 @@ public class EntityGeometryKit {
             if (uv.y() < vMin) vMin = uv.y();
             if (uv.y() > vMax) vMax = uv.y();
         }
-        if (uMin == uMax || vMin == vMax) return;
+        if (uMin == uMax || vMin == vMax) {
+            if (dumpLabel != null) System.out.println("[BD] " + dumpLabel + " DEGEN_UV");
+            return;
+        }
 
         Vector3f bl3 = null, br3 = null, tr3 = null, tl3 = null;
         float eps = 1e-4f;
@@ -509,6 +541,7 @@ public class EntityGeometryKit {
         }
         if (bl3 == null || br3 == null || tr3 == null || tl3 == null) {
             for (Vector3f c : corners3d) accumulate(c, cubeTransform, modelScale, screenTransform, acc);
+            if (dumpLabel != null) System.out.println("[BD] " + dumpLabel + " NON_AXIS_UV_FALLBACK_4_CORNERS");
             return;
         }
 
@@ -516,6 +549,7 @@ public class EntityGeometryKit {
         int H = texture.height();
         if (W <= 0 || H <= 0) {
             for (Vector3f c : corners3d) accumulate(c, cubeTransform, modelScale, screenTransform, acc);
+            if (dumpLabel != null) System.out.println("[BD] " + dumpLabel + " NO_TEX_FALLBACK_4_CORNERS");
             return;
         }
         // Texel at integer pixel position {@code (px, py)} covers the half-open UV rect
@@ -544,20 +578,35 @@ public class EntityGeometryKit {
                 if (py > lastOpaquePy) lastOpaquePy = py;
             }
         }
-        if (firstOpaquePx == Integer.MAX_VALUE) return;
+        if (firstOpaquePx == Integer.MAX_VALUE) {
+            if (dumpLabel != null) System.out.printf(
+                "[BD] %s uv_px=%d,%d,%d,%d ALL_TRANSPARENT%n",
+                dumpLabel, pxMin, pyMin, pxMax, pyMax);
+            return;
+        }
 
         float opaqueUMin = Math.max(uMin, (float) firstOpaquePx / W);
         float opaqueUMax = Math.min(uMax, (float) (lastOpaquePx + 1) / W);
         float opaqueVMin = Math.max(vMin, (float) firstOpaquePy / H);
         float opaqueVMax = Math.min(vMax, (float) (lastOpaquePy + 1) / H);
 
-        contributeBilinear(opaqueUMin, opaqueVMin, uMin, uMax, vMin, vMax, bl3, br3, tr3, tl3, cubeTransform, modelScale, screenTransform, acc);
-        contributeBilinear(opaqueUMax, opaqueVMin, uMin, uMax, vMin, vMax, bl3, br3, tr3, tl3, cubeTransform, modelScale, screenTransform, acc);
-        contributeBilinear(opaqueUMax, opaqueVMax, uMin, uMax, vMin, vMax, bl3, br3, tr3, tl3, cubeTransform, modelScale, screenTransform, acc);
-        contributeBilinear(opaqueUMin, opaqueVMax, uMin, uMax, vMin, vMax, bl3, br3, tr3, tl3, cubeTransform, modelScale, screenTransform, acc);
+        Vector3f bl = contributeBilinear(opaqueUMin, opaqueVMin, uMin, uMax, vMin, vMax, bl3, br3, tr3, tl3, cubeTransform, modelScale, screenTransform, acc);
+        Vector3f br = contributeBilinear(opaqueUMax, opaqueVMin, uMin, uMax, vMin, vMax, bl3, br3, tr3, tl3, cubeTransform, modelScale, screenTransform, acc);
+        Vector3f tr = contributeBilinear(opaqueUMax, opaqueVMax, uMin, uMax, vMin, vMax, bl3, br3, tr3, tl3, cubeTransform, modelScale, screenTransform, acc);
+        Vector3f tl = contributeBilinear(opaqueUMin, opaqueVMax, uMin, uMax, vMin, vMax, bl3, br3, tr3, tl3, cubeTransform, modelScale, screenTransform, acc);
+
+        if (dumpLabel != null) System.out.printf(
+            "[BD] %s uv_px=%d,%d,%d,%d opaque_px=%d,%d,%d,%d screen_bl=(%g,%g,%g) screen_br=(%g,%g,%g) screen_tr=(%g,%g,%g) screen_tl=(%g,%g,%g)%n",
+            dumpLabel,
+            pxMin, pyMin, pxMax, pyMax,
+            firstOpaquePx, firstOpaquePy, lastOpaquePx, lastOpaquePy,
+            bl.x(), bl.y(), bl.z(),
+            br.x(), br.y(), br.z(),
+            tr.x(), tr.y(), tr.z(),
+            tl.x(), tl.y(), tl.z());
     }
 
-    private static void contributeBilinear(
+    private static @NotNull Vector3f contributeBilinear(
         float u, float v, float uMin, float uMax, float vMin, float vMax,
         @NotNull Vector3f bl3, @NotNull Vector3f br3, @NotNull Vector3f tr3, @NotNull Vector3f tl3,
         @NotNull Matrix4f cubeTransform, float modelScale, @NotNull Matrix4f screenTransform,
@@ -572,16 +621,18 @@ public class EntityGeometryKit {
         float px = w00 * bl3.x() + w10 * br3.x() + w11 * tr3.x() + w01 * tl3.x();
         float py = w00 * bl3.y() + w10 * br3.y() + w11 * tr3.y() + w01 * tl3.y();
         float pz = w00 * bl3.z() + w10 * br3.z() + w11 * tr3.z() + w01 * tl3.z();
-        accumulate(new Vector3f(px, py, pz), cubeTransform, modelScale, screenTransform, acc);
+        return accumulate(new Vector3f(px, py, pz), cubeTransform, modelScale, screenTransform, acc);
     }
 
-    private static void accumulate(
+    private static @NotNull Vector3f accumulate(
         @NotNull Vector3f p, @NotNull Matrix4f cubeTransform, float modelScale,
         @NotNull Matrix4f screenTransform, @NotNull BoundsAccumulator acc
     ) {
         Vector3f cubeSpace = Vector3f.transform(p, cubeTransform);
         Vector3f scaled = new Vector3f(cubeSpace.x() * modelScale, cubeSpace.y() * modelScale, cubeSpace.z() * modelScale);
-        acc.add(Vector3f.transform(scaled, screenTransform));
+        Vector3f screen = Vector3f.transform(scaled, screenTransform);
+        acc.add(screen);
+        return screen;
     }
 
     private static int clampPixel(int value, int size) {
