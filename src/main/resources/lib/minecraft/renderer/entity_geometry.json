@@ -20850,7 +20850,7 @@
                 0,
                 18
               ],
-              "inflate": 0.0,
+              "inflate": 0.001,
               "mirror": true,
               "face_uv": {}
             }
@@ -21287,7 +21287,7 @@
                 4,
                 15
               ],
-              "inflate": 0.0,
+              "inflate": -0.02,
               "mirror": false,
               "face_uv": {}
             }
@@ -22336,7 +22336,7 @@
                 13,
                 24
               ],
-              "inflate": 0.0,
+              "inflate": 0.001,
               "mirror": false,
               "face_uv": {}
             }
@@ -22402,7 +22402,7 @@
                 13,
                 24
               ],
-              "inflate": 0.0,
+              "inflate": 0.001,
               "mirror": false,
               "face_uv": {}
             }
@@ -22937,7 +22937,7 @@
                 32,
                 0
               ],
-              "inflate": 0.0,
+              "inflate": -0.5,
               "mirror": false,
               "face_uv": {}
             }
@@ -22970,7 +22970,7 @@
                 32,
                 0
               ],
-              "inflate": 0.0,
+              "inflate": -0.5,
               "mirror": false,
               "face_uv": {}
             }
@@ -23003,7 +23003,7 @@
                 0,
                 16
               ],
-              "inflate": 0.0,
+              "inflate": -0.5,
               "mirror": false,
               "face_uv": {}
             }
@@ -23036,7 +23036,7 @@
                 0,
                 36
               ],
-              "inflate": 0.0,
+              "inflate": -0.5,
               "mirror": false,
               "face_uv": {}
             }
@@ -23338,7 +23338,7 @@
                 4,
                 15
               ],
-              "inflate": 0.0,
+              "inflate": -0.02,
               "mirror": false,
               "face_uv": {}
             }
@@ -26375,7 +26375,7 @@
                 3,
                 37
               ],
-              "inflate": 0.0,
+              "inflate": 0.001,
               "mirror": false,
               "face_uv": {}
             }
@@ -26408,7 +26408,7 @@
                 0,
                 40
               ],
-              "inflate": 0.0,
+              "inflate": 0.001,
               "mirror": false,
               "face_uv": {}
             }
@@ -26441,7 +26441,7 @@
                 11,
                 40
               ],
-              "inflate": 0.0,
+              "inflate": 0.001,
               "mirror": false,
               "face_uv": {}
             }
@@ -26474,7 +26474,7 @@
                 2,
                 13
               ],
-              "inflate": 0.0,
+              "inflate": 0.001,
               "mirror": false,
               "face_uv": {}
             }
@@ -26507,7 +26507,7 @@
                 2,
                 13
               ],
-              "inflate": 0.0,
+              "inflate": 0.001,
               "mirror": false,
               "face_uv": {}
             }
@@ -26540,7 +26540,7 @@
                 2,
                 13
               ],
-              "inflate": 0.0,
+              "inflate": 0.001,
               "mirror": false,
               "face_uv": {}
             }
@@ -26573,7 +26573,7 @@
                 2,
                 13
               ],
-              "inflate": 0.0,
+              "inflate": 0.001,
               "mirror": false,
               "face_uv": {}
             }

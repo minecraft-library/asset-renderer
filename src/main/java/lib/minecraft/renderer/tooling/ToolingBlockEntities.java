@@ -1282,7 +1282,10 @@ public final class ToolingBlockEntities {
                     // cubes into {@link ParseState#slotToCubes} so a later aload_N can re-hydrate
                     // them for the next bone without re-reading the same addBox literals.
                     case VarInsnNode varInsn when opcode == Opcodes.ASTORE -> {
-                        if (state.lastFlushedBone != null) {
+                        if (state.pendingFreshDeformationInflate != null) {
+                            state.cubeDeformationSlots.put(varInsn.var, state.pendingFreshDeformationInflate);
+                            state.pendingFreshDeformationInflate = null;
+                        } else if (state.lastFlushedBone != null) {
                             state.localSlotBone.put(varInsn.var, state.lastFlushedBone);
                             state.lastFlushedBone = null;
                         } else if (!state.pendingCubes.isEmpty()) {
@@ -1294,6 +1297,9 @@ public final class ToolingBlockEntities {
                         }
                     }
                     case VarInsnNode varInsn when opcode == Opcodes.ALOAD -> {
+                        Float deformationInflate = state.cubeDeformationSlots.get(varInsn.var);
+                        if (deformationInflate != null)
+                            state.pendingInflate = deformationInflate;
                         String parent = state.localSlotBone.get(varInsn.var);
                         if (parent != null)
                             state.nextParent = parent;
@@ -1817,6 +1823,10 @@ public final class ToolingBlockEntities {
             // {@code new CubeDeformation(F)} / {@code .extend(F)} per-cube overrides still run
             // through their handlers and replace pendingInflate before the next emitCube fires.
             state.pendingInflate = state.defaultInflate;
+            // Clear the inline-deformation marker too - if a {@code new CubeDeformation(F)} was
+            // consumed inline by THIS addBox (no intervening ASTORE), it shouldn't leak into the
+            // next ASTORE and accidentally tag an unrelated slot.
+            state.pendingFreshDeformationInflate = null;
         }
 
         /**
@@ -1857,9 +1867,11 @@ public final class ToolingBlockEntities {
                     float dy = popFloatWithDiagnostics(state, "CubeDeformation.<init>(FFF) y");
                     float dx = popFloatWithDiagnostics(state, "CubeDeformation.<init>(FFF) x");
                     state.pendingInflate = (dx + dy + dz) / 3f;
+                    state.pendingFreshDeformationInflate = state.pendingInflate;
                 } else if (methodInsn.desc.startsWith("(F")) {
                     requireStack(state, 1, "CubeDeformation.<init>(F)");
                     state.pendingInflate = popFloatWithDiagnostics(state, "CubeDeformation.<init>(F)");
+                    state.pendingFreshDeformationInflate = state.pendingInflate;
                 }
             }
         }
@@ -2174,6 +2186,28 @@ public final class ToolingBlockEntities {
              * sources whose factory takes no {@code CubeDeformation} arg.
              */
             float defaultInflate = 0f;
+
+            /**
+             * JVM local-variable slot -> CubeDeformation inflate value, populated when a
+             * {@code new CubeDeformation(F); <init>} is immediately followed by {@code astore N}
+             * and the slot is then re-loaded later via {@code aload N} before a subsequent
+             * {@code addBox(..., CubeDeformation)} call. Vanilla's
+             * {@code AdultBeeModel.createBodyLayer} stores a {@code CubeDeformation(0.001F)} into
+             * a local slot once and reuses it for BOTH wing addBox calls; without slot tracking,
+             * the second addBox emits {@code inflate=0} because {@link #pendingInflate} resets
+             * to {@link #defaultInflate} after each {@code emitCube}. Re-hydrated by the ALOAD
+             * handler so the next addBox picks up the correct inflate. Only populated when
+             * {@code paramFloatValues != null}.
+             */
+            final @NotNull java.util.Map<Integer, Float> cubeDeformationSlots = new java.util.HashMap<>();
+
+            /**
+             * Inflate value of the most recent {@code new CubeDeformation(F); <init>(F)} that
+             * hasn't yet been ASTORE'd or consumed by an inline addBox. ASTORE captures into
+             * {@link #cubeDeformationSlots}; emitCube clears it. Null when no fresh deformation
+             * is pending.
+             */
+            @Nullable Float pendingFreshDeformationInflate;
 
             /** Accumulated per-bone JSON objects keyed by bone name. Written to the final model. */
             final @NotNull JsonObject bones = new JsonObject();
