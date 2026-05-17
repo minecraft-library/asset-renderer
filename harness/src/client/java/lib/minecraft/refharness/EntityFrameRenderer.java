@@ -537,7 +537,11 @@ public final class EntityFrameRenderer implements AutoCloseable {
         "Deadmau5EarsLayer",
         "EarsLayer",
         "DolphinCarryingItemLayer",
-        "FoxHeldItemLayer"
+        "FoxHeldItemLayer",
+        "RopesLayer"  // happy_ghast leash-holder gate (state.isLeashHolder && bodyItem.is(HARNESSES));
+                      // never fires for zero-state entity, but the layer's adultModel/babyModel
+                      // fields have CubeDeformation(0.2F) inflate that would inflate bounds by ~22
+                      // canvas pixels if walked - leaving the canvas oversized for the actual body
     );
 
     /**
