@@ -177,10 +177,13 @@ public interface RenderEngine {
      * @return the shaded ARGB pixel
      */
     static int applyShading(int argb, float factor) {
+        // Vanilla GLSL quantizes via `floor(min(1, v) * 255 + 0.5)` (round-half-up); truncating
+        // here biases every shaded channel ~0.5 LSB low and leaves a single-LSB precision floor
+        // across un-tinted entities (goat / husk / zombie / skeleton family etc).
         int a = (argb >>> 24) & 0xFF;
-        int r = (int) (((argb >>> 16) & 0xFF) * factor);
-        int g = (int) (((argb >>> 8) & 0xFF) * factor);
-        int b = (int) ((argb & 0xFF) * factor);
+        int r = Math.round(((argb >>> 16) & 0xFF) * factor);
+        int g = Math.round(((argb >>> 8) & 0xFF) * factor);
+        int b = Math.round((argb & 0xFF) * factor);
 
         r = Math.clamp(r, 0, 255);
         g = Math.clamp(g, 0, 255);
