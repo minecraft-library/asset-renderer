@@ -97,6 +97,60 @@ public class ProjectionMath {
     }
 
     /**
+     * Tests whether a barycentric coordinate triple falls inside the triangle, applying the
+     * OpenGL top-left fill rule for pixels lying exactly on a triangle edge. Vanilla's GPU
+     * rasterizer assigns each edge pixel to exactly one of the two adjacent triangles - the
+     * one whose owned edge is a TOP or LEFT edge (in CW Y-down screen space, that means
+     * horizontal edges going LEFT or non-horizontal edges going DOWN). Without this rule,
+     * our {@link #isInsideTriangle plain inclusion} test double-counts shared-edge pixels
+     * across both adjacent triangles, which double-rasterises at axis-aligned cube face
+     * edges and produces alpha-blend stacking that doesn't match vanilla.
+     * <p>
+     * Front-facing triangles in our pipeline are CW in Y-down screen space (det=-1 chirality
+     * means model CCW projects to screen CW). For each edge i the test is:
+     * <ul>
+     * <li>{@code bary[i] > 0}: strictly inside relative to edge i - always include</li>
+     * <li>{@code bary[i] == 0}: on edge i - include only if edge i is a TOP or LEFT edge</li>
+     * <li>{@code bary[i] < 0}: outside relative to edge i - exclude</li>
+     * </ul>
+     * Edge i is opposite vertex i. The barycentric layout pairs {@code u=bary[0]} with edge
+     * {@code v1→v2}, {@code v=bary[1]} with edge {@code v2→v0}, {@code w=bary[2]} with edge
+     * {@code v0→v1}.
+     *
+     * @param uvw the barycentric triple
+     * @param v0 the triangle's first screen-space vertex
+     * @param v1 the triangle's second screen-space vertex
+     * @param v2 the triangle's third screen-space vertex
+     * @return {@code true} if the point is owned by this triangle under the top-left rule
+     */
+    public static boolean isInsideTriangleTopLeft(
+        float @NotNull [] uvw,
+        @NotNull Vector2f v0,
+        @NotNull Vector2f v1,
+        @NotNull Vector2f v2
+    ) {
+        if (uvw[0] < 0f || uvw[1] < 0f || uvw[2] < 0f) return false;
+        if (uvw[0] == 0f && !isTopOrLeftEdge(v1, v2)) return false;
+        if (uvw[1] == 0f && !isTopOrLeftEdge(v2, v0)) return false;
+        if (uvw[2] == 0f && !isTopOrLeftEdge(v0, v1)) return false;
+        return true;
+    }
+
+    /**
+     * Returns {@code true} if the directed edge from {@code start} to {@code end} is a top or
+     * left edge in CW Y-down screen space - the OpenGL fill-rule classification for which
+     * adjacent triangle "owns" a shared-edge pixel.
+     * <ul>
+     * <li>Top edge: horizontal ({@code start.y == end.y}) going left ({@code start.x > end.x})</li>
+     * <li>Left edge: non-horizontal going down ({@code end.y > start.y})</li>
+     * </ul>
+     */
+    private static boolean isTopOrLeftEdge(@NotNull Vector2f start, @NotNull Vector2f end) {
+        if (start.y() == end.y()) return start.x() > end.x();
+        return end.y() > start.y();
+    }
+
+    /**
      * Returns the integer bounding box of a triangle clamped to the canvas.
      *
      * @param a the first vertex

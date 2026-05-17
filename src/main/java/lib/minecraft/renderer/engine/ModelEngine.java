@@ -250,7 +250,7 @@ public class ModelEngine extends TextureEngine {
             for (int py = pyStart; py <= pyEnd; py++) {
                 for (int px = bounds[0]; px <= bounds[2]; px++) {
                     ProjectionMath.barycentricInto(t.s0, t.s1, t.s2, px + 0.5f, py + 0.5f, bary);
-                    if (!ProjectionMath.isInsideTriangle(bary)) continue;
+                    if (!ProjectionMath.isInsideTriangleTopLeft(bary, t.s0, t.s1, t.s2)) continue;
 
                     float depthVal = bary[0] * t.p0.z() + bary[1] * t.p1.z() + bary[2] * t.p2.z();
                     int idx = (py - tileStart) * width + px;
