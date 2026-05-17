@@ -17,6 +17,7 @@
     "PhantomStateMixin",
     "PufferfishStateMixin",
     "SkipSetupAnimMixin",
+    "SuppressShakingMixin",
     "WitherBossModelMixin",
     "ZombieVillagerStateMixin"
   ],
