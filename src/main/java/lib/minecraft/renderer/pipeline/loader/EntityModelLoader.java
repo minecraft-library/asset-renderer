@@ -217,20 +217,36 @@ public class EntityModelLoader {
         @NotNull EntityModelData model,
         @NotNull Optional<String> textureRef,
         boolean emissive,
-        int tintArgb
+        int tintArgb,
+        boolean skipBounds
     ) {
 
         /**
          * Convenience constructor preserving the historic {@code (model, textureRef, emissive)}
          * signature in use before {@link #tintArgb} was added. Defaults the tint to
-         * {@code 0xFFFFFFFF} (white = no-op multiplicative tint).
+         * {@code 0xFFFFFFFF} (white = no-op multiplicative tint) and {@code skipBounds} to
+         * {@code false} (overlay contributes to bounds).
          */
         public OverlayLayer(
             @NotNull EntityModelData model,
             @NotNull Optional<String> textureRef,
             boolean emissive
         ) {
-            this(model, textureRef, emissive, 0xFFFFFFFF);
+            this(model, textureRef, emissive, 0xFFFFFFFF, false);
+        }
+
+        /**
+         * Convenience constructor preserving the historic {@code (model, textureRef, emissive,
+         * tintArgb)} signature in use before {@link #skipBounds} was added. Defaults
+         * {@code skipBounds} to {@code false} (overlay contributes to bounds).
+         */
+        public OverlayLayer(
+            @NotNull EntityModelData model,
+            @NotNull Optional<String> textureRef,
+            boolean emissive,
+            int tintArgb
+        ) {
+            this(model, textureRef, emissive, tintArgb, false);
         }
 
     }
@@ -287,7 +303,14 @@ public class EntityModelLoader {
             // etc. JSON expects a hex string ("0xFFFFFFFF" / "#F9FFFE" / "0xF9FFFE") so it survives
             // round-trip with hand-edits. Defaults to 0xFFFFFFFF (white = no-op MULTIPLY tint).
             int overlayTint = entry.has("tint_color") ? parseTintArgb(entry.get("tint_color").getAsString()) : 0xFFFFFFFF;
-            out.add(new OverlayLayer(materialised, overlayTexture, emissive, overlayTint));
+            // Some equipment-driven overlays (LlamaDecorLayer carpet, possibly future similar
+            // layers) are state-rendered by vanilla but the harness skips them from bounds via
+            // NO_RENDER_LAYER_SUFFIXES - the carpet's inflate-0.5 mesh would over-pad the canvas
+            // around a body that doesn't actually need that margin. `skip_bounds=true` mirrors
+            // that policy here: the overlay still renders, but EntityRenderer.computeUnionScreen
+            // Bounds ignores it when sizing the canvas.
+            boolean skipBounds = entry.has("skip_bounds") && entry.get("skip_bounds").getAsBoolean();
+            out.add(new OverlayLayer(materialised, overlayTexture, emissive, overlayTint, skipBounds));
         }
         return out;
     }

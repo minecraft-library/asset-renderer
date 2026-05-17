@@ -489,6 +489,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         Box bounds = EntityGeometryKit.computeScreenBounds(definition.model(), transform, modelScale, texture);
         for (EntityModelLoader.OverlayLayer overlay : definition.overlays()) {
             if (overlay.model().getBones().isEmpty()) continue;
+            // Overlays flagged skipBounds (LlamaDecorLayer-style equipment-driven overlays) still
+            // render but don't contribute to bounds, mirroring the vanilla harness's
+            // NO_RENDER_LAYER_SUFFIXES treatment of those layer classes.
+            if (overlay.skipBounds()) continue;
             Box overlayBounds = EntityGeometryKit.computeScreenBounds(overlay.model(), transform, modelScale, texture);
             bounds = unionBoxes(bounds, overlayBounds);
         }

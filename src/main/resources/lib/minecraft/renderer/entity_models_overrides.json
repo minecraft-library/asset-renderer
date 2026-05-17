@@ -168,7 +168,8 @@
         {
           "geometry_ref": "geometry.llama",
           "texture_ref": "equipment/llama_body/trader_llama",
-          "inflate": 0.5
+          "inflate": 0.5,
+          "skip_bounds": true
         }
       ]
     }
