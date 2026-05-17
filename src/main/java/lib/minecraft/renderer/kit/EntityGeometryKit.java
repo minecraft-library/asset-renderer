@@ -1012,10 +1012,16 @@ public class EntityGeometryKit {
      * Back-face culling heuristic. Disables culling for plane cubes (any size component equal
      * to zero - e.g. tadpole tail, top fins, warden tendrils) since vanilla treats these as
      * double-sided geometry. Also disables culling for cubes whose visible-face UV regions
-     * contain {@link #NO_CULL_TRANSPARENCY_THRESHOLD significant alpha-cutout texels} so
-     * vanilla's {@code entityCutoutNoCull} render type's see-through behaviour (skeleton-horse
-     * ribcage through transparent body cube, wither-skeleton armour through bone outlines) is
-     * mirrored. Solid cubes use the legacy content-based heuristic
+     * contain {@link #NO_CULL_TRANSPARENCY_THRESHOLD significant alpha-cutout or partial-alpha
+     * texels} so vanilla's see-through behaviour is mirrored for both render-type families:
+     * <ul>
+     * <li>{@code entityCutoutNoCull} (alpha=0 holes): skeleton-horse ribcage through transparent
+     *     body cube, wither-skeleton armour through bone outlines</li>
+     * <li>{@code entityTranslucent} (partial-alpha shells): slime outer cube alpha-stacks
+     *     back+front faces at silhouette pixels, matching vanilla's {@code withCull(false)}
+     *     pipeline setting</li>
+     * </ul>
+     * Solid cubes use the legacy content-based heuristic
      * (identical to {@link EntityGeometryKit#shouldCullBackFaces}).
      */
     private static boolean shouldCullBackFaces(
@@ -1026,14 +1032,15 @@ public class EntityGeometryKit {
         float texH
     ) {
         if (size.x() == 0f || size.y() == 0f || size.z() == 0f) return false;
-        // entityCutoutNoCull detection: cubes with significant alpha-cutout on visible faces
-        // need their back faces to render too so they're visible through the cutouts. Sampling
-        // the three iso-visible faces (UP/NORTH/EAST) is sufficient - cutout textures are
-        // typically symmetric across face pairs (the rib pattern on body NORTH appears on
-        // SOUTH too) and we'd rather miss a one-sided cutout than over-disable culling.
-        if (uvTransparencyExceeds(resolveFaceUv(EntityFace.UP, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD)
-            || uvTransparencyExceeds(resolveFaceUv(EntityFace.NORTH, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD)
-            || uvTransparencyExceeds(resolveFaceUv(EntityFace.EAST, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD))
+        // entityCutoutNoCull / entityTranslucent detection: cubes with significant non-opaque
+        // texels on visible faces need their back faces to render too - either to peek through
+        // alpha=0 cutouts (cutout family) or to alpha-stack at silhouette pixels (translucent
+        // family). Sampling the three iso-visible faces (UP/NORTH/EAST) is sufficient -
+        // non-opaque textures are typically symmetric across face pairs and we'd rather miss a
+        // one-sided non-opaque face than over-disable culling.
+        if (uvNonOpaqueExceeds(resolveFaceUv(EntityFace.UP, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD)
+            || uvNonOpaqueExceeds(resolveFaceUv(EntityFace.NORTH, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD)
+            || uvNonOpaqueExceeds(resolveFaceUv(EntityFace.EAST, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD))
             return false;
         boolean visibleHasContent =
                uvHasContent(resolveFaceUv(EntityFace.UP, cube, size, texW, texH), texture)
@@ -1048,13 +1055,15 @@ public class EntityGeometryKit {
     }
 
     /**
-     * Returns {@code true} when the proportion of fully-transparent texels in the supplied face
-     * UV region exceeds {@code threshold}. Walks the rectangle bounded by the face UVs and
-     * counts {@code alpha==0} pixels; returns {@code false} when the UV region is empty (zero
-     * area). Used by {@link #shouldCullBackFaces} to detect {@code entityCutoutNoCull}-style
-     * textures whose visible-face alpha-cutout regions require the back faces to render too.
+     * Returns {@code true} when the proportion of non-opaque texels in the supplied face UV
+     * region exceeds {@code threshold}. Walks the rectangle bounded by the face UVs and counts
+     * {@code alpha<255} pixels; returns {@code false} when the UV region is empty (zero area).
+     * Used by {@link #shouldCullBackFaces} to detect both cutout ({@code alpha==0} holes,
+     * matching vanilla's {@code entityCutoutNoCull}) and translucent ({@code 0<alpha<255}
+     * shells, matching vanilla's {@code entityTranslucent withCull(false)}) families - either
+     * requires the back faces to render to mirror vanilla's see-through compositing.
      */
-    private static boolean uvTransparencyExceeds(
+    private static boolean uvNonOpaqueExceeds(
         @NotNull Vector2f @NotNull [] uv,
         @NotNull PixelBuffer texture,
         float threshold
@@ -1068,13 +1077,13 @@ public class EntityGeometryKit {
         int y1 = Math.min(H, (int) Math.ceil(bounds.w() * H));
         int total = (x1 - x0) * (y1 - y0);
         if (total <= 0) return false;
-        int transparent = 0;
+        int nonOpaque = 0;
         for (int y = y0; y < y1; y++) {
             for (int x = x0; x < x1; x++) {
-                if (ColorMath.alpha(texture.getPixel(x, y)) == 0) transparent++;
+                if (ColorMath.alpha(texture.getPixel(x, y)) < 255) nonOpaque++;
             }
         }
-        return (float) transparent / total > threshold;
+        return (float) nonOpaque / total > threshold;
     }
 
     private static boolean uvHasContent(
