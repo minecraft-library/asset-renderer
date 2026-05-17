@@ -47,9 +47,13 @@
       "armor_type": "none",
       "overlays": [
         {
+          "geometry_ref": "geometry.breeze_1",
+          "texture_ref": "breeze/breeze_wind",
+          "emissive": true
+        },
+        {
           "geometry_ref": "geometry.breeze",
           "texture_ref": "breeze/breeze_eyes",
-          "emissive": true,
           "inflate": 0.001
         }
       ]

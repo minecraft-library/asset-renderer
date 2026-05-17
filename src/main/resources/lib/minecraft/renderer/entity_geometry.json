@@ -17104,6 +17104,188 @@
       },
       "y_axis": "DOWN"
     },
+    "geometry.breeze_1": {
+      "textureWidth": 128,
+      "textureHeight": 128,
+      "bones": {
+        "wind_bottom": {
+          "pivot": [
+            0.0,
+            24.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            -0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -2.5,
+                -7.0,
+                -2.5
+              ],
+              "size": [
+                5.0,
+                7.0,
+                5.0
+              ],
+              "uv": [
+                1,
+                83
+              ],
+              "inflate": 0.0,
+              "mirror": false,
+              "face_uv": {}
+            }
+          ]
+        },
+        "wind_mid": {
+          "pivot": [
+            0.0,
+            17.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            -0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -6.0,
+                -6.0,
+                -6.0
+              ],
+              "size": [
+                12.0,
+                6.0,
+                12.0
+              ],
+              "uv": [
+                74,
+                28
+              ],
+              "inflate": 0.0,
+              "mirror": false,
+              "face_uv": {}
+            },
+            {
+              "origin": [
+                -4.0,
+                -6.0,
+                -4.0
+              ],
+              "size": [
+                8.0,
+                6.0,
+                8.0
+              ],
+              "uv": [
+                78,
+                32
+              ],
+              "inflate": 0.0,
+              "mirror": false,
+              "face_uv": {}
+            },
+            {
+              "origin": [
+                -2.5,
+                -6.0,
+                -2.5
+              ],
+              "size": [
+                5.0,
+                6.0,
+                5.0
+              ],
+              "uv": [
+                49,
+                71
+              ],
+              "inflate": 0.0,
+              "mirror": false,
+              "face_uv": {}
+            }
+          ]
+        },
+        "wind_top": {
+          "pivot": [
+            0.0,
+            11.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            -0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -9.0,
+                -8.0,
+                -9.0
+              ],
+              "size": [
+                18.0,
+                8.0,
+                18.0
+              ],
+              "uv": [
+                0,
+                0
+              ],
+              "inflate": 0.0,
+              "mirror": false,
+              "face_uv": {}
+            },
+            {
+              "origin": [
+                -6.0,
+                -8.0,
+                -6.0
+              ],
+              "size": [
+                12.0,
+                8.0,
+                12.0
+              ],
+              "uv": [
+                6,
+                6
+              ],
+              "inflate": 0.0,
+              "mirror": false,
+              "face_uv": {}
+            },
+            {
+              "origin": [
+                -2.5,
+                -8.0,
+                -2.5
+              ],
+              "size": [
+                5.0,
+                8.0,
+                5.0
+              ],
+              "uv": [
+                105,
+                57
+              ],
+              "inflate": 0.0,
+              "mirror": false,
+              "face_uv": {}
+            }
+          ]
+        }
+      },
+      "y_axis": "DOWN"
+    },
     "geometry.ghast": {
       "textureWidth": 64,
       "textureHeight": 32,

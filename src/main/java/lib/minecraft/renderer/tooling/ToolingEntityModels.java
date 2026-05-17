@@ -721,18 +721,22 @@ public final class ToolingEntityModels {
                     if (desc.emissive()) overlay.addProperty("emissive", true);
                     if (desc.tintArgb() != 0xFFFFFFFF)
                         overlay.addProperty("tint_color", String.format("0x%08X", desc.tintArgb()));
-                    // Emissive overlays sharing the base geometry need a microscopic outward
-                    // inflate to clear ModelEngine's equal-Z depth-fail (depthVal <= existingDepth
-                    // REJECTS at equal Z). Without it, eye additive overlays land on the same
-                    // depth as the lit skin texel and the eye RGB never wins - enderman renders
-                    // pink instead of pure purple, breeze / cave_spider / phantom likewise. Spider
-                    // accidentally works only because its rotated leg bones introduce FP noise
-                    // that breaks the equal-Z tie. Non-emissive overlays sharing base geometry
-                    // are NOT auto-inflated: vanilla often gates them on runtime state
-                    // ({@code SheepWoolUndercoatLayer} guards on {@code woolColor != WHITE}) and
-                    // the depth-fail rejection is what hides them at zero state.
+                    // Overlays sharing the base geometry need a microscopic outward inflate to
+                    // clear ModelEngine's equal-Z depth-fail (depthVal <= existingDepth REJECTS
+                    // at equal Z). Without it, the overlay lands on the same depth as the lit
+                    // skin texel and never wins - enderman renders pink instead of pure purple,
+                    // breeze / cave_spider / phantom likewise. Spider accidentally works only
+                    // because its rotated leg bones introduce FP noise that breaks the equal-Z
+                    // tie. Applies to ALL same-geometry overlays (which today means eye layers):
+                    // both emissive variants (RenderTypes.eyes -> EMISSIVE + NO_CARDINAL_LIGHTING)
+                    // AND shaded translucent variants (RenderTypes.breezeEyes ->
+                    // ENTITY_TRANSLUCENT_EMISSIVE with PER_FACE_LIGHTING). Non-eye overlays use
+                    // composite geometry (modelLayerField != null) and are excluded - their
+                    // visibility is vanilla-gated by runtime state ({@code SheepWoolUndercoatLayer}
+                    // on {@code woolColor != WHITE}, {@code DrownedOuterLayer} unconditionally),
+                    // and depth-fail rejection is what hides them at zero state.
                     boolean sharesBaseGeometry = desc.modelLayerField() == null;
-                    if (sharesBaseGeometry && desc.emissive())
+                    if (sharesBaseGeometry)
                         overlay.addProperty("inflate", 0.001f);
                     overlaysJson.add(overlay);
                 }

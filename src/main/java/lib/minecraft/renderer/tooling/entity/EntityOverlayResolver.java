@@ -82,16 +82,45 @@ public final class EntityOverlayResolver {
      *       to the Java client; the bedrock-pipeline delta is a known-divergence on rendering
      *       semantics rather than geometry. Maintainer can move {@code minecraft:slime} into
      *       {@code TestEntityParity.ACHIEVED_PARITY} once the geometry difference is reviewed.</li>
+     *   <li>{@code BREEZE_WIND} - the translucent wind-cone wireframe surrounding the breeze body.
+     *       Vanilla's {@code BreezeWindLayer} uses the dedicated {@code RenderPipelines.BREEZE_WIND}
+     *       pipeline ({@code NO_CARDINAL_LIGHTING}, {@code TRANSLUCENT} blend, {@code withCull(false)},
+     *       {@code ALPHA_CUTOUT 0.1}) - the wind cubes render unshaded with the partial-alpha
+     *       breeze_wind.png texture. The harness includes the wind extent in its bounds-walker
+     *       (the layer is NOT in {@code NO_RENDER_LAYER_SUFFIXES}), so the canvas pads out to
+     *       408x462 to hold the wind silhouette; matching it on our side requires the overlay
+     *       row PLUS the {@link #UNLIT_LAYERS} mark so the rasterizer skips shading and the
+     *       partial-alpha texels produce translucent fragments via NORMAL blend.</li>
      * </ul>
      * Adding an entry needs a parity check before commit - opaque-overlay regressions on an
      * entity that renders worse than no-overlay (i.e. the overlay covers the base body without
      * adding visual signal) should stay out of this list.
      */
     private static final @NotNull java.util.Set<String> COMPOSITE_OVERLAY_ALLOWLIST = java.util.Set.of(
+        "BREEZE_WIND",
         "DROWNED_OUTER_LAYER",
         "SHEEP_WOOL",
         "SHEEP_WOOL_UNDERCOAT",
         "SLIME_OUTER"
+    );
+
+    /**
+     * Allowlist of {@code ModelLayers.X} field names whose composite overlay renders
+     * <b>without</b> the cardinal Lambertian shade (vanilla's {@code NO_CARDINAL_LIGHTING}
+     * shader define). Emitted as {@code emissive: true} so the rasterizer skips
+     * {@link lib.minecraft.renderer.engine.RenderEngine#applyShading} and the texel's authored
+     * RGB writes through unchanged (then blended with the existing pixel via NORMAL).
+     * <p>Composite overlays not on this list inherit the standard ENTITY_IN_UI dual-light shade
+     * (the {@code !emissive} branch in the rasterizer). Adding an entry needs a parity check
+     * before commit - turning off shading on a layer that vanilla DOES shade would brighten it
+     * by up to {@code 1 / 0.4 = 2.5x} on back-facing fragments.
+     * <ul>
+     *   <li>{@code BREEZE_WIND} - {@code RenderPipelines.BREEZE_WIND} has
+     *       {@code .withShaderDefine("NO_CARDINAL_LIGHTING")} - wind cubes render unshaded.</li>
+     * </ul>
+     */
+    private static final @NotNull java.util.Set<String> UNLIT_LAYERS = java.util.Set.of(
+        "BREEZE_WIND"
     );
 
     /** JVM internal name of the {@code ModelLayers} constants holder; layer factory references key off it. */
@@ -165,10 +194,17 @@ public final class EntityOverlayResolver {
         for (String layerClass : layerClasses) {
             ClassNode cn = AsmKit.loadClass(zip, layerClass);
             if (cn == null) continue;
-            // Eye overlay first - shares the base entity's geometry, so no extra parse.
-            String eyesTexture = findEyesOverlayTexture(cn);
-            if (eyesTexture != null) {
-                out.add(new OverlayDescriptor(layerClass, eyesTexture, true, null, 0xFFFFFFFF));
+            // Eye overlay first - shares the base entity's geometry, so no extra parse. The
+            // factory-name discriminator marks fully-emissive variants (`RenderTypes.eyes` →
+            // EMISSIVE + NO_CARDINAL_LIGHTING) as `emissive=true` so the rasterizer skips
+            // shading; shaded variants (`RenderTypes.breezeEyes` → ENTITY_TRANSLUCENT_EMISSIVE
+            // with PER_FACE_LIGHTING, no EMISSIVE / NO_CARDINAL_LIGHTING) get the standard
+            // Lambertian shade so the eye darkens with the head's face normal exactly like the
+            // skin texel below it.
+            EyesOverlayBinding eyes = findEyesOverlayBinding(cn);
+            if (eyes != null) {
+                boolean fullyEmissive = FULLY_EMISSIVE_EYE_FACTORIES.contains(eyes.factoryName());
+                out.add(new OverlayDescriptor(layerClass, eyes.texturePath(), fullyEmissive, null, 0xFFFFFFFF));
                 continue;
             }
             // Composite-model overlay (sheep wool, sheep wool undercoat) - detected by an
@@ -188,7 +224,8 @@ public final class EntityOverlayResolver {
                 continue;
             }
             int tintArgb = extractColoredCutoutTint(zip, cn);
-            out.add(new OverlayDescriptor(layerClass, compositeTexture, false, modelLayerField, tintArgb));
+            boolean unlit = UNLIT_LAYERS.contains(modelLayerField);
+            out.add(new OverlayDescriptor(layerClass, compositeTexture, unlit, modelLayerField, tintArgb));
         }
         return out;
     }
@@ -527,7 +564,34 @@ public final class EntityOverlayResolver {
         return null;
     }
 
-    private static @Nullable String findEyesOverlayTexture(@NotNull ClassNode cn) {
+    /**
+     * Eye overlay descriptor returned by {@link #findEyesOverlayBinding}: pairs the texture
+     * path with the {@code RenderTypes.X(...)} factory name that constructed the render type
+     * so callers can discriminate between fully-emissive variants ({@code RenderTypes.eyes}
+     * → {@code RenderPipelines.EYES} with {@code EMISSIVE} + {@code NO_CARDINAL_LIGHTING})
+     * and shaded translucent variants ({@code RenderTypes.breezeEyes} →
+     * {@code RenderPipelines.ENTITY_TRANSLUCENT_EMISSIVE} with {@code PER_FACE_LIGHTING}
+     * - cardinal Lambertian still applies).
+     */
+    private record EyesOverlayBinding(@NotNull String texturePath, @NotNull String factoryName) {}
+
+    /**
+     * Eye factory method names that resolve to {@code RenderPipelines.EYES} (or equivalently
+     * an EMISSIVE + NO_CARDINAL_LIGHTING render pipeline). These overlay textures bypass the
+     * cardinal Lambertian shade entirely - the texel's authored RGB writes through unchanged
+     * (eye glow is full-bright by design). Maps to {@code emissive=true} on the
+     * {@link OverlayDescriptor}, so the rasterizer skips {@link
+     * lib.minecraft.renderer.engine.RenderEngine#applyShading}.
+     *
+     * <p>Eye factories NOT on this list (currently just {@code breezeEyes}) resolve to a
+     * pipeline that still shades the overlay (PER_FACE_LIGHTING for breeze), so the overlay
+     * darkens with the surface normal exactly like the base body skin texel would.
+     */
+    private static final @NotNull java.util.Set<String> FULLY_EMISSIVE_EYE_FACTORIES = java.util.Set.of(
+        "eyes"
+    );
+
+    private static @Nullable EyesOverlayBinding findEyesOverlayBinding(@NotNull ClassNode cn) {
         MethodNode clinit = AsmKit.findMethod(cn, "<clinit>");
         if (clinit == null) return null;
         String pendingTexturePath = null;
@@ -543,7 +607,7 @@ public final class EntityOverlayResolver {
                 && mi.desc.endsWith(RENDER_TYPE_RETURN)
                 && mi.name.toLowerCase(Locale.ROOT).contains("eyes")
                 && pendingTexturePath != null)
-                return pendingTexturePath;
+                return new EyesOverlayBinding(pendingTexturePath, mi.name);
         }
         return null;
     }

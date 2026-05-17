@@ -274,14 +274,23 @@ public class ModelEngine extends TextureEngine {
 
                     sampled = ColorMath.blend(sampled, buffer.getPixel(px, py), blendMode);
                     buffer.setPixel(px, py, sampled);
-                    // Depth written for any pixel that survives the alpha-zero skip above,
-                    // translucent fragments included. Correct rendering of partial-alpha layers
-                    // therefore depends on painter's order - translucent geometry must be
-                    // inserted into the bone/triangle list AFTER any opaque content meant to
-                    // be visible behind it. The slime outer-shell extra_bone is appended last
-                    // for exactly this reason; emissive overlays should follow the same
-                    // convention.
-                    depth[idx] = depthVal;
+                    // Depth written for non-emissive pixels. Emissive fragments deliberately
+                    // skip the depth write so that overlapping translucent layers (breeze wind
+                    // cone with 3 nested cubes at the same Y plane) can all accumulate via
+                    // source-over instead of the first-drawn polygon's depth value rejecting
+                    // every subsequent polygon at the same screen pixel. Mirrors vanilla's
+                    // breeze pipeline behaviour where `sortOnUpload` + LESS_THAN_OR_EQUAL
+                    // depth lets all wind polygons render in back-to-front order; our
+                    // bone-order emission isn't depth-sorted, but skipping the depth write
+                    // lets every emissive polygon compare against the original opaque depth
+                    // (body / background) regardless of which emissive polygon drew first.
+                    //
+                    // Non-emissive partial-alpha layers (slime outer shell) still depend on
+                    // painter's order - they must be inserted into the bone/triangle list
+                    // AFTER any opaque content meant to be visible behind them. The slime
+                    // outer-shell extra_bone is appended last for exactly this reason.
+                    if (!t.source.emissive())
+                        depth[idx] = depthVal;
                 }
             }
         }
