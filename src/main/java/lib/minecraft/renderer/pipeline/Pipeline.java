@@ -74,7 +74,7 @@ public class Pipeline {
 
     private static final @NotNull Lazy<Proxy<MojangContract>> MOJANG_PROXY = Lazy.of(() ->
         Proxy.builder(
-            ClientConfig.builder(MojangContract.class, GsonSettings.defaults().create())
+            ClientConfig.builder(MojangContract.class, GsonSettings.defaults())
                 .withErrorDecoder(MojangApiException::new)
                 .build()
         ).build()
