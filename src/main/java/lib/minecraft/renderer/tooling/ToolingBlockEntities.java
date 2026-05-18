@@ -1510,6 +1510,15 @@ public final class ToolingBlockEntities {
                     float[] savedPendingPivot = state.pendingPivot;
                     float[] savedPendingRotation = state.pendingRotation;
                     float savedPendingScale = state.pendingScale;
+                    // Builder-level mirror flag is scoped to the current CubeListBuilder chain.
+                    // Without saving it across the recurse, a callee that internally toggles
+                    // mirror (HumanoidModel.createMesh's left-arm/left-leg .mirror() calls)
+                    // leaks the flag into the caller's continuation. ZombieVillagerModel's
+                    // post-recurse `new CubeListBuilder().texOffs(0,0).addBox(...)` then emits
+                    // its head cubes with mirror=true, U-flipping head face UVs and producing
+                    // a +3.32 delta against vanilla. Save/restore matches the rest of the
+                    // builder/bone state already preserved here.
+                    boolean savedPendingMirror = state.pendingMirror;
                     state.localSlotBone = Concurrent.newMap();
                     state.slotToCubes = Concurrent.newMap();
                     state.pendingPartName = null;
@@ -1539,6 +1548,7 @@ public final class ToolingBlockEntities {
                         state.pendingPivot = savedPendingPivot;
                         state.pendingRotation = savedPendingRotation;
                         state.pendingScale = savedPendingScale;
+                        state.pendingMirror = savedPendingMirror;
                     }
                 }
             }

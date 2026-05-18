@@ -213,13 +213,14 @@ public final class TestEntityParityVanilla {
         Files.writeString(REPORT_FILE, report.toString());
         System.out.printf("Wrote %s (%d rows, %d ms total)%n", REPORT_FILE, rows.size(), totalMs);
 
+        long below025 = rows.stream().filter(r -> r.meanDelta() < 0.25).count();
+        long below05 = rows.stream().filter(r -> r.meanDelta() < 0.5).count();
+        long below075 = rows.stream().filter(r -> r.meanDelta() < 0.75).count();
         long below1 = rows.stream().filter(r -> r.meanDelta() < 1.0).count();
-        long below5 = rows.stream().filter(r -> r.meanDelta() < 5.0).count();
-        long below20 = rows.stream().filter(r -> r.meanDelta() < 20.0).count();
         long achieved = rows.stream().filter(Row::achieved).count();
         long achievedNotInRun = ACHIEVED_PARITY.size() - achieved;
-        System.out.printf("Parity buckets: <1: %d / <5: %d / <20: %d / total: %d%n",
-            below1, below5, below20, rows.size());
+        System.out.printf("Parity buckets: <0.25: %d / <0.5: %d / <0.75: %d / <1: %d / total: %d%n",
+            below025, below05, below075, below1, rows.size());
         System.out.printf("Achieved-parity allowlist: %d in this run / %d total%s%n",
             achieved, ACHIEVED_PARITY.size(),
             achievedNotInRun > 0 ? " (" + achievedNotInRun + " not rendered in this run - subset filter)" : "");

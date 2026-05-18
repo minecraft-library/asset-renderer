@@ -25860,7 +25860,7 @@
                 0
               ],
               "inflate": 0.0,
-              "mirror": true,
+              "mirror": false,
               "face_uv": {}
             },
             {
@@ -25879,7 +25879,7 @@
                 0
               ],
               "inflate": 0.0,
-              "mirror": true,
+              "mirror": false,
               "face_uv": {}
             }
           ]
