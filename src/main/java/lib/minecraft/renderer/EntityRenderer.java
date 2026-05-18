@@ -88,7 +88,15 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * Excluded baby / conditional cases since the static renderer never renders babies.
      */
     private static final @NotNull Map<String, Float> RENDERER_SCALE_OVERRIDES = Map.ofEntries(
-        Map.entry("minecraft:wither", 2.0f)
+        Map.entry("minecraft:wither", 2.0f),
+        // SlimeRenderer.scale chain: poseStack.scale(0.999, 0.999, 0.999) -> translate(0, 0.001, 0)
+        // -> scale(w*size, 1/w*size, w*size) with w = 1/((squish/(size*0.5+1))+1). At zero state
+        // squish=0 -> w=1, and SlimeRenderState defaults state.size=1, so the scale collapses to a
+        // uniform 0.999. Vanilla's harness invokes this via invokeRendererScale; mirroring it here
+        // shrinks the outer-shell cube bounds by 0.1% so the family-fit canvas X drops from 182
+        // (our pre-fix) to 181 (vanilla's harness output). The 0.001 model-unit Y translate is
+        // 0.016 canvas pixels and not separately compensated.
+        Map.entry("minecraft:slime", 0.999f)
     );
 
     /**

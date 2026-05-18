@@ -349,22 +349,34 @@ public class ModelEngine extends TextureEngine {
                             + "\t" + blendMode
                             + "\t" + hexArgb(outArgb));
                     }
-                    // Depth written for non-emissive pixels. Emissive fragments deliberately
-                    // skip the depth write so that overlapping translucent layers (breeze wind
-                    // cone with 3 nested cubes at the same Y plane) can all accumulate via
-                    // source-over instead of the first-drawn polygon's depth value rejecting
-                    // every subsequent polygon at the same screen pixel. Mirrors vanilla's
-                    // breeze pipeline behaviour where `sortOnUpload` + LESS_THAN_OR_EQUAL
-                    // depth lets all wind polygons render in back-to-front order; our
-                    // bone-order emission isn't depth-sorted, but skipping the depth write
-                    // lets every emissive polygon compare against the original opaque depth
-                    // (body / background) regardless of which emissive polygon drew first.
+                    // Depth written for opaque pixels only. Two skip cases:
                     //
-                    // Non-emissive partial-alpha layers (slime outer shell) still depend on
-                    // painter's order - they must be inserted into the bone/triangle list
-                    // AFTER any opaque content meant to be visible behind them. The slime
-                    // outer-shell extra_bone is appended last for exactly this reason.
-                    if (!t.source.emissive())
+                    // (1) Emissive fragments (breeze wind etc.) - so overlapping translucent
+                    //     layers (breeze wind cone with 3 nested cubes at the same Y plane) can
+                    //     all accumulate via source-over instead of the first-drawn polygon's
+                    //     depth value rejecting every subsequent polygon at the same screen
+                    //     pixel. Mirrors vanilla's breeze pipeline behaviour where
+                    //     `sortOnUpload` + LESS_THAN_OR_EQUAL depth lets all wind polygons
+                    //     render in back-to-front order; our bone-order emission isn't
+                    //     depth-sorted, but skipping the depth write lets every emissive
+                    //     polygon compare against the original opaque depth (body / background)
+                    //     regardless of which emissive polygon drew first.
+                    //
+                    // (2) Partial-alpha shaded fragments on no-cull cubes (slime outer shell
+                    //     via {@code entityTranslucent withCull(false)}). Vanilla's translucent
+                    //     pipeline has depth WRITE off so both camera-facing AND camera-opposite
+                    //     faces of the same cube blend at any pixel where their screen
+                    //     projections overlap - the visible shell pixel becomes a two-pass blend
+                    //     of (front face) + (back face). Our writeDepth-on path was rejecting
+                    //     the back face after the front face wrote its depth, leaving a single-
+                    //     pass blend that under-saturated the shell silhouette (alpha 180 vs
+                    //     vanilla 233 at top-edge shell-only pixels, RGB 81/137/69 vs vanilla
+                    //     96/161/82). Gating on (rawTexel alpha < 255) AND (cullBackFaces=false)
+                    //     restricts the skip to the translucent-no-cull case so opaque eye
+                    //     overlays / cutout textures unaffected.
+                    boolean partialAlphaNoCull = !t.source.cullBackFaces()
+                        && ColorMath.alpha(rawTexel) < 255;
+                    if (!t.source.emissive() && !partialAlphaNoCull)
                         depth[idx] = depthVal;
                 }
             }
