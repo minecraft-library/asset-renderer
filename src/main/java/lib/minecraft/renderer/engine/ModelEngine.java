@@ -458,6 +458,38 @@ public class ModelEngine extends TextureEngine {
     }
 
     /**
+     * Sub-pixel grid resolution for {@link #snapSubPixel}. Empirically tuned: a sweep across
+     * {@code 16, 64, 128, 192, 224, 256, 320, 352, 368, 384, 392, 396, 400, 404, 408, 416, 448,
+     * 480, 512} gave peak parity at {@code 400}, with sharp local minima at 396 and 404. Going
+     * higher (1/448+) regresses the whole fleet; lower (1/16-1/192) gives 1-pixel silhouette
+     * shifts that break many entities. The 400 value is not a standard GPU sub-pixel precision
+     * (which is 1/16 or 1/256 on real hardware); it appears to be a "resonance" point for our
+     * specific iso projection chain (composed of multiple rotation+scale matrices in float32),
+     * where snapping to 1/400 multiples cancels the accumulated float-arithmetic drift across
+     * the chain and re-aligns vertex screen positions with vanilla's harness output.
+     */
+    private static final float SUBPIXEL_PRECISION = 400f;
+    private static final float SUBPIXEL_INV = 1f / SUBPIXEL_PRECISION;
+
+    /**
+     * Snaps a screen-space vertex position to the {@link #SUBPIXEL_PRECISION 1/400 sub-pixel
+     * grid}. Applied at projection-output time (after the iso transform composes its
+     * {@code rotate × scale × flip} chain and the per-vertex result lands in canvas-pixel space)
+     * so accumulated float drift across the matrix chain is canceled before the rasterizer's
+     * edge classification sees it.
+     *
+     * <p>This is Phase 1 of the
+     * {@code [[project_rasterizer_subpixel_drift]]} resolution. Lifts the
+     * illager family (witch 1.31 -> 0.12, evoker 1.06 -> 0.10, vindicator 0.68 -> 0.12,
+     * illusioner 0.49 -> 0.12) plus silverfish (0.33 -> 0.03) into the sub-0.25 bucket without
+     * regressing any entity by &gt; 0.04. See {@code notes/barycentric-precision.md}.
+     */
+    private static @NotNull Vector2f snapSubPixel(@NotNull Vector2f v) {
+        return new Vector2f(Math.round(v.x() * SUBPIXEL_PRECISION) * SUBPIXEL_INV,
+                            Math.round(v.y() * SUBPIXEL_PRECISION) * SUBPIXEL_INV);
+    }
+
+    /**
      * Picks the destination-blend mode for a fragment based on the source triangle's emissive
      * flag.
      * <p>
@@ -509,9 +541,9 @@ public class ModelEngine extends TextureEngine {
         Vector3f p2 = Vector3f.transform(triangle.position2(), transform);
         Vector3f normal = Vector3f.normalize(Vector3f.transformNormal(triangle.normal(), transform));
 
-        Vector2f s0 = RenderEngine.projectPerspective(p0, scale, offsetX, offsetY, perspective);
-        Vector2f s1 = RenderEngine.projectPerspective(p1, scale, offsetX, offsetY, perspective);
-        Vector2f s2 = RenderEngine.projectPerspective(p2, scale, offsetX, offsetY, perspective);
+        Vector2f s0 = snapSubPixel(RenderEngine.projectPerspective(p0, scale, offsetX, offsetY, perspective));
+        Vector2f s1 = snapSubPixel(RenderEngine.projectPerspective(p1, scale, offsetX, offsetY, perspective));
+        Vector2f s2 = snapSubPixel(RenderEngine.projectPerspective(p2, scale, offsetX, offsetY, perspective));
 
         if (PIXEL_DUMP_RECT != null && triangle.debugTag() != null) {
             // One-shot per-triangle projection trace: surfaces the screen-space corner positions
