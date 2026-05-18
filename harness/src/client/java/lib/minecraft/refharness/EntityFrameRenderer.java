@@ -456,7 +456,7 @@ public final class EntityFrameRenderer implements AutoCloseable {
         List<? extends RenderLayer<?, ?>> layers = layersOf(renderer);
         for (RenderLayer<?, ?> layer : layers) {
             if (!isLayerActiveForState(layer, state)) continue;
-            for (Model<?> layerModel : findLayerModels(layer)) {
+            for (Model<?> layerModel : findLayerModels(layer, state)) {
                 @SuppressWarnings({"unchecked", "rawtypes"})
                 Model raw = layerModel;
                 // Same reasoning as the primary-model {@code setupAnim} skip in
@@ -607,15 +607,43 @@ public final class EntityFrameRenderer implements AutoCloseable {
     }
 
     /**
-     * Returns every {@link Model} instance reachable through this layer's instance fields.
-     * Most layers carry exactly one (`model`); a few carry multiple (e.g. {@code SheepWoolLayer}
-     * keeps separate {@code adultModel} and {@code babyModel} so the wool layer matches the
-     * baby vs adult silhouette without redoing layer construction). Walks the layer's own class
-     * fields plus its superclass fields up to (but not including) {@link RenderLayer} - the
-     * base class only holds the parent renderer reference, never an overlay model.
+     * Returns every {@link Model} instance the layer's {@code submit()} would render for the
+     * given {@code state}. Walks the layer's own class fields plus its superclass fields up to
+     * (but not including) {@link RenderLayer} - the base class only holds the parent renderer
+     * reference, never an overlay model.
+     *
+     * <p>Most layers carry exactly one {@code Model<?>} field and submit it unconditionally; for
+     * those the field walk returns the right Model directly. A few layers carry multiple Model
+     * fields and dispatch between them inside {@code submit()} - the layer renders ONE of them
+     * per call based on the {@link EntityRenderState}. Walking all of them for bounds would
+     * over-pad the canvas with extents from a Model that {@code submit()} never reaches at the
+     * current state. The harness needs to mirror the gate so bounds and render agree.
+     *
+     * <p>Known multi-model layers (handled below):
+     * <ul>
+     *   <li>{@code SheepWoolLayer} - {@code adultModel} vs {@code babyModel}, gated on
+     *       {@code state.isBaby}. Adult is the default; baby model is smaller, so walking both
+     *       at zero state didn't change the canvas - this case is included for correctness.</li>
+     *   <li>{@code TropicalFishPatternLayer} - {@code modelSmall} vs {@code modelLarge}, gated
+     *       on {@code state.pattern.base()}. The default pattern (KOB) is in {@code SMALL}, so
+     *       only {@code modelSmall} renders for the headless tropical fish; the previous "walk
+     *       both" behaviour over-padded the canvas by one Y-pixel because modelLarge's left_fin
+     *       reaches further up the Y axis than any modelSmall opaque texel does. The asset-
+     *       renderer's submit-side pipeline picks the same single Model and produced a tighter
+     *       canvas, so vanilla's PNG used to land 103x94 while the asset-renderer's came in
+     *       103x93 - this gate brings the harness onto the same single-Model bound as the
+     *       in-game renderer and the parity-test compare-target.</li>
+     * </ul>
+     * When the layer isn't on the recognised multi-model list, the full Model field set is
+     * returned so any future layer with a single Model field "just works" (single field = single
+     * Model = no over-pad risk).
      */
-    private static List<Model<?>> findLayerModels(RenderLayer<?, ?> layer) {
+    private static List<Model<?>> findLayerModels(RenderLayer<?, ?> layer, EntityRenderState state) {
         List<Model<?>> models = new java.util.ArrayList<>();
+        // Walk every Model<?> field by name so the multi-model gate below can pick by field name
+        // instead of by index (field declaration order is JVM-stable per class but easier to
+        // reason about with explicit names).
+        java.util.LinkedHashMap<String, Model<?>> fieldModels = new java.util.LinkedHashMap<>();
         Class<?> cls = layer.getClass();
         while (cls != null && cls != RenderLayer.class && cls != Object.class) {
             for (Field f : cls.getDeclaredFields()) {
@@ -623,13 +651,66 @@ public final class EntityFrameRenderer implements AutoCloseable {
                 try {
                     f.setAccessible(true);
                     Object value = f.get(layer);
-                    if (value instanceof Model<?> m) models.add(m);
+                    if (value instanceof Model<?> m) fieldModels.putIfAbsent(f.getName(), m);
                 } catch (IllegalAccessException ignored) {
                 }
             }
             cls = cls.getSuperclass();
         }
+        if (fieldModels.isEmpty()) return models;
+        String activeName = pickActiveModelName(layer, state, fieldModels.keySet());
+        if (activeName != null) {
+            Model<?> active = fieldModels.get(activeName);
+            if (active != null) {
+                models.add(active);
+                return models;
+            }
+        }
+        models.addAll(fieldModels.values());
         return models;
+    }
+
+    /**
+     * For layers whose {@code submit()} picks one of several Model fields based on state, returns
+     * the field name of the model that submit() would render at {@code state}. Returns
+     * {@code null} for layers not on the recognised multi-model list - the caller then falls back
+     * to walking every Model field.
+     *
+     * <p>Detection is by layer class simple name so subclasses that don't override the gate also
+     * pick up the parent's selection rule. Reflection over {@code state} accessors keeps the
+     * recognised set decoupled from concrete state types (the harness doesn't link against
+     * {@code TropicalFishRenderState} or {@code TropicalFish.Pattern} directly).
+     */
+    private static @org.jetbrains.annotations.Nullable String pickActiveModelName(
+        RenderLayer<?, ?> layer, EntityRenderState state, java.util.Set<String> fieldNames
+    ) {
+        for (Class<?> c = layer.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+            String simple = c.getSimpleName();
+            if ("SheepWoolLayer".equals(simple)) {
+                boolean isBaby = state instanceof LivingEntityRenderState lrs && lrs.isBaby;
+                return isBaby ? "babyModel" : "adultModel";
+            }
+            if ("TropicalFishPatternLayer".equals(simple)) {
+                // state.pattern is a TropicalFish$Pattern enum; pattern.base() returns
+                // TropicalFish$Pattern$Base, an enum with SMALL / LARGE values. Resolve via
+                // reflection so the harness's bounds module doesn't pull in the fish package.
+                try {
+                    java.lang.reflect.Field patternField = state.getClass().getField("pattern");
+                    Object pattern = patternField.get(state);
+                    if (pattern != null) {
+                        Object base = pattern.getClass().getMethod("base").invoke(pattern);
+                        String baseName = base == null ? "" : base.toString();
+                        if ("SMALL".equals(baseName)) return "modelSmall";
+                        if ("LARGE".equals(baseName)) return "modelLarge";
+                    }
+                } catch (ReflectiveOperationException ignored) {
+                }
+                // Default to the small model when the state probe fails - matches vanilla's
+                // DEFAULT_VARIANT (KOB, WHITE, WHITE) whose base is SMALL.
+                if (fieldNames.contains("modelSmall")) return "modelSmall";
+            }
+        }
+        return null;
     }
 
     /**
