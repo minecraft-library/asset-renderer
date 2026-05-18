@@ -1335,6 +1335,22 @@ public final class ToolingBlockEntities {
                 flushPendingBone(state);
                 return;
             }
+            // PartDefinition.getChild(String name) returns the named child PartDefinition.
+            // The preceding LDC pushed the child name into {@link ParseState#pendingPartName};
+            // re-aim {@link ParseState#lastFlushedBone} at it so the following ASTORE associates
+            // the local slot with the correct bone (the named child), not the most-recently-
+            // created bone. Without this, patterns like
+            // {@code PartDefinition nose = head.getChild("nose"); nose.addOrReplaceChild("mole", ...);}
+            // (WitchModel) would attribute "mole"'s parent to whatever bone happened to be
+            // flushed last - in witch's case "hat4", landing mole's pivot accumulated through
+            // the wrong rotation chain.
+            if (methodInsn.owner.equals(PART_DEFINITION) && methodInsn.name.equals("getChild")) {
+                if (state.pendingPartName != null) {
+                    state.lastFlushedBone = state.pendingPartName;
+                    state.pendingPartName = null;
+                }
+                return;
+            }
             // Java pipeline filters: {@code retainPartsAndChildren(Set)} on a PartDefinition strips
             // cubes from any bone whose ancestor chain doesn't contain a name in the set (vanilla
             // recurses through children, replacing cubes with empty along the way; subtrees rooted
