@@ -40,6 +40,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.Accessors;
 import org.jetbrains.annotations.NotNull;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.awt.image.ColorModel;
+import java.awt.image.ComponentColorModel;
+import java.awt.image.IndexColorModel;
+import java.awt.image.Raster;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -476,9 +483,121 @@ public final class PipelineRendererContext implements RendererContext {
         }
         if (winning == null) return Optional.empty();
 
-        PixelBuffer buffer = PixelBuffer.wrap(this.imageFactory.fromFile(winning.toFile()).toBufferedImage());
+        PixelBuffer buffer = loadTextureRaw(winning);
         this.textureCache.put(normalized, buffer);
         return Optional.of(buffer);
+    }
+
+    /**
+     * Loads a PNG (or any other ImageIO-supported format) and packs the raw raster sample bands
+     * into an ARGB {@link PixelBuffer} <b>without</b> going through Java AWT's
+     * {@code ColorModel.getRGB} or {@code Graphics2D.drawImage} paths.
+     * <p>
+     * Why this matters: ImageIO loads grayscale PNGs (including the alpha-keyed ones used for
+     * vanilla mob textures like {@code fish/tropical_a.png}, {@code armor/leather_layer_1.png},
+     * etc.) as a {@code BufferedImage} of {@code TYPE_CUSTOM} with a {@code ComponentColorModel}.
+     * The "convenience" RGB accessors on those images perform a colour-space conversion from the
+     * (assumed-linear) grayscale colour space into sRGB, which inflates mid-tones by an
+     * approximate gamma of 1/2.4: texel {@code 170} becomes {@code 213}, {@code 192} becomes
+     * {@code 229}, {@code 238} becomes {@code 246}. {@link PixelBuffer#wrap(BufferedImage)}'s
+     * fallback path (which fires on {@code TYPE_CUSTOM}) hits exactly this conversion via the
+     * {@code Graphics2D.drawImage(...)} into an {@code INT_ARGB} destination. Vanilla Minecraft
+     * loads PNGs through LWJGL's {@code NativeImage}, which reads raw {@code IDAT} bytes after
+     * tRNS keying and writes them straight into the GL texture, no colour-space transform. The
+     * result: our renderer ends up sampling brighter texels than vanilla on every grayscale skin,
+     * which lights up across the parity sweep as a ~20% body-face brightness gap on entities like
+     * tropical_fish (delta 30.01 with the bug; texel 170 gray rendered as 213 gray).
+     * <p>
+     * Reading via {@code Raster.getPixel(x, y, int[])} returns the raw byte sample values in
+     * band-index order, identical to what {@code NativeImage} would expose. We branch by band
+     * count to recover the canonical {@code (R, G, B, A)} packing - 1 band = opaque gray,
+     * 2 bands = gray + alpha (tRNS-keyed grayscale), 3 bands = RGB, 4 bands = RGBA. Other band
+     * orderings (TYPE_3BYTE_BGR has BGR band order, TYPE_INT_BGR likewise) are handled by the
+     * existing {@link PixelBuffer#wrap(BufferedImage)} fast paths for non-grayscale standard
+     * types; we only intercept here for the formats whose default {@code ColorModel} would inflate
+     * pixel values.
+     *
+     * @param file the texture file
+     * @return the pixel buffer with raw byte values preserved
+     */
+    private @NotNull PixelBuffer loadTextureRaw(@NotNull Path file) {
+        BufferedImage img;
+        try {
+            img = ImageIO.read(file.toFile());
+        } catch (IOException ex) {
+            throw new RuntimeException("Failed to read texture " + file, ex);
+        }
+        if (img == null) {
+            // Fallback for non-standard formats ImageIO doesn't recognize - delegate to the
+            // imageFactory chain which has its own format detection. Hits the same gamma-inflation
+            // bug for grayscale PNGs but those are guaranteed to go through ImageIO above.
+            return PixelBuffer.wrap(this.imageFactory.fromFile(file.toFile()).toBufferedImage());
+        }
+
+        // Fast path: TYPE_INT_ARGB hands us the packed ARGB int[] directly. No band reassembly,
+        // no colour-space transform, no allocation beyond the wrapper. Other "standard" integer
+        // layouts (RGB, BGR, ABGR, BGR-byte) round-trip safely through PixelBuffer.wrap's typed
+        // branches since those bypass the colour-space-aware drawImage fallback.
+        int type = img.getType();
+        if (type == BufferedImage.TYPE_INT_ARGB
+            || type == BufferedImage.TYPE_INT_RGB
+            || type == BufferedImage.TYPE_INT_BGR
+            || type == BufferedImage.TYPE_4BYTE_ABGR
+            || type == BufferedImage.TYPE_3BYTE_BGR) {
+            return PixelBuffer.wrap(img);
+        }
+
+        // TYPE_BYTE_INDEXED (palette PNGs - vanilla zombie / skeleton / many mob skins) stores a
+        // palette index per pixel; the colour comes from {@link IndexColorModel#getRGB(int)},
+        // which is a simple palette lookup with no colour-space conversion. Safe to use directly.
+        ColorModel cm = img.getColorModel();
+        if (cm instanceof IndexColorModel indexed) {
+            int w = img.getWidth();
+            int h = img.getHeight();
+            Raster raster = img.getRaster();
+            int[] sample = new int[1];
+            int[] pixels = new int[w * h];
+            for (int y = 0; y < h; y++) {
+                for (int x = 0; x < w; x++) {
+                    raster.getPixel(x, y, sample);
+                    pixels[y * w + x] = indexed.getRGB(sample[0] & 0xFF);
+                }
+            }
+            return PixelBuffer.of(pixels, w, h);
+        }
+
+        // {@link ComponentColorModel} backed grayscale PNGs are the bug class: 1-band gray (e.g.
+        // {@code TYPE_BYTE_GRAY}) or 2-band gray+alpha (tRNS-keyed grayscale PNGs like
+        // {@code tropical_a.png}, {@code armor/leather_layer_*.png}) hit
+        // {@link PixelBuffer#wrap}'s {@code Graphics2D.drawImage} fallback which applies an sRGB
+        // gamma transform that vanilla doesn't (texel {@code 170 -> 213}, {@code 192 -> 229},
+        // {@code 238 -> 246}). Read the raster sample bands directly and promote gray to
+        // {@code (R, G, B)} ourselves so the texel byte value lands in the pixel buffer unchanged.
+        if (cm instanceof ComponentColorModel
+            && cm.getColorSpace().getType() == java.awt.color.ColorSpace.TYPE_GRAY) {
+            int w = img.getWidth();
+            int h = img.getHeight();
+            Raster raster = img.getRaster();
+            int numBands = raster.getNumBands();
+            int[] sample = new int[numBands];
+            int[] pixels = new int[w * h];
+            for (int y = 0; y < h; y++) {
+                for (int x = 0; x < w; x++) {
+                    raster.getPixel(x, y, sample);
+                    int gray = sample[0] & 0xFF;
+                    int a = numBands >= 2 ? sample[1] & 0xFF : 255;
+                    pixels[y * w + x] = (a << 24) | (gray << 16) | (gray << 8) | gray;
+                }
+            }
+            return PixelBuffer.of(pixels, w, h);
+        }
+
+        // Anything else (uncommon: TYPE_USHORT_*, 16-bit RGB, alpha-premultiplied, custom RGBA
+        // ColorModels) falls back to {@link PixelBuffer#wrap}'s {@code Graphics2D.drawImage}
+        // path. This is the historical behaviour pre-fix; on the vanilla 1.21 pack the only
+        // shapes we observed are RGBA (handled above), indexed (handled above), and grayscale
+        // (handled above), so this fallback is intentionally a no-op safety net.
+        return PixelBuffer.wrap(img);
     }
 
     @Override
