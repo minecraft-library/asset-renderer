@@ -48,6 +48,51 @@ public class ModelEngine extends TextureEngine {
     private static final float DEPTH_EPSILON = 1e-4f;
 
     /**
+     * Diagnostic per-pixel trace rectangle parsed from {@code -Dentity.pixel.dump=x0,y0,x1,y1}
+     * (inclusive on all four sides). When non-null every fragment write whose screen position lands
+     * inside the rect emits one TSV line to {@link System#out} prefixed with {@code [PX]}. Use
+     * {@code -Dentity.pixel.dump=33,18,33,18} for a single-pixel probe; widen for a swath.
+     * Multi-threaded rasterization (tile workers) interleaves output order; each line is atomic and
+     * carries enough context (px, py, depth, debug tag, raw/tinted/shaded ARGB) to sort offline.
+     */
+    private static final int @Nullable [] PIXEL_DUMP_RECT = parsePixelDumpRect();
+
+    private static int @Nullable [] parsePixelDumpRect() {
+        String prop = System.getProperty("entity.pixel.dump");
+        if (prop == null || prop.isBlank()) return null;
+        String[] parts = prop.split(",");
+        if (parts.length != 4) {
+            System.out.println("[PX] malformed entity.pixel.dump: '" + prop + "' (expected x0,y0,x1,y1)");
+            return null;
+        }
+        try {
+            int x0 = Integer.parseInt(parts[0].trim());
+            int y0 = Integer.parseInt(parts[1].trim());
+            int x1 = Integer.parseInt(parts[2].trim());
+            int y1 = Integer.parseInt(parts[3].trim());
+            System.out.println("[PX-HEADER] " + String.join("\t",
+                "stage", "px", "py", "depth", "tag", "u", "v", "tx", "ty",
+                "rawARGB", "tintARGB", "afterTintARGB", "shading", "afterShadeARGB",
+                "blendMode", "outARGB"));
+            System.out.println("[PX] dump rect=" + x0 + "," + y0 + "-" + x1 + "," + y1);
+            return new int[]{ x0, y0, x1, y1 };
+        } catch (NumberFormatException nfe) {
+            System.out.println("[PX] malformed entity.pixel.dump numbers: '" + prop + "'");
+            return null;
+        }
+    }
+
+    private static boolean pixelDumpContains(int px, int py) {
+        if (PIXEL_DUMP_RECT == null) return false;
+        return px >= PIXEL_DUMP_RECT[0] && py >= PIXEL_DUMP_RECT[1]
+            && px <= PIXEL_DUMP_RECT[2] && py <= PIXEL_DUMP_RECT[3];
+    }
+
+    private static @NotNull String hexArgb(int argb) {
+        return String.format("0x%08X", argb);
+    }
+
+    /**
      * Minimum framebuffer height (in pixels) before tiled parallel rasterization kicks in.
      * Below this threshold the tiled path's overhead (ForkJoin splits, per-tile depth-slice
      * allocation, triangle iteration per tile) outweighs the parallel speedup. Small renders
@@ -262,18 +307,35 @@ public class ModelEngine extends TextureEngine {
                     PixelBuffer texture = t.source.texture();
                     int tx = Math.clamp((int) (u * texture.width()), 0, texture.width() - 1);
                     int ty = Math.clamp((int) (v * texture.height()), 0, texture.height() - 1);
-                    int sampled = texture.getPixel(tx, ty);
-                    if (ColorMath.alpha(sampled) == 0) continue;
+                    int rawTexel = texture.getPixel(tx, ty);
+                    if (ColorMath.alpha(rawTexel) == 0) continue;
 
-                    if (t.source.tintArgb() != ColorMath.WHITE)
-                        sampled = ColorMath.blend(t.source.tintArgb(), sampled, BlendMode.MULTIPLY);
+                    int afterTint = t.source.tintArgb() != ColorMath.WHITE
+                        ? ColorMath.blend(t.source.tintArgb(), rawTexel, BlendMode.MULTIPLY)
+                        : rawTexel;
 
-                    if (!t.source.emissive())
-                        sampled = RenderEngine.applyShading(sampled, shading);
+                    int afterShade = t.source.emissive()
+                        ? afterTint
+                        : RenderEngine.applyShading(afterTint, shading);
                     BlendMode blendMode = selectBlendMode(t.source.emissive());
 
-                    sampled = ColorMath.blend(sampled, buffer.getPixel(px, py), blendMode);
-                    buffer.setPixel(px, py, sampled);
+                    int outArgb = ColorMath.blend(afterShade, buffer.getPixel(px, py), blendMode);
+                    buffer.setPixel(px, py, outArgb);
+
+                    if (pixelDumpContains(px, py)) {
+                        // Per-pixel trace: stage=WRITE, full sample chain inputs and outputs.
+                        // Multi-threaded; lines may interleave across tiles; each is self-contained.
+                        System.out.println("[PX]\tWRITE\t" + px + "\t" + py + "\t" + depthVal
+                            + "\t" + t.source.debugTag()
+                            + "\t" + u + "\t" + v + "\t" + tx + "\t" + ty
+                            + "\t" + hexArgb(rawTexel)
+                            + "\t" + hexArgb(t.source.tintArgb())
+                            + "\t" + hexArgb(afterTint)
+                            + "\t" + shading
+                            + "\t" + hexArgb(afterShade)
+                            + "\t" + blendMode
+                            + "\t" + hexArgb(outArgb));
+                    }
                     // Depth written for non-emissive pixels. Emissive fragments deliberately
                     // skip the depth write so that overlapping translucent layers (breeze wind
                     // cone with 3 nested cubes at the same Y plane) can all accumulate via

@@ -342,19 +342,22 @@ public class EntityGeometryKit {
                     // pipeline chirality: kit FLIP_Y (det -1) × engine_camera (det -1) ×
                     // projection's -y (det -1) = det -1. Model CCW → screen CW → rasterizer's
                     // {@code signedArea < 0} check correctly classifies these as front-facing.
+                    String debugTag = boneName + ":" + face.direction();
                     triangles.add(new VisibleTriangle(
                         corners[0], corners[1], corners[2],
                         effUv[0], effUv[1], effUv[2],
                         texture, tintArgb,
                         normal, shading,
-                        cubeCullBackFaces, emissive
+                        cubeCullBackFaces, emissive,
+                        debugTag
                     ));
                     triangles.add(new VisibleTriangle(
                         corners[0], corners[2], corners[3],
                         effUv[0], effUv[2], effUv[3],
                         texture, tintArgb,
                         normal, shading,
-                        cubeCullBackFaces, emissive
+                        cubeCullBackFaces, emissive,
+                        debugTag
                     ));
                 }
             }
