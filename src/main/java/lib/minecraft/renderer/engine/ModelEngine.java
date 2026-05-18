@@ -295,11 +295,24 @@ public class ModelEngine extends TextureEngine {
             for (int py = pyStart; py <= pyEnd; py++) {
                 for (int px = bounds[0]; px <= bounds[2]; px++) {
                     ProjectionMath.barycentricInto(t.s0, t.s1, t.s2, px + 0.5f, py + 0.5f, bary);
-                    if (!ProjectionMath.isInsideTriangleTopLeft(bary, t.s0, t.s1, t.s2)) continue;
+                    if (!ProjectionMath.isInsideTriangleTopLeft(bary, t.s0, t.s1, t.s2)) {
+                        if (pixelDumpContains(px, py)) {
+                            ProjectionMath.barycentricInto(t.s0, t.s1, t.s2, px + 0.5f, py + 0.5f, bary);
+                            System.out.println("[PX]\tSKIP-FILL\t" + px + "\t" + py + "\t\t"
+                                + t.source.debugTag() + "\tbary=" + bary[0] + "," + bary[1] + "," + bary[2]);
+                        }
+                        continue;
+                    }
 
                     float depthVal = bary[0] * t.p0.z() + bary[1] * t.p1.z() + bary[2] * t.p2.z();
                     int idx = (py - tileStart) * width + px;
-                    if (depthFails(depthVal, depth[idx], t.source.emissive())) continue;
+                    if (depthFails(depthVal, depth[idx], t.source.emissive())) {
+                        if (pixelDumpContains(px, py)) {
+                            System.out.println("[PX]\tSKIP-DEPTH\t" + px + "\t" + py + "\t" + depthVal
+                                + "\t" + t.source.debugTag() + "\texistingDepth=" + depth[idx]);
+                        }
+                        continue;
+                    }
 
                     float u = bary[0] * t.source.uv0().x() + bary[1] * t.source.uv1().x() + bary[2] * t.source.uv2().x();
                     float v = bary[0] * t.source.uv0().y() + bary[1] * t.source.uv1().y() + bary[2] * t.source.uv2().y();
@@ -438,6 +451,18 @@ public class ModelEngine extends TextureEngine {
         Vector2f s0 = RenderEngine.projectPerspective(p0, scale, offsetX, offsetY, perspective);
         Vector2f s1 = RenderEngine.projectPerspective(p1, scale, offsetX, offsetY, perspective);
         Vector2f s2 = RenderEngine.projectPerspective(p2, scale, offsetX, offsetY, perspective);
+
+        if (PIXEL_DUMP_RECT != null && triangle.debugTag() != null) {
+            // One-shot per-triangle projection trace: surfaces the screen-space corner positions
+            // for every triangle so offline tooling can compare our vertex projections against the
+            // vanilla harness's same-triangle projection without per-pixel post-hoc reconstruction.
+            System.out.println("[PX]\tTRI\t" + triangle.debugTag()
+                + "\ts0=" + s0.x() + "," + s0.y() + "\ts1=" + s1.x() + "," + s1.y()
+                + "\ts2=" + s2.x() + "," + s2.y()
+                + "\tp0=" + p0.x() + "," + p0.y() + "," + p0.z()
+                + "\tp1=" + p1.x() + "," + p1.y() + "," + p1.z()
+                + "\tp2=" + p2.x() + "," + p2.y() + "," + p2.z());
+        }
 
         if (triangle.cullBackFaces() && isBackFacing(s0, s1, s2)) return null;
         return new Projected(triangle, p0, p1, p2, s0, s1, s2, normal);

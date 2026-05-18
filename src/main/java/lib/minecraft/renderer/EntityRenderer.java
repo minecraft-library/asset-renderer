@@ -121,6 +121,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
     private static final @NotNull Map<String, SetupRotationsOverride> SETUP_ROTATIONS_OVERRIDES = Map.of();
 
+    private static final boolean PIXEL_DUMP_RECT_FOR_BOUNDS = Boolean.getBoolean("entity.fit.dump");
+
     /** Renderer context for texture resolution + isometric engine setup; not used for entity lookup. */
     private final @NotNull RendererContext context;
 
@@ -421,6 +423,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     ) {
         Matrix4f transform = composeIsoTransform(userRotation);
         Box screenBounds = computeFamilyUnionScreenBounds(entityId, definition, transform, modelScale, texture);
+        if (PIXEL_DUMP_RECT_FOR_BOUNDS) {
+            System.out.println("[PX]\tFIT\t" + entityId + "\tminX=" + screenBounds.minX() + "\tmaxX=" + screenBounds.maxX()
+                + "\tminY=" + screenBounds.minY() + "\tmaxY=" + screenBounds.maxY());
+        }
         float extentX = Math.max(0f, screenBounds.maxX() - screenBounds.minX());
         float extentY = Math.max(0f, screenBounds.maxY() - screenBounds.minY());
         float pxPerEntityUnit = PIXELS_PER_BLOCK / 16f;
@@ -487,6 +493,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull PixelBuffer texture
     ) {
         Box bounds = EntityGeometryKit.computeScreenBounds(definition.model(), transform, modelScale, texture);
+        if (PIXEL_DUMP_RECT_FOR_BOUNDS) {
+            System.out.println("[PX]\tBASE-BOUNDS\tminX=" + bounds.minX() + "\tmaxX=" + bounds.maxX()
+                + "\tminY=" + bounds.minY() + "\tmaxY=" + bounds.maxY());
+        }
         for (EntityModelLoader.OverlayLayer overlay : definition.overlays()) {
             if (overlay.model().getBones().isEmpty()) continue;
             // Overlays flagged skipBounds (LlamaDecorLayer-style equipment-driven overlays) still
@@ -494,6 +504,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // NO_RENDER_LAYER_SUFFIXES treatment of those layer classes.
             if (overlay.skipBounds()) continue;
             Box overlayBounds = EntityGeometryKit.computeScreenBounds(overlay.model(), transform, modelScale, texture);
+            if (PIXEL_DUMP_RECT_FOR_BOUNDS) {
+                System.out.println("[PX]\tOVERLAY-BOUNDS\tref=" + overlay.textureRef()
+                    + "\tminX=" + overlayBounds.minX() + "\tmaxX=" + overlayBounds.maxX()
+                    + "\tminY=" + overlayBounds.minY() + "\tmaxY=" + overlayBounds.maxY());
+            }
             bounds = unionBoxes(bounds, overlayBounds);
         }
         return bounds;
