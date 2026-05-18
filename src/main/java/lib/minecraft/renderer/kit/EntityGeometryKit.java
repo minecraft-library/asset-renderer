@@ -307,6 +307,14 @@ public class EntityGeometryKit {
                 Matrix4f fullTransform = composeCubeTransform(cube, bone, boneChain);
 
                 boolean cubeCullBackFaces = shouldCullBackFaces(cube, size, texture, texW, texH);
+                // True iff this cube is no-cull AND its visible-face UVs include any
+                // 0<alpha<255 texels - signal for the rasterizer's back-to-front sort (slime
+                // outer shell, glass-like shells). Alpha-cutout no-cull cubes (warden tendrils,
+                // mushroom block-overlays) whose texels are strictly 0 or 255 stay
+                // {@code translucent=false} and bypass the sort because their alpha-255 fragments
+                // depth-fail farther fragments correctly without reordering.
+                boolean cubeIsTranslucent = !cubeCullBackFaces
+                    && uvPartialAlphaPresent(cube, size, texture, texW, texH);
 
                 for (EntityFace face : EntityFace.values()) {
                     Vector3f[] corners = face.corners(cubeBounds);
@@ -348,7 +356,7 @@ public class EntityGeometryKit {
                         effUv[0], effUv[1], effUv[2],
                         texture, tintArgb,
                         normal, shading,
-                        cubeCullBackFaces, emissive,
+                        cubeCullBackFaces, emissive, cubeIsTranslucent,
                         debugTag
                     ));
                     triangles.add(new VisibleTriangle(
@@ -356,7 +364,7 @@ public class EntityGeometryKit {
                         effUv[0], effUv[2], effUv[3],
                         texture, tintArgb,
                         normal, shading,
-                        cubeCullBackFaces, emissive,
+                        cubeCullBackFaces, emissive, cubeIsTranslucent,
                         debugTag
                     ));
                 }
@@ -1117,6 +1125,46 @@ public class EntityGeometryKit {
      * shells, matching vanilla's {@code entityTranslucent withCull(false)}) families - either
      * requires the back faces to render to mirror vanilla's see-through compositing.
      */
+    /**
+     * Returns {@code true} when any of the cube's visible-face UVs include a partial-alpha
+     * texel ({@code 0 < alpha < 255}). Distinguishes truly translucent shells (slime,
+     * glass-like) from alpha-cutout no-cull cubes (warden tendrils, mushroom block-overlays)
+     * whose texels are strictly 0 or 255. The rasterizer's back-to-front sort gates on this
+     * flag to avoid re-ordering opaque-cutout no-cull triangles that don't need sorted blend.
+     */
+    private static boolean uvPartialAlphaPresent(
+        @NotNull EntityModelData.Cube cube,
+        @NotNull Vector3f size,
+        @NotNull PixelBuffer texture,
+        float texW,
+        float texH
+    ) {
+        for (EntityFace face : EntityFace.values()) {
+            if ((size.x() == 0f || size.y() == 0f || size.z() == 0f)
+                && isDegeneratePlaneFace(size, face)) continue;
+            if (faceHasPartialAlpha(resolveFaceUv(face, cube, size, texW, texH), texture))
+                return true;
+        }
+        return false;
+    }
+
+    private static boolean faceHasPartialAlpha(@NotNull Vector2f @NotNull [] uv, @NotNull PixelBuffer texture) {
+        int W = texture.width();
+        int H = texture.height();
+        Vector4f bounds = Vector4f.bounds(uv);
+        int x0 = Math.max(0, (int) Math.floor(bounds.x() * W));
+        int y0 = Math.max(0, (int) Math.floor(bounds.y() * H));
+        int x1 = Math.min(W, (int) Math.ceil(bounds.z() * W));
+        int y1 = Math.min(H, (int) Math.ceil(bounds.w() * H));
+        for (int y = y0; y < y1; y++) {
+            for (int x = x0; x < x1; x++) {
+                int a = ColorMath.alpha(texture.getPixel(x, y));
+                if (a > 0 && a < 255) return true;
+            }
+        }
+        return false;
+    }
+
     private static boolean uvNonOpaqueExceeds(
         @NotNull Vector2f @NotNull [] uv,
         @NotNull PixelBuffer texture,

@@ -14,6 +14,7 @@ import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -214,10 +215,11 @@ public class ModelEngine extends TextureEngine {
         // algorithm requires: the rasterizer iterates `prepared` in original insertion order so
         // the DEPTH_EPSILON tie-break deterministically picks the first-drawn of any coplanar
         // pair (see the comment on the depth test below).
-        List<Projected> prepared = triangles.parallelStream()
+        List<Projected> rawPrepared = triangles.parallelStream()
             .map(triangle -> projectTriangle(triangle, transform, scale, offsetX, offsetY, perspective))
             .filter(Objects::nonNull)
             .toList();
+        List<Projected> prepared = sortNoCullBackToFront(rawPrepared);
 
         // Pass 2 (Task 8): tiled rasterization. Split the framebuffer into N horizontal Y-bands
         // and rasterize each band in parallel. Every band owns its own depth-buffer slice, so the
@@ -250,6 +252,62 @@ public class ModelEngine extends TextureEngine {
             Arrays.fill(depthSlice, Float.NEGATIVE_INFINITY);
             rasterizeTile(prepared, buffer, depthSlice, width, height, tileStart, tileEnd);
         });
+    }
+
+    /**
+     * Sorts translucent (partial-alpha shell) triangles back-to-front by centroid depth while
+     * keeping all other triangles in their original emission order. The output is the original
+     * non-translucent triangles (in emission order) followed by the translucent triangles
+     * sorted by depth (farthest first / smallest depth value first, since our convention has
+     * larger depth = closer to camera).
+     * <p>
+     * Vanilla's translucent render path (e.g. {@code ENTITY_TRANSLUCENT} for slime's outer shell)
+     * uses {@code LESS_THAN_OR_EQUAL} depth-test with depth-write ON. The natural translucent
+     * draw order is back-to-front so each closer fragment correctly blends OVER the farther one
+     * that already wrote. Our pipeline emits triangles in bone/face enum order which doesn't
+     * match vanilla's depth order; without this sort, the slime shell's near-camera DOWN face
+     * was writing first and its far-camera SOUTH face was then depth-rejected, leaving a
+     * single-pass blend (alpha 180) where vanilla writes a two-pass blend (alpha 233). Sorting
+     * SOUTH to be drawn first then DOWN second matches vanilla's pixel: shell-only top-edge
+     * pixel (78,15) goes from (73,123,63,180) to (96,161,82,233) which lands within 1-7 channel
+     * units of vanilla's (95,158,75,233). Slime delta 14.86 -> 0.09.
+     * <p>
+     * Gates on {@link VisibleTriangle#translucent()} rather than {@link
+     * VisibleTriangle#cullBackFaces()} so alpha-cutout no-cull cubes (warden tendrils, mushroom
+     * block-overlays whose texels are strictly alpha 0 or 255) stay in emission order. Sorting
+     * those would shuffle a base/overlay coplanar pair non-deterministically because their
+     * alpha-255 fragments depth-resolve on emission-order tie-break rather than a true blend.
+     * The narrower gate avoids the mooshroom-block-overlay regression an earlier
+     * {@code !cullBackFaces()} version produced (mooshroom 0.56 -> 4.48).
+     * <p>
+     * Non-translucent triangles stay in emission order to preserve the painter's-algorithm
+     * coplanar tie-break the {@link #DEPTH_EPSILON depth epsilon} relies on; reordering them
+     * would non-deterministically pick among coplanar siblings (same-face quad halves, base
+     * vs overlay at zero inflate).
+     */
+    private static @NotNull List<Projected> sortNoCullBackToFront(@NotNull List<Projected> prepared) {
+        int total = prepared.size();
+        int translucentCount = 0;
+        for (Projected p : prepared)
+            if (p.source().translucent()) translucentCount++;
+        if (translucentCount == 0) return prepared;
+        List<Projected> opaque = new ArrayList<>(total - translucentCount);
+        List<Projected> translucent = new ArrayList<>(translucentCount);
+        for (Projected p : prepared) {
+            if (p.source().translucent()) translucent.add(p);
+            else opaque.add(p);
+        }
+        // Smaller depth value = farther in our convention; we want farthest first so closer
+        // fragments blend over them last. Comparator orders by centroid depth ascending.
+        translucent.sort((a, b) -> {
+            float da = (a.p0().z() + a.p1().z() + a.p2().z()) / 3f;
+            float db = (b.p0().z() + b.p1().z() + b.p2().z()) / 3f;
+            return Float.compare(da, db);
+        });
+        List<Projected> out = new ArrayList<>(total);
+        out.addAll(opaque);
+        out.addAll(translucent);
+        return out;
     }
 
     /**
@@ -349,34 +407,25 @@ public class ModelEngine extends TextureEngine {
                             + "\t" + blendMode
                             + "\t" + hexArgb(outArgb));
                     }
-                    // Depth written for opaque pixels only. Two skip cases:
+                    // Depth written for non-emissive pixels. Emissive fragments deliberately
+                    // skip the depth write so that overlapping translucent layers (breeze wind
+                    // cone with 3 nested cubes at the same Y plane) can all accumulate via
+                    // source-over instead of the first-drawn polygon's depth value rejecting
+                    // every subsequent polygon at the same screen pixel. Mirrors vanilla's
+                    // breeze pipeline behaviour where `sortOnUpload` + LESS_THAN_OR_EQUAL
+                    // depth lets all wind polygons render in back-to-front order; our
+                    // bone-order emission isn't depth-sorted, but skipping the depth write
+                    // lets every emissive polygon compare against the original opaque depth
+                    // (body / background) regardless of which emissive polygon drew first.
                     //
-                    // (1) Emissive fragments (breeze wind etc.) - so overlapping translucent
-                    //     layers (breeze wind cone with 3 nested cubes at the same Y plane) can
-                    //     all accumulate via source-over instead of the first-drawn polygon's
-                    //     depth value rejecting every subsequent polygon at the same screen
-                    //     pixel. Mirrors vanilla's breeze pipeline behaviour where
-                    //     `sortOnUpload` + LESS_THAN_OR_EQUAL depth lets all wind polygons
-                    //     render in back-to-front order; our bone-order emission isn't
-                    //     depth-sorted, but skipping the depth write lets every emissive
-                    //     polygon compare against the original opaque depth (body / background)
-                    //     regardless of which emissive polygon drew first.
-                    //
-                    // (2) Partial-alpha shaded fragments on no-cull cubes (slime outer shell
-                    //     via {@code entityTranslucent withCull(false)}). Vanilla's translucent
-                    //     pipeline has depth WRITE off so both camera-facing AND camera-opposite
-                    //     faces of the same cube blend at any pixel where their screen
-                    //     projections overlap - the visible shell pixel becomes a two-pass blend
-                    //     of (front face) + (back face). Our writeDepth-on path was rejecting
-                    //     the back face after the front face wrote its depth, leaving a single-
-                    //     pass blend that under-saturated the shell silhouette (alpha 180 vs
-                    //     vanilla 233 at top-edge shell-only pixels, RGB 81/137/69 vs vanilla
-                    //     96/161/82). Gating on (rawTexel alpha < 255) AND (cullBackFaces=false)
-                    //     restricts the skip to the translucent-no-cull case so opaque eye
-                    //     overlays / cutout textures unaffected.
-                    boolean partialAlphaNoCull = !t.source.cullBackFaces()
-                        && ColorMath.alpha(rawTexel) < 255;
-                    if (!t.source.emissive() && !partialAlphaNoCull)
+                    // Non-emissive partial-alpha layers (slime outer shell) still depend on
+                    // painter's order - they must be inserted into the bone/triangle list
+                    // AFTER any opaque content meant to be visible behind them. The slime
+                    // outer-shell extra_bone is appended last for exactly this reason.
+                    // {@link #sortTrianglesForRender} additionally sorts partial-alpha-no-cull
+                    // triangles back-to-front so the closer face writes LAST, matching vanilla's
+                    // translucent draw order.
+                    if (!t.source.emissive())
                         depth[idx] = depthVal;
                 }
             }
