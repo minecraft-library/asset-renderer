@@ -25,6 +25,7 @@ import lib.minecraft.renderer.kit.GlintKit;
 import lib.minecraft.renderer.options.EntityOptions;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.tensor.Matrix4f;
+import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -638,14 +639,23 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     private static @NotNull Matrix4f composeIsoTransform(@NotNull EulerRotation userRotation) {
         EulerRotation iso = EulerRotation.STANDARD_ISO_ENTITY;
         Matrix4f flipY = Matrix4f.createScale(1f, -1f, 1f);
+        // User rotation uses the same quat-derived path as iso rotation so any composed pitch/yaw/roll
+        // matches what JOML's `Quaternionf.rotationXYZ` would produce in vanilla's pipeline. For the
+        // common zero-rotation case we skip the quat construction entirely.
         Matrix4f modelRotation = (userRotation.pitch() == 0f && userRotation.yaw() == 0f && userRotation.roll() == 0f)
             ? Matrix4f.IDENTITY
-            : Matrix4f.createRotationY(userRotation.yawRadians())
-                .multiply(Matrix4f.createRotationX(userRotation.pitchRadians()))
-                .multiply(Matrix4f.createRotationZ(userRotation.rollRadians()));
+            : Quaternionf.rotationXYZ(userRotation.pitchRadians(), userRotation.yawRadians(), userRotation.rollRadians()).toMatrix4f();
+        // The iso rotation matrix is the load-bearing change: vanilla harness builds
+        // {@code new Quaternionf().rotationXYZ(toRadians(210), toRadians(45), 0)} and applies its
+        // matrix form to vertices. Constructing the same matrix via {@code R_Y(45) * R_X(210)}
+        // matrix-multiply (the previous approach) yields a mathematically equivalent rotation but
+        // differs from JOML's quat-derived matrix in 7 of 16 elements at the ULP level, which
+        // accumulates to ~0.001-0.003 pixels of drift across the per-vertex chain - exactly the
+        // band the 1/400 sub-pixel snap was canceling. Going through the quat path produces
+        // bit-identical matrix coefficients to vanilla.
+        Matrix4f isoRotation = Quaternionf.rotationXYZ(iso.pitchRadians(), iso.yawRadians(), 0f).toMatrix4f();
         Matrix4f cameraEntity = Matrix4f.createScale(1f, 1f, -1f)
-            .multiply(Matrix4f.createRotationY(iso.yawRadians()))
-            .multiply(Matrix4f.createRotationX(iso.pitchRadians()))
+            .multiply(isoRotation)
             .multiply(Matrix4f.createScale(1f, 1f, -1f))
             .multiply(Matrix4f.createScale(1f, -1f, 1f));
         return flipY.multiply(modelRotation).multiply(cameraEntity);

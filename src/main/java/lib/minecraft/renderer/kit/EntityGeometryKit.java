@@ -874,6 +874,12 @@ public class EntityGeometryKit {
     ) {
         Matrix4f toPivot = Matrix4f.createTranslation(pivot.negate());
         Matrix4f fromPivot = Matrix4f.createTranslation(pivot);
+        // Bone rotation tried via Quaternionf.rotationZYX during the precision investigation but
+        // it regressed buckets (77/90/94/96 -> 77/89/92/94 with snap disabled). Most bones in the
+        // tree are single-axis (X-only or Y-only) where R_X(angle) via Matrix4f.createRotationX
+        // is float-identical to the quat-derived rotation for that axis (both go through the
+        // same Math.cos/Math.sin call). Combined-axis bones (rare) showed no measurable
+        // improvement either. Kept the explicit multiply form.
         Matrix4f rot = Matrix4f.createRotationX(rotation.pitchRadians())
             .multiply(Matrix4f.createRotationY(rotation.yawRadians()))
             .multiply(Matrix4f.createRotationZ(rotation.rollRadians()));
