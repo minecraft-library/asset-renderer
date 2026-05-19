@@ -21310,7 +21310,7 @@
                 0,
                 0
               ],
-              "inflate": -0.02,
+              "inflate": 0.0,
               "mirror": false,
               "face_uv": {}
             },
@@ -23364,7 +23364,7 @@
                 0,
                 0
               ],
-              "inflate": -0.02,
+              "inflate": 0.0,
               "mirror": false,
               "face_uv": {}
             },

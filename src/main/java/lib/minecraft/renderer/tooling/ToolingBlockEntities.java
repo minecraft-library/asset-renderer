@@ -1279,6 +1279,16 @@ public final class ToolingBlockEntities {
                         if (state.pendingFreshDeformationInflate != null) {
                             state.cubeDeformationSlots.put(varInsn.var, state.pendingFreshDeformationInflate);
                             state.pendingFreshDeformationInflate = null;
+                            // The fresh deformation just got stashed into a slot for later
+                            // reuse; it's no longer the "active" inflate. Reset to the
+                            // factory default so the next addBox(...,CubeDeformation) picks up
+                            // its own arg (via ALOAD slot lookup) or the call-site default,
+                            // not the leftover constructor value. AdultFelineModel triggers
+                            // this: {@code CubeDeformation tail_g = new CubeDeformation(-0.02F)}
+                            // followed immediately by {@code addBox("main", ..., g)} where
+                            // {@code g} is the parameter (call-site default), would otherwise
+                            // emit the head main cube with the stale -0.02 instead of 0.
+                            state.pendingInflate = state.defaultInflate;
                         } else if (state.lastFlushedBone != null) {
                             state.localSlotBone.put(varInsn.var, state.lastFlushedBone);
                             state.lastFlushedBone = null;
