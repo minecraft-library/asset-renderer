@@ -58,6 +58,10 @@ dependencies {
     testImplementation(libs.junit.jupiter.api)
     testRuntimeOnly(libs.junit.jupiter.engine)
     testImplementation(libs.junit.platform.launcher)
+    // JOML for precision-hunt tests: side-by-side bit-comparisons of our tensor math vs
+    // vanilla's actual matrix backend, since vanilla's PoseStack.Pose.pose is org.joml.Matrix4f.
+    // Test-only - production code uses our own lib.minecraft.renderer.tensor.Matrix4f.
+    testImplementation(libs.joml)
 
     // Simplified Libraries (extracted to github.com/simplified-dev). Temporarily pinned to
     // explicit master commits while JitPack's master-SNAPSHOT cache catches up across the
