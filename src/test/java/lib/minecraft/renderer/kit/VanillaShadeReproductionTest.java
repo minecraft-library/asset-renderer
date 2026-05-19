@@ -85,6 +85,46 @@ class VanillaShadeReproductionTest {
     }
 
     @Test
+    @DisplayName("[VANILLA_HAT_POS] witch hat cube origin world position via vanilla parent chain")
+    void witchHatWorldPosition() {
+        // Vanilla applies parent chain at render time:
+        //   pose * T(head_pivot) * S(head_scale) * T(hat_pivot) * S(hat_scale) * v_cube_local
+        // For witch with MeshTransformer.scaling(0.9375):
+        //   head_pivot = (0, 1.501, 0), head_scale = 0.9375
+        //   hat_pivot  = (-4.6875, -7.903, -4.6875), hat_scale = 0.9375
+        // Hat cube origin = (0, 0, 0), so world position = M_hat * (0, 0, 0).
+
+        Matrix4f m = new Matrix4f()
+            .translate(0f, 1.501f, 0f)
+            .scale(0.9375f)
+            .translate(-4.6875f, -7.903297f, -4.6875f)
+            .scale(0.9375f);
+
+        Vector3f out = new Vector3f();
+        m.transformPosition(0f, 0f, 0f, out);
+        System.out.printf("[VANILLA_HAT_POS] hat cube origin world = (%.4f, %.4f, %.4f)%n",
+            out.x, out.y, out.z);
+
+        // Also compute head cube vertex (-4, -10, -4)
+        Matrix4f mHead = new Matrix4f()
+            .translate(0f, 1.501f, 0f)
+            .scale(0.9375f);
+        Vector3f outHead = new Vector3f();
+        mHead.transformPosition(-4f, -10f, -4f, outHead);
+        System.out.printf("[VANILLA_HEAD_POS] head main cube (-4,-10,-4) world = (%.4f, %.4f, %.4f)%n",
+            outHead.x, outHead.y, outHead.z);
+
+        // Effective M_hat matrix:
+        System.out.println("[VANILLA_HAT_POS] M_hat matrix:");
+        for (int row = 0; row < 4; row++) {
+            for (int col = 0; col < 4; col++) {
+                System.out.printf("  m(%d,%d) = %+.6f", col, row, m.get(col, row));
+            }
+            System.out.println();
+        }
+    }
+
+    @Test
     @DisplayName("[VANILLA_SHADE_NO_LER] cardinal face shades WITHOUT vanilla's LER chain (iso only)")
     void cardinalFaceShadesIsoOnly() {
         // Just the iso part of the chain - no LER rotateY(180) or scale(-1,-1,1)
