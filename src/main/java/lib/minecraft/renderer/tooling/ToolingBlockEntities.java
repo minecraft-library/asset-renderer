@@ -19,6 +19,7 @@ import lib.minecraft.renderer.tensor.Vector4f;
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.blockentity.BlockListDiscovery;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
+import lib.minecraft.renderer.tooling.util.FastTrig;
 import lib.minecraft.renderer.tooling.blockentity.InventoryTransformDecomposer;
 import lib.minecraft.renderer.tooling.blockentity.Source;
 import lib.minecraft.renderer.tooling.blockentity.SourceDiscovery;
@@ -1454,6 +1455,14 @@ public final class ToolingBlockEntities {
             // result, push the float so the surrounding FMUL / FADD chain folds correctly.
             // Gated on {@code paramFloatValues != null} so bedrock block-entity sources keep
             // their byte-stable parse - none observed call Mth.cos/sin during their layer build.
+            // <p>
+            // Vanilla's {@code Mth.cos(double)} / {@code Mth.sin(double)} are a 65536-entry sin
+            // table lookup, NOT {@code Math.cos / Math.sin}. The table values differ from libm
+            // by up to 1.8e-5 (sin table granularity ~9.6e-5 rad). Using {@code Math.cos} here
+            // computes the right rotation but a slightly different float result, which drives
+            // 1-pixel canvas-height drift on entities whose pivots depend on these (wither tail
+            // pivot Y is 16.6924076 in vanilla via Mth, 16.6922283 via Math). Route through
+            // {@link FastTrig#cos} / {@link FastTrig#sin} to match vanilla exactly.
             if (state.paramFloatValues != null
                 && opcode == Opcodes.INVOKESTATIC
                 && methodInsn.owner.equals("net/minecraft/util/Mth")
@@ -1462,8 +1471,8 @@ public final class ToolingBlockEntities {
                 && !state.numStack.isEmpty()) {
                 double arg = state.numStack.remove(state.numStack.size() - 1).doubleValue();
                 float result = methodInsn.name.equals("cos")
-                    ? (float) Math.cos(arg)
-                    : (float) Math.sin(arg);
+                    ? FastTrig.cos(arg)
+                    : FastTrig.sin(arg);
                 state.numStack.add(result);
                 return;
             }
