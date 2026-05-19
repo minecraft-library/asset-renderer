@@ -470,7 +470,8 @@ public class ModelEngine extends TextureEngine {
      * where snapping to 1/400 multiples cancels the accumulated float-arithmetic drift across
      * the chain and re-aligns vertex screen positions with vanilla's harness output.
      */
-    private static final float SUBPIXEL_PRECISION = 400f;
+    private static final float SUBPIXEL_PRECISION =
+        Float.parseFloat(System.getProperty("entity.snapSubPixelGrid", "400"));
     private static final float SUBPIXEL_INV = 1f / SUBPIXEL_PRECISION;
 
     private static final boolean SUBPIXEL_SNAP_ENABLED =

@@ -66,6 +66,13 @@ public class IsometricEngine extends ModelEngine {
         //   (3) R_X(pitch)    - iso pitch
         //   (4) scale(1,1,-1) - outer Z-axis chirality
         //   (5) scale(1,-1,1) - vanilla image-Y-down vs our screen-Y-up compensation
+        //
+        // Tried swapping {@code R_X*R_Y} for {@code Quaternionf.rotationXYZ(pitch, yaw, 0)
+        // .toMatrix4f()} per PrecisionHuntTest's HYP_E (4 ULPs / entry difference vs vanilla
+        // harness's {@code rotationXYZ}). Net-worse on snap-off parity (+0.19 across the fleet):
+        // silverfish -0.19 and slime -0.08 win, but tadpole +0.19, glow_squid +0.12, squid +0.09
+        // regress more. Illagers (witch / evoker / vindicator) unchanged, so the iso step is NOT
+        // their snap-rescued drift source. See [[project_pivot_frame_falsified]].
         return Matrix4f.createScale(1f, -1f, 1f)
             .multiply(Matrix4f.createScale(1f, 1f, -1f))
             .multiply(Matrix4f.createRotationX(iso.pitchRadians()))
