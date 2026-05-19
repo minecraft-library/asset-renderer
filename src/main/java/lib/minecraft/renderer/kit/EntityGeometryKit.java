@@ -317,13 +317,26 @@ public class EntityGeometryKit {
                 boolean cubeIsTranslucent = !cubeCullBackFaces
                     && uvPartialAlphaPresent(cube, size, texture, texW, texH);
 
+                // Fuse kit-fit (FLIP + center subtract + canvas scale + modelScale) and the bone
+                // chain into ONE matrix per cube. Replaces the per-axis chain
+                //   nx = FLIP * (transformed.x * modelScale - cx) * scale
+                // which is mul + sub + mul per axis (3 ops). The matrix multiply does the same
+                // arithmetic but rounds at fewer intermediate steps, matching vanilla's
+                // {@code PoseStack.translate().scale().mulPose()...} chain - vanilla composes
+                // the full canvas-fit + iso into one PoseStack and applies it via a SINGLE
+                // matrix-vector multiply per vertex. Per-axis ops here drift vs that.
+                Matrix4f kitFit = Matrix4f.IDENTITY
+                    .scale(FLIP_X ? -scale : scale, FLIP_Y ? -scale : scale, FLIP_Z ? -scale : scale)
+                    .translate(-cx, -cy, -cz)
+                    .scale(modelScale);
+                Matrix4f perCubeChain = kitFit.multiply(fullTransform);
                 for (EntityFace face : EntityFace.values()) {
                     Vector3f[] corners = face.corners(cubeBounds);
                     for (int i = 0; i < 4; i++) {
-                        Vector3f transformed = Vector3f.transform(corners[i], fullTransform);
-                        float nx = (FLIP_X ? -1f : 1f) * (transformed.x() * modelScale - cx) * scale;
-                        float ny = (FLIP_Y ? -1f : 1f) * (transformed.y() * modelScale - cy) * scale;
-                        float nz = (FLIP_Z ? -1f : 1f) * (transformed.z() * modelScale - cz) * scale;
+                        Vector3f transformed = Vector3f.transform(corners[i], perCubeChain);
+                        float nx = transformed.x();
+                        float ny = transformed.y();
+                        float nz = transformed.z();
                         corners[i] = new Vector3f(nx, ny, nz);
 
                         bMinX = Math.min(bMinX, nx);
@@ -882,8 +895,10 @@ public class EntityGeometryKit {
         @NotNull Vector3f pivot,
         @NotNull EulerRotation rotation
     ) {
-        Matrix4f toPivot = Matrix4f.createTranslation(pivot.negate());
-        Matrix4f fromPivot = Matrix4f.createTranslation(pivot);
+        // Build T(+p) * R * T(-p) via fluent ops so the matrix entries match JOML's PoseStack
+        // pose.translate(p); pose.mulPose(quat); pose.translate(-p) bit-for-bit.
+        Matrix4f toPivot = Matrix4f.IDENTITY.translate(pivot.negate());
+        Matrix4f fromPivot = Matrix4f.IDENTITY.translate(pivot);
         Matrix4f rot = Quaternionf.rotationZYX(rotation.rollRadians(), rotation.yawRadians(), rotation.pitchRadians())
             .toMatrix4f();
         return fromPivot.multiply(rot).multiply(toPivot);

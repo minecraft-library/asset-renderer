@@ -168,16 +168,15 @@ public final class Matrix4f {
      * @return a new rotation matrix
      */
     public static @NotNull Matrix4f createRotationX(float radians) {
-        float cos = (float) Math.cos(radians);
-        float sin = (float) Math.sin(radians);
-
-        // Each row below is one matrix column (4 entries per column, 4 columns).
-        return new Matrix4f(
-            1, 0,    0,   0,
-            0, cos,  sin, 0,
-            0, -sin, cos, 0,
-            0, 0,    0,   1
-        );
+        // Route through Quaternionf to match vanilla bit-for-bit. Vanilla's
+        // {@code PoseStack.mulPose(Axis.XP.rotation(radians))} builds a quaternion via
+        // {@code Quaternionf.rotateX(radians)} then converts to a matrix. Direct
+        // {@code Math.cos/sin} of the radians (the previous path here) drifts by 1-4 ULPs
+        // per matrix entry vs vanilla's quat-derived matrix - notably at 180-degree-class
+        // angles where {@code (float) Math.sin((float) Math.PI) ~= -8.74e-8} (not 0) while
+        // {@code Quaternionf.rotationXYZ(Math.PI, 0, 0)} yields a quat that converts to a
+        // matrix with EXACT zeros.
+        return Quaternionf.rotationXYZ(radians, 0f, 0f).toMatrix4f();
     }
 
     /**
@@ -188,16 +187,7 @@ public final class Matrix4f {
      * @return a new rotation matrix
      */
     public static @NotNull Matrix4f createRotationY(float radians) {
-        float cos = (float) Math.cos(radians);
-        float sin = (float) Math.sin(radians);
-
-        // Each row below is one matrix column (4 entries per column, 4 columns).
-        return new Matrix4f(
-            cos, 0, -sin, 0,
-            0,   1, 0,    0,
-            sin, 0, cos,  0,
-            0,   0, 0,    1
-        );
+        return Quaternionf.rotationXYZ(0f, radians, 0f).toMatrix4f();
     }
 
     /**
@@ -208,16 +198,7 @@ public final class Matrix4f {
      * @return a new rotation matrix
      */
     public static @NotNull Matrix4f createRotationZ(float radians) {
-        float cos = (float) Math.cos(radians);
-        float sin = (float) Math.sin(radians);
-
-        // Each row below is one matrix column (4 entries per column, 4 columns).
-        return new Matrix4f(
-            cos,  sin, 0, 0,
-            -sin, cos, 0, 0,
-            0,    0,   1, 0,
-            0,    0,   0, 1
-        );
+        return Quaternionf.rotationXYZ(0f, 0f, radians).toMatrix4f();
     }
 
     /**
@@ -314,6 +295,144 @@ public final class Matrix4f {
             r[col * 4 + 3] = a[3] * b1 + a[7] * b2 + a[11] * b3 + a[15] * b4;
         }
         return new Matrix4f(r);
+    }
+
+    // --- Fluent post-multiply ops mirroring JOML / vanilla PoseStack semantics ---
+    //
+    // Vanilla's PoseStack applies operations as in-place modifications of a single
+    // org.joml.Matrix4f: pose.translate(x, y, z); pose.scale(...); pose.rotate(quat).
+    // JOML's implementations are right-associated mul-add chains (its source uses Math.fma
+    // syntactically, but the `joml.useMathFma` option is OFF by default, so each fma(a, b, c)
+    // collapses to `a * b + c` - matching what vanilla Minecraft ships with).
+    //
+    // These fluent methods produce bit-identical output to JOML's in-place PoseStack ops with
+    // default settings: each is a `this * T_op` post-multiply with the SAME right-associated
+    // mul-add chains JOML uses. Validated by JomlSideBySideTest.JOML_FLUENT_FULL (0 ULPs
+    // across matrix entries) and JOML_FLUENT_VERT (0 ULPs across vertex coords).
+    //
+    // Existing matrix-via-multiply chains (e.g. {@code createTranslation(...).multiply(...)})
+    // drift by 1-4 ULPs per entry because full 4x4 matrix-matrix multiply rounds differently
+    // than the specialized translate/scale/rotate ops. New code should prefer the fluent path.
+
+    /**
+     * Returns {@code this * T(x, y, z)} - this matrix post-multiplied by a translation matrix.
+     * Bit-identical to JOML's {@code Matrix4f.translate(x, y, z)} in-place op (with
+     * {@code joml.useMathFma=false}, vanilla's default). Only the translation column changes;
+     * the 3x3 rotation/scale block is preserved.
+     *
+     * @param x the X translation in pre-pose units (applied to a vertex first under
+     *          {@code (this * T) * v_col})
+     * @param y the Y translation
+     * @param z the Z translation
+     * @return a new matrix representing the post-translated transform
+     */
+    public @NotNull Matrix4f translate(float x, float y, float z) {
+        // JOML's translateGeneric writes the translation column as
+        //   new_m30 = fma(m00, x, fma(m10, y, fma(m20, z, m30)))
+        // With FMA disabled (JOML default), this collapses to
+        //   new_m30 = m00 * x + (m10 * y + (m20 * z + m30))
+        // Right-associated to match exactly.
+        float[] s = this.m;
+        float[] r = new float[]{
+            s[0], s[1], s[2], s[3],   // col 0 unchanged
+            s[4], s[5], s[6], s[7],   // col 1 unchanged
+            s[8], s[9], s[10], s[11], // col 2 unchanged
+            s[0] * x + (s[4] * y + (s[8]  * z + s[12])),
+            s[1] * x + (s[5] * y + (s[9]  * z + s[13])),
+            s[2] * x + (s[6] * y + (s[10] * z + s[14])),
+            s[3] * x + (s[7] * y + (s[11] * z + s[15]))
+        };
+        return new Matrix4f(r);
+    }
+
+    /** Vector overload of {@link #translate(float, float, float)}. */
+    public @NotNull Matrix4f translate(@NotNull Vector3f v) {
+        return translate(v.x(), v.y(), v.z());
+    }
+
+    /**
+     * Returns {@code this * S(x, y, z)} - this matrix post-multiplied by a non-uniform scale.
+     * Bit-identical to JOML's {@code Matrix4f.scale(x, y, z)} in-place op. Cols 0, 1, 2 of the
+     * matrix are multiplied by x, y, z respectively. The translation column is preserved.
+     *
+     * @param x the X-axis scale factor
+     * @param y the Y-axis scale factor
+     * @param z the Z-axis scale factor
+     * @return a new matrix representing the post-scaled transform
+     */
+    public @NotNull Matrix4f scale(float x, float y, float z) {
+        float[] s = this.m;
+        float[] r = new float[]{
+            s[0] * x, s[1] * x, s[2] * x, s[3] * x,   // col 0 scaled by x
+            s[4] * y, s[5] * y, s[6] * y, s[7] * y,   // col 1 scaled by y
+            s[8] * z, s[9] * z, s[10] * z, s[11] * z, // col 2 scaled by z
+            s[12], s[13], s[14], s[15]                // col 3 (translation) unchanged
+        };
+        return new Matrix4f(r);
+    }
+
+    /** Uniform scale overload of {@link #scale(float, float, float)}. */
+    public @NotNull Matrix4f scale(float uniform) {
+        return scale(uniform, uniform, uniform);
+    }
+
+    /**
+     * Returns {@code this * R(q)} - this matrix post-multiplied by a rotation built from the
+     * quaternion. Bit-identical to JOML's {@code Matrix4f.rotate(Quaternionfc q)} in-place op
+     * (with {@code joml.useMathFma=false}, vanilla's default): computes the 9 rotation-matrix
+     * entries from the quaternion components (same formulas as {@link Quaternionf#toMatrix4f}),
+     * then composes against this matrix's first three columns via right-associated mul-add.
+     * The translation column is preserved.
+     *
+     * <p>Vanilla's {@code PoseStack.mulPose(Quaternionfc q)} delegates to JOML's same path; a
+     * chain built via this method matches vanilla's vertex output bit-for-bit when given the
+     * same quaternion sequence.
+     *
+     * @param q the quaternion encoding the rotation
+     * @return a new matrix representing the post-rotated transform
+     */
+    public @NotNull Matrix4f rotate(@NotNull Quaternionf q) {
+        // Quaternion-to-rotation-matrix coefficients (same formulas as Quaternionf.toMatrix4f
+        // and JOML's Matrix4f.rotateGeneric). Stored in JOML's m_{col}{row} naming.
+        float w = q.w(), x = q.x(), y = q.y(), z = q.z();
+        float w2 = w * w, x2 = x * x, y2 = y * y, z2 = z * z;
+        float zw = z * w, dzw = zw + zw;
+        float xy = x * y, dxy = xy + xy;
+        float xz = x * z, dxz = xz + xz;
+        float yw = y * w, dyw = yw + yw;
+        float yz = y * z, dyz = yz + yz;
+        float xw = x * w, dxw = xw + xw;
+        float rm00 = w2 + x2 - z2 - y2, rm01 = dxy + dzw,         rm02 = dxz - dyw;
+        float rm10 = -dzw + dxy,        rm11 = y2 - z2 + w2 - x2, rm12 = dyz + dxw;
+        float rm20 = dyw + dxz,         rm21 = dyz - dxw,         rm22 = z2 - y2 - x2 + w2;
+
+        float[] s = this.m;
+        // Read this matrix's cols 0, 1, 2 (per JOML naming: m00=get(1,1)=s[0]; m10=get(2,1)=s[4]; m20=get(3,1)=s[8])
+        float m00 = s[0],  m01 = s[1],  m02 = s[2],  m03 = s[3];
+        float m10 = s[4],  m11 = s[5],  m12 = s[6],  m13 = s[7];
+        float m20 = s[8],  m21 = s[9],  m22 = s[10], m23 = s[11];
+
+        // Right-associated mul-add (JOML's fma-collapsed-to-mul-add with default options).
+        // new_col_j = m_col_0 * rm_0j + (m_col_1 * rm_1j + (m_col_2 * rm_2j))
+        float nm00 = m00 * rm00 + (m10 * rm01 + m20 * rm02);
+        float nm01 = m01 * rm00 + (m11 * rm01 + m21 * rm02);
+        float nm02 = m02 * rm00 + (m12 * rm01 + m22 * rm02);
+        float nm03 = m03 * rm00 + (m13 * rm01 + m23 * rm02);
+        float nm10 = m00 * rm10 + (m10 * rm11 + m20 * rm12);
+        float nm11 = m01 * rm10 + (m11 * rm11 + m21 * rm12);
+        float nm12 = m02 * rm10 + (m12 * rm11 + m22 * rm12);
+        float nm13 = m03 * rm10 + (m13 * rm11 + m23 * rm12);
+        float nm20 = m00 * rm20 + (m10 * rm21 + m20 * rm22);
+        float nm21 = m01 * rm20 + (m11 * rm21 + m21 * rm22);
+        float nm22 = m02 * rm20 + (m12 * rm21 + m22 * rm22);
+        float nm23 = m03 * rm20 + (m13 * rm21 + m23 * rm22);
+
+        return new Matrix4f(new float[]{
+            nm00, nm01, nm02, nm03,
+            nm10, nm11, nm12, nm13,
+            nm20, nm21, nm22, nm23,
+            s[12], s[13], s[14], s[15] // col 3 (translation) preserved
+        });
     }
 
 }

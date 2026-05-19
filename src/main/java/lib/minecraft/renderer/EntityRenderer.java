@@ -641,20 +641,17 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     private static @NotNull Matrix4f composeIsoTransform(@NotNull EulerRotation userRotation) {
         EulerRotation iso = EulerRotation.STANDARD_ISO_ENTITY;
-        Matrix4f flipY = Matrix4f.createScale(1f, -1f, 1f);
-        Matrix4f scaleZneg = Matrix4f.createScale(1f, 1f, -1f);
-        Matrix4f modelRotation = (userRotation.pitch() == 0f && userRotation.yaw() == 0f && userRotation.roll() == 0f)
-            ? Matrix4f.IDENTITY
-            : Quaternionf.rotationXYZ(userRotation.pitchRadians(), userRotation.yawRadians(), userRotation.rollRadians()).toMatrix4f();
-        Matrix4f isoRotation = Quaternionf.rotationXYZ(iso.pitchRadians(), iso.yawRadians(), 0f).toMatrix4f();
-        // Column-vector chain: rightmost applies first to a vertex.
-        // Application order: flipY → modelRotation → scaleZneg → isoRotation → scaleZneg → flipY.
-        return flipY
-            .multiply(scaleZneg)
-            .multiply(isoRotation)
-            .multiply(scaleZneg)
-            .multiply(modelRotation)
-            .multiply(flipY);
+        boolean userIdentity = userRotation.pitch() == 0f && userRotation.yaw() == 0f && userRotation.roll() == 0f;
+        // Vanilla PoseStack-equivalent chain via fluent ops. Application order rightmost-first
+        // under col-vec: flipY -> modelRotation -> scaleZneg -> isoRotation -> scaleZneg -> flipY.
+        Matrix4f m = Matrix4f.IDENTITY
+            .scale(1f, -1f, 1f)
+            .scale(1f, 1f, -1f)
+            .rotate(Quaternionf.rotationXYZ(iso.pitchRadians(), iso.yawRadians(), 0f))
+            .scale(1f, 1f, -1f);
+        if (!userIdentity)
+            m = m.rotate(Quaternionf.rotationXYZ(userRotation.pitchRadians(), userRotation.yawRadians(), userRotation.rollRadians()));
+        return m.scale(1f, -1f, 1f);
     }
 
     /**

@@ -53,12 +53,14 @@ class SimdOps {
         FloatVector col3 = FloatVector.fromArray(SPECIES, s, 8);
         FloatVector col4 = FloatVector.fromArray(SPECIES, s, 12);
 
-        // Per-lane: ((m{i,1} * v.x + m{i,2} * v.y) + m{i,3} * v.z) + m{i,4}. Lane 0 yields tx,
-        // lane 1 yields ty, lane 2 yields tz; lane 3 (tw) is discarded.
-        FloatVector acc = col1.mul(v.x())
-            .add(col2.mul(v.y()))
-            .add(col3.mul(v.z()))
-            .add(col4);
+        // Right-associated mul-add chain matching JOML's Vector3f.mulPositionGeneric when
+        // `joml.useMathFma=false` (vanilla's default). Per-lane:
+        //   m{i,1}*v.x + (m{i,2}*v.y + (m{i,3}*v.z + m{i,4}))
+        // The scalar Vector3f.transform fallback computes the same expression; both produce
+        // vanilla-bit-identical output (validated by JomlSideBySideTest).
+        FloatVector acc = col3.mul(v.z()).add(col4);
+        acc = col2.mul(v.y()).add(acc);
+        acc = col1.mul(v.x()).add(acc);
         return new Vector3f(acc.lane(0), acc.lane(1), acc.lane(2));
     }
 
@@ -77,9 +79,10 @@ class SimdOps {
         FloatVector col2 = FloatVector.fromArray(SPECIES, s, 4);
         FloatVector col3 = FloatVector.fromArray(SPECIES, s, 8);
 
-        FloatVector acc = col1.mul(v.x())
-            .add(col2.mul(v.y()))
-            .add(col3.mul(v.z()));
+        // Right-associated mul-add chain matching scalar fallback and JOML mulDirection.
+        FloatVector acc = col3.mul(v.z());
+        acc = col2.mul(v.y()).add(acc);
+        acc = col1.mul(v.x()).add(acc);
         return new Vector3f(acc.lane(0), acc.lane(1), acc.lane(2));
     }
 

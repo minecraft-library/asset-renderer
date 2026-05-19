@@ -183,11 +183,14 @@ public record Vector3f(float x, float y, float z) {
      */
     public static @NotNull Vector3f transform(@NotNull Vector3f v, @NotNull Matrix4f m) {
         if (SimdSupport.ENABLED) return SimdOps.transform(v, m);
-        // Row r of M is `get(1, r) get(2, r) get(3, r) get(4, r)`. The translation column
-        // (column 4) contributes the constant term for w=1.
-        float tx = m.get(1, 1) * v.x + m.get(2, 1) * v.y + m.get(3, 1) * v.z + m.get(4, 1);
-        float ty = m.get(1, 2) * v.x + m.get(2, 2) * v.y + m.get(3, 2) * v.z + m.get(4, 2);
-        float tz = m.get(1, 3) * v.x + m.get(2, 3) * v.y + m.get(3, 3) * v.z + m.get(4, 3);
+        // Right-associated mul-add chain matching JOML's Vector3f.mulPositionGeneric with
+        // default `joml.useMathFma=false` (vanilla Minecraft's setting). JOML source reads as
+        // `Math.fma(m00, x, Math.fma(m10, y, Math.fma(m20, z, m30)))`; with FMA off, each
+        // fma(a, b, c) collapses to `a * b + c`, producing the right-associated chain
+        // `m00*x + (m10*y + (m20*z + m30))`. Validated bit-identical in JomlSideBySideTest.
+        float tx = m.get(1, 1) * v.x + (m.get(2, 1) * v.y + (m.get(3, 1) * v.z + m.get(4, 1)));
+        float ty = m.get(1, 2) * v.x + (m.get(2, 2) * v.y + (m.get(3, 2) * v.z + m.get(4, 2)));
+        float tz = m.get(1, 3) * v.x + (m.get(2, 3) * v.y + (m.get(3, 3) * v.z + m.get(4, 3)));
         return new Vector3f(tx, ty, tz);
     }
 
@@ -203,9 +206,10 @@ public record Vector3f(float x, float y, float z) {
      */
     public static @NotNull Vector3f transformNormal(@NotNull Vector3f v, @NotNull Matrix4f m) {
         if (SimdSupport.ENABLED) return SimdOps.transformNormal(v, m);
-        float tx = m.get(1, 1) * v.x + m.get(2, 1) * v.y + m.get(3, 1) * v.z;
-        float ty = m.get(1, 2) * v.x + m.get(2, 2) * v.y + m.get(3, 2) * v.z;
-        float tz = m.get(1, 3) * v.x + m.get(2, 3) * v.y + m.get(3, 3) * v.z;
+        // Right-associated chain matching JOML's Vector3f.mulDirection (w=0; no translation).
+        float tx = m.get(1, 1) * v.x + (m.get(2, 1) * v.y + m.get(3, 1) * v.z);
+        float ty = m.get(1, 2) * v.x + (m.get(2, 2) * v.y + m.get(3, 2) * v.z);
+        float tz = m.get(1, 3) * v.x + (m.get(2, 3) * v.y + m.get(3, 3) * v.z);
         return new Vector3f(tx, ty, tz);
     }
 

@@ -191,6 +191,71 @@ class JomlSideBySideTest {
     }
 
     @Test
+    @DisplayName("[JOML_FLUENT] Matrix4f fluent translate/scale/rotate matches JOML PoseStack bit-for-bit")
+    void fluentOpsMatchJomlBitIdentical() {
+        // Build identical pose chain via JOML PoseStack-equivalent and our new fluent ops.
+        // Each step should produce 0-ULP-matching matrices since the algorithms are ported.
+        float tx = 113.0f, ty = 153.0f;
+        float scale = 17.5f;
+        float pitch = (float) Math.toRadians(210);
+        float yaw = (float) Math.toRadians(45);
+
+        org.joml.Matrix4f jPose = new org.joml.Matrix4f();
+        jPose.translate(tx, ty, 0f);
+        jPose.scale(scale, scale, scale);
+        jPose.scale(1f, 1f, -1f);
+        jPose.rotate(new org.joml.Quaternionf().rotationXYZ(pitch, yaw, 0f));
+        jPose.scale(1f, 1f, 1f);
+        jPose.rotate(new org.joml.Quaternionf().rotationY((float) Math.PI));
+        jPose.scale(-1f, -1f, 1f);
+        jPose.translate(0f, -1.501f, 0f);
+
+        Matrix4f ours = Matrix4f.IDENTITY
+            .translate(tx, ty, 0f)
+            .scale(scale, scale, scale)
+            .scale(1f, 1f, -1f)
+            .rotate(Quaternionf.rotationXYZ(pitch, yaw, 0f))
+            .scale(1f, 1f, 1f)
+            .rotate(Quaternionf.rotationXYZ(0f, (float) Math.PI, 0f))
+            .scale(-1f, -1f, 1f)
+            .translate(0f, -1.501f, 0f);
+
+        compareMatrices("JOML_FLUENT_FULL", jPose, ours);
+
+        // Vertex transform should match too
+        float vx = -4f, vy = -10f, vz = -4f;
+        org.joml.Vector3f vanillaOut = new org.joml.Vector3f();
+        jPose.transformPosition(vx, vy, vz, vanillaOut);
+        Vector3f oursOut = Vector3f.transform(new Vector3f(vx, vy, vz), ours);
+
+        System.out.printf("[JOML_FLUENT_VERT] vanilla=(%.10f, %.10f, %.10f)  ours=(%.10f, %.10f, %.10f)  ulps=(%d, %d, %d)%n",
+            vanillaOut.x, vanillaOut.y, vanillaOut.z,
+            oursOut.x(), oursOut.y(), oursOut.z(),
+            ulpsBetween(vanillaOut.x, oursOut.x()),
+            ulpsBetween(vanillaOut.y, oursOut.y()),
+            ulpsBetween(vanillaOut.z, oursOut.z()));
+
+        // Manual FMA-by-FMA reproduction to find the source of the residual ULPs.
+        // JOML mulPositionGeneric does:
+        //   y = fma(m01, x, fma(m11, y, fma(m21, z, m31)))
+        // Let's compute step by step matching our matrix entries.
+        float m01 = ours.get(1, 2);
+        float m11 = ours.get(2, 2);
+        float m21 = ours.get(3, 2);
+        float m31 = ours.get(4, 2);
+        float step1 = (float) Math.fma(m21, vz, m31);
+        float step2 = (float) Math.fma(m11, vy, step1);
+        float step3 = (float) Math.fma(m01, vx, step2);
+        System.out.printf("[JOML_FLUENT_VERT_Y_TRACE] step1(m21*vz+m31)=%.10f, step2(m11*vy+step1)=%.10f, step3=%.10f%n",
+            step1, step2, step3);
+
+        // Also: confirm the matrix entries we're reading match JOML's at the bit level.
+        System.out.printf("[JOML_FLUENT_VERT_Y_MAT] m01=%.10f, m11=%.10f, m21=%.10f, m31=%.10f%n", m01, m11, m21, m31);
+        System.out.printf("[JOML_FLUENT_VERT_Y_MAT_JOML] m01=%.10f, m11=%.10f, m21=%.10f, m31=%.10f%n",
+            jPose.m01(), jPose.m11(), jPose.m21(), jPose.m31());
+    }
+
+    @Test
     @DisplayName("[JOML_FULL_PIPELINE] vanilla full canvas-fit + iso + bone chain reproduction")
     void fullPipelineBitCompare() {
         // Reproduce the exact vanilla harness chain for a witch head cube corner.
