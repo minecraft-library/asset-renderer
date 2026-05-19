@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.tensor;
 
-import lib.minecraft.renderer.EntityRenderer;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -9,15 +8,12 @@ import org.jetbrains.annotations.NotNull;
  * JOML's algorithms operation-for-operation so a quaternion built here produces bit-identical
  * float values to one built in the vanilla harness, which is how Minecraft assembles its iso
  * pose ({@code new Quaternionf().rotationXYZ(toRadians(210), toRadians(45), 0)}).
- *
- * <p>Matching JOML's algorithm exactly (not just mathematically) is the point: float arithmetic
+ * <p>
+ * Matching JOML's algorithm exactly (not just mathematically) is the point: float arithmetic
  * is non-associative, so the order in which sin/cos values are combined into quaternion components
- * is part of the contract. {@link EntityRenderer#composeIsoTransform} previously composed the iso
- * rotation as {@code Matrix4f.createRotationY(yaw).multiply(Matrix4f.createRotationX(pitch))}
- * which is mathematically the same rotation but accumulates different LSB-level errors than vanilla's
- * quaternion-derived matrix. The drift across the matrix chain was ~1e-3 pixels - small but
- * enough to push pixel classification toward different texels at silhouette edges on entities
- * like witch / evoker / silverfish. This class closes that gap.
+ * is part of the contract. Building a {@link Matrix4f} from a {@link Quaternionf} via
+ * {@link #toMatrix4f} produces bit-identical output to {@code new org.joml.Matrix4f().rotation(q)}
+ * because {@link Matrix4f} uses the same column-vector convention JOML does.
  *
  * @param x the imaginary i component
  * @param y the imaginary j component
@@ -72,11 +68,14 @@ public record Quaternionf(float x, float y, float z, float w) {
      *
      * <p>Vanilla's {@code ModelPart.translateAndRotate} composes bone rotations via
      * {@code new Quaternionf().rotationZYX(zRot, yRot, xRot)}, so any bone with non-zero
-     * pitch/yaw/roll uses this path on the vanilla side.
+     * pitch/yaw/roll uses this path on the vanilla side. When applied as {@code M * v_col}
+     * via {@link #toMatrix4f}, the {@code X} rotation applies to {@code v} first, then
+     * {@code Y}, then {@code Z}.
      *
-     * @param angleZ rotation about Z in radians (applied first)
-     * @param angleY rotation about Y in radians (applied second)
-     * @param angleX rotation about X in radians (applied third)
+     * @param angleZ rotation about Z in radians
+     * @param angleY rotation about Y in radians
+     * @param angleX rotation about X in radians
+     * @return the unit quaternion representing the composite rotation
      */
     public static @NotNull Quaternionf rotationZYX(float angleZ, float angleY, float angleX) {
         float sx = (float) java.lang.Math.sin(angleX * 0.5f);
@@ -98,13 +97,11 @@ public record Quaternionf(float x, float y, float z, float w) {
     }
 
     /**
-     * Returns the row-vector-convention 4x4 rotation matrix equivalent to this quaternion. The
-     * coefficient formulas mirror JOML's {@code Matrix4f.rotation(Quaternionfc)} -
-     * {@code (m00 = w2+x2-z2-y2, m01 = dxy+dzw, ...)} - then TRANSPOSE the result because
-     * JOML uses column-vector convention ({@code M_joml * v_col}) while our {@link Matrix4f}
-     * uses row-vector convention ({@code v_row * M_ours}). The two conventions store the
-     * transpose of each other for the same linear transformation. So our {@code m11..m44} get
-     * JOML's {@code m_{col_index}_{row_index}} values with the indices swapped.
+     * Returns the column-vector-convention 4x4 rotation matrix equivalent to this quaternion. The
+     * coefficient formulas mirror JOML's {@code Matrix4f.rotation(Quaternionfc)} directly: JOML
+     * names entries {@code m_{col}{row}} so its {@code m00=R[0][0]}, {@code m01=R[1][0]} (col 0,
+     * row 1) maps onto our {@code m{row}{col}} as {@code m11=R[0][0]}, {@code m21=R[1][0]} -
+     * matching cells of the same matrix.
      */
     public @NotNull Matrix4f toMatrix4f() {
         float w2 = w * w;
@@ -118,11 +115,9 @@ public record Quaternionf(float x, float y, float z, float w) {
         float yz = y * z, dyz = yz + yz;
         float xw = x * w, dxw = xw + xw;
 
-        // JOML's matrix is column-vector-convention. Element naming m_{col}{row} means JOML's
-        // m00=R[0][0], m01=R[1][0] (col 0, row 1), m10=R[0][1] (col 1, row 0), etc. For our
-        // row-vector convention we want the transpose: M_ours[row][col] = M_joml[col][row].
+        // Column-major storage: each row below holds one column of the rotation matrix.
         return new Matrix4f(
-            w2 + x2 - z2 - y2, dxy + dzw,         dxz - dyw,          0f,
+            w2 + x2 - z2 - y2, dxy + dzw,         dxz - dyw,         0f,
             -dzw + dxy,        y2 - z2 + w2 - x2, dyz + dxw,         0f,
             dyw + dxz,         dyz - dxw,         z2 - y2 - x2 + w2, 0f,
             0f,                0f,                0f,                1f

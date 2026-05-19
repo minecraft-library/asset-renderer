@@ -12,6 +12,7 @@ import lib.minecraft.renderer.geometry.EntityFace;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.tensor.Matrix4f;
+import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tensor.Vector4f;
@@ -98,15 +99,15 @@ public class EntityGeometryKit {
 
     private static @NotNull Vector3f computeKitFrameViewDirection() {
         EulerRotation iso = EulerRotation.STANDARD_ISO_ENTITY;
-        // Row-form chain that, when applied to a row vector via right-to-left composition,
-        // performs the col-form operation `FLIP_Y * M_view^T * v`. Each rotation transposes to
-        // its negated-angle counterpart; scales are diagonal so transpose is identity.
-        // Order: scale(1,1,-1) -> R_X(-pitch) -> R_Y(-yaw) -> R_X(-180°) -> FLIP_Y.
-        Matrix4f viewToKit = Matrix4f.createScale(1f, 1f, -1f)
-            .multiply(Matrix4f.createRotationX(-iso.pitchRadians()))
-            .multiply(Matrix4f.createRotationY(-iso.yawRadians()))
+        // Column-vector chain `FLIP_Y * R_X(-180°) * R_Y(-yaw) * R_X(-pitch) * scale(1,1,-1)`
+        // implements `FLIP_Y * M_view^T * v` where M_view = scale(1,1,-1) * R_X(pitch) * R_Y(yaw)
+        // * R_X(180°) is vanilla's iso transform. Each rotation transposes to its negated-angle
+        // counterpart; scales are diagonal so transpose is identity. Rightmost applies first.
+        Matrix4f viewToKit = Matrix4f.createScale(1f, -1f, 1f)
             .multiply(Matrix4f.createRotationX((float) -Math.PI))
-            .multiply(Matrix4f.createScale(1f, -1f, 1f));
+            .multiply(Matrix4f.createRotationY(-iso.yawRadians()))
+            .multiply(Matrix4f.createRotationX(-iso.pitchRadians()))
+            .multiply(Matrix4f.createScale(1f, 1f, -1f));
         return Vector3f.transformNormal(new Vector3f(0f, 0f, -1f), viewToKit);
     }
 
@@ -715,7 +716,8 @@ public class EntityGeometryKit {
             FLIP_Y ? -ndcScale : ndcScale,
             FLIP_Z ? -ndcScale : ndcScale
         );
-        return translateToCentre.multiply(scaleAndFlip);
+        // Translate to centre first (innermost), then scale + flip.
+        return scaleAndFlip.multiply(translateToCentre);
     }
 
     /**
@@ -819,7 +821,8 @@ public class EntityGeometryKit {
             composed = own;
         } else {
             Matrix4f parentChain = resolveChain(parent, bones, cache, visiting);
-            composed = own.multiply(parentChain);
+            // Own bone-local anchor applies first to the vertex, then the parent chain composes.
+            composed = parentChain.multiply(own);
         }
 
         visiting.remove(name);
@@ -845,9 +848,13 @@ public class EntityGeometryKit {
         boolean hasBind = !isZero(bindPose);
         if (!hasCube && !hasBind) return boneChain;
 
+        // Cube rotation applies first to the vertex, then the bone's bind pose, then the bone
+        // chain. Each subsequent multiply post-multiplies the new pre-rotation, so the chain
+        // composes as `boneChain * bindPose * cubeRot` with cubeRot innermost (rightmost) on
+        // a column vector.
         Matrix4f acc = boneChain;
-        if (hasBind) acc = pivotCenteredRotation(bone.getPivot(), bindPose).multiply(acc);
-        if (hasCube) acc = pivotCenteredRotation(cube.getPivot(), cubeRot).multiply(acc);
+        if (hasBind) acc = acc.multiply(pivotCenteredRotation(bone.getPivot(), bindPose));
+        if (hasCube) acc = acc.multiply(pivotCenteredRotation(cube.getPivot(), cubeRot));
         return acc;
     }
 
@@ -856,13 +863,16 @@ public class EntityGeometryKit {
     }
 
     /**
-     * Java-frame {@code T(-pivot) * R(rotation) * T(+pivot)} matrix.
+     * Java-frame {@code T(+pivot) * R(rotation) * T(-pivot)} column-vector matrix that rotates
+     * a vertex around {@code pivot}. Rightmost {@code T(-pivot)} applies first, moving the
+     * pivot to the origin; then {@code R}; then {@code T(+pivot)} moves the pivot back.
      * <p>
-     * <b>Rotation composition:</b> {@code R = R_X * R_Y * R_Z} in our row-vector convention,
-     * so {@code v_row * R} applies X first, then Y, then Z. This mirrors vanilla
-     * {@code ModelPart.translateAndRotate} which calls {@code mulPose(Z); mulPose(Y); mulPose(X)}
-     * on the column-vector pose stack - the column composite {@code R_Z * R_Y * R_X} also has
-     * {@code R_X} innermost (applied first to v_col).
+     * <b>Rotation composition:</b> the rotation is built from a {@link Quaternionf#rotationZYX}
+     * quaternion so the resulting matrix is bit-identical to vanilla
+     * {@code ModelPart.translateAndRotate}'s {@code mulPose(new Quaternionf().rotationZYX(zRot,
+     * yRot, xRot))}. Vanilla applies pitch (X) first, then yaw (Y), then roll (Z) to the bone
+     * vertex; the quaternion encodes that same order without going through any
+     * matrix-multiplication chain whose float result depends on associativity.
      * <p>
      * <b>Sign convention:</b> Java's {@code +xRot} (pitch) tilts a bone forward, {@code +yRot}
      * (yaw) turns right, {@code +zRot} (roll) rolls right, applied directly with no negation
@@ -874,16 +884,9 @@ public class EntityGeometryKit {
     ) {
         Matrix4f toPivot = Matrix4f.createTranslation(pivot.negate());
         Matrix4f fromPivot = Matrix4f.createTranslation(pivot);
-        // Bone rotation tried via Quaternionf.rotationZYX during the precision investigation but
-        // it regressed buckets (77/90/94/96 -> 77/89/92/94 with snap disabled). Most bones in the
-        // tree are single-axis (X-only or Y-only) where R_X(angle) via Matrix4f.createRotationX
-        // is float-identical to the quat-derived rotation for that axis (both go through the
-        // same Math.cos/Math.sin call). Combined-axis bones (rare) showed no measurable
-        // improvement either. Kept the explicit multiply form.
-        Matrix4f rot = Matrix4f.createRotationX(rotation.pitchRadians())
-            .multiply(Matrix4f.createRotationY(rotation.yawRadians()))
-            .multiply(Matrix4f.createRotationZ(rotation.rollRadians()));
-        return toPivot.multiply(rot).multiply(fromPivot);
+        Matrix4f rot = Quaternionf.rotationZYX(rotation.rollRadians(), rotation.yawRadians(), rotation.pitchRadians())
+            .toMatrix4f();
+        return fromPivot.multiply(rot).multiply(toPivot);
     }
 
     /**

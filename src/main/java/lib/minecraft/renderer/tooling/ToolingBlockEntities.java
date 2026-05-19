@@ -12,6 +12,8 @@ import lib.minecraft.renderer.geometry.Box;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.loader.BlockEntityLoader;
+import lib.minecraft.renderer.tensor.Matrix4f;
+import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tensor.Vector4f;
 import lib.minecraft.renderer.tooling.util.AsmKit;
@@ -2007,7 +2009,7 @@ public final class ToolingBlockEntities {
                 String resolvedParent = state.parentBone != null ? state.parentBone : state.nextParent;
                 float[] worldPivot = state.pendingPivot;
                 float[] worldRotation = state.pendingRotation;
-                float[] worldRotMatrix = eulerZyxToMatrix(state.pendingRotation);
+                Matrix4f worldRotMatrix = eulerZyxToMatrix(state.pendingRotation);
                 float worldScale = state.pendingScale;
                 if (resolvedParent != null) {
                     BoneMeta parent = state.boneMeta.get(resolvedParent);
@@ -2024,7 +2026,10 @@ public final class ToolingBlockEntities {
                             parent.pivot[2] + rotatedLocal[2]
                         };
                         worldScale = parent.scale * state.pendingScale;
-                        worldRotMatrix = mulMatrix(parent.rotMatrix, worldRotMatrix);
+                        // Column-vector composition: parent rotation applies AFTER child's local
+                        // rotation, so it's leftmost in the multiply chain. v_world = parent *
+                        // (worldRotMatrix * v_local).
+                        worldRotMatrix = parent.rotMatrix.multiply(worldRotMatrix);
                         worldRotation = matrixToEulerZyx(worldRotMatrix);
                     }
                 }
@@ -2265,7 +2270,7 @@ public final class ToolingBlockEntities {
          * children, so {@code rotMatrix} stays identity and the math collapses to the legacy
          * additive-translation behaviour for them.
          */
-        private record BoneMeta(float @NotNull [] pivot, float scale, float @NotNull [] rotMatrix) {}
+        private record BoneMeta(float @NotNull [] pivot, float scale, @NotNull Matrix4f rotMatrix) {}
 
         /**
          * Builds the JSON object for one bone from its flattened pivot, rotation, scale, and
@@ -2311,72 +2316,55 @@ public final class ToolingBlockEntities {
         }
 
         /**
-         * Builds a 3x3 row-major rotation matrix from Euler angles in degrees, applied as
+         * Builds a column-vector rotation matrix from Euler angles in degrees, applied as
          * {@code R = Rz(roll) * Ry(yaw) * Rx(pitch)} - the same Z * Y * X order vanilla Java's
          * {@code Matrix4f.rotateZYX} uses for {@link
          * net.minecraft.client.model.geom.PartPose#offsetAndRotation PartPose.offsetAndRotation}.
-         * Input array is {@code [pitch_deg, yaw_deg, roll_deg]}.
+         * Input array is {@code [pitch_deg, yaw_deg, roll_deg]}. Routes through
+         * {@link Quaternionf#rotationZYX} so the result is bit-identical to vanilla's
+         * quaternion-derived rotation matrix.
          */
-        private static float @NotNull [] eulerZyxToMatrix(float @NotNull [] eulerDegrees) {
-            double rx = Math.toRadians(eulerDegrees[0]);
-            double ry = Math.toRadians(eulerDegrees[1]);
-            double rz = Math.toRadians(eulerDegrees[2]);
-            double cx = Math.cos(rx), sx = Math.sin(rx);
-            double cy = Math.cos(ry), sy = Math.sin(ry);
-            double cz = Math.cos(rz), sz = Math.sin(rz);
-            return new float[]{
-                (float) (cz * cy),                      (float) (cz * sy * sx - sz * cx),       (float) (cz * sy * cx + sz * sx),
-                (float) (sz * cy),                      (float) (sz * sy * sx + cz * cx),       (float) (sz * sy * cx - cz * sx),
-                (float) -sy,                            (float) (cy * sx),                      (float) (cy * cx)
-            };
+        private static @NotNull Matrix4f eulerZyxToMatrix(float @NotNull [] eulerDegrees) {
+            return Quaternionf.rotationZYX(
+                (float) Math.toRadians(eulerDegrees[2]),
+                (float) Math.toRadians(eulerDegrees[1]),
+                (float) Math.toRadians(eulerDegrees[0])
+            ).toMatrix4f();
         }
 
-        /** Multiplies two row-major 3x3 matrices: returns {@code a * b}. */
-        private static float @NotNull [] mulMatrix(float @NotNull [] a, float @NotNull [] b) {
-            float[] r = new float[9];
-            for (int row = 0; row < 3; row++)
-                for (int col = 0; col < 3; col++)
-                    r[row * 3 + col] = a[row * 3] * b[col]
-                                     + a[row * 3 + 1] * b[3 + col]
-                                     + a[row * 3 + 2] * b[6 + col];
-            return r;
-        }
-
-        /** Rotates a 3-vector by a row-major 3x3 matrix. */
-        private static float @NotNull [] rotateVec(float @NotNull [] m, float @NotNull [] v) {
-            return new float[]{
-                m[0] * v[0] + m[1] * v[1] + m[2] * v[2],
-                m[3] * v[0] + m[4] * v[1] + m[5] * v[2],
-                m[6] * v[0] + m[7] * v[1] + m[8] * v[2]
-            };
+        /** Rotates a 3-vector by a {@link Matrix4f} rotation as {@code m * v_col}. */
+        private static float @NotNull [] rotateVec(@NotNull Matrix4f m, float @NotNull [] v) {
+            Vector3f r = Vector3f.transformNormal(new Vector3f(v[0], v[1], v[2]), m);
+            return new float[]{ r.x(), r.y(), r.z() };
         }
 
         /**
-         * Decomposes a row-major 3x3 rotation matrix back into {@code [pitch_deg, yaw_deg,
-         * roll_deg]} for the Z * Y * X convention. The closed-form recovery uses
-         * {@code yaw = -asin(m[6])}, {@code pitch = atan2(m[7], m[8])},
-         * {@code roll = atan2(m[3], m[0])}; it agrees with the inverse of {@link
-         * #eulerZyxToMatrix} on every input that doesn't sit at the {@code yaw = +/- 90deg}
-         * gimbal-lock pole. None of the entity factories observed compose rotations near that
-         * pole (vanilla animations stay in single-axis pitches like body 90deg X), so the
-         * canonical decomposition is used; if a future model lands at the pole the recovered
-         * Euler triple still represents the same rotation, just split differently between
-         * yaw and roll.
+         * Decomposes a column-vector rotation matrix back into {@code [pitch_deg, yaw_deg,
+         * roll_deg]} for the Z * Y * X convention. The closed-form recovery reads the matrix's
+         * third row: {@code -sin(yaw) = m.get(1, 3)},
+         * {@code pitch = atan2(m.get(2, 3), m.get(3, 3))},
+         * {@code roll  = atan2(m.get(1, 2), m.get(1, 1))}. Agrees with the inverse of
+         * {@link #eulerZyxToMatrix} on every input that doesn't sit at the
+         * {@code yaw = +/- 90deg} gimbal-lock pole. None of the entity factories observed compose
+         * rotations near that pole (vanilla animations stay in single-axis pitches like body
+         * 90deg X), so the canonical decomposition is used; if a future model lands at the pole
+         * the recovered Euler triple still represents the same rotation, just split differently
+         * between yaw and roll.
          */
-        private static float @NotNull [] matrixToEulerZyx(float @NotNull [] m) {
-            float syNeg = m[6];
+        private static float @NotNull [] matrixToEulerZyx(@NotNull Matrix4f m) {
+            float syNeg = m.get(1, 3);
             float clamped = Math.max(-1f, Math.min(1f, syNeg));
             double yaw = -Math.asin(clamped);
             double pitch;
             double roll;
             if (Math.abs(clamped) > 0.9999f) {
                 // Gimbal-lock fallback: pitch and roll merge; pin roll to 0 and put the
-                // combined rotation on pitch via atan2 of the now-decoupled m[1] / m[4] cell.
-                pitch = Math.atan2(-m[5], m[4]);
+                // combined rotation on pitch via atan2 of the now-decoupled (3, 2) / (2, 2) cell.
+                pitch = Math.atan2(-m.get(3, 2), m.get(2, 2));
                 roll = 0f;
             } else {
-                pitch = Math.atan2(m[7], m[8]);
-                roll = Math.atan2(m[3], m[0]);
+                pitch = Math.atan2(m.get(2, 3), m.get(3, 3));
+                roll = Math.atan2(m.get(1, 2), m.get(1, 1));
             }
             return new float[]{
                 (float) Math.toDegrees(pitch),

@@ -191,9 +191,11 @@ public class BlockModelGeometryKit {
                             case "y" -> Matrix4f.createScale(s, 1f, s);
                             default -> Matrix4f.createScale(s, s, 1f);
                         };
-                        elementTransform = toOrigin.multiply(rotation).multiply(scale).multiply(fromOrigin);
+                        // Column-vector chain: toOrigin (rightmost) applies first to a vertex,
+                        // then rotation, then scale, then fromOrigin moves the pivot back.
+                        elementTransform = fromOrigin.multiply(scale).multiply(rotation).multiply(toOrigin);
                     } else {
-                        elementTransform = toOrigin.multiply(rotation).multiply(fromOrigin);
+                        elementTransform = fromOrigin.multiply(rotation).multiply(toOrigin);
                     }
                     normalTransform = rotation;
                 }

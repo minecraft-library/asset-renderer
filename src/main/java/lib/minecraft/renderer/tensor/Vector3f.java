@@ -173,9 +173,9 @@ public record Vector3f(float x, float y, float z) {
     }
 
     /**
-     * Transforms {@code v} by {@code m} as a point ({@code w=1}). Auto-dispatches to a 4-lane
-     * SIMD implementation when the JDK Vector API module is available; otherwise computes the
-     * three components scalar.
+     * Transforms {@code v} by {@code m} as a point ({@code w=1}) under the column-vector
+     * convention {@code m * v_col}. Auto-dispatches to a 4-lane SIMD implementation when the
+     * JDK Vector API module is available; otherwise computes the three components scalar.
      *
      * @param v the vector to transform
      * @param m the transformation matrix
@@ -183,16 +183,19 @@ public record Vector3f(float x, float y, float z) {
      */
     public static @NotNull Vector3f transform(@NotNull Vector3f v, @NotNull Matrix4f m) {
         if (SimdSupport.ENABLED) return SimdOps.transform(v, m);
-        float tx = v.x * m.getM11() + v.y * m.getM21() + v.z * m.getM31() + m.getM41();
-        float ty = v.x * m.getM12() + v.y * m.getM22() + v.z * m.getM32() + m.getM42();
-        float tz = v.x * m.getM13() + v.y * m.getM23() + v.z * m.getM33() + m.getM43();
+        // Row r of M is `get(1, r) get(2, r) get(3, r) get(4, r)`. The translation column
+        // (column 4) contributes the constant term for w=1.
+        float tx = m.get(1, 1) * v.x + m.get(2, 1) * v.y + m.get(3, 1) * v.z + m.get(4, 1);
+        float ty = m.get(1, 2) * v.x + m.get(2, 2) * v.y + m.get(3, 2) * v.z + m.get(4, 2);
+        float tz = m.get(1, 3) * v.x + m.get(2, 3) * v.y + m.get(3, 3) * v.z + m.get(4, 3);
         return new Vector3f(tx, ty, tz);
     }
 
     /**
-     * Transforms {@code v} by {@code m} as a direction ({@code w=0}), ignoring the translation
-     * row. Auto-dispatches to a 4-lane SIMD implementation when the JDK Vector API module is
-     * available; otherwise computes the three components scalar.
+     * Transforms {@code v} by {@code m} as a direction ({@code w=0}) under the column-vector
+     * convention {@code m * v_col}, ignoring the translation column. Auto-dispatches to a
+     * 4-lane SIMD implementation when the JDK Vector API module is available; otherwise computes
+     * the three components scalar.
      *
      * @param v the direction vector to transform
      * @param m the transformation matrix
@@ -200,9 +203,9 @@ public record Vector3f(float x, float y, float z) {
      */
     public static @NotNull Vector3f transformNormal(@NotNull Vector3f v, @NotNull Matrix4f m) {
         if (SimdSupport.ENABLED) return SimdOps.transformNormal(v, m);
-        float tx = v.x * m.getM11() + v.y * m.getM21() + v.z * m.getM31();
-        float ty = v.x * m.getM12() + v.y * m.getM22() + v.z * m.getM32();
-        float tz = v.x * m.getM13() + v.y * m.getM23() + v.z * m.getM33();
+        float tx = m.get(1, 1) * v.x + m.get(2, 1) * v.y + m.get(3, 1) * v.z;
+        float ty = m.get(1, 2) * v.x + m.get(2, 2) * v.y + m.get(3, 2) * v.z;
+        float tz = m.get(1, 3) * v.x + m.get(2, 3) * v.y + m.get(3, 3) * v.z;
         return new Vector3f(tx, ty, tz);
     }
 

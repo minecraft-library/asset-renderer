@@ -172,7 +172,8 @@ public class ModelEngine extends TextureEngine {
         @NotNull EulerRotation rotation
     ) {
         Matrix4f modelRotation = buildModelRotation(rotation);
-        Matrix4f transform = modelRotation.multiply(this.camera);
+        // Column-vector chain: modelRotation applies first to a vertex, then the camera.
+        Matrix4f transform = this.camera.multiply(modelRotation);
         rasterizeInternal(triangles, buffer, perspective, transform);
     }
 
@@ -192,7 +193,8 @@ public class ModelEngine extends TextureEngine {
         @NotNull PerspectiveParams perspective,
         @NotNull Matrix4f modelTransform
     ) {
-        Matrix4f transform = modelTransform.multiply(this.camera);
+        // Column-vector chain: modelTransform applies first to a vertex, then the camera.
+        Matrix4f transform = this.camera.multiply(modelTransform);
         rasterizeInternal(triangles, buffer, perspective, transform);
     }
 
@@ -579,7 +581,7 @@ public class ModelEngine extends TextureEngine {
 
     /**
      * Builds the model-space rotation matrix from the given Euler angles (in degrees).
-     * Applied yaw first, then pitch, then roll using the row-vector convention.
+     * Column-vector chain: yaw applies first to a vertex, then pitch, then roll.
      */
     private static @NotNull Matrix4f buildModelRotation(@NotNull EulerRotation rotation) {
         if (rotation.pitch() == 0f && rotation.yaw() == 0f && rotation.roll() == 0f) return Matrix4f.IDENTITY;
@@ -587,7 +589,7 @@ public class ModelEngine extends TextureEngine {
         Matrix4f yaw = Matrix4f.createRotationY(rotation.yawRadians());
         Matrix4f pitch = Matrix4f.createRotationX(rotation.pitchRadians());
         Matrix4f roll = Matrix4f.createRotationZ(rotation.rollRadians());
-        return yaw.multiply(pitch).multiply(roll);
+        return roll.multiply(pitch).multiply(yaw);
     }
 
     /**

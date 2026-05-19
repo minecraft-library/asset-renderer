@@ -333,27 +333,27 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (blockTris.isEmpty()) return Concurrent.newList();
 
         // Compose the per-overlay transform matrix in vanilla block units. PoseStack ops apply
-        // in bytecode order to the LOCAL frame, which means each new op goes to the LEFT in our
-        // row-vector composition - pre-multiply each op so the result {@code M = opN * ... * op1}
-        // produces the same final-vertex position as vanilla's {@code M_col = T_1 * R_2 * ...}.
+        // in bytecode order to the LOCAL frame: under the column-vector convention each new op
+        // post-multiplies, matching vanilla's PoseStack `pose = pose * newOp`. Final composite
+        // applies the most-recently-appended op first to the cube-local vertex.
         Matrix4f blockUnitChain = Matrix4f.IDENTITY;
 
-        // Optional bone anchor: prepend the bone's {@code translateAndRotate} equivalent. The
+        // Optional bone anchor: append the bone's {@code translateAndRotate} equivalent. The
         // bone's pivot is in entity pixel-units, so divide by 16 to get block units; the rotation
-        // applies as Z-Y-X around the (post-translation) origin.
+        // is built via the same {@code Quaternionf.rotationZYX} entry point vanilla uses.
         if (overlay.attachedBone() != null) {
             Vector3f pivot = EntityGeometryKit.resolveBonePivot(model, overlay.attachedBone());
             Matrix4f tBone = Matrix4f.createTranslation(
                 pivot.x() / 16f, pivot.y() / 16f, pivot.z() / 16f);
-            blockUnitChain = tBone.multiply(blockUnitChain);
+            blockUnitChain = blockUnitChain.multiply(tBone);
             EntityModelData.Bone bone = model.getBones().get(overlay.attachedBone());
             if (bone != null) {
                 EulerRotation rot = bone.getRotation();
                 if (rot.pitch() != 0f || rot.yaw() != 0f || rot.roll() != 0f) {
-                    Matrix4f rotMat = Matrix4f.createRotationZ(rot.rollRadians())
-                        .multiply(Matrix4f.createRotationY(rot.yawRadians()))
-                        .multiply(Matrix4f.createRotationX(rot.pitchRadians()));
-                    blockUnitChain = rotMat.multiply(blockUnitChain);
+                    Matrix4f rotMat = Quaternionf
+                        .rotationZYX(rot.rollRadians(), rot.yawRadians(), rot.pitchRadians())
+                        .toMatrix4f();
+                    blockUnitChain = blockUnitChain.multiply(rotMat);
                 }
             }
         }
@@ -364,23 +364,23 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 case EntityModelLoader.RotateY r -> Matrix4f.createRotationY((float) Math.toRadians(r.degrees()));
                 case EntityModelLoader.Scale s -> Matrix4f.createScale(s.x(), s.y(), s.z());
             };
-            blockUnitChain = opMat.multiply(blockUnitChain);
+            blockUnitChain = blockUnitChain.multiply(opMat);
         }
 
         // Vanilla expects block-model vertices in {@code [0, 1]} (corner-at-origin) since the
         // last pose op {@code translate(-0.5, -0.5, -0.5)} re-centers them at origin before the
         // submit. {@link BlockModelGeometryKit#buildFromElements} pre-centers the cube to
         // {@code [-0.5, 0.5]} for inventory/atlas use, so add 0.5 on each axis to recover the
-        // corner-at-origin convention before the chain applies. Pre-multiplied AFTER the chain
-        // so that, in row-vector composition, this op is the LEFTMOST in {@code M = T_uncenter
-        // * ... * pose_ops} - making it the first applied to the input vertex.
+        // corner-at-origin convention before the chain applies. Appended last so that, in
+        // column-vector composition, this op is rightmost and applies first to the input vertex.
         Matrix4f uncenter = Matrix4f.createTranslation(0.5f, 0.5f, 0.5f);
-        blockUnitChain = uncenter.multiply(blockUnitChain);
+        blockUnitChain = blockUnitChain.multiply(uncenter);
 
         // Convert block-unit positions to entity pixel-units (x16), then run the entity-fit
-        // normalization to land in the rasterizer's working frame.
+        // normalization to land in the rasterizer's working frame. Column-vector chain reads
+        // right-to-left: blockUnitChain first, then blockToPixel, then entityFit.
         Matrix4f blockToPixel = Matrix4f.createScale(16f, 16f, 16f);
-        Matrix4f finalMatrix = blockUnitChain.multiply(blockToPixel).multiply(entityFit);
+        Matrix4f finalMatrix = entityFit.multiply(blockToPixel).multiply(blockUnitChain);
 
         ConcurrentList<VisibleTriangle> out = Concurrent.newList();
         for (VisibleTriangle tri : blockTris) {
@@ -590,75 +590,71 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * Inverse of {@link #composeIsoTransform}. The composite is
-     * {@code FLIP_Y × modelRotation × engine_camera_row} which has det=-1 (FLIP_Y) × det=+1
-     * (rotation) × det=-1 (engine_camera_row from two scale(1,1,-1) outer factors with one
-     * R_Y(45°) × R_X(210°) inside) actually det(engine_camera_row) = +1 so overall det=-1. But
-     * the composite is still invertible; we build the inverse as the reversed-order product of
-     * factor inverses: {@code engine_camera_row^-1 × modelRotation^-1 × FLIP_Y^-1}. FLIP_Y is
-     * self-inverse (scale(1,-1,1) twice = identity).
+     * Inverse of {@link #composeIsoTransform}. The forward composite is
+     * {@code flipY * modelRotation * scale(1,1,-1) * isoRotation * scale(1,1,-1) * scale(1,-1,1)}
+     * in column-vector form; the inverse reverses the chain with each factor inverted. Diagonal
+     * scales and {@code flipY} are self-inverse. The two rotation factors invert via
+     * {@code rotationXYZ(x, y, z) ^ -1 = rotationZYX(-z, -y, -x)}.
      */
     private static @NotNull Matrix4f composeIsoInverse(@NotNull EulerRotation userRotation) {
         EulerRotation iso = EulerRotation.STANDARD_ISO_ENTITY;
-        // engine_camera_row = scale(1,1,-1) × R_Y(yaw) × R_X(pitch) × scale(1,1,-1) × scale(1,-1,1).
-        // Inverse: scale(1,-1,1) × scale(1,1,-1) × R_X(-pitch) × R_Y(-yaw) × scale(1,1,-1).
-        Matrix4f cameraInverse = Matrix4f.createScale(1f, -1f, 1f)
-            .multiply(Matrix4f.createScale(1f, 1f, -1f))
-            .multiply(Matrix4f.createRotationX(-iso.pitchRadians()))
-            .multiply(Matrix4f.createRotationY(-iso.yawRadians()))
-            .multiply(Matrix4f.createScale(1f, 1f, -1f));
-        Matrix4f modelRotInverse = (userRotation.pitch() == 0f && userRotation.yaw() == 0f && userRotation.roll() == 0f)
+        Matrix4f flipY = Matrix4f.createScale(1f, -1f, 1f);
+        Matrix4f scaleZneg = Matrix4f.createScale(1f, 1f, -1f);
+        Matrix4f isoRotationInverse = Quaternionf
+            .rotationZYX(0f, -iso.yawRadians(), -iso.pitchRadians())
+            .toMatrix4f();
+        Matrix4f modelRotationInverse = (userRotation.pitch() == 0f && userRotation.yaw() == 0f && userRotation.roll() == 0f)
             ? Matrix4f.IDENTITY
-            : Matrix4f.createRotationZ(-userRotation.rollRadians())
-                .multiply(Matrix4f.createRotationX(-userRotation.pitchRadians()))
-                .multiply(Matrix4f.createRotationY(-userRotation.yawRadians()));
-        Matrix4f flipYInverse = Matrix4f.createScale(1f, -1f, 1f);
-        return cameraInverse.multiply(modelRotInverse).multiply(flipYInverse);
+            : Quaternionf
+                .rotationZYX(-userRotation.rollRadians(), -userRotation.yawRadians(), -userRotation.pitchRadians())
+                .toMatrix4f();
+        // Forward = flipY * scaleZneg * isoRotation * scaleZneg * modelRotation * flipY (col-vec).
+        // Inverse reverses the factor order and inverts each. flipY and scaleZneg are diagonal
+        // self-inverses; the two rotations invert via their Quaternionf conjugate above.
+        return flipY
+            .multiply(modelRotationInverse)
+            .multiply(scaleZneg)
+            .multiply(isoRotationInverse)
+            .multiply(scaleZneg)
+            .multiply(flipY);
     }
 
     /**
      * Builds the orientation-only transform that maps a Y-down model vertex to its pre-projection
-     * screen position - matching what the rasterizer applies internally for entity rendering.
-     * The composite is {@code FLIP_X × FLIP_Y × modelRotation × engine_camera_row}:
+     * screen position - matching what the rasterizer applies internally for entity rendering. In
+     * column-vector form the composite is
+     * {@code flipY * scale(1,1,-1) * isoRotation * scale(1,1,-1) * modelRotation * flipY}, and a
+     * vertex sees the rightmost factor first. Listed in application order:
      * <ul>
-     * <li>{@code FLIP_X = scale(-1, 1, 1)} - the kit's X-axis chirality compensation applied to
-     *     vertex positions inside {@code EntityGeometryKit.buildTrianglesWithScale}; balances
-     *     out the iso camera chain's embedded reflection so total pipeline chirality matches
-     *     vanilla's harness output (model-LEFT renders at camera-LEFT).</li>
-     * <li>{@code FLIP_Y = scale(1, -1, 1)} - the kit's Y-down-to-Y-up flip applied to vertex
-     *     positions inside {@code EntityGeometryKit.buildTrianglesWithScale}.</li>
-     * <li>{@code modelRotation} - per-render user rotation (yaw × pitch × roll), composed by
-     *     {@code ModelEngine.buildModelRotation}.</li>
-     * <li>{@code engine_camera_row = scale(1,1,-1) × R_Y(45°) × R_X(210°) × scale(1,1,-1)
-     *     × scale(1,-1,1)} - {@link IsometricEngine#entityStandard}'s camera matrix.</li>
+     * <li>{@code flipY = scale(1,-1,1)} - kit Y-down-to-Y-up flip applied to the model vertex.</li>
+     * <li>{@code modelRotation} - per-render user rotation as a single
+     *     {@link Quaternionf#rotationXYZ} quaternion. Identity when the user pose is
+     *     {@link EulerRotation#NONE}.</li>
+     * <li>{@code scale(1,1,-1)} - first half of the kit's Z-axis chirality compensation.</li>
+     * <li>{@code isoRotation} - {@code Quaternionf.rotationXYZ(210°, 45°, 0°)} rotation matrix
+     *     (bit-identical to vanilla harness's iso pose).</li>
+     * <li>{@code scale(1,1,-1)} - second half of Z-axis chirality compensation.</li>
+     * <li>{@code flipY = scale(1,-1,1)} - vanilla's outer Y flip into clip space.</li>
      * </ul>
-     * Mirrors the engine's per-vertex chain so {@link EntityGeometryKit#computeScreenBounds}
-     * sees the same model-to-screen mapping. Centering / NDC scaling are translation + uniform
-     * scale that the canvas-fit math handles separately, so they aren't included here.
+     * Centering / NDC scaling are translation + uniform scale that the canvas-fit math handles
+     * separately, so they aren't included here.
      */
     private static @NotNull Matrix4f composeIsoTransform(@NotNull EulerRotation userRotation) {
         EulerRotation iso = EulerRotation.STANDARD_ISO_ENTITY;
         Matrix4f flipY = Matrix4f.createScale(1f, -1f, 1f);
-        // User rotation uses the same quat-derived path as iso rotation so any composed pitch/yaw/roll
-        // matches what JOML's `Quaternionf.rotationXYZ` would produce in vanilla's pipeline. For the
-        // common zero-rotation case we skip the quat construction entirely.
+        Matrix4f scaleZneg = Matrix4f.createScale(1f, 1f, -1f);
         Matrix4f modelRotation = (userRotation.pitch() == 0f && userRotation.yaw() == 0f && userRotation.roll() == 0f)
             ? Matrix4f.IDENTITY
             : Quaternionf.rotationXYZ(userRotation.pitchRadians(), userRotation.yawRadians(), userRotation.rollRadians()).toMatrix4f();
-        // The iso rotation matrix is the load-bearing change: vanilla harness builds
-        // {@code new Quaternionf().rotationXYZ(toRadians(210), toRadians(45), 0)} and applies its
-        // matrix form to vertices. Constructing the same matrix via {@code R_Y(45) * R_X(210)}
-        // matrix-multiply (the previous approach) yields a mathematically equivalent rotation but
-        // differs from JOML's quat-derived matrix in 7 of 16 elements at the ULP level, which
-        // accumulates to ~0.001-0.003 pixels of drift across the per-vertex chain - exactly the
-        // band the 1/400 sub-pixel snap was canceling. Going through the quat path produces
-        // bit-identical matrix coefficients to vanilla.
         Matrix4f isoRotation = Quaternionf.rotationXYZ(iso.pitchRadians(), iso.yawRadians(), 0f).toMatrix4f();
-        Matrix4f cameraEntity = Matrix4f.createScale(1f, 1f, -1f)
+        // Column-vector chain: rightmost applies first to a vertex.
+        // Application order: flipY → modelRotation → scaleZneg → isoRotation → scaleZneg → flipY.
+        return flipY
+            .multiply(scaleZneg)
             .multiply(isoRotation)
-            .multiply(Matrix4f.createScale(1f, 1f, -1f))
-            .multiply(Matrix4f.createScale(1f, -1f, 1f));
-        return flipY.multiply(modelRotation).multiply(cameraEntity);
+            .multiply(scaleZneg)
+            .multiply(modelRotation)
+            .multiply(flipY);
     }
 
     /**

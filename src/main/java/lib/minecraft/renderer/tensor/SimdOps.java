@@ -15,12 +15,15 @@ import org.jetbrains.annotations.NotNull;
  * reference the methods here only inside an {@code if (SimdSupport.ENABLED)} branch, which the
  * JVM verifies lazily.
  * <p>
- * Every method matches the operand order and accumulation sequence of the corresponding scalar
- * implementation - no fused multiply-add is used, and adds are accumulated left-to-right
- * against the row vectors in the same sequence the scalar code writes them - so results are
- * bit-identical under IEEE-754 round-to-nearest-even. The CRC32-pinned regression tests
- * ({@code ModelEngineParallelismTest}, {@code PortalRendererParallelismTest},
- * {@code FluidRendererParallelismTest}) stay valid whichever path runs.
+ * Reads {@link Matrix4f}'s column-major {@code float[16]} storage directly via
+ * {@code FloatVector.fromArray(SPECIES, m.m, col*4)} - one aligned load per column, no temp
+ * {@code float[4]} marshalling. Every method matches the operand order and accumulation
+ * sequence of the corresponding scalar implementation - no fused multiply-add is used, and adds
+ * are accumulated left-to-right against the column vectors in the same sequence the scalar code
+ * writes them - so results are bit-identical under IEEE-754 round-to-nearest-even. The
+ * CRC32-pinned regression tests ({@code ModelEngineParallelismTest},
+ * {@code PortalRendererParallelismTest}, {@code FluidRendererParallelismTest}) stay valid
+ * whichever path runs.
  *
  * @see Vector3f
  * @see Matrix4f
@@ -29,92 +32,88 @@ import org.jetbrains.annotations.NotNull;
 @UtilityClass
 class SimdOps {
 
-    /** 4-lane float species used for all matrix-row loads in this class. */
+    /** 4-lane float species used for all matrix-column loads in this class. */
     private static final @NotNull VectorSpecies<Float> SPECIES = FloatVector.SPECIES_128;
 
     /**
-     * Transforms {@code v} by {@code m} as a point ({@code w=1}). Computes the three output
-     * components in a single horizontal 4-lane accumulation instead of three independent scalar
-     * dot products. Lane 3 ({@code tw}) is computed and discarded - harmless, and avoids a mask
-     * load on every invocation.
+     * Transforms {@code v} by {@code m} as a point ({@code w=1}) under the column-vector
+     * convention {@code m * v_col}. Loads the four columns of {@code m} directly from its
+     * column-major storage and computes the three output components in a single horizontal
+     * 4-lane accumulation. Lane 3 ({@code tw}) is computed and discarded - harmless, and avoids
+     * a mask load on every invocation.
      *
      * @param v the vector to transform
      * @param m the transformation matrix
      * @return a new transformed vector
      */
     static @NotNull Vector3f transform(@NotNull Vector3f v, @NotNull Matrix4f m) {
-        FloatVector row1 = rowVector(m.getM11(), m.getM12(), m.getM13(), m.getM14());
-        FloatVector row2 = rowVector(m.getM21(), m.getM22(), m.getM23(), m.getM24());
-        FloatVector row3 = rowVector(m.getM31(), m.getM32(), m.getM33(), m.getM34());
-        FloatVector row4 = rowVector(m.getM41(), m.getM42(), m.getM43(), m.getM44());
+        float[] s = m.m;
+        FloatVector col1 = FloatVector.fromArray(SPECIES, s, 0);
+        FloatVector col2 = FloatVector.fromArray(SPECIES, s, 4);
+        FloatVector col3 = FloatVector.fromArray(SPECIES, s, 8);
+        FloatVector col4 = FloatVector.fromArray(SPECIES, s, 12);
 
-        // Per-lane: ((v.x * m{1,j} + v.y * m{2,j}) + v.z * m{3,j}) + m{4,j}. Lane 0 yields tx,
+        // Per-lane: ((m{i,1} * v.x + m{i,2} * v.y) + m{i,3} * v.z) + m{i,4}. Lane 0 yields tx,
         // lane 1 yields ty, lane 2 yields tz; lane 3 (tw) is discarded.
-        FloatVector acc = row1.mul(v.x())
-            .add(row2.mul(v.y()))
-            .add(row3.mul(v.z()))
-            .add(row4);
+        FloatVector acc = col1.mul(v.x())
+            .add(col2.mul(v.y()))
+            .add(col3.mul(v.z()))
+            .add(col4);
         return new Vector3f(acc.lane(0), acc.lane(1), acc.lane(2));
     }
 
     /**
-     * Transforms {@code v} by {@code m} as a direction ({@code w=0}), ignoring the translation
-     * row. Same horizontal-accumulation shape as {@link #transform}, minus the {@code row4}
-     * translation term.
+     * Transforms {@code v} by {@code m} as a direction ({@code w=0}) under the column-vector
+     * convention {@code m * v_col}, ignoring the translation column. Same horizontal-
+     * accumulation shape as {@link #transform}, minus the {@code col4} translation term.
      *
      * @param v the direction vector to transform
      * @param m the transformation matrix
      * @return a new transformed direction vector
      */
     static @NotNull Vector3f transformNormal(@NotNull Vector3f v, @NotNull Matrix4f m) {
-        FloatVector row1 = rowVector(m.getM11(), m.getM12(), m.getM13(), m.getM14());
-        FloatVector row2 = rowVector(m.getM21(), m.getM22(), m.getM23(), m.getM24());
-        FloatVector row3 = rowVector(m.getM31(), m.getM32(), m.getM33(), m.getM34());
+        float[] s = m.m;
+        FloatVector col1 = FloatVector.fromArray(SPECIES, s, 0);
+        FloatVector col2 = FloatVector.fromArray(SPECIES, s, 4);
+        FloatVector col3 = FloatVector.fromArray(SPECIES, s, 8);
 
-        FloatVector acc = row1.mul(v.x())
-            .add(row2.mul(v.y()))
-            .add(row3.mul(v.z()));
+        FloatVector acc = col1.mul(v.x())
+            .add(col2.mul(v.y()))
+            .add(col3.mul(v.z()));
         return new Vector3f(acc.lane(0), acc.lane(1), acc.lane(2));
     }
 
     /**
-     * Returns the product {@code a * b}. Uses row-parallel SIMD: every output row is a linear
-     * combination of {@code b}'s rows weighted by the corresponding row of {@code a}. Performs
-     * 16 SIMD muls + 12 SIMD adds (each over 4 lanes) versus the scalar 64 muls + 48 adds. Each
-     * output lane's accumulation is
-     * {@code ((a{i,1} * b{1,j} + a{i,2} * b{2,j}) + a{i,3} * b{3,j}) + a{i,4} * b{4,j}}.
+     * Returns the product {@code a * b}. Computes each column of {@code c = a * b} as a linear
+     * combination of {@code a}'s columns weighted by the corresponding column of {@code b}:
+     * {@code c_col_j = sum_k a_col_k * b[k, j]}. Stores results back into a fresh
+     * column-major {@code float[16]} via {@code FloatVector.intoArray}, producing a
+     * {@link Matrix4f} without re-marshalling sixteen scalars through the public constructor.
      *
      * @param a the left-hand matrix
      * @param b the right-hand matrix
      * @return the product matrix
      */
     static @NotNull Matrix4f multiply(@NotNull Matrix4f a, @NotNull Matrix4f b) {
-        FloatVector bRow1 = rowVector(b.getM11(), b.getM12(), b.getM13(), b.getM14());
-        FloatVector bRow2 = rowVector(b.getM21(), b.getM22(), b.getM23(), b.getM24());
-        FloatVector bRow3 = rowVector(b.getM31(), b.getM32(), b.getM33(), b.getM34());
-        FloatVector bRow4 = rowVector(b.getM41(), b.getM42(), b.getM43(), b.getM44());
+        float[] as = a.m;
+        float[] bs = b.m;
+        FloatVector aCol1 = FloatVector.fromArray(SPECIES, as, 0);
+        FloatVector aCol2 = FloatVector.fromArray(SPECIES, as, 4);
+        FloatVector aCol3 = FloatVector.fromArray(SPECIES, as, 8);
+        FloatVector aCol4 = FloatVector.fromArray(SPECIES, as, 12);
 
-        FloatVector cRow1 = bRow1.mul(a.getM11()).add(bRow2.mul(a.getM12())).add(bRow3.mul(a.getM13())).add(bRow4.mul(a.getM14()));
-        FloatVector cRow2 = bRow1.mul(a.getM21()).add(bRow2.mul(a.getM22())).add(bRow3.mul(a.getM23())).add(bRow4.mul(a.getM24()));
-        FloatVector cRow3 = bRow1.mul(a.getM31()).add(bRow2.mul(a.getM32())).add(bRow3.mul(a.getM33())).add(bRow4.mul(a.getM34()));
-        FloatVector cRow4 = bRow1.mul(a.getM41()).add(bRow2.mul(a.getM42())).add(bRow3.mul(a.getM43())).add(bRow4.mul(a.getM44()));
-
-        return new Matrix4f(
-            cRow1.lane(0), cRow1.lane(1), cRow1.lane(2), cRow1.lane(3),
-            cRow2.lane(0), cRow2.lane(1), cRow2.lane(2), cRow2.lane(3),
-            cRow3.lane(0), cRow3.lane(1), cRow3.lane(2), cRow3.lane(3),
-            cRow4.lane(0), cRow4.lane(1), cRow4.lane(2), cRow4.lane(3)
-        );
-    }
-
-    /**
-     * Builds a four-lane {@link FloatVector} from four scalar components. The temporary array
-     * does not escape the method, so HotSpot escape analysis routinely stack-allocates it -
-     * no heap pressure under sustained use.
-     */
-    private static @NotNull FloatVector rowVector(float a, float b, float c, float d) {
-        float[] lanes = { a, b, c, d };
-        return FloatVector.fromArray(SPECIES, lanes, 0);
+        float[] r = new float[16];
+        for (int j = 0; j < 4; j++) {
+            int colStart = j * 4;
+            // c_col_j = b[1,j]*a_col_1 + b[2,j]*a_col_2 + b[3,j]*a_col_3 + b[4,j]*a_col_4
+            // (column-major: b[r, c] = bs[(c-1)*4 + (r-1)], so b[k+1, j+1] = bs[j*4 + k]).
+            FloatVector cCol = aCol1.mul(bs[colStart])
+                .add(aCol2.mul(bs[colStart + 1]))
+                .add(aCol3.mul(bs[colStart + 2]))
+                .add(aCol4.mul(bs[colStart + 3]));
+            cCol.intoArray(r, colStart);
+        }
+        return new Matrix4f(r);
     }
 
 }

@@ -2,6 +2,7 @@ package lib.minecraft.renderer.engine;
 
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
+import lib.minecraft.renderer.tensor.Quaternionf;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -31,9 +32,9 @@ public class IsometricEngine extends ModelEngine {
     private static final @NotNull Matrix4f CAMERA = buildGuiDisplayTransform(EulerRotation.STANDARD_ISO_BLOCK);
 
     /**
-     * Vanilla's full entity-preview transform chain {@code scale(1,1,-1) × R_X(210°) × R_Y(45°)
-     * × R_X(180°)} expressed in the row-vector form our row-form rasterizer consumes, AFTER
-     * accounting for the kit's pre-applied {@code FLIP_Y} on positions.
+     * Vanilla's full entity-preview transform chain expressed as the column-vector matrix our
+     * column-form rasterizer consumes, AFTER accounting for the kit's pre-applied
+     * {@code FLIP_Y} on positions.
      * <p>
      * The harness applies (col form, applied to a Y-down model vertex right-to-left):
      * <pre>
@@ -43,14 +44,11 @@ public class IsometricEngine extends ModelEngine {
      *   × R_X(180°)   LER chirality (scale(-1,-1,1)) + setupRotations (rotateY(180°))
      * </pre>
      * Our pipeline applies kit {@code FLIP_Y = diag(1,-1,1)} to positions before the engine sees
-     * them, so the engine's camera matrix must convert that Y-flipped vertex to the same screen
-     * output. Solving {@code FLIP_Y_row × engine_camera_row = M_harness_col^T}:
-     * <pre>
-     * engine_camera_row = scale(1,-1,1) × R_X(180°) × R_Y(45°) × R_X(210°) × scale(1,1,-1)
-     *                   = scale(1,1,-1) × R_Y(45°) × R_X(210°) × scale(1,1,-1)
-     * </pre>
-     * (simplification: {@code scale(1,-1,1) × R_X(180°)} algebraically equals {@code diag(1,-1,1)
-     * × diag(1,-1,-1) = diag(1,1,-1)}).
+     * them. The trailing {@code scale(1,-1,1)} absorbs the kit's flip into the camera matrix
+     * (and simplifies {@code scale(1,-1,1) × R_X(180°) = diag(1,1,-1)} so two outer
+     * {@code scale(1,1,-1)} factors remain). Equivalent to
+     * {@code scale(1,1,-1) × R_Y(yaw) × R_X(pitch) × scale(1,1,-1) × scale(1,-1,1)} in
+     * column-vector form, applied right-to-left to a model vertex.
      * <p>
      * The two outer {@code scale(1,1,-1)} factors give a det=-1 transform total - matching the
      * harness's odd-reflection-count chirality. The simpler {@code Quaternionf.rotationXYZ(210°,
@@ -61,19 +59,18 @@ public class IsometricEngine extends ModelEngine {
 
     private static @NotNull Matrix4f buildEntityCameraTransform() {
         EulerRotation iso = EulerRotation.STANDARD_ISO_ENTITY;
-        // Trailing scale(1,-1,1) compensates for the opposite Y-invert conventions between vanilla
-        // and our pipelines. Vanilla's projection uses {@code invertY=true} which maps world +y to
-        // the BOTTOM of the output image (vanilla's pose stack works in image-Y-down at projection
-        // input). Our {@code RenderEngine.projectPerspective} does {@code -point.y} which maps
-        // pre-projection +y to the TOP of the output image (we work in screen-Y-up at projection
-        // input). The math-derived matrix above {@code scale(1,1,-1) × R_Y × R_X × scale(1,1,-1)}
-        // produces vanilla's pre-projection coordinates, but vanilla's image-Y-down vs our
-        // screen-Y-up means an extra Y-negate is required so the image positions line up.
-        return Matrix4f.createScale(1f, 1f, -1f)
-            .multiply(Matrix4f.createRotationY(iso.yawRadians()))
-            .multiply(Matrix4f.createRotationX(iso.pitchRadians()))
+        // Column-vector chain reading rightmost-first: scale(1,-1,1) * scale(1,1,-1) * R_X(pitch)
+        // * R_Y(yaw) * scale(1,1,-1). Applied to a kit-flipped Y-up vertex:
+        //   (1) scale(1,1,-1) - inner Z-axis chirality
+        //   (2) R_Y(yaw)      - iso yaw
+        //   (3) R_X(pitch)    - iso pitch
+        //   (4) scale(1,1,-1) - outer Z-axis chirality
+        //   (5) scale(1,-1,1) - vanilla image-Y-down vs our screen-Y-up compensation
+        return Matrix4f.createScale(1f, -1f, 1f)
             .multiply(Matrix4f.createScale(1f, 1f, -1f))
-            .multiply(Matrix4f.createScale(1f, -1f, 1f));
+            .multiply(Matrix4f.createRotationX(iso.pitchRadians()))
+            .multiply(Matrix4f.createRotationY(iso.yawRadians()))
+            .multiply(Matrix4f.createScale(1f, 1f, -1f));
     }
 
     private IsometricEngine(@NotNull RendererContext context, @NotNull Matrix4f camera) {
@@ -127,26 +124,14 @@ public class IsometricEngine extends ModelEngine {
 
     /**
      * Builds the matrix equivalent of vanilla's {@code Quaternionf.rotationXYZ(x, y, z)} for
-     * a {@code display.*} transform's Euler angles in degrees.
-     * <p>
-     * JOML's {@code rotationXYZ} produces the quaternion {@code q_x * q_y * q_z}; when that
-     * quaternion rotates a vector {@code q * v * q^-1}, the rotations apply to the vector in
-     * the order Z, then Y, then X (innermost first). The equivalent column-vector matrix is
-     * {@code R_x * R_y * R_z}. Under this codebase's row-vector convention ({@code v * M}) the
-     * correct composition is therefore the transpose, {@code R_z * R_y * R_x}, which is
-     * exactly {@link Matrix4f#createRotationZ createRotationZ} {@link Matrix4f#multiply
-     * multiply} {@link Matrix4f#createRotationY createRotationY} {@link Matrix4f#multiply
-     * multiply} {@link Matrix4f#createRotationX createRotationX}.
-     * <p>
-     * Getting the order right matters: swapping it to {@code Rx * Ry * Rz} produces the same
-     * math for single-axis rotations but silently flips the tilt direction for compound poses
-     * like the standard {@code [30, 225, 0]} block-icon pose, which shows up as the block's
-     * bottom face being visible instead of the top.
+     * a {@code display.*} transform's Euler angles in degrees. Bit-identical to vanilla's
+     * {@code new Matrix4f().rotation(new Quaternionf().rotationXYZ(...))} by routing through
+     * the same {@link Quaternionf} quaternion-to-matrix conversion.
      */
     private static @NotNull Matrix4f buildGuiDisplayTransform(@NotNull EulerRotation rotation) {
-        return Matrix4f.createRotationZ(rotation.rollRadians())
-            .multiply(Matrix4f.createRotationY(rotation.yawRadians()))
-            .multiply(Matrix4f.createRotationX(rotation.pitchRadians()));
+        return Quaternionf
+            .rotationXYZ(rotation.pitchRadians(), rotation.yawRadians(), rotation.rollRadians())
+            .toMatrix4f();
     }
 
 }

@@ -28,6 +28,7 @@ import lib.minecraft.renderer.kit.TrimKit;
 import lib.minecraft.renderer.options.ItemOptions;
 import lib.minecraft.renderer.pipeline.pack.ItemContext;
 import lib.minecraft.renderer.tensor.Matrix4f;
+import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.text.font.MinecraftFont;
 import lombok.RequiredArgsConstructor;
@@ -573,12 +574,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          * <p>
          * Applied to a row vector in the order <b>scale, then rotate, then translate</b>, which
          * is what vanilla produces for {@code poseStack.scale(); poseStack.mulPose(rXYZ);
-         * poseStack.translate();}. The rotation composition itself has to be
-         * {@code R_z * R_y * R_x} (row-vector convention) to match JOML's
-         * {@code Quaternionf.rotationXYZ(x, y, z)} - that quaternion rotates a vector in
-         * Z-then-Y-then-X order innermost-first, whose column-vector matrix is
-         * {@code R_x * R_y * R_z} and transposes to {@code R_z * R_y * R_x} under row vectors.
-         * Getting the rotation order wrong silently flips the tilt direction of compound poses.
+         * poseStack.translate();}. Column-vector composition: rightmost (translation) applies
+         * first to a vertex, then rotation, then scale - matching the PoseStack op sequence.
          */
         private static @NotNull Matrix4f resolveDisplayTransform(@NotNull Item item, @NotNull String slot) {
             ModelTransform transform = item.getModel().getDisplay().get(slot);
@@ -586,9 +583,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
             Matrix4f scale = Matrix4f.createScale(transform.getScaleX(), transform.getScaleY(), transform.getScaleZ());
             EulerRotation angles = transform.getRotation();
-            Matrix4f rotation = Matrix4f.createRotationZ(angles.rollRadians())
-                .multiply(Matrix4f.createRotationY(angles.yawRadians()))
-                .multiply(Matrix4f.createRotationX(angles.pitchRadians()));
+            Matrix4f rotation = Quaternionf
+                .rotationXYZ(angles.pitchRadians(), angles.yawRadians(), angles.rollRadians())
+                .toMatrix4f();
             // Vanilla display transforms use sub-unit translation values in {@code /16} space;
             // apply them to the model vertex positions directly since our unit cube is already
             // normalized.

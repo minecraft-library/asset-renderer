@@ -539,13 +539,16 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * to pre-transform the geometry before the gui display transform.
          */
         private static @NotNull Matrix4f buildVariantRotation(@NotNull Block.Variant variant) {
+            // Column-vector iteration: pre-multiply each rotation so the most-recent factor is
+            // leftmost and applies last to a vertex. Vanilla blockstate variant rotations apply
+            // Y first, then X, both as PoseStack post-mul steps.
             Matrix4f result = Matrix4f.IDENTITY;
 
             if (variant.y() != 0)
-                result = result.multiply(Matrix4f.createRotationY((float) Math.toRadians(-variant.y())));
+                result = Matrix4f.createRotationY((float) Math.toRadians(-variant.y())).multiply(result);
 
             if (variant.x() != 0)
-                result = result.multiply(Matrix4f.createRotationX((float) Math.toRadians(-variant.x())));
+                result = Matrix4f.createRotationX((float) Math.toRadians(-variant.x())).multiply(result);
 
             return result;
         }
