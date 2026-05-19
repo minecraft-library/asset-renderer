@@ -701,19 +701,6 @@ public final class ToolingBlockEntities {
         }
 
         /**
-         * Drops bones whose ancestor chain (self -> root) contains no name in
-         * {@link ParseState#retainedNames}. Mirrors the effect of
-         * {@code PartDefinition.retainPartsAndChildren(Set)} on the mesh root: vanilla replaces
-         * every non-retained bone's cubes with empty (recursing through children, leaving
-         * subtrees rooted at a retained name fully intact). Since {@link #flushPendingBone}
-         * skips JSON emission for cube-less bones, removing the JSON entry produces the same
-         * render output as vanilla's "strip cubes, keep empty placeholder" path.
-         *
-         * <p>No-op when {@code retainedNames} is null (no filter requested) or empty (vanishingly
-         * unusual, would drop every bone). Walks via {@link ParseState#boneParents} populated
-         * during {@link #flushPendingBone}.
-         */
-        /**
          * Resolves a {@code GETSTATIC <owner>.<name> : MeshTransformer} reference back to the
          * scaling factor F by walking the owning class's {@code <clinit>}. Matches the canonical
          * pattern
@@ -832,6 +819,19 @@ public final class ToolingBlockEntities {
             }
         }
 
+        /**
+         * Drops bones whose ancestor chain (self -> root) contains no name in
+         * {@link ParseState#retainedNames}. Mirrors the effect of
+         * {@code PartDefinition.retainPartsAndChildren(Set)} on the mesh root: vanilla replaces
+         * every non-retained bone's cubes with empty (recursing through children, leaving
+         * subtrees rooted at a retained name fully intact). Since {@link #flushPendingBone}
+         * skips JSON emission for cube-less bones, removing the JSON entry produces the same
+         * render output as vanilla's "strip cubes, keep empty placeholder" path.
+         *
+         * <p>No-op when {@code retainedNames} is null (no filter requested) or empty (vanishingly
+         * unusual, would drop every bone). Walks via {@link ParseState#boneParents} populated
+         * during {@link #flushPendingBone}.
+         */
         private static void applyRetainedNamesFilter(@NotNull ParseState state) {
             Set<String> retained = state.retainedNames;
             if (retained == null) return;
@@ -1441,19 +1441,19 @@ public final class ToolingBlockEntities {
                 return;
             }
             // Mth.cos(D)F / Mth.sin(D)F: vanilla model factories occasionally precompute bind-pose
-            // offsets via {@code -2 + cos(0.2042) * 10} (WitherBossModel.createBodyLayer's tail
-            // offset) or similar inline trig. Pop the top double from numStack, compute the
-            // result, push the float so the surrounding FMUL / FADD chain folds correctly.
-            // Gated on {@code paramFloatValues != null} so bedrock block-entity sources keep
-            // their byte-stable parse - none observed call Mth.cos/sin during their layer build.
-            // <p>
-            // Vanilla's {@code Mth.cos(double)} / {@code Mth.sin(double)} are a 65536-entry sin
-            // table lookup, NOT {@code Math.cos / Math.sin}. The table values differ from libm
-            // by up to 1.8e-5 (sin table granularity ~9.6e-5 rad). Using {@code Math.cos} here
-            // computes the right rotation but a slightly different float result, which drives
-            // 1-pixel canvas-height drift on entities whose pivots depend on these (wither tail
-            // pivot Y is 16.6924076 in vanilla via Mth, 16.6922283 via Math). Route through
-            // {@link FastTrig#cos} / {@link FastTrig#sin} to match vanilla exactly.
+            // offsets via inline trig - e.g. WitherBossModel.createBodyLayer's tail pivot
+            // (6.9 + Mth.cos(0.20420352F) * 10 for Y, -0.5 + Mth.sin(0.20420352F) * 10 for Z).
+            // Pop the top double from numStack, compute the result via the FastTrig table lookup,
+            // push the float so the surrounding FMUL / FADD chain folds correctly. Gated on
+            // paramFloatValues != null so bedrock block-entity sources keep their byte-stable
+            // parse - none observed call Mth.cos / sin during their layer build.
+            //
+            // Vanilla's Mth.cos(double) / Mth.sin(double) are 65536-entry sin-table lookups,
+            // NOT Math.cos / Math.sin. The table values differ from libm by up to 1.8e-5 (table
+            // granularity 2*PI/65536). Substituting Math.cos here would compute the right
+            // rotation but a slightly different float result, enough to flip the wither tail
+            // pivot Y across a canvas-pixel rounding boundary (Math: 16.6922283, Mth: 16.6924076).
+            // FastTrig.cos / sin reproduce vanilla's bytecode bit-for-bit.
             if (state.paramFloatValues != null
                 && opcode == Opcodes.INVOKESTATIC
                 && methodInsn.owner.equals("net/minecraft/util/Mth")
@@ -1691,8 +1691,9 @@ public final class ToolingBlockEntities {
         /**
          * Warns when {@code state.numStack} has fewer than {@code required} entries at a
          * builder-dispatch site. The pop still proceeds with zero-fill (via
-         * {@link #popInt} / {@link #popFloat}'s empty-stack fallback), but the diagnostic
-         * surfaces the underflow so a bogus-coord cube doesn't silently ship.
+         * {@link #popIntWithDiagnostics} / {@link #popFloatWithDiagnostics}'s empty-stack
+         * fallback), but the diagnostic surfaces the underflow so a bogus-coord cube doesn't
+         * silently ship.
          */
         private static void requireStack(@NotNull ParseState state, int required, @NotNull String where) {
             if (state.diagnostics == null || state.currentSource == null) return;
@@ -2374,14 +2375,6 @@ public final class ToolingBlockEntities {
         }
 
         /**
-         * Pops an int from whichever stack the current parser config feeds branch evaluators.
-         * When {@code paramFloatValues != null} (Java pipeline) ints flow through {@code numStack}
-         * so the call-site-propagated literal can also feed {@code IADD/ISUB/...} arithmetic;
-         * when {@code paramFloatValues == null} (bedrock block-entity sources) the legacy
-         * branchStack consumer is preserved. Returns {@code null} when neither stack has a
-         * value, signalling the caller to fall through linearly.
-         */
-        /**
          * Returns whether {@code target} occurs after {@code source} in {@code instructions}.
          * The walker follows forward jumps to skip the not-taken branch of an if/else; backward
          * jumps (loop tails) would loop the linear walker forever, so this guard returns
@@ -2392,11 +2385,19 @@ public final class ToolingBlockEntities {
             return target != null && instructions.indexOf(target) > instructions.indexOf(source);
         }
 
+        /**
+         * Pops an int from whichever stack the current parser config feeds branch evaluators.
+         * When {@code paramFloatValues != null} (Java pipeline) ints flow through {@code numStack}
+         * so the call-site-propagated literal can also feed {@code IADD/ISUB/...} arithmetic;
+         * when {@code paramFloatValues == null} (bedrock block-entity sources) the legacy
+         * branchStack consumer is preserved. Returns {@code null} when neither stack has a
+         * value, signalling the caller to fall through linearly.
+         */
         private static @Nullable Integer popIntForBranch(@NotNull ParseState state) {
             if (state.paramFloatValues != null && !state.numStack.isEmpty())
                 return state.numStack.removeLast().intValue();
             if (!state.branchStack.isEmpty())
-                return state.branchStack.remove(state.branchStack.size() - 1);
+                return state.branchStack.removeLast();
             return null;
         }
 
@@ -2448,11 +2449,11 @@ public final class ToolingBlockEntities {
         }
 
         /**
-         * {@link #popInt} with a {@link NonLiteralMarker} check that surfaces a {@code WARN:}
-         * through {@link ParseState#diagnostics} identifying the entity id and the dispatch
-         * site. Used by builder handlers whose coord/uv arg is expected to be a literal; when
-         * a method was compiled with the value in a local variable populated by computation,
-         * the resulting zero-fill is called out instead of silently baked.
+         * Pops an int from {@code state.numStack} with a {@link NonLiteralMarker} check that
+         * surfaces a {@code WARN:} through {@link ParseState#diagnostics} identifying the entity
+         * id and the dispatch site. Used by builder handlers whose coord/uv arg is expected to
+         * be a literal; when a method was compiled with the value in a local variable populated
+         * by computation, the resulting zero-fill is called out instead of silently baked.
          */
         private static int popIntWithDiagnostics(@NotNull ParseState state, @NotNull String where) {
             if (state.numStack.isEmpty()) return 0;
@@ -3100,9 +3101,8 @@ public final class ToolingBlockEntities {
          * vanilla's per-vertex UVs exactly.
          * <p>
          * The UV strip layout encoded here is also <i>different</i> from the Bedrock Edition
-         * geo.json strip layout encoded in
-         * {@link BlockFace#defaultUv(int[], float[], float, float, boolean)}. Those are two
-         * distinct Mojang conventions and must stay separate.
+         * geo.json strip layout encoded in {@code BlockFace.defaultUv(Vector2f, Vector3f)}. Those
+         * are two distinct Mojang conventions and must stay separate.
          */
         private enum ModelPartPolygonFace {
             // DOWN: vertices v24, v23, v19, v20; UV (u+d, v, u+d+w, v+d)
