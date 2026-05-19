@@ -473,6 +473,9 @@ public class ModelEngine extends TextureEngine {
     private static final float SUBPIXEL_PRECISION = 400f;
     private static final float SUBPIXEL_INV = 1f / SUBPIXEL_PRECISION;
 
+    private static final boolean SUBPIXEL_SNAP_ENABLED =
+        !"false".equalsIgnoreCase(System.getProperty("entity.snapSubPixel", "true"));
+
     /**
      * Snaps a screen-space vertex position to the {@link #SUBPIXEL_PRECISION 1/400 sub-pixel
      * grid}. Applied at projection-output time (after the iso transform composes its
@@ -485,8 +488,12 @@ public class ModelEngine extends TextureEngine {
      * illager family (witch 1.31 -> 0.12, evoker 1.06 -> 0.10, vindicator 0.68 -> 0.12,
      * illusioner 0.49 -> 0.12) plus silverfish (0.33 -> 0.03) into the sub-0.25 bucket without
      * regressing any entity by &gt; 0.04. See {@code notes/barycentric-precision.md}.
+     *
+     * <p>Gated by {@code -Dentity.snapSubPixel=false} so the precision-hunt baseline can run
+     * without the band-aid and isolate the upstream float drift class.
      */
     private static @NotNull Vector2f snapSubPixel(@NotNull Vector2f v) {
+        if (!SUBPIXEL_SNAP_ENABLED) return v;
         return new Vector2f(Math.round(v.x() * SUBPIXEL_PRECISION) * SUBPIXEL_INV,
                             Math.round(v.y() * SUBPIXEL_PRECISION) * SUBPIXEL_INV);
     }
