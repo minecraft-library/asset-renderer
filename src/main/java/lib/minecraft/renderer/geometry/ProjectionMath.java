@@ -14,6 +14,15 @@ import org.jetbrains.annotations.NotNull;
 public class ProjectionMath {
 
     /**
+     * Sub-pixel precision for the fixed-point coverage test. {@code 256} matches GPU 8-bit
+     * sub-pixel hardware. Precision sweep on the full entity fleet (2026-05-20) showed the
+     * <code>&lt;0.25</code> bucket saturates at 86 entities for any {@code P >= 256} and degrades
+     * below ({@code P=64} gives 82, {@code P=16} gives 60). Held as a constant: the GPU's
+     * rasterization precision is a hardware property, not a tunable parameter.
+     */
+    private static final int FIXED_POINT_PRECISION = 256;
+
+    /**
      * Computes the barycentric denominator for a triangle. Used by the rasterizer to reject
      * degenerate triangles (denominator near zero) and to divide out the barycentric numerators.
      *
@@ -86,131 +95,48 @@ public class ProjectionMath {
     }
 
     /**
-     * Tests whether a barycentric coordinate triple falls inside the triangle. All three values
-     * must be non-negative.
-     *
-     * @param uvw the barycentric triple
-     * @return {@code true} if the point lies within the triangle
-     */
-    public static boolean isInsideTriangle(float @NotNull [] uvw) {
-        return uvw[0] >= 0f && uvw[1] >= 0f && uvw[2] >= 0f;
-    }
-
-    /**
-     * Tests whether a barycentric coordinate triple falls inside the triangle, applying the
-     * OpenGL top-left fill rule for pixels lying exactly on a triangle edge. Vanilla's GPU
-     * rasterizer assigns each edge pixel to exactly one of the two adjacent triangles - the
-     * one whose owned edge is a TOP or LEFT edge (in CW Y-down screen space, that means
-     * horizontal edges going LEFT or non-horizontal edges going DOWN). Without this rule,
-     * our {@link #isInsideTriangle plain inclusion} test double-counts shared-edge pixels
-     * across both adjacent triangles, which double-rasterises at axis-aligned cube face
-     * edges and produces alpha-blend stacking that doesn't match vanilla.
+     * Tests whether the sample {@code (px, py)} lies inside the triangle {@code (v0, v1, v2)}
+     * using sub-pixel-fixed-point edge functions at {@link #FIXED_POINT_PRECISION 1/256}
+     * precision. Replaces the prior float-bary {@code >= 0} path which fired the OpenGL
+     * top-left fill rule only when float arithmetic happened to land exactly on zero - a
+     * fragile condition at axis-aligned cube edges where some chains produce exact
+     * integer-multiple coordinates and others produce sub-ULP offsets.
      * <p>
-     * Front-facing triangles in our pipeline are CW in Y-down screen space (det=-1 chirality
-     * means model CCW projects to screen CW). For each edge i the test is:
-     * <ul>
-     * <li>{@code bary[i] > 0}: strictly inside relative to edge i - always include</li>
-     * <li>{@code bary[i] == 0}: on edge i - include only if edge i is a TOP or LEFT edge</li>
-     * <li>{@code bary[i] < 0}: outside relative to edge i - exclude</li>
-     * </ul>
-     * Edge i is opposite vertex i. The barycentric layout pairs {@code u=bary[0]} with edge
-     * {@code v1→v2}, {@code v=bary[1]} with edge {@code v2→v0}, {@code w=bary[2]} with edge
-     * {@code v0→v1}.
-     *
-     * @param uvw the barycentric triple
-     * @param v0 the triangle's first screen-space vertex
-     * @param v1 the triangle's second screen-space vertex
-     * @param v2 the triangle's third screen-space vertex
-     * @return {@code true} if the point is owned by this triangle under the top-left rule
-     */
-    public static boolean isInsideTriangleTopLeft(
-        float @NotNull [] uvw,
-        @NotNull Vector2f v0,
-        @NotNull Vector2f v1,
-        @NotNull Vector2f v2
-    ) {
-        if (uvw[0] < 0f || uvw[1] < 0f || uvw[2] < 0f) return false;
-        if (uvw[0] == 0f && !isTopOrLeftEdge(v1, v2)) return false;
-        if (uvw[1] == 0f && !isTopOrLeftEdge(v2, v0)) return false;
-        if (uvw[2] == 0f && !isTopOrLeftEdge(v0, v1)) return false;
-        return true;
-    }
-
-    /**
-     * Returns {@code true} if the directed edge from {@code start} to {@code end} is a top or
-     * left edge in CW Y-down screen space - the OpenGL fill-rule classification for which
-     * adjacent triangle "owns" a shared-edge pixel.
-     * <ul>
-     * <li>Top edge: horizontal ({@code start.y == end.y}) going left ({@code start.x > end.x})</li>
-     * <li>Left edge: non-horizontal going down ({@code end.y > start.y})</li>
-     * </ul>
-     */
-    private static boolean isTopOrLeftEdge(@NotNull Vector2f start, @NotNull Vector2f end) {
-        if (start.y() == end.y()) return start.x() > end.x();
-        return end.y() > start.y();
-    }
-
-    /**
-     * Sub-pixel precision for {@link #isInsideTriangleFixedPoint fixed-point coverage}. Default
-     * {@code 256} matches typical GPU 8-bit sub-pixel precision. Tunable via
-     * {@code -Dentity.fixedPointPrecision=N} for sweep experiments.
-     */
-    private static final int FIXED_POINT_PRECISION =
-        Integer.parseInt(System.getProperty("entity.fixedPointPrecision", "256"));
-
-    /**
-     * Enables sub-pixel-fixed-point edge function rasterization. Default {@code true} - the
-     * fixed-point path is the primary rasterization rule. {@link lib.minecraft.renderer.engine.ModelEngine
-     * ModelEngine} routes inside-triangle tests through {@link #isInsideTriangleFixedPoint};
-     * when false, the legacy float {@link #isInsideTriangleTopLeft} path is used.
-     * <p>
-     * Empirical result (2026-05-20): fixed-point at {@link #FIXED_POINT_PRECISION 1/256} sub-pixel
-     * precision lifts snap-off parity from 78/92/95/95 to 86/97/99/99 buckets (full-fleet sweep),
-     * exceeding the snap-on band-aid baseline (84/96/99/99). Disables exact-edge ambiguity at the
-     * cube's shared-face vertical edges where asset's chain produced float-exact integer-aligned
-     * vertices and vanilla's chain produced sub-ULP-offset vertices: integer math is deterministic
-     * regardless of upstream FP drift. Witch dropped from 1.31 to 0.12, squid from 0.60 to 0.13,
-     * glow_squid from 0.48 to 0.12 in the snap-off configuration.
-     * <p>
-     * Disable via {@code -Dentity.fixedPoint=false} when bisecting regressions.
-     */
-    public static final boolean FIXED_POINT_ENABLED =
-        !"false".equalsIgnoreCase(System.getProperty("entity.fixedPoint", "true"));
-
-    /**
-     * Sub-pixel-fixed-point inside-triangle test with top-left rule. Quantizes both vertex
-     * coordinates and the sample point to a {@link #FIXED_POINT_PRECISION}-resolution grid, then
-     * computes edge functions as 64-bit integer cross products. At exact-edge cases (edge function
-     * {@code == 0}), applies the standard top-left rule via the edges' quantized directions.
-     * <p>
-     * This is the precision-hunt entry point for the witch x=21 residual: vanilla's GPU
-     * rasterizes via sub-pixel-fixed-point edge functions, while our float
-     * {@link #isInsideTriangleTopLeft} path fires {@code bary[i] == 0f} only when float
-     * arithmetic happens to land exactly on zero - a fragile condition at axis-aligned cube edges
-     * where some chains produce exact integer-multiple coordinates and others produce sub-ULP
-     * offsets. Integer math makes the edge classification deterministic regardless of upstream
-     * float drift.
+     * Vanilla's GPU rasterizes via sub-pixel-fixed-point edge functions (hardware sub-pixel
+     * precision is typically 4-bit or 8-bit, matching our 1/256 grid); this is the same
+     * convention, applied in software. Integer math makes the edge classification
+     * deterministic regardless of upstream FP drift.
      * <p>
      * Algorithm:
      * <ol>
-     * <li>Round each vertex and the sample to integer multiples of {@code 1/FIXED_POINT_PRECISION}.</li>
-     * <li>Compute edge functions {@code e_12, e_20, e_01} as long-integer 2D cross products.
-     *     {@code e_12} pairs with {@code bary[0]} (opposite {@code v0}), etc.</li>
-     * <li>Compute the triangle's signed-area determinant {@code denom} as a long-integer cross.</li>
-     * <li>Inside test: all three edge functions have the same sign as {@code denom} (or are zero).</li>
-     * <li>Top-left rule at edges where {@code e_ij == 0}: include only if the directed edge
-     *     {@code v_i -> v_j} is a top or left edge per the existing CW Y-down classification
-     *     (horizontal going left, or non-horizontal going down).</li>
+     * <li>Quantize each vertex and the sample to {@code 1/FIXED_POINT_PRECISION} units. The
+     *     {@code double} cast before multiplication avoids float overflow at large screen
+     *     coords ({@code Math.round} is exact in double).</li>
+     * <li>Compute edge functions {@code e_12, e_20, e_01} as 64-bit integer 2D cross products.
+     *     {@code e_12} pairs with {@code bary[0]} (opposite {@code v0}), and so on.</li>
+     * <li>Compute the triangle's signed-area determinant {@code denom} as a 64-bit cross
+     *     product. Sign-normalize the edges relative to {@code denom} so 'inside' means all
+     *     three are {@code >= 0} regardless of triangle winding.</li>
+     * <li>Inside test: all three edge functions {@code >= 0}.</li>
+     * <li>OpenGL top-left fill rule at edges where {@code e_ij == 0}: include the sample
+     *     only if the directed edge {@code v_i -> v_j} is a top or left edge (horizontal
+     *     going left, or non-horizontal going down) in CW Y-down screen space. This rule
+     *     ensures exactly one of two adjacent triangles owns each shared-edge pixel.</li>
      * </ol>
+     * <p>
+     * Empirical (2026-05-20): {@code 86/97/99/99} fleet parity buckets, +2 in {@code <0.25}
+     * vs the prior float-bary path's {@code 84/96/99/99}. Witch dropped from {@code 1.31}
+     * to {@code 0.12} in snap-off, squid from {@code 0.60} to {@code 0.13}, glow_squid from
+     * {@code 0.48} to {@code 0.12}.
      *
      * @param v0 the triangle's first screen-space vertex
      * @param v1 the triangle's second screen-space vertex
      * @param v2 the triangle's third screen-space vertex
      * @param px the sample point's x coordinate (typically pixel-center {@code px + 0.5f})
      * @param py the sample point's y coordinate (typically pixel-center {@code py + 0.5f})
-     * @return {@code true} if the sample is owned by this triangle under the fixed-point top-left rule
+     * @return {@code true} if the sample is owned by this triangle under the top-left rule
      */
-    public static boolean isInsideTriangleFixedPoint(
+    public static boolean isInsideTriangle(
         @NotNull Vector2f v0,
         @NotNull Vector2f v1,
         @NotNull Vector2f v2,
@@ -238,15 +164,33 @@ public class ProjectionMath {
 
         if (denom == 0L) return false;
 
-        // Normalize signs so 'inside' means all edges >= 0 regardless of triangle winding.
+        // Sign-normalize so 'inside' means all edges >= 0 regardless of winding.
         if (denom < 0L) { e12 = -e12; e20 = -e20; e01 = -e01; }
 
         if (e12 < 0L || e20 < 0L || e01 < 0L) return false;
 
-        if (e12 == 0L && !isTopOrLeftEdge(v1, v2)) return false;
-        if (e20 == 0L && !isTopOrLeftEdge(v2, v0)) return false;
-        if (e01 == 0L && !isTopOrLeftEdge(v0, v1)) return false;
+        // Top-left fill rule at exact-edge cases. Quantized integer endpoints decide
+        // direction; classification matches the standard OpenGL CW Y-down convention.
+        if (e12 == 0L && !isTopOrLeftEdge(x1, y1, x2, y2)) return false;
+        if (e20 == 0L && !isTopOrLeftEdge(x2, y2, x0, y0)) return false;
+        if (e01 == 0L && !isTopOrLeftEdge(x0, y0, x1, y1)) return false;
         return true;
+    }
+
+    /**
+     * Returns {@code true} if the directed edge from {@code (sx, sy)} to {@code (ex, ey)}
+     * is a top or left edge in CW Y-down screen space - the OpenGL fill-rule classification
+     * for which adjacent triangle "owns" a shared-edge pixel. Operates on the sub-pixel
+     * fixed-point endpoints so the classification is deterministic regardless of upstream
+     * float drift.
+     * <ul>
+     * <li>Top edge: horizontal ({@code sy == ey}) going left ({@code sx > ex})</li>
+     * <li>Left edge: non-horizontal going down ({@code ey > sy})</li>
+     * </ul>
+     */
+    private static boolean isTopOrLeftEdge(long sx, long sy, long ex, long ey) {
+        if (sy == ey) return sx > ex;
+        return ey > sy;
     }
 
     /**

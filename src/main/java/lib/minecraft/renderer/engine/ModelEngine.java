@@ -355,12 +355,8 @@ public class ModelEngine extends TextureEngine {
             for (int py = pyStart; py <= pyEnd; py++) {
                 for (int px = bounds[0]; px <= bounds[2]; px++) {
                     ProjectionMath.barycentricInto(t.s0, t.s1, t.s2, px + 0.5f, py + 0.5f, bary);
-                    boolean inside = ProjectionMath.FIXED_POINT_ENABLED
-                        ? ProjectionMath.isInsideTriangleFixedPoint(t.s0, t.s1, t.s2, px + 0.5f, py + 0.5f)
-                        : ProjectionMath.isInsideTriangleTopLeft(bary, t.s0, t.s1, t.s2);
-                    if (!inside) {
+                    if (!ProjectionMath.isInsideTriangle(t.s0, t.s1, t.s2, px + 0.5f, py + 0.5f)) {
                         if (pixelDumpContains(px, py)) {
-                            ProjectionMath.barycentricInto(t.s0, t.s1, t.s2, px + 0.5f, py + 0.5f, bary);
                             System.out.println("[PX]\tSKIP-FILL\t" + px + "\t" + py + "\t\t"
                                 + t.source.debugTag() + "\tbary=" + bary[0] + "," + bary[1] + "," + bary[2]);
                         }
@@ -384,7 +380,15 @@ public class ModelEngine extends TextureEngine {
                     int tx = Math.clamp((int) (u * texture.width()), 0, texture.width() - 1);
                     int ty = Math.clamp((int) (v * texture.height()), 0, texture.height() - 1);
                     int rawTexel = texture.getPixel(tx, ty);
-                    if (ColorMath.alpha(rawTexel) == 0) continue;
+                    if (ColorMath.alpha(rawTexel) == 0) {
+                        if (pixelDumpContains(px, py)) {
+                            System.out.println("[PX]\tSKIP-ALPHA\t" + px + "\t" + py + "\t" + depthVal
+                                + "\t" + t.source.debugTag()
+                                + "\tu=" + u + "\tv=" + v + "\ttx=" + tx + "\tty=" + ty
+                                + "\trawARGB=" + hexArgb(rawTexel));
+                        }
+                        continue;
+                    }
 
                     int afterTint = t.source.tintArgb() != ColorMath.WHITE
                         ? ColorMath.blend(t.source.tintArgb(), rawTexel, BlendMode.MULTIPLY)
@@ -478,16 +482,29 @@ public class ModelEngine extends TextureEngine {
     private static final float SUBPIXEL_INV = 1f / SUBPIXEL_PRECISION;
 
     /**
-     * Subpixel-snap on projection output. Default {@code true}. Complements
-     * {@link lib.minecraft.renderer.geometry.ProjectionMath#FIXED_POINT_ENABLED ProjectionMath
-     * fixed-point edge functions}: fixed-point handles coverage at exact-edge cases, snap nudges
-     * vertices off integer-pixel boundaries so UV interpolation at silhouette-boundary pixels
-     * lands on the same texels vanilla samples. Disabling snap with fixed-point on regresses
-     * tadpole / silverfish / bat / creaking by ~0.05-0.20 mean delta at boundary pixels where
-     * the unsnapped UV samples a transparent texel that the snapped UV samples opaque.
+     * Subpixel-snap on projection output. Default {@code true}. Compensates for a CHAIN
+     * PRECISION DIFFERENCE between our pose-stack output and vanilla's: our chain produces
+     * "cleaner" float values that land on exact UV / edge boundaries at certain pixels
+     * (e.g. tadpole tail samples interpolate to {@code v == 0.5f} exactly, landing on the
+     * boundary between texel 7 (opaque) and texel 8 (transparent) per
+     * {@code (int)(v * texH)}), while vanilla's chain produces sub-ULP-offset values that
+     * naturally avoid those boundaries. Snap rounds vertices to {@link #SUBPIXEL_PRECISION
+     * a 1/400 grid}, perturbing the UV interpolation enough to escape the exact-boundary
+     * case.
      * <p>
-     * Empirical (2026-05-20): fleet total delta is 16.71 with snap-on vs 16.75 with snap-off,
-     * both at 86/97/99/99 buckets - snap is marginal but consistently better.
+     * Sub-pixel-fixed-point edge functions in
+     * {@link lib.minecraft.renderer.geometry.ProjectionMath#isInsideTriangle ProjectionMath}
+     * subsume one half of the snap's old job (coverage at exact triangle edges) - integer
+     * math is deterministic regardless of float drift. Snap still handles the OTHER half
+     * (UV interpolation at exact texel boundaries) because the texture sample lookup uses
+     * float UV directly, not quantized integers. A proper fix requires either matching
+     * vanilla's chain bit-for-bit (multi-week tooling restructure) or quantizing UV
+     * sampling to the GPU's sub-pixel grid.
+     * <p>
+     * Empirical (2026-05-20): fleet total delta is 16.71 with snap-on vs 16.75 with
+     * snap-off, both at 86/97/99/99 buckets. Snap-off regresses tadpole 0.02 -> 0.22,
+     * silverfish 0.03 -> 0.11, bat 0.00 -> 0.05, creaking 0.13 -> 0.20 - all
+     * silhouette-boundary pixels where unsnapped UV lands on texel-corner ties.
      * <p>
      * Disable via {@code -Dentity.snapSubPixel=false} for bisection.
      */
@@ -576,12 +593,18 @@ public class ModelEngine extends TextureEngine {
             // One-shot per-triangle projection trace: surfaces the screen-space corner positions
             // for every triangle so offline tooling can compare our vertex projections against the
             // vanilla harness's same-triangle projection without per-pixel post-hoc reconstruction.
+            // Includes per-vertex UV so chain-precision investigations can verify whether texture
+            // sampling lands on the same texels vanilla samples (see notes/precision-drift.md
+            // tadpole investigation).
             System.out.println("[PX]\tTRI\t" + triangle.debugTag()
                 + "\ts0=" + s0.x() + "," + s0.y() + "\ts1=" + s1.x() + "," + s1.y()
                 + "\ts2=" + s2.x() + "," + s2.y()
                 + "\tp0=" + p0.x() + "," + p0.y() + "," + p0.z()
                 + "\tp1=" + p1.x() + "," + p1.y() + "," + p1.z()
-                + "\tp2=" + p2.x() + "," + p2.y() + "," + p2.z());
+                + "\tp2=" + p2.x() + "," + p2.y() + "," + p2.z()
+                + "\tuv0=" + triangle.uv0().x() + "," + triangle.uv0().y()
+                + "\tuv1=" + triangle.uv1().x() + "," + triangle.uv1().y()
+                + "\tuv2=" + triangle.uv2().x() + "," + triangle.uv2().y());
         }
 
         if (triangle.cullBackFaces() && isBackFacing(s0, s1, s2)) return null;
