@@ -23,6 +23,19 @@ public class ProjectionMath {
     private static final int FIXED_POINT_PRECISION = 256;
 
     /**
+     * Quantizes a screen-space sample coordinate to the {@link #FIXED_POINT_PRECISION 1/256}
+     * sub-pixel grid used by the fixed-point coverage test. Public so the rasterizer's
+     * incremental edge-function loop can derive its bbox top-left sample value once per
+     * triangle and walk by step values thereafter.
+     *
+     * @param coord the screen-space coordinate (typically pixel-center {@code px + 0.5f})
+     * @return the quantized sub-pixel value as a 64-bit signed integer
+     */
+    public static long quantizeSample(float coord) {
+        return Math.round((double) coord * FIXED_POINT_PRECISION);
+    }
+
+    /**
      * Computes the barycentric denominator for a triangle. Used by the rasterizer to reject
      * degenerate triangles (denominator near zero) and to divide out the barycentric numerators.
      *
@@ -108,11 +121,18 @@ public class ProjectionMath {
      * {@link ProjectionMath#isTopOrLeftEdge isTopOrLeftEdge} on the quantized integer
      * endpoints; the per-pixel test reads the boolean directly.
      * <p>
+     * The {@code stepXij} / {@code stepYij} fields are {@code A_ij * P} and {@code B_ij * P}
+     * respectively, where {@code P =} {@link ProjectionMath#FIXED_POINT_PRECISION}. The
+     * rasterizer uses them to walk edge values incrementally across the inner loop -
+     * Pineda's classic optimization: hoist edge evaluation to the bbox top-left then advance
+     * by {@code stepX} per pixel in X and {@code stepY} per pixel in Y. Inner-loop coverage
+     * drops further to 3 adds + sign checks.
+     * <p>
      * Computed once per triangle in
      * {@link lib.minecraft.renderer.engine.ModelEngine#projectTriangle projectTriangle} (the
      * parallel Pass-1 map); read by every pixel of the triangle's bbox during Pass-2
-     * rasterization. {@code ~80 bytes} per triangle - amortizes against tens to thousands of
-     * pixel tests.
+     * rasterization. {@code ~128 bytes} per triangle - amortizes against tens to thousands
+     * of pixel tests.
      *
      * @param a12 sx coefficient for edge v1->v2 (paired with bary[0])
      * @param b12 sy coefficient for edge v1->v2
@@ -127,21 +147,30 @@ public class ProjectionMath {
      * @param topLeft12 whether edge v1->v2 owns shared-edge pixels under the OpenGL fill rule
      * @param topLeft20 whether edge v2->v0 owns shared-edge pixels under the OpenGL fill rule
      * @param topLeft01 whether edge v0->v1 owns shared-edge pixels under the OpenGL fill rule
+     * @param stepX12 {@code a12 * FIXED_POINT_PRECISION}; per-pixel-step in X for edge v1->v2
+     * @param stepY12 {@code b12 * FIXED_POINT_PRECISION}; per-pixel-step in Y for edge v1->v2
+     * @param stepX20 per-pixel-step in X for edge v2->v0
+     * @param stepY20 per-pixel-step in Y for edge v2->v0
+     * @param stepX01 per-pixel-step in X for edge v0->v1
+     * @param stepY01 per-pixel-step in Y for edge v0->v1
      */
     public record EdgeCoefficients(
         long a12, long b12, long c12,
         long a20, long b20, long c20,
         long a01, long b01, long c01,
         long denom,
-        boolean topLeft12, boolean topLeft20, boolean topLeft01
+        boolean topLeft12, boolean topLeft20, boolean topLeft01,
+        long stepX12, long stepY12,
+        long stepX20, long stepY20,
+        long stepX01, long stepY01
     ) {
 
         /**
          * Builds the coefficient set from three screen-space vertices. Quantizes each vertex
          * to {@link ProjectionMath#FIXED_POINT_PRECISION 1/256} once, computes the 3 edge
-         * coefficients, the determinant, and the top-left classification per edge. If the
-         * determinant is negative the entire coefficient set is sign-flipped so downstream
-         * tests stay {@code >= 0}.
+         * coefficients, the determinant, the per-pixel step values, and the top-left
+         * classification per edge. If the determinant is negative the entire coefficient set
+         * is sign-flipped so downstream tests stay {@code >= 0}.
          *
          * @param v0 first screen-space vertex
          * @param v1 second screen-space vertex
@@ -184,8 +213,12 @@ public class ProjectionMath {
                 a01 = -a01; b01 = -b01; c01 = -c01;
                 denom = -denom;
             }
-            return new EdgeCoefficients(a12, b12, c12, a20, b20, c20, a01, b01, c01, denom,
-                topLeft12, topLeft20, topLeft01);
+            return new EdgeCoefficients(
+                a12, b12, c12, a20, b20, c20, a01, b01, c01, denom,
+                topLeft12, topLeft20, topLeft01,
+                a12 * P, b12 * P,
+                a20 * P, b20 * P,
+                a01 * P, b01 * P);
         }
     }
 

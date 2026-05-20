@@ -352,10 +352,33 @@ public class ModelEngine extends TextureEngine {
             // for entities); the rasterizer just multiplies it in.
             float shading = t.source.shading();
 
-            for (int py = pyStart; py <= pyEnd; py++) {
-                for (int px = bounds[0]; px <= bounds[2]; px++) {
+            // Pineda incremental edge functions. Hoist the edge value computation to the
+            // bbox top-left, then walk by stepX per pixel in X and stepY per pixel in Y. Per-
+            // pixel coverage test drops to 3 add + sign check + at-most-3 top-left checks; no
+            // re-quantization of the sample point. Bit-identical to per-pixel recompute -
+            // integer addition is exact.
+            ProjectionMath.EdgeCoefficients ec = t.edges;
+            final boolean degenerate = ec.denom() == 0L;
+            long sxStart = ProjectionMath.quantizeSample(bounds[0] + 0.5f);
+            long syStart = ProjectionMath.quantizeSample(pyStart + 0.5f);
+            long row12 = ec.a12() * sxStart + ec.b12() * syStart + ec.c12();
+            long row20 = ec.a20() * sxStart + ec.b20() * syStart + ec.c20();
+            long row01 = ec.a01() * sxStart + ec.b01() * syStart + ec.c01();
+
+            for (int py = pyStart; py <= pyEnd; py++,
+                    row12 += ec.stepY12(), row20 += ec.stepY20(), row01 += ec.stepY01()) {
+                long e12 = row12;
+                long e20 = row20;
+                long e01 = row01;
+                for (int px = bounds[0]; px <= bounds[2]; px++,
+                        e12 += ec.stepX12(), e20 += ec.stepX20(), e01 += ec.stepX01()) {
                     ProjectionMath.barycentricInto(t.s0, t.s1, t.s2, px + 0.5f, py + 0.5f, bary);
-                    if (!ProjectionMath.isInsideTriangle(t.edges, px + 0.5f, py + 0.5f)) {
+                    boolean inside = !degenerate
+                        && e12 >= 0L && e20 >= 0L && e01 >= 0L
+                        && (e12 != 0L || ec.topLeft12())
+                        && (e20 != 0L || ec.topLeft20())
+                        && (e01 != 0L || ec.topLeft01());
+                    if (!inside) {
                         if (pixelDumpContains(px, py)) {
                             System.out.println("[PX]\tSKIP-FILL\t" + px + "\t" + py + "\t\t"
                                 + t.source.debugTag() + "\tbary=" + bary[0] + "," + bary[1] + "," + bary[2]);
