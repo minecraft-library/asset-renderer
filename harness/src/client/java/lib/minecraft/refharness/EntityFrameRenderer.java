@@ -101,6 +101,46 @@ public final class EntityFrameRenderer implements AutoCloseable {
     private final ProjectionMatrixBuffer projectionMatrixBuffer = new ProjectionMatrixBuffer("refharness entity PIP");
 
     /**
+     * Diagnostic per-triangle screen-coord trace rectangle parsed from
+     * {@code -Dentity.pixel.dump=x0,y0,x1,y1}. Mirrors the asset-renderer
+     * {@code ModelEngine.PIXEL_DUMP_RECT} parser so both sides share one prop. When non-null and
+     * non-empty, {@link #dumpTrianglesIfRequested} walks every visible polygon (primary model
+     * + active layers) through the same canvas-fit + LER pose chain {@code dispatcher.submit}
+     * uses internally, triangulates each quad as {@code (v0,v1,v2)+(v0,v2,v3)} to match
+     * {@code EntityGeometryKit.contributeTriangles}, and emits one {@code [PX] TRI} line per
+     * triangle whose projected bbox intersects the rect. Per-pixel ground truth still requires
+     * a GPU stencil pass; this dump only surfaces which triangles cross the rect with what
+     * screen-space corners, which is enough to distinguish chain-drift (different coords) from
+     * rasterizer-coverage (same coords, different pixel pick) for the witch x=21 residual.
+     */
+    private static final int @org.jetbrains.annotations.Nullable [] PIXEL_DUMP_RECT = parsePixelDumpRect();
+
+    private static int @org.jetbrains.annotations.Nullable [] parsePixelDumpRect() {
+        String prop = System.getProperty("entity.pixel.dump");
+        if (prop == null || prop.isBlank()) return null;
+        String[] parts = prop.split(",");
+        if (parts.length != 4) {
+            System.out.println("[PX] malformed entity.pixel.dump: '" + prop + "' (expected x0,y0,x1,y1)");
+            return null;
+        }
+        try {
+            int x0 = Integer.parseInt(parts[0].trim());
+            int y0 = Integer.parseInt(parts[1].trim());
+            int x1 = Integer.parseInt(parts[2].trim());
+            int y1 = Integer.parseInt(parts[3].trim());
+            System.out.println("[PX-HEADER] " + String.join("\t",
+                "stage", "debugTag",
+                "s0x", "s0y", "s1x", "s1y", "s2x", "s2y",
+                "p0x", "p0y", "p0z", "p1x", "p1y", "p1z", "p2x", "p2y", "p2z"));
+            System.out.println("[PX] harness dump rect=" + x0 + "," + y0 + "-" + x1 + "," + y1);
+            return new int[]{ x0, y0, x1, y1 };
+        } catch (NumberFormatException nfe) {
+            System.out.println("[PX] malformed entity.pixel.dump numbers: '" + prop + "'");
+            return null;
+        }
+    }
+
+    /**
      * Cache of loaded entity textures keyed by their resource location. Read by the bounds walker
      * to skip polygons whose four vertex UVs all land on transparent pixels (warden tendrils,
      * wither ribcage planes, etc) - those cubes are flat planes whose authored model extent far
@@ -305,6 +345,8 @@ public final class EntityFrameRenderer implements AutoCloseable {
             poseStack.mulPose(effectiveRotation);
 
             lighting.setupFor(Lighting.Entry.ENTITY_IN_UI);
+
+            dumpTrianglesIfRequested(renderer, state, translateX, translateY, scale, effectiveRotation);
 
             CameraRenderState cameraRenderState = new CameraRenderState();
             dispatcher.submit(state, cameraRenderState, /*x*/ 0.0, /*y*/ 0.0, /*z*/ 0.0,
@@ -779,6 +821,132 @@ public final class EntityFrameRenderer implements AutoCloseable {
         } catch (NoSuchFieldException e) {
             throw new RuntimeException("ModelPart structure changed in this Minecraft version - children/cubes fields not found", e);
         }
+    }
+
+    /**
+     * Emits one {@code [PX] TRI} line per visible-polygon triangle whose projected bbox
+     * intersects {@link #PIXEL_DUMP_RECT}, for diagnostic comparison against
+     * {@code ModelEngine}'s same-named line. Builds the full canvas-fit + chirality + iso
+     * + LER chain pose stack vanilla's {@code dispatcher.submit} composes internally so the
+     * emitted {@code s0/s1/s2} coordinates are in the same pixel-space frame the asset-renderer
+     * side emits. Walks both the primary model and every active layer (matching the bounds
+     * walker's coverage). Triangulation is fixed at {@code (v0,v1,v2)+(v0,v2,v3)} to match
+     * {@code EntityGeometryKit.contributeTriangles}.
+     * <p>
+     * No-op when {@link #PIXEL_DUMP_RECT} is unset.
+     */
+    private void dumpTrianglesIfRequested(
+        EntityRenderer<?, ?> renderer,
+        EntityRenderState state,
+        float translateX,
+        float translateY,
+        float canvasScale,
+        Quaternionf effectiveRotation
+    ) {
+        if (PIXEL_DUMP_RECT == null) return;
+        Model<?> model = tryGetModel(renderer, state);
+        if (model == null) return;
+
+        PoseStack ps = new PoseStack();
+        ps.translate(translateX, translateY, 0.0f);
+        ps.scale(canvasScale, canvasScale, canvasScale);
+        // Chirality compensation - mirrors renderInternal exactly.
+        ps.scale(1.0f, 1.0f, -1.0f);
+        ps.mulPose(effectiveRotation);
+        if (renderer instanceof LivingEntityRenderer<?, ?, ?> && state instanceof LivingEntityRenderState living) {
+            ps.scale(living.scale, living.scale, living.scale);
+            invokeRendererSetupRotations(renderer, state, ps, /*bodyRot*/ 0.0f, living.scale);
+            ps.scale(-1.0f, -1.0f, 1.0f);
+            invokeRendererScale(renderer, state, ps);
+            ps.translate(0.0f, -1.501f, 0.0f);
+        } else if (renderer.getClass().getSimpleName().equals("EnderDragonRenderer")) {
+            ps.translate(0.0f, 0.0f, 1.0f);
+            ps.scale(-1.0f, -1.0f, 1.0f);
+            ps.translate(0.0f, -1.501f, 0.0f);
+        }
+
+        walkPolyTrianglesImpl(model.root(), "root", ps);
+        if (renderer instanceof LivingEntityRenderer<?, ?, ?> ler) {
+            boolean headless = Boolean.getBoolean("refharness.headless");
+            List<? extends RenderLayer<?, ?>> layers = layersOf(ler);
+            for (RenderLayer<?, ?> layer : layers) {
+                if (!isLayerActiveForState(layer, state)) continue;
+                for (Model<?> layerModel : findLayerModels(layer, state)) {
+                    @SuppressWarnings({"unchecked", "rawtypes"})
+                    Model raw = layerModel;
+                    if (!headless) {
+                        try { raw.setupAnim(state); } catch (RuntimeException ignored) {}
+                    }
+                    walkPolyTrianglesImpl(layerModel.root(), "layer:" + layer.getClass().getSimpleName(), ps);
+                }
+            }
+        }
+    }
+
+    private static void walkPolyTrianglesImpl(ModelPart part, String bonePath, PoseStack ps) {
+        if (!part.visible) return;
+        Map<String, ModelPart> children = childrenOf(part);
+        List<ModelPart.Cube> cubes = cubesOf(part);
+        if (cubes.isEmpty() && children.isEmpty()) return;
+        ps.pushPose();
+        part.translateAndRotate(ps);
+        if (!part.skipDraw) {
+            PoseStack.Pose pose = ps.last();
+            int cubeIndex = 0;
+            for (ModelPart.Cube cube : cubes) {
+                int polyIndex = 0;
+                for (ModelPart.Polygon polygon : cube.polygons) {
+                    emitPolygonTriangles(polygon, pose, bonePath, cubeIndex, polyIndex);
+                    polyIndex++;
+                }
+                cubeIndex++;
+            }
+        }
+        for (Map.Entry<String, ModelPart> entry : children.entrySet()) {
+            walkPolyTrianglesImpl(entry.getValue(), bonePath + "/" + entry.getKey(), ps);
+        }
+        ps.popPose();
+    }
+
+    /**
+     * Transforms a polygon's 4 vertices through {@code pose}, triangulates as
+     * {@code (v0,v1,v2)+(v0,v2,v3)}, and emits one {@code [PX] TRI} line per triangle whose
+     * screen-space bbox intersects {@link #PIXEL_DUMP_RECT}. Coordinates are emitted in
+     * post-pose pixel-space - the ortho with {@code invertY=true} maps math-Y to screen-Y so
+     * pose-space-Y == screen-Y (origin at top, increasing downward), matching the
+     * asset-renderer's {@code s0/s1/s2} convention.
+     */
+    private static void emitPolygonTriangles(ModelPart.Polygon polygon, PoseStack.Pose pose,
+                                              String bonePath, int cubeIndex, int polyIndex) {
+        ModelPart.Vertex[] verts = polygon.vertices();
+        if (verts.length < 4) return;
+        Vector3f v0 = pose.pose().transformPosition(verts[0].worldX(), verts[0].worldY(), verts[0].worldZ(), new Vector3f());
+        Vector3f v1 = pose.pose().transformPosition(verts[1].worldX(), verts[1].worldY(), verts[1].worldZ(), new Vector3f());
+        Vector3f v2 = pose.pose().transformPosition(verts[2].worldX(), verts[2].worldY(), verts[2].worldZ(), new Vector3f());
+        Vector3f v3 = pose.pose().transformPosition(verts[3].worldX(), verts[3].worldY(), verts[3].worldZ(), new Vector3f());
+
+        String tagA = bonePath + "/cube" + cubeIndex + "/poly" + polyIndex + "/triA";
+        String tagB = bonePath + "/cube" + cubeIndex + "/poly" + polyIndex + "/triB";
+        emitTriangleIfIntersects(tagA, v0, v1, v2);
+        emitTriangleIfIntersects(tagB, v0, v2, v3);
+    }
+
+    private static void emitTriangleIfIntersects(String debugTag, Vector3f s0, Vector3f s1, Vector3f s2) {
+        float minX = Math.min(s0.x(), Math.min(s1.x(), s2.x()));
+        float maxX = Math.max(s0.x(), Math.max(s1.x(), s2.x()));
+        float minY = Math.min(s0.y(), Math.min(s1.y(), s2.y()));
+        float maxY = Math.max(s0.y(), Math.max(s1.y(), s2.y()));
+        if (maxX < PIXEL_DUMP_RECT[0] || minX > PIXEL_DUMP_RECT[2]) return;
+        if (maxY < PIXEL_DUMP_RECT[1] || minY > PIXEL_DUMP_RECT[3]) return;
+        // Screen coords ARE pose-space x/y after the canvas-fit + LER chain; depth is z.
+        // The harness emits one combined line per triangle to match ModelEngine.projectTriangle.
+        System.out.println("[PX]\tTRI\t" + debugTag
+            + "\ts0=" + s0.x() + "," + s0.y()
+            + "\ts1=" + s1.x() + "," + s1.y()
+            + "\ts2=" + s2.x() + "," + s2.y()
+            + "\tp0=" + s0.x() + "," + s0.y() + "," + s0.z()
+            + "\tp1=" + s1.x() + "," + s1.y() + "," + s1.z()
+            + "\tp2=" + s2.x() + "," + s2.y() + "," + s2.z());
     }
 
     /**

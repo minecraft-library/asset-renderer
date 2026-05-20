@@ -45,6 +45,11 @@ loom {
             if (project.hasProperty('refharnessBoundsDump')) {
                 property 'refharness.boundsDump', project.property('refharnessBoundsDump').toString()
             }
+            // Per-triangle screen-coord dump - mirror of asset-renderer ModelEngine's prop.
+            // Usage: -PentityPixelDump=21,0,21,800 (one column slice for witch x=21 hunt)
+            if (project.hasProperty('entityPixelDump')) {
+                property 'entity.pixel.dump', project.property('entityPixelDump').toString()
+            }
         }
     }
 }
