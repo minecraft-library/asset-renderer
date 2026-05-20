@@ -34,9 +34,13 @@ import java.util.concurrent.TimeUnit;
  *     this adjacency to show its win; phases 1-2 see no difference vs the shuffled variant.</li>
  * </ul>
  * <p>
- * Each {@code @Benchmark} method loops the 1024 pre-shuffled sample points once and consumes the
- * boolean result via {@link Blackhole}. {@link Mode#AverageTime} + nanosecond output keeps the
- * per-test score readable without trailing scientific notation.
+ * After Phase 2 of the migration, {@link ProjectionMath#isInsideTriangle(ProjectionMath.EdgeCoefficients, float, float)}
+ * is the rasterizer's hot-path entry point - per-triangle {@link ProjectionMath.EdgeCoefficients}
+ * is built once in {@code projectTriangle} and reused for every pixel of the triangle's bbox.
+ * The benchmarks mirror this: each fixture builds its coefficients in {@link #setupFixtures}
+ * (trial scope) and the {@code @Benchmark} body loops the samples through the precomputed
+ * overload. This matches production reality and isolates the coverage-test cost cleanly from
+ * the one-time-per-triangle factory cost.
  */
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
@@ -49,13 +53,13 @@ public class IsInsideTriangleBenchmark {
     /** Deterministic RNG seed so trial-to-trial sample distributions stay reproducible. */
     private static final long SEED = 0x1234_5678_9ABC_DEF0L;
 
-    private Vector2f smallV0, smallV1, smallV2;
+    private ProjectionMath.EdgeCoefficients smallEc;
     private float[] smallPx, smallPy;
 
-    private Vector2f medV0, medV1, medV2;
+    private ProjectionMath.EdgeCoefficients medEc;
     private float[] medPx, medPy;
 
-    private Vector2f sliverV0, sliverV1, sliverV2;
+    private ProjectionMath.EdgeCoefficients sliverEc;
     private float[] sliverPx, sliverPy;
 
     /** Sequential raster-scan samples over the medium triangle's bbox - reused by Phase 3. */
@@ -65,26 +69,29 @@ public class IsInsideTriangleBenchmark {
     public void setupFixtures() {
         // Small triangle: 16x16 bbox, CCW Y-down winding so front-facing per ModelEngine
         // conventions. Vertices chosen so the triangle covers roughly half the bbox.
-        this.smallV0 = new Vector2f(8.0f, 0.5f);
-        this.smallV1 = new Vector2f(0.5f, 15.5f);
-        this.smallV2 = new Vector2f(15.5f, 15.5f);
+        this.smallEc = ProjectionMath.EdgeCoefficients.of(
+            new Vector2f(8.0f, 0.5f),
+            new Vector2f(0.5f, 15.5f),
+            new Vector2f(15.5f, 15.5f));
         Sample s = shuffledSamples(SAMPLES, 0f, 0f, 16f, 16f, SEED);
         this.smallPx = s.xs;
         this.smallPy = s.ys;
 
         // Medium triangle: 64x64 bbox, typical entity face dimensions in the iso projection.
-        this.medV0 = new Vector2f(32.0f, 1.0f);
-        this.medV1 = new Vector2f(1.0f, 62.5f);
-        this.medV2 = new Vector2f(62.5f, 62.5f);
+        this.medEc = ProjectionMath.EdgeCoefficients.of(
+            new Vector2f(32.0f, 1.0f),
+            new Vector2f(1.0f, 62.5f),
+            new Vector2f(62.5f, 62.5f));
         Sample m = shuffledSamples(SAMPLES, 0f, 0f, 64f, 64f, SEED + 1);
         this.medPx = m.xs;
         this.medPy = m.ys;
 
         // Sliver: 100x2 long thin triangle, worst case for bbox-vs-coverage. Most samples will
         // reject - this is the case where SIMD masking has the most to skip.
-        this.sliverV0 = new Vector2f(0.5f, 0.5f);
-        this.sliverV1 = new Vector2f(99.5f, 1.0f);
-        this.sliverV2 = new Vector2f(50.0f, 1.5f);
+        this.sliverEc = ProjectionMath.EdgeCoefficients.of(
+            new Vector2f(0.5f, 0.5f),
+            new Vector2f(99.5f, 1.0f),
+            new Vector2f(50.0f, 1.5f));
         Sample sl = shuffledSamples(SAMPLES, 0f, 0f, 100f, 2f, SEED + 2);
         this.sliverPx = sl.xs;
         this.sliverPy = sl.ys;
@@ -107,32 +114,28 @@ public class IsInsideTriangleBenchmark {
     @Benchmark
     public void insideSmall(Blackhole bh) {
         for (int i = 0; i < SAMPLES; i++) {
-            bh.consume(ProjectionMath.isInsideTriangle(
-                this.smallV0, this.smallV1, this.smallV2, this.smallPx[i], this.smallPy[i]));
+            bh.consume(ProjectionMath.isInsideTriangle(this.smallEc, this.smallPx[i], this.smallPy[i]));
         }
     }
 
     @Benchmark
     public void insideMedium(Blackhole bh) {
         for (int i = 0; i < SAMPLES; i++) {
-            bh.consume(ProjectionMath.isInsideTriangle(
-                this.medV0, this.medV1, this.medV2, this.medPx[i], this.medPy[i]));
+            bh.consume(ProjectionMath.isInsideTriangle(this.medEc, this.medPx[i], this.medPy[i]));
         }
     }
 
     @Benchmark
     public void insideSliver(Blackhole bh) {
         for (int i = 0; i < SAMPLES; i++) {
-            bh.consume(ProjectionMath.isInsideTriangle(
-                this.sliverV0, this.sliverV1, this.sliverV2, this.sliverPx[i], this.sliverPy[i]));
+            bh.consume(ProjectionMath.isInsideTriangle(this.sliverEc, this.sliverPx[i], this.sliverPy[i]));
         }
     }
 
     @Benchmark
     public void insideMediumScan(Blackhole bh) {
         for (int i = 0; i < SAMPLES; i++) {
-            bh.consume(ProjectionMath.isInsideTriangle(
-                this.medV0, this.medV1, this.medV2, this.medScanPx[i], this.medScanPy[i]));
+            bh.consume(ProjectionMath.isInsideTriangle(this.medEc, this.medScanPx[i], this.medScanPy[i]));
         }
     }
 

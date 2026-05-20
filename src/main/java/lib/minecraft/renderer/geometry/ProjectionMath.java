@@ -95,38 +95,145 @@ public class ProjectionMath {
     }
 
     /**
-     * Tests whether the sample {@code (px, py)} lies inside the triangle {@code (v0, v1, v2)}
-     * using sub-pixel-fixed-point edge functions at {@link #FIXED_POINT_PRECISION 1/256}
-     * precision. Replaces the prior float-bary {@code >= 0} path which fired the OpenGL
-     * top-left fill rule only when float arithmetic happened to land exactly on zero - a
-     * fragile condition at axis-aligned cube edges where some chains produce exact
-     * integer-multiple coordinates and others produce sub-ULP offsets.
+     * Per-triangle edge function coefficients for fast per-pixel coverage testing (Pineda
+     * 1988). Each edge function {@code e_ij(sx, sy) = (xj-xi)*(sy-yi) - (yj-yi)*(sx-xi)} is a
+     * linear function in {@code (sx, sy)}; factoring out the vertex-dependent constants and
+     * holding them once per triangle drops the per-pixel coverage test from ~40 long-ops
+     * (re-quantize 4 points + 3 cross products + denom + sign flip) to ~16 ops (3 mul-adds +
+     * sign check + at-most-3 top-left checks).
      * <p>
-     * Vanilla's GPU rasterizes via sub-pixel-fixed-point edge functions (hardware sub-pixel
-     * precision is typically 4-bit or 8-bit, matching our 1/256 grid); this is the same
-     * convention, applied in software. Integer math makes the edge classification
-     * deterministic regardless of upstream FP drift.
+     * Coefficients are pre-sign-normalized: if the triangle's signed area is negative the
+     * factory negates all A/B/C and denom so the {@code >= 0} inside test works regardless
+     * of winding. The {@code topLeftXX} flags pre-evaluate
+     * {@link ProjectionMath#isTopOrLeftEdge isTopOrLeftEdge} on the quantized integer
+     * endpoints; the per-pixel test reads the boolean directly.
      * <p>
-     * Algorithm:
-     * <ol>
-     * <li>Quantize each vertex and the sample to {@code 1/FIXED_POINT_PRECISION} units. The
-     *     {@code double} cast before multiplication avoids float overflow at large screen
-     *     coords ({@code Math.round} is exact in double).</li>
-     * <li>Compute edge functions {@code e_12, e_20, e_01} as 64-bit integer 2D cross products.
-     *     {@code e_12} pairs with {@code bary[0]} (opposite {@code v0}), and so on.</li>
-     * <li>Compute the triangle's signed-area determinant {@code denom} as a 64-bit cross
-     *     product. Sign-normalize the edges relative to {@code denom} so 'inside' means all
-     *     three are {@code >= 0} regardless of triangle winding.</li>
-     * <li>Inside test: all three edge functions {@code >= 0}.</li>
-     * <li>OpenGL top-left fill rule at edges where {@code e_ij == 0}: include the sample
-     *     only if the directed edge {@code v_i -> v_j} is a top or left edge (horizontal
-     *     going left, or non-horizontal going down) in CW Y-down screen space. This rule
-     *     ensures exactly one of two adjacent triangles owns each shared-edge pixel.</li>
-     * </ol>
+     * Computed once per triangle in
+     * {@link lib.minecraft.renderer.engine.ModelEngine#projectTriangle projectTriangle} (the
+     * parallel Pass-1 map); read by every pixel of the triangle's bbox during Pass-2
+     * rasterization. {@code ~80 bytes} per triangle - amortizes against tens to thousands of
+     * pixel tests.
+     *
+     * @param a12 sx coefficient for edge v1->v2 (paired with bary[0])
+     * @param b12 sy coefficient for edge v1->v2
+     * @param c12 constant for edge v1->v2
+     * @param a20 sx coefficient for edge v2->v0 (paired with bary[1])
+     * @param b20 sy coefficient for edge v2->v0
+     * @param c20 constant for edge v2->v0
+     * @param a01 sx coefficient for edge v0->v1 (paired with bary[2])
+     * @param b01 sy coefficient for edge v0->v1
+     * @param c01 constant for edge v0->v1
+     * @param denom sign-normalized triangle determinant; {@code 0} for degenerate triangles
+     * @param topLeft12 whether edge v1->v2 owns shared-edge pixels under the OpenGL fill rule
+     * @param topLeft20 whether edge v2->v0 owns shared-edge pixels under the OpenGL fill rule
+     * @param topLeft01 whether edge v0->v1 owns shared-edge pixels under the OpenGL fill rule
+     */
+    public record EdgeCoefficients(
+        long a12, long b12, long c12,
+        long a20, long b20, long c20,
+        long a01, long b01, long c01,
+        long denom,
+        boolean topLeft12, boolean topLeft20, boolean topLeft01
+    ) {
+
+        /**
+         * Builds the coefficient set from three screen-space vertices. Quantizes each vertex
+         * to {@link ProjectionMath#FIXED_POINT_PRECISION 1/256} once, computes the 3 edge
+         * coefficients, the determinant, and the top-left classification per edge. If the
+         * determinant is negative the entire coefficient set is sign-flipped so downstream
+         * tests stay {@code >= 0}.
+         *
+         * @param v0 first screen-space vertex
+         * @param v1 second screen-space vertex
+         * @param v2 third screen-space vertex
+         * @return the precomputed coefficient set
+         */
+        public static @NotNull EdgeCoefficients of(@NotNull Vector2f v0, @NotNull Vector2f v1, @NotNull Vector2f v2) {
+            final int P = FIXED_POINT_PRECISION;
+            long x0 = Math.round((double) v0.x() * P);
+            long y0 = Math.round((double) v0.y() * P);
+            long x1 = Math.round((double) v1.x() * P);
+            long y1 = Math.round((double) v1.y() * P);
+            long x2 = Math.round((double) v2.x() * P);
+            long y2 = Math.round((double) v2.y() * P);
+
+            // Factor each edge function e_ij(sx, sy) = (xj-xi)*(sy-yi) - (yj-yi)*(sx-xi)
+            // into the linear form A_ij*sx + B_ij*sy + C_ij:
+            //   A_ij = yi - yj, B_ij = xj - xi, C_ij = (yj-yi)*xi - (xj-xi)*yi
+            long a12 = y1 - y2;
+            long b12 = x2 - x1;
+            long c12 = (y2 - y1) * x1 - (x2 - x1) * y1;
+
+            long a20 = y2 - y0;
+            long b20 = x0 - x2;
+            long c20 = (y0 - y2) * x2 - (x0 - x2) * y2;
+
+            long a01 = y0 - y1;
+            long b01 = x1 - x0;
+            long c01 = (y1 - y0) * x0 - (x1 - x0) * y0;
+
+            long denom = (x1 - x0) * (y2 - y0) - (y1 - y0) * (x2 - x0);
+
+            boolean topLeft12 = isTopOrLeftEdge(x1, y1, x2, y2);
+            boolean topLeft20 = isTopOrLeftEdge(x2, y2, x0, y0);
+            boolean topLeft01 = isTopOrLeftEdge(x0, y0, x1, y1);
+
+            if (denom < 0L) {
+                a12 = -a12; b12 = -b12; c12 = -c12;
+                a20 = -a20; b20 = -b20; c20 = -c20;
+                a01 = -a01; b01 = -b01; c01 = -c01;
+                denom = -denom;
+            }
+            return new EdgeCoefficients(a12, b12, c12, a20, b20, c20, a01, b01, c01, denom,
+                topLeft12, topLeft20, topLeft01);
+        }
+    }
+
+    /**
+     * Tests whether the sample {@code (px, py)} lies inside the triangle described by the
+     * precomputed {@link EdgeCoefficients}. Per-pixel hot path: 3 long mul-adds + sign
+     * checks. Bit-identical inside-test outcome to
+     * {@link #isInsideTriangle(Vector2f, Vector2f, Vector2f, float, float)} - the algebra is
+     * an exact factoring; integer arithmetic guarantees no precision drift.
+     *
+     * @param ec the triangle's precomputed edge coefficients
+     * @param px the sample point's x coordinate (typically pixel-center {@code px + 0.5f})
+     * @param py the sample point's y coordinate (typically pixel-center {@code py + 0.5f})
+     * @return {@code true} if the sample is owned by this triangle under the top-left rule
+     */
+    public static boolean isInsideTriangle(@NotNull EdgeCoefficients ec, float px, float py) {
+        if (ec.denom == 0L) return false;
+        final int P = FIXED_POINT_PRECISION;
+        long sx = Math.round((double) px * P);
+        long sy = Math.round((double) py * P);
+
+        long e12 = ec.a12 * sx + ec.b12 * sy + ec.c12;
+        long e20 = ec.a20 * sx + ec.b20 * sy + ec.c20;
+        long e01 = ec.a01 * sx + ec.b01 * sy + ec.c01;
+
+        if (e12 < 0L || e20 < 0L || e01 < 0L) return false;
+
+        if (e12 == 0L && !ec.topLeft12) return false;
+        if (e20 == 0L && !ec.topLeft20) return false;
+        if (e01 == 0L && !ec.topLeft01) return false;
+        return true;
+    }
+
+    /**
+     * Sub-pixel-fixed-point inside-triangle test - free-function variant for callers that
+     * don't pre-build an {@link EdgeCoefficients}. Internally builds the coefficient set
+     * once and delegates to the precomputed overload. Hot callers (the rasterizer inner
+     * loop) should pre-build via {@link EdgeCoefficients#of} and reuse across all pixels of
+     * a triangle.
      * <p>
-     * Empirical (2026-05-20): {@code 86/97/99/99} fleet parity buckets, +2 in {@code <0.25}
-     * vs the prior float-bary path's {@code 84/96/99/99}. Witch dropped from {@code 1.31}
-     * to {@code 0.12} in snap-off, squid from {@code 0.60} to {@code 0.13}, glow_squid from
+     * See {@link EdgeCoefficients} for the algebra. {@link #FIXED_POINT_PRECISION 1/256}
+     * matches GPU 8-bit sub-pixel hardware. Vanilla's GPU rasterizes via the same
+     * convention; integer math makes the edge classification deterministic regardless of
+     * upstream FP drift.
+     * <p>
+     * Empirical (2026-05-20): {@code 86/97/99/99} fleet parity buckets vs the prior
+     * float-bary path's {@code 84/96/99/99}. Witch dropped from {@code 1.31} to
+     * {@code 0.12} in snap-off, squid from {@code 0.60} to {@code 0.13}, glow_squid from
      * {@code 0.48} to {@code 0.12}.
      *
      * @param v0 the triangle's first screen-space vertex
@@ -143,38 +250,7 @@ public class ProjectionMath {
         float px,
         float py
     ) {
-        final int P = FIXED_POINT_PRECISION;
-        long x0 = Math.round((double) v0.x() * P);
-        long y0 = Math.round((double) v0.y() * P);
-        long x1 = Math.round((double) v1.x() * P);
-        long y1 = Math.round((double) v1.y() * P);
-        long x2 = Math.round((double) v2.x() * P);
-        long y2 = Math.round((double) v2.y() * P);
-        long sx = Math.round((double) px * P);
-        long sy = Math.round((double) py * P);
-
-        // e_12: paired with bary[0] (opposite v0); edge v1 -> v2 evaluated at sample.
-        long e12 = (x2 - x1) * (sy - y1) - (y2 - y1) * (sx - x1);
-        // e_20: paired with bary[1] (opposite v1); edge v2 -> v0.
-        long e20 = (x0 - x2) * (sy - y2) - (y0 - y2) * (sx - x2);
-        // e_01: paired with bary[2] (opposite v2); edge v0 -> v1.
-        long e01 = (x1 - x0) * (sy - y0) - (y1 - y0) * (sx - x0);
-        // denom: twice the triangle's signed area.
-        long denom = (x1 - x0) * (y2 - y0) - (y1 - y0) * (x2 - x0);
-
-        if (denom == 0L) return false;
-
-        // Sign-normalize so 'inside' means all edges >= 0 regardless of winding.
-        if (denom < 0L) { e12 = -e12; e20 = -e20; e01 = -e01; }
-
-        if (e12 < 0L || e20 < 0L || e01 < 0L) return false;
-
-        // Top-left fill rule at exact-edge cases. Quantized integer endpoints decide
-        // direction; classification matches the standard OpenGL CW Y-down convention.
-        if (e12 == 0L && !isTopOrLeftEdge(x1, y1, x2, y2)) return false;
-        if (e20 == 0L && !isTopOrLeftEdge(x2, y2, x0, y0)) return false;
-        if (e01 == 0L && !isTopOrLeftEdge(x0, y0, x1, y1)) return false;
-        return true;
+        return isInsideTriangle(EdgeCoefficients.of(v0, v1, v2), px, py);
     }
 
     /**

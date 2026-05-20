@@ -355,7 +355,7 @@ public class ModelEngine extends TextureEngine {
             for (int py = pyStart; py <= pyEnd; py++) {
                 for (int px = bounds[0]; px <= bounds[2]; px++) {
                     ProjectionMath.barycentricInto(t.s0, t.s1, t.s2, px + 0.5f, py + 0.5f, bary);
-                    if (!ProjectionMath.isInsideTriangle(t.s0, t.s1, t.s2, px + 0.5f, py + 0.5f)) {
+                    if (!ProjectionMath.isInsideTriangle(t.edges, px + 0.5f, py + 0.5f)) {
                         if (pixelDumpContains(px, py)) {
                             System.out.println("[PX]\tSKIP-FILL\t" + px + "\t" + py + "\t\t"
                                 + t.source.debugTag() + "\tbary=" + bary[0] + "," + bary[1] + "," + bary[2]);
@@ -608,7 +608,8 @@ public class ModelEngine extends TextureEngine {
         }
 
         if (triangle.cullBackFaces() && isBackFacing(s0, s1, s2)) return null;
-        return new Projected(triangle, p0, p1, p2, s0, s1, s2, normal);
+        ProjectionMath.EdgeCoefficients edges = ProjectionMath.EdgeCoefficients.of(s0, s1, s2);
+        return new Projected(triangle, p0, p1, p2, s0, s1, s2, normal, edges);
     }
 
     /**
@@ -642,8 +643,11 @@ public class ModelEngine extends TextureEngine {
 
     /**
      * A per-frame triangle view that caches the model-space transformed vertices, their screen
-     * projections, and the transformed normal. Not part of the public API - exists so the
-     * rasterization loop does not have to recompute the transform or projection for every pixel.
+     * projections, the transformed normal, and the precomputed
+     * {@link ProjectionMath.EdgeCoefficients edge coefficients} for fast per-pixel coverage
+     * testing. Not part of the public API - exists so the rasterization loop does not have to
+     * recompute the transform or projection for every pixel and so the inside test reads
+     * pre-quantized coefficients instead of re-quantizing 4 points each call.
      */
     private record Projected(
         @NotNull VisibleTriangle source,
@@ -653,7 +657,8 @@ public class ModelEngine extends TextureEngine {
         @NotNull Vector2f s0,
         @NotNull Vector2f s1,
         @NotNull Vector2f s2,
-        @NotNull Vector3f normal
+        @NotNull Vector3f normal,
+        @NotNull ProjectionMath.EdgeCoefficients edges
     ) {}
 
 }
