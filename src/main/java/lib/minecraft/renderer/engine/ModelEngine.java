@@ -355,7 +355,10 @@ public class ModelEngine extends TextureEngine {
             for (int py = pyStart; py <= pyEnd; py++) {
                 for (int px = bounds[0]; px <= bounds[2]; px++) {
                     ProjectionMath.barycentricInto(t.s0, t.s1, t.s2, px + 0.5f, py + 0.5f, bary);
-                    if (!ProjectionMath.isInsideTriangleTopLeft(bary, t.s0, t.s1, t.s2)) {
+                    boolean inside = ProjectionMath.FIXED_POINT_ENABLED
+                        ? ProjectionMath.isInsideTriangleFixedPoint(t.s0, t.s1, t.s2, px + 0.5f, py + 0.5f)
+                        : ProjectionMath.isInsideTriangleTopLeft(bary, t.s0, t.s1, t.s2);
+                    if (!inside) {
                         if (pixelDumpContains(px, py)) {
                             ProjectionMath.barycentricInto(t.s0, t.s1, t.s2, px + 0.5f, py + 0.5f, bary);
                             System.out.println("[PX]\tSKIP-FILL\t" + px + "\t" + py + "\t\t"
@@ -474,8 +477,19 @@ public class ModelEngine extends TextureEngine {
         Float.parseFloat(System.getProperty("entity.snapSubPixelGrid", "400"));
     private static final float SUBPIXEL_INV = 1f / SUBPIXEL_PRECISION;
 
+    /**
+     * Subpixel-snap on projection output. Default {@code false} - superseded by
+     * {@link lib.minecraft.renderer.geometry.ProjectionMath#FIXED_POINT_ENABLED ProjectionMath
+     * fixed-point edge functions} which subsume the snap band-aid by doing integer-fixed-point
+     * coverage tests against integer-quantized vertices. Snap-on used to give 84/96/99/99 parity
+     * via Math.round-to-1/400-grid; fixed-point gives 86/97/99/99 without rounding vertex
+     * positions at all (so the rasterizer sees the chain's natural sub-pixel positions).
+     * <p>
+     * Re-enable via {@code -Dentity.snapSubPixel=true} only when bisecting a fixed-point
+     * regression.
+     */
     private static final boolean SUBPIXEL_SNAP_ENABLED =
-        !"false".equalsIgnoreCase(System.getProperty("entity.snapSubPixel", "true"));
+        "true".equalsIgnoreCase(System.getProperty("entity.snapSubPixel", "false"));
 
     /**
      * Snaps a screen-space vertex position to the {@link #SUBPIXEL_PRECISION 1/400 sub-pixel
