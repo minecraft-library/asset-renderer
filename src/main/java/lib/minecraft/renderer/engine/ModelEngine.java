@@ -478,18 +478,21 @@ public class ModelEngine extends TextureEngine {
     private static final float SUBPIXEL_INV = 1f / SUBPIXEL_PRECISION;
 
     /**
-     * Subpixel-snap on projection output. Default {@code false} - superseded by
+     * Subpixel-snap on projection output. Default {@code true}. Complements
      * {@link lib.minecraft.renderer.geometry.ProjectionMath#FIXED_POINT_ENABLED ProjectionMath
-     * fixed-point edge functions} which subsume the snap band-aid by doing integer-fixed-point
-     * coverage tests against integer-quantized vertices. Snap-on used to give 84/96/99/99 parity
-     * via Math.round-to-1/400-grid; fixed-point gives 86/97/99/99 without rounding vertex
-     * positions at all (so the rasterizer sees the chain's natural sub-pixel positions).
+     * fixed-point edge functions}: fixed-point handles coverage at exact-edge cases, snap nudges
+     * vertices off integer-pixel boundaries so UV interpolation at silhouette-boundary pixels
+     * lands on the same texels vanilla samples. Disabling snap with fixed-point on regresses
+     * tadpole / silverfish / bat / creaking by ~0.05-0.20 mean delta at boundary pixels where
+     * the unsnapped UV samples a transparent texel that the snapped UV samples opaque.
      * <p>
-     * Re-enable via {@code -Dentity.snapSubPixel=true} only when bisecting a fixed-point
-     * regression.
+     * Empirical (2026-05-20): fleet total delta is 16.71 with snap-on vs 16.75 with snap-off,
+     * both at 86/97/99/99 buckets - snap is marginal but consistently better.
+     * <p>
+     * Disable via {@code -Dentity.snapSubPixel=false} for bisection.
      */
     private static final boolean SUBPIXEL_SNAP_ENABLED =
-        "true".equalsIgnoreCase(System.getProperty("entity.snapSubPixel", "false"));
+        !"false".equalsIgnoreCase(System.getProperty("entity.snapSubPixel", "true"));
 
     /**
      * Snaps a screen-space vertex position to the {@link #SUBPIXEL_PRECISION 1/400 sub-pixel
