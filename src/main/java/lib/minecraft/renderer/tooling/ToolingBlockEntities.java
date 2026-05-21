@@ -2775,11 +2775,11 @@ public final class ToolingBlockEntities {
             @NotNull JsonObject facesOut,
             boolean emitTintIndex
         ) {
-            int[] vertexIndices = face.vertexIndices();
-            float[] p0 = blockCorners[vertexIndices[0]];
-            float[] p1 = blockCorners[vertexIndices[1]];
-            float[] p2 = blockCorners[vertexIndices[2]];
-            float[] p3 = blockCorners[vertexIndices[3]];
+            float[][] p = face.cornersOf(blockCorners);
+            float[] p0 = p[0];
+            float[] p1 = p[1];
+            float[] p2 = p[2];
+            float[] p3 = p[3];
 
             // Cross product of two edges gives the face normal; snapping to the cardinal axis
             // tells us which of the six block-face slots the polygon belongs to.
@@ -2808,9 +2808,8 @@ public final class ToolingBlockEntities {
             // in vanilla polygon-vertex order via EntityFace.permuteToPolygonOrder), then attach
             // that UV to whichever block-face corner the vertex landed at.
             float[][] blockCornerUv = new float[4][2];
-            float[][] entityFacePos = { p0, p1, p2, p3 };
             for (int i = 0; i < 4; i++) {
-                int blockCorner = matchCorner(entityFacePos[i], blockFaceCorners);
+                int blockCorner = matchCorner(p[i], blockFaceCorners);
                 blockCornerUv[blockCorner] = new float[]{ perVertexUvs[i].x(), perVertexUvs[i].y() };
             }
 

@@ -17,6 +17,7 @@ import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.geometry.BlockFace;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
+import lib.minecraft.renderer.geometry.SixFaces;
 import lib.minecraft.renderer.geometry.SkinFace;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.kit.ArmorKit;
@@ -177,15 +178,15 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * y=1:  [1px WEST][10px SOUTH][1px EAST][10px NORTH]  (16 rows)
      * </pre>
      */
-    private static @NotNull PixelBuffer @NotNull [] cropCapeFaces(@NotNull PixelBuffer cape) {
-        PixelBuffer[] faces = new PixelBuffer[6];
-        faces[BlockFace.DOWN.ordinal()] = cropRect(cape, 11, 0, 10, 1);
-        faces[BlockFace.UP.ordinal()] = cropRect(cape, 1, 0, 10, 1);
-        faces[BlockFace.NORTH.ordinal()] = cropRect(cape, 12, 1, 10, 16);
-        faces[BlockFace.SOUTH.ordinal()] = cropRect(cape, 1, 1, 10, 16);
-        faces[BlockFace.WEST.ordinal()] = cropRect(cape, 0, 1, 1, 16);
-        faces[BlockFace.EAST.ordinal()] = cropRect(cape, 11, 1, 1, 16);
-        return faces;
+    private static @NotNull SixFaces cropCapeFaces(@NotNull PixelBuffer cape) {
+        return new SixFaces(
+            cropRect(cape, 11, 0, 10, 1),  // DOWN
+            cropRect(cape,  1, 0, 10, 1),  // UP
+            cropRect(cape, 12, 1, 10, 16), // NORTH
+            cropRect(cape,  1, 1, 10, 16), // SOUTH
+            cropRect(cape,  0, 1,  1, 16), // WEST
+            cropRect(cape, 11, 1,  1, 16)  // EAST
+        );
     }
 
     private static @NotNull PixelBuffer cropRect(@NotNull PixelBuffer source, int x, int y, int w, int h) {
@@ -222,7 +223,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         Vector3f capeMin = new Vector3f(cx - capeW / 2f, capeTop - capeH, capeBack);
         Vector3f capeMax = new Vector3f(cx + capeW / 2f, capeTop, capeBack + capeD);
 
-        PixelBuffer[] faces = cropCapeFaces(capeTexture);
+        SixFaces faces = cropCapeFaces(capeTexture);
         triangles.addAll(BlockModelGeometryKit.box(capeMin, capeMax, faces, ColorMath.WHITE));
     }
 

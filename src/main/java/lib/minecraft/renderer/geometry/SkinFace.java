@@ -233,23 +233,27 @@ public enum SkinFace {
                 pixels[dy * w + dx] = skin.getPixel(sx, sy);
             }
         }
+
         return PixelBuffer.of(pixels, w, h);
     }
 
     /**
-     * Crops all six faces of this body part out of the skin image in {@link BlockFace}
-     * declaration order (DOWN, UP, NORTH, SOUTH, WEST, EAST), matching the array layout that
-     * {@link BlockModelGeometryKit#box} expects.
+     * Crops all six faces of this body part out of the skin image into a {@link SixFaces} ready
+     * to feed {@link BlockModelGeometryKit#box}.
      *
      * @param skin the source skin image
      * @param overlayLayer whether to crop the overlay layer instead of the base layer
-     * @return a six-element array of cropped faces ordered by {@code BlockFace.ordinal()}
+     * @return the six cropped faces keyed by {@link BlockFace} direction
      */
-    public @NotNull PixelBuffer @NotNull [] cropAll(@NotNull PixelBuffer skin, boolean overlayLayer) {
-        PixelBuffer[] result = new PixelBuffer[BlockFace.values().length];
-        for (BlockFace face : BlockFace.values())
-            result[face.ordinal()] = crop(skin, face, overlayLayer);
-        return result;
+    public @NotNull SixFaces cropAll(@NotNull PixelBuffer skin, boolean overlayLayer) {
+        return new SixFaces(
+            crop(skin, BlockFace.DOWN, overlayLayer),
+            crop(skin, BlockFace.UP, overlayLayer),
+            crop(skin, BlockFace.NORTH, overlayLayer),
+            crop(skin, BlockFace.SOUTH, overlayLayer),
+            crop(skin, BlockFace.WEST, overlayLayer),
+            crop(skin, BlockFace.EAST, overlayLayer)
+        );
     }
 
     /**

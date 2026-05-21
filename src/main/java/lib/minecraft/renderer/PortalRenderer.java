@@ -12,6 +12,7 @@ import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.TextureEngine;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
+import lib.minecraft.renderer.geometry.SixFaces;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.kit.BlockModelGeometryKit;
 import lib.minecraft.renderer.options.PortalOptions;
@@ -513,8 +514,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             // coefficient * 255 - no need to ask the engine for a separate shading pass.
             PixelBuffer white = PixelBuffer.create(1, 1);
             white.setPixel(0, 0, ColorMath.WHITE);
-            PixelBuffer[] whiteFaces = { white, white, white, white, white, white };
-            ConcurrentList<VisibleTriangle> triangles = buildGeometry(options.getPortal(), whiteFaces);
+            ConcurrentList<VisibleTriangle> triangles = buildGeometry(options.getPortal(), SixFaces.uniform(white));
 
             // shadingMask is scope-local scratch: populated by rasterize, consumed once by
             // the compose loop, then discarded. Always pool it.
@@ -574,7 +574,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
          */
         private static @NotNull ConcurrentList<VisibleTriangle> buildGeometry(
             @NotNull PortalOptions.Portal portal,
-            @NotNull PixelBuffer @NotNull [] faces
+            @NotNull SixFaces faces
         ) {
             if (portal == PortalOptions.Portal.END_GATEWAY)
                 return BlockModelGeometryKit.unitCube(faces, ColorMath.WHITE);

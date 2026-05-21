@@ -903,28 +903,6 @@ public class EntityGeometryKit {
         return fromPivot.multiply(rot).multiply(toPivot);
     }
 
-    /**
-     * Swaps EAST<->WEST face lookup when {@code mirror} is true. Vanilla's
-     * {@code ModelPart.Cube} ctor swaps the cube's {@code x} and {@code maxX} variables
-     * before building polygon vertices when {@code mirror=true}, which has the net effect
-     * of placing vanilla's WEST polygon UV onto the +X face and vanilla's EAST polygon UV
-     * onto the -X face. Other faces (UP/DOWN/NORTH/SOUTH) stay on their natural UV strip;
-     * their U axis is U-flipped via {@link Vector4f#toUvCorners}'s mirror arg in
-     * {@link #resolveFaceUv}.
-     *
-     * @param face the geometric face being rendered
-     * @param mirror the cube's {@code isMirror} flag
-     * @return the face whose UV strip should be sampled for the given geometric face
-     */
-    private static @NotNull EntityFace mirrorFace(@NotNull EntityFace face, boolean mirror) {
-        if (!mirror) return face;
-        return switch (face) {
-            case EAST -> EntityFace.WEST;
-            case WEST -> EntityFace.EAST;
-            default -> face;
-        };
-    }
-
     /** UV resolution. Forwards the cube's {@code mirror} flag to {@link Vector4f#toUvCorners} for the U-flip. */
     private static @NotNull Vector2f @NotNull [] resolveFaceUv(
         @NotNull EntityFace face,
@@ -956,7 +934,7 @@ public class EntityGeometryKit {
      * effect of swapping which UV strip is applied to the cube's +X vs -X face (vanilla's WEST
      * polygon UV ends up on the +X face, EAST polygon UV on the -X face). The polygon ctor also
      * reverses each polygon's vertex array, which U-flips every face's UV mapping. Both effects
-     * are replicated for {@code mirror=true} cubes via {@link #mirrorFace} and the
+     * are replicated for {@code mirror=true} cubes via {@link EntityFace#mirror} and the
      * {@link Vector4f#toUvCorners} mirror flag inside {@link #resolveFaceUv}.
      * <p>
      * The per-face slot permutation maps {@link #resolveFaceUv}'s {@code (TL, BL, BR, TR)}
@@ -984,7 +962,7 @@ public class EntityGeometryKit {
         float texWidth,
         float texHeight
     ) {
-        Vector2f[] uv = resolveFaceUv(mirrorFace(face, cube.isMirror()), cube, size, texWidth, texHeight);
+        Vector2f[] uv = resolveFaceUv(face.mirror(cube.isMirror()), cube, size, texWidth, texHeight);
         return face.permuteToPolygonOrder(uv);
     }
 

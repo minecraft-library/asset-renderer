@@ -176,6 +176,24 @@ public enum EntityFace {
     }
 
     /**
+     * Picks this face's four corners out of an arbitrary 8-corner array indexed by the canonical
+     * bit-pattern layout (see {@link #corners(Box)}). Overload of {@link #corners(Box)} for
+     * callers - currently the tooling block-entity converter - that already hold a transformed
+     * {@code float[8][3]} of cube corners and want to index by face without spelling out
+     * {@code vertexIndices()[0..3]} four times.
+     *
+     * @param eightCorners the eight cube corners in canonical bit-pattern order
+     * @return this face's four corners in vanilla polygon-vertex order (the same array entries,
+     *     not copies)
+     */
+    public float @NotNull [] @NotNull [] cornersOf(float @NotNull [] @NotNull [] eightCorners) {
+        return new float[][]{
+            eightCorners[this.vertexIndices[0]], eightCorners[this.vertexIndices[1]],
+            eightCorners[this.vertexIndices[2]], eightCorners[this.vertexIndices[3]]
+        };
+    }
+
+    /**
      * Returns the default UV rectangle for this face in pixel space, using the <b>vanilla Java
      * Edition</b> entity-cube atlas unwrap where all six faces of a single cube share one
      * texture image. Mirrors {@link net.minecraft.client.model.geom.ModelPart.Cube}'s polygon
@@ -241,6 +259,30 @@ public enum EntityFace {
     public @NotNull Vector2f @NotNull [] permuteToPolygonOrder(@NotNull Vector2f @NotNull [] tlBlBrTr) {
         int[] s = this.polygonVertexSlots;
         return new Vector2f[]{ tlBlBrTr[s[0]], tlBlBrTr[s[1]], tlBlBrTr[s[2]], tlBlBrTr[s[3]] };
+    }
+
+    /**
+     * Returns the face whose UV strip should be sampled when the cube's {@code mirror} flag is
+     * {@code true}, otherwise returns this face unchanged.
+     * <p>
+     * Vanilla's {@code ModelPart.Cube} ctor swaps the cube's {@code x} and {@code maxX}
+     * variables before building polygon vertices when {@code mirror=true}, which has the net
+     * effect of placing vanilla's WEST polygon UV onto the +X face and vanilla's EAST polygon
+     * UV onto the -X face. Other faces ({@link #UP}/{@link #DOWN}/{@link #NORTH}/{@link #SOUTH})
+     * stay on their natural UV strip; their U axis is U-flipped separately via
+     * {@link Vector4f#toUvCorners}'s mirror arg at the call site.
+     *
+     * @param mirrored the cube's {@code mirror} flag
+     * @return {@link #WEST} for {@link #EAST} (and vice versa) when {@code mirrored} is
+     *     {@code true}; this face otherwise
+     */
+    public @NotNull EntityFace mirror(boolean mirrored) {
+        if (!mirrored) return this;
+        return switch (this) {
+            case EAST -> WEST;
+            case WEST -> EAST;
+            default -> this;
+        };
     }
 
     /**

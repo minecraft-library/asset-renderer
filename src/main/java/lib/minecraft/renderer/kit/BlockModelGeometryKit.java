@@ -9,10 +9,10 @@ import lib.minecraft.renderer.asset.model.ItemModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.engine.RenderEngine;
-import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.geometry.BlockFace;
 import lib.minecraft.renderer.geometry.Box;
 import lib.minecraft.renderer.geometry.ModelGrid;
+import lib.minecraft.renderer.geometry.SixFaces;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector2f;
@@ -39,15 +39,14 @@ public class BlockModelGeometryKit {
      * Builds a list of 12 triangles (2 per face) describing a unit cube centered at the origin
      * with the given per-face textures.
      * <p>
-     * Texture array order must match the declaration order of {@link BlockFace} (DOWN, UP, NORTH,
-     * SOUTH, WEST, EAST). Every face uses the full {@code [0, 1]} UV rectangle.
+     * Every face uses the full {@code [0, 1]} UV rectangle.
      *
-     * @param faces the six face textures in canonical {@link BlockFace} order
+     * @param faces the six face textures, keyed by {@link BlockFace} direction
      * @param tintArgb the ARGB tint applied to every face, or {@code 0xFFFFFFFF} for no tint
      * @return the 12-triangle list, ready for rasterization
      */
     public static @NotNull ConcurrentList<VisibleTriangle> unitCube(
-        @NotNull PixelBuffer @NotNull [] faces,
+        @NotNull SixFaces faces,
         int tintArgb
     ) {
         return box(
@@ -63,19 +62,16 @@ public class BlockModelGeometryKit {
      *
      * @param min the minimum corner in model space
      * @param max the maximum corner in model space
-     * @param faces the six face textures in canonical {@link BlockFace} order
+     * @param faces the six face textures, keyed by {@link BlockFace} direction
      * @param tintArgb the ARGB tint applied to every face
      * @return the 12-triangle list
      */
     public static @NotNull ConcurrentList<VisibleTriangle> box(
         @NotNull Vector3f min,
         @NotNull Vector3f max,
-        @NotNull PixelBuffer @NotNull [] faces,
+        @NotNull SixFaces faces,
         int tintArgb
     ) {
-        if (faces.length != 6)
-            throw new RenderException("Box requires exactly 6 face textures");
-
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
         Box box = Box.of(min, max);
 
@@ -84,7 +80,7 @@ public class BlockModelGeometryKit {
             addQuad(
                 triangles,
                 corners[0], corners[1], corners[2], corners[3],
-                faces[face.ordinal()], tintArgb,
+                faces.byFace(face), tintArgb,
                 face.normal()
             );
         }

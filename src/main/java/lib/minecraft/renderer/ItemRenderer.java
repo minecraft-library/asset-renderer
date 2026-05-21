@@ -19,6 +19,7 @@ import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.geometry.ModelGrid;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
+import lib.minecraft.renderer.geometry.SixFaces;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.kit.BannerKit;
 import lib.minecraft.renderer.kit.BlockModelGeometryKit;
@@ -175,11 +176,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
         PixelBuffer composite = BannerKit.composite2D(engine, baseDye, options.getBannerLayers(), variant);
 
-        PixelBuffer[] faces = new PixelBuffer[]{ composite, composite, composite, composite, composite, composite };
         return BlockModelGeometryKit.box(
             new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),
             new Vector3f(FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_Z),
-            faces,
+            SixFaces.uniform(composite),
             ColorMath.WHITE
         );
     }
@@ -499,11 +499,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             ConcurrentList<VisibleTriangle> triangles;
             if (item.getOverlay().isPresent()) {
                 PixelBuffer overlayTexture = composeOverlayTexture(this.context, engine, item.getOverlay().get(), options);
-                PixelBuffer[] faces = new PixelBuffer[]{ overlayTexture, overlayTexture, overlayTexture, overlayTexture, overlayTexture, overlayTexture };
                 triangles = BlockModelGeometryKit.box(
                     new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),
                     new Vector3f(FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_Z),
-                    faces,
+                    SixFaces.uniform(overlayTexture),
                     ColorMath.WHITE
                 );
             } else if (isBannerOrShield(options.getItemId())) {
@@ -526,11 +525,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                     throw new RenderException("Item '%s' has no elements and no layer0 - nothing to render in Held3D path", options.getItemId());
 
                 PixelBuffer texture = engine.resolveTexture(layerRef);
-                PixelBuffer[] faces = new PixelBuffer[]{ texture, texture, texture, texture, texture, texture };
                 triangles = BlockModelGeometryKit.box(
                     new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),
                     new Vector3f(FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_Z),
-                    faces,
+                    SixFaces.uniform(texture),
                     tint
                 );
             }
