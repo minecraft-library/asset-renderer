@@ -490,68 +490,82 @@ public class ModelEngine extends TextureEngine {
     }
 
     /**
-     * Sub-pixel grid resolution for {@link #snapSubPixel}. Empirically tuned: a sweep across
-     * {@code 16, 64, 128, 192, 224, 256, 320, 352, 368, 384, 392, 396, 400, 404, 408, 416, 448,
-     * 480, 512} gave peak parity at {@code 400}, with sharp local minima at 396 and 404. Going
-     * higher (1/448+) regresses the whole fleet; lower (1/16-1/192) gives 1-pixel silhouette
-     * shifts that break many entities. The 400 value is not a standard GPU sub-pixel precision
-     * (which is 1/16 or 1/256 on real hardware); it appears to be a "resonance" point for our
-     * specific iso projection chain (composed of multiple rotation+scale matrices in float32),
-     * where snapping to 1/400 multiples cancels the accumulated float-arithmetic drift across
-     * the chain and re-aligns vertex screen positions with vanilla's harness output.
+     * Sub-pixel grid resolution for {@link #snapToCoverageGrid}. Empirically tuned at
+     * {@code 1/400}: a sweep across {@code 1/16, 1/64, 1/128, 1/256, 1/400, 1/512, 1/1024}
+     * showed peak fleet parity at {@code 1/400}, with sharp local minima at {@code 1/396}
+     * and {@code 1/404}; coarser grids ({@code 1/16-1/192}) shift silhouettes by whole
+     * pixels; finer grids ({@code 1/448+}) re-introduce the exact-alignment cases.
+     *
+     * <p><b>Not a standard GPU sub-pixel precision</b> (real hardware uses {@code 1/16} or
+     * {@code 1/256}). The {@code 1/400} value is INCOMMENSURATE with both our rasterizer's
+     * {@code 1/256} fixed-point edge functions (see
+     * {@link lib.minecraft.renderer.geometry.ProjectionMath ProjectionMath}) and with
+     * texture grid sizes ({@code 1/16}, {@code 1/32}, {@code 1/64} for typical entity
+     * textures), so quantized vertex positions almost never land at sample points that
+     * produce exact-half barycentrics or exact-integer texel-coordinate interpolations -
+     * precisely the cases the snap is here to break.
      */
-    private static final float SUBPIXEL_PRECISION =
-        Float.parseFloat(System.getProperty("entity.snapSubPixelGrid", "400"));
+    private static final float SUBPIXEL_PRECISION = 400f;
     private static final float SUBPIXEL_INV = 1f / SUBPIXEL_PRECISION;
 
     /**
-     * Subpixel-snap on projection output. Default {@code true}. Compensates for a CHAIN
-     * PRECISION DIFFERENCE between our pose-stack output and vanilla's: our chain produces
-     * "cleaner" float values that land on exact UV / edge boundaries at certain pixels
-     * (e.g. tadpole tail samples interpolate to {@code v == 0.5f} exactly, landing on the
-     * boundary between texel 7 (opaque) and texel 8 (transparent) per
-     * {@code (int)(v * texH)}), while vanilla's chain produces sub-ULP-offset values that
-     * naturally avoid those boundaries. Snap rounds vertices to {@link #SUBPIXEL_PRECISION
-     * a 1/400 grid}, perturbing the UV interpolation enough to escape the exact-boundary
-     * case.
-     * <p>
-     * Sub-pixel-fixed-point edge functions in
-     * {@link lib.minecraft.renderer.geometry.ProjectionMath#isInsideTriangle ProjectionMath}
-     * subsume one half of the snap's old job (coverage at exact triangle edges) - integer
-     * math is deterministic regardless of float drift. Snap still handles the OTHER half
-     * (UV interpolation at exact texel boundaries) because the texture sample lookup uses
-     * float UV directly, not quantized integers. A proper fix requires either matching
-     * vanilla's chain bit-for-bit (multi-week tooling restructure) or quantizing UV
-     * sampling to the GPU's sub-pixel grid.
-     * <p>
-     * Empirical (2026-05-20): fleet total delta is 16.71 with snap-on vs 16.75 with
-     * snap-off, both at 86/97/99/99 buckets. Snap-off regresses tadpole 0.02 -> 0.22,
-     * silverfish 0.03 -> 0.11, bat 0.00 -> 0.05, creaking 0.13 -> 0.20 - all
-     * silhouette-boundary pixels where unsnapped UV lands on texel-corner ties.
-     * <p>
-     * Disable via {@code -Dentity.snapSubPixel=false} for bisection.
-     */
-    private static final boolean SUBPIXEL_SNAP_ENABLED =
-        !"false".equalsIgnoreCase(System.getProperty("entity.snapSubPixel", "true"));
-
-    /**
-     * Snaps a screen-space vertex position to the {@link #SUBPIXEL_PRECISION 1/400 sub-pixel
-     * grid}. Applied at projection-output time (after the iso transform composes its
-     * {@code rotate × scale × flip} chain and the per-vertex result lands in canvas-pixel space)
-     * so accumulated float drift across the matrix chain is canceled before the rasterizer's
-     * edge classification sees it.
+     * Quantizes a projected screen-space vertex position to the
+     * {@link #SUBPIXEL_PRECISION 1/400 sub-pixel grid} to emulate the GPU's hardware
+     * coverage / interpolation behaviour at edge and texel boundaries.
      *
-     * <p>This is Phase 1 of the
-     * {@code [[project_rasterizer_subpixel_drift]]} resolution. Lifts the
-     * illager family (witch 1.31 -> 0.12, evoker 1.06 -> 0.10, vindicator 0.68 -> 0.12,
-     * illusioner 0.49 -> 0.12) plus silverfish (0.33 -> 0.03) into the sub-0.25 bucket without
-     * regressing any entity by &gt; 0.04. See {@code notes/barycentric-precision.md}.
+     * <p><b>Why this is needed.</b> Our software rasterizer matches vanilla's CPU-side
+     * vertex chain bit-for-bit (verified by per-vertex {@code [PX] TRI} dumps against the
+     * vanilla harness) and uses the same {@code 1/256} fixed-point edge functions the GPU
+     * does. At a typical pixel, the two pipelines agree. At <b>exact-alignment samples</b>,
+     * they don't:
+     * <ul>
+     *   <li>When a triangle's sub-pixel-fixed-point bary works out to exactly {@code 0.5}
+     *       on one axis (which happens for any symmetric cube geometry - tadpole tail,
+     *       silverfish segments, witch hat - because the integer edge-function ratio
+     *       collapses to {@code n / (2n)}), our UV interpolation hits exact texel
+     *       boundaries like {@code v * texH = 8.0} and {@code (int)8.0 = 8} samples the
+     *       adjacent (often transparent) texel. Vanilla's GPU computes the same exact
+     *       bary but its hardware fragment-attribute interpolation rounds the result
+     *       just below the boundary, so it samples texel {@code 7} instead.</li>
+     *   <li>When the {@code 1/256} fixed-point edge function lands at {@code 0} (sample
+     *       exactly on a triangle edge in fixed-point), our top-left fill rule resolves
+     *       it deterministically; the GPU's resolution differs at column-vertical edges
+     *       shared between two faces in iso projection (the canonical witch {@code x=21}
+     *       column).</li>
+     * </ul>
+     * Snapping the projected vertex position to a {@code 1/400} grid before edge
+     * classification perturbs both effects: the bary at sample {@code (px + 0.5, py + 0.5)}
+     * shifts off the exact-{@code 0.5} line, and the edge function shifts off the exact
+     * zero crossing. The perturbation is sub-pixel-small (max {@code 1/800} per axis -
+     * about {@code 0.0013} canvas pixels) so no silhouette shifts, but it's enough to
+     * dodge the exact-alignment cases.
      *
-     * <p>Gated by {@code -Dentity.snapSubPixel=false} so the precision-hunt baseline can run
-     * without the band-aid and isolate the upstream float drift class.
+     * <p><b>What we tried and rejected.</b> Documented in
+     * {@code [[project_tadpole_chain_structural_divergence]]}:
+     * <ul>
+     *   <li>Restructuring the asset pipeline to apply vanilla's pose-stack op sequence
+     *       inline gave bit-perfect vertices vs the harness, but snap-off parity got
+     *       WORSE (tadpole 0.22 -> 0.70) because bit-perfect symmetric vertices align
+     *       cleanly with the {@code bary = 0.5} cases through MORE pixels than the
+     *       legacy chain's accidentally-drifted output.</li>
+     *   <li>Switching the per-bone matrix to vanilla's
+     *       {@code translateAndRotate}-form (no pivot bake, T(pivot/16) as a matrix op)
+     *       was bit-equivalent at the per-vertex level.</li>
+     *   <li>Using vanilla's exact polygon triangulation diagonal (per-face cyclic shift
+     *       in corner ordering) didn't help - the {@code bary = 0.5} sample lands on the
+     *       diagonal regardless of which way the diagonal goes.</li>
+     *   <li>Higher-precision (double) UV interpolation: same result, {@code 0.5} is exact
+     *       in any float type.</li>
+     *   <li>{@code 1/256} sub-pixel snap (matching GPU): regresses because it's
+     *       commensurate with our fixed-point edge precision.</li>
+     * </ul>
+     * The conclusion is that the residual snap-off gap is in hardware-specific GPU coverage
+     * and fragment-attribute interpolation that we cannot bit-reproduce in software at any
+     * reasonable cost. Snap is the deterministic, cheap workaround: at the
+     * {@code 0.04}-fleet-delta cost of perturbing every vertex by sub-pixel amounts,
+     * it dodges the exact-alignment GPU-vs-software divergence entirely.
      */
-    private static @NotNull Vector2f snapSubPixel(@NotNull Vector2f v) {
-        if (!SUBPIXEL_SNAP_ENABLED) return v;
+    private static @NotNull Vector2f snapToCoverageGrid(@NotNull Vector2f v) {
         return new Vector2f(Math.round(v.x() * SUBPIXEL_PRECISION) * SUBPIXEL_INV,
                             Math.round(v.y() * SUBPIXEL_PRECISION) * SUBPIXEL_INV);
     }
@@ -608,9 +622,9 @@ public class ModelEngine extends TextureEngine {
         Vector3f p2 = Vector3f.transform(triangle.position2(), transform);
         Vector3f normal = Vector3f.normalize(Vector3f.transformNormal(triangle.normal(), transform));
 
-        Vector2f s0 = snapSubPixel(RenderEngine.projectPerspective(p0, scale, offsetX, offsetY, perspective));
-        Vector2f s1 = snapSubPixel(RenderEngine.projectPerspective(p1, scale, offsetX, offsetY, perspective));
-        Vector2f s2 = snapSubPixel(RenderEngine.projectPerspective(p2, scale, offsetX, offsetY, perspective));
+        Vector2f s0 = snapToCoverageGrid(RenderEngine.projectPerspective(p0, scale, offsetX, offsetY, perspective));
+        Vector2f s1 = snapToCoverageGrid(RenderEngine.projectPerspective(p1, scale, offsetX, offsetY, perspective));
+        Vector2f s2 = snapToCoverageGrid(RenderEngine.projectPerspective(p2, scale, offsetX, offsetY, perspective));
 
         if (PIXEL_DUMP_RECT != null && triangle.debugTag() != null) {
             // One-shot per-triangle projection trace: surfaces the screen-space corner positions
