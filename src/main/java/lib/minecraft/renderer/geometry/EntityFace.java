@@ -31,11 +31,9 @@ import java.util.Locale;
  * <li>The outward unit {@link #normal} - used by the entity ENTITY_IN_UI lighting model
  *     ({@link lib.minecraft.renderer.engine.RenderEngine#computeEntityInUiLighting}) which dots
  *     this direction against two fixed inventory diffuse light vectors.</li>
- * <li>Atlas-strip layout coefficients ({@link #widthAxis}, {@link #heightAxis},
- *     {@link #atlasUSxCoef}, {@link #atlasUSzCoef}, {@link #atlasVSxCoef}, {@link #atlasVSzCoef})
- *     consumed by {@link #defaultUv} - inlined as fields rather than a nested record because no
- *     other layout shares this enum (compare {@link BlockFace} which has to disambiguate between a
- *     block-element layout and an entity-cube layout via two record companions).</li>
+ * <li>A {@link Layout} carrying the per-face axis-and-atlas-coefficient data
+ *     {@link #defaultUv} needs to project a cube's UV strip into a pixel rectangle without a
+ *     per-face {@code switch}.</li>
  * </ul>
  * <p>
  * The four vertex indices per face match vanilla's {@code ModelPart.Cube} polygon vertex
@@ -71,62 +69,35 @@ public enum EntityFace {
 
     DOWN(
         "down", new int[]{ 5, 4, 0, 1 }, new Vector3f(0f, -1f, 0f),
-        0, 2, 0, 1, 0, 0, new int[]{ 3, 0, 1, 2 }
+        new Layout(0, 2, 0, 1, 0, 0), new int[]{ 3, 0, 1, 2 }
     ),
     UP(
         "up", new int[]{ 2, 3, 7, 6 }, new Vector3f(0f, 1f, 0f),
-        0, 2, 1, 1, 0, 0, new int[]{ 2, 1, 0, 3 }
+        new Layout(0, 2, 1, 1, 0, 0), new int[]{ 2, 1, 0, 3 }
     ),
     NORTH(
         "north", new int[]{ 1, 0, 3, 2 }, new Vector3f(0f, 0f, -1f),
-        0, 1, 0, 1, 0, 1, new int[]{ 3, 0, 1, 2 }
+        new Layout(0, 1, 0, 1, 0, 1), new int[]{ 3, 0, 1, 2 }
     ),
     SOUTH(
         "south", new int[]{ 4, 5, 6, 7 }, new Vector3f(0f, 0f, 1f),
-        0, 1, 1, 2, 0, 1, new int[]{ 3, 0, 1, 2 }
+        new Layout(0, 1, 1, 2, 0, 1), new int[]{ 3, 0, 1, 2 }
     ),
     WEST(
         "west", new int[]{ 0, 4, 7, 3 }, new Vector3f(-1f, 0f, 0f),
-        2, 1, 0, 0, 0, 1, new int[]{ 3, 0, 1, 2 }
+        new Layout(2, 1, 0, 0, 0, 1), new int[]{ 3, 0, 1, 2 }
     ),
     EAST(
         "east", new int[]{ 5, 1, 2, 6 }, new Vector3f(1f, 0f, 0f),
-        2, 1, 1, 1, 0, 1, new int[]{ 3, 0, 1, 2 }
+        new Layout(2, 1, 1, 1, 0, 1), new int[]{ 3, 0, 1, 2 }
     );
 
     private final @NotNull String direction;
     private final int @NotNull [] vertexIndices;
     private final @NotNull Vector3f normal;
 
-    /**
-     * Size-axis index that maps to U ({@code 0=x}, {@code 1=y}, {@code 2=z}). Picks the face's
-     * size along U from the cube's {@code size} array.
-     */
-    @Getter(AccessLevel.PUBLIC)
-    private final int widthAxis;
-
-    /**
-     * Size-axis index that maps to V ({@code 0=x}, {@code 1=y}, {@code 2=z}). Picks the face's
-     * size along V from the cube's {@code size} array.
-     */
-    @Getter(AccessLevel.PUBLIC)
-    private final int heightAxis;
-
-    /** Coefficient on {@code sx} in the atlas U offset formula {@code uOff = sxCoef*sx + szCoef*sz}. */
-    @Getter(AccessLevel.PUBLIC)
-    private final int atlasUSxCoef;
-
-    /** Coefficient on {@code sz} in the atlas U offset formula {@code uOff = sxCoef*sx + szCoef*sz}. */
-    @Getter(AccessLevel.PUBLIC)
-    private final int atlasUSzCoef;
-
-    /** Coefficient on {@code sx} in the atlas V offset formula {@code vOff = sxCoef*sx + szCoef*sz}. */
-    @Getter(AccessLevel.PUBLIC)
-    private final int atlasVSxCoef;
-
-    /** Coefficient on {@code sz} in the atlas V offset formula {@code vOff = sxCoef*sx + szCoef*sz}. */
-    @Getter(AccessLevel.PUBLIC)
-    private final int atlasVSzCoef;
+    @Getter(AccessLevel.NONE)
+    private final @NotNull Layout layout;
 
     /**
      * Maps the indices of a normalized {@code [TL, BL, BR, TR]} corner array (the shape
@@ -229,13 +200,13 @@ public enum EntityFace {
     public @NotNull Vector4f defaultUv(@NotNull Vector2f uv, @NotNull Vector3f size) {
         float sx = size.x();
         float sz = size.z();
-        float uOff = this.atlasUSxCoef * sx + this.atlasUSzCoef * sz;
-        float vOff = this.atlasVSxCoef * sx + this.atlasVSzCoef * sz;
+        float uOff = this.layout.atlasUSxCoef() * sx + this.layout.atlasUSzCoef() * sz;
+        float vOff = this.layout.atlasVSxCoef() * sx + this.layout.atlasVSzCoef() * sz;
 
         float u0 = uv.x() + uOff;
-        float u1 = u0 + size.get(this.widthAxis);
+        float u1 = u0 + size.get(this.layout.widthAxis());
         float v0 = uv.y() + vOff;
-        float v1 = v0 + size.get(this.heightAxis);
+        float v1 = v0 + size.get(this.layout.heightAxis());
 
         return new Vector4f(u0, v0, u1, v1);
     }
@@ -304,5 +275,37 @@ public enum EntityFace {
             default -> null;
         };
     }
+
+    /**
+     * Per-face data used by {@link #defaultUv} for the vanilla Java entity-cube atlas unwrap.
+     * <ul>
+     * <li>{@link #widthAxis()} / {@link #heightAxis()} - which of {@code [x, y, z]} map to U and V
+     *     ({@code 0=x}, {@code 1=y}, {@code 2=z}). Picks the face's size along U and V from the
+     *     cube's {@code size} array.</li>
+     * <li>{@link #atlasUSxCoef()} / {@link #atlasUSzCoef()} - coefficients in the atlas U offset
+     *     formula {@code uOff = atlasUSxCoef*sx + atlasUSzCoef*sz}.</li>
+     * <li>{@link #atlasVSxCoef()} / {@link #atlasVSzCoef()} - coefficients in the atlas V offset
+     *     formula {@code vOff = atlasVSxCoef*sx + atlasVSzCoef*sz}.</li>
+     * </ul>
+     * The {@code sy} dimension never contributes to an atlas offset because vertical extent on
+     * the strip is always expressed in terms of {@code sz} (top row) or the face's own height.
+     * The coefficients encode vanilla's {@code WEST, NORTH, EAST, SOUTH} side-strip order -
+     * swapping any pair breaks the cow udder / mob-face tests.
+     *
+     * @param widthAxis the size-axis index that maps to U ({@code 0=x}, {@code 1=y}, {@code 2=z})
+     * @param heightAxis the size-axis index that maps to V
+     * @param atlasUSxCoef the {@code sx} coefficient in the atlas U offset formula
+     * @param atlasUSzCoef the {@code sz} coefficient in the atlas U offset formula
+     * @param atlasVSxCoef the {@code sx} coefficient in the atlas V offset formula
+     * @param atlasVSzCoef the {@code sz} coefficient in the atlas V offset formula
+     */
+    public record Layout(
+        int widthAxis,
+        int heightAxis,
+        int atlasUSxCoef,
+        int atlasUSzCoef,
+        int atlasVSxCoef,
+        int atlasVSzCoef
+    ) {}
 
 }
