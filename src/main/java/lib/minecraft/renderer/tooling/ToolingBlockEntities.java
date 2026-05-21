@@ -13,11 +13,13 @@ import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.exception.ToolingException;
 import lib.minecraft.renderer.geometry.BlockFace;
 import lib.minecraft.renderer.geometry.Box;
+import lib.minecraft.renderer.geometry.EntityFace;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockEntityLoader;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
+import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tensor.Vector4f;
 import lib.minecraft.renderer.tooling.blockentity.BlockListDiscovery;
@@ -2717,8 +2719,22 @@ public final class ToolingBlockEntities {
             float scaleV = 16.0f / texH;
 
             JsonObject faces = new JsonObject();
-            for (ModelPartPolygonFace layout : ModelPartPolygonFace.values())
-                emitBlockFace(layout.faceFor(cube, scaleU, scaleV), blockCorners, box, faces, emitTintIndex);
+            Vector2f cubeUv = new Vector2f(cube.u, cube.v);
+            Vector3f cubeSize = new Vector3f(cube.sw, cube.sh, cube.sd);
+            for (EntityFace face : EntityFace.values()) {
+                Vector4f rect = face.defaultUv(cubeUv, cubeSize);
+                // Expand the normalized pixel-space rect into TL/BL/BR/TR corners scaled into
+                // the 0-16 block-UV space (block-model UV is independent of texture size; the
+                // runtime multiplies u by texW/16 and v by texH/16 to recover pixel coords).
+                Vector2f[] tlBlBrTr = {
+                    new Vector2f(rect.x() * scaleU, rect.y() * scaleV),
+                    new Vector2f(rect.x() * scaleU, rect.w() * scaleV),
+                    new Vector2f(rect.z() * scaleU, rect.w() * scaleV),
+                    new Vector2f(rect.z() * scaleU, rect.y() * scaleV)
+                };
+                Vector2f[] perVertexUvs = face.permuteToPolygonOrder(tlBlBrTr);
+                emitBlockFace(face, perVertexUvs, blockCorners, box, faces, emitTintIndex);
+            }
 
             JsonObject element = new JsonObject();
             JsonArray from = new JsonArray(); from.add(round2(box.minX())); from.add(round2(box.minY())); from.add(round2(box.minZ()));
@@ -2753,15 +2769,17 @@ public final class ToolingBlockEntities {
          */
         private static void emitBlockFace(
             @NotNull EntityFace face,
+            @NotNull Vector2f @NotNull [] perVertexUvs,
             float @NotNull [] @NotNull [] blockCorners,
             @NotNull Box box,
             @NotNull JsonObject facesOut,
             boolean emitTintIndex
         ) {
-            float[] p0 = blockCorners[face.vertexIndices[0]];
-            float[] p1 = blockCorners[face.vertexIndices[1]];
-            float[] p2 = blockCorners[face.vertexIndices[2]];
-            float[] p3 = blockCorners[face.vertexIndices[3]];
+            int[] vertexIndices = face.vertexIndices();
+            float[] p0 = blockCorners[vertexIndices[0]];
+            float[] p1 = blockCorners[vertexIndices[1]];
+            float[] p2 = blockCorners[vertexIndices[2]];
+            float[] p3 = blockCorners[vertexIndices[3]];
 
             // Cross product of two edges gives the face normal; snapping to the cardinal axis
             // tells us which of the six block-face slots the polygon belongs to.
@@ -2786,20 +2804,14 @@ public final class ToolingBlockEntities {
 
             Vector3f[] blockFaceCorners = BlockFace.values()[blockFaceIdx].corners(box);
 
-            // For each transformed vertex of the entity face, look up the (uMin/uMax, vMin/vMax)
-            // it carries (per the four-corner UV order: v[0]→(u1,v0), v[1]→(u0,v0), v[2]→(u0,v1), v[3]→(u1,v1)),
-            // then attach that UV to whichever block-face corner the vertex landed at.
-            float[][] entityFaceUv = {
-                { face.u1, face.v0 },
-                { face.u0, face.v0 },
-                { face.u0, face.v1 },
-                { face.u1, face.v1 }
-            };
+            // For each transformed vertex of the entity face, read the UV it carries (already
+            // in vanilla polygon-vertex order via EntityFace.permuteToPolygonOrder), then attach
+            // that UV to whichever block-face corner the vertex landed at.
             float[][] blockCornerUv = new float[4][2];
             float[][] entityFacePos = { p0, p1, p2, p3 };
             for (int i = 0; i < 4; i++) {
                 int blockCorner = matchCorner(entityFacePos[i], blockFaceCorners);
-                blockCornerUv[blockCorner] = entityFaceUv[i];
+                blockCornerUv[blockCorner] = new float[]{ perVertexUvs[i].x(), perVertexUvs[i].y() };
             }
 
             UvRect uvRect = resolveUvRotation(blockCornerUv);
@@ -3081,78 +3093,6 @@ public final class ToolingBlockEntities {
                 return null;
             }
         }
-
-        /** Vanilla's per-face vertex-to-UV pairing, per {@code ModelPart$Polygon} constructor. */
-        @FunctionalInterface
-        private interface UvFormula {
-            float @NotNull [] compute(int u, int v, @NotNull CubeDef c);
-        }
-
-        /**
-         * The six faces of a vanilla Java {@code ModelPart$Cube}, each carrying its four vertex
-         * indices into the shared 8-corner box layout and the UV formula that computes the face's
-         * {@code (u0, v0, u1, v1)} rectangle from the cube's UV origin and dimensions. The formula
-         * expresses vanilla's per-face box-UV layout (width {@code d+w+d+w} across, height
-         * {@code d+h} down, with the two cap faces sharing the top strip).
-         * <p>
-         * The vertex ordering mirrors vanilla's {@code ModelPart$Polygon} constructor: {@code v[0]}
-         * pairs with UV {@code (u1, v0)} (top-right of the texture rect), {@code v[1]} with
-         * {@code (u0, v0)}, {@code v[2]} with {@code (u0, v1)}, {@code v[3]} with {@code (u1, v1)}.
-         * This is a <i>different</i> convention from {@link BlockFace#corners(Box)}, whose indices
-         * start at the face's top-left corner to feed {@code GeometryKit.addQuad}'s
-         * {@code (topLeft, bottomLeft, bottomRight, topRight)} parameter order.
-         * <p>
-         * Both conventions index the same 8-corner box and are CCW; they differ by a 1-position
-         * shift whose direction flips between {@code UP}/{@code DOWN} and the four vertical faces
-         * because the two conventions disagree about which world corner is "first" per face. The
-         * two cannot be unified - {@link BlockFace} serves block-model rendering via
-         * {@code GeometryKit.addQuad}, while {@code ModelPartPolygonFace} serves the
-         * bytecode-to-block-model conversion in {@link BlockModelConverter}, which must round-trip
-         * vanilla's per-vertex UVs exactly.
-         * <p>
-         * The UV strip layout encoded here is also <i>different</i> from the Bedrock Edition
-         * geo.json strip layout encoded in {@code BlockFace.defaultUv(Vector2f, Vector3f)}. Those
-         * are two distinct Mojang conventions and must stay separate.
-         */
-        private enum ModelPartPolygonFace {
-            // DOWN: vertices v24, v23, v19, v20; UV (u+d, v, u+d+w, v+d)
-            DOWN (new int[]{ 5, 4, 0, 1 }, (u, v, c) -> new float[]{ u + c.sd,                     v,                u + c.sd + c.sw,               v + c.sd }),
-            // UP: vertices v21, v22, v26, v25; UV (u+d+w, v+d, u+d+w+w, v) - note v0 > v1
-            UP   (new int[]{ 2, 3, 7, 6 }, (u, v, c) -> new float[]{ u + c.sd + c.sw,              v + c.sd,         u + c.sd + c.sw + c.sw,        v }),
-            // NORTH: vertices v20, v19, v22, v21; UV (u+d, v+d, u+d+w, v+d+h)
-            NORTH(new int[]{ 1, 0, 3, 2 }, (u, v, c) -> new float[]{ u + c.sd,                     v + c.sd,         u + c.sd + c.sw,               v + c.sd + c.sh }),
-            // SOUTH: vertices v23, v24, v25, v26; UV (u+d+w+d, v+d, u+d+w+d+w, v+d+h)
-            SOUTH(new int[]{ 4, 5, 6, 7 }, (u, v, c) -> new float[]{ u + c.sd + c.sw + c.sd,       v + c.sd,         u + c.sd + c.sw + c.sd + c.sw, v + c.sd + c.sh }),
-            // WEST: vertices v19, v23, v26, v22; UV (u, v+d, u+d, v+d+h)
-            WEST (new int[]{ 0, 4, 7, 3 }, (u, v, c) -> new float[]{ u,                            v + c.sd,         u + c.sd,                      v + c.sd + c.sh }),
-            // EAST: vertices v24, v20, v21, v25; UV (u+d+w, v+d, u+d+w+d, v+d+h)
-            EAST (new int[]{ 5, 1, 2, 6 }, (u, v, c) -> new float[]{ u + c.sd + c.sw,              v + c.sd,         u + c.sd + c.sw + c.sd,        v + c.sd + c.sh });
-
-            private final int @NotNull [] vertexIndices;
-            private final @NotNull UvFormula uvFormula;
-
-            ModelPartPolygonFace(int @NotNull [] vertexIndices, @NotNull UvFormula uvFormula) {
-                this.vertexIndices = vertexIndices;
-                this.uvFormula = uvFormula;
-            }
-
-            /** Instantiates an {@link EntityFace} with the four UV edges scaled to texture-relative coordinates. */
-            @NotNull EntityFace faceFor(@NotNull CubeDef c, float scaleU, float scaleV) {
-                float[] uv = uvFormula.compute(c.u, c.v, c);
-                return new EntityFace(vertexIndices, uv[0] * scaleU, uv[1] * scaleV, uv[2] * scaleU, uv[3] * scaleV);
-            }
-        }
-
-        /**
-         * One of the six entity faces of a cube: the four vertex indices into the shared
-         * 8-corner box layout and the four UV-rectangle edges. The UVs
-         * {@code (u1, v0), (u0, v0), (u0, v1), (u1, v1)} are paired with the four vertices
-         * starting at the <b>texture top-right</b> corner and walking CCW, matching vanilla's
-         * {@code ModelPart$Polygon} constructor - <i>not</i> {@link BlockFace}'s top-left-first
-         * CCW convention. See {@link ModelPartPolygonFace} for why the two conventions
-         * coexist.
-         */
-        private record EntityFace(int @NotNull [] vertexIndices, float u0, float v0, float u1, float v1) {}
 
         /** The resolved UV rectangle plus a rotation tag from per-corner UV sampling. */
         private record UvRect(@NotNull Vector4f bounds, int rotation) {}

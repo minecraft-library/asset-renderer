@@ -50,9 +50,9 @@ import java.util.Locale;
  * <li>UP starts at {@code (maxX, maxY, minZ)} and DOWN at {@code (maxX, minY, maxZ)},
  *     winding CCW from the outward-normal viewpoint. The atlas strip's UP polygon is
  *     V-inverted vs DOWN ({@code v_top &gt; v_bottom} in the polygon ctor's
- *     {@code f3 / f5} args) which {@link lib.minecraft.renderer.kit.EntityGeometryKit
- *     EntityGeometryKit}'s {@code resolvePolygonUv} mirrors via a UP-specific UV slot
- *     permutation.</li>
+ *     {@code f3 / f5} args); the per-vertex UV slot permutation that compensates for this
+ *     lives on each constant as {@link #polygonVertexSlots} and is applied by
+ *     {@link #permuteToPolygonOrder}.</li>
  * </ul>
  * <p>
  * <b>Lighting:</b> entity rendering uses vanilla's {@code Lighting.Entry.ENTITY_IN_UI}, which is
@@ -71,27 +71,27 @@ public enum EntityFace {
 
     DOWN(
         "down", new int[]{ 5, 4, 0, 1 }, new Vector3f(0f, -1f, 0f),
-        0, 2, 0, 1, 0, 0
+        0, 2, 0, 1, 0, 0, new int[]{ 3, 0, 1, 2 }
     ),
     UP(
         "up", new int[]{ 2, 3, 7, 6 }, new Vector3f(0f, 1f, 0f),
-        0, 2, 1, 1, 0, 0
+        0, 2, 1, 1, 0, 0, new int[]{ 2, 1, 0, 3 }
     ),
     NORTH(
         "north", new int[]{ 1, 0, 3, 2 }, new Vector3f(0f, 0f, -1f),
-        0, 1, 0, 1, 0, 1
+        0, 1, 0, 1, 0, 1, new int[]{ 3, 0, 1, 2 }
     ),
     SOUTH(
         "south", new int[]{ 4, 5, 6, 7 }, new Vector3f(0f, 0f, 1f),
-        0, 1, 1, 2, 0, 1
+        0, 1, 1, 2, 0, 1, new int[]{ 3, 0, 1, 2 }
     ),
     WEST(
         "west", new int[]{ 0, 4, 7, 3 }, new Vector3f(-1f, 0f, 0f),
-        2, 1, 0, 0, 0, 1
+        2, 1, 0, 0, 0, 1, new int[]{ 3, 0, 1, 2 }
     ),
     EAST(
         "east", new int[]{ 5, 1, 2, 6 }, new Vector3f(1f, 0f, 0f),
-        2, 1, 1, 1, 0, 1
+        2, 1, 1, 1, 0, 1, new int[]{ 3, 0, 1, 2 }
     );
 
     private final @NotNull String direction;
@@ -127,6 +127,23 @@ public enum EntityFace {
     /** Coefficient on {@code sz} in the atlas V offset formula {@code vOff = sxCoef*sx + szCoef*sz}. */
     @Getter(AccessLevel.PUBLIC)
     private final int atlasVSzCoef;
+
+    /**
+     * Maps the indices of a normalized {@code [TL, BL, BR, TR]} corner array (the shape
+     * {@link Vector4f#toUvCorners(float, float, int, boolean)} returns from a {@code v0 <= v1}
+     * rect) into the per-vertex order vanilla's {@code ModelPart$Polygon} constructor produces -
+     * {@code output[i]} is the UV vanilla pairs with this face's vertex {@code i}.
+     * <p>
+     * Five of the six faces share {@code [3, 0, 1, 2]} (cyclic shift placing TR first to match
+     * the polygon ctor's TR-first walk). {@link #UP} alone uses {@code [2, 1, 0, 3]} because
+     * vanilla's {@code ModelPart.Cube} ctor passes UP's v args in inverted order ({@code f3 = v},
+     * {@code f5 = v + d}), making UP's atlas v walk backward relative to every other face. The
+     * permutation lives here as data so both the renderer's
+     * {@link lib.minecraft.renderer.kit.EntityGeometryKit#resolvePolygonUv resolvePolygonUv} and
+     * the tooling-side bytecode-to-block-model converter can share one source of truth.
+     */
+    @Getter(AccessLevel.PUBLIC)
+    private final int @NotNull [] polygonVertexSlots;
 
     /**
      * Returns the four corners of this face on the given axis-aligned {@link Box}, ordered to
@@ -203,6 +220,27 @@ public enum EntityFace {
         float v1 = v0 + size.get(this.heightAxis);
 
         return new Vector4f(u0, v0, u1, v1);
+    }
+
+    /**
+     * Reorders four atlas-position-labeled UV corners {@code (TL, BL, BR, TR)} into the
+     * per-vertex order vanilla's {@code ModelPart$Polygon} constructor produces, using this
+     * face's {@link #polygonVertexSlots}.
+     * <p>
+     * For non-UP faces this is a cyclic shift placing TR first; UP additionally swaps TL/BL
+     * with BR/TR slots to compensate for vanilla's inverted v-args on the UP polygon. Both the
+     * renderer's {@code resolvePolygonUv} and the tooling's
+     * {@code ToolingBlockEntities.BlockModelConverter} call this so the per-face permutation
+     * lives in exactly one place.
+     *
+     * @param tlBlBrTr the four UV corners in atlas-position order (top-left, bottom-left,
+     *     bottom-right, top-right)
+     * @return the four UVs in vanilla polygon-vertex order ({@code output[i]} pairs with
+     *     {@code vertexIndices()[i]})
+     */
+    public @NotNull Vector2f @NotNull [] permuteToPolygonOrder(@NotNull Vector2f @NotNull [] tlBlBrTr) {
+        int[] s = this.polygonVertexSlots;
+        return new Vector2f[]{ tlBlBrTr[s[0]], tlBlBrTr[s[1]], tlBlBrTr[s[2]], tlBlBrTr[s[3]] };
     }
 
     /**

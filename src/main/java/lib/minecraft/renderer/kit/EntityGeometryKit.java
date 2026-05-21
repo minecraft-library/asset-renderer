@@ -3,7 +3,6 @@ package lib.minecraft.renderer.kit;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.ColorMath;
-import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.RenderEngine;
@@ -963,11 +962,11 @@ public class EntityGeometryKit {
      * The per-face slot permutation maps {@link #resolveFaceUv}'s {@code (TL, BL, BR, TR)}
      * output to the (max-u, top-v)-first ordering vanilla's {@code Polygon} ctor produces. For
      * non-UP faces, vanilla's vertex 0 lands in the TR slot; for UP, it lands in BR because the
-     * polygon ctor's {@code f3 / f5} parameters are V-inverted on the atlas strip.
-     * <ul>
-     * <li><b>UP</b> (V-inverted on atlas): {@code [BR, BL, TL, TR] = [uv[2], uv[1], uv[0], uv[3]]}.</li>
-     * <li><b>DOWN / NORTH / SOUTH / WEST / EAST</b>: {@code [TR, TL, BL, BR] = [uv[3], uv[0], uv[1], uv[2]]}.</li>
-     * </ul>
+     * polygon ctor's {@code f3 / f5} parameters are V-inverted on the atlas strip. The exact
+     * slot mapping per face lives on {@link EntityFace#polygonVertexSlots} and is applied via
+     * {@link EntityFace#permuteToPolygonOrder} so the tooling-side block-model converter can
+     * share the same source of truth.
+     * <p>
      * Independent of {@link #FLIP_X} / {@link #FLIP_Y}: those change where vertices project to
      * screen, but each vertex's vanilla-spec UV is unchanged.
      *
@@ -986,9 +985,7 @@ public class EntityGeometryKit {
         float texHeight
     ) {
         Vector2f[] uv = resolveFaceUv(mirrorFace(face, cube.isMirror()), cube, size, texWidth, texHeight);
-        return face == EntityFace.UP
-            ? new Vector2f[]{ uv[2], uv[1], uv[0], uv[3] }
-            : new Vector2f[]{ uv[3], uv[0], uv[1], uv[2] };
+        return face.permuteToPolygonOrder(uv);
     }
 
     /**
