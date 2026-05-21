@@ -279,9 +279,11 @@ public final class Matrix4f {
      */
     public @NotNull Matrix4f multiply(@NotNull Matrix4f b) {
         if (SimdSupport.ENABLED) return SimdOps.multiply(this, b);
-        // Scalar fallback: each output column j is `this * column_j(b)`, so the inner loop reads
-        // one column of b at a time and accumulates it against this's four columns. Results pack
-        // back into a fresh column-major float[16].
+        // Right-associated mul-add chain matching JOML's {@code Matrix4f.mul} with
+        // {@code joml.useMathFma=false} (vanilla Minecraft's default). JOML's source uses
+        // {@code Math.fma(a, b, fma(c, d, fma(e, f, g*h)))}; with FMA off each fma collapses
+        // to {@code a*b + c}, producing the right-associated grouping
+        // {@code a[0]*b1 + (a[4]*b2 + (a[8]*b3 + a[12]*b4))}.
         float[] a = this.m;
         float[] r = new float[16];
         for (int col = 0; col < 4; col++) {
@@ -289,10 +291,10 @@ public final class Matrix4f {
             float b2 = b.m[col * 4 + 1];
             float b3 = b.m[col * 4 + 2];
             float b4 = b.m[col * 4 + 3];
-            r[col * 4    ] = a[0] * b1 + a[4] * b2 + a[ 8] * b3 + a[12] * b4;
-            r[col * 4 + 1] = a[1] * b1 + a[5] * b2 + a[ 9] * b3 + a[13] * b4;
-            r[col * 4 + 2] = a[2] * b1 + a[6] * b2 + a[10] * b3 + a[14] * b4;
-            r[col * 4 + 3] = a[3] * b1 + a[7] * b2 + a[11] * b3 + a[15] * b4;
+            r[col * 4    ] = a[0] * b1 + (a[4] * b2 + (a[ 8] * b3 + a[12] * b4));
+            r[col * 4 + 1] = a[1] * b1 + (a[5] * b2 + (a[ 9] * b3 + a[13] * b4));
+            r[col * 4 + 2] = a[2] * b1 + (a[6] * b2 + (a[10] * b3 + a[14] * b4));
+            r[col * 4 + 3] = a[3] * b1 + (a[7] * b2 + (a[11] * b3 + a[15] * b4));
         }
         return new Matrix4f(r);
     }

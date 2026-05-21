@@ -108,12 +108,12 @@ class SimdOps {
         float[] r = new float[16];
         for (int j = 0; j < 4; j++) {
             int colStart = j * 4;
-            // c_col_j = b[1,j]*a_col_1 + b[2,j]*a_col_2 + b[3,j]*a_col_3 + b[4,j]*a_col_4
-            // (column-major: b[r, c] = bs[(c-1)*4 + (r-1)], so b[k+1, j+1] = bs[j*4 + k]).
-            FloatVector cCol = aCol1.mul(bs[colStart])
-                .add(aCol2.mul(bs[colStart + 1]))
-                .add(aCol3.mul(bs[colStart + 2]))
-                .add(aCol4.mul(bs[colStart + 3]));
+            // c_col_j = b[1,j]*a_col_1 + (b[2,j]*a_col_2 + (b[3,j]*a_col_3 + b[4,j]*a_col_4))
+            // Right-associated chain matches JOML's Matrix4f.mul fma-off path.
+            FloatVector cCol = aCol1.mul(bs[colStart]).add(
+                aCol2.mul(bs[colStart + 1]).add(
+                    aCol3.mul(bs[colStart + 2]).add(
+                        aCol4.mul(bs[colStart + 3]))));
             cCol.intoArray(r, colStart);
         }
         return new Matrix4f(r);

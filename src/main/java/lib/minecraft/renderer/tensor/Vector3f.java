@@ -114,7 +114,9 @@ public record Vector3f(float x, float y, float z) {
      * Cheaper than {@link #length()} when only magnitude comparisons are needed.
      */
     public float lengthSquared() {
-        return this.x * this.x + this.y * this.y + this.z * this.z;
+        // Right-associated mul-add matching JOML's {@code Vector3fc.lengthSquared} with
+        // {@code joml.useMathFma=false}.
+        return this.x * this.x + (this.y * this.y + this.z * this.z);
     }
 
     /**
@@ -140,7 +142,10 @@ public record Vector3f(float x, float y, float z) {
      * @return the dot product
      */
     public static float dot(@NotNull Vector3f a, @NotNull Vector3f b) {
-        return a.x * b.x + a.y * b.y + a.z * b.z;
+        // Right-associated mul-add matching JOML's {@code Vector3fc.dot} with default
+        // {@code joml.useMathFma=false}: JOML's source calls {@code Math.fma} but with FMA
+        // disabled, the expression collapses to {@code x*v.x() + (y*v.y() + z*v.z())}.
+        return a.x * b.x + (a.y * b.y + a.z * b.z);
     }
 
     /**

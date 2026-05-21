@@ -3,6 +3,8 @@ package lib.minecraft.renderer.engine;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.geometry.BlockFace;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
+import lib.minecraft.renderer.tensor.Matrix4f;
+import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import dev.simplified.collection.Concurrent;
@@ -120,14 +122,41 @@ public interface RenderEngine {
      *
      * @see <a href="https://github.com/Mojang/blaze3d/blob/main/src/main/java/com/mojang/blaze3d/platform/Lighting.java">com.mojang.blaze3d.platform.Lighting</a>
      */
-    Vector3f ENTITY_IN_UI_LIGHT_0 = Vector3f.normalize(new Vector3f(-0.082195f, 0.956409f, -0.280224f));
+    Vector3f ENTITY_IN_UI_LIGHT_0 = deriveEntityInUiLightKit(0.2f, -1f, 1f);
 
     /**
      * Second diffuse light direction; pre-rotated by the same {@code FLIP_Y × M_view^T} as
      * {@link #ENTITY_IN_UI_LIGHT_0} from vanilla's {@code INVENTORY_DIFFUSE_LIGHT_1 =
      * normalize(-0.2, -1, 0)}.
      */
-    Vector3f ENTITY_IN_UI_LIGHT_1 = Vector3f.normalize(new Vector3f(0.208013f, 0.849208f, 0.485363f));
+    Vector3f ENTITY_IN_UI_LIGHT_1 = deriveEntityInUiLightKit(-0.2f, -1f, 0f);
+
+    /**
+     * Derives a kit-frame diffuse light direction from a vanilla camera-frame
+     * {@code INVENTORY_DIFFUSE_LIGHT_N = normalize(x, y, z)} literal, using the same Matrix4f
+     * chain the per-vertex shader composes for the iso pose. The result is bit-identical to
+     * {@code FLIP_Y × M_view^T × L_camera} computed via our column-vector
+     * {@link Matrix4f} / {@link Quaternionf} ops - matching whatever sub-ULP drift our matrix
+     * math has against vanilla's per-vertex GLSL chain. Replaces the 6-decimal hardcoded
+     * constants with values produced by the same float chain that runs at render-time.
+     */
+    private static @NotNull Vector3f deriveEntityInUiLightKit(float cameraX, float cameraY, float cameraZ) {
+        // L_camera_normalized via our Vector3f.normalize (same code path as runtime normals)
+        Vector3f lCamera = Vector3f.normalize(new Vector3f(cameraX, cameraY, cameraZ));
+
+        // M_view = scale(1,1,-1) × R_X(210°) × R_Y(45°) × R_X(180°) col-form
+        // M_view^T = R_X(-180°) × R_Y(-45°) × R_X(-210°) × scale(1,1,-1)
+        // FLIP_Y × M_view^T = diag(1,-1,1) × (above)
+        // Built via fluent ops to match vanilla's PoseStack composition exactly.
+        Matrix4f viewToKit = Matrix4f.IDENTITY
+            .scale(1f, -1f, 1f)
+            .rotate(Quaternionf.rotationXYZ((float) -Math.PI, 0f, 0f))
+            .rotate(Quaternionf.rotationXYZ(0f, (float) Math.toRadians(-45.0), 0f))
+            .rotate(Quaternionf.rotationXYZ((float) Math.toRadians(-210.0), 0f, 0f))
+            .scale(1f, 1f, -1f);
+        Vector3f kitDir = Vector3f.transformNormal(lCamera, viewToKit);
+        return Vector3f.normalize(kitDir);
+    }
 
     /**
      * Diffuse contribution scale matching vanilla's GLSL {@code MINECRAFT_LIGHT_POWER} constant.
