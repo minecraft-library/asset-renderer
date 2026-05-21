@@ -39,7 +39,13 @@
     "minecraft:bogged": {
       "geometry_ref": "geometry.bogged",
       "texture_ref": "skeleton/bogged",
-      "armor_type": "humanoid"
+      "armor_type": "humanoid",
+      "overlays": [
+        {
+          "geometry_ref": "geometry.humanoid_1",
+          "texture_ref": "skeleton/bogged_overlay"
+        }
+      ]
     },
     "minecraft:breeze": {
       "geometry_ref": "geometry.breeze",
@@ -217,12 +223,12 @@
       "armor_type": "none"
     },
     "minecraft:drowned": {
-      "geometry_ref": "geometry.drowned_1",
+      "geometry_ref": "geometry.drowned",
       "texture_ref": "zombie/drowned",
       "armor_type": "humanoid",
       "overlays": [
         {
-          "geometry_ref": "geometry.drowned",
+          "geometry_ref": "geometry.drowned_1",
           "texture_ref": "zombie/drowned_outer_layer"
         }
       ]
@@ -323,7 +329,7 @@
       "armor_type": "none"
     },
     "minecraft:husk": {
-      "geometry_ref": "geometry.humanoid_1",
+      "geometry_ref": "geometry.humanoid_2",
       "texture_ref": "zombie/husk",
       "armor_type": "humanoid"
     },
@@ -467,7 +473,7 @@
       "armor_type": "none"
     },
     "minecraft:parched": {
-      "geometry_ref": "geometry.skeleton_2",
+      "geometry_ref": "geometry.skeleton_1",
       "texture_ref": "skeleton/parched",
       "armor_type": "humanoid"
     },
@@ -574,7 +580,7 @@
       "armor_type": "none"
     },
     "minecraft:skeleton": {
-      "geometry_ref": "geometry.skeleton_1",
+      "geometry_ref": "geometry.skeleton",
       "texture_ref": "skeleton/skeleton",
       "armor_type": "humanoid"
     },
@@ -623,9 +629,15 @@
       "armor_type": "none"
     },
     "minecraft:stray": {
-      "geometry_ref": "geometry.skeleton_1",
+      "geometry_ref": "geometry.skeleton",
       "texture_ref": "skeleton/stray",
-      "armor_type": "humanoid"
+      "armor_type": "humanoid",
+      "overlays": [
+        {
+          "geometry_ref": "geometry.humanoid_3",
+          "texture_ref": "skeleton/stray_overlay"
+        }
+      ]
     },
     "minecraft:strider": {
       "geometry_ref": "geometry.adultstrider",
@@ -688,7 +700,7 @@
       "armor_type": "none"
     },
     "minecraft:wither_skeleton": {
-      "geometry_ref": "geometry.skeleton",
+      "geometry_ref": "geometry.skeleton_2",
       "texture_ref": "skeleton/wither_skeleton",
       "armor_type": "humanoid"
     },
@@ -757,7 +769,7 @@
       "armor_type": "none"
     },
     "minecraft:zombie": {
-      "geometry_ref": "geometry.humanoid_2",
+      "geometry_ref": "geometry.humanoid_4",
       "texture_ref": "zombie/zombie",
       "armor_type": "humanoid"
     },

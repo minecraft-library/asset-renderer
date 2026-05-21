@@ -8,11 +8,14 @@ import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.TypeInsnNode;
+import org.objectweb.asm.tree.VarInsnNode;
 
 import java.util.Locale;
 import java.util.zip.ZipFile;
@@ -129,6 +132,12 @@ public final class EntityOverlayResolver {
     /** JVM internal name of {@code EntityModelSet} - layer constructors call {@code bakeLayer} on it. */
     private static final @NotNull String ENTITY_MODEL_SET = "net/minecraft/client/model/geom/EntityModelSet";
 
+    /** JVM internal name of {@code ModelLayerLocation} - the value type baked by {@code EntityModelSet.bakeLayer}. */
+    private static final @NotNull String MODEL_LAYER_LOCATION = "net/minecraft/client/model/geom/ModelLayerLocation";
+
+    /** Field-type descriptor for a {@code ModelLayerLocation}; used to spot parameterized-layer ctor args. */
+    private static final @NotNull String MODEL_LAYER_LOCATION_DESC = "L" + MODEL_LAYER_LOCATION + ";";
+
     /** JVM internal name of {@code Identifier} - texture fields and {@code withDefaultNamespace} return type. */
     private static final @NotNull String IDENTIFIER = "net/minecraft/resources/Identifier";
 
@@ -217,15 +226,37 @@ public final class EntityOverlayResolver {
             // shell is the canonical regression - vanilla renders it via {@code RenderTypes
             // .entityTranslucent} which the parity test's auto-fit cutout sampler doesn't replicate).
             String modelLayerField = findOverlayModelLayerField(cn);
-            if (modelLayerField == null || !COMPOSITE_OVERLAY_ALLOWLIST.contains(modelLayerField)) continue;
-            String compositeTexture = findCompositeOverlayTexture(zip, cn, rendererInternalName);
-            if (compositeTexture == null) {
-                diagnostics.info("entity '%s' overlay '%s' bakes ModelLayers.%s but no texture path resolved", entityId, layerClass, modelLayerField);
+            if (modelLayerField != null && COMPOSITE_OVERLAY_ALLOWLIST.contains(modelLayerField)) {
+                String compositeTexture = findCompositeOverlayTexture(zip, cn, rendererInternalName);
+                if (compositeTexture == null) {
+                    diagnostics.info("entity '%s' overlay '%s' bakes ModelLayers.%s but no texture path resolved", entityId, layerClass, modelLayerField);
+                    continue;
+                }
+                int tintArgb = extractColoredCutoutTint(zip, cn);
+                boolean unlit = UNLIT_LAYERS.contains(modelLayerField);
+                out.add(new OverlayDescriptor(layerClass, compositeTexture, unlit, modelLayerField, tintArgb));
                 continue;
             }
-            int tintArgb = extractColoredCutoutTint(zip, cn);
-            boolean unlit = UNLIT_LAYERS.contains(modelLayerField);
-            out.add(new OverlayDescriptor(layerClass, compositeTexture, unlit, modelLayerField, tintArgb));
+
+            // Parameterized composite-model overlay (SkeletonClothingLayer family: stray, bogged).
+            // Shape: layer constructor takes ({@code ModelLayerLocation layerLocation},
+            // {@code Identifier clothesLocation}) parameters, baker calls {@code
+            // bakeLayer(<param>)} on the parameter (not on a GETSTATIC ModelLayers field), and
+            // submit calls {@code coloredCutoutModelCopyLayerRender(this.layerModel,
+            // this.clothesLocation, ...)}. The actual ModelLayers field and texture come from
+            // the renderer's {@code addLayer(new XLayer(this, modelSet, ModelLayers.Y,
+            // Z_LOCATION))} call site rather than the layer class itself - matching by ctor
+            // shape lets any future layer using the same pattern auto-resolve without an
+            // allowlist update. Emitted unconditionally when both args resolve because the
+            // {@code coloredCutoutModelCopyLayerRender} call site enforces the
+            // {@code entityCutout} render type (no translucent / additive variant uses this
+            // helper).
+            ParameterizedOverlayBinding param = findParameterizedOverlayBinding(zip, cn, rendererInternalName);
+            if (param != null) {
+                int tintArgb = extractColoredCutoutTint(zip, cn);
+                out.add(new OverlayDescriptor(layerClass, param.texturePath(), false, param.modelLayerField(), tintArgb));
+                continue;
+            }
         }
         return out;
     }
@@ -590,6 +621,171 @@ public final class EntityOverlayResolver {
     private static final @NotNull java.util.Set<String> FULLY_EMISSIVE_EYE_FACTORIES = java.util.Set.of(
         "eyes"
     );
+
+    /**
+     * Extracted bind data for a parameterized overlay layer (SkeletonClothingLayer-style):
+     * which {@code ModelLayers.X} field the renderer's {@code addLayer(new XLayer(...))} call
+     * passes for the layer's {@code bakeLayer} parameter, plus the texture-path literal bound
+     * to the renderer's {@code X_LOCATION} static field that the same call site passes for the
+     * layer's {@code clothesLocation} parameter. The downstream emission step keys the
+     * {@code overlays} entry on the field name and writes the texture path as the
+     * {@code texture_ref}, exactly like a statically-keyed composite overlay.
+     */
+    private record ParameterizedOverlayBinding(@NotNull String modelLayerField, @NotNull String texturePath) {}
+
+    /**
+     * Detects the SkeletonClothingLayer-family pattern - a layer class whose constructor
+     * takes {@code ModelLayerLocation} + {@code Identifier} parameters and calls
+     * {@code modelSet.bakeLayer(<modelLayerLocation_param>)} (rather than baking a static
+     * {@code ModelLayers.X} reference) - and extracts the actual ModelLayers field name and
+     * texture path from the renderer's {@code addLayer(new <layer>(...))} call site. Returns
+     * {@code null} when the layer doesn't match the parameterized shape OR when either arg
+     * can't be statically resolved at the call site (e.g., the renderer computes one of the
+     * args at runtime, which never happens for the in-tree vanilla layers but a modded
+     * subclass might).
+     *
+     * <p>Generic detection means any future layer wired to the same shape ({@code <init>}
+     * takes both arg types + bakes the location param) auto-resolves without an allowlist
+     * change, while purely-static composite layers (sheep wool, drowned outer) keep their
+     * existing {@link #findOverlayModelLayerField}-driven path.
+     *
+     * @param zip the deobfuscated client jar
+     * @param layerCn the candidate layer class (its constructor descriptor is inspected)
+     * @param rendererInternalName the renderer composing this layer (its constructor is
+     *     scanned for the matching {@code addLayer(new layerCn(...))} call site)
+     * @return resolved {@code (modelLayerField, texturePath)}, or {@code null} when the
+     *     pattern doesn't match
+     */
+    private static @Nullable ParameterizedOverlayBinding findParameterizedOverlayBinding(
+        @NotNull ZipFile zip,
+        @NotNull ClassNode layerCn,
+        @NotNull String rendererInternalName
+    ) {
+        // Step 1: layer ctor must take ModelLayerLocation + Identifier and call bakeLayer on
+        // the ModelLayerLocation parameter (rather than a static field).
+        int[] paramSlots = findParameterizedCtorSlots(layerCn);
+        if (paramSlots == null) return null;
+
+        // Step 2: walk renderer constructors for the addLayer(new <layerCn>(...args)) call
+        // site and pull out the GETSTATIC values pushed at the matching argument positions.
+        ClassNode rendererCn = AsmKit.loadClass(zip, rendererInternalName);
+        if (rendererCn == null) return null;
+        String layerInternalName = layerCn.name;
+        for (MethodNode method : rendererCn.methods) {
+            if (!"<init>".equals(method.name)) continue;
+            ParameterizedOverlayBinding binding = scanRendererForParameterizedAddLayer(
+                zip, method, layerInternalName);
+            if (binding != null) return binding;
+        }
+        return null;
+    }
+
+    /**
+     * Inspects a layer class to verify the SkeletonClothingLayer constructor shape:
+     * <ol>
+     *   <li>Has an {@code <init>} whose descriptor includes both
+     *       {@code ModelLayerLocation} and {@code Identifier} as parameter types.</li>
+     *   <li>That constructor calls {@code modelSet.bakeLayer(...)} with an {@code ALOAD} of
+     *       the {@code ModelLayerLocation} parameter (not a {@code GETSTATIC ModelLayers.X}).</li>
+     * </ol>
+     * Returns a 2-element array {@code [modelLayerArgIndex, identifierArgIndex]} of the
+     * matched parameter positions in the constructor's argument list ({@code this} excluded,
+     * so the first declared parameter is index {@code 0}), or {@code null} when the layer
+     * doesn't match.
+     */
+    private static int @Nullable [] findParameterizedCtorSlots(@NotNull ClassNode layerCn) {
+        for (MethodNode method : layerCn.methods) {
+            if (!"<init>".equals(method.name)) continue;
+            Type[] argTypes = Type.getArgumentTypes(method.desc);
+            int modelLayerArg = -1;
+            int identifierArg = -1;
+            for (int i = 0; i < argTypes.length; i++) {
+                String desc = argTypes[i].getDescriptor();
+                if (modelLayerArg < 0 && MODEL_LAYER_LOCATION_DESC.equals(desc)) modelLayerArg = i;
+                else if (identifierArg < 0 && IDENTIFIER_DESC.equals(desc)) identifierArg = i;
+            }
+            if (modelLayerArg < 0 || identifierArg < 0) continue;
+            // Verify the bakeLayer call's receiver-arg pair is ALOAD of the
+            // ModelLayerLocation parameter - the renderer's modelLayerArg+1 local slot
+            // (slot 0 = this, then args in declared order). Static methods have no `this`
+            // so we offset by 1 since constructors are instance methods.
+            if (!ctorBakesParameter(method, modelLayerArg + 1)) continue;
+            return new int[]{ modelLayerArg, identifierArg };
+        }
+        return null;
+    }
+
+    /**
+     * Walks a constructor for {@code ALOAD <slot>; INVOKEVIRTUAL EntityModelSet.bakeLayer
+     * (ModelLayerLocation)ModelPart} - i.e., the ModelLayerLocation argument coming directly
+     * from a method parameter rather than a {@code GETSTATIC ModelLayers.X}. Returns
+     * {@code true} when the pattern matches anywhere in the body, {@code false} otherwise.
+     */
+    private static boolean ctorBakesParameter(@NotNull MethodNode method, int parameterSlot) {
+        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (in.getOpcode() != Opcodes.INVOKEVIRTUAL) continue;
+            if (!(in instanceof MethodInsnNode mi)) continue;
+            if (!ENTITY_MODEL_SET.equals(mi.owner) || !"bakeLayer".equals(mi.name)) continue;
+            // Walk backwards past the receiver-load (modelSet) to find the
+            // ModelLayerLocation arg push. The arg sits immediately under the receiver on
+            // the stack, so the previous push instruction is the candidate.
+            AbstractInsnNode prev = in.getPrevious();
+            if (prev != null && prev.getOpcode() == Opcodes.ALOAD
+                && prev instanceof VarInsnNode v
+                && v.var == parameterSlot)
+                return true;
+        }
+        return false;
+    }
+
+    /**
+     * Scans one renderer constructor for {@code NEW <layerInternalName>; ... <args>; INVOKESPECIAL
+     * <layerInternalName>.<init>; INVOKEVIRTUAL addLayer} chains and pulls out the
+     * {@code GETSTATIC ModelLayers.X} + {@code GETSTATIC <Renderer>.<X>_LOCATION} args pushed
+     * between {@code NEW} and {@code INVOKESPECIAL}. Returns the first match's
+     * {@link ParameterizedOverlayBinding} or {@code null} when the args can't be statically
+     * resolved.
+     *
+     * <p>Argument-order independence: matches by TYPE (the first GETSTATIC ModelLayers field
+     * becomes {@code modelLayerField}, the first GETSTATIC Identifier field gets chased
+     * through {@link #chaseTextureFieldOwner} to a texture-path literal). Robust to any
+     * future renderer that reorders the ModelLayerLocation / Identifier args.
+     */
+    private static @Nullable ParameterizedOverlayBinding scanRendererForParameterizedAddLayer(
+        @NotNull ZipFile zip,
+        @NotNull MethodNode rendererCtor,
+        @NotNull String layerInternalName
+    ) {
+        for (AbstractInsnNode in = rendererCtor.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (in.getOpcode() != Opcodes.NEW) continue;
+            if (!(in instanceof TypeInsnNode type)) continue;
+            if (!layerInternalName.equals(type.desc)) continue;
+            // Walk forward from NEW until the matching INVOKESPECIAL <init>, collecting the
+            // ModelLayers field and the Identifier field along the way.
+            String modelLayerField = null;
+            String identifierFieldOwner = null;
+            String identifierFieldName = null;
+            for (AbstractInsnNode arg = in.getNext(); arg != null; arg = arg.getNext()) {
+                if (arg.getOpcode() == Opcodes.INVOKESPECIAL
+                    && arg instanceof MethodInsnNode mi
+                    && layerInternalName.equals(mi.owner)
+                    && "<init>".equals(mi.name)) break;
+                if (arg.getOpcode() == Opcodes.GETSTATIC && arg instanceof FieldInsnNode fi) {
+                    if (modelLayerField == null && MODEL_LAYERS.equals(fi.owner)) {
+                        modelLayerField = fi.name;
+                    } else if (identifierFieldName == null && IDENTIFIER_DESC.equals(fi.desc)) {
+                        identifierFieldOwner = fi.owner;
+                        identifierFieldName = fi.name;
+                    }
+                }
+            }
+            if (modelLayerField == null || identifierFieldName == null) continue;
+            String texturePath = chaseTextureFieldOwner(zip, identifierFieldOwner, identifierFieldName);
+            if (texturePath == null) continue;
+            return new ParameterizedOverlayBinding(modelLayerField, texturePath);
+        }
+        return null;
+    }
 
     private static @Nullable EyesOverlayBinding findEyesOverlayBinding(@NotNull ClassNode cn) {
         MethodNode clinit = AsmKit.findMethod(cn, "<clinit>");
