@@ -167,7 +167,7 @@ public enum EntityFace {
     /**
      * Returns the default UV rectangle for this face in pixel space, using the <b>vanilla Java
      * Edition</b> entity-cube atlas unwrap where all six faces of a single cube share one
-     * texture image. Mirrors {@link net.minecraft.client.model.geom.ModelPart.Cube}'s polygon
+     * texture image. Mirrors {@code net.minecraft.client.model.geom.ModelPart.Cube}'s polygon
      * UV layout.
      * <p>
      * Vanilla lays out the strip with bottom (DOWN polygon) and top (UP polygon) in a first row
