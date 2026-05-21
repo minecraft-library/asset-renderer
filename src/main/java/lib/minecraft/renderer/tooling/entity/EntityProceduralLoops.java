@@ -3,6 +3,7 @@ package lib.minecraft.renderer.tooling.entity;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import lib.minecraft.renderer.tooling.util.FastTrig;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -290,9 +291,12 @@ public final class EntityProceduralLoops {
     ) {
         float angle = angleStart;
         for (int i = iStart; i < iEnd; i++) {
-            float px = (float) (Math.cos(angle) * radius);
-            float py = yBaseline + (float) Math.cos(i * yStride);
-            float pz = (float) (Math.sin(angle) * radius);
+            // Vanilla {@code BlazeModel.createBodyLayer} uses {@code Mth.cos / Mth.sin} (the
+            // 65536-entry sin table). {@link FastTrig} ports the table bit-for-bit; libm
+            // {@code Math.cos} drifts by up to ~1.8e-5 vs the table values.
+            float px = FastTrig.cos(angle) * radius;
+            float py = yBaseline + FastTrig.cos(i * yStride);
+            float pz = FastTrig.sin(angle) * radius;
             JsonObject bone = new JsonObject();
             bone.add("pivot", floatArray(px, py, pz));
             bone.add("rotation", floatArray(0f, 0f, 0f));
@@ -339,7 +343,9 @@ public final class EntityProceduralLoops {
         JsonObject bones = geometry.getAsJsonObject("bones");
         if (bones == null) return;
         for (int i = 0; i < 12; i++) {
-            float offset = (float) (1.0 + Math.cos(i) * 0.01);
+            // Vanilla {@code GuardianModel#getSpikeOffset} uses {@code Mth.cos}, not libm
+            // {@code Math.cos}. {@link FastTrig} ports the 65536-entry sin-table bit-for-bit.
+            float offset = 1.0f + FastTrig.cos(i) * 0.01f;
             float px = SPIKE_X[i] * offset;
             float py = 16f + SPIKE_Y[i] * offset;
             float pz = SPIKE_Z[i] * offset;
