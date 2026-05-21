@@ -3,23 +3,24 @@ package lib.minecraft.renderer.geometry;
 import lib.minecraft.renderer.kit.BlockModelGeometryKit;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tensor.Vector4f;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Accessors;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * The six cardinal face directions of an axis-aligned Minecraft block element.
  * <p>
- * Each constant knows its lowercase direction name (the key used in vanilla block and item model
- * JSON), its four vertex indices into the canonical 8-corner box, its outward unit normal, a
- * {@link Layout} carrying the per-face axis / inversion data that {@link #defaultUv} needs to
- * project face geometry into a UV rectangle without a per-face {@code switch}, and an inventory
- * {@link #lighting shade factor}. The box vertex layout is:
+ * Each constant knows its lowercase {@link #direction direction name} ({@code "down"} etc., derived
+ * from {@link #name()}), its four vertex indices into the canonical 8-corner box, its outward
+ * unit normal, a {@link Layout} carrying the per-face axis / inversion data that
+ * {@link #defaultUv} needs to project face geometry into a UV rectangle without a per-face
+ * {@code switch}, and an inventory {@link #lighting shade factor}. The box vertex layout is:
  * <pre>
  * 0: (x0, y0, z0)   4: (x0, y0, z1)
  * 1: (x1, y0, z0)   5: (x1, y0, z1)
@@ -41,7 +42,8 @@ import java.util.Locale;
  * replicate the dual-directional light shader, each face carries a pre-baked scalar that
  * approximates the vanilla inventory output ({@code 0.8} for E/W, {@code 0.6} for N/S,
  * {@code 1.0} for UP, {@code 0.5} for DOWN). Callers that have a surface normal rather than a
- * face enum should resolve it via {@link #fromNormal(Vector3f)}.
+ * face enum should resolve it via {@link #fromNormal(Vector3f)}; callers that have a direction
+ * string should use {@link #fromName(String)}.
  */
 @Getter
 @Accessors(fluent = true)
@@ -49,41 +51,71 @@ import java.util.Locale;
 public enum BlockFace {
 
     DOWN(
-        "down", new int[]{ 4, 0, 1, 5 }, new Vector3f(0f, -1f, 0f),
+        new int[]{ 4, 0, 1, 5 }, new Vector3f(0f, -1f, 0f),
         new Layout(0, 2, false, true),
         0.5f
     ),
     UP(
-        "up", new int[]{ 3, 7, 6, 2 }, new Vector3f(0f, 1f, 0f),
+        new int[]{ 3, 7, 6, 2 }, new Vector3f(0f, 1f, 0f),
         new Layout(0, 2, false, false),
         1.0f
     ),
     NORTH(
-        "north", new int[]{ 2, 1, 0, 3 }, new Vector3f(0f, 0f, -1f),
+        new int[]{ 2, 1, 0, 3 }, new Vector3f(0f, 0f, -1f),
         new Layout(0, 1, true, true),
         0.6f
     ),
     SOUTH(
-        "south", new int[]{ 7, 4, 5, 6 }, new Vector3f(0f, 0f, 1f),
+        new int[]{ 7, 4, 5, 6 }, new Vector3f(0f, 0f, 1f),
         new Layout(0, 1, false, true),
         0.6f
     ),
     WEST(
-        "west", new int[]{ 3, 0, 4, 7 }, new Vector3f(-1f, 0f, 0f),
+        new int[]{ 3, 0, 4, 7 }, new Vector3f(-1f, 0f, 0f),
         new Layout(2, 1, false, true),
         0.8f
     ),
     EAST(
-        "east", new int[]{ 6, 5, 1, 2 }, new Vector3f(1f, 0f, 0f),
+        new int[]{ 6, 5, 1, 2 }, new Vector3f(1f, 0f, 0f),
         new Layout(2, 1, true, true),
         0.8f
     );
 
-    private final @NotNull String direction;
+    /**
+     * Cached snapshot of {@link #values()} reused by lookups and iteration to avoid the per-call
+     * defensive array clone the JLS mandates.
+     */
+    public static final BlockFace @NotNull [] CACHED_VALUES = values();
+
+    /**
+     * Index of {@link #direction direction names} to enum constants for O(1) lookup by lowercase
+     * name. Powers {@link #fromName(String)}.
+     */
+    private static final @NotNull Map<String, BlockFace> BY_NAME;
+
+    static {
+        Map<String, BlockFace> byName = new HashMap<>(CACHED_VALUES.length * 2);
+
+        for (BlockFace face : CACHED_VALUES)
+            byName.put(face.direction, face);
+
+        BY_NAME = Map.copyOf(byName);
+    }
+
+    /**
+     * Lowercase direction name ({@code "down"}, {@code "up"}, ...), derived once at class-load
+     * time from {@link #name()} so external callers don't pay a per-call {@code toLowerCase}.
+     * Matches the vanilla block / item model JSON key for this face.
+     */
+    private final @NotNull String direction = this.name().toLowerCase(Locale.ROOT);
+
+    /** Four vertex indices into the canonical 8-corner box (see the class javadoc diagram). */
     private final int @NotNull [] vertexIndices;
+
+    /** Outward unit normal of this face in model space. */
     private final @NotNull Vector3f normal;
 
-    @Getter(AccessLevel.NONE)
+    /** Per-face axis-and-inversion data driving {@link #defaultUv}. */
     private final @NotNull Layout layout;
 
     /**
@@ -174,22 +206,15 @@ public enum BlockFace {
 
     /**
      * Parses a lowercase direction name ({@code "down"}, {@code "up"}, {@code "north"},
-     * {@code "south"}, {@code "west"}, {@code "east"}) into its {@code BlockFace} constant.
+     * {@code "south"}, {@code "west"}, {@code "east"}) into its {@code BlockFace} constant via
+     * an O(1) lookup against {@link #BY_NAME}. Returns {@code null} when the name is
+     * {@code null} or unrecognized.
      *
      * @param name the direction name, or {@code null}
      * @return the matching face, or {@code null} when the name is {@code null} or unrecognized
      */
     public static @Nullable BlockFace fromName(@Nullable String name) {
-        if (name == null) return null;
-        return switch (name.toLowerCase(Locale.ROOT)) {
-            case "down" -> DOWN;
-            case "up" -> UP;
-            case "north" -> NORTH;
-            case "south" -> SOUTH;
-            case "west" -> WEST;
-            case "east" -> EAST;
-            default -> null;
-        };
+        return name == null ? null : BY_NAME.get(name.toLowerCase(Locale.ROOT));
     }
 
     /**

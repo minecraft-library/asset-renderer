@@ -846,7 +846,7 @@ public final class PipelineRendererContext implements RendererContext {
         if (model.getElements().isEmpty()) return;
         ModelElement element = model.getElements().getFirst();
 
-        for (BlockFace blockFace : BlockFace.values()) {
+        for (BlockFace blockFace : BlockFace.CACHED_VALUES) {
             ModelFace face = element.getFaces().get(blockFace.direction());
             if (face == null) continue;
             String textureRef = face.getTexture();

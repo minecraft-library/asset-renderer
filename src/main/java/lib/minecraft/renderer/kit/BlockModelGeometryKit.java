@@ -75,7 +75,7 @@ public class BlockModelGeometryKit {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
         Box box = Box.of(min, max);
 
-        for (BlockFace face : BlockFace.values()) {
+        for (BlockFace face : BlockFace.CACHED_VALUES) {
             Vector3f[] corners = face.corners(box);
             addQuad(
                 triangles,

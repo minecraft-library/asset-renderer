@@ -2721,7 +2721,7 @@ public final class ToolingBlockEntities {
             JsonObject faces = new JsonObject();
             Vector2f cubeUv = new Vector2f(cube.u, cube.v);
             Vector3f cubeSize = new Vector3f(cube.sw, cube.sh, cube.sd);
-            for (EntityFace face : EntityFace.values()) {
+            for (EntityFace face : EntityFace.CACHED_VALUES) {
                 Vector4f rect = face.defaultUv(cubeUv, cubeSize);
                 // Expand the normalized pixel-space rect into TL/BL/BR/TR corners scaled into
                 // the 0-16 block-UV space (block-model UV is independent of texture size; the

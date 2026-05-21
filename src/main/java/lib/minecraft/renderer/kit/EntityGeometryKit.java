@@ -329,7 +329,7 @@ public class EntityGeometryKit {
                     .translate(-cx, -cy, -cz)
                     .scale(modelScale);
                 Matrix4f perCubeChain = kitFit.multiply(fullTransform);
-                for (EntityFace face : EntityFace.values()) {
+                for (EntityFace face : EntityFace.CACHED_VALUES) {
                     Vector3f[] corners = face.corners(cubeBounds);
                     for (int i = 0; i < 4; i++) {
                         Vector3f transformed = Vector3f.transform(corners[i], perCubeChain);
@@ -477,7 +477,7 @@ public class EntityGeometryKit {
                 }
 
                 boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
-                for (EntityFace face : EntityFace.values()) {
+                for (EntityFace face : EntityFace.CACHED_VALUES) {
                     if (isPlaneCube && isDegeneratePlaneFace(size, face)) continue;
                     Vector3f[] corners3d = face.corners(cubeBounds);
                     // Must match the renderer's UV resolver. {@link #resolveFaceUv} alone
@@ -1136,7 +1136,7 @@ public class EntityGeometryKit {
         float texW,
         float texH
     ) {
-        for (EntityFace face : EntityFace.values()) {
+        for (EntityFace face : EntityFace.CACHED_VALUES) {
             if ((size.x() == 0f || size.y() == 0f || size.z() == 0f)
                 && isDegeneratePlaneFace(size, face)) continue;
             if (faceHasPartialAlpha(resolveFaceUv(face, cube, size, texW, texH), texture))

@@ -4,14 +4,15 @@ import lib.minecraft.renderer.kit.EntityGeometryKit;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tensor.Vector4f;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Accessors;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * The six cardinal face directions of an axis-aligned Minecraft <b>entity-cube</b> body part.
@@ -23,9 +24,9 @@ import java.util.Locale;
  * <p>
  * Each constant carries:
  * <ul>
- * <li>The lowercase direction name ({@code down}, {@code up}, {@code north}, ...) - matching
- *     vanilla {@code Direction} keys plus Bedrock per-face {@code cube.uv} overrides used when
- *     parsing entity geometry.</li>
+ * <li>The lowercase {@link #direction direction name} ({@code "down"} etc., derived from
+ *     {@link #name()}) - matching vanilla {@code Direction} keys plus Bedrock per-face
+ *     {@code cube.uv} overrides used when parsing entity geometry.</li>
  * <li>The four vertex indices into the canonical 8-corner box (see the layout diagram on
  *     {@link #corners}).</li>
  * <li>The outward unit {@link #normal} - used by the entity ENTITY_IN_UI lighting model
@@ -68,40 +69,71 @@ import java.util.Locale;
 public enum EntityFace {
 
     DOWN(
-        "down", new int[]{ 5, 4, 0, 1 }, new Vector3f(0f, -1f, 0f),
-        new Layout(0, 2, 0, 1, 0, 0), new int[]{ 3, 0, 1, 2 }
+        new int[]{ 5, 4, 0, 1 }, new Vector3f(0f, -1f, 0f),
+        new Layout(0, 2, 0, 1, 0, 0),
+        new int[]{ 3, 0, 1, 2 }
     ),
     UP(
-        "up", new int[]{ 2, 3, 7, 6 }, new Vector3f(0f, 1f, 0f),
+        new int[]{ 2, 3, 7, 6 }, new Vector3f(0f, 1f, 0f),
         new Layout(0, 2, 1, 1, 0, 0),
         new int[]{ 2, 1, 0, 3 }
     ),
     NORTH(
-        "north", new int[]{ 1, 0, 3, 2 }, new Vector3f(0f, 0f, -1f),
+        new int[]{ 1, 0, 3, 2 }, new Vector3f(0f, 0f, -1f),
         new Layout(0, 1, 0, 1, 0, 1),
         new int[]{ 3, 0, 1, 2 }
     ),
     SOUTH(
-        "south", new int[]{ 4, 5, 6, 7 }, new Vector3f(0f, 0f, 1f),
+        new int[]{ 4, 5, 6, 7 }, new Vector3f(0f, 0f, 1f),
         new Layout(0, 1, 1, 2, 0, 1),
         new int[]{ 3, 0, 1, 2 }
     ),
     WEST(
-        "west", new int[]{ 0, 4, 7, 3 }, new Vector3f(-1f, 0f, 0f),
+        new int[]{ 0, 4, 7, 3 }, new Vector3f(-1f, 0f, 0f),
         new Layout(2, 1, 0, 0, 0, 1),
         new int[]{ 3, 0, 1, 2 }
     ),
     EAST(
-        "east", new int[]{ 5, 1, 2, 6 }, new Vector3f(1f, 0f, 0f),
+        new int[]{ 5, 1, 2, 6 }, new Vector3f(1f, 0f, 0f),
         new Layout(2, 1, 1, 1, 0, 1),
         new int[]{ 3, 0, 1, 2 }
     );
 
-    private final @NotNull String direction;
+    /**
+     * Cached snapshot of {@link #values()} reused by lookups and iteration to avoid the per-call
+     * defensive array clone the JLS mandates.
+     */
+    public static final EntityFace @NotNull [] CACHED_VALUES = values();
+
+    /**
+     * Index of {@link #direction direction names} to enum constants for O(1) lookup by lowercase
+     * name. Powers {@link #fromName(String)}.
+     */
+    private static final @NotNull Map<String, EntityFace> BY_NAME;
+
+    static {
+        Map<String, EntityFace> byName = new HashMap<>(CACHED_VALUES.length * 2);
+
+        for (EntityFace face : CACHED_VALUES)
+            byName.put(face.direction, face);
+
+        BY_NAME = Map.copyOf(byName);
+    }
+
+    /**
+     * Lowercase direction name ({@code "down"}, {@code "up"}, ...), derived once at class-load
+     * time from {@link #name()} so external callers don't pay a per-call {@code toLowerCase}.
+     * Matches vanilla {@code Direction} keys plus Bedrock per-face {@code cube.uv} overrides.
+     */
+    private final @NotNull String direction = this.name().toLowerCase(Locale.ROOT);
+
+    /** Four vertex indices into the canonical 8-corner box (see the class javadoc diagram). */
     private final int @NotNull [] vertexIndices;
+
+    /** Outward unit normal of this face in model space. */
     private final @NotNull Vector3f normal;
 
-    @Getter(AccessLevel.NONE)
+    /** Per-face axis-and-atlas-coefficient data driving {@link #defaultUv}. */
     private final @NotNull Layout layout;
 
     /**
@@ -118,7 +150,6 @@ public enum EntityFace {
      * {@link lib.minecraft.renderer.kit.EntityGeometryKit#resolvePolygonUv resolvePolygonUv} and
      * the tooling-side bytecode-to-block-model converter can share one source of truth.
      */
-    @Getter(AccessLevel.PUBLIC)
     private final int @NotNull [] polygonVertexSlots;
 
     /**
@@ -172,7 +203,7 @@ public enum EntityFace {
     /**
      * Returns the default UV rectangle for this face in pixel space, using the <b>vanilla Java
      * Edition</b> entity-cube atlas unwrap where all six faces of a single cube share one
-     * texture image. Mirrors {@code net.minecraft.client.model.geom.ModelPart.Cube}'s polygon
+     * texture image. Mirrors {@link net.minecraft.client.model.geom.ModelPart.Cube}'s polygon
      * UV layout.
      * <p>
      * Vanilla lays out the strip with bottom (DOWN polygon) and top (UP polygon) in a first row
@@ -186,7 +217,7 @@ public enum EntityFace {
      * | WEST | NORTH |  EAST  | SOUTH |               row 2: height sy
      * +------+-------+--------+-------+
      * </pre>
-     * Each face's pixel rectangle comes from the layout coefficients:
+     * Each face's pixel rectangle comes from the {@link Layout} coefficients:
      * {@code uOff = atlasUSxCoef*sx + atlasUSzCoef*sz}, {@code vOff = atlasVSxCoef*sx +
      * atlasVSzCoef*sz}, with width and height drawn from {@code size[widthAxis]} and
      * {@code size[heightAxis]}. The {@code sy} dimension never contributes to an atlas offset
@@ -263,22 +294,15 @@ public enum EntityFace {
 
     /**
      * Parses a lowercase direction name ({@code "down"}, {@code "up"}, {@code "north"},
-     * {@code "south"}, {@code "west"}, {@code "east"}) into its {@code EntityFace} constant.
+     * {@code "south"}, {@code "west"}, {@code "east"}) into its {@code EntityFace} constant via
+     * an O(1) lookup against {@link #BY_NAME}. Returns {@code null} when the name is
+     * {@code null} or unrecognized.
      *
      * @param name the direction name, or {@code null}
      * @return the matching face, or {@code null} when the name is {@code null} or unrecognized
      */
     public static @Nullable EntityFace fromName(@Nullable String name) {
-        if (name == null) return null;
-        return switch (name.toLowerCase(Locale.ROOT)) {
-            case "down" -> DOWN;
-            case "up" -> UP;
-            case "north" -> NORTH;
-            case "south" -> SOUTH;
-            case "west" -> WEST;
-            case "east" -> EAST;
-            default -> null;
-        };
+        return name == null ? null : BY_NAME.get(name.toLowerCase(Locale.ROOT));
     }
 
     /**

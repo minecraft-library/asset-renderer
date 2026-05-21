@@ -121,9 +121,8 @@ public enum SkinFace {
         this.overlayMappings = new EnumMap<>(BlockFace.class);
         this.faceVertices = new EnumMap<>(BlockFace.class);
 
-        BlockFace[] order = BlockFace.values();
-        for (int i = 0; i < order.length; i++) {
-            BlockFace face = order[i];
+        for (int i = 0; i < BlockFace.CACHED_VALUES.length; i++) {
+            BlockFace face = BlockFace.CACHED_VALUES[i];
             int[] xy = faceCoords[i];
             int[] size = faceSize(face, width, height, depth);
             this.baseMappings.put(face, new Rectangle(xy[0], xy[1], size[0], size[1]));
@@ -159,7 +158,7 @@ public enum SkinFace {
         UV_LAYOUTS.put(BlockFace.EAST, UvLayout.STANDARD.uvMap);
 
         for (SkinFace part : values()) {
-            for (BlockFace face : BlockFace.values()) {
+            for (BlockFace face : BlockFace.CACHED_VALUES) {
                 int[] indices = face.vertexIndices();
                 part.faceVertices.put(face, new Vector3f[]{
                     part.cornerVertices[indices[0]],
