@@ -73,23 +73,28 @@ public enum EntityFace {
     ),
     UP(
         "up", new int[]{ 2, 3, 7, 6 }, new Vector3f(0f, 1f, 0f),
-        new Layout(0, 2, 1, 1, 0, 0), new int[]{ 2, 1, 0, 3 }
+        new Layout(0, 2, 1, 1, 0, 0),
+        new int[]{ 2, 1, 0, 3 }
     ),
     NORTH(
         "north", new int[]{ 1, 0, 3, 2 }, new Vector3f(0f, 0f, -1f),
-        new Layout(0, 1, 0, 1, 0, 1), new int[]{ 3, 0, 1, 2 }
+        new Layout(0, 1, 0, 1, 0, 1),
+        new int[]{ 3, 0, 1, 2 }
     ),
     SOUTH(
         "south", new int[]{ 4, 5, 6, 7 }, new Vector3f(0f, 0f, 1f),
-        new Layout(0, 1, 1, 2, 0, 1), new int[]{ 3, 0, 1, 2 }
+        new Layout(0, 1, 1, 2, 0, 1),
+        new int[]{ 3, 0, 1, 2 }
     ),
     WEST(
         "west", new int[]{ 0, 4, 7, 3 }, new Vector3f(-1f, 0f, 0f),
-        new Layout(2, 1, 0, 0, 0, 1), new int[]{ 3, 0, 1, 2 }
+        new Layout(2, 1, 0, 0, 0, 1),
+        new int[]{ 3, 0, 1, 2 }
     ),
     EAST(
         "east", new int[]{ 5, 1, 2, 6 }, new Vector3f(1f, 0f, 0f),
-        new Layout(2, 1, 1, 1, 0, 1), new int[]{ 3, 0, 1, 2 }
+        new Layout(2, 1, 1, 1, 0, 1),
+        new int[]{ 3, 0, 1, 2 }
     );
 
     private final @NotNull String direction;
