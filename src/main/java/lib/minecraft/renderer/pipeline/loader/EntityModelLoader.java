@@ -97,6 +97,15 @@ public class EntityModelLoader {
      *     renderer doesn't reproduce (blaze rods, magma cube), or for aesthetic partial alpha
      *     (sheep wool fluff). Opt-in via the {@code force_opaque} field on the overrides row;
      *     defaults to {@code false}
+     * @param setupYawAddend yaw rotation in degrees that the vanilla renderer's
+     *     {@code setupRotations} override adds to the standard {@code bodyRot} before the super
+     *     call. Extracted from the {@code super.setupRotations(state, ps, bodyRot + N, scale)}
+     *     bytecode pattern by the tooling-side renderer scan. {@code ShulkerRenderer} is the
+     *     canonical case ({@code +180.0F}); every other vanilla renderer leaves {@code bodyRot}
+     *     unmodified and lands at {@code 0}. The renderer adds this to the user-supplied yaw
+     *     before applying the iso pose - for shulker the addend collapses the default
+     *     {@code rotateY(180-bodyRot)} body rotation to identity, exposing the lid's authored
+     *     UV orientation unrotated against the viewer
      */
     public record EntityDefinition(
         @NotNull EntityModelData model,
@@ -104,7 +113,8 @@ public class EntityModelLoader {
         @NotNull List<OverlayLayer> overlays,
         @NotNull List<BlockOverlayLayer> blockOverlays,
         boolean forceOpaque,
-        int baseTintArgb
+        int baseTintArgb,
+        float setupYawAddend
     ) {
 
         /**
@@ -112,7 +122,7 @@ public class EntityModelLoader {
          * common case.
          */
         public EntityDefinition(@NotNull EntityModelData model, @NotNull Optional<String> textureRef) {
-            this(model, textureRef, List.of(), List.of(), false, 0xFFFFFFFF);
+            this(model, textureRef, List.of(), List.of(), false, 0xFFFFFFFF, 0f);
         }
 
         /**
@@ -123,7 +133,7 @@ public class EntityModelLoader {
             @NotNull Optional<String> textureRef,
             @NotNull List<OverlayLayer> overlays
         ) {
-            this(model, textureRef, overlays, List.of(), false, 0xFFFFFFFF);
+            this(model, textureRef, overlays, List.of(), false, 0xFFFFFFFF, 0f);
         }
 
         /**
@@ -135,7 +145,7 @@ public class EntityModelLoader {
             @NotNull List<OverlayLayer> overlays,
             boolean forceOpaque
         ) {
-            this(model, textureRef, overlays, List.of(), forceOpaque, 0xFFFFFFFF);
+            this(model, textureRef, overlays, List.of(), forceOpaque, 0xFFFFFFFF, 0f);
         }
 
         /**
@@ -150,7 +160,22 @@ public class EntityModelLoader {
             @NotNull List<BlockOverlayLayer> blockOverlays,
             boolean forceOpaque
         ) {
-            this(model, textureRef, overlays, blockOverlays, forceOpaque, 0xFFFFFFFF);
+            this(model, textureRef, overlays, blockOverlays, forceOpaque, 0xFFFFFFFF, 0f);
+        }
+
+        /**
+         * Convenience constructor preserving the historic 6-arg signature in use before
+         * {@link #setupYawAddend} was added. Defaults the yaw addend to {@code 0f} (no addend).
+         */
+        public EntityDefinition(
+            @NotNull EntityModelData model,
+            @NotNull Optional<String> textureRef,
+            @NotNull List<OverlayLayer> overlays,
+            @NotNull List<BlockOverlayLayer> blockOverlays,
+            boolean forceOpaque,
+            int baseTintArgb
+        ) {
+            this(model, textureRef, overlays, blockOverlays, forceOpaque, baseTintArgb, 0f);
         }
 
     }
@@ -510,7 +535,18 @@ public class EntityModelLoader {
                 ? parseTintArgb(override.get("base_tint").getAsString())
                 : 0xFFFFFFFF;
 
-            definitions.put(entityId, new EntityDefinition(baseModel, textureRef, overlays, blockOverlays, false, baseTint));
+            // Bytecode-extracted bodyRot addend from the vanilla renderer's setupRotations
+            // override - currently only Shulker uses this (+180F), but the field is generic and
+            // any future renderer overriding setupRotations with `super.setupRotations(state, ps,
+            // bodyRot + N, scale)` will surface here. Override row wins so authors can hand-edit
+            // when the bytecode walk misses a state-dependent case.
+            float setupYawAddend = 0f;
+            if (entityJson.has("setup_yaw_addend"))
+                setupYawAddend = entityJson.get("setup_yaw_addend").getAsFloat();
+            if (override != null && override.has("setup_yaw_addend"))
+                setupYawAddend = override.get("setup_yaw_addend").getAsFloat();
+
+            definitions.put(entityId, new EntityDefinition(baseModel, textureRef, overlays, blockOverlays, false, baseTint, setupYawAddend));
         }
         return Concurrent.adoptMap(definitions);
     }

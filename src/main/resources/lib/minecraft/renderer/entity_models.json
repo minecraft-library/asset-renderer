@@ -572,7 +572,8 @@
     "minecraft:shulker": {
       "geometry_ref": "geometry.shulker",
       "texture_ref": "shulker/shulker",
-      "armor_type": "none"
+      "armor_type": "none",
+      "setup_yaw_addend": 180.0
     },
     "minecraft:silverfish": {
       "geometry_ref": "geometry.silverfish",

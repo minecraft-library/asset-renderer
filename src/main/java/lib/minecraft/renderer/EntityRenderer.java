@@ -100,36 +100,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         Map.entry("minecraft:slime", 0.999f)
     );
 
-    /**
-     * Per-entity-id model-space pre-transform that mirrors a vanilla
-     * {@code setupRotations(state, ps, bodyRot, scale)} override producing a different LER chain
-     * than the default {@code rotateY(180 - bodyRot)}. Currently always empty: the frozen-state
-     * audit (see {@code notes/JAVA_PIPELINE_RESEARCH.md} "A4 audit") found 11 of the 14 overriders
-     * collapse to the default under our zero-tick state, and empirical parity (2026-05-14)
-     * showed the remaining three are also no-ops for our auto-centered pipeline:
-     * <ul>
-     * <li>{@code SquidRenderer} (translates {@code 0.5} / {@code -1.2}) and
-     *     {@code PufferfishRenderer} (translate {@code 0.08}) - the kit's family-fit centring
-     *     (anchor = {@code inverse-iso(screen-midpoint)}) absorbs pure translates; applying them
-     *     as a {@code modelAnchor} shift uncentred squid (6.26 -> 145.23) and reverting restored
-     *     the original. Vanilla's harness family-fit centring does the same cancellation.</li>
-     * <li>{@code ShulkerRenderer} with default {@code attachFace=DOWN}: collapses to "no
-     *     rotateY(180)" which would require a 180° yaw addend. Empirical test moved shulker
-     *     11.50 -> 22.97 - either the model is rotationally symmetric enough that the wrong
-     *     direction reads correctly, or the diff exposes a separate texture-seam mismatch.
-     *     Leaving the wiring in place against future state-dependent overrides (e.g. when we
-     *     start respecting {@code attachFace} for placed shulkers, or {@code lieDownAmount}
-     *     for tame cats / wolves) - those will be NON-translation transforms that actually
-     *     affect the rendered pixels.</li>
-     * </ul>
-     * Unlisted entities get the identity override.
-     */
-    private record SetupRotationsOverride(@NotNull Vector3f modelAnchorShift, float yawDegrees) {
-        static final @NotNull SetupRotationsOverride IDENTITY = new SetupRotationsOverride(Vector3f.ZERO, 0f);
-    }
-
-    private static final @NotNull Map<String, SetupRotationsOverride> SETUP_ROTATIONS_OVERRIDES = Map.of();
-
     private static final boolean PIXEL_DUMP_RECT_FOR_BOUNDS = Boolean.getBoolean("entity.fit.dump");
 
     /** Renderer context for texture resolution + isometric engine setup; not used for entity lookup. */
@@ -179,13 +149,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             );
         }
 
-        SetupRotationsOverride override = SETUP_ROTATIONS_OVERRIDES.getOrDefault(
-            options.getEntityId().get(), SetupRotationsOverride.IDENTITY);
-
         EulerRotation user = options.getRotation();
         EulerRotation effective = new EulerRotation(
             user.pitch(),
-            user.yaw() + model.getInventoryYRotation() + override.yawDegrees(),
+            user.yaw() + model.getInventoryYRotation() + definition.setupYawAddend(),
             user.roll()
         );
         // Apply the per-entity scale override (vanilla's combined renderer-scale + state-scale)
@@ -221,8 +188,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // subtracting the shift from the anchor adds it to every vertex). For squid that's a
         // {@code (0, +11.2, 0)} pixel pre-translate; pufferfish gets {@code (0, -1.28, 0)};
         // shulker has zero translate but a 180° yaw addend folded into {@code effective} above.
-        Vector3f modelAnchor = computeCentreAnchor(options.getEntityId().get(), definition, effective, modelScale, fit, texture.get())
-            .subtract(override.modelAnchorShift());
+        Vector3f modelAnchor = computeCentreAnchor(options.getEntityId().get(), definition, effective, modelScale, fit, texture.get());
 
         EntityGeometryKit.BuildResult buildResult = EntityGeometryKit.buildTriangles(
             model, texture.get(), modelAnchor, false, fit.ndcScale(), modelScale, definition.baseTintArgb());

@@ -12,6 +12,7 @@ import lib.minecraft.renderer.tooling.blockentity.Source;
 import lib.minecraft.renderer.tooling.blockentity.YAxis;
 import lib.minecraft.renderer.tooling.entity.EntityRendererDiscovery;
 import lib.minecraft.renderer.tooling.entity.EntityBlockOverlayResolver;
+import lib.minecraft.renderer.tooling.entity.EntitySetupRotationsResolver;
 import lib.minecraft.renderer.tooling.entity.EntityLayerDefinitionResolver;
 import lib.minecraft.renderer.tooling.entity.EntityLayerScanner;
 import lib.minecraft.renderer.tooling.entity.EntityOverlayResolver;
@@ -234,7 +235,8 @@ public final class ToolingEntityModels {
                 else if (binding.isVariantDriven()) variantDriven++;
                 else unresolvedTexture++;
 
-                records.put(entityId, new EntityRecord(renderer, binding, layers, variantStem, mob.fieldName()));
+                float setupYawAddend = EntitySetupRotationsResolver.resolve(zip, renderer);
+                records.put(entityId, new EntityRecord(renderer, binding, layers, variantStem, mob.fieldName(), setupYawAddend));
             }
 
             JsonObject root = buildDiagnosticJson(
@@ -752,6 +754,13 @@ public final class ToolingEntityModels {
                 blockOverlaysByEntity.getOrDefault(entityId, Concurrent.newList());
             if (!blockOverlayDescs.isEmpty()) row.add("block_overlays", buildBlockOverlaysJson(blockOverlayDescs));
 
+            // setup_yaw_addend: vanilla {@code <X>Renderer.setupRotations} override's literal
+            // float constant added to {@code bodyRot} before {@code super.setupRotations}. Only
+            // {@code ShulkerRenderer} surfaces a non-zero value ({@code +180F}); every other
+            // override leaves {@code bodyRot} unmodified and the resolver returns 0 (which we
+            // omit from JSON to keep noise-free rows).
+            if (rec.setupYawAddend() != 0f) row.addProperty("setup_yaw_addend", rec.setupYawAddend());
+
             entitiesOut.add(entityId, row);
 
             // Variant rows for data-driven variants only (cow_cold, pig_warm, chicken_cold, ...).
@@ -845,7 +854,8 @@ public final class ToolingEntityModels {
         @NotNull EntityTextureResolver.Binding binding,
         @NotNull ConcurrentList<String> layers,
         String variantStem,
-        @NotNull String entityFieldName
+        @NotNull String entityFieldName,
+        float setupYawAddend
     ) {}
 
     /** Builds the diagnostic JSON document covering Phase A + B output. */
