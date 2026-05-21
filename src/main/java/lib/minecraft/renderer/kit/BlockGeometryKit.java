@@ -32,7 +32,7 @@ import java.util.Map;
  * and default UV derivation - lives on {@link BlockFace}.
  */
 @UtilityClass
-public class BlockModelGeometryKit {
+public class BlockGeometryKit {
 
     /**
      * Edge length of a full block in vanilla model-authoring units. Every vanilla {@code block/}

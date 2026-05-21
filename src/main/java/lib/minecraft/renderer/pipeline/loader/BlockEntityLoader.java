@@ -6,7 +6,6 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.image.pixel.ColorMath;
@@ -15,7 +14,7 @@ import lib.minecraft.renderer.asset.binding.DyeColor;
 import lib.minecraft.renderer.asset.model.BlockModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.kit.BlockModelGeometryKit;
+import lib.minecraft.renderer.kit.BlockGeometryKit;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -41,7 +40,7 @@ import java.util.Map;
  * The output is a flat map of block id to {@link Block.Entity} carrying a populated
  * {@link BlockModelData} (with real {@link ModelElement elements}) and the entity texture
  * reference. These blocks render through the standard block model path
- * ({@link BlockModelGeometryKit#buildFromElements}) with no entity model pipeline.
+ * ({@link BlockGeometryKit#buildFromElements}) with no entity model pipeline.
  */
 @UtilityClass
 public class BlockEntityLoader {

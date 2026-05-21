@@ -19,7 +19,7 @@ import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.kit.ArmorKit;
-import lib.minecraft.renderer.kit.BlockModelGeometryKit;
+import lib.minecraft.renderer.kit.BlockGeometryKit;
 import lib.minecraft.renderer.kit.EntityGeometryKit;
 import lib.minecraft.renderer.kit.GlintKit;
 import lib.minecraft.renderer.options.EntityOptions;
@@ -328,7 +328,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         }
         if (faceTextures.isEmpty()) return Concurrent.newList();
 
-        ConcurrentList<VisibleTriangle> blockTris = BlockModelGeometryKit.buildFromElements(
+        ConcurrentList<VisibleTriangle> blockTris = BlockGeometryKit.buildFromElements(
             block.get().getModel().getElements(), faceTextures, ColorMath.WHITE);
         if (blockTris.isEmpty()) return Concurrent.newList();
 

@@ -26,7 +26,7 @@ import lib.minecraft.renderer.geometry.Biome;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
-import lib.minecraft.renderer.kit.BlockModelGeometryKit;
+import lib.minecraft.renderer.kit.BlockGeometryKit;
 import lib.minecraft.renderer.options.BlockOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockEntityLoader;
 import lib.minecraft.renderer.tensor.Matrix4f;
@@ -116,7 +116,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
     /**
      * Full 3D isometric block tile renderer. Multi-element blocks (chests, doors, pistons) are
-     * rendered using their full element list via {@link BlockModelGeometryKit#buildFromElements}; single-
+     * rendered using their full element list via {@link BlockGeometryKit#buildFromElements}; single-
      * element blocks use the fast unit-cube path. Biome tint is applied per face via the shared
      * {@link BlockRenderer#resolveBlockTint(RendererContext, Block, BlockOptions)} helper.
      */
@@ -262,7 +262,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 }
 
                 ConcurrentList<VisibleTriangle> partTriangles =
-                    BlockModelGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint);
+                    BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint);
 
                 // Apply per-part rotation if specified
                 if (apply.hasRotation())
@@ -361,7 +361,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * Builds triangles from all elements in a multi-element block model. Walks every
          * element's face texture references, dereferences {@code #variable} chains against
          * the model's texture bindings, and builds geometry via
-         * {@link BlockModelGeometryKit#buildFromElements}.
+         * {@link BlockGeometryKit#buildFromElements}.
          */
         private @NotNull ConcurrentList<VisibleTriangle> buildFromBlockElements(@NotNull Block block, int tint, int untintedTint) {
             RasterEngine raster = new RasterEngine(this.context);
@@ -378,7 +378,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 }
             }
 
-            return BlockModelGeometryKit.buildFromElements(block.getModel().getElements(), faceTextures, tint, untintedTint);
+            return BlockGeometryKit.buildFromElements(block.getModel().getElements(), faceTextures, tint, untintedTint);
         }
 
         /**
@@ -402,7 +402,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     faceTextures.put(ref, raster.resolveTexture(resolvedId));
                 }
             }
-            return BlockModelGeometryKit.buildFromElements(entity.model().getElements(), faceTextures, tint, untintedTint);
+            return BlockGeometryKit.buildFromElements(entity.model().getElements(), faceTextures, tint, untintedTint);
         }
 
         /**
@@ -444,14 +444,14 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 }
 
                 ConcurrentList<VisibleTriangle> partTriangles =
-                    BlockModelGeometryKit.buildFromElements(part.model().getElements(), faceTextures, tint, untintedTint);
+                    BlockGeometryKit.buildFromElements(part.model().getElements(), faceTextures, tint, untintedTint);
 
                 // Apply the part's offset to every vertex. Offset is in model units (0..16);
                 // triangle vertex positions are in block units (0..1) post-GeometryKit, so
                 // divide by 16.
-                float dx = part.offset()[0] / BlockModelGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
-                float dy = part.offset()[1] / BlockModelGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
-                float dz = part.offset()[2] / BlockModelGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
+                float dx = part.offset()[0] / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
+                float dy = part.offset()[1] / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
+                float dz = part.offset()[2] / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
                 if (dx != 0f || dy != 0f || dz != 0f) {
                     ConcurrentList<VisibleTriangle> shifted = Concurrent.newList();
                     for (VisibleTriangle t : partTriangles) {
@@ -517,7 +517,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 }
             }
 
-            ConcurrentList<VisibleTriangle> triangles = BlockModelGeometryKit.buildFromElements(
+            ConcurrentList<VisibleTriangle> triangles = BlockGeometryKit.buildFromElements(
                 partModel.getElements(),
                 faceTextures,
                 tint,

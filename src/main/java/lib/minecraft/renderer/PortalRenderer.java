@@ -14,7 +14,7 @@ import lib.minecraft.renderer.engine.TextureEngine;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.SixFaces;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
-import lib.minecraft.renderer.kit.BlockModelGeometryKit;
+import lib.minecraft.renderer.kit.BlockGeometryKit;
 import lib.minecraft.renderer.options.PortalOptions;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +31,7 @@ import java.util.stream.IntStream;
  * <p>
  * Two sub-renderers are exposed, matching the {@link FluidRenderer} shape:
  * <ul>
- * <li>{@link Isometric3D} - builds geometry via {@link BlockModelGeometryKit} (full unit cube for
+ * <li>{@link Isometric3D} - builds geometry via {@link BlockGeometryKit} (full unit cube for
  * {@link PortalOptions.Portal#END_GATEWAY}, thin slab at vanilla's {@code BOTTOM=0.375}/
  * {@code TOP=0.75} for {@link PortalOptions.Portal#END_PORTAL}) and rasterizes through the
  * standard {@code [30, 225, 0]} isometric pose.</li>
@@ -461,7 +461,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
     }
 
     /**
-     * Full 3D isometric portal renderer. Builds geometry via {@link BlockModelGeometryKit} and rasterizes
+     * Full 3D isometric portal renderer. Builds geometry via {@link BlockGeometryKit} and rasterizes
      * through {@link IsometricEngine}'s standard {@code [30, 225, 0]} pose. {@code END_GATEWAY}
      * renders as a unit cube with the baked face on all 6 sides; {@code END_PORTAL} renders as a
      * slab from {@code y = 0.375} to {@code y = 0.75} matching vanilla's
@@ -577,12 +577,12 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             @NotNull SixFaces faces
         ) {
             if (portal == PortalOptions.Portal.END_GATEWAY)
-                return BlockModelGeometryKit.unitCube(faces, ColorMath.WHITE);
+                return BlockGeometryKit.unitCube(faces, ColorMath.WHITE);
 
             // End portal slab: x and z span the full unit range, y clipped to vanilla's [BOTTOM, TOP].
             // Model space is [-0.5, +0.5] per axis (see GeometryKit.unitCube), so the slab's Y
             // offsets are measured from the cube's centre.
-            return BlockModelGeometryKit.box(
+            return BlockGeometryKit.box(
                 new Vector3f(-0.5f, END_PORTAL_SLAB_BOTTOM_Y - 0.5f, -0.5f),
                 new Vector3f(0.5f, END_PORTAL_SLAB_TOP_Y - 0.5f, 0.5f),
                 faces,

@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.geometry;
 
-import lib.minecraft.renderer.kit.BlockModelGeometryKit;
+import lib.minecraft.renderer.kit.BlockGeometryKit;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tensor.Vector4f;
 import lombok.Getter;
@@ -29,7 +29,7 @@ import java.util.Map;
  * </pre>
  * The four indices per face are wound top-left, bottom-left, bottom-right, top-right when viewed
  * from the outward normal direction (CCW), matching vanilla's {@code FaceInfo} vertex order and
- * the convention used by {@link BlockModelGeometryKit}'s triangle builders.
+ * the convention used by {@link BlockGeometryKit}'s triangle builders.
  * <p>
  * Entity-cube unwrap (one shared skin image across six faces) is a different convention and
  * lives on {@link EntityFace} - this enum is block-model-only.
@@ -161,7 +161,7 @@ public enum BlockFace {
      * bindings), so every face samples the full {@code [0, 16]} UV rectangle projected onto its
      * cross-section. Callers compose
      * {@link Vector4f#toUvCorners(float, float, int, boolean)} with
-     * {@link BlockModelGeometryKit#VANILLA_PIXEL_UNITS_PER_BLOCK} on the result to obtain normalized
+     * {@link BlockGeometryKit#VANILLA_PIXEL_UNITS_PER_BLOCK} on the result to obtain normalized
      * per-vertex corners.
      *
      * @param element the element bounds in 0-16 space
@@ -174,10 +174,10 @@ public enum BlockFace {
         float toU = axisComponent(element, uAxis, true);
         float fromV = axisComponent(element, vAxis, false);
         float toV = axisComponent(element, vAxis, true);
-        float u0 = this.layout.uInverted() ? BlockModelGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - toU : fromU;
-        float u1 = this.layout.uInverted() ? BlockModelGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - fromU : toU;
-        float v0 = this.layout.vInverted() ? BlockModelGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - toV : fromV;
-        float v1 = this.layout.vInverted() ? BlockModelGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - fromV : toV;
+        float u0 = this.layout.uInverted() ? BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - toU : fromU;
+        float u1 = this.layout.uInverted() ? BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - fromU : toU;
+        float v0 = this.layout.vInverted() ? BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - toV : fromV;
+        float v1 = this.layout.vInverted() ? BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - fromV : toV;
         return new Vector4f(u0, v0, u1, v1);
     }
 

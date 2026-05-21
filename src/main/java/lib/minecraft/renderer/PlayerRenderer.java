@@ -21,7 +21,7 @@ import lib.minecraft.renderer.geometry.SixFaces;
 import lib.minecraft.renderer.geometry.SkinFace;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.kit.ArmorKit;
-import lib.minecraft.renderer.kit.BlockModelGeometryKit;
+import lib.minecraft.renderer.kit.BlockGeometryKit;
 import lib.minecraft.renderer.kit.GlintKit;
 import lib.minecraft.renderer.options.PlayerOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
@@ -224,7 +224,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         Vector3f capeMax = new Vector3f(cx + capeW / 2f, capeTop, capeBack + capeD);
 
         SixFaces faces = cropCapeFaces(capeTexture);
-        triangles.addAll(BlockModelGeometryKit.box(capeMin, capeMax, faces, ColorMath.WHITE));
+        triangles.addAll(BlockGeometryKit.box(capeMin, capeMax, faces, ColorMath.WHITE));
     }
 
     // ---------------------------------------------------------------------------------------
@@ -403,9 +403,9 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             PixelBuffer buffer = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
 
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
-            triangles.addAll(BlockModelGeometryKit.unitCube(SkinFace.HEAD.cropAll(skin, false), ColorMath.WHITE));
+            triangles.addAll(BlockGeometryKit.unitCube(SkinFace.HEAD.cropAll(skin, false), ColorMath.WHITE));
             if (options.isRenderOverlay() && hasHatOverlay(skin))
-                triangles.addAll(BlockModelGeometryKit.box(
+                triangles.addAll(BlockGeometryKit.box(
                     new Vector3f(-0.52f, -0.52f, -0.52f),
                     new Vector3f(0.52f, 0.52f, 0.52f),
                     SkinFace.HEAD.cropAll(skin, true), ColorMath.WHITE));
@@ -528,9 +528,9 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         @NotNull Vector3f max,
         @NotNull PlayerOptions options
     ) {
-        triangles.addAll(BlockModelGeometryKit.box(min, max, part.cropAll(skin, false), ColorMath.WHITE));
+        triangles.addAll(BlockGeometryKit.box(min, max, part.cropAll(skin, false), ColorMath.WHITE));
         if (options.isRenderOverlay() && hasOverlay(skin))
-            triangles.addAll(BlockModelGeometryKit.box(
+            triangles.addAll(BlockGeometryKit.box(
                 new Vector3f(min.x() - OVERLAY_INFLATE, min.y() - OVERLAY_INFLATE, min.z() - OVERLAY_INFLATE),
                 new Vector3f(max.x() + OVERLAY_INFLATE, max.y() + OVERLAY_INFLATE, max.z() + OVERLAY_INFLATE),
                 part.cropAll(skin, true), ColorMath.WHITE));
