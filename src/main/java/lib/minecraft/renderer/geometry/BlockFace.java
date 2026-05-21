@@ -51,32 +51,38 @@ import java.util.Map;
 public enum BlockFace {
 
     DOWN(
-        new int[]{ 4, 0, 1, 5 }, new Vector3f(0f, -1f, 0f),
+        new int[]{ 4, 0, 1, 5 },
+        new Vector3f(0f, -1f, 0f),
         new Layout(0, 2, false, true),
         0.5f
     ),
     UP(
-        new int[]{ 3, 7, 6, 2 }, new Vector3f(0f, 1f, 0f),
+        new int[]{ 3, 7, 6, 2 },
+        new Vector3f(0f, 1f, 0f),
         new Layout(0, 2, false, false),
         1.0f
     ),
     NORTH(
-        new int[]{ 2, 1, 0, 3 }, new Vector3f(0f, 0f, -1f),
+        new int[]{ 2, 1, 0, 3 },
+        new Vector3f(0f, 0f, -1f),
         new Layout(0, 1, true, true),
         0.6f
     ),
     SOUTH(
-        new int[]{ 7, 4, 5, 6 }, new Vector3f(0f, 0f, 1f),
+        new int[]{ 7, 4, 5, 6 },
+        new Vector3f(0f, 0f, 1f),
         new Layout(0, 1, false, true),
         0.6f
     ),
     WEST(
-        new int[]{ 3, 0, 4, 7 }, new Vector3f(-1f, 0f, 0f),
+        new int[]{ 3, 0, 4, 7 },
+        new Vector3f(-1f, 0f, 0f),
         new Layout(2, 1, false, true),
         0.8f
     ),
     EAST(
-        new int[]{ 6, 5, 1, 2 }, new Vector3f(1f, 0f, 0f),
+        new int[]{ 6, 5, 1, 2 },
+        new Vector3f(1f, 0f, 0f),
         new Layout(2, 1, true, true),
         0.8f
     );

@@ -69,32 +69,38 @@ import java.util.Map;
 public enum EntityFace {
 
     DOWN(
-        new int[]{ 5, 4, 0, 1 }, new Vector3f(0f, -1f, 0f),
+        new int[]{ 5, 4, 0, 1 },
+        new Vector3f(0f, -1f, 0f),
         new Layout(0, 2, 0, 1, 0, 0),
         new int[]{ 3, 0, 1, 2 }
     ),
     UP(
-        new int[]{ 2, 3, 7, 6 }, new Vector3f(0f, 1f, 0f),
+        new int[]{ 2, 3, 7, 6 },
+        new Vector3f(0f, 1f, 0f),
         new Layout(0, 2, 1, 1, 0, 0),
         new int[]{ 2, 1, 0, 3 }
     ),
     NORTH(
-        new int[]{ 1, 0, 3, 2 }, new Vector3f(0f, 0f, -1f),
+        new int[]{ 1, 0, 3, 2 },
+        new Vector3f(0f, 0f, -1f),
         new Layout(0, 1, 0, 1, 0, 1),
         new int[]{ 3, 0, 1, 2 }
     ),
     SOUTH(
-        new int[]{ 4, 5, 6, 7 }, new Vector3f(0f, 0f, 1f),
+        new int[]{ 4, 5, 6, 7 },
+        new Vector3f(0f, 0f, 1f),
         new Layout(0, 1, 1, 2, 0, 1),
         new int[]{ 3, 0, 1, 2 }
     ),
     WEST(
-        new int[]{ 0, 4, 7, 3 }, new Vector3f(-1f, 0f, 0f),
+        new int[]{ 0, 4, 7, 3 },
+        new Vector3f(-1f, 0f, 0f),
         new Layout(2, 1, 0, 0, 0, 1),
         new int[]{ 3, 0, 1, 2 }
     ),
     EAST(
-        new int[]{ 5, 1, 2, 6 }, new Vector3f(1f, 0f, 0f),
+        new int[]{ 5, 1, 2, 6 },
+        new Vector3f(1f, 0f, 0f),
         new Layout(2, 1, 1, 1, 0, 1),
         new int[]{ 3, 0, 1, 2 }
     );
@@ -203,7 +209,7 @@ public enum EntityFace {
     /**
      * Returns the default UV rectangle for this face in pixel space, using the <b>vanilla Java
      * Edition</b> entity-cube atlas unwrap where all six faces of a single cube share one
-     * texture image. Mirrors {@link net.minecraft.client.model.geom.ModelPart.Cube}'s polygon
+     * texture image. Mirrors {@code net.minecraft.client.model.geom.ModelPart.Cube}'s polygon
      * UV layout.
      * <p>
      * Vanilla lays out the strip with bottom (DOWN polygon) and top (UP polygon) in a first row
