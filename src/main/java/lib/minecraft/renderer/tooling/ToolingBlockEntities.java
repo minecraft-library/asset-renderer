@@ -2792,17 +2792,13 @@ public final class ToolingBlockEntities {
             };
             // Zero-thickness cubes (flat decals like decorated_pot's lid/base) collapse 4 of the
             // 6 entity faces into degenerate line segments with zero-magnitude normals. Emitting
-            // them would let the axis-snapping default to blockFaceIdx=0 (down) and clobber the
-            // actual DOWN face's UV with a blank rectangle. Skip any face whose normal vanishes.
+            // them would let the axis-snapping default to DOWN (BlockFace.fromNormal's fall-through
+            // for an all-zero normal picks the X axis, then EAST/WEST by sign; either lands on
+            // some block-face slot and clobbers its real UV). Skip any face whose normal vanishes.
             float normalLenSq = normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2];
             if (normalLenSq < 1e-6f) return;
-            float aNX = Math.abs(normal[0]), aNY = Math.abs(normal[1]), aNZ = Math.abs(normal[2]);
-            int blockFaceIdx;
-            if (aNY >= aNX && aNY >= aNZ) blockFaceIdx = normal[1] > 0 ? 1 : 0;
-            else if (aNZ >= aNX) blockFaceIdx = normal[2] > 0 ? 3 : 2;
-            else blockFaceIdx = normal[0] > 0 ? 5 : 4;
-
-            Vector3f[] blockFaceCorners = BlockFace.values()[blockFaceIdx].corners(box);
+            BlockFace blockFace = BlockFace.fromNormal(new Vector3f(normal[0], normal[1], normal[2]));
+            Vector3f[] blockFaceCorners = blockFace.corners(box);
 
             // For each transformed vertex of the entity face, read the UV it carries (already
             // in vanilla polygon-vertex order via EntityFace.permuteToPolygonOrder), then attach
@@ -2826,14 +2822,14 @@ public final class ToolingBlockEntities {
                 || bounds.y() < -0.01f || bounds.w() < -0.01f || bounds.y() > 16.01f || bounds.w() > 16.01f)
                 return;
 
-            JsonObject blockFace = new JsonObject();
-            blockFace.addProperty("texture", "#entity");
+            JsonObject blockFaceJson = new JsonObject();
+            blockFaceJson.addProperty("texture", "#entity");
             JsonArray uvArr = new JsonArray();
             uvArr.add(round2(bounds.x())); uvArr.add(round2(bounds.y())); uvArr.add(round2(bounds.z())); uvArr.add(round2(bounds.w()));
-            blockFace.add("uv", uvArr);
-            if (uvRect.rotation() != 0) blockFace.addProperty("rotation", uvRect.rotation());
-            if (emitTintIndex) blockFace.addProperty("tintindex", 0);
-            facesOut.add(BlockFace.values()[blockFaceIdx].direction(), blockFace);
+            blockFaceJson.add("uv", uvArr);
+            if (uvRect.rotation() != 0) blockFaceJson.addProperty("rotation", uvRect.rotation());
+            if (emitTintIndex) blockFaceJson.addProperty("tintindex", 0);
+            facesOut.add(blockFace.direction(), blockFaceJson);
         }
 
         /**
