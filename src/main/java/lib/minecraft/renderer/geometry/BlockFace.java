@@ -161,7 +161,7 @@ public enum BlockFace {
      * bindings), so every face samples the full {@code [0, 16]} UV rectangle projected onto its
      * cross-section. Callers compose
      * {@link Vector4f#toUvCorners(float, float, int, boolean)} with
-     * {@link ModelGrid#VANILLA_PIXEL_UNITS_PER_BLOCK} on the result to obtain normalized
+     * {@link BlockModelGeometryKit#VANILLA_PIXEL_UNITS_PER_BLOCK} on the result to obtain normalized
      * per-vertex corners.
      *
      * @param element the element bounds in 0-16 space
@@ -174,10 +174,10 @@ public enum BlockFace {
         float toU = axisComponent(element, uAxis, true);
         float fromV = axisComponent(element, vAxis, false);
         float toV = axisComponent(element, vAxis, true);
-        float u0 = this.layout.uInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - toU : fromU;
-        float u1 = this.layout.uInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - fromU : toU;
-        float v0 = this.layout.vInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - toV : fromV;
-        float v1 = this.layout.vInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - fromV : toV;
+        float u0 = this.layout.uInverted() ? BlockModelGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - toU : fromU;
+        float u1 = this.layout.uInverted() ? BlockModelGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - fromU : toU;
+        float v0 = this.layout.vInverted() ? BlockModelGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - toV : fromV;
+        float v1 = this.layout.vInverted() ? BlockModelGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - fromV : toV;
         return new Vector4f(u0, v0, u1, v1);
     }
 

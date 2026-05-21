@@ -11,7 +11,6 @@ import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.geometry.BlockFace;
 import lib.minecraft.renderer.geometry.Box;
-import lib.minecraft.renderer.geometry.ModelGrid;
 import lib.minecraft.renderer.geometry.SixFaces;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.tensor.Matrix4f;
@@ -34,6 +33,17 @@ import java.util.Map;
  */
 @UtilityClass
 public class BlockModelGeometryKit {
+
+    /**
+     * Edge length of a full block in vanilla model-authoring units. Every vanilla {@code block/}
+     * and {@code item/} model JSON authors coordinates against this grid - element
+     * {@code from} / {@code to} values of {@code [0, 0, 0]} and {@code [16, 16, 16]} describe a
+     * full unit cube, face UVs run from {@code 0} to {@code 16}, and {@code display.*.translation}
+     * values are in the same space. This kit and its consumers ({@link BlockFace#defaultUv},
+     * {@link BlockRenderer}, item renderer's display-transform path) divide by this constant to
+     * normalise into the engine's {@code [-0.5, +0.5]} unit-cube space before projection.
+     */
+    public static final float VANILLA_PIXEL_UNITS_PER_BLOCK = 16f;
 
     /**
      * Builds a list of 12 triangles (2 per face) describing a unit cube centered at the origin
@@ -148,12 +158,12 @@ public class BlockModelGeometryKit {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
         for (ModelElement element : elements) {
-            float x0 = element.getFrom()[0] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
-            float y0 = element.getFrom()[1] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
-            float z0 = element.getFrom()[2] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
-            float x1 = element.getTo()[0] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
-            float y1 = element.getTo()[1] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
-            float z1 = element.getTo()[2] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+            float x0 = element.getFrom()[0] / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+            float y0 = element.getFrom()[1] / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+            float z0 = element.getFrom()[2] / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+            float x1 = element.getTo()[0] / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+            float y1 = element.getTo()[1] / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+            float z1 = element.getTo()[2] / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
 
             // Build element rotation transform if present. The rotation is applied around
             // an arbitrary origin on a single axis. When rescale is set, the two axes
@@ -165,9 +175,9 @@ public class BlockModelGeometryKit {
                 ModelElement.ElementRotation rot = element.getRotation().get();
                 if (rot.angle() != 0f) {
                     float[] rawOrigin = rot.origin();
-                    float ox = rawOrigin[0] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
-                    float oy = rawOrigin[1] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
-                    float oz = rawOrigin[2] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+                    float ox = rawOrigin[0] / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+                    float oy = rawOrigin[1] / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+                    float oz = rawOrigin[2] / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
 
                     Vector3f axisVec = switch (rot.axis()) {
                         case "x" -> new Vector3f(1, 0, 0);
@@ -250,8 +260,8 @@ public class BlockModelGeometryKit {
         Vector4f rect = face.getUv()
             .orElseGet(() -> blockFace.defaultUv(Box.of(element.getFrom(), element.getTo())));
         return rect.toUvCorners(
-            ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK,
-            ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK,
+            VANILLA_PIXEL_UNITS_PER_BLOCK,
+            VANILLA_PIXEL_UNITS_PER_BLOCK,
             face.getRotation(),
             false
         );

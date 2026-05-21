@@ -17,7 +17,6 @@ import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.TextureEngine;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.geometry.EulerRotation;
-import lib.minecraft.renderer.geometry.ModelGrid;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.SixFaces;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
@@ -588,9 +587,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // apply them to the model vertex positions directly since our unit cube is already
             // normalized.
             Matrix4f translation = Matrix4f.createTranslation(
-                transform.getTranslationX() / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK,
-                transform.getTranslationY() / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK,
-                transform.getTranslationZ() / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK
+                transform.getTranslationX() / BlockModelGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK,
+                transform.getTranslationY() / BlockModelGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK,
+                transform.getTranslationZ() / BlockModelGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK
             );
             return scale.multiply(rotation).multiply(translation);
         }

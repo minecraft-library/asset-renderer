@@ -24,7 +24,6 @@ import lib.minecraft.renderer.engine.TextureEngine;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.geometry.Biome;
 import lib.minecraft.renderer.geometry.EulerRotation;
-import lib.minecraft.renderer.geometry.ModelGrid;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.kit.BlockModelGeometryKit;
@@ -450,9 +449,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 // Apply the part's offset to every vertex. Offset is in model units (0..16);
                 // triangle vertex positions are in block units (0..1) post-GeometryKit, so
                 // divide by 16.
-                float dx = part.offset()[0] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK;
-                float dy = part.offset()[1] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK;
-                float dz = part.offset()[2] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK;
+                float dx = part.offset()[0] / BlockModelGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
+                float dy = part.offset()[1] / BlockModelGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
+                float dz = part.offset()[2] / BlockModelGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK;
                 if (dx != 0f || dy != 0f || dz != 0f) {
                     ConcurrentList<VisibleTriangle> shifted = Concurrent.newList();
                     for (VisibleTriangle t : partTriangles) {
