@@ -949,7 +949,8 @@ public class EntityGeometryKit {
     /**
      * Resolves the per-vertex UV array for one polygon, including mirror handling and the
      * vanilla-spec slot permutation. The output is indexed in the kit's corner order
-     * ({@link EntityFace#vertexIndices}).
+     * ({@link EntityFace#vertexIndices}) so each {@code corners[i]} pairs with the UV vanilla's
+     * cube ctor assigns to the same world-space vertex.
      * <p>
      * For {@code cube.isMirror()} cubes, vanilla's {@code ModelPart.Cube} ctor swaps the cube's
      * {@code x} and {@code maxX} variables before building the 8 vertices, which has the net
@@ -959,14 +960,13 @@ public class EntityGeometryKit {
      * are replicated for {@code mirror=true} cubes via {@link #mirrorFace} and the
      * {@link Vector4f#toUvCorners} mirror flag inside {@link #resolveFaceUv}.
      * <p>
-     * The per-face slot permutation (the {@code switch} below) compensates for the kit's corner
-     * order being cyclic-shifted by 1 from vanilla's polygon vertex array. Combined with vanilla's
-     * (TR/TL/BL/BR) UV slot pattern this produces a per-face cyclic-shift that depends on
-     * V-inversion in the polygon's UV row:
+     * The per-face slot permutation maps {@link #resolveFaceUv}'s {@code (TL, BL, BR, TR)}
+     * output to the (max-u, top-v)-first ordering vanilla's {@code Polygon} ctor produces. For
+     * non-UP faces, vanilla's vertex 0 lands in the TR slot; for UP, it lands in BR because the
+     * polygon ctor's {@code f3 / f5} parameters are V-inverted on the atlas strip.
      * <ul>
-     * <li><b>UP</b> (vanilla v1 &gt; v2, V-inverted on atlas): {@code [1, 0, 3, 2]}.</li>
-     * <li><b>DOWN</b> (vanilla v1 &lt; v2): identity {@code [0, 1, 2, 3]}.</li>
-     * <li><b>SIDE faces</b> (NORTH/SOUTH/EAST/WEST, v1 &lt; v2): {@code [2, 3, 0, 1]}.</li>
+     * <li><b>UP</b> (V-inverted on atlas): {@code [BR, BL, TL, TR] = [uv[2], uv[1], uv[0], uv[3]]}.</li>
+     * <li><b>DOWN / NORTH / SOUTH / WEST / EAST</b>: {@code [TR, TL, BL, BR] = [uv[3], uv[0], uv[1], uv[2]]}.</li>
      * </ul>
      * Independent of {@link #FLIP_X} / {@link #FLIP_Y}: those change where vertices project to
      * screen, but each vertex's vanilla-spec UV is unchanged.
@@ -986,11 +986,9 @@ public class EntityGeometryKit {
         float texHeight
     ) {
         Vector2f[] uv = resolveFaceUv(mirrorFace(face, cube.isMirror()), cube, size, texWidth, texHeight);
-        return switch (face) {
-            case UP -> new Vector2f[]{ uv[1], uv[0], uv[3], uv[2] };
-            case DOWN -> new Vector2f[]{ uv[0], uv[1], uv[2], uv[3] };
-            default -> new Vector2f[]{ uv[2], uv[3], uv[0], uv[1] };
-        };
+        return face == EntityFace.UP
+            ? new Vector2f[]{ uv[2], uv[1], uv[0], uv[3] }
+            : new Vector2f[]{ uv[3], uv[0], uv[1], uv[2] };
     }
 
     /**

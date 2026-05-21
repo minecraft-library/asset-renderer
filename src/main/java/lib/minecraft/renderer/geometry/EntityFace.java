@@ -38,9 +38,22 @@ import java.util.Locale;
  *     block-element layout and an entity-cube layout via two record companions).</li>
  * </ul>
  * <p>
- * The four vertex indices per face are wound top-left, bottom-left, bottom-right, top-right when
- * viewed from the outward normal direction (CCW), matching vanilla's {@code FaceInfo} order and
- * the convention used by {@link EntityGeometryKit}'s triangle builders.
+ * The four vertex indices per face match vanilla's {@code ModelPart.Cube} polygon vertex
+ * order verbatim (extracted from the cube ctor bytecode), so a cube's screen-space quad
+ * triangulation - {@code (corners[0], 1, 2) + (corners[0], 2, 3)} - splits along the same
+ * diagonal vanilla's GPU rasterizes. The convention is CCW when viewed from the outward
+ * normal direction:
+ * <ul>
+ * <li>side faces (NORTH/SOUTH/EAST/WEST) start at the {@code (minY, "front")} corner of the
+ *     face (or its mirror for back-facing sides), then wind {@code front-top -&gt;
+ *     back-top -&gt; back-bottom -&gt; front-bottom} in CCW order around the face;</li>
+ * <li>UP starts at {@code (maxX, maxY, minZ)} and DOWN at {@code (maxX, minY, maxZ)},
+ *     winding CCW from the outward-normal viewpoint. The atlas strip's UP polygon is
+ *     V-inverted vs DOWN ({@code v_top &gt; v_bottom} in the polygon ctor's
+ *     {@code f3 / f5} args) which {@link lib.minecraft.renderer.kit.EntityGeometryKit
+ *     EntityGeometryKit}'s {@code resolvePolygonUv} mirrors via a UP-specific UV slot
+ *     permutation.</li>
+ * </ul>
  * <p>
  * <b>Lighting:</b> entity rendering uses vanilla's {@code Lighting.Entry.ENTITY_IN_UI}, which is
  * a dual-directional Lambertian shader (two normalized light vectors, summed with ambient and
@@ -57,27 +70,27 @@ import java.util.Locale;
 public enum EntityFace {
 
     DOWN(
-        "down", new int[]{ 4, 0, 1, 5 }, new Vector3f(0f, -1f, 0f),
+        "down", new int[]{ 5, 4, 0, 1 }, new Vector3f(0f, -1f, 0f),
         0, 2, 0, 1, 0, 0
     ),
     UP(
-        "up", new int[]{ 3, 7, 6, 2 }, new Vector3f(0f, 1f, 0f),
+        "up", new int[]{ 2, 3, 7, 6 }, new Vector3f(0f, 1f, 0f),
         0, 2, 1, 1, 0, 0
     ),
     NORTH(
-        "north", new int[]{ 2, 1, 0, 3 }, new Vector3f(0f, 0f, -1f),
+        "north", new int[]{ 1, 0, 3, 2 }, new Vector3f(0f, 0f, -1f),
         0, 1, 0, 1, 0, 1
     ),
     SOUTH(
-        "south", new int[]{ 7, 4, 5, 6 }, new Vector3f(0f, 0f, 1f),
+        "south", new int[]{ 4, 5, 6, 7 }, new Vector3f(0f, 0f, 1f),
         0, 1, 1, 2, 0, 1
     ),
     WEST(
-        "west", new int[]{ 3, 0, 4, 7 }, new Vector3f(-1f, 0f, 0f),
+        "west", new int[]{ 0, 4, 7, 3 }, new Vector3f(-1f, 0f, 0f),
         2, 1, 0, 0, 0, 1
     ),
     EAST(
-        "east", new int[]{ 6, 5, 1, 2 }, new Vector3f(1f, 0f, 0f),
+        "east", new int[]{ 5, 1, 2, 6 }, new Vector3f(1f, 0f, 0f),
         2, 1, 1, 1, 0, 1
     );
 
@@ -116,10 +129,12 @@ public enum EntityFace {
     private final int atlasVSzCoef;
 
     /**
-     * Returns the four CCW-ordered (TL, BL, BR, TR) corners of this face on the given axis-aligned
-     * {@link Box}, matching vanilla's {@code FaceInfo} vertex order.
+     * Returns the four corners of this face on the given axis-aligned {@link Box}, ordered to
+     * match vanilla's {@code ModelPart.Cube} polygon vertex sequence so the standard quad
+     * triangulation {@code (corners[0], 1, 2) + (corners[0], 2, 3)} splits along the same
+     * diagonal vanilla's GPU rasterizes.
      * <p>
-     * The 8-corner box layout used to resolve the indices:
+     * The 8-corner box layout used to resolve the {@link #vertexIndices indices}:
      * <pre>
      * 0: (x0, y0, z0)   4: (x0, y0, z1)
      * 1: (x1, y0, z0)   5: (x1, y0, z1)
@@ -128,7 +143,7 @@ public enum EntityFace {
      * </pre>
      *
      * @param box the bounding box
-     * @return the four corner positions, ordered TL, BL, BR, TR
+     * @return the four corner positions in vanilla polygon vertex order
      */
     public @NotNull Vector3f @NotNull [] corners(@NotNull Box box) {
         Vector3f[] cornersOfBox = {
