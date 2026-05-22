@@ -385,7 +385,7 @@ public final class SourceDiscovery {
 
         // Local-slot tracking: slot -> most recent INVOKESTATIC producing a LayerDefinition
         // (directly or via MeshDefinition + LayerDefinition.create wrapper).
-        Map<Integer, LayerTarget> slotState = new LinkedHashMap<>();
+        AsmKit.SlotTracker<LayerTarget> slotState = new AsmKit.SlotTracker<>();
         String pendingLayerField = null;
         LayerTarget pendingDirect = null;
         // pendingMesh captures an INVOKESTATIC returning MeshDefinition; if the next
@@ -449,13 +449,13 @@ public final class SourceDiscovery {
             }
 
             if (in instanceof VarInsnNode vi && opcode == Opcodes.ASTORE && pendingDirect != null) {
-                slotState.put(vi.var, pendingDirect);
+                slotState.store(vi.var, pendingDirect);
                 pendingDirect = null;
                 continue;
             }
 
             if (in instanceof VarInsnNode vi && opcode == Opcodes.ALOAD) {
-                LayerTarget stored = slotState.get(vi.var);
+                LayerTarget stored = slotState.load(vi.var);
                 if (stored != null) pendingDirect = stored;
                 continue;
             }
