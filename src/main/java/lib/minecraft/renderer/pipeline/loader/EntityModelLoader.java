@@ -521,11 +521,18 @@ public class EntityModelLoader {
             else
                 textureRef = Optional.empty();
 
-            // Apply hand-edited overrides. The loader honours {@code geometry_ref},
-            // {@code texture_ref} (both above), {@code hidden_bones}, and {@code overlays}.
-            if (override != null && override.has("hidden_bones") && override.get("hidden_bones").isJsonArray()) {
+            // Apply tooling-derived + hand-edited hidden bones. The tooling-emitted
+            // entityJson.hidden_bones field carries bones the model class's <init> sets
+            // visible=false unconditionally (armor_stand and illager-family hat hides via
+            // EntityHiddenBonesResolver). The overrides file extends the list for cases
+            // the bytecode walker can't reach (equipment-gated visibility from setupAnim -
+            // llama chest, etc.). Both sources are merged into one LinkedHashSet of names.
+            boolean hasEntityHidden = entityJson.has("hidden_bones") && entityJson.get("hidden_bones").isJsonArray();
+            boolean hasOverrideHidden = override != null && override.has("hidden_bones") && override.get("hidden_bones").isJsonArray();
+            if (hasEntityHidden || hasOverrideHidden) {
                 LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>(baseModel.getBones());
-                applyHiddenBones(bones, override.getAsJsonArray("hidden_bones"), entityId);
+                if (hasEntityHidden) applyHiddenBones(bones, entityJson.getAsJsonArray("hidden_bones"), entityId);
+                if (hasOverrideHidden) applyHiddenBones(bones, override.getAsJsonArray("hidden_bones"), entityId);
                 baseModel = new EntityModelData(
                     baseModel.getTextureWidth(),
                     baseModel.getTextureHeight(),

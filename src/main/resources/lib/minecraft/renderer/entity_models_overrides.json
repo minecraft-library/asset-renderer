@@ -1,18 +1,6 @@
 {
   "//": "Hand-edited corrections applied to entity_models.json + entity_geometry.json. Loaded by EntityModelLoader per entity; honoured keys are `geometry_ref`, `texture_ref`, `hidden_bones`, `overlays`, `force_opaque`. `hidden_bones` strips bones the geometry packs into a shared tree but the entity should not show (illager hat, equine saddle, armor stand hat).",
   "entities": {
-    "//minecraft:armor_stand": "ArmorStandModel constructor statically sets this.hat.visible = false; vanilla bounds-walker honours visibility and excludes the hat extent. Our pipeline doesn't track per-bone visibility, so strip the hat at load time. Same applies to any model whose constructor statically toggles visibility before render. Detect at tooling time when convenient and remove this hand-edited entry.",
-    "minecraft:armor_stand": {
-      "hidden_bones": [
-        "hat"
-      ]
-    },
-    "//illager-family": "IllagerModel constructor sets this.hat.visible = false. Pillager / vindicator / evoker keep that default; their renderers don't re-enable the hat. IllusionerRenderer explicitly sets this.model.getHat().visible = true so illusioner DOES render with a hat - it must NOT be on this hidden_bones list.",
-    "minecraft:pillager": {
-      "hidden_bones": [
-        "hat"
-      ]
-    },
     "//minecraft:cow_cold": "ColdCowModel registers a separate LayerDefinition (ModelLayers.COLD_COW) with a 3-cube body (base + inflated 0.5 fur + udder strip) and a head whose horns are child bones with PartPose.offsetAndRotation(±, -2.5, -3.5 or -5, PI/2, 0, 0). Bytecode tooling only scans top-level renderer registrations; variant ModelLayers aren't surfaced. Hand-edit redirects minecraft:cow_cold at geometry.cold_cow.",
     "minecraft:cow_cold": {
       "geometry_ref": "geometry.cold_cow"
@@ -94,18 +82,6 @@
     "//minecraft:sheep": "force_opaque bumps the ~600 wool-fluff partial-alpha texels to opaque at load time so the body and legs render solid instead of as a translucent speckled outline. Vanilla SheepModel already composes the skin + wool layers into one geometry, so no overlay is needed in the Java pipeline.",
     "minecraft:sheep": {
       "force_opaque": true
-    },
-    "//minecraft:vindicator": "Bedrock geometry.vindicator.v1.8 ships both arm sets - 'arms' folded across the chest (idle pose) plus 'rightArm'/'leftArm' hanging straight down (aggressive pose). Java's IllagerModel toggles visibility per entity state at runtime. Without animation state we default to the folded idle pose; hide the hanging pair so only crossed arms render. Also hide the hat (java-pipeline IllagerModel constructor sets hat.visible=false).",
-    "minecraft:vindicator": {
-      "hidden_bones": [
-        "hat"
-      ]
-    },
-    "//minecraft:evoker": "Same illager rig as vindicator - both arm sets ship together. Hide the hanging pair so only the folded idle pose renders. Also hide the hat (java-pipeline IllagerModel constructor sets hat.visible=false).",
-    "minecraft:evoker": {
-      "hidden_bones": [
-        "hat"
-      ]
     },
     "//minecraft:zombified_piglin": "AdultZombifiedPiglinModel.createBodyLayer just returns AdultPiglinModel.createBodyLayer() - the two layers are bytecode-identical. Bytecode tooling emits them as separate entries (geometry.adultpiglin + geometry.adultzombifiedpiglin) with the same bones; redirect to the hand-edited geometry.adultpiglin so the right_sleeve / right_pants pivot fixes and the dropped hat bone apply uniformly across the piglin family.",
     "minecraft:zombified_piglin": {

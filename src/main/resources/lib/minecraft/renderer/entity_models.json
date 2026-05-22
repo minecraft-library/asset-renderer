@@ -14,7 +14,10 @@
     "minecraft:armor_stand": {
       "geometry_ref": "geometry.armorstand",
       "texture_ref": "armorstand/armorstand",
-      "armor_type": "humanoid"
+      "armor_type": "humanoid",
+      "hidden_bones": [
+        "hat"
+      ]
     },
     "minecraft:axolotl": {
       "geometry_ref": "geometry.adultaxolotl",
@@ -264,7 +267,10 @@
     "minecraft:evoker": {
       "geometry_ref": "geometry.illager",
       "texture_ref": "illager/evoker",
-      "armor_type": "none"
+      "armor_type": "none",
+      "hidden_bones": [
+        "hat"
+      ]
     },
     "minecraft:fox": {
       "geometry_ref": "geometry.adultfox",
@@ -525,7 +531,10 @@
     "minecraft:pillager": {
       "geometry_ref": "geometry.illager",
       "texture_ref": "illager/pillager",
-      "armor_type": "none"
+      "armor_type": "none",
+      "hidden_bones": [
+        "hat"
+      ]
     },
     "minecraft:polar_bear": {
       "geometry_ref": "geometry.polarbear",
@@ -679,7 +688,10 @@
     "minecraft:vindicator": {
       "geometry_ref": "geometry.illager",
       "texture_ref": "illager/vindicator",
-      "armor_type": "none"
+      "armor_type": "none",
+      "hidden_bones": [
+        "hat"
+      ]
     },
     "minecraft:wandering_trader": {
       "geometry_ref": "geometry.villager",

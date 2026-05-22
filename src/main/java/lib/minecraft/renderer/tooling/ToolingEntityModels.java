@@ -14,6 +14,7 @@ import lib.minecraft.renderer.tooling.blockentity.Source;
 import lib.minecraft.renderer.tooling.blockentity.SourceDiscovery;
 import lib.minecraft.renderer.tooling.blockentity.YAxis;
 import lib.minecraft.renderer.tooling.entity.EntityBlockOverlayResolver;
+import lib.minecraft.renderer.tooling.entity.EntityHiddenBonesResolver;
 import lib.minecraft.renderer.tooling.entity.EntityLayerDefinitionResolver;
 import lib.minecraft.renderer.tooling.entity.EntityLayerScanner;
 import lib.minecraft.renderer.tooling.entity.EntityOverlayResolver;
@@ -480,7 +481,7 @@ public final class ToolingEntityModels {
             // per-entity rows pointing into the geometry table plus optional variant rows
             // emitted from the data-driven variant tables loaded in Phase B.
             int variantRowsEmitted = writeRuntimeJson(
-                records, entityToResolution, geometries, variants, diagnostics,
+                zip, records, entityToResolution, geometries, variants, diagnostics,
                 overlaysByEntity, overlayFieldToResolution, dataVariantDefaults,
                 blockOverlaysByEntity
             );
@@ -670,6 +671,7 @@ public final class ToolingEntityModels {
      * @return the number of variant rows written (in addition to base-entity rows)
      */
     private static int writeRuntimeJson(
+        @NotNull ZipFile zip,
         @NotNull Map<String, EntityRecord> records,
         @NotNull ConcurrentMap<String, EntityLayerDefinitionResolver.Resolution> entityToResolution,
         @NotNull ConcurrentMap<String, JsonObject> geometries,
@@ -822,6 +824,17 @@ public final class ToolingEntityModels {
             // override leaves {@code bodyRot} unmodified and the resolver returns 0 (which we
             // omit from JSON to keep noise-free rows).
             if (rec.setupYawAddend() != 0f) row.addProperty("setup_yaw_addend", rec.setupYawAddend());
+
+            // Constructor-static visibility: EntityHiddenBonesResolver walks the model class
+            // hierarchy's <init> for this.<bone>.visible = false assignments. Covers the
+            // armor_stand and illager-family hat-hide pattern; the static renderer never
+            // re-enables these bones at runtime so they must be omitted at load time.
+            ConcurrentList<String> hiddenBones = EntityHiddenBonesResolver.resolve(zip, res.targetClass(), rec.rendererInternalName(), diagnostics);
+            if (!hiddenBones.isEmpty()) {
+                JsonArray hidden = new JsonArray();
+                for (String bone : hiddenBones) hidden.add(bone);
+                row.add("hidden_bones", hidden);
+            }
 
             entitiesOut.add(entityId, row);
 
