@@ -40,13 +40,19 @@ public class TextKit {
      */
     private static final int UNDERLINE_OFFSET_MCPX = 1;
 
-    /** Strikethrough bar thickness in mcPixels. */
+    /**
+     * Strikethrough bar thickness in mcPixels.
+     */
     private static final int STRIKETHROUGH_THICKNESS_MCPX = 1;
 
-    /** Underline bar thickness in mcPixels. */
+    /**
+     * Underline bar thickness in mcPixels.
+     */
     private static final int UNDERLINE_THICKNESS_MCPX = 1;
 
-    /** Drop-shadow displacement in mcPixels - one mcPixel right and one mcPixel down. */
+    /**
+     * Drop-shadow displacement in mcPixels - one mcPixel right and one mcPixel down.
+     */
     private static final int SHADOW_OFFSET_MCPX = 1;
 
     /**

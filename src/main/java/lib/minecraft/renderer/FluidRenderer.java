@@ -50,7 +50,9 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
     static final @NotNull String LAVA_STILL_TEXTURE_ID = "minecraft:block/lava_still";
     static final @NotNull String LAVA_FLOW_TEXTURE_ID = "minecraft:block/lava_flow";
 
-    /** One vanilla tick is 50 ms - used to convert {@code ticksPerFrame} into a GIF delay. */
+    /**
+     * One vanilla tick is 50 ms - used to convert {@code ticksPerFrame} into a GIF delay.
+     */
     private static final int MILLIS_PER_TICK = 50;
 
     private final @NotNull Isometric3D isometric3D;

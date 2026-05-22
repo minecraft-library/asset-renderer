@@ -52,22 +52,34 @@ import java.util.zip.ZipFile;
 @UtilityClass
 public final class MobRegistryDiscovery {
 
-    /** JVM internal name of {@code net.minecraft.world.entity.EntityType}. */
+    /**
+     * JVM internal name of {@code net.minecraft.world.entity.EntityType}.
+     */
     private static final @NotNull String ENTITY_TYPE = "net/minecraft/world/entity/EntityType";
 
-    /** JVM internal name of {@code net.minecraft.world.entity.EntityType$Builder}. */
+    /**
+     * JVM internal name of {@code net.minecraft.world.entity.EntityType$Builder}.
+     */
     private static final @NotNull String ENTITY_TYPE_BUILDER = "net/minecraft/world/entity/EntityType$Builder";
 
-    /** JVM internal name of {@code net.minecraft.world.entity.MobCategory}. */
+    /**
+     * JVM internal name of {@code net.minecraft.world.entity.MobCategory}.
+     */
     private static final @NotNull String MOB_CATEGORY = "net/minecraft/world/entity/MobCategory";
 
-    /** JVM internal name of {@code net.minecraft.world.entity.LivingEntity}. */
+    /**
+     * JVM internal name of {@code net.minecraft.world.entity.LivingEntity}.
+     */
     private static final @NotNull String LIVING_ENTITY = "net/minecraft/world/entity/LivingEntity";
 
-    /** Name of the builder factory method: {@code EntityType$Builder.of(EntityFactory, MobCategory)}. */
+    /**
+     * Name of the builder factory method: {@code EntityType$Builder.of(EntityFactory, MobCategory)}.
+     */
     private static final @NotNull String BUILDER_OF = "of";
 
-    /** Field descriptor all EntityType static fields share. */
+    /**
+     * Field descriptor all EntityType static fields share.
+     */
     private static final @NotNull String ENTITY_TYPE_DESC = "Lnet/minecraft/world/entity/EntityType;";
 
     /**
@@ -211,7 +223,9 @@ public final class MobRegistryDiscovery {
             window.mobCategory = field.name;
     }
 
-    /** {@code true} when {@code insn} is an {@code INVOKESTATIC EntityType$Builder.of(...)}. */
+    /**
+     * {@code true} when {@code insn} is an {@code INVOKESTATIC EntityType$Builder.of(...)}.
+     */
     private static boolean isBuilderOfCall(@NotNull AbstractInsnNode insn) {
         return insn.getOpcode() == Opcodes.INVOKESTATIC
             && insn instanceof MethodInsnNode call
@@ -255,7 +269,9 @@ public final class MobRegistryDiscovery {
         return false;
     }
 
-    /** Rolling accumulator of per-registration literals consumed across {@link #collectRegistrations}. */
+    /**
+     * Rolling accumulator of per-registration literals consumed across {@link #collectRegistrations}.
+     */
     private static final class Window {
         @Nullable String entityId;
         @Nullable String mobCategory;
@@ -266,7 +282,9 @@ public final class MobRegistryDiscovery {
         }
     }
 
-    /** {@code <clinit>}-derived registration metadata paired with each EntityType field. */
+    /**
+     * {@code <clinit>}-derived registration metadata paired with each EntityType field.
+     */
     private record Registration(@NotNull String entityId, @NotNull String mobCategory) {}
 
 }

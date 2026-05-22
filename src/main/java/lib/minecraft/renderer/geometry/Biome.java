@@ -119,16 +119,24 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
      */
     enum TintTarget {
 
-        /** The face is not biome-tinted. */
+        /**
+         * The face is not biome-tinted.
+         */
         NONE,
 
-        /** Sample the grass colormap. Applies to grass blocks, tall grass, ferns, etc. */
+        /**
+         * Sample the grass colormap. Applies to grass blocks, tall grass, ferns, etc.
+         */
         GRASS,
 
-        /** Sample the foliage colormap. Applies to most leaves. */
+        /**
+         * Sample the foliage colormap. Applies to most leaves.
+         */
         FOLIAGE,
 
-        /** Sample the dry-foliage colormap. Applies to pale oak and a handful of other biomes. */
+        /**
+         * Sample the dry-foliage colormap. Applies to pale oak and a handful of other biomes.
+         */
         DRY_FOLIAGE,
 
         /**
@@ -138,7 +146,9 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
          */
         WATER,
 
-        /** Use the block's {@code tintConstant} field directly. Applies to redstone wire, stems, etc. */
+        /**
+         * Use the block's {@code tintConstant} field directly. Applies to redstone wire, stems, etc.
+         */
         CONSTANT
 
     }
@@ -148,10 +158,14 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
      */
     enum GrassColorModifier {
 
-        /** Pass through the sampled value unchanged. */
+        /**
+         * Pass through the sampled value unchanged.
+         */
         NONE,
 
-        /** Darkens the sampled value via {@code ((color & 0xFEFEFE) + 0x28340A) >> 1}. */
+        /**
+         * Darkens the sampled value via {@code ((color & 0xFEFEFE) + 0x28340A) >> 1}.
+         */
         DARK_FOREST,
 
         /**

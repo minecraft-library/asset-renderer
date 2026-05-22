@@ -58,7 +58,9 @@ public final class TextRenderer implements Renderer<TextOptions> {
      */
     private static final int LINE_HEIGHT_MCPX = 10;
 
-    /** Inter-line gap between the title and body in lore tooltips, in mcPixels. */
+    /**
+     * Inter-line gap between the title and body in lore tooltips, in mcPixels.
+     */
     private static final int LORE_GAP_MCPX = 2;
 
     private static final int DEFAULT_COLOR_ARGB = ChatColor.Legacy.GRAY.rgb();

@@ -32,7 +32,9 @@ import org.jetbrains.annotations.NotNull;
  */
 public final class Matrix4f {
 
-    /** The 4x4 identity matrix. */
+    /**
+     * The 4x4 identity matrix.
+     */
     public static final @NotNull Matrix4f IDENTITY = new Matrix4f(
         1, 0, 0, 0,
         0, 1, 0, 0,
@@ -347,7 +349,9 @@ public final class Matrix4f {
         return new Matrix4f(r);
     }
 
-    /** Vector overload of {@link #translate(float, float, float)}. */
+    /**
+     * Vector overload of {@link #translate(float, float, float)}.
+     */
     public @NotNull Matrix4f translate(@NotNull Vector3f v) {
         return translate(v.x(), v.y(), v.z());
     }
@@ -373,7 +377,9 @@ public final class Matrix4f {
         return new Matrix4f(r);
     }
 
-    /** Uniform scale overload of {@link #scale(float, float, float)}. */
+    /**
+     * Uniform scale overload of {@link #scale(float, float, float)}.
+     */
     public @NotNull Matrix4f scale(float uniform) {
         return scale(uniform, uniform, uniform);
     }

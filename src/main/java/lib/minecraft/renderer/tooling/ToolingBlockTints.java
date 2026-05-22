@@ -49,7 +49,9 @@ import java.util.zip.ZipFile;
 @UtilityClass
 public final class ToolingBlockTints {
 
-    /** Fixed output path for the bundled block-tint resource. */
+    /**
+     * Fixed output path for the bundled block-tint resource.
+     */
     private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/lib/minecraft/renderer/block_tints.json");
 
     /**
@@ -149,7 +151,9 @@ public final class ToolingBlockTints {
          */
         private static final @NotNull ConcurrentMap<String, Biome.TintTarget> SUPPORTED_SOURCES = buildSupportedSources();
 
-        /** Builds the {@link #SUPPORTED_SOURCES} policy table. */
+        /**
+         * Builds the {@link #SUPPORTED_SOURCES} policy table.
+         */
         private static @NotNull ConcurrentMap<String, Biome.TintTarget> buildSupportedSources() {
             ConcurrentMap<String, Biome.TintTarget> map = Concurrent.newMap();
             // GRASS colormap sources - the BlockTintSources helper distinguishes several grass

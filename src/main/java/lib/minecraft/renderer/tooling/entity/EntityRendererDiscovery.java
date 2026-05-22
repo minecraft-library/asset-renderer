@@ -48,13 +48,19 @@ import java.util.zip.ZipFile;
 @UtilityClass
 public final class EntityRendererDiscovery {
 
-    /** JVM internal name of {@code net.minecraft.client.renderer.entity.EntityRenderers}. */
+    /**
+     * JVM internal name of {@code net.minecraft.client.renderer.entity.EntityRenderers}.
+     */
     private static final @NotNull String ENTITY_RENDERERS = "net/minecraft/client/renderer/entity/EntityRenderers";
 
-    /** JVM internal name of {@code net.minecraft.world.entity.EntityType}. */
+    /**
+     * JVM internal name of {@code net.minecraft.world.entity.EntityType}.
+     */
     private static final @NotNull String ENTITY_TYPE = "net/minecraft/world/entity/EntityType";
 
-    /** JVM internal name of {@code net.minecraft.client.model.geom.ModelLayers}. */
+    /**
+     * JVM internal name of {@code net.minecraft.client.model.geom.ModelLayers}.
+     */
     private static final @NotNull String MODEL_LAYERS = "net/minecraft/client/model/geom/ModelLayers";
 
     /**
@@ -63,7 +69,7 @@ public final class EntityRendererDiscovery {
      *
      * @param entityFieldName the static field name on {@code EntityType}, e.g. {@code "ZOMBIE"},
      *     {@code "ARMADILLO"}; cross-references {@link MobRegistryDiscovery.MobEntry#fieldName()}
-     * @param rendererInternalName the renderer class's JVM internal name, e.g.
+     * @param rendererInternalName the renderer class's JVM internal name, e.g
      *     {@code "net/minecraft/client/renderer/entity/ZombieRenderer"}
      * @param lambdaLayerFields {@code GETSTATIC ModelLayers.X} field names observed in the
      *     {@code lambda$static$N} body that produces this renderer. Empty when the lambda is a
@@ -97,7 +103,7 @@ public final class EntityRendererDiscovery {
      * constant the lambda passes into the constructor against the constant's
      * {@code .texture} field initialiser in the {@code Type} enum's {@code <clinit>}.
      *
-     * @param owner the JVM internal name of the enum-class owner, e.g.
+     * @param owner the JVM internal name of the enum-class owner, e.g
      *     {@code "net/minecraft/client/renderer/entity/DonkeyRenderer$Type"}
      * @param name the static-field constant name, e.g. {@code "DONKEY"} or {@code "DONKEY_BABY"}
      */
@@ -208,7 +214,9 @@ public final class EntityRendererDiscovery {
         return null;
     }
 
-    /** Internal triple: the renderer class plus layer fields and Type-enum fields observed in the lambda body. */
+    /**
+     * Internal triple: the renderer class plus layer fields and Type-enum fields observed in the lambda body.
+     */
     private record LambdaResolution(
         @NotNull String rendererClass,
         @NotNull Set<String> lambdaLayerFields,

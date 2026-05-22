@@ -131,7 +131,9 @@ public final class SourceDiscovery {
         "createHumanoidHeadLayer", new SkullVariant("minecraft:skull_humanoid_head", 64, 64)
     );
 
-    /** An explicit skull variant binding: entity id + texture dimension override. */
+    /**
+     * An explicit skull variant binding: entity id + texture dimension override.
+     */
     private record SkullVariant(@NotNull String entityId, int texWidth, int texHeight) {}
 
     /**

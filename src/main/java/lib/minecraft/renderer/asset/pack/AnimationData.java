@@ -18,10 +18,14 @@ import java.util.Objects;
 @AllArgsConstructor
 public class AnimationData {
 
-    /** The default display duration per frame, in ticks (1 tick = 50ms). */
+    /**
+     * The default display duration per frame, in ticks (1 tick = 50ms).
+     */
     private int frametime = 1;
 
-    /** Whether to linearly interpolate between adjacent frames. */
+    /**
+     * Whether to linearly interpolate between adjacent frames.
+     */
     private boolean interpolate = false;
 
     /**
@@ -30,10 +34,14 @@ public class AnimationData {
      */
     private @NotNull ConcurrentList<FrameEntry> frames = Concurrent.newList();
 
-    /** An explicit frame width override, or {@code -1} when the animation inherits it from the texture. */
+    /**
+     * An explicit frame width override, or {@code -1} when the animation inherits it from the texture.
+     */
     private int width = -1;
 
-    /** An explicit frame height override, or {@code -1} when the animation inherits it from the texture. */
+    /**
+     * An explicit frame height override, or {@code -1} when the animation inherits it from the texture.
+     */
     private int height = -1;
 
     @Override

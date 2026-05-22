@@ -101,7 +101,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         Map.entry("minecraft:slime", 0.999f)
     );
 
-    /** Renderer context for texture resolution + isometric engine setup; not used for entity lookup. */
+    /**
+     * Renderer context for texture resolution + isometric engine setup; not used for entity lookup.
+     */
     private final @NotNull RendererContext context;
 
     /**
@@ -617,7 +619,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     private record CanvasFit(int canvasW, int canvasH, float ndcScale) {}
 
-    /** Returns a new {@link Box} with every coordinate multiplied by {@code k}. No-op when {@code k == 1}. */
+    /**
+     * Returns a new {@link Box} with every coordinate multiplied by {@code k}. No-op when {@code k == 1}.
+     */
     private static @NotNull Box scaleBox(@NotNull Box bounds, float k) {
         if (k == 1f) return bounds;
         return new Box(

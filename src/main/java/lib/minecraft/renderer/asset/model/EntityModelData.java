@@ -38,10 +38,14 @@ import java.util.Objects;
 @AllArgsConstructor
 public class EntityModelData {
 
-    /** Texture size in pixels, typically {@code 64} or {@code 128}. */
+    /**
+     * Texture size in pixels, typically {@code 64} or {@code 128}.
+     */
     private int textureWidth = 64;
 
-    /** Texture size in pixels. */
+    /**
+     * Texture size in pixels.
+     */
     private int textureHeight = 64;
 
     /**
@@ -99,8 +103,9 @@ public class EntityModelData {
         private @NotNull Vector3f pivot = Vector3f.ZERO;
 
         /**
-         * The bone's dynamic pose rotation - animated in Bedrock at runtime. Propagates through
-         * the ancestor anchor chain so descendant bones swing along with this bone.
+         * The bone's dynamic pose rotation - animated at runtime in vanilla's
+         * {@code setupAnim} step. Propagates through the ancestor anchor chain so descendant
+         * bones swing along with this bone.
          */
         @JsonAdapter(EulerRotation.Adapter.class)
         private @NotNull EulerRotation rotation = EulerRotation.NONE;
@@ -142,12 +147,16 @@ public class EntityModelData {
         @SerializedName("parent")
         private @Nullable String parent = null;
 
-        /** Convenience constructor for the common case of no parent and no bind pose. */
+        /**
+         * Convenience constructor for the common case of no parent and no bind pose.
+         */
         public Bone(@NotNull Vector3f pivot, @NotNull EulerRotation rotation, @NotNull ConcurrentList<Cube> cubes) {
             this(pivot, rotation, EulerRotation.NONE, 1f, cubes, null);
         }
 
-        /** Convenience constructor preserving the historic (pivot, rotation, cubes, parent) signature. */
+        /**
+         * Convenience constructor preserving the historic (pivot, rotation, cubes, parent) signature.
+         */
         public Bone(@NotNull Vector3f pivot, @NotNull EulerRotation rotation, @NotNull ConcurrentList<Cube> cubes, @Nullable String parent) {
             this(pivot, rotation, EulerRotation.NONE, 1f, cubes, parent);
         }
@@ -183,9 +192,9 @@ public class EntityModelData {
 
     /**
      * A single cube within a bone. {@link #origin} is the cube's minimum corner in absolute
-     * entity-root space, exactly as authored in Bedrock {@code .geo.json}; {@link #size} is the
-     * cube's extent along each axis in model units; {@link #uv} is the top-left corner of the
-     * cube's texture region on the shared atlas.
+     * entity-root space, exactly as authored in our JSON schema; {@link #size} is the cube's
+     * extent along each axis in model units; {@link #uv} is the top-left corner of the cube's
+     * texture region on the shared atlas.
      */
     @Getter
     @NoArgsConstructor
@@ -200,12 +209,12 @@ public class EntityModelData {
 
         /**
          * The cube's rotation pivot in absolute entity-root space, matching {@link #origin}'s
-         * coordinate space. Modern Bedrock {@code .geo.json} (1.12+) lets individual cubes carry
-         * their own {@code pivot}/{@code rotation} pair - used by the 1.21 cow/pig variants to
-         * author body cubes vertically and then tilt them into the standard horizontal pose
-         * without affecting other cubes in the same bone. When a cube's JSON omits
-         * {@code pivot} the parser fills it from the owning bone's pivot, matching Bedrock's
-         * semantics that a cube-rotation-without-pivot anchors on the bone. Ignored when
+         * coordinate space. Our JSON schema lets individual cubes carry their own
+         * {@code pivot}/{@code rotation} pair - used by the 1.21 cow/pig variants to author
+         * body cubes vertically and then tilt them into the standard horizontal pose without
+         * affecting other cubes in the same bone. When a cube's JSON omits {@code pivot} the
+         * parser fills it from the owning bone's pivot, matching the
+         * convention that a cube-rotation-without-pivot anchors on the bone. Ignored when
          * {@link #rotation} is zero.
          */
         private @NotNull Vector3f pivot = Vector3f.ZERO;
@@ -221,9 +230,10 @@ public class EntityModelData {
          * atlas unwrap derived from {@link #getUv()} and {@link #getSize()}. Faces absent from
          * the map fall back to the atlas unwrap so packs can override only the faces they need.
          * <p>
-         * Matches the Bedrock {@code geo.json} per-face UV schema used by Blockbench's cube
-         * exports, though the container key differs ({@code "face_uv"} here vs {@code "uv"} as
-         * an object in the raw geo.json format) so a Gson {@code TypeAdapter} is not required.
+         * Matches our per-face UV schema used by Blockbench's cube exports,
+         * though the container key differs ({@code "face_uv"} here vs {@code "uv"} as an
+         * object in the raw schema) so a Gson {@code TypeAdapter} is not
+         * required.
          */
         @SerializedName("face_uv")
         private @NotNull ConcurrentMap<String, FaceUv> faceUv = Concurrent.newMap();
@@ -251,7 +261,7 @@ public class EntityModelData {
 
     /**
      * An explicit per-face UV rectangle on an entity {@link Cube}. Stored in pixel coordinates
-     * on the source texture, matching the Bedrock {@code geo.json} cube face UV schema used by
+     * on the source texture, matching our per-face UV schema used by
      * Blockbench exports.
      * <p>
      * {@link #getUv()} is the top-left origin of the rectangle on the texture image;
@@ -263,10 +273,14 @@ public class EntityModelData {
     @AllArgsConstructor
     public static class FaceUv {
 
-        /** The rectangle's top-left origin on the texture image in pixels ({@code [u, v]}). */
+        /**
+         * The rectangle's top-left origin on the texture image in pixels ({@code [u, v]}).
+         */
         private @NotNull Vector2f uv = Vector2f.ZERO;
 
-        /** The rectangle's size on the texture image in pixels ({@code [width, height]}). */
+        /**
+         * The rectangle's size on the texture image in pixels ({@code [width, height]}).
+         */
         @SerializedName("uv_size")
         private @NotNull Vector2f uvSize = Vector2f.ZERO;
 

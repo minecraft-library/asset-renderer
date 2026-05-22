@@ -69,7 +69,9 @@ public final class InventoryTransformDecomposer {
 
     private static final @NotNull Map<String, String> RENDERER_ENTRY_METHODS = buildRendererEntryMethods();
 
-    /** Builds the {@link #RENDERER_ENTRY_METHODS} table mapping renderer internal name to factory entry. */
+    /**
+     * Builds the {@link #RENDERER_ENTRY_METHODS} table mapping renderer internal name to factory entry.
+     */
     private static @NotNull Map<String, String> buildRendererEntryMethods() {
         Map<String, String> m = new LinkedHashMap<>();
         m.put("net/minecraft/client/renderer/blockentity/BedRenderer", "createModelTransform");
@@ -253,7 +255,9 @@ public final class InventoryTransformDecomposer {
         return canonicalise(walker.finalTransform, diag);
     }
 
-    /** Walks a factory method's bytecode and decomposes the returned {@code Transformation}. */
+    /**
+     * Walks a factory method's bytecode and decomposes the returned {@code Transformation}.
+     */
     private static float @Nullable [] decomposeMethod(
         @NotNull ZipFile zip,
         @NotNull ClassNode cn,
@@ -293,7 +297,9 @@ public final class InventoryTransformDecomposer {
     // Symbolic value model
     // --------------------------------------------------------------------------------------
 
-    /** Tag for the kinds of values our symbolic JVM stack tracks. */
+    /**
+     * Tag for the kinds of values our symbolic JVM stack tracks.
+     */
     private enum ValueKind { FLOAT, YAW, VECTOR, QUATERNION, MATRIX, NULL, CLASS_REF, OTHER }
 
     /**
@@ -323,7 +329,9 @@ public final class InventoryTransformDecomposer {
         static @NotNull Value ofOther() { return new Value(ValueKind.OTHER, 0f, null, null, null); }
     }
 
-    /** Axis-angle rotation (degrees). axis in {@code 'X', 'Y', 'Z'}. */
+    /**
+     * Axis-angle rotation (degrees). axis in {@code 'X', 'Y', 'Z'}.
+     */
     private record Quat(char axis, float angleDeg) {
         static final Quat IDENTITY = new Quat('I', 0f);
         boolean isIdentity() { return axis == 'I' || angleDeg == 0f; }
@@ -349,14 +357,18 @@ public final class InventoryTransformDecomposer {
             }
         }
 
-        /** Sets translation to {@code v}, resetting everything else. Matrix4f.translation() semantics. */
+        /**
+         * Sets translation to {@code v}, resetting everything else. Matrix4f.translation() semantics.
+         */
         void setTranslation(@NotNull Vector3f v) {
             this.tx = v.x(); this.ty = v.y(); this.tz = v.z();
             this.rotations = Concurrent.newList();
             this.sx = 1f; this.sy = 1f; this.sz = 1f;
         }
 
-        /** Right-multiplies by {@code T(v)}. */
+        /**
+         * Right-multiplies by {@code T(v)}.
+         */
         void postTranslate(@NotNull Vector3f v) {
             // M' = M * T(v). Decomposed: if M = T * R * S, then M' = T * R * S * T(v).
             // We only track T on the outside and S on the inside; rotations are tracked
@@ -387,7 +399,9 @@ public final class InventoryTransformDecomposer {
             return s;
         }
 
-        /** Right-multiplies by {@code R(q)}. */
+        /**
+         * Right-multiplies by {@code R(q)}.
+         */
         void postRotate(@NotNull Quat q) {
             if (q.isIdentity()) {
                 this.rotations.add(q); // preserve ordering even for identities
@@ -396,12 +410,16 @@ public final class InventoryTransformDecomposer {
             this.rotations.add(q);
         }
 
-        /** Right-multiplies by {@code S(v)}. */
+        /**
+         * Right-multiplies by {@code S(v)}.
+         */
         void postScale(@NotNull Vector3f v) {
             this.sx *= v.x(); this.sy *= v.y(); this.sz *= v.z();
         }
 
-        /** Right-multiplies by {@code T(c) * R(q) * T(-c)}. */
+        /**
+         * Right-multiplies by {@code T(c) * R(q) * T(-c)}.
+         */
         void postRotateAround(@NotNull Quat q, float cx, float cy, float cz) {
             // This equals translate(c) * rotate(q) * translate(-c) fed into the right side.
             // At cx=cy=cz=0.5 (block-center) the baseline treats it as a yaw-equivalent
@@ -440,7 +458,9 @@ public final class InventoryTransformDecomposer {
         return nearUnit(mod, 0f) || nearUnit(mod, 180f);
     }
 
-    /** {@code true} when {@code a} is within {@link #UNIT_EPS} of {@code target}. */
+    /**
+     * {@code true} when {@code a} is within {@link #UNIT_EPS} of {@code target}.
+     */
     private static boolean nearUnit(float a, float target) {
         return Math.abs(a - target) < UNIT_EPS;
     }
@@ -468,10 +488,14 @@ public final class InventoryTransformDecomposer {
         final @NotNull ConcurrentList<Value> stack = Concurrent.newList();
         final @NotNull Map<Integer, Value> locals = new LinkedHashMap<>();
         @Nullable TransformState finalTransform;
-        /** Value captured at the stop-PUTSTATIC event (for static field resolution). */
+        /**
+         * Value captured at the stop-PUTSTATIC event (for static field resolution).
+         */
         @Nullable Value stoppedFieldValue;
         boolean poisoned;
-        /** {@code true} when walking a static initializer (FLOAD 0 is then a local, not yaw). */
+        /**
+         * {@code true} when walking a static initializer (FLOAD 0 is then a local, not yaw).
+         */
         boolean isStaticInit;
 
         Walker(@NotNull ZipFile zip, @NotNull ClassNode owner, @NotNull Diagnostics diag, int depth) {
@@ -641,7 +665,9 @@ public final class InventoryTransformDecomposer {
             poison("unsupported var insn op=" + op);
         }
 
-        /** Handles FNEG / FADD / FSUB / FMUL / FDIV. */
+        /**
+         * Handles FNEG / FADD / FSUB / FMUL / FDIV.
+         */
         private boolean handleInsn(int op) {
             if (op == Opcodes.FNEG) {
                 Value v = pop();
@@ -676,7 +702,9 @@ public final class InventoryTransformDecomposer {
             return false;
         }
 
-        /** FLOAT -> value, YAW -> 0. Everything else -> NaN (poisons caller). */
+        /**
+         * FLOAT -> value, YAW -> 0. Everything else -> NaN (poisons caller).
+         */
         private static float valueAsFloat(@NotNull Value v) {
             if (v.kind == ValueKind.FLOAT) return v.floatVal;
             if (v.kind == ValueKind.YAW) return 0f;
@@ -859,7 +887,9 @@ public final class InventoryTransformDecomposer {
             passThroughUnknown(mi);
         }
 
-        /** Handles {@code Matrix4f.translation / translate / rotate / rotateAround / scale} calls. */
+        /**
+         * Handles {@code Matrix4f.translation / translate / rotate / rotateAround / scale} calls.
+         */
         private void handleMatrix4fInvoke(@NotNull String name, @NotNull String desc) {
             switch (name) {
                 case "translation" -> {

@@ -18,19 +18,27 @@ import java.io.File;
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
 public class PipelineOptions {
 
-    /** The target Minecraft client version; defaults to the hardcoded 26.1 build. */
+    /**
+     * The target Minecraft client version; defaults to the hardcoded 26.1 build.
+     */
     @lombok.Builder.Default
     private final @NotNull String version = "26.1";
 
-    /** The cache root directory. Defaults to {@code ./cache/asset-renderer}. */
+    /**
+     * The cache root directory. Defaults to {@code ./cache/asset-renderer}.
+     */
     @lombok.Builder.Default
     private final @NotNull File cacheRoot = new File("cache/asset-renderer");
 
-    /** Additional texture pack directories or zip files to load on top of vanilla. */
+    /**
+     * Additional texture pack directories or zip files to load on top of vanilla.
+     */
     @lombok.Builder.Default
     private final @NotNull ConcurrentList<File> texturePacks = Concurrent.newList();
 
-    /** When true, re-download the client jar even if a cached copy exists. */
+    /**
+     * When true, re-download the client jar even if a cached copy exists.
+     */
     @lombok.Builder.Default
     private final boolean forceDownload = false;
 

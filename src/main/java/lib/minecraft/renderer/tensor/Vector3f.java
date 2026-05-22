@@ -30,7 +30,9 @@ import java.io.IOException;
  */
 public record Vector3f(float x, float y, float z) {
 
-    /** The zero vector. */
+    /**
+     * The zero vector.
+     */
     public static final @NotNull Vector3f ZERO = new Vector3f(0, 0, 0);
 
     /**
@@ -80,7 +82,9 @@ public record Vector3f(float x, float y, float z) {
         return new Vector3f(this.x / scalar, this.y / scalar, this.z / scalar);
     }
 
-    /** This vector with all three components negated. */
+    /**
+     * This vector with all three components negated.
+     */
     public @NotNull Vector3f negate() {
         return new Vector3f(-this.x, -this.y, -this.z);
     }
@@ -103,7 +107,9 @@ public record Vector3f(float x, float y, float z) {
         };
     }
 
-    /** The Euclidean length of this vector. */
+    /**
+     * The Euclidean length of this vector.
+     */
     public float length() {
         return (float) Math.sqrt(this.lengthSquared());
     }

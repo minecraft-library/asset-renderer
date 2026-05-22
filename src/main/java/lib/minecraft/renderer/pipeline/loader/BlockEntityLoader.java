@@ -179,7 +179,9 @@ public class BlockEntityLoader {
         }
     }
 
-    /** Returns {@code true} when any element of {@code model} escapes the {@code 0..16} block bbox. */
+    /**
+     * Returns {@code true} when any element of {@code model} escapes the {@code 0..16} block bbox.
+     */
     private static boolean extentsExceedBlock(@NotNull BlockModelData model) {
         for (ModelElement me : model.getElements()) {
             if (me.getFrom()[0] < -0.1f || me.getFrom()[1] < -0.1f || me.getFrom()[2] < -0.1f ||

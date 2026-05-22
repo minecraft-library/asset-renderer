@@ -52,22 +52,34 @@ public class GlintKit {
      */
     public static final double MAX_ENCHANTMENT_GLINT_SPEED_MILLIS = 8.0;
 
-    /** U-axis loop period in milliseconds - {@code 110_000L} modulus in {@code setupGlintTexturing}. */
+    /**
+     * U-axis loop period in milliseconds - {@code 110_000L} modulus in {@code setupGlintTexturing}.
+     */
     public static final long VANILLA_U_LOOP_MILLIS = 110_000L;
 
-    /** V-axis loop period in milliseconds - {@code 30_000L} modulus in {@code setupGlintTexturing}. */
+    /**
+     * V-axis loop period in milliseconds - {@code 30_000L} modulus in {@code setupGlintTexturing}.
+     */
     public static final long VANILLA_V_LOOP_MILLIS = 30_000L;
 
-    /** Per-type scale factor for {@code GLINT_TEXTURING} (GUI and held item glint). */
+    /**
+     * Per-type scale factor for {@code GLINT_TEXTURING} (GUI and held item glint).
+     */
     public static final float ITEM_SCALE = 8.0f;
 
-    /** Per-type scale factor for {@code ENTITY_GLINT_TEXTURING} (entity-held item glint). */
+    /**
+     * Per-type scale factor for {@code ENTITY_GLINT_TEXTURING} (entity-held item glint).
+     */
     public static final float ENTITY_ITEM_SCALE = 0.5f;
 
-    /** Per-type scale factor for {@code ARMOR_ENTITY_GLINT_TEXTURING} (armor layer glint). */
+    /**
+     * Per-type scale factor for {@code ARMOR_ENTITY_GLINT_TEXTURING} (armor layer glint).
+     */
     public static final float ARMOR_SCALE = 0.16f;
 
-    /** Rotation applied to the glint UV translation - {@code 0.17453292f} radians, ~10 degrees. */
+    /**
+     * Rotation applied to the glint UV translation - {@code 0.17453292f} radians, ~10 degrees.
+     */
     public static final float ROTATION_RADIANS = 0.17453292f;
 
     /**

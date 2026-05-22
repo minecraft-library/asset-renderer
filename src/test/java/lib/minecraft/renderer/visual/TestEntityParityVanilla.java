@@ -50,10 +50,6 @@ import java.util.stream.Stream;
  * - each contains {@code vanilla.png}, {@code java.png}, {@code diff.png}. A top-level
  * {@code parity-report.tsv} ranks entities by mean ARGB delta ascending.
  *
- * <p>Sibling of {@link TestEntityParity} - that one keeps comparing bedrock vs java; this one
- * holds the Java pipeline against the harness's ground truth so improvements show up against the
- * canonical reference rather than against a second derived pipeline.
- *
  * <p>Usage: {@code ./gradlew :asset-renderer:entityParityVanilla [-PentityId=minecraft:zombie]}.
  */
 @UtilityClass
@@ -73,9 +69,8 @@ public final class TestEntityParityVanilla {
 
     /**
      * Entities the maintainer has manually verified to be at acceptable parity against the
-     * vanilla harness baseline. Starts empty - this baseline differs from the bedrock-vs-java
-     * comparison in {@link TestEntityParity} so its allowlist is independent. Populate after
-     * inspecting per-entity {@code diff.png}; entries here split the focus pool reporting.
+     * vanilla harness baseline. Starts empty - populate after inspecting per-entity
+     * {@code diff.png}; entries here split the focus pool reporting.
      *
      * <p>Tier definitions live in {@code notes/JAVA_PIPELINE_RESEARCH.md}; the python helper
      * {@code scripts/parity_analysis/iterate_entity.py} validates that an entity actually meets

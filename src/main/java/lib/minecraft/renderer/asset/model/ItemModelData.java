@@ -24,19 +24,29 @@ import java.util.Optional;
 @NoArgsConstructor
 public class ItemModelData {
 
-    /** The fully-resolved parent model identifier, or empty for top-level models. */
+    /**
+     * The fully-resolved parent model identifier, or empty for top-level models.
+     */
     private @NotNull Optional<String> parent = Optional.empty();
 
-    /** Texture variable bindings: {@code "layer0" -> "minecraft:item/diamond_sword"}. */
+    /**
+     * Texture variable bindings: {@code "layer0" -> "minecraft:item/diamond_sword"}.
+     */
     private @NotNull ConcurrentMap<String, String> textures = Concurrent.newMap();
 
-    /** The list of element boxes that make up the model (empty for layered flat items). */
+    /**
+     * The list of element boxes that make up the model (empty for layered flat items).
+     */
     private @NotNull ConcurrentList<ModelElement> elements = Concurrent.newList();
 
-    /** Display transforms keyed by display slot: {@code gui}, {@code head}, {@code thirdperson_righthand}, etc. */
+    /**
+     * Display transforms keyed by display slot: {@code gui}, {@code head}, {@code thirdperson_righthand}, etc.
+     */
     private @NotNull ConcurrentMap<String, ModelTransform> display = Concurrent.newMap();
 
-    /** Whether this item should render its GUI icon using the 3D {@code elements} pipeline. */
+    /**
+     * Whether this item should render its GUI icon using the 3D {@code elements} pipeline.
+     */
     private boolean guiLight3D = false;
 
     @Override

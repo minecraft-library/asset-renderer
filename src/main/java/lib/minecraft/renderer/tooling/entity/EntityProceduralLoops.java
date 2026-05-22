@@ -40,7 +40,9 @@ import java.util.Map;
 @UtilityClass
 public final class EntityProceduralLoops {
 
-    /** Source of mathematical constants used by the squid template. */
+    /**
+     * Source of mathematical constants used by the squid template.
+     */
     private static final double TAU = 2.0 * Math.PI;
 
     /**
@@ -252,7 +254,7 @@ public final class EntityProceduralLoops {
      * </ul>
      *
      * <p>The {@code getPartName(int)} synthetic compiles to {@code "part_" + i} via
-     * {@code makeConcatWithConstants}; bedrock authors the same bones as
+     * {@code makeConcatWithConstants}; vanilla authors the same bones as
      * {@code upperBodyParts0..11}. Since the parity test is image-based the chosen name doesn't
      * affect the comparison; using {@code part_N} matches the Java factory's own convention.
      */
@@ -372,22 +374,34 @@ public final class EntityProceduralLoops {
         }
     }
 
-    /** Per-spike X position factor; multiplied by {@code getSpikeOffset(i, 0, 0)} at layer build. */
+    /**
+     * Per-spike X position factor; multiplied by {@code getSpikeOffset(i, 0, 0)} at layer build.
+     */
     private static final float[] SPIKE_X = { 0f, 0f, 8f, -8f, -8f, 8f, 8f, -8f, 0f, 0f, 8f, -8f };
 
-    /** Per-spike Y position factor; the final Y is {@code 16 + SPIKE_Y[i] * getSpikeOffset(i, 0, 0)}. */
+    /**
+     * Per-spike Y position factor; the final Y is {@code 16 + SPIKE_Y[i] * getSpikeOffset(i, 0, 0)}.
+     */
     private static final float[] SPIKE_Y = { -8f, -8f, -8f, -8f, 0f, 0f, 0f, 0f, 8f, 8f, 8f, 8f };
 
-    /** Per-spike Z position factor. */
+    /**
+     * Per-spike Z position factor.
+     */
     private static final float[] SPIKE_Z = { 8f, -8f, 0f, 0f, -8f, -8f, 8f, 8f, 8f, -8f, 0f, 0f };
 
-    /** Per-spike X rotation in units of π. */
+    /**
+     * Per-spike X rotation in units of π.
+     */
     private static final float[] SPIKE_X_ROT = { 1.75f, 0.25f, 0f, 0f, 0.5f, 0.5f, 0.5f, 0.5f, 1.25f, 0.75f, 0f, 0f };
 
-    /** Per-spike Y rotation in units of π. */
+    /**
+     * Per-spike Y rotation in units of π.
+     */
     private static final float[] SPIKE_Y_ROT = { 0f, 0f, 0f, 0f, 0.25f, 1.75f, 1.25f, 0.75f, 0f, 0f, 0f, 0f };
 
-    /** Per-spike Z rotation in units of π. */
+    /**
+     * Per-spike Z rotation in units of π.
+     */
     private static final float[] SPIKE_Z_ROT = { 0f, 0f, 0.25f, 1.75f, 0f, 0f, 0f, 0f, 0f, 0f, 0.75f, 1.25f };
 
     /**
@@ -507,7 +521,9 @@ public final class EntityProceduralLoops {
         { 2, 2, 3 }, { 2, 1, 2 }, { 1, 1, 2 }
     };
 
-    /** Per-segment {@code int[]{u, v}} texOffs from {@code SilverfishModel.<clinit>} {@code BODY_TEXS}. */
+    /**
+     * Per-segment {@code int[]{u, v}} texOffs from {@code SilverfishModel.<clinit>} {@code BODY_TEXS}.
+     */
     private static final int[][] SILVERFISH_BODY_TEXS = {
         { 0, 0 }, { 0, 4 }, { 0, 9 }, { 0, 16 }, { 0, 22 }, { 11, 0 }, { 13, 4 }
     };
@@ -561,12 +577,16 @@ public final class EntityProceduralLoops {
             6f, 5f, SILVERFISH_BODY_SIZES[1][2], 20, 18));
     }
 
-    /** Per-segment {@code int[]{sx, sy, sz}} from {@code EndermiteModel.<clinit>} {@code BODY_SIZES}. */
+    /**
+     * Per-segment {@code int[]{sx, sy, sz}} from {@code EndermiteModel.<clinit>} {@code BODY_SIZES}.
+     */
     private static final int[][] ENDERMITE_BODY_SIZES = {
         { 4, 3, 2 }, { 6, 4, 5 }, { 3, 3, 1 }, { 1, 2, 1 }
     };
 
-    /** Per-segment {@code int[]{u, v}} texOffs from {@code EndermiteModel.<clinit>} {@code BODY_TEXS}. */
+    /**
+     * Per-segment {@code int[]{u, v}} texOffs from {@code EndermiteModel.<clinit>} {@code BODY_TEXS}.
+     */
     private static final int[][] ENDERMITE_BODY_TEXS = {
         { 0, 0 }, { 0, 5 }, { 0, 14 }, { 0, 18 }
     };
@@ -678,7 +698,9 @@ public final class EntityProceduralLoops {
         return out;
     }
 
-    /** Builds a single-cube bone JSON shaped like the parser's per-bone records. */
+    /**
+     * Builds a single-cube bone JSON shaped like the parser's per-bone records.
+     */
     private static @NotNull JsonObject segmentBone(
         float px, float py, float pz,
         float ox, float oy, float oz,
@@ -704,7 +726,9 @@ public final class EntityProceduralLoops {
         return bone;
     }
 
-    /** Builds a 3-element {@link JsonArray} from float values - matches the parser's serialisation shape. */
+    /**
+     * Builds a 3-element {@link JsonArray} from float values - matches the parser's serialisation shape.
+     */
     private static @NotNull JsonArray floatArray(float a, float b, float c) {
         JsonArray arr = new JsonArray();
         arr.add(a);

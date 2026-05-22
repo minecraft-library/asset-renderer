@@ -29,7 +29,9 @@ import java.util.Optional;
 @UtilityClass
 public class BannerKit {
 
-    /** The banner-background texture id. Painted under every layer with the base dye tint. */
+    /**
+     * The banner-background texture id. Painted under every layer with the base dye tint.
+     */
     private static final @NotNull String BANNER_BASE_TEXTURE_ID = "minecraft:entity/banner_base";
 
     /**
@@ -74,16 +76,24 @@ public class BannerKit {
      */
     public enum Variant {
 
-        /** The 2D banner item icon (GUI slot sprite). */
+        /**
+         * The 2D banner item icon (GUI slot sprite).
+         */
         BANNER_ITEM("entity/banner"),
 
-        /** The 2D shield item icon (GUI slot sprite). */
+        /**
+         * The 2D shield item icon (GUI slot sprite).
+         */
         SHIELD_ITEM("entity/shield"),
 
-        /** The 3D banner block / held variant texture. Same path as the item icon variant. */
+        /**
+         * The 3D banner block / held variant texture. Same path as the item icon variant.
+         */
         BANNER_BLOCK_3D("entity/banner"),
 
-        /** The 3D shield held variant texture. Same path as the item icon variant. */
+        /**
+         * The 3D shield held variant texture. Same path as the item icon variant.
+         */
         SHIELD_BLOCK_3D("entity/shield");
 
         private final @NotNull String atlasPath;

@@ -49,28 +49,44 @@ import java.util.zip.ZipFile;
 @UtilityClass
 public final class EntityLayerDefinitionResolver {
 
-    /** JVM internal name of {@code net.minecraft.client.model.geom.LayerDefinitions}. */
+    /**
+     * JVM internal name of {@code net.minecraft.client.model.geom.LayerDefinitions}.
+     */
     private static final @NotNull String LAYER_DEFINITIONS = "net/minecraft/client/model/geom/LayerDefinitions";
 
-    /** JVM internal name of {@code net.minecraft.client.model.geom.ModelLayers}. */
+    /**
+     * JVM internal name of {@code net.minecraft.client.model.geom.ModelLayers}.
+     */
     private static final @NotNull String MODEL_LAYERS = "net/minecraft/client/model/geom/ModelLayers";
 
-    /** JVM internal name of {@code net.minecraft.client.model.geom.builders.LayerDefinition}. */
+    /**
+     * JVM internal name of {@code net.minecraft.client.model.geom.builders.LayerDefinition}.
+     */
     private static final @NotNull String LAYER_DEFINITION_CLASS = "net/minecraft/client/model/geom/builders/LayerDefinition";
 
-    /** Suffix of every {@code (...)LayerDefinition} method descriptor. */
+    /**
+     * Suffix of every {@code (...)LayerDefinition} method descriptor.
+     */
     private static final @NotNull String LAYER_DEFINITION_DESC_RETURN = ")Lnet/minecraft/client/model/geom/builders/LayerDefinition;";
 
-    /** Suffix of every {@code (...)MeshDefinition} method descriptor. */
+    /**
+     * Suffix of every {@code (...)MeshDefinition} method descriptor.
+     */
     private static final @NotNull String MESH_DEFINITION_DESC_RETURN = ")Lnet/minecraft/client/model/geom/builders/MeshDefinition;";
 
-    /** JVM internal name of {@code net.minecraft.client.model.geom.builders.MeshTransformer}. */
+    /**
+     * JVM internal name of {@code net.minecraft.client.model.geom.builders.MeshTransformer}.
+     */
     private static final @NotNull String MESH_TRANSFORMER = "net/minecraft/client/model/geom/builders/MeshTransformer";
 
-    /** Field descriptor for a {@code MeshTransformer}-typed field or local. */
+    /**
+     * Field descriptor for a {@code MeshTransformer}-typed field or local.
+     */
     private static final @NotNull String MESH_TRANSFORMER_DESC = "L" + MESH_TRANSFORMER + ";";
 
-    /** Method descriptor of {@code LayerDefinition.apply(MeshTransformer)LayerDefinition}. */
+    /**
+     * Method descriptor of {@code LayerDefinition.apply(MeshTransformer)LayerDefinition}.
+     */
     private static final @NotNull String APPLY_DESC = "(" + MESH_TRANSFORMER_DESC + ")L" + LAYER_DEFINITION_CLASS + ";";
 
     /**
@@ -98,7 +114,9 @@ public final class EntityLayerDefinitionResolver {
         float appliedMeshTransformerScale
     ) {
 
-        /** Convenience constructor for resolutions whose factory takes no {@code CubeDeformation} arg. */
+        /**
+         * Convenience constructor for resolutions whose factory takes no {@code CubeDeformation} arg.
+         */
         public Resolution(
             @NotNull String targetClass,
             @NotNull String targetMethod,
@@ -110,7 +128,9 @@ public final class EntityLayerDefinitionResolver {
             this(targetClass, targetMethod, targetDesc, texWidthOverride, texHeightOverride, sourceLayerField, 0f, null, 1f);
         }
 
-        /** Convenience constructor preserving the prior 7-arg signature (no {@code defaultFloatParam}, no applied MT). */
+        /**
+         * Convenience constructor preserving the prior 7-arg signature (no {@code defaultFloatParam}, no applied MT).
+         */
         public Resolution(
             @NotNull String targetClass,
             @NotNull String targetMethod,
@@ -123,7 +143,9 @@ public final class EntityLayerDefinitionResolver {
             this(targetClass, targetMethod, targetDesc, texWidthOverride, texHeightOverride, sourceLayerField, defaultInflate, null, 1f);
         }
 
-        /** Convenience constructor preserving the prior 8-arg signature (no applied MT). */
+        /**
+         * Convenience constructor preserving the prior 8-arg signature (no applied MT).
+         */
         public Resolution(
             @NotNull String targetClass,
             @NotNull String targetMethod,
@@ -256,7 +278,9 @@ public final class EntityLayerDefinitionResolver {
         return candidates.iterator().next();
     }
 
-    /** {@code true} when the field name ends in a known variant suffix that disqualifies it as "primary". */
+    /**
+     * {@code true} when the field name ends in a known variant suffix that disqualifies it as "primary".
+     */
     private static boolean isVariantSuffixed(@NotNull String fieldName) {
         return fieldName.endsWith("_BABY")
             || fieldName.endsWith("_ARMOR")

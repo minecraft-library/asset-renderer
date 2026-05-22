@@ -55,13 +55,19 @@ import java.util.zip.ZipFile;
 @UtilityClass
 public final class EntityBlockOverlayResolver {
 
-    /** JVM internal name of {@code PoseStack} - layer submit methods invoke its push / translate / rotate / scale ops. */
+    /**
+     * JVM internal name of {@code PoseStack} - layer submit methods invoke its push / translate / rotate / scale ops.
+     */
     private static final @NotNull String POSE_STACK = "com/mojang/blaze3d/vertex/PoseStack";
 
-    /** JVM internal name of {@code com.mojang.math.Axis} - its {@code YP} static field's rotation methods are how layers express Y rotations. */
+    /**
+     * JVM internal name of {@code com.mojang.math.Axis} - its {@code YP} static field's rotation methods are how layers express Y rotations.
+     */
     private static final @NotNull String AXIS = "com/mojang/math/Axis";
 
-    /** JVM internal name of {@code ModelPart} - {@code translateAndRotate} pre-applies a bone's pose to the stack. */
+    /**
+     * JVM internal name of {@code ModelPart} - {@code translateAndRotate} pre-applies a bone's pose to the stack.
+     */
     private static final @NotNull String MODEL_PART = "net/minecraft/client/model/geom/ModelPart";
 
     /**
@@ -77,7 +83,9 @@ public final class EntityBlockOverlayResolver {
             new KnownLayer("net/minecraft/world/entity/animal/cow/MushroomCow$Variant", null));
     }};
 
-    /** JVM internal name of {@code Blocks} - the {@code <Variant>$<clinit>} GETSTATICs go through this. */
+    /**
+     * JVM internal name of {@code Blocks} - the {@code <Variant>$<clinit>} GETSTATICs go through this.
+     */
     private static final @NotNull String BLOCKS = "net/minecraft/world/level/block/Blocks";
 
     /**
@@ -87,7 +95,7 @@ public final class EntityBlockOverlayResolver {
      *
      * @param zip the deobfuscated client jar
      * @param entityId the entity id being resolved (used in diagnostics)
-     * @param rendererInternalName the renderer class JVM internal name (e.g.
+     * @param rendererInternalName the renderer class JVM internal name (e.g
      *     {@code net/minecraft/client/renderer/entity/MushroomCowRenderer})
      * @param diagnostics the diagnostic sink for parse-failure WARN messages
      */
@@ -357,10 +365,14 @@ public final class EntityBlockOverlayResolver {
      */
     private record KnownLayer(@Nullable String variantClass, @Nullable String defaultBlockId) {}
 
-    /** One pose-stack op recognised by the walker. {@code a/b/c} fields hold per-kind data. */
+    /**
+     * One pose-stack op recognised by the walker. {@code a/b/c} fields hold per-kind data.
+     */
     public record TransformOpRecord(@NotNull OpKind kind, float a, float b, float c) {}
 
-    /** Recognised pose-stack op kinds. {@code ROTATE_Y} stores degrees in {@code a}; the others use all three components. */
+    /**
+     * Recognised pose-stack op kinds. {@code ROTATE_Y} stores degrees in {@code a}; the others use all three components.
+     */
     public enum OpKind { TRANSLATE, ROTATE_Y, SCALE }
 
     /**

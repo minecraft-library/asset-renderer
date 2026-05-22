@@ -33,7 +33,7 @@ import java.util.zip.ZipFile;
  * {@code BreezeEyesLayer} extends {@code RenderLayer} directly but uses the same factory
  * shape ({@code RenderTypes.breezeEyes(...)}).
  *
- * <p>The bedrock pipeline carries a hardcoded {@code EMISSIVE_PNG_FANOUT} table with the same
+ * <p>An earlier pipeline iteration carried a hardcoded {@code EMISSIVE_PNG_FANOUT} table with the same
  * information; deriving it from bytecode here removes the need to maintain that list as new
  * vanilla mobs gain emissive layers.
  *
@@ -55,10 +55,14 @@ import java.util.zip.ZipFile;
 @UtilityClass
 public final class EntityOverlayResolver {
 
-    /** Resource path prefix for entity texture LDCs - matches what the texture resolver uses. */
+    /**
+     * Resource path prefix for entity texture LDCs - matches what the texture resolver uses.
+     */
     private static final @NotNull String TEXTURE_PATH_PREFIX = "textures/entity/";
 
-    /** JVM descriptor suffix for any method returning a {@code RenderType}. */
+    /**
+     * JVM descriptor suffix for any method returning a {@code RenderType}.
+     */
     private static final @NotNull String RENDER_TYPE_RETURN =
         ")Lnet/minecraft/client/renderer/rendertype/RenderType;";
 
@@ -81,8 +85,8 @@ public final class EntityOverlayResolver {
      *   <li>{@code SLIME_OUTER} - the 8x8x8 translucent outer shell over the inner 6x6x6 body.
      *       Vanilla renders it via {@code RenderTypes.entityTranslucent} (constant 180/255 alpha
      *       multiplier); the static renderer treats it as opaque so the visible result is a
-     *       solid green cube larger than the bedrock reference. Geometry is correct relative
-     *       to the Java client; the bedrock-pipeline delta is a known-divergence on rendering
+     *       solid green cube larger than the vanilla reference. Geometry is correct relative
+     *       to the Java client; the delta is a known-divergence on rendering
      *       semantics rather than geometry. Maintainer can move {@code minecraft:slime} into
      *       {@code TestEntityParity.ACHIEVED_PARITY} once the geometry difference is reviewed.</li>
      *   <li>{@code BREEZE_WIND} - the translucent wind-cone wireframe surrounding the breeze body.
@@ -126,22 +130,34 @@ public final class EntityOverlayResolver {
         "BREEZE_WIND"
     );
 
-    /** JVM internal name of the {@code ModelLayers} constants holder; layer factory references key off it. */
+    /**
+     * JVM internal name of the {@code ModelLayers} constants holder; layer factory references key off it.
+     */
     private static final @NotNull String MODEL_LAYERS = "net/minecraft/client/model/geom/ModelLayers";
 
-    /** JVM internal name of {@code EntityModelSet} - layer constructors call {@code bakeLayer} on it. */
+    /**
+     * JVM internal name of {@code EntityModelSet} - layer constructors call {@code bakeLayer} on it.
+     */
     private static final @NotNull String ENTITY_MODEL_SET = "net/minecraft/client/model/geom/EntityModelSet";
 
-    /** JVM internal name of {@code ModelLayerLocation} - the value type baked by {@code EntityModelSet.bakeLayer}. */
+    /**
+     * JVM internal name of {@code ModelLayerLocation} - the value type baked by {@code EntityModelSet.bakeLayer}.
+     */
     private static final @NotNull String MODEL_LAYER_LOCATION = "net/minecraft/client/model/geom/ModelLayerLocation";
 
-    /** Field-type descriptor for a {@code ModelLayerLocation}; used to spot parameterized-layer ctor args. */
+    /**
+     * Field-type descriptor for a {@code ModelLayerLocation}; used to spot parameterized-layer ctor args.
+     */
     private static final @NotNull String MODEL_LAYER_LOCATION_DESC = "L" + MODEL_LAYER_LOCATION + ";";
 
-    /** JVM internal name of {@code Identifier} - texture fields and {@code withDefaultNamespace} return type. */
+    /**
+     * JVM internal name of {@code Identifier} - texture fields and {@code withDefaultNamespace} return type.
+     */
     private static final @NotNull String IDENTIFIER = "net/minecraft/resources/Identifier";
 
-    /** Field-type descriptor for an {@code Identifier}; used to filter overlay-texture field references. */
+    /**
+     * Field-type descriptor for an {@code Identifier}; used to filter overlay-texture field references.
+     */
     private static final @NotNull String IDENTIFIER_DESC = "L" + IDENTIFIER + ";";
 
     /**
@@ -448,10 +464,14 @@ public final class EntityOverlayResolver {
         return null;
     }
 
-    /** JVM internal name of {@code ColorLerper$Type} - the enum carrying {@code SHEEP} / {@code MUSIC_NOTE} tint tables. */
+    /**
+     * JVM internal name of {@code ColorLerper$Type} - the enum carrying {@code SHEEP} / {@code MUSIC_NOTE} tint tables.
+     */
     private static final @NotNull String COLOR_LERPER_TYPE = "net/minecraft/client/color/ColorLerper$Type";
 
-    /** JVM internal name of {@code DyeColor} - the per-dye color enum whose {@code WHITE} constant tints to {@code 0xFFE6E6E6} under {@code ColorLerper}. */
+    /**
+     * JVM internal name of {@code DyeColor} - the per-dye color enum whose {@code WHITE} constant tints to {@code 0xFFE6E6E6} under {@code ColorLerper}.
+     */
     private static final @NotNull String DYE_COLOR = "net/minecraft/world/item/DyeColor";
 
     /**

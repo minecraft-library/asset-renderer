@@ -22,7 +22,9 @@ public enum ArmorMaterial {
     NETHERITE("netherite"),
     TURTLE_SCUTE("turtle_scute");
 
-    /** The texture file stem shared by both layer paths. */
+    /**
+     * The texture file stem shared by both layer paths.
+     */
     private final @NotNull String key;
 
     /**

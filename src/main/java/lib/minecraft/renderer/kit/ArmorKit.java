@@ -42,10 +42,14 @@ import java.util.Optional;
 @UtilityClass
 public class ArmorKit {
 
-    /** Per-side inflation in model units so armor sits visibly above the skin geometry. */
+    /**
+     * Per-side inflation in model units so armor sits visibly above the skin geometry.
+     */
     private static final float ARMOR_INFLATE = 0.015f;
 
-    /** Additional inflate for trim so it sits above the armor base and avoids z-fighting. */
+    /**
+     * Additional inflate for trim so it sits above the armor base and avoids z-fighting.
+     */
     private static final float TRIM_INFLATE = 0.003f;
 
     // ---------------------------------------------------------------------------------------

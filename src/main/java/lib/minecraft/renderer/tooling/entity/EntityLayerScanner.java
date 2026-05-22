@@ -51,7 +51,9 @@ import java.util.zip.ZipFile;
 @UtilityClass
 public final class EntityLayerScanner {
 
-    /** Method name used by every {@code LivingEntityRenderer.addLayer} call. */
+    /**
+     * Method name used by every {@code LivingEntityRenderer.addLayer} call.
+     */
     private static final @NotNull String ADD_LAYER = "addLayer";
 
     /**

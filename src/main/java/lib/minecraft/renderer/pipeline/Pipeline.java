@@ -415,7 +415,9 @@ public class Pipeline {
 
     private static final @NotNull Gson MCMETA_GSON = GsonSettings.defaults().create();
 
-    /** The standard {@code <cacheRoot>/vanilla/<version>} pack-root path for the given options. */
+    /**
+     * The standard {@code <cacheRoot>/vanilla/<version>} pack-root path for the given options.
+     */
     private static @NotNull Path packRoot(@NotNull PipelineOptions options) {
         return options.getCacheRoot()
             .toPath()
@@ -453,10 +455,14 @@ public class Pipeline {
         private final @NotNull ConcurrentMap<String, String> itemDefinitions;
         private final @NotNull ConcurrentMap<String, BlockTag> blockTags;
 
-        /** Namespaced effect id to ARGB colour, parsed from {@code MobEffects} by the pipeline's potion colour loader. */
+        /**
+         * Namespaced effect id to ARGB colour, parsed from {@code MobEffects} by the pipeline's potion colour loader.
+         */
         private final @NotNull ConcurrentMap<String, Integer> potionEffectColors;
 
-        /** Namespaced banner pattern id to descriptor, parsed from {@code data/minecraft/banner_pattern/} by the banner pattern loader. */
+        /**
+         * Namespaced banner pattern id to descriptor, parsed from {@code data/minecraft/banner_pattern/} by the banner pattern loader.
+         */
         private final @NotNull ConcurrentMap<String, BannerPattern> bannerPatterns;
 
         /**

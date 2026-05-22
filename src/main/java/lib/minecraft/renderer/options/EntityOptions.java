@@ -20,39 +20,57 @@ import java.util.Optional;
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
 public class EntityOptions {
 
-    /** Entity id for lookup, e.g. {@code "minecraft:zombie"}. */
+    /**
+     * Entity id for lookup, e.g. {@code "minecraft:zombie"}.
+     */
     @lombok.Builder.Default
     private final @NotNull Optional<String> entityId = Optional.empty();
 
-    /** Optional texture id override, resolvable through the active pack stack. */
+    /**
+     * Optional texture id override, resolvable through the active pack stack.
+     */
     @lombok.Builder.Default
     private final @NotNull Optional<String> textureId = Optional.empty();
 
-    /** Helmet armor piece to render on humanoid entities. */
+    /**
+     * Helmet armor piece to render on humanoid entities.
+     */
     @lombok.Builder.Default
     private final @NotNull Optional<ArmorPiece> helmet = Optional.empty();
 
-    /** Chestplate armor piece to render on humanoid entities. */
+    /**
+     * Chestplate armor piece to render on humanoid entities.
+     */
     @lombok.Builder.Default
     private final @NotNull Optional<ArmorPiece> chestplate = Optional.empty();
 
-    /** Leggings armor piece to render on humanoid entities. */
+    /**
+     * Leggings armor piece to render on humanoid entities.
+     */
     @lombok.Builder.Default
     private final @NotNull Optional<ArmorPiece> leggings = Optional.empty();
 
-    /** Boots armor piece to render on humanoid entities. */
+    /**
+     * Boots armor piece to render on humanoid entities.
+     */
     @lombok.Builder.Default
     private final @NotNull Optional<ArmorPiece> boots = Optional.empty();
 
-    /** Output image dimensions in pixels (square) */
+    /**
+     * Output image dimensions in pixels (square)
+     */
     @lombok.Builder.Default
     private final int outputSize = Renderer.DEFAULT_OUTPUT_SIZE;
 
-    /** Model rotation applied before the camera transform, in degrees */
+    /**
+     * Model rotation applied before the camera transform, in degrees
+     */
     @lombok.Builder.Default
     private final @NotNull EulerRotation rotation = EulerRotation.NONE;
 
-    /** Whether to apply FXAA post-processing after the main render pass. */
+    /**
+     * Whether to apply FXAA post-processing after the main render pass.
+     */
     @lombok.Builder.Default
     private final boolean antiAlias = true;
 

@@ -24,7 +24,9 @@ import java.util.Properties;
  */
 public record ColorProperties(@NotNull ConcurrentMap<String, Integer> overrides) {
 
-    /** The empty color properties containing no overrides. */
+    /**
+     * The empty color properties containing no overrides.
+     */
     public static final @NotNull ColorProperties EMPTY = new ColorProperties(Concurrent.newMap());
 
     /**

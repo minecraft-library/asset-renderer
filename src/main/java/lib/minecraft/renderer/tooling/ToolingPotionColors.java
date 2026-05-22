@@ -45,7 +45,9 @@ import java.util.zip.ZipFile;
 @UtilityClass
 public final class ToolingPotionColors {
 
-    /** Fixed output path for the bundled potion-colour resource. */
+    /**
+     * Fixed output path for the bundled potion-colour resource.
+     */
     private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/lib/minecraft/renderer/potion_colors.json");
 
     /**

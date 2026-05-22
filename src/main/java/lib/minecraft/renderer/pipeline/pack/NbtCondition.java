@@ -40,7 +40,9 @@ public sealed interface NbtCondition {
         return new Exact(expression);
     }
 
-    /** Plain string equality. */
+    /**
+     * Plain string equality.
+     */
     record Exact(@NotNull String value) implements NbtCondition {
         @Override public boolean test(@NotNull String value) {
             return this.value.equals(value);
@@ -80,7 +82,9 @@ public sealed interface NbtCondition {
         }
     }
 
-    /** Java regular expression matching. */
+    /**
+     * Java regular expression matching.
+     */
     record Regex(@NotNull Pattern pattern) implements NbtCondition {
         @Override public boolean test(@NotNull String value) {
             return this.pattern.matcher(value).matches();

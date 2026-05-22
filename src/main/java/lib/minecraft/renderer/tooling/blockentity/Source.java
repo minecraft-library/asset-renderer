@@ -22,7 +22,7 @@ import org.jetbrains.annotations.Nullable;
  * @param paramFloatValues float values to substitute for {@code FLOAD} parameter slots when
  *     evaluating arithmetic inside the parsed method - {@code null} disables float param
  *     substitution AND arithmetic evaluation entirely (the parser falls back to the legacy
- *     literal-stack-only walk used by all bedrock-side block-entity sources). When non-null,
+ *     literal-stack-only walk used by all legacy block-entity sources). When non-null,
  *     {@code FLOAD slot} pushes the substituted value when in range, otherwise pushes the
  *     non-literal marker; binary arithmetic ops ({@code FADD}, {@code FSUB}, {@code FMUL},
  *     {@code FDIV}, {@code DADD}, {@code DSUB}, {@code DMUL}, {@code DDIV}) pop two operands
@@ -76,7 +76,7 @@ public record Source(
 
     /**
      * Legacy constructor preserving the prior 8-arg shape (no float param substitution). All
-     * existing bedrock-side block-entity sources flow through this so adding the
+     * existing legacy block-entity sources flow through this so adding the
      * {@code paramFloatValues} field is a non-behavioural change for them.
      */
     public Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation, @Nullable Integer texWidthOverride, @Nullable Integer texHeightOverride, int @Nullable [] paramIntValues) {
@@ -94,7 +94,7 @@ public record Source(
 
     /**
      * Convenience constructor preserving the prior 10-arg shape (no
-     * {@code appliedMeshTransformerScale}). All existing bedrock-side block-entity sources flow
+     * {@code appliedMeshTransformerScale}). All existing legacy block-entity sources flow
      * through this so adding the new field is non-behavioural for them.
      */
     public Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation, @Nullable Integer texWidthOverride, @Nullable Integer texHeightOverride, int @Nullable [] paramIntValues, float @Nullable [] paramFloatValues, float defaultInflate) {

@@ -52,10 +52,14 @@ import java.util.zip.ZipFile;
 @UtilityClass
 public final class EntityVariantResolver {
 
-    /** Prefix every variant data directory shares. */
+    /**
+     * Prefix every variant data directory shares.
+     */
     private static final @NotNull String DATA_PREFIX = "data/minecraft/";
 
-    /** Suffix every variant data directory shares. */
+    /**
+     * Suffix every variant data directory shares.
+     */
     private static final @NotNull String VARIANT_SUFFIX = "_variant/";
 
     /**
@@ -95,7 +99,9 @@ public final class EntityVariantResolver {
             return it.hasNext() ? it.next() : null;
         }
 
-        /** The matching baby texture, or {@code null} when none is declared. */
+        /**
+         * The matching baby texture, or {@code null} when none is declared.
+         */
         public @Nullable String primaryBabyTexturePath() {
             String wild = this.babyTextures.get("wild");
             if (wild != null) return wild;
@@ -106,7 +112,9 @@ public final class EntityVariantResolver {
         }
     }
 
-    /** Converts a variant {@code asset_id} resource location into a {@code textures/.../X.png} path. */
+    /**
+     * Converts a variant {@code asset_id} resource location into a {@code textures/.../X.png} path.
+     */
     private static @NotNull String texturePath(@NotNull String assetId) {
         String stripped = assetId.startsWith("minecraft:") ? assetId.substring("minecraft:".length()) : assetId;
         return "textures/" + stripped + ".png";
@@ -324,7 +332,9 @@ public final class EntityVariantResolver {
         }
     }
 
-    /** Reads {@code root.<field>} as a string-keyed asset-id map and folds entries into {@code out}. */
+    /**
+     * Reads {@code root.<field>} as a string-keyed asset-id map and folds entries into {@code out}.
+     */
     private static void collectAssetMap(@NotNull JsonObject root, @NotNull String field, @NotNull java.util.LinkedHashMap<String, String> out) {
         if (!root.has(field)) return;
         JsonElement element = root.get(field);
@@ -336,7 +346,9 @@ public final class EntityVariantResolver {
         }
     }
 
-    /** Returns the named field as a string, or {@code null} when absent / non-string. */
+    /**
+     * Returns the named field as a string, or {@code null} when absent / non-string.
+     */
     private static @Nullable String optionalString(@NotNull JsonObject object, @NotNull String field) {
         if (!object.has(field)) return null;
         JsonElement element = object.get(field);
@@ -344,7 +356,9 @@ public final class EntityVariantResolver {
         return element.getAsJsonPrimitive().isString() ? element.getAsString() : null;
     }
 
-    /** {@code "ColdCow"} -&gt; {@code "cold_cow"}, {@code "Cow"} -&gt; {@code "cow"}. */
+    /**
+     * {@code "ColdCow"} -&gt; {@code "cold_cow"}, {@code "Cow"} -&gt; {@code "cow"}.
+     */
     private static @NotNull String camelToSnake(@NotNull String camel) {
         StringBuilder out = new StringBuilder();
         for (int i = 0; i < camel.length(); i++) {

@@ -25,7 +25,7 @@ import java.util.Map;
  * Each constant carries:
  * <ul>
  * <li>The lowercase {@link #direction direction name} ({@code "down"} etc., derived from
- *     {@link #name()}) - matching vanilla {@code Direction} keys plus Bedrock per-face
+ *     {@link #name()}) - matching vanilla {@code Direction} keys plus the per-face
  *     {@code cube.uv} overrides used when parsing entity geometry.</li>
  * <li>The four vertex indices into the canonical 8-corner box (see the layout diagram on
  *     {@link #corners}).</li>
@@ -129,17 +129,23 @@ public enum EntityFace {
     /**
      * Lowercase direction name ({@code "down"}, {@code "up"}, ...), derived once at class-load
      * time from {@link #name()} so external callers don't pay a per-call {@code toLowerCase}.
-     * Matches vanilla {@code Direction} keys plus Bedrock per-face {@code cube.uv} overrides.
+     * Matches vanilla {@code Direction} keys plus the per-face {@code cube.uv} overrides.
      */
     private final @NotNull String direction = this.name().toLowerCase(Locale.ROOT);
 
-    /** Four vertex indices into the canonical 8-corner box (see the class javadoc diagram). */
+    /**
+     * Four vertex indices into the canonical 8-corner box (see the class javadoc diagram).
+     */
     private final int @NotNull [] vertexIndices;
 
-    /** Outward unit normal of this face in model space. */
+    /**
+     * Outward unit normal of this face in model space.
+     */
     private final @NotNull Vector3f normal;
 
-    /** Per-face axis-and-atlas-coefficient data driving {@link #defaultUv}. */
+    /**
+     * Per-face axis-and-atlas-coefficient data driving {@link #defaultUv}.
+     */
     private final @NotNull Layout layout;
 
     /**

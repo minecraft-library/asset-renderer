@@ -68,13 +68,19 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
 
     // --- Shared vanilla chrome palette ---
 
-    /** Vanilla slot highlight / outer-bevel edge colour (white). */
+    /**
+     * Vanilla slot highlight / outer-bevel edge colour (white).
+     */
     static final int CHROME_BORDER_HIGHLIGHT = 0xFFFFFFFF;
 
-    /** Vanilla slot shadow / inner-bevel edge colour (mid-grey). */
+    /**
+     * Vanilla slot shadow / inner-bevel edge colour (mid-grey).
+     */
     static final int CHROME_BORDER_SHADOW = 0xFF555555;
 
-    /** Interior fill colour of the vanilla anvil rename textbox. */
+    /**
+     * Interior fill colour of the vanilla anvil rename textbox.
+     */
     static final int ANVIL_TEXTBOX_BEIGE = 0xFFE5D4AC;
 
     private final @NotNull Generic generic;
@@ -785,7 +791,9 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             23
         };
 
-        /** Chest slot where the craft arrow is drawn, between the grid and slot 23. */
+        /**
+         * Chest slot where the craft arrow is drawn, between the grid and slot 23.
+         */
         private static final int ARROW_SLOT = 22;
 
         private final @NotNull RendererContext context;
@@ -843,7 +851,9 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
          */
         private static final int @NotNull [] SLOT_MAP = { 29, 33, 13 };
 
-        /** Chest slot where the decorative isometric anvil is rendered. */
+        /**
+         * Chest slot where the decorative isometric anvil is rendered.
+         */
         private static final int DECORATION_SLOT = 22;
 
         /**

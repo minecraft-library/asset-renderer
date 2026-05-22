@@ -58,7 +58,9 @@ public record VisibleTriangle(
     @Nullable String debugTag
 ) {
 
-    /** Convenience constructor that omits {@link #debugTag} for production call sites. */
+    /**
+     * Convenience constructor that omits {@link #debugTag} for production call sites.
+     */
     public VisibleTriangle(
         @NotNull Vector3f position0, @NotNull Vector3f position1, @NotNull Vector3f position2,
         @NotNull Vector2f uv0, @NotNull Vector2f uv1, @NotNull Vector2f uv2,

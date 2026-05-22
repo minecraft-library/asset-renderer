@@ -51,10 +51,14 @@ import java.util.stream.IntStream;
  */
 public final class PortalRenderer implements Renderer<PortalOptions> {
 
-    /** Resource id of {@code assets/minecraft/textures/environment/end_sky.png} (Sampler0 in the vanilla shader). */
+    /**
+     * Resource id of {@code assets/minecraft/textures/environment/end_sky.png} (Sampler0 in the vanilla shader).
+     */
     static final @NotNull String END_SKY_TEXTURE_ID = "minecraft:environment/end_sky";
 
-    /** Resource id of {@code assets/minecraft/textures/entity/end_portal/end_portal.png} (Sampler1 in the vanilla shader). */
+    /**
+     * Resource id of {@code assets/minecraft/textures/entity/end_portal/end_portal.png} (Sampler1 in the vanilla shader).
+     */
     static final @NotNull String END_PORTAL_NOISE_TEXTURE_ID = "minecraft:entity/end_portal/end_portal";
 
     /**
@@ -73,10 +77,14 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
      */
     private static final int GAME_TIME_PERIOD_TICKS = 24000;
 
-    /** {@code PORTAL_LAYERS} for {@link PortalOptions.Portal#END_PORTAL} (from {@code RenderPipelines.END_PORTAL}). */
+    /**
+     * {@code PORTAL_LAYERS} for {@link PortalOptions.Portal#END_PORTAL} (from {@code RenderPipelines.END_PORTAL}).
+     */
     private static final int LAYER_COUNT_END_PORTAL = 15;
 
-    /** {@code PORTAL_LAYERS} for {@link PortalOptions.Portal#END_GATEWAY} (from {@code RenderPipelines.END_GATEWAY}). */
+    /**
+     * {@code PORTAL_LAYERS} for {@link PortalOptions.Portal#END_GATEWAY} (from {@code RenderPipelines.END_GATEWAY}).
+     */
     private static final int LAYER_COUNT_END_GATEWAY = 16;
 
     /**
@@ -160,10 +168,14 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
 
     // --- end_portal slab dimensions (vanilla TheEndPortalRenderer.BOTTOM / .TOP) ---
 
-    /** End portal slab bottom Y in unit-cube model space. Matches {@code TheEndPortalRenderer.BOTTOM}. */
+    /**
+     * End portal slab bottom Y in unit-cube model space. Matches {@code TheEndPortalRenderer.BOTTOM}.
+     */
     private static final float END_PORTAL_SLAB_BOTTOM_Y = 0.375f;
 
-    /** End portal slab top Y in unit-cube model space. Matches {@code TheEndPortalRenderer.TOP}. */
+    /**
+     * End portal slab top Y in unit-cube model space. Matches {@code TheEndPortalRenderer.TOP}.
+     */
     private static final float END_PORTAL_SLAB_TOP_Y = 0.75f;
 
     private final @NotNull Isometric3D isometric3D;

@@ -11,7 +11,7 @@ import org.jetbrains.annotations.NotNull;
  * <pre>{@code
  *    NW   N   NE
  *      \  |  /
- *    W -- *  -- E
+ *    W - *  -- E
  *      /  |  \
  *    SW   S   SE
  * }</pre>
@@ -30,31 +30,49 @@ import org.jetbrains.annotations.NotNull;
  */
 public record NeighborPattern(int bits) {
 
-    /** North neighbor (up the face) - matches the {@code N} cell. */
+    /**
+     * North neighbor (up the face) - matches the {@code N} cell.
+     */
     public static final int N = 0x01;
 
-    /** Northeast neighbor (up-right). */
+    /**
+     * Northeast neighbor (up-right).
+     */
     public static final int NE = 0x02;
 
-    /** East neighbor (right). */
+    /**
+     * East neighbor (right).
+     */
     public static final int E = 0x04;
 
-    /** Southeast neighbor (down-right). */
+    /**
+     * Southeast neighbor (down-right).
+     */
     public static final int SE = 0x08;
 
-    /** South neighbor (down). */
+    /**
+     * South neighbor (down).
+     */
     public static final int S = 0x10;
 
-    /** Southwest neighbor (down-left). */
+    /**
+     * Southwest neighbor (down-left).
+     */
     public static final int SW = 0x20;
 
-    /** West neighbor (left). */
+    /**
+     * West neighbor (left).
+     */
     public static final int W = 0x40;
 
-    /** Northwest neighbor (up-left). */
+    /**
+     * Northwest neighbor (up-left).
+     */
     public static final int NW = 0x80;
 
-    /** The pattern with no matching neighbors. */
+    /**
+     * The pattern with no matching neighbors.
+     */
     public static final @NotNull NeighborPattern EMPTY = new NeighborPattern(0);
 
     /**

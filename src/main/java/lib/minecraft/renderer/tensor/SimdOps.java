@@ -32,7 +32,9 @@ import org.jetbrains.annotations.NotNull;
 @UtilityClass
 class SimdOps {
 
-    /** 4-lane float species used for all matrix-column loads in this class. */
+    /**
+     * 4-lane float species used for all matrix-column loads in this class.
+     */
     private static final @NotNull VectorSpecies<Float> SPECIES = FloatVector.SPECIES_128;
 
     /**

@@ -17,7 +17,9 @@ import org.jetbrains.annotations.NotNull;
  */
 public final class GridRenderer implements Renderer<GridOptions> {
 
-    /** Default animated-grid output frame rate when promoting a mixed static/animated composite. */
+    /**
+     * Default animated-grid output frame rate when promoting a mixed static/animated composite.
+     */
     private static final int DEFAULT_FRAME_FPS = 30;
 
     @Override

@@ -39,7 +39,7 @@ import java.util.zip.ZipFile;
 /**
  * Entry point for the Java-derived entity-model pipeline (variant 2a per the research plan at
  * {@code ~/.claude/plans/java-derived-entity-models-research.md}). Lives side-by-side with the
- * bedrock-derived {@link ToolingEntityModels}; neither blocks nor consumes the other.
+ * legacy {@link ToolingEntityModels}; neither blocks nor consumes the other.
  *
  * <p><b>Phases delivered so far:</b>
  * <ul>
@@ -65,16 +65,20 @@ import java.util.zip.ZipFile;
 @UtilityClass
 public final class ToolingEntityModels {
 
-    /** Phase-A/B diagnostic output path. Lives under {@code cache/} (gitignored). */
+    /**
+     * Phase-A/B diagnostic output path. Lives under {@code cache/} (gitignored).
+     */
     private static final @NotNull Path DIAGNOSTICS_OUTPUT =
         Path.of("cache/asset-renderer/diagnostics/java_entity_renderers.json");
 
-    /** Phase-C geometry diagnostic output path. Lives under {@code cache/} (gitignored). */
+    /**
+     * Phase-C geometry diagnostic output path. Lives under {@code cache/} (gitignored).
+     */
     private static final @NotNull Path GEOMETRY_DIAGNOSTICS_OUTPUT =
         Path.of("cache/asset-renderer/diagnostics/java_entity_geometry.json");
 
     /**
-     * Phase-D runtime-consumable per-entity metadata path. Same shape as the bedrock-derived
+     * Phase-D runtime-consumable per-entity metadata path. Same shape as the legacy
      * {@code entity_models.json} but populated by the Java pipeline; loaded by
      * {@code EntityModelLoader} when {@code PipelineOptions.entityModelSource = JAVA}.
      */
@@ -83,13 +87,15 @@ public final class ToolingEntityModels {
 
     /**
      * Phase-D runtime-consumable per-geometry bone/cube data path. Same shape as the
-     * bedrock-derived {@code entity_geometry.json}; one geometry entry per unique factory
+     * legacy {@code entity_geometry.json}; one geometry entry per unique factory
      * method, deduplicated when multiple entities share the same {@code createBodyLayer}.
      */
     private static final @NotNull Path GEOMETRY_JAVA_OUTPUT =
         Path.of("src/main/resources/lib/minecraft/renderer/entity_geometry.json");
 
-    /** Namespace prefix applied to every emitted entity id. */
+    /**
+     * Namespace prefix applied to every emitted entity id.
+     */
     private static final @NotNull String MINECRAFT_NAMESPACE = "minecraft:";
 
     /**
@@ -118,11 +124,11 @@ public final class ToolingEntityModels {
      * </ul>
      * <p>Precedent: {@link lib.minecraft.renderer.tooling.blockentity.SourceDiscovery#SKULL_VARIANT_POLICY}
      * for the same shape on block entities. Each entry has a clear bytecode-pattern reason
-     * recorded above and is verified against the bedrock cache textures.
+     * recorded above and is verified against the legacy cache textures.
      */
     private static final @NotNull java.util.Map<String, String> ENTITY_TEXTURE_HARD_DEFAULTS = java.util.Map.of(
-        // Match bedrock pipeline's default-variant choices so the parity test agrees on which
-        // sub-variant counts as canonical. Both bedrock entity_models.json baselines are
+        // Match the legacy default-variant choices so the parity test agrees on which
+        // sub-variant counts as canonical. Both legacy entity_models.json baselines are
         // verified for the chosen stems.
         "minecraft:axolotl", "axolotl/axolotl_blue",
         "minecraft:shulker", "shulker/shulker",
@@ -256,8 +262,8 @@ public final class ToolingEntityModels {
             // delegate to the shared block-entity Parser - the bytecode patterns
             // (LayerDefinition.create / CubeListBuilder / PartPose / addOrReplaceChild) are
             // identical between block and mob models. Frame conversion (Java Y-DOWN to
-            // bedrock Y-UP) is deferred to Phase E.5 - this phase only verifies bone/cube
-            // count parity vs the bedrock-derived baseline.
+            // legacy Y-UP) is deferred to Phase E.5 - this phase only verifies bone/cube
+            // count parity vs the legacy baseline.
             ConcurrentMap<String, EntityLayerDefinitionResolver.Resolution> layerDefs =
                 EntityLayerDefinitionResolver.loadLayerDefinitions(zip, diagnostics);
             System.out.println("Loaded " + layerDefs.size() + " ModelLayers entries from LayerDefinitions.createRoots");
@@ -298,7 +304,7 @@ public final class ToolingEntityModels {
                 // LayerDefinitions.createRoots call site always passes as 0.0f for the primary
                 // body layer; without substitution + arithmetic, pivots like
                 // {@code 2 + yOffset} resolve to 0 and arms / legs land at the wrong position.
-                // Bedrock-side block-entity sources don't set this, preserving the legacy
+                // Legacy block-entity sources don't set this, preserving the legacy
                 // literal-stack-only walk for them.
                 // Slot 0 is overridden from the resolution's captured factory-arg literal when
                 // present - DonkeyModel.createBodyLayer(F) reads its base body scale from
@@ -458,7 +464,7 @@ public final class ToolingEntityModels {
 
     /**
      * Builds the Phase-C geometry diagnostic JSON: per-entity bone/cube counts plus the resolved
-     * factory class+method, suitable for diff-comparison against the bedrock-derived
+     * factory class+method, suitable for diff-comparison against the legacy
      * {@code entity_geometry.json}.
      */
     /**
@@ -491,7 +497,9 @@ public final class ToolingEntityModels {
         return rows;
     }
 
-    /** Builds a {@code translate} transform op JSON. */
+    /**
+     * Builds a {@code translate} transform op JSON.
+     */
     private static @NotNull JsonObject translate(float x, float y, float z) {
         JsonObject op = new JsonObject();
         op.addProperty("op", "translate");
@@ -501,7 +509,9 @@ public final class ToolingEntityModels {
         return op;
     }
 
-    /** Builds a {@code rotate_y} transform op JSON. */
+    /**
+     * Builds a {@code rotate_y} transform op JSON.
+     */
     private static @NotNull JsonObject rotateY(float degrees) {
         JsonObject op = new JsonObject();
         op.addProperty("op", "rotate_y");
@@ -509,7 +519,9 @@ public final class ToolingEntityModels {
         return op;
     }
 
-    /** Builds a {@code scale} transform op JSON. */
+    /**
+     * Builds a {@code scale} transform op JSON.
+     */
     private static @NotNull JsonObject scale(float x, float y, float z) {
         JsonObject op = new JsonObject();
         op.addProperty("op", "scale");
@@ -624,7 +636,7 @@ public final class ToolingEntityModels {
     ) throws IOException {
         // Build (factoryKey -> geometry id) so multiple entities sharing one createBodyLayer
         // map to one geometry entry. Geometry id derived from the factory class name's lowercased
-        // simple name plus the method's suffix - matches the bedrock convention {@code geometry.X}.
+        // simple name plus the method's suffix - matches the convention {@code geometry.X}.
         Map<String, String> factoryKeyToGeometryId = new LinkedHashMap<>();
         JsonObject geometriesOut = new JsonObject();
         for (Map.Entry<String, JsonObject> entry : geometries.entrySet()) {
@@ -818,14 +830,16 @@ public final class ToolingEntityModels {
         return variantList.get(0);
     }
 
-    /** Strips trailing {@code "Model"} from a class simple name; falls back to the input on no match. */
+    /**
+     * Strips trailing {@code "Model"} from a class simple name; falls back to the input on no match.
+     */
     private static @NotNull String stripModelSuffix(@NotNull String simpleName) {
         return simpleName.endsWith("Model") ? simpleName.substring(0, simpleName.length() - "Model".length()) : simpleName;
     }
 
     /**
      * Strips the leading {@code "textures/"} segment so the texture_ref stored in the
-     * runtime JSON matches the bedrock convention ({@code "cow/cow"} not
+     * runtime JSON matches the convention ({@code "cow/cow"} not
      * {@code "textures/entity/cow/cow.png"}). Idempotent on already-stripped inputs.
      */
     private static @NotNull String stripTexturesPrefix(@NotNull String path) {
@@ -848,7 +862,9 @@ public final class ToolingEntityModels {
         return "none";
     }
 
-    /** Per-entity record collected from Phase A + B walks. */
+    /**
+     * Per-entity record collected from Phase A + B walks.
+     */
     private record EntityRecord(
         @NotNull String rendererInternalName,
         @NotNull EntityTextureResolver.Binding binding,
@@ -858,7 +874,9 @@ public final class ToolingEntityModels {
         float setupYawAddend
     ) {}
 
-    /** Builds the diagnostic JSON document covering Phase A + B output. */
+    /**
+     * Builds the diagnostic JSON document covering Phase A + B output.
+     */
     private static @NotNull JsonObject buildDiagnosticJson(
         @NotNull PipelineOptions options,
         @NotNull ConcurrentList<MobRegistryDiscovery.MobEntry> mobs,

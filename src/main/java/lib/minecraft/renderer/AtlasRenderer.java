@@ -52,7 +52,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public final class AtlasRenderer implements Renderer<AtlasOptions> {
 
-    /** Tile-count interval between {@code stdout} progress lines when {@link AtlasOptions#isProgressLogging()} is set. */
+    /**
+     * Tile-count interval between {@code stdout} progress lines when {@link AtlasOptions#isProgressLogging()} is set.
+     */
     private static final int PROGRESS_LOG_INTERVAL = 100;
 
     /**
@@ -406,12 +408,18 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
          */
         public enum Kind {
 
-            /** A block tile rendered via {@link BlockRenderer}. */
+            /**
+             * A block tile rendered via {@link BlockRenderer}.
+             */
             BLOCK,
-            /** An item tile rendered via {@link ItemRenderer}. */
+            /**
+             * An item tile rendered via {@link ItemRenderer}.
+             */
             ITEM;
 
-            /** The lowercase kind name used in the sidecar JSON schema. */
+            /**
+             * The lowercase kind name used in the sidecar JSON schema.
+             */
             public @NotNull String jsonName() {
                 return this.name().toLowerCase(Locale.ROOT);
             }
@@ -443,20 +451,34 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
          */
         public enum Source {
 
-            /** Primary {@code blockModels} iteration. */
+            /**
+             * Primary {@code blockModels} iteration.
+             */
             BLOCK_MODEL,
-            /** Task 10 - transient block resolved via blockstate only (fence, wall, small_dripleaf, etc.). */
+            /**
+             * Task 10 - transient block resolved via blockstate only (fence, wall, small_dripleaf, etc.).
+             */
             BLOCKSTATE_ONLY,
-            /** Block carrying a {@link Block.Entity} - tile-entity geometry baked into block elements. */
+            /**
+             * Block carrying a {@link Block.Entity} - tile-entity geometry baked into block elements.
+             */
             TILE_ENTITY,
-            /** Task 6 - block rendered via {@link FluidRenderer.FluidFace2D} (water, lava). */
+            /**
+             * Task 6 - block rendered via {@link FluidRenderer.FluidFace2D} (water, lava).
+             */
             FLUID,
-            /** Task 8 - block rendered via {@link PortalRenderer.PortalFace2D} (end_portal, end_gateway). */
+            /**
+             * Task 8 - block rendered via {@link PortalRenderer.PortalFace2D} (end_portal, end_gateway).
+             */
             PORTAL,
-            /** Primary {@code itemModels} iteration. */
+            /**
+             * Primary {@code itemModels} iteration.
+             */
             ITEM_MODEL;
 
-            /** The lowercase source name used in the sidecar JSON schema. */
+            /**
+             * The lowercase source name used in the sidecar JSON schema.
+             */
             public @NotNull String jsonName() {
                 return this.name().toLowerCase(Locale.ROOT);
             }

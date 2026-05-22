@@ -115,13 +115,19 @@ public enum BlockFace {
      */
     private final @NotNull String direction = this.name().toLowerCase(Locale.ROOT);
 
-    /** Four vertex indices into the canonical 8-corner box (see the class javadoc diagram). */
+    /**
+     * Four vertex indices into the canonical 8-corner box (see the class javadoc diagram).
+     */
     private final int @NotNull [] vertexIndices;
 
-    /** Outward unit normal of this face in model space. */
+    /**
+     * Outward unit normal of this face in model space.
+     */
     private final @NotNull Vector3f normal;
 
-    /** Per-face axis-and-inversion data driving {@link #defaultUv}. */
+    /**
+     * Per-face axis-and-inversion data driving {@link #defaultUv}.
+     */
     private final @NotNull Layout layout;
 
     /**

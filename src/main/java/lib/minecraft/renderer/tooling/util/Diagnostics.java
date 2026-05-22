@@ -25,13 +25,19 @@ import java.util.Set;
  */
 public final class Diagnostics {
 
-    /** Every diagnostic entry (error + warn + info) in insertion order, post-dedupe. */
+    /**
+     * Every diagnostic entry (error + warn + info) in insertion order, post-dedupe.
+     */
     private final @NotNull List<String> entries = new ArrayList<>();
 
-    /** Subset of {@link #entries} at WARN+ severity; non-empty means strict mode should fail. */
+    /**
+     * Subset of {@link #entries} at WARN+ severity; non-empty means strict mode should fail.
+     */
     private final @NotNull List<String> strictFailingEntries = new ArrayList<>();
 
-    /** Message-content dedupe set so a repeating parser diagnostic only lands once in the log. */
+    /**
+     * Message-content dedupe set so a repeating parser diagnostic only lands once in the log.
+     */
     private final @NotNull Set<String> dedupe = new HashSet<>();
 
     /**
@@ -74,17 +80,23 @@ public final class Diagnostics {
         if (strictFails) this.strictFailingEntries.add(message);
     }
 
-    /** Every recorded diagnostic line in insertion order, post-dedupe. */
+    /**
+     * Every recorded diagnostic line in insertion order, post-dedupe.
+     */
     public @NotNull List<String> entries() {
         return this.entries;
     }
 
-    /** The count of recorded diagnostics at WARN+ severity; non-zero fails strict mode. */
+    /**
+     * The count of recorded diagnostics at WARN+ severity; non-zero fails strict mode.
+     */
     public int strictFailingCount() {
         return this.strictFailingEntries.size();
     }
 
-    /** {@code true} when no diagnostics have been recorded. */
+    /**
+     * {@code true} when no diagnostics have been recorded.
+     */
     public boolean isEmpty() {
         return this.entries.isEmpty();
     }

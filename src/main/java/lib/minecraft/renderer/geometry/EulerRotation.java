@@ -39,12 +39,14 @@ import java.io.IOException;
  * <img src="doc-files/euler_reference.svg" alt="Euler rotation reference diagram" width="535"/>
  *
  * @param pitch the rotation about the X axis, in degrees
- * @param yaw   the rotation about the Y axis, in degrees
- * @param roll  the rotation about the Z axis, in degrees
+ * @param yaw the rotation about the Y axis, in degrees
+ * @param roll the rotation about the Z axis, in degrees
  */
 public record EulerRotation(float pitch, float yaw, float roll) {
 
-    /** The identity rotation - all three Euler angles set to zero degrees. */
+    /**
+     * The identity rotation - all three Euler angles set to zero degrees.
+     */
     public static final @NotNull EulerRotation NONE = new EulerRotation(0f, 0f, 0f);
 
     /**

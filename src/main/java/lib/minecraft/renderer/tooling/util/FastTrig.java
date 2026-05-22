@@ -37,7 +37,9 @@ import lombok.experimental.UtilityClass;
 @UtilityClass
 public class FastTrig {
 
-    /** Vanilla's {@code 65536 / (2 * PI)} constant - the index-per-radian scale factor. */
+    /**
+     * Vanilla's {@code 65536 / (2 * PI)} constant - the index-per-radian scale factor.
+     */
     private static final double MTH_PI_RATIO = 10430.378350470453;
 
     /**

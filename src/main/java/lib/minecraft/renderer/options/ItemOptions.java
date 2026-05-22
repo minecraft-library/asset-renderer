@@ -23,19 +23,27 @@ import java.util.Optional;
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
 public class ItemOptions {
 
-    /** Namespaced item id to render, e.g. {@code "minecraft:diamond_sword"} */
+    /**
+     * Namespaced item id to render, e.g. {@code "minecraft:diamond_sword"}
+     */
     @lombok.Builder.Default
     private final @NotNull String itemId = "";
 
-    /** Render type - 2D GUI icon or 3D held-item view */
+    /**
+     * Render type - 2D GUI icon or 3D held-item view
+     */
     @lombok.Builder.Default
     private final @NotNull Type type = Type.GUI_2D;
 
-    /** When true, compose an animated enchantment glint on top of the rendered item. */
+    /**
+     * When true, compose an animated enchantment glint on top of the rendered item.
+     */
     @lombok.Builder.Default
     private final boolean enchanted = false;
 
-    /** Optional ARGB tint applied to colour-overlay items (leather armour, spawn eggs). */
+    /**
+     * Optional ARGB tint applied to colour-overlay items (leather armour, spawn eggs).
+     */
     @lombok.Builder.Default
     private final @NotNull Optional<Integer> tintColor = Optional.empty();
 
@@ -56,15 +64,21 @@ public class ItemOptions {
     @lombok.Builder.Default
     private final @NotNull Optional<ArmorTrim.Color> trimColor = Optional.empty();
 
-    /** Override colour for leather armour pieces. */
+    /**
+     * Override colour for leather armour pieces.
+     */
     @lombok.Builder.Default
     private final @NotNull Optional<Integer> leatherColor = Optional.empty();
 
-    /** Override colour for potion contents. */
+    /**
+     * Override colour for potion contents.
+     */
     @lombok.Builder.Default
     private final @NotNull Optional<Integer> potionColor = Optional.empty();
 
-    /** Override colour for firework stars. */
+    /**
+     * Override colour for firework stars.
+     */
     @lombok.Builder.Default
     private final @NotNull Optional<Integer> fireworkColor = Optional.empty();
 
@@ -82,31 +96,45 @@ public class ItemOptions {
     @lombok.Builder.Default
     private final @NotNull ConcurrentList<BannerLayer> bannerLayers = Concurrent.newList();
 
-    /** Total number of frames produced when the renderer generates animated output. */
+    /**
+     * Total number of frames produced when the renderer generates animated output.
+     */
     @lombok.Builder.Default
     private final int animationFrames = 60;
 
-    /** Target frame rate for animated output; drives glint scroll speed and loop period. */
+    /**
+     * Target frame rate for animated output; drives glint scroll speed and loop period.
+     */
     @lombok.Builder.Default
     private final int framesPerSecond = 30;
 
-    /** Whether to render the vanilla-style durability bar when the item has taken damage. */
+    /**
+     * Whether to render the vanilla-style durability bar when the item has taken damage.
+     */
     @lombok.Builder.Default
     private final boolean showDamageBar = true;
 
-    /** Output image dimensions in pixels (square) */
+    /**
+     * Output image dimensions in pixels (square)
+     */
     @lombok.Builder.Default
     private final int outputSize = Renderer.DEFAULT_OUTPUT_SIZE;
 
-    /** Additional texture pack ids to layer on top of vanilla */
+    /**
+     * Additional texture pack ids to layer on top of vanilla
+     */
     @lombok.Builder.Default
     private final @NotNull ConcurrentList<String> texturePackIds = Concurrent.newList();
 
-    /** Output image format */
+    /**
+     * Output image format
+     */
     @lombok.Builder.Default
     private final @NotNull ImageFormat outputFormat = ImageFormat.PNG;
 
-    /** The render-time item context used by CIT matching, the damage bar, and stack count overlay. */
+    /**
+     * The render-time item context used by CIT matching, the damage bar, and stack count overlay.
+     */
     @lombok.Builder.Default
     private final @NotNull ItemContext context = ItemContext.EMPTY;
 
@@ -118,13 +146,19 @@ public class ItemOptions {
         return builder().build();
     }
 
-    /** The supported render types for {@code ItemRenderer}. */
+    /**
+     * The supported render types for {@code ItemRenderer}.
+     */
     public enum Type {
 
-        /** 3D view as the item appears when held in a player's hand. */
+        /**
+         * 3D view as the item appears when held in a player's hand.
+         */
         HELD_3D,
 
-        /** 2D flat GUI icon. */
+        /**
+         * 2D flat GUI icon.
+         */
         GUI_2D
 
     }

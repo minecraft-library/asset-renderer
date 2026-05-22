@@ -36,13 +36,19 @@ public class BlockModelData {
     @SerializedName("ambientocclusion")
     private boolean ambientocclusion = true;
 
-    /** Texture variable bindings: {@code "#top" -> "minecraft:block/grass_block_top"}. */
+    /**
+     * Texture variable bindings: {@code "#top" -> "minecraft:block/grass_block_top"}.
+     */
     private @NotNull ConcurrentMap<String, String> textures = Concurrent.newMap();
 
-    /** The list of element boxes that make up the model. */
+    /**
+     * The list of element boxes that make up the model.
+     */
     private @NotNull ConcurrentList<ModelElement> elements = Concurrent.newList();
 
-    /** Display transforms keyed by display slot: {@code gui}, {@code head}, {@code thirdperson_righthand}, etc. */
+    /**
+     * Display transforms keyed by display slot: {@code gui}, {@code head}, {@code thirdperson_righthand}, etc.
+     */
     private @NotNull ConcurrentMap<String, ModelTransform> display = Concurrent.newMap();
 
     @Override

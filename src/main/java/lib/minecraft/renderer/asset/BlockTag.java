@@ -23,10 +23,14 @@ import java.util.Objects;
 @AllArgsConstructor
 public class BlockTag {
 
-    /** Namespaced tag id, e.g. {@code "minecraft:stairs"}. */
+    /**
+     * Namespaced tag id, e.g. {@code "minecraft:stairs"}.
+     */
     private @NotNull String id = "";
 
-    /** Fully resolved block IDs that belong to this tag. */
+    /**
+     * Fully resolved block IDs that belong to this tag.
+     */
     private @NotNull ConcurrentList<String> values = Concurrent.newList();
 
     @Override

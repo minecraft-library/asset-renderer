@@ -47,13 +47,19 @@ public class ColorMap {
      */
     public enum Type {
 
-        /** The grass colormap at {@code assets/minecraft/textures/colormap/grass.png}. */
+        /**
+         * The grass colormap at {@code assets/minecraft/textures/colormap/grass.png}.
+         */
         GRASS,
 
-        /** The foliage colormap. */
+        /**
+         * The foliage colormap.
+         */
         FOLIAGE,
 
-        /** The dry foliage colormap. */
+        /**
+         * The dry foliage colormap.
+         */
         DRY_FOLIAGE
 
     }

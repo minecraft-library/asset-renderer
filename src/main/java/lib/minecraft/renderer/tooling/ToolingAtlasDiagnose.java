@@ -53,7 +53,9 @@ import java.util.List;
 @UtilityClass
 public final class ToolingAtlasDiagnose {
 
-    /** How often to emit a progress dot while slicing tiles. */
+    /**
+     * How often to emit a progress dot while slicing tiles.
+     */
     private static final int PROGRESS_DOT_INTERVAL = 256;
 
     /**
@@ -188,14 +190,18 @@ public final class ToolingAtlasDiagnose {
         return new ScanResult(fullyTransparent, sparseContent, opaqueRatio);
     }
 
-    /** Output of {@link #scan}: both flag values plus the opaque-pixel ratio. */
+    /**
+     * Output of {@link #scan}: both flag values plus the opaque-pixel ratio.
+     */
     private record ScanResult(
         boolean fullyTransparent,
         boolean sparseContent,
         double opaqueRatio
     ) {}
 
-    /** Rounds a ratio to 4 decimal places so JSON output stays readable. */
+    /**
+     * Rounds a ratio to 4 decimal places so JSON output stays readable.
+     */
     private static double round4(double value) {
         return Math.round(value * 10_000.0) / 10_000.0;
     }

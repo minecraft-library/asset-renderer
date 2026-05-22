@@ -56,19 +56,25 @@ import java.util.zip.ZipFile;
 @UtilityClass
 public final class EntityTextureResolver {
 
-    /** JVM internal name of {@code net.minecraft.resources.Identifier}. */
+    /**
+     * JVM internal name of {@code net.minecraft.resources.Identifier}.
+     */
     private static final @NotNull String IDENTIFIER = "net/minecraft/resources/Identifier";
 
-    /** The factory call most renderer {@code <clinit>}s use to wrap a path String into an Identifier. */
+    /**
+     * The factory call most renderer {@code <clinit>}s use to wrap a path String into an Identifier.
+     */
     private static final @NotNull String WITH_DEFAULT_NAMESPACE = "withDefaultNamespace";
 
-    /** Method name shared by every renderer that exposes a texture binding. */
+    /**
+     * Method name shared by every renderer that exposes a texture binding.
+     */
     private static final @NotNull String GET_TEXTURE_LOCATION = "getTextureLocation";
 
     /**
      * The texture binding extracted for one renderer.
      *
-     * @param primaryTexturePath the adult / default texture path, e.g.
+     * @param primaryTexturePath the adult / default texture path, e.g
      *     {@code "textures/entity/zombie/zombie.png"}, or {@code null} when the binding is
      *     variant-driven (see {@link #isVariantDriven()})
      * @param babyTexturePath the baby variant texture path when the renderer's
@@ -86,12 +92,16 @@ public final class EntityTextureResolver {
         @Nullable String variantSourceClass,
         @Nullable String hierarchySource
     ) {
-        /** {@code true} when {@link #variantSourceClass} is non-null - texture is data-driven. */
+        /**
+         * {@code true} when {@link #variantSourceClass} is non-null - texture is data-driven.
+         */
         public boolean isVariantDriven() {
             return this.variantSourceClass != null;
         }
 
-        /** {@code true} when neither hardcoded nor variant-driven binding was extractable. */
+        /**
+         * {@code true} when neither hardcoded nor variant-driven binding was extractable.
+         */
         public boolean isUnresolved() {
             return this.primaryTexturePath == null && this.variantSourceClass == null;
         }
@@ -876,7 +886,9 @@ public final class EntityTextureResolver {
         return primaryPath.substring(0, primaryPath.length() - ".png".length()) + "_baby.png";
     }
 
-    /** Picks the first literal whose path stem (filename minus {@code .png}) does not end in {@code _baby}. */
+    /**
+     * Picks the first literal whose path stem (filename minus {@code .png}) does not end in {@code _baby}.
+     */
     private static @Nullable String pickFirstNonBabyLiteral(@NotNull ConcurrentList<String> literals) {
         for (String l : literals) {
             String base = l.substring(0, l.length() - ".png".length());
@@ -885,7 +897,9 @@ public final class EntityTextureResolver {
         return literals.isEmpty() ? null : literals.get(0);
     }
 
-    /** Looks up the {@code _baby.png} sibling of the primary in a list of LDC-collected paths. */
+    /**
+     * Looks up the {@code _baby.png} sibling of the primary in a list of LDC-collected paths.
+     */
     private static @Nullable String findBabyLiteralByPair(
         @NotNull String primaryPath,
         @NotNull ConcurrentList<String> literals
@@ -942,12 +956,16 @@ public final class EntityTextureResolver {
         return null;
     }
 
-    /** Returns the hierarchy-source label or {@code null} when binding lives on the renderer itself. */
+    /**
+     * Returns the hierarchy-source label or {@code null} when binding lives on the renderer itself.
+     */
     private static @Nullable String sourceLabel(@NotNull ResolvedMethod resolved, @NotNull String rendererInternal) {
         return resolved.declaringClass.equals(rendererInternal) ? null : resolved.declaringClass;
     }
 
-    /** Internal record pairing a {@link MethodNode} with its declaring class's internal name. */
+    /**
+     * Internal record pairing a {@link MethodNode} with its declaring class's internal name.
+     */
     private record ResolvedMethod(@NotNull MethodNode method, @NotNull String declaringClass) {}
 
 }

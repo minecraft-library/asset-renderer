@@ -33,11 +33,17 @@ public sealed interface Layout permits Layout.Row, Layout.Column, Layout.Grid, L
      * minor extent.
      */
     enum Alignment {
-        /** Align children to the leading edge (top or left). */
+        /**
+         * Align children to the leading edge (top or left).
+         */
         START,
-        /** Center children along the cross axis. */
+        /**
+         * Center children along the cross axis.
+         */
         CENTER,
-        /** Align children to the trailing edge (bottom or right). */
+        /**
+         * Align children to the trailing edge (bottom or right).
+         */
         END
     }
 

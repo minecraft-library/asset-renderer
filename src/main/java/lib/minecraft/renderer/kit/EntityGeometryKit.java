@@ -50,10 +50,14 @@ import java.util.Set;
 @UtilityClass
 public class EntityGeometryKit {
 
-    /** 90% unit-cube fit - leaves a small margin around the longest-axis extent. */
+    /**
+     * 90% unit-cube fit - leaves a small margin around the longest-axis extent.
+     */
     private static final float ENTITY_MODEL_FIT_EXTENT = 0.9f;
 
-    /** Lower bound on extent before scaling - guards against zero-cube models producing infinity. */
+    /**
+     * Lower bound on extent before scaling - guards against zero-cube models producing infinity.
+     */
     private static final float MIN_MODEL_EXTENT = 0.001f;
 
     /**
@@ -217,7 +221,7 @@ public class EntityGeometryKit {
      * non-tint overload.
      *
      * @param tintArgb the ARGB tint applied to every triangle this call produces. Use
-     *     {@code 0xFFFFFFFF} ({@link dev.simplified.image.pixel.ColorMath#WHITE}) for no tint
+     *     {@code 0xFFFFFFFF} ({@link ColorMath#WHITE}) for no tint
      */
     public static @NotNull BuildResult buildTriangles(
         @NotNull EntityModelData model,
@@ -765,7 +769,9 @@ public class EntityGeometryKit {
         return new Box(minX, minY, minZ, maxX, maxY, maxZ);
     }
 
-    /** Builds the ancestor-anchor chain matrix for every bone. See {@link EntityGeometryKit#buildChainTransforms}. */
+    /**
+     * Builds the ancestor-anchor chain matrix for every bone. See {@link EntityGeometryKit#buildChainTransforms}.
+     */
     private static @NotNull Map<String, Matrix4f> buildChainTransforms(
         @NotNull Map<String, EntityModelData.Bone> bones
     ) {
@@ -926,11 +932,11 @@ public class EntityGeometryKit {
      * the cube has its own rotation independent of the bone's rotation.
      * <p>
      * Cube pivots are in BONE-LOCAL coordinates (relative to the bone's own pivot), matching
-     * the bedrock convention. With bone chain {@code T(p)*R_bone} (vanilla shape) and cube
+     * the vanilla convention. With bone chain {@code T(p)*R_bone} (vanilla shape) and cube
      * applied as {@code T(+cp)*R_cube*T(-cp)} on top, the composed transform applied to a
      * bone-local cube vertex {@code v_local} produces
      * {@code R_bone * (R_cube * (v_local - cp) + cp) + p} - matching vanilla's bone hierarchy
-     * + bedrock cube pivot semantics exactly.
+     * + cube pivot semantics exactly.
      */
     private static @NotNull Matrix4f applyCubePivotCenteredRotation(
         @NotNull Matrix4f base,
@@ -947,7 +953,9 @@ public class EntityGeometryKit {
             .translate(-pivot.x(), -pivot.y(), -pivot.z());
     }
 
-    /** UV resolution. Forwards the cube's {@code mirror} flag to {@link Vector4f#toUvCorners} for the U-flip. */
+    /**
+     * UV resolution. Forwards the cube's {@code mirror} flag to {@link Vector4f#toUvCorners} for the U-flip.
+     */
     private static @NotNull Vector2f @NotNull [] resolveFaceUv(
         @NotNull EntityFace face,
         @NotNull EntityModelData.Cube cube,

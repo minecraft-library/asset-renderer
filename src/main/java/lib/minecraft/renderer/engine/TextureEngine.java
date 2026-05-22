@@ -57,13 +57,19 @@ public class TextureEngine implements RenderEngine {
      */
     private static final int DARK_FOREST_LOW_BIT_MASK = 0xFE;
 
-    /** Red-channel add vanilla applies to the base grass color for dark-forest biomes. */
+    /**
+     * Red-channel add vanilla applies to the base grass color for dark-forest biomes.
+     */
     private static final int DARK_FOREST_RED_OFFSET = 0x28;
 
-    /** Green-channel add for dark-forest grass modifier. */
+    /**
+     * Green-channel add for dark-forest grass modifier.
+     */
     private static final int DARK_FOREST_GREEN_OFFSET = 0x34;
 
-    /** Blue-channel add for dark-forest grass modifier. */
+    /**
+     * Blue-channel add for dark-forest grass modifier.
+     */
     private static final int DARK_FOREST_BLUE_OFFSET = 0x0A;
 
     /**

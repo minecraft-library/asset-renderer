@@ -20,15 +20,21 @@ import org.jetbrains.annotations.NotNull;
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
 public class BlockOptions {
 
-    /** Namespaced block id to render, e.g. {@code "minecraft:stone"} */
+    /**
+     * Namespaced block id to render, e.g. {@code "minecraft:stone"}
+     */
     @lombok.Builder.Default
     private final @NotNull String blockId = "";
 
-    /** Render type - isometric 3D or flat 2D face */
+    /**
+     * Render type - isometric 3D or flat 2D face
+     */
     @lombok.Builder.Default
     private final @NotNull Type type = Type.ISOMETRIC_3D;
 
-    /** Block face to render in {@link Type#BLOCK_FACE_2D} mode */
+    /**
+     * Block face to render in {@link Type#BLOCK_FACE_2D} mode
+     */
     @lombok.Builder.Default
     private final @NotNull BlockFace face = BlockFace.NORTH;
 
@@ -40,19 +46,27 @@ public class BlockOptions {
     @lombok.Builder.Default
     private final @NotNull String variant = "";
 
-    /** Biome used for tinting grass, foliage and water textures */
+    /**
+     * Biome used for tinting grass, foliage and water textures
+     */
     @lombok.Builder.Default
     private final @NotNull Biome biome = Biome.Vanilla.PLAINS;
 
-    /** Model rotation applied before the camera transform, in degrees */
+    /**
+     * Model rotation applied before the camera transform, in degrees
+     */
     @lombok.Builder.Default
     private final @NotNull EulerRotation rotation = EulerRotation.NONE;
 
-    /** Output image dimensions in pixels (square) */
+    /**
+     * Output image dimensions in pixels (square)
+     */
     @lombok.Builder.Default
     private final int outputSize = Renderer.DEFAULT_OUTPUT_SIZE;
 
-    /** Whether to apply FXAA post-processing */
+    /**
+     * Whether to apply FXAA post-processing
+     */
     @lombok.Builder.Default
     private final boolean antiAlias = true;
 
@@ -64,11 +78,15 @@ public class BlockOptions {
     @lombok.Builder.Default
     private final int supersample = 2;
 
-    /** Additional texture pack ids to layer on top of vanilla */
+    /**
+     * Additional texture pack ids to layer on top of vanilla
+     */
     @lombok.Builder.Default
     private final @NotNull ConcurrentList<String> texturePackIds = Concurrent.newList();
 
-    /** Output image format */
+    /**
+     * Output image format
+     */
     @lombok.Builder.Default
     private final @NotNull ImageFormat outputFormat = ImageFormat.PNG;
 
@@ -94,13 +112,19 @@ public class BlockOptions {
         return builder().build();
     }
 
-    /** The supported render types for {@code BlockRenderer}. */
+    /**
+     * The supported render types for {@code BlockRenderer}.
+     */
     public enum Type {
 
-        /** Full 3D isometric block, six faces. */
+        /**
+         * Full 3D isometric block, six faces.
+         */
         ISOMETRIC_3D,
 
-        /** A single 2D block face. */
+        /**
+         * A single 2D block face.
+         */
         BLOCK_FACE_2D
 
     }

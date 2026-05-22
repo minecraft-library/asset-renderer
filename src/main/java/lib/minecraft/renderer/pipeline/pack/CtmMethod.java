@@ -21,43 +21,69 @@ import org.jetbrains.annotations.NotNull;
  */
 public enum CtmMethod {
 
-    /** Always uses {@code tiles[0]}. */
+    /**
+     * Always uses {@code tiles[0]}.
+     */
     FIXED,
 
-    /** Deterministic pick from the tile list seeded on the block id (optionally weighted). */
+    /**
+     * Deterministic pick from the tile list seeded on the block id (optionally weighted).
+     */
     RANDOM,
 
-    /** Position-indexed pick from a width-by-height tile grid; without position data falls back to {@code tiles[0]}. */
+    /**
+     * Position-indexed pick from a width-by-height tile grid; without position data falls back to {@code tiles[0]}.
+     */
     REPEAT,
 
-    /** Composites {@code tiles[0]} over the vanilla base texture via alpha blending. */
+    /**
+     * Composites {@code tiles[0]} over the vanilla base texture via alpha blending.
+     */
     OVERLAY,
 
-    /** Composites {@code tiles[0]} over the vanilla base texture, ignoring position entirely. */
+    /**
+     * Composites {@code tiles[0]} over the vanilla base texture, ignoring position entirely.
+     */
     OVERLAY_FIXED,
 
-    /** Standard 47-tile connected texture map driven by the 8 surrounding neighbors per face. */
+    /**
+     * Standard 47-tile connected texture map driven by the 8 surrounding neighbors per face.
+     */
     CTM,
 
-    /** Reduced 5-tile connected texture map (centre / edge / corner / inner-corner / no-neighbour). */
+    /**
+     * Reduced 5-tile connected texture map (centre / edge / corner / inner-corner / no-neighbour).
+     */
     CTM_COMPACT,
 
-    /** 4-tile horizontal connection: {@code none / left / right / both}. */
+    /**
+     * 4-tile horizontal connection: {@code none / left / right / both}.
+     */
     HORIZONTAL,
 
-    /** 4-tile vertical connection: {@code none / up / down / both}. */
+    /**
+     * 4-tile vertical connection: {@code none / up / down / both}.
+     */
     VERTICAL,
 
-    /** 2-tile top-only connection: {@code no-top / top}. */
+    /**
+     * 2-tile top-only connection: {@code no-top / top}.
+     */
     TOP,
 
-    /** Combined 7-tile horizontal-then-vertical connection. */
+    /**
+     * Combined 7-tile horizontal-then-vertical connection.
+     */
     HORIZONTAL_VERTICAL,
 
-    /** Combined 7-tile vertical-then-horizontal connection. */
+    /**
+     * Combined 7-tile vertical-then-horizontal connection.
+     */
     VERTICAL_HORIZONTAL,
 
-    /** Method string was unrecognised; falls back to {@link #FIXED} semantics in the matcher. */
+    /**
+     * Method string was unrecognised; falls back to {@link #FIXED} semantics in the matcher.
+     */
     UNSUPPORTED;
 
     /**

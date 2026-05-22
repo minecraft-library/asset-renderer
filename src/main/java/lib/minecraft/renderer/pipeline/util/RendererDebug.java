@@ -47,7 +47,9 @@ public final class RendererDebug {
      */
     private static final int @Nullable [] PIXEL_DUMP_RECT = parsePixelDumpRect();
 
-    /** Canvas-fit bounds dump toggle, parsed once at class init. */
+    /**
+     * Canvas-fit bounds dump toggle, parsed once at class init.
+     */
     private static final boolean FIT_DUMP_ENABLED = Boolean.getBoolean("entity.fit.dump");
 
     /**
@@ -56,7 +58,9 @@ public final class RendererDebug {
      */
     private static final ThreadLocal<Boolean> BOUNDS_DUMP = ThreadLocal.withInitial(() -> false);
 
-    /** Header columns emitted at startup when the pixel-dump rect parses cleanly. */
+    /**
+     * Header columns emitted at startup when the pixel-dump rect parses cleanly.
+     */
     private static final @NotNull String PIXEL_DUMP_HEADER = String.join("\t",
         "stage", "px", "py", "depth", "tag", "u", "v", "tx", "ty",
         "rawARGB", "tintARGB", "afterTintARGB", "shading", "afterShadeARGB",
@@ -173,7 +177,9 @@ public final class RendererDebug {
 
     // --- canvas-fit trace ---
 
-    /** Logs the {@code [PX]\tFIT} family-union screen-bounds trace line. */
+    /**
+     * Logs the {@code [PX]\tFIT} family-union screen-bounds trace line.
+     */
     public static void fitBounds(@NotNull String entityId, @NotNull Box screenBounds) {
         if (!FIT_DUMP_ENABLED) return;
         System.out.println("[PX]\tFIT\t" + entityId
@@ -181,14 +187,18 @@ public final class RendererDebug {
             + "\tminY=" + screenBounds.minY() + "\tmaxY=" + screenBounds.maxY());
     }
 
-    /** Logs the {@code [PX]\tBASE-BOUNDS} primary-model bounds line. */
+    /**
+     * Logs the {@code [PX]\tBASE-BOUNDS} primary-model bounds line.
+     */
     public static void baseBounds(@NotNull Box bounds) {
         if (!FIT_DUMP_ENABLED) return;
         System.out.println("[PX]\tBASE-BOUNDS\tminX=" + bounds.minX() + "\tmaxX=" + bounds.maxX()
             + "\tminY=" + bounds.minY() + "\tmaxY=" + bounds.maxY());
     }
 
-    /** Logs the {@code [PX]\tOVERLAY-BOUNDS} per-overlay bounds line. */
+    /**
+     * Logs the {@code [PX]\tOVERLAY-BOUNDS} per-overlay bounds line.
+     */
     public static void overlayBounds(@NotNull String textureRef, @NotNull Box overlayBounds) {
         if (!FIT_DUMP_ENABLED) return;
         System.out.println("[PX]\tOVERLAY-BOUNDS\tref=" + textureRef
@@ -212,7 +222,9 @@ public final class RendererDebug {
         BOUNDS_DUMP.set(true);
     }
 
-    /** Counterpart to {@link #beginPerEntityBoundsDump(String)}. Resets the toggle and emits the END framing line. */
+    /**
+     * Counterpart to {@link #beginPerEntityBoundsDump(String)}. Resets the toggle and emits the END framing line.
+     */
     public static void endPerEntityBoundsDump(@NotNull String entityId) {
         if (!Boolean.getBoolean("entity.bounds.dump")) return;
         BOUNDS_DUMP.set(false);
@@ -237,25 +249,33 @@ public final class RendererDebug {
             inflate, mirror);
     }
 
-    /** Logs the {@code [BD]} degenerate-UV bounds-skip line. No-op when {@code label} is null. */
+    /**
+     * Logs the {@code [BD]} degenerate-UV bounds-skip line. No-op when {@code label} is null.
+     */
     public static void boundsDegenerateUv(@Nullable String label) {
         if (label == null) return;
         System.out.println("[BD] " + label + " DEGEN_UV");
     }
 
-    /** Logs the {@code [BD]} non-axis-aligned UV fallback line. No-op when {@code label} is null. */
+    /**
+     * Logs the {@code [BD]} non-axis-aligned UV fallback line. No-op when {@code label} is null.
+     */
     public static void boundsNonAxisUvFallback(@Nullable String label) {
         if (label == null) return;
         System.out.println("[BD] " + label + " NON_AXIS_UV_FALLBACK_4_CORNERS");
     }
 
-    /** Logs the {@code [BD]} missing-texture fallback line. No-op when {@code label} is null. */
+    /**
+     * Logs the {@code [BD]} missing-texture fallback line. No-op when {@code label} is null.
+     */
     public static void boundsNoTextureFallback(@Nullable String label) {
         if (label == null) return;
         System.out.println("[BD] " + label + " NO_TEX_FALLBACK_4_CORNERS");
     }
 
-    /** Logs the {@code [BD]} all-transparent face line. No-op when {@code label} is null. */
+    /**
+     * Logs the {@code [BD]} all-transparent face line. No-op when {@code label} is null.
+     */
     public static void boundsAllTransparent(@Nullable String label, int pxMin, int pyMin, int pxMax, int pyMax) {
         if (label == null) return;
         System.out.printf("[BD] %s uv_px=%d,%d,%d,%d ALL_TRANSPARENT%n",

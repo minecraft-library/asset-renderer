@@ -113,7 +113,9 @@ public final class BlockListDiscovery {
         }
     }
 
-    /** Full binding for one entity-model id. */
+    /**
+     * Full binding for one entity-model id.
+     */
     public record EntityBlockMapping(@NotNull List<BlockMapping> blocks, @Nullable List<PartRef> parts) {}
 
     // ------------------------------------------------------------------------------------------
@@ -310,7 +312,7 @@ public final class BlockListDiscovery {
      * The second {@code LDC} in each init block is the serialized name (the first is the
      * enum constant name, also captured as the {@code PUTSTATIC} field).
      *
-     * @return an insertion-ordered map from {@code "WHITE"} to {@code "white"}, etc.
+     * @return an insertion-ordered map from {@code "WHITE"} to {@code "white"}, etc
      */
     static @NotNull Map<String, String> walkDyeColorNames(@NotNull ZipFile zip) {
         return walkEnumSerializedNames(zip, DYE_COLOR);
@@ -325,7 +327,7 @@ public final class BlockListDiscovery {
      * Unlike {@link #walkDyeColorNames}, there's only one {@code LDC} per init block (the
      * record's {@code name} field); the putstatic field supplies the upper-cased form.
      *
-     * @return an insertion-ordered map from {@code "OAK"} to {@code "oak"}, etc.
+     * @return an insertion-ordered map from {@code "OAK"} to {@code "oak"}, etc
      */
     static @NotNull Map<String, String> walkWoodTypeNames(@NotNull ZipFile zip) {
         return walkRecordSingleLdcNames(zip, WOOD_TYPE);
@@ -336,7 +338,7 @@ public final class BlockListDiscovery {
      * map. The shape is identical to {@link #walkDyeColorNames} -
      * {@code new ...; dup; ldc "SKELETON"; iconst_0; ldc "skeleton"; ...}.
      *
-     * @return an insertion-ordered map from {@code "SKELETON"} to {@code "skeleton"}, etc.
+     * @return an insertion-ordered map from {@code "SKELETON"} to {@code "skeleton"}, etc
      */
     static @NotNull Map<String, String> walkSkullTypesNames(@NotNull ZipFile zip) {
         return walkEnumSerializedNames(zip, SKULL_TYPES);
@@ -346,7 +348,7 @@ public final class BlockListDiscovery {
      * Walks {@code BellAttachType.<clinit>} and returns the ordered list of enum field names.
      * Used both as our iteration order and as the left-hand side of {@link #BELL_ATTACH_SUFFIX}.
      *
-     * @return the insertion-ordered list of field names (e.g.
+     * @return the insertion-ordered list of field names (e.g
      *     {@code ["FLOOR", "CEILING", "SINGLE_WALL", "DOUBLE_WALL"]})
      */
     static @NotNull List<String> walkBellAttachTypesOrder(@NotNull ZipFile zip) {
@@ -445,7 +447,7 @@ public final class BlockListDiscovery {
      * @param enumInternal the enum class to search for (e.g. {@code DYE_COLOR})
      * @param blockClassNames the set of acceptable {@code NEW <Class>} targets; may be empty
      *     (all accepted)
-     * @return a map from {@code "Blocks.<field>"} to the enum field name (e.g.
+     * @return a map from {@code "Blocks.<field>"} to the enum field name (e.g
      *     {@code "RED_BED" -> "RED"}); blocks whose lambda doesn't match are absent
      */
     static @NotNull Map<String, String> walkBlocksToCtorEnum(
@@ -641,21 +643,27 @@ public final class BlockListDiscovery {
         return handle.getOwner();
     }
 
-    /** Looks up a {@code lambda$static$N} method on {@code owner} by name. */
+    /**
+     * Looks up a {@code lambda$static$N} method on {@code owner} by name.
+     */
     private static @Nullable MethodNode findLambda(@NotNull ClassNode owner, @NotNull String lambdaName) {
         for (MethodNode m : owner.methods)
             if (m.name.equals(lambdaName)) return m;
         return null;
     }
 
-    /** Returns the internal name of the first {@code NEW} type-insn in {@code lambda}'s body. */
+    /**
+     * Returns the internal name of the first {@code NEW} type-insn in {@code lambda}'s body.
+     */
     private static @Nullable String findLambdaNewClass(@NotNull MethodNode lambda) {
         for (AbstractInsnNode in = lambda.instructions.getFirst(); in != null; in = in.getNext())
             if (in instanceof TypeInsnNode ti && ti.getOpcode() == Opcodes.NEW) return ti.desc;
         return null;
     }
 
-    /** Returns the first {@code GETSTATIC} field name on {@code enumInternal} within {@code lambda}. */
+    /**
+     * Returns the first {@code GETSTATIC} field name on {@code enumInternal} within {@code lambda}.
+     */
     private static @Nullable String findFirstEnumGetstatic(@NotNull MethodNode lambda, @NotNull String enumInternal) {
         for (AbstractInsnNode in = lambda.instructions.getFirst(); in != null; in = in.getNext())
             if (in instanceof FieldInsnNode fi && fi.getOpcode() == Opcodes.GETSTATIC && fi.owner.equals(enumInternal))
@@ -738,7 +746,7 @@ public final class BlockListDiscovery {
      * (the body texture), strip the {@code textures/} prefix + {@code .png} suffix, and bind it
      * to the {@code PUTSTATIC} field name.
      *
-     * @return a map from {@code "UNAFFECTED"} to {@code "entity/copper_golem/copper_golem"}, etc.
+     * @return a map from {@code "UNAFFECTED"} to {@code "entity/copper_golem/copper_golem"}, etc
      */
     static @NotNull Map<String, String> walkCopperGolemOxidationLevels(@NotNull ZipFile zip) {
         ClassNode cn = AsmKit.loadClass(zip, COPPER_GOLEM_OXIDATION_LEVELS);
@@ -769,7 +777,9 @@ public final class BlockListDiscovery {
         return out;
     }
 
-    /** Strips a leading {@code textures/} and trailing {@code .png} from a string, returning whatever remains. */
+    /**
+     * Strips a leading {@code textures/} and trailing {@code .png} from a string, returning whatever remains.
+     */
     private static @NotNull String stripTexturesPrefixAndPngSuffix(@NotNull String s) {
         String trimmed = s;
         if (trimmed.startsWith("textures/")) trimmed = trimmed.substring("textures/".length());
@@ -1306,7 +1316,9 @@ public final class BlockListDiscovery {
             return out;
         }
 
-        /** Emits the empty {@code banner_flag} and {@code wall_banner_flag} entity-ids. */
+        /**
+         * Emits the empty {@code banner_flag} and {@code wall_banner_flag} entity-ids.
+         */
         static @NotNull Map<String, EntityBlockMapping> discoverSubModels(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
             LinkedHashMap<String, EntityBlockMapping> out = new LinkedHashMap<>();
             out.put("minecraft:banner_flag",      new EntityBlockMapping(List.of(), null));

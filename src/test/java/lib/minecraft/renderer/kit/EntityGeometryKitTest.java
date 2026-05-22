@@ -122,17 +122,17 @@ class EntityGeometryKitTest {
     }
 
     @Test
-    @DisplayName("UV mapping covers only the cube's bedrock-strip atlas region")
-    void uvLayout_coversBedrockStripRegion() {
-        // For a 2-unit cube (size 2x2x2) at texOffs(0,0) on a 64x64 texture, the bedrock strip
+    @DisplayName("UV mapping covers only the cube's UV strip atlas region")
+    void uvLayout_coversStripRegion() {
+        // For a 2-unit cube (size 2x2x2) at texOffs(0,0) on a 64x64 texture, the UV strip
         // occupies u[0, 8/64], v[0, 4/64] - two rows: top (TOP+BOTTOM), bottom (E+N+W+S).
         float maxU = 8f / 64f;
         float maxV = 4f / 64f;
         for (VisibleTriangle tri : collect(buildSingleCube()))
             for (Vector2f uv : new Vector2f[]{ tri.uv0(), tri.uv1(), tri.uv2() }) {
-                assertThat("UV.u out of bedrock-strip region", uv.x(),
+                assertThat("UV.u out of UV-strip region", uv.x(),
                     both(greaterThanOrEqualTo(-1e-4f)).and(lessThanOrEqualTo(maxU + 1e-4f)));
-                assertThat("UV.v out of bedrock-strip region", uv.y(),
+                assertThat("UV.v out of UV-strip region", uv.y(),
                     both(greaterThanOrEqualTo(-1e-4f)).and(lessThanOrEqualTo(maxV + 1e-4f)));
             }
     }
@@ -140,7 +140,7 @@ class EntityGeometryKitTest {
     @Test
     @DisplayName("UP-cube-face triangles sample from the DOWN strip slot (Y-flip swap compensation)")
     void uvSwap_upFaceLandsInDownSlot() {
-        // Bedrock strip row 1: TOP at u[2/64, 4/64], BOTTOM at u[4/64, 6/64], both v[0, 2/64].
+        // UV strip row 1: TOP at u[2/64, 4/64], BOTTOM at u[4/64, 6/64], both v[0, 2/64].
         // FLIP_Y puts the original UP cube vertices visually at the screen-bottom; the kit
         // compensates by sampling the DOWN strip slot for those triangles. Post-flip these
         // triangles carry normal (0, -1, 0).

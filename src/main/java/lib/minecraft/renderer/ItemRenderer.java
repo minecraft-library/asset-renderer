@@ -86,31 +86,49 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             .orElseThrow(() -> new RenderException("No item registered for id '%s'", itemId));
     }
 
-    /** The "water" potion colour - used as the fallback when no potion effect is supplied. */
+    /**
+     * The "water" potion colour - used as the fallback when no potion effect is supplied.
+     */
     private static final int DEFAULT_POTION_ARGB = 0xFF385DC6;
 
-    /** Model-space minimum-X bound for the flat-sprite item Z-axis slab. */
+    /**
+     * Model-space minimum-X bound for the flat-sprite item Z-axis slab.
+     */
     private static final float FLAT_ITEM_SLAB_MIN_X = -0.45f;
 
-    /** Model-space maximum-X bound for the flat-sprite item Z-axis slab. */
+    /**
+     * Model-space maximum-X bound for the flat-sprite item Z-axis slab.
+     */
     private static final float FLAT_ITEM_SLAB_MAX_X = 0.45f;
 
-    /** Model-space minimum-Z bound - the thin side of the flat sprite slab. */
+    /**
+     * Model-space minimum-Z bound - the thin side of the flat sprite slab.
+     */
     private static final float FLAT_ITEM_SLAB_MIN_Z = -0.02f;
 
-    /** Model-space maximum-Z bound - the thin side of the flat sprite slab. */
+    /**
+     * Model-space maximum-Z bound - the thin side of the flat sprite slab.
+     */
     private static final float FLAT_ITEM_SLAB_MAX_Z = 0.02f;
 
-    /** Prefix for multi-layer item texture keys ({@code layer0}, {@code layer1}, ...). */
+    /**
+     * Prefix for multi-layer item texture keys ({@code layer0}, {@code layer1}, ...).
+     */
     private static final @NotNull String LAYER_TEXTURE_PREFIX = "layer";
 
-    /** Item model display slot for the 3D held-item pose (vanilla {@code thirdperson_righthand}). */
+    /**
+     * Item model display slot for the 3D held-item pose (vanilla {@code thirdperson_righthand}).
+     */
     private static final @NotNull String DISPLAY_SLOT_HELD_3D = "thirdperson_righthand";
 
-    /** Item id suffix that flags a banner: {@code minecraft:white_banner}, etc. */
+    /**
+     * Item id suffix that flags a banner: {@code minecraft:white_banner}, etc.
+     */
     private static final @NotNull String BANNER_ITEM_SUFFIX = "_banner";
 
-    /** The sole shield item id. */
+    /**
+     * The sole shield item id.
+     */
     private static final @NotNull String SHIELD_ITEM_ID = "minecraft:shield";
 
     /**

@@ -60,10 +60,14 @@ import java.util.Set;
 @UtilityClass
 public class EntityModelLoader {
 
-    /** Per-entity metadata file; produced by {@code ToolingEntityModels}. */
+    /**
+     * Per-entity metadata file; produced by {@code ToolingEntityModels}.
+     */
     private static final @NotNull String MODELS_RESOURCE_PATH = "/lib/minecraft/renderer/entity_models.json";
 
-    /** Per-geometry bone tree file; bones in Java-native Y-down absolute entity-root frame. */
+    /**
+     * Per-geometry bone tree file; bones in Java-native Y-down absolute entity-root frame.
+     */
     private static final @NotNull String GEOMETRY_RESOURCE_PATH = "/lib/minecraft/renderer/entity_geometry.json";
 
     /**
@@ -217,13 +221,19 @@ public class EntityModelLoader {
      */
     public sealed interface TransformOp permits Translate, RotateY, Scale {}
 
-    /** Translation by {@code (x, y, z)} in entity-local units. */
+    /**
+     * Translation by {@code (x, y, z)} in entity-local units.
+     */
     public record Translate(float x, float y, float z) implements TransformOp {}
 
-    /** Rotation around the Y axis by {@code degrees}. */
+    /**
+     * Rotation around the Y axis by {@code degrees}.
+     */
     public record RotateY(float degrees) implements TransformOp {}
 
-    /** Per-axis scale {@code (x, y, z)}. Negative components flip the axis. */
+    /**
+     * Per-axis scale {@code (x, y, z)}. Negative components flip the axis.
+     */
     public record Scale(float x, float y, float z) implements TransformOp {}
 
     /**
@@ -683,7 +693,9 @@ public class EntityModelLoader {
         }
     }
 
-    /** Reads {@link #MODELS_RESOURCE_PATH}. Returns an empty {@link JsonObject} when absent. */
+    /**
+     * Reads {@link #MODELS_RESOURCE_PATH}. Returns an empty {@link JsonObject} when absent.
+     */
     private static @NotNull JsonObject loadEntitiesBlock() {
         try (InputStream stream = EntityModelLoader.class.getResourceAsStream(MODELS_RESOURCE_PATH)) {
             if (stream == null) return new JsonObject();

@@ -16,31 +16,45 @@ import org.jetbrains.annotations.NotNull;
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
 public class GridOptions {
 
-    /** Tile images to place on the grid */
+    /**
+     * Tile images to place on the grid
+     */
     @lombok.Builder.Default
     private final @NotNull ConcurrentList<GridTile> tiles = Concurrent.newList();
 
-    /** Cell dimensions in pixels (square) */
+    /**
+     * Cell dimensions in pixels (square)
+     */
     @lombok.Builder.Default
     private final int cellSize = 64;
 
-    /** Number of columns in the grid */
+    /**
+     * Number of columns in the grid
+     */
     @lombok.Builder.Default
     private final int columns = 1;
 
-    /** Number of rows in the grid */
+    /**
+     * Number of rows in the grid
+     */
     @lombok.Builder.Default
     private final int rows = 1;
 
-    /** Pixel gap between adjacent cells */
+    /**
+     * Pixel gap between adjacent cells
+     */
     @lombok.Builder.Default
     private final int separation = 0;
 
-    /** ARGB fill color for empty areas */
+    /**
+     * ARGB fill color for empty areas
+     */
     @lombok.Builder.Default
     private final int backgroundArgb = 0x00000000;
 
-    /** Output image format */
+    /**
+     * Output image format
+     */
     @lombok.Builder.Default
     private final @NotNull ImageFormat outputFormat = ImageFormat.PNG;
 

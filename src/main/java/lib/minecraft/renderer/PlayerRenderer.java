@@ -59,11 +59,15 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     // 3D body-part bounding cubes per render type.
     // ---------------------------------------------------------------------------------------
 
-    /** Skull: unit head cube. */
+    /**
+     * Skull: unit head cube.
+     */
     private static final Vector3f SKULL_HEAD_MIN = new Vector3f(-0.5f, -0.5f, -0.5f);
     private static final Vector3f SKULL_HEAD_MAX = new Vector3f(0.5f, 0.5f, 0.5f);
 
-    /** Bust: head + torso, matching the original PlayerBust3D proportions. */
+    /**
+     * Bust: head + torso, matching the original PlayerBust3D proportions.
+     */
     private static final Vector3f BUST_HEAD_MIN = new Vector3f(-0.25f, 0.1f, -0.25f);
     private static final Vector3f BUST_HEAD_MAX = new Vector3f(0.25f, 0.6f, 0.25f);
     private static final Vector3f BUST_TORSO_MIN = new Vector3f(-0.2f, -0.4f, -0.1f);
@@ -73,7 +77,9 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     private static final Vector3f BUST_L_ARM_MIN = new Vector3f(0.2f, -0.4f, -0.1f);
     private static final Vector3f BUST_L_ARM_MAX = new Vector3f(0.33f, 0.1f, 0.1f);
 
-    /** Full body: 1 MC pixel = 1/32 model unit, centred vertically. */
+    /**
+     * Full body: 1 MC pixel = 1/32 model unit, centred vertically.
+     */
     private static final Vector3f FULL_HEAD_MIN = new Vector3f(-0.12f, 0.24f, -0.12f);
     private static final Vector3f FULL_HEAD_MAX = new Vector3f(0.12f, 0.48f, 0.12f);
     private static final Vector3f FULL_TORSO_MIN = new Vector3f(-0.12f, -0.12f, -0.06f);
@@ -87,7 +93,9 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     private static final Vector3f FULL_L_LEG_MIN = new Vector3f(0.0f, -0.48f, -0.06f);
     private static final Vector3f FULL_L_LEG_MAX = new Vector3f(0.12f, -0.12f, 0.06f);
 
-    /** Overlay (hat / hood / second layer) outset over the base cube. */
+    /**
+     * Overlay (hat / hood / second layer) outset over the base cube.
+     */
     private static final float OVERLAY_INFLATE = 0.01f;
 
     private final @NotNull RendererContext context;
@@ -157,7 +165,9 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         }
     }
 
-    /** Whether any of the four armor slots carries an enchanted piece. */
+    /**
+     * Whether any of the four armor slots carries an enchanted piece.
+     */
     private static boolean hasEnchantedArmor(@NotNull PlayerOptions options) {
         return ArmorKit.hasEnchantedArmor(
             options.getHelmet(), options.getChestplate(),
@@ -165,12 +175,16 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         );
     }
 
-    /** Whether the skin is wide enough to have overlay layers. */
+    /**
+     * Whether the skin is wide enough to have overlay layers.
+     */
     private static boolean hasOverlay(@NotNull PixelBuffer skin) {
         return skin.width() >= 64 && skin.height() >= 64;
     }
 
-    /** Whether the skin is wide enough to have hat overlay (smaller threshold than full overlay). */
+    /**
+     * Whether the skin is wide enough to have hat overlay (smaller threshold than full overlay).
+     */
     private static boolean hasHatOverlay(@NotNull PixelBuffer skin) {
         return skin.width() >= 48 && skin.height() >= 16;
     }
