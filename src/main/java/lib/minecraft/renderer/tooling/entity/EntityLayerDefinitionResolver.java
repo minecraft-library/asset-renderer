@@ -237,21 +237,12 @@ public final class EntityLayerDefinitionResolver {
         @NotNull String rendererInternalName
     ) {
         java.util.LinkedHashSet<String> out = new java.util.LinkedHashSet<>();
-        String current = rendererInternalName;
-        while (current != null && !"java/lang/Object".equals(current)) {
-            ClassNode cn = AsmKit.loadClass(zip, current);
-            if (cn == null) return out;
-            for (MethodNode method : cn.methods) {
-                if (!"<init>".equals(method.name)) continue;
-                for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
-                    if (in.getOpcode() == Opcodes.GETSTATIC
-                        && in instanceof FieldInsnNode fi
-                        && MODEL_LAYERS.equals(fi.owner))
-                        out.add(fi.name);
-                }
+        AsmKit.walkConstructorChain(zip, rendererInternalName, method -> {
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                if (AsmKit.isGetStatic(in, MODEL_LAYERS))
+                    out.add(((FieldInsnNode) in).name);
             }
-            current = cn.superName;
-        }
+        });
         return out;
     }
 
@@ -368,7 +359,7 @@ public final class EntityLayerDefinitionResolver {
             // since the parser collapses asymmetric inflates to a scalar already.
             if (in instanceof MethodInsnNode mi
                 && opcode == Opcodes.INVOKESPECIAL
-                && "<init>".equals(mi.name)
+                && AsmKit.INIT.equals(mi.name)
                 && mi.owner.endsWith("/CubeDeformation")) {
                 if (mi.desc.startsWith("(F") && pendingFloat != null) {
                     pendingDeformationInflate = pendingFloat;
@@ -583,7 +574,7 @@ public final class EntityLayerDefinitionResolver {
         if (cache.containsKey(key)) return cache.get(key);
 
         ClassNode cls = AsmKit.loadClass(zip, owner);
-        MethodNode clinit = cls != null ? AsmKit.findMethod(cls, "<clinit>") : null;
+        MethodNode clinit = cls != null ? AsmKit.findMethod(cls, AsmKit.CLINIT) : null;
         if (clinit == null) {
             cache.put(key, null);
             return null;
