@@ -15,7 +15,6 @@ import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.InvokeDynamicInsnNode;
 import org.objectweb.asm.tree.MethodNode;
-import org.objectweb.asm.tree.TypeInsnNode;
 
 import java.lang.invoke.LambdaMetafactory;
 import java.util.LinkedHashSet;
@@ -53,16 +52,6 @@ public final class EntityRendererDiscovery {
      * JVM internal name of {@code net.minecraft.client.renderer.entity.EntityRenderers}.
      */
     private static final @NotNull String ENTITY_RENDERERS = "net/minecraft/client/renderer/entity/EntityRenderers";
-
-    /**
-     * JVM internal name of {@code net.minecraft.world.entity.EntityType}.
-     */
-    private static final @NotNull String ENTITY_TYPE = "net/minecraft/world/entity/EntityType";
-
-    /**
-     * JVM internal name of {@code net.minecraft.client.model.geom.ModelLayers}.
-     */
-    private static final @NotNull String MODEL_LAYERS = "net/minecraft/client/model/geom/ModelLayers";
 
     /**
      * One {@code (EntityType field, renderer class)} pair extracted from
@@ -129,7 +118,7 @@ public final class EntityRendererDiscovery {
             diagnostics.error("'%s' class missing from jar - cannot discover entity renderers", ENTITY_RENDERERS);
             return Concurrent.newList();
         }
-        MethodNode registryInit = AsmKit.findMethod(registryClass, "<clinit>");
+        MethodNode registryInit = AsmKit.findMethod(registryClass, AsmKit.CLINIT);
         if (registryInit == null) {
             diagnostics.error("'%s.<clinit>' missing - cannot discover entity renderers", ENTITY_RENDERERS);
             return Concurrent.newList();
@@ -141,10 +130,8 @@ public final class EntityRendererDiscovery {
             // Capture the most recent EntityType.X GETSTATIC. When the next INVOKEDYNAMIC
             // (lambda factory producing an EntityRendererProvider) appears, its target Handle
             // is the renderer constructor (or a synthetic wrapper) we want to bind to this field.
-            if (in instanceof FieldInsnNode fieldInsn
-                && fieldInsn.getOpcode() == Opcodes.GETSTATIC
-                && ENTITY_TYPE.equals(fieldInsn.owner)) {
-                pendingEntityField = fieldInsn.name;
+            if (AsmKit.isGetStatic(in, AsmKit.Vanilla.ENTITY_TYPE)) {
+                pendingEntityField = ((FieldInsnNode) in).name;
                 continue;
             }
             if (in instanceof InvokeDynamicInsnNode indy && pendingEntityField != null) {
@@ -187,29 +174,22 @@ public final class EntityRendererDiscovery {
         @NotNull InvokeDynamicInsnNode indy,
         @NotNull ClassNode ownerClass
     ) {
-        if (indy.bsmArgs.length < 2) return null;
-        if (!(indy.bsmArgs[1] instanceof Handle handle)) return null;
+        Handle handle = AsmKit.extractLambdaHandle(indy);
+        if (handle == null) return null;
 
-        if (handle.getTag() == Opcodes.H_NEWINVOKESPECIAL && "<init>".equals(handle.getName()))
+        if (handle.getTag() == Opcodes.H_NEWINVOKESPECIAL && AsmKit.INIT.equals(handle.getName()))
             return new LambdaResolution(handle.getOwner(), Set.of(), Set.of());
 
         if (handle.getTag() == Opcodes.H_INVOKESTATIC && handle.getOwner().equals(ownerClass.name)) {
-            MethodNode lambda = AsmKit.findMethod(ownerClass, handle.getName(), handle.getDesc());
-            if (lambda == null) return null;
-            String rendererClass = null;
             Set<String> layerFields = new LinkedHashSet<>();
             Set<TypeFieldRef> typeArgs = new LinkedHashSet<>();
-            for (AbstractInsnNode node = lambda.instructions.getFirst(); node != null; node = node.getNext()) {
-                if (rendererClass == null && node instanceof TypeInsnNode type && type.getOpcode() == Opcodes.NEW)
-                    rendererClass = type.desc;
-                if (node.getOpcode() == Opcodes.GETSTATIC
-                    && node instanceof FieldInsnNode fi) {
-                    if (MODEL_LAYERS.equals(fi.owner))
-                        layerFields.add(fi.name);
-                    else if (fi.owner.contains("$Type"))
-                        typeArgs.add(new TypeFieldRef(fi.owner, fi.name));
+            String rendererClass = AsmKit.walkLambdaBody(indy, ownerClass, node -> {
+                if (AsmKit.isGetStatic(node, AsmKit.Vanilla.MODEL_LAYERS)) {
+                    layerFields.add(((FieldInsnNode) node).name);
+                } else if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode fi && fi.owner.contains("$Type")) {
+                    typeArgs.add(new TypeFieldRef(fi.owner, fi.name));
                 }
-            }
+            });
             return rendererClass == null ? null : new LambdaResolution(rendererClass, layerFields, typeArgs);
         }
         return null;
