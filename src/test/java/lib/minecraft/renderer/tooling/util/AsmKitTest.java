@@ -1358,43 +1358,6 @@ class AsmKitTest {
     }
 
     @Nested
-    @DisplayName("LdcWindow")
-    class LdcWindowTests {
-
-        @Test
-        @DisplayName("push retains up to capacity entries")
-        void pushUpToCapacity() {
-            AsmKit.LdcWindow window = new AsmKit.LdcWindow(2);
-            window.push("a");
-            window.push("b");
-            assertThat(window.size(), equalTo(2));
-            assertThat(window.snapshot(), arrayContaining("a", "b"));
-        }
-
-        @Test
-        @DisplayName("overflow evicts oldest")
-        void overflowEvicts() {
-            AsmKit.LdcWindow window = new AsmKit.LdcWindow(2);
-            window.push("a");
-            window.push("b");
-            window.push("c");
-            assertThat(window.size(), equalTo(2));
-            assertThat(window.snapshot(), arrayContaining("b", "c"));
-        }
-
-        @Test
-        @DisplayName("reset clears the window")
-        void resetClears() {
-            AsmKit.LdcWindow window = new AsmKit.LdcWindow(2);
-            window.push("a");
-            window.reset();
-            assertThat(window.isEmpty(), is(true));
-            assertThat(window.snapshot().length, equalTo(0));
-        }
-
-    }
-
-    @Nested
     @DisplayName("loadClass / requireClass against a real zip")
     class LoadClassRealZip {
 

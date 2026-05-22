@@ -14,7 +14,6 @@ import org.objectweb.asm.tree.*;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayDeque;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -1751,100 +1750,6 @@ public final class AsmKit {
          */
         public boolean isEmpty() {
             return this.slots.isEmpty();
-        }
-
-    }
-
-    // ----------------------------------------------------------------------------------------
-    // LdcWindow - bounded ordered set of recent LDC string constants
-    // ----------------------------------------------------------------------------------------
-
-    /**
-     * Bounded most-recent-N accumulator for {@code LDC String} constants observed during a
-     * {@code <clinit>} walk, with an explicit "reset on anchor" hook (the anchor is usually
-     * a {@code NEW Foo} that begins a fresh registration block).
-     *
-     * <p>Mirrors the ad-hoc {@code Window} class in
-     * {@code MobRegistryDiscovery.collectRegistrations}. Lifts the pattern to a reusable
-     * primitive so future {@code <clinit>} walkers (e.g. data-driven registry walks) don't
-     * re-invent it.
-     *
-     * <p>Usage shape:
-     * <pre>{@code
-     * LdcWindow window = new LdcWindow(2);
-     * for (AbstractInsnNode node : clinit.instructions) {
-     *     if (isResetAnchor(node)) { window.reset(); continue; }
-     *     String s = AsmKit.readStringLiteral(node);
-     *     if (s != null) window.push(s);
-     *     if (isCommitAnchor(node)) {
-     *         String[] captured = window.snapshot();
-     *         // ... use captured[0..N-1] ...
-     *         window.reset();
-     *     }
-     * }
-     * }</pre>
-     */
-    public static final class LdcWindow {
-
-        private final int capacity;
-        private final @NotNull ArrayDeque<String> entries = new ArrayDeque<>();
-
-        /**
-         * Constructs a new {@code LdcWindow} retaining the {@code capacity} most-recent
-         * strings.
-         *
-         * @param capacity the maximum number of retained entries
-         */
-        public LdcWindow(int capacity) {
-            this.capacity = capacity;
-        }
-
-        /**
-         * Records the most-recent string, evicting the oldest entry when capacity is
-         * exceeded.
-         *
-         * @param value the string to push
-         */
-        public void push(@NotNull String value) {
-            this.entries.addLast(value);
-            while (this.entries.size() > this.capacity)
-                this.entries.removeFirst();
-        }
-
-        /**
-         * Returns the current contents in insertion order (oldest first). The returned
-         * array is a snapshot - subsequent {@link #push(String)} / {@link #reset()} calls
-         * do not modify it.
-         *
-         * @return the current contents as a fresh array
-         */
-        public @NotNull String[] snapshot() {
-            return this.entries.toArray(new String[0]);
-        }
-
-        /**
-         * The current number of entries.
-         *
-         * @return the entry count
-         */
-        public int size() {
-            return this.entries.size();
-        }
-
-        /**
-         * {@code true} when the window is empty.
-         *
-         * @return whether the window is empty
-         */
-        public boolean isEmpty() {
-            return this.entries.isEmpty();
-        }
-
-        /**
-         * Clears every entry.
-         */
-        public void reset() {
-            this.entries.clear();
         }
 
     }
