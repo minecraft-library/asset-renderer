@@ -873,7 +873,7 @@
       ]
     },
     "minecraft:zombified_piglin": {
-      "geometry_ref": "geometry.adultzombifiedpiglin",
+      "geometry_ref": "geometry.adultpiglin",
       "texture_ref": "piglin/zombified_piglin",
       "armor_type": "humanoid"
     }
@@ -886,6 +886,7 @@
     "minecraft:trader_llama": "minecraft:llama",
     "minecraft:zombie_nautilus": "minecraft:nautilus",
     "minecraft:piglin_brute": "minecraft:piglin",
+    "minecraft:zombified_piglin": "minecraft:piglin",
     "minecraft:stray": "minecraft:skeleton",
     "minecraft:wandering_trader": "minecraft:villager"
   }

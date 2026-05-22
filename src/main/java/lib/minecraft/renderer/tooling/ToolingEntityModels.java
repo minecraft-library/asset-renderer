@@ -343,6 +343,11 @@ public final class ToolingEntityModels {
                         lambdaFields, layerDefs, diagnostics
                     );
                 if (resolution == null) continue;
+                // Phase 18: AdultZombifiedPiglinModel.createBodyLayer is a no-op delegate that
+                // returns AdultPiglinModel.createBodyLayer(). Unaliasing here collapses the
+                // delegating factory onto its base so the factoryKey-&gt;geometryId dedupe maps
+                // both piglin AND zombified_piglin to a single shared geometry entry.
+                resolution = EntityLayerDefinitionResolver.unaliasDelegate(zip, resolution);
                 entityToResolution.put(entry.getKey(), resolution);
                 // paramFloatValues opts the parser into arithmetic evaluation (FADD / FMUL /
                 // type conversions) and substitutes 0.0f for the first 8 FLOAD slots. Java's
@@ -401,6 +406,7 @@ public final class ToolingEntityModels {
                             baseEntityId, variant.variantId(), variant.model(), modelLayerField);
                         continue;
                     }
+                    variantRes = EntityLayerDefinitionResolver.unaliasDelegate(zip, variantRes);
                     String variantEntityId = baseEntityId + "_" + variant.variantId();
                     if (entityToResolution.containsKey(variantEntityId)) continue;
                     entityToResolution.put(variantEntityId, variantRes);

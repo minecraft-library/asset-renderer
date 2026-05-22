@@ -172,6 +172,54 @@ public final class EntityLayerDefinitionResolver {
      * @param diagnostics the diagnostic sink shared with sibling discovery walks
      * @return the primary layer's resolution, or {@code null} when unresolvable
      */
+    /**
+     * Phase 18: detects the delegating-{@code createBodyLayer} pattern - a class whose static
+     * {@code createBodyLayer} (or other factory) body consists solely of {@code INVOKESTATIC
+     * <otherClass>.<otherMethod>; ARETURN}. Returns a {@code Resolution} rewritten to point at
+     * the delegate target so multiple entities sharing a layer factory through a no-op
+     * delegate collapse onto a single geometry entry. Vanilla 26.1 emits this pattern for
+     * {@code AdultZombifiedPiglinModel.createBodyLayer} (delegates to
+     * {@code AdultPiglinModel.createBodyLayer}) and {@code BabyZombifiedPiglinModel} similarly.
+     *
+     * <p>Returns the input {@code Resolution} unchanged when the target method has any other
+     * instruction (cube builder, addOrReplaceChild, LayerDefinition.create wrapper, etc.) -
+     * those are real factories that produce their own geometry.
+     */
+    public static @NotNull Resolution unaliasDelegate(
+        @NotNull ZipFile zip,
+        @NotNull Resolution res
+    ) {
+        ClassNode cn = AsmKit.loadClass(zip, res.targetClass());
+        if (cn == null) return res;
+        MethodNode method = AsmKit.findMethod(cn, res.targetMethod(), res.targetDesc());
+        if (method == null) return res;
+        MethodInsnNode delegate = null;
+        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            int op = in.getOpcode();
+            if (op == -1) continue;
+            if (op == Opcodes.INVOKESTATIC && in instanceof MethodInsnNode mi) {
+                if (delegate != null) return res;
+                delegate = mi;
+                continue;
+            }
+            if (op == Opcodes.ARETURN) continue;
+            return res;
+        }
+        if (delegate == null) return res;
+        if (!delegate.desc.equals(res.targetDesc())) return res;
+        return new Resolution(
+            delegate.owner,
+            delegate.name,
+            delegate.desc,
+            res.texWidthOverride(),
+            res.texHeightOverride(),
+            res.sourceLayerField(),
+            res.defaultInflate(),
+            res.defaultFloatParam(),
+            res.appliedMeshTransformerScale()
+        );
+    }
+
     public static @Nullable Resolution resolvePrimary(
         @NotNull ZipFile zip,
         @NotNull String rendererInternalName,

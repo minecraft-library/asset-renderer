@@ -1,9 +1,4 @@
 {
-  "//": "Hand-edited corrections applied to entity_models.json + entity_geometry.json. Loaded by EntityModelLoader per entity; honoured keys are `geometry_ref`, `texture_ref`, `hidden_bones`, `overlays`. `hidden_bones` strips bones the geometry packs into a shared tree but the entity should not show (illager hat, equine saddle, armor stand hat).",
-  "entities": {
-    "//minecraft:zombified_piglin": "AdultZombifiedPiglinModel.createBodyLayer just returns AdultPiglinModel.createBodyLayer() - the two layers are bytecode-identical. Bytecode tooling emits them as separate entries (geometry.adultpiglin + geometry.adultzombifiedpiglin) with the same bones; redirect to the hand-edited geometry.adultpiglin so the right_sleeve / right_pants pivot fixes and the dropped hat bone apply uniformly across the piglin family.",
-    "minecraft:zombified_piglin": {
-      "geometry_ref": "geometry.adultpiglin"
-    }
-  }
+  "//": "Hand-edited corrections applied to entity_models.json + entity_geometry.json. Loaded by EntityModelLoader per entity; honoured keys are `geometry_ref`, `texture_ref`, `hidden_bones`, `overlays`. Phase 18 emptied the entities map; the file is retained as the Phase 21 sweep target.",
+  "entities": {}
 }
