@@ -37,30 +37,49 @@ import java.util.Set;
 import java.util.zip.ZipFile;
 
 /**
- * Entry point for the Java-derived entity-model pipeline (variant 2a per the research plan at
- * {@code ~/.claude/plans/java-derived-entity-models-research.md}). Lives side-by-side with the
- * legacy {@link ToolingEntityModels}; neither blocks nor consumes the other.
+ * Entry point invoked by the {@code entityModels} Gradle task. Produces the entity-side
+ * counterpart of {@link ToolingBlockEntities} - a single ASM walk over the deobfuscated
+ * client jar that emits two paired JSON resources the runtime pipeline reads:
  *
- * <p><b>Phases delivered so far:</b>
  * <ul>
- *   <li><b>Phase A</b> ({@link EntityRendererDiscovery}): map every living mob from
- *       {@link MobRegistryDiscovery} to its registered renderer class.</li>
- *   <li><b>Phase B</b> ({@link EntityTextureResolver}, {@link EntityVariantResolver},
- *       {@link EntityLayerScanner}): per-renderer texture binding (hardcoded /
- *       conditional / variant-driven), variant tables from {@code data/minecraft/X_variant/},
- *       and the overlay layer enumeration from {@code addLayer(...)} calls in the renderer
- *       constructor chain.</li>
+ *   <li>{@code src/main/resources/lib/minecraft/renderer/entity_models.json} - per-entity
+ *       metadata: geometry reference, texture reference, optional {@code variant_of}
+ *       back-link, overlays list, hidden bones, force-opaque flags.</li>
+ *   <li>{@code src/main/resources/lib/minecraft/renderer/entity_geometry.json} - deduplicated
+ *       bone / cube trees keyed by the unique {@code createBodyLayer}-equivalent factory
+ *       method. Entities that share a factory point at the same geometry entry.</li>
  * </ul>
  *
- * <p>Output is the diagnostic JSON
- * {@code cache/asset-renderer/diagnostics/java_entity_renderers.json} - dev-time exploratory
- * data, not a shipped artifact. Phases C+ will produce {@code entity_models.json} /
- * {@code entity_geometry.json} that ship in {@code src/main/resources/}.
+ * <p><b>Pipeline phases.</b> Each phase narrows to one resolver in
+ * {@link lib.minecraft.renderer.tooling.entity}:
+ * <ol>
+ *   <li><b>Phase A - mob discovery</b>
+ *       ({@link MobRegistryDiscovery}, {@link EntityRendererDiscovery}). Map every living mob
+ *       to its registered renderer class.</li>
+ *   <li><b>Phase B - per-renderer binding</b>
+ *       ({@link EntityTextureResolver}, {@link EntityVariantResolver},
+ *       {@link EntityLayerScanner}). Texture references (hardcoded / conditional /
+ *       variant-driven), data-driven variant tables from {@code data/minecraft/X_variant/},
+ *       and the overlay enumeration from {@code addLayer(...)} call sites.</li>
+ *   <li><b>Phase C - geometry parse</b>
+ *       ({@link EntityLayerDefinitionResolver}, {@link EntityProceduralLoops}). Walks the
+ *       {@code LayerDefinition}-returning factory and the procedural-loop supplemental bone
+ *       tables for squid / blaze / ghast / silverfish / endermite / slime families.</li>
+ *   <li><b>Phase D - overlay resolution</b>
+ *       ({@link EntityOverlayResolver}, {@link EntityBlockOverlayResolver},
+ *       {@link EntitySetupRotationsResolver}). Emits the overlay rows that
+ *       {@link lib.minecraft.renderer.EntityRenderer EntityRenderer} consumes at runtime.</li>
+ * </ol>
  *
- * <p>Phase B exit criterion: every {@link MobRegistryDiscovery} mob has either a primary
- * texture path or a variant-driven flag (with a populated variant table). Mannequin is the
- * one named exception (rendered through the avatar pipeline, not standard EntityRenderers);
- * it falls into {@code mobs_without_renderer_list}.
+ * <p><b>Diagnostics.</b> Two dev-only JSON dumps land under
+ * {@code cache/asset-renderer/diagnostics/} (gitignored) alongside the production output;
+ * they capture intermediate state the production output collapses away. Mannequin is the
+ * one mob that falls outside the standard EntityRenderer flow (rendered through the avatar
+ * pipeline) and shows up only in the diagnostics.
+ *
+ * @see ToolingBlockEntities
+ * @see lib.minecraft.renderer.EntityRenderer
+ * @see lib.minecraft.renderer.kit.EntityGeometryKit
  */
 @UtilityClass
 public final class ToolingEntityModels {

@@ -14,10 +14,24 @@ import java.util.function.Supplier;
 /**
  * Composes multiple renderers (or pre-rendered images) into a single output, transparently
  * promoting the result to animated when any child is animated.
- * <p>
- * Child positions are derived from the selected {@link Layout} strategy. Measurement uses each
- * child's first frame to decide canvas dimensions, then the merged composite is produced by
- * delegating to {@link FrameMerger}.
+ *
+ * <p>Three steps per render:
+ * <ol>
+ *   <li><b>Resolve</b> every {@code Supplier<ImageData>} child to its concrete image. Suppliers
+ *       are invoked once and re-used for every layout / paint step that follows.</li>
+ *   <li><b>Layout</b> child positions via the selected {@link Layout} strategy
+ *       ({@link Layout.Row}, {@link Layout.Column}, {@link Layout.Grid}, {@link Layout.Stack},
+ *       {@link Layout.Custom}). Measurement uses each child's first frame to decide canvas
+ *       dimensions and per-child {@code (x, y)} positions.</li>
+ *   <li><b>Composite</b> via {@link FrameMerger#merge FrameMerger.merge}. If every child is
+ *       static, the merger short-circuits to a single-frame composite; if any child is
+ *       animated, the merger picks a merged loop period and samples each child per output
+ *       frame.</li>
+ * </ol>
+ *
+ * @see LayoutOptions
+ * @see Layout
+ * @see FrameMerger
  */
 public final class LayoutRenderer implements Renderer<LayoutOptions> {
 

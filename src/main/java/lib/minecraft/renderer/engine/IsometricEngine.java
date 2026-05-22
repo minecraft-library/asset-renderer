@@ -6,22 +6,33 @@ import lib.minecraft.renderer.tensor.Quaternionf;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * A {@link ModelEngine} whose camera transform is a named vanilla-Minecraft {@code display.*}
- * pose. Callers use one of two factories rather than {@code new} to pick which pose ends up in
- * the camera:
+ * A {@link ModelEngine} whose camera transform is a named vanilla {@code display.*} pose.
+ *
+ * <p>Three factories pick which pose ends up baked into the camera; callers reach for the
+ * factory rather than {@code new}:
  * <ul>
- * <li>{@link #standard(RendererContext)} - the stock {@code [30, 225, 0]} pitch/yaw/roll from
- * the root {@code block/block.json} model's {@code display.gui}. Use for renders that want the
- * default three-quarter block-icon view (skulls, busts, full-body skin renders).</li>
- * <li>{@link #withGuiPose(RendererContext, EulerRotation)} - a caller-supplied pose.
- * Use when a block or item model overrides the default (stairs author {@code display.gui} as
- * {@code [30, 135, 0]}) so the engine's camera reflects the specific model's authored
- * orientation.</li>
+ *   <li><b>{@link #forBlockIcon(RendererContext)}</b> - the stock {@code [30, 225, 0]}
+ *       pitch / yaw / roll from the root {@code block/block.json} model's
+ *       {@code display.gui}. Use for renders that want the default three-quarter block-icon
+ *       view (block atlases, skulls, busts, full-body skin renders).</li>
+ *   <li><b>{@link #forEntityIcon(RendererContext)}</b> - vanilla's
+ *       {@code EntityFrameRenderer.ISO_ROTATION} ({@code [210, 45, 0]}) plus the LER
+ *       chirality and reflection scales that the vanilla-reference harness applies. Required
+ *       for {@link lib.minecraft.renderer.EntityRenderer} parity against the harness PNGs.</li>
+ *   <li><b>{@link #withGuiPose(RendererContext, EulerRotation)}</b> - a caller-supplied pose.
+ *       Use when a block or item model overrides the default (stairs author
+ *       {@code display.gui} as {@code [30, 135, 0]}) so the engine's camera reflects the
+ *       model's authored orientation.</li>
  * </ul>
- * The camera is applied after the caller's model transform during rasterization, equivalent to
- * vanilla's {@code PoseStack.mulPose(Quaternionf.rotationXYZ(...))} call around the model
- * rendering block. Renderers that are not isometric (free-rotation entity views, handheld item
- * placements) should use plain {@link ModelEngine} instead.
+ *
+ * <p>The camera is applied <b>after</b> the caller's model transform during rasterization,
+ * equivalent to vanilla's
+ * <pre>{@code PoseStack.mulPose(Quaternionf.rotationXYZ(...))}</pre>
+ * call around the model rendering block. Renderers that are not isometric (free-rotation
+ * entity views, handheld item placements) should use plain {@link ModelEngine} instead.
+ *
+ * @see ModelEngine
+ * @see lib.minecraft.renderer.tensor.Quaternionf
  */
 public class IsometricEngine extends ModelEngine {
 

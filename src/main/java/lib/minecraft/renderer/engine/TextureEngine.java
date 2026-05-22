@@ -27,11 +27,24 @@ import java.util.Optional;
 
 /**
  * Baseline texture-aware engine. Every higher-level engine ({@link RasterEngine},
- * {@link ModelEngine}) extends this class and inherits pack resolution, biome tint sampling, and
- * colour overlay helpers.
- * <p>
- * The engine itself is stateless beyond its {@link RendererContext}. All methods are idempotent
- * and thread-safe provided the underlying context is too.
+ * {@link ModelEngine}) extends this class and inherits its three families of helpers:
+ * <ul>
+ *   <li><b>Pack resolution</b> - {@code resolveTexture}, animation strip extraction via
+ *       {@link lib.minecraft.renderer.kit.AnimationKit AnimationKit}, glint compositing via
+ *       {@link lib.minecraft.renderer.kit.GlintKit GlintKit}, and the CIT override lookup.</li>
+ *   <li><b>Biome tint sampling</b> - the vanilla
+ *       {@code BiomeSpecialEffects$GrassColorModifier} dark-forest / swamp variants and the
+ *       default water tint table.</li>
+ *   <li><b>Colour overlay</b> - leather-armor dye, dyed-item layers, and arbitrary ARGB tint
+ *       compositing.</li>
+ * </ul>
+ *
+ * <p>The engine itself is stateless beyond its {@link RendererContext}. All methods are
+ * idempotent and thread-safe provided the underlying context is too.
+ *
+ * @see RendererContext
+ * @see RasterEngine
+ * @see ModelEngine
  */
 @Getter
 @RequiredArgsConstructor

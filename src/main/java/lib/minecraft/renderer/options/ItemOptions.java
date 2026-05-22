@@ -16,8 +16,29 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Optional;
 
 /**
- * Configures a single {@code ItemRenderer} invocation. Covers both 2D GUI icons and 3D held-item
- * views, with opt-in glint animation and colour overlay support.
+ * Configures a single {@link lib.minecraft.renderer.ItemRenderer ItemRenderer} invocation.
+ *
+ * <p>Covers two output flavours plus the item-side decorations that vanilla composes onto
+ * the GUI icon:
+ * <ul>
+ *   <li><b>2D GUI icon</b> - the inventory tile a caller sees at {@code 16x16} logical
+ *       pixels, scaled to {@link #getOutputSize outputSize}. Supports the full item overlay
+ *       stack: durability bar, stack count, enchantment glint, leather dye tint, banner
+ *       pattern composite, armor trim palette permutation.</li>
+ *   <li><b>3D held-item view</b> - the model rendered at the vanilla
+ *       {@code display.thirdperson_righthand} pose (or a caller-supplied
+ *       {@link #getRotation rotation}). Used by atlas tools and held-item previews.</li>
+ * </ul>
+ *
+ * <p><b>Vanilla-pattern composition.</b> Banner layers, armor trim, dye colour, and item
+ * context inputs ({@link ItemContext}) all flow through to the matching
+ * {@link lib.minecraft.renderer.kit kit} composition step. The renderer itself stays
+ * thin - all texture pairing logic lives in
+ * {@link lib.minecraft.renderer.kit.BannerKit BannerKit},
+ * {@link lib.minecraft.renderer.kit.TrimKit TrimKit}, and
+ * {@link lib.minecraft.renderer.kit.GlintKit GlintKit}.
+ *
+ * @see lib.minecraft.renderer.ItemRenderer
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)

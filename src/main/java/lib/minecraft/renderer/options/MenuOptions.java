@@ -12,8 +12,24 @@ import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Configures a single {@code MenuRenderer} invocation. Supports vanilla menu types plus a custom
- * grid mode with caller-controlled row and column dimensions.
+ * Configures a single {@link lib.minecraft.renderer.MenuRenderer MenuRenderer} invocation.
+ *
+ * <p>Supports vanilla menu types ({@link Type#PLAYER}, {@link Type#CHEST},
+ * {@link Type#VANILLA_CRAFTING}, {@link Type#VANILLA_ANVIL}) plus two caller-driven layouts:
+ * <ul>
+ *   <li><b>{@link Type#CUSTOM}</b> - a {@code rows x columns} grid with arbitrary dimensions,
+ *       the generic theme chrome, and per-slot item icons drawn through
+ *       {@link lib.minecraft.renderer.ItemRenderer ItemRenderer}.</li>
+ *   <li><b>{@link Type#SLOT}</b> - a single inventory slot, useful for previewing one item in
+ *       the menu chrome.</li>
+ * </ul>
+ *
+ * <p><b>Slot population.</b> {@link #getSlots slots} maps zero-based slot indices to
+ * {@link lib.minecraft.renderer.options.ItemOptions ItemOptions}, which the renderer dispatches
+ * to {@link lib.minecraft.renderer.ItemRenderer ItemRenderer} per slot. Empty slots stay
+ * transparent.
+ *
+ * @see lib.minecraft.renderer.MenuRenderer
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)

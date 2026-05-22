@@ -13,8 +13,31 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Optional;
 
 /**
- * Configures a single {@code PlayerRenderer} invocation. Supports three body scopes (skull,
- * bust, full body) in both 2D front-facing and 3D isometric dimensions.
+ * Configures a single {@link lib.minecraft.renderer.PlayerRenderer PlayerRenderer} invocation.
+ *
+ * <p>Three body scopes select what portion of the player model renders:
+ * <ul>
+ *   <li><b>{@link Type#SKULL}</b> - head cube only.</li>
+ *   <li><b>{@link Type#BUST}</b> - head + torso + arms.</li>
+ *   <li><b>{@link Type#FULL}</b> - full body.</li>
+ * </ul>
+ *
+ * <p>Two perspectives select how the body is presented:
+ * <ul>
+ *   <li><b>{@link Dimension#TWO_D}</b> - flat orthographic view derived from the skin atlas.</li>
+ *   <li><b>{@link Dimension#THREE_D}</b> - the vanilla {@code display.gui} pose with optional
+ *       armor and trim layers composited via
+ *       {@link lib.minecraft.renderer.kit.ArmorKit ArmorKit} and
+ *       {@link lib.minecraft.renderer.kit.TrimKit TrimKit}.</li>
+ * </ul>
+ *
+ * <p>Skin input is supplied at render time through one of {@link #getSkinBytes skinBytes},
+ * {@link #getSkinUrl skinUrl}, or {@link #getSkinTextureId skinTextureId}; the {@code skinUrl}
+ * path is resolved via the
+ * {@link lib.minecraft.renderer.pipeline.Pipeline#mojang() Pipeline.mojang()} proxy when the
+ * URL points at a Mojang skin texture.
+ *
+ * @see lib.minecraft.renderer.PlayerRenderer
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)

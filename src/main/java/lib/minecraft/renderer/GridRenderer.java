@@ -11,9 +11,24 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * Composes a set of {@link GridOptions.GridTile tiles} into a single grid image.
- * <p>
- * The renderer supports mixed static and animated tiles via {@link FrameMerger}, so a single call
- * can combine PNG and WebP tile sources into one output without caller-side coordination.
+ *
+ * <p>Two paint paths share one dispatch:
+ * <ul>
+ *   <li><b>All-static fast path</b> - allocates a single {@link PixelBuffer}, fills the
+ *       configured background, and blits every tile in parallel. Disjoint destination
+ *       rectangles (separation is non-negative) make the parallel writes race-free without
+ *       per-tile synchronisation.</li>
+ *   <li><b>Mixed / any-animated path</b> - promotes the entire output to animated and walks
+ *       every tile through {@link FrameMerger#merge FrameMerger.merge}, which computes a
+ *       merged loop period (LCM of animated layers, capped at 10 seconds) and samples each
+ *       layer per output frame.</li>
+ * </ul>
+ *
+ * <p>Mixing PNG and WebP tile sources requires no caller-side coordination - the renderer
+ * detects the mix and routes through the animated path automatically.
+ *
+ * @see GridOptions
+ * @see FrameMerger
  */
 public final class GridRenderer implements Renderer<GridOptions> {
 

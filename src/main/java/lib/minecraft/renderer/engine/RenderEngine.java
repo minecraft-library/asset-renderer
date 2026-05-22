@@ -18,11 +18,29 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * Baseline contract and shared static helpers for every rendering engine.
- * <p>
- * Every method that does not require instance state is bundled here as a {@code static} so every
- * concrete engine has direct access to projection, shading, and output helpers without an
- * instance lookup. Instance state (pack resolution, biome sampling, etc.) lives on subclasses
- * starting with {@link TextureEngine}.
+ *
+ * <p>Every method that does not require instance state is bundled here as a {@code static} so
+ * every concrete engine has direct access to:
+ * <ul>
+ *   <li><b>Projection</b> - {@code projectOrtho} and {@code projectPerspective} for the
+ *       camera-to-screen transform.</li>
+ *   <li><b>Lighting</b> - the {@code computeInventoryLighting} / {@code computeEntityInUiLighting}
+ *       helpers that bake the vanilla {@code Lighting.Entry} dot product per-face or per-vertex
+ *       at kit-build time, plus the precomputed {@link #ENTITY_IN_UI_LIGHT_0} and
+ *       {@link #ENTITY_IN_UI_LIGHT_1} constants that drive entity rendering parity against the
+ *       vanilla-reference harness.</li>
+ *   <li><b>Shading</b> - {@code applyShading} multiplies a precomputed scalar into each ARGB
+ *       channel with round-half-up matching vanilla GLSL.</li>
+ *   <li><b>Output building</b> - {@code buildStaticOutput} / {@code buildAnimatedOutput} that
+ *       wrap a {@link PixelBuffer} into the final
+ *       {@link dev.simplified.image.ImageData ImageData} record.</li>
+ * </ul>
+ *
+ * <p>Instance state (pack resolution, biome sampling, etc.) lives on subclasses starting with
+ * {@link TextureEngine}.
+ *
+ * @see TextureEngine
+ * @see ModelEngine
  */
 public interface RenderEngine {
 

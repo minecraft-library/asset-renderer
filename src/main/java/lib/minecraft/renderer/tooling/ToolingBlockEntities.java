@@ -51,11 +51,36 @@ import java.util.zip.ZipFile;
 
 /**
  * Entry point invoked by the {@code blockEntities} Gradle task.
- * <p>
- * Downloads the deobfuscated Minecraft client jar, parses block entity model classes via
- * {@link Parser}, and writes the result to
- * {@code src/main/resources/lib/minecraft/renderer/tile_entity_models.json}. The runtime pipeline reads
- * the JSON via {@link BlockEntityLoader}.
+ *
+ * <p>Downloads the deobfuscated Minecraft client jar, parses every block-entity model class
+ * via {@link Parser}, and writes the result to
+ * {@code src/main/resources/lib/minecraft/renderer/block_entities.json}.
+ *
+ * <p>Output composition:
+ * <ul>
+ *   <li><b>Geometry</b> - decomposed from each block-entity model class's
+ *       {@code createBodyLayer} / {@code createSingleHeadLayer} bytecode. Y-axis normalised
+ *       to the canonical Y-down convention via
+ *       {@link lib.minecraft.renderer.tooling.blockentity.YAxis YAxis}.</li>
+ *   <li><b>Inventory transform</b> - extracted from each renderer's static factory via
+ *       {@link lib.minecraft.renderer.tooling.blockentity.InventoryTransformDecomposer
+ *       InventoryTransformDecomposer}.</li>
+ *   <li><b>Block list</b> - per-family registry walk via
+ *       {@link lib.minecraft.renderer.tooling.blockentity.BlockListDiscovery
+ *       BlockListDiscovery}.</li>
+ *   <li><b>Tint marker</b> - applied to entries whose renderer bytecode invokes a known tint
+ *       accessor (see
+ *       {@link lib.minecraft.renderer.tooling.blockentity.TintDiscovery TintDiscovery}).</li>
+ *   <li><b>Hand-edited overrides</b> - {@code block_entities_overrides.json} overlay-merged
+ *       at write time for fields vanilla never encodes ({@code iconRotation}, {@code additive},
+ *       per-block tints).</li>
+ * </ul>
+ *
+ * <p>The runtime pipeline reads the JSON via {@link BlockEntityLoader}; the ASM walker is
+ * never on the production classpath.
+ *
+ * @see BlockEntityLoader
+ * @see Parser
  */
 @UtilityClass
 public final class ToolingBlockEntities {

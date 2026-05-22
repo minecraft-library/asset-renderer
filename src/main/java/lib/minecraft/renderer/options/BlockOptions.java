@@ -14,7 +14,29 @@ import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Configures a single {@code BlockRenderer} invocation.
+ * Configures a single {@link lib.minecraft.renderer.BlockRenderer BlockRenderer} invocation.
+ *
+ * <p>Two output flavours, selected via {@link Type}:
+ * <ul>
+ *   <li><b>{@link Type#ISOMETRIC_3D}</b> - the full 3D block icon at the vanilla
+ *       {@code [30, 225, 0]} {@code display.gui} pose. Six faces, supersampled by default at
+ *       {@code 2x}, FXAA post-processing optional.</li>
+ *   <li><b>{@link Type#BLOCK_FACE_2D}</b> - a single face blitted flat. Useful for atlas tiles
+ *       that consume one face per output cell.</li>
+ * </ul>
+ *
+ * <p><b>Biome / variant inputs.</b> {@link #getBiome biome} drives grass / foliage / water
+ * tinting. {@link #getVariant variant} matches the vanilla blockstate property string
+ * ({@code "facing=south,lit=false"}); an empty string selects the default variant. Both feed
+ * into the {@link lib.minecraft.renderer.engine.RendererContext RendererContext} lookups
+ * during render, so the renderer itself stays scene-agnostic.
+ *
+ * <p><b>Block-entity composition.</b> {@link #isMergeParts mergeParts} controls whether
+ * {@link Block.Entity Block.Entity} parts (bed foot onto bed head, decorated_pot sides onto
+ * base, banner flag onto post) are merged into one tile or rendered as the per-part scene
+ * geometry; see the field javadoc for the full semantics.
+ *
+ * @see lib.minecraft.renderer.BlockRenderer
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
