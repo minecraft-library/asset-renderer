@@ -594,6 +594,7 @@
       "geometry_ref": "geometry.slime_1",
       "texture_ref": "slime/slime",
       "armor_type": "none",
+      "renderer_scale": 0.999,
       "overlays": [
         {
           "geometry_ref": "geometry.slime",
@@ -698,7 +699,8 @@
     "minecraft:wither": {
       "geometry_ref": "geometry.witherboss",
       "texture_ref": "wither/wither",
-      "armor_type": "none"
+      "armor_type": "none",
+      "renderer_scale": 2.0
     },
     "minecraft:wither_skeleton": {
       "geometry_ref": "geometry.skeleton_2",

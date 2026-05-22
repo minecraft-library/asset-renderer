@@ -119,7 +119,8 @@ public class EntityModelLoader {
         @NotNull List<BlockOverlayLayer> blockOverlays,
         boolean forceOpaque,
         int baseTintArgb,
-        float setupYawAddend
+        float setupYawAddend,
+        float rendererScale
     ) {
 
         /**
@@ -127,7 +128,7 @@ public class EntityModelLoader {
          * common case.
          */
         public EntityDefinition(@NotNull EntityModelData model, @NotNull Optional<String> textureRef) {
-            this(model, textureRef, List.of(), List.of(), false, 0xFFFFFFFF, 0f);
+            this(model, textureRef, List.of(), List.of(), false, 0xFFFFFFFF, 0f, 1f);
         }
 
         /**
@@ -138,7 +139,7 @@ public class EntityModelLoader {
             @NotNull Optional<String> textureRef,
             @NotNull List<OverlayLayer> overlays
         ) {
-            this(model, textureRef, overlays, List.of(), false, 0xFFFFFFFF, 0f);
+            this(model, textureRef, overlays, List.of(), false, 0xFFFFFFFF, 0f, 1f);
         }
 
         /**
@@ -150,7 +151,7 @@ public class EntityModelLoader {
             @NotNull List<OverlayLayer> overlays,
             boolean forceOpaque
         ) {
-            this(model, textureRef, overlays, List.of(), forceOpaque, 0xFFFFFFFF, 0f);
+            this(model, textureRef, overlays, List.of(), forceOpaque, 0xFFFFFFFF, 0f, 1f);
         }
 
         /**
@@ -165,7 +166,7 @@ public class EntityModelLoader {
             @NotNull List<BlockOverlayLayer> blockOverlays,
             boolean forceOpaque
         ) {
-            this(model, textureRef, overlays, blockOverlays, forceOpaque, 0xFFFFFFFF, 0f);
+            this(model, textureRef, overlays, blockOverlays, forceOpaque, 0xFFFFFFFF, 0f, 1f);
         }
 
         /**
@@ -180,7 +181,23 @@ public class EntityModelLoader {
             boolean forceOpaque,
             int baseTintArgb
         ) {
-            this(model, textureRef, overlays, blockOverlays, forceOpaque, baseTintArgb, 0f);
+            this(model, textureRef, overlays, blockOverlays, forceOpaque, baseTintArgb, 0f, 1f);
+        }
+
+        /**
+         * Convenience constructor preserving the historic 7-arg signature in use before
+         * {@link #rendererScale} was added. Defaults the scale to {@code 1f} (identity).
+         */
+        public EntityDefinition(
+            @NotNull EntityModelData model,
+            @NotNull Optional<String> textureRef,
+            @NotNull List<OverlayLayer> overlays,
+            @NotNull List<BlockOverlayLayer> blockOverlays,
+            boolean forceOpaque,
+            int baseTintArgb,
+            float setupYawAddend
+        ) {
+            this(model, textureRef, overlays, blockOverlays, forceOpaque, baseTintArgb, setupYawAddend, 1f);
         }
 
     }
@@ -557,7 +574,17 @@ public class EntityModelLoader {
             if (override != null && override.has("setup_yaw_addend"))
                 setupYawAddend = override.get("setup_yaw_addend").getAsFloat();
 
-            definitions.put(entityId, new EntityDefinition(baseModel, textureRef, overlays, blockOverlays, false, baseTint, setupYawAddend));
+            // Per-entity render-time scale extracted by EntityRendererScaleResolver from the
+            // renderer's scale(state, poseStack) override (wither: literal 2.0; slime: literal
+            // 0.999 + state-dependent identity at zero state). Entities with no override or
+            // identity-collapsing scale chains omit the field and stay at 1.0.
+            float rendererScale = 1f;
+            if (entityJson.has("renderer_scale"))
+                rendererScale = entityJson.get("renderer_scale").getAsFloat();
+            if (override != null && override.has("renderer_scale"))
+                rendererScale = override.get("renderer_scale").getAsFloat();
+
+            definitions.put(entityId, new EntityDefinition(baseModel, textureRef, overlays, blockOverlays, false, baseTint, setupYawAddend, rendererScale));
         }
         return Concurrent.adoptMap(definitions);
     }

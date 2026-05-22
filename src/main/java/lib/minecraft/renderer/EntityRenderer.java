@@ -65,43 +65,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     private static final int MAX_CANVAS_SIZE = Integer.getInteger("refharness.maxCanvasSize", 1024);
 
     /**
-     * Effective entity-render scale per entity id. The single remaining vanilla scale source the
-     * pipeline can't bake into geometry: per-renderer {@code scale(state, ps)} overrides like
-     * {@code WitherBossRenderer} which bakes a constant {@code scale(2, 2, 2)} into its submit
-     * chain.
-     * <p>
-     * {@code MeshTransformer.scaling(F)} wraps (polar_bear 1.2, ghast 4.5, happy_ghast 4.0,
-     * cat 0.8, horse 1.1, giant 6.0, villager / witch / illager-family 0.9375, husk 1.0625,
-     * wither_skeleton 1.2, elder_guardian 2.35, donkey 0.87, mule 0.92, ...) are now baked into
-     * bone {@code pivot} + {@code scale} fields at tooling time across three patterns:
-     * <ul>
-     * <li>inline {@code .apply(MeshTransformer.scaling(F))} in the model's createBodyLayer
-     *     (polar_bear, ghast, happy_ghast)</li>
-     * <li>static-field MeshTransformer in the model class's {@code <clinit>}, applied via
-     *     getstatic in another factory (elder_guardian's {@code ELDER_GUARDIAN_SCALE})</li>
-     * <li>LayerDefinitions-level chains: either {@code .apply(getstatic <Y>_TRANSFORMER)} on
-     *     class fields (cat) or {@code .apply(aload <slot>)} from a local-slot scaling result
-     *     (horse, villager, husk, giant, ...)</li>
-     * </ul>
-     * Same applies to the {@code state.scale} sourced from {@code state.scale} - notably
-     * {@code Giant.scale=6} which we used to model here but is now baked via the LayerDefinitions
-     * pattern (the F=6.0 lives on a local slot in {@code LayerDefinitions.createRoots} applied to
-     * the {@code GIANT} layer via {@code .apply(MeshTransformer)}). Unlisted entities default to 1.
-     * Excluded baby / conditional cases since the static renderer never renders babies.
-     */
-    private static final @NotNull Map<String, Float> RENDERER_SCALE_OVERRIDES = Map.ofEntries(
-        Map.entry("minecraft:wither", 2.0f),
-        // SlimeRenderer.scale chain: poseStack.scale(0.999, 0.999, 0.999) -> translate(0, 0.001, 0)
-        // -> scale(w*size, 1/w*size, w*size) with w = 1/((squish/(size*0.5+1))+1). At zero state
-        // squish=0 -> w=1, and SlimeRenderState defaults state.size=1, so the scale collapses to a
-        // uniform 0.999. Vanilla's harness invokes this via invokeRendererScale; mirroring it here
-        // shrinks the outer-shell cube bounds by 0.1% so the family-fit canvas X drops from 182
-        // (our pre-fix) to 181 (vanilla's harness output). The 0.001 model-unit Y translate is
-        // 0.016 canvas pixels and not separately compensated.
-        Map.entry("minecraft:slime", 0.999f)
-    );
-
-    /**
      * Renderer context for texture resolution + isometric engine setup; not used for entity lookup.
      */
     private final @NotNull RendererContext context;
@@ -161,7 +124,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // grow K x and the projected entity also grows K x so the entity's screen footprint
         // matches the harness's submit-time scale chain. The kit's K x of model vertices happens
         // via the {@code modelScale} parameter on the new buildTriangles overload.
-        float modelScale = RENDERER_SCALE_OVERRIDES.getOrDefault(options.getEntityId().get(), 1.0f);
+        float modelScale = definition.rendererScale();
         Box scaledBounds = scaleBox(baseBounds, modelScale);
 
         // Match the vanilla-reference-harness's family-fit algorithm (see
@@ -490,7 +453,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * member to share the same canvas dimensions, scale, and anchor.
      * <p>
      * Per-member: load the variant's own definition + default texture (NOT the current render's
-     * options-override texture), apply the variant's {@link #RENDERER_SCALE_OVERRIDES} model
+     * options-override texture), apply the variant's {@link EntityModelLoader.EntityDefinition#rendererScale rendererScale} model
      * scale, run {@code computeUnionScreenBounds}, union the result. Family members whose
      * texture / definition can't be resolved (missing PNG, unloaded variant) are skipped - the
      * union degrades to the available members rather than throwing.
@@ -516,7 +479,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             if (memberDef == null || memberDef.model().getBones().isEmpty()) continue;
             Optional<PixelBuffer> memberTexture = resolveFamilyMemberTexture(memberDef);
             if (memberTexture.isEmpty()) continue;
-            float memberScale = RENDERER_SCALE_OVERRIDES.getOrDefault(memberId, 1.0f);
+            float memberScale = memberDef.rendererScale();
             Box memberBounds = computeUnionScreenBounds(memberDef, transform, memberScale, memberTexture.get());
             bounds = unionBoxes(bounds, memberBounds);
         }

@@ -19,6 +19,7 @@ import lib.minecraft.renderer.tooling.entity.EntityLayerScanner;
 import lib.minecraft.renderer.tooling.entity.EntityOverlayResolver;
 import lib.minecraft.renderer.tooling.entity.EntityProceduralLoops;
 import lib.minecraft.renderer.tooling.entity.EntityRendererDiscovery;
+import lib.minecraft.renderer.tooling.entity.EntityRendererScaleResolver;
 import lib.minecraft.renderer.tooling.entity.EntitySetupRotationsResolver;
 import lib.minecraft.renderer.tooling.entity.EntityTextureResolver;
 import lib.minecraft.renderer.tooling.entity.EntityVariantResolver;
@@ -264,7 +265,8 @@ public final class ToolingEntityModels {
                 else unresolvedTexture++;
 
                 float setupYawAddend = EntitySetupRotationsResolver.resolve(zip, renderer);
-                records.put(entityId, new EntityRecord(renderer, binding, layers, variantStem, mob.fieldName(), setupYawAddend));
+                Float rendererScale = EntityRendererScaleResolver.resolve(zip, renderer, diagnostics);
+                records.put(entityId, new EntityRecord(renderer, binding, layers, variantStem, mob.fieldName(), setupYawAddend, rendererScale));
             }
 
             JsonObject root = buildDiagnosticJson(
@@ -726,6 +728,10 @@ public final class ToolingEntityModels {
             }
             if (texture != null) row.addProperty("texture_ref", stripTexturesPrefix(texture));
             row.addProperty("armor_type", inferArmorType(rec.layers()));
+            // Renderer.scale residue extracted by EntityRendererScaleResolver. Non-null only
+            // when the renderer's scale override contains at least one literal poseStack.scale
+            // call AND the product differs from 1.0 - currently wither (2.0) and slime (0.999).
+            if (rec.rendererScale() != null) row.addProperty("renderer_scale", rec.rendererScale());
 
             // Phase E.4: emit overlays (eye layers + composite-model layers like slime outer
             // shell, sheep wool, sheep wool undercoat). Eye overlays carry {@code modelLayerField
@@ -893,7 +899,8 @@ public final class ToolingEntityModels {
         @NotNull ConcurrentList<String> layers,
         String variantStem,
         @NotNull String entityFieldName,
-        float setupYawAddend
+        float setupYawAddend,
+        @Nullable Float rendererScale
     ) {}
 
     /**
