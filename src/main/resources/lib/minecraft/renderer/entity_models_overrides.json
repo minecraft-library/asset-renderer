@@ -20,20 +20,6 @@
     "//minecraft:zombified_piglin": "AdultZombifiedPiglinModel.createBodyLayer just returns AdultPiglinModel.createBodyLayer() - the two layers are bytecode-identical. Bytecode tooling emits them as separate entries (geometry.adultpiglin + geometry.adultzombifiedpiglin) with the same bones; redirect to the hand-edited geometry.adultpiglin so the right_sleeve / right_pants pivot fixes and the dropped hat bone apply uniformly across the piglin family.",
     "minecraft:zombified_piglin": {
       "geometry_ref": "geometry.adultpiglin"
-    },
-    "//llama-family-chest": "LlamaModel.createBodyLayer unconditionally adds right_chest / left_chest bones; LlamaModel.setupAnim toggles their visibility via state.hasChest, which is equipment-driven and false at zero state. Bytecode tooling captures the bones from createBodyLayer but doesn't see the setupAnim visibility toggle, so the chests render by default. Hide them to match a freshly-spawned (no chest equipped) llama. Same applies to trader_llama: the chest is still equipment - the trader-signature decoration is the carpet rendered by LlamaDecorLayer on top of the inflated decor model, NOT the chest.",
-    "minecraft:llama": {
-      "hidden_bones": [
-        "right_chest",
-        "left_chest"
-      ]
-    },
-    "//minecraft:trader_llama": "Hidden bones for state-equipment-driven chest visibility (Phase 10 will derive from LlamaModel.setupAnim's state.hasChest gate). Decor overlay (LlamaDecorLayer + EquipmentAssets.TRADER_LLAMA) is auto-derived by EntityOverlayResolver.",
-    "minecraft:trader_llama": {
-      "hidden_bones": [
-        "right_chest",
-        "left_chest"
-      ]
     }
   }
 }

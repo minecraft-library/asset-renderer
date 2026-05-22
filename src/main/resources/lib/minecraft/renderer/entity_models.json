@@ -231,7 +231,11 @@
     "minecraft:donkey": {
       "geometry_ref": "geometry.donkey",
       "texture_ref": "horse/donkey",
-      "armor_type": "none"
+      "armor_type": "none",
+      "hidden_bones": [
+        "left_chest",
+        "right_chest"
+      ]
     },
     "minecraft:drowned": {
       "geometry_ref": "geometry.drowned",
@@ -368,7 +372,11 @@
     "minecraft:llama": {
       "geometry_ref": "geometry.llama",
       "texture_ref": "llama/llama_creamy",
-      "armor_type": "none"
+      "armor_type": "none",
+      "hidden_bones": [
+        "right_chest",
+        "left_chest"
+      ]
     },
     "minecraft:magma_cube": {
       "geometry_ref": "geometry.magmacube",
@@ -477,7 +485,11 @@
     "minecraft:mule": {
       "geometry_ref": "geometry.donkey_1",
       "texture_ref": "horse/mule",
-      "armor_type": "none"
+      "armor_type": "none",
+      "hidden_bones": [
+        "left_chest",
+        "right_chest"
+      ]
     },
     "minecraft:nautilus": {
       "geometry_ref": "geometry.nautilus",
@@ -687,6 +699,10 @@
           "inflate": 0.5,
           "skip_bounds": true
         }
+      ],
+      "hidden_bones": [
+        "right_chest",
+        "left_chest"
       ]
     },
     "minecraft:tropical_fish": {

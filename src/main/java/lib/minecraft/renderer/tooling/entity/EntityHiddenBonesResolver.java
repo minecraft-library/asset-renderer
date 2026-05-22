@@ -13,8 +13,10 @@ import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.zip.ZipFile;
 
 /**
@@ -62,29 +64,143 @@ public final class EntityHiddenBonesResolver {
         @NotNull String rendererClassInternal,
         @NotNull Diagnostics diag
     ) {
-        LinkedHashSet<String> hidden = new LinkedHashSet<>();
+        LinkedHashSet<String> hiddenFields = new LinkedHashSet<>();
+        LinkedHashMap<String, String> fieldToBoneName = new LinkedHashMap<>();
         String current = modelClassInternal;
         while (current != null && !current.equals(ENTITY_MODEL) && !current.equals(AsmKit.OBJECT_INTERNAL)) {
             ClassNode cn = AsmKit.loadClass(zip, current);
             if (cn == null) break;
             MethodNode ctor = AsmKit.findMethod(cn, AsmKit.INIT);
-            if (ctor != null) collectHiddenBones(cn, ctor, hidden);
+            if (ctor != null) {
+                collectHiddenBones(cn, ctor, hiddenFields);
+                collectFieldToBoneNameMap(cn, ctor, fieldToBoneName);
+            }
+            // Phase 10: state-equipment visibility - LlamaModel.setupAnim writes
+            // `bone.visible = state.<flag>` where the flag's zero-state is false. Walk every
+            // method (not just setupAnim by name, since vanilla also uses prepareMobModel and
+            // other override hooks) for the pattern.
+            for (MethodNode method : cn.methods) {
+                if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name)) continue;
+                collectStateGatedHiddenBones(cn, method, hiddenFields);
+            }
             current = cn.superName;
         }
-        if (hidden.isEmpty()) return Concurrent.newList();
+        if (hiddenFields.isEmpty()) return Concurrent.newList();
 
         LinkedHashSet<String> reEnabled = collectReEnabledBones(zip, rendererClassInternal);
-        if (!reEnabled.isEmpty()) {
-            hidden.removeAll(reEnabled);
+        if (!reEnabled.isEmpty()) hiddenFields.removeAll(reEnabled);
+
+        // Translate model-class field names ({@code rightChest}) to the corresponding bone names
+        // emitted by the geometry JSON ({@code right_chest}) via the ctor's
+        // {@code getChild("<bone>"); PUTFIELD <field>} map. Fields with no map entry pass
+        // through unchanged - this matches the legacy behavior for models whose field name
+        // already equals the bone name (armor_stand hat, illager hat).
+        LinkedHashSet<String> hidden = new LinkedHashSet<>();
+        for (String field : hiddenFields)
+            hidden.add(fieldToBoneName.getOrDefault(field, field));
+
+        if (!reEnabled.isEmpty())
             diag.info("hidden-bones: '%s' -> %s (renderer '%s' re-enables %s)",
                 modelClassInternal, hidden, rendererClassInternal, reEnabled);
-        } else {
+        else
             diag.info("hidden-bones: '%s' -> %s", modelClassInternal, hidden);
-        }
+
         if (hidden.isEmpty()) return Concurrent.newList();
         ConcurrentList<String> out = Concurrent.newList();
         out.addAll(hidden);
         return out;
+    }
+
+    /**
+     * Walks a model class constructor for the {@code LDC "<boneName>"; INVOKEVIRTUAL
+     * ModelPart.getChild; PUTFIELD <fieldName>:LModelPart} chain and records each (field,
+     * boneName) pair. Vanilla models build their bone-field cache this way - the field name is
+     * camelCase ({@code rightChest}) while the bone name is the snake_case geometry id
+     * ({@code right_chest}) the engine looks up by string. Without this translation the
+     * resolver emits the camelCase form to the JSON, and the runtime loader can't find the
+     * matching bone.
+     */
+    private static void collectFieldToBoneNameMap(@NotNull ClassNode owner, @NotNull MethodNode ctor, @NotNull Map<String, String> out) {
+        String pendingBoneName = null;
+        boolean pendingChildCall = false;
+        for (AbstractInsnNode in = ctor.instructions.getFirst(); in != null; in = in.getNext()) {
+            String literal = AsmKit.readStringLiteral(in);
+            if (literal != null) {
+                pendingBoneName = literal;
+                pendingChildCall = false;
+                continue;
+            }
+            if (in.getOpcode() == Opcodes.INVOKEVIRTUAL
+                && in instanceof MethodInsnNode mi
+                && MODEL_PART.equals(mi.owner)
+                && "getChild".equals(mi.name)
+                && pendingBoneName != null) {
+                pendingChildCall = true;
+                continue;
+            }
+            if (in.getOpcode() == Opcodes.PUTFIELD
+                && in instanceof FieldInsnNode put
+                && owner.name.equals(put.owner)
+                && pendingChildCall
+                && pendingBoneName != null) {
+                out.putIfAbsent(put.name, pendingBoneName);
+                pendingBoneName = null;
+                pendingChildCall = false;
+            }
+        }
+    }
+
+    /**
+     * Walks a model method (non-init) for the state-equipment visibility pattern:
+     * <pre>
+     *   ALOAD_0
+     *   GETFIELD &lt;model&gt;.&lt;bone&gt; : LModelPart
+     *   ALOAD &lt;state-arg&gt;
+     *   GETFIELD &lt;state&gt;.hasChest : Z
+     *   PUTFIELD ModelPart.visible : Z
+     * </pre>
+     * Bones gated to a state-class {@code hasChest} flag render only when the entity has a
+     * chest equipped. At the vanilla harness's zero state no equipment is present so the flag
+     * is {@code false} and the bone is hidden - emitting it as a {@code hidden_bones} entry
+     * mirrors the harness output exactly.
+     *
+     * <p>The walker is intentionally narrow: only the {@code hasChest} field name fires.
+     * Generalising to "any boolean state flag whose zero-state default is false" requires
+     * walking the renderer's {@code extractRenderState} + the entity's getter (often a
+     * {@code SynchedEntityData} accessor with a default that's not visible in the getter
+     * bytecode) - more code than the 1-field-name case justifies. The other vanilla
+     * visibility-gating fields ({@code showArms} on ArmorStandModel, {@code hasStinger} on
+     * BeeModel, etc.) need entity-class-default walks to classify safely; this narrow filter
+     * covers the chest case (AbstractChestedHorse subclasses: horse, donkey, mule, llama,
+     * trader_llama) without producing false-positive hides for non-chest gates.
+     */
+    private static void collectStateGatedHiddenBones(@NotNull ClassNode owner, @NotNull MethodNode method, @NotNull LinkedHashSet<String> out) {
+        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (in.getOpcode() != Opcodes.PUTFIELD) continue;
+            if (!(in instanceof FieldInsnNode put)) continue;
+            if (!MODEL_PART.equals(put.owner)) continue;
+            if (!"visible".equals(put.name)) continue;
+            if (!MODEL_PART_VISIBLE_DESC.equals(put.desc)) continue;
+            // Value-path: GETFIELD <state>.hasChest:Z (any other flag falls through).
+            AbstractInsnNode valueInsn = AsmKit.previousReal(in);
+            if (valueInsn == null || valueInsn.getOpcode() != Opcodes.GETFIELD) continue;
+            if (!(valueInsn instanceof FieldInsnNode flagGet)) continue;
+            if (!"Z".equals(flagGet.desc)) continue;
+            if (!"hasChest".equals(flagGet.name)) continue;
+            if (owner.name.equals(flagGet.owner)) continue;
+            AbstractInsnNode stateLoad = AsmKit.previousReal(valueInsn);
+            if (stateLoad == null) continue;
+            if (stateLoad.getOpcode() != Opcodes.ALOAD) continue;
+            if (!(stateLoad instanceof org.objectweb.asm.tree.VarInsnNode varLoad)) continue;
+            if (varLoad.var == 0) continue;
+            // Target-path: GETFIELD <model>.<bone>:LModelPart, with the GETFIELD's owner the
+            // model class itself (this.<bone>).
+            AbstractInsnNode targetInsn = AsmKit.previousReal(stateLoad);
+            if (targetInsn == null || targetInsn.getOpcode() != Opcodes.GETFIELD) continue;
+            if (!(targetInsn instanceof FieldInsnNode get)) continue;
+            if (!owner.name.equals(get.owner)) continue;
+            out.add(get.name);
+        }
     }
 
     /**
