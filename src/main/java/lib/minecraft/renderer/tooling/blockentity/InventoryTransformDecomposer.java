@@ -238,7 +238,7 @@ public final class InventoryTransformDecomposer {
         @NotNull String fieldName,
         @NotNull Diagnostics diag
     ) {
-        MethodNode clinit = AsmKit.findMethod(cn, "<clinit>");
+        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) {
             diag.warn("inventory-transform: no <clinit> on '%s' for field '%s'", cn.name, fieldName);
             return null;
@@ -265,7 +265,7 @@ public final class InventoryTransformDecomposer {
         @NotNull Diagnostics diag
     ) {
         Walker walker = new Walker(zip, cn, diag, 0);
-        walker.isStaticInit = method.name.equals("<clinit>");
+        walker.isStaticInit = AsmKit.CLINIT.equals(method.name);
         // Seed any float parameter slots with YAW sentinels. Our factory methods take at
         // most one float parameter (the yaw angle); this covers both (I), (F), (Attachment, F),
         // and (F, Attachment) descriptors without a per-shape policy.
@@ -740,7 +740,7 @@ public final class InventoryTransformDecomposer {
          * assignment); returns {@code null} for anything more complex.
          */
         private @Nullable Value resolveOwnStaticField(@NotNull String fieldName) {
-            MethodNode clinit = AsmKit.findMethod(this.owner, "<clinit>");
+            MethodNode clinit = AsmKit.findMethod(this.owner, AsmKit.CLINIT);
             if (clinit == null) return null;
             Walker sub = new Walker(this.zip, this.owner, this.diag, this.depth + 1);
             sub.isStaticInit = true;
@@ -762,7 +762,7 @@ public final class InventoryTransformDecomposer {
             String desc = mi.desc;
 
             // Matrix4f / Matrix4fc constructor -----------------------------------------------
-            if (owner.equals(MATRIX4F) && name.equals("<init>") && op == Opcodes.INVOKESPECIAL) {
+            if (owner.equals(MATRIX4F) && AsmKit.INIT.equals(name) && op == Opcodes.INVOKESPECIAL) {
                 if (!desc.equals("()V")) { poison("Matrix4f ctor desc " + desc); return; }
                 // Stack before: ..., NEW, DUP. INVOKESPECIAL pops 1 'this'. The remaining
                 // NEW placeholder becomes the constructed (identity) matrix.
@@ -780,7 +780,7 @@ public final class InventoryTransformDecomposer {
             }
 
             // Vector3f constructor -----------------------------------------------------------
-            if (owner.equals(VECTOR3F) && name.equals("<init>") && op == Opcodes.INVOKESPECIAL) {
+            if (owner.equals(VECTOR3F) && AsmKit.INIT.equals(name) && op == Opcodes.INVOKESPECIAL) {
                 if (desc.equals("(FFF)V")) {
                     Value vz = pop(); Value vy = pop(); Value vx = pop();
                     if (vx == null || vy == null || vz == null) { poison("Vector3f ctor args"); return; }
@@ -816,7 +816,7 @@ public final class InventoryTransformDecomposer {
             }
 
             // Transformation constructor -----------------------------------------------------
-            if (owner.equals(TRANSFORMATION) && name.equals("<init>") && op == Opcodes.INVOKESPECIAL) {
+            if (owner.equals(TRANSFORMATION) && AsmKit.INIT.equals(name) && op == Opcodes.INVOKESPECIAL) {
                 if (desc.equals(TRANSFORMATION_CTOR_MATRIX)) {
                     Value m = pop();
                     if (m == null || m.matrix == null) { poison("Transformation(Matrix) with no matrix on stack"); return; }

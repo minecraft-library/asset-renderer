@@ -5,7 +5,6 @@ import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
-import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodInsnNode;
@@ -47,7 +46,7 @@ public final class TintDiscovery {
 
     private static final @NotNull String DYE_COLOR = "net/minecraft/world/item/DyeColor";
     private static final @NotNull String BANNER_PATTERN = "net/minecraft/world/level/block/entity/BannerPattern";
-    private static final @NotNull String BANNER_PATTERN_LAYERS_DESC = "Lnet/minecraft/world/level/block/entity/BannerPatternLayers;";
+    private static final @NotNull String BANNER_PATTERN_LAYERS = "net/minecraft/world/level/block/entity/BannerPatternLayers";
 
     /**
      * Scans every unique renderer in {@code entityIdToRenderer.values()} for tint-accessor
@@ -108,15 +107,15 @@ public final class TintDiscovery {
             }
             for (MethodNode m : cn.methods) {
                 for (AbstractInsnNode in = m.instructions.getFirst(); in != null; in = in.getNext()) {
-                    if (AsmKit.isInvoke(in, Opcodes.INVOKEVIRTUAL, DYE_COLOR, "getTextureDiffuseColor")) return true;
-                    if (AsmKit.isInvoke(in, Opcodes.INVOKESTATIC, DYE_COLOR, "getTextureDiffuseColors")) return true;
-                    if (AsmKit.isInvoke(in, Opcodes.INVOKEVIRTUAL, BANNER_PATTERN, "getColor")) return true;
+                    if (AsmKit.isInvokeVirtual(in, DYE_COLOR, "getTextureDiffuseColor")) return true;
+                    if (AsmKit.isInvokeStatic(in, DYE_COLOR, "getTextureDiffuseColors")) return true;
+                    if (AsmKit.isInvokeVirtual(in, BANNER_PATTERN, "getColor")) return true;
                     // Patterned-tint pipeline signal: any method returning BannerPatternLayers.
-                    if (in instanceof MethodInsnNode mi && mi.desc.endsWith(BANNER_PATTERN_LAYERS_DESC)) return true;
+                    if (in instanceof MethodInsnNode mi && AsmKit.descriptorReturns(mi.desc, BANNER_PATTERN_LAYERS)) return true;
                 }
             }
             current = cn.superName;
-            if ("java/lang/Object".equals(current)) break;
+            if (AsmKit.OBJECT_INTERNAL.equals(current)) break;
         }
         return false;
     }
