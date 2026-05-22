@@ -7,6 +7,7 @@ import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -220,33 +221,30 @@ public final class EntityVariantResolver {
         @NotNull ZipFile zip,
         @NotNull String holderInternalName
     ) {
-        var cn = lib.minecraft.renderer.tooling.util.AsmKit.loadClass(zip, holderInternalName);
+        var cn = AsmKit.loadClass(zip, holderInternalName);
         if (cn == null) return null;
-        var clinit = lib.minecraft.renderer.tooling.util.AsmKit.findMethod(cn, "<clinit>");
+        var clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return null;
         // First pass: build (FIELD -> id-string) map from the LDC + createKey + PUTSTATIC chain.
         java.util.Map<String, String> fieldToId = new java.util.LinkedHashMap<>();
         String pendingId = null;
         boolean pendingCreateKey = false;
         for (var in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
-            String literal = lib.minecraft.renderer.tooling.util.AsmKit.readStringLiteral(in);
+            String literal = AsmKit.readStringLiteral(in);
             if (literal != null && !literal.contains(":") && !literal.contains("/")) {
                 pendingId = literal;
                 pendingCreateKey = false;
                 continue;
             }
+            // Owner-agnostic createKey match (any class can host a createKey factory).
             if (in.getOpcode() == org.objectweb.asm.Opcodes.INVOKESTATIC
                 && in instanceof org.objectweb.asm.tree.MethodInsnNode mi
                 && "createKey".equals(mi.name)) {
                 pendingCreateKey = true;
                 continue;
             }
-            if (in.getOpcode() == org.objectweb.asm.Opcodes.PUTSTATIC
-                && in instanceof org.objectweb.asm.tree.FieldInsnNode fi
-                && holderInternalName.equals(fi.owner)
-                && pendingId != null
-                && pendingCreateKey) {
-                fieldToId.put(fi.name, pendingId);
+            if (AsmKit.isPutStatic(in, holderInternalName) && pendingId != null && pendingCreateKey) {
+                fieldToId.put(((org.objectweb.asm.tree.FieldInsnNode) in).name, pendingId);
                 pendingId = null;
                 pendingCreateKey = false;
             }
@@ -254,17 +252,11 @@ public final class EntityVariantResolver {
         // Second pass: find which FIELD is bound to DEFAULT.
         String pendingField = null;
         for (var in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
-            if (in.getOpcode() == org.objectweb.asm.Opcodes.GETSTATIC
-                && in instanceof org.objectweb.asm.tree.FieldInsnNode fi
-                && holderInternalName.equals(fi.owner)) {
-                pendingField = fi.name;
+            if (AsmKit.isGetStatic(in, holderInternalName)) {
+                pendingField = ((org.objectweb.asm.tree.FieldInsnNode) in).name;
                 continue;
             }
-            if (in.getOpcode() == org.objectweb.asm.Opcodes.PUTSTATIC
-                && in instanceof org.objectweb.asm.tree.FieldInsnNode fi
-                && holderInternalName.equals(fi.owner)
-                && "DEFAULT".equals(fi.name)
-                && pendingField != null)
+            if (AsmKit.isPutStatic(in, holderInternalName, "DEFAULT") && pendingField != null)
                 return fieldToId.get(pendingField);
         }
         return null;
