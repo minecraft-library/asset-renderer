@@ -8,6 +8,7 @@ import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.GsonSettings;
+import lib.minecraft.renderer.asset.pack.TexturePack;
 import lib.minecraft.renderer.exception.PipelineException;
 import org.jetbrains.annotations.NotNull;
 
@@ -43,7 +44,7 @@ public record PackMeta(
 
     /**
      * The empty mcmeta carrying no format, no description, and no overlays. Used as the default
-     * for {@link lib.minecraft.renderer.asset.pack.TexturePack TexturePack}'s no-args
+     * for {@link TexturePack TexturePack}'s no-args
      * constructor and as a safe stub for in-memory test contexts that synthesise a pack without
      * a real {@code pack.mcmeta} on disk.
      */

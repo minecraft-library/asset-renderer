@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.entity;
 
+import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -19,7 +20,7 @@ import java.util.zip.ZipFile;
  * single vanilla override that survives the frozen-state harness mixin:
  * {@code ShulkerRenderer.setupRotations} calls
  * {@code super.setupRotations(state, ps, bodyRot + 180.0F, entityScale)} which folds into a
- * yaw-axis addend the {@link lib.minecraft.renderer.EntityRenderer EntityRenderer} composes
+ * yaw-axis addend the {@link EntityRenderer EntityRenderer} composes
  * onto the user-supplied rotation before the iso pose. Other vanilla overrides (squid,
  * pufferfish, drowned, ...) either modify other transform-stack ops or are conditional on
  * runtime state that collapses to identity under {@code SkipSetupAnimMixin}; this resolver

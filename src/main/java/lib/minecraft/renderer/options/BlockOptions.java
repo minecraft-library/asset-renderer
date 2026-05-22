@@ -3,8 +3,10 @@ package lib.minecraft.renderer.options;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageFormat;
+import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.Renderer;
 import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.geometry.Biome;
 import lib.minecraft.renderer.geometry.BlockFace;
 import lib.minecraft.renderer.geometry.EulerRotation;
@@ -14,7 +16,7 @@ import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Configures a single {@link lib.minecraft.renderer.BlockRenderer BlockRenderer} invocation.
+ * Configures a single {@link BlockRenderer BlockRenderer} invocation.
  *
  * <p>Two output flavours, selected via {@link Type}:
  * <ul>
@@ -28,7 +30,7 @@ import org.jetbrains.annotations.NotNull;
  * <p><b>Biome / variant inputs.</b> {@link #getBiome biome} drives grass / foliage / water
  * tinting. {@link #getVariant variant} matches the vanilla blockstate property string
  * ({@code "facing=south,lit=false"}); an empty string selects the default variant. Both feed
- * into the {@link lib.minecraft.renderer.engine.RendererContext RendererContext} lookups
+ * into the {@link RendererContext RendererContext} lookups
  * during render, so the renderer itself stays scene-agnostic.
  *
  * <p><b>Block-entity composition.</b> {@link #isMergeParts mergeParts} controls whether

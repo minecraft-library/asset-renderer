@@ -4,19 +4,21 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFormat;
+import lib.minecraft.renderer.GridRenderer;
+import lib.minecraft.renderer.kit.FrameMerger;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Configures a single {@link lib.minecraft.renderer.GridRenderer GridRenderer} invocation.
+ * Configures a single {@link GridRenderer GridRenderer} invocation.
  *
  * <p>Composes a list of {@link GridTile tiles} into a {@code rows x columns} grid with
  * uniform cell size and configurable separation between cells. Mixed static and animated
  * tile sources are handled transparently; if any tile is animated, the renderer promotes the
  * whole output to animated and synchronises tile frames via
- * {@link lib.minecraft.renderer.kit.FrameMerger FrameMerger}.
+ * {@link FrameMerger FrameMerger}.
  *
  * @see lib.minecraft.renderer.GridRenderer
  * @see lib.minecraft.renderer.kit.FrameMerger

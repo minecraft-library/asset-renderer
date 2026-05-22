@@ -1,10 +1,10 @@
 /**
  * Asset acquisition and parsing pipeline. Turns a Minecraft version number and a stack of
  * resource pack directories into the populated DTOs the renderer layer reads via a
- * {@link lib.minecraft.renderer.engine.RendererContext RendererContext}.
+ * {@link RendererContext RendererContext}.
  *
- * <p><b>Orchestrator.</b> {@link lib.minecraft.renderer.pipeline.Pipeline Pipeline} is the
- * single entry point. One {@link lib.minecraft.renderer.pipeline.PipelineOptions
+ * <p><b>Orchestrator.</b> {@link Pipeline Pipeline} is the
+ * single entry point. One {@link PipelineOptions
  * PipelineOptions} -&gt; {@code Pipeline.Result} call:
  * <ol>
  *   <li>Downloads the targeted version's client jar via the
@@ -13,14 +13,14 @@
  *       domain-aware rate limiting shared across every concurrent caller in the JVM.</li>
  *   <li>Extracts the {@code minecraft/} subtrees ({@link
  *       lib.minecraft.renderer.pipeline.VanillaPaths#VANILLA_ASSET_ROOT assets} and
- *       {@link lib.minecraft.renderer.pipeline.VanillaPaths#VANILLA_DATA_ROOT data}).</li>
+ *       {@link VanillaPaths#VANILLA_DATA_ROOT data}).</li>
  *   <li>Walks the active pack stack with each domain-specific loader (block models, item
  *       models, blockstates, block tags, textures, color maps, banner patterns, potion
  *       colors).</li>
  *   <li>Reads OptiFine-flavoured pack rules ({@code optifine/cit}, {@code optifine/ctm},
  *       {@code optifine/colormap}, {@code optifine/color.properties}) and produces the
  *       descending-priority resolver list every renderer queries through
- *       {@link lib.minecraft.renderer.pipeline.PipelineRendererContext PipelineRendererContext}.</li>
+ *       {@link PipelineRendererContext PipelineRendererContext}.</li>
  *   <li>Returns a {@code Pipeline.Result} containing the populated maps plus the pack-root
  *       paths the texture loader uses for on-demand sampling.</li>
  * </ol>
@@ -29,8 +29,8 @@
  * lib.minecraft.renderer.pipeline.PipelineRendererContext PipelineRendererContext} is the
  * production {@code RendererContext} - it wires every {@code findX} / {@code resolveX} method
  * onto the {@code Pipeline.Result} maps plus on-demand
- * {@link lib.minecraft.renderer.pipeline.pack.CitMatcher CIT} /
- * {@link lib.minecraft.renderer.pipeline.pack.CtmMatcher CTM} matchers. Test contexts and
+ * {@link CitMatcher CIT} /
+ * {@link CtmMatcher CTM} matchers. Test contexts and
  * tooling stubs implement {@code RendererContext} directly without going through this class.
  *
  * <p><b>Sub-packages.</b>
@@ -49,19 +49,19 @@
  *       ({@code OverlayResolver}), and the pack-stack precedence walker
  *       ({@code PackResolver}).</li>
  *   <li>{@link lib.minecraft.renderer.pipeline.util util} - SPI implementations and shared
- *       cross-cutting utilities ({@link lib.minecraft.renderer.pipeline.util.PackAcquirer
- *       PackAcquirer}, {@link lib.minecraft.renderer.pipeline.util.PackDownloader
- *       PackDownloader}, {@link lib.minecraft.renderer.pipeline.util.RendererDebug
+ *       cross-cutting utilities ({@link PackAcquirer
+ *       PackAcquirer}, {@link PackDownloader
+ *       PackDownloader}, {@link RendererDebug
  *       RendererDebug} per-pixel diagnostic dump).</li>
  * </ul>
  *
  * <p><b>Gson integration.</b> {@link
  * lib.minecraft.renderer.pipeline.PipelineGsonContributor PipelineGsonContributor} registers
- * the {@link lib.minecraft.renderer.tensor.Vector2f Vector2f} /
- * {@link lib.minecraft.renderer.tensor.Vector3f Vector3f} /
- * {@link lib.minecraft.renderer.tensor.Vector4f Vector4f} type adapters with
+ * the {@link Vector2f Vector2f} /
+ * {@link Vector3f Vector3f} /
+ * {@link Vector4f Vector4f} type adapters with
  * {@code GsonSettings.defaults()} via the {@code GsonContributor}
- * {@link java.util.ServiceLoader ServiceLoader} SPI, so any downstream module that builds a
+ * {@link ServiceLoader ServiceLoader} SPI, so any downstream module that builds a
  * {@code Gson} through {@code GsonSettings.defaults().create()} can deserialize asset JSON
  * automatically.
  *
@@ -74,3 +74,19 @@
  * @see lib.minecraft.renderer.engine.RendererContext
  */
 package lib.minecraft.renderer.pipeline;
+
+import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.pipeline.Pipeline;
+import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.PipelineRendererContext;
+import lib.minecraft.renderer.pipeline.VanillaPaths;
+import lib.minecraft.renderer.pipeline.pack.CitMatcher;
+import lib.minecraft.renderer.pipeline.pack.CtmMatcher;
+import lib.minecraft.renderer.pipeline.util.PackAcquirer;
+import lib.minecraft.renderer.pipeline.util.PackDownloader;
+import lib.minecraft.renderer.pipeline.util.RendererDebug;
+import lib.minecraft.renderer.tensor.Vector2f;
+import lib.minecraft.renderer.tensor.Vector3f;
+import lib.minecraft.renderer.tensor.Vector4f;
+
+import java.util.ServiceLoader;

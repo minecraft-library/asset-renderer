@@ -6,17 +6,20 @@ import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.tooling.blockentity.Source;
+import lib.minecraft.renderer.tooling.blockentity.SourceDiscovery;
 import lib.minecraft.renderer.tooling.blockentity.YAxis;
-import lib.minecraft.renderer.tooling.entity.EntityRendererDiscovery;
 import lib.minecraft.renderer.tooling.entity.EntityBlockOverlayResolver;
-import lib.minecraft.renderer.tooling.entity.EntitySetupRotationsResolver;
 import lib.minecraft.renderer.tooling.entity.EntityLayerDefinitionResolver;
 import lib.minecraft.renderer.tooling.entity.EntityLayerScanner;
 import lib.minecraft.renderer.tooling.entity.EntityOverlayResolver;
 import lib.minecraft.renderer.tooling.entity.EntityProceduralLoops;
+import lib.minecraft.renderer.tooling.entity.EntityRendererDiscovery;
+import lib.minecraft.renderer.tooling.entity.EntitySetupRotationsResolver;
 import lib.minecraft.renderer.tooling.entity.EntityTextureResolver;
 import lib.minecraft.renderer.tooling.entity.EntityVariantResolver;
 import lib.minecraft.renderer.tooling.entity.MobRegistryDiscovery;
@@ -68,7 +71,7 @@ import java.util.zip.ZipFile;
  *   <li><b>Phase D - overlay resolution</b>
  *       ({@link EntityOverlayResolver}, {@link EntityBlockOverlayResolver},
  *       {@link EntitySetupRotationsResolver}). Emits the overlay rows that
- *       {@link lib.minecraft.renderer.EntityRenderer EntityRenderer} consumes at runtime.</li>
+ *       {@link EntityRenderer EntityRenderer} consumes at runtime.</li>
  * </ol>
  *
  * <p><b>Diagnostics.</b> Two dev-only JSON dumps land under
@@ -141,7 +144,7 @@ public final class ToolingEntityModels {
      *     a chained {@code INVOKESTATIC + INVOKEVIRTUAL} pattern the static walker doesn't
      *     unfold. Default to the unweathered base.</li>
      * </ul>
-     * <p>Precedent: {@link lib.minecraft.renderer.tooling.blockentity.SourceDiscovery#SKULL_VARIANT_POLICY}
+     * <p>Precedent: {@link SourceDiscovery#SKULL_VARIANT_POLICY}
      * for the same shape on block entities. Each entry has a clear bytecode-pattern reason
      * recorded above and is verified against the legacy cache textures.
      */
@@ -489,7 +492,7 @@ public final class ToolingEntityModels {
     /**
      * Converts a list of {@link EntityBlockOverlayResolver.BlockOverlayDescriptor} into the
      * JSON wire format consumed by
-     * {@link lib.minecraft.renderer.pipeline.loader.EntityModelLoader#loadBlockOverlays}.
+     * {@link EntityModelLoader#loadBlockOverlays}.
      * Each descriptor becomes one {@code block_overlays[]} row; descriptors are emitted in the
      * order the resolver returned them (which mirrors the bytecode pushPose/popPose order).
      */

@@ -2,6 +2,7 @@ package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.tooling.blockentity.SourceDiscovery;
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lombok.experimental.UtilityClass;
@@ -24,7 +25,7 @@ import java.util.zip.ZipFile;
 /**
  * Bytecode-driven discovery of every {@code (EntityType field -&gt; renderer class)} registration
  * in {@code net.minecraft.client.renderer.entity.EntityRenderers.<clinit>}. Mirrors
- * {@link lib.minecraft.renderer.tooling.blockentity.SourceDiscovery#discover SourceDiscovery}'s
+ * {@link SourceDiscovery#discover SourceDiscovery}'s
  * registry walk for the block-entity side - the bytecode shape is identical:
  *
  * <pre>

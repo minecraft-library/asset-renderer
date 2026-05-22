@@ -11,7 +11,7 @@ import org.jetbrains.annotations.NotNull;
  * <pre>{@code
  *    NW   N   NE
  *      \  |  /
- *    W - *  -- E
+ *    W - *  - E
  *      /  |  \
  *    SW   S   SE
  * }</pre>

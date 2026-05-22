@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.engine;
 
+import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
@@ -18,7 +19,7 @@ import org.jetbrains.annotations.NotNull;
  *   <li><b>{@link #forEntityIcon(RendererContext)}</b> - vanilla's
  *       {@code EntityFrameRenderer.ISO_ROTATION} ({@code [210, 45, 0]}) plus the LER
  *       chirality and reflection scales that the vanilla-reference harness applies. Required
- *       for {@link lib.minecraft.renderer.EntityRenderer} parity against the harness PNGs.</li>
+ *       for {@link EntityRenderer} parity against the harness PNGs.</li>
  *   <li><b>{@link #withGuiPose(RendererContext, EulerRotation)}</b> - a caller-supplied pose.
  *       Use when a block or item model overrides the default (stairs author
  *       {@code display.gui} as {@code [30, 135, 0]}) so the engine's camera reflects the
@@ -101,7 +102,7 @@ public class IsometricEngine extends ModelEngine {
      * Returns an engine wired to vanilla Minecraft's standard entity inventory-preview pose
      * ({@code [210, 45, 0]} pitch/yaw/roll), matching {@code EntityFrameRenderer.ISO_ROTATION}
      * in the vanilla-reference-harness. Use for entity rendering through
-     * {@link lib.minecraft.renderer.EntityRenderer} so the output pose aligns with the
+     * {@link EntityRenderer} so the output pose aligns with the
      * harness ground-truth PNGs. Block / item rendering should continue using
      * {@link #forBlockIcon(RendererContext)}.
      *

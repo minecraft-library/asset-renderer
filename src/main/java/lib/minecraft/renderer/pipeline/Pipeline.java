@@ -14,6 +14,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.util.Lazy;
+import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockTag;
 import lib.minecraft.renderer.asset.binding.BannerPattern;
@@ -31,12 +32,12 @@ import lib.minecraft.renderer.pipeline.loader.CitLoader;
 import lib.minecraft.renderer.pipeline.loader.ColorMapLoader;
 import lib.minecraft.renderer.pipeline.loader.CtmLoader;
 import lib.minecraft.renderer.pipeline.loader.ItemDefinitionLoader;
-import lib.minecraft.renderer.pipeline.resolver.ModelResolver;
 import lib.minecraft.renderer.pipeline.loader.PotionColorLoader;
 import lib.minecraft.renderer.pipeline.loader.TexturePackLoader;
 import lib.minecraft.renderer.pipeline.pack.CitRule;
 import lib.minecraft.renderer.pipeline.pack.ColorProperties;
 import lib.minecraft.renderer.pipeline.pack.CtmRule;
+import lib.minecraft.renderer.pipeline.resolver.ModelResolver;
 import lib.minecraft.renderer.pipeline.resolver.PackResolver;
 import lib.minecraft.renderer.pipeline.util.PackAcquirer;
 import lombok.Getter;
@@ -266,7 +267,7 @@ public class Pipeline {
      * The lazily-initialised shared {@link MojangContract}. Single proxy per JVM via
      * {@link #MOJANG_PROXY}, so concurrent callers ({@link #run}, {@link #downloadJarToCache},
      * the player skin / cape paths in
-     * {@link lib.minecraft.renderer.PlayerRenderer PlayerRenderer}) share the same domain-aware
+     * {@link PlayerRenderer PlayerRenderer}) share the same domain-aware
      * rate limiter.
      *
      * @return the shared Mojang contract

@@ -3,6 +3,8 @@ package lib.minecraft.renderer.tooling.entity;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import lib.minecraft.renderer.tooling.ToolingBlockEntities;
+import lib.minecraft.renderer.tooling.ToolingEntityModels;
 import lib.minecraft.renderer.tooling.util.FastTrig;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -47,7 +49,7 @@ public final class EntityProceduralLoops {
 
     /**
      * Returns {@code true} when a procedural-loop template is registered for the given
-     * resolution. Used by {@link lib.minecraft.renderer.tooling.ToolingEntityModels} to
+     * resolution. Used by {@link ToolingEntityModels} to
      * detect entities that need a stub geometry injected when the {@code Parser} produces no
      * bones (silverfish / endermite both fail the {@code Parser}'s linear walk because their
      * factory methods loop over static {@code int[][]} arrays the parser can't decode; without
@@ -148,7 +150,7 @@ public final class EntityProceduralLoops {
      * Applies the vanilla {@code MeshTransformer.scaling(F)} formula to every bone the applier
      * emitted, where F is read from the post-parse {@code body} bone's {@code scale} field. The
      * Parser already baked F into pre-existing bones (via
-     * {@link lib.minecraft.renderer.tooling.ToolingBlockEntities ToolingBlockEntities}'s
+     * {@link ToolingBlockEntities ToolingBlockEntities}'s
      * {@code applyMeshTransformerScaling}); this completes the job for applier-emitted bones so
      * pre-existing and procedurally-emitted bones share the same coordinate frame.
      *

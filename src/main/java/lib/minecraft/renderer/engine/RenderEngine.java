@@ -1,12 +1,5 @@
 package lib.minecraft.renderer.engine;
 
-import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.geometry.BlockFace;
-import lib.minecraft.renderer.geometry.PerspectiveParams;
-import lib.minecraft.renderer.tensor.Matrix4f;
-import lib.minecraft.renderer.tensor.Quaternionf;
-import lib.minecraft.renderer.tensor.Vector2f;
-import lib.minecraft.renderer.tensor.Vector3f;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
@@ -14,6 +7,14 @@ import dev.simplified.image.data.AnimatedImageData;
 import dev.simplified.image.data.ImageFrame;
 import dev.simplified.image.data.StaticImageData;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.engine.IsometricEngine;
+import lib.minecraft.renderer.exception.RenderException;
+import lib.minecraft.renderer.geometry.BlockFace;
+import lib.minecraft.renderer.geometry.PerspectiveParams;
+import lib.minecraft.renderer.tensor.Matrix4f;
+import lib.minecraft.renderer.tensor.Quaternionf;
+import lib.minecraft.renderer.tensor.Vector2f;
+import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -33,7 +34,7 @@ import org.jetbrains.annotations.NotNull;
  *       channel with round-half-up matching vanilla GLSL.</li>
  *   <li><b>Output building</b> - {@code buildStaticOutput} / {@code buildAnimatedOutput} that
  *       wrap a {@link PixelBuffer} into the final
- *       {@link dev.simplified.image.ImageData ImageData} record.</li>
+ *       {@link ImageData ImageData} record.</li>
  * </ul>
  *
  * <p>Instance state (pack resolution, biome sampling, etc.) lives on subclasses starting with
@@ -63,7 +64,7 @@ public interface RenderEngine {
      * Verified to give identical shade on all six cardinal-axis normals (cod-style entities). For
      * rotated bones the dot agrees per-vertex with vanilla's post-iso fragment shader, removing
      * the per-quadrant signed-luma signature that lingered after A1. Pairs with
-     * {@link lib.minecraft.renderer.engine.IsometricEngine#forEntityIcon}'s camera chain.
+     * {@link IsometricEngine#forEntityIcon}'s camera chain.
      * <p>
      * The previous value {@code normalize(0.2, 1, 1)} was a naive Y-flip of vanilla's source
      * (matched +Y and -Y axes exactly but diverged 0.04 / 0.07 / 0.13 / 0.17 on ±X / ±Z). A

@@ -30,8 +30,8 @@ import java.util.Optional;
  * {@link ModelEngine}) extends this class and inherits its three families of helpers:
  * <ul>
  *   <li><b>Pack resolution</b> - {@code resolveTexture}, animation strip extraction via
- *       {@link lib.minecraft.renderer.kit.AnimationKit AnimationKit}, glint compositing via
- *       {@link lib.minecraft.renderer.kit.GlintKit GlintKit}, and the CIT override lookup.</li>
+ *       {@link AnimationKit AnimationKit}, glint compositing via
+ *       {@link GlintKit GlintKit}, and the CIT override lookup.</li>
  *   <li><b>Biome tint sampling</b> - the vanilla
  *       {@code BiomeSpecialEffects$GrassColorModifier} dark-forest / swamp variants and the
  *       default water tint table.</li>

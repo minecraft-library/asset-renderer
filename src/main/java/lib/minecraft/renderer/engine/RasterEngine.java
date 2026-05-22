@@ -2,6 +2,8 @@ package lib.minecraft.renderer.engine;
 
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.MenuRenderer;
+import lib.minecraft.renderer.TextRenderer;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -11,9 +13,9 @@ import org.jetbrains.annotations.NotNull;
  * <p>Extends {@link TextureEngine} so every 2D renderer inherits pack-aware texture
  * resolution alongside its allocation and blit helpers. Used by:
  * <ul>
- *   <li>{@link lib.minecraft.renderer.MenuRenderer MenuRenderer} - inventory chrome and slot
+ *   <li>{@link MenuRenderer MenuRenderer} - inventory chrome and slot
  *       backgrounds.</li>
- *   <li>{@link lib.minecraft.renderer.TextRenderer TextRenderer} - tooltip backgrounds and
+ *   <li>{@link TextRenderer TextRenderer} - tooltip backgrounds and
  *       borders.</li>
  *   <li>2D sub-renderers like {@code FluidRenderer.FluidFace2D} and
  *       {@code PortalRenderer.PortalFace2D}.</li>

@@ -3,10 +3,14 @@ package lib.minecraft.renderer.options;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageFormat;
+import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.Renderer;
 import lib.minecraft.renderer.asset.binding.ArmorTrim;
 import lib.minecraft.renderer.asset.binding.BannerLayer;
 import lib.minecraft.renderer.asset.binding.DyeColor;
+import lib.minecraft.renderer.kit.BannerKit;
+import lib.minecraft.renderer.kit.GlintKit;
+import lib.minecraft.renderer.kit.TrimKit;
 import lib.minecraft.renderer.pipeline.pack.ItemContext;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -16,7 +20,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Optional;
 
 /**
- * Configures a single {@link lib.minecraft.renderer.ItemRenderer ItemRenderer} invocation.
+ * Configures a single {@link ItemRenderer ItemRenderer} invocation.
  *
  * <p>Covers two output flavours plus the item-side decorations that vanilla composes onto
  * the GUI icon:
@@ -34,9 +38,9 @@ import java.util.Optional;
  * context inputs ({@link ItemContext}) all flow through to the matching
  * {@link lib.minecraft.renderer.kit kit} composition step. The renderer itself stays
  * thin - all texture pairing logic lives in
- * {@link lib.minecraft.renderer.kit.BannerKit BannerKit},
- * {@link lib.minecraft.renderer.kit.TrimKit TrimKit}, and
- * {@link lib.minecraft.renderer.kit.GlintKit GlintKit}.
+ * {@link BannerKit BannerKit},
+ * {@link TrimKit TrimKit}, and
+ * {@link GlintKit GlintKit}.
  *
  * @see lib.minecraft.renderer.ItemRenderer
  */

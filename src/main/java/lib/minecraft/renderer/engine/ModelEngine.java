@@ -74,7 +74,7 @@ public class ModelEngine extends TextureEngine {
      * <p><b>Not a standard GPU sub-pixel precision</b> (real hardware uses {@code 1/16} or
      * {@code 1/256}). The {@code 1/400} value is INCOMMENSURATE with both our rasterizer's
      * {@code 1/256} fixed-point edge functions (see
-     * {@link lib.minecraft.renderer.geometry.ProjectionMath ProjectionMath}) and with
+     * {@link ProjectionMath ProjectionMath}) and with
      * texture grid sizes ({@code 1/16}, {@code 1/32}, {@code 1/64} for typical entity
      * textures), so quantized vertex positions almost never land at sample points that
      * produce exact-half barycentrics or exact-integer texel-coordinate interpolations -

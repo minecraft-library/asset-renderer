@@ -1,9 +1,13 @@
 package lib.minecraft.renderer.options;
 
+import dev.simplified.image.ImageFormat;
+import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.Renderer;
 import lib.minecraft.renderer.asset.binding.ArmorPiece;
 import lib.minecraft.renderer.geometry.EulerRotation;
-import dev.simplified.image.ImageFormat;
+import lib.minecraft.renderer.kit.ArmorKit;
+import lib.minecraft.renderer.kit.TrimKit;
+import lib.minecraft.renderer.pipeline.Pipeline;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -13,7 +17,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Optional;
 
 /**
- * Configures a single {@link lib.minecraft.renderer.PlayerRenderer PlayerRenderer} invocation.
+ * Configures a single {@link PlayerRenderer PlayerRenderer} invocation.
  *
  * <p>Three body scopes select what portion of the player model renders:
  * <ul>
@@ -27,14 +31,14 @@ import java.util.Optional;
  *   <li><b>{@link Dimension#TWO_D}</b> - flat orthographic view derived from the skin atlas.</li>
  *   <li><b>{@link Dimension#THREE_D}</b> - the vanilla {@code display.gui} pose with optional
  *       armor and trim layers composited via
- *       {@link lib.minecraft.renderer.kit.ArmorKit ArmorKit} and
- *       {@link lib.minecraft.renderer.kit.TrimKit TrimKit}.</li>
+ *       {@link ArmorKit ArmorKit} and
+ *       {@link TrimKit TrimKit}.</li>
  * </ul>
  *
  * <p>Skin input is supplied at render time through one of {@link #getSkinBytes skinBytes},
  * {@link #getSkinUrl skinUrl}, or {@link #getSkinTextureId skinTextureId}; the {@code skinUrl}
  * path is resolved via the
- * {@link lib.minecraft.renderer.pipeline.Pipeline#mojang() Pipeline.mojang()} proxy when the
+ * {@link Pipeline#mojang() Pipeline.mojang()} proxy when the
  * URL points at a Mojang skin texture.
  *
  * @see lib.minecraft.renderer.PlayerRenderer

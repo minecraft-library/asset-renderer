@@ -4,7 +4,9 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.engine.IsometricEngine;
 import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.geometry.Box;
 import lib.minecraft.renderer.geometry.EntityFace;
@@ -76,7 +78,7 @@ public class EntityGeometryKit {
      * * R_X(pitch) * R_Y(yaw) * R_X(180°)} is vanilla's iso transform chain (the trailing
      * {@code R_X(180°)} folds in vanilla's {@code LivingEntityRenderer.submit}'s
      * {@code rotateY(180°) + scale(-1,-1,1)} as a single equivalent X-axis rotation - see
-     * {@link lib.minecraft.renderer.engine.IsometricEngine#CAMERA_ENTITY} for the full
+     * {@link IsometricEngine#CAMERA_ENTITY} for the full
      * derivation). For the standard {@code [210°, 45°, 0°]} iso pose this evaluates to
      * approximately {@code (0.6124, -0.5, 0.6124)}; the X and Z components are
      * {@code cos(30°) * sin(45°) = √6/4 ≈ 0.6124} (45° yaw splits horizontal direction
@@ -149,7 +151,7 @@ public class EntityGeometryKit {
     /**
      * Native-resolution variant: caller supplies the model-units-to-NDC scale instead of the kit
      * auto-fitting via {@link #ENTITY_MODEL_FIT_EXTENT}. Used by
-     * {@link lib.minecraft.renderer.EntityRenderer} to match the vanilla-reference-harness's
+     * {@link EntityRenderer} to match the vanilla-reference-harness's
      * fixed {@code pixelsPerBlock} convention so two pipelines render at the same screen scale.
      *
      * @param model the entity model definition (Java Y-down frame)
@@ -197,7 +199,7 @@ public class EntityGeometryKit {
     /**
      * Native-resolution variant taking an explicit model-space centre anchor (replacing the
      * {@code bounds.centre()} default). Used by
-     * {@link lib.minecraft.renderer.EntityRenderer} to centre the silhouette on the canvas
+     * {@link EntityRenderer} to centre the silhouette on the canvas
      * by passing the model-space point whose iso projection equals the screen-space silhouette
      * midpoint - the {@code bounds.centre()} default over-pads non-brick-shaped silhouettes.
      */
@@ -403,7 +405,7 @@ public class EntityGeometryKit {
      * render {@code modelScale}, and the supplied screen-space transform, and returns the tight
      * screen-space AABB of the rendered silhouette.
      *
-     * <p>Used by {@link lib.minecraft.renderer.EntityRenderer#render render()} to size the
+     * <p>Used by {@link EntityRenderer#render render()} to size the
      * output canvas. Mirrors the vanilla-reference-harness's
      * {@code EntityFrameRenderer.contributePolygonExtents}: instead of taking the full cube AABB,
      * each face contributes only the 3D extent of its opaque-pixel sub-rectangle. Faces with
@@ -660,7 +662,7 @@ public class EntityGeometryKit {
      * {@code (v - center) * scale} on each axis, with the kit's permanent Y-flip on positions
      * applied.
      *
-     * <p>Used by {@link lib.minecraft.renderer.EntityRenderer} to project block-model
+     * <p>Used by {@link EntityRenderer} to project block-model
      * overlay triangles (mooshroom mushroom blocks, etc) into the same entity-fit frame the
      * primary entity geometry has been baked into so they render at the correct scale and
      * orientation alongside the entity body.
@@ -684,7 +686,7 @@ public class EntityGeometryKit {
 
     /**
      * Native-resolution variant taking an explicit model-space centre anchor. Used by
-     * {@link lib.minecraft.renderer.EntityRenderer} so block overlays composite at the
+     * {@link EntityRenderer} so block overlays composite at the
      * same silhouette-centred frame the entity body uses (the
      * {@link #buildTriangles(EntityModelData, PixelBuffer, Vector3f, boolean, float, float)
      * Vector3f overload} above).
@@ -701,7 +703,7 @@ public class EntityGeometryKit {
     /**
      * Resolves a bone's world transform (the ancestor-chain anchor used internally by
      * {@link #buildTriangles}). Returns identity when the bone is absent. Used by
-     * {@link lib.minecraft.renderer.EntityRenderer} to anchor a block-overlay's transform
+     * {@link EntityRenderer} to anchor a block-overlay's transform
      * chain to a specific entity bone (mooshroom's third mushroom which sits on the head).
      */
     public static @NotNull Matrix4f resolveBoneAnchorMatrix(

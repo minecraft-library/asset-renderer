@@ -4,7 +4,10 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageFormat;
 import dev.simplified.image.pixel.ColorMath;
+import lib.minecraft.renderer.ItemRenderer;
+import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.options.ItemOptions;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -12,21 +15,21 @@ import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Configures a single {@link lib.minecraft.renderer.MenuRenderer MenuRenderer} invocation.
+ * Configures a single {@link MenuRenderer MenuRenderer} invocation.
  *
  * <p>Supports vanilla menu types ({@link Type#PLAYER}, {@link Type#CHEST},
  * {@link Type#VANILLA_CRAFTING}, {@link Type#VANILLA_ANVIL}) plus two caller-driven layouts:
  * <ul>
  *   <li><b>{@link Type#CUSTOM}</b> - a {@code rows x columns} grid with arbitrary dimensions,
  *       the generic theme chrome, and per-slot item icons drawn through
- *       {@link lib.minecraft.renderer.ItemRenderer ItemRenderer}.</li>
+ *       {@link ItemRenderer ItemRenderer}.</li>
  *   <li><b>{@link Type#SLOT}</b> - a single inventory slot, useful for previewing one item in
  *       the menu chrome.</li>
  * </ul>
  *
  * <p><b>Slot population.</b> {@link #getSlots slots} maps zero-based slot indices to
- * {@link lib.minecraft.renderer.options.ItemOptions ItemOptions}, which the renderer dispatches
- * to {@link lib.minecraft.renderer.ItemRenderer ItemRenderer} per slot. Empty slots stay
+ * {@link ItemOptions ItemOptions}, which the renderer dispatches
+ * to {@link ItemRenderer ItemRenderer} per slot. Empty slots stay
  * transparent.
  *
  * @see lib.minecraft.renderer.MenuRenderer

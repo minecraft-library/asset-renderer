@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.geometry;
 
+import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -129,7 +130,7 @@ public class ProjectionMath {
      * drops further to 3 adds + sign checks.
      * <p>
      * Computed once per triangle in
-     * {@link lib.minecraft.renderer.engine.ModelEngine#projectTriangle projectTriangle} (the
+     * {@link ModelEngine#projectTriangle projectTriangle} (the
      * parallel Pass-1 map); read by every pixel of the triangle's bbox during Pass-2
      * rasterization. {@code ~128 bytes} per triangle - amortizes against tens to thousands
      * of pixel tests.

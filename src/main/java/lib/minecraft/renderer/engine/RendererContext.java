@@ -13,6 +13,7 @@ import lib.minecraft.renderer.asset.pack.AnimationData;
 import lib.minecraft.renderer.asset.pack.ColorMap;
 import lib.minecraft.renderer.asset.pack.Texture;
 import lib.minecraft.renderer.asset.pack.TexturePack;
+import lib.minecraft.renderer.pipeline.pack.CitMatcher;
 import lib.minecraft.renderer.pipeline.pack.CtmResolution;
 import lib.minecraft.renderer.pipeline.pack.CtmRule;
 import lib.minecraft.renderer.pipeline.pack.ItemContext;
@@ -211,10 +212,10 @@ public interface RendererContext {
 
     /**
      * Resolves the highest-priority Custom Item Texture override for a render-time
-     * {@link lib.minecraft.renderer.pipeline.pack.ItemContext ItemContext}, walking the parsed
+     * {@link ItemContext ItemContext}, walking the parsed
      * {@code optifine/cit/**} and {@code mcpatcher/cit/**} rule list in descending weight order
      * and returning the first rule whose
-     * {@link lib.minecraft.renderer.pipeline.pack.CitMatcher} predicate accepts the context. The
+     * {@link CitMatcher} predicate accepts the context. The
      * default returns empty so test stubs do not need to override it.
      *
      * @param context the per-render item context (item id + NBT + enchantments + display name)

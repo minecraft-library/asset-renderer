@@ -2,6 +2,7 @@ package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.tooling.ToolingEntityModels;
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lombok.experimental.UtilityClass;
@@ -29,7 +30,7 @@ import java.util.zip.ZipFile;
  * poppy via {@code IronGolemFlowerLayer}, enderman carried block via {@code CarriedBlockLayer},
  * generic via {@code BlockDecorationLayer}).
  *
- * <p>Generalises what {@link lib.minecraft.renderer.tooling.ToolingEntityModels}
+ * <p>Generalises what {@link ToolingEntityModels}
  * previously hardcoded for mooshroom: walks the renderer constructor for {@code addLayer(new
  * RecognisedLayer(this[, args]))} dispatches, then walks the matched layer's {@code submit}
  * method for each {@code pushPose / popPose} pair, extracting the pose-stack ops issued
@@ -379,7 +380,7 @@ public final class EntityBlockOverlayResolver {
      * Wire-format-friendly representation of one block overlay row. Carries the block id, an
      * optional bone name the overlay attaches to (its bind pose pre-applies), and the ordered
      * pose-stack op list. Consumed by
-     * {@link lib.minecraft.renderer.tooling.ToolingEntityModels} which serialises into the
+     * {@link ToolingEntityModels} which serialises into the
      * {@code block_overlays} JSON array consumed by {@link
      * lib.minecraft.renderer.pipeline.loader.EntityModelLoader.BlockOverlayLayer}.
      */

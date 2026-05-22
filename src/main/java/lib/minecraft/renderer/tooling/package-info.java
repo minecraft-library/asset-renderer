@@ -14,45 +14,45 @@
  *   <tr><td><b>Gradle task</b></td><td><b>Tooling class</b></td><td><b>Output</b></td></tr>
  *   <tr>
  *     <td>{@code blockTints}</td>
- *     <td>{@link lib.minecraft.renderer.tooling.ToolingBlockTints}</td>
+ *     <td>{@link ToolingBlockTints}</td>
  *     <td>{@code block_tints.json}</td>
  *   </tr>
  *   <tr>
  *     <td>{@code potionColors}</td>
- *     <td>{@link lib.minecraft.renderer.tooling.ToolingPotionColors}</td>
+ *     <td>{@link ToolingPotionColors}</td>
  *     <td>{@code potion_colors.json}</td>
  *   </tr>
  *   <tr>
  *     <td>{@code blockEntities}</td>
- *     <td>{@link lib.minecraft.renderer.tooling.ToolingBlockEntities}</td>
+ *     <td>{@link ToolingBlockEntities}</td>
  *     <td>{@code block_entities.json}</td>
  *   </tr>
  *   <tr>
  *     <td>{@code entityModels}</td>
- *     <td>{@link lib.minecraft.renderer.tooling.ToolingEntityModels}</td>
+ *     <td>{@link ToolingEntityModels}</td>
  *     <td>{@code entity_models.json} + {@code entity_geometry.json}</td>
  *   </tr>
  *   <tr>
  *     <td>{@code colorMaps}</td>
- *     <td>{@link lib.minecraft.renderer.tooling.ToolingColorMaps}</td>
+ *     <td>{@link ToolingColorMaps}</td>
  *     <td>{@code color_maps.json}</td>
  *   </tr>
  *   <tr>
  *     <td>{@code atlas} / {@code diagnoseAtlas}</td>
- *     <td>{@link lib.minecraft.renderer.tooling.ToolingAtlas} /
- *         {@link lib.minecraft.renderer.tooling.ToolingAtlasDiagnose}</td>
+ *     <td>{@link ToolingAtlas} /
+ *         {@link ToolingAtlasDiagnose}</td>
  *     <td>{@code build/atlas/} (test only)</td>
  *   </tr>
  * </table>
  *
  * <p><b>ASM scanning approach.</b> Each tooling class opens the extracted client jar (via
- * {@link lib.minecraft.renderer.pipeline.Pipeline Pipeline}), loads the relevant vanilla
+ * {@link Pipeline Pipeline}), loads the relevant vanilla
  * class as a {@code ClassNode}, and walks the {@code <clinit>} or {@code createBodyLayer}
  * bytecode looking for the instruction patterns that produce the constant table. The patterns
  * are captured in code rather than maintained as data because the bytecode-level shape is
  * stable across Minecraft updates while the JSON / resource-pack representation that vanilla
  * sometimes ships as a fallback is not. Common scaffolding lives in
- * {@link lib.minecraft.renderer.tooling.util.AsmKit AsmKit}: opcode predicates, integer-literal
+ * {@link AsmKit AsmKit}: opcode predicates, integer-literal
  * extraction, invokestatic-follow, and the static-field constant-pool reader the multiple
  * scanners share.
  *
@@ -60,44 +60,44 @@
  * <ul>
  *   <li>{@link lib.minecraft.renderer.tooling.blockentity blockentity} - shared block-entity
  *       scaffolding consumed by both {@code ToolingBlockEntities} and the entity pipeline.
- *       {@link lib.minecraft.renderer.tooling.blockentity.Source Source} is the resolved
+ *       {@link Source Source} is the resolved
  *       call-site root (a {@code createBodyLayer} method or equivalent), and
- *       {@link lib.minecraft.renderer.tooling.blockentity.SourceDiscovery SourceDiscovery},
- *       {@link lib.minecraft.renderer.tooling.blockentity.BlockListDiscovery BlockListDiscovery},
- *       {@link lib.minecraft.renderer.tooling.blockentity.TintDiscovery TintDiscovery},
- *       {@link lib.minecraft.renderer.tooling.blockentity.InventoryTransformDecomposer
+ *       {@link SourceDiscovery SourceDiscovery},
+ *       {@link BlockListDiscovery BlockListDiscovery},
+ *       {@link TintDiscovery TintDiscovery},
+ *       {@link InventoryTransformDecomposer
  *       InventoryTransformDecomposer}, and the
- *       {@link lib.minecraft.renderer.tooling.blockentity.YAxis YAxis} convention helper round
+ *       {@link YAxis YAxis} convention helper round
  *       out the discovery surface.</li>
  *   <li>{@link lib.minecraft.renderer.tooling.entity entity} - the Java-derived entity-model
  *       pipeline phases A-D:
- *       {@link lib.minecraft.renderer.tooling.entity.MobRegistryDiscovery mob registry},
- *       {@link lib.minecraft.renderer.tooling.entity.EntityRendererDiscovery renderer-class
+ *       {@link MobRegistryDiscovery mob registry},
+ *       {@link EntityRendererDiscovery renderer-class
  *       mapping},
- *       {@link lib.minecraft.renderer.tooling.entity.EntityTextureResolver texture binding},
- *       {@link lib.minecraft.renderer.tooling.entity.EntityVariantResolver variant tables},
- *       {@link lib.minecraft.renderer.tooling.entity.EntityLayerScanner addLayer
+ *       {@link EntityTextureResolver texture binding},
+ *       {@link EntityVariantResolver variant tables},
+ *       {@link EntityLayerScanner addLayer
  *       overlay scan},
- *       {@link lib.minecraft.renderer.tooling.entity.EntityLayerDefinitionResolver layer
+ *       {@link EntityLayerDefinitionResolver layer
  *       definitions},
- *       {@link lib.minecraft.renderer.tooling.entity.EntityOverlayResolver overlay
+ *       {@link EntityOverlayResolver overlay
  *       resolution},
- *       {@link lib.minecraft.renderer.tooling.entity.EntityBlockOverlayResolver
+ *       {@link EntityBlockOverlayResolver
  *       block-overlay resolution},
- *       {@link lib.minecraft.renderer.tooling.entity.EntitySetupRotationsResolver
+ *       {@link EntitySetupRotationsResolver
  *       setupRotations audit}, and
- *       {@link lib.minecraft.renderer.tooling.entity.EntityProceduralLoops procedural-loop
+ *       {@link EntityProceduralLoops procedural-loop
  *       supplemental bones} for {@code SquidModel}, {@code BlazeModel}, {@code GhastModel},
  *       {@code SilverfishModel}, {@code EndermiteModel}, {@code SlimeModel} families whose
  *       bytecode is impractical for the shared {@code Parser} to unroll.</li>
  *   <li>{@link lib.minecraft.renderer.tooling.util util} - ASM scaffolding
- *       ({@link lib.minecraft.renderer.tooling.util.AsmKit AsmKit}),
- *       {@link lib.minecraft.renderer.tooling.util.Diagnostics Diagnostics} dump scaffolding,
- *       and {@link lib.minecraft.renderer.tooling.util.FastTrig FastTrig} - a port of
+ *       ({@link AsmKit AsmKit}),
+ *       {@link Diagnostics Diagnostics} dump scaffolding,
+ *       and {@link FastTrig FastTrig} - a port of
  *       vanilla's {@code net.minecraft.util.Mth} {@code cos / sin} 65536-entry lookup that
  *       matches the bytecode bit-for-bit; the tooling layer uses it when unrolling
  *       {@code Mth.cos / sin} call sites so the emitted geometry agrees with what
- *       {@link lib.minecraft.renderer.kit.EntityGeometryKit EntityGeometryKit} would produce
+ *       {@link EntityGeometryKit EntityGeometryKit} would produce
  *       at runtime.</li>
  * </ul>
  *
@@ -112,3 +112,32 @@
  * @see lib.minecraft.renderer.tooling.util.AsmKit
  */
 package lib.minecraft.renderer.tooling;
+
+import lib.minecraft.renderer.kit.EntityGeometryKit;
+import lib.minecraft.renderer.pipeline.Pipeline;
+import lib.minecraft.renderer.tooling.ToolingAtlas;
+import lib.minecraft.renderer.tooling.ToolingAtlasDiagnose;
+import lib.minecraft.renderer.tooling.ToolingBlockEntities;
+import lib.minecraft.renderer.tooling.ToolingBlockTints;
+import lib.minecraft.renderer.tooling.ToolingColorMaps;
+import lib.minecraft.renderer.tooling.ToolingEntityModels;
+import lib.minecraft.renderer.tooling.ToolingPotionColors;
+import lib.minecraft.renderer.tooling.blockentity.BlockListDiscovery;
+import lib.minecraft.renderer.tooling.blockentity.InventoryTransformDecomposer;
+import lib.minecraft.renderer.tooling.blockentity.Source;
+import lib.minecraft.renderer.tooling.blockentity.SourceDiscovery;
+import lib.minecraft.renderer.tooling.blockentity.TintDiscovery;
+import lib.minecraft.renderer.tooling.blockentity.YAxis;
+import lib.minecraft.renderer.tooling.entity.EntityBlockOverlayResolver;
+import lib.minecraft.renderer.tooling.entity.EntityLayerDefinitionResolver;
+import lib.minecraft.renderer.tooling.entity.EntityLayerScanner;
+import lib.minecraft.renderer.tooling.entity.EntityOverlayResolver;
+import lib.minecraft.renderer.tooling.entity.EntityProceduralLoops;
+import lib.minecraft.renderer.tooling.entity.EntityRendererDiscovery;
+import lib.minecraft.renderer.tooling.entity.EntitySetupRotationsResolver;
+import lib.minecraft.renderer.tooling.entity.EntityTextureResolver;
+import lib.minecraft.renderer.tooling.entity.EntityVariantResolver;
+import lib.minecraft.renderer.tooling.entity.MobRegistryDiscovery;
+import lib.minecraft.renderer.tooling.util.AsmKit;
+import lib.minecraft.renderer.tooling.util.Diagnostics;
+import lib.minecraft.renderer.tooling.util.FastTrig;

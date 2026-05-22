@@ -10,6 +10,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
@@ -47,7 +48,7 @@ import java.util.Set;
  * A {@code texture_ref} is the vanilla {@code textures/entity/} sub-path (e.g.
  * {@code "cow/cow"}, {@code "wither/wither"}); resolved at render time against the active pack
  * stack via
- * {@link lib.minecraft.renderer.engine.RendererContext#resolveTexture(String) resolveTexture}
+ * {@link RendererContext#resolveTexture(String) resolveTexture}
  * as {@code minecraft:entity/<ref>}.
  * <p>
  * Many Java {@code EntityType} registry rows share one geometry (e.g. {@code horse},
@@ -88,7 +89,7 @@ public class EntityModelLoader {
      * @param model the parsed bone/cube tree (shared across all entities with the same geometry_ref)
      * @param textureRef the vanilla {@code textures/entity/} sub-path (without the {@code .png}
      *     suffix), resolved at render time via
-     *     {@link lib.minecraft.renderer.engine.RendererContext#resolveTexture(String)
+     *     {@link RendererContext#resolveTexture(String)
      *     resolveTexture} as {@code minecraft:entity/<ref>}, or empty when no default texture
      * @param overlays additional geometry/texture pairs rendered on top of the base model in
      *     declared order; populated by the auto-generated emissive eye scan plus hand-edited

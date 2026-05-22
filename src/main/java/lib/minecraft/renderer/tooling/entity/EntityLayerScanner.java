@@ -2,6 +2,7 @@ package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lombok.experimental.UtilityClass;
@@ -22,7 +23,7 @@ import java.util.zip.ZipFile;
  * subclasses an {@code EntityRenderer} composes onto its base mesh via
  * {@code addLayer(new XLayer(...))} calls in its constructor (and parent-chain constructors).
  * These are the source of overlay layers in the runtime
- * {@link lib.minecraft.renderer.asset.Entity#getOverlays Entity.overlays} list:
+ * {@link Entity#getOverlays Entity.overlays} list:
  *
  * <ul>
  *   <li>{@code HumanoidArmorLayer} - armor overlays for humanoid mobs (zombie / skeleton / piglin / etc.)</li>

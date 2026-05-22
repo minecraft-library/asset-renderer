@@ -3,6 +3,7 @@ package lib.minecraft.renderer.asset;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.engine.RendererContext;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -33,7 +34,7 @@ public class Entity {
     /**
      * The vanilla {@code textures/entity/} sub-path (without {@code .png}), or empty when the
      * entity has no default texture binding. Resolved at render time through the active pack
-     * stack via {@link lib.minecraft.renderer.engine.RendererContext#resolveTexture(String)
+     * stack via {@link RendererContext#resolveTexture(String)
      * RendererContext.resolveTexture} as {@code minecraft:entity/<ref>}.
      */
     private @NotNull Optional<String> textureRef = Optional.empty();
@@ -111,7 +112,7 @@ public class Entity {
      * @param model the overlay's bone/cube tree, in the same Y-down entity-root coordinate frame
      *     as the base model so the layers register without per-overlay placement
      * @param textureRef the vanilla {@code textures/entity/} sub-path (without {@code .png}),
-     *     resolved through {@link lib.minecraft.renderer.engine.RendererContext#resolveTexture(String)
+     *     resolved through {@link RendererContext#resolveTexture(String)
      *     RendererContext.resolveTexture} as {@code minecraft:entity/<ref>}, or empty when the
      *     overlay reuses the base texture
      * @param emissive when {@code true} the overlay renders full-bright + additive (vanilla

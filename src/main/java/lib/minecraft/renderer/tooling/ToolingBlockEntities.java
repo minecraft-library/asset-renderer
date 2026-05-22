@@ -9,11 +9,14 @@ import com.google.gson.JsonPrimitive;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.asset.model.EntityModelData.Bone;
+import lib.minecraft.renderer.asset.model.EntityModelData.Cube;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.exception.ToolingException;
 import lib.minecraft.renderer.geometry.BlockFace;
 import lib.minecraft.renderer.geometry.Box;
 import lib.minecraft.renderer.geometry.EntityFace;
+import lib.minecraft.renderer.kit.EntityGeometryKit;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockEntityLoader;
@@ -61,16 +64,16 @@ import java.util.zip.ZipFile;
  *   <li><b>Geometry</b> - decomposed from each block-entity model class's
  *       {@code createBodyLayer} / {@code createSingleHeadLayer} bytecode. Y-axis normalised
  *       to the canonical Y-down convention via
- *       {@link lib.minecraft.renderer.tooling.blockentity.YAxis YAxis}.</li>
+ *       {@link YAxis YAxis}.</li>
  *   <li><b>Inventory transform</b> - extracted from each renderer's static factory via
- *       {@link lib.minecraft.renderer.tooling.blockentity.InventoryTransformDecomposer
+ *       {@link InventoryTransformDecomposer
  *       InventoryTransformDecomposer}.</li>
  *   <li><b>Block list</b> - per-family registry walk via
- *       {@link lib.minecraft.renderer.tooling.blockentity.BlockListDiscovery
+ *       {@link BlockListDiscovery
  *       BlockListDiscovery}.</li>
  *   <li><b>Tint marker</b> - applied to entries whose renderer bytecode invokes a known tint
  *       accessor (see
- *       {@link lib.minecraft.renderer.tooling.blockentity.TintDiscovery TintDiscovery}).</li>
+ *       {@link TintDiscovery TintDiscovery}).</li>
  *   <li><b>Hand-edited overrides</b> - {@code block_entities_overrides.json} overlay-merged
  *       at write time for fields vanilla never encodes ({@code iconRotation}, {@code additive},
  *       per-block tints).</li>
@@ -815,7 +818,7 @@ public final class ToolingBlockEntities {
          * around the entity's feet anchor at {@code y=24.016 pixels} (= {@code 1.501 blocks * 16
          * px/block}, the LER chain's {@code translate(0, -1.501, 0)}) and multiplies the bone's
          * {@code PartPose.scale} field by F. Both halves land here together; the kit's
-         * {@link lib.minecraft.renderer.kit.EntityGeometryKit#buildTriangles} consumes the
+         * {@link EntityGeometryKit#buildTriangles} consumes the
          * {@code scale} field to multiply local cube vertices by F at the pivot translate, which
          * is algebraically equivalent to vanilla's per-vertex {@code poseStack.scale(F)} call
          * sitting AFTER the pivot translate and BEFORE the cube render.
@@ -1453,7 +1456,7 @@ public final class ToolingBlockEntities {
             // expands this per {@code PartPose} as {@code pose.scaled(F).translated(0,
             // 24.016*(1-F), 0)} - scales pivots around the entity's feet anchor (y=24.016) AND
             // multiplies the bone's {@code PartPose.scale} field by F, which the kit consumes
-            // via {@link lib.minecraft.renderer.asset.model.EntityModelData.Bone#getScale()}
+            // via {@link Bone#getScale()}
             // when emitting the bone's cubes. We capture F here, then re-walk the emitted bone
             // tree in {@link #applyMeshTransformerScaling} post-walk so the math agrees with
             // vanilla's apply-after-build semantics. Multiplies into any existing capture so
@@ -2257,7 +2260,7 @@ public final class ToolingBlockEntities {
              * Uniform inflate captured from the most recent {@code new CubeDeformation(F)} or
              * {@code .extend(F)} call; consumed by the next {@code addBox} variant and reset
              * to {@code 0f} after the cube emits. Asymmetric {@code (FFF)} variants average
-             * the three components since {@link lib.minecraft.renderer.asset.model.EntityModelData.Cube}
+             * the three components since {@link Cube}
              * only carries a scalar inflate. Only populated when {@code paramFloatValues != null}
              * (the Java pipeline opts in); legacy block-entity sources never set the
              * gating field so existing parses emit {@code inflate: 0} unchanged.

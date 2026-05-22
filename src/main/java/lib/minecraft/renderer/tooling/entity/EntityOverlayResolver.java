@@ -2,6 +2,8 @@ package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.engine.RenderEngine;
+import lib.minecraft.renderer.tooling.ToolingEntityModels;
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lombok.experimental.UtilityClass;
@@ -115,7 +117,7 @@ public final class EntityOverlayResolver {
      * Allowlist of {@code ModelLayers.X} field names whose composite overlay renders
      * <b>without</b> the cardinal Lambertian shade (vanilla's {@code NO_CARDINAL_LIGHTING}
      * shader define). Emitted as {@code emissive: true} so the rasterizer skips
-     * {@link lib.minecraft.renderer.engine.RenderEngine#applyShading} and the texel's authored
+     * {@link RenderEngine#applyShading} and the texel's authored
      * RGB writes through unchanged (then blended with the existing pixel via NORMAL).
      * <p>Composite overlays not on this list inherit the standard ENTITY_IN_UI dual-light shade
      * (the {@code !emissive} branch in the rasterizer). Adding an entry needs a parity check
@@ -162,7 +164,7 @@ public final class EntityOverlayResolver {
 
     /**
      * One overlay descriptor extracted from a layer class. The runtime emission step in
-     * {@link lib.minecraft.renderer.tooling.ToolingEntityModels} maps this onto an
+     * {@link ToolingEntityModels} maps this onto an
      * {@code overlays} entry in {@code entity_models.json}.
      *
      * @param layerClass JVM internal name of the source layer subclass (diagnostic provenance)
