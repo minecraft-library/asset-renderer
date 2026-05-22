@@ -76,7 +76,7 @@ import java.util.zip.ZipFile;
 @UtilityClass
 public final class SourceDiscovery {
 
-    private static final @NotNull String BLOCK_ENTITY_RENDERERS = "net/minecraft/client/renderer/blockentity/BlockEntityRenderers";
+    private static final @NotNull String BLOCK_ENTITY_RENDERERS = AsmKit.Vanilla.BLOCK_ENTITY_RENDERERS;
     private static final @NotNull String BLOCK_ENTITY_TYPE = "net/minecraft/world/level/block/entity/BlockEntityType";
     private static final @NotNull String LAYER_DEFINITIONS = "net/minecraft/client/model/geom/LayerDefinitions";
     private static final @NotNull String MODEL_LAYERS = "net/minecraft/client/model/geom/ModelLayers";
@@ -209,7 +209,7 @@ public final class SourceDiscovery {
             diag.error("'%s' class missing from jar - cannot discover block-entity sources", BLOCK_ENTITY_RENDERERS);
             return Concurrent.newList();
         }
-        MethodNode registryInit = AsmKit.findMethod(registryClass, "<clinit>");
+        MethodNode registryInit = AsmKit.findMethod(registryClass, AsmKit.CLINIT);
         if (registryInit == null) {
             diag.error("'%s.<clinit>' missing - cannot discover block-entity sources", BLOCK_ENTITY_RENDERERS);
             return Concurrent.newList();
@@ -292,10 +292,8 @@ public final class SourceDiscovery {
             // Capture the most recent BlockEntityType.X GETSTATIC. When the next INVOKEDYNAMIC
             // (lambda factory) appears its target Handle is the renderer constructor we want to
             // bind to this BE field.
-            if (in instanceof FieldInsnNode fieldInsn
-                && fieldInsn.getOpcode() == Opcodes.GETSTATIC
-                && fieldInsn.owner.equals(BLOCK_ENTITY_TYPE)) {
-                pendingBeField = fieldInsn.name;
+            if (AsmKit.isGetStatic(in, BLOCK_ENTITY_TYPE)) {
+                pendingBeField = ((FieldInsnNode) in).name;
                 continue;
             }
             if (in instanceof InvokeDynamicInsnNode indy && pendingBeField != null) {
@@ -318,21 +316,7 @@ public final class SourceDiscovery {
      * ({@code tag=6 lambda$static$N}, whose body {@code NEW}s the renderer).
      */
     private static @Nullable String resolveLambdaRenderer(@NotNull InvokeDynamicInsnNode indy, @NotNull ClassNode ownerClass) {
-        if (indy.bsmArgs.length < 2) return null;
-        if (!(indy.bsmArgs[1] instanceof Handle handle)) return null;
-        // tag=8 (REF_newInvokeSpecial) points directly at Renderer.<init>.
-        if (handle.getTag() == Opcodes.H_NEWINVOKESPECIAL && handle.getName().equals("<init>"))
-            return handle.getOwner();
-        // tag=6 (REF_invokeStatic) points at a synthetic lambda in this class whose body
-        // NEWs the real renderer. Walk the lambda to find the NEW.
-        if (handle.getTag() == Opcodes.H_INVOKESTATIC && handle.getOwner().equals(ownerClass.name)) {
-            MethodNode lambda = AsmKit.findMethod(ownerClass, handle.getName(), handle.getDesc());
-            if (lambda == null) return null;
-            for (AbstractInsnNode node = lambda.instructions.getFirst(); node != null; node = node.getNext())
-                if (node instanceof TypeInsnNode type && type.getOpcode() == Opcodes.NEW)
-                    return type.desc;
-        }
-        return null;
+        return AsmKit.resolveLambdaTargetClass(indy, ownerClass);
     }
 
     // ------------------------------------------------------------------------------------------
@@ -351,7 +335,7 @@ public final class SourceDiscovery {
             diag.error("'%s' class missing - entity ids unresolved", BLOCK_ENTITY_TYPE);
             return Map.of();
         }
-        MethodNode init = AsmKit.findMethod(cn, "<clinit>");
+        MethodNode init = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (init == null) {
             diag.error("'%s.<clinit>' missing - entity ids unresolved", BLOCK_ENTITY_TYPE);
             return Map.of();
@@ -361,13 +345,10 @@ public final class SourceDiscovery {
         for (AbstractInsnNode in = init.instructions.getFirst(); in != null; in = in.getNext()) {
             String lit = AsmKit.readStringLiteral(in);
             if (lit != null) pendingId = lit;
-            if (in instanceof FieldInsnNode fi
-                && fi.getOpcode() == Opcodes.PUTSTATIC
-                && fi.owner.equals(BLOCK_ENTITY_TYPE)
-                && pendingId != null) {
+            if (AsmKit.isPutStatic(in, BLOCK_ENTITY_TYPE) && pendingId != null) {
                 // Only the first PUTSTATIC after each LDC captures the id. Subsequent fields
                 // (e.g. OP_ONLY_CUSTOM_DATA) reset pendingId with their own LDC or stay cleared.
-                out.put(fi.name, pendingId);
+                out.put(((FieldInsnNode) in).name, pendingId);
                 pendingId = null;
             }
         }
@@ -512,14 +493,12 @@ public final class SourceDiscovery {
             if (cn == null) break;
             for (MethodNode m : cn.methods) {
                 for (AbstractInsnNode in = m.instructions.getFirst(); in != null; in = in.getNext()) {
-                    if (in instanceof FieldInsnNode fi
-                        && fi.getOpcode() == Opcodes.GETSTATIC
-                        && fi.owner.equals(MODEL_LAYERS))
-                        out.add(fi.name);
+                    if (AsmKit.isGetStatic(in, MODEL_LAYERS))
+                        out.add(((FieldInsnNode) in).name);
                 }
             }
             current = cn.superName;
-            if ("java/lang/Object".equals(current)) break;
+            if (AsmKit.OBJECT_INTERNAL.equals(current)) break;
         }
         return out;
     }
