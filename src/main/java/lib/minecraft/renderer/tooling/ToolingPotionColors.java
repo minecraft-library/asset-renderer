@@ -140,12 +140,7 @@ public final class ToolingPotionColors {
         public static @NotNull ConcurrentMap<String, Integer> parse(@NotNull Path jarPath) {
             try (ZipFile zip = new ZipFile(jarPath.toFile())) {
                 ClassNode classNode = AsmKit.requireClass(zip, MOB_EFFECTS_INTERNAL_NAME, "MobEffects");
-                MethodNode clinit = AsmKit.findMethod(classNode, CLINIT_METHOD_NAME);
-                if (clinit == null)
-                    throw new ToolingException(
-                        "MobEffects class does not expose a '%s' method - jar may be obfuscated or from an unsupported version",
-                        CLINIT_METHOD_NAME
-                    );
+                MethodNode clinit = AsmKit.requireClinit(classNode, "MobEffects");
                 return parseClinit(clinit.instructions);
             } catch (IOException ex) {
                 throw new ToolingException(ex, "Failed to read MobEffects class from jar '%s'", jarPath);
@@ -200,7 +195,7 @@ public final class ToolingPotionColors {
                     continue;
                 }
 
-                if (AsmKit.isInvoke(node, Opcodes.INVOKESTATIC, MOB_EFFECTS_INTERNAL_NAME, REGISTER_METHOD_NAME)) {
+                if (AsmKit.isInvokeStatic(node, MOB_EFFECTS_INTERNAL_NAME, REGISTER_METHOD_NAME)) {
                     if (pendingEffectId != null && pendingColor != null) {
                         colors.put("minecraft:" + pendingEffectId, pendingColor);
                     }

@@ -182,12 +182,7 @@ public final class ToolingBlockTints {
         public static @NotNull ConcurrentMap<String, Block.Tint> parse(@NotNull Path jarPath) {
             try (ZipFile zip = new ZipFile(jarPath.toFile())) {
                 ClassNode classNode = AsmKit.requireClass(zip, BLOCK_COLORS_INTERNAL_NAME, "BlockColors");
-                MethodNode createDefault = AsmKit.findMethod(classNode, CREATE_DEFAULT_METHOD_NAME);
-                if (createDefault == null)
-                    throw new ToolingException(
-                        "BlockColors class does not expose a '%s' method - jar may be obfuscated or from an unsupported version",
-                        CREATE_DEFAULT_METHOD_NAME
-                    );
+                MethodNode createDefault = AsmKit.requireMethod(classNode, CREATE_DEFAULT_METHOD_NAME, "BlockColors");
                 return parseCreateDefault(createDefault.instructions);
             } catch (IOException ex) {
                 throw new ToolingException(ex, "Failed to read BlockColors class from jar '%s'", jarPath);
