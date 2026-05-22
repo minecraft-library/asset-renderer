@@ -58,11 +58,6 @@ import java.util.zip.ZipFile;
 public final class EntityTextureResolver {
 
     /**
-     * JVM internal name of {@code net.minecraft.resources.Identifier}.
-     */
-    
-
-    /**
      * The factory call most renderer {@code <clinit>}s use to wrap a path String into an Identifier.
      */
     private static final @NotNull String WITH_DEFAULT_NAMESPACE = "withDefaultNamespace";

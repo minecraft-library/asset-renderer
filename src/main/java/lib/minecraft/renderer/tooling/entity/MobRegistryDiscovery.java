@@ -51,14 +51,6 @@ import java.util.zip.ZipFile;
 public final class MobRegistryDiscovery {
 
     /**
-     * JVM internal name of {@code net.minecraft.world.entity.EntityType$Builder}.
-     */
-
-    /**
-     * JVM internal name of {@code net.minecraft.world.entity.MobCategory}.
-     */
-
-    /**
      * Name of the builder factory method: {@code EntityType$Builder.of(EntityFactory, MobCategory)}.
      */
     private static final @NotNull String BUILDER_OF = "of";

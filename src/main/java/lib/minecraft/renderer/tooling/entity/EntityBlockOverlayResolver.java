@@ -86,10 +86,6 @@ public final class EntityBlockOverlayResolver {
     }};
 
     /**
-     * JVM internal name of {@code Blocks} - the {@code <Variant>$<clinit>} GETSTATICs go through this.
-     */
-
-    /**
      * Resolves the block-overlay descriptors attached to an entity's renderer via recognised
      * block-decoration layer classes. Returns an empty list when the renderer has no recognised
      * layers - the common case (only ~4 vanilla entities have block-decoration layers).

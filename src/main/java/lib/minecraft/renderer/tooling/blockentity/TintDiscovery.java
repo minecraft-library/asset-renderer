@@ -45,7 +45,6 @@ import java.util.zip.ZipFile;
 @UtilityClass
 public final class TintDiscovery {
 
-
     /**
      * Scans every unique renderer in {@code entityIdToRenderer.values()} for tint-accessor
      * calls; for each tint-bearing renderer, emits the entity ids of its {@code Flag}-suffixed

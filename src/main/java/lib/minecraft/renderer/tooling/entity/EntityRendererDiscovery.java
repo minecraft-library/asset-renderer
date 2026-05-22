@@ -50,10 +50,6 @@ import java.util.zip.ZipFile;
 public final class EntityRendererDiscovery {
 
     /**
-     * JVM internal name of {@code net.minecraft.client.renderer.entity.EntityRenderers}.
-     */
-
-    /**
      * One {@code (EntityType field, renderer class)} pair extracted from
      * {@code EntityRenderers.<clinit>}.
      *

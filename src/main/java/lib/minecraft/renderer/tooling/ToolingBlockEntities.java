@@ -1024,10 +1024,11 @@ public final class ToolingBlockEntities {
                 // ILOAD N: if the source declared a value for slot N, push it onto the
                 // branch stack so the upcoming IFEQ / IFNE / switch can evaluate the
                 // conditional. If the slot is NOT in {@code paramIntValues} (or the source
-                // didn't supply any values), push a {@link NonLiteralMarker} onto
-                // {@link ParseState#numStack} instead - when a downstream addBox / PartPose
-                // consumes it, {@link #popIntWithDiagnostics} surfaces a {@code WARN:} so the
-                // silent-zero failure mode doesn't get baked into the output cube.
+                // didn't supply any values), call {@code state.numStack.pushNonLiteral()} to
+                // mark the entry as non-literal on {@link ParseState#numStack} - when a
+                // downstream addBox / PartPose consumes it, {@link #popIntWithDiagnostics}
+                // surfaces a {@code WARN:} so the silent-zero failure mode doesn't get baked
+                // into the output cube.
                 if (node instanceof VarInsnNode varInsn && opcode == Opcodes.ILOAD) {
                     int slot = varInsn.var;
                     boolean resolved = state.paramIntValues != null && slot >= 0 && slot < state.paramIntValues.length;
@@ -1049,10 +1050,10 @@ public final class ToolingBlockEntities {
                 }
 
                 // FLOAD / DLOAD / LLOAD: the value comes from a local variable the parser
-                // can't resolve. Push {@link #NON_LITERAL} so the next {@link #popFloatWithDiagnostics}
-                // / {@link #popIntWithDiagnostics} surfaces the attribution instead of silently
-                // consuming a stale zero off an earlier literal or a fresh zero from an empty
-                // stack.
+                // can't resolve. Call {@code state.numStack.pushNonLiteral()} so the next
+                // {@link #popFloatWithDiagnostics} / {@link #popIntWithDiagnostics} surfaces
+                // the attribution instead of silently consuming a stale zero off an earlier
+                // literal or a fresh zero from an empty stack.
                 //
                 // When {@code paramFloatValues} is supplied (Java-derived entity sources opt in
                 // for arithmetic evaluation), {@code FLOAD slot} substitutes the known value
@@ -1106,7 +1107,7 @@ public final class ToolingBlockEntities {
                 //   <li>IALOAD / BALOAD / SALOAD / CALOAD: pop 1 ref + 1 int, push 1 int.
                 //       numStack effect: pop 1 int, push 1 NL int.</li>
                 //   <li>FALOAD / DALOAD / LALOAD: same shape with float / double / long result -
-                //       still represented as a single {@link #NON_LITERAL} on numStack.</li>
+                //       still represented as a single non-literal marker on numStack.</li>
                 //   <li>ARRAYLENGTH: pop 1 ref, push 1 int. Push NL.</li>
                 // </ul>
                 // Gated on {@code paramFloatValues != null} for byte-stability.
@@ -1143,9 +1144,9 @@ public final class ToolingBlockEntities {
                 // Comparison ops that push an int result: {@code LCMP} (long / long),
                 // {@code FCMPL} / {@code FCMPG} (float / float), {@code DCMPL} / {@code DCMPG}
                 // (double / double). Each pops two operands and pushes -1 / 0 / 1 onto the JVM
-                // stack. Our walker can't statically know the result so push {@link #NON_LITERAL}
-                // - the next IFEQ / IFNE / IF_ICMP* handler above pops it and falls through
-                // linearly without taking the branch.
+                // stack. Our walker can't statically know the result so push a non-literal
+                // marker - the next IFEQ / IFNE / IF_ICMP* handler above pops it and falls
+                // through linearly without taking the branch.
                 if (state.paramFloatValues != null
                     && (opcode == Opcodes.LCMP || opcode == Opcodes.FCMPL || opcode == Opcodes.FCMPG
                         || opcode == Opcodes.DCMPL || opcode == Opcodes.DCMPG)) {
@@ -1520,7 +1521,7 @@ public final class ToolingBlockEntities {
                     // legSize, boolean fur, boolean other, CubeDeformation)} and similar
                     // helpers - the call site pushes literal ints (pig's {@code bipush 6,
                     // iconst_1, iconst_0}); without this the inlined method's {@code iload_0}
-                    // resolves to {@link #NON_LITERAL} and downstream {@code 18 - legSize}
+                    // resolves to a non-literal marker and downstream {@code 18 - legSize}
                     // arithmetic produces 18 instead of 12. Saved/restored around the recurse so
                     // the outer parse state stays unaffected.
                     int[] previousInts = state.paramIntValues;

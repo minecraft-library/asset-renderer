@@ -50,18 +50,6 @@ import java.util.zip.ZipFile;
 @UtilityClass
 public final class EntityLayerDefinitionResolver {
 
-    /**
-     * JVM internal name of {@code net.minecraft.client.model.geom.LayerDefinitions}.
-     */
-
-    /**
-     * JVM internal name of {@code net.minecraft.client.model.geom.ModelLayers}.
-     */
-
-    /**
-     * JVM internal name of {@code net.minecraft.client.model.geom.builders.LayerDefinition}.
-     */
-
     /** Suffix of every {@code (...)LayerDefinition} method descriptor. */
     private static final @NotNull String LAYER_DEFINITION_DESC_RETURN = ")L" + VanillaSourceClasses.LAYER_DEFINITION + ";";
 

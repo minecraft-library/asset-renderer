@@ -95,12 +95,13 @@ public final class InventoryTransformDecomposer {
     private static final @NotNull String VECTOR3F = "org/joml/Vector3f";
     private static final @NotNull String VECTOR3FC = "org/joml/Vector3fc";
     private static final @NotNull String QUATERNIONF = "org/joml/Quaternionf";
+    private static final @NotNull String QUATERNIONFC = "org/joml/Quaternionfc";
     private static final @NotNull String AXIS = "com/mojang/math/Axis";
     private static final @NotNull String TRANSFORMATION = "com/mojang/math/Transformation";
     private static final @NotNull String TRANSFORMATION_DESC = "L" + TRANSFORMATION + ";";
     private static final @NotNull String TRANSFORMATION_CTOR_MATRIX = "(Lorg/joml/Matrix4fc;)V";
     private static final @NotNull String TRANSFORMATION_CTOR_COMPONENTS =
-        "(Lorg/joml/Vector3fc;Lorg/joml/Quaternionfc;Lorg/joml/Vector3fc;Lorg/joml/Quaternionfc;)V";
+        "(L" + VECTOR3FC + ";L" + QUATERNIONFC + ";L" + VECTOR3FC + ";L" + QUATERNIONFC + ";)V";
 
     private static final float UNIT_EPS = 1e-3f;
     private static final int MAX_INLINE_DEPTH = 2;
@@ -503,8 +504,8 @@ public final class InventoryTransformDecomposer {
         }
 
         void push(@NotNull Value v) { this.stack.add(v); }
-        @Nullable Value pop() { return this.stack.isEmpty() ? null : this.stack.remove(this.stack.size() - 1); }
-        @Nullable Value peek() { return this.stack.isEmpty() ? null : this.stack.get(this.stack.size() - 1); }
+        @Nullable Value pop() { return this.stack.isEmpty() ? null : this.stack.removeLast(); }
+        @Nullable Value peek() { return this.stack.isEmpty() ? null : this.stack.getLast(); }
 
         void poison(@NotNull String reason) {
             if (this.poisoned) return;

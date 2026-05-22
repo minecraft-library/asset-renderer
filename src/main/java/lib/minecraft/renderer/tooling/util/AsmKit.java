@@ -64,10 +64,6 @@ import java.util.zip.ZipFile;
  * Those stay in the individual resolvers - this class purely owns the bytecode-level
  * primitives. Anything that drifted into duplicate "this is what the bytecode looks like"
  * boilerplate across two or more parsers lives here.
- *
- * <p>The {@link Vanilla} nested holder centralises a small set of JVM internal names used in
- * 2+ resolvers ({@code IDENTIFIER}, {@code MODEL_PART}, {@code ENTITY_TYPE}, etc.) so a
- * Minecraft version bump that renames any of them lands in one place.
  */
 @UtilityClass
 public final class AsmKit {
