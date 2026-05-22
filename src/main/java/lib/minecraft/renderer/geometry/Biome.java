@@ -17,7 +17,7 @@ import java.util.Optional;
  * Two flavours are supported:
  * <ul>
  * <li><b>{@link Vanilla}</b> - a fixed enum of every known vanilla biome with its baked temperature,
- * downfall, hardcoded colour overrides, and {@link GrassColorModifier}. Callers normally reference
+ * downfall, hardcoded colour overrides, and {@link Biome.GrassColorModifier}. Callers normally reference
  * these directly (e.g. {@code Biome.Vanilla.PLAINS}).</li>
  * <li><b>{@link Custom}</b> - a record for modded or user-defined biomes. Construct via the
  * {@link #of(String, float, float) shorthand factory} or the {@link #builder(String)} for
@@ -32,7 +32,7 @@ import java.util.Optional;
 public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
 
     /**
-     * The warm swamp grass colour returned by vanilla's swamp {@link GrassColorModifier#SWAMP}
+     * The warm swamp grass colour returned by vanilla's swamp {@link Biome.GrassColorModifier#SWAMP}
      * modifier when the {@code BIOME_INFO_NOISE} Perlin sample is at or above {@code -0.1}.
      * Matches the {@code ldc #24} constant in
      * {@code BiomeSpecialEffects$GrassColorModifier$3.modifyColor}.
@@ -40,7 +40,7 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
     int SWAMP_GRASS_WARM = 0xFF6A7039;
 
     /**
-     * The cold swamp grass colour returned by vanilla's swamp {@link GrassColorModifier#SWAMP}
+     * The cold swamp grass colour returned by vanilla's swamp {@link Biome.GrassColorModifier#SWAMP}
      * modifier when the {@code BIOME_INFO_NOISE} Perlin sample is below {@code -0.1}. Matches the
      * {@code ldc #23} constant in {@code BiomeSpecialEffects$GrassColorModifier$3.modifyColor}.
      * Only reachable by explicit caller override since icon rendering has no world coordinates.

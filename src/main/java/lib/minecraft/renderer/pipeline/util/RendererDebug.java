@@ -29,8 +29,9 @@ import org.jetbrains.annotations.Nullable;
  * {@code EntityRenderer.computeCanvasFit} so canvas-size mismatches can be traced back to the
  * specific overlay that contributed the outlier bounds.
  *
- * <p><b>Per-polygon screen-bounds trace</b> (thread-local toggle via
- * {@link #setBoundsDumpEnabled(boolean)}). Emits {@code [BD]} lines from
+ * <p><b>Per-polygon screen-bounds trace</b> (thread-local, bracketed per entity via
+ * {@link #beginPerEntityBoundsDump(String)} / {@link #endPerEntityBoundsDump(String)} and
+ * gated on {@code -Dentity.bounds.dump=true}). Emits {@code [BD]} lines from
  * {@code EntityGeometryKit.contributeFaceAlphaTight} with the polygon's UV bbox, opaque-texel
  * bbox, and the four bilinear-interpolated 3D screen corners. The parity sweep flips it on per
  * entity so the dump only fires for the entity currently being investigated, then back off so

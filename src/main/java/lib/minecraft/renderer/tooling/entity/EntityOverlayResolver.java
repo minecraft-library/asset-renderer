@@ -26,7 +26,7 @@ import java.util.zip.ZipFile;
  * into {@code entity_models.json}. Phase E.4 first-pass scope is emissive eye overlays -
  * {@code SpiderEyesLayer}, {@code EnderEyesLayer}, {@code PhantomEyesLayer},
  * {@code BreezeEyesLayer}, plus any future vanilla mob whose layer's {@code <clinit>}
- * pre-builds a {@link net.minecraft.client.renderer.rendertype.RenderType} via an
+ * pre-builds a {@code net.minecraft.client.renderer.rendertype.RenderType} via an
  * {@code RenderTypes.*eyes*(Identifier)} static factory call and stores it in a
  * {@code static final} field. Detection runs on the {@code <clinit>} bytecode rather than
  * class hierarchy because not every eye layer extends {@code EyesLayer} -

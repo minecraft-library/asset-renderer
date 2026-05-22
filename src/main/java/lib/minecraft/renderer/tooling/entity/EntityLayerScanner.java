@@ -18,7 +18,7 @@ import java.util.Set;
 import java.util.zip.ZipFile;
 
 /**
- * Discovers the {@link net.minecraft.client.renderer.entity.layers.RenderLayer RenderLayer}
+ * Discovers the {@code net.minecraft.client.renderer.entity.layers.RenderLayer}
  * subclasses an {@code EntityRenderer} composes onto its base mesh via
  * {@code addLayer(new XLayer(...))} calls in its constructor (and parent-chain constructors).
  * These are the source of overlay layers in the runtime

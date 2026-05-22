@@ -12,10 +12,10 @@ import lombok.experimental.UtilityClass;
  * was started without {@code --add-modules=jdk.incubator.vector}.
  * <p>
  * Public tensor classes ({@link Vector3f}, {@link Matrix4f}) read this flag inside their
- * hot-path methods and dispatch to {@link Vector3fOps} / {@link Matrix4fOps} when it is
- * {@code true}. The dispatcher classes themselves carry zero {@code jdk.incubator.*}
- * imports, so the JVM never resolves the SIMD classes when the module is absent and the
- * library degrades silently to the scalar fallback.
+ * hot-path methods and dispatch to {@link SimdOps} when it is {@code true}. The dispatcher
+ * class itself carries zero {@code jdk.incubator.*} imports, so the JVM never resolves the
+ * SIMD class when the module is absent and the library degrades silently to the scalar
+ * fallback.
  *
  * @see Vector3f#transform
  * @see Matrix4f#multiply

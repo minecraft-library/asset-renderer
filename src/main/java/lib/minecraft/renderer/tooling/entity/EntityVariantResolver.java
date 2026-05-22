@@ -25,7 +25,7 @@ import java.util.zip.ZipFile;
  * Resolves the data-driven entity variant tables shipped under
  * {@code data/minecraft/<X>_variant/*.json} in the client jar. These were introduced in MC 1.21+
  * for cow / pig / chicken / frog / wolf / cat (climate / breed variants). Each JSON file declares
- * an {@code asset_id} (the texture {@link net.minecraft.resources.Identifier Identifier}) plus
+ * an {@code asset_id} (the texture {@code net.minecraft.resources.Identifier}) plus
  * optional {@code baby_asset_id} and {@code model} fields:
  *
  * <pre>

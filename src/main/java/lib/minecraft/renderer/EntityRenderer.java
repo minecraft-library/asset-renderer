@@ -334,7 +334,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
         // Vanilla expects block-model vertices in {@code [0, 1]} (corner-at-origin) since the
         // last pose op {@code translate(-0.5, -0.5, -0.5)} re-centers them at origin before the
-        // submit. {@link BlockModelGeometryKit#buildFromElements} pre-centers the cube to
+        // submit. {@link BlockGeometryKit#buildFromElements} pre-centers the cube to
         // {@code [-0.5, 0.5]} for inventory/atlas use, so add 0.5 on each axis to recover the
         // corner-at-origin convention before the chain applies. Appended last so that, in
         // column-vector composition, this op is rightmost and applies first to the input vertex.
