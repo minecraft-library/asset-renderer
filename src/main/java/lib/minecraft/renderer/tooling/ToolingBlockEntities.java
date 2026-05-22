@@ -9,6 +9,7 @@ import com.google.gson.JsonPrimitive;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.asset.binding.DyeColor;
 import lib.minecraft.renderer.asset.model.EntityModelData.Bone;
 import lib.minecraft.renderer.asset.model.EntityModelData.Cube;
 import lib.minecraft.renderer.asset.model.EntityModelData;
@@ -49,6 +50,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipFile;
@@ -373,6 +375,13 @@ public final class ToolingBlockEntities {
      * Serialises {@code blocks} entries to the JSON shape the loader expects. Returns
      * {@code null} when the entry has no blocks; the caller omits the key entirely in that
      * case, matching how the previous hand-curated JSON was structured.
+     *
+     * <p>Beyond the bare {@code blockId}/{@code textureId} pair, emits three pattern-derived
+     * per-block fields that vanilla never encodes as data: {@code iconRotation: 90} on dyed
+     * beds (so the head points right in the inventory icon), {@code additive: true} on bells
+     * (their cup layers on top of the floor/wall/ceiling post supplied by the block model
+     * pipeline), and {@code tint: <DYE>} on dyed banners / wall banners (DyeColor name resolved
+     * at load time to the vanilla {@code textureDiffuseColor}).
      */
     private static @Nullable JsonArray buildBlocksArray(@NotNull BlockListDiscovery.EntityBlockMapping entry) {
         List<BlockListDiscovery.BlockMapping> blocks = entry.blocks();
@@ -382,9 +391,56 @@ public final class ToolingBlockEntities {
             JsonObject block = new JsonObject();
             block.addProperty("blockId", b.blockId());
             block.addProperty("textureId", b.textureId());
+            applyPerBlockPatternFields(block, b.blockId());
             arr.add(block);
         }
         return arr;
+    }
+
+    /**
+     * Pattern-matches a block id and writes the vanilla-derived per-block atlas / tint fields
+     * onto the emitted JSON entry. Currently covers three families:
+     * <ul>
+     *   <li>Beds ({@code <color>_bed}): the head end faces -Z in the model but the inventory
+     *       icon convention is "head points right", so a 90-degree rotation is baked in.</li>
+     *   <li>Bells ({@code bell_floor}, {@code bell_ceiling}, {@code bell_wall},
+     *       {@code bell_between_walls}): the entity-model carries only the bell cup; the
+     *       post / bar / wall fixtures come from a regular block model, so the entity layers
+     *       additively on top.</li>
+     *   <li>Banners and wall banners ({@code <color>_banner}, {@code <color>_wall_banner}):
+     *       face-level {@code tintindex: 0} is multiplied by the dye colour at render time.
+     *       The dye name is extracted from the block id and validated against
+     *       {@link DyeColor.Vanilla}.</li>
+     * </ul>
+     * Unmatched ids leave the block entry untouched.
+     */
+    private static void applyPerBlockPatternFields(@NotNull JsonObject block, @NotNull String blockId) {
+        String localId = blockId.startsWith("minecraft:") ? blockId.substring("minecraft:".length()) : blockId;
+        if (localId.endsWith("_bed")) {
+            block.addProperty("iconRotation", 90);
+            return;
+        }
+        if (localId.equals("bell_floor") || localId.equals("bell_ceiling")
+            || localId.equals("bell_wall") || localId.equals("bell_between_walls")) {
+            block.addProperty("additive", true);
+            return;
+        }
+        String dye = extractBannerDye(localId);
+        if (dye != null) block.addProperty("tint", dye);
+    }
+
+    /**
+     * Returns the {@link DyeColor.Vanilla} name (e.g. {@code "LIGHT_BLUE"}) when the block id
+     * matches {@code <color>_banner} or {@code <color>_wall_banner} and the colour stem is one
+     * of the sixteen vanilla dyes. Returns {@code null} otherwise.
+     */
+    private static @Nullable String extractBannerDye(@NotNull String localId) {
+        String stem;
+        if (localId.endsWith("_wall_banner")) stem = localId.substring(0, localId.length() - "_wall_banner".length());
+        else if (localId.endsWith("_banner")) stem = localId.substring(0, localId.length() - "_banner".length());
+        else return null;
+        String dye = stem.toUpperCase(Locale.ROOT);
+        return DyeColor.Vanilla.ofName(dye) != null ? dye : null;
     }
 
     /**

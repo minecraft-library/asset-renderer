@@ -727,67 +727,83 @@
       "blocks": [
         {
           "blockId": "minecraft:white_bed",
-          "textureId": "minecraft:entity/bed/white"
+          "textureId": "minecraft:entity/bed/white",
+          "iconRotation": 90
         },
         {
           "blockId": "minecraft:orange_bed",
-          "textureId": "minecraft:entity/bed/orange"
+          "textureId": "minecraft:entity/bed/orange",
+          "iconRotation": 90
         },
         {
           "blockId": "minecraft:magenta_bed",
-          "textureId": "minecraft:entity/bed/magenta"
+          "textureId": "minecraft:entity/bed/magenta",
+          "iconRotation": 90
         },
         {
           "blockId": "minecraft:light_blue_bed",
-          "textureId": "minecraft:entity/bed/light_blue"
+          "textureId": "minecraft:entity/bed/light_blue",
+          "iconRotation": 90
         },
         {
           "blockId": "minecraft:yellow_bed",
-          "textureId": "minecraft:entity/bed/yellow"
+          "textureId": "minecraft:entity/bed/yellow",
+          "iconRotation": 90
         },
         {
           "blockId": "minecraft:lime_bed",
-          "textureId": "minecraft:entity/bed/lime"
+          "textureId": "minecraft:entity/bed/lime",
+          "iconRotation": 90
         },
         {
           "blockId": "minecraft:pink_bed",
-          "textureId": "minecraft:entity/bed/pink"
+          "textureId": "minecraft:entity/bed/pink",
+          "iconRotation": 90
         },
         {
           "blockId": "minecraft:gray_bed",
-          "textureId": "minecraft:entity/bed/gray"
+          "textureId": "minecraft:entity/bed/gray",
+          "iconRotation": 90
         },
         {
           "blockId": "minecraft:light_gray_bed",
-          "textureId": "minecraft:entity/bed/light_gray"
+          "textureId": "minecraft:entity/bed/light_gray",
+          "iconRotation": 90
         },
         {
           "blockId": "minecraft:cyan_bed",
-          "textureId": "minecraft:entity/bed/cyan"
+          "textureId": "minecraft:entity/bed/cyan",
+          "iconRotation": 90
         },
         {
           "blockId": "minecraft:purple_bed",
-          "textureId": "minecraft:entity/bed/purple"
+          "textureId": "minecraft:entity/bed/purple",
+          "iconRotation": 90
         },
         {
           "blockId": "minecraft:blue_bed",
-          "textureId": "minecraft:entity/bed/blue"
+          "textureId": "minecraft:entity/bed/blue",
+          "iconRotation": 90
         },
         {
           "blockId": "minecraft:brown_bed",
-          "textureId": "minecraft:entity/bed/brown"
+          "textureId": "minecraft:entity/bed/brown",
+          "iconRotation": 90
         },
         {
           "blockId": "minecraft:green_bed",
-          "textureId": "minecraft:entity/bed/green"
+          "textureId": "minecraft:entity/bed/green",
+          "iconRotation": 90
         },
         {
           "blockId": "minecraft:red_bed",
-          "textureId": "minecraft:entity/bed/red"
+          "textureId": "minecraft:entity/bed/red",
+          "iconRotation": 90
         },
         {
           "blockId": "minecraft:black_bed",
-          "textureId": "minecraft:entity/bed/black"
+          "textureId": "minecraft:entity/bed/black",
+          "iconRotation": 90
         }
       ]
     },
@@ -1736,19 +1752,23 @@
       "blocks": [
         {
           "blockId": "minecraft:bell_floor",
-          "textureId": "minecraft:entity/bell/bell_body"
+          "textureId": "minecraft:entity/bell/bell_body",
+          "additive": true
         },
         {
           "blockId": "minecraft:bell_ceiling",
-          "textureId": "minecraft:entity/bell/bell_body"
+          "textureId": "minecraft:entity/bell/bell_body",
+          "additive": true
         },
         {
           "blockId": "minecraft:bell_wall",
-          "textureId": "minecraft:entity/bell/bell_body"
+          "textureId": "minecraft:entity/bell/bell_body",
+          "additive": true
         },
         {
           "blockId": "minecraft:bell_between_walls",
-          "textureId": "minecraft:entity/bell/bell_body"
+          "textureId": "minecraft:entity/bell/bell_body",
+          "additive": true
         }
       ]
     },
@@ -3986,67 +4006,83 @@
       "blocks": [
         {
           "blockId": "minecraft:white_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "WHITE"
         },
         {
           "blockId": "minecraft:orange_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "ORANGE"
         },
         {
           "blockId": "minecraft:magenta_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "MAGENTA"
         },
         {
           "blockId": "minecraft:light_blue_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "LIGHT_BLUE"
         },
         {
           "blockId": "minecraft:yellow_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "YELLOW"
         },
         {
           "blockId": "minecraft:lime_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "LIME"
         },
         {
           "blockId": "minecraft:pink_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "PINK"
         },
         {
           "blockId": "minecraft:gray_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "GRAY"
         },
         {
           "blockId": "minecraft:light_gray_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "LIGHT_GRAY"
         },
         {
           "blockId": "minecraft:cyan_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "CYAN"
         },
         {
           "blockId": "minecraft:purple_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "PURPLE"
         },
         {
           "blockId": "minecraft:blue_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "BLUE"
         },
         {
           "blockId": "minecraft:brown_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "BROWN"
         },
         {
           "blockId": "minecraft:green_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "GREEN"
         },
         {
           "blockId": "minecraft:red_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "RED"
         },
         {
           "blockId": "minecraft:black_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "BLACK"
         }
       ]
     },
@@ -4145,67 +4181,83 @@
       "blocks": [
         {
           "blockId": "minecraft:white_wall_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "WHITE"
         },
         {
           "blockId": "minecraft:orange_wall_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "ORANGE"
         },
         {
           "blockId": "minecraft:magenta_wall_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "MAGENTA"
         },
         {
           "blockId": "minecraft:light_blue_wall_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "LIGHT_BLUE"
         },
         {
           "blockId": "minecraft:yellow_wall_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "YELLOW"
         },
         {
           "blockId": "minecraft:lime_wall_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "LIME"
         },
         {
           "blockId": "minecraft:pink_wall_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "PINK"
         },
         {
           "blockId": "minecraft:gray_wall_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "GRAY"
         },
         {
           "blockId": "minecraft:light_gray_wall_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "LIGHT_GRAY"
         },
         {
           "blockId": "minecraft:cyan_wall_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "CYAN"
         },
         {
           "blockId": "minecraft:purple_wall_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "PURPLE"
         },
         {
           "blockId": "minecraft:blue_wall_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "BLUE"
         },
         {
           "blockId": "minecraft:brown_wall_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "BROWN"
         },
         {
           "blockId": "minecraft:green_wall_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "GREEN"
         },
         {
           "blockId": "minecraft:red_wall_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "RED"
         },
         {
           "blockId": "minecraft:black_wall_banner",
-          "textureId": "minecraft:entity/banner/banner_base"
+          "textureId": "minecraft:entity/banner/banner_base",
+          "tint": "BLACK"
         }
       ]
     },
