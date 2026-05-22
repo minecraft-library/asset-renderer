@@ -135,7 +135,7 @@ public final class EntityOverlayResolver {
     /**
      * JVM internal name of the {@code ModelLayers} constants holder; layer factory references key off it.
      */
-    private static final @NotNull String MODEL_LAYERS = "net/minecraft/client/model/geom/ModelLayers";
+    private static final @NotNull String MODEL_LAYERS = AsmKit.Vanilla.MODEL_LAYERS;
 
     /**
      * JVM internal name of {@code EntityModelSet} - layer constructors call {@code bakeLayer} on it.
@@ -155,7 +155,7 @@ public final class EntityOverlayResolver {
     /**
      * JVM internal name of {@code Identifier} - texture fields and {@code withDefaultNamespace} return type.
      */
-    private static final @NotNull String IDENTIFIER = "net/minecraft/resources/Identifier";
+    private static final @NotNull String IDENTIFIER = AsmKit.Vanilla.IDENTIFIER;
 
     /**
      * Field-type descriptor for an {@code Identifier}; used to filter overlay-texture field references.
@@ -309,7 +309,7 @@ public final class EntityOverlayResolver {
      */
     private static @Nullable String findOverlayModelLayerField(@NotNull ClassNode cn) {
         for (MethodNode method : cn.methods) {
-            if (!"<init>".equals(method.name)) continue;
+            if (!AsmKit.INIT.equals(method.name)) continue;
             String pendingField = null;
             for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
                 if (in.getOpcode() == Opcodes.GETSTATIC
@@ -362,7 +362,7 @@ public final class EntityOverlayResolver {
         // first so renderer-shared textures are resolved by following the field link, falling back
         // to the parent renderer if no GETSTATIC of an Identifier field surfaces.
         for (MethodNode method : layerClass.methods) {
-            if ("<init>".equals(method.name) || "<clinit>".equals(method.name)) continue;
+            if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name)) continue;
             for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
                 if (in.getOpcode() != Opcodes.GETSTATIC) continue;
                 if (!(in instanceof FieldInsnNode fi)) continue;
@@ -388,7 +388,7 @@ public final class EntityOverlayResolver {
      * Returns the LDC's literal value, or {@code null} when no such pattern is present.
      */
     private static @Nullable String findFirstNonBabyTextureLiteral(@NotNull ClassNode cn) {
-        MethodNode clinit = AsmKit.findMethod(cn, "<clinit>");
+        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return null;
         String pendingPath = null;
         boolean pendingIdentifier = false;
@@ -437,7 +437,7 @@ public final class EntityOverlayResolver {
     ) {
         ClassNode owner = AsmKit.loadClass(zip, ownerInternalName);
         if (owner == null) return null;
-        MethodNode clinit = AsmKit.findMethod(owner, "<clinit>");
+        MethodNode clinit = AsmKit.findMethod(owner, AsmKit.CLINIT);
         if (clinit == null) return null;
         String pendingPath = null;
         boolean pendingIdentifier = false;
@@ -511,7 +511,7 @@ public final class EntityOverlayResolver {
      */
     private static int extractColoredCutoutTint(@NotNull ZipFile zip, @NotNull ClassNode layerCn) {
         for (MethodNode method : layerCn.methods) {
-            if ("<init>".equals(method.name) || "<clinit>".equals(method.name)) continue;
+            if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name)) continue;
             for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
                 if (in.getOpcode() != Opcodes.INVOKESTATIC) continue;
                 if (!(in instanceof MethodInsnNode mi)) continue;
@@ -598,7 +598,7 @@ public final class EntityOverlayResolver {
      * initialiser, or default comes from a non-literal expression).
      */
     private static @Nullable String findFieldDefaultDyeColor(@NotNull ClassNode stateClass, @NotNull String fieldName) {
-        MethodNode init = AsmKit.findMethod(stateClass, "<init>");
+        MethodNode init = AsmKit.findMethod(stateClass, AsmKit.INIT);
         if (init == null) return null;
         String pendingDye = null;
         for (AbstractInsnNode in = init.instructions.getFirst(); in != null; in = in.getNext()) {
@@ -694,7 +694,7 @@ public final class EntityOverlayResolver {
         if (rendererCn == null) return null;
         String layerInternalName = layerCn.name;
         for (MethodNode method : rendererCn.methods) {
-            if (!"<init>".equals(method.name)) continue;
+            if (!AsmKit.INIT.equals(method.name)) continue;
             ParameterizedOverlayBinding binding = scanRendererForParameterizedAddLayer(
                 zip, method, layerInternalName);
             if (binding != null) return binding;
@@ -717,7 +717,7 @@ public final class EntityOverlayResolver {
      */
     private static int @Nullable [] findParameterizedCtorSlots(@NotNull ClassNode layerCn) {
         for (MethodNode method : layerCn.methods) {
-            if (!"<init>".equals(method.name)) continue;
+            if (!AsmKit.INIT.equals(method.name)) continue;
             Type[] argTypes = Type.getArgumentTypes(method.desc);
             int modelLayerArg = -1;
             int identifierArg = -1;
@@ -788,10 +788,7 @@ public final class EntityOverlayResolver {
             String identifierFieldOwner = null;
             String identifierFieldName = null;
             for (AbstractInsnNode arg = in.getNext(); arg != null; arg = arg.getNext()) {
-                if (arg.getOpcode() == Opcodes.INVOKESPECIAL
-                    && arg instanceof MethodInsnNode mi
-                    && layerInternalName.equals(mi.owner)
-                    && "<init>".equals(mi.name)) break;
+                if (AsmKit.isInvokeSpecial(arg, layerInternalName, AsmKit.INIT)) break;
                 if (arg.getOpcode() == Opcodes.GETSTATIC && arg instanceof FieldInsnNode fi) {
                     if (modelLayerField == null && MODEL_LAYERS.equals(fi.owner)) {
                         modelLayerField = fi.name;
@@ -810,7 +807,7 @@ public final class EntityOverlayResolver {
     }
 
     private static @Nullable EyesOverlayBinding findEyesOverlayBinding(@NotNull ClassNode cn) {
-        MethodNode clinit = AsmKit.findMethod(cn, "<clinit>");
+        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return null;
         String pendingTexturePath = null;
         for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
