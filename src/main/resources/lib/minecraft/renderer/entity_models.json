@@ -186,7 +186,15 @@
     "minecraft:copper_golem": {
       "geometry_ref": "geometry.coppergolem",
       "texture_ref": "copper_golem/copper_golem",
-      "armor_type": "none"
+      "armor_type": "none",
+      "overlays": [
+        {
+          "geometry_ref": "geometry.coppergolem",
+          "texture_ref": "copper_golem/copper_golem_eyes",
+          "emissive": true,
+          "inflate": 0.001
+        }
+      ]
     },
     "minecraft:cow": {
       "geometry_ref": "geometry.cow",
@@ -262,7 +270,15 @@
     "minecraft:ender_dragon": {
       "geometry_ref": "geometry.enderdragon",
       "texture_ref": "enderdragon/dragon",
-      "armor_type": "none"
+      "armor_type": "none",
+      "overlays": [
+        {
+          "geometry_ref": "geometry.enderdragon",
+          "texture_ref": "enderdragon/dragon_eyes",
+          "emissive": true,
+          "inflate": 0.001
+        }
+      ]
     },
     "minecraft:evoker": {
       "geometry_ref": "geometry.illager",

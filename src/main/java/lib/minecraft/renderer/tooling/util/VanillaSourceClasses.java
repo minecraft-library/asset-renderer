@@ -171,6 +171,10 @@ public final class VanillaSourceClasses {
     /** Entity-renderer registry class. */
     public static final @NotNull String ENTITY_RENDERERS = ENTITY_RENDERER_ROOT + "EntityRenderers";
 
+    /** Inline-overlay layer carrying a state-driven Function&lt;S, Identifier&gt; texture provider. */
+    public static final @NotNull String LIVING_ENTITY_EMISSIVE_LAYER =
+        ENTITY_RENDERER_ROOT + "layers/LivingEntityEmissiveLayer";
+
     // ============================================================================================
     // Block-entity registries
     // ============================================================================================

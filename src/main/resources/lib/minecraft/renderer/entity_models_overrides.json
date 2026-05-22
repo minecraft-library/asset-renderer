@@ -13,31 +13,9 @@
     "minecraft:chicken_cold": {
       "geometry_ref": "geometry.cold_chicken"
     },
-    "//minecraft:copper_golem": "CopperGolemRenderer wraps the emissive eye layer in LivingEntityEmissiveLayer with a state-dependent texture provider (CopperGolemOxidationLevels.getOxidationLevel(weathering).eyeTexture()). The tooling resolver picks the default-state branch but the per-oxidation-state texture indirection isn't surfaced as a simple `getstatic FIELD` the EntityOverlayResolver scans for; the eye overlay therefore is not auto-emitted. Hand-edit supplies the default (unoxidized) eye texture matching what vanilla's zero-state copper golem (weathering=UNAFFECTED) renders.",
-    "minecraft:copper_golem": {
-      "overlays": [
-        {
-          "geometry_ref": "geometry.coppergolem",
-          "texture_ref": "copper_golem/copper_golem_eyes",
-          "emissive": true,
-          "inflate": 0.001
-        }
-      ]
-    },
     "//minecraft:pig_cold": "ColdPigModel REPLACES body with base 10x16x8 + inflated 0.5 fur layer (uv (28, 32)). Head and legs inherited. Variant ModelLayers.COLD_PIG not surfaced by tooling; hand-edit redirects at geometry.cold_pig. The warm pig variant (pig_variant/warm.json) has no model override and falls through to PigModel - same family-fit canvas issue as chicken_warm.",
     "minecraft:pig_cold": {
       "geometry_ref": "geometry.cold_pig"
-    },
-    "//minecraft:ender_dragon": "EnderDragonRenderer holds a static `RenderTypes.eyes(DRAGON_EYES_LOCATION)` field and dispatches it inline in `submit()` rather than via the standard `addLayer(new EyesLayer(...))` pattern that `EntityOverlayResolver` scans. The eye-overlay PNG (`enderdragon/dragon_eyes.png`) is therefore not auto-emitted in `entity_models.json`; without it, the eye region falls back to dragon.png's baked-in purple pixels which then get cardinal-shaded (vanilla pixel (224,121,250) -> Java (127,68,142) at ~0.567x shading). Hand-edited overlay supplies the full-bright emissive eye matching vanilla `RenderPipelines.EYES` (emissive + NO_CARDINAL_LIGHTING + TRANSLUCENT alpha blend = at alpha=255 the texel replaces the underlying lit body pixel). Same `inflate: 0.001` as the auto-emitted eye overlays for the equal-Z depth-fail clearance.",
-    "minecraft:ender_dragon": {
-      "overlays": [
-        {
-          "geometry_ref": "geometry.enderdragon",
-          "texture_ref": "enderdragon/dragon_eyes",
-          "emissive": true,
-          "inflate": 0.001
-        }
-      ]
     },
     "//minecraft:stray": "Vanilla StrayRenderer adds a SkeletonClothingLayer (ModelLayers.STRAY_OUTER_LAYER + stray_overlay.png). STRAY_OUTER_LAYER is HumanoidModel.createMesh(CubeDeformation(0.25F), 0.0F) - the standard skeleton mesh with every cube inflated by 0.25 pixels. Without this overlay the skeleton-only silhouette is missing the frost-cloak content that protrudes laterally.",
     "minecraft:stray": {

@@ -20,6 +20,7 @@ import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.zip.ZipFile;
 
@@ -251,6 +252,43 @@ public final class EntityOverlayResolver {
                 int tintArgb = extractColoredCutoutTint(zip, cn);
                 out.add(new OverlayDescriptor(layerClass, param.texturePath(), false, param.modelLayerField(), tintArgb));
                 continue;
+            }
+        }
+
+        // Inline same-geometry eye overlays not captured by any RenderLayer subclass.
+        //
+        //   - EnderDragonRenderer style: a static RenderType field bound via
+        //     {@code RenderTypes.eyes(LOCATION)} in {@code <clinit>}, dispatched directly from
+        //     {@code submit()} (no {@code addLayer(new EyesLayer(...))}). The
+        //     {@link #findEyesOverlayBinding} routine already used for layer classes works
+        //     unchanged on the renderer's own {@code <clinit>}; the only difference is the
+        //     <clinit> contains several earlier {@code LDC} texture literals, so we run the
+        //     same {@code last-LDC + INVOKESTATIC *eyes*} pattern matcher.
+        //   - CopperGolemRenderer style: {@code new LivingEntityEmissiveLayer(this,
+        //     provider::eyeTextureLocationFor, ...)} with a same-{@code ModelLayers}
+        //     state-driven texture provider. We pick the zero-state texture by walking the
+        //     renderer + its transitively-INVOKESTATIC'd classes for the first {@code
+        //     *_eyes.png} LDC, gated on the layer's {@code ModelLayers} arg matching the base
+        //     renderer's (so warden/creaking - which use {@code WARDEN_BIOLUMINESCENT} /
+        //     {@code CREAKING_EYES} - don't fire here; their distinct-geometry overlays are
+        //     handled by the layer-class path).
+        boolean hasEmissiveSameGeometryOverlay = false;
+        for (OverlayDescriptor d : out)
+            if (d.modelLayerField() == null && d.emissive()) {
+                hasEmissiveSameGeometryOverlay = true;
+                break;
+            }
+        if (!hasEmissiveSameGeometryOverlay) {
+            ClassNode rendererCn = AsmKit.loadClass(zip, rendererInternalName);
+            if (rendererCn != null) {
+                EyesOverlayBinding direct = findEyesOverlayBinding(rendererCn);
+                if (direct != null) {
+                    out.add(new OverlayDescriptor(rendererInternalName, direct.texturePath(), true, null, 0xFFFFFFFF));
+                } else {
+                    String emissiveTexture = findLivingEntityEmissiveTexture(zip, rendererCn);
+                    if (emissiveTexture != null)
+                        out.add(new OverlayDescriptor(rendererInternalName, emissiveTexture, true, null, 0xFFFFFFFF));
+                }
             }
         }
         return out;
@@ -797,8 +835,104 @@ public final class EntityOverlayResolver {
                 && in instanceof MethodInsnNode mi
                 && mi.desc.endsWith(RENDER_TYPE_RETURN)
                 && mi.name.toLowerCase(Locale.ROOT).contains("eyes")
-                && pendingTexturePath != null)
+                && pendingTexturePath != null
+                && pendingTexturePath.contains("eyes"))
                 return new EyesOverlayBinding(pendingTexturePath, mi.name);
+        }
+        return null;
+    }
+
+    /**
+     * Detects the {@code new LivingEntityEmissiveLayer(this, provider, ...)} same-geometry
+     * emissive overlay pattern in a renderer's constructor and resolves the zero-state texture
+     * path the provider returns at runtime. Returns the texture path when the pattern matches
+     * AND the layer's {@code bakeLayer(ModelLayers.X)} arg matches the base renderer's
+     * {@code ModelLayers.X} - the latter rules out warden / creaking which use a distinct
+     * model layer ({@code WARDEN_BIOLUMINESCENT}, {@code CREAKING_EYES}) for their emissive
+     * layer and need to flow through the separate-geometry overlay path.
+     *
+     * <p>Texture resolution: the provider lambda eventually dispatches through static method(s)
+     * on a sibling data class ({@code CopperGolemOxidationLevels} for copper_golem) that binds
+     * one Identifier-typed field per state. The zero-state texture is the first LDC matching
+     * {@code *_eyes.png} (or {@code *_eye.png}) encountered in any reachable class's
+     * {@code <clinit>} - because the data class's enum-like {@code <clinit>} allocates the
+     * default-state instance first.
+     */
+    private static @Nullable String findLivingEntityEmissiveTexture(@NotNull ZipFile zip, @NotNull ClassNode renderer) {
+        // Step 1: require BOTH a `new LivingEntityEmissiveLayer` AND a duplicated
+        // bakeLayer(ModelLayers.X) GETSTATIC in the same <init>. The duplication signals the
+        // emissive layer reuses the base renderer's ModelLayers; renderers using a distinct
+        // layer (warden's WARDEN_BIOLUMINESCENT, creaking's CREAKING_EYES) get unique GETSTATIC
+        // field names and don't satisfy the duplicate check.
+        boolean sawEmissiveLayer = false;
+        java.util.HashMap<String, Integer> modelLayerCounts = new java.util.HashMap<>();
+        for (MethodNode method : renderer.methods) {
+            if (!AsmKit.INIT.equals(method.name)) continue;
+            String pendingModelLayer = null;
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                if (in.getOpcode() == Opcodes.NEW
+                    && in instanceof TypeInsnNode ti
+                    && VanillaSourceClasses.LIVING_ENTITY_EMISSIVE_LAYER.equals(ti.desc)) {
+                    sawEmissiveLayer = true;
+                    continue;
+                }
+                if (in.getOpcode() == Opcodes.GETSTATIC
+                    && in instanceof FieldInsnNode fi
+                    && VanillaSourceClasses.MODEL_LAYERS.equals(fi.owner)) {
+                    pendingModelLayer = fi.name;
+                    continue;
+                }
+                if (in.getOpcode() == Opcodes.INVOKEVIRTUAL
+                    && in instanceof MethodInsnNode mi
+                    && "bakeLayer".equals(mi.name)
+                    && pendingModelLayer != null) {
+                    modelLayerCounts.merge(pendingModelLayer, 1, Integer::sum);
+                    pendingModelLayer = null;
+                }
+            }
+        }
+        if (!sawEmissiveLayer) return null;
+        boolean sharedModelLayer = false;
+        for (Integer count : modelLayerCounts.values())
+            if (count != null && count >= 2) {
+                sharedModelLayer = true;
+                break;
+            }
+        if (!sharedModelLayer) return null;
+
+        // Step 2: collect candidate classes (renderer + every class invoked statically from any
+        // of its methods - including the synthetic lambda methods that hold the texture-provider
+        // body). Renderer first, then INVOKESTATIC targets in source order. The data class
+        // (CopperGolemOxidationLevels) is reached via the lambda's INVOKESTATIC to
+        // getOxidationLevel.
+        LinkedHashSet<String> candidates = new LinkedHashSet<>();
+        candidates.add(renderer.name);
+        for (MethodNode method : renderer.methods)
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
+                if (in.getOpcode() == Opcodes.INVOKESTATIC
+                    && in instanceof MethodInsnNode mi
+                    && !mi.owner.startsWith("java/")
+                    && !mi.owner.startsWith("com/mojang/")
+                    && !mi.owner.equals(renderer.name))
+                    candidates.add(mi.owner);
+
+        // Step 3: scan each candidate class's <clinit> for the first {@code *_eyes.png} (or
+        // {@code *_eye.png}) LDC. The data class's <clinit> allocates the default-state
+        // instance first, so its eye texture is the first such literal.
+        for (String className : candidates) {
+            ClassNode cn = AsmKit.loadClass(zip, className);
+            if (cn == null) continue;
+            MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
+            if (clinit == null) continue;
+            for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+                String literal = AsmKit.readStringLiteral(in);
+                if (literal == null) continue;
+                if (!literal.startsWith(TEXTURE_PATH_PREFIX)) continue;
+                if (!literal.endsWith(".png")) continue;
+                String stem = literal.substring(0, literal.length() - ".png".length());
+                if (stem.endsWith("_eyes") || stem.endsWith("_eye"))
+                    return literal;
+            }
         }
         return null;
     }
