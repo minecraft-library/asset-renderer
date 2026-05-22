@@ -1338,12 +1338,6 @@ public final class AsmKit {
      * so a caller hunting ints after a float-consuming descriptor mismatch doesn't
      * silently pick up a wrong-type value.
      *
-     * <p>The {@code *OrDiag} variants ({@link #popIntOrDiag(Diagnostics, String)},
-     * {@link #popFloatOrDiag(Diagnostics, String)}, {@link #popStringOrDiag(Diagnostics, String)})
-     * are the diagnostic-aware versions: on type mismatch or empty stack they emit a canonical
-     * {@code WARN} entry tagged with a caller-supplied site label so a downstream "strict mode
-     * failed" report can point at the exact pop that produced bad data.
-     *
      * <p>For parsers that need to flag "I observed a value here but it came from a non-literal
      * source (a local variable populated by computation, a method-call result, ...)" - distinct
      * from "the stack was empty" or "the value was the wrong type" - {@link #pushNonLiteral()}
@@ -1456,71 +1450,6 @@ public final class AsmKit {
             if (this.entries.isEmpty()) return null;
             Object top = this.entries.getLast();
             if (!(top instanceof String value)) return null;
-            this.entries.removeLast();
-            return value;
-        }
-
-        /**
-         * Diagnostic-aware variant of {@link #popInt()}. Emits a {@code WARN} tagged with
-         * {@code popSite} when the stack is empty or when the top entry is not an int, then
-         * returns {@code null}.
-         *
-         * @param diagnostics the diagnostic sink
-         * @param popSite a short label identifying the caller's pop site
-         * @return the popped int, or {@code null} on empty stack or wrong-type top
-         */
-        public @Nullable Integer popIntOrDiag(@NotNull Diagnostics diagnostics, @NotNull String popSite) {
-            if (this.entries.isEmpty()) {
-                diagnostics.warn("LiteralStack underflow popping int at %s", popSite);
-                return null;
-            }
-            Object top = this.entries.getLast();
-            if (!(top instanceof Integer value)) {
-                diagnostics.warn("LiteralStack type mismatch popping int at %s (found %s)", popSite, top.getClass().getSimpleName());
-                return null;
-            }
-            this.entries.removeLast();
-            return value;
-        }
-
-        /**
-         * Diagnostic-aware variant of {@link #popFloat()}.
-         *
-         * @param diagnostics the diagnostic sink
-         * @param popSite a short label identifying the caller's pop site
-         * @return the popped float, or {@code null} on empty stack or wrong-type top
-         */
-        public @Nullable Float popFloatOrDiag(@NotNull Diagnostics diagnostics, @NotNull String popSite) {
-            if (this.entries.isEmpty()) {
-                diagnostics.warn("LiteralStack underflow popping float at %s", popSite);
-                return null;
-            }
-            Object top = this.entries.getLast();
-            if (!(top instanceof Float value)) {
-                diagnostics.warn("LiteralStack type mismatch popping float at %s (found %s)", popSite, top.getClass().getSimpleName());
-                return null;
-            }
-            this.entries.removeLast();
-            return value;
-        }
-
-        /**
-         * Diagnostic-aware variant of {@link #popString()}.
-         *
-         * @param diagnostics the diagnostic sink
-         * @param popSite a short label identifying the caller's pop site
-         * @return the popped string, or {@code null} on empty stack or wrong-type top
-         */
-        public @Nullable String popStringOrDiag(@NotNull Diagnostics diagnostics, @NotNull String popSite) {
-            if (this.entries.isEmpty()) {
-                diagnostics.warn("LiteralStack underflow popping string at %s", popSite);
-                return null;
-            }
-            Object top = this.entries.getLast();
-            if (!(top instanceof String value)) {
-                diagnostics.warn("LiteralStack type mismatch popping string at %s (found %s)", popSite, top.getClass().getSimpleName());
-                return null;
-            }
             this.entries.removeLast();
             return value;
         }

@@ -276,11 +276,11 @@ public final class BlockListDiscovery {
                 continue;
             }
             if (!seenLdc) continue;
-            if (in instanceof FieldInsnNode fi && fi.getOpcode() == Opcodes.GETSTATIC && fi.owner.equals(BLOCKS)) {
+            if (AsmKit.isGetStatic(in, BLOCKS) && in instanceof FieldInsnNode fi) {
                 pending.add(fi.name);
                 continue;
             }
-            if (in instanceof FieldInsnNode fi && fi.getOpcode() == Opcodes.PUTSTATIC && fi.owner.equals(BLOCK_ENTITY_TYPE)) {
+            if (AsmKit.isPutStatic(in, BLOCK_ENTITY_TYPE) && in instanceof FieldInsnNode fi) {
                 if (fi.name.equals(beField))
                     return List.copyOf(pending);
                 pending.clear();
@@ -380,7 +380,7 @@ public final class BlockListDiscovery {
                 else if (secondLdc == null) secondLdc = lit;
                 continue;
             }
-            if (in instanceof FieldInsnNode fi && fi.getOpcode() == Opcodes.PUTSTATIC && fi.owner.equals(enumInternal) && secondLdc != null) {
+            if (AsmKit.isPutStatic(in, enumInternal) && in instanceof FieldInsnNode fi && secondLdc != null) {
                 out.put(fi.name, secondLdc);
                 firstLdc = null;
                 secondLdc = null;
@@ -415,7 +415,7 @@ public final class BlockListDiscovery {
                 pendingName = lit;
                 continue;
             }
-            if (in instanceof FieldInsnNode fi && fi.getOpcode() == Opcodes.PUTSTATIC && fi.owner.equals(recordInternal) && pendingName != null) {
+            if (AsmKit.isPutStatic(in, recordInternal) && in instanceof FieldInsnNode fi && pendingName != null) {
                 out.put(fi.name, pendingName);
                 pendingName = null;
                 seenNew = false;
@@ -497,7 +497,7 @@ public final class BlockListDiscovery {
                 pendingEnumField = fi.name;
                 continue;
             }
-            if (in instanceof FieldInsnNode fi && fi.getOpcode() == Opcodes.PUTSTATIC && fi.owner.equals(BLOCKS)) {
+            if (AsmKit.isPutStatic(in, BLOCKS) && in instanceof FieldInsnNode fi) {
                 if (!fieldSet.contains(fi.name)) {
                     pendingLambda = null;
                     pendingCtorClass = null;
@@ -576,7 +576,7 @@ public final class BlockListDiscovery {
                 if (ctorRef != null) pendingCtorClass = ctorRef;
                 continue;
             }
-            if (in instanceof FieldInsnNode fi && fi.getOpcode() == Opcodes.PUTSTATIC && fi.owner.equals(BLOCKS)) {
+            if (AsmKit.isPutStatic(in, BLOCKS) && in instanceof FieldInsnNode fi) {
                 if (fi.name.equals(blockField)) {
                     if (pendingCtorClass != null) return pendingCtorClass;
                     if (pendingLambda != null) {
@@ -610,7 +610,7 @@ public final class BlockListDiscovery {
                 if (lambda != null) pendingLambda = lambda;
                 continue;
             }
-            if (in instanceof FieldInsnNode fi && fi.getOpcode() == Opcodes.PUTSTATIC && fi.owner.equals(BLOCKS) && pendingLambda != null) {
+            if (AsmKit.isPutStatic(in, BLOCKS) && in instanceof FieldInsnNode fi && pendingLambda != null) {
                 out.put(fi.name, pendingLambda);
                 pendingLambda = null;
             }
@@ -720,7 +720,7 @@ public final class BlockListDiscovery {
                 pendingLdc = lit;
                 continue;
             }
-            if (in instanceof FieldInsnNode fi && fi.getOpcode() == Opcodes.PUTSTATIC && fi.owner.equals(CHEST_SPECIAL_RENDERER) && pendingLdc != null) {
+            if (AsmKit.isPutStatic(in, CHEST_SPECIAL_RENDERER) && in instanceof FieldInsnNode fi && pendingLdc != null) {
                 out.put(fi.name, pendingLdc);
                 pendingLdc = null;
             }
@@ -770,7 +770,7 @@ public final class BlockListDiscovery {
                 firstLdcAfterNew = stripTexturesPrefixAndPngSuffix(lit);
                 continue;
             }
-            if (in instanceof FieldInsnNode fi && fi.getOpcode() == Opcodes.PUTSTATIC && fi.owner.equals(COPPER_GOLEM_OXIDATION_LEVELS) && firstLdcAfterNew != null) {
+            if (AsmKit.isPutStatic(in, COPPER_GOLEM_OXIDATION_LEVELS) && in instanceof FieldInsnNode fi && firstLdcAfterNew != null) {
                 out.put(fi.name, firstLdcAfterNew);
                 firstLdcAfterNew = null;
                 afterNew = false;
@@ -821,7 +821,7 @@ public final class BlockListDiscovery {
         String pendingTex = null;
         boolean pendingPlayerFollow = false;
         for (AbstractInsnNode in = lambda.instructions.getFirst(); in != null; in = in.getNext()) {
-            if (in instanceof FieldInsnNode fi && fi.getOpcode() == Opcodes.GETSTATIC && fi.owner.equals(SKULL_TYPES)) {
+            if (AsmKit.isGetStatic(in, SKULL_TYPES) && in instanceof FieldInsnNode fi) {
                 pendingType = fi.name;
                 pendingTex = null;
                 pendingPlayerFollow = false;
@@ -993,7 +993,7 @@ public final class BlockListDiscovery {
                 pendingLdc = lit;
                 continue;
             }
-            if (in instanceof FieldInsnNode fi && fi.getOpcode() == Opcodes.PUTSTATIC && fi.owner.equals(CONDUIT_RENDERER)
+            if (AsmKit.isPutStatic(in, CONDUIT_RENDERER) && in instanceof FieldInsnNode fi
                 && fi.name.equals("SHELL_TEXTURE") && pendingLdc != null && mapperBasePath != null) {
                 return mapperBasePath + "/" + pendingLdc;
             }
@@ -1029,7 +1029,7 @@ public final class BlockListDiscovery {
                 pendingLdc = lit;
                 continue;
             }
-            if (in instanceof FieldInsnNode fi && fi.getOpcode() == Opcodes.PUTSTATIC && fi.owner.equals(BELL_RENDERER)
+            if (AsmKit.isPutStatic(in, BELL_RENDERER) && in instanceof FieldInsnNode fi
                 && fi.name.equals("BELL_TEXTURE") && pendingLdc != null) {
                 // BLOCK_ENTITIES_MAPPER base path is "entity".
                 return "entity/" + pendingLdc;
@@ -1418,7 +1418,7 @@ public final class BlockListDiscovery {
             for (MethodNode m : cn.methods) {
                 if (!AsmKit.INIT.equals(m.name)) continue;
                 for (AbstractInsnNode in = m.instructions.getFirst(); in != null; in = in.getNext())
-                    if (in instanceof FieldInsnNode fi && fi.getOpcode() == Opcodes.GETSTATIC && fi.owner.equals(SKULL_TYPES))
+                    if (AsmKit.isGetStatic(in, SKULL_TYPES) && in instanceof FieldInsnNode fi)
                         return fi.name;
             }
             return null;

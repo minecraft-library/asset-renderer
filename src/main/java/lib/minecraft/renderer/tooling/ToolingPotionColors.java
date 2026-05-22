@@ -125,8 +125,6 @@ public final class ToolingPotionColors {
         private static final @NotNull String MOB_EFFECTS_INTERNAL_NAME = "net/minecraft/world/effect/MobEffects";
         private static final @NotNull String EFFECT_PACKAGE_PREFIX = "net/minecraft/world/effect/";
         private static final @NotNull String MOB_EFFECT_INIT_DESCRIPTOR = "(Lnet/minecraft/world/effect/MobEffectCategory;I)V";
-        private static final @NotNull String CLINIT_METHOD_NAME = "<clinit>";
-        private static final @NotNull String INIT_METHOD_NAME = "<init>";
         private static final @NotNull String REGISTER_METHOD_NAME = "register";
 
         /**
@@ -187,7 +185,7 @@ public final class ToolingPotionColors {
                 // int) - the int literal on top of the stack is the ARGB colour.
                 if (node.getOpcode() == Opcodes.INVOKESPECIAL
                     && node instanceof MethodInsnNode methodInsn
-                    && methodInsn.name.equals(INIT_METHOD_NAME)
+                    && methodInsn.name.equals(AsmKit.INIT)
                     && methodInsn.owner.startsWith(EFFECT_PACKAGE_PREFIX)
                     && methodInsn.desc.equals(MOB_EFFECT_INIT_DESCRIPTOR)) {
                     Integer top = intLiteralStack.popInt();

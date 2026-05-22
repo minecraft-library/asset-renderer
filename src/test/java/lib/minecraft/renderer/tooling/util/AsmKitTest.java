@@ -1263,52 +1263,6 @@ class AsmKitTest {
     }
 
     @Nested
-    @DisplayName("LiteralStack diagnostic-aware pops")
-    class LiteralStackDiag {
-
-        @Test
-        @DisplayName("popIntOrDiag emits WARN on empty stack")
-        void underflowEmitsWarn() {
-            Diagnostics diag = new Diagnostics();
-            AsmKit.LiteralStack stack = new AsmKit.LiteralStack(4);
-            assertThat(stack.popIntOrDiag(diag, "site-A"), is(nullValue()));
-            assertThat(diag.entries(), contains(containsString("underflow popping int at site-A")));
-        }
-
-        @Test
-        @DisplayName("popIntOrDiag emits WARN on type mismatch and preserves top")
-        void mismatchPreservesTop() {
-            Diagnostics diag = new Diagnostics();
-            AsmKit.LiteralStack stack = new AsmKit.LiteralStack(4);
-            stack.push("not-an-int");
-            assertThat(stack.popIntOrDiag(diag, "site-B"), is(nullValue()));
-            assertThat(stack.size(), equalTo(1));
-            assertThat(diag.entries(), contains(containsString("type mismatch popping int at site-B")));
-        }
-
-        @Test
-        @DisplayName("popFloatOrDiag returns the value when type matches")
-        void successfulPopNoWarn() {
-            Diagnostics diag = new Diagnostics();
-            AsmKit.LiteralStack stack = new AsmKit.LiteralStack(4);
-            stack.push(2.5f);
-            assertThat(stack.popFloatOrDiag(diag, "site-C"), equalTo(2.5f));
-            assertThat(diag.isEmpty(), is(true));
-        }
-
-        @Test
-        @DisplayName("popStringOrDiag emits WARN on type mismatch")
-        void popStringMismatch() {
-            Diagnostics diag = new Diagnostics();
-            AsmKit.LiteralStack stack = new AsmKit.LiteralStack(4);
-            stack.push(42);
-            assertThat(stack.popStringOrDiag(diag, "site-D"), is(nullValue()));
-            assertThat(diag.strictFailingCount(), equalTo(1));
-        }
-
-    }
-
-    @Nested
     @DisplayName("SlotTracker")
     class SlotTrackerTests {
 

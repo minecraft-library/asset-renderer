@@ -81,7 +81,8 @@ public final class SourceDiscovery {
     private static final @NotNull String LAYER_DEFINITIONS = "net/minecraft/client/model/geom/LayerDefinitions";
     private static final @NotNull String MODEL_LAYERS = "net/minecraft/client/model/geom/ModelLayers";
     private static final @NotNull String LAYER_DEFINITION_DESC_RETURN = ")Lnet/minecraft/client/model/geom/builders/LayerDefinition;";
-    private static final @NotNull String MESH_DEFINITION_DESC_RETURN = ")Lnet/minecraft/client/model/geom/builders/MeshDefinition;";
+    private static final @NotNull String MESH_DEFINITION_INTERNAL = "net/minecraft/client/model/geom/builders/MeshDefinition";
+    private static final @NotNull String MESH_DEFINITION_DESC_RETURN = ")L" + MESH_DEFINITION_INTERNAL + ";";
     private static final @NotNull String LAYER_DEFINITION_CLASS = "net/minecraft/client/model/geom/builders/LayerDefinition";
 
     /**
@@ -708,17 +709,13 @@ public final class SourceDiscovery {
         MethodInsnNode lastCreate = null;
         AbstractInsnNode lastReal = null;
         for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
-            if (in.getOpcode() < 0) continue;
+            if (AsmKit.isPseudoNode(in)) continue;
             if (firstInvoke == null && in instanceof MethodInsnNode mi && in.getOpcode() == Opcodes.INVOKESTATIC
-                && mi.desc.endsWith(MESH_DEFINITION_DESC_RETURN)) {
+                && AsmKit.descriptorReturns(mi.desc, MESH_DEFINITION_INTERNAL)) {
                 firstInvoke = mi;
             }
-            if (in instanceof MethodInsnNode mi
-                && in.getOpcode() == Opcodes.INVOKESTATIC
-                && mi.owner.equals(LAYER_DEFINITION_CLASS)
-                && mi.name.equals("create")) {
-                lastCreate = mi;
-            }
+            if (AsmKit.isInvokeStatic(in, LAYER_DEFINITION_CLASS, "create"))
+                lastCreate = (MethodInsnNode) in;
             lastReal = in;
         }
         if (firstInvoke == null || lastCreate == null) return layer;

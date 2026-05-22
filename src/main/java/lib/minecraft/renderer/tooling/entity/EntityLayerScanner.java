@@ -118,7 +118,7 @@ public final class EntityLayerScanner {
             depth++;
             if (cursor.getOpcode() == Opcodes.INVOKESPECIAL
                 && cursor instanceof MethodInsnNode mi
-                && "<init>".equals(mi.name))
+                && AsmKit.INIT.equals(mi.name))
                 pendingInits++;
             if (cursor.getOpcode() == Opcodes.NEW && cursor instanceof TypeInsnNode type) {
                 pendingInits--;
