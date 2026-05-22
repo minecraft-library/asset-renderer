@@ -210,6 +210,76 @@ public final class EntityVariantResolver {
     }
 
     /**
+     * Fallback for variant tables whose holder class lacks a {@code DEFAULT} field
+     * ({@code CatVariants} is the canonical case in vanilla 26.1). Walks every
+     * {@code data/minecraft/<variantStem>_variant/*.json} and returns the alphabetically-first
+     * variant id whose {@code spawn_conditions} entries are all unconditional (each entry
+     * carries only {@code priority} - no {@code condition} sub-object). This mirrors vanilla's
+     * runtime selection at a fresh-spawn zero state, where structure / moon / biome / time
+     * gated variants drop out and the remaining unconditional set is iterated alphabetically.
+     *
+     * <p>For cats: {@code all_black.json} carries structure + moon conditions and is filtered
+     * out; the remaining 10 unconditional variants are ordered alphabetically and {@code black}
+     * wins -&gt; cat texture resolves to {@code entity/cat/cat_black}.
+     *
+     * @return the variant id (e.g., {@code "black"}) or {@code null} when no unconditional
+     *     variant exists in the directory
+     */
+    public static @Nullable String findAlphaFirstUnconditionalVariantId(
+        @NotNull ZipFile zip,
+        @NotNull String variantStem,
+        @NotNull Diagnostics diagnostics
+    ) {
+        String dirPrefix = DATA_PREFIX + variantStem + "_variant/";
+        java.util.TreeSet<String> unconditional = new java.util.TreeSet<>();
+        Enumeration<? extends ZipEntry> entries = zip.entries();
+        while (entries.hasMoreElements()) {
+            ZipEntry entry = entries.nextElement();
+            if (entry.isDirectory()) continue;
+            String name = entry.getName();
+            if (!name.startsWith(dirPrefix)) continue;
+            String tail = name.substring(dirPrefix.length());
+            if (!tail.endsWith(".json") || tail.contains("/")) continue;
+            String variantId = tail.substring(0, tail.length() - ".json".length());
+            if (isUnconditionalVariant(zip, entry, diagnostics))
+                unconditional.add(variantId);
+        }
+        return unconditional.isEmpty() ? null : unconditional.first();
+    }
+
+    /**
+     * Returns {@code true} when every entry in the variant JSON's {@code spawn_conditions} array
+     * lacks a {@code condition} sub-object - i.e., the variant is selectable regardless of
+     * structure / biome / moon / time gates. Variants with an empty / absent
+     * {@code spawn_conditions} array also return {@code true} (the harness defaults are
+     * always considered selectable).
+     */
+    private static boolean isUnconditionalVariant(
+        @NotNull ZipFile zip,
+        @NotNull ZipEntry entry,
+        @NotNull Diagnostics diagnostics
+    ) {
+        try (InputStream in = zip.getInputStream(entry)) {
+            String text = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            JsonElement parsed = JsonParser.parseString(text);
+            if (!parsed.isJsonObject()) return false;
+            JsonElement conditions = parsed.getAsJsonObject().get("spawn_conditions");
+            if (conditions == null || !conditions.isJsonArray()) return true;
+            for (JsonElement element : conditions.getAsJsonArray()) {
+                if (!element.isJsonObject()) continue;
+                if (element.getAsJsonObject().has("condition")) return false;
+            }
+            return true;
+        } catch (IOException ex) {
+            diagnostics.warn("failed to read variant '%s': %s", entry.getName(), ex.getMessage());
+            return false;
+        } catch (JsonSyntaxException ex) {
+            diagnostics.warn("variant '%s' has malformed JSON: %s", entry.getName(), ex.getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Walks the data-variant holder class's {@code <clinit>} for the
      * {@code LDC + createKey + PUTSTATIC} chain (one per variant) and the closing
      * {@code GETSTATIC <FIELD>; PUTSTATIC DEFAULT} that selects the canonical default. Returns

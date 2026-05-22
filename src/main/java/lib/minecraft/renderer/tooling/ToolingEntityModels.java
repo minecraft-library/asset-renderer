@@ -744,8 +744,16 @@ public final class ToolingEntityModels {
             if (texture == null && rec.variantStem() != null) {
                 ConcurrentList<EntityVariantResolver.Variant> vlist = variants.get(rec.variantStem());
                 if (vlist != null && !vlist.isEmpty()) {
-                    EntityVariantResolver.Variant defaultVariant =
-                        pickDefaultVariant(vlist, dataVariantDefaults.get(rec.variantStem()));
+                    // Holder-class DEFAULT (WolfVariants.DEFAULT etc.) wins; if absent (cat),
+                    // fall back to the alphabetically-first unconditional variant scanned from
+                    // data/minecraft/<stem>_variant/*.json. This mirrors vanilla's runtime
+                    // selection at zero state when no structure / moon / biome / time gate
+                    // matches.
+                    String canonical = dataVariantDefaults.get(rec.variantStem());
+                    if (canonical == null)
+                        canonical = EntityVariantResolver.findAlphaFirstUnconditionalVariantId(
+                            zip, rec.variantStem(), diagnostics);
+                    EntityVariantResolver.Variant defaultVariant = pickDefaultVariant(vlist, canonical);
                     String def = defaultVariant.primaryTexturePath();
                     if (def != null) texture = def;
                 }

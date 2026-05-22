@@ -79,7 +79,7 @@
     },
     "minecraft:cat": {
       "geometry_ref": "geometry.adultfeline",
-      "texture_ref": "cat/cat_all_black",
+      "texture_ref": "cat/cat_black",
       "armor_type": "none"
     },
     "minecraft:cat_all_black": {
