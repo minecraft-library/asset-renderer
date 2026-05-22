@@ -190,6 +190,12 @@ public final class VanillaSourceClasses {
     /** Static field holder for equipment-asset keys ({@code TRADER_LLAMA}, ...). */
     public static final @NotNull String EQUIPMENT_ASSETS = "net/minecraft/world/item/equipment/EquipmentAssets";
 
+    /** Factory class for RenderType instances ({@code RenderTypes.eyes(loc)}, ...). */
+    public static final @NotNull String RENDER_TYPES = RENDERER_ROOT + "rendertype/RenderTypes";
+
+    /** Static field holder for RenderPipeline instances (each pipeline's shader-define / blend / cull traits live here). */
+    public static final @NotNull String RENDER_PIPELINES = RENDERER_ROOT + "RenderPipelines";
+
     // ============================================================================================
     // Block-entity registries
     // ============================================================================================

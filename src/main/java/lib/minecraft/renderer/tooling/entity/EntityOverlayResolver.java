@@ -116,23 +116,13 @@ public final class EntityOverlayResolver {
     );
 
     /**
-     * Allowlist of {@code ModelLayers.X} field names whose composite overlay renders
-     * <b>without</b> the cardinal Lambertian shade (vanilla's {@code NO_CARDINAL_LIGHTING}
-     * shader define). Emitted as {@code emissive: true} so the rasterizer skips
-     * {@link RenderEngine#applyShading} and the texel's authored
-     * RGB writes through unchanged (then blended with the existing pixel via NORMAL).
-     * <p>Composite overlays not on this list inherit the standard ENTITY_IN_UI dual-light shade
-     * (the {@code !emissive} branch in the rasterizer). Adding an entry needs a parity check
-     * before commit - turning off shading on a layer that vanilla DOES shade would brighten it
-     * by up to {@code 1 / 0.4 = 2.5x} on back-facing fragments.
-     * <ul>
-     *   <li>{@code BREEZE_WIND} - {@code RenderPipelines.BREEZE_WIND} has
-     *       {@code .withShaderDefine("NO_CARDINAL_LIGHTING")} - wind cubes render unshaded.</li>
-     * </ul>
+     * Phase 11 derived {@code UNLIT_LAYERS} via {@link #layerInvokesNoCardinalLightingRenderType}:
+     * a layer is treated as emissive (skip cardinal Lambertian shade) when its body method invokes
+     * a {@code RenderTypes.X} factory whose backing {@code RenderPipelines.X} field's
+     * {@code <clinit>} build block contains {@code .withShaderDefine("NO_CARDINAL_LIGHTING")}.
+     * Currently fires for BreezeWindLayer ({@code RenderTypes.breezeWind} -&gt;
+     * {@code RenderPipelines.BREEZE_WIND}).
      */
-    private static final @NotNull java.util.Set<String> UNLIT_LAYERS = java.util.Set.of(
-        "BREEZE_WIND"
-    );
 
     /** Field-type descriptor for a {@code ModelLayerLocation}; used to spot parameterized-layer ctor args. */
     private static final @NotNull String MODEL_LAYER_LOCATION_DESC = "L" + VanillaSourceClasses.MODEL_LAYER_LOCATION + ";";
@@ -220,7 +210,7 @@ public final class EntityOverlayResolver {
             // skin texel below it.
             EyesOverlayBinding eyes = findEyesOverlayBinding(cn);
             if (eyes != null) {
-                boolean fullyEmissive = FULLY_EMISSIVE_EYE_FACTORIES.contains(eyes.factoryName());
+                boolean fullyEmissive = factoryHasNoCardinalLighting(zip, eyes.factoryName());
                 out.add(new OverlayDescriptor(layerClass, eyes.texturePath(), fullyEmissive, null, 0xFFFFFFFF));
                 continue;
             }
@@ -241,7 +231,7 @@ public final class EntityOverlayResolver {
                     continue;
                 }
                 int tintArgb = extractColoredCutoutTint(zip, cn);
-                boolean unlit = UNLIT_LAYERS.contains(modelLayerField);
+                boolean unlit = layerInvokesNoCardinalLightingRenderType(zip, cn);
                 out.add(new OverlayDescriptor(layerClass, compositeTexture, unlit, modelLayerField, tintArgb));
                 continue;
             }
@@ -726,20 +716,13 @@ public final class EntityOverlayResolver {
     private record EyesOverlayBinding(@NotNull String texturePath, @NotNull String factoryName) {}
 
     /**
-     * Eye factory method names that resolve to {@code RenderPipelines.EYES} (or equivalently
-     * an EMISSIVE + NO_CARDINAL_LIGHTING render pipeline). These overlay textures bypass the
-     * cardinal Lambertian shade entirely - the texel's authored RGB writes through unchanged
-     * (eye glow is full-bright by design). Maps to {@code emissive=true} on the
-     * {@link OverlayDescriptor}, so the rasterizer skips {@link
-     * lib.minecraft.renderer.engine.RenderEngine#applyShading}.
-     *
-     * <p>Eye factories NOT on this list (currently just {@code breezeEyes}) resolve to a
-     * pipeline that still shades the overlay (PER_FACE_LIGHTING for breeze), so the overlay
-     * darkens with the surface normal exactly like the base body skin texel would.
+     * Memoized cache for {@link #factoryHasNoCardinalLighting} - keyed on
+     * {@code RenderTypes.<factoryName>} factory method names. Populated lazily by
+     * {@link #factoryHasNoCardinalLighting} so the multi-hop {@code RenderTypes -&gt;
+     * RenderPipelines.<clinit>} walk runs once per factory per tooling pass.
      */
-    private static final @NotNull java.util.Set<String> FULLY_EMISSIVE_EYE_FACTORIES = java.util.Set.of(
-        "eyes"
-    );
+    private static final @NotNull java.util.Map<String, Boolean> FACTORY_EMISSIVE_CACHE =
+        new java.util.concurrent.ConcurrentHashMap<>();
 
     /**
      * Extracted bind data for a parameterized overlay layer (SkeletonClothingLayer-style):
@@ -923,6 +906,145 @@ public final class EntityOverlayResolver {
                 return new EyesOverlayBinding(pendingTexturePath, mi.name);
         }
         return null;
+    }
+
+    /**
+     * Phase 11 derivation: walks a layer's non-init methods for {@code INVOKESTATIC
+     * RenderTypes.<factory>(...) RenderType}, then resolves whether the matching pipeline
+     * carries the {@code NO_CARDINAL_LIGHTING} shader define. Returns {@code true} when ANY
+     * RenderType invocation in the layer body resolves to a no-cardinal-lighting pipeline.
+     *
+     * <p>Replaces the static {@code UNLIT_LAYERS} allowlist with a per-layer pipeline-trait
+     * walk: a new vanilla layer using a no-cardinal-lighting pipeline classifies as unlit
+     * automatically.
+     */
+    private static boolean layerInvokesNoCardinalLightingRenderType(@NotNull ZipFile zip, @NotNull ClassNode layerCn) {
+        for (MethodNode method : layerCn.methods) {
+            if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name)) continue;
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                if (in.getOpcode() != Opcodes.INVOKESTATIC) continue;
+                if (!(in instanceof MethodInsnNode mi)) continue;
+                if (!VanillaSourceClasses.RENDER_TYPES.equals(mi.owner)) continue;
+                if (factoryHasNoCardinalLighting(zip, mi.name)) return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Walks {@code RenderTypes.<factoryName>} for a {@code GETSTATIC RenderPipelines.X}
+     * reference (the pipeline the factory builds its RenderType against), then walks
+     * {@code RenderPipelines.<clinit>} for that field's build block and returns whether it
+     * applies the {@code .withShaderDefine("NO_CARDINAL_LIGHTING")} call.
+     *
+     * <p>Memoized via {@link #FACTORY_EMISSIVE_CACHE}; the multi-hop walk is amortized across
+     * every layer / eye-binding lookup. Returns {@code false} when the factory's pipeline
+     * reference can't be resolved (e.g., {@code Function}-backed factories where the
+     * pipeline reference lives behind an {@code InvokeDynamic} - the static walker treats
+     * those as cardinal-lit).
+     */
+    private static boolean factoryHasNoCardinalLighting(@NotNull ZipFile zip, @NotNull String factoryName) {
+        Boolean cached = FACTORY_EMISSIVE_CACHE.get(factoryName);
+        if (cached != null) return cached;
+        ClassNode renderTypes = AsmKit.loadClass(zip, VanillaSourceClasses.RENDER_TYPES);
+        if (renderTypes == null) {
+            FACTORY_EMISSIVE_CACHE.put(factoryName, false);
+            return false;
+        }
+        String pipelineField = resolveRenderTypesFactoryPipeline(renderTypes, factoryName);
+        if (pipelineField == null) {
+            FACTORY_EMISSIVE_CACHE.put(factoryName, false);
+            return false;
+        }
+        boolean result = pipelineHasNoCardinalLighting(zip, pipelineField);
+        FACTORY_EMISSIVE_CACHE.put(factoryName, result);
+        return result;
+    }
+
+    /**
+     * Resolves the {@code RenderPipelines.X} field that the named {@code RenderTypes.X}
+     * factory uses to construct its RenderType. Vanilla emits two factory shapes:
+     * <ul>
+     *   <li><b>Direct</b>: {@code public static RenderType breezeWind(...) { ... GETSTATIC
+     *       RenderPipelines.BREEZE_WIND ... }} - the factory body itself references the
+     *       pipeline.</li>
+     *   <li><b>Function-backed</b>: {@code public static RenderType eyes(Identifier loc) {
+     *       return EYES.apply(loc); }} where the {@code EYES:Function} static field is bound
+     *       via {@code invokedynamic} to a synthetic {@code lambda$static$N(Identifier)} whose
+     *       body starts with {@code LDC "eyes"; GETSTATIC RenderPipelines.EYES}.</li>
+     * </ul>
+     *
+     * <p>Direct lookup succeeds first; if no {@code RenderPipelines.X} GETSTATIC appears in the
+     * factory body, the fallback scans every {@code lambda$static$N} method whose first
+     * {@code LDC} string equals {@code factoryName} and picks the GETSTATIC right after it.
+     */
+    private static @Nullable String resolveRenderTypesFactoryPipeline(@NotNull ClassNode renderTypes, @NotNull String factoryName) {
+        for (MethodNode method : renderTypes.methods) {
+            if (!factoryName.equals(method.name)) continue;
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
+                if (in.getOpcode() == Opcodes.GETSTATIC
+                    && in instanceof FieldInsnNode fi
+                    && VanillaSourceClasses.RENDER_PIPELINES.equals(fi.owner))
+                    return fi.name;
+        }
+        for (MethodNode method : renderTypes.methods) {
+            if (!method.name.startsWith("lambda$static$")) continue;
+            String firstLdc = null;
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                String literal = AsmKit.readStringLiteral(in);
+                if (literal != null) {
+                    if (firstLdc == null) firstLdc = literal;
+                    if (!factoryName.equals(firstLdc)) break;
+                    continue;
+                }
+                if (firstLdc != null
+                    && factoryName.equals(firstLdc)
+                    && in.getOpcode() == Opcodes.GETSTATIC
+                    && in instanceof FieldInsnNode fi
+                    && VanillaSourceClasses.RENDER_PIPELINES.equals(fi.owner))
+                    return fi.name;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Walks {@code RenderPipelines.<clinit>} for the build block that ends with
+     * {@code PUTSTATIC <pipelineFieldName>} and returns whether the chain applied
+     * {@code .withShaderDefine("NO_CARDINAL_LIGHTING")}. Build-block boundaries are marked by
+     * any {@code PUTSTATIC} on a {@code RenderPipeline}-typed field (each pipeline registration
+     * ends with one). Traits accumulate until the block boundary; reset on every {@code
+     * PUTSTATIC} so the previous pipeline's shader-defines don't leak into the next.
+     */
+    private static boolean pipelineHasNoCardinalLighting(@NotNull ZipFile zip, @NotNull String pipelineFieldName) {
+        ClassNode cn = AsmKit.loadClass(zip, VanillaSourceClasses.RENDER_PIPELINES);
+        if (cn == null) return false;
+        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
+        if (clinit == null) return false;
+        boolean blockNoCardinal = false;
+        String pendingShaderDefineName = null;
+        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+            String literal = AsmKit.readStringLiteral(in);
+            if (literal != null) {
+                pendingShaderDefineName = literal;
+                continue;
+            }
+            if (in.getOpcode() == Opcodes.INVOKEVIRTUAL
+                && in instanceof MethodInsnNode mi
+                && "withShaderDefine".equals(mi.name)
+                && "NO_CARDINAL_LIGHTING".equals(pendingShaderDefineName)) {
+                blockNoCardinal = true;
+                pendingShaderDefineName = null;
+                continue;
+            }
+            if (in.getOpcode() == Opcodes.PUTSTATIC && in instanceof FieldInsnNode fi) {
+                if (pipelineFieldName.equals(fi.name)) return blockNoCardinal;
+                // Build-block boundary - reset accumulated traits for the next pipeline.
+                blockNoCardinal = false;
+                pendingShaderDefineName = null;
+            }
+        }
+        return false;
     }
 
     /**
