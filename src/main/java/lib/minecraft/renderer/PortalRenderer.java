@@ -437,12 +437,12 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
         // worker, so there is no cross-thread read-after-write on any pixel.
         IntStream.range(0, height).parallel().forEach(y -> {
             for (int x = 0; x < width; x++) {
-                int fp = frame.getPixel(x, y);
-                int pp = partner.getPixel(x, y);
-                int a = Math.clamp((int) (ColorMath.alpha(fp) * alpha + ColorMath.alpha(pp) * invAlpha + 0.5f), 0, 255);
-                int r = Math.clamp((int) (ColorMath.red(fp)   * alpha + ColorMath.red(pp)   * invAlpha + 0.5f), 0, 255);
-                int g = Math.clamp((int) (ColorMath.green(fp) * alpha + ColorMath.green(pp) * invAlpha + 0.5f), 0, 255);
-                int b = Math.clamp((int) (ColorMath.blue(fp)  * alpha + ColorMath.blue(pp)  * invAlpha + 0.5f), 0, 255);
+                int framePixel = frame.getPixel(x, y);
+                int partnerPixel = partner.getPixel(x, y);
+                int a = Math.clamp((int) (ColorMath.alpha(framePixel) * alpha + ColorMath.alpha(partnerPixel) * invAlpha + 0.5f), 0, 255);
+                int r = Math.clamp((int) (ColorMath.red(framePixel)   * alpha + ColorMath.red(partnerPixel)   * invAlpha + 0.5f), 0, 255);
+                int g = Math.clamp((int) (ColorMath.green(framePixel) * alpha + ColorMath.green(partnerPixel) * invAlpha + 0.5f), 0, 255);
+                int b = Math.clamp((int) (ColorMath.blue(framePixel)  * alpha + ColorMath.blue(partnerPixel)  * invAlpha + 0.5f), 0, 255);
                 frame.setPixel(x, y, ColorMath.pack(a, r, g, b));
             }
         });
@@ -557,11 +557,11 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
                     int maskAlpha = ColorMath.alpha(mask);
                     if (maskAlpha == 0) continue;
 
-                    int shader = shaderCanvas.getPixel(x, y);
+                    int shaderPixel = shaderCanvas.getPixel(x, y);
                     float factor = ColorMath.red(mask) / 255f;
-                    int r = Math.clamp((int) (ColorMath.red(shader)   * factor + 0.5f), 0, 255);
-                    int g = Math.clamp((int) (ColorMath.green(shader) * factor + 0.5f), 0, 255);
-                    int b = Math.clamp((int) (ColorMath.blue(shader)  * factor + 0.5f), 0, 255);
+                    int r = Math.clamp((int) (ColorMath.red(shaderPixel)   * factor + 0.5f), 0, 255);
+                    int g = Math.clamp((int) (ColorMath.green(shaderPixel) * factor + 0.5f), 0, 255);
+                    int b = Math.clamp((int) (ColorMath.blue(shaderPixel)  * factor + 0.5f), 0, 255);
                     out.setPixel(x, y, ColorMath.pack(maskAlpha, r, g, b));
                 }
             }

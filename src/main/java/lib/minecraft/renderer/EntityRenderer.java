@@ -639,11 +639,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         int[] src = source.data();
         int[] out = new int[src.length];
         for (int i = 0; i < src.length; i++) {
-            int p = src[i];
-            int a = ColorMath.alpha(p);
-            out[i] = (a > 0 && a < 255)
-                ? ColorMath.withAlpha(p, 255)
-                : p;
+            int texel = src[i];
+            int alpha = ColorMath.alpha(texel);
+            out[i] = (alpha > 0 && alpha < 255)
+                ? ColorMath.withAlpha(texel, 255)
+                : texel;
         }
         return PixelBuffer.of(out, w, h);
     }
