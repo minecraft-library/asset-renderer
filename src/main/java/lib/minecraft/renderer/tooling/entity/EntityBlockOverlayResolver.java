@@ -13,6 +13,7 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.FieldNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
@@ -22,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.zip.ZipFile;
 
 /**
@@ -73,17 +75,24 @@ public final class EntityBlockOverlayResolver {
     private static final @NotNull String MODEL_PART = "net/minecraft/client/model/geom/ModelPart";
 
     /**
-     * Recognised block-decoration layer classes mapped to the metadata needed to resolve their
-     * default block id at parse time. Each layer class points to the
-     * {@code <Entity>$Variant} enum class whose {@code DEFAULT} field's BlockState backs the
-     * default-rendered block; the resolver walks that enum's {@code <clinit>} to extract the
-     * mapping. Layers whose block id is invariant (iron-golem poppy, etc) carry an empty
-     * variant class and a literal {@code defaultBlockId} fallback.
+     * Per-layer-class detection cache populated by {@link #detectKnownLayer}: the dynamic
+     * inheritance / state-class walk runs once per encountered layer class, not per
+     * (entity, layer) pair. Phase 12 retired the hardcoded {@code KNOWN_LAYERS} static map
+     * (1 entry: {@code MushroomCowMushroomLayer}); detection now derives the variant class
+     * from the layer's submit-method state-class field reads.
+     *
+     * <p>Cache value {@code null} encodes "detection ran and returned null" - the
+     * key-present-but-value-null distinction prevents re-walking non-matching layers
+     * (every armor / equipment / item-in-hand layer attached to mob renderers).
      */
-    private static final @NotNull Map<String, KnownLayer> KNOWN_LAYERS = new LinkedHashMap<>() {{
-        put("net/minecraft/client/renderer/entity/layers/MushroomCowMushroomLayer",
-            new KnownLayer("net/minecraft/world/entity/animal/cow/MushroomCow$Variant", null));
-    }};
+    private static final @NotNull Map<String, KnownLayer> KNOWN_LAYER_CACHE = new ConcurrentHashMap<>();
+
+    /** Descriptor for the BlockModelRenderState type that a block-overlay layer's submit reads from a state field. */
+    private static final @NotNull String BLOCK_MODEL_RENDER_STATE_DESC =
+        "Lnet/minecraft/client/renderer/block/BlockModelRenderState;";
+
+    /** Cache sentinel for "detection ran and produced no match" - {@link ConcurrentHashMap} disallows null values. */
+    private static final @NotNull KnownLayer KNOWN_LAYER_NONE = new KnownLayer(null, null);
 
     /**
      * Resolves the block-overlay descriptors attached to an entity's renderer via recognised
@@ -114,8 +123,12 @@ public final class EntityBlockOverlayResolver {
         for (AbstractInsnNode node = init.instructions.getFirst(); node != null; node = node.getNext()) {
             if (!(node instanceof TypeInsnNode typeInsn) || typeInsn.getOpcode() != Opcodes.NEW) continue;
             String layerInternalName = typeInsn.desc;
-            KnownLayer layerInfo = KNOWN_LAYERS.get(layerInternalName);
-            if (layerInfo == null) continue;
+            KnownLayer layerInfo = KNOWN_LAYER_CACHE.computeIfAbsent(layerInternalName,
+                key -> {
+                    KnownLayer detected = detectKnownLayer(zip, key);
+                    return detected != null ? detected : KNOWN_LAYER_NONE;
+                });
+            if (layerInfo == KNOWN_LAYER_NONE) continue;
 
             String defaultBlockId = resolveDefaultBlockId(zip, layerInfo, entityId, diagnostics);
             if (defaultBlockId == null) {
@@ -142,6 +155,47 @@ public final class EntityBlockOverlayResolver {
             out.addAll(extracted);
         }
         return out;
+    }
+
+    /**
+     * Detects whether {@code layerInternalName} is a block-rendering overlay layer (formerly the
+     * hardcoded {@code KNOWN_LAYERS} membership check). A layer qualifies when its typed-state
+     * {@code submit} overload reads a {@code BlockModelRenderState}-typed field from the
+     * entity's RenderState class, AND the state class declares an enum-typed field whose
+     * descriptor ends with {@code $Variant;}. The variant class drives the
+     * {@code resolveDefaultBlockId} walk for the canonical default-state block id.
+     *
+     * <p>Vanilla MushroomCowMushroomLayer is the only current match: its submit reads
+     * {@code state.mushroomModel:BlockModelRenderState}, and MushroomCowRenderState declares
+     * {@code variant:MushroomCow$Variant}. The walker is generic so any future
+     * variant-driven block-overlay layer (e.g., a hypothetical
+     * {@code FrogTongueLayer} reading a state.tongue:BlockModelRenderState + state.variant:Frog$Variant)
+     * auto-classifies without an allowlist change.
+     */
+    private static @Nullable KnownLayer detectKnownLayer(@NotNull ZipFile zip, @NotNull String layerInternalName) {
+        ClassNode layerCn = AsmKit.loadClass(zip, layerInternalName);
+        if (layerCn == null) return null;
+        MethodNode submit = findSubmitMethod(layerCn);
+        if (submit == null) return null;
+        String stateClass = null;
+        for (AbstractInsnNode in = submit.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (in.getOpcode() != Opcodes.GETFIELD) continue;
+            if (!(in instanceof FieldInsnNode fi)) continue;
+            if (BLOCK_MODEL_RENDER_STATE_DESC.equals(fi.desc)) {
+                stateClass = fi.owner;
+                break;
+            }
+        }
+        if (stateClass == null) return null;
+        ClassNode stateCn = AsmKit.loadClass(zip, stateClass);
+        if (stateCn == null) return null;
+        for (FieldNode field : stateCn.fields) {
+            if (field.desc == null) continue;
+            if (!field.desc.startsWith("L") || !field.desc.endsWith("$Variant;")) continue;
+            String variantClass = field.desc.substring(1, field.desc.length() - 1);
+            return new KnownLayer(variantClass, null);
+        }
+        return null;
     }
 
     /**
