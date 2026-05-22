@@ -263,7 +263,7 @@ public final class BlockListDiscovery {
     static @NotNull List<String> validBlocks(@NotNull ZipFile zip, @NotNull String beField) {
         ClassNode cn = AsmKit.loadClass(zip, BLOCK_ENTITY_TYPE);
         if (cn == null) return List.of();
-        MethodNode init = AsmKit.findMethod(cn, "<clinit>");
+        MethodNode init = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (init == null) return List.of();
         ConcurrentList<String> pending = Concurrent.newList();
         boolean seenLdc = false;
@@ -363,7 +363,7 @@ public final class BlockListDiscovery {
     private static @NotNull Map<String, String> walkEnumSerializedNames(@NotNull ZipFile zip, @NotNull String enumInternal) {
         ClassNode cn = AsmKit.loadClass(zip, enumInternal);
         if (cn == null) return Map.of();
-        MethodNode init = AsmKit.findMethod(cn, "<clinit>");
+        MethodNode init = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (init == null) return Map.of();
         LinkedHashMap<String, String> out = new LinkedHashMap<>();
         String firstLdc = null;  // the enum constant NAME (unused - the PUTSTATIC field is authoritative)
@@ -398,7 +398,7 @@ public final class BlockListDiscovery {
     private static @NotNull Map<String, String> walkRecordSingleLdcNames(@NotNull ZipFile zip, @NotNull String recordInternal) {
         ClassNode cn = AsmKit.loadClass(zip, recordInternal);
         if (cn == null) return Map.of();
-        MethodNode init = AsmKit.findMethod(cn, "<clinit>");
+        MethodNode init = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (init == null) return Map.of();
         LinkedHashMap<String, String> out = new LinkedHashMap<>();
         String pendingName = null;
@@ -464,7 +464,7 @@ public final class BlockListDiscovery {
         }
         Set<String> fieldSet = new HashSet<>(blockFields);
         LinkedHashMap<String, String> out = new LinkedHashMap<>();
-        MethodNode clinit = AsmKit.findMethod(blocksClass, "<clinit>");
+        MethodNode clinit = AsmKit.findMethod(blocksClass, AsmKit.CLINIT);
         if (clinit == null) return out;
 
         // Walk Blocks.<clinit> linearly. For each register pair (LDC id; ...; PUTSTATIC Blocks.X),
@@ -541,7 +541,7 @@ public final class BlockListDiscovery {
         ClassNode cn = AsmKit.loadClass(zip, classInternal);
         if (cn == null) return null;
         for (MethodNode m : cn.methods) {
-            if (!m.name.equals("<init>")) continue;
+            if (!AsmKit.INIT.equals(m.name)) continue;
             for (AbstractInsnNode in = m.instructions.getFirst(); in != null; in = in.getNext())
                 if (in instanceof FieldInsnNode fi && fi.getOpcode() == Opcodes.GETSTATIC && fi.owner.equals(enumInternal))
                     return fi.name;
@@ -564,7 +564,7 @@ public final class BlockListDiscovery {
     static @Nullable String walkBlockNewClass(@NotNull ZipFile zip, @NotNull String blockField) {
         ClassNode blocksClass = AsmKit.loadClass(zip, BLOCKS);
         if (blocksClass == null) return null;
-        MethodNode clinit = AsmKit.findMethod(blocksClass, "<clinit>");
+        MethodNode clinit = AsmKit.findMethod(blocksClass, AsmKit.CLINIT);
         if (clinit == null) return null;
         String pendingLambda = null;
         String pendingCtorClass = null;
@@ -600,7 +600,7 @@ public final class BlockListDiscovery {
      * @return a map from {@code Blocks.<field>} to {@code lambda$static$N} name
      */
     private static @NotNull Map<String, String> indexBlocksLambdas(@NotNull ClassNode blocksClass) {
-        MethodNode clinit = AsmKit.findMethod(blocksClass, "<clinit>");
+        MethodNode clinit = AsmKit.findMethod(blocksClass, AsmKit.CLINIT);
         if (clinit == null) return Map.of();
         LinkedHashMap<String, String> out = new LinkedHashMap<>();
         String pendingLambda = null;
@@ -624,8 +624,10 @@ public final class BlockListDiscovery {
      * the enclosing class.
      */
     private static @Nullable String resolveIndyStaticLambda(@NotNull InvokeDynamicInsnNode indy, @NotNull ClassNode owner) {
-        if (indy.bsmArgs.length < 2) return null;
-        if (!(indy.bsmArgs[1] instanceof Handle handle)) return null;
+        // R5: don't use AsmKit.resolveLambdaTargetClass here - callers need the static-lambda
+        // filter only, not the unified resolution that also handles H_NEWINVOKESPECIAL.
+        Handle handle = AsmKit.extractLambdaHandle(indy);
+        if (handle == null) return null;
         if (handle.getTag() != Opcodes.H_INVOKESTATIC) return null;
         if (!handle.getOwner().equals(owner.name)) return null;
         return handle.getName();
@@ -637,8 +639,8 @@ public final class BlockListDiscovery {
      * {@code H_NEWINVOKESPECIAL}. Returns {@code null} for other handle tags.
      */
     private static @Nullable String resolveIndyCtorRef(@NotNull InvokeDynamicInsnNode indy) {
-        if (indy.bsmArgs.length < 2) return null;
-        if (!(indy.bsmArgs[1] instanceof Handle handle)) return null;
+        Handle handle = AsmKit.extractLambdaHandle(indy);
+        if (handle == null) return null;
         if (handle.getTag() != Opcodes.H_NEWINVOKESPECIAL) return null;
         return handle.getOwner();
     }
@@ -708,7 +710,7 @@ public final class BlockListDiscovery {
     static @NotNull Map<String, String> walkChestSpecialRendererVariants(@NotNull ZipFile zip) {
         ClassNode cn = AsmKit.loadClass(zip, CHEST_SPECIAL_RENDERER);
         if (cn == null) return Map.of();
-        MethodNode clinit = AsmKit.findMethod(cn, "<clinit>");
+        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return Map.of();
         LinkedHashMap<String, String> out = new LinkedHashMap<>();
         String pendingLdc = null;
@@ -751,7 +753,7 @@ public final class BlockListDiscovery {
     static @NotNull Map<String, String> walkCopperGolemOxidationLevels(@NotNull ZipFile zip) {
         ClassNode cn = AsmKit.loadClass(zip, COPPER_GOLEM_OXIDATION_LEVELS);
         if (cn == null) return Map.of();
-        MethodNode clinit = AsmKit.findMethod(cn, "<clinit>");
+        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return Map.of();
         LinkedHashMap<String, String> out = new LinkedHashMap<>();
         String firstLdcAfterNew = null;
@@ -928,7 +930,7 @@ public final class BlockListDiscovery {
      * integer literal.
      */
     private static @Nullable String readDefaultSkinsEntry(@NotNull ClassNode cn, int targetIndex) {
-        MethodNode clinit = AsmKit.findMethod(cn, "<clinit>");
+        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return null;
         Integer pendingIdx = null;
         String pendingLdc = null;
@@ -972,7 +974,7 @@ public final class BlockListDiscovery {
             diag.warn("ConduitRenderer missing - cannot resolve conduit shell texture");
             return null;
         }
-        MethodNode clinit = AsmKit.findMethod(cn, "<clinit>");
+        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) {
             diag.warn("ConduitRenderer.<clinit> missing");
             return null;
@@ -1015,7 +1017,7 @@ public final class BlockListDiscovery {
             diag.warn("BellRenderer missing - cannot resolve bell body texture");
             return null;
         }
-        MethodNode clinit = AsmKit.findMethod(cn, "<clinit>");
+        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) {
             diag.warn("BellRenderer.<clinit> missing");
             return null;
@@ -1414,7 +1416,7 @@ public final class BlockListDiscovery {
             ClassNode cn = AsmKit.loadClass(zip, blockClass);
             if (cn == null) return null;
             for (MethodNode m : cn.methods) {
-                if (!m.name.equals("<init>")) continue;
+                if (!AsmKit.INIT.equals(m.name)) continue;
                 for (AbstractInsnNode in = m.instructions.getFirst(); in != null; in = in.getNext())
                     if (in instanceof FieldInsnNode fi && fi.getOpcode() == Opcodes.GETSTATIC && fi.owner.equals(SKULL_TYPES))
                         return fi.name;
