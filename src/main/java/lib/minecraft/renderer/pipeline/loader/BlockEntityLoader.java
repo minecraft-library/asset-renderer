@@ -36,10 +36,13 @@ import java.util.Map;
  *     block entry also carries pattern-derived per-block fields ({@code iconRotation} on beds,
  *     {@code additive} on bells, {@code tint} on banners) emitted by the tooling's
  *     id-pattern walker.</li>
- * <li>{@code /lib/minecraft/renderer/block_entities_overrides.json} - hand-edited overlay carrying
- *     the small residue that the tooling pass cannot derive (currently forced
- *     {@code inventory_y_rotation} on chest / skull / banner / wall_banner entity models).
- *     Override values win over tooling-emitted values when both are present.</li>
+ * <li>{@code /lib/minecraft/renderer/block_entities_overrides.json} - hand-edited overlay
+ *     read only by {@code ToolingBlockEntities} at generation time. Currently carries one
+ *     entry ({@code skull_dragon_head}'s {@code inventory_transform}) - the tz=1.25 origin
+ *     value lives in {@code DragonHeadModel.createHeadLayer} rather than the renderer
+ *     bytecode that {@code InventoryTransformDecomposer} walks. The runtime loader reads
+ *     {@code per_block} keys here as an override escape hatch (override wins over the
+ *     tooling-emitted block entry); {@code per_entity} is not consumed at runtime.</li>
  * </ul>
  * The output is a flat map of block id to {@link Block.Entity} carrying a populated
  * {@link BlockModelData} (with real {@link ModelElement elements}) and the entity texture
@@ -66,9 +69,8 @@ public class BlockEntityLoader {
         JsonObject entities = entitiesRoot.has("entities")
             ? entitiesRoot.getAsJsonObject("entities")
             : entitiesRoot;
-        JsonObject perEntityOverrides = overridesRoot.has("per_entity")
-            ? overridesRoot.getAsJsonObject("per_entity")
-            : new JsonObject();
+        // per_entity is consumed by ToolingBlockEntities at generation time
+        // (mergeInventoryTransformOverrides), not at runtime - skip reading it here.
         JsonObject perBlockOverrides = overridesRoot.has("per_block")
             ? overridesRoot.getAsJsonObject("per_block")
             : new JsonObject();
@@ -154,17 +156,6 @@ public class BlockEntityLoader {
 
                 result.put(blockId, new Block.Entity(modelId, modelData, textureId, tintArgb, iconRotation, multiBlock, Concurrent.adoptList(parts), additive));
             }
-
-            // Per-entity overrides (e.g. inventory_y_rotation) are currently not propagated
-            // into Block.Entity - Block.Entity's existing shape doesn't carry that field, and
-            // the render-side yaw bake happens inside the tooling at model generation time.
-            // Keeping the override parse silent here preserves that contract while allowing
-            // the field to round-trip through the JSON for future consumers.
-            JsonObject ignoredEntityOverride = perEntityOverrides.has(modelId)
-                ? perEntityOverrides.getAsJsonObject(modelId)
-                : null;
-            if (ignoredEntityOverride != null && !ignoredEntityOverride.entrySet().isEmpty() && ignoredEntityOverride.has("unknown"))
-                System.err.printf("  Warning: unsupported per_entity override key for '%s'%n", modelId);
         }
 
         return Concurrent.adoptMap(result).toUnmodifiable();

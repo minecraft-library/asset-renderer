@@ -88,6 +88,14 @@ public final class SourceDiscovery {
      * property. The 180 degrees here restores the camera-facing side under our standard
      * [30, 225, 0] isometric gui pose (vanilla's chest/banner/skull items use [30, 45, 0],
      * a 180 degrees delta).
+     *
+     * <p>This is the <b>canonical</b> source: the equivalent entries in
+     * {@code block_entities_overrides.json} were dead (the runtime loader never propagated
+     * them to {@code Block.Entity}). The actual rotation is baked into
+     * {@code block_entities.json}'s {@code elements} by {@code BlockModelConverter}, which
+     * reads {@code parsedEntity.inventory_y_rotation} - itself populated from this map by
+     * the source-walk emission in {@link #emitSourcesFor}. Generalising to a bytecode scan of
+     * {@code BlockEntityRenderer.modelTransformation} is future work.
      */
     private static final @NotNull Map<String, Float> ID_TO_INVENTORY_Y_ROTATION = Map.of(
         "minecraft:chest", 180f,
