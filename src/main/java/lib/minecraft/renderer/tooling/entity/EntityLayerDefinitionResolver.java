@@ -310,14 +310,14 @@ public final class EntityLayerDefinitionResolver {
             return out;
         }
 
-        Map<Integer, Resolution> slotState = new LinkedHashMap<>();
+        AsmKit.SlotTracker<Resolution> slotState = new AsmKit.SlotTracker<>();
         // Track {@code astore N} of MeshTransformer references built locally via
         // {@code ldc F; invokestatic MeshTransformer.scaling(F)}. When a later {@code aload N}
         // precedes an {@code invokevirtual LayerDefinition.apply(MeshTransformer)}, the F here
         // is the scale we want to fold into the {@link Resolution#appliedMeshTransformerScale()}.
         // The horse layer uses this pattern: {@code ldc 1.1f; invokestatic scaling; astore 75; ...
         // aload 75; invokevirtual apply}.
-        Map<Integer, Float> meshTransformerSlots = new LinkedHashMap<>();
+        AsmKit.SlotTracker<Float> meshTransformerSlots = new AsmKit.SlotTracker<>();
         // Per-class <clinit> cache for static MeshTransformer fields; lazily populated by
         // {@link #resolveStaticMeshTransformer}. Cat uses this pattern:
         // {@code getstatic AdultCatModel.CAT_TRANSFORMER; invokevirtual apply}.
@@ -471,7 +471,7 @@ public final class EntityLayerDefinitionResolver {
 
             if (in instanceof VarInsnNode vi && opcode == Opcodes.ASTORE) {
                 if (pendingScalingMTFloat != null) {
-                    meshTransformerSlots.put(vi.var, pendingScalingMTFloat);
+                    meshTransformerSlots.store(vi.var, pendingScalingMTFloat);
                     pendingScalingMTFloat = null;
                     // Also clear the inline-apply mirror so a horse-pattern store doesn't
                     // leave a stale scale dangling for an unrelated downstream {@code apply}.
@@ -479,7 +479,7 @@ public final class EntityLayerDefinitionResolver {
                     continue;
                 }
                 if (pendingDirect != null) {
-                    slotState.put(vi.var, pendingDirect);
+                    slotState.store(vi.var, pendingDirect);
                     pendingDirect = null;
                     continue;
                 }
@@ -487,12 +487,12 @@ public final class EntityLayerDefinitionResolver {
             }
 
             if (in instanceof VarInsnNode vi && opcode == Opcodes.ALOAD) {
-                Resolution stored = slotState.get(vi.var);
+                Resolution stored = slotState.load(vi.var);
                 if (stored != null) {
                     pendingDirect = stored;
                     continue;
                 }
-                Float mtSlot = meshTransformerSlots.get(vi.var);
+                Float mtSlot = meshTransformerSlots.load(vi.var);
                 if (mtSlot != null) pendingAppliedMTScale = mtSlot;
                 continue;
             }
