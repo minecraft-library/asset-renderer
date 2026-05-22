@@ -133,12 +133,20 @@ public final class ToolingBlockEntities {
 
             Map<String, String> entityIdToRenderer = buildEntityIdToRendererMap(zip, sources);
             Map<String, float[]> inventoryTransforms = InventoryTransformDecomposer.decomposeAll(zip, entityIdToRenderer, diagnostics);
-            mergeInventoryTransformOverrides(entityIdToRenderer.keySet(), inventoryTransforms, diagnostics);
             Set<String> tinted = TintDiscovery.discover(zip, sources, entityIdToRenderer, diagnostics);
 
             System.out.printf("Discovered %d sources; parsing...%n", sources.size());
             ConcurrentMap<String, JsonObject> models = Parser.parse(jarPath, sources, diagnostics);
             System.out.printf("Parsed %d / %d sources%n", models.size(), sources.size());
+
+            // Geometry-aware recenter pass: the InventoryTransformDecomposer extracts the bytecode
+            // tuple of each BlockEntityRenderer.modelTransformation (e.g. skull_dragon_head shares
+            // SkullBlockRenderer's {8, 0, 8, 180, 0, 0} with the simple skulls), but some models
+            // bake an asymmetric extent into the LayerDefinition (dragon head's snout extending
+            // to z=-10) that pushes the post-transform bbox off block centre. This pass walks the
+            // parsed cubes, computes the bbox under the current tuple, and shifts tx/tz so the
+            // bbox midpoint lands at (8, ?, 8) - replacing the historic hand-edited override.
+            recenterInventoryTransformsByBbox(models, inventoryTransforms, diagnostics);
 
             // Lenient mode prints every diagnostic for manual inspection. Strict mode (default)
             // only prints and then fails so the output stays visible in CI logs before the error.
@@ -206,51 +214,183 @@ public final class ToolingBlockEntities {
     }
 
     /**
-     * Merges hand-curated inventory-transform overrides from
-     * {@code block_entities_overrides.json} into the bytecode-decomposed map.
-     *
-     * <p>Used for the single entity id ({@code minecraft:skull_dragon_head}) whose
-     * distinguishing {@code tz=1.25} comes from the {@code DragonHeadModel} geometry rather
-     * than the {@code SkullBlockRenderer.createGroundTransformation} factory - the decomposer
-     * emits the shared skull tuple {@code [8, 0, 8, 180, 0, 0]} for every skull variant, and
-     * the dragon-specific override supplies the off-centre Z translate from the overrides
-     * file. The loader is unchanged: at runtime it reads {@code inventory_transform}
-     * straight from {@code block_entities.json} as the decomposer-plus-override merged value.
-     *
-     * <p>Entity ids present in {@code decomposed} keep their bytecode-extracted tuple unless
-     * the overrides file explicitly sets a different {@code inventory_transform} field. Ids
-     * missing from {@code decomposed} pull their tuple from overrides outright; ids missing
-     * from both drop out of the final map and a {@code diag.warn} surfaces so the next MC
-     * version bump can revisit.
+     * Recenter threshold in block units. Bbox midpoint deviations smaller than this stay put;
+     * larger ones get a tx/tz shift to land the bbox at block centre. Empirically tuned: bed /
+     * conduit / decorated_pot / signs / banners all land within ~1 of (8, ?, 8) under their
+     * bytecode-derived transforms; skull_dragon_head's snout protrusion pushes it 6.75 units
+     * off centre - a generous 1.0 threshold cleanly separates the two regimes.
      */
-    private static void mergeInventoryTransformOverrides(
-        @NotNull Set<String> entityIds,
-        @NotNull Map<String, float[]> decomposed,
+    private static final float INVENTORY_TRANSFORM_RECENTER_THRESHOLD = 1.0f;
+
+    /**
+     * Block bbox half-extent in model units. The recenter only fires when the bbox actually
+     * escapes the {@code [0, 16]} block bbox on the deviating axis (i.e. an extent beyond the
+     * standard cube). Wall-mounted entities (wall_banner, wall_banner_flag) have intentionally
+     * off-centre bboxes that stay within the block - they should NOT be recentered.
+     */
+    private static final float BLOCK_BBOX_MAX = 16f;
+
+    /**
+     * Bbox-aware post-pass on the decomposer's {@code inventory_transform} tuples. The
+     * decomposer walks {@code <Block>EntityRenderer.modelTransformation} bytecode to extract
+     * the tuple {@code [tx, ty, tz, pitch, yaw, roll]} that vanilla applies before the standard
+     * block atlas pose - but some entity models bake an asymmetric extent into their
+     * {@code LayerDefinition} (dragon head's snout reaching z=-10 in model space) that the
+     * renderer's symmetric transform alone cannot recover. This pass walks the parsed bone/
+     * cube tree, applies the current tuple to all cube corners (scale, bone rotation, pivot,
+     * uniform inv-scale, Rx(pitch), translate - skipping the {@code invYRot} step since
+     * rotation around the block centre does not shift the bbox centroid), computes the
+     * bbox midpoint, and if X or Z deviation from {@code 8} exceeds
+     * {@link #INVENTORY_TRANSFORM_RECENTER_THRESHOLD} shifts the tuple's {@code tx}/{@code tz}
+     * so the centroid lands at block centre.
+     *
+     * <p>For {@code minecraft:skull_dragon_head} this produces {@code tz = 1.25} from the
+     * decomposer's shared-skull {@code tz = 8}, matching the historic hand-edited override.
+     * For all other entities the deviation stays well below threshold and no shift applies -
+     * verified against bed_head, bed_foot, shulker_box, the three other skulls, decorated_pot,
+     * decorated_pot_sides, conduit, and the sign / hanging-sign family.
+     */
+    private static void recenterInventoryTransformsByBbox(
+        @NotNull ConcurrentMap<String, JsonObject> parsedModels,
+        @NotNull Map<String, float[]> inventoryTransforms,
         @NotNull Diagnostics diag
     ) {
-        Path overridesPath = Path.of("src/main/resources/lib/minecraft/renderer/block_entities_overrides.json");
-        if (!Files.exists(overridesPath)) return;
-        JsonObject overrides;
-        try {
-            overrides = new Gson().fromJson(Files.readString(overridesPath), JsonObject.class);
-        } catch (Exception ex) {
-            diag.warn("inventory-transform: overrides file '%s' unreadable - %s", overridesPath, ex.getMessage());
-            return;
-        }
-        if (overrides == null || !overrides.has("per_entity")) return;
-        JsonObject perEntity = overrides.getAsJsonObject("per_entity");
+        final float blockCentre = 8f;
+        for (Map.Entry<String, float[]> entry : inventoryTransforms.entrySet()) {
+            String entityId = entry.getKey();
+            float[] tuple = entry.getValue();
+            if (tuple.length < 4) continue;
+            JsonObject model = parsedModels.get(entityId);
+            if (model == null || !model.has("bones")) continue;
 
-        for (String entityId : entityIds) {
-            if (!perEntity.has(entityId)) continue;
-            JsonObject entry = perEntity.getAsJsonObject(entityId);
-            if (!entry.has("inventory_transform")) continue;
-            JsonArray arr = entry.getAsJsonArray("inventory_transform");
-            float[] tuple = new float[arr.size()];
-            for (int i = 0; i < tuple.length; i++) tuple[i] = arr.get(i).getAsFloat();
-            // Overrides always win - the field is only present for entities the decomposer
-            // cannot fully resolve (currently just minecraft:skull_dragon_head).
-            decomposed.put(entityId, tuple);
+            float[] bbox = computeBboxAfterInventoryTransform(model, tuple);
+            if (bbox == null) continue;
+
+            float xMid = (bbox[0] + bbox[3]) * 0.5f;
+            float zMid = (bbox[2] + bbox[5]) * 0.5f;
+            float deltaX = blockCentre - xMid;
+            float deltaZ = blockCentre - zMid;
+            // Only recenter when the bbox actually escapes the block bbox on the deviating axis.
+            // Wall-mounted entities (wall_banner, wall_banner_flag) have intentionally off-centre
+            // bboxes that stay within [0, 16] and should keep their decomposer-derived tuple.
+            boolean xEscapes = bbox[0] < 0 || bbox[3] > BLOCK_BBOX_MAX;
+            boolean zEscapes = bbox[2] < 0 || bbox[5] > BLOCK_BBOX_MAX;
+
+            float applyDx = Math.abs(deltaX) > INVENTORY_TRANSFORM_RECENTER_THRESHOLD && xEscapes ? deltaX : 0f;
+            float applyDz = Math.abs(deltaZ) > INVENTORY_TRANSFORM_RECENTER_THRESHOLD && zEscapes ? deltaZ : 0f;
+
+            if (applyDx != 0f || applyDz != 0f) {
+                tuple[0] += applyDx;
+                tuple[2] += applyDz;
+                diag.info("inventory-transform recenter '%s': bbox X[%.2f,%.2f] Z[%.2f,%.2f] -> tx=%.2f tz=%.2f (delta x=%.2f z=%.2f)",
+                    entityId, bbox[0], bbox[3], bbox[2], bbox[5], tuple[0], tuple[2], applyDx, applyDz);
+            }
         }
+    }
+
+    /**
+     * Returns {@code [xMin, yMin, zMin, xMax, yMax, zMax]} of all cube corners of {@code model}
+     * after the bone scale + Rz·Ry·Rx rotation + pivot chain and the inventory transform
+     * tuple's uniform-scale + Rx(pitch) + translate. Skips the {@code invYRot} step (it
+     * rotates around the block centre and does not shift the bbox centroid). Returns
+     * {@code null} when no cubes are present. Mirrors {@link BlockModelConverter.CubeTransform#applyChain}
+     * for the corresponding chain ordering.
+     */
+    private static float @Nullable [] computeBboxAfterInventoryTransform(
+        @NotNull JsonObject model,
+        @NotNull float[] invTransform
+    ) {
+        JsonObject bones = model.getAsJsonObject("bones");
+        if (bones == null) return null;
+
+        float xMin = Float.POSITIVE_INFINITY, yMin = Float.POSITIVE_INFINITY, zMin = Float.POSITIVE_INFINITY;
+        float xMax = Float.NEGATIVE_INFINITY, yMax = Float.NEGATIVE_INFINITY, zMax = Float.NEGATIVE_INFINITY;
+        boolean anyCube = false;
+
+        float invScale = invTransform.length > 6 && invTransform[6] != 0f ? invTransform[6] : 1f;
+        float pitch = (float) Math.toRadians(invTransform[3]);
+        float cosP = (float) Math.cos(pitch);
+        float sinP = (float) Math.sin(pitch);
+
+        for (Map.Entry<String, JsonElement> boneEntry : bones.entrySet()) {
+            if (!boneEntry.getValue().isJsonObject()) continue;
+            JsonObject bone = boneEntry.getValue().getAsJsonObject();
+            JsonArray cubes = bone.has("cubes") && bone.get("cubes").isJsonArray() ? bone.getAsJsonArray("cubes") : null;
+            if (cubes == null || cubes.isEmpty()) continue;
+
+            float boneScale = bone.has("scale") ? bone.get("scale").getAsFloat() : 1f;
+            JsonArray pivotArr = bone.has("pivot") ? bone.getAsJsonArray("pivot") : null;
+            float bpx = pivotArr != null ? pivotArr.get(0).getAsFloat() : 0f;
+            float bpy = pivotArr != null ? pivotArr.get(1).getAsFloat() : 0f;
+            float bpz = pivotArr != null ? pivotArr.get(2).getAsFloat() : 0f;
+
+            JsonArray rotArr = bone.has("rotation") ? bone.getAsJsonArray("rotation") : null;
+            double[][] boneRotMatrix = null;
+            if (rotArr != null && rotArr.size() == 3) {
+                double brx = Math.toRadians(rotArr.get(0).getAsFloat());
+                double bry = Math.toRadians(rotArr.get(1).getAsFloat());
+                double brz = Math.toRadians(rotArr.get(2).getAsFloat());
+                if (brx != 0 || bry != 0 || brz != 0) boneRotMatrix = rotationZYX(brx, bry, brz);
+            }
+
+            for (JsonElement cubeEl : cubes) {
+                if (!cubeEl.isJsonObject()) continue;
+                JsonObject cube = cubeEl.getAsJsonObject();
+                JsonArray oArr = cube.has("origin") ? cube.getAsJsonArray("origin") : null;
+                JsonArray sArr = cube.has("size") ? cube.getAsJsonArray("size") : null;
+                if (oArr == null || sArr == null) continue;
+                float ox = oArr.get(0).getAsFloat(), oy = oArr.get(1).getAsFloat(), oz = oArr.get(2).getAsFloat();
+                float sw = sArr.get(0).getAsFloat(), sh = sArr.get(1).getAsFloat(), sd = sArr.get(2).getAsFloat();
+
+                for (int i = 0; i < 8; i++) {
+                    float cx = (i & 1) == 0 ? ox : ox + sw;
+                    float cy = (i & 2) == 0 ? oy : oy + sh;
+                    float cz = (i & 4) == 0 ? oz : oz + sd;
+                    cx *= boneScale; cy *= boneScale; cz *= boneScale;
+                    if (boneRotMatrix != null) {
+                        double nx = boneRotMatrix[0][0]*cx + boneRotMatrix[0][1]*cy + boneRotMatrix[0][2]*cz;
+                        double ny = boneRotMatrix[1][0]*cx + boneRotMatrix[1][1]*cy + boneRotMatrix[1][2]*cz;
+                        double nz = boneRotMatrix[2][0]*cx + boneRotMatrix[2][1]*cy + boneRotMatrix[2][2]*cz;
+                        cx = (float) nx; cy = (float) ny; cz = (float) nz;
+                    }
+                    cx += bpx; cy += bpy; cz += bpz;
+                    cx *= invScale; cy *= invScale; cz *= invScale;
+                    float ry = cy * cosP - cz * sinP;
+                    float rz = cy * sinP + cz * cosP;
+                    cy = ry; cz = rz;
+                    cx += invTransform[0]; cy += invTransform[1]; cz += invTransform[2];
+
+                    if (cx < xMin) xMin = cx; if (cx > xMax) xMax = cx;
+                    if (cy < yMin) yMin = cy; if (cy > yMax) yMax = cy;
+                    if (cz < zMin) zMin = cz; if (cz > zMax) zMax = cz;
+                    anyCube = true;
+                }
+            }
+        }
+        return anyCube ? new float[]{ xMin, yMin, zMin, xMax, yMax, zMax } : null;
+    }
+
+    /**
+     * Builds the {@code Rz · Ry · Rx} rotation matrix matching vanilla's
+     * {@code Quaternionf.rotationZYX}. Duplicates {@link BlockModelConverter.CubeTransform#of}'s
+     * matrix construction so the recenter pass does not depend on the inner class.
+     */
+    private static double @NotNull [] @NotNull [] rotationZYX(double rxR, double ryR, double rzR) {
+        double[][] mRx = {{ 1, 0, 0 }, { 0, Math.cos(rxR), -Math.sin(rxR) }, { 0, Math.sin(rxR), Math.cos(rxR) }};
+        double[][] mRy = {{ Math.cos(ryR), 0, Math.sin(ryR) }, { 0, 1, 0 }, { -Math.sin(ryR), 0, Math.cos(ryR) }};
+        double[][] mRz = {{ Math.cos(rzR), -Math.sin(rzR), 0 }, { Math.sin(rzR), Math.cos(rzR), 0 }, { 0, 0, 1 }};
+        return mat3Mul(mat3Mul(mRz, mRy), mRx);
+    }
+
+    /**
+     * 3x3 matrix multiply returning {@code a · b}.
+     */
+    private static double @NotNull [] @NotNull [] mat3Mul(double[][] a, double[][] b) {
+        double[][] r = new double[3][3];
+        for (int i = 0; i < 3; i++)
+            for (int j = 0; j < 3; j++)
+                r[i][j] = a[i][0]*b[0][j] + a[i][1]*b[1][j] + a[i][2]*b[2][j];
+        return r;
     }
 
     /**

@@ -1,9 +1,5 @@
 {
-  "//": "Hand-edited companion to block_entities.json. The per_entity.inventory_y_rotation entries that used to live here were dead - BlockEntityLoader never propagated per_entity overrides to Block.Entity, and the actual 180-degree yaw bake happens in SourceDiscovery.ID_TO_INVENTORY_Y_ROTATION at tooling time (read by BlockModelConverter and folded into the cube elements before block_entities.json is written). The remaining entry below carries the single tz=1.25 inventory_transform delta on skull_dragon_head that originates in DragonHeadModel.createHeadLayer rather than SkullBlockRenderer; ToolingBlockEntities.mergeInventoryTransformOverrides merges it onto the bytecode-decomposed map. Pattern-derived per-block fields (iconRotation on beds, additive on bells, tint on banners) are now emitted by the tooling directly into block_entities.json - no per_block entries remain here.",
-  "per_entity": {
-    "minecraft:skull_dragon_head": {
-      "inventory_transform": [8, 0, 1.25, 180, 0, 0]
-    }
-  },
+  "//": "Empty companion to block_entities.json. The hand-curated entries that used to live here are now derived by the tooling: per-block iconRotation / additive / tint by ToolingBlockEntities.applyPerBlockPatternFields, per-entity inventory_y_rotation by SourceDiscovery.ID_TO_INVENTORY_Y_ROTATION at tooling time, and skull_dragon_head's inventory_transform recenter by ToolingBlockEntities.recenterInventoryTransformsByBbox (geometry-aware post-Parser bbox pass). File preserved only so BlockEntityLoader.readJson does not need a missing-resource branch; will be deleted in Phase 21 once the loader is updated.",
+  "per_entity": {},
   "per_block": {}
 }
