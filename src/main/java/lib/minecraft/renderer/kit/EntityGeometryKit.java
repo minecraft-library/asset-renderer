@@ -67,8 +67,6 @@ public class EntityGeometryKit {
     private static final boolean FLIP_NORMAL_X = Boolean.getBoolean("entity.flipNX");
     private static final boolean FLIP_NORMAL_Y = !"false".equalsIgnoreCase(System.getProperty("entity.flipNY", "true"));
     private static final boolean FLIP_NORMAL_Z = Boolean.getBoolean("entity.flipNZ");
-    /** Toggle whether the kit translates cube origins by their bone's pivot. Default true. */
-    private static final boolean TRANSLATE_BY_PIVOT = !"false".equalsIgnoreCase(System.getProperty("entity.translateByPivot", "true"));
 
     /**
      * Standard GL view direction in vanilla's screen frame: camera at origin looking toward
@@ -285,11 +283,10 @@ public class EntityGeometryKit {
             float bMaxX = Float.NEGATIVE_INFINITY, bMaxY = Float.NEGATIVE_INFINITY, bMaxZ = Float.NEGATIVE_INFINITY;
 
             // Java's PartPose / ModelPart authoring stores cube origins LOCAL to the bone's
-            // pivot (the literal addBox(x, y, z, w, h, d) args from createBodyLayer); Bedrock
-            // stores them in absolute entity-root space. The Java pipeline's parser produces
-            // local origins (to match what bytecode literally encodes); the kit translates by
-            // the bone's absolute pivot here so the rendered cubes land in world space.
-            // {@link #TRANSLATE_BY_PIVOT} can disable this for the iteration harness.
+            // pivot (the literal addBox(x, y, z, w, h, d) args from createBodyLayer). The bone
+            // chain ({@link #applyBoneRotation}) translates by the bone's pivot as its first
+            // fluent op, so cube origins go through the matrix in BONE-LOCAL coords - no
+            // pre-translate by bonePivot here. Matches vanilla's PoseStack flow exactly.
             Vector3f bonePivot = bone.getPivot();
             // Bone-level uniform scale captured from {@code MeshTransformer.scaling(F)} /
             // {@code PartPose.scaled(F)}. Vanilla {@code ModelPart.render} translates by pivot,
@@ -307,9 +304,9 @@ public class EntityGeometryKit {
                 float inflate = cube.getInflate();
 
                 float scaledInflate = s * inflate;
-                float ox = TRANSLATE_BY_PIVOT ? bonePivot.x() + s * origin.x() : s * origin.x();
-                float oy = TRANSLATE_BY_PIVOT ? bonePivot.y() + s * origin.y() : s * origin.y();
-                float oz = TRANSLATE_BY_PIVOT ? bonePivot.z() + s * origin.z() : s * origin.z();
+                float ox = s * origin.x();
+                float oy = s * origin.y();
+                float oz = s * origin.z();
                 Box cubeBounds = new Box(
                     ox - scaledInflate, oy - scaledInflate, oz - scaledInflate,
                     ox + s * size.x() + scaledInflate, oy + s * size.y() + scaledInflate, oz + s * size.z() + scaledInflate
@@ -464,9 +461,9 @@ public class EntityGeometryKit {
                 Matrix4f cubeTransform = composeCubeTransform(cube, bone, boneChain);
 
                 float scaledInflate = s * inflate;
-                float ox = TRANSLATE_BY_PIVOT ? bonePivot.x() + s * origin.x() : s * origin.x();
-                float oy = TRANSLATE_BY_PIVOT ? bonePivot.y() + s * origin.y() : s * origin.y();
-                float oz = TRANSLATE_BY_PIVOT ? bonePivot.z() + s * origin.z() : s * origin.z();
+                float ox = s * origin.x();
+                float oy = s * origin.y();
+                float oz = s * origin.z();
                 Box cubeBounds = new Box(
                     ox - scaledInflate, oy - scaledInflate, oz - scaledInflate,
                     ox + s * size.x() + scaledInflate, oy + s * size.y() + scaledInflate, oz + s * size.z() + scaledInflate
@@ -784,9 +781,9 @@ public class EntityGeometryKit {
                 Matrix4f fullTransform = composeCubeTransform(cube, bone, boneChain);
 
                 float scaledInflate = s * inflate;
-                float ox = TRANSLATE_BY_PIVOT ? bonePivot.x() + s * origin.x() : s * origin.x();
-                float oy = TRANSLATE_BY_PIVOT ? bonePivot.y() + s * origin.y() : s * origin.y();
-                float oz = TRANSLATE_BY_PIVOT ? bonePivot.z() + s * origin.z() : s * origin.z();
+                float ox = s * origin.x();
+                float oy = s * origin.y();
+                float oz = s * origin.z();
                 float[] xs = { ox - scaledInflate, ox + s * size.x() + scaledInflate };
                 float[] ys = { oy - scaledInflate, oy + s * size.y() + scaledInflate };
                 float[] zs = { oz - scaledInflate, oz + s * size.z() + scaledInflate };
@@ -860,7 +857,7 @@ public class EntityGeometryKit {
         if (cached != null) return cached;
         EntityModelData.Bone bone = bones.get(name);
         if (bone == null) return root;
-        if (visiting.contains(name)) return applyPivotCenteredRotation(root, bone.getPivot(), bone.getRotation());
+        if (visiting.contains(name)) return applyBoneRotation(root, bone.getPivot(), bone.getRotation());
         visiting.add(name);
 
         String parent = bone.getParent();
@@ -870,7 +867,7 @@ public class EntityGeometryKit {
         } else {
             base = resolveChainFrom(parent, bones, cache, visiting, root);
         }
-        Matrix4f composed = applyPivotCenteredRotation(base, bone.getPivot(), bone.getRotation());
+        Matrix4f composed = applyBoneRotation(base, bone.getPivot(), bone.getRotation());
 
         visiting.remove(name);
         cache.put(name, composed);
@@ -892,9 +889,15 @@ public class EntityGeometryKit {
         // chain. Each fluent post-multiply mirrors vanilla's PoseStack.translate/mulPose/translate
         // sequence, so the chain composes as `boneChain * bindPose * cubeRot` with cubeRot
         // innermost (rightmost) on a column vector while staying bit-identical to JOML.
+        // <p>
+        // bindPose uses the BONE pivot in BONE-LOCAL coords (vanilla applies bind around the
+        // bone's local frame, same as the bone's own rotation); cube rotation uses the CUBE's
+        // bone-local pivot anchor. Both go through {@link #applyCubePivotCenteredRotation}
+        // (T(+p)*R*T(-p) shape) because they rotate around an anchor while the surrounding
+        // chain is already in bone-local frame.
         Matrix4f acc = boneChain;
-        if (hasBind) acc = applyPivotCenteredRotation(acc, bone.getPivot(), bindPose);
-        if (hasCube) acc = applyPivotCenteredRotation(acc, cube.getPivot(), cubeRot);
+        if (hasBind) acc = applyCubePivotCenteredRotation(acc, bone.getPivot(), bindPose);
+        if (hasCube) acc = applyCubePivotCenteredRotation(acc, cube.getPivot(), cubeRot);
         return acc;
     }
 
@@ -922,33 +925,55 @@ public class EntityGeometryKit {
         @NotNull Vector3f pivot,
         @NotNull EulerRotation rotation
     ) {
-        // Build T(+p) * R * T(-p) via fluent ops so the matrix entries match JOML's PoseStack
-        // pose.translate(p); pose.mulPose(quat); pose.translate(-p) bit-for-bit.
-        return applyPivotCenteredRotation(Matrix4f.IDENTITY, pivot, rotation);
+        // Cube-level pivot-centred rotation: T(+p) * R * T(-p). The un-translate is required
+        // because cube-level rotation operates on bone-local cube vertices, rotating around
+        // a bone-local pivot anchor.
+        return applyCubePivotCenteredRotation(Matrix4f.IDENTITY, pivot, rotation);
     }
 
     /**
-     * Returns {@code base * T(+pivot) * R * T(-pivot)} computed via the fluent post-multiply
-     * path ({@link Matrix4f#translate}, {@link Matrix4f#rotate}). This composes a pivot-centred
-     * bone rotation onto an existing chain matrix in the same op sequence vanilla's
-     * {@code PoseStack} uses: {@code pose.translate(+p); pose.mulPose(q); pose.translate(-p)}.
+     * Returns {@code base * T(pivot) * R} - vanilla's bone-level PoseStack shape (no un-
+     * translate). Matches {@code pose.translate(pivot); pose.mulPose(quat)} bit-for-bit.
      * <p>
-     * Returning a fresh chain via the fluent ops is 0 ULP vs vanilla; building each bone's
-     * {@code T(+p)*R*T(-p)} in isolation and then composing via {@link Matrix4f#multiply}
-     * drifts by 1-4 ULPs per entry (full 4x4 multiply rounds differently than the specialized
-     * translate / rotate post-multiplies that JOML's {@code Matrix4f} uses internally).
-     * <p>
-     * <b>Why not drop the T(-p) and use vanilla's bare T(p) * R shape?</b> The cube origin
-     * convention in {@code entity_geometry.json} stores ABSOLUTE-frame positions (bone pivot
-     * pre-added by the tooling); vanilla MC uses bone-LOCAL cube origins. Hand-edits like
-     * the donkey/mule ear entries write {@code cube.pivot} in absolute coords too, so the
-     * un-translate is load-bearing for that convention. Switching to bare {@code T(p)*R}
-     * would require translating every absolute-frame coordinate (cube origin, cube pivot,
-     * any other geometry hand-edit) back to bone-local. Tested 2026-05-21: drops donkey to
-     * 163.8, mule to 185.4 (compensating absolute-pivot hand-edits no longer align). The
-     * un-translate stays.
+     * Used for the bone hierarchy chain where cube origins are stored in BONE-LOCAL coordinates
+     * (relative to the bone's own pivot, matching vanilla {@code ModelPart.Cube}'s {@code
+     * posX1..posZ2} bone-local fields). The pre-translate by bone pivot happens once inside
+     * this method (as part of the fluent {@code .translate(p)} call); previous absolute-frame
+     * code paths pre-added the bone pivot to cube origin AND included a {@code T(-p)} un-
+     * translate to cancel, doubling the rounding count for no semantic gain.
      */
-    private static @NotNull Matrix4f applyPivotCenteredRotation(
+    private static @NotNull Matrix4f applyBoneRotation(
+        @NotNull Matrix4f base,
+        @NotNull Vector3f pivot,
+        @NotNull EulerRotation rotation
+    ) {
+        boolean hasPivot = pivot.x() != 0f || pivot.y() != 0f || pivot.z() != 0f;
+        boolean hasRot = !isZero(rotation);
+        if (!hasPivot && !hasRot) return base;
+        Matrix4f chain = hasPivot ? base.translate(pivot.x(), pivot.y(), pivot.z()) : base;
+        if (hasRot) {
+            Quaternionf quat = Quaternionf.rotationZYX(
+                rotation.rollRadians(), rotation.yawRadians(), rotation.pitchRadians()
+            );
+            chain = chain.rotate(quat);
+        }
+        return chain;
+    }
+
+    /**
+     * Returns {@code base * T(+pivot) * R * T(-pivot)} - cube-level pivot-centred rotation
+     * shape, where the cube rotates around its own anchor point in the bone's frame. Used by
+     * the cube-level rotation in {@link #composeCubeTransform} (donkey/mule ears, etc.) where
+     * the cube has its own rotation independent of the bone's rotation.
+     * <p>
+     * Cube pivots are in BONE-LOCAL coordinates (relative to the bone's own pivot), matching
+     * the bedrock convention. With bone chain {@code T(p)*R_bone} (vanilla shape) and cube
+     * applied as {@code T(+cp)*R_cube*T(-cp)} on top, the composed transform applied to a
+     * bone-local cube vertex {@code v_local} produces
+     * {@code R_bone * (R_cube * (v_local - cp) + cp) + p} - matching vanilla's bone hierarchy
+     * + bedrock cube pivot semantics exactly.
+     */
+    private static @NotNull Matrix4f applyCubePivotCenteredRotation(
         @NotNull Matrix4f base,
         @NotNull Vector3f pivot,
         @NotNull EulerRotation rotation

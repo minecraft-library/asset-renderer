@@ -1937,7 +1937,7 @@
       },
       "y_axis": "DOWN"
     },
-    "//geometry.donkey": "DonkeyModel.createBodyLayer chain is AbstractEquineModel.createBodyMesh(NONE) .apply(DONKEY_TRANSFORMER) .apply(MeshTransformer.scaling(0.87)). Bytecode tooling captures the base mesh + final scaling but misses the DONKEY_TRANSFORMER.modifyMesh step which addOrReplaceChild replaces the base horse ears with taller donkey ears (cube -1,-7,0 size 2,7,1 uv 0,12) at PartPose.offsetAndRotation(1.25,-10,4, pi/12, 0, \u00b1pi/12), and also adds left_chest / right_chest body children (the latter are hidden by the harness DonkeyModelMixin at zero state so neither pipeline renders them). Ear PartPose is baked here: cube origin gets the ear offset baked in (-1+1.25, -7-10, 0+4) = (0.25, -17, 4) for left; cube.pivot + cube.rotation = (15X, 0, \u00b115Z) so the kit applies the ear's own rotation around the ear anchor before the bone chain's 30X head_parts rotation. cube.pivot = head_parts pivot + DONKEY_SCALE * ear_offset (entity-root pre-bone-rotation).",
+    "//geometry.donkey": "DonkeyModel.createBodyLayer chain is AbstractEquineModel.createBodyMesh(NONE) .apply(DONKEY_TRANSFORMER) .apply(MeshTransformer.scaling(0.87)). Bytecode tooling captures the base mesh + final scaling but misses the DONKEY_TRANSFORMER.modifyMesh step which addOrReplaceChild replaces the base horse ears with taller donkey ears (cube -1,-7,0 size 2,7,1 uv 0,12) at PartPose.offsetAndRotation(1.25,-10,4, pi/12, 0, \u00b1pi/12), and also adds left_chest / right_chest body children (the latter are hidden by the harness DonkeyModelMixin at zero state so neither pipeline renders them). Ear PartPose is baked here: cube origin gets the ear offset baked in (-1+1.25, -7-10, 0+4) = (0.25, -17, 4) for left; cube.pivot + cube.rotation = (15X, 0, \u00b115Z) so the kit applies the ear's own rotation around the ear anchor before the bone chain's 30X head_parts rotation. cube.pivot is in BONE-LOCAL coords = DONKEY_SCALE * ear_offset = (\u00b11.0875, -8.7, 3.48). The kit's vanilla-shape T(p)*R bone chain + T(+cp)*R*T(-cp) cube-pivot composition produces bit-identical output to the previous absolute-frame chain.",
     "geometry.donkey": {
       "textureWidth": 64,
       "textureHeight": 64,
@@ -2314,8 +2314,8 @@
               "face_uv": {},
               "pivot": [
                 1.0875,
-                -2.0979196999999994,
-                -6.960001
+                -8.7,
+                3.48
               ],
               "rotation": [
                 15.0,
@@ -2358,8 +2358,8 @@
               "face_uv": {},
               "pivot": [
                 -1.0875,
-                -2.0979196999999994,
-                -6.960001
+                -8.7,
+                3.48
               ],
               "rotation": [
                 15.0,
@@ -2373,7 +2373,7 @@
       },
       "y_axis": "DOWN"
     },
-    "//geometry.donkey_1": "Same DonkeyModel as geometry.donkey but with MULE_SCALE = 0.92 (DonkeyRenderer.Type.MULE uses ModelLayers.MULE which bakes the same DonkeyModel.createBodyLayer with scaling 0.92 instead of 0.87). The chest fix (DonkeyModelMixin) applies uniformly across donkey + mule since both use DonkeyModel. cube.pivot uses MULE_SCALE for the ear-rotation anchor.",
+    "//geometry.donkey_1": "Same DonkeyModel as geometry.donkey but with MULE_SCALE = 0.92 (DonkeyRenderer.Type.MULE uses ModelLayers.MULE which bakes the same DonkeyModel.createBodyLayer with scaling 0.92 instead of 0.87). The chest fix (DonkeyModelMixin) applies uniformly across donkey + mule since both use DonkeyModel. cube.pivot is bone-local = MULE_SCALE * ear_offset = (±1.15, -9.2, 3.68).",
     "geometry.donkey_1": {
       "textureWidth": 64,
       "textureHeight": 64,
@@ -2749,9 +2749,9 @@
               "mirror": false,
               "face_uv": {},
               "pivot": [
-                1.1500000000000001,
-                -3.598720300000001,
-                -7.359999999999999
+                1.15,
+                -9.2,
+                3.68
               ],
               "rotation": [
                 15.0,
@@ -2793,9 +2793,9 @@
               "mirror": false,
               "face_uv": {},
               "pivot": [
-                -1.1500000000000001,
-                -3.598720300000001,
-                -7.359999999999999
+                -1.15,
+                -9.2,
+                3.68
               ],
               "rotation": [
                 15.0,
