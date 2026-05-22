@@ -9,7 +9,6 @@ import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
-import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
@@ -73,16 +72,7 @@ public final class EntityLayerScanner {
         @NotNull Diagnostics diagnostics
     ) {
         Set<String> seen = new LinkedHashSet<>();
-        String current = rendererInternalName;
-        while (current != null && !"java/lang/Object".equals(current)) {
-            ClassNode cn = AsmKit.loadClass(zip, current);
-            if (cn == null) break;
-            for (MethodNode method : cn.methods) {
-                if (!"<init>".equals(method.name)) continue;
-                scanMethod(method, seen);
-            }
-            current = cn.superName;
-        }
+        AsmKit.walkConstructorChain(zip, rendererInternalName, method -> scanMethod(method, seen));
         ConcurrentList<String> out = Concurrent.newList();
         seen.forEach(out::add);
         return out;
@@ -94,11 +84,13 @@ public final class EntityLayerScanner {
      */
     private static void scanMethod(@NotNull MethodNode method, @NotNull Set<String> out) {
         for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            // Owner-agnostic addLayer match - the renderer's super may be any of several
+            // LivingEntityRenderer subclasses, so AsmKit's owner-qualified isInvokeVirtual is
+            // too narrow. Inline the predicate and gate on the canonical descriptor shape
+            // (single Layer arg, boolean return).
             if (in.getOpcode() != Opcodes.INVOKEVIRTUAL) continue;
             if (!(in instanceof MethodInsnNode mi)) continue;
             if (!ADD_LAYER.equals(mi.name)) continue;
-            // The desc must take a single Layer arg and return boolean - matches both
-            // addLayer(RenderLayer) and the more specific addLayer subclasses.
             if (!mi.desc.startsWith("(L") || !mi.desc.endsWith(";)Z")) continue;
 
             String layerClass = findPrecedingLayerNew(in);
