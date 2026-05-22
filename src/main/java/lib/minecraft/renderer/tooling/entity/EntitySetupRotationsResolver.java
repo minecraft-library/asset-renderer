@@ -104,37 +104,28 @@ public final class EntitySetupRotationsResolver {
      */
     private static float extractAddend(@NotNull MethodNode method) {
         for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            // Match on opcode + method name only; the owner is the super class which differs
+            // per renderer, so the typed AsmKit.isInvokeSpecial(owner, name) overload is too
+            // narrow here. The bare 3-line check is the right shape for "any super invoke".
             if (in.getOpcode() != Opcodes.INVOKESPECIAL) continue;
             if (!(in instanceof MethodInsnNode mi)) continue;
             if (!SETUP_ROTATIONS.equals(mi.name)) continue;
 
-            AbstractInsnNode scaleLoad = previousReal(in);
+            AbstractInsnNode scaleLoad = AsmKit.previousReal(in);
             if (!isFloadOf(scaleLoad, SCALE_SLOT)) return 0f;
-            AbstractInsnNode beforeScale = previousReal(scaleLoad);
+            AbstractInsnNode beforeScale = AsmKit.previousReal(scaleLoad);
             // Pass-through shape: ...; FLOAD 3; FLOAD 4; INVOKESPECIAL super -> addend=0.
             if (isFloadOf(beforeScale, BODY_ROT_SLOT)) return 0f;
             // Addend shape: ...; FLOAD 3; LDC C; FADD; FLOAD 4; INVOKESPECIAL super -> addend=C.
             if (beforeScale != null && beforeScale.getOpcode() == Opcodes.FADD) {
-                AbstractInsnNode constInsn = previousReal(beforeScale);
-                Float c = AsmKit.readFloatLiteral(constInsn);
-                AbstractInsnNode bodyRotLoad = constInsn == null ? null : previousReal(constInsn);
+                AbstractInsnNode constInsn = AsmKit.previousReal(beforeScale);
+                Float c = constInsn == null ? null : AsmKit.readFloatLiteral(constInsn);
+                AbstractInsnNode bodyRotLoad = constInsn == null ? null : AsmKit.previousReal(constInsn);
                 if (c != null && isFloadOf(bodyRotLoad, BODY_ROT_SLOT)) return c;
             }
             return 0f;
         }
         return 0f;
-    }
-
-    /**
-     * Skips ASM pseudo-instructions ({@code LabelNode}, {@code LineNumberNode},
-     * {@code FrameNode}) walking backwards. The {@code AbstractInsnNode#getPrevious} chain
-     * exposes these too; for opcode-level pattern matching they're noise.
-     */
-    private static AbstractInsnNode previousReal(AbstractInsnNode in) {
-        if (in == null) return null;
-        for (AbstractInsnNode prev = in.getPrevious(); prev != null; prev = prev.getPrevious())
-            if (prev.getOpcode() >= 0) return prev;
-        return null;
     }
 
     /**
