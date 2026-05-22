@@ -157,19 +157,12 @@ public final class TestEntityParityVanilla {
                     .entityId(Optional.of(entityId))
                     .antiAlias(false)
                     .build();
-                boolean dumpBounds = Boolean.getBoolean("entity.bounds.dump");
-                if (dumpBounds) {
-                    System.out.printf("[BD] ===== %s START =====%n", entityId);
-                    lib.minecraft.renderer.kit.EntityGeometryKit.setBoundsDump(true);
-                }
                 ImageData java;
+                lib.minecraft.renderer.pipeline.util.RendererDebug.beginPerEntityBoundsDump(entityId);
                 try {
                     java = javaRenderer.render(options);
                 } finally {
-                    if (dumpBounds) {
-                        lib.minecraft.renderer.kit.EntityGeometryKit.setBoundsDump(false);
-                        System.out.printf("[BD] ===== %s END =====%n", entityId);
-                    }
+                    lib.minecraft.renderer.pipeline.util.RendererDebug.endPerEntityBoundsDump(entityId);
                 }
                 BufferedImage javaImg = java.toBufferedImage();
                 int jw = javaImg.getWidth();

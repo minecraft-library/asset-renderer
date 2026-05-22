@@ -10,6 +10,7 @@ import lib.minecraft.renderer.geometry.Box;
 import lib.minecraft.renderer.geometry.EntityFace;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
+import lib.minecraft.renderer.pipeline.util.RendererDebug;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector2f;
@@ -56,32 +57,19 @@ public class EntityGeometryKit {
     private static final float MIN_MODEL_EXTENT = 0.001f;
 
     /**
-     * Per-axis flip / negation switches - debug/test only. Defaults to the production setting
-     * (Y-flip on positions and Y-flip on normals; other axes identity). Override at runtime
-     * via {@code -Dentity.flipX=true} etc. for parity sweeps; do not reference these for
-     * production logic.
-     */
-    private static final boolean FLIP_X = Boolean.getBoolean("entity.flipX");
-    private static final boolean FLIP_Y = !"false".equalsIgnoreCase(System.getProperty("entity.flipY", "true"));
-    private static final boolean FLIP_Z = Boolean.getBoolean("entity.flipZ");
-    private static final boolean FLIP_NORMAL_X = Boolean.getBoolean("entity.flipNX");
-    private static final boolean FLIP_NORMAL_Y = !"false".equalsIgnoreCase(System.getProperty("entity.flipNY", "true"));
-    private static final boolean FLIP_NORMAL_Z = Boolean.getBoolean("entity.flipNZ");
-
-    /**
      * Standard GL view direction in vanilla's screen frame: camera at origin looking toward
-     * {@code -Z}. Pre-rotated through the inverse iso pose chain plus our kit's {@code FLIP_Y}
-     * to land in the same coordinate frame our face normals live in (after
-     * {@link Vector3f#transformNormal(Vector3f, Matrix4f)} and the kit's
-     * {@link #FLIP_NORMAL_Y}).
+     * {@code -Z}. Pre-rotated through the inverse iso pose chain plus our kit's Y-flip on
+     * positions ({@code diag(1,-1,1)}) to land in the same coordinate frame our face normals
+     * live in (after {@link Vector3f#transformNormal(Vector3f, Matrix4f)} and the kit's
+     * matching Y-flip on normals).
      * <p>
      * Used by {@link #computeViewAlignedShade} to pick front-vs-back PER_FACE_LIGHTING shade
      * for plane no-cull cubes. {@code dot(VIEW_DIRECTION_KIT, n_kit) < 0} means the polygon's
      * outward normal points TOWARD the camera (front-facing per vanilla's
      * {@code gl_FrontFacing}); {@code >= 0} means it points AWAY (back-facing).
      * <p>
-     * Derived as {@code FLIP_Y * M_view^T * (0, 0, -1)} where {@code M_view = scale(1,1,-1) *
-     * R_X(pitch) * R_Y(yaw) * R_X(180°)} is vanilla's iso transform chain (the trailing
+     * Derived as {@code diag(1,-1,1) * M_view^T * (0, 0, -1)} where {@code M_view = scale(1,1,-1)
+     * * R_X(pitch) * R_Y(yaw) * R_X(180°)} is vanilla's iso transform chain (the trailing
      * {@code R_X(180°)} folds in vanilla's {@code LivingEntityRenderer.submit}'s
      * {@code rotateY(180°) + scale(-1,-1,1)} as a single equivalent X-axis rotation - see
      * {@link lib.minecraft.renderer.engine.IsometricEngine#CAMERA_ENTITY} for the full
@@ -90,16 +78,17 @@ public class EntityGeometryKit {
      * {@code cos(30°) * sin(45°) = √6/4 ≈ 0.6124} (45° yaw splits horizontal direction
      * symmetrically into X and Z, modulated by {@code cos(30°)} from the pitch tilt), the Y
      * component is {@code -sin(30°) = -0.5} (30° pitch contribution, negated by the trailing
-     * FLIP_Y compensation).
+     * Y-flip compensation).
      */
     private static final @NotNull Vector3f VIEW_DIRECTION_KIT = computeKitFrameViewDirection();
 
     private static @NotNull Vector3f computeKitFrameViewDirection() {
         EulerRotation iso = EulerRotation.STANDARD_ISO_ENTITY;
-        // Column-vector chain `FLIP_Y * R_X(-180°) * R_Y(-yaw) * R_X(-pitch) * scale(1,1,-1)`
-        // implements `FLIP_Y * M_view^T * v` where M_view = scale(1,1,-1) * R_X(pitch) * R_Y(yaw)
-        // * R_X(180°) is vanilla's iso transform. Each rotation transposes to its negated-angle
-        // counterpart; scales are diagonal so transpose is identity. Rightmost applies first.
+        // Column-vector chain `diag(1,-1,1) * R_X(-180°) * R_Y(-yaw) * R_X(-pitch) *
+        // scale(1,1,-1)` implements `Yflip * M_view^T * v` where M_view = scale(1,1,-1) *
+        // R_X(pitch) * R_Y(yaw) * R_X(180°) is vanilla's iso transform. Each rotation transposes
+        // to its negated-angle counterpart; scales are diagonal so transpose is identity.
+        // Rightmost applies first.
         Matrix4f viewToKit = Matrix4f.createScale(1f, -1f, 1f)
             .multiply(Matrix4f.createRotationX((float) -Math.PI))
             .multiply(Matrix4f.createRotationY(-iso.yawRadians()))
@@ -262,8 +251,10 @@ public class EntityGeometryKit {
         // translate * rotate * translate). Eliminates the {@link Matrix4f#multiply} step at the
         // per-cube loop that drifts 1-4 ULPs vs the fluent path - see {@link Matrix4f} line
         // 313 commentary.
+        // Kit's permanent Y-flip on positions (diag(1,-1,1)) places vanilla's Y-up model frame
+        // into our Y-down screen frame; X and Z are pass-through.
         Matrix4f kitFit = Matrix4f.IDENTITY
-            .scale(FLIP_X ? -scale : scale, FLIP_Y ? -scale : scale, FLIP_Z ? -scale : scale)
+            .scale(scale, -scale, scale)
             .translate(-cx, -cy, -cz)
             .scale(modelScale);
         Map<String, Matrix4f> kitFitChainTransforms = buildChainTransformsFrom(kitFit, model.getBones());
@@ -350,11 +341,9 @@ public class EntityGeometryKit {
                     }
 
                     Vector3f rawNormal = Vector3f.normalize(Vector3f.transformNormal(face.normal(), fullTransform));
-                    Vector3f normal = new Vector3f(
-                        (FLIP_NORMAL_X ? -1f : 1f) * rawNormal.x(),
-                        (FLIP_NORMAL_Y ? -1f : 1f) * rawNormal.y(),
-                        (FLIP_NORMAL_Z ? -1f : 1f) * rawNormal.z()
-                    );
+                    // Kit's permanent Y-flip on normals matches the Y-flip on positions so
+                    // shading consults the post-flip face direction.
+                    Vector3f normal = new Vector3f(rawNormal.x(), -rawNormal.y(), rawNormal.z());
 
                     boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
                     if (isPlaneCube && isDegeneratePlaneFace(size, face)) continue;
@@ -363,7 +352,7 @@ public class EntityGeometryKit {
                     float shading = computeFaceShading(normal, isPlaneCube, cubeCullBackFaces);
 
                     // Natural CCW emission {@code (0, 1, 2)} and {@code (0, 2, 3)}. Total
-                    // pipeline chirality: kit FLIP_Y (det -1) × engine_camera (det -1) ×
+                    // pipeline chirality: kit Y-flip (det -1) × engine_camera (det -1) ×
                     // projection's -y (det -1) = det -1. Model CCW → screen CW → rasterizer's
                     // {@code signedArea < 0} check correctly classifies these as front-facing.
                     String debugTag = boneName + ":" + face.direction();
@@ -445,7 +434,6 @@ public class EntityGeometryKit {
         float texW = model.getTextureWidth() > 0 ? model.getTextureWidth() : Math.max(1f, texture == null ? 1 : texture.width());
         float texH = model.getTextureHeight() > 0 ? model.getTextureHeight() : Math.max(1f, texture == null ? 1 : texture.height());
         BoundsAccumulator acc = new BoundsAccumulator();
-        boolean dump = BOUNDS_DUMP.get();
 
         for (Map.Entry<String, EntityModelData.Bone> entry : model.getBones().entrySet()) {
             EntityModelData.Bone bone = entry.getValue();
@@ -493,13 +481,7 @@ public class EntityGeometryKit {
                     // Fully-opaque faces are unaffected: the 4 contributed positions are then
                     // the 4 cube corners regardless of pairing.
                     Vector2f[] uvs = resolvePolygonUv(face, cube, size, texW, texH);
-                    String dumpLabel = dump
-                        ? String.format("bone=%s cube=%d face=%s orig=(%g,%g,%g) size=(%g,%g,%g) inflate=%g mirror=%s",
-                            boneName, cubeIndex, face.direction(),
-                            origin.x(), origin.y(), origin.z(),
-                            size.x(), size.y(), size.z(),
-                            inflate, cube.isMirror())
-                        : null;
+                    String dumpLabel = RendererDebug.boundsFaceLabel(boneName, cubeIndex, face.direction(), origin, size, inflate, cube.isMirror());
                     contributeFaceAlphaTight(corners3d, uvs, cubeTransform, modelScale, screenTransform, texture, acc, dumpLabel);
                 }
                 cubeIndex++;
@@ -507,21 +489,6 @@ public class EntityGeometryKit {
         }
 
         return acc.toBox();
-    }
-
-    /**
-     * Thread-local toggle for per-polygon screen-bounds diagnostic dumps. Use
-     * {@link #setBoundsDump(boolean)} from the calling thread (visual / parity test) to
-     * activate; reset to {@code false} when done. Output goes to {@code System.out} as a
-     * single line per polygon prefixed {@code [BD]} so callers can capture and diff against
-     * the equivalent {@code vanilla-reference-harness} dump (see
-     * {@code EntityFrameRenderer.dumpPolygonExtents}).
-     */
-    private static final ThreadLocal<Boolean> BOUNDS_DUMP = ThreadLocal.withInitial(() -> false);
-
-    /** Enable / disable per-polygon screen-bounds dump on the current thread. */
-    public static void setBoundsDump(boolean enable) {
-        BOUNDS_DUMP.set(enable);
     }
 
     /**
@@ -550,7 +517,7 @@ public class EntityGeometryKit {
             if (uv.y() > vMax) vMax = uv.y();
         }
         if (uMin == uMax || vMin == vMax) {
-            if (dumpLabel != null) System.out.println("[BD] " + dumpLabel + " DEGEN_UV");
+            RendererDebug.boundsDegenerateUv(dumpLabel);
             return;
         }
 
@@ -568,7 +535,7 @@ public class EntityGeometryKit {
         }
         if (bl3 == null || br3 == null || tr3 == null || tl3 == null) {
             for (Vector3f c : corners3d) accumulate(c, cubeTransform, modelScale, screenTransform, acc);
-            if (dumpLabel != null) System.out.println("[BD] " + dumpLabel + " NON_AXIS_UV_FALLBACK_4_CORNERS");
+            RendererDebug.boundsNonAxisUvFallback(dumpLabel);
             return;
         }
 
@@ -576,7 +543,7 @@ public class EntityGeometryKit {
         int H = texture.height();
         if (W <= 0 || H <= 0) {
             for (Vector3f c : corners3d) accumulate(c, cubeTransform, modelScale, screenTransform, acc);
-            if (dumpLabel != null) System.out.println("[BD] " + dumpLabel + " NO_TEX_FALLBACK_4_CORNERS");
+            RendererDebug.boundsNoTextureFallback(dumpLabel);
             return;
         }
         // Texel at integer pixel position {@code (px, py)} covers the half-open UV rect
@@ -606,9 +573,7 @@ public class EntityGeometryKit {
             }
         }
         if (firstOpaquePx == Integer.MAX_VALUE) {
-            if (dumpLabel != null) System.out.printf(
-                "[BD] %s uv_px=%d,%d,%d,%d ALL_TRANSPARENT%n",
-                dumpLabel, pxMin, pyMin, pxMax, pyMax);
+            RendererDebug.boundsAllTransparent(dumpLabel, pxMin, pyMin, pxMax, pyMax);
             return;
         }
 
@@ -622,15 +587,11 @@ public class EntityGeometryKit {
         Vector3f tr = contributeBilinear(opaqueUMax, opaqueVMax, uMin, uMax, vMin, vMax, bl3, br3, tr3, tl3, cubeTransform, modelScale, screenTransform, acc);
         Vector3f tl = contributeBilinear(opaqueUMin, opaqueVMax, uMin, uMax, vMin, vMax, bl3, br3, tr3, tl3, cubeTransform, modelScale, screenTransform, acc);
 
-        if (dumpLabel != null) System.out.printf(
-            "[BD] %s uv_px=%d,%d,%d,%d opaque_px=%d,%d,%d,%d screen_bl=(%g,%g,%g) screen_br=(%g,%g,%g) screen_tr=(%g,%g,%g) screen_tl=(%g,%g,%g)%n",
+        RendererDebug.boundsFaceContribution(
             dumpLabel,
             pxMin, pyMin, pxMax, pyMax,
             firstOpaquePx, firstOpaquePy, lastOpaquePx, lastOpaquePy,
-            bl.x(), bl.y(), bl.z(),
-            br.x(), br.y(), br.z(),
-            tr.x(), tr.y(), tr.z(),
-            tl.x(), tl.y(), tl.z());
+            bl, br, tr, tl);
     }
 
     private static @NotNull Vector3f contributeBilinear(
@@ -692,8 +653,8 @@ public class EntityGeometryKit {
      * Builds a Matrix4f that maps a vertex in the entity's working pixel-unit frame
      * (post-bone-chain, post-pivot-translation, pre-rasterizer) into the entity-fit space
      * shared with {@link #buildTriangles}'s output. The transform is
-     * {@code (v - center) * scale} on each axis, with {@link #FLIP_Y} (and {@link #FLIP_X} /
-     * {@link #FLIP_Z}) applied.
+     * {@code (v - center) * scale} on each axis, with the kit's permanent Y-flip on positions
+     * applied.
      *
      * <p>Used by {@link lib.minecraft.renderer.EntityRenderer} to project block-model
      * overlay triangles (mooshroom mushroom blocks, etc) into the same entity-fit frame the
@@ -726,11 +687,9 @@ public class EntityGeometryKit {
      */
     public static @NotNull Matrix4f buildEntityFitMatrix(@NotNull Vector3f modelCentre, float ndcScale) {
         Matrix4f translateToCentre = Matrix4f.createTranslation(-modelCentre.x(), -modelCentre.y(), -modelCentre.z());
-        Matrix4f scaleAndFlip = Matrix4f.createScale(
-            FLIP_X ? -ndcScale : ndcScale,
-            FLIP_Y ? -ndcScale : ndcScale,
-            FLIP_Z ? -ndcScale : ndcScale
-        );
+        // Kit's permanent Y-flip on positions matches the kitFit chain in
+        // buildTrianglesWithScale - vanilla Y-up to our Y-down screen frame.
+        Matrix4f scaleAndFlip = Matrix4f.createScale(ndcScale, -ndcScale, ndcScale);
         // Translate to centre first (innermost), then scale + flip.
         return scaleAndFlip.multiply(translateToCentre);
     }
@@ -1030,7 +989,7 @@ public class EntityGeometryKit {
      * {@link EntityFace#permuteToPolygonOrder} so the tooling-side block-model converter can
      * share the same source of truth.
      * <p>
-     * Independent of {@link #FLIP_X} / {@link #FLIP_Y}: those change where vertices project to
+     * Independent of the kit's permanent Y-flip on positions: that flip changes where vertices project to
      * screen, but each vertex's vanilla-spec UV is unchanged.
      *
      * @param face the geometric face being rendered

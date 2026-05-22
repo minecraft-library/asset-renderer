@@ -8,6 +8,7 @@ import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.ProjectionMath;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
+import lib.minecraft.renderer.pipeline.util.RendererDebug;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -47,51 +48,6 @@ public class ModelEngine extends TextureEngine {
      * shared plane is collapsed.
      */
     private static final float DEPTH_EPSILON = 1e-4f;
-
-    /**
-     * Diagnostic per-pixel trace rectangle parsed from {@code -Dentity.pixel.dump=x0,y0,x1,y1}
-     * (inclusive on all four sides). When non-null every fragment write whose screen position lands
-     * inside the rect emits one TSV line to {@link System#out} prefixed with {@code [PX]}. Use
-     * {@code -Dentity.pixel.dump=33,18,33,18} for a single-pixel probe; widen for a swath.
-     * Multi-threaded rasterization (tile workers) interleaves output order; each line is atomic and
-     * carries enough context (px, py, depth, debug tag, raw/tinted/shaded ARGB) to sort offline.
-     */
-    private static final int @Nullable [] PIXEL_DUMP_RECT = parsePixelDumpRect();
-
-    private static int @Nullable [] parsePixelDumpRect() {
-        String prop = System.getProperty("entity.pixel.dump");
-        if (prop == null || prop.isBlank()) return null;
-        String[] parts = prop.split(",");
-        if (parts.length != 4) {
-            System.out.println("[PX] malformed entity.pixel.dump: '" + prop + "' (expected x0,y0,x1,y1)");
-            return null;
-        }
-        try {
-            int x0 = Integer.parseInt(parts[0].trim());
-            int y0 = Integer.parseInt(parts[1].trim());
-            int x1 = Integer.parseInt(parts[2].trim());
-            int y1 = Integer.parseInt(parts[3].trim());
-            System.out.println("[PX-HEADER] " + String.join("\t",
-                "stage", "px", "py", "depth", "tag", "u", "v", "tx", "ty",
-                "rawARGB", "tintARGB", "afterTintARGB", "shading", "afterShadeARGB",
-                "blendMode", "outARGB"));
-            System.out.println("[PX] dump rect=" + x0 + "," + y0 + "-" + x1 + "," + y1);
-            return new int[]{ x0, y0, x1, y1 };
-        } catch (NumberFormatException nfe) {
-            System.out.println("[PX] malformed entity.pixel.dump numbers: '" + prop + "'");
-            return null;
-        }
-    }
-
-    private static boolean pixelDumpContains(int px, int py) {
-        if (PIXEL_DUMP_RECT == null) return false;
-        return px >= PIXEL_DUMP_RECT[0] && py >= PIXEL_DUMP_RECT[1]
-            && px <= PIXEL_DUMP_RECT[2] && py <= PIXEL_DUMP_RECT[3];
-    }
-
-    private static @NotNull String hexArgb(int argb) {
-        return String.format("0x%08X", argb);
-    }
 
     /**
      * Minimum framebuffer height (in pixels) before tiled parallel rasterization kicks in.
@@ -379,20 +335,14 @@ public class ModelEngine extends TextureEngine {
                         && (e20 != 0L || ec.topLeft20())
                         && (e01 != 0L || ec.topLeft01());
                     if (!inside) {
-                        if (pixelDumpContains(px, py)) {
-                            System.out.println("[PX]\tSKIP-FILL\t" + px + "\t" + py + "\t\t"
-                                + t.source.debugTag() + "\tbary=" + bary[0] + "," + bary[1] + "," + bary[2]);
-                        }
+                        RendererDebug.pixelSkipFill(px, py, t.source.debugTag(), bary[0], bary[1], bary[2]);
                         continue;
                     }
 
                     float depthVal = bary[0] * t.p0.z() + bary[1] * t.p1.z() + bary[2] * t.p2.z();
                     int idx = (py - tileStart) * width + px;
                     if (depthFails(depthVal, depth[idx], t.source.emissive())) {
-                        if (pixelDumpContains(px, py)) {
-                            System.out.println("[PX]\tSKIP-DEPTH\t" + px + "\t" + py + "\t" + depthVal
-                                + "\t" + t.source.debugTag() + "\texistingDepth=" + depth[idx]);
-                        }
+                        RendererDebug.pixelSkipDepth(px, py, depthVal, t.source.debugTag(), depth[idx]);
                         continue;
                     }
 
@@ -404,12 +354,7 @@ public class ModelEngine extends TextureEngine {
                     int ty = Math.clamp((int) (v * texture.height()), 0, texture.height() - 1);
                     int rawTexel = texture.getPixel(tx, ty);
                     if (ColorMath.alpha(rawTexel) == 0) {
-                        if (pixelDumpContains(px, py)) {
-                            System.out.println("[PX]\tSKIP-ALPHA\t" + px + "\t" + py + "\t" + depthVal
-                                + "\t" + t.source.debugTag()
-                                + "\tu=" + u + "\tv=" + v + "\ttx=" + tx + "\tty=" + ty
-                                + "\trawARGB=" + hexArgb(rawTexel));
-                        }
+                        RendererDebug.pixelSkipAlpha(px, py, depthVal, t.source.debugTag(), u, v, tx, ty, rawTexel);
                         continue;
                     }
 
@@ -425,20 +370,10 @@ public class ModelEngine extends TextureEngine {
                     int outArgb = ColorMath.blend(afterShade, buffer.getPixel(px, py), blendMode);
                     buffer.setPixel(px, py, outArgb);
 
-                    if (pixelDumpContains(px, py)) {
-                        // Per-pixel trace: stage=WRITE, full sample chain inputs and outputs.
-                        // Multi-threaded; lines may interleave across tiles; each is self-contained.
-                        System.out.println("[PX]\tWRITE\t" + px + "\t" + py + "\t" + depthVal
-                            + "\t" + t.source.debugTag()
-                            + "\t" + u + "\t" + v + "\t" + tx + "\t" + ty
-                            + "\t" + hexArgb(rawTexel)
-                            + "\t" + hexArgb(t.source.tintArgb())
-                            + "\t" + hexArgb(afterTint)
-                            + "\t" + shading
-                            + "\t" + hexArgb(afterShade)
-                            + "\t" + blendMode
-                            + "\t" + hexArgb(outArgb));
-                    }
+                    RendererDebug.pixelWrite(px, py, depthVal, t.source.debugTag(),
+                        u, v, tx, ty,
+                        rawTexel, t.source.tintArgb(), afterTint,
+                        shading, afterShade, blendMode, outArgb);
                     // Depth written for non-emissive pixels. Emissive fragments deliberately
                     // skip the depth write so that overlapping translucent layers (breeze wind
                     // cone with 3 nested cubes at the same Y plane) can all accumulate via
@@ -626,23 +561,7 @@ public class ModelEngine extends TextureEngine {
         Vector2f s1 = snapToCoverageGrid(RenderEngine.projectPerspective(p1, scale, offsetX, offsetY, perspective));
         Vector2f s2 = snapToCoverageGrid(RenderEngine.projectPerspective(p2, scale, offsetX, offsetY, perspective));
 
-        if (PIXEL_DUMP_RECT != null && triangle.debugTag() != null) {
-            // One-shot per-triangle projection trace: surfaces the screen-space corner positions
-            // for every triangle so offline tooling can compare our vertex projections against the
-            // vanilla harness's same-triangle projection without per-pixel post-hoc reconstruction.
-            // Includes per-vertex UV so chain-precision investigations can verify whether texture
-            // sampling lands on the same texels vanilla samples (see notes/precision-drift.md
-            // tadpole investigation).
-            System.out.println("[PX]\tTRI\t" + triangle.debugTag()
-                + "\ts0=" + s0.x() + "," + s0.y() + "\ts1=" + s1.x() + "," + s1.y()
-                + "\ts2=" + s2.x() + "," + s2.y()
-                + "\tp0=" + p0.x() + "," + p0.y() + "," + p0.z()
-                + "\tp1=" + p1.x() + "," + p1.y() + "," + p1.z()
-                + "\tp2=" + p2.x() + "," + p2.y() + "," + p2.z()
-                + "\tuv0=" + triangle.uv0().x() + "," + triangle.uv0().y()
-                + "\tuv1=" + triangle.uv1().x() + "," + triangle.uv1().y()
-                + "\tuv2=" + triangle.uv2().x() + "," + triangle.uv2().y());
-        }
+        RendererDebug.pixelTriangle(triangle, s0, s1, s2, p0, p1, p2);
 
         if (triangle.cullBackFaces() && isBackFacing(s0, s1, s2)) return null;
         ProjectionMath.EdgeCoefficients edges = ProjectionMath.EdgeCoefficients.of(s0, s1, s2);

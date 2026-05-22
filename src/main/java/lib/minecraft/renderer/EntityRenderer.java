@@ -24,6 +24,7 @@ import lib.minecraft.renderer.kit.EntityGeometryKit;
 import lib.minecraft.renderer.kit.GlintKit;
 import lib.minecraft.renderer.options.EntityOptions;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
+import lib.minecraft.renderer.pipeline.util.RendererDebug;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -99,8 +100,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // 0.016 canvas pixels and not separately compensated.
         Map.entry("minecraft:slime", 0.999f)
     );
-
-    private static final boolean PIXEL_DUMP_RECT_FOR_BOUNDS = Boolean.getBoolean("entity.fit.dump");
 
     /** Renderer context for texture resolution + isometric engine setup; not used for entity lookup. */
     private final @NotNull RendererContext context;
@@ -398,10 +397,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     ) {
         Matrix4f transform = composeIsoTransform(userRotation);
         Box screenBounds = computeFamilyUnionScreenBounds(entityId, definition, transform, modelScale, texture);
-        if (PIXEL_DUMP_RECT_FOR_BOUNDS) {
-            System.out.println("[PX]\tFIT\t" + entityId + "\tminX=" + screenBounds.minX() + "\tmaxX=" + screenBounds.maxX()
-                + "\tminY=" + screenBounds.minY() + "\tmaxY=" + screenBounds.maxY());
-        }
+        RendererDebug.fitBounds(entityId, screenBounds);
         float extentX = Math.max(0f, screenBounds.maxX() - screenBounds.minX());
         float extentY = Math.max(0f, screenBounds.maxY() - screenBounds.minY());
         float pxPerEntityUnit = PIXELS_PER_BLOCK / 16f;
@@ -468,10 +464,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull PixelBuffer texture
     ) {
         Box bounds = EntityGeometryKit.computeScreenBounds(definition.model(), transform, modelScale, texture);
-        if (PIXEL_DUMP_RECT_FOR_BOUNDS) {
-            System.out.println("[PX]\tBASE-BOUNDS\tminX=" + bounds.minX() + "\tmaxX=" + bounds.maxX()
-                + "\tminY=" + bounds.minY() + "\tmaxY=" + bounds.maxY());
-        }
+        RendererDebug.baseBounds(bounds);
         for (EntityModelLoader.OverlayLayer overlay : definition.overlays()) {
             if (overlay.model().getBones().isEmpty()) continue;
             // Overlays flagged skipBounds (LlamaDecorLayer-style equipment-driven overlays) still
@@ -479,11 +472,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // NO_RENDER_LAYER_SUFFIXES treatment of those layer classes.
             if (overlay.skipBounds()) continue;
             Box overlayBounds = EntityGeometryKit.computeScreenBounds(overlay.model(), transform, modelScale, texture);
-            if (PIXEL_DUMP_RECT_FOR_BOUNDS) {
-                System.out.println("[PX]\tOVERLAY-BOUNDS\tref=" + overlay.textureRef()
-                    + "\tminX=" + overlayBounds.minX() + "\tmaxX=" + overlayBounds.maxX()
-                    + "\tminY=" + overlayBounds.minY() + "\tmaxY=" + overlayBounds.maxY());
-            }
+            RendererDebug.overlayBounds(overlay.textureRef().orElse("<unset>"), overlayBounds);
             bounds = unionBoxes(bounds, overlayBounds);
         }
         return bounds;

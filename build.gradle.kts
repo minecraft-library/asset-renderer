@@ -273,20 +273,6 @@ tasks {
             .mapKeys { it.key.toString() }
     }
 
-    register<JavaExec>("entityBodyPartParity") {
-        description = "Per-bone parity report for ONE entity (axis-isolation harness). Renders each bone in isolation through both pipelines + writes side-by-side PNGs. -PentityId=minecraft:cave_spider [-PrenderSize=256] -Dentity.flipX=true -Dentity.flipY=false -Dentity.flipZ=true -Dentity.flipNX=true -Dentity.flipNY=false -Dentity.flipNZ=true -Dentity.translateByPivot=false"
-        group = "visual"
-        mainClass.set("lib.minecraft.renderer.visual.TestEntityBodyPartParity")
-        classpath = sourceSets["test"].runtimeClasspath
-        val renderSize = (project.findProperty("renderSize") as String?) ?: "256"
-        val entityId = (project.findProperty("entityId") as String?) ?: "minecraft:cave_spider"
-        args = listOf(renderSize, entityId)
-        // Forward Java system properties so -Dentity.flipY=false works on the gradle command line
-        systemProperties = System.getProperties().toMap()
-            .filter { it.key.toString().startsWith("entity.") }
-            .mapKeys { it.key.toString() }
-    }
-
     register<JavaExec>("fluidRenderer") {
         description = "Renders every FluidRenderer code path (water/lava, iso/2D, static/animated, biome variants, override) to cache/visual/fluid-renderer/ for visual inspection."
         group = "visual"
