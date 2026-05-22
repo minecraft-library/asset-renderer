@@ -112,7 +112,7 @@ public final class EntityBlockOverlayResolver {
 
         // Walk the renderer's <init> for {@code new XLayer; ... ; addLayer} patterns.
         // Multiple layers may be attached - one new instruction per recognised layer class.
-        MethodNode init = AsmKit.findMethod(renderer, "<init>");
+        MethodNode init = AsmKit.findMethod(renderer, AsmKit.INIT);
         if (init == null) return out;
 
         for (AbstractInsnNode node = init.instructions.getFirst(); node != null; node = node.getNext()) {
@@ -261,19 +261,13 @@ public final class EntityBlockOverlayResolver {
      * couldn't be resolved.
      */
     private static @Nullable String findPrecedingAxisField(@NotNull MethodInsnNode call) {
-        for (AbstractInsnNode node = call.getPrevious(); node != null; node = node.getPrevious()) {
-            if (node.getOpcode() < 0) continue;
-            if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode field
-                && field.owner.equals(AXIS)) {
-                return field.name;
-            }
-            // LDC pushes the angle - keep walking backward past it.
-            if (AsmKit.readFloatLiteral(node) != null) continue;
-            // Anything else (eg a method invocation) means we've left the rotationDegrees
-            // expression and the axis isn't the immediate preceding GETSTATIC.
-            break;
-        }
-        return null;
+        // Walk backward past any FCONST / LDC float literals (the angle push) until we hit
+        // the GETSTATIC Axis.<X>. Pseudo-nodes are always skipped.
+        AbstractInsnNode hit = AsmKit.findPreceding(call,
+            n -> AsmKit.isGetStatic(n, AXIS),
+            op -> op == Opcodes.LDC
+                || op == Opcodes.FCONST_0 || op == Opcodes.FCONST_1 || op == Opcodes.FCONST_2);
+        return hit == null ? null : ((FieldInsnNode) hit).name;
     }
 
     /**
@@ -281,15 +275,17 @@ public final class EntityBlockOverlayResolver {
      * {@code parent.getXxx()} accessor that returned the bone. Returns the bone name lower-cased
      * with the {@code get} prefix stripped (e.g. {@code getHead} -> {@code head}). Heuristic:
      * the most recent {@code INVOKEVIRTUAL} on the parent renderer's model class that returns
-     * a {@link MODEL_PART} instance is the bone accessor.
+     * a {@code ModelPart} instance is the bone accessor.
      */
     private static @Nullable String findPrecedingBoneAccessor(@NotNull MethodInsnNode call) {
-        for (AbstractInsnNode node = call.getPrevious(); node != null; node = node.getPrevious()) {
-            if (node.getOpcode() < 0) continue;
+        // Pseudo-nodes only; any other real instruction terminates. (Match the original
+        // walker's "first INVOKEVIRTUAL get*->ModelPart wins" semantics by returning null
+        // on the predicate's no-match path so findPreceding aborts on any other real op.)
+        for (AbstractInsnNode node = AsmKit.previousReal(call); node != null; node = AsmKit.previousReal(node)) {
             if (node instanceof MethodInsnNode methodCall
                 && methodCall.getOpcode() == Opcodes.INVOKEVIRTUAL
                 && methodCall.name.startsWith("get")
-                && methodCall.desc.endsWith("Lnet/minecraft/client/model/geom/ModelPart;")) {
+                && AsmKit.descriptorReturns(methodCall.desc, AsmKit.Vanilla.MODEL_PART)) {
                 String accessor = methodCall.name.substring(3);
                 if (accessor.isEmpty()) return null;
                 return Character.toLowerCase(accessor.charAt(0)) + accessor.substring(1);
@@ -318,7 +314,7 @@ public final class EntityBlockOverlayResolver {
             diagnostics.warn("%s: variant class '%s' missing from client jar", entityId, layerInfo.variantClass());
             return layerInfo.defaultBlockId();
         }
-        MethodNode clinit = AsmKit.findMethod(variantClass, "<clinit>");
+        MethodNode clinit = AsmKit.findMethod(variantClass, AsmKit.CLINIT);
         if (clinit == null) return layerInfo.defaultBlockId();
 
         // Walk the <clinit> sequentially, tracking each enum constant's bound Blocks.X field.
@@ -333,16 +329,16 @@ public final class EntityBlockOverlayResolver {
         String defaultConstant = null;
 
         for (AbstractInsnNode node = clinit.instructions.getFirst(); node != null; node = node.getNext()) {
-            if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode getfield) {
-                if (getfield.owner.equals(BLOCKS)) {
-                    pendingBlockField = getfield.name;
-                } else if (getfield.owner.equals(layerInfo.variantClass())) {
-                    pendingDefaultSource = getfield.name;
-                }
+            if (AsmKit.isGetStatic(node, BLOCKS)) {
+                pendingBlockField = ((FieldInsnNode) node).name;
                 continue;
             }
-            if (node.getOpcode() == Opcodes.PUTSTATIC && node instanceof FieldInsnNode putfield
-                && putfield.owner.equals(layerInfo.variantClass())) {
+            if (AsmKit.isGetStatic(node, layerInfo.variantClass())) {
+                pendingDefaultSource = ((FieldInsnNode) node).name;
+                continue;
+            }
+            if (AsmKit.isPutStatic(node, layerInfo.variantClass())) {
+                FieldInsnNode putfield = (FieldInsnNode) node;
                 if ("DEFAULT".equals(putfield.name) && pendingDefaultSource != null) {
                     defaultConstant = pendingDefaultSource;
                 } else if (pendingBlockField != null) {
