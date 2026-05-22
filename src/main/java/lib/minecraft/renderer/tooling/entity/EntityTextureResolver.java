@@ -59,7 +59,7 @@ public final class EntityTextureResolver {
     /**
      * JVM internal name of {@code net.minecraft.resources.Identifier}.
      */
-    private static final @NotNull String IDENTIFIER = "net/minecraft/resources/Identifier";
+    private static final @NotNull String IDENTIFIER = AsmKit.Vanilla.IDENTIFIER;
 
     /**
      * The factory call most renderer {@code <clinit>}s use to wrap a path String into an Identifier.
@@ -279,22 +279,21 @@ public final class EntityTextureResolver {
         @NotNull ZipFile zip,
         @NotNull String rendererInternalName
     ) {
+        // Open-coded super-chain walk; walkSuperChain helper can't early-out so it would load
+        // every ancestor unnecessarily here (each loadClass is jar I/O + ASM parse).
         String current = rendererInternalName;
-        while (current != null && !"java/lang/Object".equals(current)) {
+        while (current != null && !AsmKit.OBJECT_INTERNAL.equals(current)) {
             ClassNode cn = AsmKit.loadClass(zip, current);
             if (cn == null) return null;
             // Prefer the non-bridge overload (the one taking the renderer's own state class
             // rather than the LivingEntityRenderState bridge). The bridge does
             // checkcast + invokevirtual + areturn and carries no real binding info.
-            MethodNode best = null;
             for (MethodNode m : cn.methods) {
                 if (!GET_TEXTURE_LOCATION.equals(m.name)) continue;
-                if (!m.desc.endsWith(")L" + IDENTIFIER + ";")) continue;
+                if (!AsmKit.descriptorReturns(m.desc, IDENTIFIER)) continue;
                 if (isBridgeMethod(m)) continue;
-                best = m;
-                break;
+                return new ResolvedMethod(m, current);
             }
-            if (best != null) return new ResolvedMethod(best, current);
             current = cn.superName;
         }
         return null;
@@ -303,12 +302,14 @@ public final class EntityTextureResolver {
     /**
      * A {@code getTextureLocation} bridge override delegates to the typed overload via
      * {@code aload_0; aload_1; checkcast X; invokevirtual ...; areturn}. Recognising this skips
-     * the bridge and reaches the real binding on the next pass.
+     * the bridge and reaches the real binding on the next pass. Owner-agnostic on purpose -
+     * the bridge's target owner is the class that overrode {@code getTextureLocation} on the
+     * next pass, which we haven't visited yet.
      */
     private static boolean isBridgeMethod(@NotNull MethodNode method) {
         for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
-            if (in.getOpcode() < 0) continue;
-            if (in.getOpcode() == Opcodes.INVOKEVIRTUAL && in instanceof MethodInsnNode mi
+            if (in.getOpcode() == Opcodes.INVOKEVIRTUAL
+                && in instanceof MethodInsnNode mi
                 && GET_TEXTURE_LOCATION.equals(mi.name))
                 return true;
         }
@@ -379,7 +380,7 @@ public final class EntityTextureResolver {
 
             if (in instanceof MethodInsnNode mi
                 && (in.getOpcode() == Opcodes.INVOKESTATIC || in.getOpcode() == Opcodes.INVOKEVIRTUAL)
-                && mi.desc.endsWith(")L" + IDENTIFIER + ";")
+                && AsmKit.descriptorReturns(mi.desc, IDENTIFIER)
                 && !(IDENTIFIER.equals(mi.owner) && WITH_DEFAULT_NAMESPACE.equals(mi.name)))
                 sawIdentifierReturningCall = true;
         }
@@ -426,7 +427,7 @@ public final class EntityTextureResolver {
     ) {
         ClassNode cn = AsmKit.loadClass(zip, classInternalName);
         if (cn == null) return Map.of();
-        MethodNode clinit = AsmKit.findMethod(cn, "<clinit>");
+        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return Map.of();
 
         Map<String, String> out = new LinkedHashMap<>();
@@ -535,7 +536,7 @@ public final class EntityTextureResolver {
     ) {
         ClassNode cn = AsmKit.loadClass(zip, typeOwner);
         if (cn == null) return Map.of();
-        MethodNode clinit = AsmKit.findMethod(cn, "<clinit>");
+        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return Map.of();
 
         Map<String, String> out = new LinkedHashMap<>();
@@ -576,7 +577,7 @@ public final class EntityTextureResolver {
             diagnostics.info("instance-field-driven Type owner '%s' not loadable - skipped", typeOwner);
             return Map.of();
         }
-        MethodNode clinit = AsmKit.findMethod(cn, "<clinit>");
+        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return Map.of();
 
         Map<String, String> out = new LinkedHashMap<>();
@@ -747,7 +748,7 @@ public final class EntityTextureResolver {
         ConcurrentList<String> out = Concurrent.newList();
         ClassNode cn = AsmKit.loadClass(zip, classInternalName);
         if (cn == null) return out;
-        MethodNode clinit = AsmKit.findMethod(cn, "<clinit>");
+        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit != null) collectTextureLiteralsFromMethod(clinit, out);
         for (MethodNode m : cn.methods)
             if (m.name.startsWith("lambda$static$"))
@@ -820,7 +821,7 @@ public final class EntityTextureResolver {
     ) {
         String variantClass = null;
         for (MethodNode m : cn.methods) {
-            if (!m.name.startsWith("lambda$static$") && !"<clinit>".equals(m.name)) continue;
+            if (!m.name.startsWith("lambda$static$") && !AsmKit.CLINIT.equals(m.name)) continue;
             String pendingVariantName = null;
             for (AbstractInsnNode in = m.instructions.getFirst(); in != null; in = in.getNext()) {
                 if (in.getOpcode() == Opcodes.GETSTATIC && in instanceof FieldInsnNode fi
@@ -856,7 +857,7 @@ public final class EntityTextureResolver {
     private static @Nullable String findEnumDefaultName(@NotNull ZipFile zip, @NotNull String enumInternalName) {
         ClassNode cn = AsmKit.loadClass(zip, enumInternalName);
         if (cn == null) return null;
-        MethodNode clinit = AsmKit.findMethod(cn, "<clinit>");
+        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return null;
         String pendingFieldName = null;
         for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
