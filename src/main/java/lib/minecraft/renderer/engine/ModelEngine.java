@@ -64,6 +64,25 @@ public class ModelEngine extends TextureEngine {
      */
     private static final int MIN_ROWS_PER_TILE = 32;
 
+    /**
+     * Sub-pixel grid resolution for {@link #snapToCoverageGrid}. Empirically tuned at
+     * {@code 1/400}: a sweep across {@code 1/16, 1/64, 1/128, 1/256, 1/400, 1/512, 1/1024}
+     * showed peak fleet parity at {@code 1/400}, with sharp local minima at {@code 1/396}
+     * and {@code 1/404}; coarser grids ({@code 1/16-1/192}) shift silhouettes by whole
+     * pixels; finer grids ({@code 1/448+}) re-introduce the exact-alignment cases.
+     *
+     * <p><b>Not a standard GPU sub-pixel precision</b> (real hardware uses {@code 1/16} or
+     * {@code 1/256}). The {@code 1/400} value is INCOMMENSURATE with both our rasterizer's
+     * {@code 1/256} fixed-point edge functions (see
+     * {@link lib.minecraft.renderer.geometry.ProjectionMath ProjectionMath}) and with
+     * texture grid sizes ({@code 1/16}, {@code 1/32}, {@code 1/64} for typical entity
+     * textures), so quantized vertex positions almost never land at sample points that
+     * produce exact-half barycentrics or exact-integer texel-coordinate interpolations -
+     * precisely the cases the snap is here to break.
+     */
+    private static final float SUBPIXEL_PRECISION = 400f;
+    private static final float SUBPIXEL_INV = 1f / SUBPIXEL_PRECISION;
+
     private final @NotNull Matrix4f camera;
 
     /**
@@ -423,25 +442,6 @@ public class ModelEngine extends TextureEngine {
             ? depthVal < existingDepth
             : depthVal <= existingDepth + DEPTH_EPSILON;
     }
-
-    /**
-     * Sub-pixel grid resolution for {@link #snapToCoverageGrid}. Empirically tuned at
-     * {@code 1/400}: a sweep across {@code 1/16, 1/64, 1/128, 1/256, 1/400, 1/512, 1/1024}
-     * showed peak fleet parity at {@code 1/400}, with sharp local minima at {@code 1/396}
-     * and {@code 1/404}; coarser grids ({@code 1/16-1/192}) shift silhouettes by whole
-     * pixels; finer grids ({@code 1/448+}) re-introduce the exact-alignment cases.
-     *
-     * <p><b>Not a standard GPU sub-pixel precision</b> (real hardware uses {@code 1/16} or
-     * {@code 1/256}). The {@code 1/400} value is INCOMMENSURATE with both our rasterizer's
-     * {@code 1/256} fixed-point edge functions (see
-     * {@link lib.minecraft.renderer.geometry.ProjectionMath ProjectionMath}) and with
-     * texture grid sizes ({@code 1/16}, {@code 1/32}, {@code 1/64} for typical entity
-     * textures), so quantized vertex positions almost never land at sample points that
-     * produce exact-half barycentrics or exact-integer texel-coordinate interpolations -
-     * precisely the cases the snap is here to break.
-     */
-    private static final float SUBPIXEL_PRECISION = 400f;
-    private static final float SUBPIXEL_INV = 1f / SUBPIXEL_PRECISION;
 
     /**
      * Quantizes a projected screen-space vertex position to the

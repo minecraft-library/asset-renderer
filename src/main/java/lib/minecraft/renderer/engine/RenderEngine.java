@@ -26,6 +26,56 @@ import org.jetbrains.annotations.NotNull;
  */
 public interface RenderEngine {
 
+    // --- entity inventory lighting constants (vanilla Lighting.ENTITY_IN_UI parity) ---
+
+    /**
+     * First diffuse light direction for vanilla's {@code Lighting.Entry.ENTITY_IN_UI} entry,
+     * pre-rotated by vanilla's iso transform chain so the kit-time dot product against a
+     * kit-frame (post-Y-flip, pre-engine-camera) bone-chain normal gives the same shade as
+     * vanilla's fragment-shader dot against a post-camera-frame normal.
+     * <p>
+     * Vanilla source: {@code INVENTORY_DIFFUSE_LIGHT_0 = normalize(0.2, -1, 1)} in camera frame
+     * (post-iso, Y-down). Our kit dots lights against a normal that is only Y-flipped (not iso-
+     * rotated). Solving:
+     * <pre>
+     * dot(L_kit, diag(1,-1,1) × n_model) = dot(L_camera, M_view × n_model)  for all n_model
+     * </pre>
+     * yields {@code L_kit = diag(1,-1,1) × M_view^T × L_camera}, where {@code M_view =
+     * scale(1,1,-1) × R_X(210°) × R_Y(45°) × R_X(180°)} (col-form) is the harness LER chain.
+     * Verified to give identical shade on all six cardinal-axis normals (cod-style entities). For
+     * rotated bones the dot agrees per-vertex with vanilla's post-iso fragment shader, removing
+     * the per-quadrant signed-luma signature that lingered after A1. Pairs with
+     * {@link lib.minecraft.renderer.engine.IsometricEngine#entityStandard}'s camera chain.
+     * <p>
+     * The previous value {@code normalize(0.2, 1, 1)} was a naive Y-flip of vanilla's source
+     * (matched +Y and -Y axes exactly but diverged 0.04 / 0.07 / 0.13 / 0.17 on ±X / ±Z). A
+     * Round 8 attempt at this fix regressed cardinal-shaded entities; root cause unverified,
+     * but the per-face math has since been re-derived from scratch against the post-A1 chain
+     * and the cardinal-axis match is now bit-stable.
+     *
+     * @see <a href="https://github.com/Mojang/blaze3d/blob/main/src/main/java/com/mojang/blaze3d/platform/Lighting.java">com.mojang.blaze3d.platform.Lighting</a>
+     */
+    Vector3f ENTITY_IN_UI_LIGHT_0 = deriveEntityInUiLightKit(0.2f, -1f, 1f);
+
+    /**
+     * Second diffuse light direction; pre-rotated by the same {@code diag(1,-1,1) × M_view^T} as
+     * {@link #ENTITY_IN_UI_LIGHT_0} from vanilla's {@code INVENTORY_DIFFUSE_LIGHT_1 =
+     * normalize(-0.2, -1, 0)}.
+     */
+    Vector3f ENTITY_IN_UI_LIGHT_1 = deriveEntityInUiLightKit(-0.2f, -1f, 0f);
+
+    /**
+     * Diffuse contribution scale matching vanilla's GLSL {@code MINECRAFT_LIGHT_POWER} constant.
+     * The shader uses the value to scale the dot-product sum before the ambient floor is added.
+     */
+    float MINECRAFT_LIGHT_POWER = 0.6f;
+
+    /**
+     * Constant ambient contribution matching vanilla's GLSL {@code MINECRAFT_AMBIENT_LIGHT}
+     * constant. Sets the floor brightness when both diffuse dot products clamp to zero.
+     */
+    float MINECRAFT_AMBIENT_LIGHT = 0.4f;
+
     // --- projection ---
 
     /**
@@ -95,47 +145,10 @@ public interface RenderEngine {
     // --- entity inventory lighting (vanilla Lighting.ENTITY_IN_UI parity) ---
 
     /**
-     * First diffuse light direction for vanilla's {@code Lighting.Entry.ENTITY_IN_UI} entry,
-     * pre-rotated by vanilla's iso transform chain so the kit-time dot product against a
-     * kit-frame (post-FLIP_Y, pre-engine-camera) bone-chain normal gives the same shade as
-     * vanilla's fragment-shader dot against a post-camera-frame normal.
-     * <p>
-     * Vanilla source: {@code INVENTORY_DIFFUSE_LIGHT_0 = normalize(0.2, -1, 1)} in camera frame
-     * (post-iso, Y-down). Our kit dots lights against a normal that is only Y-flipped (not iso-
-     * rotated). Solving:
-     * <pre>
-     * dot(L_kit, FLIP_Y × n_model) = dot(L_camera, M_view × n_model)  for all n_model
-     * </pre>
-     * yields {@code L_kit = FLIP_Y × M_view^T × L_camera}, where {@code M_view = scale(1,1,-1)
-     * × R_X(210°) × R_Y(45°) × R_X(180°)} (col-form) is the harness LER chain and
-     * {@code FLIP_Y = diag(1,-1,1)}. Verified to give identical shade on all six cardinal-axis
-     * normals (cod-style entities). For rotated bones the dot agrees per-vertex with vanilla's
-     * post-iso fragment shader, removing the per-quadrant signed-luma signature that lingered
-     * after A1. Pairs with {@link lib.minecraft.renderer.engine.IsometricEngine#entityStandard}'s
-     * camera chain.
-     * <p>
-     * The previous value {@code normalize(0.2, 1, 1)} was a naive Y-flip of vanilla's source
-     * (matched +Y and -Y axes exactly but diverged 0.04 / 0.07 / 0.13 / 0.17 on ±X / ±Z). A
-     * Round 8 attempt at this fix regressed cardinal-shaded entities; root cause unverified,
-     * but the per-face math has since been re-derived from scratch against the post-A1 chain
-     * and the cardinal-axis match is now bit-stable.
-     *
-     * @see <a href="https://github.com/Mojang/blaze3d/blob/main/src/main/java/com/mojang/blaze3d/platform/Lighting.java">com.mojang.blaze3d.platform.Lighting</a>
-     */
-    Vector3f ENTITY_IN_UI_LIGHT_0 = deriveEntityInUiLightKit(0.2f, -1f, 1f);
-
-    /**
-     * Second diffuse light direction; pre-rotated by the same {@code FLIP_Y × M_view^T} as
-     * {@link #ENTITY_IN_UI_LIGHT_0} from vanilla's {@code INVENTORY_DIFFUSE_LIGHT_1 =
-     * normalize(-0.2, -1, 0)}.
-     */
-    Vector3f ENTITY_IN_UI_LIGHT_1 = deriveEntityInUiLightKit(-0.2f, -1f, 0f);
-
-    /**
      * Derives a kit-frame diffuse light direction from a vanilla camera-frame
      * {@code INVENTORY_DIFFUSE_LIGHT_N = normalize(x, y, z)} literal, using the same Matrix4f
      * chain the per-vertex shader composes for the iso pose. The result is bit-identical to
-     * {@code FLIP_Y × M_view^T × L_camera} computed via our column-vector
+     * {@code diag(1,-1,1) × M_view^T × L_camera} computed via our column-vector
      * {@link Matrix4f} / {@link Quaternionf} ops - matching whatever sub-ULP drift our matrix
      * math has against vanilla's per-vertex GLSL chain. Replaces the 6-decimal hardcoded
      * constants with values produced by the same float chain that runs at render-time.
@@ -146,7 +159,7 @@ public interface RenderEngine {
 
         // M_view = scale(1,1,-1) × R_X(210°) × R_Y(45°) × R_X(180°) col-form
         // M_view^T = R_X(-180°) × R_Y(-45°) × R_X(-210°) × scale(1,1,-1)
-        // FLIP_Y × M_view^T = diag(1,-1,1) × (above)
+        // diag(1,-1,1) × M_view^T = diag(1,-1,1) × (above)
         // Built via fluent ops to match vanilla's PoseStack composition exactly.
         Matrix4f viewToKit = Matrix4f.IDENTITY
             .scale(1f, -1f, 1f)
@@ -157,18 +170,6 @@ public interface RenderEngine {
         Vector3f kitDir = Vector3f.transformNormal(lCamera, viewToKit);
         return Vector3f.normalize(kitDir);
     }
-
-    /**
-     * Diffuse contribution scale matching vanilla's GLSL {@code MINECRAFT_LIGHT_POWER} constant.
-     * The shader uses the value to scale the dot-product sum before the ambient floor is added.
-     */
-    float MINECRAFT_LIGHT_POWER = 0.6f;
-
-    /**
-     * Constant ambient contribution matching vanilla's GLSL {@code MINECRAFT_AMBIENT_LIGHT}
-     * constant. Sets the floor brightness when both diffuse dot products clamp to zero.
-     */
-    float MINECRAFT_AMBIENT_LIGHT = 0.4f;
 
     /**
      * Computes the dual-directional Lambertian shade factor for a world-space surface normal
