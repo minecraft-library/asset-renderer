@@ -167,7 +167,7 @@
       "armor_type": "none"
     },
     "minecraft:chicken_cold": {
-      "geometry_ref": "geometry.adultchicken",
+      "geometry_ref": "geometry.coldchicken",
       "texture_ref": "chicken/chicken_cold",
       "armor_type": "none",
       "variant_of": "minecraft:chicken"
@@ -202,13 +202,13 @@
       "armor_type": "none"
     },
     "minecraft:cow_cold": {
-      "geometry_ref": "geometry.cow",
+      "geometry_ref": "geometry.coldcow",
       "texture_ref": "cow/cow_cold",
       "armor_type": "none",
       "variant_of": "minecraft:cow"
     },
     "minecraft:cow_warm": {
-      "geometry_ref": "geometry.cow",
+      "geometry_ref": "geometry.warmcow",
       "texture_ref": "cow/cow_warm",
       "armor_type": "none",
       "variant_of": "minecraft:cow"
@@ -535,7 +535,7 @@
       "armor_type": "none"
     },
     "minecraft:pig_cold": {
-      "geometry_ref": "geometry.pig",
+      "geometry_ref": "geometry.coldpig",
       "texture_ref": "pig/pig_cold",
       "armor_type": "none",
       "variant_of": "minecraft:pig"

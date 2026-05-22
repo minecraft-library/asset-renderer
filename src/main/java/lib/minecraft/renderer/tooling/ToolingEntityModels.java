@@ -376,6 +376,54 @@ public final class ToolingEntityModels {
             }
             System.out.println("Resolved " + sources.size() + " primary LayerDefinition factories for geometry parsing");
 
+            // Phase 17: variant LayerDefinition enumeration. Some data-driven variants
+            // (cow_cold, cow_warm, chicken_cold, pig_cold) declare a `model` discriminator
+            // ({@code "model": "cold"}) in their JSON; the matching {@code ColdCowModel} /
+            // {@code WarmCowModel} / {@code ColdChickenModel} / {@code ColdPigModel} classes
+            // register a separate {@code LayerDefinition} under {@code ModelLayers.<MODEL>_<STEM>}
+            // (e.g., {@code COLD_COW}). The base-entity-only walk above only resolves the
+            // primary {@code ModelLayers.X} for the renderer, missing these variant layers.
+            // Add an extra Source per variant whose model layer is present in {@code layerDefs}
+            // so the parser emits a distinct geometry that the variant row's geometry_ref can
+            // point at (cow_cold -> ColdCowModel mesh, not the base CowModel).
+            for (Map.Entry<String, EntityRecord> entry : records.entrySet()) {
+                String baseEntityId = entry.getKey();
+                String variantStem = entry.getValue().variantStem();
+                if (variantStem == null) continue;
+                ConcurrentList<EntityVariantResolver.Variant> vlist = variants.get(variantStem);
+                if (vlist == null) continue;
+                for (EntityVariantResolver.Variant variant : vlist) {
+                    if (variant.model() == null) continue;
+                    String modelLayerField = (variant.model() + "_" + variantStem).toUpperCase(java.util.Locale.ROOT);
+                    EntityLayerDefinitionResolver.Resolution variantRes = layerDefs.get(modelLayerField);
+                    if (variantRes == null) {
+                        diagnostics.info("variant '%s_%s' references model '%s' but ModelLayers.%s not in LayerDefinitions",
+                            baseEntityId, variant.variantId(), variant.model(), modelLayerField);
+                        continue;
+                    }
+                    String variantEntityId = baseEntityId + "_" + variant.variantId();
+                    if (entityToResolution.containsKey(variantEntityId)) continue;
+                    entityToResolution.put(variantEntityId, variantRes);
+                    float[] variantParamFloats = new float[8];
+                    if (variantRes.defaultFloatParam() != null)
+                        variantParamFloats[0] = variantRes.defaultFloatParam();
+                    sources.add(new Source(
+                        variantRes.targetClass() + ".class",
+                        variantRes.targetMethod(),
+                        variantEntityId,
+                        YAxis.DOWN,
+                        0f,
+                        variantRes.texWidthOverride(),
+                        variantRes.texHeightOverride(),
+                        null,
+                        variantParamFloats,
+                        0f,
+                        variantRes.appliedMeshTransformerScale()
+                    ));
+                }
+            }
+            System.out.println("Total sources after variant LayerDefinition enumeration: " + sources.size());
+
             // Phase E.4 second pass: walk every renderer's RenderLayer chain for composite-
             // model overlays (slime outer shell, sheep wool, sheep wool undercoat). Each
             // composite overlay carries its own ModelLayers field, which we add as an extra
@@ -870,8 +918,21 @@ public final class ToolingEntityModels {
                 String variantPrimary = variant.primaryTexturePath();
                 if (variantPrimary == null) continue;
                 String variantEntityId = entityId + "_" + variant.variantId();
+                // Phase 17: a variant with a `model` discriminator parsed its own LayerDefinition
+                // and has its own geometry id. The lookup falls back to the base entity's
+                // geometry when the variant inherits the base model (cow_temperate, etc.).
+                String variantGeometryId = geometryId;
+                EntityLayerDefinitionResolver.Resolution variantRes = entityToResolution.get(variantEntityId);
+                if (variantRes != null) {
+                    String variantFactoryKey = variantRes.targetClass() + "#" + variantRes.targetMethod()
+                        + (variantRes.defaultInflate() != 0f ? "#inflate=" + variantRes.defaultInflate() : "")
+                        + (variantRes.defaultFloatParam() != null ? "#fparam=" + variantRes.defaultFloatParam() : "")
+                        + (variantRes.appliedMeshTransformerScale() != 1f ? "#appliedMT=" + variantRes.appliedMeshTransformerScale() : "");
+                    String resolvedVariant = factoryKeyToGeometryId.get(variantFactoryKey);
+                    if (resolvedVariant != null) variantGeometryId = resolvedVariant;
+                }
                 JsonObject variantRow = new JsonObject();
-                variantRow.addProperty("geometry_ref", geometryId);
+                variantRow.addProperty("geometry_ref", variantGeometryId);
                 variantRow.addProperty("texture_ref", stripTexturesPrefix(variantPrimary));
                 variantRow.addProperty("armor_type", row.get("armor_type").getAsString());
                 variantRow.addProperty("variant_of", entityId);
