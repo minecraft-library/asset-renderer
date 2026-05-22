@@ -767,7 +767,7 @@ public final class ToolingBlockEntities {
                 return state.resolvedMeshTransformers.get(key);
 
             ClassNode cls = AsmKit.loadClass(zip, owner);
-            MethodNode clinit = cls != null ? AsmKit.findMethod(cls, "<clinit>") : null;
+            MethodNode clinit = cls != null ? AsmKit.findMethod(cls, AsmKit.CLINIT) : null;
             if (clinit == null) {
                 state.resolvedMeshTransformers.put(key, null);
                 return null;
@@ -1722,7 +1722,7 @@ public final class ToolingBlockEntities {
             while (prev != null && collected.size() < expectedCount) {
                 if (prev instanceof LdcInsnNode ldc && ldc.cst instanceof String s) {
                     collected.addFirst(s);
-                } else if (prev.getOpcode() < 0) {
+                } else if (AsmKit.isPseudoNode(prev)) {
                     // line number / frame / label nodes - skip silently
                 } else {
                     return null;
@@ -1935,7 +1935,7 @@ public final class ToolingBlockEntities {
                 }
                 return;
             }
-            if ("<init>".equals(methodInsn.name) && state.paramFloatValues != null) {
+            if (AsmKit.INIT.equals(methodInsn.name) && state.paramFloatValues != null) {
                 if (methodInsn.desc.startsWith("(FFF")) {
                     requireStack(state, 3, "CubeDeformation.<init>(FFF)");
                     float dz = popFloatWithDiagnostics(state, "CubeDeformation.<init>(FFF) z");
