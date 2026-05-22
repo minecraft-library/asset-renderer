@@ -679,12 +679,29 @@
     "minecraft:trader_llama": {
       "geometry_ref": "geometry.llama",
       "texture_ref": "llama/llama_creamy",
-      "armor_type": "none"
+      "armor_type": "none",
+      "overlays": [
+        {
+          "geometry_ref": "geometry.llama",
+          "texture_ref": "equipment/llama_body/trader_llama",
+          "inflate": 0.5,
+          "skip_bounds": true
+        }
+      ]
     },
     "minecraft:tropical_fish": {
       "geometry_ref": "geometry.tropicalfishsmall",
       "texture_ref": "fish/tropical_a",
-      "armor_type": "none"
+      "armor_type": "none",
+      "overlays": [
+        {
+          "geometry_ref": "geometry.tropicalfishsmall",
+          "texture_ref": "fish/tropical_a_pattern_1",
+          "tint_color": "0xFFF9FFFE",
+          "inflate": 0.008
+        }
+      ],
+      "base_tint": "0xFFF9FFFE"
     },
     "minecraft:turtle": {
       "geometry_ref": "geometry.adultturtle",

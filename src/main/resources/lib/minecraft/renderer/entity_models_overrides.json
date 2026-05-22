@@ -52,31 +52,11 @@
         "left_chest"
       ]
     },
-    "//minecraft:tropical_fish": "TropicalFishRenderer.getModelTint returns state.baseColor (DyeColor.WHITE.textureDiffuseColor = 0xFFF9FFFE at zero state, just shy of pure white). TropicalFishPatternLayer submits a second textured pass with state.patternColor (also 0xFFF9FFFE at zero state DEFAULT_VARIANT = (KOB, WHITE, WHITE)). Both tints are multiplicative against the sampled texel - tiny shift visible across the silhouette. The pattern model is a separate LayerDefinition baked with FISH_PATTERN_DEFORMATION = CubeDeformation(0.008F) (LayerDefinitions.java line 164) - that's an inflate on every pattern cube, not just a depth-test offset, so the pattern silhouette is geometrically 0.008 wider than the base body per side. Vanilla harness includes this in its bounds-walker, padding the canvas by 1 pixel on each axis; matching this here (inflate 0.008 vs the previous generic 0.001) lines up canvas dimensions AND the per-cube extents the rasterizer walks.",
-    "minecraft:tropical_fish": {
-      "base_tint": "0xFFF9FFFE",
-      "overlays": [
-        {
-          "geometry_ref": "geometry.tropicalfishsmall",
-          "texture_ref": "fish/tropical_a_pattern_1",
-          "inflate": 0.008,
-          "tint_color": "0xFFF9FFFE"
-        }
-      ]
-    },
-    "//minecraft:trader_llama": "Trader llamas additionally have LlamaDecorLayer rendering EquipmentAssets.TRADER_LLAMA on top of an inflated copy of the llama mesh (ModelLayers.LLAMA_DECOR = LlamaModel.createBodyLayer(CubeDeformation(0.5))). The TRADER_LLAMA equipment asset points at textures/entity/equipment/llama_body/trader_llama.png which carries the carpet pattern; chest UV is transparent so the overlay's still-present chest bones contribute nothing visible. The overlay carries inflate 0.5 to wrap the base llama body, matching vanilla's CubeDeformation(0.5F) on the decor layer.",
+    "//minecraft:trader_llama": "Hidden bones for state-equipment-driven chest visibility (Phase 10 will derive from LlamaModel.setupAnim's state.hasChest gate). Decor overlay (LlamaDecorLayer + EquipmentAssets.TRADER_LLAMA) is auto-derived by EntityOverlayResolver.",
     "minecraft:trader_llama": {
       "hidden_bones": [
         "right_chest",
         "left_chest"
-      ],
-      "overlays": [
-        {
-          "geometry_ref": "geometry.llama",
-          "texture_ref": "equipment/llama_body/trader_llama",
-          "inflate": 0.5,
-          "skip_bounds": true
-        }
       ]
     }
   }

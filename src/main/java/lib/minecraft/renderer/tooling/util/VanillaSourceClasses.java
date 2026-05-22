@@ -179,6 +179,17 @@ public final class VanillaSourceClasses {
     public static final @NotNull String VILLAGER_PROFESSION_LAYER =
         ENTITY_RENDERER_ROOT + "layers/VillagerProfessionLayer";
 
+    /** TropicalFish pattern (overlay) layer baked with FISH_PATTERN_DEFORMATION inflate 0.008. */
+    public static final @NotNull String TROPICAL_FISH_PATTERN_LAYER =
+        ENTITY_RENDERER_ROOT + "layers/TropicalFishPatternLayer";
+
+    /** Llama equipment decor layer (carpet on trader_llama, saddle on equipment-bearing llamas). */
+    public static final @NotNull String LLAMA_DECOR_LAYER =
+        ENTITY_RENDERER_ROOT + "layers/LlamaDecorLayer";
+
+    /** Static field holder for equipment-asset keys ({@code TRADER_LLAMA}, ...). */
+    public static final @NotNull String EQUIPMENT_ASSETS = "net/minecraft/world/item/equipment/EquipmentAssets";
+
     // ============================================================================================
     // Block-entity registries
     // ============================================================================================

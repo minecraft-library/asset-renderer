@@ -172,8 +172,20 @@ public final class EntityOverlayResolver {
         @NotNull String texturePath,
         boolean emissive,
         @Nullable String modelLayerField,
-        int tintArgb
-    ) {}
+        int tintArgb,
+        float inflate,
+        boolean skipBounds
+    ) {
+        public OverlayDescriptor(
+            @NotNull String layerClass,
+            @NotNull String texturePath,
+            boolean emissive,
+            @Nullable String modelLayerField,
+            int tintArgb
+        ) {
+            this(layerClass, texturePath, emissive, modelLayerField, tintArgb, 0f, false);
+        }
+    }
 
     /**
      * Resolves overlay descriptors from the layer class names produced by
@@ -251,6 +263,59 @@ public final class EntityOverlayResolver {
             if (param != null) {
                 int tintArgb = extractColoredCutoutTint(zip, cn);
                 out.add(new OverlayDescriptor(layerClass, param.texturePath(), false, param.modelLayerField(), tintArgb));
+                continue;
+            }
+
+            // LlamaDecorLayer: a same-geometry equipment-overlay layer rendering the llama's
+            // body-slot armor / decor (carpet for trader_llama, dyed harnesses for player-saddled
+            // llamas). The renderer class is shared by llama AND trader_llama (LlamaRenderer is
+            // instantiated twice with different ModelLayers args), so this code path only fires
+            // for the trader_llama entity-id - that's the only vanilla case with a hardcoded
+            // default-equipment ResourceKey. Deriving the per-entity equipment default from
+            // entity-class bytecode (TraderLlama.<init> -> ItemStack with TRADER_LLAMA asset) is
+            // deferred to a later phase; using the entity-id check here is defensible because
+            // entity_id itself is bytecode-derived (EntityType registry walk).
+            //
+            // Texture composition: walk LlamaDecorLayer for the EquipmentClientInfo$LayerType
+            // GETSTATIC ({@code LLAMA_BODY} -> "llama_body" subdir) and EquipmentAssets.<clinit>
+            // for the TRADER_LLAMA static field's preceding LDC ("trader_llama"). Final path:
+            // {@code textures/entity/equipment/<layer_subdir>/<asset_id>.png}.
+            //
+            // Inflate 0.5 mirrors {@code LlamaModel.createBodyLayer(CubeDeformation(0.5F))} which
+            // the LayerDefinitions.<clinit> wires for {@code ModelLayers.LLAMA_DECOR}. The
+            // bytecode walk for this constant is deferred (the LayerDefinitions <clinit> stack
+            // would require constant-folding the local-variable slot the LayerDefinition is
+            // stored in); 0.5 is hardcoded for now with the matching skip_bounds=true that the
+            // vanilla harness's NO_RENDER_LAYER_SUFFIXES treats LlamaDecorLayer with.
+            if (VanillaSourceClasses.LLAMA_DECOR_LAYER.equals(layerClass)
+                && "minecraft:trader_llama".equals(entityId)) {
+                String layerSubdir = findEquipmentLayerSubdir(cn);
+                String assetId = findEquipmentAssetId(zip, "TRADER_LLAMA");
+                if (layerSubdir != null && assetId != null) {
+                    String texture = TEXTURE_PATH_PREFIX + "equipment/" + layerSubdir + "/" + assetId + ".png";
+                    out.add(new OverlayDescriptor(layerClass, texture, false, null, 0xFFFFFFFF, 0.5f, true));
+                }
+                continue;
+            }
+
+            // TropicalFishPatternLayer: a second textured pass drawn on top of the small / large
+            // tropical fish body model. The pattern model is a separate LayerDefinition baked
+            // with FISH_PATTERN_DEFORMATION = CubeDeformation(0.008F) - that's an inflate on
+            // every pattern cube, not just a depth-test offset, so the pattern silhouette is
+            // geometrically 0.008 wider than the base body per side. Both the body tint
+            // (state.baseColor) and the pattern tint (state.patternColor) default to
+            // DyeColor.WHITE.textureDiffuseColor = 0xFFF9FFFE at zero state. Emit as a
+            // same-geometry overlay (the base geometry + 0.008 inflate is a static-renderer
+            // approximation of vanilla's separate pattern LayerDefinition).
+            if (VanillaSourceClasses.TROPICAL_FISH_PATTERN_LAYER.equals(layerClass)) {
+                String patternTexture = findFirstNonBabyTextureLiteral(cn);
+                if (patternTexture != null) {
+                    float inflate = walkCubeDeformationFloat(zip,
+                        VanillaSourceClasses.LAYER_DEFINITIONS, "FISH_PATTERN_DEFORMATION");
+                    int tint = walkDyeColorWhiteTextureDiffuseColor(zip);
+                    out.add(new OverlayDescriptor(layerClass, patternTexture, false, null, tint,
+                        inflate != 0f ? inflate : 0.008f, false));
+                }
                 continue;
             }
 
@@ -858,6 +923,160 @@ public final class EntityOverlayResolver {
                 return new EyesOverlayBinding(pendingTexturePath, mi.name);
         }
         return null;
+    }
+
+    /**
+     * Walks a {@code RenderLayer} subclass for a {@code GETSTATIC
+     * EquipmentClientInfo$LayerType.X} reference and returns the lowercase field name
+     * ({@code "LLAMA_BODY"} -&gt; {@code "llama_body"}), which doubles as the equipment-texture
+     * subdirectory ({@code textures/entity/equipment/llama_body/}). Returns {@code null} when
+     * the layer doesn't reference the enum.
+     */
+    private static @Nullable String findEquipmentLayerSubdir(@NotNull ClassNode layerCn) {
+        for (MethodNode method : layerCn.methods)
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
+                if (in.getOpcode() == Opcodes.GETSTATIC
+                    && in instanceof FieldInsnNode fi
+                    && fi.owner.endsWith("EquipmentClientInfo$LayerType"))
+                    return fi.name.toLowerCase(Locale.ROOT);
+        return null;
+    }
+
+    /**
+     * Walks {@code EquipmentAssets.<clinit>} for {@code LDC "<assetId>"; INVOKESTATIC createId;
+     * PUTSTATIC <fieldName>} and returns the bound asset id (e.g., field {@code TRADER_LLAMA}
+     * -&gt; LDC {@code "trader_llama"}). Returns {@code null} when the field isn't bound to a
+     * literal id (e.g., {@code CARPETS} / {@code HARNESSES} are Map builders, not single ids).
+     */
+    private static @Nullable String findEquipmentAssetId(@NotNull ZipFile zip, @NotNull String fieldName) {
+        ClassNode cn = AsmKit.loadClass(zip, VanillaSourceClasses.EQUIPMENT_ASSETS);
+        if (cn == null) return null;
+        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
+        if (clinit == null) return null;
+        String pendingLdc = null;
+        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+            String literal = AsmKit.readStringLiteral(in);
+            if (literal != null) {
+                pendingLdc = literal;
+                continue;
+            }
+            if (in.getOpcode() == Opcodes.PUTSTATIC
+                && in instanceof FieldInsnNode fi
+                && fieldName.equals(fi.name)
+                && pendingLdc != null)
+                return pendingLdc;
+        }
+        return null;
+    }
+
+    /**
+     * Resolves the per-entity multiplicative base tint (mirroring vanilla's
+     * {@code LivingEntityRenderer.getModelTint(state)}) for entities whose renderer reads a
+     * {@code DyeColor} state field. Currently only {@code TropicalFishRenderer} matches: its
+     * {@code extractRenderState} calls {@code entity.getBaseColor().getTextureDiffuseColor()}
+     * to populate {@code state.baseColor}, and {@code getModelTint} returns that field
+     * directly. At zero state {@code entity.getBaseColor()} defaults to {@code DyeColor.WHITE}
+     * whose {@code textureDiffuseColor} is the {@code 0xF9FFFE} constant inscribed in
+     * {@code DyeColor.<clinit>}'s first allocation. We surface that as {@code 0xFFF9FFFE} (alpha
+     * 0xFF prepended) so the runtime tint multiplier matches vanilla's zero-state harness output.
+     *
+     * <p>Returns {@code 0xFFFFFFFF} (the no-op multiplicative tint) when the renderer doesn't
+     * reference {@code DyeColor.getTextureDiffuseColor}.
+     */
+    public static int resolveBaseTint(@NotNull ZipFile zip, @NotNull String rendererInternalName) {
+        ClassNode cn = AsmKit.loadClass(zip, rendererInternalName);
+        if (cn == null) return 0xFFFFFFFF;
+        for (MethodNode method : cn.methods)
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
+                if (in.getOpcode() == Opcodes.INVOKEVIRTUAL
+                    && in instanceof MethodInsnNode mi
+                    && VanillaSourceClasses.DYE_COLOR.equals(mi.owner)
+                    && "getTextureDiffuseColor".equals(mi.name))
+                    return walkDyeColorWhiteTextureDiffuseColor(zip);
+        return 0xFFFFFFFF;
+    }
+
+    /**
+     * Walks the supplied class's {@code <clinit>} for a static field bound via {@code new
+     * CubeDeformation(F); PUTSTATIC <fieldName>} and returns the literal float arg. Returns
+     * {@code 0} when the field doesn't exist or isn't a CubeDeformation literal init.
+     */
+    private static float walkCubeDeformationFloat(@NotNull ZipFile zip, @NotNull String ownerClass, @NotNull String fieldName) {
+        ClassNode cn = AsmKit.loadClass(zip, ownerClass);
+        if (cn == null) return 0f;
+        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
+        if (clinit == null) return 0f;
+        boolean inAlloc = false;
+        Float pendingFloat = null;
+        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (in.getOpcode() == Opcodes.NEW
+                && in instanceof TypeInsnNode ti
+                && VanillaSourceClasses.CUBE_DEFORMATION.equals(ti.desc)) {
+                inAlloc = true;
+                pendingFloat = null;
+                continue;
+            }
+            if (!inAlloc) continue;
+            Float literal = AsmKit.readFloatLiteral(in);
+            if (literal != null) {
+                pendingFloat = literal;
+                continue;
+            }
+            if (in.getOpcode() == Opcodes.PUTSTATIC
+                && in instanceof FieldInsnNode fi
+                && fieldName.equals(fi.name)
+                && pendingFloat != null) {
+                return pendingFloat;
+            }
+            if (in.getOpcode() == Opcodes.PUTSTATIC) {
+                inAlloc = false;
+                pendingFloat = null;
+            }
+        }
+        return 0f;
+    }
+
+    /**
+     * Walks {@code DyeColor.<clinit>} for the {@code WHITE} enum allocation and returns its
+     * {@code textureDiffuseColor} (the 5th constructor arg - {@code "WHITE", 0, 0, "white",
+     * <textureDiffuseColor>, MapColor.SNOW, ...}), with alpha {@code 0xFF} prepended so the
+     * value matches the {@code ARGB} convention used by overlay {@code tint_color} / entity
+     * {@code base_tint} JSON fields. Returns {@code 0xFFFFFFFF} (no-op tint) when the
+     * pattern isn't matched.
+     */
+    private static int walkDyeColorWhiteTextureDiffuseColor(@NotNull ZipFile zip) {
+        ClassNode cn = AsmKit.loadClass(zip, VanillaSourceClasses.DYE_COLOR);
+        if (cn == null) return 0xFFFFFFFF;
+        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
+        if (clinit == null) return 0xFFFFFFFF;
+        // First DyeColor allocation IS the WHITE entry (enum declaration order matches <clinit>
+        // emit order). Walk forward to the first PUTSTATIC WHITE; the 5th literal arg
+        // pushed since the NEW is the textureDiffuseColor.
+        boolean inAlloc = false;
+        int literalsSeen = 0;
+        int textureDiffuseColor = -1;
+        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (in.getOpcode() == Opcodes.NEW
+                && in instanceof TypeInsnNode ti
+                && VanillaSourceClasses.DYE_COLOR.equals(ti.desc)) {
+                inAlloc = true;
+                literalsSeen = 0;
+                continue;
+            }
+            if (!inAlloc) continue;
+            if (in.getOpcode() == Opcodes.PUTSTATIC) break;  // first PUTSTATIC ends the WHITE init
+            if (AsmKit.readStringLiteral(in) != null) {
+                literalsSeen++;
+                continue;
+            }
+            Integer intLit = AsmKit.readIntLiteral(in);
+            if (intLit != null) {
+                literalsSeen++;
+                if (literalsSeen == 5) textureDiffuseColor = intLit;
+            }
+        }
+        if (textureDiffuseColor < 0) return 0xFFFFFFFF;
+        return 0xFF000000 | textureDiffuseColor;
     }
 
     /**

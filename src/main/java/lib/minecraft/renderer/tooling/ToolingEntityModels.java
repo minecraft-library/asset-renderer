@@ -802,8 +802,12 @@ public final class ToolingEntityModels {
                     // on {@code woolColor != WHITE}, {@code DrownedOuterLayer} unconditionally),
                     // and depth-fail rejection is what hides them at zero state.
                     boolean sharesBaseGeometry = desc.modelLayerField() == null;
-                    if (sharesBaseGeometry)
+                    if (desc.inflate() != 0f)
+                        overlay.addProperty("inflate", desc.inflate());
+                    else if (sharesBaseGeometry)
                         overlay.addProperty("inflate", 0.001f);
+                    if (desc.skipBounds())
+                        overlay.addProperty("skip_bounds", true);
                     overlaysJson.add(overlay);
                 }
                 if (!overlaysJson.isEmpty()) row.add("overlays", overlaysJson);
@@ -824,6 +828,14 @@ public final class ToolingEntityModels {
             // override leaves {@code bodyRot} unmodified and the resolver returns 0 (which we
             // omit from JSON to keep noise-free rows).
             if (rec.setupYawAddend() != 0f) row.addProperty("setup_yaw_addend", rec.setupYawAddend());
+
+            // base_tint: per-entity multiplicative tint applied by the rasterizer to every base-
+            // body texel. Mirrors vanilla LivingEntityRenderer.getModelTint(state). Currently
+            // only TropicalFishRenderer emits a state-driven tint via
+            // entity.getBaseColor().getTextureDiffuseColor(); zero state = DyeColor.WHITE
+            // = 0xFFF9FFFE. Resolver returns 0xFFFFFFFF (no-op) for entities without the pattern.
+            int baseTint = EntityOverlayResolver.resolveBaseTint(zip, rec.rendererInternalName());
+            if (baseTint != 0xFFFFFFFF) row.addProperty("base_tint", String.format("0x%08X", baseTint));
 
             // Constructor-static visibility: EntityHiddenBonesResolver walks the model class
             // hierarchy's <init> for this.<bone>.visible = false assignments. Covers the

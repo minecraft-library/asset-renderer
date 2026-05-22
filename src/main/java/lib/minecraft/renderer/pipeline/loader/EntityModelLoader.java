@@ -568,7 +568,9 @@ public class EntityModelLoader {
             // mechanism without each one needing a new code path. Defaults to 0xFFFFFFFF.
             int baseTint = override != null && override.has("base_tint")
                 ? parseTintArgb(override.get("base_tint").getAsString())
-                : 0xFFFFFFFF;
+                : entityJson.has("base_tint")
+                    ? parseTintArgb(entityJson.get("base_tint").getAsString())
+                    : 0xFFFFFFFF;
 
             // Bytecode-extracted bodyRot addend from the vanilla renderer's setupRotations
             // override - currently only Shulker uses this (+180F), but the field is generic and
