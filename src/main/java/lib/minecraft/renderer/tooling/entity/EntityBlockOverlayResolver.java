@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.tooling.ToolingEntityModels;
 import lib.minecraft.renderer.tooling.util.AsmKit;
+import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -87,7 +88,6 @@ public final class EntityBlockOverlayResolver {
     /**
      * JVM internal name of {@code Blocks} - the {@code <Variant>$<clinit>} GETSTATICs go through this.
      */
-    private static final @NotNull String BLOCKS = "net/minecraft/world/level/block/Blocks";
 
     /**
      * Resolves the block-overlay descriptors attached to an entity's renderer via recognised
@@ -285,7 +285,7 @@ public final class EntityBlockOverlayResolver {
             if (node instanceof MethodInsnNode methodCall
                 && methodCall.getOpcode() == Opcodes.INVOKEVIRTUAL
                 && methodCall.name.startsWith("get")
-                && AsmKit.descriptorReturns(methodCall.desc, AsmKit.Vanilla.MODEL_PART)) {
+                && AsmKit.descriptorReturns(methodCall.desc, VanillaSourceClasses.MODEL_PART)) {
                 String accessor = methodCall.name.substring(3);
                 if (accessor.isEmpty()) return null;
                 return Character.toLowerCase(accessor.charAt(0)) + accessor.substring(1);
@@ -329,7 +329,7 @@ public final class EntityBlockOverlayResolver {
         String defaultConstant = null;
 
         for (AbstractInsnNode node = clinit.instructions.getFirst(); node != null; node = node.getNext()) {
-            if (AsmKit.isGetStatic(node, BLOCKS)) {
+            if (AsmKit.isGetStatic(node, VanillaSourceClasses.BLOCKS)) {
                 pendingBlockField = ((FieldInsnNode) node).name;
                 continue;
             }

@@ -5,6 +5,7 @@ import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.tooling.ToolingEntityModels;
 import lib.minecraft.renderer.tooling.util.AsmKit;
+import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -132,35 +133,11 @@ public final class EntityOverlayResolver {
         "BREEZE_WIND"
     );
 
-    /**
-     * JVM internal name of the {@code ModelLayers} constants holder; layer factory references key off it.
-     */
-    private static final @NotNull String MODEL_LAYERS = AsmKit.Vanilla.MODEL_LAYERS;
+    /** Field-type descriptor for a {@code ModelLayerLocation}; used to spot parameterized-layer ctor args. */
+    private static final @NotNull String MODEL_LAYER_LOCATION_DESC = "L" + VanillaSourceClasses.MODEL_LAYER_LOCATION + ";";
 
-    /**
-     * JVM internal name of {@code EntityModelSet} - layer constructors call {@code bakeLayer} on it.
-     */
-    private static final @NotNull String ENTITY_MODEL_SET = "net/minecraft/client/model/geom/EntityModelSet";
-
-    /**
-     * JVM internal name of {@code ModelLayerLocation} - the value type baked by {@code EntityModelSet.bakeLayer}.
-     */
-    private static final @NotNull String MODEL_LAYER_LOCATION = "net/minecraft/client/model/geom/ModelLayerLocation";
-
-    /**
-     * Field-type descriptor for a {@code ModelLayerLocation}; used to spot parameterized-layer ctor args.
-     */
-    private static final @NotNull String MODEL_LAYER_LOCATION_DESC = "L" + MODEL_LAYER_LOCATION + ";";
-
-    /**
-     * JVM internal name of {@code Identifier} - texture fields and {@code withDefaultNamespace} return type.
-     */
-    private static final @NotNull String IDENTIFIER = AsmKit.Vanilla.IDENTIFIER;
-
-    /**
-     * Field-type descriptor for an {@code Identifier}; used to filter overlay-texture field references.
-     */
-    private static final @NotNull String IDENTIFIER_DESC = "L" + IDENTIFIER + ";";
+    /** Field-type descriptor for an {@code Identifier}; used to filter overlay-texture field references. */
+    private static final @NotNull String IDENTIFIER_DESC = "L" + VanillaSourceClasses.IDENTIFIER + ";";
 
     /**
      * One overlay descriptor extracted from a layer class. The runtime emission step in
@@ -314,13 +291,13 @@ public final class EntityOverlayResolver {
             for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
                 if (in.getOpcode() == Opcodes.GETSTATIC
                     && in instanceof FieldInsnNode fi
-                    && MODEL_LAYERS.equals(fi.owner)) {
+                    && VanillaSourceClasses.MODEL_LAYERS.equals(fi.owner)) {
                     pendingField = fi.name;
                     continue;
                 }
                 if (in.getOpcode() == Opcodes.INVOKEVIRTUAL
                     && in instanceof MethodInsnNode mi
-                    && ENTITY_MODEL_SET.equals(mi.owner)
+                    && VanillaSourceClasses.ENTITY_MODEL_SET.equals(mi.owner)
                     && "bakeLayer".equals(mi.name)
                     && pendingField != null
                     && !pendingField.contains("BABY"))
@@ -402,7 +379,7 @@ public final class EntityOverlayResolver {
             }
             if (in.getOpcode() == Opcodes.INVOKESTATIC
                 && in instanceof MethodInsnNode mi
-                && IDENTIFIER.equals(mi.owner)
+                && VanillaSourceClasses.IDENTIFIER.equals(mi.owner)
                 && "withDefaultNamespace".equals(mi.name)) {
                 pendingIdentifier = true;
                 continue;
@@ -451,7 +428,7 @@ public final class EntityOverlayResolver {
             }
             if (in.getOpcode() == Opcodes.INVOKESTATIC
                 && in instanceof MethodInsnNode mi
-                && IDENTIFIER.equals(mi.owner)
+                && VanillaSourceClasses.IDENTIFIER.equals(mi.owner)
                 && "withDefaultNamespace".equals(mi.name)) {
                 pendingIdentifier = true;
                 continue;
@@ -469,7 +446,6 @@ public final class EntityOverlayResolver {
     /**
      * JVM internal name of {@code ColorLerper$Type} - the enum carrying {@code SHEEP} / {@code MUSIC_NOTE} tint tables.
      */
-    private static final @NotNull String COLOR_LERPER_TYPE = "net/minecraft/client/color/ColorLerper$Type";
 
     /**
      * JVM internal name of {@code DyeColor} - the per-dye color enum whose {@code WHITE} constant tints to {@code 0xFFE6E6E6} under {@code ColorLerper}.
@@ -563,7 +539,7 @@ public final class EntityOverlayResolver {
         for (AbstractInsnNode in = stateMethod.instructions.getFirst(); in != null; in = in.getNext()) {
             if (in.getOpcode() != Opcodes.INVOKEVIRTUAL) continue;
             if (!(in instanceof MethodInsnNode mi)) continue;
-            if (!COLOR_LERPER_TYPE.equals(mi.owner)) continue;
+            if (!VanillaSourceClasses.COLOR_LERPER_TYPE.equals(mi.owner)) continue;
             if (!"getColor".equals(mi.name)) continue;
             // The dye-color argument is the immediately preceding GETFIELD on this.<field>.
             // Walk back from the getColor() call until we find the GETFIELD whose desc points at DyeColor.
@@ -747,7 +723,7 @@ public final class EntityOverlayResolver {
         for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
             if (in.getOpcode() != Opcodes.INVOKEVIRTUAL) continue;
             if (!(in instanceof MethodInsnNode mi)) continue;
-            if (!ENTITY_MODEL_SET.equals(mi.owner) || !"bakeLayer".equals(mi.name)) continue;
+            if (!VanillaSourceClasses.ENTITY_MODEL_SET.equals(mi.owner) || !"bakeLayer".equals(mi.name)) continue;
             // Walk backwards past the receiver-load (modelSet) to find the
             // ModelLayerLocation arg push. The arg sits immediately under the receiver on
             // the stack, so the previous push instruction is the candidate.
@@ -790,7 +766,7 @@ public final class EntityOverlayResolver {
             for (AbstractInsnNode arg = in.getNext(); arg != null; arg = arg.getNext()) {
                 if (AsmKit.isInvokeSpecial(arg, layerInternalName, AsmKit.INIT)) break;
                 if (arg.getOpcode() == Opcodes.GETSTATIC && arg instanceof FieldInsnNode fi) {
-                    if (modelLayerField == null && MODEL_LAYERS.equals(fi.owner)) {
+                    if (modelLayerField == null && VanillaSourceClasses.MODEL_LAYERS.equals(fi.owner)) {
                         modelLayerField = fi.name;
                     } else if (identifierFieldName == null && IDENTIFIER_DESC.equals(fi.desc)) {
                         identifierFieldOwner = fi.owner;

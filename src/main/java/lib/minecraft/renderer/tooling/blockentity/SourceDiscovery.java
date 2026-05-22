@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
 import lib.minecraft.renderer.tooling.util.AsmKit;
+import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
@@ -76,14 +77,9 @@ import java.util.zip.ZipFile;
 @UtilityClass
 public final class SourceDiscovery {
 
-    private static final @NotNull String BLOCK_ENTITY_RENDERERS = AsmKit.Vanilla.BLOCK_ENTITY_RENDERERS;
-    private static final @NotNull String BLOCK_ENTITY_TYPE = "net/minecraft/world/level/block/entity/BlockEntityType";
-    private static final @NotNull String LAYER_DEFINITIONS = "net/minecraft/client/model/geom/LayerDefinitions";
-    private static final @NotNull String MODEL_LAYERS = "net/minecraft/client/model/geom/ModelLayers";
-    private static final @NotNull String LAYER_DEFINITION_DESC_RETURN = ")Lnet/minecraft/client/model/geom/builders/LayerDefinition;";
-    private static final @NotNull String MESH_DEFINITION_INTERNAL = "net/minecraft/client/model/geom/builders/MeshDefinition";
-    private static final @NotNull String MESH_DEFINITION_DESC_RETURN = ")L" + MESH_DEFINITION_INTERNAL + ";";
-    private static final @NotNull String LAYER_DEFINITION_CLASS = "net/minecraft/client/model/geom/builders/LayerDefinition";
+    private static final @NotNull String MODEL_LAYERS = VanillaSourceClasses.MODEL_LAYERS;
+    private static final @NotNull String LAYER_DEFINITION_DESC_RETURN = ")L" + VanillaSourceClasses.LAYER_DEFINITION + ";";
+    private static final @NotNull String MESH_DEFINITION_DESC_RETURN = ")L" + VanillaSourceClasses.MESH_DEFINITION + ";";
 
     /**
      * GUI-facing yaws baked into inventory tiles. These rotations are NOT present in vanilla
@@ -205,14 +201,14 @@ public final class SourceDiscovery {
      */
     public static @NotNull ConcurrentList<Source> discover(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
         // Step 1 - registry walk
-        ClassNode registryClass = AsmKit.loadClass(zip, BLOCK_ENTITY_RENDERERS);
+        ClassNode registryClass = AsmKit.loadClass(zip, VanillaSourceClasses.BLOCK_ENTITY_RENDERERS);
         if (registryClass == null) {
-            diag.error("'%s' class missing from jar - cannot discover block-entity sources", BLOCK_ENTITY_RENDERERS);
+            diag.error("'%s' class missing from jar - cannot discover block-entity sources", VanillaSourceClasses.BLOCK_ENTITY_RENDERERS);
             return Concurrent.newList();
         }
         MethodNode registryInit = AsmKit.findMethod(registryClass, AsmKit.CLINIT);
         if (registryInit == null) {
-            diag.error("'%s.<clinit>' missing - cannot discover block-entity sources", BLOCK_ENTITY_RENDERERS);
+            diag.error("'%s.<clinit>' missing - cannot discover block-entity sources", VanillaSourceClasses.BLOCK_ENTITY_RENDERERS);
             return Concurrent.newList();
         }
         // Ordered map: BE field name -> renderer internal name. Preserves clinit registration order.
@@ -293,7 +289,7 @@ public final class SourceDiscovery {
             // Capture the most recent BlockEntityType.X GETSTATIC. When the next INVOKEDYNAMIC
             // (lambda factory) appears its target Handle is the renderer constructor we want to
             // bind to this BE field.
-            if (AsmKit.isGetStatic(in, BLOCK_ENTITY_TYPE)) {
+            if (AsmKit.isGetStatic(in, VanillaSourceClasses.BLOCK_ENTITY_TYPE)) {
                 pendingBeField = ((FieldInsnNode) in).name;
                 continue;
             }
@@ -331,14 +327,14 @@ public final class SourceDiscovery {
      * {@code field -> id} (without the {@code minecraft:} namespace prefix - callers add it).
      */
     private static @NotNull Map<String, String> walkEntityTypeIds(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
-        ClassNode cn = AsmKit.loadClass(zip, BLOCK_ENTITY_TYPE);
+        ClassNode cn = AsmKit.loadClass(zip, VanillaSourceClasses.BLOCK_ENTITY_TYPE);
         if (cn == null) {
-            diag.error("'%s' class missing - entity ids unresolved", BLOCK_ENTITY_TYPE);
+            diag.error("'%s' class missing - entity ids unresolved", VanillaSourceClasses.BLOCK_ENTITY_TYPE);
             return Map.of();
         }
         MethodNode init = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (init == null) {
-            diag.error("'%s.<clinit>' missing - entity ids unresolved", BLOCK_ENTITY_TYPE);
+            diag.error("'%s.<clinit>' missing - entity ids unresolved", VanillaSourceClasses.BLOCK_ENTITY_TYPE);
             return Map.of();
         }
         Map<String, String> out = new LinkedHashMap<>();
@@ -346,7 +342,7 @@ public final class SourceDiscovery {
         for (AbstractInsnNode in = init.instructions.getFirst(); in != null; in = in.getNext()) {
             String lit = AsmKit.readStringLiteral(in);
             if (lit != null) pendingId = lit;
-            if (AsmKit.isPutStatic(in, BLOCK_ENTITY_TYPE) && pendingId != null) {
+            if (AsmKit.isPutStatic(in, VanillaSourceClasses.BLOCK_ENTITY_TYPE) && pendingId != null) {
                 // Only the first PUTSTATIC after each LDC captures the id. Subsequent fields
                 // (e.g. OP_ONLY_CUSTOM_DATA) reset pendingId with their own LDC or stay cleared.
                 out.put(((FieldInsnNode) in).name, pendingId);
@@ -373,14 +369,14 @@ public final class SourceDiscovery {
      * {@code put} resolves directly.
      */
     private static @NotNull Map<String, LayerTarget> walkLayerDefinitions(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
-        ClassNode cn = AsmKit.loadClass(zip, LAYER_DEFINITIONS);
+        ClassNode cn = AsmKit.loadClass(zip, VanillaSourceClasses.LAYER_DEFINITIONS);
         if (cn == null) {
-            diag.error("'%s' class missing - model-layer map unresolved", LAYER_DEFINITIONS);
+            diag.error("'%s' class missing - model-layer map unresolved", VanillaSourceClasses.LAYER_DEFINITIONS);
             return Map.of();
         }
         MethodNode createRoots = AsmKit.findMethod(cn, "createRoots");
         if (createRoots == null) {
-            diag.error("'%s.createRoots' missing - model-layer map unresolved", LAYER_DEFINITIONS);
+            diag.error("'%s.createRoots' missing - model-layer map unresolved", VanillaSourceClasses.LAYER_DEFINITIONS);
             return Map.of();
         }
 
@@ -428,7 +424,7 @@ public final class SourceDiscovery {
                     pendingInt = null;
                     continue;
                 }
-                if (mi.owner.equals(LAYER_DEFINITION_CLASS) && mi.name.equals("create") && pendingMesh != null) {
+                if (mi.owner.equals(VanillaSourceClasses.LAYER_DEFINITION) && mi.name.equals("create") && pendingMesh != null) {
                     // Wrapper {@code LayerDefinition.create(mesh, W, H)} over the pending mesh.
                     // Extract the two ints that were pushed right before this call from
                     // {@code widthHeight} so the mesh factory's Source records them as
@@ -444,7 +440,7 @@ public final class SourceDiscovery {
                     pendingMesh = null;
                     continue;
                 }
-                if (mi.desc.endsWith(LAYER_DEFINITION_DESC_RETURN) && !mi.owner.equals(LAYER_DEFINITION_CLASS))
+                if (mi.desc.endsWith(LAYER_DEFINITION_DESC_RETURN) && !mi.owner.equals(VanillaSourceClasses.LAYER_DEFINITION))
                     pendingDirect = new LayerTarget(mi.owner, mi.name, mi.desc, pendingInt);
                 continue;
             }
@@ -711,10 +707,10 @@ public final class SourceDiscovery {
         for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
             if (AsmKit.isPseudoNode(in)) continue;
             if (firstInvoke == null && in instanceof MethodInsnNode mi && in.getOpcode() == Opcodes.INVOKESTATIC
-                && AsmKit.descriptorReturns(mi.desc, MESH_DEFINITION_INTERNAL)) {
+                && AsmKit.descriptorReturns(mi.desc, VanillaSourceClasses.MESH_DEFINITION)) {
                 firstInvoke = mi;
             }
-            if (AsmKit.isInvokeStatic(in, LAYER_DEFINITION_CLASS, "create"))
+            if (AsmKit.isInvokeStatic(in, VanillaSourceClasses.LAYER_DEFINITION, "create"))
                 lastCreate = (MethodInsnNode) in;
             lastReal = in;
         }

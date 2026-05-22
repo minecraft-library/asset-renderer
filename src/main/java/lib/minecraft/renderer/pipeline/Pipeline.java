@@ -40,6 +40,7 @@ import lib.minecraft.renderer.pipeline.pack.CtmRule;
 import lib.minecraft.renderer.pipeline.resolver.ModelResolver;
 import lib.minecraft.renderer.pipeline.resolver.PackResolver;
 import lib.minecraft.renderer.pipeline.util.PackAcquirer;
+import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.UtilityClass;
@@ -329,8 +330,8 @@ public class Pipeline {
                 ZipEntry entry = entries.nextElement();
                 if (entry.isDirectory()) continue;
                 String name = entry.getName();
-                boolean isAssetTree = name.startsWith(VanillaPaths.VANILLA_ASSET_ROOT)
-                    || name.startsWith(VanillaPaths.VANILLA_DATA_ROOT);
+                boolean isAssetTree = name.startsWith(VanillaSourcePaths.VANILLA_ASSET_ROOT)
+                    || name.startsWith(VanillaSourcePaths.VANILLA_DATA_ROOT);
                 boolean isRootMcmeta = name.equals("pack.mcmeta");
                 boolean isVersionJson = name.equals("version.json");
 

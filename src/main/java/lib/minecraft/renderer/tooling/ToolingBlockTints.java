@@ -11,6 +11,7 @@ import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
 import lib.minecraft.renderer.tooling.util.AsmKit;
+import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -135,9 +136,6 @@ public final class ToolingBlockTints {
     @UtilityClass
     static class Parser {
 
-        private static final @NotNull String BLOCK_COLORS_INTERNAL_NAME = "net/minecraft/client/color/block/BlockColors";
-        private static final @NotNull String BLOCK_TINT_SOURCES_INTERNAL_NAME = "net/minecraft/client/color/block/BlockTintSources";
-        private static final @NotNull String BLOCKS_INTERNAL_NAME = "net/minecraft/world/level/block/Blocks";
         private static final @NotNull String CREATE_DEFAULT_METHOD_NAME = "createDefault";
         private static final @NotNull String REGISTER_METHOD_NAME = "register";
         private static final @NotNull String LIST_INTERNAL_NAME = "java/util/List";
@@ -181,7 +179,7 @@ public final class ToolingBlockTints {
          */
         public static @NotNull ConcurrentMap<String, Block.Tint> parse(@NotNull Path jarPath) {
             try (ZipFile zip = new ZipFile(jarPath.toFile())) {
-                ClassNode classNode = AsmKit.requireClass(zip, BLOCK_COLORS_INTERNAL_NAME, "BlockColors");
+                ClassNode classNode = AsmKit.requireClass(zip, VanillaSourceClasses.BLOCK_COLORS, "BlockColors");
                 MethodNode createDefault = AsmKit.requireMethod(classNode, CREATE_DEFAULT_METHOD_NAME, "BlockColors");
                 return parseCreateDefault(createDefault.instructions);
             } catch (IOException ex) {
@@ -220,11 +218,11 @@ public final class ToolingBlockTints {
 
                 switch (node) {
                     case FieldInsnNode fieldInsn when opcode == Opcodes.GETSTATIC -> {
-                        if (fieldInsn.owner.equals(BLOCKS_INTERNAL_NAME))
+                        if (fieldInsn.owner.equals(VanillaSourceClasses.BLOCKS))
                             pendingBlocks.add(blockIdFromField(fieldInsn.name));
                     }
                     case MethodInsnNode methodInsn when opcode == Opcodes.INVOKESTATIC -> {
-                        if (methodInsn.owner.equals(BLOCK_TINT_SOURCES_INTERNAL_NAME)) {
+                        if (methodInsn.owner.equals(VanillaSourceClasses.BLOCK_TINT_SOURCES)) {
                             pendingSource = methodInsn.name;
                             pendingSourceLayers++;
 
@@ -245,7 +243,7 @@ public final class ToolingBlockTints {
                             pendingSource = null;
                         }
                     }
-                    case MethodInsnNode methodInsn when opcode == Opcodes.INVOKEVIRTUAL && methodInsn.owner.equals(BLOCK_COLORS_INTERNAL_NAME) && methodInsn.name.equals(REGISTER_METHOD_NAME) -> {
+                    case MethodInsnNode methodInsn when opcode == Opcodes.INVOKEVIRTUAL && methodInsn.owner.equals(VanillaSourceClasses.BLOCK_COLORS) && methodInsn.name.equals(REGISTER_METHOD_NAME) -> {
 
                         if (pendingSource != null && pendingSourceLayers == 1 && !pendingBlocks.isEmpty())
                             emitTints(tints, pendingSource, pendingConstantA, pendingConstantB, pendingConstantCount, pendingBlocks);

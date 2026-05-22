@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline;
+package lib.minecraft.renderer.pipeline.util;
 
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -13,7 +13,7 @@ import org.jetbrains.annotations.NotNull;
  * typo drift between loaders, and gives each constant a single javadoc home.
  */
 @UtilityClass
-public class VanillaPaths {
+public class VanillaSourcePaths {
 
     /**
      * Default Minecraft resource namespace prefix for unqualified ids (e.g. {@code "stone"} → {@code "minecraft:stone"}).

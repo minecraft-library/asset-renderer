@@ -3,6 +3,7 @@ package lib.minecraft.renderer.tooling.entity;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.tooling.util.AsmKit;
+import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -59,7 +60,7 @@ public final class EntityTextureResolver {
     /**
      * JVM internal name of {@code net.minecraft.resources.Identifier}.
      */
-    private static final @NotNull String IDENTIFIER = AsmKit.Vanilla.IDENTIFIER;
+    
 
     /**
      * The factory call most renderer {@code <clinit>}s use to wrap a path String into an Identifier.
@@ -290,7 +291,7 @@ public final class EntityTextureResolver {
             // checkcast + invokevirtual + areturn and carries no real binding info.
             for (MethodNode m : cn.methods) {
                 if (!GET_TEXTURE_LOCATION.equals(m.name)) continue;
-                if (!AsmKit.descriptorReturns(m.desc, IDENTIFIER)) continue;
+                if (!AsmKit.descriptorReturns(m.desc, VanillaSourceClasses.IDENTIFIER)) continue;
                 if (isBridgeMethod(m)) continue;
                 return new ResolvedMethod(m, current);
             }
@@ -380,8 +381,8 @@ public final class EntityTextureResolver {
 
             if (in instanceof MethodInsnNode mi
                 && (in.getOpcode() == Opcodes.INVOKESTATIC || in.getOpcode() == Opcodes.INVOKEVIRTUAL)
-                && AsmKit.descriptorReturns(mi.desc, IDENTIFIER)
-                && !(IDENTIFIER.equals(mi.owner) && WITH_DEFAULT_NAMESPACE.equals(mi.name)))
+                && AsmKit.descriptorReturns(mi.desc, VanillaSourceClasses.IDENTIFIER)
+                && !(VanillaSourceClasses.IDENTIFIER.equals(mi.owner) && WITH_DEFAULT_NAMESPACE.equals(mi.name)))
                 sawIdentifierReturningCall = true;
         }
         if (sawStaticMap && sawMapGet) return "(enum-map-driven)";
@@ -389,7 +390,7 @@ public final class EntityTextureResolver {
         for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
             if (in.getOpcode() == Opcodes.GETFIELD
                 && in instanceof FieldInsnNode fi
-                && ("L" + IDENTIFIER + ";").equals(fi.desc)
+                && ("L" + VanillaSourceClasses.IDENTIFIER + ";").equals(fi.desc)
                 && in.getPrevious() != null
                 && in.getPrevious().getOpcode() == Opcodes.ALOAD
                 && in.getPrevious() instanceof org.objectweb.asm.tree.VarInsnNode v
@@ -409,7 +410,7 @@ public final class EntityTextureResolver {
         for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
             if (in.getOpcode() == Opcodes.GETSTATIC
                 && in instanceof FieldInsnNode fi
-                && ("L" + IDENTIFIER + ";").equals(fi.desc))
+                && ("L" + VanillaSourceClasses.IDENTIFIER + ";").equals(fi.desc))
                 out.add(fi);
         }
         return out;
@@ -444,7 +445,7 @@ public final class EntityTextureResolver {
 
             if (in instanceof MethodInsnNode mi
                 && in.getOpcode() == Opcodes.INVOKESTATIC
-                && IDENTIFIER.equals(mi.owner)
+                && VanillaSourceClasses.IDENTIFIER.equals(mi.owner)
                 && WITH_DEFAULT_NAMESPACE.equals(mi.name)
                 && pendingPath != null) {
                 expectingPutStatic = true;
@@ -454,7 +455,7 @@ public final class EntityTextureResolver {
             if (in instanceof FieldInsnNode fi
                 && in.getOpcode() == Opcodes.PUTSTATIC
                 && classInternalName.equals(fi.owner)
-                && ("L" + IDENTIFIER + ";").equals(fi.desc)
+                && ("L" + VanillaSourceClasses.IDENTIFIER + ";").equals(fi.desc)
                 && expectingPutStatic
                 && pendingPath != null) {
                 out.put(fi.name, pendingPath);
@@ -592,7 +593,7 @@ public final class EntityTextureResolver {
             }
             if (in instanceof MethodInsnNode mi
                 && in.getOpcode() == Opcodes.INVOKESTATIC
-                && IDENTIFIER.equals(mi.owner)
+                && VanillaSourceClasses.IDENTIFIER.equals(mi.owner)
                 && WITH_DEFAULT_NAMESPACE.equals(mi.name)
                 && pendingPath != null) {
                 expectingPutStatic = true;
@@ -635,8 +636,8 @@ public final class EntityTextureResolver {
         for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
             if (in.getOpcode() == Opcodes.INVOKESTATIC
                 && in instanceof MethodInsnNode mi
-                && mi.desc.endsWith(")L" + IDENTIFIER + ";")
-                && !(IDENTIFIER.equals(mi.owner) && WITH_DEFAULT_NAMESPACE.equals(mi.name))) {
+                && mi.desc.endsWith(")L" + VanillaSourceClasses.IDENTIFIER + ";")
+                && !(VanillaSourceClasses.IDENTIFIER.equals(mi.owner) && WITH_DEFAULT_NAMESPACE.equals(mi.name))) {
                 dispatch = mi;
                 break;
             }
@@ -690,7 +691,7 @@ public final class EntityTextureResolver {
         while (in != null && visited.add(in)) {
             if (in.getOpcode() == Opcodes.GETSTATIC
                 && in instanceof FieldInsnNode fi
-                && ("L" + IDENTIFIER + ";").equals(fi.desc))
+                && ("L" + VanillaSourceClasses.IDENTIFIER + ";").equals(fi.desc))
                 return fi.name;
             if (in instanceof JumpInsnNode jin
                 && (in.getOpcode() == Opcodes.IFEQ || in.getOpcode() == Opcodes.GOTO)) {

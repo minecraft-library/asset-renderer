@@ -12,7 +12,7 @@ import lib.minecraft.renderer.asset.model.BlockModelData;
 import lib.minecraft.renderer.asset.model.ItemModelData;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
-import lib.minecraft.renderer.pipeline.VanillaPaths;
+import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -67,7 +67,7 @@ public class ModelResolver {
      * @return a map of model id to resolved block model data
      */
     public static @NotNull ConcurrentMap<String, BlockModelData> loadBlockModels(@NotNull ConcurrentList<Path> assetRoots) {
-        ConcurrentMap<String, JsonObject> raw = mergeRawAcrossRoots(assetRoots, VanillaPaths.MODEL_BLOCK_DIR, VanillaPaths.MODEL_BLOCK_ID_PREFIX);
+        ConcurrentMap<String, JsonObject> raw = mergeRawAcrossRoots(assetRoots, VanillaSourcePaths.MODEL_BLOCK_DIR, VanillaSourcePaths.MODEL_BLOCK_ID_PREFIX);
         return resolveTypedModels(raw, BlockModelData.class, "block");
     }
 
@@ -90,7 +90,7 @@ public class ModelResolver {
      * @return a map of model id to resolved item model data
      */
     public static @NotNull ConcurrentMap<String, ItemModelData> loadItemModels(@NotNull ConcurrentList<Path> assetRoots) {
-        ConcurrentMap<String, JsonObject> raw = mergeRawAcrossRoots(assetRoots, VanillaPaths.MODEL_ITEM_DIR, VanillaPaths.MODEL_ITEM_ID_PREFIX);
+        ConcurrentMap<String, JsonObject> raw = mergeRawAcrossRoots(assetRoots, VanillaSourcePaths.MODEL_ITEM_DIR, VanillaSourcePaths.MODEL_ITEM_ID_PREFIX);
         return resolveTypedModels(raw, ItemModelData.class, "item");
     }
 
@@ -180,7 +180,7 @@ public class ModelResolver {
         Optional<String> parentId = Optional.ofNullable(model.get("parent")).map(JsonElement::getAsString);
         if (parentId.isEmpty()) return model;
 
-        String fqParent = parentId.get().contains(":") ? parentId.get() : VanillaPaths.MINECRAFT_NAMESPACE + parentId.get();
+        String fqParent = parentId.get().contains(":") ? parentId.get() : VanillaSourcePaths.MINECRAFT_NAMESPACE + parentId.get();
         JsonObject parentJson = raw.get(fqParent);
         if (parentJson == null) {
             // Parent lives outside this tree (e.g. minecraft:builtin/generated) - keep the reference

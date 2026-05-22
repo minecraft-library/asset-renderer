@@ -421,15 +421,22 @@ class AsmKitTest {
         }
 
         @Test
-        @DisplayName("Vanilla.* are non-empty internal names")
-        void vanillaNonEmpty() {
-            assertThat(AsmKit.Vanilla.BLOCK_ENTITY_RENDERERS, not(emptyString()));
-            assertThat(AsmKit.Vanilla.IDENTIFIER, not(emptyString()));
-            assertThat(AsmKit.Vanilla.MODEL_PART, not(emptyString()));
-            assertThat(AsmKit.Vanilla.LAYER_DEFINITION, not(emptyString()));
-            assertThat(AsmKit.Vanilla.MODEL_LAYERS, not(emptyString()));
-            assertThat(AsmKit.Vanilla.ENTITY_TYPE, not(emptyString()));
-            assertThat(AsmKit.Vanilla.LIVING_ENTITY, not(emptyString()));
+        @DisplayName("VanillaSourceClasses internal names compose from package roots correctly")
+        void vanillaSourceClassesCompose() {
+            assertThat(VanillaSourceClasses.BLOCK_ENTITY_RENDERERS,
+                equalTo("net/minecraft/client/renderer/blockentity/BlockEntityRenderers"));
+            assertThat(VanillaSourceClasses.IDENTIFIER, equalTo("net/minecraft/resources/Identifier"));
+            assertThat(VanillaSourceClasses.MODEL_PART, equalTo("net/minecraft/client/model/geom/ModelPart"));
+            assertThat(VanillaSourceClasses.LAYER_DEFINITION,
+                equalTo("net/minecraft/client/model/geom/builders/LayerDefinition"));
+            assertThat(VanillaSourceClasses.MODEL_LAYERS, equalTo("net/minecraft/client/model/geom/ModelLayers"));
+            assertThat(VanillaSourceClasses.ENTITY_TYPE, equalTo("net/minecraft/world/entity/EntityType"));
+            assertThat(VanillaSourceClasses.LIVING_ENTITY, equalTo("net/minecraft/world/entity/LivingEntity"));
+            // Nested-class composition still produces the correct dollar-suffixed name.
+            assertThat(VanillaSourceClasses.ENTITY_TYPE_BUILDER,
+                equalTo("net/minecraft/world/entity/EntityType$Builder"));
+            // Package prefix keeps its trailing slash for startsWith use.
+            assertThat(VanillaSourceClasses.EFFECT_PACKAGE_PREFIX, endsWith("/"));
         }
 
     }

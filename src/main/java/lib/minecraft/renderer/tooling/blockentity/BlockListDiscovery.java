@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
+import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -71,18 +72,6 @@ import java.util.zip.ZipFile;
 @UtilityClass
 public final class BlockListDiscovery {
 
-    private static final @NotNull String BLOCK_ENTITY_TYPE = "net/minecraft/world/level/block/entity/BlockEntityType";
-    private static final @NotNull String BLOCKS = "net/minecraft/world/level/block/Blocks";
-    private static final @NotNull String DYE_COLOR = "net/minecraft/world/item/DyeColor";
-    private static final @NotNull String WOOD_TYPE = "net/minecraft/world/level/block/state/properties/WoodType";
-    private static final @NotNull String SKULL_TYPES = "net/minecraft/world/level/block/SkullBlock$Types";
-    private static final @NotNull String BELL_ATTACH_TYPE = "net/minecraft/world/level/block/state/properties/BellAttachType";
-    private static final @NotNull String CHEST_SPECIAL_RENDERER = "net/minecraft/client/renderer/special/ChestSpecialRenderer";
-    private static final @NotNull String SKULL_BLOCK_RENDERER = "net/minecraft/client/renderer/blockentity/SkullBlockRenderer";
-    private static final @NotNull String CONDUIT_RENDERER = "net/minecraft/client/renderer/blockentity/ConduitRenderer";
-    private static final @NotNull String BELL_RENDERER = "net/minecraft/client/renderer/blockentity/BellRenderer";
-    private static final @NotNull String COPPER_GOLEM_OXIDATION_LEVELS = "net/minecraft/world/entity/animal/golem/CopperGolemOxidationLevels";
-    private static final @NotNull String DEFAULT_PLAYER_SKIN = "net/minecraft/client/resources/DefaultPlayerSkin";
 
     // ------------------------------------------------------------------------------------------
     // Record types - identical shape to the former BlockListCatalog records.
@@ -261,7 +250,7 @@ public final class BlockListDiscovery {
      *     blocks, or an empty list if the field isn't in the bytecode
      */
     static @NotNull List<String> validBlocks(@NotNull ZipFile zip, @NotNull String beField) {
-        ClassNode cn = AsmKit.loadClass(zip, BLOCK_ENTITY_TYPE);
+        ClassNode cn = AsmKit.loadClass(zip, VanillaSourceClasses.BLOCK_ENTITY_TYPE);
         if (cn == null) return List.of();
         MethodNode init = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (init == null) return List.of();
@@ -276,11 +265,11 @@ public final class BlockListDiscovery {
                 continue;
             }
             if (!seenLdc) continue;
-            if (AsmKit.isGetStatic(in, BLOCKS) && in instanceof FieldInsnNode fi) {
+            if (AsmKit.isGetStatic(in, VanillaSourceClasses.BLOCKS) && in instanceof FieldInsnNode fi) {
                 pending.add(fi.name);
                 continue;
             }
-            if (AsmKit.isPutStatic(in, BLOCK_ENTITY_TYPE) && in instanceof FieldInsnNode fi) {
+            if (AsmKit.isPutStatic(in, VanillaSourceClasses.BLOCK_ENTITY_TYPE) && in instanceof FieldInsnNode fi) {
                 if (fi.name.equals(beField))
                     return List.copyOf(pending);
                 pending.clear();
@@ -315,7 +304,7 @@ public final class BlockListDiscovery {
      * @return an insertion-ordered map from {@code "WHITE"} to {@code "white"}, etc
      */
     static @NotNull Map<String, String> walkDyeColorNames(@NotNull ZipFile zip) {
-        return walkEnumSerializedNames(zip, DYE_COLOR);
+        return walkEnumSerializedNames(zip, VanillaSourceClasses.DYE_COLOR);
     }
 
     /**
@@ -330,7 +319,7 @@ public final class BlockListDiscovery {
      * @return an insertion-ordered map from {@code "OAK"} to {@code "oak"}, etc
      */
     static @NotNull Map<String, String> walkWoodTypeNames(@NotNull ZipFile zip) {
-        return walkRecordSingleLdcNames(zip, WOOD_TYPE);
+        return walkRecordSingleLdcNames(zip, VanillaSourceClasses.WOOD_TYPE);
     }
 
     /**
@@ -341,7 +330,7 @@ public final class BlockListDiscovery {
      * @return an insertion-ordered map from {@code "SKELETON"} to {@code "skeleton"}, etc
      */
     static @NotNull Map<String, String> walkSkullTypesNames(@NotNull ZipFile zip) {
-        return walkEnumSerializedNames(zip, SKULL_TYPES);
+        return walkEnumSerializedNames(zip, VanillaSourceClasses.SKULL_TYPES);
     }
 
     /**
@@ -352,7 +341,7 @@ public final class BlockListDiscovery {
      *     {@code ["FLOOR", "CEILING", "SINGLE_WALL", "DOUBLE_WALL"]})
      */
     static @NotNull List<String> walkBellAttachTypesOrder(@NotNull ZipFile zip) {
-        return List.copyOf(walkEnumSerializedNames(zip, BELL_ATTACH_TYPE).keySet());
+        return List.copyOf(walkEnumSerializedNames(zip, VanillaSourceClasses.BELL_ATTACH_TYPE).keySet());
     }
 
     /**
@@ -444,7 +433,7 @@ public final class BlockListDiscovery {
      *
      * @param zip the client jar
      * @param blockFields the {@code Blocks.<field>} names to dispatch
-     * @param enumInternal the enum class to search for (e.g. {@code DYE_COLOR})
+     * @param enumInternal the enum class to search for (e.g. {@code VanillaSourceClasses.DYE_COLOR})
      * @param blockClassNames the set of acceptable {@code NEW <Class>} targets; may be empty
      *     (all accepted)
      * @return a map from {@code "Blocks.<field>"} to the enum field name (e.g
@@ -457,7 +446,7 @@ public final class BlockListDiscovery {
         @NotNull List<String> blockClassNames,
         @NotNull Diagnostics diag
     ) {
-        ClassNode blocksClass = AsmKit.loadClass(zip, BLOCKS);
+        ClassNode blocksClass = AsmKit.loadClass(zip, VanillaSourceClasses.BLOCKS);
         if (blocksClass == null) {
             diag.warn("Blocks class missing - cannot resolve block -> %s map", enumInternal);
             return Map.of();
@@ -497,7 +486,7 @@ public final class BlockListDiscovery {
                 pendingEnumField = fi.name;
                 continue;
             }
-            if (AsmKit.isPutStatic(in, BLOCKS) && in instanceof FieldInsnNode fi) {
+            if (AsmKit.isPutStatic(in, VanillaSourceClasses.BLOCKS) && in instanceof FieldInsnNode fi) {
                 if (!fieldSet.contains(fi.name)) {
                     pendingLambda = null;
                     pendingCtorClass = null;
@@ -562,7 +551,7 @@ public final class BlockListDiscovery {
      * </ol>
      */
     static @Nullable String walkBlockNewClass(@NotNull ZipFile zip, @NotNull String blockField) {
-        ClassNode blocksClass = AsmKit.loadClass(zip, BLOCKS);
+        ClassNode blocksClass = AsmKit.loadClass(zip, VanillaSourceClasses.BLOCKS);
         if (blocksClass == null) return null;
         MethodNode clinit = AsmKit.findMethod(blocksClass, AsmKit.CLINIT);
         if (clinit == null) return null;
@@ -576,7 +565,7 @@ public final class BlockListDiscovery {
                 if (ctorRef != null) pendingCtorClass = ctorRef;
                 continue;
             }
-            if (AsmKit.isPutStatic(in, BLOCKS) && in instanceof FieldInsnNode fi) {
+            if (AsmKit.isPutStatic(in, VanillaSourceClasses.BLOCKS) && in instanceof FieldInsnNode fi) {
                 if (fi.name.equals(blockField)) {
                     if (pendingCtorClass != null) return pendingCtorClass;
                     if (pendingLambda != null) {
@@ -610,7 +599,7 @@ public final class BlockListDiscovery {
                 if (lambda != null) pendingLambda = lambda;
                 continue;
             }
-            if (AsmKit.isPutStatic(in, BLOCKS) && in instanceof FieldInsnNode fi && pendingLambda != null) {
+            if (AsmKit.isPutStatic(in, VanillaSourceClasses.BLOCKS) && in instanceof FieldInsnNode fi && pendingLambda != null) {
                 out.put(fi.name, pendingLambda);
                 pendingLambda = null;
             }
@@ -679,7 +668,7 @@ public final class BlockListDiscovery {
      * adapter to distinguish the uncolored variant (null DyeColor) from the dyed ones.
      */
     static boolean walkBlockCtorHasNullArg(@NotNull ZipFile zip, @NotNull String blockField) {
-        ClassNode blocksClass = AsmKit.loadClass(zip, BLOCKS);
+        ClassNode blocksClass = AsmKit.loadClass(zip, VanillaSourceClasses.BLOCKS);
         if (blocksClass == null) return false;
         Map<String, String> blockToLambda = indexBlocksLambdas(blocksClass);
         String lambdaName = blockToLambda.get(blockField);
@@ -708,7 +697,7 @@ public final class BlockListDiscovery {
      * @return a map keyed by the field name ({@code "REGULAR"}, {@code "ENDER_CHEST"}, etc.)
      */
     static @NotNull Map<String, String> walkChestSpecialRendererVariants(@NotNull ZipFile zip) {
-        ClassNode cn = AsmKit.loadClass(zip, CHEST_SPECIAL_RENDERER);
+        ClassNode cn = AsmKit.loadClass(zip, VanillaSourceClasses.CHEST_SPECIAL_RENDERER);
         if (cn == null) return Map.of();
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return Map.of();
@@ -720,7 +709,7 @@ public final class BlockListDiscovery {
                 pendingLdc = lit;
                 continue;
             }
-            if (AsmKit.isPutStatic(in, CHEST_SPECIAL_RENDERER) && in instanceof FieldInsnNode fi && pendingLdc != null) {
+            if (AsmKit.isPutStatic(in, VanillaSourceClasses.CHEST_SPECIAL_RENDERER) && in instanceof FieldInsnNode fi && pendingLdc != null) {
                 out.put(fi.name, pendingLdc);
                 pendingLdc = null;
             }
@@ -751,7 +740,7 @@ public final class BlockListDiscovery {
      * @return a map from {@code "UNAFFECTED"} to {@code "entity/copper_golem/copper_golem"}, etc
      */
     static @NotNull Map<String, String> walkCopperGolemOxidationLevels(@NotNull ZipFile zip) {
-        ClassNode cn = AsmKit.loadClass(zip, COPPER_GOLEM_OXIDATION_LEVELS);
+        ClassNode cn = AsmKit.loadClass(zip, VanillaSourceClasses.COPPER_GOLEM_OXIDATION_LEVELS);
         if (cn == null) return Map.of();
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return Map.of();
@@ -770,7 +759,7 @@ public final class BlockListDiscovery {
                 firstLdcAfterNew = stripTexturesPrefixAndPngSuffix(lit);
                 continue;
             }
-            if (AsmKit.isPutStatic(in, COPPER_GOLEM_OXIDATION_LEVELS) && in instanceof FieldInsnNode fi && firstLdcAfterNew != null) {
+            if (AsmKit.isPutStatic(in, VanillaSourceClasses.COPPER_GOLEM_OXIDATION_LEVELS) && in instanceof FieldInsnNode fi && firstLdcAfterNew != null) {
                 out.put(fi.name, firstLdcAfterNew);
                 firstLdcAfterNew = null;
                 afterNew = false;
@@ -806,7 +795,7 @@ public final class BlockListDiscovery {
      *     suffix)
      */
     static @NotNull Map<String, String> walkSkullSkinMap(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
-        ClassNode cn = AsmKit.loadClass(zip, SKULL_BLOCK_RENDERER);
+        ClassNode cn = AsmKit.loadClass(zip, VanillaSourceClasses.SKULL_BLOCK_RENDERER);
         if (cn == null) {
             diag.warn("SkullBlockRenderer missing - cannot resolve skull skin map");
             return Map.of();
@@ -821,7 +810,7 @@ public final class BlockListDiscovery {
         String pendingTex = null;
         boolean pendingPlayerFollow = false;
         for (AbstractInsnNode in = lambda.instructions.getFirst(); in != null; in = in.getNext()) {
-            if (AsmKit.isGetStatic(in, SKULL_TYPES) && in instanceof FieldInsnNode fi) {
+            if (AsmKit.isGetStatic(in, VanillaSourceClasses.SKULL_TYPES) && in instanceof FieldInsnNode fi) {
                 pendingType = fi.name;
                 pendingTex = null;
                 pendingPlayerFollow = false;
@@ -834,7 +823,7 @@ public final class BlockListDiscovery {
                 continue;
             }
             if (in instanceof MethodInsnNode mi && mi.getOpcode() == Opcodes.INVOKESTATIC
-                && mi.owner.equals(DEFAULT_PLAYER_SKIN) && mi.name.equals("getDefaultTexture")) {
+                && mi.owner.equals(VanillaSourceClasses.DEFAULT_PLAYER_SKIN) && mi.name.equals("getDefaultTexture")) {
                 pendingPlayerFollow = true;
                 continue;
             }
@@ -885,7 +874,7 @@ public final class BlockListDiscovery {
      *     when the walk can't resolve
      */
     static @Nullable String walkPlayerSkullTexture(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
-        ClassNode cn = AsmKit.loadClass(zip, DEFAULT_PLAYER_SKIN);
+        ClassNode cn = AsmKit.loadClass(zip, VanillaSourceClasses.DEFAULT_PLAYER_SKIN);
         if (cn == null) {
             diag.warn("DefaultPlayerSkin missing - cannot resolve PLAYER skull texture");
             return null;
@@ -969,7 +958,7 @@ public final class BlockListDiscovery {
      *     when the walk can't resolve
      */
     static @Nullable String resolveConduitShellTexture(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
-        ClassNode cn = AsmKit.loadClass(zip, CONDUIT_RENDERER);
+        ClassNode cn = AsmKit.loadClass(zip, VanillaSourceClasses.CONDUIT_RENDERER);
         if (cn == null) {
             diag.warn("ConduitRenderer missing - cannot resolve conduit shell texture");
             return null;
@@ -993,7 +982,7 @@ public final class BlockListDiscovery {
                 pendingLdc = lit;
                 continue;
             }
-            if (AsmKit.isPutStatic(in, CONDUIT_RENDERER) && in instanceof FieldInsnNode fi
+            if (AsmKit.isPutStatic(in, VanillaSourceClasses.CONDUIT_RENDERER) && in instanceof FieldInsnNode fi
                 && fi.name.equals("SHELL_TEXTURE") && pendingLdc != null && mapperBasePath != null) {
                 return mapperBasePath + "/" + pendingLdc;
             }
@@ -1012,7 +1001,7 @@ public final class BlockListDiscovery {
      * The Sheets BLOCK_ENTITIES_MAPPER base is {@code "entity"}, so we prepend that.
      */
     static @Nullable String resolveBellTexture(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
-        ClassNode cn = AsmKit.loadClass(zip, BELL_RENDERER);
+        ClassNode cn = AsmKit.loadClass(zip, VanillaSourceClasses.BELL_RENDERER);
         if (cn == null) {
             diag.warn("BellRenderer missing - cannot resolve bell body texture");
             return null;
@@ -1029,7 +1018,7 @@ public final class BlockListDiscovery {
                 pendingLdc = lit;
                 continue;
             }
-            if (AsmKit.isPutStatic(in, BELL_RENDERER) && in instanceof FieldInsnNode fi
+            if (AsmKit.isPutStatic(in, VanillaSourceClasses.BELL_RENDERER) && in instanceof FieldInsnNode fi
                 && fi.name.equals("BELL_TEXTURE") && pendingLdc != null) {
                 // BLOCK_ENTITIES_MAPPER base path is "entity".
                 return "entity/" + pendingLdc;
@@ -1054,12 +1043,6 @@ public final class BlockListDiscovery {
     @UtilityClass
     private static final class Chest {
 
-        private static final String CHEST_BLOCK = "net/minecraft/world/level/block/ChestBlock";
-        private static final String TRAPPED_CHEST_BLOCK = "net/minecraft/world/level/block/TrappedChestBlock";
-        private static final String ENDER_CHEST_BLOCK = "net/minecraft/world/level/block/EnderChestBlock";
-        private static final String COPPER_CHEST_BLOCK = "net/minecraft/world/level/block/CopperChestBlock";
-        private static final String WEATHERING_COPPER_CHEST_BLOCK = "net/minecraft/world/level/block/WeatheringCopperChestBlock";
-        private static final String WEATHER_STATE = "net/minecraft/world/level/block/WeatheringCopper$WeatherState";
 
         static @NotNull EntityBlockMapping discover(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
             ConcurrentList<String> blocks = Concurrent.newList();
@@ -1070,8 +1053,8 @@ public final class BlockListDiscovery {
             Map<String, String> variantBaseName = walkChestSpecialRendererVariants(zip);
             if (variantBaseName.isEmpty()) diag.warn("ChestSpecialRenderer variant map empty - chest entity texture paths will be missing");
 
-            Map<String, String> blockToWeather = walkBlocksToCtorEnum(zip, blocks, WEATHER_STATE,
-                List.of(COPPER_CHEST_BLOCK, WEATHERING_COPPER_CHEST_BLOCK), diag);
+            Map<String, String> blockToWeather = walkBlocksToCtorEnum(zip, blocks, VanillaSourceClasses.WEATHERING_COPPER_STATE,
+                List.of(VanillaSourceClasses.COPPER_CHEST_BLOCK, VanillaSourceClasses.WEATHERING_COPPER_CHEST_BLOCK), diag);
 
             ConcurrentList<BlockMapping> mappings = Concurrent.newList();
             for (String blockField : blocks) {
@@ -1094,10 +1077,10 @@ public final class BlockListDiscovery {
             String newClass = walkBlockNewClass(zip, blockField);
             if (newClass == null) return "UNKNOWN";
             return switch (newClass) {
-                case CHEST_BLOCK -> "REGULAR";
-                case TRAPPED_CHEST_BLOCK -> "TRAPPED";
-                case ENDER_CHEST_BLOCK -> "ENDER_CHEST";
-                case COPPER_CHEST_BLOCK, WEATHERING_COPPER_CHEST_BLOCK -> {
+                case VanillaSourceClasses.CHEST_BLOCK -> "REGULAR";
+                case VanillaSourceClasses.TRAPPED_CHEST_BLOCK -> "TRAPPED";
+                case VanillaSourceClasses.ENDER_CHEST_BLOCK -> "ENDER_CHEST";
+                case VanillaSourceClasses.COPPER_CHEST_BLOCK, VanillaSourceClasses.WEATHERING_COPPER_CHEST_BLOCK -> {
                     String weather = blockToWeather.get(blockField);
                     yield weather == null ? "COPPER_UNAFFECTED" : "COPPER_" + weather;
                 }
@@ -1118,7 +1101,6 @@ public final class BlockListDiscovery {
     @UtilityClass
     private static final class Bed {
 
-        private static final String BED_BLOCK = "net/minecraft/world/level/block/BedBlock";
 
         static @NotNull EntityBlockMapping discoverHead(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
             List<String> blocks = validBlocks(zip, "BED");
@@ -1128,7 +1110,7 @@ public final class BlockListDiscovery {
             // finds the GETSTATIC DyeColor.X that's loaded as the helper's second argument; we
             // accept any NEW class because the lambda is an inner wrapper whose class is the
             // helper method's own.
-            Map<String, String> blockToColor = walkBlocksToCtorEnum(zip, blocks, DYE_COLOR, List.of(), diag);
+            Map<String, String> blockToColor = walkBlocksToCtorEnum(zip, blocks, VanillaSourceClasses.DYE_COLOR, List.of(), diag);
             LinkedHashMap<String, BlockMapping> byColor = new LinkedHashMap<>();
             for (String blockField : blocks) {
                 String colorField = blockToColor.get(blockField);
@@ -1168,12 +1150,11 @@ public final class BlockListDiscovery {
     @UtilityClass
     private static final class Shulker {
 
-        private static final String SHULKER_BOX_BLOCK = "net/minecraft/world/level/block/ShulkerBoxBlock";
 
         static @NotNull EntityBlockMapping discover(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
             List<String> blocks = validBlocks(zip, "SHULKER_BOX");
             Map<String, String> dyeColorName = walkDyeColorNames(zip);
-            Map<String, String> blockToColor = walkBlocksToCtorEnum(zip, blocks, DYE_COLOR, List.of(SHULKER_BOX_BLOCK), diag);
+            Map<String, String> blockToColor = walkBlocksToCtorEnum(zip, blocks, VanillaSourceClasses.DYE_COLOR, List.of(VanillaSourceClasses.SHULKER_BOX_BLOCK), diag);
 
             ConcurrentList<BlockMapping> uncolored = Concurrent.newList();
             // Index the dyed variants by their DyeColor field name so ordering by DyeColor
@@ -1207,13 +1188,11 @@ public final class BlockListDiscovery {
     @UtilityClass
     private static final class Sign {
 
-        private static final String STANDING_SIGN_BLOCK = "net/minecraft/world/level/block/StandingSignBlock";
-        private static final String WALL_SIGN_BLOCK = "net/minecraft/world/level/block/WallSignBlock";
 
         static @NotNull EntityBlockMapping discover(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
             return SignLike.discover(zip, diag, "SIGN",
                 "entity/signs/",
-                List.of(STANDING_SIGN_BLOCK, WALL_SIGN_BLOCK));
+                List.of(VanillaSourceClasses.STANDING_SIGN_BLOCK, VanillaSourceClasses.WALL_SIGN_BLOCK));
         }
     }
 
@@ -1226,13 +1205,11 @@ public final class BlockListDiscovery {
     @UtilityClass
     private static final class HangingSign {
 
-        private static final String CEILING_HANGING_SIGN_BLOCK = "net/minecraft/world/level/block/CeilingHangingSignBlock";
-        private static final String WALL_HANGING_SIGN_BLOCK = "net/minecraft/world/level/block/WallHangingSignBlock";
 
         static @NotNull EntityBlockMapping discover(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
             return SignLike.discover(zip, diag, "HANGING_SIGN",
                 "entity/signs/hanging/",
-                List.of(CEILING_HANGING_SIGN_BLOCK, WALL_HANGING_SIGN_BLOCK));
+                List.of(VanillaSourceClasses.CEILING_HANGING_SIGN_BLOCK, VanillaSourceClasses.WALL_HANGING_SIGN_BLOCK));
         }
     }
 
@@ -1252,7 +1229,7 @@ public final class BlockListDiscovery {
         ) {
             List<String> blocks = validBlocks(zip, beField);
             Map<String, String> woodName = walkWoodTypeNames(zip);
-            Map<String, String> blockToWood = walkBlocksToCtorEnum(zip, blocks, WOOD_TYPE, acceptedBlockClasses, diag);
+            Map<String, String> blockToWood = walkBlocksToCtorEnum(zip, blocks, VanillaSourceClasses.WOOD_TYPE, acceptedBlockClasses, diag);
             ConcurrentList<BlockMapping> mappings = Concurrent.newList();
             for (String blockField : blocks) {
                 String woodField = blockToWood.get(blockField);
@@ -1284,8 +1261,6 @@ public final class BlockListDiscovery {
     @UtilityClass
     private static final class Banner {
 
-        private static final String BANNER_BLOCK = "net/minecraft/world/level/block/BannerBlock";
-        private static final String WALL_BANNER_BLOCK = "net/minecraft/world/level/block/WallBannerBlock";
         private static final @NotNull String BANNER_BASE_TEXTURE = "minecraft:entity/banner/banner_base";
 
         /**
@@ -1297,8 +1272,8 @@ public final class BlockListDiscovery {
         static @NotNull Map<String, EntityBlockMapping> discoverPrimary(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
             List<String> blocks = validBlocks(zip, "BANNER");
             Map<String, String> dyeColorName = walkDyeColorNames(zip);
-            Map<String, String> blockToColor = walkBlocksToCtorEnum(zip, blocks, DYE_COLOR,
-                List.of(BANNER_BLOCK, WALL_BANNER_BLOCK), diag);
+            Map<String, String> blockToColor = walkBlocksToCtorEnum(zip, blocks, VanillaSourceClasses.DYE_COLOR,
+                List.of(VanillaSourceClasses.BANNER_BLOCK, VanillaSourceClasses.WALL_BANNER_BLOCK), diag);
 
             ConcurrentList<BlockMapping> standing = Concurrent.newList();
             ConcurrentList<BlockMapping> wall = Concurrent.newList();
@@ -1306,8 +1281,8 @@ public final class BlockListDiscovery {
                 String newClass = walkBlockNewClass(zip, blockField);
                 if (newClass == null) continue;
                 BlockMapping bm = new BlockMapping(blockFieldToId(blockField), BANNER_BASE_TEXTURE);
-                if (newClass.equals(BANNER_BLOCK)) standing.add(bm);
-                else if (newClass.equals(WALL_BANNER_BLOCK)) wall.add(bm);
+                if (newClass.equals(VanillaSourceClasses.BANNER_BLOCK)) standing.add(bm);
+                else if (newClass.equals(VanillaSourceClasses.WALL_BANNER_BLOCK)) wall.add(bm);
             }
             ConcurrentList<BlockMapping> orderedStanding = orderByDyeColor(standing, blockToColor, dyeColorName);
             ConcurrentList<BlockMapping> orderedWall = orderByDyeColor(wall, blockToColor, dyeColorName);
@@ -1398,7 +1373,7 @@ public final class BlockListDiscovery {
          */
         private static @NotNull Map<String, String> walkBlocksToSkullType(@NotNull ZipFile zip, @NotNull List<String> blocks, @NotNull Diagnostics diag) {
             // Attempt 1: generic ctor-enum walk over the block's lambda body.
-            Map<String, String> direct = walkBlocksToCtorEnum(zip, blocks, SKULL_TYPES, List.of(), diag);
+            Map<String, String> direct = walkBlocksToCtorEnum(zip, blocks, VanillaSourceClasses.SKULL_TYPES, List.of(), diag);
             Map<String, String> out = new LinkedHashMap<>(direct);
             for (String blockField : blocks) {
                 if (out.containsKey(blockField)) continue;
@@ -1418,7 +1393,7 @@ public final class BlockListDiscovery {
             for (MethodNode m : cn.methods) {
                 if (!AsmKit.INIT.equals(m.name)) continue;
                 for (AbstractInsnNode in = m.instructions.getFirst(); in != null; in = in.getNext())
-                    if (AsmKit.isGetStatic(in, SKULL_TYPES) && in instanceof FieldInsnNode fi)
+                    if (AsmKit.isGetStatic(in, VanillaSourceClasses.SKULL_TYPES) && in instanceof FieldInsnNode fi)
                         return fi.name;
             }
             return null;
@@ -1506,9 +1481,6 @@ public final class BlockListDiscovery {
     @UtilityClass
     private static final class CopperGolem {
 
-        private static final String WEATHER_STATE = "net/minecraft/world/level/block/WeatheringCopper$WeatherState";
-        private static final String STATUE_BLOCK = "net/minecraft/world/level/block/CopperGolemStatueBlock";
-        private static final String WEATHERING_STATUE_BLOCK = "net/minecraft/world/level/block/WeatheringCopperGolemStatueBlock";
 
         static @NotNull EntityBlockMapping discover(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
             List<String> blocks = validBlocks(zip, "COPPER_GOLEM_STATUE");
@@ -1517,8 +1489,8 @@ public final class BlockListDiscovery {
                 return new EntityBlockMapping(List.of(), null);
             }
             Map<String, String> weatherToTexture = walkCopperGolemOxidationLevels(zip);
-            Map<String, String> blockToWeather = walkBlocksToCtorEnum(zip, blocks, WEATHER_STATE,
-                List.of(STATUE_BLOCK, WEATHERING_STATUE_BLOCK), diag);
+            Map<String, String> blockToWeather = walkBlocksToCtorEnum(zip, blocks, VanillaSourceClasses.WEATHERING_COPPER_STATE,
+                List.of(VanillaSourceClasses.COPPER_GOLEM_STATUE_BLOCK, VanillaSourceClasses.WEATHERING_COPPER_GOLEM_STATUE_BLOCK), diag);
             ConcurrentList<BlockMapping> mappings = Concurrent.newList();
             for (String blockField : blocks) {
                 String weather = blockToWeather.getOrDefault(blockField, "UNAFFECTED");

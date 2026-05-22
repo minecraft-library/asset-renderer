@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
 import lib.minecraft.renderer.tooling.util.AsmKit;
+import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lombok.experimental.UtilityClass;
@@ -44,9 +45,6 @@ import java.util.zip.ZipFile;
 @UtilityClass
 public final class TintDiscovery {
 
-    private static final @NotNull String DYE_COLOR = "net/minecraft/world/item/DyeColor";
-    private static final @NotNull String BANNER_PATTERN = "net/minecraft/world/level/block/entity/BannerPattern";
-    private static final @NotNull String BANNER_PATTERN_LAYERS = "net/minecraft/world/level/block/entity/BannerPatternLayers";
 
     /**
      * Scans every unique renderer in {@code entityIdToRenderer.values()} for tint-accessor
@@ -107,11 +105,11 @@ public final class TintDiscovery {
             }
             for (MethodNode m : cn.methods) {
                 for (AbstractInsnNode in = m.instructions.getFirst(); in != null; in = in.getNext()) {
-                    if (AsmKit.isInvokeVirtual(in, DYE_COLOR, "getTextureDiffuseColor")) return true;
-                    if (AsmKit.isInvokeStatic(in, DYE_COLOR, "getTextureDiffuseColors")) return true;
-                    if (AsmKit.isInvokeVirtual(in, BANNER_PATTERN, "getColor")) return true;
+                    if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.DYE_COLOR, "getTextureDiffuseColor")) return true;
+                    if (AsmKit.isInvokeStatic(in, VanillaSourceClasses.DYE_COLOR, "getTextureDiffuseColors")) return true;
+                    if (AsmKit.isInvokeVirtual(in, VanillaSourceClasses.BANNER_PATTERN, "getColor")) return true;
                     // Patterned-tint pipeline signal: any method returning BannerPatternLayers.
-                    if (in instanceof MethodInsnNode mi && AsmKit.descriptorReturns(mi.desc, BANNER_PATTERN_LAYERS)) return true;
+                    if (in instanceof MethodInsnNode mi && AsmKit.descriptorReturns(mi.desc, VanillaSourceClasses.BANNER_PATTERN_LAYERS)) return true;
                 }
             }
             current = cn.superName;

@@ -9,6 +9,7 @@ import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.loader.PotionColorLoader;
 import lib.minecraft.renderer.tooling.util.AsmKit;
+import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lombok.experimental.UtilityClass;
@@ -122,8 +123,6 @@ public final class ToolingPotionColors {
     @UtilityClass
     static class Parser {
 
-        private static final @NotNull String MOB_EFFECTS_INTERNAL_NAME = "net/minecraft/world/effect/MobEffects";
-        private static final @NotNull String EFFECT_PACKAGE_PREFIX = "net/minecraft/world/effect/";
         private static final @NotNull String MOB_EFFECT_INIT_DESCRIPTOR = "(Lnet/minecraft/world/effect/MobEffectCategory;I)V";
         private static final @NotNull String REGISTER_METHOD_NAME = "register";
 
@@ -137,7 +136,7 @@ public final class ToolingPotionColors {
          */
         public static @NotNull ConcurrentMap<String, Integer> parse(@NotNull Path jarPath) {
             try (ZipFile zip = new ZipFile(jarPath.toFile())) {
-                ClassNode classNode = AsmKit.requireClass(zip, MOB_EFFECTS_INTERNAL_NAME, "MobEffects");
+                ClassNode classNode = AsmKit.requireClass(zip, VanillaSourceClasses.MOB_EFFECTS, "MobEffects");
                 MethodNode clinit = AsmKit.requireClinit(classNode, "MobEffects");
                 return parseClinit(clinit.instructions);
             } catch (IOException ex) {
@@ -172,7 +171,7 @@ public final class ToolingPotionColors {
                     continue;
                 }
 
-                if (AsmKit.isNewInstance(node, EFFECT_PACKAGE_PREFIX)) {
+                if (AsmKit.isNewInstance(node, VanillaSourceClasses.EFFECT_PACKAGE_PREFIX)) {
                     // A new MobEffect (or subclass) is being constructed; reset the int stack so
                     // only the literals pushed between now and the invokespecial are considered
                     // for the colour.
@@ -186,14 +185,14 @@ public final class ToolingPotionColors {
                 if (node.getOpcode() == Opcodes.INVOKESPECIAL
                     && node instanceof MethodInsnNode methodInsn
                     && methodInsn.name.equals(AsmKit.INIT)
-                    && methodInsn.owner.startsWith(EFFECT_PACKAGE_PREFIX)
+                    && methodInsn.owner.startsWith(VanillaSourceClasses.EFFECT_PACKAGE_PREFIX)
                     && methodInsn.desc.equals(MOB_EFFECT_INIT_DESCRIPTOR)) {
                     Integer top = intLiteralStack.popInt();
                     if (top != null) pendingColor = top;
                     continue;
                 }
 
-                if (AsmKit.isInvokeStatic(node, MOB_EFFECTS_INTERNAL_NAME, REGISTER_METHOD_NAME)) {
+                if (AsmKit.isInvokeStatic(node, VanillaSourceClasses.MOB_EFFECTS, REGISTER_METHOD_NAME)) {
                     if (pendingEffectId != null && pendingColor != null) {
                         colors.put("minecraft:" + pendingEffectId, pendingColor);
                     }

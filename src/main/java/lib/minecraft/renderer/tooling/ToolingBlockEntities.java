@@ -33,6 +33,7 @@ import lib.minecraft.renderer.tooling.blockentity.TintDiscovery;
 import lib.minecraft.renderer.tooling.blockentity.YAxis;
 import lib.minecraft.renderer.tooling.entity.EntityLayerDefinitionResolver;
 import lib.minecraft.renderer.tooling.util.AsmKit;
+import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lib.minecraft.renderer.tooling.util.FastTrig;
 import lombok.experimental.UtilityClass;
@@ -442,14 +443,8 @@ public final class ToolingBlockEntities {
     @UtilityClass
     static class Parser {
 
-        private static final @NotNull String CUBE_LIST_BUILDER = "net/minecraft/client/model/geom/builders/CubeListBuilder";
-        private static final @NotNull String PART_POSE = "net/minecraft/client/model/geom/PartPose";
-        private static final @NotNull String PART_DEFINITION = "net/minecraft/client/model/geom/builders/PartDefinition";
-        private static final @NotNull String LAYER_DEFINITION = "net/minecraft/client/model/geom/builders/LayerDefinition";
-        private static final @NotNull String CUBE_DEFORMATION = "net/minecraft/client/model/geom/builders/CubeDeformation";
-        private static final @NotNull String PART_NAMES = "net/minecraft/client/model/geom/PartNames";
-        private static final @NotNull String MESH_TRANSFORMER = "net/minecraft/client/model/geom/builders/MeshTransformer";
-        private static final @NotNull String MESH_TRANSFORMER_DESC = "L" + MESH_TRANSFORMER + ";";
+        private static final @NotNull String LAYER_DEFINITION = VanillaSourceClasses.LAYER_DEFINITION;
+        private static final @NotNull String MESH_TRANSFORMER_DESC = "L" + VanillaSourceClasses.MESH_TRANSFORMER + ";";
 
         // Block-entity sources are discovered by {@link SourceDiscovery} and passed through
         // {@link #parse} at runtime; the former hardcoded {@code SOURCES} list was removed
@@ -783,7 +778,7 @@ public final class ToolingBlockEntities {
                     pendingScaled = null;
                 } else if (in instanceof MethodInsnNode mi
                     && op == Opcodes.INVOKESTATIC
-                    && MESH_TRANSFORMER.equals(mi.owner)
+                    && VanillaSourceClasses.MESH_TRANSFORMER.equals(mi.owner)
                     && "scaling".equals(mi.name)
                     && ("(F)" + MESH_TRANSFORMER_DESC).equals(mi.desc)
                     && pendingFloat != null) {
@@ -1272,7 +1267,7 @@ public final class ToolingBlockEntities {
 
                 switch (node) {
                     case FieldInsnNode fieldInsn when opcode == Opcodes.GETSTATIC -> {
-                        if (fieldInsn.owner.equals(PART_POSE) && fieldInsn.name.equals("ZERO")) {
+                        if (fieldInsn.owner.equals(VanillaSourceClasses.PART_POSE) && fieldInsn.name.equals("ZERO")) {
                             state.pendingPivot = new float[]{ 0, 0, 0 };
                             state.pendingRotation = new float[]{ 0, 0, 0 };
                             state.pendingScale = 1f;
@@ -1360,15 +1355,15 @@ public final class ToolingBlockEntities {
          * {@code PiglinHeadModel.createHeadModel -> PiglinModel.addHead}.
          */
         private static void handleMethodInsn(@NotNull MethodInsnNode methodInsn, int opcode, @NotNull ParseState state, @NotNull ZipFile zip) {
-            if (methodInsn.owner.equals(CUBE_LIST_BUILDER)) {
+            if (methodInsn.owner.equals(VanillaSourceClasses.CUBE_LIST_BUILDER)) {
                 handleCubeListBuilder(methodInsn, state);
                 return;
             }
-            if (methodInsn.owner.equals(PART_POSE)) {
+            if (methodInsn.owner.equals(VanillaSourceClasses.PART_POSE)) {
                 handlePartPose(methodInsn, state);
                 return;
             }
-            if (methodInsn.owner.equals(PART_DEFINITION) && methodInsn.name.equals("addOrReplaceChild")) {
+            if (methodInsn.owner.equals(VanillaSourceClasses.PART_DEFINITION) && methodInsn.name.equals("addOrReplaceChild")) {
                 flushPendingBone(state);
                 return;
             }
@@ -1381,7 +1376,7 @@ public final class ToolingBlockEntities {
             // (WitchModel) would attribute "mole"'s parent to whatever bone happened to be
             // flushed last - in witch's case "hat4", landing mole's pivot accumulated through
             // the wrong rotation chain.
-            if (methodInsn.owner.equals(PART_DEFINITION) && methodInsn.name.equals("getChild")) {
+            if (methodInsn.owner.equals(VanillaSourceClasses.PART_DEFINITION) && methodInsn.name.equals("getChild")) {
                 if (state.pendingPartName != null) {
                     state.lastFlushedBone = state.pendingPartName;
                     state.pendingPartName = null;
@@ -1397,7 +1392,7 @@ public final class ToolingBlockEntities {
             // {@link #parseLayerMethod} once the full bone tree has flushed. Gated on
             // {@code paramFloatValues != null} so legacy literal-stack walkers (which never call
             // retainPartsAndChildren) keep their byte-stable output.
-            if (methodInsn.owner.equals(PART_DEFINITION)
+            if (methodInsn.owner.equals(VanillaSourceClasses.PART_DEFINITION)
                 && methodInsn.name.equals("retainPartsAndChildren")
                 && state.paramFloatValues != null) {
                 if (state.pendingRetainSet != null) {
@@ -1435,7 +1430,7 @@ public final class ToolingBlockEntities {
             // call and synthesise the {@code "name" + i} the JVM produces, so subsequent
             // {@code addOrReplaceChild} flushes pick up a name. The HappyGhastModel uses
             // {@code PartNames.tentacle(0)}..{@code (8)} for its 9 explicit tentacle bones.
-            if (methodInsn.owner.equals(PART_NAMES)
+            if (methodInsn.owner.equals(VanillaSourceClasses.PART_NAMES)
                 && opcode == Opcodes.INVOKESTATIC
                 && methodInsn.desc.startsWith("(I)") && methodInsn.desc.endsWith("Ljava/lang/String;")
                 && !state.numStack.isEmpty()) {
@@ -1443,7 +1438,7 @@ public final class ToolingBlockEntities {
                 state.pendingPartName = methodInsn.name + i;
                 return;
             }
-            if (methodInsn.owner.equals(CUBE_DEFORMATION)) {
+            if (methodInsn.owner.equals(VanillaSourceClasses.CUBE_DEFORMATION)) {
                 handleCubeDeformation(methodInsn, state);
                 return;
             }

@@ -11,9 +11,8 @@
  *       {@code api.simplified.mojang.MojangContract} Feign proxy ({@link
  *       lib.minecraft.renderer.pipeline.Pipeline#mojang() Pipeline.mojang()}), with
  *       domain-aware rate limiting shared across every concurrent caller in the JVM.</li>
- *   <li>Extracts the {@code minecraft/} subtrees ({@link
- *       lib.minecraft.renderer.pipeline.VanillaPaths#VANILLA_ASSET_ROOT assets} and
- *       {@link VanillaPaths#VANILLA_DATA_ROOT data}).</li>
+ *   <li>Extracts the {@code minecraft/} subtrees ({@link VanillaSourcePaths#VANILLA_ASSET_ROOT assets}
+ *       and {@link VanillaSourcePaths#VANILLA_DATA_ROOT data}).</li>
  *   <li>Walks the active pack stack with each domain-specific loader (block models, item
  *       models, blockstates, block tags, textures, color maps, banner patterns, potion
  *       colors).</li>
@@ -65,9 +64,8 @@
  * {@code Gson} through {@code GsonSettings.defaults().create()} can deserialize asset JSON
  * automatically.
  *
- * <p><b>Path constants.</b> Every loader pulls its vanilla-jar prefixes from {@link
- * lib.minecraft.renderer.pipeline.VanillaPaths VanillaPaths} so a future Mojang rename can
- * be made in one file.
+ * <p><b>Path constants.</b> Every loader pulls its vanilla-jar prefixes from
+ * {@link VanillaSourcePaths} so a future Mojang rename can be made in one file.
  *
  * @see lib.minecraft.renderer.pipeline.Pipeline
  * @see lib.minecraft.renderer.pipeline.PipelineRendererContext
@@ -75,18 +73,5 @@
  */
 package lib.minecraft.renderer.pipeline;
 
-import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
-import lib.minecraft.renderer.pipeline.PipelineRendererContext;
-import lib.minecraft.renderer.pipeline.VanillaPaths;
-import lib.minecraft.renderer.pipeline.pack.CitMatcher;
-import lib.minecraft.renderer.pipeline.pack.CtmMatcher;
-import lib.minecraft.renderer.pipeline.util.PackAcquirer;
-import lib.minecraft.renderer.pipeline.util.PackDownloader;
-import lib.minecraft.renderer.pipeline.util.RendererDebug;
-import lib.minecraft.renderer.tensor.Vector2f;
-import lib.minecraft.renderer.tensor.Vector3f;
-import lib.minecraft.renderer.tensor.Vector4f;
+import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 
-import java.util.ServiceLoader;

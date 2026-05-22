@@ -3,7 +3,7 @@ package lib.minecraft.renderer.pipeline.pack;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.pipeline.VanillaPaths;
+import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
@@ -38,8 +38,8 @@ public record ColorProperties(@NotNull ConcurrentMap<String, Integer> overrides)
      */
     public static @NotNull ColorProperties loadFrom(@NotNull Path packRoot) {
         Path[] candidates = {
-            packRoot.resolve(VanillaPaths.OPTIFINE_COLOR_PROPS),
-            packRoot.resolve(VanillaPaths.MCPATCHER_COLOR_PROPS)
+            packRoot.resolve(VanillaSourcePaths.OPTIFINE_COLOR_PROPS),
+            packRoot.resolve(VanillaSourcePaths.MCPATCHER_COLOR_PROPS)
         };
 
         for (Path candidate : candidates) {

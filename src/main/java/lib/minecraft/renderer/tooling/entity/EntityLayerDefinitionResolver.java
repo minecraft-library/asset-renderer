@@ -3,6 +3,7 @@ package lib.minecraft.renderer.tooling.entity;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.tooling.util.AsmKit;
+import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -52,42 +53,26 @@ public final class EntityLayerDefinitionResolver {
     /**
      * JVM internal name of {@code net.minecraft.client.model.geom.LayerDefinitions}.
      */
-    private static final @NotNull String LAYER_DEFINITIONS = "net/minecraft/client/model/geom/LayerDefinitions";
 
     /**
      * JVM internal name of {@code net.minecraft.client.model.geom.ModelLayers}.
      */
-    private static final @NotNull String MODEL_LAYERS = "net/minecraft/client/model/geom/ModelLayers";
 
     /**
      * JVM internal name of {@code net.minecraft.client.model.geom.builders.LayerDefinition}.
      */
-    private static final @NotNull String LAYER_DEFINITION_CLASS = "net/minecraft/client/model/geom/builders/LayerDefinition";
 
-    /**
-     * Suffix of every {@code (...)LayerDefinition} method descriptor.
-     */
-    private static final @NotNull String LAYER_DEFINITION_DESC_RETURN = ")Lnet/minecraft/client/model/geom/builders/LayerDefinition;";
+    /** Suffix of every {@code (...)LayerDefinition} method descriptor. */
+    private static final @NotNull String LAYER_DEFINITION_DESC_RETURN = ")L" + VanillaSourceClasses.LAYER_DEFINITION + ";";
 
-    /**
-     * Suffix of every {@code (...)MeshDefinition} method descriptor.
-     */
-    private static final @NotNull String MESH_DEFINITION_DESC_RETURN = ")Lnet/minecraft/client/model/geom/builders/MeshDefinition;";
+    /** Suffix of every {@code (...)MeshDefinition} method descriptor. */
+    private static final @NotNull String MESH_DEFINITION_DESC_RETURN = ")L" + VanillaSourceClasses.MESH_DEFINITION + ";";
 
-    /**
-     * JVM internal name of {@code net.minecraft.client.model.geom.builders.MeshTransformer}.
-     */
-    private static final @NotNull String MESH_TRANSFORMER = "net/minecraft/client/model/geom/builders/MeshTransformer";
+    /** Field descriptor for a {@code MeshTransformer}-typed field or local. */
+    private static final @NotNull String MESH_TRANSFORMER_DESC = "L" + VanillaSourceClasses.MESH_TRANSFORMER + ";";
 
-    /**
-     * Field descriptor for a {@code MeshTransformer}-typed field or local.
-     */
-    private static final @NotNull String MESH_TRANSFORMER_DESC = "L" + MESH_TRANSFORMER + ";";
-
-    /**
-     * Method descriptor of {@code LayerDefinition.apply(MeshTransformer)LayerDefinition}.
-     */
-    private static final @NotNull String APPLY_DESC = "(" + MESH_TRANSFORMER_DESC + ")L" + LAYER_DEFINITION_CLASS + ";";
+    /** Method descriptor of {@code LayerDefinition.apply(MeshTransformer)LayerDefinition}. */
+    private static final @NotNull String APPLY_DESC = "(" + MESH_TRANSFORMER_DESC + ")L" + VanillaSourceClasses.LAYER_DEFINITION + ";";
 
     /**
      * The resolved factory target for one entity's primary mesh.
@@ -239,7 +224,7 @@ public final class EntityLayerDefinitionResolver {
         java.util.LinkedHashSet<String> out = new java.util.LinkedHashSet<>();
         AsmKit.walkConstructorChain(zip, rendererInternalName, method -> {
             for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
-                if (AsmKit.isGetStatic(in, MODEL_LAYERS))
+                if (AsmKit.isGetStatic(in, VanillaSourceClasses.MODEL_LAYERS))
                     out.add(((FieldInsnNode) in).name);
             }
         });
@@ -299,14 +284,14 @@ public final class EntityLayerDefinitionResolver {
         @NotNull Diagnostics diagnostics
     ) {
         ConcurrentMap<String, Resolution> out = Concurrent.newMap();
-        ClassNode cn = AsmKit.loadClass(zip, LAYER_DEFINITIONS);
+        ClassNode cn = AsmKit.loadClass(zip, VanillaSourceClasses.LAYER_DEFINITIONS);
         if (cn == null) {
-            diagnostics.error("'%s' class missing - layer-definition map unresolved", LAYER_DEFINITIONS);
+            diagnostics.error("'%s' class missing - layer-definition map unresolved", VanillaSourceClasses.LAYER_DEFINITIONS);
             return out;
         }
         MethodNode createRoots = AsmKit.findMethod(cn, "createRoots");
         if (createRoots == null) {
-            diagnostics.error("'%s.createRoots' missing - layer-definition map unresolved", LAYER_DEFINITIONS);
+            diagnostics.error("'%s.createRoots' missing - layer-definition map unresolved", VanillaSourceClasses.LAYER_DEFINITIONS);
             return out;
         }
 
@@ -376,7 +361,7 @@ public final class EntityLayerDefinitionResolver {
                 continue;
             }
 
-            if (in instanceof FieldInsnNode fi && opcode == Opcodes.GETSTATIC && MODEL_LAYERS.equals(fi.owner)) {
+            if (in instanceof FieldInsnNode fi && opcode == Opcodes.GETSTATIC && VanillaSourceClasses.MODEL_LAYERS.equals(fi.owner)) {
                 pendingLayerField = fi.name;
                 pendingDirect = null;
                 pendingMesh = null;
@@ -419,7 +404,7 @@ public final class EntityLayerDefinitionResolver {
             // ASTORE wins because it fires first in bytecode order.
             if (in instanceof MethodInsnNode mi
                 && opcode == Opcodes.INVOKESTATIC
-                && MESH_TRANSFORMER.equals(mi.owner)
+                && VanillaSourceClasses.MESH_TRANSFORMER.equals(mi.owner)
                 && "scaling".equals(mi.name)
                 && ("(F)" + MESH_TRANSFORMER_DESC).equals(mi.desc)
                 && pendingFloat != null) {
@@ -438,7 +423,7 @@ public final class EntityLayerDefinitionResolver {
                     pendingDeformationInflate = null;
                     continue;
                 }
-                if (LAYER_DEFINITION_CLASS.equals(mi.owner) && "create".equals(mi.name) && pendingMesh != null) {
+                if (VanillaSourceClasses.LAYER_DEFINITION.equals(mi.owner) && "create".equals(mi.name) && pendingMesh != null) {
                     pendingDirect = new Resolution(
                         pendingMesh.targetClass,
                         pendingMesh.targetMethod,
@@ -451,7 +436,7 @@ public final class EntityLayerDefinitionResolver {
                     pendingMesh = null;
                     continue;
                 }
-                if (mi.desc.endsWith(LAYER_DEFINITION_DESC_RETURN) && !LAYER_DEFINITION_CLASS.equals(mi.owner)) {
+                if (mi.desc.endsWith(LAYER_DEFINITION_DESC_RETURN) && !VanillaSourceClasses.LAYER_DEFINITION.equals(mi.owner)) {
                     // When the factory takes a single {@code float} arg (e.g.
                     // {@code DonkeyModel.createBodyLayer(F)}), capture the call-site literal so
                     // the parser can substitute it via {@code paramFloatValues[0]}. The donkey
@@ -505,7 +490,7 @@ public final class EntityLayerDefinitionResolver {
             // the composed scale into the {@link Resolution}.
             if (in instanceof MethodInsnNode mi
                 && opcode == Opcodes.INVOKEVIRTUAL
-                && LAYER_DEFINITION_CLASS.equals(mi.owner)
+                && VanillaSourceClasses.LAYER_DEFINITION.equals(mi.owner)
                 && "apply".equals(mi.name)
                 && APPLY_DESC.equals(mi.desc)
                 && pendingDirect != null
@@ -589,7 +574,7 @@ public final class EntityLayerDefinitionResolver {
                 pendingFloat = f;
             } else if (in instanceof MethodInsnNode mi
                 && op == Opcodes.INVOKESTATIC
-                && MESH_TRANSFORMER.equals(mi.owner)
+                && VanillaSourceClasses.MESH_TRANSFORMER.equals(mi.owner)
                 && "scaling".equals(mi.name)
                 && ("(F)" + MESH_TRANSFORMER_DESC).equals(mi.desc)
                 && pendingFloat != null) {

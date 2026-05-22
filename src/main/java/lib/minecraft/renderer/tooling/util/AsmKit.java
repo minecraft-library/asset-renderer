@@ -107,37 +107,6 @@ public final class AsmKit {
      */
     private static final @NotNull Map<String, Pattern> GENERIC_PARAMETER_PATTERN_CACHE = new ConcurrentHashMap<>();
 
-    /**
-     * Centralised JVM internal-name constants that appear in 2+ tooling resolvers. A single
-     * Minecraft version bump that renames any of these lands here only.
-     */
-    public static final class Vanilla {
-
-        /** Block-entity renderer registry class. */
-        public static final @NotNull String BLOCK_ENTITY_RENDERERS = "net/minecraft/client/renderer/blockentity/BlockEntityRenderers";
-
-        /** Identifier (formerly ResourceLocation). */
-        public static final @NotNull String IDENTIFIER = "net/minecraft/resources/Identifier";
-
-        /** Entity model bone primitive. */
-        public static final @NotNull String MODEL_PART = "net/minecraft/client/model/geom/ModelPart";
-
-        /** Compiled mesh bound to an entity renderer. */
-        public static final @NotNull String LAYER_DEFINITION = "net/minecraft/client/model/geom/LayerDefinition";
-
-        /** Static-field registry of all baked {@code ModelLayerLocation}s. */
-        public static final @NotNull String MODEL_LAYERS = "net/minecraft/client/model/geom/ModelLayers";
-
-        /** Entity-type registry class. */
-        public static final @NotNull String ENTITY_TYPE = "net/minecraft/world/entity/EntityType";
-
-        /** Living-entity base class. */
-        public static final @NotNull String LIVING_ENTITY = "net/minecraft/world/entity/LivingEntity";
-
-        private Vanilla() {}
-
-    }
-
     // ----------------------------------------------------------------------------------------
     // Class loading
     // ----------------------------------------------------------------------------------------

@@ -3,6 +3,7 @@ package lib.minecraft.renderer.tooling.entity;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.tooling.util.AsmKit;
+import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -52,12 +53,10 @@ public final class MobRegistryDiscovery {
     /**
      * JVM internal name of {@code net.minecraft.world.entity.EntityType$Builder}.
      */
-    private static final @NotNull String ENTITY_TYPE_BUILDER = "net/minecraft/world/entity/EntityType$Builder";
 
     /**
      * JVM internal name of {@code net.minecraft.world.entity.MobCategory}.
      */
-    private static final @NotNull String MOB_CATEGORY = "net/minecraft/world/entity/MobCategory";
 
     /**
      * Name of the builder factory method: {@code EntityType$Builder.of(EntityFactory, MobCategory)}.
@@ -108,7 +107,7 @@ public final class MobRegistryDiscovery {
         @NotNull ZipFile zip,
         @NotNull Diagnostics diagnostics
     ) {
-        ClassNode entityType = AsmKit.requireClass(zip, AsmKit.Vanilla.ENTITY_TYPE, "EntityType");
+        ClassNode entityType = AsmKit.requireClass(zip, VanillaSourceClasses.ENTITY_TYPE, "EntityType");
 
         Map<String, String> fieldToClass = collectEntityTypeFieldClasses(entityType);
         Map<String, Registration> registrations = collectRegistrations(entityType, diagnostics);
@@ -124,7 +123,7 @@ public final class MobRegistryDiscovery {
                 continue;
             }
 
-            if (!AsmKit.extendsClass(zip, entityClass, AsmKit.Vanilla.LIVING_ENTITY))
+            if (!AsmKit.extendsClass(zip, entityClass, VanillaSourceClasses.LIVING_ENTITY))
                 continue;
 
             results.add(new MobEntry(reg.entityId, fieldName, entityClass, reg.mobCategory));
@@ -164,7 +163,7 @@ public final class MobRegistryDiscovery {
     ) {
         MethodNode clinit = AsmKit.findMethod(entityType, AsmKit.CLINIT);
         if (clinit == null) {
-            diagnostics.error("%s has no <clinit> method", AsmKit.Vanilla.ENTITY_TYPE);
+            diagnostics.error("%s has no <clinit> method", VanillaSourceClasses.ENTITY_TYPE);
             return Map.of();
         }
 
@@ -181,7 +180,7 @@ public final class MobRegistryDiscovery {
                 continue;
             }
 
-            String fieldName = AsmKit.findFollowingPutStatic(insn, AsmKit.Vanilla.ENTITY_TYPE, MobRegistryDiscovery::isBuilderOfCall);
+            String fieldName = AsmKit.findFollowingPutStatic(insn, VanillaSourceClasses.ENTITY_TYPE, MobRegistryDiscovery::isBuilderOfCall);
             if (fieldName == null) {
                 diagnostics.warn("EntityType registration for id '%s' has no PUTSTATIC field", window.entityId);
                 window.resetAfterBuilder();
@@ -204,7 +203,7 @@ public final class MobRegistryDiscovery {
         String s = AsmKit.readStringLiteral(insn);
         if (s != null) window.entityId = s;
 
-        if (AsmKit.isGetStatic(insn, MOB_CATEGORY))
+        if (AsmKit.isGetStatic(insn, VanillaSourceClasses.MOB_CATEGORY))
             window.mobCategory = ((FieldInsnNode) insn).name;
     }
 
@@ -212,7 +211,7 @@ public final class MobRegistryDiscovery {
      * {@code true} when {@code insn} is an {@code INVOKESTATIC EntityType$Builder.of(...)}.
      */
     private static boolean isBuilderOfCall(@NotNull AbstractInsnNode insn) {
-        return AsmKit.isInvokeStatic(insn, ENTITY_TYPE_BUILDER, BUILDER_OF);
+        return AsmKit.isInvokeStatic(insn, VanillaSourceClasses.ENTITY_TYPE_BUILDER, BUILDER_OF);
     }
 
     /**

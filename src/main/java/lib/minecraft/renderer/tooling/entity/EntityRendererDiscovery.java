@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.tooling.blockentity.SourceDiscovery;
 import lib.minecraft.renderer.tooling.util.AsmKit;
+import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -51,7 +52,6 @@ public final class EntityRendererDiscovery {
     /**
      * JVM internal name of {@code net.minecraft.client.renderer.entity.EntityRenderers}.
      */
-    private static final @NotNull String ENTITY_RENDERERS = "net/minecraft/client/renderer/entity/EntityRenderers";
 
     /**
      * One {@code (EntityType field, renderer class)} pair extracted from
@@ -113,14 +113,14 @@ public final class EntityRendererDiscovery {
         @NotNull ZipFile zip,
         @NotNull Diagnostics diagnostics
     ) {
-        ClassNode registryClass = AsmKit.loadClass(zip, ENTITY_RENDERERS);
+        ClassNode registryClass = AsmKit.loadClass(zip, VanillaSourceClasses.ENTITY_RENDERERS);
         if (registryClass == null) {
-            diagnostics.error("'%s' class missing from jar - cannot discover entity renderers", ENTITY_RENDERERS);
+            diagnostics.error("'%s' class missing from jar - cannot discover entity renderers", VanillaSourceClasses.ENTITY_RENDERERS);
             return Concurrent.newList();
         }
         MethodNode registryInit = AsmKit.findMethod(registryClass, AsmKit.CLINIT);
         if (registryInit == null) {
-            diagnostics.error("'%s.<clinit>' missing - cannot discover entity renderers", ENTITY_RENDERERS);
+            diagnostics.error("'%s.<clinit>' missing - cannot discover entity renderers", VanillaSourceClasses.ENTITY_RENDERERS);
             return Concurrent.newList();
         }
 
@@ -130,7 +130,7 @@ public final class EntityRendererDiscovery {
             // Capture the most recent EntityType.X GETSTATIC. When the next INVOKEDYNAMIC
             // (lambda factory producing an EntityRendererProvider) appears, its target Handle
             // is the renderer constructor (or a synthetic wrapper) we want to bind to this field.
-            if (AsmKit.isGetStatic(in, AsmKit.Vanilla.ENTITY_TYPE)) {
+            if (AsmKit.isGetStatic(in, VanillaSourceClasses.ENTITY_TYPE)) {
                 pendingEntityField = ((FieldInsnNode) in).name;
                 continue;
             }
@@ -184,7 +184,7 @@ public final class EntityRendererDiscovery {
             Set<String> layerFields = new LinkedHashSet<>();
             Set<TypeFieldRef> typeArgs = new LinkedHashSet<>();
             String rendererClass = AsmKit.walkLambdaBody(indy, ownerClass, node -> {
-                if (AsmKit.isGetStatic(node, AsmKit.Vanilla.MODEL_LAYERS)) {
+                if (AsmKit.isGetStatic(node, VanillaSourceClasses.MODEL_LAYERS)) {
                     layerFields.add(((FieldInsnNode) node).name);
                 } else if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode fi && fi.owner.contains("$Type")) {
                     typeArgs.add(new TypeFieldRef(fi.owner, fi.name));

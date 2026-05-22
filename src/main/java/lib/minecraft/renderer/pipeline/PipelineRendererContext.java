@@ -34,6 +34,7 @@ import lib.minecraft.renderer.pipeline.pack.CtmResolution;
 import lib.minecraft.renderer.pipeline.pack.CtmRule;
 import lib.minecraft.renderer.pipeline.pack.ItemContext;
 import lib.minecraft.renderer.pipeline.resolver.OverlayResolver;
+import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lib.minecraft.renderer.tooling.ToolingColorMaps;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -558,7 +559,7 @@ public final class PipelineRendererContext implements RendererContext {
 
     @Override
     public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
-        String normalized = textureId.contains(":") ? textureId : VanillaPaths.MINECRAFT_NAMESPACE + textureId;
+        String normalized = textureId.contains(":") ? textureId : VanillaSourcePaths.MINECRAFT_NAMESPACE + textureId;
         PixelBuffer cached = this.textureCache.get(normalized);
         if (cached != null) return Optional.of(cached);
 
@@ -576,7 +577,7 @@ public final class PipelineRendererContext implements RendererContext {
 
         Path winning = null;
         for (Path root : owner.getAssetRoots()) {
-            Path candidate = root.resolve(VanillaPaths.TEXTURES_DIR).resolve(texture.getRelativePath());
+            Path candidate = root.resolve(VanillaSourcePaths.TEXTURES_DIR).resolve(texture.getRelativePath());
             if (Files.isRegularFile(candidate)) winning = candidate;
         }
         if (winning == null) return Optional.empty();
@@ -613,7 +614,7 @@ public final class PipelineRendererContext implements RendererContext {
 
     @Override
     public @NotNull Optional<AnimationData> findAnimation(@NotNull String textureId) {
-        String normalized = textureId.contains(":") ? textureId : VanillaPaths.MINECRAFT_NAMESPACE + textureId;
+        String normalized = textureId.contains(":") ? textureId : VanillaSourcePaths.MINECRAFT_NAMESPACE + textureId;
         Texture texture = this.textureIndex.get(normalized);
         return texture == null ? Optional.empty() : texture.getAnimation();
     }
