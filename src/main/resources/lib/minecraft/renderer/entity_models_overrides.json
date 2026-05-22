@@ -1,5 +1,5 @@
 {
-  "//": "Hand-edited corrections applied to entity_models.json + entity_geometry.json. Loaded by EntityModelLoader per entity; honoured keys are `geometry_ref`, `texture_ref`, `hidden_bones`, `overlays`, `force_opaque`. `hidden_bones` strips bones the geometry packs into a shared tree but the entity should not show (illager hat, equine saddle, armor stand hat).",
+  "//": "Hand-edited corrections applied to entity_models.json + entity_geometry.json. Loaded by EntityModelLoader per entity; honoured keys are `geometry_ref`, `texture_ref`, `hidden_bones`, `overlays`. `hidden_bones` strips bones the geometry packs into a shared tree but the entity should not show (illager hat, equine saddle, armor stand hat).",
   "entities": {
     "//minecraft:cow_cold": "ColdCowModel registers a separate LayerDefinition (ModelLayers.COLD_COW) with a 3-cube body (base + inflated 0.5 fur + udder strip) and a head whose horns are child bones with PartPose.offsetAndRotation(±, -2.5, -3.5 or -5, PI/2, 0, 0). Bytecode tooling only scans top-level renderer registrations; variant ModelLayers aren't surfaced. Hand-edit redirects minecraft:cow_cold at geometry.cold_cow.",
     "minecraft:cow_cold": {
@@ -59,29 +59,9 @@
         }
       ]
     },
-    "//minecraft:magma_cube": "Bedrock authors slime/magmacube_v2.png with low partial alpha throughout, expecting their additive renderer to glow the cube. Java has no separate emissive PNG (MagmaCubeRenderer uses entityCutoutNoCull). Without an opaque world background to additively brighten over, the static iso renderer needs the texture bumped to opaque so the magma colors render at full saturation. force_opaque applies the bump at load time without mutating the bundled PNG.",
-    "minecraft:magma_cube": {
-      "force_opaque": true
-    },
-    "//minecraft:spider": "Bedrock bakes the eye glow into spider/spider.png as alpha=3 spots. With the Part 1 emissive overlay supplying the bright eye glow, the body's alpha=3 spots would render as faint translucent ghosts against the transparent canvas - force_opaque promotes them back to opaque so the body face is solid behind the emissive glow.",
-    "minecraft:spider": {
-      "force_opaque": true
-    },
-    "//minecraft:cave_spider": "Same partial-alpha eye-spot pattern as spider; same force_opaque rationale.",
-    "minecraft:cave_spider": {
-      "force_opaque": true
-    },
     "//minecraft:cat": "Vanilla Java's AdultFelineModel.setupAnim sets `tail2.xRot = 1.7278761f + amplitude * cos(walkPos) * walkSpeed` on three sibling state branches (sprinting/walking/crouching). The static rest pose (walkSpeed=0) collapses to 1.7278761 rad = ~99 deg - the bend at the tail1/tail2 joint that gives a cat its hooked-tail silhouette. tail1's rotation lives in createBodyLayer and is auto-captured by the bind-pose scraper; tail2's lives only inside setupAnim so the scraper misses it. We override BOTH bones with bone-level rotation (not bind-pose) so the chain propagates from tail1 to tail2 - bind-pose only rotates the bone's own cubes, leaving children at their authored joint, which would detach tail2 from tail1's swept-up tip. The override on tail1 also clears the auto-generated bind_pose_rotation (see applyBoneOverrides) to avoid stacking the same 51.566 deg twice. tail1 pivot [0, 9, 8] and tail2 pivot [0, 9, 16] are the geometry's authored joints so each segment swings from its base. Texture: vanilla's zero-state cat variant resolves to the BLACK (tuxedo) entry from data/minecraft/cat_variant/black.json - all variants except all_black (which is structure-gated to witch huts via cats_spawn_as_black) are priority=0 unconditional, and the harness picks alphabetically first: black. The tuxedo pattern has a black body + white chest / paws + gray collar, dominant rgb (28, 24, 39) and (234, 234, 234). Our tooling default cat_all_black is the uniform-black stray variant; cat_black is the tamed-tuxedo variant the harness renders.",
     "minecraft:cat": {
       "texture_ref": "cat/cat_black"
-    },
-    "//minecraft:blaze": "Bedrock geometry.blaze authors 12 upperBodyParts0..11 bones all stacked at the same pivot (0, 24, 0) with identical cube origins (0, 16, 0); Java BlazeModel.createBodyLayer distributes them via PartPose.offset across three rings of four rods each. Outer ring (parts 0..3) at radius 9 sits above the head pivot (Java jy=-2+cos(i*0.5)); middle ring (parts 4..7) at radius 7 just below (jy=2+cos(i*0.5), angles offset by pi/4); inner ring (parts 8..11) at radius 5 well below the head (jy=11+cos(i*0.75), angles offset by 3*pi/20). Java Y points down in model space so Bedrock dy = -jy. The bind-pose scraper only captures rotations from PartPose.offsetAndRotation, not pure translations, so the offsets don't reach entity_bind_poses.json. We materialise the 12 rod positions here as extra_bones templated from upperBodyParts0, then hide the 12 stacked originals. force_opaque bumps the alpha=90 baked rod texture to opaque at load time - additive over the transparent canvas would dim the rods to ~35% saturation.",
-    "minecraft:blaze": {
-      "force_opaque": true
-    },
-    "//minecraft:sheep": "force_opaque bumps the ~600 wool-fluff partial-alpha texels to opaque at load time so the body and legs render solid instead of as a translucent speckled outline. Vanilla SheepModel already composes the skin + wool layers into one geometry, so no overlay is needed in the Java pipeline.",
-    "minecraft:sheep": {
-      "force_opaque": true
     },
     "//minecraft:zombified_piglin": "AdultZombifiedPiglinModel.createBodyLayer just returns AdultPiglinModel.createBodyLayer() - the two layers are bytecode-identical. Bytecode tooling emits them as separate entries (geometry.adultpiglin + geometry.adultzombifiedpiglin) with the same bones; redirect to the hand-edited geometry.adultpiglin so the right_sleeve / right_pants pivot fixes and the dropped hat bone apply uniformly across the piglin family.",
     "minecraft:zombified_piglin": {
