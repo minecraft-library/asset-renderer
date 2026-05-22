@@ -459,7 +459,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * union degrades to the available members rather than throwing.
      * <p>
      * Members are sourced from {@code EntityModelLoader.loadFamilies()} - {@code variant_of}
-     * for variant-of-same-entity groupings plus {@code FAMILY_OVERRIDES} for cross-entity ones
+     * for variant-of-same-entity groupings plus the top-level {@code families} table (derived
      * (mooshroom -> cow). Singleton entities return a 1-element family list so this method
      * collapses to {@link #computeUnionScreenBounds} for non-family-bearing entities.
      */
