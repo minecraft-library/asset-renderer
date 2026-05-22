@@ -851,7 +851,7 @@ public final class PipelineRendererContext implements RendererContext {
             if (face == null) continue;
             String textureRef = face.getTexture();
             if (textureRef.isBlank()) continue;
-            String resolved = TextureEngine.dereferenceVariable(textureRef, model.getTextures());
+            String resolved = TextureEngine.resolveTextureReference(textureRef, model.getTextures());
             if (resolved.startsWith("#")) continue;
             textures.put(blockFace.direction(), resolved);
         }

@@ -66,7 +66,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
     @Override
     public @NotNull ImageData render(@NotNull TextOptions options) {
         if (options.getLines().isEmpty())
-            return RenderEngine.output(singleFrame(1, 1, ColorMath.TRANSPARENT), 0);
+            return RenderEngine.wrapFrames(singleFrame(1, 1, ColorMath.TRANSPARENT), 0);
 
         boolean isLore = options.getStyle() == TextOptions.Style.LORE;
         boolean animated = hasObfuscation(options.getLines());
@@ -83,14 +83,14 @@ public final class TextRenderer implements Renderer<TextOptions> {
         int canvasHMcPx = linesHeightMcPx + padMcPx * 2 + loreGapMcPx;
 
         if (!animated)
-            return RenderEngine.output(drawSingleFrame(options, canvasWMcPx, canvasHMcPx, 0L), 0);
+            return RenderEngine.wrapFrames(drawSingleFrame(options, canvasWMcPx, canvasHMcPx, 0L), 0);
 
         ConcurrentList<PixelBuffer> frames = Concurrent.newList();
         for (int frameIndex = 0; frameIndex < options.getFrameCount(); frameIndex++)
             frames.addAll(drawSingleFrame(options, canvasWMcPx, canvasHMcPx, frameIndex));
 
         int delayMs = Math.max(1, Math.round(1000f / options.getFramesPerSecond()));
-        return RenderEngine.output(frames, delayMs);
+        return RenderEngine.wrapFrames(frames, delayMs);
     }
 
     private static @NotNull ConcurrentList<PixelBuffer> drawSingleFrame(

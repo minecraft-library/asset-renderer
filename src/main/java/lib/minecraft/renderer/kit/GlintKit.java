@@ -187,7 +187,7 @@ public class GlintKit {
      * @param options the glint configuration
      * @return an ordered list of composited frames, one per output frame
      */
-    public static @NotNull ConcurrentList<PixelBuffer> apply(
+    public static @NotNull ConcurrentList<PixelBuffer> applyGlint(
         @NotNull PixelBuffer base,
         @NotNull PixelBuffer glintTexture,
         @NotNull GlintOptions options

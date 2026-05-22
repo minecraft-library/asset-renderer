@@ -492,7 +492,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         }
 
         int delayMs = Math.max(1, Math.round(1000f / options.getFramesPerSecond()));
-        return RenderEngine.output(frames, delayMs);
+        return RenderEngine.wrapFrames(frames, delayMs);
     }
 
     private static boolean hasTitleObfuscation(@NotNull LineSegment line) {

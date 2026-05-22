@@ -462,7 +462,7 @@ public class EntityGeometryKit {
                     float[] ys = { cubeBounds.minY(), cubeBounds.maxY() };
                     float[] zs = { cubeBounds.minZ(), cubeBounds.maxZ() };
                     for (float x : xs) for (float y : ys) for (float z : zs)
-                        accumulate(new Vector3f(x, y, z), cubeTransform, modelScale, screenTransform, acc);
+                        projectAndAccumulate(new Vector3f(x, y, z), cubeTransform, modelScale, screenTransform, acc);
                     cubeIndex++;
                     continue;
                 }
@@ -534,7 +534,7 @@ public class EntityGeometryKit {
             else if (atUMin && atVMax) tl3 = corners3d[i];
         }
         if (bl3 == null || br3 == null || tr3 == null || tl3 == null) {
-            for (Vector3f c : corners3d) accumulate(c, cubeTransform, modelScale, screenTransform, acc);
+            for (Vector3f c : corners3d) projectAndAccumulate(c, cubeTransform, modelScale, screenTransform, acc);
             RendererDebug.boundsNonAxisUvFallback(dumpLabel);
             return;
         }
@@ -542,7 +542,7 @@ public class EntityGeometryKit {
         int W = texture.width();
         int H = texture.height();
         if (W <= 0 || H <= 0) {
-            for (Vector3f c : corners3d) accumulate(c, cubeTransform, modelScale, screenTransform, acc);
+            for (Vector3f c : corners3d) projectAndAccumulate(c, cubeTransform, modelScale, screenTransform, acc);
             RendererDebug.boundsNoTextureFallback(dumpLabel);
             return;
         }
@@ -609,10 +609,10 @@ public class EntityGeometryKit {
         float px = w00 * bl3.x() + w10 * br3.x() + w11 * tr3.x() + w01 * tl3.x();
         float py = w00 * bl3.y() + w10 * br3.y() + w11 * tr3.y() + w01 * tl3.y();
         float pz = w00 * bl3.z() + w10 * br3.z() + w11 * tr3.z() + w01 * tl3.z();
-        return accumulate(new Vector3f(px, py, pz), cubeTransform, modelScale, screenTransform, acc);
+        return projectAndAccumulate(new Vector3f(px, py, pz), cubeTransform, modelScale, screenTransform, acc);
     }
 
-    private static @NotNull Vector3f accumulate(
+    private static @NotNull Vector3f projectAndAccumulate(
         @NotNull Vector3f p, @NotNull Matrix4f cubeTransform, float modelScale,
         @NotNull Matrix4f screenTransform, @NotNull BoundsAccumulator acc
     ) {

@@ -259,7 +259,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         Vector3f capeMax = new Vector3f(cx + capeW / 2f, capeTop, capeBack + capeD);
 
         SixFaces faces = cropCapeFaces(capeTexture);
-        triangles.addAll(BlockGeometryKit.box(capeMin, capeMax, faces, ColorMath.WHITE));
+        triangles.addAll(BlockGeometryKit.buildBoxTriangles(capeMin, capeMax, faces, ColorMath.WHITE));
     }
 
     // ---------------------------------------------------------------------------------------
@@ -400,13 +400,13 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            IsometricEngine engine = IsometricEngine.standard(this.parent.context);
+            IsometricEngine engine = IsometricEngine.forBlockIcon(this.parent.context);
             PixelBuffer buffer = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
 
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
             triangles.addAll(BlockGeometryKit.unitCube(SkinFace.HEAD.cropAll(skin, false), ColorMath.WHITE));
             if (options.isRenderOverlay() && hasHatOverlay(skin))
-                triangles.addAll(BlockGeometryKit.box(
+                triangles.addAll(BlockGeometryKit.buildBoxTriangles(
                     new Vector3f(-0.52f, -0.52f, -0.52f),
                     new Vector3f(0.52f, 0.52f, 0.52f),
                     SkinFace.HEAD.cropAll(skin, true), ColorMath.WHITE));
@@ -441,7 +441,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            IsometricEngine engine = IsometricEngine.standard(this.parent.context);
+            IsometricEngine engine = IsometricEngine.forBlockIcon(this.parent.context);
             PixelBuffer buffer = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
@@ -486,7 +486,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            IsometricEngine engine = IsometricEngine.standard(this.parent.context);
+            IsometricEngine engine = IsometricEngine.forBlockIcon(this.parent.context);
             PixelBuffer buffer = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
@@ -529,9 +529,9 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         @NotNull Vector3f max,
         @NotNull PlayerOptions options
     ) {
-        triangles.addAll(BlockGeometryKit.box(min, max, part.cropAll(skin, false), ColorMath.WHITE));
+        triangles.addAll(BlockGeometryKit.buildBoxTriangles(min, max, part.cropAll(skin, false), ColorMath.WHITE));
         if (options.isRenderOverlay() && hasOverlay(skin))
-            triangles.addAll(BlockGeometryKit.box(
+            triangles.addAll(BlockGeometryKit.buildBoxTriangles(
                 new Vector3f(min.x() - OVERLAY_INFLATE, min.y() - OVERLAY_INFLATE, min.z() - OVERLAY_INFLATE),
                 new Vector3f(max.x() + OVERLAY_INFLATE, max.y() + OVERLAY_INFLATE, max.z() + OVERLAY_INFLATE),
                 part.cropAll(skin, true), ColorMath.WHITE));

@@ -255,7 +255,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     for (Map.Entry<String, ModelFace> faceEntry : element.getFaces().entrySet()) {
                         String ref = faceEntry.getValue().getTexture();
                         if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
-                        String resolvedId = TextureEngine.dereferenceVariable(ref, variables);
+                        String resolvedId = TextureEngine.resolveTextureReference(ref, variables);
                         if (resolvedId.startsWith("#")) continue;
                         faceTextures.put(ref, raster.resolveTexture(resolvedId));
                     }
@@ -372,7 +372,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 for (ModelFace face : element.getFaces().values()) {
                     String ref = face.getTexture();
                     if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
-                    String resolvedId = TextureEngine.dereferenceVariable(ref, variables);
+                    String resolvedId = TextureEngine.resolveTextureReference(ref, variables);
                     if (resolvedId.startsWith("#")) continue;
                     faceTextures.put(ref, raster.resolveTexture(resolvedId));
                 }
@@ -397,7 +397,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 for (ModelFace face : element.getFaces().values()) {
                     String ref = face.getTexture();
                     if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
-                    String resolvedId = TextureEngine.dereferenceVariable(ref, variables);
+                    String resolvedId = TextureEngine.resolveTextureReference(ref, variables);
                     if (resolvedId.startsWith("#")) continue;
                     faceTextures.put(ref, raster.resolveTexture(resolvedId));
                 }
@@ -437,7 +437,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     for (ModelFace face : element.getFaces().values()) {
                         String ref = face.getTexture();
                         if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
-                        String resolvedId = TextureEngine.dereferenceVariable(ref, variables);
+                        String resolvedId = TextureEngine.resolveTextureReference(ref, variables);
                         if (resolvedId.startsWith("#")) continue;
                         faceTextures.put(ref, raster.resolveTexture(resolvedId));
                     }
@@ -511,7 +511,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 for (Map.Entry<String, ModelFace> faceEntry : element.getFaces().entrySet()) {
                     String ref = faceEntry.getValue().getTexture();
                     if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
-                    String resolvedId = TextureEngine.dereferenceVariable(ref, variables);
+                    String resolvedId = TextureEngine.resolveTextureReference(ref, variables);
                     if (resolvedId.startsWith("#")) continue;
                     faceTextures.put(ref, raster.resolveTexture(resolvedId));
                 }

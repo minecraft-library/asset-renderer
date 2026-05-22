@@ -45,7 +45,7 @@ public interface RenderEngine {
      * Verified to give identical shade on all six cardinal-axis normals (cod-style entities). For
      * rotated bones the dot agrees per-vertex with vanilla's post-iso fragment shader, removing
      * the per-quadrant signed-luma signature that lingered after A1. Pairs with
-     * {@link lib.minecraft.renderer.engine.IsometricEngine#entityStandard}'s camera chain.
+     * {@link lib.minecraft.renderer.engine.IsometricEngine#forEntityIcon}'s camera chain.
      * <p>
      * The previous value {@code normalize(0.2, 1, 1)} was a naive Y-flip of vanilla's source
      * (matched +Y and -Y axes exactly but diverged 0.04 / 0.07 / 0.13 / 0.17 on ±X / ±Z). A
@@ -233,7 +233,7 @@ public interface RenderEngine {
      * @param frameDelayMs the per-frame display duration in milliseconds
      * @return the wrapped image data
      */
-    static @NotNull ImageData output(@NotNull ConcurrentList<PixelBuffer> frames, int frameDelayMs) {
+    static @NotNull ImageData wrapFrames(@NotNull ConcurrentList<PixelBuffer> frames, int frameDelayMs) {
         if (frames.isEmpty())
             throw new RenderException("Frame list must contain at least one frame");
 
@@ -257,7 +257,7 @@ public interface RenderEngine {
     static @NotNull ImageData staticFrame(@NotNull PixelBuffer buffer) {
         ConcurrentList<PixelBuffer> frames = Concurrent.newList();
         frames.add(buffer);
-        return output(frames, 0);
+        return wrapFrames(frames, 0);
     }
 
 }

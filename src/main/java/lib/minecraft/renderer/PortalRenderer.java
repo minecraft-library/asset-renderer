@@ -488,11 +488,11 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             }
             applyBridgeCrossfade(frames, outputCount, bridge);
             trimBridgeFrames(frames, outputCount);
-            return RenderEngine.output(frames, FRAME_DELAY_MS);
+            return RenderEngine.wrapFrames(frames, FRAME_DELAY_MS);
         }
 
         private @NotNull PixelBuffer renderFrame(@NotNull PortalOptions options, int tick) {
-            IsometricEngine engine = IsometricEngine.standard(this.context);
+            IsometricEngine engine = IsometricEngine.forBlockIcon(this.context);
             TextureEngine textures = new TextureEngine(this.context);
             PixelBuffer endSky = textures.resolveTexture(END_SKY_TEXTURE_ID);
             PixelBuffer endPortalNoise = textures.resolveTexture(END_PORTAL_NOISE_TEXTURE_ID);
@@ -582,7 +582,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             // End portal slab: x and z span the full unit range, y clipped to vanilla's [BOTTOM, TOP].
             // Model space is [-0.5, +0.5] per axis (see GeometryKit.unitCube), so the slab's Y
             // offsets are measured from the cube's centre.
-            return BlockGeometryKit.box(
+            return BlockGeometryKit.buildBoxTriangles(
                 new Vector3f(-0.5f, END_PORTAL_SLAB_BOTTOM_Y - 0.5f, -0.5f),
                 new Vector3f(0.5f, END_PORTAL_SLAB_TOP_Y - 0.5f, 0.5f),
                 faces,
@@ -618,7 +618,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             }
             applyBridgeCrossfade(frames, outputCount, bridge);
             trimBridgeFrames(frames, outputCount);
-            return RenderEngine.output(frames, FRAME_DELAY_MS);
+            return RenderEngine.wrapFrames(frames, FRAME_DELAY_MS);
         }
 
         private @NotNull PixelBuffer renderFrame(@NotNull PortalOptions options, int tick) {

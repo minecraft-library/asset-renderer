@@ -59,7 +59,7 @@ public class BlockGeometryKit {
         @NotNull SixFaces faces,
         int tintArgb
     ) {
-        return box(
+        return buildBoxTriangles(
             new Vector3f(-0.5f, -0.5f, -0.5f),
             new Vector3f(0.5f, 0.5f, 0.5f),
             faces,
@@ -76,7 +76,7 @@ public class BlockGeometryKit {
      * @param tintArgb the ARGB tint applied to every face
      * @return the 12-triangle list
      */
-    public static @NotNull ConcurrentList<VisibleTriangle> box(
+    public static @NotNull ConcurrentList<VisibleTriangle> buildBoxTriangles(
         @NotNull Vector3f min,
         @NotNull Vector3f max,
         @NotNull SixFaces faces,

@@ -147,7 +147,7 @@ public final class TestBedParity {
         ConcurrentList<VisibleTriangle> centered = recenterAndFit(rotated, 1.4f);
 
         // Rasterize with standard isometric engine
-        IsometricEngine engine = IsometricEngine.standard(context);
+        IsometricEngine engine = IsometricEngine.forBlockIcon(context);
         PixelBuffer buffer = PixelBuffer.create(size, size);
         engine.rasterize(centered, buffer, PerspectiveParams.NONE);
         ImageIO.write(buffer.toBufferedImage(), "PNG", out.toFile());
@@ -193,7 +193,7 @@ public final class TestBedParity {
             ));
         }
 
-        IsometricEngine engine = IsometricEngine.standard(context);
+        IsometricEngine engine = IsometricEngine.forBlockIcon(context);
         PixelBuffer buffer = PixelBuffer.create(size, size);
         engine.rasterize(rotated, buffer, PerspectiveParams.NONE);
         ImageIO.write(buffer.toBufferedImage(), "PNG", out.toFile());

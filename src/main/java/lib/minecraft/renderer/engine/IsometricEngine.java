@@ -82,7 +82,7 @@ public class IsometricEngine extends ModelEngine {
      * @param context the renderer context
      * @return an isometric engine with the standard block-icon camera
      */
-    public static @NotNull IsometricEngine standard(@NotNull RendererContext context) {
+    public static @NotNull IsometricEngine forBlockIcon(@NotNull RendererContext context) {
         return new IsometricEngine(context, CAMERA);
     }
 
@@ -92,12 +92,12 @@ public class IsometricEngine extends ModelEngine {
      * in the vanilla-reference-harness. Use for entity rendering through
      * {@link lib.minecraft.renderer.EntityRenderer} so the output pose aligns with the
      * harness ground-truth PNGs. Block / item rendering should continue using
-     * {@link #standard(RendererContext)}.
+     * {@link #forBlockIcon(RendererContext)}.
      *
      * @param context the renderer context
      * @return an isometric engine with the standard entity-preview camera
      */
-    public static @NotNull IsometricEngine entityStandard(@NotNull RendererContext context) {
+    public static @NotNull IsometricEngine forEntityIcon(@NotNull RendererContext context) {
         return new IsometricEngine(context, CAMERA_ENTITY);
     }
 

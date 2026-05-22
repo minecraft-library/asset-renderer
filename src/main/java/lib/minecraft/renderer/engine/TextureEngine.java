@@ -155,9 +155,9 @@ public class TextureEngine implements RenderEngine {
         if (glintTexture.isEmpty())
             return RenderEngine.staticFrame(buffer);
 
-        ConcurrentList<PixelBuffer> frames = GlintKit.apply(buffer, glintTexture.get(), glintOptions);
+        ConcurrentList<PixelBuffer> frames = GlintKit.applyGlint(buffer, glintTexture.get(), glintOptions);
         int frameDelayMs = Math.max(1, Math.round(1000f / glintOptions.framesPerSecond()));
-        return RenderEngine.output(frames, frameDelayMs);
+        return RenderEngine.wrapFrames(frames, frameDelayMs);
     }
 
     /**
@@ -347,7 +347,7 @@ public class TextureEngine implements RenderEngine {
      * @param variables the variable map to resolve against
      * @return the resolved namespaced texture id, or the last unresolvable {@code #variable}
      */
-    public static @NotNull String dereferenceVariable(@NotNull String reference, @NotNull ConcurrentMap<String, String> variables) {
+    public static @NotNull String resolveTextureReference(@NotNull String reference, @NotNull ConcurrentMap<String, String> variables) {
         String current = reference;
 
         if (!current.startsWith("#") && !current.contains(":") && variables.containsKey(current))

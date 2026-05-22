@@ -175,7 +175,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
         PixelBuffer composite = BannerKit.composite2D(engine, baseDye, options.getBannerLayers(), variant);
 
-        return BlockGeometryKit.box(
+        return BlockGeometryKit.buildBoxTriangles(
             new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),
             new Vector3f(FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_Z),
             SixFaces.uniform(composite),
@@ -364,7 +364,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 if (faceRef.equals("#" + layerKey) || faceRef.equals(layerRef))
                     return face.getTintIndex();
 
-                String resolved = TextureEngine.dereferenceVariable(faceRef, variables);
+                String resolved = TextureEngine.resolveTextureReference(faceRef, variables);
                 if (resolved.equals(layerRef))
                     return face.getTintIndex();
             }
@@ -498,7 +498,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             ConcurrentList<VisibleTriangle> triangles;
             if (item.getOverlay().isPresent()) {
                 PixelBuffer overlayTexture = composeOverlayTexture(this.context, engine, item.getOverlay().get(), options);
-                triangles = BlockGeometryKit.box(
+                triangles = BlockGeometryKit.buildBoxTriangles(
                     new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),
                     new Vector3f(FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_Z),
                     SixFaces.uniform(overlayTexture),
@@ -524,7 +524,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                     throw new RenderException("Item '%s' has no elements and no layer0 - nothing to render in Held3D path", options.getItemId());
 
                 PixelBuffer texture = engine.resolveTexture(layerRef);
-                triangles = BlockGeometryKit.box(
+                triangles = BlockGeometryKit.buildBoxTriangles(
                     new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),
                     new Vector3f(FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_Z),
                     SixFaces.uniform(texture),
@@ -555,7 +555,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 for (ModelFace face : element.getFaces().values()) {
                     String ref = face.getTexture();
                     if (ref.isBlank() || result.containsKey(ref)) continue;
-                    String resolvedId = TextureEngine.dereferenceVariable(ref, variables);
+                    String resolvedId = TextureEngine.resolveTextureReference(ref, variables);
                     if (resolvedId.startsWith("#")) continue;
                     result.put(ref, engine.resolveTexture(resolvedId));
                 }

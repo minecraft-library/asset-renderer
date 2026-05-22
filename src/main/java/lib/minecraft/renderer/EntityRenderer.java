@@ -218,7 +218,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 triangles.addAll(buildBlockOverlayTriangles(blockOverlay, model, entityFit));
         }
 
-        IsometricEngine engine = IsometricEngine.entityStandard(this.context);
+        IsometricEngine engine = IsometricEngine.forEntityIcon(this.context);
         triangles.addAll(ArmorKit.buildEntityArmor3D(buildResult.boneBounds(),
             options.getHelmet(), options.getChestplate(),
             options.getLeggings(), options.getBoots(), engine));
@@ -285,7 +285,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             for (ModelFace face : element.getFaces().values()) {
                 String ref = face.getTexture();
                 if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
-                String resolvedId = TextureEngine.dereferenceVariable(ref, variables);
+                String resolvedId = TextureEngine.resolveTextureReference(ref, variables);
                 if (resolvedId.startsWith("#")) continue;
                 Optional<PixelBuffer> tex = this.context.resolveTexture(resolvedId);
                 tex.ifPresent(pixelBuffer -> faceTextures.put(ref, pixelBuffer));
