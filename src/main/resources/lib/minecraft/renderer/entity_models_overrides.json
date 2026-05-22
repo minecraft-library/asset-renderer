@@ -40,14 +40,6 @@
     "minecraft:pig_cold": {
       "geometry_ref": "geometry.cold_pig"
     },
-    "//minecraft:rabbit": "RabbitRenderer.getTextureLocation reads state.variant via state.isToast check then RABBIT_LOCATIONS map. Vanilla's zero-state Rabbit constructor defaults variant to BROWN (the first Rabbit.Variant enum value); our tooling-extracted texture_ref defaulted to rabbit_toast. Sampling the vanilla render's body pixels confirms dark brown (97, 72, 52) - matches rabbit_brown.",
-    "minecraft:rabbit": {
-      "texture_ref": "rabbit/rabbit_brown"
-    },
-    "//minecraft:axolotl": "AxolotlRenderer.getTextureLocation looks up state.variant in TEXTURE_BY_TYPE. Vanilla's zero-state default is LUCY (pink/white); the central body pixel of the vanilla render is (227, 132, 188) which matches axolotl_lucy's signature pink. Ours was set to axolotl_blue.",
-    "minecraft:axolotl": {
-      "texture_ref": "axolotl/axolotl_lucy"
-    },
     "//minecraft:ender_dragon": "EnderDragonRenderer holds a static `RenderTypes.eyes(DRAGON_EYES_LOCATION)` field and dispatches it inline in `submit()` rather than via the standard `addLayer(new EyesLayer(...))` pattern that `EntityOverlayResolver` scans. The eye-overlay PNG (`enderdragon/dragon_eyes.png`) is therefore not auto-emitted in `entity_models.json`; without it, the eye region falls back to dragon.png's baked-in purple pixels which then get cardinal-shaded (vanilla pixel (224,121,250) -> Java (127,68,142) at ~0.567x shading). Hand-edited overlay supplies the full-bright emissive eye matching vanilla `RenderPipelines.EYES` (emissive + NO_CARDINAL_LIGHTING + TRANSLUCENT alpha blend = at alpha=255 the texel replaces the underlying lit body pixel). Same `inflate: 0.001` as the auto-emitted eye overlays for the equal-Z depth-fail clearance.",
     "minecraft:ender_dragon": {
       "overlays": [

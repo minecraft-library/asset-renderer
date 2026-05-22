@@ -21,6 +21,7 @@ import lib.minecraft.renderer.tooling.entity.EntityProceduralLoops;
 import lib.minecraft.renderer.tooling.entity.EntityRendererDiscovery;
 import lib.minecraft.renderer.tooling.entity.EntityRendererScaleResolver;
 import lib.minecraft.renderer.tooling.entity.EntitySetupRotationsResolver;
+import lib.minecraft.renderer.tooling.entity.EntityVariantDefaultResolver;
 import lib.minecraft.renderer.tooling.entity.EntityTextureResolver;
 import lib.minecraft.renderer.tooling.entity.EntityVariantResolver;
 import lib.minecraft.renderer.tooling.entity.MobRegistryDiscovery;
@@ -131,37 +132,33 @@ public final class ToolingEntityModels {
 
     /**
      * Per-entity default texture stems for renderers whose binding is genuinely unresolvable from
-     * the renderer class alone. {@link EntityTextureResolver} returns no primary path for
-     * three patterns: <ul>
-     * <li><b>axolotl</b> - {@code AxolotlRenderer.<clinit>} only contains the {@code
-     *     textures/entity/axolotl/axolotl_%s.png} format string; per-variant tokens live in the
-     *     {@code Axolotl$Variant} enum and are concatenated at runtime via
-     *     {@code makeConcatWithConstants}. Default to the {@code lucy} (default new-spawn) variant.</li>
+     * the renderer class alone AND whose variant detection doesn't fit the
+     * {@link EntityVariantDefaultResolver}'s enum-default shape:
+     * <ul>
      * <li><b>shulker</b> - {@code ShulkerRenderer} reads its texture array from
      *     {@code Sheets.SHULKER_TEXTURE_LOCATION}, a sibling-class List that maps
-     *     {@code DyeColor} -> Identifier through atlas sprite ids. Default to the un-coloured
-     *     base shulker texture.</li>
+     *     {@code DyeColor} -&gt; Identifier through atlas sprite ids. Default to the
+     *     un-coloured base shulker texture.</li>
      * <li><b>copper_golem</b> - {@code CopperGolemRenderer} dispatches on weathering state via
      *     a chained {@code INVOKESTATIC + INVOKEVIRTUAL} pattern the static walker doesn't
      *     unfold. Default to the unweathered base.</li>
+     * <li><b>ender_dragon</b> - {@code EnderDragonRenderer.<clinit>} binds 4 textures
+     *     (dragon.png, dragon_eyes.png, dragon_exploding.png, end_crystal_beam.png) but
+     *     doesn't override getTextureLocation - the resolver's hierarchy walk finds nothing
+     *     because EnderDragonRenderer extends EntityRenderer&lt;EnderDragon&gt; and
+     *     EntityRenderer's getTextureLocation is abstract. Java's render path picks
+     *     DRAGON_TEXTURE_LOCATION via direct getstatic in the submit path, which the static
+     *     walker can't follow. Hardcode the static rest-pose texture.</li>
      * </ul>
-     * <p>Precedent: {@link SourceDiscovery#SKULL_VARIANT_POLICY}
-     * for the same shape on block entities. Each entry has a clear bytecode-pattern reason
-     * recorded above and is verified against the legacy cache textures.
+     *
+     * <p>Axolotl + rabbit moved out: their {@code state.variant} field is a public enum with
+     * a {@code DEFAULT} static field that {@link EntityVariantDefaultResolver} walks via
+     * bytecode. Adding new entries here should be a last resort - prefer extending the
+     * variant-default walker or the renderer-specific binding logic.
      */
     private static final @NotNull java.util.Map<String, String> ENTITY_TEXTURE_HARD_DEFAULTS = java.util.Map.of(
-        // Match the legacy default-variant choices so the parity test agrees on which
-        // sub-variant counts as canonical. Both legacy entity_models.json baselines are
-        // verified for the chosen stems.
-        "minecraft:axolotl", "axolotl/axolotl_blue",
         "minecraft:shulker", "shulker/shulker",
         "minecraft:copper_golem", "copper_golem/copper_golem",
-        // EnderDragonRenderer.<clinit> binds 4 textures (dragon.png, dragon_eyes.png,
-        // dragon_exploding.png, end_crystal_beam.png) but doesn't override getTextureLocation -
-        // the resolver's hierarchy walk finds nothing because EnderDragonRenderer extends
-        // EntityRenderer<EnderDragon> and EntityRenderer's getTextureLocation is abstract.
-        // Java's render path picks DRAGON_TEXTURE_LOCATION via direct getstatic in the submit
-        // path, which the static walker can't follow. Hardcode the static rest-pose texture.
         "minecraft:ender_dragon", "enderdragon/dragon"
     );
 
@@ -225,10 +222,35 @@ public final class ToolingEntityModels {
                     lambdaTypeArgsByEntityField.getOrDefault(mob.fieldName(), Concurrent.newList());
                 EntityTextureResolver.Binding binding =
                     EntityTextureResolver.resolve(zip, renderer, mob.entityId(), typeArgs, diagnostics);
-                // Hardcoded fallback for renderers whose texture binding is genuinely
-                // unresolvable from the renderer class alone (axolotl format-string template,
-                // shulker Sheets indirection, copper_golem chained dispatch). See
-                // {@link #ENTITY_TEXTURE_HARD_DEFAULTS} javadoc for per-entity rationale.
+                // Enum-default variant detection: AxolotlRenderer / RabbitRenderer read their
+                // texture via state.variant lookup into a Map<XVariant, Identifier>. The
+                // resolver walks the variant enum class for its DEFAULT static field and
+                // computes the canonical texture stem (axolotl/axolotl_lucy, rabbit/rabbit_brown)
+                // without a hardcoded entry. Falls back to ENTITY_TEXTURE_HARD_DEFAULTS for
+                // patterns the walker can't recover (shulker DyeColor sheet, copper_golem
+                // weathering dispatch, ender_dragon submit-path getstatic, cat data registry).
+                EntityVariantDefaultResolver.DefaultVariant variantDefault =
+                    EntityVariantDefaultResolver.resolve(zip, renderer, diagnostics);
+                if (variantDefault != null) {
+                    String stem = entityId.startsWith(MINECRAFT_NAMESPACE) ? entityId.substring(MINECRAFT_NAMESPACE.length()) : entityId;
+                    String candidate = "textures/entity/" + stem + "/" + stem + "_" + variantDefault.defaultName() + ".png";
+                    // Verify the path-by-convention exists in the jar. Vanilla doesn't always
+                    // follow <stem>/<stem>_<variant>.png:
+                    // - mooshroom's textures live under cow/ (e.g. cow/mooshroom_red.png)
+                    // - fox.RED has no separate texture (just fox.png; variant doesn't suffix)
+                    // Existence-gating keeps the override narrow to entities whose convention
+                    // matches (axolotl, llama, parrot, rabbit); the others fall through to
+                    // the binding-extracted path or hardcoded fallback.
+                    String assetPath = "assets/minecraft/" + candidate;
+                    if (zip.getEntry(assetPath) != null) {
+                        binding = new EntityTextureResolver.Binding(
+                            candidate,
+                            null,
+                            binding.variantSourceClass(),
+                            "(enum-default '" + variantDefault.defaultName() + "')"
+                        );
+                    }
+                }
                 if (binding.primaryTexturePath() == null) {
                     String fallback = ENTITY_TEXTURE_HARD_DEFAULTS.get(entityId);
                     if (fallback != null)

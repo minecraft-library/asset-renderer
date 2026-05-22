@@ -18,7 +18,7 @@
     },
     "minecraft:axolotl": {
       "geometry_ref": "geometry.adultaxolotl",
-      "texture_ref": "axolotl/axolotl_blue",
+      "texture_ref": "axolotl/axolotl_lucy",
       "armor_type": "none"
     },
     "minecraft:bat": {
@@ -539,7 +539,7 @@
     },
     "minecraft:rabbit": {
       "geometry_ref": "geometry.adultrabbit",
-      "texture_ref": "rabbit/rabbit_toast",
+      "texture_ref": "rabbit/rabbit_brown",
       "armor_type": "none"
     },
     "minecraft:ravager": {
