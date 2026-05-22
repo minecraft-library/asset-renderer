@@ -7,13 +7,10 @@ import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.FieldNode;
-import org.objectweb.asm.tree.LdcInsnNode;
-import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
 import java.util.LinkedHashMap;
@@ -53,11 +50,6 @@ import java.util.zip.ZipFile;
 public final class MobRegistryDiscovery {
 
     /**
-     * JVM internal name of {@code net.minecraft.world.entity.EntityType}.
-     */
-    private static final @NotNull String ENTITY_TYPE = "net/minecraft/world/entity/EntityType";
-
-    /**
      * JVM internal name of {@code net.minecraft.world.entity.EntityType$Builder}.
      */
     private static final @NotNull String ENTITY_TYPE_BUILDER = "net/minecraft/world/entity/EntityType$Builder";
@@ -66,11 +58,6 @@ public final class MobRegistryDiscovery {
      * JVM internal name of {@code net.minecraft.world.entity.MobCategory}.
      */
     private static final @NotNull String MOB_CATEGORY = "net/minecraft/world/entity/MobCategory";
-
-    /**
-     * JVM internal name of {@code net.minecraft.world.entity.LivingEntity}.
-     */
-    private static final @NotNull String LIVING_ENTITY = "net/minecraft/world/entity/LivingEntity";
 
     /**
      * Name of the builder factory method: {@code EntityType$Builder.of(EntityFactory, MobCategory)}.
@@ -121,7 +108,7 @@ public final class MobRegistryDiscovery {
         @NotNull ZipFile zip,
         @NotNull Diagnostics diagnostics
     ) {
-        ClassNode entityType = AsmKit.requireClass(zip, ENTITY_TYPE, "EntityType");
+        ClassNode entityType = AsmKit.requireClass(zip, AsmKit.Vanilla.ENTITY_TYPE, "EntityType");
 
         Map<String, String> fieldToClass = collectEntityTypeFieldClasses(entityType);
         Map<String, Registration> registrations = collectRegistrations(entityType, diagnostics);
@@ -137,7 +124,7 @@ public final class MobRegistryDiscovery {
                 continue;
             }
 
-            if (!extendsLivingEntity(zip, entityClass))
+            if (!AsmKit.extendsClass(zip, entityClass, AsmKit.Vanilla.LIVING_ENTITY))
                 continue;
 
             results.add(new MobEntry(reg.entityId, fieldName, entityClass, reg.mobCategory));
@@ -175,9 +162,9 @@ public final class MobRegistryDiscovery {
         @NotNull ClassNode entityType,
         @NotNull Diagnostics diagnostics
     ) {
-        MethodNode clinit = AsmKit.findMethod(entityType, "<clinit>");
+        MethodNode clinit = AsmKit.findMethod(entityType, AsmKit.CLINIT);
         if (clinit == null) {
-            diagnostics.error("%s has no <clinit> method", ENTITY_TYPE);
+            diagnostics.error("%s has no <clinit> method", AsmKit.Vanilla.ENTITY_TYPE);
             return Map.of();
         }
 
@@ -194,7 +181,7 @@ public final class MobRegistryDiscovery {
                 continue;
             }
 
-            String fieldName = findFollowingPutStatic(insn);
+            String fieldName = AsmKit.findFollowingPutStatic(insn, AsmKit.Vanilla.ENTITY_TYPE, MobRegistryDiscovery::isBuilderOfCall);
             if (fieldName == null) {
                 diagnostics.warn("EntityType registration for id '%s' has no PUTSTATIC field", window.entityId);
                 window.resetAfterBuilder();
@@ -214,59 +201,18 @@ public final class MobRegistryDiscovery {
      * {@code Builder.of} call fires.
      */
     private static void observe(@NotNull AbstractInsnNode insn, @NotNull Window window) {
-        if (insn.getOpcode() == Opcodes.LDC && insn instanceof LdcInsnNode ldc && ldc.cst instanceof String s)
-            window.entityId = s;
+        String s = AsmKit.readStringLiteral(insn);
+        if (s != null) window.entityId = s;
 
-        if (insn.getOpcode() == Opcodes.GETSTATIC
-            && insn instanceof FieldInsnNode field
-            && MOB_CATEGORY.equals(field.owner))
-            window.mobCategory = field.name;
+        if (AsmKit.isGetStatic(insn, MOB_CATEGORY))
+            window.mobCategory = ((FieldInsnNode) insn).name;
     }
 
     /**
      * {@code true} when {@code insn} is an {@code INVOKESTATIC EntityType$Builder.of(...)}.
      */
     private static boolean isBuilderOfCall(@NotNull AbstractInsnNode insn) {
-        return insn.getOpcode() == Opcodes.INVOKESTATIC
-            && insn instanceof MethodInsnNode call
-            && ENTITY_TYPE_BUILDER.equals(call.owner)
-            && BUILDER_OF.equals(call.name);
-    }
-
-    /**
-     * Scans forward from a {@code Builder.of} call for the first {@code PUTSTATIC} into an
-     * {@code EntityType} field. Returns {@code null} if the walk runs off the end of the method
-     * without finding one, or hits another {@code Builder.of} call first.
-     */
-    private static @Nullable String findFollowingPutStatic(@NotNull AbstractInsnNode from) {
-        for (AbstractInsnNode insn = from.getNext(); insn != null; insn = insn.getNext()) {
-            if (insn.getOpcode() == Opcodes.PUTSTATIC
-                && insn instanceof FieldInsnNode field
-                && ENTITY_TYPE.equals(field.owner))
-                return field.name;
-
-            if (isBuilderOfCall(insn))
-                return null;
-        }
-        return null;
-    }
-
-    /**
-     * Walks the superclass chain of {@code entityClass} and returns {@code true} iff any
-     * ancestor is {@code net/minecraft/world/entity/LivingEntity}. Returns {@code false} when
-     * the chain terminates at {@code java/lang/Object} without hitting {@code LivingEntity}, or
-     * when any link can't be loaded from the jar (silently - a missing ancestor class simply
-     * means we can't confirm a living-entity relation).
-     */
-    private static boolean extendsLivingEntity(@NotNull ZipFile zip, @NotNull String entityClass) {
-        String current = entityClass;
-        while (current != null && !"java/lang/Object".equals(current)) {
-            if (LIVING_ENTITY.equals(current)) return true;
-            ClassNode node = AsmKit.loadClass(zip, current);
-            if (node == null) return false;
-            current = node.superName;
-        }
-        return false;
+        return AsmKit.isInvokeStatic(insn, ENTITY_TYPE_BUILDER, BUILDER_OF);
     }
 
     /**
