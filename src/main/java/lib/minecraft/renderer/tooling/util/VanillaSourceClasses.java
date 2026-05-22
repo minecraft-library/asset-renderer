@@ -175,6 +175,10 @@ public final class VanillaSourceClasses {
     public static final @NotNull String LIVING_ENTITY_EMISSIVE_LAYER =
         ENTITY_RENDERER_ROOT + "layers/LivingEntityEmissiveLayer";
 
+    /** Profession / biome-type / level layer added by VillagerRenderer + ZombieVillagerRenderer. */
+    public static final @NotNull String VILLAGER_PROFESSION_LAYER =
+        ENTITY_RENDERER_ROOT + "layers/VillagerProfessionLayer";
+
     // ============================================================================================
     // Block-entity registries
     // ============================================================================================

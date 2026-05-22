@@ -52,16 +52,6 @@
         "left_chest"
       ]
     },
-    "//minecraft:villager": "VillagerRenderer adds VillagerProfessionLayer which submits an additional textured pass on top of the base villager.png: type/<type_id>.png (clothing for the biome variant), profession/<profession_id>.png (job clothing) when profession is non-NONE, and profession_level/<level>.png (badge tier) when profession is non-NITWIT. For a freshly-spawned villager (Villager.createDefaultVillagerData) type=PLAINS, profession=NONE, level=1, so only the type/plains.png pass renders. Modeled here as an overlay using the same geometry.villager. inflate 0.001 nudges the overlay cubes a fraction of a unit outward so they win ModelEngine's depthFails check (depthVal <= existingDepth + epsilon REJECTS at equal Z, so equal-Z overlay would lose to the already-drawn base mesh). Without the bias the overlay drew on body via the built-in jacket bone but lost on arms / legs - rendered villager appeared to be 'wearing a jacket with nothing underneath', skin tone visible past the robe.",
-    "minecraft:villager": {
-      "overlays": [
-        {
-          "geometry_ref": "geometry.villager",
-          "texture_ref": "villager/type/plains",
-          "inflate": 0.001
-        }
-      ]
-    },
     "//minecraft:tropical_fish": "TropicalFishRenderer.getModelTint returns state.baseColor (DyeColor.WHITE.textureDiffuseColor = 0xFFF9FFFE at zero state, just shy of pure white). TropicalFishPatternLayer submits a second textured pass with state.patternColor (also 0xFFF9FFFE at zero state DEFAULT_VARIANT = (KOB, WHITE, WHITE)). Both tints are multiplicative against the sampled texel - tiny shift visible across the silhouette. The pattern model is a separate LayerDefinition baked with FISH_PATTERN_DEFORMATION = CubeDeformation(0.008F) (LayerDefinitions.java line 164) - that's an inflate on every pattern cube, not just a depth-test offset, so the pattern silhouette is geometrically 0.008 wider than the base body per side. Vanilla harness includes this in its bounds-walker, padding the canvas by 1 pixel on each axis; matching this here (inflate 0.008 vs the previous generic 0.001) lines up canvas dimensions AND the per-cube extents the rasterizer walks.",
     "minecraft:tropical_fish": {
       "base_tint": "0xFFF9FFFE",
@@ -71,16 +61,6 @@
           "texture_ref": "fish/tropical_a_pattern_1",
           "inflate": 0.008,
           "tint_color": "0xFFF9FFFE"
-        }
-      ]
-    },
-    "//minecraft:zombie_villager": "ZombieVillagerRenderer adds the same VillagerProfessionLayer as VillagerRenderer (different path: zombie_villager/...). ZombieVillager.initializeVillagerData randomly assigns a profession + biome-derived type, but the vanilla-reference-harness ZombieVillagerStateMixin pins the render state to Villager.createDefaultVillagerData (type=PLAINS, profession=NONE, level=1) so the harness output is deterministic. Same overlay shape as villager including inflate 0.001 to win the equal-Z depth test against the base mesh.",
-    "minecraft:zombie_villager": {
-      "overlays": [
-        {
-          "geometry_ref": "geometry.zombievillager",
-          "texture_ref": "zombie_villager/type/plains",
-          "inflate": 0.001
         }
       ]
     },

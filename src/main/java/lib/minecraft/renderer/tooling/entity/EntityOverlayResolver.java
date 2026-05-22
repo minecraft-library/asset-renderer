@@ -253,6 +253,24 @@ public final class EntityOverlayResolver {
                 out.add(new OverlayDescriptor(layerClass, param.texturePath(), false, param.modelLayerField(), tintArgb));
                 continue;
             }
+
+            // VillagerProfessionLayer (used by VillagerRenderer + ZombieVillagerRenderer): the
+            // layer renders an additional textured pass on top of the base villager geometry,
+            // dispatched per-state to type/&lt;biome&gt;.png + optional profession + profession_level
+            // PNGs. At zero state (PLAINS biome, NONE profession, level 1) only the
+            // type/plains.png pass actually fires. The texture prefix ("villager" /
+            // "zombie_villager") is the third constructor arg at the renderer's
+            // `addLayer(new VillagerProfessionLayer(this, resourceManager, "<prefix>", ...))`
+            // call site. Emit as a same-geometry overlay so the runtime gets the auto-applied
+            // inflate=0.001 (equal-Z depth-fail clearance).
+            if (VanillaSourceClasses.VILLAGER_PROFESSION_LAYER.equals(layerClass)) {
+                String prefix = extractVillagerProfessionPrefix(zip, rendererInternalName);
+                if (prefix != null) {
+                    String texture = TEXTURE_PATH_PREFIX + prefix + "/type/plains.png";
+                    out.add(new OverlayDescriptor(layerClass, texture, false, null, 0xFFFFFFFF));
+                }
+                continue;
+            }
         }
 
         // Inline same-geometry eye overlays not captured by any RenderLayer subclass.
@@ -838,6 +856,47 @@ public final class EntityOverlayResolver {
                 && pendingTexturePath != null
                 && pendingTexturePath.contains("eyes"))
                 return new EyesOverlayBinding(pendingTexturePath, mi.name);
+        }
+        return null;
+    }
+
+    /**
+     * Walks the renderer's constructor for a {@code new VillagerProfessionLayer(this,
+     * resourceManager, "&lt;prefix&gt;", ...)} allocation and returns the third constructor
+     * argument - the texture-directory prefix the layer concatenates with
+     * {@code "/type/&lt;biome&gt;.png"} at submit time. Vanilla source: VillagerRenderer
+     * passes {@code "villager"}, ZombieVillagerRenderer passes {@code "zombie_villager"}.
+     */
+    private static @Nullable String extractVillagerProfessionPrefix(
+        @NotNull ZipFile zip,
+        @NotNull String rendererInternalName
+    ) {
+        ClassNode renderer = AsmKit.loadClass(zip, rendererInternalName);
+        if (renderer == null) return null;
+        for (MethodNode method : renderer.methods) {
+            if (!AsmKit.INIT.equals(method.name)) continue;
+            boolean inAlloc = false;
+            String pendingLdc = null;
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                if (in.getOpcode() == Opcodes.NEW
+                    && in instanceof TypeInsnNode ti
+                    && VanillaSourceClasses.VILLAGER_PROFESSION_LAYER.equals(ti.desc)) {
+                    inAlloc = true;
+                    pendingLdc = null;
+                    continue;
+                }
+                if (!inAlloc) continue;
+                String literal = AsmKit.readStringLiteral(in);
+                if (literal != null && !literal.startsWith("textures/") && !literal.contains("/")) {
+                    pendingLdc = literal;
+                    continue;
+                }
+                if (in.getOpcode() == Opcodes.INVOKESPECIAL
+                    && in instanceof MethodInsnNode mi
+                    && VanillaSourceClasses.VILLAGER_PROFESSION_LAYER.equals(mi.owner)
+                    && AsmKit.INIT.equals(mi.name))
+                    return pendingLdc;
+            }
         }
         return null;
     }

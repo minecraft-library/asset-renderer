@@ -699,7 +699,14 @@
     "minecraft:villager": {
       "geometry_ref": "geometry.villager",
       "texture_ref": "villager/villager",
-      "armor_type": "none"
+      "armor_type": "none",
+      "overlays": [
+        {
+          "geometry_ref": "geometry.villager",
+          "texture_ref": "villager/type/plains",
+          "inflate": 0.001
+        }
+      ]
     },
     "minecraft:vindicator": {
       "geometry_ref": "geometry.illager",
@@ -823,7 +830,14 @@
     "minecraft:zombie_villager": {
       "geometry_ref": "geometry.zombievillager",
       "texture_ref": "zombie_villager/zombie_villager",
-      "armor_type": "humanoid"
+      "armor_type": "humanoid",
+      "overlays": [
+        {
+          "geometry_ref": "geometry.zombievillager",
+          "texture_ref": "zombie_villager/type/plains",
+          "inflate": 0.001
+        }
+      ]
     },
     "minecraft:zombified_piglin": {
       "geometry_ref": "geometry.adultzombifiedpiglin",
