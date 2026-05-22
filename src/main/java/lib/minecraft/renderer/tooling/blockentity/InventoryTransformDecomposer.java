@@ -288,7 +288,7 @@ public final class InventoryTransformDecomposer {
         Type[] args = Type.getArgumentTypes(methodDesc);
         int slot = 0;
         for (Type t : args) {
-            if (t.getSort() == Type.FLOAT) walker.locals.put(slot, Value.ofYaw());
+            if (t.getSort() == Type.FLOAT) walker.locals.store(slot, Value.ofYaw());
             slot += t.getSize();
         }
     }
@@ -486,7 +486,7 @@ public final class InventoryTransformDecomposer {
         final @NotNull Diagnostics diag;
         final int depth;
         final @NotNull ConcurrentList<Value> stack = Concurrent.newList();
-        final @NotNull Map<Integer, Value> locals = new LinkedHashMap<>();
+        final @NotNull AsmKit.SlotTracker<Value> locals = new AsmKit.SlotTracker<>();
         @Nullable TransformState finalTransform;
         /**
          * Value captured at the stop-PUTSTATIC event (for static field resolution).
@@ -646,18 +646,18 @@ public final class InventoryTransformDecomposer {
         private void handleVarInsn(@NotNull VarInsnNode vi) {
             int op = vi.getOpcode();
             if (op == Opcodes.FLOAD) {
-                Value v = this.locals.get(vi.var);
+                Value v = this.locals.load(vi.var);
                 push(v != null ? v : Value.ofOther());
                 return;
             }
             if (op == Opcodes.ALOAD) {
-                Value v = this.locals.get(vi.var);
+                Value v = this.locals.load(vi.var);
                 push(v != null ? v : Value.ofOther());
                 return;
             }
             if (op == Opcodes.FSTORE || op == Opcodes.ASTORE) {
                 Value v = pop();
-                if (v != null) this.locals.put(vi.var, v);
+                if (v != null) this.locals.store(vi.var, v);
                 return;
             }
             if (op == Opcodes.ILOAD) { push(Value.ofOther()); return; }
@@ -979,7 +979,7 @@ public final class InventoryTransformDecomposer {
             for (int k = 0; k < argTypes.length; k++) {
                 Type t = argTypes[k];
                 Value a = callerArgs[k] != null ? callerArgs[k] : Value.ofOther();
-                sub.locals.put(slot, a);
+                sub.locals.store(slot, a);
                 slot += t.getSize();
             }
             sub.walk(callee.instructions, null);
