@@ -9,7 +9,6 @@ import com.google.gson.JsonPrimitive;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import lib.minecraft.renderer.asset.binding.DyeColor;
 import lib.minecraft.renderer.asset.model.EntityModelData.Bone;
 import lib.minecraft.renderer.asset.model.EntityModelData.Cube;
 import lib.minecraft.renderer.asset.model.EntityModelData;
@@ -50,7 +49,6 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipFile;
@@ -160,7 +158,8 @@ public final class ToolingBlockEntities {
                 );
 
             JsonObject blockModels = BlockModelConverter.convert(models, inventoryTransforms, tinted);
-            merged = buildMergedOutput(blockModels, models, blockList, inventoryTransforms, tinted);
+            Map<String, String> bannerTintByBlockId = BlockListDiscovery.bannerTintByBlockId(zip, diagnostics);
+            merged = buildMergedOutput(blockModels, models, blockList, inventoryTransforms, tinted, bannerTintByBlockId);
         }
 
         Files.createDirectories(OUTPUT_PATH.getParent());
@@ -405,7 +404,8 @@ public final class ToolingBlockEntities {
         @NotNull ConcurrentMap<String, JsonObject> parsedEntityModels,
         @NotNull Map<String, BlockListDiscovery.EntityBlockMapping> blockList,
         @NotNull Map<String, float[]> inventoryTransforms,
-        @NotNull Set<String> tintedModelIds
+        @NotNull Set<String> tintedModelIds,
+        @NotNull Map<String, String> bannerTintByBlockId
     ) throws IOException {
         @Nullable JsonObject existing = null;
         if (Files.exists(OUTPUT_PATH)) {
@@ -469,7 +469,7 @@ public final class ToolingBlockEntities {
             if (catalogEntry != null) {
                 JsonArray parts = buildPartsArray(catalogEntry);
                 if (parts != null) entityOut.add("parts", parts);
-                JsonArray blocks = buildBlocksArray(catalogEntry);
+                JsonArray blocks = buildBlocksArray(catalogEntry, modelId, bannerTintByBlockId);
                 if (blocks != null) entityOut.add("blocks", blocks);
             } else {
                 JsonObject existingEntity = existingEntities.has(modelId) ? existingEntities.getAsJsonObject(modelId) : null;
@@ -516,14 +516,23 @@ public final class ToolingBlockEntities {
      * {@code null} when the entry has no blocks; the caller omits the key entirely in that
      * case, matching how the previous hand-curated JSON was structured.
      *
-     * <p>Beyond the bare {@code blockId}/{@code textureId} pair, emits three pattern-derived
-     * per-block fields that vanilla never encodes as data: {@code iconRotation: 90} on dyed
-     * beds (so the head points right in the inventory icon), {@code additive: true} on bells
-     * (their cup layers on top of the floor/wall/ceiling post supplied by the block model
-     * pipeline), and {@code tint: <DYE>} on dyed banners / wall banners (DyeColor name resolved
-     * at load time to the vanilla {@code textureDiffuseColor}).
+     * <p>Beyond the bare {@code blockId}/{@code textureId} pair, emits three per-block fields
+     * derived from the entity-id family (which is itself bytecode-derived by
+     * {@link BlockListDiscovery}'s family adapters):
+     * <ul>
+     *   <li>{@code iconRotation: 90} when {@code entityId == "minecraft:bed_head"}.</li>
+     *   <li>{@code additive: true} when {@code entityId == "minecraft:bell_body"}.</li>
+     *   <li>{@code tint: <DYE>} when the block id appears in {@code bannerTintByBlockId} (the
+     *       map walked by {@link BlockListDiscovery#bannerTintByBlockId} from each banner /
+     *       wall-banner block's {@code (Wall)BannerBlock(DyeColor, Properties)} constructor in
+     *       {@code Blocks.<clinit>}).</li>
+     * </ul>
      */
-    private static @Nullable JsonArray buildBlocksArray(@NotNull BlockListDiscovery.EntityBlockMapping entry) {
+    private static @Nullable JsonArray buildBlocksArray(
+        @NotNull BlockListDiscovery.EntityBlockMapping entry,
+        @NotNull String entityId,
+        @NotNull Map<String, String> bannerTintByBlockId
+    ) {
         List<BlockListDiscovery.BlockMapping> blocks = entry.blocks();
         if (blocks.isEmpty()) return null;
         JsonArray arr = new JsonArray();
@@ -531,56 +540,38 @@ public final class ToolingBlockEntities {
             JsonObject block = new JsonObject();
             block.addProperty("blockId", b.blockId());
             block.addProperty("textureId", b.textureId());
-            applyPerBlockPatternFields(block, b.blockId());
+            applyPerBlockFamilyFields(block, b.blockId(), entityId, bannerTintByBlockId);
             arr.add(block);
         }
         return arr;
     }
 
     /**
-     * Pattern-matches a block id and writes the vanilla-derived per-block atlas / tint fields
-     * onto the emitted JSON entry. Currently covers three families:
-     * <ul>
-     *   <li>Beds ({@code <color>_bed}): the head end faces -Z in the model but the inventory
-     *       icon convention is "head points right", so a 90-degree rotation is baked in.</li>
-     *   <li>Bells ({@code bell_floor}, {@code bell_ceiling}, {@code bell_wall},
-     *       {@code bell_between_walls}): the entity-model carries only the bell cup; the
-     *       post / bar / wall fixtures come from a regular block model, so the entity layers
-     *       additively on top.</li>
-     *   <li>Banners and wall banners ({@code <color>_banner}, {@code <color>_wall_banner}):
-     *       face-level {@code tintindex: 0} is multiplied by the dye colour at render time.
-     *       The dye name is extracted from the block id and validated against
-     *       {@link DyeColor.Vanilla}.</li>
-     * </ul>
-     * Unmatched ids leave the block entry untouched.
+     * Dispatches per-block atlas / tint fields off the bytecode-derived entity-id family. The
+     * three render-pipeline policy fields ({@code iconRotation} on the bed family,
+     * {@code additive} on the bell family) are emitted by family membership rather than by
+     * lexical block-id matching; the data-derived {@code tint} field is read directly from the
+     * banner-block {@code DyeColor} constructor-argument map walked by
+     * {@link BlockListDiscovery#bannerTintByBlockId}.
      */
-    private static void applyPerBlockPatternFields(@NotNull JsonObject block, @NotNull String blockId) {
-        String localId = blockId.startsWith("minecraft:") ? blockId.substring("minecraft:".length()) : blockId;
-        if (localId.endsWith("_bed")) {
+    private static void applyPerBlockFamilyFields(
+        @NotNull JsonObject block,
+        @NotNull String blockId,
+        @NotNull String entityId,
+        @NotNull Map<String, String> bannerTintByBlockId
+    ) {
+        if (entityId.equals("minecraft:bed_head")) {
             block.addProperty("iconRotation", 90);
             return;
         }
-        if (localId.equals("bell_floor") || localId.equals("bell_ceiling")
-            || localId.equals("bell_wall") || localId.equals("bell_between_walls")) {
+        if (entityId.equals("minecraft:bell_body")) {
             block.addProperty("additive", true);
             return;
         }
-        String dye = extractBannerDye(localId);
-        if (dye != null) block.addProperty("tint", dye);
-    }
-
-    /**
-     * Returns the {@link DyeColor.Vanilla} name (e.g. {@code "LIGHT_BLUE"}) when the block id
-     * matches {@code <color>_banner} or {@code <color>_wall_banner} and the colour stem is one
-     * of the sixteen vanilla dyes. Returns {@code null} otherwise.
-     */
-    private static @Nullable String extractBannerDye(@NotNull String localId) {
-        String stem;
-        if (localId.endsWith("_wall_banner")) stem = localId.substring(0, localId.length() - "_wall_banner".length());
-        else if (localId.endsWith("_banner")) stem = localId.substring(0, localId.length() - "_banner".length());
-        else return null;
-        String dye = stem.toUpperCase(Locale.ROOT);
-        return DyeColor.Vanilla.ofName(dye) != null ? dye : null;
+        if (entityId.equals("minecraft:banner") || entityId.equals("minecraft:wall_banner")) {
+            String dye = bannerTintByBlockId.get(blockId);
+            if (dye != null) block.addProperty("tint", dye);
+        }
     }
 
     /**

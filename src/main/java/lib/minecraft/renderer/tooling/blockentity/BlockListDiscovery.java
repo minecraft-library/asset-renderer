@@ -223,6 +223,30 @@ public final class BlockListDiscovery {
         return out;
     }
 
+    /**
+     * Walks {@code Blocks.<clinit>} for every {@code BlockEntityType.BANNER} validBlocks entry
+     * and resolves the {@link net.minecraft.world.item.DyeColor} constructor argument each
+     * banner / wall-banner registration lambda passes to {@code (Wall)BannerBlock.<init>}. The
+     * returned map keys on the lowercase block id ({@code "minecraft:red_banner"}) and values
+     * are the uppercase {@code DyeColor} field name ({@code "RED"}), matching the inventory tint
+     * format the asset-renderer's loader expects.
+     * <p>
+     * This replaces the Phase 2 blockId-suffix string-pattern (parsing {@code "<color>_banner"}
+     * lexically) with the canonical bytecode signal: the colored banner blocks are constructed
+     * with a hardcoded {@code DyeColor.<COLOR>} {@code GETSTATIC} immediately before
+     * {@code invokespecial (Wall)BannerBlock.<init>(DyeColor, Properties)V} in their per-block
+     * registration lambda inside {@code Blocks.<clinit>}.
+     */
+    public static @NotNull Map<String, String> bannerTintByBlockId(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
+        List<String> blocks = validBlocks(zip, "BANNER");
+        Map<String, String> blockToColor = walkBlocksToCtorEnum(zip, blocks, VanillaSourceClasses.DYE_COLOR,
+            List.of(VanillaSourceClasses.BANNER_BLOCK, VanillaSourceClasses.WALL_BANNER_BLOCK), diag);
+        LinkedHashMap<String, String> out = new LinkedHashMap<>();
+        for (Map.Entry<String, String> e : blockToColor.entrySet())
+            out.put(blockFieldToId(e.getKey()), e.getValue());
+        return out;
+    }
+
     // ------------------------------------------------------------------------------------------
     // Shared primitive: validBlocks for a BE type
     // ------------------------------------------------------------------------------------------
