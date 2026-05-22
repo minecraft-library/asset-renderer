@@ -907,17 +907,14 @@ public final class ToolingBlockEntities {
             for (AbstractInsnNode node = instructions.getFirst(); node != null; node = node.getNext()) {
                 Number literal = readNumericLiteral(node);
                 if (literal != null) {
-                    state.numStack.add(literal);
-                    if (state.numStack.size() > 16) {
-                        // First overflow in this parse surfaces a warning; subsequent drops are
-                        // silent so a truly broken source doesn't spam 1000 copies. If the cap
-                        // is ever hit on real sources it's a bug in the parser's pop accounting,
-                        // not in the source bytecode - the stack shouldn't grow unbounded.
-                        if (state.diagnostics != null && !state.overflowWarned && state.currentSource != null) {
-                            state.diagnostics.warn("%s: numStack overflow (>16 literals) - oldest literals being dropped, pop accounting may be broken", state.currentSource.entityId());
-                            state.overflowWarned = true;
-                        }
-                        state.numStack.removeFirst();
+                    // LiteralStack auto-evicts the oldest on capacity overflow; surface the first
+                    // overflow as a WARN so a true accounting bug surfaces (subsequent overflows
+                    // stay silent to avoid spamming when a broken source pushes 1000 literals).
+                    boolean willOverflow = state.numStack.size() >= ParseState.NUM_STACK_CAPACITY;
+                    state.numStack.push(literal);
+                    if (willOverflow && state.diagnostics != null && !state.overflowWarned && state.currentSource != null) {
+                        state.diagnostics.warn("%s: numStack overflow (>%d literals) - oldest literals being dropped, pop accounting may be broken", state.currentSource.entityId(), ParseState.NUM_STACK_CAPACITY);
+                        state.overflowWarned = true;
                     }
                     continue;
                 }
@@ -955,7 +952,7 @@ public final class ToolingBlockEntities {
                             // by the banner standing/wall split).
                             Integer value = null;
                             if (state.paramFloatValues != null && !state.numStack.isEmpty()) {
-                                value = state.numStack.removeLast().intValue();
+                                value = state.numStack.popNumber().intValue();
                             } else if (canFollow && !state.branchStack.isEmpty()) {
                                 value = state.branchStack.remove(state.branchStack.size() - 1);
                             }
@@ -979,9 +976,9 @@ public final class ToolingBlockEntities {
                             // up to keep numStack aligned for the post-loop code.
                             if (state.paramFloatValues != null) {
                                 if (!state.numStack.isEmpty())
-                                    state.numStack.removeLast();
+                                    state.numStack.pop();
                                 if (!state.numStack.isEmpty())
-                                    state.numStack.removeLast();
+                                    state.numStack.pop();
                             }
                         }
                         case Opcodes.IF_ACMPEQ, Opcodes.IF_ACMPNE,
@@ -1048,11 +1045,11 @@ public final class ToolingBlockEntities {
                         // path so banner standing/wall and similar paramIntValues uses are
                         // unaffected.
                         if (state.paramFloatValues != null)
-                            state.numStack.add(state.paramIntValues[slot]);
+                            state.numStack.push(state.paramIntValues[slot]);
                         else
                             state.branchStack.add(state.paramIntValues[slot]);
                     } else {
-                        state.numStack.add(NON_LITERAL);
+                        state.numStack.pushNonLiteral();
                     }
                 }
 
@@ -1069,9 +1066,9 @@ public final class ToolingBlockEntities {
                     && (opcode == Opcodes.FLOAD || opcode == Opcodes.DLOAD || opcode == Opcodes.LLOAD)) {
                     int slot = varInsn.var;
                     if (state.paramFloatValues != null && slot >= 0 && slot < state.paramFloatValues.length)
-                        state.numStack.add(state.paramFloatValues[slot]);
+                        state.numStack.push(state.paramFloatValues[slot]);
                     else
-                        state.numStack.add(NON_LITERAL);
+                        state.numStack.pushNonLiteral();
                 }
 
                 // ISTORE / FSTORE / DSTORE / LSTORE: consume the value that the matching
@@ -1089,7 +1086,7 @@ public final class ToolingBlockEntities {
                     && (opcode == Opcodes.ISTORE || opcode == Opcodes.FSTORE
                         || opcode == Opcodes.DSTORE || opcode == Opcodes.LSTORE)
                     && !state.numStack.isEmpty()) {
-                    state.numStack.removeLast();
+                    state.numStack.pop();
                 }
 
                 // Explicit stack pops: {@code POP} discards 1 category-1 slot (int / float /
@@ -1100,7 +1097,7 @@ public final class ToolingBlockEntities {
                 if (state.paramFloatValues != null
                     && (opcode == Opcodes.POP || opcode == Opcodes.POP2)
                     && !state.numStack.isEmpty()) {
-                    state.numStack.removeLast();
+                    state.numStack.pop();
                 }
 
                 // Array load / store / metadata ops. The JVM stack effects of these aren't
@@ -1120,18 +1117,18 @@ public final class ToolingBlockEntities {
                 // Gated on {@code paramFloatValues != null} for byte-stability.
                 if (state.paramFloatValues != null) {
                     if (opcode == Opcodes.AALOAD) {
-                        if (!state.numStack.isEmpty()) state.numStack.removeLast();
+                        if (!state.numStack.isEmpty()) state.numStack.pop();
                     } else if (opcode == Opcodes.IALOAD || opcode == Opcodes.BALOAD
                             || opcode == Opcodes.SALOAD || opcode == Opcodes.CALOAD
                             || opcode == Opcodes.FALOAD || opcode == Opcodes.DALOAD
                             || opcode == Opcodes.LALOAD) {
-                        if (!state.numStack.isEmpty()) state.numStack.removeLast();
-                        state.numStack.add(NON_LITERAL);
+                        if (!state.numStack.isEmpty()) state.numStack.pop();
+                        state.numStack.pushNonLiteral();
                     } else if (opcode == Opcodes.ARRAYLENGTH) {
-                        state.numStack.add(NON_LITERAL);
+                        state.numStack.pushNonLiteral();
                     } else if (opcode == Opcodes.NEWARRAY || opcode == Opcodes.ANEWARRAY) {
                         // Pop 1 int (length); push ref (refs aren't tracked on numStack).
-                        if (!state.numStack.isEmpty()) state.numStack.removeLast();
+                        if (!state.numStack.isEmpty()) state.numStack.pop();
                     } else if (opcode == Opcodes.IASTORE || opcode == Opcodes.BASTORE
                             || opcode == Opcodes.SASTORE || opcode == Opcodes.CASTORE
                             || opcode == Opcodes.FASTORE || opcode == Opcodes.DASTORE
@@ -1139,12 +1136,12 @@ public final class ToolingBlockEntities {
                         // Array element store: JVM pops ref + int + value. numStack effect:
                         // pop value (1 entry) + index (1 int). Used by SilverfishModel's
                         // {@code float[7]} segment-position cache via {@code FASTORE}.
-                        if (!state.numStack.isEmpty()) state.numStack.removeLast();
-                        if (!state.numStack.isEmpty()) state.numStack.removeLast();
+                        if (!state.numStack.isEmpty()) state.numStack.pop();
+                        if (!state.numStack.isEmpty()) state.numStack.pop();
                     } else if (opcode == Opcodes.AASTORE) {
                         // Array reference store: JVM pops ref + int + ref. numStack effect:
                         // pop index only (the value ref isn't on numStack).
-                        if (!state.numStack.isEmpty()) state.numStack.removeLast();
+                        if (!state.numStack.isEmpty()) state.numStack.pop();
                     }
                 }
 
@@ -1157,9 +1154,9 @@ public final class ToolingBlockEntities {
                 if (state.paramFloatValues != null
                     && (opcode == Opcodes.LCMP || opcode == Opcodes.FCMPL || opcode == Opcodes.FCMPG
                         || opcode == Opcodes.DCMPL || opcode == Opcodes.DCMPG)) {
-                    if (!state.numStack.isEmpty()) state.numStack.removeLast();
-                    if (!state.numStack.isEmpty()) state.numStack.removeLast();
-                    state.numStack.add(NON_LITERAL);
+                    if (!state.numStack.isEmpty()) state.numStack.pop();
+                    if (!state.numStack.isEmpty()) state.numStack.pop();
+                    state.numStack.pushNonLiteral();
                 }
 
                 // Binary integer arithmetic: pops two ints, pushes the result. Same
@@ -1174,8 +1171,8 @@ public final class ToolingBlockEntities {
                         || opcode == Opcodes.IMUL || opcode == Opcodes.IDIV
                         || opcode == Opcodes.IREM)
                     && state.numStack.size() >= 2) {
-                    int b = state.numStack.removeLast().intValue();
-                    int a = state.numStack.removeLast().intValue();
+                    int b = state.numStack.popNumber().intValue();
+                    int a = state.numStack.popNumber().intValue();
                     int r = switch (opcode) {
                         case Opcodes.IADD -> a + b;
                         case Opcodes.ISUB -> a - b;
@@ -1184,7 +1181,7 @@ public final class ToolingBlockEntities {
                         case Opcodes.IREM -> b == 0 ? 0 : a % b;
                         default -> 0;
                     };
-                    state.numStack.add(r);
+                    state.numStack.push(r);
                 }
 
                 // Unary numeric negation: pops 1, pushes 1. INEG = -i, FNEG = -f, etc.
@@ -1192,7 +1189,7 @@ public final class ToolingBlockEntities {
                     && (opcode == Opcodes.INEG || opcode == Opcodes.FNEG
                         || opcode == Opcodes.DNEG || opcode == Opcodes.LNEG)
                     && !state.numStack.isEmpty()) {
-                    Number top = state.numStack.removeLast();
+                    Number top = state.numStack.popNumber();
                     Number negated = switch (opcode) {
                         case Opcodes.INEG -> -top.intValue();
                         case Opcodes.FNEG -> -top.floatValue();
@@ -1200,7 +1197,7 @@ public final class ToolingBlockEntities {
                         case Opcodes.LNEG -> -top.longValue();
                         default -> top;
                     };
-                    state.numStack.add(negated);
+                    state.numStack.push(negated);
                 }
 
                 // Binary float / double arithmetic: only fires when the source opted into
@@ -1214,8 +1211,8 @@ public final class ToolingBlockEntities {
                     && (opcode == Opcodes.FADD || opcode == Opcodes.FSUB || opcode == Opcodes.FMUL || opcode == Opcodes.FDIV || opcode == Opcodes.FREM
                         || opcode == Opcodes.DADD || opcode == Opcodes.DSUB || opcode == Opcodes.DMUL || opcode == Opcodes.DDIV || opcode == Opcodes.DREM)) {
                     if (state.numStack.size() >= 2) {
-                        Number bN = state.numStack.removeLast();
-                        Number aN = state.numStack.removeLast();
+                        Number bN = state.numStack.popNumber();
+                        Number aN = state.numStack.popNumber();
                         // JVM float / double arithmetic opcodes interleave (FADD=98, DADD=99,
                         // FSUB=102, DSUB=103, FMUL=106, DMUL=107, FDIV=110, DDIV=111, FREM=114,
                         // DREM=115) - a {@code >= DADD && <= DDIV} range check would misclassify
@@ -1235,7 +1232,7 @@ public final class ToolingBlockEntities {
                                 case Opcodes.DREM -> b == 0.0 ? 0.0 : a % b;
                                 default -> 0.0;
                             };
-                            state.numStack.add(r);
+                            state.numStack.push(r);
                         } else {
                             float a = aN.floatValue();
                             float b = bN.floatValue();
@@ -1247,7 +1244,7 @@ public final class ToolingBlockEntities {
                                 case Opcodes.FREM -> b == 0f ? 0f : a % b;
                                 default -> 0f;
                             };
-                            state.numStack.add(r);
+                            state.numStack.push(r);
                         }
                     }
                 }
@@ -1260,7 +1257,7 @@ public final class ToolingBlockEntities {
                     && (opcode == Opcodes.I2F || opcode == Opcodes.I2D || opcode == Opcodes.F2D
                         || opcode == Opcodes.D2F || opcode == Opcodes.F2I || opcode == Opcodes.D2I)
                     && !state.numStack.isEmpty()) {
-                    Number top = state.numStack.removeLast();
+                    Number top = state.numStack.popNumber();
                     Number converted = switch (opcode) {
                         case Opcodes.I2F -> (float) top.intValue();
                         case Opcodes.I2D -> (double) top.intValue();
@@ -1270,7 +1267,7 @@ public final class ToolingBlockEntities {
                         case Opcodes.D2I -> (int) top.doubleValue();
                         default -> top;
                     };
-                    state.numStack.add(converted);
+                    state.numStack.push(converted);
                 }
 
                 switch (node) {
@@ -1442,7 +1439,7 @@ public final class ToolingBlockEntities {
                 && opcode == Opcodes.INVOKESTATIC
                 && methodInsn.desc.startsWith("(I)") && methodInsn.desc.endsWith("Ljava/lang/String;")
                 && !state.numStack.isEmpty()) {
-                int i = state.numStack.removeLast().intValue();
+                int i = state.numStack.popNumber().intValue();
                 state.pendingPartName = methodInsn.name + i;
                 return;
             }
@@ -1470,7 +1467,7 @@ public final class ToolingBlockEntities {
                 && methodInsn.name.equals("scaling")
                 && methodInsn.desc.equals("(F)Lnet/minecraft/client/model/geom/builders/MeshTransformer;")
                 && !state.numStack.isEmpty()) {
-                float f = state.numStack.removeLast().floatValue();
+                float f = state.numStack.popNumber().floatValue();
                 // Vanilla never calls {@code scaling(0)}; a captured 0 means the synthetic
                 // {@link Source}'s {@code paramFloatValues} didn't supply the {@code createBodyLayer}
                 // float parameter that this site references via {@code fload_0}. Donkey / mule hit
@@ -1506,11 +1503,11 @@ public final class ToolingBlockEntities {
                 && (methodInsn.name.equals("cos") || methodInsn.name.equals("sin"))
                 && methodInsn.desc.equals("(D)F")
                 && !state.numStack.isEmpty()) {
-                double arg = state.numStack.removeLast().doubleValue();
+                double arg = state.numStack.popNumber().doubleValue();
                 float result = methodInsn.name.equals("cos")
                     ? FastTrig.cos(arg)
                     : FastTrig.sin(arg);
-                state.numStack.add(result);
+                state.numStack.push(result);
                 return;
             }
             // Invokestatic-follow: recurse into model-building statics outside the builder/geom
@@ -1643,13 +1640,13 @@ public final class ToolingBlockEntities {
             for (int i = argTypes.length - 1; i >= 0; i--) {
                 char t = argTypes[i];
                 if (t != 'L' && t != '[') {
-                    Number popped = !state.numStack.isEmpty()
-                        ? state.numStack.removeLast()
-                        : NON_LITERAL;
+                    // popNumber returns null on empty / non-numeric top; treat both as zero
+                    // (matches the previous NON_LITERAL fallback's silent-zero arithmetic).
+                    Number popped = state.numStack.popNumber();
                     int slot = slotPerArg[i];
                     if (slot < slots) {
-                        ints[slot] = popped.intValue();
-                        floats[slot] = popped.floatValue();
+                        ints[slot] = popped == null ? 0 : popped.intValue();
+                        floats[slot] = popped == null ? 0f : popped.floatValue();
                     }
                 }
             }
@@ -2118,7 +2115,15 @@ public final class ToolingBlockEntities {
          */
         private static final class ParseState {
 
-            final @NotNull ConcurrentList<Number> numStack = Concurrent.newList();
+            /**
+             * Bounded retention for the symbolic operand stack: 16 entries is comfortably above
+             * the deepest single-expression stack vanilla bytecode pushes (PartPose six-float
+             * factory + a few coercions) while still being a hard cap that surfaces parser
+             * accounting bugs as overflow warnings rather than runaway growth.
+             */
+            private static final int NUM_STACK_CAPACITY = 16;
+
+            final @NotNull AsmKit.LiteralStack numStack = new AsmKit.LiteralStack(NUM_STACK_CAPACITY);
 
             /**
              * Int values to substitute for {@code ILOAD_N} parameters when evaluating branches.
@@ -2487,7 +2492,7 @@ public final class ToolingBlockEntities {
          */
         private static @Nullable Integer popIntForBranch(@NotNull ParseState state) {
             if (state.paramFloatValues != null && !state.numStack.isEmpty())
-                return state.numStack.removeLast().intValue();
+                return state.numStack.popNumber().intValue();
             if (!state.branchStack.isEmpty())
                 return state.branchStack.removeLast();
             return null;
@@ -2512,75 +2517,30 @@ public final class ToolingBlockEntities {
         }
 
         /**
-         * Sentinel value pushed onto {@link ParseState#numStack} for {@code FLOAD} / {@code DLOAD}
-         * / {@code LLOAD} and for {@code ILOAD} slots without a known {@code paramIntValues}
-         * entry. When a builder-dispatch site pops one of these via
-         * {@link #popIntWithDiagnostics} / {@link #popFloatWithDiagnostics}, the parser surfaces
-         * a {@code WARN:} identifying the entity id and pop site - the marker resolves to {@code 0}
-         * but the developer sees that a computed local slipped through the literal-only
-         * assumption instead of silently baking a zero into the output cube.
-         * <p>
-         * {@link Number#intValue()} / {@link Number#floatValue()} return {@code 0} so any caller
-         * that pops without going through the diagnostics-aware helpers still gets the same
-         * zero-fill behaviour as before Task 20.
-         */
-        private static final @NotNull Number NON_LITERAL = new NonLiteralMarker();
-
-        /**
-         * {@link Number} subclass that stands in on {@link ParseState#numStack} for values the
-         * parser cannot resolve to a compile-time literal. Numeric accessors return zero so
-         * callers that bypass the diagnostics-aware pops still see the pre-existing zero-fill
-         * behaviour.
-         */
-        private static final class NonLiteralMarker extends Number {
-            @Override public int intValue() { return 0; }
-            @Override public long longValue() { return 0L; }
-            @Override public float floatValue() { return 0f; }
-            @Override public double doubleValue() { return 0d; }
-            @Override public @NotNull String toString() { return "<non-literal>"; }
-        }
-
-        /**
-         * Pops an int from {@code state.numStack} with a {@link NonLiteralMarker} check that
-         * surfaces a {@code WARN:} through {@link ParseState#diagnostics} identifying the entity
-         * id and the dispatch site. Used by builder handlers whose coord/uv arg is expected to
-         * be a literal; when a method was compiled with the value in a local variable populated
-         * by computation, the resulting zero-fill is called out instead of silently baked.
+         * Builder-dispatch int pop. Routes through {@link AsmKit.LiteralStack#popIntOrZero}
+         * so the non-literal sentinel (pushed by {@link AsmKit.LiteralStack#pushNonLiteral})
+         * fires the canonical "non-literal argument consumed" WARN tagged with the entity id.
+         * Empty stack is silent zero - matches the upstream "accounting boundary" convention.
          */
         private static int popIntWithDiagnostics(@NotNull ParseState state, @NotNull String where) {
-            if (state.numStack.isEmpty()) return 0;
-            Number top = state.numStack.removeLast();
-            if (top instanceof NonLiteralMarker) {
-                warnNonLiteral(state, where);
-                return 0;
+            if (state.diagnostics == null || state.currentSource == null) {
+                // No diagnostic sink attached - fall back to the silent-coerce path so legacy
+                // callers (single-source parsing without a Diagnostics) don't NPE.
+                Number top = state.numStack.popNumber();
+                return top == null ? 0 : top.intValue();
             }
-            return top.intValue();
+            return state.numStack.popIntOrZero(state.diagnostics, state.currentSource.entityId(), where);
         }
 
         /**
          * Float-typed counterpart of {@link #popIntWithDiagnostics}.
          */
         private static float popFloatWithDiagnostics(@NotNull ParseState state, @NotNull String where) {
-            if (state.numStack.isEmpty()) return 0f;
-            Number top = state.numStack.removeLast();
-            if (top instanceof NonLiteralMarker) {
-                warnNonLiteral(state, where);
-                return 0f;
+            if (state.diagnostics == null || state.currentSource == null) {
+                Number top = state.numStack.popNumber();
+                return top == null ? 0f : top.floatValue();
             }
-            return top.floatValue();
-        }
-
-        /**
-         * Emits the {@code WARN:} entry shared by {@link #popIntWithDiagnostics} and
-         * {@link #popFloatWithDiagnostics} when a {@link NonLiteralMarker} is consumed. Silent
-         * no-op when no diagnostic sink is attached.
-         */
-        private static void warnNonLiteral(@NotNull ParseState state, @NotNull String where) {
-            if (state.diagnostics == null || state.currentSource == null) return;
-            state.diagnostics.warn(
-                "%s at %s: non-literal argument consumed - a local variable populated from a computation, resolved to 0",
-                state.currentSource.entityId(), where
-            );
+            return state.numStack.popFloatOrZero(state.diagnostics, state.currentSource.entityId(), where);
         }
 
     }

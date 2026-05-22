@@ -3,9 +3,6 @@ package lib.minecraft.renderer.tooling.util;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.exception.ToolingException;
-import lib.minecraft.renderer.tooling.ToolingBlockEntities;
-import lib.minecraft.renderer.tooling.ToolingBlockTints;
-import lib.minecraft.renderer.tooling.ToolingPotionColors;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -13,16 +10,7 @@ import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
-import org.objectweb.asm.tree.AbstractInsnNode;
-import org.objectweb.asm.tree.ClassNode;
-import org.objectweb.asm.tree.FieldInsnNode;
-import org.objectweb.asm.tree.FieldNode;
-import org.objectweb.asm.tree.IntInsnNode;
-import org.objectweb.asm.tree.InvokeDynamicInsnNode;
-import org.objectweb.asm.tree.LdcInsnNode;
-import org.objectweb.asm.tree.MethodInsnNode;
-import org.objectweb.asm.tree.MethodNode;
-import org.objectweb.asm.tree.TypeInsnNode;
+import org.objectweb.asm.tree.*;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -40,8 +28,8 @@ import java.util.zip.ZipFile;
 
 /**
  * Shared ASM scaffolding used by every bytecode-walking tooling parser in the
- * {@code lib.minecraft.renderer.tooling} package
- * ({@link ToolingBlockTints}, {@link ToolingPotionColors}, {@link ToolingBlockEntities},
+ * {@link lib.minecraft.renderer.tooling} package
+ * ({@code ToolingBlockTints}, {@code ToolingPotionColors}, {@code ToolingBlockEntities},
  * plus the {@code blockentity} and {@code entity} sub-package resolvers).
  *
  * <p>The kit owns four families of primitives:
@@ -81,10 +69,6 @@ import java.util.zip.ZipFile;
  * <p>The {@link Vanilla} nested holder centralises a small set of JVM internal names used in
  * 2+ resolvers ({@code IDENTIFIER}, {@code MODEL_PART}, {@code ENTITY_TYPE}, etc.) so a
  * Minecraft version bump that renames any of them lands in one place.
- *
- * @see ToolingBlockTints
- * @see ToolingPotionColors
- * @see ToolingBlockEntities
  */
 @UtilityClass
 public final class AsmKit {
@@ -1360,8 +1344,35 @@ public final class AsmKit {
      * are the diagnostic-aware versions: on type mismatch or empty stack they emit a canonical
      * {@code WARN} entry tagged with a caller-supplied site label so a downstream "strict mode
      * failed" report can point at the exact pop that produced bad data.
+     *
+     * <p>For parsers that need to flag "I observed a value here but it came from a non-literal
+     * source (a local variable populated by computation, a method-call result, ...)" - distinct
+     * from "the stack was empty" or "the value was the wrong type" - {@link #pushNonLiteral()}
+     * pushes a sentinel marker. The {@code *OrZero} family
+     * ({@link #popIntOrZero(Diagnostics, String, String) popIntOrZero},
+     * {@link #popFloatOrZero(Diagnostics, String, String) popFloatOrZero}) consume that
+     * sentinel by returning a primitive zero <i>and</i> emitting a contextualised WARN. Empty
+     * stack on these methods is silent zero (matches the original
+     * {@code ToolingBlockEntities.Parser} accounting).
      */
     public static final class LiteralStack {
+
+        /**
+         * Sentinel singleton pushed by {@link #pushNonLiteral()}. Extends {@link Number} with
+         * zero values so an arithmetic site that pops the sentinel and calls
+         * {@code .intValue()} / {@code .floatValue()} silently produces zero (matching the
+         * upstream {@code ToolingBlockEntities.Parser} semantics: non-literal values that
+         * survive into arithmetic resolve to zero without WARNing - the WARN fires only
+         * when the marker is consumed by a builder-dispatch pop site that gates on it via
+         * the {@code *OrZero} variants).
+         */
+        private static final @NotNull Number NON_LITERAL = new Number() {
+            @Override public int intValue() { return 0; }
+            @Override public long longValue() { return 0L; }
+            @Override public float floatValue() { return 0f; }
+            @Override public double doubleValue() { return 0d; }
+            @Override public @NotNull String toString() { return "<non-literal>"; }
+        };
 
         private final int capacity;
         private final @NotNull ConcurrentList<Object> entries = Concurrent.newList();
@@ -1394,7 +1405,7 @@ public final class AsmKit {
          */
         public @Nullable Object pop() {
             if (this.entries.isEmpty()) return null;
-            return this.entries.remove(this.entries.size() - 1);
+            return this.entries.removeLast();
         }
 
         /**
@@ -1405,7 +1416,7 @@ public final class AsmKit {
          */
         public @Nullable Object peek() {
             if (this.entries.isEmpty()) return null;
-            return this.entries.get(this.entries.size() - 1);
+            return this.entries.getLast();
         }
 
         /**
@@ -1416,7 +1427,7 @@ public final class AsmKit {
          */
         public @Nullable Integer popInt() {
             if (this.entries.isEmpty()) return null;
-            Object top = this.entries.get(this.entries.size() - 1);
+            Object top = this.entries.getLast();
             if (!(top instanceof Integer value)) return null;
             this.entries.removeLast();
             return value;
@@ -1430,7 +1441,7 @@ public final class AsmKit {
          */
         public @Nullable Float popFloat() {
             if (this.entries.isEmpty()) return null;
-            Object top = this.entries.get(this.entries.size() - 1);
+            Object top = this.entries.getLast();
             if (!(top instanceof Float value)) return null;
             this.entries.removeLast();
             return value;
@@ -1444,7 +1455,7 @@ public final class AsmKit {
          */
         public @Nullable String popString() {
             if (this.entries.isEmpty()) return null;
-            Object top = this.entries.get(this.entries.size() - 1);
+            Object top = this.entries.getLast();
             if (!(top instanceof String value)) return null;
             this.entries.removeLast();
             return value;
@@ -1464,7 +1475,7 @@ public final class AsmKit {
                 diagnostics.warn("LiteralStack underflow popping int at %s", popSite);
                 return null;
             }
-            Object top = this.entries.get(this.entries.size() - 1);
+            Object top = this.entries.getLast();
             if (!(top instanceof Integer value)) {
                 diagnostics.warn("LiteralStack type mismatch popping int at %s (found %s)", popSite, top.getClass().getSimpleName());
                 return null;
@@ -1485,7 +1496,7 @@ public final class AsmKit {
                 diagnostics.warn("LiteralStack underflow popping float at %s", popSite);
                 return null;
             }
-            Object top = this.entries.get(this.entries.size() - 1);
+            Object top = this.entries.getLast();
             if (!(top instanceof Float value)) {
                 diagnostics.warn("LiteralStack type mismatch popping float at %s (found %s)", popSite, top.getClass().getSimpleName());
                 return null;
@@ -1506,13 +1517,133 @@ public final class AsmKit {
                 diagnostics.warn("LiteralStack underflow popping string at %s", popSite);
                 return null;
             }
-            Object top = this.entries.get(this.entries.size() - 1);
+            Object top = this.entries.getLast();
             if (!(top instanceof String value)) {
                 diagnostics.warn("LiteralStack type mismatch popping string at %s (found %s)", popSite, top.getClass().getSimpleName());
                 return null;
             }
             this.entries.removeLast();
             return value;
+        }
+
+        /**
+         * Pushes a sentinel marker indicating "the JVM operand stack contained a value here,
+         * but its source was a non-literal (a local variable populated by computation, a
+         * method-call result, a {@code GETFIELD} of an opaque field, ...) and the parser
+         * cannot resolve it to a constant". Consumed by the {@code *OrZero} pop variants
+         * to produce a contextualised WARN instead of silently zero-filling, which would
+         * mask the parser's accounting gap as a coordinate of {@code 0}.
+         *
+         * <p>The marker is type-agnostic - one {@code pushNonLiteral} matches both
+         * {@link #popIntOrZero(Diagnostics, String, String) popIntOrZero} and
+         * {@link #popFloatOrZero(Diagnostics, String, String) popFloatOrZero}.
+         */
+        public void pushNonLiteral() {
+            this.entries.add(NON_LITERAL);
+            if (this.entries.size() > this.capacity)
+                this.entries.removeFirst();
+        }
+
+        /**
+         * Pops an int from the stack, returning {@code 0} on three cases with different
+         * diagnostic behaviour:
+         * <ul>
+         *   <li><b>empty stack</b> - silent zero. Mirrors the upstream parser convention that
+         *       an underflow at the pop site is typically a benign accounting boundary
+         *       (descriptor with fewer args than the stack carried) rather than a bug.</li>
+         *   <li><b>{@code pushNonLiteral()} sentinel on top</b> - returns zero AND emits a
+         *       WARN formatted as
+         *       <pre>{@code "<contextPrefix> at <popSite>: non-literal argument consumed - a local variable populated from a computation, resolved to 0"}</pre>.
+         *       The {@code contextPrefix} is the caller's tagging string (typically an entity
+         *       id) prepended so a multi-source parse run can attribute the warning to a
+         *       specific source.</li>
+         *   <li><b>wrong-type on top</b> - same WARN shape as the marker case but with
+         *       {@code "type mismatch (found <SimpleName>)"} appended. Still returns zero and
+         *       still consumes the top so the parse can continue.</li>
+         *   <li><b>matching int on top</b> - pops and returns the value, no WARN.</li>
+         * </ul>
+         *
+         * @param diagnostics the diagnostic sink (must be non-null; use {@link #popInt()} for the no-diag variant)
+         * @param contextPrefix a short label prepended to WARN messages (typically the source's entity id)
+         * @param popSite a short label identifying the caller's pop site (e.g. {@code "addBox(name,FFFIIIII) v"})
+         * @return the popped int, or {@code 0} on empty / marker / wrong-type
+         */
+        public int popIntOrZero(@NotNull Diagnostics diagnostics, @NotNull String contextPrefix, @NotNull String popSite) {
+            if (this.entries.isEmpty()) return 0;
+            Object top = this.entries.removeLast();
+            if (top == NON_LITERAL) {
+                diagnostics.warn(
+                    "%s at %s: non-literal argument consumed - a local variable populated from a computation, resolved to 0",
+                    contextPrefix, popSite
+                );
+                return 0;
+            }
+            if (top instanceof Integer value) return value;
+            if (top instanceof Number n) return n.intValue();
+            diagnostics.warn(
+                "%s at %s: type mismatch popping int (found %s), resolved to 0",
+                contextPrefix, popSite, top.getClass().getSimpleName()
+            );
+            return 0;
+        }
+
+        /**
+         * Float-typed counterpart of {@link #popIntOrZero(Diagnostics, String, String)}.
+         *
+         * @param diagnostics the diagnostic sink
+         * @param contextPrefix a short label prepended to WARN messages
+         * @param popSite a short label identifying the caller's pop site
+         * @return the popped float, or {@code 0f} on empty / marker / wrong-type
+         */
+        public float popFloatOrZero(@NotNull Diagnostics diagnostics, @NotNull String contextPrefix, @NotNull String popSite) {
+            if (this.entries.isEmpty()) return 0f;
+            Object top = this.entries.removeLast();
+            if (top == NON_LITERAL) {
+                diagnostics.warn(
+                    "%s at %s: non-literal argument consumed - a local variable populated from a computation, resolved to 0",
+                    contextPrefix, popSite
+                );
+                return 0f;
+            }
+            if (top instanceof Float value) return value;
+            if (top instanceof Number n) return n.floatValue();
+            diagnostics.warn(
+                "%s at %s: type mismatch popping float (found %s), resolved to 0",
+                contextPrefix, popSite, top.getClass().getSimpleName()
+            );
+            return 0f;
+        }
+
+        /**
+         * Removes and returns the top of the stack as a {@link Number}, or {@code null} when
+         * the stack is empty or the top is not a {@code Number}. Used by parsers that walk
+         * arithmetic expressions ({@code FADD}, {@code I2F}, {@code Math.cos}, ...) over a
+         * mixed Integer / Float / Double / Long stack where the result type is wider than any
+         * single typed pop method. The {@link #pushNonLiteral non-literal marker} returns as a
+         * {@code Number} whose {@code intValue() / floatValue() / doubleValue()} all yield
+         * zero - matching the silent-zero arithmetic policy upstream parsers rely on.
+         *
+         * @return the popped number, or {@code null} when the stack is empty or top is non-numeric
+         */
+        public @Nullable Number popNumber() {
+            if (this.entries.isEmpty()) return null;
+            Object top = this.entries.getLast();
+            if (!(top instanceof Number n)) return null;
+            this.entries.removeLast();
+            return n;
+        }
+
+        /**
+         * Removes and returns the bottom-most (oldest) entry, or {@code null} when the stack
+         * is empty. Mirrors the {@code ConcurrentList.removeFirst} semantics used by older
+         * parsers; needed alongside {@link #pop} for callers that maintain a FIFO discard
+         * policy beyond the built-in capacity-overflow eviction.
+         *
+         * @return the oldest value, or {@code null} when the stack is empty
+         */
+        public @Nullable Object removeFirst() {
+            if (this.entries.isEmpty()) return null;
+            return this.entries.removeFirst();
         }
 
         /**

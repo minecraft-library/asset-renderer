@@ -1153,6 +1153,116 @@ class AsmKitTest {
     }
 
     @Nested
+    @DisplayName("LiteralStack pushNonLiteral + popXOrZero")
+    class LiteralStackNonLiteral {
+
+        @Test
+        @DisplayName("popIntOrZero on empty stack returns 0 silently")
+        void emptyIsSilentZero() {
+            Diagnostics diag = new Diagnostics();
+            AsmKit.LiteralStack stack = new AsmKit.LiteralStack(4);
+            assertThat(stack.popIntOrZero(diag, "minecraft:foo", "site-A"), equalTo(0));
+            assertThat(diag.isEmpty(), is(true));
+        }
+
+        @Test
+        @DisplayName("popIntOrZero on a non-literal marker returns 0 and emits WARN")
+        void markerEmitsWarn() {
+            Diagnostics diag = new Diagnostics();
+            AsmKit.LiteralStack stack = new AsmKit.LiteralStack(4);
+            stack.pushNonLiteral();
+            assertThat(stack.popIntOrZero(diag, "minecraft:foo", "addBox y"), equalTo(0));
+            assertThat(diag.entries(), contains(containsString(
+                "minecraft:foo at addBox y: non-literal argument consumed"
+            )));
+            assertThat(stack.isEmpty(), is(true));
+        }
+
+        @Test
+        @DisplayName("popIntOrZero on matching int returns value, no WARN")
+        void intReturnsValue() {
+            Diagnostics diag = new Diagnostics();
+            AsmKit.LiteralStack stack = new AsmKit.LiteralStack(4);
+            stack.push(42);
+            assertThat(stack.popIntOrZero(diag, "ctx", "site"), equalTo(42));
+            assertThat(diag.isEmpty(), is(true));
+        }
+
+        @Test
+        @DisplayName("popIntOrZero coerces a Number-but-not-Integer top (Float on numStack) silently")
+        void numericCoercion() {
+            Diagnostics diag = new Diagnostics();
+            AsmKit.LiteralStack stack = new AsmKit.LiteralStack(4);
+            stack.push(2.7f);
+            // Number subclass: coerces via Number.intValue() without WARN. Matches the
+            // original ToolingBlockEntities Parser behaviour where popIntWithDiagnostics
+            // called .intValue() on whatever Number sat on top.
+            assertThat(stack.popIntOrZero(diag, "ctx", "site"), equalTo(2));
+            assertThat(diag.isEmpty(), is(true));
+        }
+
+        @Test
+        @DisplayName("popIntOrZero on a String (non-Number) top emits WARN and returns 0")
+        void nonNumericWrongType() {
+            Diagnostics diag = new Diagnostics();
+            AsmKit.LiteralStack stack = new AsmKit.LiteralStack(4);
+            stack.push("oops");
+            assertThat(stack.popIntOrZero(diag, "ctx", "site"), equalTo(0));
+            assertThat(diag.entries(), contains(containsString("type mismatch popping int")));
+        }
+
+        @Test
+        @DisplayName("popFloatOrZero mirrors popIntOrZero across the four cases")
+        void floatVariantSameShape() {
+            Diagnostics diag = new Diagnostics();
+            AsmKit.LiteralStack stack = new AsmKit.LiteralStack(4);
+            // empty
+            assertThat(stack.popFloatOrZero(diag, "ctx", "a"), equalTo(0f));
+            // marker
+            stack.pushNonLiteral();
+            assertThat(stack.popFloatOrZero(diag, "ctx", "b"), equalTo(0f));
+            // value
+            stack.push(3.14f);
+            assertThat(stack.popFloatOrZero(diag, "ctx", "c"), equalTo(3.14f));
+            // numeric coercion
+            stack.push(7);
+            assertThat(stack.popFloatOrZero(diag, "ctx", "d"), equalTo(7f));
+            assertThat(diag.entries().size(), equalTo(1)); // only the marker fired
+        }
+
+        @Test
+        @DisplayName("pushNonLiteral respects capacity (oldest evicted on overflow)")
+        void nonLiteralEviction() {
+            AsmKit.LiteralStack stack = new AsmKit.LiteralStack(2);
+            stack.push("a");
+            stack.pushNonLiteral();
+            stack.push("c");
+            assertThat(stack.size(), equalTo(2));
+            // First entry "a" was evicted; marker is at slot 0, "c" at slot 1.
+        }
+
+        @Test
+        @DisplayName("removeFirst pops the oldest entry (FIFO)")
+        void removeFirstFifo() {
+            AsmKit.LiteralStack stack = new AsmKit.LiteralStack(4);
+            stack.push("first");
+            stack.push("second");
+            stack.push("third");
+            assertThat(stack.removeFirst(), equalTo("first"));
+            assertThat(stack.size(), equalTo(2));
+            assertThat(stack.peek(), equalTo("third"));
+        }
+
+        @Test
+        @DisplayName("removeFirst on empty returns null")
+        void removeFirstEmpty() {
+            AsmKit.LiteralStack stack = new AsmKit.LiteralStack(4);
+            assertThat(stack.removeFirst(), is(nullValue()));
+        }
+
+    }
+
+    @Nested
     @DisplayName("LiteralStack diagnostic-aware pops")
     class LiteralStackDiag {
 
