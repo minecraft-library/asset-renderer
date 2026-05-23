@@ -2,11 +2,10 @@ package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.tooling.ToolingEntityModels;
 import lib.minecraft.renderer.tooling.util.AsmKit;
-import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
+import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -71,58 +70,52 @@ public final class EntityOverlayResolver {
         ")Lnet/minecraft/client/renderer/rendertype/RenderType;";
 
     /**
-     * Explicit allowlist of {@code ModelLayers.X} field names whose composite overlay we emit.
-     * The detection in {@link #findOverlayModelLayerField} is intentionally generic so that any
-     * vanilla layer with the {@code bakeLayer + new Model} shape surfaces - but emitting them
-     * is gated here because most other composite overlays (charged-creeper armor, wither armor,
-     * elytra, drowned outer slime, etc.) need translucent or additive blending the static
-     * renderer doesn't reproduce, and would render OPAQUE on top of the base body, hiding it.
+     * Composite-overlay layers whose pipeline isn't statically cutout-safe (e.g., uses
+     * {@code BlendFunction.TRANSLUCENT} without {@code NO_CARDINAL_LIGHTING}) but which
+     * we emit anyway as a known divergence. Bytecode derivation in
+     * {@link #derivationAcceptsCompositeOverlay} rejects them; this set re-allows them.
      * <p>Entries:
      * <ul>
-     *   <li>{@code SHEEP_WOOL_UNDERCOAT} - the white/black undercoat under the dyed wool;
-     *       cutout-rendered in vanilla Java but the overlay PNG is sparse so opaque-as-cutout
-     *       reads correctly here.</li>
-     *   <li>{@code SHEEP_WOOL} - the dyed wool fluff; same reasoning as the undercoat. Vanilla's
-     *       per-bone cube_deformation inflate isn't captured by the parser yet so the wool sits
-     *       at the same size as the body, but the texture overlay still improves parity vs no
-     *       overlay at all.</li>
-     *   <li>{@code SLIME_OUTER} - the 8x8x8 translucent outer shell over the inner 6x6x6 body.
-     *       Vanilla renders it via {@code RenderTypes.entityTranslucent} (constant 180/255 alpha
-     *       multiplier); the static renderer treats it as opaque so the visible result is a
-     *       solid green cube larger than the vanilla reference. Geometry is correct relative
-     *       to the Java client; the delta is a known-divergence on rendering
-     *       semantics rather than geometry. Maintainer can move {@code minecraft:slime} into
-     *       {@code TestEntityParity.ACHIEVED_PARITY} once the geometry difference is reviewed.</li>
-     *   <li>{@code BREEZE_WIND} - the translucent wind-cone wireframe surrounding the breeze body.
-     *       Vanilla's {@code BreezeWindLayer} uses the dedicated {@code RenderPipelines.BREEZE_WIND}
-     *       pipeline ({@code NO_CARDINAL_LIGHTING}, {@code TRANSLUCENT} blend, {@code withCull(false)},
-     *       {@code ALPHA_CUTOUT 0.1}) - the wind cubes render unshaded with the partial-alpha
-     *       breeze_wind.png texture. The harness includes the wind extent in its bounds-walker
-     *       (the layer is NOT in {@code NO_RENDER_LAYER_SUFFIXES}), so the canvas pads out to
-     *       408x462 to hold the wind silhouette; matching it on our side requires the overlay
-     *       row PLUS the {@link #UNLIT_LAYERS} mark so the rasterizer skips shading and the
-     *       partial-alpha texels produce translucent fragments via NORMAL blend.</li>
+     *   <li>{@code SLIME_OUTER} - the 8x8x8 translucent outer shell over the inner 6x6x6
+     *       body. Vanilla renders it via {@code RenderTypes.entityTranslucent} (constant
+     *       180/255 alpha multiplier); the static renderer treats it as opaque so the
+     *       visible result is a solid green cube larger than the vanilla reference.
+     *       Geometry is correct relative to the Java client; the delta is a
+     *       known-divergence on rendering semantics rather than geometry. Maintainer can
+     *       move {@code minecraft:slime} into {@code TestEntityParity.ACHIEVED_PARITY}
+     *       once the geometry difference is reviewed.</li>
      * </ul>
-     * Adding an entry needs a parity check before commit - opaque-overlay regressions on an
-     * entity that renders worse than no-overlay (i.e. the overlay covers the base body without
-     * adding visual signal) should stay out of this list.
      */
-    private static final @NotNull java.util.Set<String> COMPOSITE_OVERLAY_ALLOWLIST = java.util.Set.of(
-        "BREEZE_WIND",
-        "DROWNED_OUTER_LAYER",
-        "SHEEP_WOOL",
-        "SHEEP_WOOL_UNDERCOAT",
+    private static final @NotNull java.util.Set<String> POLICY_FORCE_EMIT = java.util.Set.of(
         "SLIME_OUTER"
     );
 
     /**
-     * Phase 11 derived {@code UNLIT_LAYERS} via {@link #layerInvokesNoCardinalLightingRenderType}:
-     * a layer is treated as emissive (skip cardinal Lambertian shade) when its body method invokes
-     * a {@code RenderTypes.X} factory whose backing {@code RenderPipelines.X} field's
-     * {@code <clinit>} build block contains {@code .withShaderDefine("NO_CARDINAL_LIGHTING")}.
-     * Currently fires for BreezeWindLayer ({@code RenderTypes.breezeWind} -&gt;
-     * {@code RenderPipelines.BREEZE_WIND}).
+     * Composite-overlay layers that pass bytecode derivation (helper-based cutout) but
+     * whose vanilla submit() has a state-gated early-return that bytecode walking can't
+     * reliably distinguish from sibling cases the maintainer accepts as known-divergence
+     * (e.g., {@code SheepWoolUndercoatLayer}'s {@code woolColor == WHITE} skip is
+     * explicitly accepted; {@code CatCollarLayer}'s {@code collarColor == null} skip is
+     * not). Without a state-default-aware detector, listing the no-emit cases here is
+     * more maintainable than encoding the discriminator in bytecode walking.
+     * <p>Entries:
+     * <ul>
+     *   <li>{@code CAT_COLLAR} - the {@code coloredCutoutModelCopyLayerRender}-based
+     *       collar layer skips render when {@code state.collarColor == null} (the
+     *       zero-state default). Bytecode-wise indistinguishable from sheep undercoat's
+     *       {@code woolColor == WHITE} skip; visual impact at zero state would be a
+     *       colored collar around every cat where vanilla shows none.</li>
+     * </ul>
      */
+    private static final @NotNull java.util.Set<String> POLICY_SUPPRESS = java.util.Set.of(
+        "CAT_COLLAR"
+    );
+
+    /** JVM internal name of the {@code BlendFunction} enum carrying {@code TRANSLUCENT} etc. */
+    private static final @NotNull String BLEND_FUNCTION = "com/mojang/blaze3d/pipeline/BlendFunction";
+
+    /** Static helper on {@code RenderLayer} that renders a cutout model copy. */
+    private static final @NotNull String COLORED_CUTOUT_HELPER = "coloredCutoutModelCopyLayerRender";
 
     /** Field-type descriptor for a {@code ModelLayerLocation}; used to spot parameterized-layer ctor args. */
     private static final @NotNull String MODEL_LAYER_LOCATION_DESC = "L" + VanillaSourceClasses.MODEL_LAYER_LOCATION + ";";
@@ -214,18 +207,23 @@ public final class EntityOverlayResolver {
                 out.add(new OverlayDescriptor(layerClass, eyes.texturePath(), fullyEmissive, null, 0xFFFFFFFF));
                 continue;
             }
-            // Composite-model overlay (sheep wool, sheep wool undercoat) - detected by an
-            // {@code <init>(RenderLayerParent, EntityModelSet)} that calls
-            // {@code modelSet.bakeLayer(ModelLayers.X)}. The matching texture comes from the layer's
-            // own {@code <clinit>} ({@code SHEEP_WOOL_LOCATION}) or from a sibling renderer's
-            // {@code <clinit>}. Limited to {@link #COMPOSITE_OVERLAY_ALLOWLIST} because most other
-            // composite overlays need translucent or additive blending the static renderer doesn't
-            // honour - they would render opaque on top of the base body, hiding it (slime's outer
-            // shell is the canonical regression - vanilla renders it via {@code RenderTypes
-            // .entityTranslucent} which the parity test's auto-fit cutout sampler doesn't replicate).
+            // Composite-model overlay (sheep wool, sheep wool undercoat, drowned outer,
+            // breeze wind, slime outer) - any layer whose {@code <init>} calls
+            // {@code modelSet.bakeLayer(ModelLayers.X)}. Emit when:
+            //   - {@link #POLICY_FORCE_EMIT} explicitly allows it (translucent overlays
+            //     accepted as known-divergence), OR
+            //   - {@link #derivationAcceptsCompositeOverlay} accepts it (layer establishes
+            //     its own render type via direct {@code RenderTypes.X} INVOKESTATIC or the
+            //     {@code coloredCutoutModelCopyLayerRender} helper, AND every direct
+            //     render-type call resolves to a cutout-safe pipeline).
+            // Skip when {@link #POLICY_SUPPRESS} excludes it (state-gated runtime skips
+            // that bytecode walking can't statically resolve).
             String modelLayerField = findOverlayModelLayerField(cn);
-            if (modelLayerField != null && COMPOSITE_OVERLAY_ALLOWLIST.contains(modelLayerField)) {
-                String compositeTexture = findCompositeOverlayTexture(zip, cn, rendererInternalName);
+            if (modelLayerField != null
+                && !POLICY_SUPPRESS.contains(modelLayerField)
+                && (POLICY_FORCE_EMIT.contains(modelLayerField)
+                    || derivationAcceptsCompositeOverlay(zip, cn))) {
+                String compositeTexture = findCompositeOverlayTexture(zip, cn);
                 if (compositeTexture == null) {
                     diagnostics.info("entity '%s' overlay '%s' bakes ModelLayers.%s but no texture path resolved", entityId, layerClass, modelLayerField);
                     continue;
@@ -368,20 +366,6 @@ public final class EntityOverlayResolver {
     }
 
     /**
-     * Returns the texture path bound in {@code cn.<clinit>} when the class qualifies as an
-     * emissive eye overlay - that is, the {@code <clinit>} contains an {@code INVOKESTATIC}
-     * to a method whose name contains {@code "eyes"} (case-insensitive) and which returns
-     * a {@code RenderType}, with a {@code textures/entity/...png} {@code LDC} literal
-     * preceding the call. Returns {@code null} when the class has no {@code <clinit>}, no
-     * eye-typed factory call, or no preceding texture literal.
-     *
-     * <p>Detection runs on the bytecode shape rather than class hierarchy so layers that
-     * skip the {@code EyesLayer} base ({@code BreezeEyesLayer} extends {@code RenderLayer}
-     * directly and uses {@code RenderTypes.breezeEyes}) still resolve. The "eyes" name match
-     * doubles as the emissive flag - if the call name doesn't contain "eyes" the layer is a
-     * non-emissive overlay we don't emit yet.
-     */
-    /**
      * Returns the {@code ModelLayers.X} field name baked by the layer class's
      * {@code <init>(RenderLayerParent, EntityModelSet)} constructor, or {@code null} when the
      * layer doesn't bake its own model. Detection: walk the constructor for
@@ -423,32 +407,33 @@ public final class EntityOverlayResolver {
      *
      * <ol>
      *   <li><b>Own-clinit LDC</b>: walks the layer's {@code <clinit>} for the first
-     *       {@code LDC textures/...png; INVOKESTATIC withDefaultNamespace; PUTSTATIC FIELD} chain
-     *       whose target field name doesn't contain {@code "BABY"}. Catches
-     *       {@code SheepWoolLayer.SHEEP_WOOL_LOCATION} and
-     *       {@code SheepWoolUndercoatLayer.SHEEP_WOOL_UNDERCOAT_LOCATION}.</li>
-     *   <li><b>Sibling-renderer GETSTATIC</b>: walks the layer's non-init non-clinit methods for
-     *       the first {@code GETSTATIC OtherClass.X_LOCATION} of an {@code Identifier} field.
-     *       Then recursively resolves the texture path bound to that field by walking the owner's
-     *       own {@code <clinit>} for the same LDC pattern. Catches
-     *       {@code SlimeOuterLayer}, which renders against {@code SlimeRenderer.SLIME_LOCATION}
-     *       (no own LDC).</li>
+     *       {@code LDC textures/...png; INVOKESTATIC withDefaultNamespace; PUTSTATIC FIELD}
+     *       chain whose target field name doesn't contain {@code "BABY"}. Catches
+     *       {@code SheepWoolLayer.SHEEP_WOOL_LOCATION},
+     *       {@code SheepWoolUndercoatLayer.SHEEP_WOOL_UNDERCOAT_LOCATION},
+     *       {@code BreezeWindLayer.TEXTURE_LOCATION},
+     *       {@code DrownedOuterLayer.DROWNED_OUTER_LAYER_LOCATION}.</li>
+     *   <li><b>Sibling-renderer GETSTATIC</b>: walks the layer's non-init non-clinit methods
+     *       for the first {@code GETSTATIC OtherClass.X_LOCATION} of an {@code Identifier}
+     *       field, then recursively resolves the path bound to that field by walking the
+     *       owner's own {@code <clinit>}. Catches {@code SlimeOuterLayer}, which renders
+     *       against {@code SlimeRenderer.SLIME_LOCATION} (no own LDC).</li>
      * </ol>
      *
      * <p>Returns {@code null} when neither strategy yields a texture - the caller logs a
-     * diagnostic and drops the overlay.
+     * diagnostic and drops the overlay. An earlier iteration had a strategy-3 fallback
+     * (the parent renderer's own {@code <clinit>}); it resolved equipment / charged-armor
+     * layers (WingsLayer, RopesLayer) to the parent renderer's main entity texture,
+     * producing visually wrong overlays (elytra geometry textured with zombie skin). Dropped
+     * because {@link #derivationAcceptsCompositeOverlay} already filters those layers out
+     * by requiring the layer to establish its own render type.
      */
     private static @Nullable String findCompositeOverlayTexture(
         @NotNull ZipFile zip,
-        @NotNull ClassNode layerClass,
-        @NotNull String rendererInternalName
+        @NotNull ClassNode layerClass
     ) {
         String own = findFirstNonBabyTextureLiteral(layerClass);
         if (own != null) return own;
-        // Strategy 2: chase a sibling-renderer GETSTATIC out of any non-init method (the render /
-        // submit method body is where the layer pulls its texture). Try the layer's own methods
-        // first so renderer-shared textures are resolved by following the field link, falling back
-        // to the parent renderer if no GETSTATIC of an Identifier field surfaces.
         for (MethodNode method : layerClass.methods) {
             if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name)) continue;
             for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
@@ -458,14 +443,6 @@ public final class EntityOverlayResolver {
                 String chased = chaseTextureFieldOwner(zip, fi.owner, fi.name);
                 if (chased != null) return chased;
             }
-        }
-        // Last-ditch: try the parent renderer's own clinit. Some layers reference texture fields
-        // through inheritance only; if the layer's render code doesn't surface a GETSTATIC, the
-        // parent renderer is still the most likely owner.
-        ClassNode renderer = AsmKit.loadClass(zip, rendererInternalName);
-        if (renderer != null) {
-            String parentTexture = findFirstNonBabyTextureLiteral(renderer);
-            if (parentTexture != null) return parentTexture;
         }
         return null;
     }
@@ -553,10 +530,6 @@ public final class EntityOverlayResolver {
         }
         return null;
     }
-
-    /**
-     * JVM internal name of {@code ColorLerper$Type} - the enum carrying {@code SHEEP} / {@code MUSIC_NOTE} tint tables.
-     */
 
     /**
      * JVM internal name of {@code DyeColor} - the per-dye color enum whose {@code WHITE} constant tints to {@code 0xFFE6E6E6} under {@code ColorLerper}.
@@ -1045,6 +1018,116 @@ public final class EntityOverlayResolver {
             }
         }
         return false;
+    }
+
+    /**
+     * Memoized cache for {@link #factoryHasTranslucentBlend} - keyed on
+     * {@code RenderTypes.<factoryName>} factory method names so the multi-hop
+     * {@code RenderTypes -> RenderPipelines.<clinit>} walk runs once per factory per
+     * tooling pass.
+     */
+    private static final @NotNull java.util.Map<String, Boolean> FACTORY_TRANSLUCENT_CACHE =
+        new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * Returns whether the named {@code RenderTypes.X} factory builds against a pipeline
+     * whose {@code <clinit>} build block pushes {@code GETSTATIC BlendFunction.TRANSLUCENT}
+     * (into a {@code ColorTargetState} constructor). Used by
+     * {@link #derivationAcceptsCompositeOverlay} to reject layers whose direct render-type
+     * is translucent without {@code NO_CARDINAL_LIGHTING} (slime outer's
+     * {@code entityTranslucent}, wolf armor's {@code armorTranslucent}).
+     */
+    private static boolean factoryHasTranslucentBlend(@NotNull ZipFile zip, @NotNull String factoryName) {
+        Boolean cached = FACTORY_TRANSLUCENT_CACHE.get(factoryName);
+        if (cached != null) return cached;
+        ClassNode renderTypes = AsmKit.loadClass(zip, VanillaSourceClasses.RENDER_TYPES);
+        if (renderTypes == null) {
+            FACTORY_TRANSLUCENT_CACHE.put(factoryName, false);
+            return false;
+        }
+        String pipelineField = resolveRenderTypesFactoryPipeline(renderTypes, factoryName);
+        if (pipelineField == null) {
+            FACTORY_TRANSLUCENT_CACHE.put(factoryName, false);
+            return false;
+        }
+        boolean result = pipelineHasTranslucentBlend(zip, pipelineField);
+        FACTORY_TRANSLUCENT_CACHE.put(factoryName, result);
+        return result;
+    }
+
+    /**
+     * Walks {@code RenderPipelines.<clinit>} for the build block ending at
+     * {@code PUTSTATIC <pipelineFieldName>} and returns whether the chain pushed a
+     * {@code GETSTATIC BlendFunction.TRANSLUCENT}. Build-block boundaries are marked by
+     * any {@code PUTSTATIC} on a {@code RenderPipeline}-typed field.
+     */
+    private static boolean pipelineHasTranslucentBlend(@NotNull ZipFile zip, @NotNull String pipelineFieldName) {
+        ClassNode cn = AsmKit.loadClass(zip, VanillaSourceClasses.RENDER_PIPELINES);
+        if (cn == null) return false;
+        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
+        if (clinit == null) return false;
+        boolean blockTranslucent = false;
+        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (in.getOpcode() == Opcodes.GETSTATIC
+                && in instanceof FieldInsnNode fi
+                && BLEND_FUNCTION.equals(fi.owner)
+                && "TRANSLUCENT".equals(fi.name)) {
+                blockTranslucent = true;
+                continue;
+            }
+            if (in.getOpcode() == Opcodes.PUTSTATIC && in instanceof FieldInsnNode fi) {
+                if (pipelineFieldName.equals(fi.name)) return blockTranslucent;
+                blockTranslucent = false;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Decides whether a composite-overlay layer's bytecode is safe to emit via the
+     * generic gate. Three conditions:
+     * <ol>
+     *   <li>The layer is NOT a class with a dedicated downstream handler
+     *       ({@code LlamaDecorLayer}, {@code TropicalFishPatternLayer},
+     *       {@code VillagerProfessionLayer}) - those need the per-class metadata
+     *       (tint / inflate / skipBounds / texture-prefix) their handlers inject.</li>
+     *   <li>The layer's non-init non-clinit body invokes either an
+     *       {@code INVOKESTATIC RenderTypes.X} factory OR the
+     *       {@code coloredCutoutModelCopyLayerRender} helper. Excludes EnergySwirlLayer
+     *       subclasses (CreeperPowerLayer, WitherArmorLayer) and equipment-only layers
+     *       (WingsLayer, RopesLayer) whose render type lives in inherited /
+     *       runtime-dispatched code we can't walk statically.</li>
+     *   <li>If any direct {@code RenderTypes.X} call resolves to a cutout-unsafe pipeline
+     *       (translucent blend without {@code NO_CARDINAL_LIGHTING}), reject. Excludes
+     *       SlimeOuterLayer's {@code entityTranslucent}; the policy override in
+     *       {@link #POLICY_FORCE_EMIT} re-allows it. The helper is always cutout by
+     *       construction so helper-only layers pass.</li>
+     * </ol>
+     */
+    private static boolean derivationAcceptsCompositeOverlay(@NotNull ZipFile zip, @NotNull ClassNode layerCn) {
+        String name = layerCn.name;
+        if (VanillaSourceClasses.LLAMA_DECOR_LAYER.equals(name)
+            || VanillaSourceClasses.TROPICAL_FISH_PATTERN_LAYER.equals(name)
+            || VanillaSourceClasses.VILLAGER_PROFESSION_LAYER.equals(name))
+            return false;
+        boolean hasDirectRenderType = false;
+        boolean usesHelper = false;
+        for (MethodNode method : layerCn.methods) {
+            if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name)) continue;
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                if (in.getOpcode() != Opcodes.INVOKESTATIC) continue;
+                if (!(in instanceof MethodInsnNode mi)) continue;
+                if (VanillaSourceClasses.RENDER_TYPES.equals(mi.owner)) {
+                    hasDirectRenderType = true;
+                    if (factoryHasTranslucentBlend(zip, mi.name)
+                        && !factoryHasNoCardinalLighting(zip, mi.name))
+                        return false;
+                } else if (COLORED_CUTOUT_HELPER.equals(mi.name)) {
+                    usesHelper = true;
+                }
+            }
+        }
+        return hasDirectRenderType || usesHelper;
     }
 
     /**
