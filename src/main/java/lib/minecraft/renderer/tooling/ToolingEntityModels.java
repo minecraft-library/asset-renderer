@@ -158,9 +158,14 @@ public final class ToolingEntityModels {
      * variant-default walker or the renderer-specific binding logic.
      */
     private static final @NotNull java.util.Map<String, String> ENTITY_TEXTURE_HARD_DEFAULTS = java.util.Map.of(
-        "minecraft:shulker", "shulker/shulker",
-        "minecraft:copper_golem", "copper_golem/copper_golem",
-        "minecraft:ender_dragon", "enderdragon/dragon"
+        // shulker's DEFAULT_TEXTURE_LOCATION is composed from Sheets.DEFAULT_SHULKER_TEXTURE_LOCATION
+        // (a SpriteId built via `SHULKER_MAPPER.defaultNamespaceApply("shulker")` where MAPPER's
+        // prefix is "entity/shulker") with no inline `LDC "textures/entity/shulker/shulker.png"`
+        // anywhere in the renderer or referenced classes. The {@link EntityTextureResolver#
+        // findBaseTextureFallback} class-bytes walker can't recover the stem without a third-hop
+        // walk into SpriteMapper / Identifier.withPath UnaryOperator. Sole remaining hardcoded
+        // entry; future work could derive it by following the Sheets clinit pattern.
+        "minecraft:shulker", "shulker/shulker"
     );
 
     /**
@@ -253,13 +258,26 @@ public final class ToolingEntityModels {
                     }
                 }
                 if (binding.primaryTexturePath() == null) {
-                    String fallback = ENTITY_TEXTURE_HARD_DEFAULTS.get(entityId);
+                    // First try the renderer-class-bytes fallback: walks the renderer's <clinit>
+                    // and one hop of getTextureLocation INVOKESTATIC targets for `LDC "textures
+                    // /entity/X.png"` literals, filtering out non-base variants (weathered eye
+                    // overlays etc.). Catches ender_dragon (DRAGON_TEXTURE_LOCATION via no-override
+                    // pattern) and copper_golem (CopperGolemOxidationLevels.UNAFFECTED ctor's
+                    // base texture arg via INVOKESTATIC chase). Falls through to the hardcoded
+                    // map for shulker, whose stem is composed via SpriteMapper indirection with
+                    // no inline LDC.
+                    String fallback = EntityTextureResolver.findBaseTextureFallback(zip, renderer);
+                    String label = "(class-bytes fallback)";
+                    if (fallback == null) {
+                        fallback = ENTITY_TEXTURE_HARD_DEFAULTS.get(entityId);
+                        label = "(hard-default)";
+                    }
                     if (fallback != null)
                         binding = new EntityTextureResolver.Binding(
                             "textures/entity/" + fallback + ".png",
                             null,
                             binding.variantSourceClass(),
-                            "(hard-default)"
+                            label
                         );
                 }
                 ConcurrentList<String> layers = EntityLayerScanner.scan(zip, renderer, diagnostics);

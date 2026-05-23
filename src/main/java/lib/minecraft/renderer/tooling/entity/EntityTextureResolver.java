@@ -753,6 +753,86 @@ public final class EntityTextureResolver {
     }
 
     /**
+     * Suffixes (compared against the texture stem with {@code textures/entity/} prefix and
+     * {@code .png} suffix stripped) that flag a texture as a non-base variant - eye overlays,
+     * weathering states, dying/charged overlays, etc. {@link #findBaseTextureFallback} walks
+     * the candidate list in bytecode order and returns the first stem that doesn't end with
+     * any of these.
+     */
+    private static final @NotNull Set<String> NON_BASE_STEM_SUFFIXES = Set.of(
+        "_eyes", "_eyes_exposed", "_eyes_weathered", "_eyes_oxidized",
+        "_exposed", "_weathered", "_oxidized",
+        "_exploding", "_dying", "_charged",
+        "_beam", "_crystal_beam",
+        "_baby", "_overlay", "_underwater"
+    );
+
+    /**
+     * Final-fallback texture binder for renderers whose {@link #resolve} returns an unresolved
+     * {@link Binding} because the texture path lives in {@code <clinit>}-bound static fields
+     * the regular walker can't recover. Two patterns:
+     * <ul>
+     *   <li><b>No {@code getTextureLocation} override</b>
+     *       ({@code EnderDragonRenderer.DRAGON_TEXTURE_LOCATION}): the renderer's
+     *       {@code <clinit>} binds the path via {@code LDC "textures/entity/X.png";
+     *       invokestatic withDefaultNamespace; putstatic FIELD}, but the texture is consumed
+     *       at submit time through a static field (DYING_RENDER_TYPE, EYES) rather than via a
+     *       {@code getTextureLocation} override. {@link #collectAllTextureLiterals} surfaces
+     *       the LDCs from the renderer's own {@code <clinit>}.</li>
+     *   <li><b>External-class dispatch with non-Identifier return</b>
+     *       ({@code CopperGolemRenderer} - {@code getTextureLocation} calls
+     *       {@code CopperGolemOxidationLevels.getOxidationLevel(state).texture()}): the
+     *       INVOKESTATIC target returns a wrapper type, not Identifier, so
+     *       {@link #chaseStaticDispatch} skips it. This walker follows the INVOKESTATIC owner
+     *       one hop and collects the wrapper class's texture literals.</li>
+     * </ul>
+     *
+     * <p>Candidate paths are filtered against {@link #NON_BASE_STEM_SUFFIXES} to skip
+     * weathering / emissive-eye / overlay variants; the first remaining base path wins. Stem
+     * is returned WITHOUT the {@code textures/entity/} prefix or {@code .png} suffix - matching
+     * the entry shape in {@code entity_models.json}'s {@code texture_ref} field.
+     *
+     * <p>Returns {@code null} when no candidate matches. The shulker pattern
+     * ({@code Sheets.DEFAULT_SHULKER_TEXTURE_LOCATION} routes through {@code SpriteMapper.
+     * defaultNamespaceApply} - the texture stem is composed from a sheet prefix and a sprite
+     * name with no inline LDC) is not handled and falls through to the caller's hardcoded
+     * fallback table.
+     */
+    public static @Nullable String findBaseTextureFallback(
+        @NotNull ZipFile zip,
+        @NotNull String rendererInternalName
+    ) {
+        java.util.List<String> candidates = new java.util.ArrayList<>(collectAllTextureLiterals(zip, rendererInternalName));
+        ClassNode cn = AsmKit.loadClass(zip, rendererInternalName);
+        if (cn != null) {
+            Set<String> visited = new HashSet<>();
+            visited.add(rendererInternalName);
+            for (MethodNode m : cn.methods) {
+                if (!GET_TEXTURE_LOCATION.equals(m.name)) continue;
+                for (AbstractInsnNode in = m.instructions.getFirst(); in != null; in = in.getNext()) {
+                    if (in.getOpcode() == Opcodes.INVOKESTATIC
+                        && in instanceof MethodInsnNode mi
+                        && !mi.owner.equals(rendererInternalName)
+                        && !VanillaSourceClasses.IDENTIFIER.equals(mi.owner)
+                        && visited.add(mi.owner))
+                        candidates.addAll(collectAllTextureLiterals(zip, mi.owner));
+                }
+            }
+        }
+
+        for (String path : candidates) {
+            if (!path.startsWith("textures/entity/") || !path.endsWith(".png")) continue;
+            String stem = path.substring("textures/entity/".length(), path.length() - ".png".length());
+            boolean nonBase = false;
+            for (String sfx : NON_BASE_STEM_SUFFIXES) {
+                if (stem.endsWith(sfx)) { nonBase = true; break; }
+            }
+            if (!nonBase) return stem;
+        }
+        return null;
+    }
+
+    /**
      * Appends every {@code "textures/entity/...png"} string literal in the method to
      * {@code out}, skipping format-string templates ({@code %s}-bearing paths) which are not
      * real on-disk files - AxolotlRenderer holds {@code "textures/entity/axolotl/axolotl_%s.png"}
