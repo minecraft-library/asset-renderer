@@ -1093,6 +1093,265 @@ public final class AsmKit {
     }
 
     // ----------------------------------------------------------------------------------------
+    // Static array initializer readers
+    // ----------------------------------------------------------------------------------------
+
+    /**
+     * Reads a {@code static final int[]} field's initializer values by walking the owning
+     * class's {@code <clinit>} for the canonical javac pattern
+     * <pre>
+     *   {@code <length>}              // ICONST / BIPUSH / SIPUSH
+     *   NEWARRAY int
+     *   {@code (DUP; <idx>; <value>; IASTORE)*}
+     *   PUTSTATIC &lt;owner&gt;.&lt;field&gt;:[I
+     * </pre>
+     * Returns the populated {@code int[]} or {@code null} when the class is missing, the
+     * field isn't found, or the initializer doesn't match the canonical shape (non-literal
+     * index / value, dynamic length, multi-step initialization).
+     *
+     * @param zip the client jar
+     * @param ownerInternalName the JVM internal name of the class holding the field
+     * @param fieldName the field's name
+     * @return the array contents, or {@code null} when the initializer can't be resolved
+     */
+    public static int @Nullable [] readStaticIntArray1D(@NotNull ZipFile zip, @NotNull String ownerInternalName, @NotNull String fieldName) {
+        ClassNode owner = loadClass(zip, ownerInternalName);
+        if (owner == null) return null;
+        MethodNode clinit = findMethod(owner, CLINIT, "()V");
+        if (clinit == null) return null;
+        return findIntArray1DInitializer(clinit, fieldName);
+    }
+
+    /**
+     * Reads a {@code static final int[][]} field's initializer values by walking the owning
+     * class's {@code <clinit>} for the canonical javac pattern
+     * <pre>
+     *   {@code <outer length>}
+     *   ANEWARRAY [I
+     *   {@code (DUP; <row idx>; <inner length>; NEWARRAY int;
+     *           (DUP; <col idx>; <value>; IASTORE)*; AASTORE)*}
+     *   PUTSTATIC &lt;owner&gt;.&lt;field&gt;:[[I
+     * </pre>
+     * Returns the populated {@code int[][]} or {@code null} when the class is missing, the
+     * field isn't found, or the initializer doesn't match the canonical shape.
+     *
+     * @param zip the client jar
+     * @param ownerInternalName the JVM internal name of the class holding the field
+     * @param fieldName the field's name
+     * @return the array contents, or {@code null} when the initializer can't be resolved
+     */
+    public static int @Nullable [] @Nullable [] readStaticIntArray2D(@NotNull ZipFile zip, @NotNull String ownerInternalName, @NotNull String fieldName) {
+        ClassNode owner = loadClass(zip, ownerInternalName);
+        if (owner == null) return null;
+        MethodNode clinit = findMethod(owner, CLINIT, "()V");
+        if (clinit == null) return null;
+        return findIntArray2DInitializer(clinit, fieldName);
+    }
+
+    /**
+     * Reads a {@code static final float[]} field's initializer values by walking the owning
+     * class's {@code <clinit>} for the canonical javac pattern - same shape as
+     * {@link #readStaticIntArray1D} but with {@code NEWARRAY float} + {@code FASTORE}.
+     *
+     * @param zip the client jar
+     * @param ownerInternalName the JVM internal name of the class holding the field
+     * @param fieldName the field's name
+     * @return the array contents, or {@code null} when the initializer can't be resolved
+     */
+    public static float @Nullable [] readStaticFloatArray1D(@NotNull ZipFile zip, @NotNull String ownerInternalName, @NotNull String fieldName) {
+        ClassNode owner = loadClass(zip, ownerInternalName);
+        if (owner == null) return null;
+        MethodNode clinit = findMethod(owner, CLINIT, "()V");
+        if (clinit == null) return null;
+        return findFloatArray1DInitializer(clinit, fieldName);
+    }
+
+    /**
+     * Walks {@code clinit} for a {@code PUTSTATIC <fieldName>:[I} matching the canonical
+     * literal-int-array initializer. Returns the values when the shape matches; {@code null}
+     * otherwise. See {@link #readStaticIntArray1D} for the pattern.
+     */
+    private static int @Nullable [] findIntArray1DInitializer(@NotNull MethodNode clinit, @NotNull String fieldName) {
+        for (AbstractInsnNode node = clinit.instructions.getFirst(); node != null; node = node.getNext()) {
+            if (!(node instanceof FieldInsnNode put) || put.getOpcode() != Opcodes.PUTSTATIC) continue;
+            if (!fieldName.equals(put.name) || !"[I".equals(put.desc)) continue;
+            // Found the putstatic for our field. Walk back to find the initializer chain.
+            // The instruction immediately before PUTSTATIC is the array ref - we trace back
+            // to NEWARRAY int and walk forward collecting DUP; <idx>; <value>; IASTORE pairs.
+            return collectIntArray1DEntries(clinit, put);
+        }
+        return null;
+    }
+
+    /**
+     * Collects {@code (DUP; <idx>; <value>; IASTORE)} entries from the initializer chain that
+     * ends at the given {@code PUTSTATIC}. Walks back to find the {@code NEWARRAY int} that
+     * starts the chain, then forward to gather the entries until {@code PUTSTATIC} is reached.
+     */
+    private static int @Nullable [] collectIntArray1DEntries(@NotNull MethodNode clinit, @NotNull FieldInsnNode putstatic) {
+        AbstractInsnNode newArrayNode = null;
+        AbstractInsnNode lengthNode = null;
+        for (AbstractInsnNode cursor = putstatic.getPrevious(); cursor != null; cursor = cursor.getPrevious()) {
+            if (isPseudoNode(cursor)) continue;
+            if (cursor instanceof IntInsnNode intInsn && intInsn.getOpcode() == Opcodes.NEWARRAY && intInsn.operand == Opcodes.T_INT) {
+                newArrayNode = cursor;
+                lengthNode = previousReal(cursor);
+                break;
+            }
+        }
+        if (newArrayNode == null || lengthNode == null) return null;
+        Integer length = readIntLiteral(lengthNode);
+        if (length == null || length < 0) return null;
+        int[] out = new int[length];
+        // Walk forward from NEWARRAY, gathering DUP; <idx>; <value>; IASTORE.
+        AbstractInsnNode cursor = nextReal(newArrayNode);
+        while (cursor != null && cursor != putstatic) {
+            if (cursor.getOpcode() != Opcodes.DUP) {
+                cursor = nextReal(cursor);
+                continue;
+            }
+            AbstractInsnNode idxNode = nextReal(cursor);
+            AbstractInsnNode valueNode = nextReal(idxNode);
+            AbstractInsnNode iastoreNode = nextReal(valueNode);
+            if (idxNode == null || valueNode == null || iastoreNode == null) return null;
+            if (iastoreNode.getOpcode() != Opcodes.IASTORE) return null;
+            Integer idx = readIntLiteral(idxNode);
+            Integer value = readIntLiteral(valueNode);
+            if (idx == null || value == null) return null;
+            if (idx < 0 || idx >= length) return null;
+            out[idx] = value;
+            cursor = nextReal(iastoreNode);
+        }
+        return out;
+    }
+
+    /**
+     * Walks {@code clinit} for a {@code PUTSTATIC <fieldName>:[[I} matching the canonical
+     * literal-int-2D-array initializer. Returns the values when the shape matches;
+     * {@code null} otherwise. See {@link #readStaticIntArray2D} for the pattern.
+     */
+    private static int @Nullable [] @Nullable [] findIntArray2DInitializer(@NotNull MethodNode clinit, @NotNull String fieldName) {
+        for (AbstractInsnNode node = clinit.instructions.getFirst(); node != null; node = node.getNext()) {
+            if (!(node instanceof FieldInsnNode put) || put.getOpcode() != Opcodes.PUTSTATIC) continue;
+            if (!fieldName.equals(put.name) || !"[[I".equals(put.desc)) continue;
+            return collectIntArray2DEntries(clinit, put);
+        }
+        return null;
+    }
+
+    /**
+     * Collects {@code (DUP; <row>; <inner-len>; NEWARRAY int; (...inner pairs...); AASTORE)}
+     * outer entries from the initializer chain that ends at the given {@code PUTSTATIC}.
+     */
+    private static int @Nullable [] @Nullable [] collectIntArray2DEntries(@NotNull MethodNode clinit, @NotNull FieldInsnNode putstatic) {
+        AbstractInsnNode aNewArrayNode = null;
+        AbstractInsnNode lengthNode = null;
+        for (AbstractInsnNode cursor = putstatic.getPrevious(); cursor != null; cursor = cursor.getPrevious()) {
+            if (isPseudoNode(cursor)) continue;
+            if (cursor instanceof TypeInsnNode typeInsn && typeInsn.getOpcode() == Opcodes.ANEWARRAY && "[I".equals(typeInsn.desc)) {
+                aNewArrayNode = cursor;
+                lengthNode = previousReal(cursor);
+                break;
+            }
+        }
+        if (aNewArrayNode == null || lengthNode == null) return null;
+        Integer outerLength = readIntLiteral(lengthNode);
+        if (outerLength == null || outerLength < 0) return null;
+        int[][] out = new int[outerLength][];
+        AbstractInsnNode cursor = nextReal(aNewArrayNode);
+        while (cursor != null && cursor != putstatic) {
+            if (cursor.getOpcode() != Opcodes.DUP) {
+                cursor = nextReal(cursor);
+                continue;
+            }
+            // DUP; <row>; <inner-len>; NEWARRAY int; ... AASTORE
+            AbstractInsnNode rowNode = nextReal(cursor);
+            AbstractInsnNode innerLenNode = nextReal(rowNode);
+            AbstractInsnNode innerNewArrayNode = nextReal(innerLenNode);
+            if (rowNode == null || innerLenNode == null || innerNewArrayNode == null) return null;
+            Integer row = readIntLiteral(rowNode);
+            Integer innerLen = readIntLiteral(innerLenNode);
+            if (row == null || innerLen == null || row < 0 || row >= outerLength) return null;
+            if (!(innerNewArrayNode instanceof IntInsnNode innerNewArray)
+                || innerNewArray.getOpcode() != Opcodes.NEWARRAY
+                || innerNewArray.operand != Opcodes.T_INT) return null;
+            int[] inner = new int[innerLen];
+            cursor = nextReal(innerNewArrayNode);
+            while (cursor != null && cursor.getOpcode() != Opcodes.AASTORE) {
+                if (cursor.getOpcode() != Opcodes.DUP) return null;
+                AbstractInsnNode innerIdxNode = nextReal(cursor);
+                AbstractInsnNode innerValueNode = nextReal(innerIdxNode);
+                AbstractInsnNode iastoreNode = nextReal(innerValueNode);
+                if (innerIdxNode == null || innerValueNode == null || iastoreNode == null) return null;
+                if (iastoreNode.getOpcode() != Opcodes.IASTORE) return null;
+                Integer innerIdx = readIntLiteral(innerIdxNode);
+                Integer innerValue = readIntLiteral(innerValueNode);
+                if (innerIdx == null || innerValue == null) return null;
+                if (innerIdx < 0 || innerIdx >= innerLen) return null;
+                inner[innerIdx] = innerValue;
+                cursor = nextReal(iastoreNode);
+            }
+            if (cursor == null) return null;
+            out[row] = inner;
+            cursor = nextReal(cursor);
+        }
+        return out;
+    }
+
+    /**
+     * Walks {@code clinit} for a {@code PUTSTATIC <fieldName>:[F} matching the canonical
+     * literal-float-array initializer. Returns the values when the shape matches; {@code null}
+     * otherwise. See {@link #readStaticFloatArray1D} for the pattern.
+     */
+    private static float @Nullable [] findFloatArray1DInitializer(@NotNull MethodNode clinit, @NotNull String fieldName) {
+        for (AbstractInsnNode node = clinit.instructions.getFirst(); node != null; node = node.getNext()) {
+            if (!(node instanceof FieldInsnNode put) || put.getOpcode() != Opcodes.PUTSTATIC) continue;
+            if (!fieldName.equals(put.name) || !"[F".equals(put.desc)) continue;
+            return collectFloatArray1DEntries(clinit, put);
+        }
+        return null;
+    }
+
+    /**
+     * Collects {@code (DUP; <idx>; <value>; FASTORE)} entries from a float-array initializer.
+     */
+    private static float @Nullable [] collectFloatArray1DEntries(@NotNull MethodNode clinit, @NotNull FieldInsnNode putstatic) {
+        AbstractInsnNode newArrayNode = null;
+        AbstractInsnNode lengthNode = null;
+        for (AbstractInsnNode cursor = putstatic.getPrevious(); cursor != null; cursor = cursor.getPrevious()) {
+            if (isPseudoNode(cursor)) continue;
+            if (cursor instanceof IntInsnNode intInsn && intInsn.getOpcode() == Opcodes.NEWARRAY && intInsn.operand == Opcodes.T_FLOAT) {
+                newArrayNode = cursor;
+                lengthNode = previousReal(cursor);
+                break;
+            }
+        }
+        if (newArrayNode == null || lengthNode == null) return null;
+        Integer length = readIntLiteral(lengthNode);
+        if (length == null || length < 0) return null;
+        float[] out = new float[length];
+        AbstractInsnNode cursor = nextReal(newArrayNode);
+        while (cursor != null && cursor != putstatic) {
+            if (cursor.getOpcode() != Opcodes.DUP) {
+                cursor = nextReal(cursor);
+                continue;
+            }
+            AbstractInsnNode idxNode = nextReal(cursor);
+            AbstractInsnNode valueNode = nextReal(idxNode);
+            AbstractInsnNode fastoreNode = nextReal(valueNode);
+            if (idxNode == null || valueNode == null || fastoreNode == null) return null;
+            if (fastoreNode.getOpcode() != Opcodes.FASTORE) return null;
+            Integer idx = readIntLiteral(idxNode);
+            Float value = readFloatLiteral(valueNode);
+            if (idx == null || value == null) return null;
+            if (idx < 0 || idx >= length) return null;
+            out[idx] = value;
+            cursor = nextReal(fastoreNode);
+        }
+        return out;
+    }
+
+    // ----------------------------------------------------------------------------------------
     // Integer for-loop detection
     // ----------------------------------------------------------------------------------------
 

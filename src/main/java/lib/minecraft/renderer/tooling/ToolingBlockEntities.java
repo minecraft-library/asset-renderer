@@ -1546,12 +1546,28 @@ public final class ToolingBlockEntities {
             //   <li>ARRAYLENGTH: pop 1 ref, push 1 int. Push NL.</li>
             // </ul>
             // Gated on {@code paramFloatValues != null} for byte-stability.
+            //
+            // <p>For {@code IALOAD} / {@code FALOAD} the parser also tries
+            // {@link #tryFoldStaticArrayRead}, which walks back over the prior real
+            // instructions to detect the canonical static-array index patterns
+            // {@code GETSTATIC <[[I>; ILOAD; AALOAD; <int literal>; IALOAD},
+            // {@code GETSTATIC <[I>; ILOAD; IALOAD}, and
+            // {@code GETSTATIC <[F>; ILOAD; FALOAD}. On match, the resolved literal cell value
+            // is pushed instead of the non-literal marker, so vanilla's silverfish / endermite
+            // {@code BODY_SIZES[i][j]} / {@code BODY_TEXS[i][j]} reads and guardian's
+            // {@code SPIKE_X[i]} / {@code SPIKE_Y[i]} / {@code SPIKE_Z[i]} +
+            // {@code SPIKE_*_ROT[i]} reads fold to compile-time constants per unrolled
+            // iteration.
             if (state.paramFloatValues != null) {
                 if (opcode == Opcodes.AALOAD) {
                     if (!state.numStack.isEmpty()) state.numStack.pop();
-                } else if (opcode == Opcodes.IALOAD || opcode == Opcodes.BALOAD
-                        || opcode == Opcodes.SALOAD || opcode == Opcodes.CALOAD
-                        || opcode == Opcodes.FALOAD || opcode == Opcodes.DALOAD
+                } else if (opcode == Opcodes.IALOAD || opcode == Opcodes.FALOAD) {
+                    Number resolved = tryFoldStaticArrayRead(node, state, zip);
+                    if (!state.numStack.isEmpty()) state.numStack.pop();
+                    if (resolved != null) state.numStack.push(resolved);
+                    else state.numStack.pushNonLiteral();
+                } else if (opcode == Opcodes.BALOAD || opcode == Opcodes.SALOAD
+                        || opcode == Opcodes.CALOAD || opcode == Opcodes.DALOAD
                         || opcode == Opcodes.LALOAD) {
                     if (!state.numStack.isEmpty()) state.numStack.pop();
                     state.numStack.pushNonLiteral();
@@ -3119,6 +3135,114 @@ public final class ToolingBlockEntities {
             if (current != null)
                 System.arraycopy(current, 0, resized, 0, currentLength);
             return resized;
+        }
+
+        /**
+         * Folds a static-array index expression at an {@code IALOAD} / {@code FALOAD} site by
+         * walking back over preceding real instructions to detect the canonical javac shapes:
+         * <ul>
+         *   <li>{@code GETSTATIC <[[I>; ILOAD slot; AALOAD; <int literal>; IALOAD} -
+         *       silverfish / endermite's {@code BODY_SIZES[i][j]} / {@code BODY_TEXS[i][j]}</li>
+         *   <li>{@code GETSTATIC <[I>; ILOAD slot; IALOAD} - 1D int array lookup</li>
+         *   <li>{@code GETSTATIC <[F>; ILOAD slot; FALOAD} - guardian's {@code SPIKE_*[i]} +
+         *       {@code SPIKE_*_ROT[i]}</li>
+         * </ul>
+         * Returns the resolved literal value when all three pieces match AND the row slot
+         * resolves to a literal via {@link ParseState#numericLocals} or
+         * {@link ParseState#paramIntValues}. Returns {@code null} otherwise (caller falls back
+         * to the non-literal marker).
+         *
+         * <p>The {@code <clinit>} initializer is walked once per (owner, field) pair via the
+         * {@link AsmKit#readStaticIntArray1D} / {@link AsmKit#readStaticIntArray2D} /
+         * {@link AsmKit#readStaticFloatArray1D} helpers; caching is left to the JVM (each call
+         * re-walks the ClassNode but the per-class ClassNode is itself cached at
+         * {@link AsmKit#loadClass}-level by callers that need it - this fold's cost is one
+         * small linear walk per array access, negligible against the surrounding parser cost).
+         */
+        private static @Nullable Number tryFoldStaticArrayRead(
+            @NotNull AbstractInsnNode loadNode,
+            @NotNull ParseState state,
+            @NotNull ZipFile zip
+        ) {
+            int loadOp = loadNode.getOpcode();
+            AbstractInsnNode prev1 = AsmKit.previousReal(loadNode);
+            if (prev1 == null) return null;
+
+            if (loadOp == Opcodes.IALOAD) {
+                // 2D shape: <field>:[[I; ILOAD; AALOAD; <int lit>; IALOAD
+                Integer colIdx = AsmKit.readIntLiteral(prev1);
+                if (colIdx != null) {
+                    AbstractInsnNode aaload = AsmKit.previousReal(prev1);
+                    if (aaload != null && aaload.getOpcode() == Opcodes.AALOAD) {
+                        AbstractInsnNode iloadNode = AsmKit.previousReal(aaload);
+                        if (iloadNode instanceof VarInsnNode iload && iload.getOpcode() == Opcodes.ILOAD) {
+                            AbstractInsnNode getstaticNode = AsmKit.previousReal(iloadNode);
+                            if (getstaticNode instanceof FieldInsnNode field
+                                && field.getOpcode() == Opcodes.GETSTATIC
+                                && "[[I".equals(field.desc)) {
+                                Integer rowIdx = resolveSlotInt(state, iload.var);
+                                if (rowIdx != null) {
+                                    int[][] arr = AsmKit.readStaticIntArray2D(zip, field.owner, field.name);
+                                    if (arr != null && rowIdx >= 0 && rowIdx < arr.length
+                                        && arr[rowIdx] != null && colIdx >= 0 && colIdx < arr[rowIdx].length) {
+                                        return arr[rowIdx][colIdx];
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                // 1D shape: <field>:[I; ILOAD; IALOAD
+                if (prev1 instanceof VarInsnNode iload1d && iload1d.getOpcode() == Opcodes.ILOAD) {
+                    AbstractInsnNode getstaticNode = AsmKit.previousReal(prev1);
+                    if (getstaticNode instanceof FieldInsnNode field
+                        && field.getOpcode() == Opcodes.GETSTATIC
+                        && "[I".equals(field.desc)) {
+                        Integer idx = resolveSlotInt(state, iload1d.var);
+                        if (idx != null) {
+                            int[] arr = AsmKit.readStaticIntArray1D(zip, field.owner, field.name);
+                            if (arr != null && idx >= 0 && idx < arr.length) {
+                                return arr[idx];
+                            }
+                        }
+                    }
+                }
+            }
+            if (loadOp == Opcodes.FALOAD) {
+                // 1D shape: <field>:[F; ILOAD; FALOAD
+                if (prev1 instanceof VarInsnNode iload && iload.getOpcode() == Opcodes.ILOAD) {
+                    AbstractInsnNode getstaticNode = AsmKit.previousReal(prev1);
+                    if (getstaticNode instanceof FieldInsnNode field
+                        && field.getOpcode() == Opcodes.GETSTATIC
+                        && "[F".equals(field.desc)) {
+                        Integer idx = resolveSlotInt(state, iload.var);
+                        if (idx != null) {
+                            float[] arr = AsmKit.readStaticFloatArray1D(zip, field.owner, field.name);
+                            if (arr != null && idx >= 0 && idx < arr.length) {
+                                return arr[idx];
+                            }
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
+        /**
+         * Returns the resolved int for a JVM local slot - first checking
+         * {@link ParseState#numericLocals} (where in-body {@code ISTORE}s are captured), then
+         * {@link ParseState#paramIntValues} (where the for-loop unroller injects the iterator
+         * value and {@code captureInlineParams} injects call-site literals). Returns
+         * {@code null} when neither holds a value, signalling the static-array fold to fall
+         * through.
+         */
+        private static @Nullable Integer resolveSlotInt(@NotNull ParseState state, int slot) {
+            Number local = state.numericLocals.get(slot);
+            if (local != null) return local.intValue();
+            if (state.paramIntValues != null && slot >= 0 && slot < state.paramIntValues.length) {
+                return state.paramIntValues[slot];
+            }
+            return null;
         }
 
         /**
