@@ -829,7 +829,118 @@ public final class EntityTextureResolver {
             }
             if (!nonBase) return stem;
         }
-        return null;
+
+        // No inline texture LDC anywhere - try the Sheets / SpriteMapper indirection used by
+        // ShulkerRenderer (DEFAULT_TEXTURE_LOCATION = Sheets.DEFAULT_SHULKER_TEXTURE_LOCATION
+        // .texture().withPath(lambda$static$0)). The texture stem is composed from a
+        // {@code SpriteMapper}'s prefix and the name passed to {@code defaultNamespaceApply}.
+        return findSheetsTextureFallback(zip, rendererInternalName);
+    }
+
+    /**
+     * Resolves a renderer's base texture by following the {@code Sheets.<SPRITE_ID>.texture()}
+     * chain when no inline LDC is reachable. Two-hop walk:
+     * <ol>
+     *   <li>Find in the renderer's {@code <clinit>} a {@code GETSTATIC <Sheets>.<SPRITE_ID_FIELD>
+     *       : SpriteId} followed by {@code INVOKEVIRTUAL SpriteId.texture()} - records the
+     *       sheets class + sprite-id field.</li>
+     *   <li>In the sheets class's {@code <clinit>}, walk for {@code PUTSTATIC <SPRITE_ID_FIELD>}.
+     *       Backwards from it, match
+     *       {@code GETSTATIC <MAPPER_FIELD> : SpriteMapper; LDC "<name>";
+     *       INVOKEVIRTUAL SpriteMapper.defaultNamespaceApply(String)}.</li>
+     *   <li>In the same {@code <clinit>}, walk for {@code PUTSTATIC <MAPPER_FIELD>}. Backwards
+     *       from it, match {@code NEW SpriteMapper; DUP; GETSTATIC <SHEET>; LDC "<prefix>";
+     *       INVOKESPECIAL SpriteMapper.<init>(Identifier, String)V}.</li>
+     * </ol>
+     * Combines as {@code prefix + "/" + name}; strips a leading {@code "entity/"} so the result
+     * matches the {@code textures/entity/<stem>.png} convention. Sole vanilla 26.1 hit:
+     * {@code ShulkerRenderer} -&gt; {@code shulker/shulker} (prefix {@code "entity/shulker"},
+     * name {@code "shulker"}).
+     *
+     * <p>Returns {@code null} on any mismatch (no SpriteId getstatic in renderer clinit, sheets
+     * class unloadable, sprite-id putstatic predecessors don't form the expected
+     * {@code defaultNamespaceApply} triple, mapper putstatic predecessors don't form the
+     * expected {@code new SpriteMapper(...)} quintuple).
+     */
+    private static @Nullable String findSheetsTextureFallback(
+        @NotNull ZipFile zip,
+        @NotNull String rendererInternalName
+    ) {
+        ClassNode renderer = AsmKit.loadClass(zip, rendererInternalName);
+        if (renderer == null) return null;
+        MethodNode rendererClinit = AsmKit.findMethod(renderer, AsmKit.CLINIT);
+        if (rendererClinit == null) return null;
+
+        String spriteIdDesc = "L" + VanillaSourceClasses.SPRITE_ID + ";";
+        String spriteMapperDesc = "L" + VanillaSourceClasses.SPRITE_MAPPER + ";";
+
+        String sheetsOwner = null;
+        String spriteIdField = null;
+        for (AbstractInsnNode in = rendererClinit.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (in.getOpcode() != Opcodes.GETSTATIC) continue;
+            if (!(in instanceof FieldInsnNode fi)) continue;
+            if (!spriteIdDesc.equals(fi.desc)) continue;
+            AbstractInsnNode next = AsmKit.nextReal(in);
+            if (next instanceof MethodInsnNode mi
+                && mi.getOpcode() == Opcodes.INVOKEVIRTUAL
+                && VanillaSourceClasses.SPRITE_ID.equals(mi.owner)
+                && "texture".equals(mi.name)) {
+                sheetsOwner = fi.owner;
+                spriteIdField = fi.name;
+                break;
+            }
+        }
+        if (sheetsOwner == null) return null;
+
+        ClassNode sheetsCn = AsmKit.loadClass(zip, sheetsOwner);
+        MethodNode sheetsClinit = sheetsCn == null ? null : AsmKit.findMethod(sheetsCn, AsmKit.CLINIT);
+        if (sheetsClinit == null) return null;
+
+        String mapperField = null;
+        String name = null;
+        for (AbstractInsnNode in = sheetsClinit.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (in.getOpcode() != Opcodes.PUTSTATIC) continue;
+            if (!(in instanceof FieldInsnNode fi)) continue;
+            if (!sheetsOwner.equals(fi.owner) || !fi.name.equals(spriteIdField)) continue;
+            AbstractInsnNode invoke = AsmKit.previousReal(in);
+            if (!(invoke instanceof MethodInsnNode mi
+                && mi.getOpcode() == Opcodes.INVOKEVIRTUAL
+                && VanillaSourceClasses.SPRITE_MAPPER.equals(mi.owner)
+                && "defaultNamespaceApply".equals(mi.name))) break;
+            AbstractInsnNode nameLdc = AsmKit.previousReal(invoke);
+            String n = AsmKit.readStringLiteral(nameLdc);
+            if (n == null) break;
+            AbstractInsnNode mapperGet = AsmKit.previousReal(nameLdc);
+            if (!(mapperGet instanceof FieldInsnNode mf
+                && mapperGet.getOpcode() == Opcodes.GETSTATIC
+                && sheetsOwner.equals(mf.owner)
+                && spriteMapperDesc.equals(mf.desc))) break;
+            mapperField = mf.name;
+            name = n;
+            break;
+        }
+        if (mapperField == null) return null;
+
+        String prefix = null;
+        for (AbstractInsnNode in = sheetsClinit.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (in.getOpcode() != Opcodes.PUTSTATIC) continue;
+            if (!(in instanceof FieldInsnNode fi)) continue;
+            if (!sheetsOwner.equals(fi.owner) || !fi.name.equals(mapperField)) continue;
+            AbstractInsnNode init = AsmKit.previousReal(in);
+            if (!(init instanceof MethodInsnNode mi
+                && mi.getOpcode() == Opcodes.INVOKESPECIAL
+                && VanillaSourceClasses.SPRITE_MAPPER.equals(mi.owner)
+                && AsmKit.INIT.equals(mi.name))) break;
+            AbstractInsnNode prefixLdc = AsmKit.previousReal(init);
+            String p = AsmKit.readStringLiteral(prefixLdc);
+            if (p == null) break;
+            prefix = p;
+            break;
+        }
+        if (prefix == null) return null;
+
+        String stem = prefix + "/" + name;
+        return stem.startsWith("entity/") ? stem.substring("entity/".length()) : stem;
     }
 
     /**

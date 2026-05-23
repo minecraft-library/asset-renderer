@@ -335,4 +335,10 @@ public final class VanillaSourceClasses {
     /** Default player-skin holder - referenced by skull-renderer for the fallback face. */
     public static final @NotNull String DEFAULT_PLAYER_SKIN = CLIENT_RESOURCES_ROOT + "DefaultPlayerSkin";
 
+    /** SpriteId record carrying (atlasLocation, texture) - the SpriteMapper output type. */
+    public static final @NotNull String SPRITE_ID = CLIENT_ROOT + "resources/model/sprite/SpriteId";
+
+    /** SpriteMapper builds SpriteIds from a sheet Identifier + path prefix. */
+    public static final @NotNull String SPRITE_MAPPER = RENDERER_ROOT + "SpriteMapper";
+
 }
