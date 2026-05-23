@@ -1235,6 +1235,47 @@ public final class ToolingBlockEntities {
             @NotNull ParseState state,
             @NotNull ZipFile zip
         ) {
+            // Canonical javac for-loop unrolling: when {@code node} opens the
+            // {@code <init>; ISTORE slot; ILOAD slot; <bound>; IF_ICMPGE exit ; body ;
+            // IINC slot, +step; GOTO test ; exit:} pattern, replay the body N times with
+            // {@code paramIntValues[slot] = i} so the body's {@code ILOAD slot} substitution
+            // (see the ILOAD handler below) folds to the literal iteration index. Vanilla
+            // procedural-loop entity factories (squid / blaze / ghast / magma_cube / guardian
+            // / silverfish / endermite / ender_dragon / elder_guardian) all use this exact
+            // shape to emit N tentacles / segments / spikes per loop. Skipped when
+            // {@code paramFloatValues == null} so legacy block-entity literal-stack walkers
+            // (which never opted into arithmetic evaluation) keep their byte-stable linear walk.
+            //
+            // <p>The body range {@code [firstBodyInsn, firstInsnAfterLoop)} naturally contains
+            // the trailing {@code IINC} (unhandled - no IINC handler exists, so iterator slot
+            // stays at our injected value) and the closing backward {@code GOTO test} (the
+            // GOTO handler only follows forward jumps, so it falls through linearly past the
+            // exit label and walkRange stops at {@code endExclusive = firstInsnAfterLoop}).
+            // Return {@code firstInsnAfterLoop.getPrevious()} so the outer walkRange's
+            // {@code .getNext()} lands on {@code firstInsnAfterLoop} - i.e. the parser
+            // resumes at the first real instruction after the loop.
+            if (state.paramFloatValues != null) {
+                AsmKit.IntForLoop loop = AsmKit.detectIntForLoop(node);
+                if (loop != null) {
+                    int slot = loop.iteratorSlot();
+                    int[] previousInts = state.paramIntValues;
+                    int[] working = ensureIntSlotCapacity(previousInts, slot);
+                    int savedAtSlot = working[slot];
+                    state.paramIntValues = working;
+                    try {
+                        for (int i = loop.initValue(); i < loop.boundExclusive(); i += loop.step()) {
+                            working[slot] = i;
+                            walkRange(instructions, loop.firstBodyInsn(), loop.firstInsnAfterLoop(), state, zip);
+                        }
+                    } finally {
+                        working[slot] = savedAtSlot;
+                        state.paramIntValues = previousInts;
+                    }
+                    AbstractInsnNode resumeAt = loop.firstInsnAfterLoop().getPrevious();
+                    return resumeAt != null ? resumeAt : loop.firstInsnAfterLoop();
+                }
+            }
+
             Number literal = readNumericLiteral(node);
             if (literal != null) {
                 // LiteralStack auto-evicts the oldest on capacity overflow; surface the first
@@ -2893,6 +2934,26 @@ public final class ToolingBlockEntities {
             if (!state.branchStack.isEmpty())
                 return state.branchStack.removeLast();
             return null;
+        }
+
+        /**
+         * Returns a {@code paramIntValues}-compatible {@code int[]} of at least {@code slot+1}
+         * entries, allocating a new array (and copying existing values) when {@code current}
+         * is {@code null} or too small. Used by the for-loop unroller in
+         * {@link #handleInstruction} to inject the iterator's per-iteration value into a slot
+         * that might not have been pre-sized by the {@link Source}'s {@code paramIntValues}
+         * (top-level Java entity sources don't set {@code paramIntValues} at all, so the slot
+         * is unallocated until the first loop fires).
+         */
+        private static int @NotNull [] ensureIntSlotCapacity(int @Nullable [] current, int slot) {
+            if (current != null && slot < current.length)
+                return current;
+            int currentLength = current == null ? 0 : current.length;
+            int newLength = Math.max(slot + 1, Math.max(currentLength * 2, 16));
+            int[] resized = new int[newLength];
+            if (current != null)
+                System.arraycopy(current, 0, resized, 0, currentLength);
+            return resized;
         }
 
         /**
