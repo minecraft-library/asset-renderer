@@ -2,18 +2,23 @@ package lib.minecraft.renderer.tooling.entity;
 
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -30,7 +35,7 @@ import java.util.Map;
  * id dedupe map, write {@code entity_geometry.json}, walk each entity record emitting a row
  * (including overlay rows, block-overlay rows, base tint, hidden bones), emit variant rows
  * for data-driven variants, then write {@code entity_models.json} with the families table
- * from {@link EntityFamilyResolver}.
+ * from {@link #deriveFamilies}.
  */
 @UtilityClass
 public final class EntityRuntimeJsonWriter {
@@ -261,7 +266,7 @@ public final class EntityRuntimeJsonWriter {
         // covers variant-of-same-entity groupings (cow_cold -> cow). The families table handles
         // non-variant entities that share a primary createBodyLayer factory (mooshroom and cow
         // both bake CowModel.createBodyLayer -> both end up at geometry.cow).
-        JsonObject familiesOut = EntityFamilyResolver.derive(entitiesOut, diagnostics);
+        JsonObject familiesOut = deriveFamilies(entitiesOut, diagnostics);
         if (familiesOut.size() > 0) modelsRoot.add("families", familiesOut);
         Files.createDirectories(MODELS_OUTPUT.getParent());
         Files.writeString(
@@ -277,6 +282,89 @@ public final class EntityRuntimeJsonWriter {
      */
     private static @NotNull String stripModelSuffix(@NotNull String simpleName) {
         return simpleName.endsWith("Model") ? simpleName.substring(0, simpleName.length() - "Model".length()) : simpleName;
+    }
+
+    // ----------------------------------------------------------------------------------------
+    // Cross-entity family derivation
+    // ----------------------------------------------------------------------------------------
+    //
+    // Pairs sibling entities that share a `geometry_ref` with a canonical root entity (the
+    // member whose id, after the `minecraft:` namespace strip, matches the geometry stem
+    // after the `geometry.` prefix and any GEOMETRY_NAME_PREFIXES strip). Example vanilla
+    // pairings:
+    // - geometry.cow shared by (cow, mooshroom) -> root is cow
+    // - geometry.adultcamel shared by (camel, camel_husk) -> root is camel (after stripping "adult")
+    // - geometry.illager shared by (evoker, illusioner, pillager, vindicator) -> no member id
+    //   matches the stem, so no family is emitted
+    //
+    // The "id matches geometry stem" rule cleanly separates the wanted families (where the
+    // geometry was authored for one canonical entity and re-used by a derivative) from the
+    // coincidence families (where multiple sibling entities share a generic-named model).
+    // Variant rows (variant_of present) are pre-filtered because they're already grouped
+    // under their declared root via the per-entity variant_of field.
+
+    /**
+     * Common geometry-name prefixes that don't appear in the entity id.
+     * {@code geometry.adultcamel} pairs with {@code minecraft:camel}; the resolver strips
+     * these prefixes before matching the geometry stem against entity ids.
+     */
+    private static final @NotNull List<String> GEOMETRY_NAME_PREFIXES = List.of("adult", "baby");
+
+    /**
+     * Builds the families JSON object by clustering non-variant entities that share a
+     * {@code geometry_ref} and selecting the canonical root per cluster.
+     *
+     * @param entitiesOut the {@code entities} JSON object from {@code entity_models.json}
+     *     (one row per entity-id; rows with {@code variant_of} are skipped)
+     * @param diagnostics the diagnostic sink; emits one {@code INFO} line per resolved or
+     *     skipped family
+     * @return a JSON object mapping each non-root sibling to its family root; empty when no
+     *     family resolves
+     */
+    private static @NotNull JsonObject deriveFamilies(@NotNull JsonObject entitiesOut, @NotNull Diagnostics diagnostics) {
+        Map<String, List<String>> geometryToBaseEntities = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonElement> entry : entitiesOut.entrySet()) {
+            if (!entry.getValue().isJsonObject()) continue;
+            JsonObject row = entry.getValue().getAsJsonObject();
+            if (row.has("variant_of")) continue;
+            if (!row.has("geometry_ref")) continue;
+            String geomRef = row.get("geometry_ref").getAsString();
+            geometryToBaseEntities.computeIfAbsent(geomRef, k -> new ArrayList<>()).add(entry.getKey());
+        }
+
+        JsonObject families = new JsonObject();
+        for (Map.Entry<String, List<String>> e : geometryToBaseEntities.entrySet()) {
+            List<String> members = e.getValue();
+            if (members.size() < 2) continue;
+            String root = pickCanonicalFamilyRoot(e.getKey(), members);
+            if (root == null) {
+                diagnostics.info("cross-entity family skipped: '%s' shared by %s - no member id matches the geometry stem",
+                    e.getKey(), members);
+                continue;
+            }
+            for (String member : members) {
+                if (member.equals(root)) continue;
+                families.addProperty(member, root);
+                diagnostics.info("cross-entity family: %s -> %s (shared %s)", member, root, e.getKey());
+            }
+        }
+        return families;
+    }
+
+    /**
+     * Returns the family root by matching the geometry stem (after stripping the
+     * {@code geometry.} prefix and any {@link #GEOMETRY_NAME_PREFIXES} prefix) against each
+     * candidate entity id (after the {@code minecraft:} namespace strip).
+     */
+    private static @Nullable String pickCanonicalFamilyRoot(@NotNull String geometryRef, @NotNull List<String> members) {
+        String stem = geometryRef.startsWith("geometry.") ? geometryRef.substring("geometry.".length()) : geometryRef;
+        for (String prefix : GEOMETRY_NAME_PREFIXES) {
+            if (stem.startsWith(prefix)) stem = stem.substring(prefix.length());
+        }
+        String targetId = VanillaSourcePaths.MINECRAFT_NAMESPACE + stem;
+        for (String member : members)
+            if (member.equals(targetId)) return member;
+        return null;
     }
 
 }

@@ -1299,62 +1299,103 @@ public final class AsmKit {
     }
 
     /**
-     * Walks {@code clinit} for a {@code PUTSTATIC <fieldName>:[I} matching the canonical
-     * literal-int-array initializer. Returns the values when the shape matches; {@code null}
-     * otherwise. See {@link #readStaticIntArray1D} for the pattern.
+     * Walks {@code clinit} for the first {@code PUTSTATIC <fieldName>:<desc>} and returns it.
+     * Returns {@code null} when no matching PUTSTATIC exists.
      */
-    private static int @Nullable [] findIntArray1DInitializer(@NotNull MethodNode clinit, @NotNull String fieldName) {
+    private static @Nullable FieldInsnNode findPutstatic(@NotNull MethodNode clinit, @NotNull String fieldName, @NotNull String desc) {
         for (AbstractInsnNode node = clinit.instructions.getFirst(); node != null; node = node.getNext()) {
             if (!(node instanceof FieldInsnNode put) || put.getOpcode() != Opcodes.PUTSTATIC) continue;
-            if (!fieldName.equals(put.name) || !"[I".equals(put.desc)) continue;
-            // Found the putstatic for our field. Walk back to find the initializer chain.
-            // The instruction immediately before PUTSTATIC is the array ref - we trace back
-            // to NEWARRAY int and walk forward collecting DUP; <idx>; <value>; IASTORE pairs.
-            return collectIntArray1DEntries(clinit, put);
+            if (fieldName.equals(put.name) && desc.equals(put.desc)) return put;
         }
         return null;
     }
 
     /**
-     * Collects {@code (DUP; <idx>; <value>; IASTORE)} entries from the initializer chain that
-     * ends at the given {@code PUTSTATIC}. Walks back to find the {@code NEWARRAY int} that
-     * starts the chain, then forward to gather the entries until {@code PUTSTATIC} is reached.
+     * Walks backward from {@code putstatic} for the first {@code NEWARRAY <newArrayOperand>}
+     * instruction and returns it paired with the preceding length literal. Returns
+     * {@code null} when no matching NEWARRAY is found, the length is missing, or the length
+     * is non-literal / negative.
      */
-    private static int @Nullable [] collectIntArray1DEntries(@NotNull MethodNode clinit, @NotNull FieldInsnNode putstatic) {
-        AbstractInsnNode newArrayNode = null;
-        AbstractInsnNode lengthNode = null;
+    private record PrimitiveNewArray(@NotNull AbstractInsnNode newArrayNode, int length) {}
+
+    private static @Nullable PrimitiveNewArray findPrimitiveNewArrayBefore(@NotNull FieldInsnNode putstatic, int newArrayOperand) {
         for (AbstractInsnNode cursor = putstatic.getPrevious(); cursor != null; cursor = cursor.getPrevious()) {
             if (isPseudoNode(cursor)) continue;
-            if (cursor instanceof IntInsnNode intInsn && intInsn.getOpcode() == Opcodes.NEWARRAY && intInsn.operand == Opcodes.T_INT) {
-                newArrayNode = cursor;
-                lengthNode = previousReal(cursor);
-                break;
+            if (cursor instanceof IntInsnNode intInsn && intInsn.getOpcode() == Opcodes.NEWARRAY && intInsn.operand == newArrayOperand) {
+                Integer length = readIntLiteral(previousReal(cursor));
+                if (length == null || length < 0) return null;
+                return new PrimitiveNewArray(cursor, length);
             }
         }
-        if (newArrayNode == null || lengthNode == null) return null;
-        Integer length = readIntLiteral(lengthNode);
-        if (length == null || length < 0) return null;
-        int[] out = new int[length];
-        // Walk forward from NEWARRAY, gathering DUP; <idx>; <value>; IASTORE.
+        return null;
+    }
+
+    /**
+     * Per-entry callback for {@link #walkDupStoreEntries}. Returns {@code false} to abort the
+     * walk (signals a malformed or non-literal value at this entry).
+     */
+    @FunctionalInterface
+    private interface DupStoreEntryHandler {
+        boolean handleEntry(int idx, @NotNull AbstractInsnNode valueNode);
+    }
+
+    /**
+     * Walks the canonical {@code (DUP; <idx>; <value>; storeOpcode)*} entry sequence between
+     * {@code newArrayNode} and {@code stopAt}, invoking {@code handler} per matched entry.
+     * Returns {@code true} when every encountered DUP-rooted tuple matches the expected shape
+     * and the cursor lands exactly at {@code stopAt}; {@code false} on any malformed tuple
+     * (missing nodes, wrong store opcode, non-literal or out-of-bounds index, handler veto).
+     *
+     * <p>When {@code skipUnknownNodes} is {@code true}, non-DUP nodes between entries are
+     * silently skipped (1D usage). When {@code false}, any non-DUP node aborts the walk (the
+     * 2D inner loop's stricter pack).
+     */
+    private static boolean walkDupStoreEntries(
+        @NotNull AbstractInsnNode newArrayNode,
+        @NotNull AbstractInsnNode stopAt,
+        int storeOpcode,
+        int length,
+        boolean skipUnknownNodes,
+        @NotNull DupStoreEntryHandler handler
+    ) {
         AbstractInsnNode cursor = nextReal(newArrayNode);
-        while (cursor != null && cursor != putstatic) {
+        while (cursor != null && cursor != stopAt) {
             if (cursor.getOpcode() != Opcodes.DUP) {
+                if (!skipUnknownNodes) return false;
                 cursor = nextReal(cursor);
                 continue;
             }
             AbstractInsnNode idxNode = nextReal(cursor);
             AbstractInsnNode valueNode = nextReal(idxNode);
-            AbstractInsnNode iastoreNode = nextReal(valueNode);
-            if (idxNode == null || valueNode == null || iastoreNode == null) return null;
-            if (iastoreNode.getOpcode() != Opcodes.IASTORE) return null;
+            AbstractInsnNode storeNode = nextReal(valueNode);
+            if (idxNode == null || valueNode == null || storeNode == null) return false;
+            if (storeNode.getOpcode() != storeOpcode) return false;
             Integer idx = readIntLiteral(idxNode);
-            Integer value = readIntLiteral(valueNode);
-            if (idx == null || value == null) return null;
-            if (idx < 0 || idx >= length) return null;
-            out[idx] = value;
-            cursor = nextReal(iastoreNode);
+            if (idx == null || idx < 0 || idx >= length) return false;
+            if (!handler.handleEntry(idx, valueNode)) return false;
+            cursor = nextReal(storeNode);
         }
-        return out;
+        return cursor == stopAt;
+    }
+
+    /**
+     * Walks {@code clinit} for a {@code PUTSTATIC <fieldName>:[I} matching the canonical
+     * literal-int-array initializer. Returns the values when the shape matches; {@code null}
+     * otherwise. See {@link #readStaticIntArray1D} for the pattern.
+     */
+    private static int @Nullable [] findIntArray1DInitializer(@NotNull MethodNode clinit, @NotNull String fieldName) {
+        FieldInsnNode put = findPutstatic(clinit, fieldName, "[I");
+        if (put == null) return null;
+        PrimitiveNewArray loc = findPrimitiveNewArrayBefore(put, Opcodes.T_INT);
+        if (loc == null) return null;
+        int[] out = new int[loc.length()];
+        boolean ok = walkDupStoreEntries(loc.newArrayNode(), put, Opcodes.IASTORE, loc.length(), true, (idx, valueNode) -> {
+            Integer value = readIntLiteral(valueNode);
+            if (value == null) return false;
+            out[idx] = value;
+            return true;
+        });
+        return ok ? out : null;
     }
 
     /**
@@ -1363,22 +1404,11 @@ public final class AsmKit {
      * {@code null} otherwise. See {@link #readStaticIntArray2D} for the pattern.
      */
     private static int @Nullable [] @Nullable [] findIntArray2DInitializer(@NotNull MethodNode clinit, @NotNull String fieldName) {
-        for (AbstractInsnNode node = clinit.instructions.getFirst(); node != null; node = node.getNext()) {
-            if (!(node instanceof FieldInsnNode put) || put.getOpcode() != Opcodes.PUTSTATIC) continue;
-            if (!fieldName.equals(put.name) || !"[[I".equals(put.desc)) continue;
-            return collectIntArray2DEntries(clinit, put);
-        }
-        return null;
-    }
-
-    /**
-     * Collects {@code (DUP; <row>; <inner-len>; NEWARRAY int; (...inner pairs...); AASTORE)}
-     * outer entries from the initializer chain that ends at the given {@code PUTSTATIC}.
-     */
-    private static int @Nullable [] @Nullable [] collectIntArray2DEntries(@NotNull MethodNode clinit, @NotNull FieldInsnNode putstatic) {
+        FieldInsnNode put = findPutstatic(clinit, fieldName, "[[I");
+        if (put == null) return null;
         AbstractInsnNode aNewArrayNode = null;
         AbstractInsnNode lengthNode = null;
-        for (AbstractInsnNode cursor = putstatic.getPrevious(); cursor != null; cursor = cursor.getPrevious()) {
+        for (AbstractInsnNode cursor = put.getPrevious(); cursor != null; cursor = cursor.getPrevious()) {
             if (isPseudoNode(cursor)) continue;
             if (cursor instanceof TypeInsnNode typeInsn && typeInsn.getOpcode() == Opcodes.ANEWARRAY && "[I".equals(typeInsn.desc)) {
                 aNewArrayNode = cursor;
@@ -1391,7 +1421,7 @@ public final class AsmKit {
         if (outerLength == null || outerLength < 0) return null;
         int[][] out = new int[outerLength][];
         AbstractInsnNode cursor = nextReal(aNewArrayNode);
-        while (cursor != null && cursor != putstatic) {
+        while (cursor != null && cursor != put) {
             if (cursor.getOpcode() != Opcodes.DUP) {
                 cursor = nextReal(cursor);
                 continue;
@@ -1407,27 +1437,31 @@ public final class AsmKit {
             if (!(innerNewArrayNode instanceof IntInsnNode innerNewArray)
                 || innerNewArray.getOpcode() != Opcodes.NEWARRAY
                 || innerNewArray.operand != Opcodes.T_INT) return null;
+            AbstractInsnNode aastore = findFollowingAastore(innerNewArrayNode, put);
+            if (aastore == null) return null;
             int[] inner = new int[innerLen];
-            cursor = nextReal(innerNewArrayNode);
-            while (cursor != null && cursor.getOpcode() != Opcodes.AASTORE) {
-                if (cursor.getOpcode() != Opcodes.DUP) return null;
-                AbstractInsnNode innerIdxNode = nextReal(cursor);
-                AbstractInsnNode innerValueNode = nextReal(innerIdxNode);
-                AbstractInsnNode iastoreNode = nextReal(innerValueNode);
-                if (innerIdxNode == null || innerValueNode == null || iastoreNode == null) return null;
-                if (iastoreNode.getOpcode() != Opcodes.IASTORE) return null;
-                Integer innerIdx = readIntLiteral(innerIdxNode);
-                Integer innerValue = readIntLiteral(innerValueNode);
-                if (innerIdx == null || innerValue == null) return null;
-                if (innerIdx < 0 || innerIdx >= innerLen) return null;
-                inner[innerIdx] = innerValue;
-                cursor = nextReal(iastoreNode);
-            }
-            if (cursor == null) return null;
+            boolean ok = walkDupStoreEntries(innerNewArrayNode, aastore, Opcodes.IASTORE, innerLen, false, (innerIdx, valueNode) -> {
+                Integer value = readIntLiteral(valueNode);
+                if (value == null) return false;
+                inner[innerIdx] = value;
+                return true;
+            });
+            if (!ok) return null;
             out[row] = inner;
-            cursor = nextReal(cursor);
+            cursor = nextReal(aastore);
         }
         return out;
+    }
+
+    /**
+     * Walks forward from {@code from} (exclusive) for the first {@code AASTORE} preceding
+     * {@code stopAt}. Returns {@code null} when none is found before {@code stopAt}. Used by
+     * the 2D walker to bracket each row's inner-entry pack.
+     */
+    private static @Nullable AbstractInsnNode findFollowingAastore(@NotNull AbstractInsnNode from, @NotNull AbstractInsnNode stopAt) {
+        for (AbstractInsnNode cursor = nextReal(from); cursor != null && cursor != stopAt; cursor = nextReal(cursor))
+            if (cursor.getOpcode() == Opcodes.AASTORE) return cursor;
+        return null;
     }
 
     /**
@@ -1436,51 +1470,18 @@ public final class AsmKit {
      * otherwise. See {@link #readStaticFloatArray1D} for the pattern.
      */
     private static float @Nullable [] findFloatArray1DInitializer(@NotNull MethodNode clinit, @NotNull String fieldName) {
-        for (AbstractInsnNode node = clinit.instructions.getFirst(); node != null; node = node.getNext()) {
-            if (!(node instanceof FieldInsnNode put) || put.getOpcode() != Opcodes.PUTSTATIC) continue;
-            if (!fieldName.equals(put.name) || !"[F".equals(put.desc)) continue;
-            return collectFloatArray1DEntries(clinit, put);
-        }
-        return null;
-    }
-
-    /**
-     * Collects {@code (DUP; <idx>; <value>; FASTORE)} entries from a float-array initializer.
-     */
-    private static float @Nullable [] collectFloatArray1DEntries(@NotNull MethodNode clinit, @NotNull FieldInsnNode putstatic) {
-        AbstractInsnNode newArrayNode = null;
-        AbstractInsnNode lengthNode = null;
-        for (AbstractInsnNode cursor = putstatic.getPrevious(); cursor != null; cursor = cursor.getPrevious()) {
-            if (isPseudoNode(cursor)) continue;
-            if (cursor instanceof IntInsnNode intInsn && intInsn.getOpcode() == Opcodes.NEWARRAY && intInsn.operand == Opcodes.T_FLOAT) {
-                newArrayNode = cursor;
-                lengthNode = previousReal(cursor);
-                break;
-            }
-        }
-        if (newArrayNode == null || lengthNode == null) return null;
-        Integer length = readIntLiteral(lengthNode);
-        if (length == null || length < 0) return null;
-        float[] out = new float[length];
-        AbstractInsnNode cursor = nextReal(newArrayNode);
-        while (cursor != null && cursor != putstatic) {
-            if (cursor.getOpcode() != Opcodes.DUP) {
-                cursor = nextReal(cursor);
-                continue;
-            }
-            AbstractInsnNode idxNode = nextReal(cursor);
-            AbstractInsnNode valueNode = nextReal(idxNode);
-            AbstractInsnNode fastoreNode = nextReal(valueNode);
-            if (idxNode == null || valueNode == null || fastoreNode == null) return null;
-            if (fastoreNode.getOpcode() != Opcodes.FASTORE) return null;
-            Integer idx = readIntLiteral(idxNode);
+        FieldInsnNode put = findPutstatic(clinit, fieldName, "[F");
+        if (put == null) return null;
+        PrimitiveNewArray loc = findPrimitiveNewArrayBefore(put, Opcodes.T_FLOAT);
+        if (loc == null) return null;
+        float[] out = new float[loc.length()];
+        boolean ok = walkDupStoreEntries(loc.newArrayNode(), put, Opcodes.FASTORE, loc.length(), true, (idx, valueNode) -> {
             Float value = readFloatLiteral(valueNode);
-            if (idx == null || value == null) return null;
-            if (idx < 0 || idx >= length) return null;
+            if (value == null) return false;
             out[idx] = value;
-            cursor = nextReal(fastoreNode);
-        }
-        return out;
+            return true;
+        });
+        return ok ? out : null;
     }
 
     // ----------------------------------------------------------------------------------------

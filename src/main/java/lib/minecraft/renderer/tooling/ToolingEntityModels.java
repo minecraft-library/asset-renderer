@@ -63,8 +63,9 @@ import java.util.Set;
  *       {@link lib.minecraft.renderer.tooling.parser.GeometryParser} at parse time.</li>
  *   <li><b>Phase D - overlay resolution + emission</b>
  *       ({@link EntityOverlayResolver}, {@link EntityBlockOverlayResolver},
- *       {@link EntityFamilyResolver}, {@link EntityRuntimeJsonWriter}). Resolves overlay
- *       rows and emits the runtime JSON {@link EntityRenderer EntityRenderer} consumes.</li>
+ *       {@link EntityRuntimeJsonWriter}). Resolves overlay rows and emits the runtime JSON
+ *       {@link EntityRenderer EntityRenderer} consumes (cross-entity family clustering folded
+ *       into {@code EntityRuntimeJsonWriter}).</li>
  * </ol>
  *
  * <p><b>Diagnostics.</b> Two dev-only JSON dumps land under

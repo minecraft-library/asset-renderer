@@ -26,7 +26,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Bytecode-driven discovery of block-model overlays attached to entity renderers via
@@ -74,24 +73,9 @@ public final class EntityBlockOverlayResolver {
      */
     private static final @NotNull String MODEL_PART = "net/minecraft/client/model/geom/ModelPart";
 
-    /**
-     * Per-layer-class detection cache populated by {@link #detectKnownLayer}: the dynamic
-     * inheritance / state-class walk runs once per encountered layer class, not per
-     * (entity, layer) pair. Detection derives the variant class from the layer's
-     * submit-method state-class field reads (vs. a hardcoded class-name allowlist).
-     *
-     * <p>Cache value {@code null} encodes "detection ran and returned null" - the
-     * key-present-but-value-null distinction prevents re-walking non-matching layers
-     * (every armor / equipment / item-in-hand layer attached to mob renderers).
-     */
-    private static final @NotNull Map<String, KnownLayer> KNOWN_LAYER_CACHE = new ConcurrentHashMap<>();
-
     /** Descriptor for the BlockModelRenderState type that a block-overlay layer's submit reads from a state field. */
     private static final @NotNull String BLOCK_MODEL_RENDER_STATE_DESC =
         "L" + VanillaSourceClasses.BLOCK_MODEL_RENDER_STATE + ";";
-
-    /** Cache sentinel for "detection ran and produced no match" - {@link ConcurrentHashMap} disallows null values. */
-    private static final @NotNull KnownLayer KNOWN_LAYER_NONE = new KnownLayer(null, null);
 
     /**
      * Resolves the block-overlay descriptors attached to an entity's renderer via recognised
@@ -122,12 +106,8 @@ public final class EntityBlockOverlayResolver {
         for (AbstractInsnNode node = init.instructions.getFirst(); node != null; node = node.getNext()) {
             if (!(node instanceof TypeInsnNode typeInsn) || typeInsn.getOpcode() != Opcodes.NEW) continue;
             String layerInternalName = typeInsn.desc;
-            KnownLayer layerInfo = KNOWN_LAYER_CACHE.computeIfAbsent(layerInternalName,
-                key -> {
-                    KnownLayer detected = detectKnownLayer(classNodes, key);
-                    return detected != null ? detected : KNOWN_LAYER_NONE;
-                });
-            if (layerInfo == KNOWN_LAYER_NONE) continue;
+            KnownLayer layerInfo = detectKnownLayer(classNodes, layerInternalName);
+            if (layerInfo == null) continue;
 
             String defaultBlockId = resolveDefaultBlockId(classNodes, layerInfo, entityId, diagnostics);
             if (defaultBlockId == null) {
@@ -262,17 +242,17 @@ public final class EntityBlockOverlayResolver {
             switch (methodInsn.owner + "." + methodInsn.name) {
                 case POSE_STACK + ".translate" -> {
                     if (methodInsn.desc.startsWith("(FFF") && floatStack.size() >= 3) {
-                        float z = floatStack.remove(floatStack.size() - 1);
-                        float y = floatStack.remove(floatStack.size() - 1);
-                        float x = floatStack.remove(floatStack.size() - 1);
+                        float z = floatStack.removeLast();
+                        float y = floatStack.removeLast();
+                        float x = floatStack.removeLast();
                         currentOps.add(new TransformOpRecord(OpKind.TRANSLATE, x, y, z));
                     }
                 }
                 case POSE_STACK + ".scale" -> {
                     if (methodInsn.desc.startsWith("(FFF") && floatStack.size() >= 3) {
-                        float z = floatStack.remove(floatStack.size() - 1);
-                        float y = floatStack.remove(floatStack.size() - 1);
-                        float x = floatStack.remove(floatStack.size() - 1);
+                        float z = floatStack.removeLast();
+                        float y = floatStack.removeLast();
+                        float x = floatStack.removeLast();
                         currentOps.add(new TransformOpRecord(OpKind.SCALE, x, y, z));
                     }
                 }
@@ -283,7 +263,7 @@ public final class EntityBlockOverlayResolver {
                     // since vanilla block-overlay layers consistently use Y - flagged via WARN
                     // by the caller if a non-Y axis becomes load-bearing.
                     if (floatStack.isEmpty()) continue;
-                    float degrees = floatStack.remove(floatStack.size() - 1);
+                    float degrees = floatStack.removeLast();
                     String axis = findPrecedingAxisField(methodInsn);
                     if (axis == null || axis.charAt(0) != 'Y') continue;
                     if (axis.equals("YN")) degrees = -degrees;

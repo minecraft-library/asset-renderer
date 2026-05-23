@@ -82,13 +82,12 @@
  *       {@link EntityOverlayResolver overlay resolution},
  *       {@link EntityBlockOverlayResolver block-overlay resolution},
  *       {@link EntityRendererOverrides renderer overrides (setupRotations yaw addend +
- *       scale residue)},
- *       {@link lib.minecraft.renderer.tooling.entity.EntityFamilyResolver EntityFamilyResolver}
- *       (cross-entity family clustering), and the
+ *       scale residue)}, and the
  *       {@link lib.minecraft.renderer.tooling.entity.EntityDiagnosticsWriter EntityDiagnosticsWriter}
  *       /
  *       {@link lib.minecraft.renderer.tooling.entity.EntityRuntimeJsonWriter EntityRuntimeJsonWriter}
- *       pair that emit the diagnostic and runtime JSONs. Procedural-loop entity factories
+ *       pair that emit the diagnostic and runtime JSONs (cross-entity family clustering folded
+ *       into {@code EntityRuntimeJsonWriter}). Procedural-loop entity factories
  *       (squid, blaze, ghast, magma_cube, ender_dragon, silverfish, endermite, guardian,
  *       elder_guardian) are folded by the shared
  *       {@link lib.minecraft.renderer.tooling.parser.GeometryParser GeometryParser} at parse
