@@ -71,7 +71,6 @@ public final class EntityProceduralLoops {
         return switch (factoryKey) {
             case "net/minecraft/client/model/monster/guardian/GuardianModel#createBodyLayer",
                  "net/minecraft/client/model/monster/guardian/GuardianModel#createElderGuardianLayer",
-                 "net/minecraft/client/model/monster/slime/MagmaCubeModel#createBodyLayer",
                  "net/minecraft/client/model/monster/ghast/GhastModel#createBodyLayer",
                  "net/minecraft/client/model/monster/silverfish/SilverfishModel#createBodyLayer",
                  "net/minecraft/client/model/monster/endermite/EndermiteModel#createBodyLayer" -> true;
@@ -106,8 +105,6 @@ public final class EntityProceduralLoops {
             case "net/minecraft/client/model/monster/guardian/GuardianModel#createBodyLayer",
                  "net/minecraft/client/model/monster/guardian/GuardianModel#createElderGuardianLayer" ->
                 applyGuardianSpikes(geometry);
-            case "net/minecraft/client/model/monster/slime/MagmaCubeModel#createBodyLayer" ->
-                applyMagmaCubeSegments(geometry);
             case "net/minecraft/client/model/monster/ghast/GhastModel#createBodyLayer" ->
                 applyGhastTentacles(geometry);
             case "net/minecraft/client/model/monster/silverfish/SilverfishModel#createBodyLayer" ->
@@ -286,24 +283,6 @@ public final class EntityProceduralLoops {
     private static final float[] SPIKE_Z_ROT = { 0f, 0f, 0.25f, 1.75f, 0f, 0f, 0f, 0f, 0f, 0f, 0.75f, 1.25f };
 
     /**
-     * Adds the 8 segment slabs that {@code MagmaCubeModel.createBodyLayer}'s loop emits.
-     * Mirrors the bytecode at offsets 13-110: per-iteration {@code i = 0..8}, the segment cube
-     * is {@code addBox(-4, 16+i, -4, 8, 1, 8)} at {@code texOffs(j, k)} where the (j, k) offsets
-     * branch on {@code i}:
-     * <ul>
-     * <li>{@code i = 0}: top cap, {@code (j, k) = (0, 0)}</li>
-     * <li>{@code 0 < i < 4}: middle-top slabs, {@code (j, k) = (0, 9*i)}</li>
-     * <li>{@code i >= 4}: bottom slabs, {@code (j, k) = (32, 9*i - 36)}</li>
-     * </ul>
-     *
-     * <p>All segments share {@code PartPose.ZERO}. Bone names use the {@code getSegmentName(i)}
-     * synthetic which compiles to {@code "cube" + i} via {@code makeConcatWithConstants}; the
-     * parser can't resolve {@code makeConcatWithConstants} so we use {@code "cube" + i} here
-     * to match what vanilla MC emits at runtime. The {@code inside_cube} bone (post-loop
-     * literal name) parses correctly via the linear walker; this template only fills the loop
-     * gap.
-     */
-    /**
      * Adds the 9 tentacle bones that {@code GhastModel.createBodyLayer}'s loop emits.
      * Mirrors the bytecode at offsets 50-166: a deterministic-seeded {@code RandomSource}
      * (seed {@code 1660L}) drives the per-iteration tentacle height; the per-tentacle X/Z
@@ -356,38 +335,6 @@ public final class EntityProceduralLoops {
             // ("tentacle" + i, no underscore) so this bone overwrites the partial bone the
             // parser's linear walk emits for the loop's first iteration with garbage values.
             bones.add("tentacle" + i, bone);
-        }
-    }
-
-    private static void applyMagmaCubeSegments(@NotNull JsonObject geometry) {
-        JsonObject bones = geometry.getAsJsonObject("bones");
-        if (bones == null) return;
-        for (int i = 0; i < 8; i++) {
-            int j, k;
-            if (i == 0) {
-                j = 0; k = 0;
-            } else if (i < 4) {
-                j = 0; k = 9 * i;
-            } else {
-                j = 32; k = 9 * i - 36;
-            }
-            JsonObject bone = new JsonObject();
-            bone.add("pivot", floatArray(0f, 0f, 0f));
-            bone.add("rotation", floatArray(0f, 0f, 0f));
-            JsonObject cube = new JsonObject();
-            cube.add("origin", floatArray(-4f, 16f + i, -4f));
-            cube.add("size", floatArray(8f, 1f, 8f));
-            JsonArray uv = new JsonArray();
-            uv.add(j);
-            uv.add(k);
-            cube.add("uv", uv);
-            cube.addProperty("inflate", 0.0);
-            cube.addProperty("mirror", false);
-            cube.add("face_uv", new JsonObject());
-            JsonArray cubes = new JsonArray();
-            cubes.add(cube);
-            bone.add("cubes", cubes);
-            bones.add("cube" + i, bone);
         }
     }
 

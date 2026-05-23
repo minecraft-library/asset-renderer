@@ -1097,6 +1097,40 @@ public final class AsmKit {
     // ----------------------------------------------------------------------------------------
 
     /**
+     * Evaluates a JVM integer-comparison jump opcode given concrete operand values. Used by
+     * parsers that resolve {@code IF<cond>} / {@code IF_ICMP<cond>} branch decisions at static
+     * analysis time once both sides are known compile-time literals. Unary opcodes
+     * ({@code IFEQ}, {@code IFNE}, {@code IFLT}, {@code IFGE}, {@code IFGT}, {@code IFLE})
+     * ignore {@code rhs} - the JVM specifies their predicate as {@code lhs <op> 0}, so callers
+     * may pass any value (zero is conventional). Binary opcodes ({@code IF_ICMPEQ},
+     * {@code IF_ICMPNE}, {@code IF_ICMPLT}, {@code IF_ICMPGE}, {@code IF_ICMPGT},
+     * {@code IF_ICMPLE}) use {@code lhs <op> rhs}.
+     *
+     * @param opcode the JVM jump opcode (one of {@link Opcodes#IFEQ}..{@link Opcodes#IF_ICMPLE})
+     * @param lhs the left-hand operand (or the only operand for unary opcodes)
+     * @param rhs the right-hand operand (ignored for unary opcodes)
+     * @return {@code true} when the comparison would take the branch, {@code false} for
+     *     falls-through or for any unmodelled opcode
+     */
+    public static boolean evaluateIntComparison(int opcode, int lhs, int rhs) {
+        return switch (opcode) {
+            case Opcodes.IFEQ -> lhs == 0;
+            case Opcodes.IFNE -> lhs != 0;
+            case Opcodes.IFLT -> lhs < 0;
+            case Opcodes.IFGE -> lhs >= 0;
+            case Opcodes.IFGT -> lhs > 0;
+            case Opcodes.IFLE -> lhs <= 0;
+            case Opcodes.IF_ICMPEQ -> lhs == rhs;
+            case Opcodes.IF_ICMPNE -> lhs != rhs;
+            case Opcodes.IF_ICMPLT -> lhs < rhs;
+            case Opcodes.IF_ICMPGE -> lhs >= rhs;
+            case Opcodes.IF_ICMPGT -> lhs > rhs;
+            case Opcodes.IF_ICMPLE -> lhs <= rhs;
+            default -> false;
+        };
+    }
+
+    /**
      * Description of a detected Java {@code for (int i = INIT; i < BOUND; i += STEP)} loop.
      *
      * @param iteratorSlot the JVM local-variable slot that holds the iterator
@@ -1726,6 +1760,32 @@ public final class AsmKit {
             Object top = this.entries.getLast();
             if (!(top instanceof Number n)) return null;
             this.entries.removeLast();
+            return n;
+        }
+
+        /**
+         * Like {@link #popNumber} but returns {@code null} when the top entry is the
+         * {@link #pushNonLiteral non-literal marker}, distinguishing "real compile-time literal
+         * on top" from "computed-or-unknown placeholder on top". Used by parsers whose
+         * branch-following logic must NOT take a branch when the comparison value isn't a real
+         * literal (the marker's {@code .intValue() == 0} would otherwise spuriously satisfy
+         * {@code IFLE} / {@code IFEQ} / {@code IF_ICMPLE} predicates).
+         *
+         * <p>Always consumes the top entry (matching JVM stack semantics - the operand IS
+         * popped even when the parser can't evaluate the predicate). Returns the literal value
+         * when it's a real number, or {@code null} when the stack is empty / the top is non-
+         * numeric / the top is the non-literal marker. A {@code null} return means "the caller
+         * should fall through linearly rather than follow the branch" while still keeping the
+         * JVM stack aligned for the post-comparison code.
+         *
+         * @return the popped number when it's a real literal, or {@code null} when the stack
+         *     is empty, the top is non-numeric, or the top is the non-literal marker
+         */
+        public @Nullable Number popLiteralNumber() {
+            if (this.entries.isEmpty()) return null;
+            Object top = this.entries.removeLast();
+            if (top == NON_LITERAL) return null;
+            if (!(top instanceof Number n)) return null;
             return n;
         }
 

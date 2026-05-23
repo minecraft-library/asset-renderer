@@ -22789,39 +22789,6 @@
       "textureWidth": 64,
       "textureHeight": 64,
       "bones": {
-        "inside_cube": {
-          "pivot": [
-            0.0,
-            0.0,
-            0.0
-          ],
-          "rotation": [
-            0.0,
-            0.0,
-            0.0
-          ],
-          "cubes": [
-            {
-              "origin": [
-                -2.0,
-                18.0,
-                -2.0
-              ],
-              "size": [
-                4.0,
-                4.0,
-                4.0
-              ],
-              "uv": [
-                24,
-                40
-              ],
-              "inflate": 0.0,
-              "mirror": false,
-              "face_uv": {}
-            }
-          ]
-        },
         "cube0": {
           "pivot": [
             0.0,
@@ -23079,6 +23046,39 @@
               "uv": [
                 32,
                 27
+              ],
+              "inflate": 0.0,
+              "mirror": false,
+              "face_uv": {}
+            }
+          ]
+        },
+        "inside_cube": {
+          "pivot": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "cubes": [
+            {
+              "origin": [
+                -2.0,
+                18.0,
+                -2.0
+              ],
+              "size": [
+                4.0,
+                4.0,
+                4.0
+              ],
+              "uv": [
+                24,
+                40
               ],
               "inflate": 0.0,
               "mirror": false,

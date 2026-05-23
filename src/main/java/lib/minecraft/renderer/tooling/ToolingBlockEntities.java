@@ -1338,23 +1338,26 @@ public final class ToolingBlockEntities {
                          Opcodes.IFLT, Opcodes.IFGE,
                          Opcodes.IFGT, Opcodes.IFLE -> {
                         // Unary int comparison: pops 1 int. Java pipeline pops from
-                        // numStack (where ILOAD / arithmetic results live); legacy pipeline
-                        // pops from branchStack (where ILOAD-of-paramIntValues lives, used
-                        // by the banner standing/wall split).
+                        // numStack via {@link AsmKit.LiteralStack#popLiteralNumber} (which
+                        // returns null when the popped entry is the non-literal sentinel,
+                        // distinguishing "real compile-time literal" from "marker"); legacy
+                        // pipeline pops from branchStack (where ILOAD-of-paramIntValues lives,
+                        // used by the banner standing/wall split).
                         Integer value = null;
                         if (state.paramFloatValues != null && !state.numStack.isEmpty()) {
-                            value = state.numStack.popNumber().intValue();
+                            Number popped = state.numStack.popLiteralNumber();
+                            if (popped != null) value = popped.intValue();
                         } else if (canFollow && !state.branchStack.isEmpty()) {
                             value = state.branchStack.remove(state.branchStack.size() - 1);
                         }
-                        // Branch-following only for IFEQ / IFNE with a resolved value
-                        // (others are loop-exit comparisons whose RHS is dynamic).
+                        // Branch-following for all six unary comparisons when the value is a
+                        // resolved literal. Patterns: IFLE / IF_ICMPGE inside an unrolled loop
+                        // body (e.g. MagmaCubeModel's per-iteration `if (i > 0 && i < 4)`)
+                        // need full follow so each iteration takes the correct branch.
                         if (canFollow && value != null
-                            && (opcode == Opcodes.IFEQ || opcode == Opcodes.IFNE)) {
-                            boolean jump = opcode == Opcodes.IFEQ ? value == 0 : value != 0;
-                            if (jump && isForwardJump(instructions, node, jumpInsn.label)) {
-                                return jumpInsn.label;
-                            }
+                            && AsmKit.evaluateIntComparison(opcode, value, 0)
+                            && isForwardJump(instructions, node, jumpInsn.label)) {
+                            return jumpInsn.label;
                         }
                     }
                     case Opcodes.IF_ICMPEQ, Opcodes.IF_ICMPNE,
@@ -1364,11 +1367,28 @@ public final class ToolingBlockEntities {
                         // ({@code iload_N; bipush <limit>; if_icmpge end}) which the parser
                         // doesn't follow back to the loop top, so the operands need cleaning
                         // up to keep numStack aligned for the post-loop code.
+                        //
+                        // <p>When both operands are resolved literals (e.g. the iterator slot's
+                        // injected value vs a literal bound during unrolling), the comparison
+                        // is evaluated and the branch followed when satisfied. Non-literal
+                        // operands fall through linearly with the JVM stack still aligned -
+                        // popLiteralNumber consumes the entry regardless.
+                        Integer rhs = null;
+                        Integer lhs = null;
                         if (state.paramFloatValues != null) {
-                            if (!state.numStack.isEmpty())
-                                state.numStack.pop();
-                            if (!state.numStack.isEmpty())
-                                state.numStack.pop();
+                            if (!state.numStack.isEmpty()) {
+                                Number poppedB = state.numStack.popLiteralNumber();
+                                if (poppedB != null) rhs = poppedB.intValue();
+                            }
+                            if (!state.numStack.isEmpty()) {
+                                Number poppedA = state.numStack.popLiteralNumber();
+                                if (poppedA != null) lhs = poppedA.intValue();
+                            }
+                        }
+                        if (canFollow && lhs != null && rhs != null
+                            && AsmKit.evaluateIntComparison(opcode, lhs, rhs)
+                            && isForwardJump(instructions, node, jumpInsn.label)) {
+                            return jumpInsn.label;
                         }
                     }
                     case Opcodes.IF_ACMPEQ, Opcodes.IF_ACMPNE,
