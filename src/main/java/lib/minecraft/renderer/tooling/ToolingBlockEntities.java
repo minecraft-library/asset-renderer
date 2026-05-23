@@ -2921,98 +2921,12 @@ public final class ToolingBlockEntities {
     @UtilityClass
     static class BlockModelConverter {
 
-        // The per-model inventory transform tuples and tinted-id set were removed in PR 2 -
-        // they now come from {@link InventoryTransformDecomposer} (bytecode-driven) and
-        // {@link TintDiscovery} respectively. The block-level constants below are kept as a
-        // diff-friendly reference of the 26.1 shapes, but are not evaluated at runtime.
-        /*
-        private static final @NotNull Set<String> TINTED_MODEL_IDS = Set.of(
-            "minecraft:banner_flag",
-            "minecraft:wall_banner_flag"
-        );
-
-        private static final @NotNull Map<String, float[]> INVENTORY_TRANSFORMS = Map.ofEntries(
-            // BedRenderer: translate(0, 9, 0) * Rx(90°) in model units
-            Map.entry("minecraft:bed_head", new float[]{ 0, 9, 0, 90, 0, 0 }),
-            Map.entry("minecraft:bed_foot", new float[]{ 0, 9, 0, 90, 0, 0 }),
-            // ShulkerBoxRenderer: translate(0.5, 0.5, 0.5) * scale(1, -1, -1) * translate(0, -1, 0)
-            // in block units. scale(1, -1, -1) is Rx(180), and in our "Rx then translate" form the
-            // two translates fold into translate(8, 24, 8): +8 on all axes to shift from the
-            // centered frame back to block-corner-at-origin, and an extra +16 on Y because
-            // vanilla's inner translate(0, -1, 0) is applied before the flip (post-flip this
-            // becomes +16 px, which together with the +8 centering yields +24).
-            Map.entry("minecraft:shulker_box", new float[]{ 8, 24, 8, 180, 0, 0 }),
-            // SkullBlockRenderer: translate(0.5, 0, 0.5) * scale(-1, -1, 1) * translate(-0.5, 0, -0.5).
-            // scale(-1, -1, 1) ≡ Rz(180), which combined with the translate pair centres the
-            // skull at x/z block-centre with Y flipping the Y-DOWN source to Y-UP. Our converter's
-            // inv-transform path uses Rx, not Rz, but Rx(180) is the equivalent for a cube
-            // centred on the X axis: flips Y and Z. Since the head cube spans z=-4..4 (symmetric
-            // around z=0), the Z-flip is a no-op on the bbox, leaving a clean Y-flip. The
-            // translate(+8, 0, +8) then centres the head at (4..12, 0..8, 4..12).
-            //
-            // Critical: this must live in INVENTORY_TRANSFORMS (not rely on the default Y-flip)
-            // because the default Y-flip doesn't translate X/Z and would leave the cube at
-            // (-4..4, 0..8, -4..4), escaping the 0..16 block bbox and triggering the runtime
-            // recenterAndFit that compresses the tile to one-face visibility.
-            Map.entry("minecraft:skull_head", new float[]{ 8, 0, 8, 180, 0, 0 }),
-            Map.entry("minecraft:skull_humanoid_head", new float[]{ 8, 0, 8, 180, 0, 0 }),
-            // Piglin skull: same Rx(180) + translate(+8, 0, +8) as the simple skull - head cube
-            // and ears all stay inside the block bbox.
-            Map.entry("minecraft:skull_piglin_head", new float[]{ 8, 0, 8, 180, 0, 0 }),
-            // Dragon skull: tz=1.25 instead of 8 shifts the whole model +6.75 in post-invYRot
-            // block-space Z so the bbox midpoint (snout extending to z=-10 + head cube at z=0.5..12.5
-            // under the simple {8,0,8,180,0,0} transform) lands at block centre 8. Without this
-            // the bbox midpoint is ~1.25 and recenterAndFit's recentering pushes the head to the
-            // back corner of the tile, with the snout clipping off the near corner. Post-shift
-            // the bbox is symmetric around block centre; recenterAndFit only scales by ~0.99 and
-            // doesn't shift, so head + snout render centred in the atlas tile with the snout
-            // naturally extending toward +z (camera-facing) like vanilla's inventory icon.
-            Map.entry("minecraft:skull_dragon_head", new float[]{ 8, 0, 1.25f, 180, 0, 0 }),
-            // DecoratedPotRenderer authors cubes in block-space Y-up (neck rim at y=17..20,
-            // lid/base decals at y=16/y=0), and its runtime modelTransformation is just a Y-rotation
-            // around block center for facing - no translate or Y-flip. A neutral inventory transform
-            // (all zeros) skips the default {@code cy = -cy} reflection path so cubes land where
-            // vanilla renders them. The neck rim extending past y=16 triggers the multi-block
-            // recenterAndFit pass at render time.
-            Map.entry("minecraft:decorated_pot", new float[]{ 0, 0, 0, 0, 0, 0 }),
-            Map.entry("minecraft:decorated_pot_sides", new float[]{ 0, 0, 0, 0, 0, 0 }),
-            // ConduitRenderer: translate(0.5, 0.5, 0.5) + rotateY(activeRotation), no Y-flip
-            // (conduit authored as 6x6x6 cube centred at origin). Baking pitch=0 skips the
-            // default {@code cy = -cy} reflection (cube is symmetric around origin so a flip is
-            // a no-op) and translates to block centre so the shell lands at (5..11) on each axis.
-            Map.entry("minecraft:conduit", new float[]{ 8, 8, 8, 0, 0, 0 }),
-            // AbstractSignRenderer (StandingSignRenderer): translate(0.5, 0.5, 0.5) *
-            // rotateY(-yaw) * scale(2/3, -2/3, -2/3) in block units. The 2/3 scale shrinks the
-            // authored sign (24-wide board, taller than a block) to fit a single tile. The
-            // negative Y/Z scales compose with a uniform positive scale into {@code Rx(180) *
-            // scale(2/3)} - baking uniform 2/3 in slot 6 plus pitch=180 + translate(8,8,8)
-            // matches vanilla's matrix composition exactly. Yaw=0 for the default iso render.
-            Map.entry("minecraft:sign", new float[]{ 8, 8, 8, 180, 0, 0, 0.6666667f }),
-            // HangingSignRenderer: translate(0.5, 0.9375, 0.5) * rotateY(-yaw) *
-            // translate(0, -0.3125, 0) * scale(1, -1, -1). Folds to translate(0.5, 0.625, 0.5)
-            // for yaw=0, i.e. model-units translate(8, 10, 8), plus Rx(180) for the Y/Z flips.
-            // No uniform shrink - hanging sign is authored to fit within a block already.
-            Map.entry("minecraft:hanging_sign", new float[]{ 8, 10, 8, 180, 0, 0 }),
-            // BannerRenderer.modelTransformation: Transformation(MODEL_TRANSLATION,
-            // Axis.YP.rotationDegrees(-yaw), MODEL_SCALE, null) where MODEL_TRANSLATION =
-            // (0.5, 0, 0.5) and MODEL_SCALE = (2/3, -2/3, -2/3). Same decomposition as the
-            // standing sign: positive uniform 2/3 + Rx(180) for the Y/Z sign flips, with
-            // translate(8, 0, 8) to land at block centre on X/Z (Y stays at 0 because vanilla
-            // doesn't translate the banner up - the pole extends from y=0 down to y=-42 in
-            // model units, flipped up post-Rx). Same transform for pole+bar (`minecraft:banner`)
-            // and the flag (`minecraft:banner_flag`) since both are rendered under the same
-            // PoseStack in BannerRenderer.submitBanner.
-            Map.entry("minecraft:banner", new float[]{ 8, 0, 8, 180, 0, 0, 0.6666667f }),
-            Map.entry("minecraft:banner_flag", new float[]{ 8, 0, 8, 180, 0, 0, 0.6666667f }),
-            // Wall banner variants share the same pose decomposition - the BannerRenderer
-            // runs wall and standing variants through identical MODEL_SCALE + MODEL_TRANSLATION.
-            // The wall-specific geometry difference (no pole, flag pivoted at (0, -20.5, 10.5)
-            // instead of (0, -44, 0)) comes from the BannerModel / BannerFlagModel branch we
-            // parse, not from a separate render transform.
-            Map.entry("minecraft:wall_banner", new float[]{ 8, 0, 8, 180, 0, 0, 0.6666667f }),
-            Map.entry("minecraft:wall_banner_flag", new float[]{ 8, 0, 8, 180, 0, 0, 0.6666667f })
-        );
-        */
+        // Per-model inventory_transform tuples (A10) and tinted-id set (A9) now live in
+        // {@link InventoryTransformDecomposer} (bytecode-driven) and {@link TintDiscovery}
+        // respectively. {@link #convert} consumes both as parameters; nothing is hardcoded
+        // here. The skull_dragon_head tz=1.25 special case is recovered by
+        // {@link #recenterInventoryTransformsByBbox} as a post-pass over the decomposer's
+        // output. See those classes for the per-model derivation provenance.
 
         /**
          * Converts all parsed entity models into a JSON object containing block model elements

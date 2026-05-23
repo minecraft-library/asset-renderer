@@ -59,9 +59,12 @@ import java.util.zip.ZipFile;
  *   <li><b>Skull variants</b> - {@code SkullModel.createHeadModel} is reached indirectly via
  *       {@code SkullModel.createMobHeadLayer} (which calls {@code LayerDefinition.create(mesh,
  *       64, 32)}) and {@code SkullModel.createHumanoidHeadLayer} (64x64). Rather than emit a
- *       pair of redundant wrapper-method Sources, {@link #SKULL_VARIANT_POLICY} collapses the
- *       mob + humanoid wrapper names into two Source emissions with explicit
- *       {@code texHeightOverride} values.</li>
+ *       pair of redundant wrapper-method Sources, {@link #SKULL_VARIANT_POLICY} maps each
+ *       wrapper name to the tooling-side entity id (the {@code skull_head} /
+ *       {@code skull_humanoid_head} split is our convention - vanilla has one
+ *       {@code BlockEntityType.SKULL}); per-variant texture dimensions are read from each
+ *       wrapper's tail {@code LayerDefinition.create(mesh, W, H)} via
+ *       {@link #resolveSkullWrapperDimensions}.</li>
  *   <li><b>Banner standing/wall split</b> - {@code BannerModel.createBodyLayer} and
  *       {@code BannerFlagModel.createFlagLayer} both take a {@code boolean isStanding} param.
  *       {@link #PARAM_INT_SUFFIX} maps (class, boolean) &rarr; suffix ({@code "wall_"} or
@@ -122,22 +125,20 @@ public final class SourceDiscovery {
     );
 
     /**
-     * Maps {@code SkullModel.create*HeadLayer} wrapper method names to (entityIdSuffix,
-     * texHeightOverride). The actual geometry lives in {@code SkullModel.createHeadModel}
-     * (MeshDefinition); the two wrappers bind different texture dimensions per variant
-     * (mob skulls: 64x32; humanoid/player heads: 64x64). Rather than emit the wrapper methods
-     * themselves (which would just be parsed as pass-through via invokestatic-follow), we
-     * redirect to {@code createHeadModel} and set {@code texHeightOverride} explicitly.
+     * Maps {@code SkullModel.create*HeadLayer} wrapper method names to the tooling-side
+     * entity id under which the corresponding {@code SkullModel.createHeadModel} mesh is
+     * emitted. Vanilla has a single {@code BlockEntityType.SKULL}; the
+     * {@code skull_head} / {@code skull_humanoid_head} split is our naming convention for
+     * the two distinct geometry outputs (mob skulls share the bare head; humanoid skulls
+     * add a {@code hat} overlay cube via {@code addOrReplaceChild}). The per-wrapper
+     * texture dimensions are NOT in this table - they're read from each wrapper's
+     * {@code LayerDefinition.create(mesh, W, H)} tail at emission time via
+     * {@link #resolveSkullWrapperDimensions}.
      */
-    private static final @NotNull Map<String, SkullVariant> SKULL_VARIANT_POLICY = Map.of(
-        "createMobHeadLayer", new SkullVariant("minecraft:skull_head", 64, 32),
-        "createHumanoidHeadLayer", new SkullVariant("minecraft:skull_humanoid_head", 64, 64)
+    private static final @NotNull Map<String, String> SKULL_VARIANT_POLICY = Map.of(
+        "createMobHeadLayer", "minecraft:skull_head",
+        "createHumanoidHeadLayer", "minecraft:skull_humanoid_head"
     );
-
-    /**
-     * An explicit skull variant binding: entity id + texture dimension override.
-     */
-    private record SkullVariant(@NotNull String entityId, int texWidth, int texHeight) {}
 
     /**
      * The set of "primary" layer method names that produce whole-block geometry (as opposed to
@@ -527,28 +528,37 @@ public final class SourceDiscovery {
         @NotNull Set<String> emittedForSkullHumanoid
     ) {
         // Skull wrapper collapse: SkullModel.createMobHeadLayer / createHumanoidHeadLayer are
-        // thin wrappers around SkullModel.createHeadModel + LayerDefinition.create(mesh, W, H).
-        // Collapse via SKULL_VARIANT_POLICY so we emit the MeshDefinition method directly and
-        // preserve the per-variant tex dims as explicit overrides.
-        SkullVariant skullVariant = SKULL_VARIANT_POLICY.get(layer.targetMethod);
-        if (skullVariant != null && layer.targetClass.equals("net/minecraft/client/model/object/skull/SkullModel")) {
-            Set<String> dedupeBucket = skullVariant.entityId.equals("minecraft:skull_head") ? emittedForSkullMob : emittedForSkullHumanoid;
-            if (!dedupeBucket.add(skullVariant.entityId)) return;
+        // wrappers around SkullModel.createHeadModel + LayerDefinition.create(mesh, W, H)
+        // (humanoid additionally adds a "hat" overlay cube). Collapse via SKULL_VARIANT_POLICY
+        // so we emit the MeshDefinition method directly under the tooling-side entity id, and
+        // read texWidth/texHeight from each wrapper's LayerDefinition.create tail (mob: 64x32;
+        // humanoid: 64x64) so the dimensions stay derived rather than hardcoded.
+        String skullEntityId = SKULL_VARIANT_POLICY.get(layer.targetMethod);
+        if (skullEntityId != null && layer.targetClass.equals("net/minecraft/client/model/object/skull/SkullModel")) {
+            Set<String> dedupeBucket = skullEntityId.equals("minecraft:skull_head") ? emittedForSkullMob : emittedForSkullHumanoid;
+            if (!dedupeBucket.add(skullEntityId)) return;
             String headClass = "net/minecraft/client/model/object/skull/SkullModel";
             String headMethod = "createHeadModel";
+            int[] dims = resolveSkullWrapperDimensions(zip, layer.targetMethod);
+            if (dims == null) {
+                diag.warn("skull variant '%s': could not resolve LayerDefinition.create(mesh, W, H) from %s.%s - skipping",
+                    skullEntityId, layer.targetClass, layer.targetMethod);
+                return;
+            }
             YAxis yAxis = inferYAxis(zip, headClass, headMethod);
-            float invYRot = ID_TO_INVENTORY_Y_ROTATION.getOrDefault(skullVariant.entityId, 0f);
+            float invYRot = ID_TO_INVENTORY_Y_ROTATION.getOrDefault(skullEntityId, 0f);
             out.add(new Source(
                 headClass + ".class",
                 headMethod,
-                skullVariant.entityId,
+                skullEntityId,
                 yAxis,
                 invYRot,
-                skullVariant.texWidth,
-                skullVariant.texHeight,
+                dims[0],
+                dims[1],
                 null
             ));
-            diag.info("skull variant '%s' emitted via SKULL_VARIANT_POLICY (%s renderer)", skullVariant.entityId, rendererInternal);
+            diag.info("skull variant '%s' emitted via SKULL_VARIANT_POLICY (%s renderer, dims %dx%d)",
+                skullEntityId, rendererInternal, dims[0], dims[1]);
             return;
         }
 
@@ -693,6 +703,37 @@ public final class SourceDiscovery {
      *
      * <p>Non-wrapper targets pass through unchanged (returning the same {@link LayerTarget}).
      */
+    /**
+     * Extracts {@code (texWidth, texHeight)} from a {@code SkullModel} wrapper's tail
+     * {@code LayerDefinition.create(MeshDefinition, II)} call. Both vanilla wrappers
+     * ({@code createMobHeadLayer} = 64x32, {@code createHumanoidHeadLayer} = 64x64) end with a
+     * {@code BIPUSH W; BIPUSH H; INVOKESTATIC LayerDefinition.create; ARETURN} sequence; we
+     * walk to the last {@code create} call and read the two preceding numeric literals.
+     *
+     * <p>Returns {@code null} when the wrapper class is unloadable, the method isn't present,
+     * no {@code LayerDefinition.create} call is found, or the two predecessors aren't both
+     * numeric literals - any of which signals a vanilla pattern shift that the caller should
+     * surface as a diagnostic rather than emit a Source with stale dimensions.
+     */
+    private static int @Nullable [] resolveSkullWrapperDimensions(@NotNull ZipFile zip, @NotNull String wrapperMethodName) {
+        ClassNode cn = AsmKit.loadClass(zip, "net/minecraft/client/model/object/skull/SkullModel");
+        if (cn == null) return null;
+        MethodNode method = AsmKit.findMethod(cn, wrapperMethodName);
+        if (method == null) return null;
+        AbstractInsnNode lastCreate = null;
+        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (AsmKit.isInvokeStatic(in, VanillaSourceClasses.LAYER_DEFINITION, "create"))
+                lastCreate = in;
+        }
+        if (lastCreate == null) return null;
+        AbstractInsnNode h = AsmKit.previousReal(lastCreate);
+        AbstractInsnNode w = AsmKit.previousReal(h);
+        Integer hLit = AsmKit.readIntLiteral(h);
+        Integer wLit = AsmKit.readIntLiteral(w);
+        if (wLit == null || hLit == null) return null;
+        return new int[]{ wLit, hLit };
+    }
+
     private static @NotNull LayerTarget unwrapMeshWrapper(@NotNull ZipFile zip, @NotNull LayerTarget layer) {
         ClassNode cn = AsmKit.loadClass(zip, layer.targetClass);
         if (cn == null) return layer;
