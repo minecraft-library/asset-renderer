@@ -3,6 +3,8 @@ package lib.minecraft.renderer.visual;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
+import dev.simplified.image.pixel.DiffType;
+import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.options.EntityOptions;
@@ -170,9 +172,11 @@ public final class TestEntityParityVanilla {
 
                 ImageIO.write(vanillaImg, "PNG", new File(entityDir.toFile(), "vanilla.png"));
                 ImageIO.write(javaImg, "PNG", new File(entityDir.toFile(), "java.png"));
-                BufferedImage diffImg = diffImage(vanillaPadded, javaPadded);
+                PixelBuffer vanillaPB = PixelBuffer.wrap(vanillaPadded);
+                PixelBuffer javaPB = PixelBuffer.wrap(javaPadded);
+                BufferedImage diffImg = vanillaPB.diff(javaPB, DiffType.OVER_WHITE).toBufferedImage();
                 ImageIO.write(diffImg, "PNG", new File(entityDir.toFile(), "diff.png"));
-                BufferedImage panelImg = panelDiff(vanillaPadded, javaPadded);
+                BufferedImage panelImg = panelDiff(vanillaPadded, javaPadded, vanillaPB, javaPB);
                 ImageIO.write(panelImg, "PNG", new File(entityDir.toFile(), "diff_panel.png"));
 
                 Stats stats = compareImages(vanillaPadded, javaPadded);
@@ -354,7 +358,10 @@ public final class TestEntityParityVanilla {
      * <p>Aggregate stats (mean Δ, mean signed luma Δ, coverage tallies) are stamped at the
      * bottom of the panel for quick scanning across many entities.
      */
-    private static @NotNull BufferedImage panelDiff(@NotNull BufferedImage vanilla, @NotNull BufferedImage java) {
+    private static @NotNull BufferedImage panelDiff(
+        @NotNull BufferedImage vanilla, @NotNull BufferedImage java,
+        @NotNull PixelBuffer vanillaPB, @NotNull PixelBuffer javaPB
+    ) {
         int cellW = Math.max(vanilla.getWidth(), java.getWidth());
         int cellH = Math.max(vanilla.getHeight(), java.getHeight());
         int gap = 8;
@@ -367,10 +374,10 @@ public final class TestEntityParityVanilla {
         BufferedImage[] cells = {
             vanilla,
             java,
-            absDiffCell(vanilla, java),
-            signedLumaDiffCell(vanilla, java),
-            signedRgbDiffCell(vanilla, java),
-            coverageDiffCell(vanilla, java)
+            vanillaPB.diff(javaPB, DiffType.ABSOLUTE).toBufferedImage(),
+            vanillaPB.diff(javaPB, DiffType.SIGNED_LUMA).toBufferedImage(),
+            vanillaPB.diff(javaPB, DiffType.SIGNED_RGB).toBufferedImage(),
+            vanillaPB.diff(javaPB, DiffType.COVERAGE).toBufferedImage()
         };
         String[] labels = {
             "vanilla",
@@ -380,6 +387,11 @@ public final class TestEntityParityVanilla {
             "RGB+/- (grey=match)",
             "coverage (M=vanilla, C=java)"
         };
+        // Grid backdrop for diff cells. The PixelDiff API writes ColorMath.TRANSPARENT for
+        // out-of-silhouette pixels (and for some modes, in-silhouette match too); compositing
+        // each diff over a fresh grid keeps the canvas-extent visible without dominating the
+        // view. Built once and re-blitted under each diff cell.
+        BufferedImage gridBackdrop = buildGridBackdrop(cellW, cellH);
 
         BufferedImage panel = new BufferedImage(panelW, panelH, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = panel.createGraphics();
@@ -397,6 +409,9 @@ public final class TestEntityParityVanilla {
                 g.drawString(labels[i], x, y + labelH - 5);
                 g.setColor(new Color(80, 80, 90));
                 g.drawRect(x - 1, y + labelH - 1, cellW + 1, cellH + 1);
+                // Diff cells (indexes 2-5) get the grid backdrop so transparent-elsewhere
+                // pixels don't read as a flat panel-background patch.
+                if (i >= 2) g.drawImage(gridBackdrop, x, y + labelH, null);
                 g.drawImage(cells[i], x, y + labelH, null);
             }
             // Stats footer
@@ -503,204 +518,20 @@ public final class TestEntityParityVanilla {
         );
     }
 
-    /** Background grid for "no signal here" cells - keeps the canvas extent visible without dominating. */
-    private static int gridBackground(int x, int y) {
-        return ((x >> 3) + (y >> 3)) % 2 == 0 ? 0xFF202024 : 0xFF181820;
-    }
-
-    /** Cell variant of the existing absolute-diff lens with a checker background where both pixels are transparent. */
-    private static @NotNull BufferedImage absDiffCell(@NotNull BufferedImage a, @NotNull BufferedImage b) {
-        int w = Math.min(a.getWidth(), b.getWidth());
-        int h = Math.min(a.getHeight(), b.getHeight());
-        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                int pa = a.getRGB(x, y);
-                int pb = b.getRGB(x, y);
-                int aa = ColorMath.alpha(pa), ab = ColorMath.alpha(pb);
-                int dr = Math.abs(ColorMath.red(pa) - ColorMath.red(pb));
-                int dg = Math.abs(ColorMath.green(pa) - ColorMath.green(pb));
-                int db = Math.abs(ColorMath.blue(pa) - ColorMath.blue(pb));
-                int da = Math.abs(aa - ab);
-                if (aa == 0 && ab == 0) {
-                    out.setRGB(x, y, gridBackground(x, y));
-                    continue;
-                }
-                if (da == 0 && dr == 0 && dg == 0 && db == 0) {
-                    // Match within silhouette: faint dark grey so pixel-perfect agreement is
-                    // visually distinct from "outside silhouette" but doesn't compete with
-                    // the divergent regions for attention.
-                    out.setRGB(x, y, 0xFF101010);
-                    continue;
-                }
-                if ((aa == 0) ^ (ab == 0)) {
-                    out.setRGB(x, y, 0xFFFF00FF);
-                    continue;
-                }
-                int amp = 4;
-                int rr = Math.min(255, dr * amp);
-                int gg = Math.min(255, dg * amp);
-                int bb = Math.min(255, db * amp);
-                out.setRGB(x, y, (255 << 24) | (rr << 16) | (gg << 8) | bb);
-            }
-        }
-        return out;
-    }
-
     /**
-     * Maps {@code vanilla_luma - java_luma} to a red↔blue divergent palette so lighting bugs
-     * (which shift luminance uniformly across all 3 channels) read as solid-coloured regions.
-     * Match → mid-grey {@code (128, 128, 128)}. Vanilla brighter → red shift. Java brighter →
-     * blue shift. Magnitude amplified ×2 so a 30-luma delta saturates the palette - typical
-     * of a face mis-lit by 0.1-0.2 lighting factor.
+     * Builds the 8×8 checker backdrop that sits behind each diff cell in {@link #panelDiff}.
+     * The {@link PixelBuffer#diff} API writes {@link ColorMath#TRANSPARENT} for out-of-canvas
+     * (and, in some modes, in-silhouette match) pixels; compositing each diff over this
+     * checker keeps the canvas extent visible without dominating the view.
      */
-    private static @NotNull BufferedImage signedLumaDiffCell(@NotNull BufferedImage a, @NotNull BufferedImage b) {
-        int w = Math.min(a.getWidth(), b.getWidth());
-        int h = Math.min(a.getHeight(), b.getHeight());
-        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+    private static @NotNull BufferedImage buildGridBackdrop(int w, int h) {
+        BufferedImage backdrop = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
-                int pa = a.getRGB(x, y);
-                int pb = b.getRGB(x, y);
-                int aa = ColorMath.alpha(pa), ab = ColorMath.alpha(pb);
-                if (aa == 0 && ab == 0) {
-                    out.setRGB(x, y, gridBackground(x, y));
-                    continue;
-                }
-                if ((aa == 0) ^ (ab == 0)) {
-                    out.setRGB(x, y, 0xFFFF00FF);
-                    continue;
-                }
-                float vL = 0.299f * ColorMath.red(pa) + 0.587f * ColorMath.green(pa) + 0.114f * ColorMath.blue(pa);
-                float jL = 0.299f * ColorMath.red(pb) + 0.587f * ColorMath.green(pb) + 0.114f * ColorMath.blue(pb);
-                float delta = vL - jL;
-                int mag = (int) Math.min(127, Math.abs(delta) * 2);
-                int r, g, bl;
-                if (delta >= 0) {
-                    // vanilla brighter -> warm shift toward red
-                    r = 128 + mag;
-                    g = 128 - mag / 2;
-                    bl = 128 - mag / 2;
-                } else {
-                    // java brighter -> cool shift toward blue
-                    r = 128 - mag / 2;
-                    g = 128 - mag / 2;
-                    bl = 128 + mag;
-                }
-                out.setRGB(x, y, (255 << 24) | (r << 16) | (g << 8) | bl);
+                backdrop.setRGB(x, y, ((x >> 3) + (y >> 3)) % 2 == 0 ? 0xFF202024 : 0xFF181820);
             }
         }
-        return out;
-    }
-
-    /**
-     * Per-channel signed delta centred at mid-grey. Each channel {@code c} encodes
-     * {@code 128 + (vanilla.c - java.c) × 2}, clamped to {@code [0, 255]}. A pixel where all
-     * channels match comes out grey; a pixel where only the green channel differs comes out
-     * green-tinted; lighting differences (which scale all 3 channels) come out grey-shifted
-     * (red or cyan tint when both red and other channels move together).
-     */
-    private static @NotNull BufferedImage signedRgbDiffCell(@NotNull BufferedImage a, @NotNull BufferedImage b) {
-        int w = Math.min(a.getWidth(), b.getWidth());
-        int h = Math.min(a.getHeight(), b.getHeight());
-        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                int pa = a.getRGB(x, y);
-                int pb = b.getRGB(x, y);
-                int aa = ColorMath.alpha(pa), ab = ColorMath.alpha(pb);
-                if (aa == 0 && ab == 0) {
-                    out.setRGB(x, y, gridBackground(x, y));
-                    continue;
-                }
-                if ((aa == 0) ^ (ab == 0)) {
-                    out.setRGB(x, y, 0xFFFF00FF);
-                    continue;
-                }
-                int dR = (ColorMath.red(pa) - ColorMath.red(pb)) * 2;
-                int dG = (ColorMath.green(pa) - ColorMath.green(pb)) * 2;
-                int dB = (ColorMath.blue(pa) - ColorMath.blue(pb)) * 2;
-                int r = Math.max(0, Math.min(255, 128 + dR));
-                int g = Math.max(0, Math.min(255, 128 + dG));
-                int bl = Math.max(0, Math.min(255, 128 + dB));
-                out.setRGB(x, y, (255 << 24) | (r << 16) | (g << 8) | bl);
-            }
-        }
-        return out;
-    }
-
-    /**
-     * Coverage-only lens: ignores colour entirely, encodes only "which side(s) have a pixel
-     * here". Magenta = vanilla has alpha but java doesn't (missing geometry / over-culled).
-     * Cyan = java has alpha but vanilla doesn't (extra geometry / under-culled). Both-opaque
-     * silhouette interior is dark grey - the area where colour-diff lenses do their work.
-     * Both-transparent canvas is the same checker as the other lenses for reference.
-     */
-    private static @NotNull BufferedImage coverageDiffCell(@NotNull BufferedImage a, @NotNull BufferedImage b) {
-        int w = Math.min(a.getWidth(), b.getWidth());
-        int h = Math.min(a.getHeight(), b.getHeight());
-        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                int pa = a.getRGB(x, y);
-                int pb = b.getRGB(x, y);
-                int aa = ColorMath.alpha(pa), ab = ColorMath.alpha(pb);
-                if (aa == 0 && ab == 0) {
-                    out.setRGB(x, y, gridBackground(x, y));
-                } else if (aa > 0 && ab > 0) {
-                    out.setRGB(x, y, 0xFF303034);
-                } else if (aa > 0) {
-                    out.setRGB(x, y, 0xFFFF00FF);
-                } else {
-                    out.setRGB(x, y, 0xFF00FFFF);
-                }
-            }
-        }
-        return out;
-    }
-
-    /**
-     * Builds a per-pixel diff image: where vanilla and java agree the pixel is fully
-     * transparent; where they disagree the pixel encodes the absolute ARGB delta amplified
-     * 4x so small numeric differences are visible. Coverage-only mismatches (one image has
-     * alpha, the other does not) get a magenta tint to distinguish them from colour
-     * differences at covered pixels. Mirrors the helper in {@link TestEntityParity} so both
-     * harnesses produce comparable diff PNGs.
-     */
-    private static @NotNull BufferedImage diffImage(@NotNull BufferedImage a, @NotNull BufferedImage b) {
-        int w = Math.min(a.getWidth(), b.getWidth());
-        int h = Math.min(a.getHeight(), b.getHeight());
-        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                int pa = a.getRGB(x, y);
-                int pb = b.getRGB(x, y);
-                int aa = ColorMath.alpha(pa);
-                int ab = ColorMath.alpha(pb);
-                // Compositing over white gives the same per-channel diff a viewer would
-                // perceive looking at the PNGs over their default white viewer background -
-                // AA edge spill no longer reads as a huge raw RGB diff at transparent pixels.
-                int dr = Math.abs(compositeOverWhite(ColorMath.red(pa), aa) - compositeOverWhite(ColorMath.red(pb), ab));
-                int dg = Math.abs(compositeOverWhite(ColorMath.green(pa), aa) - compositeOverWhite(ColorMath.green(pb), ab));
-                int db = Math.abs(compositeOverWhite(ColorMath.blue(pa), aa) - compositeOverWhite(ColorMath.blue(pb), ab));
-                if (dr == 0 && dg == 0 && db == 0) {
-                    out.setRGB(x, y, 0);
-                    continue;
-                }
-                if ((aa == 0) ^ (ab == 0)) {
-                    // Surface coverage-only mismatches as magenta so they still pop visually
-                    // even when their composited RGB diff is tiny.
-                    out.setRGB(x, y, 0xFFFF00FF);
-                    continue;
-                }
-                int amp = 4;
-                int rr = Math.min(255, dr * amp);
-                int gg = Math.min(255, dg * amp);
-                int bb = Math.min(255, db * amp);
-                out.setRGB(x, y, (255 << 24) | (rr << 16) | (gg << 8) | bb);
-            }
-        }
-        return out;
+        return backdrop;
     }
 
     /** Per-entity row in the TSV report. */
