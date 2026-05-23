@@ -152,7 +152,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      */
     private @NotNull ConcurrentList<TileSpec> renderBlocks(@NotNull AtlasOptions options, @NotNull BlockRenderer renderer, @NotNull FluidRenderer fluids, @NotNull PortalRenderer portals) {
         // end_gateway has no block-model file; the primary {@code knownBlockIds()} walk doesn't
-        // surface it. Task 8 intercepts it here as a portal tile, so ensure it's part of the
+        // surface it. The portal-tile path intercepts it here, so ensure it's part of the
         // iteration set even when the primary pipeline didn't register it.
         LinkedHashSet<String> blockIds = new LinkedHashSet<>(this.context.knownBlockIds());
         blockIds.addAll(PORTAL_BLOCK_IDS);
@@ -432,18 +432,17 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
          * <ul>
          * <li>{@link #BLOCK_MODEL} - primary {@code blockModels} iteration (plain blocks whose
          *     geometry is fully described by {@code block.json}).</li>
-         * <li>{@link #BLOCKSTATE_ONLY} - Task 10 fallback: blocks resolved via blockstate when no
-         *     block-model file matches the id (fences, walls, small_dripleaf, etc.).</li>
+         * <li>{@link #BLOCKSTATE_ONLY} - blocks resolved via blockstate when no block-model file
+         *     matches the id (fences, walls, small_dripleaf, etc.).</li>
          * <li>{@link #TILE_ENTITY} - blocks whose geometry comes from a {@link Block.Entity} -
          *     vanilla {@code BlockEntityRenderer} geometry baked into block model elements by
          *     {@link BlockEntityLoader} (beds, chests, banners,
          *     shulkers, signs, skulls, conduit, decorated_pot, etc.).</li>
-         * <li>{@link #FLUID} - Task 6: block rendered through {@link FluidRenderer} from the
-         *     still fluid texture (water, lava). Vanilla {@code block/water.json} and
-         *     {@code block/lava.json} carry no elements, so the fluid renderer supplies the
-         *     atlas tile instead.</li>
-         * <li>{@link #PORTAL} - Task 8: block rendered through {@link PortalRenderer} via a
-         *     CPU-baked parallax star-field (end_portal, end_gateway). Vanilla ships only a
+         * <li>{@link #FLUID} - block rendered through {@link FluidRenderer} from the still fluid
+         *     texture (water, lava). Vanilla {@code block/water.json} and {@code block/lava.json}
+         *     carry no elements, so the fluid renderer supplies the atlas tile instead.</li>
+         * <li>{@link #PORTAL} - block rendered through {@link PortalRenderer} via a CPU-baked
+         *     parallax star-field (end_portal, end_gateway). Vanilla ships only a
          *     particle-texture block model for end_portal and no block model at all for
          *     end_gateway, so the portal renderer supplies the atlas tile instead.</li>
          * <li>{@link #ITEM_MODEL} - primary {@code itemModels} iteration.</li>
@@ -456,7 +455,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
              */
             BLOCK_MODEL,
             /**
-             * Task 10 - transient block resolved via blockstate only (fence, wall, small_dripleaf, etc.).
+             * Transient block resolved via blockstate only (fence, wall, small_dripleaf, etc.).
              */
             BLOCKSTATE_ONLY,
             /**
@@ -464,11 +463,11 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
              */
             TILE_ENTITY,
             /**
-             * Task 6 - block rendered via {@link FluidRenderer.FluidFace2D} (water, lava).
+             * Block rendered via {@link FluidRenderer.FluidFace2D} (water, lava).
              */
             FLUID,
             /**
-             * Task 8 - block rendered via {@link PortalRenderer.PortalFace2D} (end_portal, end_gateway).
+             * Block rendered via {@link PortalRenderer.PortalFace2D} (end_portal, end_gateway).
              */
             PORTAL,
             /**

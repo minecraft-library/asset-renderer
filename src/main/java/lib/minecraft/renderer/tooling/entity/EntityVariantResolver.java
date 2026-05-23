@@ -164,17 +164,6 @@ public final class EntityVariantResolver {
     }
 
     /**
-     * Returns the variant directory stem for the given variant class name. Strips the trailing
-     * {@code "Variant"} (and inner-class qualifier suffixes), then snake-cases the result -
-     * {@code "CowVariant"} -&gt; {@code "cow"}, {@code "PigVariant"} -&gt; {@code "pig"},
-     * {@code "WolfVariants"} -&gt; {@code "wolf"} (defensive trailing-s).
-     *
-     * @param variantClassInternalName the JVM internal name from
-     *     {@link EntityTextureResolver.Binding#variantSourceClass()}
-     * @return the variant directory stem, or {@code null} when the class doesn't conform to the
-     *     {@code XVariant} naming convention
-     */
-    /**
      * Walks every {@code <X>Variants.class} (the data-driven holder class - {@code WolfVariants},
      * {@code CatVariants}, etc.) for its {@code DEFAULT} static field initialiser and returns
      * a {@code variantStem -> defaultVariantId} map (e.g. {@code wolf -> "pale"},
@@ -332,6 +321,17 @@ public final class EntityVariantResolver {
         return null;
     }
 
+    /**
+     * Returns the variant directory stem for the given variant class name. Strips the trailing
+     * {@code "Variant"} (and inner-class qualifier suffixes), then snake-cases the result -
+     * {@code "CowVariant"} -&gt; {@code "cow"}, {@code "PigVariant"} -&gt; {@code "pig"},
+     * {@code "WolfVariants"} -&gt; {@code "wolf"} (defensive trailing-s).
+     *
+     * @param variantClassInternalName the JVM internal name from
+     *     {@link EntityTextureResolver.Binding#variantSourceClass()}
+     * @return the variant directory stem, or {@code null} when the class doesn't conform to the
+     *     {@code XVariant} naming convention
+     */
     public static @Nullable String directoryFor(@NotNull String variantClassInternalName) {
         int lastSlash = variantClassInternalName.lastIndexOf('/');
         String simple = lastSlash >= 0 ? variantClassInternalName.substring(lastSlash + 1) : variantClassInternalName;

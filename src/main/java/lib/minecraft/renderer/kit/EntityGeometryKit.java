@@ -1085,10 +1085,8 @@ public class EntityGeometryKit {
      * separated faces). For polygons that DON'T overlap a front-facing companion in screen
      * (chicken leg's UP face = foot underside, visible at the canvas bottom after iso flip),
      * the back-facing triangle survives depth-test and the back color is what vanilla shows.
-     * Empirical sweep (2026-05-16) confirmed that lifting the {@code !isPlaneCube} guard
-     * fixes chicken_cold 15.13 -> sub-1 and chicken_warm 8.32 -> sub-1 without regressing
-     * skeleton_horse - the earlier {@code 60 → 64} concern was a pre-Task-#42 measurement
-     * confounded by walker / canvas-bound bugs since fixed.
+     * Empirical sweep confirmed that lifting the {@code !isPlaneCube} guard fixes
+     * chicken_cold and chicken_warm without regressing skeleton_horse.
      *
      * @param normal the post-flip kit-frame outward face normal
      * @param isPlaneCube unused as of the chicken-family fix; retained for call-site clarity
@@ -1168,15 +1166,6 @@ public class EntityGeometryKit {
     }
 
     /**
-     * Returns {@code true} when the proportion of non-opaque texels in the supplied face UV
-     * region exceeds {@code threshold}. Walks the rectangle bounded by the face UVs and counts
-     * {@code alpha<255} pixels; returns {@code false} when the UV region is empty (zero area).
-     * Used by {@link #shouldCullBackFaces} to detect both cutout ({@code alpha==0} holes,
-     * matching vanilla's {@code entityCutoutNoCull}) and translucent ({@code 0<alpha<255}
-     * shells, matching vanilla's {@code entityTranslucent withCull(false)}) families - either
-     * requires the back faces to render to mirror vanilla's see-through compositing.
-     */
-    /**
      * Returns {@code true} when any of the cube's visible-face UVs include a partial-alpha
      * texel ({@code 0 < alpha < 255}). Distinguishes truly translucent shells (slime,
      * glass-like) from alpha-cutout no-cull cubes (warden tendrils, mushroom block-overlays)
@@ -1216,6 +1205,15 @@ public class EntityGeometryKit {
         return false;
     }
 
+    /**
+     * Returns {@code true} when the proportion of non-opaque texels in the supplied face UV
+     * region exceeds {@code threshold}. Walks the rectangle bounded by the face UVs and counts
+     * {@code alpha<255} pixels; returns {@code false} when the UV region is empty (zero area).
+     * Used by {@link #shouldCullBackFaces} to detect both cutout ({@code alpha==0} holes,
+     * matching vanilla's {@code entityCutoutNoCull}) and translucent ({@code 0<alpha<255}
+     * shells, matching vanilla's {@code entityTranslucent withCull(false)}) families - either
+     * requires the back faces to render to mirror vanilla's see-through compositing.
+     */
     private static boolean uvNonOpaqueExceeds(
         @NotNull Vector2f @NotNull [] uv,
         @NotNull PixelBuffer texture,

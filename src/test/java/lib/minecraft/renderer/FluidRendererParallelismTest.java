@@ -22,10 +22,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Regression coverage for Task 4 - frame-parallel {@link FluidRenderer} animation baking.
- * Each animation tick owns its own RasterEngine / IsometricEngine / PixelBuffer so parallel
- * execution must produce bytes identical to the serial path. Pinning a CRC32 per frame index
- * guards against silent rasterization drift from a future refactor.
+ * Regression coverage for frame-parallel {@link FluidRenderer} animation baking. Each animation
+ * tick owns its own RasterEngine / IsometricEngine / PixelBuffer so parallel execution must
+ * produce bytes identical to the serial path. Pinning a CRC32 per frame index guards against
+ * silent rasterization drift from a future refactor.
  * <p>
  * Tagged {@code slow} because it boots the full asset pipeline; run with
  * {@code ./gradlew :asset-renderer:slowTest}.

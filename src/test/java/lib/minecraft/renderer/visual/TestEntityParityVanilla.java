@@ -321,6 +321,21 @@ public final class TestEntityParityVanilla {
     }
 
     /**
+     * Supersample factor applied to every panel dimension (cell size, gaps, fonts). Rendering
+     * the whole panel at this multiple of natural pixel size produces text that's crisp at any
+     * zoom level - the cell images get scaled up with nearest-neighbor (preserves the pixel-art
+     * grid) while AWT renders fonts directly at the higher point size so glyph edges hit the
+     * native pixel grid instead of being downsampled.
+     */
+    private static final int PANEL_SUPERSAMPLE = 2;
+
+    /**
+     * Natural-resolution font sizes (multiplied by {@link #PANEL_SUPERSAMPLE} at render time).
+     */
+    private static final int PANEL_LABEL_FONT_PT = 14;
+    private static final int PANEL_STATS_FONT_PT = 13;
+
+    /**
      * Builds a six-panel debug visualisation packing every diff lens we care about into one
      * inspectable image. Layout (3 columns × 2 rows, with labels):
      * <pre>
@@ -359,21 +374,6 @@ public final class TestEntityParityVanilla {
      * <p>Aggregate stats (mean Δ, mean signed luma Δ, coverage tallies) are stamped at the
      * bottom of the panel for quick scanning across many entities.
      */
-    /**
-     * Supersample factor applied to every panel dimension (cell size, gaps, fonts). Rendering
-     * the whole panel at this multiple of natural pixel size produces text that's crisp at any
-     * zoom level - the cell images get scaled up with nearest-neighbor (preserves the pixel-art
-     * grid) while AWT renders fonts directly at the higher point size so glyph edges hit the
-     * native pixel grid instead of being downsampled.
-     */
-    private static final int PANEL_SUPERSAMPLE = 2;
-
-    /**
-     * Natural-resolution font sizes (multiplied by {@link #PANEL_SUPERSAMPLE} at render time).
-     */
-    private static final int PANEL_LABEL_FONT_PT = 14;
-    private static final int PANEL_STATS_FONT_PT = 13;
-
     private static @NotNull BufferedImage panelDiff(
         @NotNull BufferedImage vanilla, @NotNull BufferedImage java,
         @NotNull PixelBuffer vanillaPB, @NotNull PixelBuffer javaPB

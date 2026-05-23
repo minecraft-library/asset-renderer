@@ -11,9 +11,8 @@ import org.openjdk.jmh.infra.Blackhole;
 import java.util.concurrent.TimeUnit;
 
 /**
- * End-to-end atlas bake benchmark - the dominant CLI workload and primary measurement target for
- * Task 1 (parallel {@code AtlasRenderer} block/item dispatch) and Task 5 (parallel
- * {@code GridRenderer} tile blitting).
+ * End-to-end atlas bake benchmark - the dominant CLI workload, exercising parallel
+ * {@code AtlasRenderer} block/item dispatch and {@code GridRenderer} tile blitting.
  */
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
@@ -26,8 +25,7 @@ public class AtlasBakeBenchmark extends AbstractRendererBenchmark {
     protected void onSetupTrial() {
         this.renderer = new AtlasRenderer(context());
         // Default tile size (128) + static (non-animated) mode - mirrors the generateAtlas
-        // Gradle task baseline. Changing these knobs is out of scope for Task 0; override via
-        // -Pjmh.atlas.tileSize=... in a follow-up if needed.
+        // Gradle task baseline. Override via -Pjmh.atlas.tileSize=... if a sweep is needed.
         this.options = AtlasOptions.defaults();
     }
 

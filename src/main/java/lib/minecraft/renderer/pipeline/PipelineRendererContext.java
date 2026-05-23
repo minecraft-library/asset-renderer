@@ -180,12 +180,9 @@ public final class PipelineRendererContext implements RendererContext {
 
     /**
      * Blocks that are invisible by design in vanilla - renderer intentionally produces empty
-     * geometry for them, so they do not belong in the atlas.
-     * <p>
-     * {@code end_gateway} was here before Task 8 because it has neither a block-model file nor a
-     * block-entity geometry extraction; it now renders via
-     * {@link PortalRenderer} through {@link AtlasRenderer}'s
-     * {@code PORTAL_BLOCK_IDS} intercept.
+     * geometry for them, so they do not belong in the atlas. {@code end_gateway} is not listed
+     * because it now renders via {@link PortalRenderer} through {@link AtlasRenderer}'s
+     * {@code PORTAL_BLOCK_IDS} intercept (no block-model file, no block-entity geometry).
      */
     private static final Set<String> INVISIBLE_BLOCK_NAMES = Set.of(
         "air", "barrier", "moving_piston", "structure_void"
@@ -193,12 +190,11 @@ public final class PipelineRendererContext implements RendererContext {
 
     /**
      * Exact local-name matches for item-side templates / flat parents / held-pose predicate outputs.
-     * {@code decorated_pot} is intentionally NOT in this set - it is a real item that renders blank
-     * only because its block-entity mapping was missing before Task 3b, not because it is a
-     * template. Held-pose predicate variants ({@code *_in_hand}, {@code *_throwing},
-     * {@code shield_blocking}) ship as regular item models in {@code models/item/} but are not
-     * real inventory items - they are the result of vanilla's held-pose predicate dispatch and
-     * have no place in a GUI atlas.
+     * {@code decorated_pot} is intentionally NOT in this set - it is a real item that renders via
+     * its block-entity mapping, not a template. Held-pose predicate variants
+     * ({@code *_in_hand}, {@code *_throwing}, {@code shield_blocking}) ship as regular item
+     * models in {@code models/item/} but are not real inventory items - they are the result of
+     * vanilla's held-pose predicate dispatch and have no place in a GUI atlas.
      */
     private static final Set<String> TEMPLATE_ITEM_NAMES = Set.of(
         // Parent item templates - empty item.json files that concrete items inherit from.
@@ -740,10 +736,9 @@ public final class PipelineRendererContext implements RendererContext {
 
     /**
      * Returns {@code true} when a block id is a known parent/template model file or an
-     * intentionally-invisible vanilla block. Matches the plan's Task 1 allow-list exactly:
-     * {@code template_*}, {@code cube*}, {@code custom_fence_*}, {@code orientable*},
-     * {@code light_NN}, plus the explicit {@link #TEMPLATE_BLOCK_NAMES} and
-     * {@link #INVISIBLE_BLOCK_NAMES} sets.
+     * intentionally-invisible vanilla block. Matches: {@code template_*}, {@code cube*},
+     * {@code custom_fence_*}, {@code orientable*}, {@code light_NN}, plus the explicit
+     * {@link #TEMPLATE_BLOCK_NAMES} and {@link #INVISIBLE_BLOCK_NAMES} sets.
      */
     private static boolean isParentOrTemplateBlockId(@NotNull String blockId) {
         String name = blockId.contains(":") ? blockId.substring(blockId.indexOf(':') + 1) : blockId;
@@ -756,10 +751,10 @@ public final class PipelineRendererContext implements RendererContext {
     }
 
     /**
-     * Returns {@code true} when an item id is a known parent/template item file. Matches the
-     * plan's Task 1 allow-list exactly: {@code template_*}, {@code handheld*},
-     * {@code generated}, plus the explicit {@link #TEMPLATE_ITEM_NAMES} set (which includes
-     * the item-side {@code decorated_pot} template, not the real block-item of the same id).
+     * Returns {@code true} when an item id is a known parent/template item file. Matches:
+     * {@code template_*}, {@code handheld*}, {@code generated}, plus the explicit
+     * {@link #TEMPLATE_ITEM_NAMES} set (which includes the item-side {@code decorated_pot}
+     * template, not the real block-item of the same id).
      */
     private static boolean isParentOrTemplateItemId(@NotNull String itemId) {
         String name = itemId.contains(":") ? itemId.substring(itemId.indexOf(':') + 1) : itemId;

@@ -67,9 +67,9 @@ import java.util.zip.ZipFile;
  *       variant-driven), data-driven variant tables from {@code data/minecraft/X_variant/},
  *       and the overlay enumeration from {@code addLayer(...)} call sites.</li>
  *   <li><b>Phase C - geometry parse</b>
- *       ({@link EntityLayerDefinitionResolver}, {@link EntityProceduralLoops}). Walks the
- *       {@code LayerDefinition}-returning factory and the procedural-loop supplemental bone
- *       tables for squid / blaze / ghast / silverfish / endermite / slime families.</li>
+ *       ({@link EntityLayerDefinitionResolver}). Walks the {@code LayerDefinition}-returning
+ *       factory; procedural-loop entity bodies (squid / blaze / ghast / silverfish / endermite
+ *       / slime families) are folded by the shared {@code Parser} at parse time.</li>
  *   <li><b>Phase D - overlay resolution</b>
  *       ({@link EntityOverlayResolver}, {@link EntityBlockOverlayResolver},
  *       {@link EntitySetupRotationsResolver}). Emits the overlay rows that
@@ -256,11 +256,11 @@ public final class ToolingEntityModels {
                     variantStem = null;
                 }
 
-                // Phase E.2 added a fallback that surfaces a primary texture even when the
-                // binding is variant-flagged - count those as "with primary" so the coverage
-                // numbers reflect the runtime-consumable artifact (entity_models.json
-                // gets a texture_ref either way). Fully unresolved variant bindings (no
-                // texture path at all) still count as variantDriven.
+                // A variant-flagged binding still gets a "with primary" credit when a primary
+                // texture surfaces alongside it - the coverage numbers reflect the
+                // runtime-consumable artifact (entity_models.json gets a texture_ref either
+                // way). Fully unresolved variant bindings (no texture path at all) still count
+                // as variantDriven.
                 if (binding.primaryTexturePath() != null) withPrimaryTexture++;
                 else if (binding.isVariantDriven()) variantDriven++;
                 else unresolvedTexture++;
@@ -286,9 +286,7 @@ public final class ToolingEntityModels {
             // ModelLayers.X via LayerDefinitions.createRoots, build synthetic Sources, and
             // delegate to the shared block-entity Parser - the bytecode patterns
             // (LayerDefinition.create / CubeListBuilder / PartPose / addOrReplaceChild) are
-            // identical between block and mob models. Frame conversion (Java Y-DOWN to
-            // legacy Y-UP) is deferred to Phase E.5 - this phase only verifies bone/cube
-            // count parity vs the legacy baseline.
+            // identical between block and mob models.
             ConcurrentMap<String, EntityLayerDefinitionResolver.Resolution> layerDefs =
                 EntityLayerDefinitionResolver.loadLayerDefinitions(zip, diagnostics);
             System.out.println("Loaded " + layerDefs.size() + " ModelLayers entries from LayerDefinitions.createRoots");
@@ -321,10 +319,10 @@ public final class ToolingEntityModels {
                         lambdaFields, layerDefs, diagnostics
                     );
                 if (resolution == null) continue;
-                // Phase 18: AdultZombifiedPiglinModel.createBodyLayer is a no-op delegate that
-                // returns AdultPiglinModel.createBodyLayer(). Unaliasing here collapses the
-                // delegating factory onto its base so the factoryKey-&gt;geometryId dedupe maps
-                // both piglin AND zombified_piglin to a single shared geometry entry.
+                // AdultZombifiedPiglinModel.createBodyLayer is a no-op delegate that returns
+                // AdultPiglinModel.createBodyLayer(). Unaliasing here collapses the delegating
+                // factory onto its base so the factoryKey-&gt;geometryId dedupe maps both piglin
+                // AND zombified_piglin to a single shared geometry entry.
                 resolution = EntityLayerDefinitionResolver.unaliasDelegate(zip, resolution);
                 entityToResolution.put(entry.getKey(), resolution);
                 // paramFloatValues opts the parser into arithmetic evaluation (FADD / FMUL /
@@ -359,8 +357,8 @@ public final class ToolingEntityModels {
             }
             System.out.println("Resolved " + sources.size() + " primary LayerDefinition factories for geometry parsing");
 
-            // Phase 17: variant LayerDefinition enumeration. Some data-driven variants
-            // (cow_cold, cow_warm, chicken_cold, pig_cold) declare a `model` discriminator
+            // Variant LayerDefinition enumeration. Some data-driven variants (cow_cold,
+            // cow_warm, chicken_cold, pig_cold) declare a `model` discriminator
             // ({@code "model": "cold"}) in their JSON; the matching {@code ColdCowModel} /
             // {@code WarmCowModel} / {@code ColdChickenModel} / {@code ColdPigModel} classes
             // register a separate {@code LayerDefinition} under {@code ModelLayers.<MODEL>_<STEM>}
@@ -408,12 +406,12 @@ public final class ToolingEntityModels {
             }
             System.out.println("Total sources after variant LayerDefinition enumeration: " + sources.size());
 
-            // Phase E.4 second pass: walk every renderer's RenderLayer chain for composite-
-            // model overlays (slime outer shell, sheep wool, sheep wool undercoat). Each
-            // composite overlay carries its own ModelLayers field, which we add as an extra
-            // parser source so the resulting bone tree gets a deduped geometry id alongside
-            // the primary entity geometries. Eye overlays still resolve via the same call;
-            // their {@code modelLayerField == null} short-circuits the extra-parse step.
+            // Second pass: walk every renderer's RenderLayer chain for composite-model
+            // overlays (slime outer shell, sheep wool, sheep wool undercoat). Each composite
+            // overlay carries its own ModelLayers field, which we add as an extra parser
+            // source so the resulting bone tree gets a deduped geometry id alongside the
+            // primary entity geometries. Eye overlays still resolve via the same call; their
+            // {@code modelLayerField == null} short-circuits the extra-parse step.
             Map<String, ConcurrentList<EntityOverlayResolver.OverlayDescriptor>> overlaysByEntity =
                 new LinkedHashMap<>();
             Map<String, ConcurrentList<EntityBlockOverlayResolver.BlockOverlayDescriptor>> blockOverlaysByEntity =
@@ -515,11 +513,6 @@ public final class ToolingEntityModels {
     }
 
     /**
-     * Builds the Phase-C geometry diagnostic JSON: per-entity bone/cube counts plus the resolved
-     * factory class+method, suitable for diff-comparison against the legacy
-     * {@code entity_geometry.json}.
-     */
-    /**
      * Converts a list of {@link EntityBlockOverlayResolver.BlockOverlayDescriptor} into the
      * JSON wire format consumed by
      * {@link EntityModelLoader#loadBlockOverlays}.
@@ -583,6 +576,11 @@ public final class ToolingEntityModels {
         return op;
     }
 
+    /**
+     * Builds the Phase-C geometry diagnostic JSON: per-entity bone/cube counts plus the resolved
+     * factory class+method, suitable for diff-comparison against the legacy
+     * {@code entity_geometry.json}.
+     */
     private static @NotNull JsonObject buildGeometryDiagnosticJson(
         @NotNull PipelineOptions options,
         int mobsTotal,
@@ -770,13 +768,13 @@ public final class ToolingEntityModels {
             // call AND the product differs from 1.0 - currently wither (2.0) and slime (0.999).
             if (rec.rendererScale() != null) row.addProperty("renderer_scale", rec.rendererScale());
 
-            // Phase E.4: emit overlays (eye layers + composite-model layers like slime outer
-            // shell, sheep wool, sheep wool undercoat). Eye overlays carry {@code modelLayerField
-            // == null} and reuse the base entity's geometry. Composite overlays carry their own
+            // Emit overlays (eye layers + composite-model layers like slime outer shell, sheep
+            // wool, sheep wool undercoat). Eye overlays carry {@code modelLayerField == null}
+            // and reuse the base entity's geometry. Composite overlays carry their own
             // {@code ModelLayers.X} field; resolving it through the same {@code factoryKey ->
             // geometryId} table that primaries use gives the overlay a stable deduped geometry
-            // entry. A composite overlay whose factory wasn't found in {@code layerDefs} silently
-            // drops (the parser had no source to extract it from).
+            // entry. A composite overlay whose factory wasn't found in {@code layerDefs}
+            // silently drops (the parser had no source to extract it from).
             ConcurrentList<EntityOverlayResolver.OverlayDescriptor> overlays =
                 overlaysByEntity.getOrDefault(entityId, Concurrent.newList());
             if (!overlays.isEmpty()) {
@@ -866,7 +864,7 @@ public final class ToolingEntityModels {
             // Variant rows for data-driven variants only (cow_cold, pig_warm, chicken_cold, ...).
             // Skip the default (temperate) since it IS the base entity. Skip overlay-state
             // variants (creeper_charged, sheep_sheared) - those need RenderLayer extraction
-            // which is Phase E.5 work.
+            // that the resolver doesn't surface yet.
             if (rec.variantStem() == null) continue;
             ConcurrentList<EntityVariantResolver.Variant> variantList = variants.get(rec.variantStem());
             if (variantList == null) continue;
@@ -875,9 +873,9 @@ public final class ToolingEntityModels {
                 String variantPrimary = variant.primaryTexturePath();
                 if (variantPrimary == null) continue;
                 String variantEntityId = entityId + "_" + variant.variantId();
-                // Phase 17: a variant with a `model` discriminator parsed its own LayerDefinition
-                // and has its own geometry id. The lookup falls back to the base entity's
-                // geometry when the variant inherits the base model (cow_temperate, etc.).
+                // A variant with a `model` discriminator parsed its own LayerDefinition and has
+                // its own geometry id. The lookup falls back to the base entity's geometry when
+                // the variant inherits the base model (cow_temperate, etc.).
                 String variantGeometryId = geometryId;
                 EntityLayerDefinitionResolver.Resolution variantRes = entityToResolution.get(variantEntityId);
                 if (variantRes != null) {
@@ -1047,7 +1045,6 @@ public final class ToolingEntityModels {
      * Heuristic armor-type classification - the runtime renderer uses this to pick which armor
      * mesh to layer over the entity. Currently emits {@code "humanoid"} when the renderer's
      * overlay layer list contains {@code HumanoidArmorLayer}; otherwise {@code "none"}.
-     * Phase E.5 may extend this to detect other equipment slots (saddle, leash, banner).
      */
     private static @NotNull String inferArmorType(@NotNull ConcurrentList<String> layers) {
         for (String layer : layers)

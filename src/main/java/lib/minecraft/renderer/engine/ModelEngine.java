@@ -185,21 +185,21 @@ public class ModelEngine extends TextureEngine {
         float offsetX = width * 0.5f;
         float offsetY = height * 0.5f;
 
-        // Pass 1 (Task 7): transform + project + backface cull, in parallel. Each triangle's
-        // projection is pure functional - reads only the per-triangle vertex data and the shared
-        // immutable transform - so a parallelStream over the FJP common pool scales this across
-        // cores. map().filter().toList() preserves encounter order, which Pass 2's painter's
-        // algorithm requires: the rasterizer iterates `prepared` in original insertion order so
-        // the DEPTH_EPSILON tie-break deterministically picks the first-drawn of any coplanar
-        // pair (see the comment on the depth test below).
+        // Pass 1: transform + project + backface cull, in parallel. Each triangle's projection is
+        // pure functional - reads only the per-triangle vertex data and the shared immutable
+        // transform - so a parallelStream over the FJP common pool scales this across cores.
+        // map().filter().toList() preserves encounter order, which Pass 2's painter's algorithm
+        // requires: the rasterizer iterates `prepared` in original insertion order so the
+        // DEPTH_EPSILON tie-break deterministically picks the first-drawn of any coplanar pair
+        // (see the comment on the depth test below).
         List<Projected> rawPrepared = triangles.parallelStream()
             .map(triangle -> projectTriangle(triangle, transform, scale, offsetX, offsetY, perspective))
             .filter(Objects::nonNull)
             .toList();
         List<Projected> prepared = sortNoCullBackToFront(rawPrepared);
 
-        // Pass 2 (Task 8): tiled rasterization. Split the framebuffer into N horizontal Y-bands
-        // and rasterize each band in parallel. Every band owns its own depth-buffer slice, so the
+        // Pass 2: tiled rasterization. Split the framebuffer into N horizontal Y-bands and
+        // rasterize each band in parallel. Every band owns its own depth-buffer slice, so the
         // inner raster loop never contends with sibling threads. Every band still iterates the
         // full prepared list in original insertion order so painter's semantics - the
         // DEPTH_EPSILON tie-break that makes the first-drawn coplanar face win - are preserved
@@ -208,7 +208,7 @@ public class ModelEngine extends TextureEngine {
         //
         // Small framebuffers (height < MIN_TILED_HEIGHT) skip the tiled path - FJP overhead
         // outweighs the parallel speedup for sub-256-pixel images and the atlas tile path already
-        // parallelises at the outer dispatch level via Task 1.
+        // parallelises at the outer dispatch level.
         if (height < MIN_TILED_HEIGHT) {
             float[] depthBuffer = new float[width * height];
             Arrays.fill(depthBuffer, Float.NEGATIVE_INFINITY);

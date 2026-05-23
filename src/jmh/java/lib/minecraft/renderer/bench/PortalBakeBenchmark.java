@@ -13,11 +13,10 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Portal bake benchmark - the single hottest CPU workload in the renderer (per-pixel SSAA over
- * 15-16 parallax layers). Primary measurement target for Task 3 (row-parallel bake) and Task 11
- * (SIMD layer transform).
+ * 15-16 parallax layers). Measures the row-parallel bake and SIMD layer transform.
  * <p>
- * Parameterised across both portal variants and both render types so Tasks 3/11 can validate
- * wins on the full code-path matrix.
+ * Parameterised across both portal variants and both render types so wins can be validated
+ * across the full code-path matrix.
  */
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
@@ -37,7 +36,7 @@ public class PortalBakeBenchmark extends AbstractRendererBenchmark {
         this.renderer = new PortalRenderer(context());
         // Matches TestPortalRenderer's static-output footprint (512 px). Animated-frame bake is
         // intentionally out of scope - measurement variance across frames is better captured in
-        // a dedicated multi-frame benchmark once Task 3 lands.
+        // a dedicated multi-frame benchmark.
         this.options = PortalOptions.builder()
             .portal(this.portal)
             .type(this.type)

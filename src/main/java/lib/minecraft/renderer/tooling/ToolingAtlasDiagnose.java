@@ -243,8 +243,8 @@ public final class ToolingAtlasDiagnose {
      * value. Output lands at {@code <root>/<sourceFilter>/}: a fresh {@code atlas.png} grid
      * composed from the filtered slices, an {@code atlas.json} trimmed to just those tiles, and
      * an {@code ids.txt} with the matching ids one per line, alphabetically sorted. Used to
-     * visually verify additions from a specific registration path (e.g. Task 10's
-     * {@code blockstate_only}) without hunting through the full atlas.
+     * visually verify additions from a specific registration path (e.g. the
+     * {@code blockstate_only} source) without hunting through the full atlas.
      */
     private static void runSourceFilter(@NotNull Path root, @NotNull Path atlasPng, @NotNull Path atlasJson, @NotNull String sourceFilter) throws IOException {
         Path outDir = resolveContained(root, sourceFilter, "--source-filter");

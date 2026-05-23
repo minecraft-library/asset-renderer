@@ -34,7 +34,7 @@ import java.util.zip.ZipFile;
  *       {@code (class, method, descriptor)} target via {@code Builder.put(X, factoryCall)}.
  *       Mirrors {@code SourceDiscovery.walkLayerDefinitions} for block entities; written here
  *       independently so the entity pipeline doesn't reach into block-entity internals.</li>
- *   <li><b>Mesh-wrapper unwrap</b> (TODO Phase C.5): some factories like
+ *   <li><b>Mesh-wrapper unwrap</b> (TODO): some factories like
  *       {@code SkullModel.createMobHeadLayer} are thin {@code LayerDefinition.create(mesh, W, H)}
  *       wrappers around a {@code MeshDefinition} factory. Block entities handle this via
  *       {@code SourceDiscovery.unwrapMeshWrapper}; for entities the pattern is rare and deferred
@@ -145,35 +145,7 @@ public final class EntityLayerDefinitionResolver {
     }
 
     /**
-     * Resolves the primary {@code LayerDefinition} factory for the given renderer class.
-     * Returns {@code null} when the renderer's constructor doesn't reference any
-     * {@code ModelLayers.X} (e.g. {@code EnderDragonRenderer} which builds geometry procedurally)
-     * or when the referenced layer has no entry in {@code LayerDefinitions.createRoots}.
-     *
-     * <p>Heuristic for "primary" layer field selection (Phase C.5 hardening):
-     * <ol>
-     *   <li><b>Entity-id match</b> - prefer the field whose snake-case form equals the entity id
-     *       (e.g. for {@code minecraft:donkey}, pick {@code DONKEY} over {@code DONKEY_BABY},
-     *       {@code DONKEY_ARMOR}, etc.). Catches the common case where a renderer wires multiple
-     *       layers in its {@code super(...)} call and the first GETSTATIC happens to be a baby
-     *       or armor variant, not the body.</li>
-     *   <li><b>Avoid suffixed variants</b> - skip fields ending in {@code _BABY},
-     *       {@code _ARMOR}, {@code _SADDLE}, etc., even when they appear first in bytecode.
-     *       Falls back to the first plain field if no entity-id match exists.</li>
-     *   <li><b>First field</b> - last resort if neither rule yields a candidate.</li>
-     * </ol>
-     *
-     * @param zip the deobfuscated client jar
-     * @param rendererInternalName the renderer's JVM internal name
-     * @param entityId the namespaced entity id ({@code "minecraft:zombie"}); empty string disables
-     *     the entity-id-match preference
-     * @param layerDefinitions the precomputed {@code (ModelLayers.X field name -&gt; Resolution)}
-     *     map from {@link #loadLayerDefinitions(ZipFile, Diagnostics)}
-     * @param diagnostics the diagnostic sink shared with sibling discovery walks
-     * @return the primary layer's resolution, or {@code null} when unresolvable
-     */
-    /**
-     * Phase 18: detects the delegating-{@code createBodyLayer} pattern - a class whose static
+     * Detects the delegating-{@code createBodyLayer} pattern - a class whose static
      * {@code createBodyLayer} (or other factory) body consists solely of {@code INVOKESTATIC
      * <otherClass>.<otherMethod>; ARETURN}. Returns a {@code Resolution} rewritten to point at
      * the delegate target so multiple entities sharing a layer factory through a no-op
@@ -220,6 +192,36 @@ public final class EntityLayerDefinitionResolver {
         );
     }
 
+    /**
+     * Resolves the primary {@code LayerDefinition} factory for the given renderer class.
+     * Returns {@code null} when the renderer's constructor doesn't reference any
+     * {@code ModelLayers.X} (e.g. {@code EnderDragonRenderer} which builds geometry procedurally)
+     * or when the referenced layer has no entry in {@code LayerDefinitions.createRoots}.
+     *
+     * <p>Heuristic for "primary" layer field selection:
+     * <ol>
+     *   <li><b>Entity-id match</b> - prefer the field whose snake-case form equals the entity id
+     *       (e.g. for {@code minecraft:donkey}, pick {@code DONKEY} over {@code DONKEY_BABY},
+     *       {@code DONKEY_ARMOR}, etc.). Catches the common case where a renderer wires multiple
+     *       layers in its {@code super(...)} call and the first GETSTATIC happens to be a baby
+     *       or armor variant, not the body.</li>
+     *   <li><b>Avoid suffixed variants</b> - skip fields ending in {@code _BABY},
+     *       {@code _ARMOR}, {@code _SADDLE}, etc., even when they appear first in bytecode.
+     *       Falls back to the first plain field if no entity-id match exists.</li>
+     *   <li><b>First field</b> - last resort if neither rule yields a candidate.</li>
+     * </ol>
+     *
+     * @param zip the deobfuscated client jar
+     * @param rendererInternalName the renderer's JVM internal name
+     * @param entityId the namespaced entity id ({@code "minecraft:zombie"}); empty string disables
+     *     the entity-id-match preference
+     * @param additionalLayerFields extra {@code ModelLayers.X} field names harvested from lambda
+     *     bodies that the constructor walk would otherwise miss
+     * @param layerDefinitions the precomputed {@code (ModelLayers.X field name -&gt; Resolution)}
+     *     map from {@link #loadLayerDefinitions(ZipFile, Diagnostics)}
+     * @param diagnostics the diagnostic sink shared with sibling discovery walks
+     * @return the primary layer's resolution, or {@code null} when unresolvable
+     */
     public static @Nullable Resolution resolvePrimary(
         @NotNull ZipFile zip,
         @NotNull String rendererInternalName,

@@ -1191,7 +1191,7 @@ public final class ToolingBlockEntities {
          * <p>Thin wrapper around {@link #walkRange}; the per-instruction logic lives in
          * {@link #handleInstruction}. Split into three methods so for-loop unrolling can
          * recursively re-enter the same per-instruction dispatch over a sub-range of the
-         * same {@code InsnList} (see Phase 20).
+         * same {@code InsnList}.
          */
         private static void walkInstructions(@NotNull InsnList instructions, @NotNull ParseState state, @NotNull ZipFile zip) {
             walkRange(instructions, instructions.getFirst(), null, state, zip);
@@ -1390,14 +1390,13 @@ public final class ToolingBlockEntities {
                 }
             }
 
-            // Task 19: TABLESWITCH / LOOKUPSWITCH evaluation. Follows the same
-            // {@code paramIntValues}-driven branch-evaluation gate as IFEQ / IFNE - when the
-            // top of {@link ParseState#branchStack} holds a concrete value (put there by a
-            // preceding ILOAD of a paramIntValues-registered slot), jump to the matching case
-            // label. Otherwise the parser falls through linearly to preserve pre-Task 19
-            // behaviour, and - when {@code paramIntValues} is set but the switch value is
-            // unknown - surfaces a {@code WARN:} so the maintainer knows an unmodelled
-            // dispatch slipped through.
+            // TABLESWITCH / LOOKUPSWITCH evaluation. Follows the same {@code paramIntValues}
+            // -driven branch-evaluation gate as IFEQ / IFNE - when the top of
+            // {@link ParseState#branchStack} holds a concrete value (put there by a preceding
+            // ILOAD of a paramIntValues-registered slot), jump to the matching case label.
+            // Otherwise the parser falls through linearly, and - when {@code paramIntValues}
+            // is set but the switch value is unknown - surfaces a {@code WARN:} so the
+            // maintainer knows an unmodelled dispatch slipped through.
             if (node instanceof TableSwitchInsnNode tableSwitch && state.paramIntValues != null) {
                 Integer value = popIntForBranch(state);
                 if (value != null) {

@@ -75,7 +75,7 @@ public final class EntityHiddenBonesResolver {
                 collectHiddenBones(cn, ctor, hiddenFields);
                 collectFieldToBoneNameMap(cn, ctor, fieldToBoneName);
             }
-            // Phase 10: state-equipment visibility - LlamaModel.setupAnim writes
+            // State-equipment visibility - LlamaModel.setupAnim writes
             // `bone.visible = state.<flag>` where the flag's zero-state is false. Walk every
             // method (not just setupAnim by name, since vanilla also uses prepareMobModel and
             // other override hooks) for the pattern.

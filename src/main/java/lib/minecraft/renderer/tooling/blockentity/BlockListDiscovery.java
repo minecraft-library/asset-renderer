@@ -231,9 +231,8 @@ public final class BlockListDiscovery {
      * are the uppercase {@code DyeColor} field name ({@code "RED"}), matching the inventory tint
      * format the asset-renderer's loader expects.
      * <p>
-     * This replaces the Phase 2 blockId-suffix string-pattern (parsing {@code "<color>_banner"}
-     * lexically) with the canonical bytecode signal: the colored banner blocks are constructed
-     * with a hardcoded {@code DyeColor.<COLOR>} {@code GETSTATIC} immediately before
+     * Uses the canonical bytecode signal: the colored banner blocks are constructed with a
+     * hardcoded {@code DyeColor.<COLOR>} {@code GETSTATIC} immediately before
      * {@code invokespecial (Wall)BannerBlock.<init>(DyeColor, Properties)V} in their per-block
      * registration lambda inside {@code Blocks.<clinit>}.
      */

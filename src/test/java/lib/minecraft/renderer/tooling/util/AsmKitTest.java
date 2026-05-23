@@ -400,7 +400,7 @@ class AsmKitTest {
     }
 
     // ============================================================================================
-    // Phase 1 additions — tests for the new primitives
+    // Primitive helpers (constants, type / instruction predicates, literal readers)
     // ============================================================================================
 
     @Nested

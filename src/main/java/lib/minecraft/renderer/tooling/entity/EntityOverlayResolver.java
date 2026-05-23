@@ -26,22 +26,16 @@ import java.util.zip.ZipFile;
 /**
  * Walks each {@code RenderLayer} subclass attached to an entity renderer (per
  * {@link EntityLayerScanner}) and extracts the data needed to emit a runtime overlay row
- * into {@code entity_models.json}. Phase E.4 first-pass scope is emissive eye overlays -
- * {@code SpiderEyesLayer}, {@code EnderEyesLayer}, {@code PhantomEyesLayer},
- * {@code BreezeEyesLayer}, plus any future vanilla mob whose layer's {@code <clinit>}
- * pre-builds a {@code net.minecraft.client.renderer.rendertype.RenderType} via an
- * {@code RenderTypes.*eyes*(Identifier)} static factory call and stores it in a
- * {@code static final} field. Detection runs on the {@code <clinit>} bytecode rather than
- * class hierarchy because not every eye layer extends {@code EyesLayer} -
+ * into {@code entity_models.json}. Emissive eye overlays (e.g. {@code SpiderEyesLayer},
+ * {@code EnderEyesLayer}, {@code PhantomEyesLayer}, {@code BreezeEyesLayer}) are detected
+ * via the {@code <clinit>} bytecode - any layer whose static initializer pre-builds a
+ * {@code RenderType} via an {@code RenderTypes.*eyes*(Identifier)} static factory call and
+ * stores it in a {@code static final} field. Detection runs on the bytecode shape rather
+ * than class hierarchy because not every eye layer extends {@code EyesLayer} -
  * {@code BreezeEyesLayer} extends {@code RenderLayer} directly but uses the same factory
  * shape ({@code RenderTypes.breezeEyes(...)}).
  *
- * <p>An earlier pipeline iteration carried a hardcoded {@code EMISSIVE_PNG_FANOUT} table with the same
- * information; deriving it from bytecode here removes the need to maintain that list as new
- * vanilla mobs gain emissive layers.
- *
- * <p>Layer types deliberately not handled by this first pass (will surface as additional
- * descriptors in later increments):
+ * <p>Layer types deliberately not handled (deferred to later increments):
  * <ul>
  *   <li>{@code LivingEntityEmissiveLayer} (creaking, copper_golem) - texture comes from a
  *       {@code Function<S, Identifier>} passed via constructor lambda; needs walking the
@@ -385,10 +379,9 @@ public final class EntityOverlayResolver {
      * returned field name is what {@link EntityLayerDefinitionResolver#loadLayerDefinitions}
      * uses as its map key, so the caller can resolve it to a factory target.
      *
-     * <p>Skips layers whose field name contains {@code "BABY"} - the babe-sized variants share the
-     * same texture as the adult and only the adult layer needs an entry. (The Phase E.4 first pass
-     * doesn't emit baby-distinct entities; if that changes, the BABY filter would move into the
-     * caller.)
+     * <p>Skips layers whose field name contains {@code "BABY"} - the baby-sized variants share
+     * the same texture as the adult and only the adult layer needs an entry. (Resolver doesn't
+     * emit baby-distinct entities; if that changes, the BABY filter would move into the caller.)
      */
     private static @Nullable String findOverlayModelLayerField(@NotNull ClassNode cn) {
         for (MethodNode method : cn.methods) {
@@ -893,14 +886,11 @@ public final class EntityOverlayResolver {
     }
 
     /**
-     * Phase 11 derivation: walks a layer's non-init methods for {@code INVOKESTATIC
-     * RenderTypes.<factory>(...) RenderType}, then resolves whether the matching pipeline
-     * carries the {@code NO_CARDINAL_LIGHTING} shader define. Returns {@code true} when ANY
-     * RenderType invocation in the layer body resolves to a no-cardinal-lighting pipeline.
-     *
-     * <p>Replaces the static {@code UNLIT_LAYERS} allowlist with a per-layer pipeline-trait
-     * walk: a new vanilla layer using a no-cardinal-lighting pipeline classifies as unlit
-     * automatically.
+     * Walks a layer's non-init methods for {@code INVOKESTATIC RenderTypes.<factory>(...)
+     * RenderType}, then resolves whether the matching pipeline carries the
+     * {@code NO_CARDINAL_LIGHTING} shader define. Returns {@code true} when ANY RenderType
+     * invocation in the layer body resolves to a no-cardinal-lighting pipeline (which the
+     * runtime emits as an unlit overlay).
      */
     private static boolean layerInvokesNoCardinalLightingRenderType(@NotNull ZipFile zip, @NotNull ClassNode layerCn) {
         for (MethodNode method : layerCn.methods) {

@@ -77,9 +77,8 @@ public final class EntityBlockOverlayResolver {
     /**
      * Per-layer-class detection cache populated by {@link #detectKnownLayer}: the dynamic
      * inheritance / state-class walk runs once per encountered layer class, not per
-     * (entity, layer) pair. Phase 12 retired the hardcoded {@code KNOWN_LAYERS} static map
-     * (1 entry: {@code MushroomCowMushroomLayer}); detection now derives the variant class
-     * from the layer's submit-method state-class field reads.
+     * (entity, layer) pair. Detection derives the variant class from the layer's
+     * submit-method state-class field reads (vs. a hardcoded class-name allowlist).
      *
      * <p>Cache value {@code null} encodes "detection ran and returned null" - the
      * key-present-but-value-null distinction prevents re-walking non-matching layers
@@ -158,12 +157,12 @@ public final class EntityBlockOverlayResolver {
     }
 
     /**
-     * Detects whether {@code layerInternalName} is a block-rendering overlay layer (formerly the
-     * hardcoded {@code KNOWN_LAYERS} membership check). A layer qualifies when its typed-state
-     * {@code submit} overload reads a {@code BlockModelRenderState}-typed field from the
-     * entity's RenderState class, AND the state class declares an enum-typed field whose
-     * descriptor ends with {@code $Variant;}. The variant class drives the
-     * {@code resolveDefaultBlockId} walk for the canonical default-state block id.
+     * Detects whether {@code layerInternalName} is a block-rendering overlay layer. A layer
+     * qualifies when its typed-state {@code submit} overload reads a
+     * {@code BlockModelRenderState}-typed field from the entity's RenderState class, AND the
+     * state class declares an enum-typed field whose descriptor ends with {@code $Variant;}.
+     * The variant class drives the {@code resolveDefaultBlockId} walk for the canonical
+     * default-state block id.
      *
      * <p>Vanilla MushroomCowMushroomLayer is the only current match: its submit reads
      * {@code state.mushroomModel:BlockModelRenderState}, and MushroomCowRenderState declares

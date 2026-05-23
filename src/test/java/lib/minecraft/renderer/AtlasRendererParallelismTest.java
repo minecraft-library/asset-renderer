@@ -19,9 +19,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
- * Regression coverage for Task 1 - parallel {@link AtlasRenderer} dispatch. Asserts that the
- * parallel implementation preserves tile encounter order (required by the sidecar JSON and the
- * grid layout) and produces identical output across runs. Order-preservation is the critical
+ * Regression coverage for parallel {@link AtlasRenderer} dispatch. Asserts that the parallel
+ * implementation preserves tile encounter order (required by the sidecar JSON and the grid
+ * layout) and produces identical output across runs. Order-preservation is the critical
  * invariant - a parallelStream().forEach implementation would shuffle tiles.
  * <p>
  * Tagged {@code slow} because it boots the full asset pipeline; run with

@@ -171,12 +171,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 overlay.model(), overlayTex.get(), modelAnchor, overlay.emissive(), fit.ndcScale(), modelScale, overlay.tintArgb()).triangles());
         }
 
-        // Phase E.5: block-model overlays (mooshroom mushrooms, copper-golem flower, etc).
-        // The vanilla render layer renders a block model at a transform-stack-applied position
-        // on top of the entity body. Each row carries the block id, an optional entity bone the
-        // overlay attaches to (so head-mounted overlays follow the head's bind pose), and the
-        // ordered list of pose-stack ops the layer issues between {@code pushPose} / {@code
-        // popPose}. See {@link EntityModelLoader.BlockOverlayLayer}.
+        // Block-model overlays (mooshroom mushrooms, copper-golem flower, etc). The vanilla
+        // render layer renders a block model at a transform-stack-applied position on top of
+        // the entity body. Each row carries the block id, an optional entity bone the overlay
+        // attaches to (so head-mounted overlays follow the head's bind pose), and the ordered
+        // list of pose-stack ops the layer issues between {@code pushPose} / {@code popPose}.
+        // See {@link EntityModelLoader.BlockOverlayLayer}.
         if (!definition.blockOverlays().isEmpty()) {
             Matrix4f entityFit = EntityGeometryKit.buildEntityFitMatrix(modelAnchor, fit.ndcScale() * modelScale);
             for (EntityModelLoader.BlockOverlayLayer blockOverlay : definition.blockOverlays())

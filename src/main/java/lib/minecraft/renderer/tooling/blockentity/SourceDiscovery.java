@@ -691,19 +691,6 @@ public final class SourceDiscovery {
     }
 
     /**
-     * Inspects {@code layer.targetMethod}'s bytecode for the {@code
-     * INVOKESTATIC X.Y()MeshDefinition; [int literals]; LayerDefinition.create(mesh,II); ARETURN}
-     * pattern. When matched, returns a new {@link LayerTarget} pointing at the inner
-     * {@code X.Y} mesh factory so the downstream Parser walks the raw mesh directly rather
-     * than through the redundant {@code LayerDefinition.create} wrapper. The intermediate
-     * int literals (texture width / height) are dropped - the Parser picks them up at
-     * parse time when it encounters {@code LayerDefinition.create} via
-     * {@code net/minecraft/client/model/} invokestatic-follow, OR they carry through as
-     * defaults (64x64) when the mesh factory doesn't chain out to {@code create}.
-     *
-     * <p>Non-wrapper targets pass through unchanged (returning the same {@link LayerTarget}).
-     */
-    /**
      * Extracts {@code (texWidth, texHeight)} from a {@code SkullModel} wrapper's tail
      * {@code LayerDefinition.create(MeshDefinition, II)} call. Both vanilla wrappers
      * ({@code createMobHeadLayer} = 64x32, {@code createHumanoidHeadLayer} = 64x64) end with a
@@ -734,6 +721,19 @@ public final class SourceDiscovery {
         return new int[]{ wLit, hLit };
     }
 
+    /**
+     * Inspects {@code layer.targetMethod}'s bytecode for the {@code
+     * INVOKESTATIC X.Y()MeshDefinition; [int literals]; LayerDefinition.create(mesh,II); ARETURN}
+     * pattern. When matched, returns a new {@link LayerTarget} pointing at the inner
+     * {@code X.Y} mesh factory so the downstream Parser walks the raw mesh directly rather
+     * than through the redundant {@code LayerDefinition.create} wrapper. The intermediate
+     * int literals (texture width / height) are dropped - the Parser picks them up at parse
+     * time when it encounters {@code LayerDefinition.create} via
+     * {@code net/minecraft/client/model/} invokestatic-follow, OR they carry through as
+     * defaults (64x64) when the mesh factory doesn't chain out to {@code create}.
+     *
+     * <p>Non-wrapper targets pass through unchanged (returning the same {@link LayerTarget}).
+     */
     private static @NotNull LayerTarget unwrapMeshWrapper(@NotNull ZipFile zip, @NotNull LayerTarget layer) {
         ClassNode cn = AsmKit.loadClass(zip, layer.targetClass);
         if (cn == null) return layer;

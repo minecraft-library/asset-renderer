@@ -21,21 +21,19 @@ import java.util.concurrent.TimeUnit;
  * sample point lists so each invocation isolates the cost of the inside test from the surrounding
  * rasterizer machinery (UV interp, depth test, texture sample, blend, write).
  * <p>
- * Phase 1 of the Pineda-edge-function migration: enabler for subsequent perf phases. The
- * fixtures are picked to span the realistic input distribution the rasterizer sees:
+ * Fixtures span the realistic input distribution the rasterizer sees:
  * <ul>
  * <li>{@link #insideSmall} - 16x16 bbox triangle, typical UI / inventory icon.</li>
  * <li>{@link #insideMedium} - 64x64 bbox triangle, typical entity body face.</li>
- * <li>{@link #insideSliver} - 100x2 bbox triangle, worst-case bounds-to-area ratio that drives
- *     the SIMD coverage path's win signal (most samples reject, so wasted scalar tests dominate
- *     before SIMD masking lands).</li>
+ * <li>{@link #insideSliver} - 100x2 bbox triangle, worst-case bounds-to-area ratio where most
+ *     samples reject (wasted scalar tests dominate before SIMD masking).</li>
  * <li>{@link #insideMediumScan} - same 64x64 triangle as {@link #insideMedium} but with samples
- *     in raster-scan order (top-left to bottom-right). Phase 3's incremental edge update needs
- *     this adjacency to show its win; phases 1-2 see no difference vs the shuffled variant.</li>
+ *     in raster-scan order (top-left to bottom-right). Required by an incremental edge-update
+ *     variant that exploits sample adjacency.</li>
  * </ul>
  * <p>
- * After Phase 2 of the migration, {@link ProjectionMath#isInsideTriangle(ProjectionMath.EdgeCoefficients, float, float)}
- * is the rasterizer's hot-path entry point - per-triangle {@link ProjectionMath.EdgeCoefficients}
+ * {@link ProjectionMath#isInsideTriangle(ProjectionMath.EdgeCoefficients, float, float)} is
+ * the rasterizer's hot-path entry point - per-triangle {@link ProjectionMath.EdgeCoefficients}
  * is built once in {@code projectTriangle} and reused for every pixel of the triangle's bbox.
  * The benchmarks mirror this: each fixture builds its coefficients in {@link #setupFixtures}
  * (trial scope) and the {@code @Benchmark} body loops the samples through the precomputed
@@ -62,7 +60,7 @@ public class IsInsideTriangleBenchmark {
     private ProjectionMath.EdgeCoefficients sliverEc;
     private float[] sliverPx, sliverPy;
 
-    /** Sequential raster-scan samples over the medium triangle's bbox - reused by Phase 3. */
+    /** Sequential raster-scan samples over the medium triangle's bbox. */
     private float[] medScanPx, medScanPy;
 
     @Setup(Level.Trial)
@@ -97,7 +95,7 @@ public class IsInsideTriangleBenchmark {
         this.sliverPy = sl.ys;
 
         // Sequential raster-scan samples over the medium triangle's bbox. Walks row-by-row,
-        // pixel-by-pixel - matches the adjacency Phase 3's incremental edge update exploits.
+        // pixel-by-pixel - matches the adjacency an incremental edge-update variant exploits.
         // 32x32 = 1024 samples to keep the count consistent with the shuffled variants.
         this.medScanPx = new float[SAMPLES];
         this.medScanPy = new float[SAMPLES];
