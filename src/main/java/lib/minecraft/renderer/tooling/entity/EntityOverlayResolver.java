@@ -207,52 +207,15 @@ public final class EntityOverlayResolver {
                 out.add(new OverlayDescriptor(layerClass, eyes.texturePath(), fullyEmissive, null, 0xFFFFFFFF));
                 continue;
             }
-            // Composite-model overlay (sheep wool, sheep wool undercoat, drowned outer,
-            // breeze wind, slime outer) - any layer whose {@code <init>} calls
-            // {@code modelSet.bakeLayer(ModelLayers.X)}. Emit when:
-            //   - {@link #POLICY_FORCE_EMIT} explicitly allows it (translucent overlays
-            //     accepted as known-divergence), OR
-            //   - {@link #derivationAcceptsCompositeOverlay} accepts it (layer establishes
-            //     its own render type via direct {@code RenderTypes.X} INVOKESTATIC or the
-            //     {@code coloredCutoutModelCopyLayerRender} helper, AND every direct
-            //     render-type call resolves to a cutout-safe pipeline).
-            // Skip when {@link #POLICY_SUPPRESS} excludes it (state-gated runtime skips
-            // that bytecode walking can't statically resolve).
-            String modelLayerField = findOverlayModelLayerField(cn);
-            if (modelLayerField != null
-                && !POLICY_SUPPRESS.contains(modelLayerField)
-                && (POLICY_FORCE_EMIT.contains(modelLayerField)
-                    || derivationAcceptsCompositeOverlay(zip, cn))) {
-                String compositeTexture = findCompositeOverlayTexture(zip, cn);
-                if (compositeTexture == null) {
-                    diagnostics.info("entity '%s' overlay '%s' bakes ModelLayers.%s but no texture path resolved", entityId, layerClass, modelLayerField);
-                    continue;
-                }
-                int tintArgb = extractColoredCutoutTint(zip, cn);
-                boolean unlit = layerInvokesNoCardinalLightingRenderType(zip, cn);
-                out.add(new OverlayDescriptor(layerClass, compositeTexture, unlit, modelLayerField, tintArgb));
-                continue;
-            }
 
-            // Parameterized composite-model overlay (SkeletonClothingLayer family: stray, bogged).
-            // Shape: layer constructor takes ({@code ModelLayerLocation layerLocation},
-            // {@code Identifier clothesLocation}) parameters, baker calls {@code
-            // bakeLayer(<param>)} on the parameter (not on a GETSTATIC ModelLayers field), and
-            // submit calls {@code coloredCutoutModelCopyLayerRender(this.layerModel,
-            // this.clothesLocation, ...)}. The actual ModelLayers field and texture come from
-            // the renderer's {@code addLayer(new XLayer(this, modelSet, ModelLayers.Y,
-            // Z_LOCATION))} call site rather than the layer class itself - matching by ctor
-            // shape lets any future layer using the same pattern auto-resolve without an
-            // allowlist update. Emitted unconditionally when both args resolve because the
-            // {@code coloredCutoutModelCopyLayerRender} call site enforces the
-            // {@code entityCutout} render type (no translucent / additive variant uses this
-            // helper).
-            ParameterizedOverlayBinding param = findParameterizedOverlayBinding(zip, cn, rendererInternalName);
-            if (param != null) {
-                int tintArgb = extractColoredCutoutTint(zip, cn);
-                out.add(new OverlayDescriptor(layerClass, param.texturePath(), false, param.modelLayerField(), tintArgb));
-                continue;
-            }
+            // Specific class-name + ctor-shape handlers run BEFORE the generic
+            // composite-overlay gate. The generic gate's bytecode derivation
+            // ({@link #derivationAcceptsCompositeOverlay}) would also accept these layers
+            // (they use the cutout helper), but they need per-class metadata (inflate, tint,
+            // skipBounds, texture-prefix) that the generic emit path doesn't carry. By
+            // running the specific handlers first, each one claims its class via {@code
+            // continue} and the generic gate never sees it - no hardcoded exclusion list
+            // needed in the gate itself.
 
             // LlamaDecorLayer: a same-geometry equipment-overlay layer rendering the llama's
             // body-slot armor / decor (carpet for trader_llama, dyed harnesses for player-saddled
@@ -322,6 +285,54 @@ public final class EntityOverlayResolver {
                     String texture = TEXTURE_PATH_PREFIX + prefix + "/type/plains.png";
                     out.add(new OverlayDescriptor(layerClass, texture, false, null, 0xFFFFFFFF));
                 }
+                continue;
+            }
+
+            // Parameterized composite-model overlay (SkeletonClothingLayer family: stray, bogged).
+            // Shape: layer constructor takes ({@code ModelLayerLocation layerLocation},
+            // {@code Identifier clothesLocation}) parameters, baker calls {@code
+            // bakeLayer(<param>)} on the parameter (not on a GETSTATIC ModelLayers field), and
+            // submit calls {@code coloredCutoutModelCopyLayerRender(this.layerModel,
+            // this.clothesLocation, ...)}. The actual ModelLayers field and texture come from
+            // the renderer's {@code addLayer(new XLayer(this, modelSet, ModelLayers.Y,
+            // Z_LOCATION))} call site rather than the layer class itself - matching by ctor
+            // shape lets any future layer using the same pattern auto-resolve without an
+            // allowlist update. Emitted unconditionally when both args resolve because the
+            // {@code coloredCutoutModelCopyLayerRender} call site enforces the
+            // {@code entityCutout} render type (no translucent / additive variant uses this
+            // helper).
+            ParameterizedOverlayBinding param = findParameterizedOverlayBinding(zip, cn, rendererInternalName);
+            if (param != null) {
+                int tintArgb = extractColoredCutoutTint(zip, cn);
+                out.add(new OverlayDescriptor(layerClass, param.texturePath(), false, param.modelLayerField(), tintArgb));
+                continue;
+            }
+
+            // Composite-model overlay (sheep wool, sheep wool undercoat, drowned outer,
+            // breeze wind, slime outer) - generic catch-all for any layer whose {@code <init>}
+            // calls {@code modelSet.bakeLayer(ModelLayers.X)} and that wasn't claimed by a
+            // more specific handler above. Emit when:
+            //   - {@link #POLICY_FORCE_EMIT} explicitly allows it (translucent overlays
+            //     accepted as known-divergence), OR
+            //   - {@link #derivationAcceptsCompositeOverlay} accepts it (layer establishes
+            //     its own render type via direct {@code RenderTypes.X} INVOKESTATIC or the
+            //     {@code coloredCutoutModelCopyLayerRender} helper, AND every direct
+            //     render-type call resolves to a cutout-safe pipeline).
+            // Skip when {@link #POLICY_SUPPRESS} excludes it (state-gated runtime skips
+            // that bytecode walking can't statically resolve).
+            String modelLayerField = findOverlayModelLayerField(cn);
+            if (modelLayerField != null
+                && !POLICY_SUPPRESS.contains(modelLayerField)
+                && (POLICY_FORCE_EMIT.contains(modelLayerField)
+                    || derivationAcceptsCompositeOverlay(zip, cn))) {
+                String compositeTexture = findCompositeOverlayTexture(zip, cn);
+                if (compositeTexture == null) {
+                    diagnostics.info("entity '%s' overlay '%s' bakes ModelLayers.%s but no texture path resolved", entityId, layerClass, modelLayerField);
+                    continue;
+                }
+                int tintArgb = extractColoredCutoutTint(zip, cn);
+                boolean unlit = layerInvokesNoCardinalLightingRenderType(zip, cn);
+                out.add(new OverlayDescriptor(layerClass, compositeTexture, unlit, modelLayerField, tintArgb));
                 continue;
             }
         }
@@ -1085,12 +1096,8 @@ public final class EntityOverlayResolver {
 
     /**
      * Decides whether a composite-overlay layer's bytecode is safe to emit via the
-     * generic gate. Three conditions:
+     * generic gate. Two conditions:
      * <ol>
-     *   <li>The layer is NOT a class with a dedicated downstream handler
-     *       ({@code LlamaDecorLayer}, {@code TropicalFishPatternLayer},
-     *       {@code VillagerProfessionLayer}) - those need the per-class metadata
-     *       (tint / inflate / skipBounds / texture-prefix) their handlers inject.</li>
      *   <li>The layer's non-init non-clinit body invokes either an
      *       {@code INVOKESTATIC RenderTypes.X} factory OR the
      *       {@code coloredCutoutModelCopyLayerRender} helper. Excludes EnergySwirlLayer
@@ -1103,13 +1110,11 @@ public final class EntityOverlayResolver {
      *       {@link #POLICY_FORCE_EMIT} re-allows it. The helper is always cutout by
      *       construction so helper-only layers pass.</li>
      * </ol>
+     * Callers run dedicated class-specific handlers (LlamaDecorLayer,
+     * TropicalFishPatternLayer, VillagerProfessionLayer) BEFORE this generic gate so they
+     * claim their classes via {@code continue} - no class-name short-circuit needed here.
      */
     private static boolean derivationAcceptsCompositeOverlay(@NotNull ZipFile zip, @NotNull ClassNode layerCn) {
-        String name = layerCn.name;
-        if (VanillaSourceClasses.LLAMA_DECOR_LAYER.equals(name)
-            || VanillaSourceClasses.TROPICAL_FISH_PATTERN_LAYER.equals(name)
-            || VanillaSourceClasses.VILLAGER_PROFESSION_LAYER.equals(name))
-            return false;
         boolean hasDirectRenderType = false;
         boolean usesHelper = false;
         for (MethodNode method : layerCn.methods) {
