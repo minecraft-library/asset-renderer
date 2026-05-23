@@ -1916,6 +1916,29 @@ public final class ToolingBlockEntities {
                 state.numStack.push(result);
                 return;
             }
+            // Math.cos(D)D / Math.sin(D)D: libm-precision sibling of the Mth handler above.
+            // Vanilla {@code SquidModel.createBodyLayer} uses {@code Math.cos / Math.sin} on the
+            // doubles {@code i * 2*PI / 8} for tentacle pivots (NOT {@code Mth.cos / sin} which
+            // returns float via a 65536-entry table lookup). The values differ by up to 1.8e-5
+            // - enough to flip a pivot across a canvas-pixel rounding boundary - so this handler
+            // returns {@code Math.cos / sin} double directly. The subsequent
+            // {@code D2F / DMUL / DADD / DSUB} arithmetic in the body folds the double back to
+            // the target precision. Gated on {@code paramFloatValues != null} so legacy
+            // literal-stack walkers, which never see Math.cos / sin in their createBodyLayer
+            // bodies, keep their byte-stable output.
+            if (state.paramFloatValues != null
+                && opcode == Opcodes.INVOKESTATIC
+                && methodInsn.owner.equals("java/lang/Math")
+                && (methodInsn.name.equals("cos") || methodInsn.name.equals("sin"))
+                && methodInsn.desc.equals("(D)D")
+                && !state.numStack.isEmpty()) {
+                double arg = state.numStack.popNumber().doubleValue();
+                double result = methodInsn.name.equals("cos")
+                    ? Math.cos(arg)
+                    : Math.sin(arg);
+                state.numStack.push(result);
+                return;
+            }
             // Invokestatic-follow: recurse into model-building statics outside the builder/geom
             // package (e.g. PiglinHeadModel.createHeadModel -> PiglinModel.addHead). The JVM
             // resolves invokestatic through the superclass chain, so {@link AsmKit#findMethodInHierarchy}
