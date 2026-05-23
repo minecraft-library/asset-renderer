@@ -1573,18 +1573,61 @@ public final class ToolingBlockEntities {
                     state.numStack.pushNonLiteral();
                 } else if (opcode == Opcodes.ARRAYLENGTH) {
                     state.numStack.pushNonLiteral();
-                } else if (opcode == Opcodes.NEWARRAY || opcode == Opcodes.ANEWARRAY) {
+                } else if (opcode == Opcodes.NEWARRAY) {
+                    // Pop 1 int (length); push ref (refs aren't tracked on numStack). Also
+                    // captures the length + element-type on {@link ParseState#pendingFreshArrayLength}
+                    // so the next {@code ASTORE} can bind the array to a slot and the parser
+                    // can subsequently fold {@code FASTORE} writes and {@code FALOAD} reads
+                    // against the tracked local array. Silverfish's {@code float[7]}
+                    // cumulative-pivot cache uses this; other vanilla model factories don't
+                    // currently allocate local primitive arrays.
+                    Number lengthN = state.numStack.isEmpty() ? null : state.numStack.popLiteralNumber();
+                    if (lengthN != null && node instanceof IntInsnNode arrInsn) {
+                        int length = lengthN.intValue();
+                        if (length >= 0 && length < 1024) {
+                            if (arrInsn.operand == Opcodes.T_FLOAT) {
+                                state.pendingFreshArrayLength = length;
+                                state.pendingFreshArrayType = 'F';
+                            } else if (arrInsn.operand == Opcodes.T_INT) {
+                                state.pendingFreshArrayLength = length;
+                                state.pendingFreshArrayType = 'I';
+                            }
+                        }
+                    }
+                } else if (opcode == Opcodes.ANEWARRAY) {
                     // Pop 1 int (length); push ref (refs aren't tracked on numStack).
                     if (!state.numStack.isEmpty()) state.numStack.pop();
                 } else if (opcode == Opcodes.IASTORE || opcode == Opcodes.BASTORE
                         || opcode == Opcodes.SASTORE || opcode == Opcodes.CASTORE
-                        || opcode == Opcodes.FASTORE || opcode == Opcodes.DASTORE
-                        || opcode == Opcodes.LASTORE) {
-                    // Array element store: JVM pops ref + int + value. numStack effect:
-                    // pop value (1 entry) + index (1 int). Used by SilverfishModel's
-                    // {@code float[7]} segment-position cache via {@code FASTORE}.
+                        || opcode == Opcodes.DASTORE || opcode == Opcodes.LASTORE) {
+                    // Array element store (non-float): JVM pops ref + int + value. numStack
+                    // effect: pop value (1 entry) + index (1 int).
                     if (!state.numStack.isEmpty()) state.numStack.pop();
                     if (!state.numStack.isEmpty()) state.numStack.pop();
+                } else if (opcode == Opcodes.FASTORE) {
+                    // {@code FASTORE} writes into a {@code float[]}. Pops value + index +
+                    // array-ref. Walks back over the prior real instructions to find the
+                    // {@code ALOAD <slot>} that pushed the array ref; when the slot has a
+                    // tracked {@link ParseState#localFloatArrays} entry AND both popped
+                    // operands are real literals, writes {@code arr[idx] = value}. Otherwise
+                    // just pops to keep the JVM stack aligned. SilverfishModel's
+                    // {@code aload_2; iload i; fload f; fastore} cumulative-pivot pattern
+                    // matches this exactly.
+                    Number value = state.numStack.isEmpty() ? null : state.numStack.popLiteralNumber();
+                    Number idx = state.numStack.isEmpty() ? null : state.numStack.popLiteralNumber();
+                    if (value != null && idx != null) {
+                        // Walk back: prev1 = value insn, prev2 = idx insn, prev3 = ALOAD slot.
+                        AbstractInsnNode v = AsmKit.previousReal(node);
+                        AbstractInsnNode i = v != null ? AsmKit.previousReal(v) : null;
+                        AbstractInsnNode a = i != null ? AsmKit.previousReal(i) : null;
+                        if (a instanceof VarInsnNode aload && aload.getOpcode() == Opcodes.ALOAD) {
+                            float[] arr = state.localFloatArrays.get(aload.var);
+                            int idxInt = idx.intValue();
+                            if (arr != null && idxInt >= 0 && idxInt < arr.length) {
+                                arr[idxInt] = value.floatValue();
+                            }
+                        }
+                    }
                 } else if (opcode == Opcodes.AASTORE) {
                     // Array reference store: JVM pops ref + int + ref. numStack effect:
                     // pop index only (the value ref isn't on numStack).
@@ -1792,7 +1835,19 @@ public final class ToolingBlockEntities {
                 // cubes into {@link ParseState#slotToCubes} so a later aload_N can re-hydrate
                 // them for the next bone without re-reading the same addBox literals.
                 case VarInsnNode varInsn when opcode == Opcodes.ASTORE -> {
-                    if (state.pendingFreshDeformationInflate != null) {
+                    if (state.pendingFreshArrayLength != null && state.pendingFreshArrayType != '\0') {
+                        // The previous {@code NEWARRAY <type>} captured a length + element-type
+                        // on the pending fields; bind a tracked array to this slot now so
+                        // subsequent {@code FASTORE} writes and {@code FALOAD} reads can fold
+                        // against it. SilverfishModel's {@code bipush 7; newarray float;
+                        // astore_2} cumulative-pivot cache hits this exactly.
+                        int len = state.pendingFreshArrayLength;
+                        if (state.pendingFreshArrayType == 'F') {
+                            state.localFloatArrays.put(varInsn.var, new float[len]);
+                        }
+                        state.pendingFreshArrayLength = null;
+                        state.pendingFreshArrayType = '\0';
+                    } else if (state.pendingFreshDeformationInflate != null) {
                         state.cubeDeformationSlots.put(varInsn.var, state.pendingFreshDeformationInflate);
                         state.pendingFreshDeformationInflate = null;
                         // The fresh deformation just got stashed into a slot for later
@@ -2126,6 +2181,11 @@ public final class ToolingBlockEntities {
             // caller's on exit so a static helper's locals don't leak into the surrounding
             // factory's slot table.
             ConcurrentMap<Integer, Number> savedNumericLocals = state.numericLocals;
+            // Same scoping applies to local primitive-array slots - the callee can't
+            // see / write the caller's tracked float[] / int[] arrays.
+            ConcurrentMap<Integer, float[]> savedLocalFloatArrays = state.localFloatArrays;
+            Integer savedPendingFreshArrayLength = state.pendingFreshArrayLength;
+            char savedPendingFreshArrayType = state.pendingFreshArrayType;
             String savedPendingPartName = state.pendingPartName;
             String savedBoneName = state.boneName;
             String savedParentBone = state.parentBone;
@@ -2140,6 +2200,9 @@ public final class ToolingBlockEntities {
             state.localSlotBone = Concurrent.newMap();
             state.slotToCubes = Concurrent.newMap();
             state.numericLocals = Concurrent.newMap();
+            state.localFloatArrays = Concurrent.newMap();
+            state.pendingFreshArrayLength = null;
+            state.pendingFreshArrayType = '\0';
             state.pendingPartName = null;
             state.boneName = null;
             state.parentBone = null;
@@ -2158,6 +2221,9 @@ public final class ToolingBlockEntities {
                 state.localSlotBone = savedLocalSlotBone;
                 state.slotToCubes = savedSlotToCubes;
                 state.numericLocals = savedNumericLocals;
+                state.localFloatArrays = savedLocalFloatArrays;
+                state.pendingFreshArrayLength = savedPendingFreshArrayLength;
+                state.pendingFreshArrayType = savedPendingFreshArrayType;
                 state.pendingPartName = savedPendingPartName;
                 state.boneName = savedBoneName;
                 state.parentBone = savedParentBone;
@@ -2781,6 +2847,31 @@ public final class ToolingBlockEntities {
             @NotNull ConcurrentMap<Integer, Number> numericLocals = Concurrent.newMap();
 
             /**
+             * JVM local-variable slot -> tracked {@code float[]} created by a
+             * {@code NEWARRAY float; ASTORE <slot>} pair earlier in the method. Vanilla's
+             * {@code SilverfishModel.createBodyLayer} uses this for its cumulative-pivot
+             * {@code float[7]}: each loop iteration writes {@code f[i] = currentF} via
+             * {@code FASTORE} and the post-loop layer bones read back via
+             * {@code FALOAD}. Cleared in {@link #inlineStaticMethodBody} so the callee can't
+             * leak its local arrays into the caller's scope.
+             */
+            @NotNull ConcurrentMap<Integer, float[]> localFloatArrays = Concurrent.newMap();
+
+            /**
+             * Length captured by a {@code NEWARRAY <T>} instruction that hasn't yet been bound
+             * to a slot via the subsequent {@code ASTORE}. Reset on consumption. Non-null only
+             * across a single {@code NEWARRAY -> ASTORE} pair.
+             */
+            @Nullable Integer pendingFreshArrayLength;
+
+            /**
+             * Element-type tag for the pending {@code NEWARRAY} - {@code 'F'} for float,
+             * {@code 'I'} for int, {@code '\0'} when no pending. Mirrors {@code IntInsnNode
+             * .operand} via {@code T_FLOAT} / {@code T_INT}.
+             */
+            char pendingFreshArrayType;
+
+            /**
              * Flattened pivot + scale for each flushed bone, used to resolve child inheritance.
              */
             final @NotNull ConcurrentMap<String, BoneMeta> boneMeta = Concurrent.newMap();
@@ -3205,7 +3296,7 @@ public final class ToolingBlockEntities {
                 }
             }
             if (loadOp == Opcodes.FALOAD) {
-                // 1D shape: <field>:[F; <row expr>; FALOAD
+                // 1D static shape: <field>:[F; <row expr>; FALOAD
                 RowResolution rr = resolveRowExpression(prev1, state);
                 if (rr != null) {
                     AbstractInsnNode getstaticNode = AsmKit.previousReal(rr.startNode());
@@ -3213,6 +3304,19 @@ public final class ToolingBlockEntities {
                         && field.getOpcode() == Opcodes.GETSTATIC
                         && "[F".equals(field.desc)) {
                         float[] arr = AsmKit.readStaticFloatArray1D(zip, field.owner, field.name);
+                        if (arr != null && rr.value() >= 0 && rr.value() < arr.length) {
+                            return arr[rr.value()];
+                        }
+                    }
+                }
+                // 1D local shape: ALOAD <slot>; <row expr>; FALOAD - the slot must hold a
+                // tracked float[] populated by an earlier NEWARRAY + ASTORE + (FASTORE)*
+                // sequence. Silverfish's post-loop layer bones use
+                // {@code aload_2; iconst_<idx>; faload} to read its cumulative-pivot cache.
+                if (rr != null) {
+                    AbstractInsnNode aloadNode = AsmKit.previousReal(rr.startNode());
+                    if (aloadNode instanceof VarInsnNode aload && aload.getOpcode() == Opcodes.ALOAD) {
+                        float[] arr = state.localFloatArrays.get(aload.var);
                         if (arr != null && rr.value() >= 0 && rr.value() < arr.length) {
                             return arr[rr.value()];
                         }

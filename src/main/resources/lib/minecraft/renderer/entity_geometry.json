@@ -25765,7 +25765,8 @@
             }
           ]
         }
-      }
+      },
+      "y_axis": "DOWN"
     },
     "geometry.endermite": {
       "textureWidth": 64,

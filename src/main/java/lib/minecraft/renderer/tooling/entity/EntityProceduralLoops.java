@@ -69,8 +69,7 @@ public final class EntityProceduralLoops {
      */
     public static boolean hasTemplate(@NotNull String factoryKey) {
         return switch (factoryKey) {
-            case "net/minecraft/client/model/monster/ghast/GhastModel#createBodyLayer",
-                 "net/minecraft/client/model/monster/silverfish/SilverfishModel#createBodyLayer" -> true;
+            case "net/minecraft/client/model/monster/ghast/GhastModel#createBodyLayer" -> true;
             default -> false;
         };
     }
@@ -101,8 +100,6 @@ public final class EntityProceduralLoops {
         switch (key) {
             case "net/minecraft/client/model/monster/ghast/GhastModel#createBodyLayer" ->
                 applyGhastTentacles(geometry);
-            case "net/minecraft/client/model/monster/silverfish/SilverfishModel#createBodyLayer" ->
-                applySilverfishSegments(geometry);
             default -> { /* no template registered yet */ }
         }
 
@@ -244,155 +241,6 @@ public final class EntityProceduralLoops {
             // parser's linear walk emits for the loop's first iteration with garbage values.
             bones.add("tentacle" + i, bone);
         }
-    }
-
-    /**
-     * Per-segment {@code int[]{sx, sy, sz}} from {@code SilverfishModel.<clinit>} {@code BODY_SIZES}.
-     * The factory's loop reads these as cube width / height / depth and as the cumulative-pivot
-     * stride for adjacent segments - duplicated here verbatim because the parser doesn't unroll
-     * static {@code int[][]} field reads with dynamic indices.
-     */
-    private static final int[][] SILVERFISH_BODY_SIZES = {
-        { 3, 2, 2 }, { 4, 3, 2 }, { 6, 4, 3 }, { 3, 3, 3 },
-        { 2, 2, 3 }, { 2, 1, 2 }, { 1, 1, 2 }
-    };
-
-    /**
-     * Per-segment {@code int[]{u, v}} texOffs from {@code SilverfishModel.<clinit>} {@code BODY_TEXS}.
-     */
-    private static final int[][] SILVERFISH_BODY_TEXS = {
-        { 0, 0 }, { 0, 4 }, { 0, 9 }, { 0, 16 }, { 0, 22 }, { 11, 0 }, { 13, 4 }
-    };
-
-    /**
-     * Adds the 7 segment bones plus 3 spike-layer bones that {@code SilverfishModel.createBodyLayer}
-     * emits via its segment loop and the post-loop {@code layer0/1/2} block. Mirrors the bytecode
-     * at offsets 24-178 (segment loop) and 179-348 (layers).
-     *
-     * <p>Per-segment formula (loop body, {@code i} in {@code 0..7}):
-     * <ul>
-     *   <li>{@code texOffs(BODY_TEXS[i][0], BODY_TEXS[i][1])}</li>
-     *   <li>{@code addBox(-0.5*sx, 0, -0.5*sz, sx, sy, sz)} where {@code sx, sy, sz = BODY_SIZES[i]}</li>
-     *   <li>{@code pivot = (0, 24 - sy, f)} where {@code f} starts at {@code -3.5} and accumulates
-     *       {@code +0.5 * (BODY_SIZES[i][2] + BODY_SIZES[i+1][2])} per iteration</li>
-     * </ul>
-     *
-     * <p>Spike-layer bones reference {@code BODY_SIZES[2][2]=3} (layer0 z size and z origin scale),
-     * {@code BODY_SIZES[4][2]=3} (layer1/2 z origin scale), {@code BODY_SIZES[1][2]=2} (layer1/2 z
-     * size), and the cumulative pivot values {@code f[2]=1.0}, {@code f[1]=-1.5} for the layer pivots.
-     *
-     * <p>Bone names match {@code getSegmentName(i)} ({@code "segment" + i}) and
-     * {@code getLayerName(i)} ({@code "layer" + i}) - the format strings are encoded in the
-     * {@code makeConcatWithConstants} bootstrap arguments at constant-pool entries
-     * {@code segment} and {@code layer} (verified via {@code javap -v}). Matches what
-     * vanilla MC emits at runtime so the template overwrites whatever degenerate bones the parser
-     * synthesised on the loop's first iteration.
-     */
-    private static void applySilverfishSegments(@NotNull JsonObject geometry) {
-        JsonObject bones = geometry.getAsJsonObject("bones");
-        if (bones == null) return;
-        float[] f = computeCumulativePivot(SILVERFISH_BODY_SIZES);
-        for (int i = 0; i < SILVERFISH_BODY_SIZES.length; i++) {
-            int sx = SILVERFISH_BODY_SIZES[i][0];
-            int sy = SILVERFISH_BODY_SIZES[i][1];
-            int sz = SILVERFISH_BODY_SIZES[i][2];
-            int u = SILVERFISH_BODY_TEXS[i][0];
-            int v = SILVERFISH_BODY_TEXS[i][1];
-            bones.add("segment" + i, segmentBone(0f, 24f - sy, f[i], -0.5f * sx, 0f, -0.5f * sz, sx, sy, sz, u, v));
-        }
-        // Spike layers: pivot Z values mirror the segment loop's f[] indices that the bytecode
-        // pulled from local slot 2 ({@code aload_2; iconst_X; faload}).
-        bones.add("layer0", segmentBone(0f, 16f, f[2],
-            -5f, 0f, SILVERFISH_BODY_SIZES[2][2] * -0.5f,
-            10f, 8f, SILVERFISH_BODY_SIZES[2][2], 20, 0));
-        bones.add("layer1", segmentBone(0f, 20f, f[4],
-            -3f, 0f, SILVERFISH_BODY_SIZES[4][2] * -0.5f,
-            6f, 4f, SILVERFISH_BODY_SIZES[4][2], 20, 11));
-        bones.add("layer2", segmentBone(0f, 19f, f[1],
-            -3f, 0f, SILVERFISH_BODY_SIZES[4][2] * -0.5f,
-            6f, 5f, SILVERFISH_BODY_SIZES[1][2], 20, 18));
-    }
-
-    /**
-     * Per-segment {@code int[]{sx, sy, sz}} from {@code EndermiteModel.<clinit>} {@code BODY_SIZES}.
-     */
-    private static final int[][] ENDERMITE_BODY_SIZES = {
-        { 4, 3, 2 }, { 6, 4, 5 }, { 3, 3, 1 }, { 1, 2, 1 }
-    };
-
-    /**
-     * Per-segment {@code int[]{u, v}} texOffs from {@code EndermiteModel.<clinit>} {@code BODY_TEXS}.
-     */
-    private static final int[][] ENDERMITE_BODY_TEXS = {
-        { 0, 0 }, { 0, 5 }, { 0, 14 }, { 0, 18 }
-    };
-
-    /**
-     * Adds the 4 segment bones that {@code EndermiteModel.createBodyLayer} emits via its segment
-     * loop. Mirrors the bytecode at offsets 18-153; identical loop body to silverfish (same
-     * {@code -0.5 * size} cube origin, same {@code 24 - sy} Y pivot, same {@code +0.5 * (sz_i +
-     * sz_{i+1})} cumulative-Z stride starting at {@code -3.5}). Bone names match
-     * {@code createSegmentName(int)} - verified as {@code "segment" + i} via the
-     * {@code makeConcatWithConstants} bootstrap arg {@code segment}.
-     */
-    private static void applyEndermiteSegments(@NotNull JsonObject geometry) {
-        JsonObject bones = geometry.getAsJsonObject("bones");
-        if (bones == null) return;
-        float[] f = computeCumulativePivot(ENDERMITE_BODY_SIZES);
-        for (int i = 0; i < ENDERMITE_BODY_SIZES.length; i++) {
-            int sx = ENDERMITE_BODY_SIZES[i][0];
-            int sy = ENDERMITE_BODY_SIZES[i][1];
-            int sz = ENDERMITE_BODY_SIZES[i][2];
-            int u = ENDERMITE_BODY_TEXS[i][0];
-            int v = ENDERMITE_BODY_TEXS[i][1];
-            bones.add("segment" + i, segmentBone(0f, 24f - sy, f[i], -0.5f * sx, 0f, -0.5f * sz, sx, sy, sz, u, v));
-        }
-    }
-
-    /**
-     * Computes the cumulative pivot-Z array shared by silverfish and endermite. The factory loops
-     * track a running {@code f} value starting at {@code -3.5} and add
-     * {@code 0.5 * (sizes[i][2] + sizes[i+1][2])} after writing {@code f} into the segment's Z
-     * pivot. {@code f} is stored in a local float[] and consumed by the post-loop spike-layer
-     * bones in silverfish; endermite has no post-loop consumers but the formula is identical.
-     */
-    private static float[] computeCumulativePivot(int[][] sizes) {
-        float[] out = new float[sizes.length];
-        float f = -3.5f;
-        for (int i = 0; i < sizes.length; i++) {
-            out[i] = f;
-            if (i < sizes.length - 1)
-                f += 0.5f * (sizes[i][2] + sizes[i + 1][2]);
-        }
-        return out;
-    }
-
-    /**
-     * Builds a single-cube bone JSON shaped like the parser's per-bone records.
-     */
-    private static @NotNull JsonObject segmentBone(
-        float px, float py, float pz,
-        float ox, float oy, float oz,
-        float sx, float sy, float sz,
-        int u, int v
-    ) {
-        JsonObject bone = new JsonObject();
-        bone.add("pivot", floatArray(px, py, pz));
-        bone.add("rotation", floatArray(0f, 0f, 0f));
-        JsonObject cube = new JsonObject();
-        cube.add("origin", floatArray(ox, oy, oz));
-        cube.add("size", floatArray(sx, sy, sz));
-        JsonArray uv = new JsonArray();
-        uv.add(u);
-        uv.add(v);
-        cube.add("uv", uv);
-        cube.addProperty("inflate", 0.0);
-        cube.addProperty("mirror", false);
-        cube.add("face_uv", new JsonObject());
-        JsonArray cubes = new JsonArray();
-        cubes.add(cube);
-        bone.add("cubes", cubes);
-        return bone;
     }
 
     /**
