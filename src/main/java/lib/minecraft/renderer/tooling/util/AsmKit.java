@@ -150,6 +150,43 @@ public final class AsmKit {
         return classNode;
     }
 
+    /**
+     * Cache-backed variant of {@link #loadClass(ZipFile, String)}: routes through the
+     * supplied {@link ClassNodeCache} so repeat lookups in the same tooling run hit cache
+     * instead of re-reading and re-parsing the jar entry. Behaviour and return contract
+     * match the non-cached overload.
+     *
+     * @param cache the per-context cache to consult / populate
+     * @param zip the jar to read from on cache miss
+     * @param internalName the class's JVM internal name
+     * @return the cached or freshly-parsed node, or {@code null} when absent from the jar
+     */
+    public static @Nullable ClassNode loadClass(@NotNull ClassNodeCache cache, @NotNull ZipFile zip, @NotNull String internalName) {
+        return cache.load(zip, internalName);
+    }
+
+    /**
+     * Cache-backed variant of {@link #requireClass(ZipFile, String, String)}. Calls through
+     * the supplied {@link ClassNodeCache}; throws with the same "obfuscated or unsupported
+     * version" message when the class is missing.
+     *
+     * @param cache the per-context cache to consult / populate
+     * @param zip the jar to read from on cache miss
+     * @param internalName the class's JVM internal name
+     * @param context a short label identifying the caller in the error message
+     * @return the populated {@link ClassNode}
+     * @throws ToolingException if the class is not in the jar or cannot be read
+     */
+    public static @NotNull ClassNode requireClass(@NotNull ClassNodeCache cache, @NotNull ZipFile zip, @NotNull String internalName, @NotNull String context) {
+        ClassNode classNode = cache.load(zip, internalName);
+        if (classNode == null)
+            throw new ToolingException(
+                "Jar does not contain '%s.class' for %s - the jar is either obfuscated (pre-26.1) or from an unsupported version",
+                internalName, context
+            );
+        return classNode;
+    }
+
     // ----------------------------------------------------------------------------------------
     // Method / field lookup
     // ----------------------------------------------------------------------------------------
@@ -1007,7 +1044,7 @@ public final class AsmKit {
      * or until {@code stopAnchor} returns {@code true} (which aborts and returns
      * {@code null}). Returns the matching field name when found.
      *
-     * <p>Mirrors {@code MobRegistryDiscovery.findFollowingPutStatic}: after a registration
+     * <p>Mirrors {@code EntityRegistryDiscovery.findFollowingPutStatic}: after a registration
      * triple has been observed, the next PUTSTATIC on {@code EntityType} is the field the
      * triple assigns into; a {@code Builder.of} call before the PUTSTATIC aborts the walk
      * because it indicates we've fallen off the registration into the next one.
@@ -1689,7 +1726,7 @@ public final class AsmKit {
      * exact single-concrete-type-parameter shape (wildcards, generic variables, primitive
      * parameters, and nested generics all drop out).
      *
-     * <p>Mirrors {@code MobRegistryDiscovery}'s {@code EntityType<LFoo;>} signature
+     * <p>Mirrors {@code EntityRegistryDiscovery}'s {@code EntityType<LFoo;>} signature
      * extraction. Patterns are cached per outer-type so repeated calls within a single
      * scan don't re-compile the regex.
      *
@@ -1807,7 +1844,7 @@ public final class AsmKit {
      * {@link #popFloatOrZero(Diagnostics, String, String) popFloatOrZero}) consume that
      * sentinel by returning a primitive zero <i>and</i> emitting a contextualised WARN. Empty
      * stack on these methods is silent zero (matches the original
-     * {@code ToolingBlockEntities.Parser} accounting).
+     * {@code GeometryParser} accounting).
      */
     public static final class LiteralStack {
 
@@ -1815,7 +1852,7 @@ public final class AsmKit {
          * Sentinel singleton pushed by {@link #pushNonLiteral()}. Extends {@link Number} with
          * zero values so an arithmetic site that pops the sentinel and calls
          * {@code .intValue()} / {@code .floatValue()} silently produces zero (matching the
-         * upstream {@code ToolingBlockEntities.Parser} semantics: non-literal values that
+         * upstream {@code GeometryParser} semantics: non-literal values that
          * survive into arithmetic resolve to zero without WARNing - the WARN fires only
          * when the marker is consumed by a builder-dispatch pop site that gates on it via
          * the {@code *OrZero} variants).
@@ -2102,7 +2139,7 @@ public final class AsmKit {
      * instructions. The caller drives it explicitly via {@link #store(int, Object)} on
      * {@code ASTORE}-like events and {@link #load(int)} on {@code ALOAD}-like events.
      *
-     * <p>Used today by {@code ToolingBlockEntities.Parser} (cube-deformation tracking),
+     * <p>Used today by {@code GeometryParser} (cube-deformation tracking),
      * {@code EntityLayerDefinitionResolver} (layer-definition tracking through fluent
      * apply chains), and {@code InventoryTransformDecomposer} (matrix / vector tracking).
      *

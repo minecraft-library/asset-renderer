@@ -116,6 +116,12 @@ public final class VanillaSourceClasses {
     /** Entity model bone primitive. */
     public static final @NotNull String MODEL_PART = MODEL_ROOT + "ModelPart";
 
+    /**
+     * Base class every vanilla {@code EntityModel} subclass extends; sentinel for the
+     * model-class-hierarchy walks in {@link lib.minecraft.renderer.tooling.entity.EntityBoneResolver}.
+     */
+    public static final @NotNull String ENTITY_MODEL = CLIENT_ROOT + "model/EntityModel";
+
     /** Static-field registry of all baked {@code ModelLayerLocation}s. */
     public static final @NotNull String MODEL_LAYERS = MODEL_ROOT + "ModelLayers";
 
@@ -142,6 +148,13 @@ public final class VanillaSourceClasses {
 
     /** Post-bake mesh transform (e.g. cat's {@code scaling(0.8f)}). */
     public static final @NotNull String MESH_TRANSFORMER = MODEL_BUILDERS_ROOT + "MeshTransformer";
+
+    /**
+     * JVM field-descriptor form of {@link #MESH_TRANSFORMER} ({@code L<...>/MeshTransformer;}).
+     * Pre-built so the parsers don't compose the same {@code "L" + ... + ";"} concat at each
+     * call site.
+     */
+    public static final @NotNull String MESH_TRANSFORMER_DESC = "L" + MESH_TRANSFORMER + ";";
 
     /** Per-bone cube list accumulator used by every vanilla {@code createBodyLayer}. */
     public static final @NotNull String CUBE_LIST_BUILDER = MODEL_BUILDERS_ROOT + "CubeListBuilder";
@@ -192,6 +205,23 @@ public final class VanillaSourceClasses {
 
     /** Factory class for RenderType instances ({@code RenderTypes.eyes(loc)}, ...). */
     public static final @NotNull String RENDER_TYPES = RENDERER_ROOT + "rendertype/RenderTypes";
+
+    /** Render-type holder returned by {@link #RENDER_TYPES} factory methods. */
+    public static final @NotNull String RENDER_TYPE = RENDERER_ROOT + "rendertype/RenderType";
+
+    /**
+     * Per-entity render-state base class consumed by variant-driven renderers' {@code
+     * getTextureLocation}, {@code scale}, and {@code setupRotations} overrides.
+     */
+    public static final @NotNull String LIVING_ENTITY_RENDER_STATE =
+        ENTITY_RENDERER_ROOT + "state/LivingEntityRenderState";
+
+    /**
+     * Per-block-overlay render state passed to {@code submit} methods on block-decoration
+     * layers (mooshroom mushrooms, iron-golem flower, etc).
+     */
+    public static final @NotNull String BLOCK_MODEL_RENDER_STATE =
+        RENDERER_ROOT + "block/BlockModelRenderState";
 
     /** Static field holder for RenderPipeline instances (each pipeline's shader-define / blend / cull traits live here). */
     public static final @NotNull String RENDER_PIPELINES = RENDERER_ROOT + "RenderPipelines";

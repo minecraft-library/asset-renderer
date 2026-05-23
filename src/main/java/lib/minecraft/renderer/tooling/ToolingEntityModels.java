@@ -9,26 +9,13 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
-import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.tooling.blockentity.Source;
-import lib.minecraft.renderer.tooling.blockentity.SourceDiscovery;
 import lib.minecraft.renderer.tooling.blockentity.YAxis;
-import lib.minecraft.renderer.tooling.entity.EntityBlockOverlayResolver;
-import lib.minecraft.renderer.tooling.entity.EntityHiddenBonesResolver;
-import lib.minecraft.renderer.tooling.entity.EntityLayerDefinitionResolver;
-import lib.minecraft.renderer.tooling.entity.EntityLayerScanner;
-import lib.minecraft.renderer.tooling.entity.EntityOverlayResolver;
-import lib.minecraft.renderer.tooling.entity.EntityRendererDiscovery;
-import lib.minecraft.renderer.tooling.entity.EntityRendererScaleResolver;
-import lib.minecraft.renderer.tooling.entity.EntitySetupRotationsResolver;
-import lib.minecraft.renderer.tooling.entity.EntityVariantDefaultResolver;
-import lib.minecraft.renderer.tooling.entity.EntityTextureResolver;
-import lib.minecraft.renderer.tooling.entity.EntityVariantResolver;
-import lib.minecraft.renderer.tooling.entity.MobRegistryDiscovery;
+import lib.minecraft.renderer.tooling.entity.*;
+import lib.minecraft.renderer.tooling.parser.GeometryParser;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -49,7 +36,8 @@ import java.util.zip.ZipFile;
  * <ul>
  *   <li>{@code src/main/resources/lib/minecraft/renderer/entity_models.json} - per-entity
  *       metadata: geometry reference, texture reference, optional {@code variant_of}
- *       back-link, overlays list, hidden bones, force-opaque flags.</li>
+ *       back-link, overlays list, hidden bones, renderer-scale and yaw-addend overrides,
+ *       and per-entity tints.</li>
  *   <li>{@code src/main/resources/lib/minecraft/renderer/entity_geometry.json} - deduplicated
  *       bone / cube trees keyed by the unique {@code createBodyLayer}-equivalent factory
  *       method. Entities that share a factory point at the same geometry entry.</li>
@@ -59,28 +47,33 @@ import java.util.zip.ZipFile;
  * {@link lib.minecraft.renderer.tooling.entity}:
  * <ol>
  *   <li><b>Phase A - mob discovery</b>
- *       ({@link MobRegistryDiscovery}, {@link EntityRendererDiscovery}). Map every living mob
+ *       ({@link EntityRegistryDiscovery}). Map every living mob
  *       to its registered renderer class.</li>
  *   <li><b>Phase B - per-renderer binding</b>
- *       ({@link EntityTextureResolver}, {@link EntityVariantResolver},
- *       {@link EntityLayerScanner}). Texture references (hardcoded / conditional /
- *       variant-driven), data-driven variant tables from {@code data/minecraft/X_variant/},
- *       and the overlay enumeration from {@code addLayer(...)} call sites.</li>
+ *       ({@link EntitySessionWalk} orchestrates per entity, fanning out to
+ *       {@link EntityTextureResolver}, {@link EntityVariantResolver},
+ *       {@link EntityBoneResolver}, {@link EntityRendererOverrides}). Texture references
+ *       (hardcoded / conditional / variant-driven), data-driven variant tables from
+ *       {@code data/minecraft/X_variant/}, the overlay enumeration from
+ *       {@code addLayer(...)} call sites, and renderer-override extraction
+ *       (setupRotations yaw addend + scale residue).</li>
  *   <li><b>Phase C - geometry parse</b>
  *       ({@link EntityLayerDefinitionResolver}). Walks the {@code LayerDefinition}-returning
  *       factory; procedural-loop entity bodies (squid / blaze / ghast / silverfish / endermite
- *       / slime families) are folded by the shared {@code Parser} at parse time.</li>
- *   <li><b>Phase D - overlay resolution</b>
+ *       / slime families) are folded by the shared
+ *       {@link lib.minecraft.renderer.tooling.parser.GeometryParser} at parse time.</li>
+ *   <li><b>Phase D - overlay resolution + emission</b>
  *       ({@link EntityOverlayResolver}, {@link EntityBlockOverlayResolver},
- *       {@link EntitySetupRotationsResolver}). Emits the overlay rows that
- *       {@link EntityRenderer EntityRenderer} consumes at runtime.</li>
+ *       {@link EntityFamilyResolver}, {@link EntityRuntimeJsonWriter}). Resolves overlay
+ *       rows and emits the runtime JSON {@link EntityRenderer EntityRenderer} consumes.</li>
  * </ol>
  *
  * <p><b>Diagnostics.</b> Two dev-only JSON dumps land under
  * {@code cache/asset-renderer/diagnostics/} (gitignored) alongside the production output;
- * they capture intermediate state the production output collapses away. Mannequin is the
- * one mob that falls outside the standard EntityRenderer flow (rendered through the avatar
- * pipeline) and shows up only in the diagnostics.
+ * {@link EntityDiagnosticsWriter} writes them and they capture intermediate state the
+ * production output collapses away. Mannequin is the one mob that falls outside the
+ * standard EntityRenderer flow (rendered through the avatar pipeline) and shows up only in
+ * the diagnostics' {@code mobs_without_renderer_list}.
  *
  * @see ToolingBlockEntities
  * @see lib.minecraft.renderer.EntityRenderer
@@ -90,51 +83,10 @@ import java.util.zip.ZipFile;
 public final class ToolingEntityModels {
 
     /**
-     * Phase-A/B diagnostic output path. Lives under {@code cache/} (gitignored).
-     */
-    private static final @NotNull Path DIAGNOSTICS_OUTPUT =
-        Path.of("cache/asset-renderer/diagnostics/java_entity_renderers.json");
-
-    /**
-     * Phase-C geometry diagnostic output path. Lives under {@code cache/} (gitignored).
-     */
-    private static final @NotNull Path GEOMETRY_DIAGNOSTICS_OUTPUT =
-        Path.of("cache/asset-renderer/diagnostics/java_entity_geometry.json");
-
-    /**
-     * Phase-D runtime-consumable per-entity metadata path. Same shape as the legacy
-     * {@code entity_models.json} but populated by the Java pipeline; loaded by
-     * {@code EntityModelLoader} when {@code PipelineOptions.entityModelSource = JAVA}.
-     */
-    private static final @NotNull Path MODELS_JAVA_OUTPUT =
-        Path.of("src/main/resources/lib/minecraft/renderer/entity_models.json");
-
-    /**
-     * Phase-D runtime-consumable per-geometry bone/cube data path. Same shape as the
-     * legacy {@code entity_geometry.json}; one geometry entry per unique factory
-     * method, deduplicated when multiple entities share the same {@code createBodyLayer}.
-     */
-    private static final @NotNull Path GEOMETRY_JAVA_OUTPUT =
-        Path.of("src/main/resources/lib/minecraft/renderer/entity_geometry.json");
-
-    /**
-     * Namespace prefix applied to every emitted entity id.
-     */
-    private static final @NotNull String MINECRAFT_NAMESPACE = "minecraft:";
-
-    /**
-     * Variant id treated as the base entity (no separate {@code variant_of} row emitted) when
-     * walking data-driven variant tables. Vanilla 1.21+ uses {@code "temperate"} for cow / pig /
-     * chicken / frog as the climate-default; the base entity ({@code minecraft:cow}) takes that
-     * variant's texture when no spawn-condition match overrides it.
-     */
-    private static final @NotNull String DEFAULT_VARIANT_ID = "temperate";
-
-    /**
-     * Runs the discovery pipeline and writes the diagnostic JSON.
+     * Runs the full entity-models tooling pipeline and writes the diagnostic + runtime JSON.
      *
      * @param args ignored - all paths are fixed
-     * @throws IOException if the client jar cannot be read or the diagnostic file cannot be written
+     * @throws IOException if the client jar cannot be read or any output file cannot be written
      */
     public static void main(String @NotNull [] args) throws IOException {
         PipelineOptions options = PipelineOptions.defaults();
@@ -142,28 +94,26 @@ public final class ToolingEntityModels {
         System.out.println("Downloading Minecraft client jar...");
         Path clientJar = Pipeline.downloadJarToCache(options);
 
-        Diagnostics diagnostics = new Diagnostics();
-        try (ZipFile zip = new ZipFile(clientJar.toFile())) {
-            ConcurrentList<MobRegistryDiscovery.MobEntry> mobs = MobRegistryDiscovery.discover(zip, diagnostics);
-            System.out.println("Discovered " + mobs.size() + " living-mob entity types");
+        try (ToolingEntityContext context = ToolingEntityContext.of(clientJar, options)) {
+            Diagnostics diagnostics = context.diagnostics();
+            ZipFile zip = context.zip();
+            EntityRegistryDiscovery.Result registry = EntityRegistryDiscovery.discover(context);
+            System.out.println("Discovered " + registry.totalMobsDiscovered() + " living-mob entity types");
+            System.out.println("Discovered " + registry.entries().size() + " entity-renderer registrations");
+            // Cross-check the hardcoded NON_BASE_STEM_SUFFIXES set against a derivation from
+            // the live entity-texture universe and log drift via diagnostics. Observation
+            // only - the active filter remains the hardcoded set so a vanilla version bump
+            // that adds a new state-overlay suffix surfaces here instead of as a silent
+            // fallback-binding regression.
+            EntityTextureResolver.auditNonBaseSuffixes(context);
+            // Field-keyed view of the registry so the Phase-C variant-enumeration loop can
+            // pull each entity's lambdaLayerFields / lambdaTypeArgs from a single map lookup
+            // rather than re-walking the registry list.
+            Map<String, EntityRegistryDiscovery.Result.Entry> registryByField = new LinkedHashMap<>();
+            for (EntityRegistryDiscovery.Result.Entry entry : registry.entries())
+                registryByField.put(entry.entityFieldName(), entry);
 
-            ConcurrentList<EntityRendererDiscovery.Registration> registrations =
-                EntityRendererDiscovery.discover(zip, diagnostics);
-            System.out.println("Discovered " + registrations.size() + " entity-renderer registrations");
-
-            Map<String, String> rendererByField = new LinkedHashMap<>();
-            // Per-entity-field maps - donkey vs mule both bind DonkeyRenderer but each lambda
-            // pushes a distinct ModelLayers / Type-enum constant onto its own constructor call;
-            // keying by renderer class alone would lose the per-mob distinction.
-            Map<String, ConcurrentList<String>> lambdaLayerFieldsByEntityField = new LinkedHashMap<>();
-            Map<String, ConcurrentList<EntityRendererDiscovery.TypeFieldRef>> lambdaTypeArgsByEntityField = new LinkedHashMap<>();
-            for (EntityRendererDiscovery.Registration reg : registrations) {
-                rendererByField.put(reg.entityFieldName(), reg.rendererInternalName());
-                lambdaLayerFieldsByEntityField.put(reg.entityFieldName(), reg.lambdaLayerFields());
-                lambdaTypeArgsByEntityField.put(reg.entityFieldName(), reg.lambdaTypeArgs());
-            }
-
-            ConcurrentMap<String, ConcurrentList<EntityVariantResolver.Variant>> variants =
+            ConcurrentMap<String, ConcurrentList<EntityVariantResolver.Result>> variants =
                 EntityVariantResolver.loadAll(zip, diagnostics);
             System.out.println("Loaded variant tables for " + variants.size() + " entity types ("
                 + variants.keySet() + ")");
@@ -172,148 +122,64 @@ public final class ToolingEntityModels {
                 EntityVariantResolver.loadDataDrivenDefaults(zip, diagnostics);
             System.out.println("Canonical data-variant defaults: " + dataVariantDefaults);
 
-            // Per-mob: gather (renderer, texture binding, layer list) and roll up coverage stats.
-            Map<String, EntityRecord> records = new LinkedHashMap<>();
-            Set<String> mobsWithoutRenderer = new LinkedHashSet<>();
+            // Per-mob Phase-B fan-out: EntitySessionWalk runs the texture / variant /
+            // bone-layer / renderer-overrides resolvers per entity and returns one Result;
+            // this loop just records each Result and accumulates the texture-coverage
+            // stats for the diagnostic line below.
+            Map<String, EntitySessionWalk.Result> records = new LinkedHashMap<>();
             int withPrimaryTexture = 0;
             int variantDriven = 0;
             int unresolvedTexture = 0;
-            for (MobRegistryDiscovery.MobEntry mob : mobs) {
-                String entityId = MINECRAFT_NAMESPACE + mob.entityId();
-                String renderer = rendererByField.get(mob.fieldName());
-                if (renderer == null) {
-                    mobsWithoutRenderer.add(entityId);
-                    continue;
-                }
+            for (EntityRegistryDiscovery.Result.Entry mob : registry.entries()) {
+                EntitySessionWalk.Result walkResult = new EntitySessionWalk(context, mob, variants).walk();
+                records.put(walkResult.entityId(), walkResult);
 
-                ConcurrentList<EntityRendererDiscovery.TypeFieldRef> typeArgs =
-                    lambdaTypeArgsByEntityField.getOrDefault(mob.fieldName(), Concurrent.newList());
-                EntityTextureResolver.Binding binding =
-                    EntityTextureResolver.resolve(zip, renderer, mob.entityId(), typeArgs, diagnostics);
-                // Enum-default variant detection: AxolotlRenderer / RabbitRenderer read their
-                // texture via state.variant lookup into a Map<XVariant, Identifier>. The
-                // resolver walks the variant enum class for its DEFAULT static field and
-                // computes the canonical texture stem (axolotl/axolotl_lucy, rabbit/rabbit_brown).
-                // Falls back to {@link EntityTextureResolver#findBaseTextureFallback} when the
-                // walker can't recover (shulker via Sheets/SpriteMapper, copper_golem via
-                // CopperGolemOxidationLevels dispatch, ender_dragon via no-override <clinit>
-                // static field).
-                EntityVariantDefaultResolver.DefaultVariant variantDefault =
-                    EntityVariantDefaultResolver.resolve(zip, renderer, diagnostics);
-                if (variantDefault != null) {
-                    String stem = entityId.startsWith(MINECRAFT_NAMESPACE) ? entityId.substring(MINECRAFT_NAMESPACE.length()) : entityId;
-                    String candidate = "textures/entity/" + stem + "/" + stem + "_" + variantDefault.defaultName() + ".png";
-                    // Verify the path-by-convention exists in the jar. Vanilla doesn't always
-                    // follow <stem>/<stem>_<variant>.png:
-                    // - mooshroom's textures live under cow/ (e.g. cow/mooshroom_red.png)
-                    // - fox.RED has no separate texture (just fox.png; variant doesn't suffix)
-                    // Existence-gating keeps the override narrow to entities whose convention
-                    // matches (axolotl, llama, parrot, rabbit); the others fall through to
-                    // the binding-extracted path or hardcoded fallback.
-                    String assetPath = "assets/minecraft/" + candidate;
-                    if (zip.getEntry(assetPath) != null) {
-                        binding = new EntityTextureResolver.Binding(
-                            candidate,
-                            null,
-                            binding.variantSourceClass(),
-                            "(enum-default '" + variantDefault.defaultName() + "')"
-                        );
-                    }
-                }
-                if (binding.primaryTexturePath() == null) {
-                    // Class-bytes fallback for renderers the main resolver leaves unresolved.
-                    // Two patterns are covered (see {@link EntityTextureResolver#findBaseTextureFallback}):
-                    //   1. Inline texture LDCs (renderer's own <clinit> or one INVOKESTATIC hop
-                    //      from getTextureLocation) - catches ender_dragon (no override) and
-                    //      copper_golem (CopperGolemOxidationLevels dispatch).
-                    //   2. Sheets / SpriteMapper indirection (DEFAULT_TEXTURE_LOCATION composed
-                    //      from a sheet prefix + sprite name with no inline LDC) - catches
-                    //      shulker.
-                    // No hardcoded map remains; an unresolved binding here means the resolver
-                    // doesn't yet recognise the renderer's pattern.
-                    String fallback = EntityTextureResolver.findBaseTextureFallback(zip, renderer);
-                    if (fallback != null)
-                        binding = new EntityTextureResolver.Binding(
-                            "textures/entity/" + fallback + ".png",
-                            null,
-                            binding.variantSourceClass(),
-                            "(class-bytes fallback)"
-                        );
-                }
-                ConcurrentList<String> layers = EntityLayerScanner.scan(zip, renderer, diagnostics);
-
-                String variantStem;
-                if (binding.variantSourceClass() != null) {
-                    variantStem = EntityVariantResolver.directoryFor(binding.variantSourceClass());
-                } else if (binding.isUnresolved() && variants.containsKey(mob.entityId())) {
-                    // Fallback for state-field-read patterns (WolfRenderer, CatRenderer, etc.):
-                    // getTextureLocation returns state.texture, which is populated upstream from
-                    // a variant lookup we can't trace from getTextureLocation alone. The variant
-                    // directory's existence is a reliable signal the entity is variant-driven.
-                    variantStem = mob.entityId();
-                    binding = new EntityTextureResolver.Binding(null, null, "(state-field-driven)", binding.hierarchySource());
-                } else {
-                    variantStem = null;
-                }
-
-                // A variant-flagged binding still gets a "with primary" credit when a primary
-                // texture surfaces alongside it - the coverage numbers reflect the
-                // runtime-consumable artifact (entity_models.json gets a texture_ref either
-                // way). Fully unresolved variant bindings (no texture path at all) still count
-                // as variantDriven.
+                EntityTextureResolver.Result binding = walkResult.binding();
                 if (binding.primaryTexturePath() != null) withPrimaryTexture++;
                 else if (binding.isVariantDriven()) variantDriven++;
                 else unresolvedTexture++;
-
-                float setupYawAddend = EntitySetupRotationsResolver.resolve(zip, renderer);
-                Float rendererScale = EntityRendererScaleResolver.resolve(zip, renderer, diagnostics);
-                records.put(entityId, new EntityRecord(renderer, binding, layers, variantStem, mob.fieldName(), setupYawAddend, rendererScale));
             }
 
-            JsonObject root = buildDiagnosticJson(
-                options, mobs, registrations, records, mobsWithoutRenderer, variants,
+            Path phaseAbOut = EntityDiagnosticsWriter.writePhaseAB(
+                options, registry, records, variants,
                 withPrimaryTexture, variantDriven, unresolvedTexture, diagnostics
             );
-
-            Files.createDirectories(DIAGNOSTICS_OUTPUT.getParent());
-            Files.writeString(
-                DIAGNOSTICS_OUTPUT,
-                new GsonBuilder().setPrettyPrinting().create().toJson(root) + System.lineSeparator()
-            );
-            System.out.println("Wrote " + DIAGNOSTICS_OUTPUT.toAbsolutePath());
+            System.out.println("Wrote " + phaseAbOut);
 
             // Phase C: per-mob geometry extraction. Resolve each renderer's primary
             // ModelLayers.X via LayerDefinitions.createRoots, build synthetic Sources, and
-            // delegate to the shared block-entity Parser - the bytecode patterns
+            // delegate to the shared GeometryParser - the bytecode patterns
             // (LayerDefinition.create / CubeListBuilder / PartPose / addOrReplaceChild) are
-            // identical between block and mob models.
-            ConcurrentMap<String, EntityLayerDefinitionResolver.Resolution> layerDefs =
+            // identical between block-entity and entity models.
+            ConcurrentMap<String, EntityLayerDefinitionResolver.Result> layerDefs =
                 EntityLayerDefinitionResolver.loadLayerDefinitions(zip, diagnostics);
             System.out.println("Loaded " + layerDefs.size() + " ModelLayers entries from LayerDefinitions.createRoots");
 
-            ConcurrentMap<String, EntityLayerDefinitionResolver.Resolution> entityToResolution = Concurrent.newMap();
+            ConcurrentMap<String, EntityLayerDefinitionResolver.Result> entityToResolution = Concurrent.newMap();
             List<Source> sources = new ArrayList<>();
-            for (Map.Entry<String, EntityRecord> entry : records.entrySet()) {
-                ConcurrentList<String> lambdaFields = lambdaLayerFieldsByEntityField.getOrDefault(
-                    entry.getValue().entityFieldName(), Concurrent.newList()
-                );
+            for (Map.Entry<String, EntitySessionWalk.Result> entry : records.entrySet()) {
+                EntityRegistryDiscovery.Result.Entry registryEntry = registryByField.get(entry.getValue().entityFieldName());
+                ConcurrentList<String> lambdaFields = registryEntry != null
+                    ? registryEntry.lambdaLayerFields()
+                    : Concurrent.newList();
                 // Augment with model-layer fields walked from the renderer's Type enum
                 // (donkey / horse family): the lambda exposes only the saddle / equipment
                 // layer, but the body layer lives behind Type.X.model. Adding the per-
                 // constant ModelLayers reference lets the picker's entity-id-match heuristic
                 // promote ModelLayers.DONKEY over the lambda's DONKEY_SADDLE for
                 // minecraft:donkey.
-                ConcurrentList<EntityRendererDiscovery.TypeFieldRef> typeArgsForLayer =
-                    lambdaTypeArgsByEntityField.getOrDefault(entry.getValue().entityFieldName(), Concurrent.newList());
+                ConcurrentList<EntityRegistryDiscovery.TypeFieldRef> typeArgsForLayer = registryEntry != null
+                    ? registryEntry.lambdaTypeArgs()
+                    : Concurrent.newList();
                 if (!typeArgsForLayer.isEmpty()) {
-                    String typeOwner = typeArgsForLayer.get(0).owner();
+                    String typeOwner = typeArgsForLayer.getFirst().owner();
                     Map<String, String> typeToModelLayer = EntityTextureResolver.typeConstantModelLayerMap(zip, typeOwner);
-                    for (EntityRendererDiscovery.TypeFieldRef ref : typeArgsForLayer) {
+                    for (EntityRegistryDiscovery.TypeFieldRef ref : typeArgsForLayer) {
                         String layer = typeToModelLayer.get(ref.name());
                         if (layer != null && !lambdaFields.contains(layer)) lambdaFields.add(layer);
                     }
                 }
-                EntityLayerDefinitionResolver.Resolution resolution =
+                EntityLayerDefinitionResolver.Result resolution =
                     EntityLayerDefinitionResolver.resolvePrimary(
                         zip, entry.getValue().rendererInternalName(), entry.getKey(),
                         lambdaFields, layerDefs, diagnostics
@@ -367,16 +233,16 @@ public final class ToolingEntityModels {
             // Add an extra Source per variant whose model layer is present in {@code layerDefs}
             // so the parser emits a distinct geometry that the variant row's geometry_ref can
             // point at (cow_cold -> ColdCowModel mesh, not the base CowModel).
-            for (Map.Entry<String, EntityRecord> entry : records.entrySet()) {
+            for (Map.Entry<String, EntitySessionWalk.Result> entry : records.entrySet()) {
                 String baseEntityId = entry.getKey();
                 String variantStem = entry.getValue().variantStem();
                 if (variantStem == null) continue;
-                ConcurrentList<EntityVariantResolver.Variant> vlist = variants.get(variantStem);
+                ConcurrentList<EntityVariantResolver.Result> vlist = variants.get(variantStem);
                 if (vlist == null) continue;
-                for (EntityVariantResolver.Variant variant : vlist) {
+                for (EntityVariantResolver.Result variant : vlist) {
                     if (variant.model() == null) continue;
                     String modelLayerField = (variant.model() + "_" + variantStem).toUpperCase(java.util.Locale.ROOT);
-                    EntityLayerDefinitionResolver.Resolution variantRes = layerDefs.get(modelLayerField);
+                    EntityLayerDefinitionResolver.Result variantRes = layerDefs.get(modelLayerField);
                     if (variantRes == null) {
                         diagnostics.info("variant '%s_%s' references model '%s' but ModelLayers.%s not in LayerDefinitions",
                             baseEntityId, variant.variantId(), variant.model(), modelLayerField);
@@ -412,38 +278,36 @@ public final class ToolingEntityModels {
             // source so the resulting bone tree gets a deduped geometry id alongside the
             // primary entity geometries. Eye overlays still resolve via the same call; their
             // {@code modelLayerField == null} short-circuits the extra-parse step.
-            Map<String, ConcurrentList<EntityOverlayResolver.OverlayDescriptor>> overlaysByEntity =
+            Map<String, ConcurrentList<EntityOverlayResolver.Result>> overlaysByEntity =
                 new LinkedHashMap<>();
-            Map<String, ConcurrentList<EntityBlockOverlayResolver.BlockOverlayDescriptor>> blockOverlaysByEntity =
+            Map<String, ConcurrentList<EntityBlockOverlayResolver.Result>> blockOverlaysByEntity =
                 new LinkedHashMap<>();
             Set<String> compositeOverlayFields = new LinkedHashSet<>();
-            for (Map.Entry<String, EntityRecord> entry : records.entrySet()) {
+            for (Map.Entry<String, EntitySessionWalk.Result> entry : records.entrySet()) {
                 String entityId = entry.getKey();
-                EntityRecord rec = entry.getValue();
-                ConcurrentList<EntityOverlayResolver.OverlayDescriptor> overlays =
+                EntitySessionWalk.Result rec = entry.getValue();
+                ConcurrentList<EntityOverlayResolver.Result> overlays =
                     EntityOverlayResolver.resolve(zip, rec.rendererInternalName(), rec.layers(), entityId, diagnostics);
                 overlaysByEntity.put(entityId, overlays);
-                for (EntityOverlayResolver.OverlayDescriptor desc : overlays)
+                for (EntityOverlayResolver.Result desc : overlays)
                     if (desc.modelLayerField() != null) compositeOverlayFields.add(desc.modelLayerField());
 
                 // Block-decoration layer overlays (mooshroom mushrooms, iron golem flower, etc.)
                 // Walked by EntityBlockOverlayResolver from the renderer's addLayer calls and
-                // each matched layer's submit-method pose-stack ops. Generalises the prior
-                // hardcoded {@link #buildMooshroomBlockOverlays} table - kept as a fallback for
-                // entities the resolver doesn't yet recognise.
-                ConcurrentList<EntityBlockOverlayResolver.BlockOverlayDescriptor> blockOverlays =
+                // each matched layer's submit-method pose-stack ops.
+                ConcurrentList<EntityBlockOverlayResolver.Result> blockOverlays =
                     EntityBlockOverlayResolver.resolve(zip, entityId, rec.rendererInternalName(), diagnostics);
                 blockOverlaysByEntity.put(entityId, blockOverlays);
             }
 
-            // Build extra Sources for each unique composite overlay layer and run them through the
-            // same Parser. The synthetic entityId {@code __overlay_<FIELD>} keeps overlay parses
-            // distinguishable from entity primaries while still flowing through the same dedupe
-            // machinery downstream (writeRuntimeJson dedupes by factory class+method, which
-            // collapses overlay <-> primary collisions naturally).
-            Map<String, EntityLayerDefinitionResolver.Resolution> overlayFieldToResolution = new LinkedHashMap<>();
+            // Build extra Sources for each unique composite overlay layer and run them through
+            // the same GeometryParser. The synthetic entityId {@code __overlay_<FIELD>} keeps
+            // overlay parses distinguishable from entity primaries while still flowing through
+            // the same dedupe machinery downstream (EntityRuntimeJsonWriter dedupes by factory
+            // class+method, which collapses overlay <-> primary collisions naturally).
+            Map<String, EntityLayerDefinitionResolver.Result> overlayFieldToResolution = new LinkedHashMap<>();
             for (String field : compositeOverlayFields) {
-                EntityLayerDefinitionResolver.Resolution res = layerDefs.get(field);
+                EntityLayerDefinitionResolver.Result res = layerDefs.get(field);
                 if (res == null) {
                     diagnostics.info("composite overlay ModelLayers.%s missing from LayerDefinitions.createRoots - skipped", field);
                     continue;
@@ -452,7 +316,7 @@ public final class ToolingEntityModels {
                 sources.add(new Source(
                     res.targetClass() + ".class",
                     res.targetMethod(),
-                    overlayEntityKey(field),
+                    EntityOverlayResolver.Result.entityKey(field),
                     YAxis.DOWN,
                     0f,
                     res.texWidthOverride(),
@@ -461,43 +325,39 @@ public final class ToolingEntityModels {
                     new float[8],
                     res.defaultInflate()
                 ));
-                entityToResolution.put(overlayEntityKey(field), res);
+                entityToResolution.put(EntityOverlayResolver.Result.entityKey(field), res);
             }
             System.out.println("Composite overlay layers: " + overlayFieldToResolution.size()
                 + " (" + overlayFieldToResolution.keySet() + ")");
 
-            ConcurrentMap<String, JsonObject> geometries = ToolingBlockEntities.Parser.parse(clientJar, sources, diagnostics);
+            ConcurrentMap<String, JsonObject> geometries = GeometryParser.parse(clientJar, sources, diagnostics);
             System.out.println("Parsed geometry for " + geometries.size() + " entities + overlays");
 
-            JsonObject geometryRoot = buildGeometryDiagnosticJson(
-                options, mobs.size(), records.size(), entityToResolution, geometries, diagnostics
+            Path phaseCOut = EntityDiagnosticsWriter.writePhaseC(
+                options, registry.totalMobsDiscovered(), records.size(), entityToResolution, geometries, diagnostics
             );
-            Files.writeString(
-                GEOMETRY_DIAGNOSTICS_OUTPUT,
-                new GsonBuilder().setPrettyPrinting().create().toJson(geometryRoot) + System.lineSeparator()
-            );
-            System.out.println("Wrote " + GEOMETRY_DIAGNOSTICS_OUTPUT.toAbsolutePath());
+            System.out.println("Wrote " + phaseCOut);
 
-            // Phase D: emit runtime-consumable JSONs in the EntityModelLoader-expected shape.
-            // entity_geometry.json carries one entry per unique factory (deduplicated when
-            // multiple entities share a createBodyLayer); entity_models.json carries
+            // Phase D: emit the runtime-consumable JSONs in the EntityModelLoader-expected
+            // shape. entity_geometry.json carries one entry per unique factory (deduplicated
+            // when multiple entities share a createBodyLayer); entity_models.json carries
             // per-entity rows pointing into the geometry table plus optional variant rows
             // emitted from the data-driven variant tables loaded in Phase B.
-            int variantRowsEmitted = writeRuntimeJson(
-                zip, records, entityToResolution, geometries, variants, diagnostics,
+            int variantRowsEmitted = EntityRuntimeJsonWriter.writeAll(
+                context, zip, records, entityToResolution, geometries, variants, diagnostics,
                 overlaysByEntity, overlayFieldToResolution, dataVariantDefaults,
                 blockOverlaysByEntity
             );
-            System.out.println("Wrote " + MODELS_JAVA_OUTPUT.toAbsolutePath() + " (+ " + variantRowsEmitted + " variant rows)");
-            System.out.println("Wrote " + GEOMETRY_JAVA_OUTPUT.toAbsolutePath());
+            System.out.println("Wrote " + EntityRuntimeJsonWriter.MODELS_OUTPUT.toAbsolutePath() + " (+ " + variantRowsEmitted + " variant rows)");
+            System.out.println("Wrote " + EntityRuntimeJsonWriter.GEOMETRY_OUTPUT.toAbsolutePath());
 
             System.out.printf(
                 "Coverage: %d / %d mapped; texture %d hard / %d variant / %d unresolved; geometry %d%n",
-                records.size(), mobs.size(), withPrimaryTexture, variantDriven, unresolvedTexture, geometries.size()
+                records.size(), registry.totalMobsDiscovered(), withPrimaryTexture, variantDriven, unresolvedTexture, geometries.size()
             );
-            if (!mobsWithoutRenderer.isEmpty()) {
+            if (!registry.mobsWithoutRenderer().isEmpty()) {
                 System.out.println("Mobs without renderer:");
-                mobsWithoutRenderer.forEach(id -> System.out.println("  " + id));
+                registry.mobsWithoutRenderer().forEach(id -> System.out.println("  " + id));
             }
             if (unresolvedTexture > 0) {
                 System.out.println("Mobs with unresolved texture binding:");
@@ -510,645 +370,6 @@ public final class ToolingEntityModels {
                 diagnostics.entries().forEach(line -> System.out.println("  " + line));
             }
         }
-    }
-
-    /**
-     * Converts a list of {@link EntityBlockOverlayResolver.BlockOverlayDescriptor} into the
-     * JSON wire format consumed by
-     * {@link EntityModelLoader#loadBlockOverlays}.
-     * Each descriptor becomes one {@code block_overlays[]} row; descriptors are emitted in the
-     * order the resolver returned them (which mirrors the bytecode pushPose/popPose order).
-     */
-    private static @NotNull JsonArray buildBlockOverlaysJson(
-        @NotNull ConcurrentList<EntityBlockOverlayResolver.BlockOverlayDescriptor> descriptors
-    ) {
-        JsonArray rows = new JsonArray();
-        for (EntityBlockOverlayResolver.BlockOverlayDescriptor desc : descriptors) {
-            JsonObject row = new JsonObject();
-            row.addProperty("block_id", desc.blockId());
-            if (desc.attachedBone() != null) row.addProperty("attached_bone", desc.attachedBone());
-            JsonArray opsJson = new JsonArray();
-            for (var op : desc.ops()) {
-                JsonObject opJson = switch (op.kind()) {
-                    case TRANSLATE -> translate(op.a(), op.b(), op.c());
-                    case ROTATE_Y -> rotateY(op.a());
-                    case SCALE -> scale(op.a(), op.b(), op.c());
-                };
-                opsJson.add(opJson);
-            }
-            row.add("transforms", opsJson);
-            rows.add(row);
-        }
-        return rows;
-    }
-
-    /**
-     * Builds a {@code translate} transform op JSON.
-     */
-    private static @NotNull JsonObject translate(float x, float y, float z) {
-        JsonObject op = new JsonObject();
-        op.addProperty("op", "translate");
-        op.addProperty("x", x);
-        op.addProperty("y", y);
-        op.addProperty("z", z);
-        return op;
-    }
-
-    /**
-     * Builds a {@code rotate_y} transform op JSON.
-     */
-    private static @NotNull JsonObject rotateY(float degrees) {
-        JsonObject op = new JsonObject();
-        op.addProperty("op", "rotate_y");
-        op.addProperty("degrees", degrees);
-        return op;
-    }
-
-    /**
-     * Builds a {@code scale} transform op JSON.
-     */
-    private static @NotNull JsonObject scale(float x, float y, float z) {
-        JsonObject op = new JsonObject();
-        op.addProperty("op", "scale");
-        op.addProperty("x", x);
-        op.addProperty("y", y);
-        op.addProperty("z", z);
-        return op;
-    }
-
-    /**
-     * Builds the Phase-C geometry diagnostic JSON: per-entity bone/cube counts plus the resolved
-     * factory class+method, suitable for diff-comparison against the legacy
-     * {@code entity_geometry.json}.
-     */
-    private static @NotNull JsonObject buildGeometryDiagnosticJson(
-        @NotNull PipelineOptions options,
-        int mobsTotal,
-        int mobsWithRenderer,
-        @NotNull ConcurrentMap<String, EntityLayerDefinitionResolver.Resolution> entityToResolution,
-        @NotNull ConcurrentMap<String, JsonObject> geometries,
-        @NotNull Diagnostics diagnostics
-    ) {
-        JsonObject root = new JsonObject();
-        root.addProperty("//", "Generated by ToolingEntityModels. Per-entity geometry from Java client jar bytecode (LayerDefinition.create / CubeListBuilder / PartPose / addOrReplaceChild walked via the shared block-entity Parser). Frame is vanilla Java's natural Y-DOWN.");
-        root.addProperty("client_version", options.getVersion());
-        root.addProperty("mobs_total", mobsTotal);
-        root.addProperty("mobs_with_renderer", mobsWithRenderer);
-        root.addProperty("mobs_with_primary_layer", entityToResolution.size());
-        root.addProperty("mobs_with_geometry", geometries.size());
-
-        int totalBones = 0;
-        int totalCubes = 0;
-        JsonObject entities = new JsonObject();
-        for (Map.Entry<String, JsonObject> entry : geometries.entrySet()) {
-            JsonObject geometry = entry.getValue();
-            JsonObject row = new JsonObject();
-            EntityLayerDefinitionResolver.Resolution res = entityToResolution.get(entry.getKey());
-            if (res != null) {
-                row.addProperty("layer_field", res.sourceLayerField());
-                row.addProperty("factory_class", res.targetClass());
-                row.addProperty("factory_method", res.targetMethod());
-            }
-            int textureWidth = geometry.has("textureWidth") ? geometry.get("textureWidth").getAsInt() : 0;
-            int textureHeight = geometry.has("textureHeight") ? geometry.get("textureHeight").getAsInt() : 0;
-            row.addProperty("texture_width", textureWidth);
-            row.addProperty("texture_height", textureHeight);
-
-            int boneCount = 0;
-            int cubeCount = 0;
-            JsonArray boneNames = new JsonArray();
-            if (geometry.has("bones") && geometry.get("bones").isJsonObject()) {
-                JsonObject bones = geometry.getAsJsonObject("bones");
-                boneCount = bones.size();
-                for (Map.Entry<String, com.google.gson.JsonElement> b : bones.entrySet()) {
-                    boneNames.add(b.getKey());
-                    if (b.getValue().isJsonObject()
-                        && b.getValue().getAsJsonObject().has("cubes")
-                        && b.getValue().getAsJsonObject().get("cubes").isJsonArray())
-                        cubeCount += b.getValue().getAsJsonObject().getAsJsonArray("cubes").size();
-                }
-            }
-            row.addProperty("bone_count", boneCount);
-            row.addProperty("cube_count", cubeCount);
-            row.add("bone_names", boneNames);
-            entities.add(entry.getKey(), row);
-            totalBones += boneCount;
-            totalCubes += cubeCount;
-        }
-        root.addProperty("total_bones", totalBones);
-        root.addProperty("total_cubes", totalCubes);
-        root.add("entities", entities);
-
-        JsonArray diagnosticsArr = new JsonArray();
-        for (String line : diagnostics.entries()) diagnosticsArr.add(line);
-        root.add("diagnostics", diagnosticsArr);
-        return root;
-    }
-
-    /**
-     * Synthetic per-overlay entityId used as a parser source key. Keeps composite-overlay
-     * geometries distinguishable from real entity primaries while still flowing through the
-     * shared dedupe machinery in {@link #writeRuntimeJson}.
-     */
-    private static @NotNull String overlayEntityKey(@NotNull String modelLayerField) {
-        return "__overlay_" + modelLayerField;
-    }
-
-    /**
-     * Emits the runtime-consumable {@code entity_models.json} and
-     * {@code entity_geometry.json}. The geometry file deduplicates by factory class+method
-     * so multiple entities sharing one {@code createBodyLayer} (e.g. zombie / husk / drowned all
-     * point at the same {@code AbstractZombieRenderer} chain) share one geometry entry. The
-     * models file emits one row per Phase-A entity plus additional rows per non-default
-     * data-driven variant (cow_cold / cow_warm / pig_cold / etc.), each carrying
-     * {@code variant_of} pointing back at its base entity.
-     *
-     * @param overlaysByEntity per-entity pre-resolved overlay descriptors from
-     *     {@link EntityOverlayResolver#resolve}; eye overlays carry a {@code null}
-     *     {@code modelLayerField} (reuse base geometry), composite overlays carry the
-     *     {@code ModelLayers.X} field name
-     * @param overlayFieldToResolution map from composite-overlay {@code ModelLayers.X} field
-     *     name to the {@code Resolution} for its layer-definition factory; lets the writer
-     *     dedupe overlay geometries through the same {@code factoryKey -> geometryId} table
-     *     used for primary entities
-     * @return the number of variant rows written (in addition to base-entity rows)
-     */
-    private static int writeRuntimeJson(
-        @NotNull ZipFile zip,
-        @NotNull Map<String, EntityRecord> records,
-        @NotNull ConcurrentMap<String, EntityLayerDefinitionResolver.Resolution> entityToResolution,
-        @NotNull ConcurrentMap<String, JsonObject> geometries,
-        @NotNull ConcurrentMap<String, ConcurrentList<EntityVariantResolver.Variant>> variants,
-        @NotNull Diagnostics diagnostics,
-        @NotNull Map<String, ConcurrentList<EntityOverlayResolver.OverlayDescriptor>> overlaysByEntity,
-        @NotNull Map<String, EntityLayerDefinitionResolver.Resolution> overlayFieldToResolution,
-        @NotNull Map<String, String> dataVariantDefaults,
-        @NotNull Map<String, ConcurrentList<EntityBlockOverlayResolver.BlockOverlayDescriptor>> blockOverlaysByEntity
-    ) throws IOException {
-        // Build (factoryKey -> geometry id) so multiple entities sharing one createBodyLayer
-        // map to one geometry entry. Geometry id derived from the factory class name's lowercased
-        // simple name plus the method's suffix - matches the convention {@code geometry.X}.
-        Map<String, String> factoryKeyToGeometryId = new LinkedHashMap<>();
-        JsonObject geometriesOut = new JsonObject();
-        for (Map.Entry<String, JsonObject> entry : geometries.entrySet()) {
-            EntityLayerDefinitionResolver.Resolution res = entityToResolution.get(entry.getKey());
-            if (res == null) continue;
-            // Include defaultInflate in the dedupe key so the same factory called with different
-            // CubeDeformation args (e.g. {@code DrownedModel.createBodyLayer(NONE)} for the body
-            // vs {@code .createBodyLayer(0.25)} for the outer-layer overlay) gets distinct
-            // geometry entries instead of collapsing onto a single inflate=0 row.
-            String factoryKey = res.targetClass() + "#" + res.targetMethod()
-                + (res.defaultInflate() != 0f ? "#inflate=" + res.defaultInflate() : "")
-                + (res.defaultFloatParam() != null ? "#fparam=" + res.defaultFloatParam() : "")
-                + (res.appliedMeshTransformerScale() != 1f ? "#appliedMT=" + res.appliedMeshTransformerScale() : "");
-            String geometryId = factoryKeyToGeometryId.computeIfAbsent(factoryKey, k -> {
-                String simple = res.targetClass().substring(res.targetClass().lastIndexOf('/') + 1);
-                String entityName = stripModelSuffix(simple).toLowerCase(java.util.Locale.ROOT);
-                String candidate = "geometry." + entityName;
-                int collision = 0;
-                while (geometriesOut.has(candidate)) {
-                    collision++;
-                    candidate = "geometry." + entityName + "_" + collision;
-                }
-                return candidate;
-            });
-            if (!geometriesOut.has(geometryId)) geometriesOut.add(geometryId, entry.getValue());
-        }
-
-        JsonObject geometryRoot = new JsonObject();
-        geometryRoot.addProperty("//", "Generated by ToolingEntityModels. Per-geometry bone/cube tree from Java client jar bytecode, deduplicated by factory class+method. Frame is vanilla Java's natural Y-DOWN.");
-        geometryRoot.add("geometries", geometriesOut);
-        Files.createDirectories(GEOMETRY_JAVA_OUTPUT.getParent());
-        Files.writeString(
-            GEOMETRY_JAVA_OUTPUT,
-            new GsonBuilder().setPrettyPrinting().create().toJson(geometryRoot) + System.lineSeparator()
-        );
-
-        JsonObject entitiesOut = new JsonObject();
-        int variantRows = 0;
-        for (Map.Entry<String, EntityRecord> entry : records.entrySet()) {
-            String entityId = entry.getKey();
-            EntityRecord rec = entry.getValue();
-            EntityLayerDefinitionResolver.Resolution res = entityToResolution.get(entityId);
-            String geometryId = res == null ? null : factoryKeyToGeometryId.get(
-                res.targetClass() + "#" + res.targetMethod()
-                + (res.defaultInflate() != 0f ? "#inflate=" + res.defaultInflate() : "")
-                + (res.defaultFloatParam() != null ? "#fparam=" + res.defaultFloatParam() : "")
-                + (res.appliedMeshTransformerScale() != 1f ? "#appliedMT=" + res.appliedMeshTransformerScale() : ""));
-            if (geometryId == null) continue;
-
-            JsonObject row = new JsonObject();
-            row.addProperty("geometry_ref", geometryId);
-            String texture = rec.binding().primaryTexturePath();
-            // Variant-driven base entities (cow / pig / chicken / frog / cat / wolf) have no
-            // hardcoded primary texture - their renderer reads it from the variant's data-driven
-            // asset_id at runtime. Default to the temperate / first variant's texture so the
-            // base-entity row still has a sensible texture_ref the renderer can fall back on.
-            if (texture == null && rec.variantStem() != null) {
-                ConcurrentList<EntityVariantResolver.Variant> vlist = variants.get(rec.variantStem());
-                if (vlist != null && !vlist.isEmpty()) {
-                    // Holder-class DEFAULT (WolfVariants.DEFAULT etc.) wins; if absent (cat),
-                    // fall back to the alphabetically-first unconditional variant scanned from
-                    // data/minecraft/<stem>_variant/*.json. This mirrors vanilla's runtime
-                    // selection at zero state when no structure / moon / biome / time gate
-                    // matches.
-                    String canonical = dataVariantDefaults.get(rec.variantStem());
-                    if (canonical == null)
-                        canonical = EntityVariantResolver.findAlphaFirstUnconditionalVariantId(
-                            zip, rec.variantStem(), diagnostics);
-                    EntityVariantResolver.Variant defaultVariant = pickDefaultVariant(vlist, canonical);
-                    String def = defaultVariant.primaryTexturePath();
-                    if (def != null) texture = def;
-                }
-            }
-            if (texture != null) row.addProperty("texture_ref", stripTexturesPrefix(texture));
-            row.addProperty("armor_type", inferArmorType(rec.layers()));
-            // Renderer.scale residue extracted by EntityRendererScaleResolver. Non-null only
-            // when the renderer's scale override contains at least one literal poseStack.scale
-            // call AND the product differs from 1.0 - currently wither (2.0) and slime (0.999).
-            if (rec.rendererScale() != null) row.addProperty("renderer_scale", rec.rendererScale());
-
-            // Emit overlays (eye layers + composite-model layers like slime outer shell, sheep
-            // wool, sheep wool undercoat). Eye overlays carry {@code modelLayerField == null}
-            // and reuse the base entity's geometry. Composite overlays carry their own
-            // {@code ModelLayers.X} field; resolving it through the same {@code factoryKey ->
-            // geometryId} table that primaries use gives the overlay a stable deduped geometry
-            // entry. A composite overlay whose factory wasn't found in {@code layerDefs}
-            // silently drops (the parser had no source to extract it from).
-            ConcurrentList<EntityOverlayResolver.OverlayDescriptor> overlays =
-                overlaysByEntity.getOrDefault(entityId, Concurrent.newList());
-            if (!overlays.isEmpty()) {
-                JsonArray overlaysJson = new JsonArray();
-                for (EntityOverlayResolver.OverlayDescriptor desc : overlays) {
-                    String overlayGeometryId = geometryId;
-                    if (desc.modelLayerField() != null) {
-                        EntityLayerDefinitionResolver.Resolution overlayRes =
-                            overlayFieldToResolution.get(desc.modelLayerField());
-                        if (overlayRes == null) continue;
-                        String overlayFactoryKey = overlayRes.targetClass() + "#" + overlayRes.targetMethod()
-                            + (overlayRes.defaultInflate() != 0f ? "#inflate=" + overlayRes.defaultInflate() : "")
-                            + (overlayRes.defaultFloatParam() != null ? "#fparam=" + overlayRes.defaultFloatParam() : "")
-                            + (overlayRes.appliedMeshTransformerScale() != 1f ? "#appliedMT=" + overlayRes.appliedMeshTransformerScale() : "");
-                        overlayGeometryId = factoryKeyToGeometryId.get(overlayFactoryKey);
-                        if (overlayGeometryId == null) continue;
-                    }
-                    JsonObject overlay = new JsonObject();
-                    overlay.addProperty("geometry_ref", overlayGeometryId);
-                    overlay.addProperty("texture_ref", stripTexturesPrefix(desc.texturePath()));
-                    if (desc.emissive()) overlay.addProperty("emissive", true);
-                    if (desc.tintArgb() != 0xFFFFFFFF)
-                        overlay.addProperty("tint_color", String.format("0x%08X", desc.tintArgb()));
-                    // Overlays sharing the base geometry need a microscopic outward inflate to
-                    // clear ModelEngine's equal-Z depth-fail (depthVal <= existingDepth REJECTS
-                    // at equal Z). Without it, the overlay lands on the same depth as the lit
-                    // skin texel and never wins - enderman renders pink instead of pure purple,
-                    // breeze / cave_spider / phantom likewise. Spider accidentally works only
-                    // because its rotated leg bones introduce FP noise that breaks the equal-Z
-                    // tie. Applies to ALL same-geometry overlays (which today means eye layers):
-                    // both emissive variants (RenderTypes.eyes -> EMISSIVE + NO_CARDINAL_LIGHTING)
-                    // AND shaded translucent variants (RenderTypes.breezeEyes ->
-                    // ENTITY_TRANSLUCENT_EMISSIVE with PER_FACE_LIGHTING). Non-eye overlays use
-                    // composite geometry (modelLayerField != null) and are excluded - their
-                    // visibility is vanilla-gated by runtime state ({@code SheepWoolUndercoatLayer}
-                    // on {@code woolColor != WHITE}, {@code DrownedOuterLayer} unconditionally),
-                    // and depth-fail rejection is what hides them at zero state.
-                    boolean sharesBaseGeometry = desc.modelLayerField() == null;
-                    if (desc.inflate() != 0f)
-                        overlay.addProperty("inflate", desc.inflate());
-                    else if (sharesBaseGeometry)
-                        overlay.addProperty("inflate", 0.001f);
-                    if (desc.skipBounds())
-                        overlay.addProperty("skip_bounds", true);
-                    overlaysJson.add(overlay);
-                }
-                if (!overlaysJson.isEmpty()) row.add("overlays", overlaysJson);
-            }
-
-            // Block-model overlays driven by {@link EntityBlockOverlayResolver}: walks the
-            // renderer's addLayer calls to find recognised block-decoration layers (mooshroom's
-            // {@code MushroomCowMushroomLayer}, iron-golem's flower layer, enderman's carried
-            // block, etc), then walks each layer's submit method between pushPose / popPose
-            // pairs to extract the literal pose-stack ops. Produces one row per pair.
-            ConcurrentList<EntityBlockOverlayResolver.BlockOverlayDescriptor> blockOverlayDescs =
-                blockOverlaysByEntity.getOrDefault(entityId, Concurrent.newList());
-            if (!blockOverlayDescs.isEmpty()) row.add("block_overlays", buildBlockOverlaysJson(blockOverlayDescs));
-
-            // setup_yaw_addend: vanilla {@code <X>Renderer.setupRotations} override's literal
-            // float constant added to {@code bodyRot} before {@code super.setupRotations}. Only
-            // {@code ShulkerRenderer} surfaces a non-zero value ({@code +180F}); every other
-            // override leaves {@code bodyRot} unmodified and the resolver returns 0 (which we
-            // omit from JSON to keep noise-free rows).
-            if (rec.setupYawAddend() != 0f) row.addProperty("setup_yaw_addend", rec.setupYawAddend());
-
-            // base_tint: per-entity multiplicative tint applied by the rasterizer to every base-
-            // body texel. Mirrors vanilla LivingEntityRenderer.getModelTint(state). Currently
-            // only TropicalFishRenderer emits a state-driven tint via
-            // entity.getBaseColor().getTextureDiffuseColor(); zero state = DyeColor.WHITE
-            // = 0xFFF9FFFE. Resolver returns 0xFFFFFFFF (no-op) for entities without the pattern.
-            int baseTint = EntityOverlayResolver.resolveBaseTint(zip, rec.rendererInternalName());
-            if (baseTint != 0xFFFFFFFF) row.addProperty("base_tint", String.format("0x%08X", baseTint));
-
-            // Constructor-static visibility: EntityHiddenBonesResolver walks the model class
-            // hierarchy's <init> for this.<bone>.visible = false assignments. Covers the
-            // armor_stand and illager-family hat-hide pattern; the static renderer never
-            // re-enables these bones at runtime so they must be omitted at load time.
-            ConcurrentList<String> hiddenBones = EntityHiddenBonesResolver.resolve(zip, res.targetClass(), rec.rendererInternalName(), diagnostics);
-            if (!hiddenBones.isEmpty()) {
-                JsonArray hidden = new JsonArray();
-                for (String bone : hiddenBones) hidden.add(bone);
-                row.add("hidden_bones", hidden);
-            }
-
-            entitiesOut.add(entityId, row);
-
-            // Variant rows for data-driven variants only (cow_cold, pig_warm, chicken_cold, ...).
-            // Skip the default (temperate) since it IS the base entity. Skip overlay-state
-            // variants (creeper_charged, sheep_sheared) - those need RenderLayer extraction
-            // that the resolver doesn't surface yet.
-            if (rec.variantStem() == null) continue;
-            ConcurrentList<EntityVariantResolver.Variant> variantList = variants.get(rec.variantStem());
-            if (variantList == null) continue;
-            for (EntityVariantResolver.Variant variant : variantList) {
-                if (DEFAULT_VARIANT_ID.equals(variant.variantId())) continue;
-                String variantPrimary = variant.primaryTexturePath();
-                if (variantPrimary == null) continue;
-                String variantEntityId = entityId + "_" + variant.variantId();
-                // A variant with a `model` discriminator parsed its own LayerDefinition and has
-                // its own geometry id. The lookup falls back to the base entity's geometry when
-                // the variant inherits the base model (cow_temperate, etc.).
-                String variantGeometryId = geometryId;
-                EntityLayerDefinitionResolver.Resolution variantRes = entityToResolution.get(variantEntityId);
-                if (variantRes != null) {
-                    String variantFactoryKey = variantRes.targetClass() + "#" + variantRes.targetMethod()
-                        + (variantRes.defaultInflate() != 0f ? "#inflate=" + variantRes.defaultInflate() : "")
-                        + (variantRes.defaultFloatParam() != null ? "#fparam=" + variantRes.defaultFloatParam() : "")
-                        + (variantRes.appliedMeshTransformerScale() != 1f ? "#appliedMT=" + variantRes.appliedMeshTransformerScale() : "");
-                    String resolvedVariant = factoryKeyToGeometryId.get(variantFactoryKey);
-                    if (resolvedVariant != null) variantGeometryId = resolvedVariant;
-                }
-                JsonObject variantRow = new JsonObject();
-                variantRow.addProperty("geometry_ref", variantGeometryId);
-                variantRow.addProperty("texture_ref", stripTexturesPrefix(variantPrimary));
-                variantRow.addProperty("armor_type", row.get("armor_type").getAsString());
-                variantRow.addProperty("variant_of", entityId);
-                entitiesOut.add(variantEntityId, variantRow);
-                variantRows++;
-            }
-        }
-        diagnostics.info("entity_models.json: %d base entities + %d variant rows", entitiesOut.size() - variantRows, variantRows);
-
-        JsonObject modelsRoot = new JsonObject();
-        modelsRoot.addProperty("//", "Generated by ToolingEntityModels. Per-entity metadata pointing at entity_geometry.json. Variant rows (cow_cold, pig_warm, ...) emitted from data/minecraft/X_variant/ tables.");
-        modelsRoot.add("entities", entitiesOut);
-        // Cross-entity families derived from shared geometry_ref. variant_of on each entity row
-        // covers variant-of-same-entity groupings (cow_cold -> cow). The families table here
-        // handles non-variant entities that share a primary createBodyLayer factory (mooshroom
-        // and cow both bake CowModel.createBodyLayer -> both end up at geometry.cow). See
-        // deriveCrossEntityFamilies for the detection rule.
-        JsonObject familiesOut = deriveCrossEntityFamilies(entitiesOut, diagnostics);
-        if (familiesOut.size() > 0) modelsRoot.add("families", familiesOut);
-        Files.createDirectories(MODELS_JAVA_OUTPUT.getParent());
-        Files.writeString(
-            MODELS_JAVA_OUTPUT,
-            new GsonBuilder().setPrettyPrinting().create().toJson(modelsRoot) + System.lineSeparator()
-        );
-        return variantRows;
-    }
-
-    /**
-     * Common geometry-name prefixes that don't appear in the entity id. {@code geometry.adultcamel}
-     * pairs with {@code minecraft:camel}; the resolver strips these prefixes before matching the
-     * geometry stem against entity ids.
-     */
-    private static final @NotNull java.util.List<String> GEOMETRY_NAME_PREFIXES = java.util.List.of("adult", "baby");
-
-    /**
-     * Derives the cross-entity family table by clustering non-variant entities that share a
-     * {@code geometry_ref}. The detection rule:
-     * <ol>
-     *   <li>Index every emitted entity row by its {@code geometry_ref}.</li>
-     *   <li>Drop variant rows ({@code variant_of} present) - they're already grouped under
-     *       their declared root via the per-entity {@code variant_of} field.</li>
-     *   <li>For each geometry shared by 2+ non-variant entities, identify the family root as
-     *       the unique member whose id (after the {@code minecraft:} namespace strip) equals
-     *       the geometry stem (after the {@code geometry.} prefix strip and known
-     *       {@link #GEOMETRY_NAME_PREFIXES} stripping). Examples:
-     *       <ul>
-     *         <li>{@code geometry.cow} + (cow, mooshroom) -> root is cow (matches geometry stem)</li>
-     *         <li>{@code geometry.adultcamel} + (camel, camel_husk) -> root is camel (matches after
-     *             stripping "adult")</li>
-     *         <li>{@code geometry.illager} + (evoker, illusioner, pillager, vindicator) -> no
-     *             member's id matches "illager", so no family is emitted (the existing
-     *             {@code variant_of} flow handles intra-illager grouping if any)</li>
-     *       </ul>
-     *   </li>
-     *   <li>Emit family mappings: every non-root sibling -> root.</li>
-     * </ol>
-     *
-     * <p>The "id matches geometry stem" rule cleanly separates the wanted families (where the
-     * geometry was authored for one canonical entity and re-used by a derivative) from the
-     * coincidence families (where multiple sibling entities share a generic-named model).
-     */
-    private static @NotNull JsonObject deriveCrossEntityFamilies(
-        @NotNull JsonObject entitiesOut,
-        @NotNull Diagnostics diagnostics
-    ) {
-        Map<String, java.util.List<String>> geometryToBaseEntities = new LinkedHashMap<>();
-        for (Map.Entry<String, com.google.gson.JsonElement> entry : entitiesOut.entrySet()) {
-            if (!entry.getValue().isJsonObject()) continue;
-            JsonObject row = entry.getValue().getAsJsonObject();
-            if (row.has("variant_of")) continue;
-            if (!row.has("geometry_ref")) continue;
-            String geomRef = row.get("geometry_ref").getAsString();
-            geometryToBaseEntities.computeIfAbsent(geomRef, k -> new java.util.ArrayList<>()).add(entry.getKey());
-        }
-
-        JsonObject families = new JsonObject();
-        for (Map.Entry<String, java.util.List<String>> e : geometryToBaseEntities.entrySet()) {
-            java.util.List<String> members = e.getValue();
-            if (members.size() < 2) continue;
-            String root = pickCanonicalFamilyRoot(e.getKey(), members);
-            if (root == null) {
-                diagnostics.info("cross-entity family skipped: '%s' shared by %s - no member id matches the geometry stem",
-                    e.getKey(), members);
-                continue;
-            }
-            for (String member : members) {
-                if (member.equals(root)) continue;
-                families.addProperty(member, root);
-                diagnostics.info("cross-entity family: %s -> %s (shared %s)", member, root, e.getKey());
-            }
-        }
-        return families;
-    }
-
-    /**
-     * Returns the family root by matching the geometry stem (after stripping the
-     * {@code geometry.} prefix and any {@link #GEOMETRY_NAME_PREFIXES} prefix) against each
-     * candidate entity id (after the {@code minecraft:} namespace strip). Returns {@code null}
-     * when no member matches the stem (e.g. {@code geometry.illager} + evoker/illusioner/
-     * pillager/vindicator - no member is named "illager").
-     */
-    private static @Nullable String pickCanonicalFamilyRoot(@NotNull String geometryRef, @NotNull java.util.List<String> members) {
-        String stem = geometryRef.startsWith("geometry.") ? geometryRef.substring("geometry.".length()) : geometryRef;
-        for (String prefix : GEOMETRY_NAME_PREFIXES) {
-            if (stem.startsWith(prefix)) stem = stem.substring(prefix.length());
-        }
-        String targetId = MINECRAFT_NAMESPACE + stem;
-        for (String member : members)
-            if (member.equals(targetId)) return member;
-        return null;
-    }
-
-    /**
-     * Picks the default variant from a variant list, preferring the canonical default detected
-     * from the entity's {@code <X>Variants.DEFAULT} static field
-     * ({@code WolfVariants.DEFAULT = PALE} resolves to {@code "pale"}; {@code CatVariants}
-     * has no DEFAULT field so {@code canonicalDefaultId} is null and the fallback chain runs).
-     * The fallback chain prefers {@code "temperate"} (cow / pig / chicken / frog
-     * climate-default), then the first entry.
-     */
-    private static @NotNull EntityVariantResolver.Variant pickDefaultVariant(
-        @NotNull ConcurrentList<EntityVariantResolver.Variant> variantList,
-        @Nullable String canonicalDefaultId
-    ) {
-        if (canonicalDefaultId != null) {
-            for (EntityVariantResolver.Variant v : variantList)
-                if (canonicalDefaultId.equals(v.variantId())) return v;
-        }
-        for (EntityVariantResolver.Variant v : variantList)
-            if (DEFAULT_VARIANT_ID.equals(v.variantId())) return v;
-        return variantList.get(0);
-    }
-
-    /**
-     * Strips trailing {@code "Model"} from a class simple name; falls back to the input on no match.
-     */
-    private static @NotNull String stripModelSuffix(@NotNull String simpleName) {
-        return simpleName.endsWith("Model") ? simpleName.substring(0, simpleName.length() - "Model".length()) : simpleName;
-    }
-
-    /**
-     * Strips the leading {@code "textures/"} segment so the texture_ref stored in the
-     * runtime JSON matches the convention ({@code "cow/cow"} not
-     * {@code "textures/entity/cow/cow.png"}). Idempotent on already-stripped inputs.
-     */
-    private static @NotNull String stripTexturesPrefix(@NotNull String path) {
-        String stripped = path;
-        if (stripped.startsWith("textures/")) stripped = stripped.substring("textures/".length());
-        if (stripped.startsWith("entity/")) stripped = stripped.substring("entity/".length());
-        if (stripped.endsWith(".png")) stripped = stripped.substring(0, stripped.length() - ".png".length());
-        return stripped;
-    }
-
-    /**
-     * Heuristic armor-type classification - the runtime renderer uses this to pick which armor
-     * mesh to layer over the entity. Currently emits {@code "humanoid"} when the renderer's
-     * overlay layer list contains {@code HumanoidArmorLayer}; otherwise {@code "none"}.
-     */
-    private static @NotNull String inferArmorType(@NotNull ConcurrentList<String> layers) {
-        for (String layer : layers)
-            if (layer.endsWith("HumanoidArmorLayer")) return "humanoid";
-        return "none";
-    }
-
-    /**
-     * Per-entity record collected from Phase A + B walks.
-     */
-    private record EntityRecord(
-        @NotNull String rendererInternalName,
-        @NotNull EntityTextureResolver.Binding binding,
-        @NotNull ConcurrentList<String> layers,
-        String variantStem,
-        @NotNull String entityFieldName,
-        float setupYawAddend,
-        @Nullable Float rendererScale
-    ) {}
-
-    /**
-     * Builds the diagnostic JSON document covering Phase A + B output.
-     */
-    private static @NotNull JsonObject buildDiagnosticJson(
-        @NotNull PipelineOptions options,
-        @NotNull ConcurrentList<MobRegistryDiscovery.MobEntry> mobs,
-        @NotNull ConcurrentList<EntityRendererDiscovery.Registration> registrations,
-        @NotNull Map<String, EntityRecord> records,
-        @NotNull Set<String> mobsWithoutRenderer,
-        @NotNull ConcurrentMap<String, ConcurrentList<EntityVariantResolver.Variant>> variants,
-        int withPrimaryTexture,
-        int variantDriven,
-        int unresolvedTexture,
-        @NotNull Diagnostics diagnostics
-    ) {
-        JsonObject root = new JsonObject();
-        root.addProperty("//", "Generated by ToolingEntityModels. Phase A+B diagnostic - lists living mobs from MobRegistryDiscovery and their detected renderer + model classes. Run ./gradlew :asset-renderer:entityModels to refresh.");
-        root.addProperty("client_version", options.getVersion());
-        root.addProperty("mobs_discovered", mobs.size());
-        root.addProperty("mobs_with_renderer", records.size());
-        root.addProperty("mobs_without_renderer", mobsWithoutRenderer.size());
-        root.addProperty("renderer_registrations_total", registrations.size());
-        root.addProperty("texture_primary_count", withPrimaryTexture);
-        root.addProperty("texture_variant_driven_count", variantDriven);
-        root.addProperty("texture_unresolved_count", unresolvedTexture);
-
-        JsonObject entities = new JsonObject();
-        for (Map.Entry<String, EntityRecord> entry : records.entrySet()) {
-            JsonObject row = new JsonObject();
-            EntityRecord rec = entry.getValue();
-            row.addProperty("renderer", rec.rendererInternalName());
-            EntityTextureResolver.Binding binding = rec.binding();
-            if (binding.primaryTexturePath() != null) row.addProperty("texture", binding.primaryTexturePath());
-            if (binding.babyTexturePath() != null) row.addProperty("baby_texture", binding.babyTexturePath());
-            if (binding.isVariantDriven()) {
-                row.addProperty("variant_source_class", binding.variantSourceClass());
-                if (rec.variantStem() != null) row.addProperty("variant_directory", rec.variantStem());
-            }
-            if (binding.hierarchySource() != null) row.addProperty("binding_inherited_from", binding.hierarchySource());
-            if (!rec.layers().isEmpty()) {
-                JsonArray layers = new JsonArray();
-                for (String layer : rec.layers()) layers.add(layer);
-                row.add("overlay_layers", layers);
-            }
-            entities.add(entry.getKey(), row);
-        }
-        root.add("entities", entities);
-
-        JsonArray unmappedList = new JsonArray();
-        mobsWithoutRenderer.forEach(unmappedList::add);
-        root.add("mobs_without_renderer_list", unmappedList);
-
-        JsonObject variantTables = new JsonObject();
-        for (Map.Entry<String, ConcurrentList<EntityVariantResolver.Variant>> e : variants.entrySet()) {
-            JsonArray arr = new JsonArray();
-            for (EntityVariantResolver.Variant v : e.getValue()) {
-                JsonObject vo = new JsonObject();
-                vo.addProperty("variant_id", v.variantId());
-                String primary = v.primaryTexturePath();
-                if (primary != null) vo.addProperty("texture", primary);
-                String babyPrimary = v.primaryBabyTexturePath();
-                if (babyPrimary != null) vo.addProperty("baby_texture", babyPrimary);
-                if (v.textures().size() > 1) {
-                    JsonObject sub = new JsonObject();
-                    v.textures().forEach(sub::addProperty);
-                    vo.add("textures", sub);
-                }
-                if (!v.babyTextures().isEmpty() && v.babyTextures().size() > 1) {
-                    JsonObject sub = new JsonObject();
-                    v.babyTextures().forEach(sub::addProperty);
-                    vo.add("baby_textures", sub);
-                }
-                if (v.model() != null) vo.addProperty("model", v.model());
-                arr.add(vo);
-            }
-            variantTables.add(e.getKey(), arr);
-        }
-        root.add("variant_tables", variantTables);
-
-        JsonArray diagnosticsArr = new JsonArray();
-        for (String line : diagnostics.entries()) diagnosticsArr.add(line);
-        root.add("diagnostics", diagnosticsArr);
-
-        return root;
     }
 
 }

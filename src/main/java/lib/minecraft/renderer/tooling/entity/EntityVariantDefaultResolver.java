@@ -2,6 +2,7 @@ package lib.minecraft.renderer.tooling.entity;
 
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
+import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -50,7 +51,7 @@ public final class EntityVariantDefaultResolver {
      * the {@code DEFAULT} enum value. The texture stem is computed by the caller from the
      * entity id (e.g. {@code minecraft:axolotl} + {@code lucy} -&gt; {@code axolotl/axolotl_lucy}).
      */
-    public record DefaultVariant(@NotNull String variantClass, @NotNull String defaultName) {}
+    public record Result(@NotNull String variantClass, @NotNull String defaultName) {}
 
     /**
      * Returns the default-variant binding for the renderer's {@code getTextureLocation} when
@@ -59,7 +60,7 @@ public final class EntityVariantDefaultResolver {
      * {@code null} for any other shape - data-driven Holder variants, no-DEFAULT enums,
      * non-overridden getTextureLocation, etc.
      */
-    public static @Nullable DefaultVariant resolve(
+    public static @Nullable Result resolve(
         @NotNull ZipFile zip,
         @NotNull String rendererInternalName,
         @NotNull Diagnostics diag
@@ -76,7 +77,7 @@ public final class EntityVariantDefaultResolver {
         if (defaultName == null) return null;
 
         diag.info("variant-default: '%s' -> %s.%s", rendererInternalName, variantClass, defaultName);
-        return new DefaultVariant(variantClass, defaultName.toLowerCase(Locale.ROOT));
+        return new Result(variantClass, defaultName.toLowerCase(Locale.ROOT));
     }
 
     /**
@@ -86,7 +87,8 @@ public final class EntityVariantDefaultResolver {
      * {@code GETFIELD variant} instruction.
      */
     private static @Nullable MethodNode findOwnGetTextureLocation(@NotNull ClassNode cn) {
-        String livingState = "(Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;)Lnet/minecraft/resources/Identifier;";
+        String livingState = "(L" + VanillaSourceClasses.LIVING_ENTITY_RENDER_STATE + ";)L" + VanillaSourceClasses.IDENTIFIER + ";";
+        String identifierReturn = ")L" + VanillaSourceClasses.IDENTIFIER + ";";
         MethodNode bridge = null;
         for (MethodNode m : cn.methods) {
             if (!GET_TEXTURE_LOCATION.equals(m.name)) continue;
@@ -95,7 +97,7 @@ public final class EntityVariantDefaultResolver {
                 bridge = m;
                 continue;
             }
-            if (m.desc.endsWith(")Lnet/minecraft/resources/Identifier;")) return m;
+            if (m.desc.endsWith(identifierReturn)) return m;
         }
         return bridge;
     }

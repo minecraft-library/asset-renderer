@@ -25,8 +25,8 @@ import java.util.zip.ZipFile;
 
 /**
  * Walks each {@code RenderLayer} subclass attached to an entity renderer (per
- * {@link EntityLayerScanner}) and extracts the data needed to emit a runtime overlay row
- * into {@code entity_models.json}. Emissive eye overlays (e.g. {@code SpiderEyesLayer},
+ * {@link EntityBoneResolver#scanOverlayLayers}) and extracts the data needed to emit a
+ * runtime overlay row into {@code entity_models.json}. Emissive eye overlays (e.g. {@code SpiderEyesLayer},
  * {@code EnderEyesLayer}, {@code PhantomEyesLayer}, {@code BreezeEyesLayer}) are detected
  * via the {@code <clinit>} bytecode - any layer whose static initializer pre-builds a
  * {@code RenderType} via an {@code RenderTypes.*eyes*(Identifier)} static factory call and
@@ -61,7 +61,7 @@ public final class EntityOverlayResolver {
      * JVM descriptor suffix for any method returning a {@code RenderType}.
      */
     private static final @NotNull String RENDER_TYPE_RETURN =
-        ")Lnet/minecraft/client/renderer/rendertype/RenderType;";
+        ")L" + lib.minecraft.renderer.tooling.util.VanillaSourceClasses.RENDER_TYPE + ";";
 
     /**
      * Composite-overlay layers whose pipeline isn't statically cutout-safe (e.g., uses
@@ -144,7 +144,7 @@ public final class EntityOverlayResolver {
      *     color) or when extraction couldn't statically resolve a literal (e.g., the color
      *     comes from a runtime calculation we can't pre-compute)
      */
-    public record OverlayDescriptor(
+    public record Result(
         @NotNull String layerClass,
         @NotNull String texturePath,
         boolean emissive,
@@ -153,7 +153,7 @@ public final class EntityOverlayResolver {
         float inflate,
         boolean skipBounds
     ) {
-        public OverlayDescriptor(
+        public Result(
             @NotNull String layerClass,
             @NotNull String texturePath,
             boolean emissive,
@@ -162,29 +162,43 @@ public final class EntityOverlayResolver {
         ) {
             this(layerClass, texturePath, emissive, modelLayerField, tintArgb, 0f, false);
         }
+
+        /**
+         * Synthetic entity-id key used as a parser source for composite overlay layers
+         * (slime outer shell, sheep wool, etc.). Keeps overlay geometries distinguishable
+         * from real entity primaries while still flowing through the shared dedupe machinery
+         * in {@link EntityRuntimeJsonWriter}.
+         *
+         * @param modelLayerField the {@code ModelLayers.X} field name of the overlay's body
+         *     layer (the {@code modelLayerField} of a composite-overlay {@link Result})
+         * @return the synthetic entity id, e.g. {@code "__overlay_SLIME_OUTER"}
+         */
+        public static @NotNull String entityKey(@NotNull String modelLayerField) {
+            return "__overlay_" + modelLayerField;
+        }
     }
 
     /**
      * Resolves overlay descriptors from the layer class names produced by
-     * {@link EntityLayerScanner}. Layer classes that don't match any known overlay shape
-     * are silently dropped - they're either runtime-driven (armor / equipment / item-in-hand)
-     * or deferred to a later phase.
+     * {@link EntityBoneResolver#scanOverlayLayers}. Layer classes that don't match any known
+     * overlay shape are silently dropped - they're either runtime-driven (armor / equipment /
+     * item-in-hand) or deferred to a later increment.
      *
      * @param zip the deobfuscated client jar
      * @param layerClasses ordered list of layer-class internal names from
-     *     {@link EntityLayerScanner#scan(ZipFile, String, Diagnostics)}
+     *     {@link EntityBoneResolver#scanOverlayLayers}
      * @param entityId the entity-id this layer set belongs to (diagnostic context only)
      * @param diagnostics the diagnostic sink shared with sibling discovery walks
      * @return overlay descriptors in source order; empty when no recognised overlay was found
      */
-    public static @NotNull ConcurrentList<OverlayDescriptor> resolve(
+    public static @NotNull ConcurrentList<Result> resolve(
         @NotNull ZipFile zip,
         @NotNull String rendererInternalName,
         @NotNull ConcurrentList<String> layerClasses,
         @NotNull String entityId,
         @NotNull Diagnostics diagnostics
     ) {
-        ConcurrentList<OverlayDescriptor> out = Concurrent.newList();
+        ConcurrentList<Result> out = Concurrent.newList();
         for (String layerClass : layerClasses) {
             ClassNode cn = AsmKit.loadClass(zip, layerClass);
             if (cn == null) continue;
@@ -198,7 +212,7 @@ public final class EntityOverlayResolver {
             EyesOverlayBinding eyes = findEyesOverlayBinding(cn);
             if (eyes != null) {
                 boolean fullyEmissive = factoryHasNoCardinalLighting(zip, eyes.factoryName());
-                out.add(new OverlayDescriptor(layerClass, eyes.texturePath(), fullyEmissive, null, 0xFFFFFFFF));
+                out.add(new Result(layerClass, eyes.texturePath(), fullyEmissive, null, 0xFFFFFFFF));
                 continue;
             }
 
@@ -238,7 +252,7 @@ public final class EntityOverlayResolver {
                 String assetId = findEquipmentAssetId(zip, "TRADER_LLAMA");
                 if (layerSubdir != null && assetId != null) {
                     String texture = TEXTURE_PATH_PREFIX + "equipment/" + layerSubdir + "/" + assetId + ".png";
-                    out.add(new OverlayDescriptor(layerClass, texture, false, null, 0xFFFFFFFF, 0.5f, true));
+                    out.add(new Result(layerClass, texture, false, null, 0xFFFFFFFF, 0.5f, true));
                 }
                 continue;
             }
@@ -258,7 +272,7 @@ public final class EntityOverlayResolver {
                     float inflate = walkCubeDeformationFloat(zip,
                         VanillaSourceClasses.LAYER_DEFINITIONS, "FISH_PATTERN_DEFORMATION");
                     int tint = walkDyeColorWhiteTextureDiffuseColor(zip);
-                    out.add(new OverlayDescriptor(layerClass, patternTexture, false, null, tint,
+                    out.add(new Result(layerClass, patternTexture, false, null, tint,
                         inflate != 0f ? inflate : 0.008f, false));
                 }
                 continue;
@@ -277,7 +291,7 @@ public final class EntityOverlayResolver {
                 String prefix = extractVillagerProfessionPrefix(zip, rendererInternalName);
                 if (prefix != null) {
                     String texture = TEXTURE_PATH_PREFIX + prefix + "/type/plains.png";
-                    out.add(new OverlayDescriptor(layerClass, texture, false, null, 0xFFFFFFFF));
+                    out.add(new Result(layerClass, texture, false, null, 0xFFFFFFFF));
                 }
                 continue;
             }
@@ -298,7 +312,7 @@ public final class EntityOverlayResolver {
             ParameterizedOverlayBinding param = findParameterizedOverlayBinding(zip, cn, rendererInternalName);
             if (param != null) {
                 int tintArgb = extractColoredCutoutTint(zip, cn);
-                out.add(new OverlayDescriptor(layerClass, param.texturePath(), false, param.modelLayerField(), tintArgb));
+                out.add(new Result(layerClass, param.texturePath(), false, param.modelLayerField(), tintArgb));
                 continue;
             }
 
@@ -326,13 +340,12 @@ public final class EntityOverlayResolver {
                 }
                 int tintArgb = extractColoredCutoutTint(zip, cn);
                 boolean unlit = layerInvokesNoCardinalLightingRenderType(zip, cn);
-                out.add(new OverlayDescriptor(layerClass, compositeTexture, unlit, modelLayerField, tintArgb));
+                out.add(new Result(layerClass, compositeTexture, unlit, modelLayerField, tintArgb));
                 continue;
             }
         }
 
         // Inline same-geometry eye overlays not captured by any RenderLayer subclass.
-        //
         //   - EnderDragonRenderer style: a static RenderType field bound via
         //     {@code RenderTypes.eyes(LOCATION)} in {@code <clinit>}, dispatched directly from
         //     {@code submit()} (no {@code addLayer(new EyesLayer(...))}). The
@@ -349,7 +362,7 @@ public final class EntityOverlayResolver {
         //     {@code CREAKING_EYES} - don't fire here; their distinct-geometry overlays are
         //     handled by the layer-class path).
         boolean hasEmissiveSameGeometryOverlay = false;
-        for (OverlayDescriptor d : out)
+        for (Result d : out)
             if (d.modelLayerField() == null && d.emissive()) {
                 hasEmissiveSameGeometryOverlay = true;
                 break;
@@ -359,11 +372,11 @@ public final class EntityOverlayResolver {
             if (rendererCn != null) {
                 EyesOverlayBinding direct = findEyesOverlayBinding(rendererCn);
                 if (direct != null) {
-                    out.add(new OverlayDescriptor(rendererInternalName, direct.texturePath(), true, null, 0xFFFFFFFF));
+                    out.add(new Result(rendererInternalName, direct.texturePath(), true, null, 0xFFFFFFFF));
                 } else {
                     String emissiveTexture = findLivingEntityEmissiveTexture(zip, rendererCn);
                     if (emissiveTexture != null)
-                        out.add(new OverlayDescriptor(rendererInternalName, emissiveTexture, true, null, 0xFFFFFFFF));
+                        out.add(new Result(rendererInternalName, emissiveTexture, true, null, 0xFFFFFFFF));
                 }
             }
         }
@@ -867,6 +880,7 @@ public final class EntityOverlayResolver {
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return null;
         String pendingTexturePath = null;
+
         for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null && literal.startsWith(TEXTURE_PATH_PREFIX) && literal.endsWith(".png")
@@ -874,6 +888,7 @@ public final class EntityOverlayResolver {
                 pendingTexturePath = literal;
                 continue;
             }
+
             if (in.getOpcode() == Opcodes.INVOKESTATIC
                 && in instanceof MethodInsnNode mi
                 && mi.desc.endsWith(RENDER_TYPE_RETURN)
@@ -882,6 +897,7 @@ public final class EntityOverlayResolver {
                 && pendingTexturePath.contains("eyes"))
                 return new EyesOverlayBinding(pendingTexturePath, mi.name);
         }
+
         return null;
     }
 
@@ -925,11 +941,13 @@ public final class EntityOverlayResolver {
             FACTORY_EMISSIVE_CACHE.put(factoryName, false);
             return false;
         }
+
         String pipelineField = resolveRenderTypesFactoryPipeline(renderTypes, factoryName);
         if (pipelineField == null) {
             FACTORY_EMISSIVE_CACHE.put(factoryName, false);
             return false;
         }
+
         boolean result = pipelineHasNoCardinalLighting(zip, pipelineField);
         FACTORY_EMISSIVE_CACHE.put(factoryName, result);
         return result;
@@ -954,23 +972,30 @@ public final class EntityOverlayResolver {
      */
     private static @Nullable String resolveRenderTypesFactoryPipeline(@NotNull ClassNode renderTypes, @NotNull String factoryName) {
         for (MethodNode method : renderTypes.methods) {
-            if (!factoryName.equals(method.name)) continue;
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
+            if (!factoryName.equals(method.name))
+                continue;
+
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
                 if (in.getOpcode() == Opcodes.GETSTATIC
                     && in instanceof FieldInsnNode fi
                     && VanillaSourceClasses.RENDER_PIPELINES.equals(fi.owner))
                     return fi.name;
+            }
         }
+
         for (MethodNode method : renderTypes.methods) {
             if (!method.name.startsWith("lambda$static$")) continue;
             String firstLdc = null;
+
             for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
                 String literal = AsmKit.readStringLiteral(in);
+
                 if (literal != null) {
                     if (firstLdc == null) firstLdc = literal;
                     if (!factoryName.equals(firstLdc)) break;
                     continue;
                 }
+
                 if (firstLdc != null
                     && factoryName.equals(firstLdc)
                     && in.getOpcode() == Opcodes.GETSTATIC
@@ -979,6 +1004,7 @@ public final class EntityOverlayResolver {
                     return fi.name;
             }
         }
+
         return null;
     }
 
@@ -997,12 +1023,14 @@ public final class EntityOverlayResolver {
         if (clinit == null) return false;
         boolean blockNoCardinal = false;
         String pendingShaderDefineName = null;
+
         for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
             String literal = AsmKit.readStringLiteral(in);
             if (literal != null) {
                 pendingShaderDefineName = literal;
                 continue;
             }
+
             if (in.getOpcode() == Opcodes.INVOKEVIRTUAL
                 && in instanceof MethodInsnNode mi
                 && "withShaderDefine".equals(mi.name)
@@ -1011,6 +1039,7 @@ public final class EntityOverlayResolver {
                 pendingShaderDefineName = null;
                 continue;
             }
+
             if (in.getOpcode() == Opcodes.PUTSTATIC && in instanceof FieldInsnNode fi) {
                 if (pipelineFieldName.equals(fi.name)) return blockNoCardinal;
                 // Build-block boundary - reset accumulated traits for the next pipeline.
@@ -1018,6 +1047,7 @@ public final class EntityOverlayResolver {
                 pendingShaderDefineName = null;
             }
         }
+
         return false;
     }
 
@@ -1042,15 +1072,18 @@ public final class EntityOverlayResolver {
         Boolean cached = FACTORY_TRANSLUCENT_CACHE.get(factoryName);
         if (cached != null) return cached;
         ClassNode renderTypes = AsmKit.loadClass(zip, VanillaSourceClasses.RENDER_TYPES);
+
         if (renderTypes == null) {
             FACTORY_TRANSLUCENT_CACHE.put(factoryName, false);
             return false;
         }
+
         String pipelineField = resolveRenderTypesFactoryPipeline(renderTypes, factoryName);
         if (pipelineField == null) {
             FACTORY_TRANSLUCENT_CACHE.put(factoryName, false);
             return false;
         }
+
         boolean result = pipelineHasTranslucentBlend(zip, pipelineField);
         FACTORY_TRANSLUCENT_CACHE.put(factoryName, result);
         return result;
@@ -1068,6 +1101,7 @@ public final class EntityOverlayResolver {
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return false;
         boolean blockTranslucent = false;
+
         for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
             if (in.getOpcode() == Opcodes.GETSTATIC
                 && in instanceof FieldInsnNode fi
@@ -1076,11 +1110,13 @@ public final class EntityOverlayResolver {
                 blockTranslucent = true;
                 continue;
             }
+
             if (in.getOpcode() == Opcodes.PUTSTATIC && in instanceof FieldInsnNode fi) {
                 if (pipelineFieldName.equals(fi.name)) return blockTranslucent;
                 blockTranslucent = false;
             }
         }
+
         return false;
     }
 
@@ -1107,21 +1143,25 @@ public final class EntityOverlayResolver {
     private static boolean derivationAcceptsCompositeOverlay(@NotNull ZipFile zip, @NotNull ClassNode layerCn) {
         boolean hasDirectRenderType = false;
         boolean usesHelper = false;
+
         for (MethodNode method : layerCn.methods) {
-            if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name)) continue;
+            if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name))
+                continue;
+
             for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
                 if (in.getOpcode() != Opcodes.INVOKESTATIC) continue;
                 if (!(in instanceof MethodInsnNode mi)) continue;
+
                 if (VanillaSourceClasses.RENDER_TYPES.equals(mi.owner)) {
                     hasDirectRenderType = true;
                     if (factoryHasTranslucentBlend(zip, mi.name)
                         && !factoryHasNoCardinalLighting(zip, mi.name))
                         return false;
-                } else if (COLORED_CUTOUT_HELPER.equals(mi.name)) {
+                } else if (COLORED_CUTOUT_HELPER.equals(mi.name))
                     usesHelper = true;
-                }
             }
         }
+
         return hasDirectRenderType || usesHelper;
     }
 
@@ -1133,12 +1173,15 @@ public final class EntityOverlayResolver {
      * the layer doesn't reference the enum.
      */
     private static @Nullable String findEquipmentLayerSubdir(@NotNull ClassNode layerCn) {
-        for (MethodNode method : layerCn.methods)
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
+        for (MethodNode method : layerCn.methods) {
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
                 if (in.getOpcode() == Opcodes.GETSTATIC
                     && in instanceof FieldInsnNode fi
                     && fi.owner.endsWith("EquipmentClientInfo$LayerType"))
                     return fi.name.toLowerCase(Locale.ROOT);
+            }
+        }
+
         return null;
     }
 
@@ -1292,10 +1335,12 @@ public final class EntityOverlayResolver {
     ) {
         ClassNode renderer = AsmKit.loadClass(zip, rendererInternalName);
         if (renderer == null) return null;
+
         for (MethodNode method : renderer.methods) {
             if (!AsmKit.INIT.equals(method.name)) continue;
             boolean inAlloc = false;
             String pendingLdc = null;
+
             for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
                 if (in.getOpcode() == Opcodes.NEW
                     && in instanceof TypeInsnNode ti
@@ -1304,12 +1349,14 @@ public final class EntityOverlayResolver {
                     pendingLdc = null;
                     continue;
                 }
+
                 if (!inAlloc) continue;
                 String literal = AsmKit.readStringLiteral(in);
                 if (literal != null && !literal.startsWith("textures/") && !literal.contains("/")) {
                     pendingLdc = literal;
                     continue;
                 }
+
                 if (in.getOpcode() == Opcodes.INVOKESPECIAL
                     && in instanceof MethodInsnNode mi
                     && VanillaSourceClasses.VILLAGER_PROFESSION_LAYER.equals(mi.owner)
@@ -1317,6 +1364,7 @@ public final class EntityOverlayResolver {
                     return pendingLdc;
             }
         }
+
         return null;
     }
 
@@ -1344,6 +1392,7 @@ public final class EntityOverlayResolver {
         // field names and don't satisfy the duplicate check.
         boolean sawEmissiveLayer = false;
         java.util.HashMap<String, Integer> modelLayerCounts = new java.util.HashMap<>();
+
         for (MethodNode method : renderer.methods) {
             if (!AsmKit.INIT.equals(method.name)) continue;
             String pendingModelLayer = null;
@@ -1354,12 +1403,14 @@ public final class EntityOverlayResolver {
                     sawEmissiveLayer = true;
                     continue;
                 }
+
                 if (in.getOpcode() == Opcodes.GETSTATIC
                     && in instanceof FieldInsnNode fi
                     && VanillaSourceClasses.MODEL_LAYERS.equals(fi.owner)) {
                     pendingModelLayer = fi.name;
                     continue;
                 }
+
                 if (in.getOpcode() == Opcodes.INVOKEVIRTUAL
                     && in instanceof MethodInsnNode mi
                     && "bakeLayer".equals(mi.name)
@@ -1369,13 +1420,15 @@ public final class EntityOverlayResolver {
                 }
             }
         }
+
         if (!sawEmissiveLayer) return null;
         boolean sharedModelLayer = false;
-        for (Integer count : modelLayerCounts.values())
+        for (Integer count : modelLayerCounts.values()) {
             if (count != null && count >= 2) {
                 sharedModelLayer = true;
                 break;
             }
+        }
         if (!sharedModelLayer) return null;
 
         // Step 2: collect candidate classes (renderer + every class invoked statically from any
@@ -1385,14 +1438,16 @@ public final class EntityOverlayResolver {
         // getOxidationLevel.
         LinkedHashSet<String> candidates = new LinkedHashSet<>();
         candidates.add(renderer.name);
-        for (MethodNode method : renderer.methods)
-            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
+        for (MethodNode method : renderer.methods) {
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
                 if (in.getOpcode() == Opcodes.INVOKESTATIC
                     && in instanceof MethodInsnNode mi
                     && !mi.owner.startsWith("java/")
                     && !mi.owner.startsWith("com/mojang/")
                     && !mi.owner.equals(renderer.name))
                     candidates.add(mi.owner);
+            }
+        }
 
         // Step 3: scan each candidate class's <clinit> for the first {@code *_eyes.png} (or
         // {@code *_eye.png}) LDC. The data class's <clinit> allocates the default-state
@@ -1402,6 +1457,7 @@ public final class EntityOverlayResolver {
             if (cn == null) continue;
             MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
             if (clinit == null) continue;
+
             for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
                 String literal = AsmKit.readStringLiteral(in);
                 if (literal == null) continue;
@@ -1412,6 +1468,7 @@ public final class EntityOverlayResolver {
                     return literal;
             }
         }
+
         return null;
     }
 

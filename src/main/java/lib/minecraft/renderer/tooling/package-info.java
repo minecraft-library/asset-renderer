@@ -70,29 +70,42 @@
  *       {@link YAxis YAxis} convention helper round
  *       out the discovery surface.</li>
  *   <li>{@link lib.minecraft.renderer.tooling.entity entity} - the Java-derived entity-model
- *       pipeline phases A-D:
- *       {@link MobRegistryDiscovery mob registry},
- *       {@link EntityRendererDiscovery renderer-class
- *       mapping},
+ *       pipeline phases A-D, orchestrated by
+ *       {@link lib.minecraft.renderer.tooling.entity.ToolingEntityContext ToolingEntityContext}
+ *       and the per-entity
+ *       {@link lib.minecraft.renderer.tooling.entity.EntitySessionWalk EntitySessionWalk}:
+ *       {@link EntityRegistryDiscovery mob + renderer registry},
  *       {@link EntityTextureResolver texture binding},
  *       {@link EntityVariantResolver variant tables},
- *       {@link EntityLayerScanner addLayer
- *       overlay scan},
- *       {@link EntityLayerDefinitionResolver layer
- *       definitions},
- *       {@link EntityOverlayResolver overlay
- *       resolution},
- *       {@link EntityBlockOverlayResolver
- *       block-overlay resolution},
- *       {@link EntitySetupRotationsResolver
- *       setupRotations audit}. Procedural-loop entity factories (squid, blaze, ghast,
- *       magma_cube, ender_dragon, silverfish, endermite, guardian, elder_guardian) are
- *       folded by the shared {@code Parser} at parse time via for-loop unrolling,
- *       static-array fold, local-array tracking, Math.cos/sin + Mth.cos/sin handlers,
- *       makeConcatWithConstants resolution, and RandomSource simulation.</li>
+ *       {@link EntityBoneResolver addLayer overlay scan + hidden bones},
+ *       {@link EntityLayerDefinitionResolver layer definitions},
+ *       {@link EntityOverlayResolver overlay resolution},
+ *       {@link EntityBlockOverlayResolver block-overlay resolution},
+ *       {@link EntityRendererOverrides renderer overrides (setupRotations yaw addend +
+ *       scale residue)},
+ *       {@link lib.minecraft.renderer.tooling.entity.EntityFamilyResolver EntityFamilyResolver}
+ *       (cross-entity family clustering), and the
+ *       {@link lib.minecraft.renderer.tooling.entity.EntityDiagnosticsWriter EntityDiagnosticsWriter}
+ *       /
+ *       {@link lib.minecraft.renderer.tooling.entity.EntityRuntimeJsonWriter EntityRuntimeJsonWriter}
+ *       pair that emit the diagnostic and runtime JSONs. Procedural-loop entity factories
+ *       (squid, blaze, ghast, magma_cube, ender_dragon, silverfish, endermite, guardian,
+ *       elder_guardian) are folded by the shared
+ *       {@link lib.minecraft.renderer.tooling.parser.GeometryParser GeometryParser} at parse
+ *       time via for-loop unrolling, static-array fold, local-array tracking,
+ *       Math.cos/sin + Mth.cos/sin handlers, makeConcatWithConstants resolution, and
+ *       RandomSource simulation.</li>
+ *   <li>{@link lib.minecraft.renderer.tooling.parser parser} -
+ *       {@link lib.minecraft.renderer.tooling.parser.GeometryParser GeometryParser} - the
+ *       shared bytecode walker for the
+ *       {@code LayerDefinition.create / CubeListBuilder / PartPose / addOrReplaceChild}
+ *       pattern, called by both the block-entity and entity tooling.</li>
  *   <li>{@link lib.minecraft.renderer.tooling.util util} - ASM scaffolding
- *       ({@link AsmKit AsmKit}),
+ *       ({@link AsmKit AsmKit} plus its
+ *       {@link lib.minecraft.renderer.tooling.util.ClassNodeCache ClassNodeCache}),
  *       {@link Diagnostics Diagnostics} dump scaffolding,
+ *       {@link lib.minecraft.renderer.tooling.util.JsonOptional JsonOptional} helpers for
+ *       the optional-with-default JSON access pattern,
  *       and {@link FastTrig FastTrig} - a port of
  *       vanilla's {@code net.minecraft.util.Mth} {@code cos / sin} 65536-entry lookup that
  *       matches the bytecode bit-for-bit; the tooling layer uses it when unrolling
@@ -129,14 +142,13 @@ import lib.minecraft.renderer.tooling.blockentity.SourceDiscovery;
 import lib.minecraft.renderer.tooling.blockentity.TintDiscovery;
 import lib.minecraft.renderer.tooling.blockentity.YAxis;
 import lib.minecraft.renderer.tooling.entity.EntityBlockOverlayResolver;
+import lib.minecraft.renderer.tooling.entity.EntityBoneResolver;
 import lib.minecraft.renderer.tooling.entity.EntityLayerDefinitionResolver;
-import lib.minecraft.renderer.tooling.entity.EntityLayerScanner;
 import lib.minecraft.renderer.tooling.entity.EntityOverlayResolver;
-import lib.minecraft.renderer.tooling.entity.EntityRendererDiscovery;
-import lib.minecraft.renderer.tooling.entity.EntitySetupRotationsResolver;
+import lib.minecraft.renderer.tooling.entity.EntityRegistryDiscovery;
+import lib.minecraft.renderer.tooling.entity.EntityRendererOverrides;
 import lib.minecraft.renderer.tooling.entity.EntityTextureResolver;
 import lib.minecraft.renderer.tooling.entity.EntityVariantResolver;
-import lib.minecraft.renderer.tooling.entity.MobRegistryDiscovery;
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lib.minecraft.renderer.tooling.util.FastTrig;

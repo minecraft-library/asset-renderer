@@ -42,10 +42,11 @@ import java.util.zip.ZipFile;
  * </ol>
  *
  * <p>The result is consumed by {@link ToolingEntityModels} which feeds each
- * {@link Resolution} as a synthetic {@code Source} into
- * {@code ToolingBlockEntities.Parser.parse} - the same bytecode walker used by block entities,
- * since the {@code LayerDefinition.create} / {@code CubeListBuilder} / {@code PartPose} /
- * {@code addOrReplaceChild} bytecode patterns are identical between block and mob models.
+ * {@link Result} as a synthetic {@code Source} into
+ * {@link lib.minecraft.renderer.tooling.parser.GeometryParser#parse} - the shared bytecode
+ * walker also used by block-entity tooling, since the {@code LayerDefinition.create} /
+ * {@code CubeListBuilder} / {@code PartPose} / {@code addOrReplaceChild} bytecode patterns
+ * are identical between block and mob models.
  */
 @UtilityClass
 public final class EntityLayerDefinitionResolver {
@@ -57,7 +58,7 @@ public final class EntityLayerDefinitionResolver {
     private static final @NotNull String MESH_DEFINITION_DESC_RETURN = ")L" + VanillaSourceClasses.MESH_DEFINITION + ";";
 
     /** Field descriptor for a {@code MeshTransformer}-typed field or local. */
-    private static final @NotNull String MESH_TRANSFORMER_DESC = "L" + VanillaSourceClasses.MESH_TRANSFORMER + ";";
+    private static final @NotNull String MESH_TRANSFORMER_DESC = VanillaSourceClasses.MESH_TRANSFORMER_DESC;
 
     /** Method descriptor of {@code LayerDefinition.apply(MeshTransformer)LayerDefinition}. */
     private static final @NotNull String APPLY_DESC = "(" + MESH_TRANSFORMER_DESC + ")L" + VanillaSourceClasses.LAYER_DEFINITION + ";";
@@ -75,7 +76,7 @@ public final class EntityLayerDefinitionResolver {
      * @param sourceLayerField the {@code ModelLayers.X} field name that resolved to this target,
      *     for diagnostic / debugging output
      */
-    public record Resolution(
+    public record Result(
         @NotNull String targetClass,
         @NotNull String targetMethod,
         @NotNull String targetDesc,
@@ -90,7 +91,7 @@ public final class EntityLayerDefinitionResolver {
         /**
          * Convenience constructor for resolutions whose factory takes no {@code CubeDeformation} arg.
          */
-        public Resolution(
+        public Result(
             @NotNull String targetClass,
             @NotNull String targetMethod,
             @NotNull String targetDesc,
@@ -104,7 +105,7 @@ public final class EntityLayerDefinitionResolver {
         /**
          * Convenience constructor preserving the prior 7-arg signature (no {@code defaultFloatParam}, no applied MT).
          */
-        public Resolution(
+        public Result(
             @NotNull String targetClass,
             @NotNull String targetMethod,
             @NotNull String targetDesc,
@@ -119,7 +120,7 @@ public final class EntityLayerDefinitionResolver {
         /**
          * Convenience constructor preserving the prior 8-arg signature (no applied MT).
          */
-        public Resolution(
+        public Result(
             @NotNull String targetClass,
             @NotNull String targetMethod,
             @NotNull String targetDesc,
@@ -137,8 +138,8 @@ public final class EntityLayerDefinitionResolver {
          * Used by the resolver when a chain of {@code .apply(MeshTransformer)} calls follows the
          * factory invocation - each one composes by multiplication with the prior captures.
          */
-        public Resolution composeAppliedScale(float factor) {
-            return new Resolution(targetClass, targetMethod, targetDesc, texWidthOverride,
+        public Result composeAppliedScale(float factor) {
+            return new Result(targetClass, targetMethod, targetDesc, texWidthOverride,
                 texHeightOverride, sourceLayerField, defaultInflate, defaultFloatParam,
                 appliedMeshTransformerScale * factor);
         }
@@ -147,19 +148,19 @@ public final class EntityLayerDefinitionResolver {
     /**
      * Detects the delegating-{@code createBodyLayer} pattern - a class whose static
      * {@code createBodyLayer} (or other factory) body consists solely of {@code INVOKESTATIC
-     * <otherClass>.<otherMethod>; ARETURN}. Returns a {@code Resolution} rewritten to point at
+     * <otherClass>.<otherMethod>; ARETURN}. Returns a {@code Result} rewritten to point at
      * the delegate target so multiple entities sharing a layer factory through a no-op
      * delegate collapse onto a single geometry entry. Vanilla 26.1 emits this pattern for
      * {@code AdultZombifiedPiglinModel.createBodyLayer} (delegates to
      * {@code AdultPiglinModel.createBodyLayer}) and {@code BabyZombifiedPiglinModel} similarly.
      *
-     * <p>Returns the input {@code Resolution} unchanged when the target method has any other
+     * <p>Returns the input {@code Result} unchanged when the target method has any other
      * instruction (cube builder, addOrReplaceChild, LayerDefinition.create wrapper, etc.) -
      * those are real factories that produce their own geometry.
      */
-    public static @NotNull Resolution unaliasDelegate(
+    public static @NotNull Result unaliasDelegate(
         @NotNull ZipFile zip,
-        @NotNull Resolution res
+        @NotNull Result res
     ) {
         ClassNode cn = AsmKit.loadClass(zip, res.targetClass());
         if (cn == null) return res;
@@ -179,7 +180,7 @@ public final class EntityLayerDefinitionResolver {
         }
         if (delegate == null) return res;
         if (!delegate.desc.equals(res.targetDesc())) return res;
-        return new Resolution(
+        return new Result(
             delegate.owner,
             delegate.name,
             delegate.desc,
@@ -217,17 +218,17 @@ public final class EntityLayerDefinitionResolver {
      *     the entity-id-match preference
      * @param additionalLayerFields extra {@code ModelLayers.X} field names harvested from lambda
      *     bodies that the constructor walk would otherwise miss
-     * @param layerDefinitions the precomputed {@code (ModelLayers.X field name -&gt; Resolution)}
+     * @param layerDefinitions the precomputed {@code (ModelLayers.X field name -&gt; Result)}
      *     map from {@link #loadLayerDefinitions(ZipFile, Diagnostics)}
      * @param diagnostics the diagnostic sink shared with sibling discovery walks
      * @return the primary layer's resolution, or {@code null} when unresolvable
      */
-    public static @Nullable Resolution resolvePrimary(
+    public static @Nullable Result resolvePrimary(
         @NotNull ZipFile zip,
         @NotNull String rendererInternalName,
         @NotNull String entityId,
         @NotNull java.util.Collection<String> additionalLayerFields,
-        @NotNull Map<String, Resolution> layerDefinitions,
+        @NotNull Map<String, Result> layerDefinitions,
         @NotNull Diagnostics diagnostics
     ) {
         java.util.LinkedHashSet<String> candidates = collectModelLayerFields(zip, rendererInternalName);
@@ -241,7 +242,7 @@ public final class EntityLayerDefinitionResolver {
             return null;
         }
         String primaryLayerField = pickPrimaryLayerField(candidates, entityId);
-        Resolution res = layerDefinitions.get(primaryLayerField);
+        Result res = layerDefinitions.get(primaryLayerField);
         if (res == null) {
             diagnostics.info("renderer '%s' references ModelLayers.%s which is not in LayerDefinitions.createRoots - skipped", rendererInternalName, primaryLayerField);
             return null;
@@ -307,7 +308,7 @@ public final class EntityLayerDefinitionResolver {
 
     /**
      * Walks {@code LayerDefinitions.createRoots} and returns the {@code (ModelLayers.X field
-     * name -&gt; Resolution)} map. Mirrors the algorithm in
+     * name -&gt; Result)} map. Mirrors the algorithm in
      * {@code SourceDiscovery.walkLayerDefinitions}: tracks {@code ImmutableMap.Builder.put(X, Y)}
      * pairs where {@code X} is a {@code GETSTATIC ModelLayers.<field>} and {@code Y} is either
      * an {@code INVOKESTATIC} returning {@code LayerDefinition} (or its mesh-wrapped variant)
@@ -317,11 +318,11 @@ public final class EntityLayerDefinitionResolver {
      * @param diagnostics the diagnostic sink
      * @return the layer-name to factory-target map (empty on error)
      */
-    public static @NotNull ConcurrentMap<String, Resolution> loadLayerDefinitions(
+    public static @NotNull ConcurrentMap<String, Result> loadLayerDefinitions(
         @NotNull ZipFile zip,
         @NotNull Diagnostics diagnostics
     ) {
-        ConcurrentMap<String, Resolution> out = Concurrent.newMap();
+        ConcurrentMap<String, Result> out = Concurrent.newMap();
         ClassNode cn = AsmKit.loadClass(zip, VanillaSourceClasses.LAYER_DEFINITIONS);
         if (cn == null) {
             diagnostics.error("'%s' class missing - layer-definition map unresolved", VanillaSourceClasses.LAYER_DEFINITIONS);
@@ -333,11 +334,11 @@ public final class EntityLayerDefinitionResolver {
             return out;
         }
 
-        AsmKit.SlotTracker<Resolution> slotState = new AsmKit.SlotTracker<>();
+        AsmKit.SlotTracker<Result> slotState = new AsmKit.SlotTracker<>();
         // Track {@code astore N} of MeshTransformer references built locally via
         // {@code ldc F; invokestatic MeshTransformer.scaling(F)}. When a later {@code aload N}
         // precedes an {@code invokevirtual LayerDefinition.apply(MeshTransformer)}, the F here
-        // is the scale we want to fold into the {@link Resolution#appliedMeshTransformerScale()}.
+        // is the scale we want to fold into the {@link Result#appliedMeshTransformerScale()}.
         // The horse layer uses this pattern: {@code ldc 1.1f; invokestatic scaling; astore 75; ...
         // aload 75; invokevirtual apply}.
         AsmKit.SlotTracker<Float> meshTransformerSlots = new AsmKit.SlotTracker<>();
@@ -346,13 +347,13 @@ public final class EntityLayerDefinitionResolver {
         // {@code getstatic AdultCatModel.CAT_TRANSFORMER; invokevirtual apply}.
         Map<String, Float> staticMeshTransformerCache = new LinkedHashMap<>();
         String pendingLayerField = null;
-        Resolution pendingDirect = null;
-        Resolution pendingMesh = null;
+        Result pendingDirect = null;
+        Result pendingMesh = null;
         Integer pendingInt = null;
         Integer[] widthHeight = { null, null };
         // Tracks the inflate value of the most recent inline {@code new CubeDeformation(F);
         // <init>}. When the next {@code invokestatic <FactoryClass>.createBodyLayer
-        // (CubeDeformation)} fires, this value rides into the {@link Resolution} so the synthetic
+        // (CubeDeformation)} fires, this value rides into the {@link Result} so the synthetic
         // overlay {@code Source} carries it through to the parser as {@code defaultInflate}.
         // Reset on each new ModelLayers field so the value can't leak across registrations.
         Float pendingDeformationInflate = null;
@@ -454,7 +455,7 @@ public final class EntityLayerDefinitionResolver {
 
             if (in instanceof MethodInsnNode mi && opcode == Opcodes.INVOKESTATIC) {
                 if (mi.desc.endsWith(MESH_DEFINITION_DESC_RETURN)) {
-                    pendingMesh = new Resolution(mi.owner, mi.name, mi.desc, null, null,
+                    pendingMesh = new Result(mi.owner, mi.name, mi.desc, null, null,
                         pendingLayerField == null ? "" : pendingLayerField,
                         pendingDeformationInflate != null ? pendingDeformationInflate : 0f);
                     pendingInt = null;
@@ -462,7 +463,7 @@ public final class EntityLayerDefinitionResolver {
                     continue;
                 }
                 if (VanillaSourceClasses.LAYER_DEFINITION.equals(mi.owner) && "create".equals(mi.name) && pendingMesh != null) {
-                    pendingDirect = new Resolution(
+                    pendingDirect = new Result(
                         pendingMesh.targetClass,
                         pendingMesh.targetMethod,
                         pendingMesh.targetDesc,
@@ -482,7 +483,7 @@ public final class EntityLayerDefinitionResolver {
                     // {@code pendingFloat} carries the F we want. Other arities (no args, or
                     // CubeDeformation only) leave {@code defaultFloatParam} null.
                     Float floatParam = (pendingFloat != null && mi.desc.startsWith("(F)")) ? pendingFloat : null;
-                    pendingDirect = new Resolution(mi.owner, mi.name, mi.desc, null, null,
+                    pendingDirect = new Result(mi.owner, mi.name, mi.desc, null, null,
                         pendingLayerField == null ? "" : pendingLayerField,
                         pendingDeformationInflate != null ? pendingDeformationInflate : 0f,
                         floatParam);
@@ -510,7 +511,7 @@ public final class EntityLayerDefinitionResolver {
             }
 
             if (in instanceof VarInsnNode vi && opcode == Opcodes.ALOAD) {
-                Resolution stored = slotState.load(vi.var);
+                Result stored = slotState.load(vi.var);
                 if (stored != null) {
                     pendingDirect = stored;
                     continue;
@@ -525,7 +526,7 @@ public final class EntityLayerDefinitionResolver {
             // the ImmutableMap.put. Cat puts CAT_TRANSFORMER (0.8f) here for ModelLayers.CAT;
             // horse pulls the scaling result from local slot 75 for ModelLayers.HORSE.
             // Fold the resolved F into {@code pendingDirect} so the downstream put step writes
-            // the composed scale into the {@link Resolution}.
+            // the composed scale into the {@link Result}.
             if (in instanceof MethodInsnNode mi
                 && opcode == Opcodes.INVOKEVIRTUAL
                 && VanillaSourceClasses.LAYER_DEFINITION.equals(mi.owner)
@@ -548,7 +549,7 @@ public final class EntityLayerDefinitionResolver {
                 && mi.owner.endsWith("ImmutableMap$Builder")
                 && pendingLayerField != null
                 && pendingDirect != null) {
-                out.put(pendingLayerField, new Resolution(
+                out.put(pendingLayerField, new Result(
                     pendingDirect.targetClass,
                     pendingDirect.targetMethod,
                     pendingDirect.targetDesc,
@@ -580,11 +581,12 @@ public final class EntityLayerDefinitionResolver {
      * fall through and return {@code null}, causing the caller to leave
      * {@code appliedMeshTransformerScale} at its identity default of {@code 1f}.
      *
-     * <p>Cached per-field across the entire {@code LayerDefinitions.createRoots} walk so a single
-     * class's {@code <clinit>} is walked at most once even if multiple {@code ModelLayers.X}
-     * entries reference its fields. Mirrors the parser-side
-     * {@code ToolingBlockEntities.Parser.resolveStaticMeshTransformer} walker; kept separate so
-     * the resolver doesn't reach into block-entity-package internals.
+     * <p>Cached per-field across the entire {@code LayerDefinitions.createRoots} walk so a
+     * single class's {@code <clinit>} is walked at most once even if multiple
+     * {@code ModelLayers.X} entries reference its fields. Mirrors the parser-side
+     * {@code resolveStaticMeshTransformer} walker inside
+     * {@link lib.minecraft.renderer.tooling.parser.GeometryParser}; kept separate so the
+     * resolver doesn't reach into parser internals.
      *
      * @return F when the field's initialiser is a literal {@code MeshTransformer.scaling(F)},
      *     {@code null} for unhandled patterns

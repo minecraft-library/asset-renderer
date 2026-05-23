@@ -45,7 +45,7 @@ import java.util.zip.ZipFile;
  * variants.
  *
  * <p>Variant directory names are bytecode-stable - the {@code XVariant} class name returned by
- * {@link EntityTextureResolver.Binding#variantSourceClass()} ends in
+ * {@link EntityTextureResolver.Result#variantSourceClass()} ends in
  * {@code "Variant"} and corresponds 1:1 to a {@code data/minecraft/<X>_variant/} directory.
  * The mapping is computed via {@link #directoryFor(String)} so future variant types pick up
  * automatically.
@@ -80,7 +80,7 @@ public final class EntityVariantResolver {
      * @param model optional {@code model} field discriminating which model class renders this
      *     variant; {@code null} when the default model applies
      */
-    public record Variant(
+    public record Result(
         @NotNull String variantId,
         @NotNull java.util.LinkedHashMap<String, String> textures,
         @NotNull java.util.LinkedHashMap<String, String> babyTextures,
@@ -122,6 +122,40 @@ public final class EntityVariantResolver {
     }
 
     /**
+     * Variant id treated as the base entity (no separate {@code variant_of} row emitted) when
+     * walking data-driven variant tables. Vanilla 1.21+ uses {@code "temperate"} for cow / pig /
+     * chicken / frog as the climate-default; the base entity ({@code minecraft:cow}) takes that
+     * variant's texture when no spawn-condition match overrides it.
+     */
+    private static final @NotNull String DEFAULT_VARIANT_ID = "temperate";
+
+    /**
+     * Picks the default variant from a variant list, preferring the canonical default detected
+     * from the entity's {@code <X>Variants.DEFAULT} static field (e.g.
+     * {@code WolfVariants.DEFAULT = PALE} resolves to {@code "pale"}). {@code CatVariants} has
+     * no {@code DEFAULT} so {@code canonicalDefaultId} is {@code null} and the fallback chain
+     * runs - prefer {@code "temperate"} (cow / pig / chicken / frog climate-default), then
+     * the first entry.
+     *
+     * @param variantList the variant list as loaded by {@link #loadAll}
+     * @param canonicalDefaultId the canonical default variant id from the entity's variant
+     *     enum's {@code DEFAULT} field, or {@code null} when no canonical default exists
+     * @return the selected default variant
+     */
+    public static @NotNull Result pickDefault(
+        @NotNull ConcurrentList<Result> variantList,
+        @Nullable String canonicalDefaultId
+    ) {
+        if (canonicalDefaultId != null) {
+            for (Result v : variantList)
+                if (canonicalDefaultId.equals(v.variantId())) return v;
+        }
+        for (Result v : variantList)
+            if (DEFAULT_VARIANT_ID.equals(v.variantId())) return v;
+        return variantList.get(0);
+    }
+
+    /**
      * Walks every {@code data/minecraft/<X>_variant/*.json} in the client jar and returns a
      * map keyed by the variant directory's stem ({@code "cow"}, {@code "pig"}, ...) to the
      * ordered list of variant entries. Empty when the jar ships no variant directories
@@ -131,11 +165,11 @@ public final class EntityVariantResolver {
      * @param diagnostics the diagnostic sink shared with sibling discovery walks
      * @return variant stem -&gt; ordered variant list
      */
-    public static @NotNull ConcurrentMap<String, ConcurrentList<Variant>> loadAll(
+    public static @NotNull ConcurrentMap<String, ConcurrentList<Result>> loadAll(
         @NotNull ZipFile zip,
         @NotNull Diagnostics diagnostics
     ) {
-        ConcurrentMap<String, ConcurrentList<Variant>> out = Concurrent.newMap();
+        ConcurrentMap<String, ConcurrentList<Result>> out = Concurrent.newMap();
         Enumeration<? extends ZipEntry> entries = zip.entries();
         while (entries.hasMoreElements()) {
             ZipEntry entry = entries.nextElement();
@@ -155,7 +189,7 @@ public final class EntityVariantResolver {
             if (!fileName.endsWith(".json") || fileName.contains("/")) continue;
             String variantId = fileName.substring(0, fileName.length() - ".json".length());
 
-            Variant parsed = parseVariant(zip, entry, variantId, diagnostics);
+            Result parsed = parseVariant(zip, entry, variantId, diagnostics);
             if (parsed == null) continue;
 
             out.computeIfAbsent(variantStem, k -> Concurrent.newList()).add(parsed);
@@ -328,7 +362,7 @@ public final class EntityVariantResolver {
      * {@code "WolfVariants"} -&gt; {@code "wolf"} (defensive trailing-s).
      *
      * @param variantClassInternalName the JVM internal name from
-     *     {@link EntityTextureResolver.Binding#variantSourceClass()}
+     *     {@link EntityTextureResolver.Result#variantSourceClass()}
      * @return the variant directory stem, or {@code null} when the class doesn't conform to the
      *     {@code XVariant} naming convention
      */
@@ -355,7 +389,7 @@ public final class EntityVariantResolver {
      * </ul>
      * Returns {@code null} on syntax errors or when neither shape's required field is present.
      */
-    private static @Nullable Variant parseVariant(
+    private static @Nullable Result parseVariant(
         @NotNull ZipFile zip,
         @NotNull ZipEntry entry,
         @NotNull String variantId,
@@ -384,7 +418,7 @@ public final class EntityVariantResolver {
                 diagnostics.warn("variant '%s' has no asset_id / assets - skipped", entry.getName());
                 return null;
             }
-            return new Variant(variantId, textures, babyTextures, optionalString(root, "model"));
+            return new Result(variantId, textures, babyTextures, optionalString(root, "model"));
         } catch (IOException ex) {
             diagnostics.warn("failed to read variant '%s': %s", entry.getName(), ex.getMessage());
             return null;

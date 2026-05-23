@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.tooling.entity;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.tooling.ToolingEntityModels;
@@ -33,12 +35,10 @@ import java.util.zip.ZipFile;
  * poppy via {@code IronGolemFlowerLayer}, enderman carried block via {@code CarriedBlockLayer},
  * generic via {@code BlockDecorationLayer}).
  *
- * <p>Generalises what {@link ToolingEntityModels}
- * previously hardcoded for mooshroom: walks the renderer constructor for {@code addLayer(new
- * RecognisedLayer(this[, args]))} dispatches, then walks the matched layer's {@code submit}
- * method for each {@code pushPose / popPose} pair, extracting the pose-stack ops issued
- * between them. Each pair becomes one {@link BlockOverlayDescriptor} - one block-overlay row
- * in {@code entity_models.json}.
+ * <p>Walks the renderer constructor for {@code addLayer(new RecognisedLayer(this[, args]))}
+ * dispatches, then walks the matched layer's {@code submit} method for each
+ * {@code pushPose / popPose} pair, extracting the pose-stack ops issued between them. Each
+ * pair becomes one {@link Result} - one block-overlay row in {@code entity_models.json}.
  *
  * <p>Op extraction recognises:
  * <ul>
@@ -88,7 +88,7 @@ public final class EntityBlockOverlayResolver {
 
     /** Descriptor for the BlockModelRenderState type that a block-overlay layer's submit reads from a state field. */
     private static final @NotNull String BLOCK_MODEL_RENDER_STATE_DESC =
-        "Lnet/minecraft/client/renderer/block/BlockModelRenderState;";
+        "L" + VanillaSourceClasses.BLOCK_MODEL_RENDER_STATE + ";";
 
     /** Cache sentinel for "detection ran and produced no match" - {@link ConcurrentHashMap} disallows null values. */
     private static final @NotNull KnownLayer KNOWN_LAYER_NONE = new KnownLayer(null, null);
@@ -104,13 +104,13 @@ public final class EntityBlockOverlayResolver {
      *     {@code net/minecraft/client/renderer/entity/MushroomCowRenderer})
      * @param diagnostics the diagnostic sink for parse-failure WARN messages
      */
-    public static @NotNull ConcurrentList<BlockOverlayDescriptor> resolve(
+    public static @NotNull ConcurrentList<Result> resolve(
         @NotNull ZipFile zip,
         @NotNull String entityId,
         @NotNull String rendererInternalName,
         @NotNull Diagnostics diagnostics
     ) {
-        ConcurrentList<BlockOverlayDescriptor> out = Concurrent.newList();
+        ConcurrentList<Result> out = Concurrent.newList();
         ClassNode renderer = AsmKit.loadClass(zip, rendererInternalName);
         if (renderer == null) return out;
 
@@ -150,7 +150,7 @@ public final class EntityBlockOverlayResolver {
                 continue;
             }
 
-            List<BlockOverlayDescriptor> extracted = extractPoseBlocks(submitMethod, defaultBlockId);
+            List<Result> extracted = extractPoseBlocks(submitMethod, defaultBlockId);
             out.addAll(extracted);
         }
         return out;
@@ -217,14 +217,14 @@ public final class EntityBlockOverlayResolver {
     /**
      * Walks a layer's submit method, splitting on {@code pushPose} / {@code popPose} pairs and
      * collecting the recognised pose-stack ops issued in each. Each pair becomes one
-     * {@link BlockOverlayDescriptor}. Ops are stored in bytecode order; consumer (the renderer)
+     * {@link Result}. Ops are stored in bytecode order; consumer (the renderer)
      * applies them in the order vanilla's PoseStack would.
      */
-    private static @NotNull List<BlockOverlayDescriptor> extractPoseBlocks(
+    private static @NotNull List<Result> extractPoseBlocks(
         @NotNull MethodNode submit,
         @NotNull String blockId
     ) {
-        List<BlockOverlayDescriptor> out = new ArrayList<>();
+        List<Result> out = new ArrayList<>();
         boolean insideBlock = false;
         List<TransformOpRecord> currentOps = new ArrayList<>();
         String currentAttachedBone = null;
@@ -250,7 +250,7 @@ public final class EntityBlockOverlayResolver {
             }
             if (methodInsn.owner.equals(POSE_STACK) && methodInsn.name.equals("popPose")) {
                 if (insideBlock && !currentOps.isEmpty())
-                    out.add(new BlockOverlayDescriptor(blockId, currentAttachedBone, List.copyOf(currentOps)));
+                    out.add(new Result(blockId, currentAttachedBone, List.copyOf(currentOps)));
                 insideBlock = false;
                 currentOps = new ArrayList<>();
                 currentAttachedBone = null;
@@ -429,10 +429,62 @@ public final class EntityBlockOverlayResolver {
      * {@code block_overlays} JSON array consumed by {@link
      * lib.minecraft.renderer.pipeline.loader.EntityModelLoader.BlockOverlayLayer}.
      */
-    public record BlockOverlayDescriptor(
+    public record Result(
         @NotNull String blockId,
         @Nullable String attachedBone,
         @NotNull List<TransformOpRecord> ops
     ) {}
+
+    /**
+     * Converts a list of {@link Result} into the JSON wire format consumed by
+     * {@link lib.minecraft.renderer.pipeline.loader.EntityModelLoader#loadBlockOverlays}. Each
+     * descriptor becomes one {@code block_overlays[]} row; descriptors are emitted in the
+     * order the resolver returned them (mirrors the bytecode pushPose/popPose order).
+     */
+    public static @NotNull JsonArray toJson(@NotNull ConcurrentList<Result> descriptors) {
+        JsonArray rows = new JsonArray();
+        for (Result desc : descriptors) {
+            JsonObject row = new JsonObject();
+            row.addProperty("block_id", desc.blockId());
+            if (desc.attachedBone() != null) row.addProperty("attached_bone", desc.attachedBone());
+            JsonArray opsJson = new JsonArray();
+            for (TransformOpRecord op : desc.ops()) {
+                JsonObject opJson = switch (op.kind()) {
+                    case TRANSLATE -> translateJson(op.a(), op.b(), op.c());
+                    case ROTATE_Y -> rotateYJson(op.a());
+                    case SCALE -> scaleJson(op.a(), op.b(), op.c());
+                };
+                opsJson.add(opJson);
+            }
+            row.add("transforms", opsJson);
+            rows.add(row);
+        }
+        return rows;
+    }
+
+    private static @NotNull JsonObject translateJson(float x, float y, float z) {
+        JsonObject op = new JsonObject();
+        op.addProperty("op", "translate");
+        op.addProperty("x", x);
+        op.addProperty("y", y);
+        op.addProperty("z", z);
+        return op;
+    }
+
+    private static @NotNull JsonObject rotateYJson(float degrees) {
+        JsonObject op = new JsonObject();
+        op.addProperty("op", "rotate_y");
+        op.addProperty("degrees", degrees);
+        return op;
+    }
+
+    private static @NotNull JsonObject scaleJson(float x, float y, float z) {
+        JsonObject op = new JsonObject();
+        op.addProperty("op", "scale");
+        op.addProperty("x", x);
+        op.addProperty("y", y);
+        op.addProperty("z", z);
+        return op;
+    }
 
 }

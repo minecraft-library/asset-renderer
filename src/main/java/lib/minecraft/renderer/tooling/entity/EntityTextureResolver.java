@@ -16,8 +16,10 @@ import org.objectweb.asm.tree.JumpInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipFile;
@@ -37,7 +39,7 @@ import java.util.zip.ZipFile;
  *       ({@code ZOMBIE_LOCATION}, {@code BABY_ZOMBIE_LOCATION}) and {@code getTextureLocation}
  *       branches on a state field ({@code isBaby}). The walker prefers the non-baby field for
  *       the primary texture; the baby variant carries through as
- *       {@link Binding#babyTexturePath()}.</li>
+ *       {@link Result#babyTexturePath()}.</li>
  *   <li><b>Variant-driven</b> ({@code CowRenderer}, {@code PigRenderer}, etc.):
  *       {@code getTextureLocation} reads {@code state.variant.modelAndTexture().asset()
  *       .texturePath()} - no static constant is involved. The walker recognises the
@@ -82,7 +84,7 @@ public final class EntityTextureResolver {
      *     renderer itself, the JVM internal name of that superclass; {@code null} when the
      *     binding lives on the renderer directly
      */
-    public record Binding(
+    public record Result(
         @Nullable String primaryTexturePath,
         @Nullable String babyTexturePath,
         @Nullable String variantSourceClass,
@@ -104,7 +106,7 @@ public final class EntityTextureResolver {
     }
 
     /**
-     * Extracts the texture binding for a renderer class. Returns an empty {@link Binding}
+     * Extracts the texture binding for a renderer class. Returns an empty {@link Result}
      * (every field {@code null}) when the renderer chain has no recognisable
      * {@code getTextureLocation} or when the binding pattern is unsupported.
      *
@@ -124,17 +126,17 @@ public final class EntityTextureResolver {
      * @param diagnostics the diagnostic sink shared with sibling discovery walks
      * @return the extracted binding
      */
-    public static @NotNull Binding resolve(
+    public static @NotNull Result resolve(
         @NotNull ZipFile zip,
         @NotNull String rendererInternalName,
         @NotNull String entityId,
-        @NotNull ConcurrentList<lib.minecraft.renderer.tooling.entity.EntityRendererDiscovery.TypeFieldRef> lambdaTypeArgs,
+        @NotNull ConcurrentList<EntityRegistryDiscovery.TypeFieldRef> lambdaTypeArgs,
         @NotNull Diagnostics diagnostics
     ) {
         ResolvedMethod resolved = findGetTextureLocation(zip, rendererInternalName);
         if (resolved == null) {
             diagnostics.info("renderer '%s' has no getTextureLocation in its hierarchy - skipped", rendererInternalName);
-            return new Binding(null, null, null, null);
+            return new Result(null, null, null, null);
         }
 
         // Data-driven variant check (Cow / Pig / Chicken / Frog): an INVOKEVIRTUAL on
@@ -145,7 +147,7 @@ public final class EntityTextureResolver {
         // return null anyway, so check first to keep the diagnostic accurate.
         String dataDrivenSource = detectDataDrivenVariant(resolved.method);
         if (dataDrivenSource != null)
-            return new Binding(null, null, dataDrivenSource, sourceLabel(resolved, rendererInternalName));
+            return new Result(null, null, dataDrivenSource, sourceLabel(resolved, rendererInternalName));
 
         // Try the default-path walker first - it picks up the all-defaults branch's GETSTATIC
         // for both straight-hardcoded renderers (creeper / allay) and renderers whose
@@ -165,7 +167,7 @@ public final class EntityTextureResolver {
         if (entityMatchedField != null) {
             String entityMatchedPath = classFieldToPath.get(entityMatchedField);
             String babyByPair = findBabyPathByPair(entityMatchedPath, classFieldToPath);
-            return new Binding(entityMatchedPath, babyByPair, null, sourceLabel(resolved, rendererInternalName));
+            return new Result(entityMatchedPath, babyByPair, null, sourceLabel(resolved, rendererInternalName));
         }
         String primaryField = findPrimaryByDefaultPath(resolved.method);
         if (primaryField != null && classFieldToPath.containsKey(primaryField)) {
@@ -176,11 +178,11 @@ public final class EntityTextureResolver {
                 String babyField = pickBabyField(getStatics, primaryField);
                 babyPath = babyField == null ? null : classFieldToPath.get(babyField);
             }
-            return new Binding(primaryPath, babyPath, null, sourceLabel(resolved, rendererInternalName));
+            return new Result(primaryPath, babyPath, null, sourceLabel(resolved, rendererInternalName));
         }
 
         // No default-path GETSTATIC: try chasing INVOKESTATIC dispatch (parrot / shulker).
-        Binding chased = chaseStaticDispatch(zip, resolved.method, rendererInternalName, diagnostics);
+        Result chased = chaseStaticDispatch(zip, resolved.method, rendererInternalName, diagnostics);
         if (chased != null) return chased;
 
         // Instance-field-driven (donkey / mule / skeleton_horse / zombified_horse): the
@@ -191,7 +193,7 @@ public final class EntityTextureResolver {
         // initialiser gives the resolved path.
         String variantSource = detectVariantPatternFlag(resolved.method);
         if ("(instance-field-driven)".equals(variantSource) && !lambdaTypeArgs.isEmpty()) {
-            Binding instanceFieldResolved = resolveInstanceFieldDriven(zip, lambdaTypeArgs, rendererInternalName, diagnostics);
+            Result instanceFieldResolved = resolveInstanceFieldDriven(zip, lambdaTypeArgs, rendererInternalName, diagnostics);
             if (instanceFieldResolved != null) return instanceFieldResolved;
         }
         if (variantSource != null) {
@@ -206,7 +208,7 @@ public final class EntityTextureResolver {
             String fallbackPath = pickFirstNonBabyTexturePath(classFieldToPath);
             if (fallbackPath != null) {
                 String babyFallback = findBabyPathByPair(fallbackPath, classFieldToPath);
-                return new Binding(fallbackPath, babyFallback, variantSource, sourceLabel(resolved, rendererInternalName));
+                return new Result(fallbackPath, babyFallback, variantSource, sourceLabel(resolved, rendererInternalName));
             }
             // No PUTSTATIC-bound fields: HorseRenderer / LlamaRenderer / PandaRenderer /
             // MushroomCowRenderer all push their texture paths as constructor args to
@@ -224,15 +226,15 @@ public final class EntityTextureResolver {
             String defaultVariantPath = findDefaultVariantLiteral(zip, resolved.declaringClass);
             if (defaultVariantPath != null) {
                 String defaultBaby = derivedBabyPath(defaultVariantPath);
-                return new Binding(defaultVariantPath, defaultBaby, variantSource, sourceLabel(resolved, rendererInternalName));
+                return new Result(defaultVariantPath, defaultBaby, variantSource, sourceLabel(resolved, rendererInternalName));
             }
             ConcurrentList<String> rawLiterals = collectAllTextureLiterals(zip, resolved.declaringClass);
             String literalPrimary = pickFirstNonBabyLiteral(rawLiterals);
             if (literalPrimary != null) {
                 String literalBaby = findBabyLiteralByPair(literalPrimary, rawLiterals);
-                return new Binding(literalPrimary, literalBaby, variantSource, sourceLabel(resolved, rendererInternalName));
+                return new Result(literalPrimary, literalBaby, variantSource, sourceLabel(resolved, rendererInternalName));
             }
-            return new Binding(null, null, variantSource, sourceLabel(resolved, rendererInternalName));
+            return new Result(null, null, variantSource, sourceLabel(resolved, rendererInternalName));
         }
 
         // Last-resort: collect all GETSTATIC :LIdentifier; refs and pick the first non-BABY.
@@ -241,11 +243,11 @@ public final class EntityTextureResolver {
         ConcurrentList<FieldInsnNode> getStatics = collectIdentifierGetStatics(resolved.method);
         if (getStatics.isEmpty()) {
             diagnostics.info("renderer '%s' getTextureLocation has no Identifier GETSTATIC refs - unsupported pattern", rendererInternalName);
-            return new Binding(null, null, null, sourceLabel(resolved, rendererInternalName));
+            return new Result(null, null, null, sourceLabel(resolved, rendererInternalName));
         }
         if (classFieldToPath.isEmpty()) {
             diagnostics.info("renderer '%s' (binding on '%s') has GETSTATICs but no <clinit>-bound LDC paths - unsupported pattern", rendererInternalName, resolved.declaringClass);
-            return new Binding(null, null, null, sourceLabel(resolved, rendererInternalName));
+            return new Result(null, null, null, sourceLabel(resolved, rendererInternalName));
         }
         primaryField = pickPrimaryField(getStatics);
         String primaryPath = primaryField == null ? null : classFieldToPath.get(primaryField);
@@ -261,7 +263,7 @@ public final class EntityTextureResolver {
             babyPath = babyField == null ? null : classFieldToPath.get(babyField);
         }
 
-        return new Binding(primaryPath, babyPath, null, sourceLabel(resolved, rendererInternalName));
+        return new Result(primaryPath, babyPath, null, sourceLabel(resolved, rendererInternalName));
     }
 
     /**
@@ -487,18 +489,18 @@ public final class EntityTextureResolver {
      * arg is present, the Type class is unloadable, or no constant's texture path can be
      * extracted.
      */
-    private static @Nullable Binding resolveInstanceFieldDriven(
+    private static @Nullable Result resolveInstanceFieldDriven(
         @NotNull ZipFile zip,
-        @NotNull ConcurrentList<lib.minecraft.renderer.tooling.entity.EntityRendererDiscovery.TypeFieldRef> lambdaTypeArgs,
+        @NotNull ConcurrentList<EntityRegistryDiscovery.TypeFieldRef> lambdaTypeArgs,
         @NotNull String rendererInternalName,
         @NotNull Diagnostics diagnostics
     ) {
         // Find the first Type-enum reference whose name does not end in BABY (the adult
         // constant). Different lambdas may push multiple Type fields - the adult is always
         // the first one whose name lacks _BABY.
-        lib.minecraft.renderer.tooling.entity.EntityRendererDiscovery.TypeFieldRef adult = null;
-        lib.minecraft.renderer.tooling.entity.EntityRendererDiscovery.TypeFieldRef baby = null;
-        for (lib.minecraft.renderer.tooling.entity.EntityRendererDiscovery.TypeFieldRef ref : lambdaTypeArgs) {
+        EntityRegistryDiscovery.TypeFieldRef adult = null;
+        EntityRegistryDiscovery.TypeFieldRef baby = null;
+        for (EntityRegistryDiscovery.TypeFieldRef ref : lambdaTypeArgs) {
             if (ref.name().endsWith("_BABY") && baby == null) baby = ref;
             else if (!ref.name().endsWith("_BABY") && adult == null) adult = ref;
         }
@@ -509,7 +511,7 @@ public final class EntityTextureResolver {
         String adultPath = typeConstantToPath.get(adult.name());
         if (adultPath == null) return null;
         String babyPath = baby == null ? null : typeConstantToPath.get(baby.name());
-        return new Binding(adultPath, babyPath, null, adult.owner());
+        return new Result(adultPath, babyPath, null, adult.owner());
     }
 
     /**
@@ -614,14 +616,14 @@ public final class EntityTextureResolver {
      * default-path walker used for direct bindings, then looking up the texture path in the
      * dispatched class's {@code <clinit>}.
      *
-     * <p>Returns a primary {@link Binding} on success, {@code null} when the dispatch couldn't
+     * <p>Returns a primary {@link Result} on success, {@code null} when the dispatch couldn't
      * be resolved (no INVOKESTATIC, target method missing, target method returns no static
      * Identifier, or the field is wired through an array indirection like Shulker's
      * {@code TEXTURE_LOCATION[]} that this walker does not unfold). The returned binding's
      * {@code hierarchySource} is the dispatched method's owner class so diagnostics can trace
      * which class supplied the texture path.
      */
-    private static @Nullable Binding chaseStaticDispatch(
+    private static @Nullable Result chaseStaticDispatch(
         @NotNull ZipFile zip,
         @NotNull MethodNode method,
         @NotNull String rendererInternalName,
@@ -656,7 +658,7 @@ public final class EntityTextureResolver {
         String primaryPath = classFieldToPath.get(primaryField);
         if (primaryPath == null) return null;
         String babyPath = findBabyPathByPair(primaryPath, classFieldToPath);
-        return new Binding(primaryPath, babyPath, null,
+        return new Result(primaryPath, babyPath, null,
             dispatch.owner.equals(rendererInternalName) ? null : dispatch.owner);
     }
 
@@ -758,6 +760,11 @@ public final class EntityTextureResolver {
      * weathering states, dying/charged overlays, etc. {@link #findBaseTextureFallback} walks
      * the candidate list in bytecode order and returns the first stem that doesn't end with
      * any of these.
+     *
+     * <p>This set is the authoritative filter. {@link #auditNonBaseSuffixes} runs a parallel
+     * derivation against the live texture universe and emits diagnostics on drift so a
+     * vanilla version bump that introduces a new state-overlay suffix surfaces during the
+     * tooling run rather than as a silent fallback-binding regression.
      */
     private static final @NotNull Set<String> NON_BASE_STEM_SUFFIXES = Set.of(
         "_eyes", "_eyes_exposed", "_eyes_weathered", "_eyes_oxidized",
@@ -768,8 +775,97 @@ public final class EntityTextureResolver {
     );
 
     /**
+     * Derives a candidate non-base-suffix set from the live entity-texture universe and emits
+     * diagnostics comparing it against {@link #NON_BASE_STEM_SUFFIXES}. The derivation rule:
+     * a suffix {@code _X} qualifies when at least two distinct entity texture directories
+     * contain both a {@code <prefix>.png} and a {@code <prefix>_X.png} sibling - i.e. the
+     * suffix recurs as a state-overlay pattern rather than appearing as a one-off variant
+     * name. State suffixes ({@code _eyes}, {@code _exposed}, {@code _weathered}) match this
+     * shape; data-driven variant names ({@code _persian}, {@code _lucy}, {@code _temperate})
+     * typically appear in a single dir and fall out.
+     *
+     * <p>Behaviour is observation-only: the audit never replaces the hardcoded set, so
+     * downstream filtering stays byte-equal. The diagnostics let a maintainer cross-check
+     * the hardcoded list on a Minecraft version bump.
+     *
+     * @param context the tooling context (provides jar + diagnostics sink)
+     * @return the union of the hardcoded set and the derived set (currently equal to the
+     *     hardcoded set on vanilla 1.21.X; future MC versions may add to it)
+     */
+    public static @NotNull Set<String> auditNonBaseSuffixes(@NotNull ToolingEntityContext context) {
+        Set<String> stems = collectEntityTextureStems(context.zip());
+        Set<String> derived = findRecurringStateSuffixes(stems, 2);
+
+        Set<String> missingFromDerivation = new LinkedHashSet<>(NON_BASE_STEM_SUFFIXES);
+        missingFromDerivation.removeAll(derived);
+        Set<String> newCandidates = new LinkedHashSet<>(derived);
+        newCandidates.removeAll(NON_BASE_STEM_SUFFIXES);
+
+        Diagnostics diag = context.diagnostics();
+        if (derived.equals(NON_BASE_STEM_SUFFIXES)) {
+            diag.info("non-base-suffix audit: derived set matches hardcoded list exactly (%d entries)", derived.size());
+        } else {
+            if (!missingFromDerivation.isEmpty())
+                diag.info("non-base-suffix audit: hardcoded set has %d entries not derivable from textures: %s",
+                    missingFromDerivation.size(), missingFromDerivation);
+            if (!newCandidates.isEmpty())
+                diag.info("non-base-suffix audit: texture universe suggests %d new non-base suffixes not in hardcoded list: %s - review and update NON_BASE_STEM_SUFFIXES if these are state overlays",
+                    newCandidates.size(), newCandidates);
+        }
+
+        Set<String> combined = new LinkedHashSet<>(NON_BASE_STEM_SUFFIXES);
+        combined.addAll(derived);
+        return Set.copyOf(combined);
+    }
+
+    /**
+     * Walks {@code assets/minecraft/textures/entity/*.png} and returns the stem of each PNG
+     * (path relative to {@code textures/entity/}, no extension).
+     */
+    private static @NotNull Set<String> collectEntityTextureStems(@NotNull ZipFile zip) {
+        Set<String> out = new LinkedHashSet<>();
+        String prefix = "assets/minecraft/textures/entity/";
+        java.util.Enumeration<? extends java.util.zip.ZipEntry> entries = zip.entries();
+        while (entries.hasMoreElements()) {
+            java.util.zip.ZipEntry entry = entries.nextElement();
+            String name = entry.getName();
+            if (!name.startsWith(prefix) || !name.endsWith(".png")) continue;
+            out.add(name.substring(prefix.length(), name.length() - ".png".length()));
+        }
+        return out;
+    }
+
+    /**
+     * Returns the set of suffixes {@code _X} for which {@code <prefix>.png} and
+     * {@code <prefix>_X.png} co-exist in the stem set across at least
+     * {@code minRecurrence} distinct entity directories. The recurrence threshold
+     * distinguishes state-overlay suffixes (recur across many dirs) from data-driven variant
+     * suffixes (typically rare).
+     */
+    private static @NotNull Set<String> findRecurringStateSuffixes(@NotNull Set<String> stems, int minRecurrence) {
+        Map<String, Integer> suffixCount = new HashMap<>();
+        for (String stem : stems) {
+            int slash = stem.lastIndexOf('/');
+            String dir = slash >= 0 ? stem.substring(0, slash + 1) : "";
+            String local = slash >= 0 ? stem.substring(slash + 1) : stem;
+            int underscore = local.indexOf('_');
+            while (underscore > 0) {
+                String prefixLocal = local.substring(0, underscore);
+                String suffix = local.substring(underscore);
+                if (stems.contains(dir + prefixLocal))
+                    suffixCount.merge(suffix, 1, Integer::sum);
+                underscore = local.indexOf('_', underscore + 1);
+            }
+        }
+        Set<String> out = new LinkedHashSet<>();
+        for (Map.Entry<String, Integer> e : suffixCount.entrySet())
+            if (e.getValue() >= minRecurrence) out.add(e.getKey());
+        return out;
+    }
+
+    /**
      * Final-fallback texture binder for renderers whose {@link #resolve} returns an unresolved
-     * {@link Binding} because the texture path lives in {@code <clinit>}-bound static fields
+     * {@link Result} because the texture path lives in {@code <clinit>}-bound static fields
      * the regular walker can't recover. Two patterns:
      * <ul>
      *   <li><b>No {@code getTextureLocation} override</b>
@@ -1155,5 +1251,19 @@ public final class EntityTextureResolver {
      * Internal record pairing a {@link MethodNode} with its declaring class's internal name.
      */
     private record ResolvedMethod(@NotNull MethodNode method, @NotNull String declaringClass) {}
+
+    /**
+     * Strips the leading {@code "textures/"} (and any nested {@code "entity/"}) plus the
+     * trailing {@code ".png"} from a texture path so the {@code texture_ref} stored in the
+     * runtime JSON matches the convention ({@code "cow/cow"}, not
+     * {@code "textures/entity/cow/cow.png"}). Idempotent on already-stripped inputs.
+     */
+    public static @NotNull String stripPrefix(@NotNull String path) {
+        String stripped = path;
+        if (stripped.startsWith("textures/")) stripped = stripped.substring("textures/".length());
+        if (stripped.startsWith("entity/")) stripped = stripped.substring("entity/".length());
+        if (stripped.endsWith(".png")) stripped = stripped.substring(0, stripped.length() - ".png".length());
+        return stripped;
+    }
 
 }
