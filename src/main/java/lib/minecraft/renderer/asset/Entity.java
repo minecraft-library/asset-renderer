@@ -49,16 +49,6 @@ public class Entity {
     private @NotNull ConcurrentList<Layer> overlays = Concurrent.newList();
 
     /**
-     * When {@code true} the entity's bundled base texture has every partial-alpha texel bumped
-     * to {@code alpha=255} at load time. Used by entities whose vanilla texture is authored at
-     * low alpha for an additive-blending pass that the static iso renderer can't reproduce
-     * (blaze rods, magma cube), or for aesthetic partial alpha that should render opaque under
-     * this renderer's binary-canvas convention (sheep wool fluff). Opt-in via the
-     * {@code force_opaque} field on the entity's overrides row.
-     */
-    private boolean forceOpaque = false;
-
-    /**
      * Convenience constructor for the no-overlay case so existing call sites don't have to
      * supply an empty list.
      */
@@ -69,21 +59,7 @@ public class Entity {
         @NotNull EntityModelData model,
         @NotNull Optional<String> textureRef
     ) {
-        this(id, namespace, name, model, textureRef, Concurrent.newList(), false);
-    }
-
-    /**
-     * Convenience constructor for entities with overlays but no force-opaque flag.
-     */
-    public Entity(
-        @NotNull String id,
-        @NotNull String namespace,
-        @NotNull String name,
-        @NotNull EntityModelData model,
-        @NotNull Optional<String> textureRef,
-        @NotNull ConcurrentList<Layer> overlays
-    ) {
-        this(id, namespace, name, model, textureRef, overlays, false);
+        this(id, namespace, name, model, textureRef, Concurrent.newList());
     }
 
     @Override
@@ -95,13 +71,12 @@ public class Entity {
             && Objects.equals(this.getName(), entity.getName())
             && Objects.equals(this.getModel(), entity.getModel())
             && Objects.equals(this.getTextureRef(), entity.getTextureRef())
-            && Objects.equals(this.getOverlays(), entity.getOverlays())
-            && this.isForceOpaque() == entity.isForceOpaque();
+            && Objects.equals(this.getOverlays(), entity.getOverlays());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.getId(), this.getNamespace(), this.getName(), this.getModel(), this.getTextureRef(), this.getOverlays(), this.isForceOpaque());
+        return Objects.hash(this.getId(), this.getNamespace(), this.getName(), this.getModel(), this.getTextureRef(), this.getOverlays());
     }
 
     /**

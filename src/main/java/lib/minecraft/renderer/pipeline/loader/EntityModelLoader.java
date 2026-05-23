@@ -6,16 +6,12 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
-import lib.minecraft.renderer.tensor.Vector2f;
-import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -25,25 +21,22 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 /**
- * Loads bundled entity model definitions from three paired classpath resources produced by
+ * Loads bundled entity model definitions from two paired classpath resources produced by
  * {@code ToolingEntityModels}: {@link #MODELS_RESOURCE_PATH} holds per-entity metadata
  * (geometry reference, texture reference, optional {@code variant_of} back-link, overlays);
- * {@link #GEOMETRY_RESOURCE_PATH} holds the deduplicated bone/cube trees; and
- * {@link #OVERRIDES_RESOURCE_PATH} carries hand-edited corrections that cannot be auto-derived
- * from bytecode (variant texture defaults, hidden bones, per-entity overlay layers).
+ * {@link #GEOMETRY_RESOURCE_PATH} holds the deduplicated bone/cube trees.
  * <p>
  * {@link #GEOMETRY_HANDEDITS_RESOURCE_PATH} merges into the geometry table on top of the
  * generated entries for geometries the bytecode tooling can't reach (e.g.
- * {@code HumanoidModel.createMesh}'s standalone player-humanoid output, used by
- * {@code SkeletonClothingLayer}-shaped overlays).
+ * {@code AdultPiglinModel.createBodyLayer}'s post-build {@code head.clearChild("hat")} and
+ * the {@code DonkeyModel} ear-bone pivot capture). Entries here survive tooling
+ * regenerations.
  * <p>
  * A {@code texture_ref} is the vanilla {@code textures/entity/} sub-path (e.g.
  * {@code "cow/cow"}, {@code "wither/wither"}); resolved at render time against the active pack
@@ -73,13 +66,12 @@ public class EntityModelLoader {
 
     /**
      * Hand-edited geometries merged on top of {@link #GEOMETRY_RESOURCE_PATH}. The bytecode
-     * tooling can't reach every Java-pipeline geometry (e.g. {@code HumanoidModel.createMesh}'s
-     * standalone player-humanoid output, used by {@code SkeletonClothingLayer}-shaped overlays);
-     * this file is the escape hatch for those. Entries here survive tooling regenerations.
+     * tooling can't reach every Java-pipeline geometry (e.g. {@code AdultPiglinModel}'s
+     * post-build {@code head.clearChild("hat")} or the {@code DonkeyModel} ear-bone pivot
+     * capture); this file is the escape hatch for those. Entries here survive tooling
+     * regenerations.
      */
     private static final @NotNull String GEOMETRY_HANDEDITS_RESOURCE_PATH = "/lib/minecraft/renderer/entity_geometry_handedits.json";
-
-    private static final @NotNull String OVERRIDES_RESOURCE_PATH = "/lib/minecraft/renderer/entity_models_overrides.json";
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
@@ -92,16 +84,14 @@ public class EntityModelLoader {
      *     {@link RendererContext#resolveTexture(String)
      *     resolveTexture} as {@code minecraft:entity/<ref>}, or empty when no default texture
      * @param overlays additional geometry/texture pairs rendered on top of the base model in
-     *     declared order; populated by the auto-generated emissive eye scan plus hand-edited
-     *     entries for layered entities (charged creeper armor, copper golem holding a flower)
+     *     declared order; populated by the bytecode-derived overlay scan
+     *     ({@code EntityOverlayResolver}: emissive eyes, profession layers, pattern layers,
+     *     equipment-driven decor layers)
      * @param blockOverlays vanilla-block-shaped overlays rendered on top of the entity body
      *     (mooshroom mushrooms, iron golem poppy) at a transform-stack-applied position
-     * @param forceOpaque when {@code true} every partial-alpha texel in the entity's bundled
-     *     texture is bumped to {@code alpha=255} at load time. Used by entities whose vanilla
-     *     texture is authored at low alpha for an additive-blending pass that the static iso
-     *     renderer doesn't reproduce (blaze rods, magma cube), or for aesthetic partial alpha
-     *     (sheep wool fluff). Opt-in via the {@code force_opaque} field on the overrides row;
-     *     defaults to {@code false}
+     * @param baseTintArgb per-entity multiplicative tint applied to the base mesh, mirroring
+     *     {@code LivingEntityRenderer.getModelTint(state)}. Defaults to {@code 0xFFFFFFFF}
+     *     (white = no-op MULTIPLY)
      * @param setupYawAddend yaw rotation in degrees that the vanilla renderer's
      *     {@code setupRotations} override adds to the standard {@code bodyRot} before the super
      *     call. Extracted from the {@code super.setupRotations(state, ps, bodyRot + N, scale)}
@@ -111,96 +101,18 @@ public class EntityModelLoader {
      *     before applying the iso pose - for shulker the addend collapses the default
      *     {@code rotateY(180-bodyRot)} body rotation to identity, exposing the lid's authored
      *     UV orientation unrotated against the viewer
+     * @param rendererScale per-entity render-time scale extracted by
+     *     {@code EntityRendererScaleResolver}; defaults to {@code 1f} (identity)
      */
     public record EntityDefinition(
         @NotNull EntityModelData model,
         @NotNull Optional<String> textureRef,
         @NotNull List<OverlayLayer> overlays,
         @NotNull List<BlockOverlayLayer> blockOverlays,
-        boolean forceOpaque,
         int baseTintArgb,
         float setupYawAddend,
         float rendererScale
-    ) {
-
-        /**
-         * Convenience constructor for entities with no overlays and no force-opaque flag - the
-         * common case.
-         */
-        public EntityDefinition(@NotNull EntityModelData model, @NotNull Optional<String> textureRef) {
-            this(model, textureRef, List.of(), List.of(), false, 0xFFFFFFFF, 0f, 1f);
-        }
-
-        /**
-         * Convenience constructor for entities with overlays but no force-opaque flag.
-         */
-        public EntityDefinition(
-            @NotNull EntityModelData model,
-            @NotNull Optional<String> textureRef,
-            @NotNull List<OverlayLayer> overlays
-        ) {
-            this(model, textureRef, overlays, List.of(), false, 0xFFFFFFFF, 0f, 1f);
-        }
-
-        /**
-         * Convenience constructor for entities with overlays and force-opaque - drops block overlays.
-         */
-        public EntityDefinition(
-            @NotNull EntityModelData model,
-            @NotNull Optional<String> textureRef,
-            @NotNull List<OverlayLayer> overlays,
-            boolean forceOpaque
-        ) {
-            this(model, textureRef, overlays, List.of(), forceOpaque, 0xFFFFFFFF, 0f, 1f);
-        }
-
-        /**
-         * Convenience constructor preserving the historic {@code (model, textureRef, overlays,
-         * blockOverlays, forceOpaque)} signature in use before {@link #baseTintArgb} was added.
-         * Defaults the tint to {@code 0xFFFFFFFF} (white = no-op multiplicative tint).
-         */
-        public EntityDefinition(
-            @NotNull EntityModelData model,
-            @NotNull Optional<String> textureRef,
-            @NotNull List<OverlayLayer> overlays,
-            @NotNull List<BlockOverlayLayer> blockOverlays,
-            boolean forceOpaque
-        ) {
-            this(model, textureRef, overlays, blockOverlays, forceOpaque, 0xFFFFFFFF, 0f, 1f);
-        }
-
-        /**
-         * Convenience constructor preserving the historic 6-arg signature in use before
-         * {@link #setupYawAddend} was added. Defaults the yaw addend to {@code 0f} (no addend).
-         */
-        public EntityDefinition(
-            @NotNull EntityModelData model,
-            @NotNull Optional<String> textureRef,
-            @NotNull List<OverlayLayer> overlays,
-            @NotNull List<BlockOverlayLayer> blockOverlays,
-            boolean forceOpaque,
-            int baseTintArgb
-        ) {
-            this(model, textureRef, overlays, blockOverlays, forceOpaque, baseTintArgb, 0f, 1f);
-        }
-
-        /**
-         * Convenience constructor preserving the historic 7-arg signature in use before
-         * {@link #rendererScale} was added. Defaults the scale to {@code 1f} (identity).
-         */
-        public EntityDefinition(
-            @NotNull EntityModelData model,
-            @NotNull Optional<String> textureRef,
-            @NotNull List<OverlayLayer> overlays,
-            @NotNull List<BlockOverlayLayer> blockOverlays,
-            boolean forceOpaque,
-            int baseTintArgb,
-            float setupYawAddend
-        ) {
-            this(model, textureRef, overlays, blockOverlays, forceOpaque, baseTintArgb, setupYawAddend, 1f);
-        }
-
-    }
+    ) {}
 
     /**
      * One block-model overlay attached to an entity: a vanilla block (e.g. red mushroom block)
@@ -256,7 +168,8 @@ public class EntityModelLoader {
 
     /**
      * One overlay layer on an {@link EntityDefinition}: an independent geometry plus its own
-     * bundled texture sub-path. Resolved from the overrides {@code overlays} array at load time.
+     * bundled texture sub-path. Resolved from the tooling-emitted {@code overlays} array at
+     * load time.
      *
      * @param model the overlay's bone/cube tree, sharing the base model's coordinate frame so
      *     they co-register under the renderer's shared auto-fit transform
@@ -407,7 +320,8 @@ public class EntityModelLoader {
      * <li>{@code "#RRGGBB"} / {@code "#AARRGGBB"} - CSS-style hash prefix.</li>
      * </ul>
      * Malformed strings log a warning and return {@code 0xFFFFFFFF} (the white = no-op
-     * MULTIPLY tint) so a typo in the overrides file doesn't tint the entity entirely black.
+     * MULTIPLY tint) so a typo in a tooling-emitted tint value doesn't tint the entity
+     * entirely black.
      */
     private static int parseTintArgb(@NotNull String spec) {
         String hex = spec.startsWith("0x") || spec.startsWith("0X") ? spec.substring(2)
@@ -424,11 +338,12 @@ public class EntityModelLoader {
     }
 
     /**
-     * Strips bones named in the overrides {@code hidden_bones} array from the cloned bone map.
-     * The Java pipeline's geometries pack every optional render target into one tree (humanoid
-     * outer-layer over inner, equine saddle bones over base body) and rely on entity-state flags
-     * at render time to gate them. The static renderer has no live entity state, so unwanted
-     * bones must be hidden via this override list. Missing bones log a warning.
+     * Strips bones named in the {@code hidden_bones} array from the cloned bone map. The Java
+     * pipeline's geometries pack every optional render target into one tree (humanoid outer-layer
+     * over inner, equine saddle bones over base body) and rely on entity-state flags at render
+     * time to gate them. The static renderer has no live entity state, so unwanted bones must be
+     * hidden via this list (populated by {@code EntityHiddenBonesResolver} at tooling time).
+     * Missing bones log a warning.
      */
     private static void applyHiddenBones(
         @NotNull Map<String, EntityModelData.Bone> bones,
@@ -446,27 +361,8 @@ public class EntityModelLoader {
 
 
     /**
-     * Parses {@code entity_models_overrides.json} and returns its {@code entities} object (empty
-     * when the file is absent). The overrides file is optional - when missing, the loader emits
-     * definitions straight from the generated entity_models.json without any corrections.
-     */
-    private static @NotNull JsonObject loadOverridesBlock() {
-        try (InputStream stream = EntityModelLoader.class.getResourceAsStream(OVERRIDES_RESOURCE_PATH)) {
-            if (stream == null) return new JsonObject();
-
-            String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
-            JsonObject root = GSON.fromJson(json, JsonObject.class);
-            if (root == null || !root.has("entities")) return new JsonObject();
-
-            return root.getAsJsonObject("entities");
-        } catch (IOException | JsonSyntaxException ex) {
-            throw new PipelineException(ex, "Failed to load entity model overrides resource '%s'", OVERRIDES_RESOURCE_PATH);
-        }
-    }
-
-    /**
      * Loads bundled entity definitions, joining per-entity metadata against the deduplicated
-     * geometry table and overlaying any hand-edited corrections from {@link #OVERRIDES_RESOURCE_PATH}.
+     * geometry table.
      *
      * @return definitions keyed by namespaced entity id (empty when geometry resource absent)
      * @throws PipelineException when a resource file is present but unparseable, or when an
@@ -477,31 +373,13 @@ public class EntityModelLoader {
         if (geometries.isEmpty()) return Concurrent.newMap();
 
         JsonObject entities = loadEntitiesBlock();
-        JsonObject overrides = loadOverridesBlock();
         HashMap<String, EntityDefinition> definitions = new HashMap<>();
         for (Map.Entry<String, JsonElement> entry : entities.entrySet()) {
             String entityId = entry.getKey();
             JsonObject entityJson = entry.getValue().getAsJsonObject();
             if (!entityJson.has("geometry_ref")) continue;
 
-            JsonObject override = overrides.has(entityId) && overrides.get(entityId).isJsonObject()
-                ? overrides.getAsJsonObject(entityId)
-                : null;
-
-            // {@code geometry_ref} override redirects an entity to a different geometry. Used by
-            // cow_cold / chicken_cold etc. to point variant entities at hand-edited variant
-            // geometries ({@code geometry.cold_cow}, etc.) that the bytecode tooling can't reach -
-            // ColdCowModel and friends bake separate {@code LayerDefinition}s registered under
-            // {@code ModelLayers.COLD_COW} that don't surface as top-level rows in the tooling's
-            // per-renderer scan. Override values that don't resolve here fall back to the
-            // entity's own {@code geometry_ref}.
-            String overrideGeometryRef = override != null && override.has("geometry_ref")
-                ? override.get("geometry_ref").getAsString()
-                : null;
-            String entityGeometryRef = entityJson.get("geometry_ref").getAsString();
-            String geometryRef = overrideGeometryRef != null && geometries.containsKey(overrideGeometryRef)
-                ? overrideGeometryRef
-                : entityGeometryRef;
+            String geometryRef = entityJson.get("geometry_ref").getAsString();
             EntityModelData baseModel = geometries.get(geometryRef);
             if (baseModel == null)
                 throw new PipelineException(
@@ -509,30 +387,16 @@ public class EntityModelLoader {
                     entityId, geometryRef, GEOMETRY_RESOURCE_PATH
                 );
 
-            // texture_ref precedence: override > generated entity row > absent. Used by
-            // TEXTURE_VARIANT entities whose vanilla renderer's getTextureLocation(state) picks
-            // a specific variant texture at zero state (rabbit brown, axolotl lucy, cat black) -
-            // the override pins that variant texture in place of the tooling-extracted default.
-            Optional<String> textureRef;
-            if (override != null && override.has("texture_ref"))
-                textureRef = Optional.of(override.get("texture_ref").getAsString());
-            else if (entityJson.has("texture_ref"))
-                textureRef = Optional.of(entityJson.get("texture_ref").getAsString());
-            else
-                textureRef = Optional.empty();
+            Optional<String> textureRef = entityJson.has("texture_ref")
+                ? Optional.of(entityJson.get("texture_ref").getAsString())
+                : Optional.empty();
 
-            // Apply tooling-derived + hand-edited hidden bones. The tooling-emitted
-            // entityJson.hidden_bones field carries bones the model class's <init> sets
-            // visible=false unconditionally (armor_stand and illager-family hat hides via
-            // EntityHiddenBonesResolver). The overrides file extends the list for cases
-            // the bytecode walker can't reach (equipment-gated visibility from setupAnim -
-            // llama chest, etc.). Both sources are merged into one LinkedHashSet of names.
-            boolean hasEntityHidden = entityJson.has("hidden_bones") && entityJson.get("hidden_bones").isJsonArray();
-            boolean hasOverrideHidden = override != null && override.has("hidden_bones") && override.get("hidden_bones").isJsonArray();
-            if (hasEntityHidden || hasOverrideHidden) {
+            // Tooling-derived hidden bones from the model class's <init>
+            // (EntityHiddenBonesResolver: visible = false unconditionally, plus the
+            // setupAnim equipment-gated scan for state.hasChest etc.).
+            if (entityJson.has("hidden_bones") && entityJson.get("hidden_bones").isJsonArray()) {
                 LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>(baseModel.getBones());
-                if (hasEntityHidden) applyHiddenBones(bones, entityJson.getAsJsonArray("hidden_bones"), entityId);
-                if (hasOverrideHidden) applyHiddenBones(bones, override.getAsJsonArray("hidden_bones"), entityId);
+                applyHiddenBones(bones, entityJson.getAsJsonArray("hidden_bones"), entityId);
                 baseModel = new EntityModelData(
                     baseModel.getTextureWidth(),
                     baseModel.getTextureHeight(),
@@ -541,59 +405,35 @@ public class EntityModelLoader {
                 );
             }
 
-            // Overlays come from two sources, concatenated in this order so hand-edited entries
-            // always extend (never replace) the auto-generated ones:
-            //   1. entity_models.json - emissive eye layers + composite layers emitted by
-            //      EntityOverlayResolver during tooling.
-            //   2. entity_models_overrides.json - hand-edited overlays for cases the tooling
-            //      can't auto-detect (slime translucent shell, copper golem flower).
-            // An overlay sharing the base geometry_ref reuses baseModel verbatim (eye PNGs land
-            // on the same UV layout); a distinct geometry_ref resolves freshly from the geometry
-            // table.
-            List<OverlayLayer> overlays = new ArrayList<>();
-            if (entityJson.has("overlays") && entityJson.get("overlays").isJsonArray())
-                overlays.addAll(loadOverlays(entityJson.getAsJsonArray("overlays"), geometries, geometryRef, baseModel, entityId));
-            if (override != null && override.has("overlays") && override.get("overlays").isJsonArray())
-                overlays.addAll(loadOverlays(override.getAsJsonArray("overlays"), geometries, geometryRef, baseModel, entityId));
+            // Overlays emitted by EntityOverlayResolver during tooling (emissive eye layers +
+            // composite layers). An overlay sharing the base geometry_ref reuses baseModel
+            // verbatim (eye PNGs land on the same UV layout); a distinct geometry_ref resolves
+            // freshly from the geometry table.
+            List<OverlayLayer> overlays = entityJson.has("overlays") && entityJson.get("overlays").isJsonArray()
+                ? loadOverlays(entityJson.getAsJsonArray("overlays"), geometries, geometryRef, baseModel, entityId)
+                : List.of();
 
             List<BlockOverlayLayer> blockOverlays = entityJson.has("block_overlays") && entityJson.get("block_overlays").isJsonArray()
                 ? loadBlockOverlays(entityJson.getAsJsonArray("block_overlays"))
                 : List.of();
 
-            // Per-entity base-mesh multiplicative tint. Mirrors vanilla
-            // {@code LivingEntityRenderer.getModelTint(state)} which returns a per-entity
-            // ARGB color the rasterizer multiplies into every sampled texel. Tropical fish use
-            // {@code state.baseColor} (DyeColor.WHITE = 0xF9FFFE at zero state); the parser keeps
-            // a tunable knob here so other variant-textured entities can adopt the same
-            // mechanism without each one needing a new code path. Defaults to 0xFFFFFFFF.
-            int baseTint = override != null && override.has("base_tint")
-                ? parseTintArgb(override.get("base_tint").getAsString())
-                : entityJson.has("base_tint")
-                    ? parseTintArgb(entityJson.get("base_tint").getAsString())
-                    : 0xFFFFFFFF;
+            int baseTint = entityJson.has("base_tint")
+                ? parseTintArgb(entityJson.get("base_tint").getAsString())
+                : 0xFFFFFFFF;
 
             // Bytecode-extracted bodyRot addend from the vanilla renderer's setupRotations
-            // override - currently only Shulker uses this (+180F), but the field is generic and
-            // any future renderer overriding setupRotations with `super.setupRotations(state, ps,
-            // bodyRot + N, scale)` will surface here. Override row wins so authors can hand-edit
-            // when the bytecode walk misses a state-dependent case.
-            float setupYawAddend = 0f;
-            if (entityJson.has("setup_yaw_addend"))
-                setupYawAddend = entityJson.get("setup_yaw_addend").getAsFloat();
-            if (override != null && override.has("setup_yaw_addend"))
-                setupYawAddend = override.get("setup_yaw_addend").getAsFloat();
+            // override - currently only Shulker uses this (+180F).
+            float setupYawAddend = entityJson.has("setup_yaw_addend")
+                ? entityJson.get("setup_yaw_addend").getAsFloat()
+                : 0f;
 
             // Per-entity render-time scale extracted by EntityRendererScaleResolver from the
-            // renderer's scale(state, poseStack) override (wither: literal 2.0; slime: literal
-            // 0.999 + state-dependent identity at zero state). Entities with no override or
-            // identity-collapsing scale chains omit the field and stay at 1.0.
-            float rendererScale = 1f;
-            if (entityJson.has("renderer_scale"))
-                rendererScale = entityJson.get("renderer_scale").getAsFloat();
-            if (override != null && override.has("renderer_scale"))
-                rendererScale = override.get("renderer_scale").getAsFloat();
+            // renderer's scale(state, poseStack) override (wither 2.0; slime 0.999).
+            float rendererScale = entityJson.has("renderer_scale")
+                ? entityJson.get("renderer_scale").getAsFloat()
+                : 1f;
 
-            definitions.put(entityId, new EntityDefinition(baseModel, textureRef, overlays, blockOverlays, false, baseTint, setupYawAddend, rendererScale));
+            definitions.put(entityId, new EntityDefinition(baseModel, textureRef, overlays, blockOverlays, baseTint, setupYawAddend, rendererScale));
         }
         return Concurrent.adoptMap(definitions);
     }

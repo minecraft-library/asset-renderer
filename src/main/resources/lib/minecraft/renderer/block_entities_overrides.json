@@ -1,5 +1,0 @@
-{
-  "//": "Empty companion to block_entities.json. The hand-curated entries that used to live here are now derived by the tooling: per-block iconRotation / additive / tint by ToolingBlockEntities.applyPerBlockPatternFields, per-entity inventory_y_rotation by SourceDiscovery.ID_TO_INVENTORY_Y_ROTATION at tooling time, and skull_dragon_head's inventory_transform recenter by ToolingBlockEntities.recenterInventoryTransformsByBbox (geometry-aware post-Parser bbox pass). File preserved only so BlockEntityLoader.readJson does not need a missing-resource branch; will be deleted in Phase 21 once the loader is updated.",
-  "per_entity": {},
-  "per_block": {}
-}

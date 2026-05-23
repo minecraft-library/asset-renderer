@@ -31,9 +31,9 @@ import java.util.zip.ZipFile;
  *   putfield   ModelPart.visible : Z
  * </pre>
  * The harness-frozen renderer never re-enables these bones at runtime, so the static
- * pipeline must hide them too - currently encoded in {@code entity_models_overrides.json}
- * as {@code hidden_bones} entries for armor_stand, pillager, vindicator, evoker (all hide
- * "hat"; ArmorStandModel and IllagerModel set their hat invisible in the constructor).
+ * pipeline must hide them too - emitted into {@code entity_models.json} as
+ * {@code hidden_bones} for armor_stand, pillager, vindicator, evoker (all hide "hat";
+ * ArmorStandModel and IllagerModel set their hat invisible in the constructor).
  *
  * <p>The walker traverses the constructor inheritance chain (model class + parents up to
  * {@code EntityModel}) so a subclass that inherits IllagerModel inherits its hat hide.

@@ -30,8 +30,9 @@ import java.util.zip.ZipFile;
  * conduit / sign / hanging_sign / banner variants. The sole exception is
  * {@code minecraft:skull_dragon_head}, whose distinguishing {@code tz = 1.25} comes from the
  * {@code DragonHeadModel} geometry rather than the shared {@code SkullBlockRenderer} factory
- * method. The decomposer emits the shared skull tuple for dragon heads; the caller merges the
- * dragon-specific override from {@code block_entities_overrides.json}.
+ * method. The decomposer emits the shared skull tuple for dragon heads; the
+ * {@code recenterInventoryTransformsByBbox} geometry-aware post-pass in
+ * {@code ToolingBlockEntities} recovers the {@code tz = 1.25} from the parsed cube bbox.
  *
  * <p><b>Policy</b>. The only hand-curated map is {@link #RENDERER_ENTRY_METHODS}: for each
  * renderer class internal name, the factory method (or static field prefixed

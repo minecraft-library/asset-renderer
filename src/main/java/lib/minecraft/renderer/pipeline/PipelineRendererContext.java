@@ -551,8 +551,7 @@ public final class PipelineRendererContext implements RendererContext {
                         .stream()
                         .map(o -> new Entity.Layer(o.model(), o.textureRef(), o.emissive()))
                         .collect(Concurrent.toList())
-                        .toUnmodifiable(),
-                    definition.forceOpaque()
+                        .toUnmodifiable()
                 );
             }));
     }

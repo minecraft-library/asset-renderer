@@ -89,9 +89,7 @@ public final class SourceDiscovery {
      * [30, 225, 0] isometric gui pose (vanilla's chest/banner/skull items use [30, 45, 0],
      * a 180 degrees delta).
      *
-     * <p>This is the <b>canonical</b> source: the equivalent entries in
-     * {@code block_entities_overrides.json} were dead (the runtime loader never propagated
-     * them to {@code Block.Entity}). The actual rotation is baked into
+     * <p>This is the <b>canonical</b> source. The actual rotation is baked into
      * {@code block_entities.json}'s {@code elements} by {@code BlockModelConverter}, which
      * reads {@code parsedEntity.inventory_y_rotation} - itself populated from this map by
      * the source-walk emission in {@link #emitSourcesFor}. Generalising to a bytecode scan of

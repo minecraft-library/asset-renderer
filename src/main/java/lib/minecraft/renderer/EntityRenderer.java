@@ -214,13 +214,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (options.getTextureId().isPresent())
             return this.context.resolveTexture(options.getTextureId().get());
 
-        if (definition.textureRef().isPresent()) {
-            String ref = definition.textureRef().get();
-            Optional<PixelBuffer> loaded = this.context.resolveTexture("minecraft:entity/" + ref);
-            if (loaded.isPresent() && definition.forceOpaque())
-                return Optional.of(bumpAlphaToOpaque(loaded.get()));
-            return loaded;
-        }
+        if (definition.textureRef().isPresent())
+            return this.context.resolveTexture("minecraft:entity/" + definition.textureRef().get());
+
         return Optional.empty();
     }
 
@@ -489,9 +485,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     /**
      * Resolves a family-member's default texture for the family-fit bound walk. Unlike
      * {@link #resolveEntityTexture} this ignores {@code options.textureId} (family-fit measures
-     * each variant's OWN bound, not the current-render texture override) and skips the
-     * {@code forceOpaque} alpha bump (the bound walker only checks alpha != 0, so partial-alpha
-     * texels contribute either way).
+     * each variant's OWN bound, not the current-render texture override).
      */
     private @NotNull Optional<PixelBuffer> resolveFamilyMemberTexture(@NotNull EntityModelLoader.EntityDefinition definition) {
         if (definition.textureRef().isEmpty()) return Optional.empty();
@@ -591,28 +585,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             bounds.minX() * k, bounds.minY() * k, bounds.minZ() * k,
             bounds.maxX() * k, bounds.maxY() * k, bounds.maxZ() * k
         );
-    }
-
-    /**
-     * Returns a copy of {@code source} with every partial-alpha texel bumped to {@code alpha=255},
-     * leaving fully-opaque and fully-transparent pixels alone. Used by entities flagged
-     * {@link EntityModelLoader.EntityDefinition#forceOpaque() forceOpaque}; the bump is applied
-     * per load so the underlying PNG stays unchanged. Allocates a new {@link PixelBuffer} so
-     * cached or shared instances are never mutated.
-     */
-    private static @NotNull PixelBuffer bumpAlphaToOpaque(@NotNull PixelBuffer source) {
-        int w = source.width();
-        int h = source.height();
-        int[] src = source.data();
-        int[] out = new int[src.length];
-        for (int i = 0; i < src.length; i++) {
-            int texel = src[i];
-            int alpha = ColorMath.alpha(texel);
-            out[i] = (alpha > 0 && alpha < 255)
-                ? ColorMath.withAlpha(texel, 255)
-                : texel;
-        }
-        return PixelBuffer.of(out, w, h);
     }
 
 }

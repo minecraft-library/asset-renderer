@@ -1,4 +1,0 @@
-{
-  "//": "Hand-edited corrections applied to entity_models.json + entity_geometry.json. Loaded by EntityModelLoader per entity; honoured keys are `geometry_ref`, `texture_ref`, `hidden_bones`, `overlays`. Phase 18 emptied the entities map; the file is retained as the Phase 21 sweep target.",
-  "entities": {}
-}

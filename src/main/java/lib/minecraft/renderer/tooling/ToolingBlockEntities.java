@@ -75,9 +75,9 @@ import java.util.zip.ZipFile;
  *   <li><b>Tint marker</b> - applied to entries whose renderer bytecode invokes a known tint
  *       accessor (see
  *       {@link TintDiscovery TintDiscovery}).</li>
- *   <li><b>Hand-edited overrides</b> - {@code block_entities_overrides.json} overlay-merged
- *       at write time for fields vanilla never encodes ({@code iconRotation}, {@code additive},
- *       per-block tints).</li>
+ *   <li><b>Per-block atlas/GUI fields</b> - {@code iconRotation} (beds), {@code additive}
+ *       (bells), and per-block {@code tint} (banners) pattern-matched onto block entries by
+ *       {@code applyPerBlockPatternFields}; baked directly into the output JSON.</li>
  * </ul>
  *
  * <p>The runtime pipeline reads the JSON via {@link BlockEntityLoader}; the ASM walker is
@@ -602,9 +602,9 @@ public final class ToolingBlockEntities {
             + "along with their entity-texture paths. Supersedes the former split between "
             + "tile_entity_models.json (generated geometry) and tile_entity_mappings.json "
             + "(hand-edited block bindings); both source files are now derived in one pass from "
-            + "the 26.1 client jar. Hand-edited atlas/GUI fields (iconRotation, additive, "
-            + "per-block tint, forced inventory_y_rotation) live in the sibling "
-            + "block_entities_overrides.json and are merged at load time by BlockEntityLoader. "
+            + "the 26.1 client jar. Atlas/GUI fields (iconRotation, additive, per-block tint, "
+            + "forced inventory_y_rotation) are pattern-matched onto block entries by "
+            + "applyPerBlockPatternFields at tooling time. "
             + "Run the tooling/blockEntities Gradle task to refresh; BlockEntitiesGoldenTest "
             + "guards against silent drift via a SHA-256 over the canonical JSON.";
     }
