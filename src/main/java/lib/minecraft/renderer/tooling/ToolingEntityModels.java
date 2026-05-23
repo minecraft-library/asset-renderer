@@ -194,10 +194,11 @@ public final class ToolingEntityModels {
                 // Enum-default variant detection: AxolotlRenderer / RabbitRenderer read their
                 // texture via state.variant lookup into a Map<XVariant, Identifier>. The
                 // resolver walks the variant enum class for its DEFAULT static field and
-                // computes the canonical texture stem (axolotl/axolotl_lucy, rabbit/rabbit_brown)
-                // without a hardcoded entry. Falls back to ENTITY_TEXTURE_HARD_DEFAULTS for
-                // patterns the walker can't recover (shulker DyeColor sheet, copper_golem
-                // weathering dispatch, ender_dragon submit-path getstatic, cat data registry).
+                // computes the canonical texture stem (axolotl/axolotl_lucy, rabbit/rabbit_brown).
+                // Falls back to {@link EntityTextureResolver#findBaseTextureFallback} when the
+                // walker can't recover (shulker via Sheets/SpriteMapper, copper_golem via
+                // CopperGolemOxidationLevels dispatch, ender_dragon via no-override <clinit>
+                // static field).
                 EntityVariantDefaultResolver.DefaultVariant variantDefault =
                     EntityVariantDefaultResolver.resolve(zip, renderer, diagnostics);
                 if (variantDefault != null) {
