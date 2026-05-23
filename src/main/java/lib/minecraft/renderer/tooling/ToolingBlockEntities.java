@@ -1187,473 +1187,514 @@ public final class ToolingBlockEntities {
          * Walks an instruction list, accumulating numeric literals on a stack and matching
          * builder-chain patterns. Recurses via {@link #handleMethodInsn}'s invokestatic-follow
          * branch so a single {@link ParseState} spans the entire dispatch chain.
+         *
+         * <p>Thin wrapper around {@link #walkRange}; the per-instruction logic lives in
+         * {@link #handleInstruction}. Split into three methods so for-loop unrolling can
+         * recursively re-enter the same per-instruction dispatch over a sub-range of the
+         * same {@code InsnList} (see Phase 20).
          */
         private static void walkInstructions(@NotNull InsnList instructions, @NotNull ParseState state, @NotNull ZipFile zip) {
-            for (AbstractInsnNode node = instructions.getFirst(); node != null; node = node.getNext()) {
-                Number literal = readNumericLiteral(node);
-                if (literal != null) {
-                    // LiteralStack auto-evicts the oldest on capacity overflow; surface the first
-                    // overflow as a WARN so a true accounting bug surfaces (subsequent overflows
-                    // stay silent to avoid spamming when a broken source pushes 1000 literals).
-                    boolean willOverflow = state.numStack.size() >= ParseState.NUM_STACK_CAPACITY;
-                    state.numStack.push(literal);
-                    if (willOverflow && state.diagnostics != null && !state.overflowWarned && state.currentSource != null) {
-                        state.diagnostics.warn("%s: numStack overflow (>%d literals) - oldest literals being dropped, pop accounting may be broken", state.currentSource.entityId(), ParseState.NUM_STACK_CAPACITY);
-                        state.overflowWarned = true;
-                    }
-                    continue;
+            walkRange(instructions, instructions.getFirst(), null, state, zip);
+        }
+
+        /**
+         * Walks {@code [first, endExclusive)} of {@code instructions} via repeated
+         * {@link #handleInstruction} dispatch. When {@code endExclusive} is {@code null} the
+         * walk continues until {@code node.getNext()} returns null (i.e. end of the list).
+         *
+         * <p>{@link #handleInstruction} returns the node to advance from - normally that's the
+         * original {@code node} (caller advances to its next), but for taken jumps / switch
+         * branches it's the jump target so the caller advances past it.
+         */
+        private static void walkRange(
+            @NotNull InsnList instructions,
+            @Nullable AbstractInsnNode first,
+            @Nullable AbstractInsnNode endExclusive,
+            @NotNull ParseState state,
+            @NotNull ZipFile zip
+        ) {
+            AbstractInsnNode node = first;
+            while (node != null && node != endExclusive) {
+                AbstractInsnNode advanceFrom = handleInstruction(instructions, node, state, zip);
+                node = advanceFrom.getNext();
+            }
+        }
+
+        /**
+         * Processes a single instruction node, accumulating numeric literals, advancing builder
+         * chains, and dispatching to {@link #handleMethodInsn} / {@link #handlePartPose} / etc.
+         *
+         * <p>Returns the {@link AbstractInsnNode} to advance from: normally the original
+         * {@code node} (caller does {@code node.getNext()} to step linearly), but for a taken
+         * jump or switch branch it's the jump target so the caller advances past the target's
+         * label rather than the jump opcode.
+         */
+        private static @NotNull AbstractInsnNode handleInstruction(
+            @NotNull InsnList instructions,
+            @NotNull AbstractInsnNode node,
+            @NotNull ParseState state,
+            @NotNull ZipFile zip
+        ) {
+            Number literal = readNumericLiteral(node);
+            if (literal != null) {
+                // LiteralStack auto-evicts the oldest on capacity overflow; surface the first
+                // overflow as a WARN so a true accounting bug surfaces (subsequent overflows
+                // stay silent to avoid spamming when a broken source pushes 1000 literals).
+                boolean willOverflow = state.numStack.size() >= ParseState.NUM_STACK_CAPACITY;
+                state.numStack.push(literal);
+                if (willOverflow && state.diagnostics != null && !state.overflowWarned && state.currentSource != null) {
+                    state.diagnostics.warn("%s: numStack overflow (>%d literals) - oldest literals being dropped, pop accounting may be broken", state.currentSource.entityId(), ParseState.NUM_STACK_CAPACITY);
+                    state.overflowWarned = true;
                 }
+                return node;
+            }
 
-                int opcode = node.getOpcode();
+            int opcode = node.getOpcode();
 
-                // Conditional / unconditional jumps + their JVM-stack-pop accounting. The pop
-                // accounting is gated on {@code paramFloatValues != null} (Java pipeline opt-in)
-                // so legacy literal-stack walkers keep their literal-only walk. Branch-following
-                // remains gated on {@code paramIntValues != null} - without a known parameter
-                // value the parser falls through linearly. Decoupling the two gates means Java
-                // entities at the top-level Source (where {@code paramIntValues == null} but
-                // {@code paramFloatValues != null}) still pop the comparison values, preventing
-                // the leftover-literal warnings produced by for-loop {@code IF_ICMPGE} etc.
-                if (node instanceof JumpInsnNode jumpInsn) {
-                    boolean canFollow = state.paramIntValues != null;
-                    switch (opcode) {
-                        case Opcodes.GOTO -> {
-                            // Forward GOTO only - skips the not-taken branch of an if/else
-                            // (vanilla model factories use this for variant dispatch). Backward
-                            // GOTOs (loop tails, e.g. the spike loop in
-                            // {@code GuardianModel.createBodyMesh}) would loop the linear walker
-                            // forever, so they fall through linearly, walking the loop body once.
-                            if (canFollow && isForwardJump(instructions, node, jumpInsn.label)) {
-                                node = jumpInsn.label;
-                                continue;
-                            }
-                        }
-                        case Opcodes.IFEQ, Opcodes.IFNE,
-                             Opcodes.IFLT, Opcodes.IFGE,
-                             Opcodes.IFGT, Opcodes.IFLE -> {
-                            // Unary int comparison: pops 1 int. Java pipeline pops from
-                            // numStack (where ILOAD / arithmetic results live); legacy pipeline
-                            // pops from branchStack (where ILOAD-of-paramIntValues lives, used
-                            // by the banner standing/wall split).
-                            Integer value = null;
-                            if (state.paramFloatValues != null && !state.numStack.isEmpty()) {
-                                value = state.numStack.popNumber().intValue();
-                            } else if (canFollow && !state.branchStack.isEmpty()) {
-                                value = state.branchStack.remove(state.branchStack.size() - 1);
-                            }
-                            // Branch-following only for IFEQ / IFNE with a resolved value
-                            // (others are loop-exit comparisons whose RHS is dynamic).
-                            if (canFollow && value != null
-                                && (opcode == Opcodes.IFEQ || opcode == Opcodes.IFNE)) {
-                                boolean jump = opcode == Opcodes.IFEQ ? value == 0 : value != 0;
-                                if (jump && isForwardJump(instructions, node, jumpInsn.label)) {
-                                    node = jumpInsn.label;
-                                    continue;
-                                }
-                            }
-                        }
-                        case Opcodes.IF_ICMPEQ, Opcodes.IF_ICMPNE,
-                             Opcodes.IF_ICMPLT, Opcodes.IF_ICMPGE,
-                             Opcodes.IF_ICMPGT, Opcodes.IF_ICMPLE -> {
-                            // Binary int comparison: pops 2 ints. Used by for-loop exit checks
-                            // ({@code iload_N; bipush <limit>; if_icmpge end}) which the parser
-                            // doesn't follow back to the loop top, so the operands need cleaning
-                            // up to keep numStack aligned for the post-loop code.
-                            if (state.paramFloatValues != null) {
-                                if (!state.numStack.isEmpty())
-                                    state.numStack.pop();
-                                if (!state.numStack.isEmpty())
-                                    state.numStack.pop();
-                            }
-                        }
-                        case Opcodes.IF_ACMPEQ, Opcodes.IF_ACMPNE,
-                             Opcodes.IFNULL, Opcodes.IFNONNULL -> {
-                            // Object-reference comparisons. Object refs aren't tracked on
-                            // numStack, so nothing to pop here.
-                        }
-                        default -> { /* not a jump opcode we model */ }
-                    }
-                }
-
-                // Task 19: TABLESWITCH / LOOKUPSWITCH evaluation. Follows the same
-                // {@code paramIntValues}-driven branch-evaluation gate as IFEQ / IFNE - when the
-                // top of {@link ParseState#branchStack} holds a concrete value (put there by a
-                // preceding ILOAD of a paramIntValues-registered slot), jump to the matching case
-                // label. Otherwise the parser falls through linearly to preserve pre-Task 19
-                // behaviour, and - when {@code paramIntValues} is set but the switch value is
-                // unknown - surfaces a {@code WARN:} so the maintainer knows an unmodelled
-                // dispatch slipped through.
-                if (node instanceof TableSwitchInsnNode tableSwitch && state.paramIntValues != null) {
-                    Integer value = popIntForBranch(state);
-                    if (value != null) {
-                        LabelNode target = value >= tableSwitch.min && value <= tableSwitch.max
-                            ? tableSwitch.labels.get(value - tableSwitch.min)
-                            : tableSwitch.dflt;
-                        if (isForwardJump(instructions, node, target)) {
-                            node = target;
-                            continue;
+            // Conditional / unconditional jumps + their JVM-stack-pop accounting. The pop
+            // accounting is gated on {@code paramFloatValues != null} (Java pipeline opt-in)
+            // so legacy literal-stack walkers keep their literal-only walk. Branch-following
+            // remains gated on {@code paramIntValues != null} - without a known parameter
+            // value the parser falls through linearly. Decoupling the two gates means Java
+            // entities at the top-level Source (where {@code paramIntValues == null} but
+            // {@code paramFloatValues != null}) still pop the comparison values, preventing
+            // the leftover-literal warnings produced by for-loop {@code IF_ICMPGE} etc.
+            if (node instanceof JumpInsnNode jumpInsn) {
+                boolean canFollow = state.paramIntValues != null;
+                switch (opcode) {
+                    case Opcodes.GOTO -> {
+                        // Forward GOTO only - skips the not-taken branch of an if/else
+                        // (vanilla model factories use this for variant dispatch). Backward
+                        // GOTOs (loop tails, e.g. the spike loop in
+                        // {@code GuardianModel.createBodyMesh}) would loop the linear walker
+                        // forever, so they fall through linearly, walking the loop body once.
+                        if (canFollow && isForwardJump(instructions, node, jumpInsn.label)) {
+                            return jumpInsn.label;
                         }
                     }
-                    if (state.diagnostics != null && state.currentSource != null)
-                        state.diagnostics.warn("%s: TABLESWITCH encountered with unknown value - falling through linearly, case bodies may corrupt numStack", state.currentSource.entityId());
-                }
-                if (node instanceof LookupSwitchInsnNode lookupSwitch && state.paramIntValues != null) {
-                    Integer value = popIntForBranch(state);
-                    if (value != null) {
-                        int idx = lookupSwitch.keys.indexOf(value);
-                        LabelNode target = idx >= 0 ? lookupSwitch.labels.get(idx) : lookupSwitch.dflt;
-                        if (isForwardJump(instructions, node, target)) {
-                            node = target;
-                            continue;
+                    case Opcodes.IFEQ, Opcodes.IFNE,
+                         Opcodes.IFLT, Opcodes.IFGE,
+                         Opcodes.IFGT, Opcodes.IFLE -> {
+                        // Unary int comparison: pops 1 int. Java pipeline pops from
+                        // numStack (where ILOAD / arithmetic results live); legacy pipeline
+                        // pops from branchStack (where ILOAD-of-paramIntValues lives, used
+                        // by the banner standing/wall split).
+                        Integer value = null;
+                        if (state.paramFloatValues != null && !state.numStack.isEmpty()) {
+                            value = state.numStack.popNumber().intValue();
+                        } else if (canFollow && !state.branchStack.isEmpty()) {
+                            value = state.branchStack.remove(state.branchStack.size() - 1);
                         }
-                    }
-                    if (state.diagnostics != null && state.currentSource != null)
-                        state.diagnostics.warn("%s: LOOKUPSWITCH encountered with unknown value - falling through linearly, case bodies may corrupt numStack", state.currentSource.entityId());
-                }
-
-                // ILOAD N: if the source declared a value for slot N, push it onto the
-                // branch stack so the upcoming IFEQ / IFNE / switch can evaluate the
-                // conditional. If the slot is NOT in {@code paramIntValues} (or the source
-                // didn't supply any values), call {@code state.numStack.pushNonLiteral()} to
-                // mark the entry as non-literal on {@link ParseState#numStack} - when a
-                // downstream addBox / PartPose consumes it, {@link #popIntWithDiagnostics}
-                // surfaces a {@code WARN:} so the silent-zero failure mode doesn't get baked
-                // into the output cube.
-                if (node instanceof VarInsnNode varInsn && opcode == Opcodes.ILOAD) {
-                    int slot = varInsn.var;
-                    boolean resolved = state.paramIntValues != null && slot >= 0 && slot < state.paramIntValues.length;
-                    if (resolved) {
-                        // Java pipeline (paramFloatValues != null) routes ILOAD through numStack
-                        // so call-site-propagated literals (pig's {@code legSize=6}) feed the
-                        // subsequent {@code 18 - legSize} {@link Opcodes#ISUB} arithmetic. The
-                        // matching IFEQ / IFNE / switch consumer above pops from numStack in
-                        // the same gated branch. Legacy pipeline keeps the legacy branchStack
-                        // path so banner standing/wall and similar paramIntValues uses are
-                        // unaffected.
-                        if (state.paramFloatValues != null)
-                            state.numStack.push(state.paramIntValues[slot]);
-                        else
-                            state.branchStack.add(state.paramIntValues[slot]);
-                    } else {
-                        state.numStack.pushNonLiteral();
-                    }
-                }
-
-                // FLOAD / DLOAD / LLOAD: the value comes from a local variable the parser
-                // can't resolve. Call {@code state.numStack.pushNonLiteral()} so the next
-                // {@link #popFloatWithDiagnostics} / {@link #popIntWithDiagnostics} surfaces
-                // the attribution instead of silently consuming a stale zero off an earlier
-                // literal or a fresh zero from an empty stack.
-                //
-                // When {@code paramFloatValues} is supplied (Java-derived entity sources opt in
-                // for arithmetic evaluation), {@code FLOAD slot} substitutes the known value
-                // so adjacent {@code FADD}/{@code FMUL}/etc. ops can fold in the parameter.
-                if (node instanceof VarInsnNode varInsn
-                    && (opcode == Opcodes.FLOAD || opcode == Opcodes.DLOAD || opcode == Opcodes.LLOAD)) {
-                    int slot = varInsn.var;
-                    if (state.paramFloatValues != null && slot >= 0 && slot < state.paramFloatValues.length)
-                        state.numStack.push(state.paramFloatValues[slot]);
-                    else
-                        state.numStack.pushNonLiteral();
-                }
-
-                // ISTORE / FSTORE / DSTORE / LSTORE: consume the value that the matching
-                // LDC / arithmetic op pushed onto numStack so the JVM stack and our symbolic
-                // stack stay in sync. Without this, a {@code ldc <value>; fstore_N} sequence
-                // (e.g. {@code WitherBossModel.createBodyLayer}'s {@code RIBCAGE_X_ROT_OFFSET = 0.20420352f})
-                // leaks the LDC value, which then sits at the bottom of every subsequent pop
-                // and surfaces as a "leftover literal" warning at end-of-parse. Gated on
-                // {@code paramFloatValues != null} for byte-stability - legacy literal-stack
-                // walkers use {@code ASTORE} (handled in the switch below) for their bone slot
-                // tracking, never primitive STOREs in {@code createBodyLayer}-shaped code.
-                // ASTORE is intentionally NOT included here; its bone-slot tracking remains in
-                // the existing switch case below.
-                if (state.paramFloatValues != null
-                    && (opcode == Opcodes.ISTORE || opcode == Opcodes.FSTORE
-                        || opcode == Opcodes.DSTORE || opcode == Opcodes.LSTORE)
-                    && !state.numStack.isEmpty()) {
-                    state.numStack.pop();
-                }
-
-                // Explicit stack pops: {@code POP} discards 1 category-1 slot (int / float /
-                // ref); {@code POP2} discards 1 category-2 slot (long / double) or 2 category-1
-                // slots. Our numStack treats long / double as single Number entries, so POP2
-                // of a wide value pops 1 entry. javac never emits POP2 for two narrow values
-                // (it uses POP; POP), so the single-entry pop is correct in practice.
-                if (state.paramFloatValues != null
-                    && (opcode == Opcodes.POP || opcode == Opcodes.POP2)
-                    && !state.numStack.isEmpty()) {
-                    state.numStack.pop();
-                }
-
-                // Array load / store / metadata ops. The JVM stack effects of these aren't
-                // visible to the literal walk so the index ints and any result ints leak as
-                // leftovers - silverfish's {@code BODY_SIZES[i][j]} pattern produces 9
-                // {@code AALOAD; ICONST j; IALOAD} chains, every one leaving the {@code i}
-                // and the {@code IALOAD} result hanging.
-                //
-                // <ul>
-                //   <li>AALOAD pops 1 ref + 1 int, pushes 1 ref. numStack effect: pop 1 int.</li>
-                //   <li>IALOAD / BALOAD / SALOAD / CALOAD: pop 1 ref + 1 int, push 1 int.
-                //       numStack effect: pop 1 int, push 1 NL int.</li>
-                //   <li>FALOAD / DALOAD / LALOAD: same shape with float / double / long result -
-                //       still represented as a single non-literal marker on numStack.</li>
-                //   <li>ARRAYLENGTH: pop 1 ref, push 1 int. Push NL.</li>
-                // </ul>
-                // Gated on {@code paramFloatValues != null} for byte-stability.
-                if (state.paramFloatValues != null) {
-                    if (opcode == Opcodes.AALOAD) {
-                        if (!state.numStack.isEmpty()) state.numStack.pop();
-                    } else if (opcode == Opcodes.IALOAD || opcode == Opcodes.BALOAD
-                            || opcode == Opcodes.SALOAD || opcode == Opcodes.CALOAD
-                            || opcode == Opcodes.FALOAD || opcode == Opcodes.DALOAD
-                            || opcode == Opcodes.LALOAD) {
-                        if (!state.numStack.isEmpty()) state.numStack.pop();
-                        state.numStack.pushNonLiteral();
-                    } else if (opcode == Opcodes.ARRAYLENGTH) {
-                        state.numStack.pushNonLiteral();
-                    } else if (opcode == Opcodes.NEWARRAY || opcode == Opcodes.ANEWARRAY) {
-                        // Pop 1 int (length); push ref (refs aren't tracked on numStack).
-                        if (!state.numStack.isEmpty()) state.numStack.pop();
-                    } else if (opcode == Opcodes.IASTORE || opcode == Opcodes.BASTORE
-                            || opcode == Opcodes.SASTORE || opcode == Opcodes.CASTORE
-                            || opcode == Opcodes.FASTORE || opcode == Opcodes.DASTORE
-                            || opcode == Opcodes.LASTORE) {
-                        // Array element store: JVM pops ref + int + value. numStack effect:
-                        // pop value (1 entry) + index (1 int). Used by SilverfishModel's
-                        // {@code float[7]} segment-position cache via {@code FASTORE}.
-                        if (!state.numStack.isEmpty()) state.numStack.pop();
-                        if (!state.numStack.isEmpty()) state.numStack.pop();
-                    } else if (opcode == Opcodes.AASTORE) {
-                        // Array reference store: JVM pops ref + int + ref. numStack effect:
-                        // pop index only (the value ref isn't on numStack).
-                        if (!state.numStack.isEmpty()) state.numStack.pop();
-                    }
-                }
-
-                // Comparison ops that push an int result: {@code LCMP} (long / long),
-                // {@code FCMPL} / {@code FCMPG} (float / float), {@code DCMPL} / {@code DCMPG}
-                // (double / double). Each pops two operands and pushes -1 / 0 / 1 onto the JVM
-                // stack. Our walker can't statically know the result so push a non-literal
-                // marker - the next IFEQ / IFNE / IF_ICMP* handler above pops it and falls
-                // through linearly without taking the branch.
-                if (state.paramFloatValues != null
-                    && (opcode == Opcodes.LCMP || opcode == Opcodes.FCMPL || opcode == Opcodes.FCMPG
-                        || opcode == Opcodes.DCMPL || opcode == Opcodes.DCMPG)) {
-                    if (!state.numStack.isEmpty()) state.numStack.pop();
-                    if (!state.numStack.isEmpty()) state.numStack.pop();
-                    state.numStack.pushNonLiteral();
-                }
-
-                // Binary integer arithmetic: pops two ints, pushes the result. Same
-                // {@code paramFloatValues != null} gate as the float / double block below so
-                // legacy literal-stack walkers keep the legacy literal-stack-only walk. Vanilla
-                // shares parameterised quadruped construction in {@code QuadrupedModel
-                // .createBodyMesh(int legSize, ...)} which computes head/body Y as
-                // {@code bipush 18; iload_0; isub; i2f}; without this block the {@code isub}
-                // is a no-op and pig head ends up at world Y=18 instead of 12.
-                if (state.paramFloatValues != null
-                    && (opcode == Opcodes.IADD || opcode == Opcodes.ISUB
-                        || opcode == Opcodes.IMUL || opcode == Opcodes.IDIV
-                        || opcode == Opcodes.IREM)
-                    && state.numStack.size() >= 2) {
-                    int b = state.numStack.popNumber().intValue();
-                    int a = state.numStack.popNumber().intValue();
-                    int r = switch (opcode) {
-                        case Opcodes.IADD -> a + b;
-                        case Opcodes.ISUB -> a - b;
-                        case Opcodes.IMUL -> a * b;
-                        case Opcodes.IDIV -> b == 0 ? 0 : a / b;
-                        case Opcodes.IREM -> b == 0 ? 0 : a % b;
-                        default -> 0;
-                    };
-                    state.numStack.push(r);
-                }
-
-                // Unary numeric negation: pops 1, pushes 1. INEG = -i, FNEG = -f, etc.
-                if (state.paramFloatValues != null
-                    && (opcode == Opcodes.INEG || opcode == Opcodes.FNEG
-                        || opcode == Opcodes.DNEG || opcode == Opcodes.LNEG)
-                    && !state.numStack.isEmpty()) {
-                    Number top = state.numStack.popNumber();
-                    Number negated = switch (opcode) {
-                        case Opcodes.INEG -> -top.intValue();
-                        case Opcodes.FNEG -> -top.floatValue();
-                        case Opcodes.DNEG -> -top.doubleValue();
-                        case Opcodes.LNEG -> -top.longValue();
-                        default -> top;
-                    };
-                    state.numStack.push(negated);
-                }
-
-                // Binary float / double arithmetic: only fires when the source opted into
-                // arithmetic evaluation via {@code paramFloatValues != null}. Legacy
-                // sources never set this so the legacy linear walk is preserved unchanged.
-                // For Java-side sources, this fixes patterns like
-                // {@code HumanoidModel.createMesh}'s arm pivot {@code 2 + yOffset} where
-                // yOffset is a parameter and the {@code FADD} would otherwise leave the stack
-                // mis-aligned. Non-literal markers are treated as zero during the operation.
-                if (state.paramFloatValues != null
-                    && (opcode == Opcodes.FADD || opcode == Opcodes.FSUB || opcode == Opcodes.FMUL || opcode == Opcodes.FDIV || opcode == Opcodes.FREM
-                        || opcode == Opcodes.DADD || opcode == Opcodes.DSUB || opcode == Opcodes.DMUL || opcode == Opcodes.DDIV || opcode == Opcodes.DREM)) {
-                    if (state.numStack.size() >= 2) {
-                        Number bN = state.numStack.popNumber();
-                        Number aN = state.numStack.popNumber();
-                        // JVM float / double arithmetic opcodes interleave (FADD=98, DADD=99,
-                        // FSUB=102, DSUB=103, FMUL=106, DMUL=107, FDIV=110, DDIV=111, FREM=114,
-                        // DREM=115) - a {@code >= DADD && <= DDIV} range check would misclassify
-                        // FSUB / FMUL / FDIV / FREM as double, causing the switch below to fall
-                        // to its zero-return default. Use explicit equality.
-                        boolean isDouble = opcode == Opcodes.DADD || opcode == Opcodes.DSUB
-                            || opcode == Opcodes.DMUL || opcode == Opcodes.DDIV
-                            || opcode == Opcodes.DREM;
-                        if (isDouble) {
-                            double a = aN.doubleValue();
-                            double b = bN.doubleValue();
-                            double r = switch (opcode) {
-                                case Opcodes.DADD -> a + b;
-                                case Opcodes.DSUB -> a - b;
-                                case Opcodes.DMUL -> a * b;
-                                case Opcodes.DDIV -> b == 0.0 ? 0.0 : a / b;
-                                case Opcodes.DREM -> b == 0.0 ? 0.0 : a % b;
-                                default -> 0.0;
-                            };
-                            state.numStack.push(r);
-                        } else {
-                            float a = aN.floatValue();
-                            float b = bN.floatValue();
-                            float r = switch (opcode) {
-                                case Opcodes.FADD -> a + b;
-                                case Opcodes.FSUB -> a - b;
-                                case Opcodes.FMUL -> a * b;
-                                case Opcodes.FDIV -> b == 0f ? 0f : a / b;
-                                case Opcodes.FREM -> b == 0f ? 0f : a % b;
-                                default -> 0f;
-                            };
-                            state.numStack.push(r);
-                        }
-                    }
-                }
-
-                // Type-conversion ops between numeric stack slots. Mirrored on the literal
-                // stack so subsequent arithmetic / argument-pop sees the correct precision.
-                // Gated on paramFloatValues for the same byte-stability reason as the
-                // arithmetic block above.
-                if (state.paramFloatValues != null
-                    && (opcode == Opcodes.I2F || opcode == Opcodes.I2D || opcode == Opcodes.F2D
-                        || opcode == Opcodes.D2F || opcode == Opcodes.F2I || opcode == Opcodes.D2I)
-                    && !state.numStack.isEmpty()) {
-                    Number top = state.numStack.popNumber();
-                    Number converted = switch (opcode) {
-                        case Opcodes.I2F -> (float) top.intValue();
-                        case Opcodes.I2D -> (double) top.intValue();
-                        case Opcodes.F2D -> (double) top.floatValue();
-                        case Opcodes.D2F -> (float) top.doubleValue();
-                        case Opcodes.F2I -> (int) top.floatValue();
-                        case Opcodes.D2I -> (int) top.doubleValue();
-                        default -> top;
-                    };
-                    state.numStack.push(converted);
-                }
-
-                switch (node) {
-                    case FieldInsnNode fieldInsn when opcode == Opcodes.GETSTATIC -> {
-                        if (fieldInsn.owner.equals(VanillaSourceClasses.PART_POSE) && fieldInsn.name.equals("ZERO")) {
-                            state.pendingPivot = new float[]{ 0, 0, 0 };
-                            state.pendingRotation = new float[]{ 0, 0, 0 };
-                            state.pendingScale = 1f;
-                        }
-                        // {@code GETSTATIC <field>: MeshTransformer} - vanilla static-field pattern
-                        // for layer-level scale wraps that don't appear inline in the factory body.
-                        // {@code GuardianModel.createElderGuardianLayer} reads
-                        // {@code ELDER_GUARDIAN_SCALE} (a private static final MeshTransformer
-                        // initialised in {@code <clinit>} as
-                        // {@code MeshTransformer.scaling(2.35f)}) via {@code getstatic} then
-                        // {@code LayerDefinition.apply(MeshTransformer)} - the parser sees the
-                        // getstatic but not the scaling literal. Lazily walk the field owner's
-                        // {@code <clinit>} for the matching {@code putstatic} and fold the captured
-                        // F into {@link ParseState#meshTransformerScale}; the subsequent
-                        // {@code apply()} call is then a no-op for our tracking (we don't track
-                        // LayerDefinition refs anyway). Cached per-class so repeated parses of the
-                        // same source don't reload. Gated on {@code paramFloatValues != null} so
-                        // legacy literal-stack walkers keep their byte-stable behaviour.
-                        //
-                        // <p>Fallback for non-scaling transformers: when the field is initialised
-                        // via {@code invokedynamic apply -> lambda$static$N} that calls
-                        // {@code <Owner>.modifyMesh(MeshDefinition.getRoot())} (the
-                        // {@code DonkeyModel.DONKEY_TRANSFORMER} pattern), inline that
-                        // {@code modifyMesh} method into the current parse so the
-                        // {@code addOrReplaceChild} calls inside it land in our bone tree before
-                        // the subsequent {@code .apply(MeshTransformer.scaling(F))} bakes the
-                        // per-renderer scale across every bone. modifyMesh's
-                        // {@code body.addOrReplaceChild("left_chest", ...)} relies on the
-                        // {@link ParseState#boneMeta} entries already populated by
-                        // {@code AbstractEquineModel.createBodyMesh}, which flow through
-                        // {@link #inlineStaticMethodBody}'s save/restore set untouched.
-                        else if (state.paramFloatValues != null
-                            && MESH_TRANSFORMER_DESC.equals(fieldInsn.desc)) {
-                            Float f = resolveStaticMeshTransformer(fieldInsn.owner, fieldInsn.name, state, zip);
-                            if (f != null) {
-                                state.meshTransformerScale *= f;
-                            } else {
-                                MethodNode modifyMesh = findStaticModifyMeshTarget(fieldInsn.owner, fieldInsn.name, zip);
-                                if (modifyMesh != null) inlineStaticMethodBody(modifyMesh, null, state, zip);
+                        // Branch-following only for IFEQ / IFNE with a resolved value
+                        // (others are loop-exit comparisons whose RHS is dynamic).
+                        if (canFollow && value != null
+                            && (opcode == Opcodes.IFEQ || opcode == Opcodes.IFNE)) {
+                            boolean jump = opcode == Opcodes.IFEQ ? value == 0 : value != 0;
+                            if (jump && isForwardJump(instructions, node, jumpInsn.label)) {
+                                return jumpInsn.label;
                             }
                         }
                     }
-                    case MethodInsnNode methodInsn -> handleMethodInsn(methodInsn, opcode, state, zip);
-                    // Track local-variable slot -> bone mapping so child bones inherit their
-                    // parent's pivot + scale. Vanilla models use
-                    // {@code head = root.addOrReplaceChild("head", ...); head.addOrReplaceChild("jaw", ...);}
-                    // which compiles to {@code invokevirtual; astore_N; aload_N;} around the child's
-                    // builder chain - so astore-after-flush and aload-before-chain are our hooks.
-                    // Additionally, slots may hold a pre-built CubeListBuilder that multiple
-                    // addOrReplaceChild calls share (DecoratedPotRenderer stores one builder and
-                    // reuses it for both {@code top} and {@code bottom} bones). Snapshot pending
-                    // cubes into {@link ParseState#slotToCubes} so a later aload_N can re-hydrate
-                    // them for the next bone without re-reading the same addBox literals.
-                    case VarInsnNode varInsn when opcode == Opcodes.ASTORE -> {
-                        if (state.pendingFreshDeformationInflate != null) {
-                            state.cubeDeformationSlots.put(varInsn.var, state.pendingFreshDeformationInflate);
-                            state.pendingFreshDeformationInflate = null;
-                            // The fresh deformation just got stashed into a slot for later
-                            // reuse; it's no longer the "active" inflate. Reset to the
-                            // factory default so the next addBox(...,CubeDeformation) picks up
-                            // its own arg (via ALOAD slot lookup) or the call-site default,
-                            // not the leftover constructor value. AdultFelineModel triggers
-                            // this: {@code CubeDeformation tail_g = new CubeDeformation(-0.02F)}
-                            // followed immediately by {@code addBox("main", ..., g)} where
-                            // {@code g} is the parameter (call-site default), would otherwise
-                            // emit the head main cube with the stale -0.02 instead of 0.
-                            state.pendingInflate = state.defaultInflate;
-                        } else if (state.lastFlushedBone != null) {
-                            state.localSlotBone.put(varInsn.var, state.lastFlushedBone);
-                            state.lastFlushedBone = null;
-                        } else if (!state.pendingCubes.isEmpty()) {
-                            ConcurrentList<float[]> snapshot = Concurrent.newList();
-                            for (float[] c : state.pendingCubes) snapshot.add(c.clone());
-                            state.slotToCubes.put(varInsn.var, snapshot);
-                            state.pendingCubes = Concurrent.newList();
-                            state.pendingUv = new int[]{ 0, 0 };
+                    case Opcodes.IF_ICMPEQ, Opcodes.IF_ICMPNE,
+                         Opcodes.IF_ICMPLT, Opcodes.IF_ICMPGE,
+                         Opcodes.IF_ICMPGT, Opcodes.IF_ICMPLE -> {
+                        // Binary int comparison: pops 2 ints. Used by for-loop exit checks
+                        // ({@code iload_N; bipush <limit>; if_icmpge end}) which the parser
+                        // doesn't follow back to the loop top, so the operands need cleaning
+                        // up to keep numStack aligned for the post-loop code.
+                        if (state.paramFloatValues != null) {
+                            if (!state.numStack.isEmpty())
+                                state.numStack.pop();
+                            if (!state.numStack.isEmpty())
+                                state.numStack.pop();
                         }
                     }
-                    case VarInsnNode varInsn when opcode == Opcodes.ALOAD -> {
-                        Float deformationInflate = state.cubeDeformationSlots.get(varInsn.var);
-                        if (deformationInflate != null)
-                            state.pendingInflate = deformationInflate;
-                        String parent = state.localSlotBone.get(varInsn.var);
-                        if (parent != null)
-                            state.nextParent = parent;
-                        ConcurrentList<float[]> savedCubes = state.slotToCubes.get(varInsn.var);
-                        if (savedCubes != null) {
-                            for (float[] c : savedCubes) state.pendingCubes.add(c.clone());
-                        }
+                    case Opcodes.IF_ACMPEQ, Opcodes.IF_ACMPNE,
+                         Opcodes.IFNULL, Opcodes.IFNONNULL -> {
+                        // Object-reference comparisons. Object refs aren't tracked on
+                        // numStack, so nothing to pop here.
                     }
-                    case LdcInsnNode ldc when ldc.cst instanceof String s ->
-                        state.pendingPartName = s;
-                    default -> { }
+                    default -> { /* not a jump opcode we model */ }
                 }
             }
+
+            // Task 19: TABLESWITCH / LOOKUPSWITCH evaluation. Follows the same
+            // {@code paramIntValues}-driven branch-evaluation gate as IFEQ / IFNE - when the
+            // top of {@link ParseState#branchStack} holds a concrete value (put there by a
+            // preceding ILOAD of a paramIntValues-registered slot), jump to the matching case
+            // label. Otherwise the parser falls through linearly to preserve pre-Task 19
+            // behaviour, and - when {@code paramIntValues} is set but the switch value is
+            // unknown - surfaces a {@code WARN:} so the maintainer knows an unmodelled
+            // dispatch slipped through.
+            if (node instanceof TableSwitchInsnNode tableSwitch && state.paramIntValues != null) {
+                Integer value = popIntForBranch(state);
+                if (value != null) {
+                    LabelNode target = value >= tableSwitch.min && value <= tableSwitch.max
+                        ? tableSwitch.labels.get(value - tableSwitch.min)
+                        : tableSwitch.dflt;
+                    if (isForwardJump(instructions, node, target)) {
+                        return target;
+                    }
+                }
+                if (state.diagnostics != null && state.currentSource != null)
+                    state.diagnostics.warn("%s: TABLESWITCH encountered with unknown value - falling through linearly, case bodies may corrupt numStack", state.currentSource.entityId());
+            }
+            if (node instanceof LookupSwitchInsnNode lookupSwitch && state.paramIntValues != null) {
+                Integer value = popIntForBranch(state);
+                if (value != null) {
+                    int idx = lookupSwitch.keys.indexOf(value);
+                    LabelNode target = idx >= 0 ? lookupSwitch.labels.get(idx) : lookupSwitch.dflt;
+                    if (isForwardJump(instructions, node, target)) {
+                        return target;
+                    }
+                }
+                if (state.diagnostics != null && state.currentSource != null)
+                    state.diagnostics.warn("%s: LOOKUPSWITCH encountered with unknown value - falling through linearly, case bodies may corrupt numStack", state.currentSource.entityId());
+            }
+
+            // ILOAD N: if the source declared a value for slot N, push it onto the
+            // branch stack so the upcoming IFEQ / IFNE / switch can evaluate the
+            // conditional. If the slot is NOT in {@code paramIntValues} (or the source
+            // didn't supply any values), call {@code state.numStack.pushNonLiteral()} to
+            // mark the entry as non-literal on {@link ParseState#numStack} - when a
+            // downstream addBox / PartPose consumes it, {@link #popIntWithDiagnostics}
+            // surfaces a {@code WARN:} so the silent-zero failure mode doesn't get baked
+            // into the output cube.
+            if (node instanceof VarInsnNode varInsn && opcode == Opcodes.ILOAD) {
+                int slot = varInsn.var;
+                boolean resolved = state.paramIntValues != null && slot >= 0 && slot < state.paramIntValues.length;
+                if (resolved) {
+                    // Java pipeline (paramFloatValues != null) routes ILOAD through numStack
+                    // so call-site-propagated literals (pig's {@code legSize=6}) feed the
+                    // subsequent {@code 18 - legSize} {@link Opcodes#ISUB} arithmetic. The
+                    // matching IFEQ / IFNE / switch consumer above pops from numStack in
+                    // the same gated branch. Legacy pipeline keeps the legacy branchStack
+                    // path so banner standing/wall and similar paramIntValues uses are
+                    // unaffected.
+                    if (state.paramFloatValues != null)
+                        state.numStack.push(state.paramIntValues[slot]);
+                    else
+                        state.branchStack.add(state.paramIntValues[slot]);
+                } else {
+                    state.numStack.pushNonLiteral();
+                }
+            }
+
+            // FLOAD / DLOAD / LLOAD: the value comes from a local variable the parser
+            // can't resolve. Call {@code state.numStack.pushNonLiteral()} so the next
+            // {@link #popFloatWithDiagnostics} / {@link #popIntWithDiagnostics} surfaces
+            // the attribution instead of silently consuming a stale zero off an earlier
+            // literal or a fresh zero from an empty stack.
+            //
+            // When {@code paramFloatValues} is supplied (Java-derived entity sources opt in
+            // for arithmetic evaluation), {@code FLOAD slot} substitutes the known value
+            // so adjacent {@code FADD}/{@code FMUL}/etc. ops can fold in the parameter.
+            if (node instanceof VarInsnNode varInsn
+                && (opcode == Opcodes.FLOAD || opcode == Opcodes.DLOAD || opcode == Opcodes.LLOAD)) {
+                int slot = varInsn.var;
+                if (state.paramFloatValues != null && slot >= 0 && slot < state.paramFloatValues.length)
+                    state.numStack.push(state.paramFloatValues[slot]);
+                else
+                    state.numStack.pushNonLiteral();
+            }
+
+            // ISTORE / FSTORE / DSTORE / LSTORE: consume the value that the matching
+            // LDC / arithmetic op pushed onto numStack so the JVM stack and our symbolic
+            // stack stay in sync. Without this, a {@code ldc <value>; fstore_N} sequence
+            // (e.g. {@code WitherBossModel.createBodyLayer}'s {@code RIBCAGE_X_ROT_OFFSET = 0.20420352f})
+            // leaks the LDC value, which then sits at the bottom of every subsequent pop
+            // and surfaces as a "leftover literal" warning at end-of-parse. Gated on
+            // {@code paramFloatValues != null} for byte-stability - legacy literal-stack
+            // walkers use {@code ASTORE} (handled in the switch below) for their bone slot
+            // tracking, never primitive STOREs in {@code createBodyLayer}-shaped code.
+            // ASTORE is intentionally NOT included here; its bone-slot tracking remains in
+            // the existing switch case below.
+            if (state.paramFloatValues != null
+                && (opcode == Opcodes.ISTORE || opcode == Opcodes.FSTORE
+                    || opcode == Opcodes.DSTORE || opcode == Opcodes.LSTORE)
+                && !state.numStack.isEmpty()) {
+                state.numStack.pop();
+            }
+
+            // Explicit stack pops: {@code POP} discards 1 category-1 slot (int / float /
+            // ref); {@code POP2} discards 1 category-2 slot (long / double) or 2 category-1
+            // slots. Our numStack treats long / double as single Number entries, so POP2
+            // of a wide value pops 1 entry. javac never emits POP2 for two narrow values
+            // (it uses POP; POP), so the single-entry pop is correct in practice.
+            if (state.paramFloatValues != null
+                && (opcode == Opcodes.POP || opcode == Opcodes.POP2)
+                && !state.numStack.isEmpty()) {
+                state.numStack.pop();
+            }
+
+            // Array load / store / metadata ops. The JVM stack effects of these aren't
+            // visible to the literal walk so the index ints and any result ints leak as
+            // leftovers - silverfish's {@code BODY_SIZES[i][j]} pattern produces 9
+            // {@code AALOAD; ICONST j; IALOAD} chains, every one leaving the {@code i}
+            // and the {@code IALOAD} result hanging.
+            //
+            // <ul>
+            //   <li>AALOAD pops 1 ref + 1 int, pushes 1 ref. numStack effect: pop 1 int.</li>
+            //   <li>IALOAD / BALOAD / SALOAD / CALOAD: pop 1 ref + 1 int, push 1 int.
+            //       numStack effect: pop 1 int, push 1 NL int.</li>
+            //   <li>FALOAD / DALOAD / LALOAD: same shape with float / double / long result -
+            //       still represented as a single non-literal marker on numStack.</li>
+            //   <li>ARRAYLENGTH: pop 1 ref, push 1 int. Push NL.</li>
+            // </ul>
+            // Gated on {@code paramFloatValues != null} for byte-stability.
+            if (state.paramFloatValues != null) {
+                if (opcode == Opcodes.AALOAD) {
+                    if (!state.numStack.isEmpty()) state.numStack.pop();
+                } else if (opcode == Opcodes.IALOAD || opcode == Opcodes.BALOAD
+                        || opcode == Opcodes.SALOAD || opcode == Opcodes.CALOAD
+                        || opcode == Opcodes.FALOAD || opcode == Opcodes.DALOAD
+                        || opcode == Opcodes.LALOAD) {
+                    if (!state.numStack.isEmpty()) state.numStack.pop();
+                    state.numStack.pushNonLiteral();
+                } else if (opcode == Opcodes.ARRAYLENGTH) {
+                    state.numStack.pushNonLiteral();
+                } else if (opcode == Opcodes.NEWARRAY || opcode == Opcodes.ANEWARRAY) {
+                    // Pop 1 int (length); push ref (refs aren't tracked on numStack).
+                    if (!state.numStack.isEmpty()) state.numStack.pop();
+                } else if (opcode == Opcodes.IASTORE || opcode == Opcodes.BASTORE
+                        || opcode == Opcodes.SASTORE || opcode == Opcodes.CASTORE
+                        || opcode == Opcodes.FASTORE || opcode == Opcodes.DASTORE
+                        || opcode == Opcodes.LASTORE) {
+                    // Array element store: JVM pops ref + int + value. numStack effect:
+                    // pop value (1 entry) + index (1 int). Used by SilverfishModel's
+                    // {@code float[7]} segment-position cache via {@code FASTORE}.
+                    if (!state.numStack.isEmpty()) state.numStack.pop();
+                    if (!state.numStack.isEmpty()) state.numStack.pop();
+                } else if (opcode == Opcodes.AASTORE) {
+                    // Array reference store: JVM pops ref + int + ref. numStack effect:
+                    // pop index only (the value ref isn't on numStack).
+                    if (!state.numStack.isEmpty()) state.numStack.pop();
+                }
+            }
+
+            // Comparison ops that push an int result: {@code LCMP} (long / long),
+            // {@code FCMPL} / {@code FCMPG} (float / float), {@code DCMPL} / {@code DCMPG}
+            // (double / double). Each pops two operands and pushes -1 / 0 / 1 onto the JVM
+            // stack. Our walker can't statically know the result so push a non-literal
+            // marker - the next IFEQ / IFNE / IF_ICMP* handler above pops it and falls
+            // through linearly without taking the branch.
+            if (state.paramFloatValues != null
+                && (opcode == Opcodes.LCMP || opcode == Opcodes.FCMPL || opcode == Opcodes.FCMPG
+                    || opcode == Opcodes.DCMPL || opcode == Opcodes.DCMPG)) {
+                if (!state.numStack.isEmpty()) state.numStack.pop();
+                if (!state.numStack.isEmpty()) state.numStack.pop();
+                state.numStack.pushNonLiteral();
+            }
+
+            // Binary integer arithmetic: pops two ints, pushes the result. Same
+            // {@code paramFloatValues != null} gate as the float / double block below so
+            // legacy literal-stack walkers keep the legacy literal-stack-only walk. Vanilla
+            // shares parameterised quadruped construction in {@code QuadrupedModel
+            // .createBodyMesh(int legSize, ...)} which computes head/body Y as
+            // {@code bipush 18; iload_0; isub; i2f}; without this block the {@code isub}
+            // is a no-op and pig head ends up at world Y=18 instead of 12.
+            if (state.paramFloatValues != null
+                && (opcode == Opcodes.IADD || opcode == Opcodes.ISUB
+                    || opcode == Opcodes.IMUL || opcode == Opcodes.IDIV
+                    || opcode == Opcodes.IREM)
+                && state.numStack.size() >= 2) {
+                int b = state.numStack.popNumber().intValue();
+                int a = state.numStack.popNumber().intValue();
+                int r = switch (opcode) {
+                    case Opcodes.IADD -> a + b;
+                    case Opcodes.ISUB -> a - b;
+                    case Opcodes.IMUL -> a * b;
+                    case Opcodes.IDIV -> b == 0 ? 0 : a / b;
+                    case Opcodes.IREM -> b == 0 ? 0 : a % b;
+                    default -> 0;
+                };
+                state.numStack.push(r);
+            }
+
+            // Unary numeric negation: pops 1, pushes 1. INEG = -i, FNEG = -f, etc.
+            if (state.paramFloatValues != null
+                && (opcode == Opcodes.INEG || opcode == Opcodes.FNEG
+                    || opcode == Opcodes.DNEG || opcode == Opcodes.LNEG)
+                && !state.numStack.isEmpty()) {
+                Number top = state.numStack.popNumber();
+                Number negated = switch (opcode) {
+                    case Opcodes.INEG -> -top.intValue();
+                    case Opcodes.FNEG -> -top.floatValue();
+                    case Opcodes.DNEG -> -top.doubleValue();
+                    case Opcodes.LNEG -> -top.longValue();
+                    default -> top;
+                };
+                state.numStack.push(negated);
+            }
+
+            // Binary float / double arithmetic: only fires when the source opted into
+            // arithmetic evaluation via {@code paramFloatValues != null}. Legacy
+            // sources never set this so the legacy linear walk is preserved unchanged.
+            // For Java-side sources, this fixes patterns like
+            // {@code HumanoidModel.createMesh}'s arm pivot {@code 2 + yOffset} where
+            // yOffset is a parameter and the {@code FADD} would otherwise leave the stack
+            // mis-aligned. Non-literal markers are treated as zero during the operation.
+            if (state.paramFloatValues != null
+                && (opcode == Opcodes.FADD || opcode == Opcodes.FSUB || opcode == Opcodes.FMUL || opcode == Opcodes.FDIV || opcode == Opcodes.FREM
+                    || opcode == Opcodes.DADD || opcode == Opcodes.DSUB || opcode == Opcodes.DMUL || opcode == Opcodes.DDIV || opcode == Opcodes.DREM)) {
+                if (state.numStack.size() >= 2) {
+                    Number bN = state.numStack.popNumber();
+                    Number aN = state.numStack.popNumber();
+                    // JVM float / double arithmetic opcodes interleave (FADD=98, DADD=99,
+                    // FSUB=102, DSUB=103, FMUL=106, DMUL=107, FDIV=110, DDIV=111, FREM=114,
+                    // DREM=115) - a {@code >= DADD && <= DDIV} range check would misclassify
+                    // FSUB / FMUL / FDIV / FREM as double, causing the switch below to fall
+                    // to its zero-return default. Use explicit equality.
+                    boolean isDouble = opcode == Opcodes.DADD || opcode == Opcodes.DSUB
+                        || opcode == Opcodes.DMUL || opcode == Opcodes.DDIV
+                        || opcode == Opcodes.DREM;
+                    if (isDouble) {
+                        double a = aN.doubleValue();
+                        double b = bN.doubleValue();
+                        double r = switch (opcode) {
+                            case Opcodes.DADD -> a + b;
+                            case Opcodes.DSUB -> a - b;
+                            case Opcodes.DMUL -> a * b;
+                            case Opcodes.DDIV -> b == 0.0 ? 0.0 : a / b;
+                            case Opcodes.DREM -> b == 0.0 ? 0.0 : a % b;
+                            default -> 0.0;
+                        };
+                        state.numStack.push(r);
+                    } else {
+                        float a = aN.floatValue();
+                        float b = bN.floatValue();
+                        float r = switch (opcode) {
+                            case Opcodes.FADD -> a + b;
+                            case Opcodes.FSUB -> a - b;
+                            case Opcodes.FMUL -> a * b;
+                            case Opcodes.FDIV -> b == 0f ? 0f : a / b;
+                            case Opcodes.FREM -> b == 0f ? 0f : a % b;
+                            default -> 0f;
+                        };
+                        state.numStack.push(r);
+                    }
+                }
+            }
+
+            // Type-conversion ops between numeric stack slots. Mirrored on the literal
+            // stack so subsequent arithmetic / argument-pop sees the correct precision.
+            // Gated on paramFloatValues for the same byte-stability reason as the
+            // arithmetic block above.
+            if (state.paramFloatValues != null
+                && (opcode == Opcodes.I2F || opcode == Opcodes.I2D || opcode == Opcodes.F2D
+                    || opcode == Opcodes.D2F || opcode == Opcodes.F2I || opcode == Opcodes.D2I)
+                && !state.numStack.isEmpty()) {
+                Number top = state.numStack.popNumber();
+                Number converted = switch (opcode) {
+                    case Opcodes.I2F -> (float) top.intValue();
+                    case Opcodes.I2D -> (double) top.intValue();
+                    case Opcodes.F2D -> (double) top.floatValue();
+                    case Opcodes.D2F -> (float) top.doubleValue();
+                    case Opcodes.F2I -> (int) top.floatValue();
+                    case Opcodes.D2I -> (int) top.doubleValue();
+                    default -> top;
+                };
+                state.numStack.push(converted);
+            }
+
+            switch (node) {
+                case FieldInsnNode fieldInsn when opcode == Opcodes.GETSTATIC -> {
+                    if (fieldInsn.owner.equals(VanillaSourceClasses.PART_POSE) && fieldInsn.name.equals("ZERO")) {
+                        state.pendingPivot = new float[]{ 0, 0, 0 };
+                        state.pendingRotation = new float[]{ 0, 0, 0 };
+                        state.pendingScale = 1f;
+                    }
+                    // {@code GETSTATIC <field>: MeshTransformer} - vanilla static-field pattern
+                    // for layer-level scale wraps that don't appear inline in the factory body.
+                    // {@code GuardianModel.createElderGuardianLayer} reads
+                    // {@code ELDER_GUARDIAN_SCALE} (a private static final MeshTransformer
+                    // initialised in {@code <clinit>} as
+                    // {@code MeshTransformer.scaling(2.35f)}) via {@code getstatic} then
+                    // {@code LayerDefinition.apply(MeshTransformer)} - the parser sees the
+                    // getstatic but not the scaling literal. Lazily walk the field owner's
+                    // {@code <clinit>} for the matching {@code putstatic} and fold the captured
+                    // F into {@link ParseState#meshTransformerScale}; the subsequent
+                    // {@code apply()} call is then a no-op for our tracking (we don't track
+                    // LayerDefinition refs anyway). Cached per-class so repeated parses of the
+                    // same source don't reload. Gated on {@code paramFloatValues != null} so
+                    // legacy literal-stack walkers keep their byte-stable behaviour.
+                    //
+                    // <p>Fallback for non-scaling transformers: when the field is initialised
+                    // via {@code invokedynamic apply -> lambda$static$N} that calls
+                    // {@code <Owner>.modifyMesh(MeshDefinition.getRoot())} (the
+                    // {@code DonkeyModel.DONKEY_TRANSFORMER} pattern), inline that
+                    // {@code modifyMesh} method into the current parse so the
+                    // {@code addOrReplaceChild} calls inside it land in our bone tree before
+                    // the subsequent {@code .apply(MeshTransformer.scaling(F))} bakes the
+                    // per-renderer scale across every bone. modifyMesh's
+                    // {@code body.addOrReplaceChild("left_chest", ...)} relies on the
+                    // {@link ParseState#boneMeta} entries already populated by
+                    // {@code AbstractEquineModel.createBodyMesh}, which flow through
+                    // {@link #inlineStaticMethodBody}'s save/restore set untouched.
+                    else if (state.paramFloatValues != null
+                        && MESH_TRANSFORMER_DESC.equals(fieldInsn.desc)) {
+                        Float f = resolveStaticMeshTransformer(fieldInsn.owner, fieldInsn.name, state, zip);
+                        if (f != null) {
+                            state.meshTransformerScale *= f;
+                        } else {
+                            MethodNode modifyMesh = findStaticModifyMeshTarget(fieldInsn.owner, fieldInsn.name, zip);
+                            if (modifyMesh != null) inlineStaticMethodBody(modifyMesh, null, state, zip);
+                        }
+                    }
+                }
+                case MethodInsnNode methodInsn -> handleMethodInsn(methodInsn, opcode, state, zip);
+                // Track local-variable slot -> bone mapping so child bones inherit their
+                // parent's pivot + scale. Vanilla models use
+                // {@code head = root.addOrReplaceChild("head", ...); head.addOrReplaceChild("jaw", ...);}
+                // which compiles to {@code invokevirtual; astore_N; aload_N;} around the child's
+                // builder chain - so astore-after-flush and aload-before-chain are our hooks.
+                // Additionally, slots may hold a pre-built CubeListBuilder that multiple
+                // addOrReplaceChild calls share (DecoratedPotRenderer stores one builder and
+                // reuses it for both {@code top} and {@code bottom} bones). Snapshot pending
+                // cubes into {@link ParseState#slotToCubes} so a later aload_N can re-hydrate
+                // them for the next bone without re-reading the same addBox literals.
+                case VarInsnNode varInsn when opcode == Opcodes.ASTORE -> {
+                    if (state.pendingFreshDeformationInflate != null) {
+                        state.cubeDeformationSlots.put(varInsn.var, state.pendingFreshDeformationInflate);
+                        state.pendingFreshDeformationInflate = null;
+                        // The fresh deformation just got stashed into a slot for later
+                        // reuse; it's no longer the "active" inflate. Reset to the
+                        // factory default so the next addBox(...,CubeDeformation) picks up
+                        // its own arg (via ALOAD slot lookup) or the call-site default,
+                        // not the leftover constructor value. AdultFelineModel triggers
+                        // this: {@code CubeDeformation tail_g = new CubeDeformation(-0.02F)}
+                        // followed immediately by {@code addBox("main", ..., g)} where
+                        // {@code g} is the parameter (call-site default), would otherwise
+                        // emit the head main cube with the stale -0.02 instead of 0.
+                        state.pendingInflate = state.defaultInflate;
+                    } else if (state.lastFlushedBone != null) {
+                        state.localSlotBone.put(varInsn.var, state.lastFlushedBone);
+                        state.lastFlushedBone = null;
+                    } else if (!state.pendingCubes.isEmpty()) {
+                        ConcurrentList<float[]> snapshot = Concurrent.newList();
+                        for (float[] c : state.pendingCubes) snapshot.add(c.clone());
+                        state.slotToCubes.put(varInsn.var, snapshot);
+                        state.pendingCubes = Concurrent.newList();
+                        state.pendingUv = new int[]{ 0, 0 };
+                    }
+                }
+                case VarInsnNode varInsn when opcode == Opcodes.ALOAD -> {
+                    Float deformationInflate = state.cubeDeformationSlots.get(varInsn.var);
+                    if (deformationInflate != null)
+                        state.pendingInflate = deformationInflate;
+                    String parent = state.localSlotBone.get(varInsn.var);
+                    if (parent != null)
+                        state.nextParent = parent;
+                    ConcurrentList<float[]> savedCubes = state.slotToCubes.get(varInsn.var);
+                    if (savedCubes != null) {
+                        for (float[] c : savedCubes) state.pendingCubes.add(c.clone());
+                    }
+                }
+                case LdcInsnNode ldc when ldc.cst instanceof String s ->
+                    state.pendingPartName = s;
+                default -> { }
+            }
+            return node;
         }
 
         /**
