@@ -377,6 +377,47 @@ public final class AsmKit {
         return field;
     }
 
+    /**
+     * Walks the enum class's {@code <clinit>} for the canonical
+     * {@code GETSTATIC <enum_value>; PUTSTATIC DEFAULT} pair and returns the enum value's
+     * declared name (uppercase, e.g. {@code "RED"} for {@code MushroomCow$Variant.DEFAULT = RED}
+     * or {@code "LUCY"} for {@code Axolotl$Variant.DEFAULT = LUCY}). Returns {@code null} when
+     * the class is missing from the jar, has no {@code <clinit>}, or has no {@code DEFAULT}
+     * static field initialised by the simple GETSTATIC-then-PUTSTATIC pattern.
+     *
+     * <p>Used by texture / variant resolvers that need to recover the canonical zero-state
+     * variant from an enum-typed render-state field. The match is owner-strict on both
+     * GETSTATIC and PUTSTATIC sides so unrelated static-init reads in the same {@code <clinit>}
+     * don't pollute the pending-field running state.
+     *
+     * @param classNodes the per-context cache to consult / populate
+     * @param enumInternalName the variant enum class's JVM internal name
+     * @return the name of the enum constant the {@code DEFAULT} field is initialised to,
+     *     or {@code null} when no match
+     */
+    public static @Nullable String findEnumDefaultName(@NotNull ClassNodeCache classNodes, @NotNull String enumInternalName) {
+        ClassNode cn = classNodes.load(enumInternalName);
+        if (cn == null) return null;
+        MethodNode clinit = findMethod(cn, CLINIT);
+        if (clinit == null) return null;
+        String pendingFieldName = null;
+        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (in.getOpcode() == Opcodes.GETSTATIC
+                && in instanceof FieldInsnNode fi
+                && enumInternalName.equals(fi.owner)) {
+                pendingFieldName = fi.name;
+                continue;
+            }
+            if (in.getOpcode() == Opcodes.PUTSTATIC
+                && in instanceof FieldInsnNode fi
+                && enumInternalName.equals(fi.owner)
+                && "DEFAULT".equals(fi.name)
+                && pendingFieldName != null)
+                return pendingFieldName;
+        }
+        return null;
+    }
+
     // ----------------------------------------------------------------------------------------
     // Class-hierarchy walks
     // ----------------------------------------------------------------------------------------

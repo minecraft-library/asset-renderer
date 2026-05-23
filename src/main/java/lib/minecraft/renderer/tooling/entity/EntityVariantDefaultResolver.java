@@ -43,7 +43,6 @@ import java.util.Locale;
 public final class EntityVariantDefaultResolver {
 
     private static final @NotNull String GET_TEXTURE_LOCATION = "getTextureLocation";
-    private static final @NotNull String DEFAULT_FIELD = "DEFAULT";
     private static final @NotNull String VARIANT_FIELD = "variant";
 
     /**
@@ -73,7 +72,7 @@ public final class EntityVariantDefaultResolver {
         String variantClass = findVariantFieldClass(getTex);
         if (variantClass == null) return null;
 
-        String defaultName = findDefaultEnumValue(classNodes, variantClass);
+        String defaultName = AsmKit.findEnumDefaultName(classNodes, variantClass);
         if (defaultName == null) return null;
 
         diag.info("variant-default: '%s' -> %s.%s", rendererInternalName, variantClass, defaultName);
@@ -120,31 +119,4 @@ public final class EntityVariantDefaultResolver {
         return null;
     }
 
-    /**
-     * Walks the variant enum class's {@code <clinit>} for the canonical
-     * {@code GETSTATIC <enum_value>; PUTSTATIC DEFAULT} pair and returns the enum value's
-     * declared name (uppercase, e.g. {@code "LUCY"} for Axolotl$Variant or {@code "BROWN"}
-     * for Rabbit$Variant). Returns {@code null} when the enum has no {@code DEFAULT}
-     * static field or the initializer doesn't match the simple GETSTATIC-then-PUTSTATIC
-     * pattern.
-     */
-    private static @Nullable String findDefaultEnumValue(@NotNull ClassNodeCache classNodes, @NotNull String variantClassInternal) {
-        ClassNode cn = classNodes.load(variantClassInternal);
-        if (cn == null) return null;
-        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
-        if (clinit == null) return null;
-
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
-            if (in.getOpcode() != Opcodes.PUTSTATIC) continue;
-            if (!(in instanceof FieldInsnNode put)) continue;
-            if (!DEFAULT_FIELD.equals(put.name)) continue;
-            if (!variantClassInternal.equals(put.owner)) continue;
-            AbstractInsnNode prev = AsmKit.previousReal(in);
-            if (prev == null || prev.getOpcode() != Opcodes.GETSTATIC) continue;
-            if (!(prev instanceof FieldInsnNode get)) continue;
-            if (!variantClassInternal.equals(get.owner)) continue;
-            return get.name;
-        }
-        return null;
-    }
 }

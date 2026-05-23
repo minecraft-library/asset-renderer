@@ -1088,7 +1088,7 @@ public final class EntityTextureResolver {
         Map<String, String> variantToTexture = new LinkedHashMap<>();
         String variantClass = collectVariantToTextureMap(cn, variantToTexture);
         if (variantClass == null || variantToTexture.isEmpty()) return null;
-        String defaultName = findEnumDefaultName(classNodes, variantClass);
+        String defaultName = AsmKit.findEnumDefaultName(classNodes, variantClass);
         if (defaultName == null) return null;
         return variantToTexture.get(defaultName);
     }
@@ -1132,35 +1132,6 @@ public final class EntityTextureResolver {
         return variantClass;
     }
 
-    /**
-     * Walks the enum class's {@code <clinit>} for the {@code DEFAULT} static field initialiser
-     * pattern: {@code GETSTATIC <CONSTANT_NAME>; PUTSTATIC DEFAULT}. Returns the constant name
-     * referenced (e.g. {@code "RED"} for {@code MushroomCow$Variant.DEFAULT = RED}), or
-     * {@code null} when no {@code DEFAULT} field exists or its initialiser doesn't follow the
-     * standard pattern.
-     */
-    private static @Nullable String findEnumDefaultName(@NotNull ClassNodeCache classNodes, @NotNull String enumInternalName) {
-        ClassNode cn = classNodes.load(enumInternalName);
-        if (cn == null) return null;
-        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
-        if (clinit == null) return null;
-        String pendingFieldName = null;
-        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
-            if (in.getOpcode() == Opcodes.GETSTATIC
-                && in instanceof FieldInsnNode fi
-                && enumInternalName.equals(fi.owner)) {
-                pendingFieldName = fi.name;
-                continue;
-            }
-            if (in.getOpcode() == Opcodes.PUTSTATIC
-                && in instanceof FieldInsnNode fi
-                && enumInternalName.equals(fi.owner)
-                && "DEFAULT".equals(fi.name)
-                && pendingFieldName != null)
-                return pendingFieldName;
-        }
-        return null;
-    }
 
     /**
      * Derives the {@code _baby.png} sibling of a primary texture path. {@code "X/Y.png"} ->
