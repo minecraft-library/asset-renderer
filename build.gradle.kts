@@ -75,7 +75,7 @@ dependencies {
     // master-SNAPSHOT consumers of any single lib see a consistent transitive chain.
     api("com.github.simplified-dev:collections") { version { strictly("2f2aa58") } }
     api("com.github.simplified-dev:utils") { version { strictly("a932b44") } }
-    api("com.github.simplified-dev:image") { version { strictly("1f61c94") } }
+    api("com.github.simplified-dev:image") { version { strictly("0e71835") } }
     api("com.github.simplified-dev:gson-extras") { version { strictly("26278a3") } }
     api("com.github.simplified-dev:reflection") { version { strictly("c02511a") } }
     api("com.github.simplified-dev:client") { version { strictly("47d3c2f") } }
