@@ -32,12 +32,6 @@ import java.util.Optional;
  * (geometry reference, texture reference, optional {@code variant_of} back-link, overlays);
  * {@link #GEOMETRY_RESOURCE_PATH} holds the deduplicated bone/cube trees.
  * <p>
- * {@link #GEOMETRY_HANDEDITS_RESOURCE_PATH} merges into the geometry table on top of the
- * generated entries for geometries the bytecode tooling can't reach (e.g.
- * {@code AdultPiglinModel.createBodyLayer}'s post-build {@code head.clearChild("hat")} and
- * the {@code DonkeyModel} ear-bone pivot capture). Entries here survive tooling
- * regenerations.
- * <p>
  * A {@code texture_ref} is the vanilla {@code textures/entity/} sub-path (e.g.
  * {@code "cow/cow"}, {@code "wither/wither"}); resolved at render time against the active pack
  * stack via
@@ -63,15 +57,6 @@ public class EntityModelLoader {
      * Per-geometry bone tree file; bones in Java-native Y-down absolute entity-root frame.
      */
     private static final @NotNull String GEOMETRY_RESOURCE_PATH = "/lib/minecraft/renderer/entity_geometry.json";
-
-    /**
-     * Hand-edited geometries merged on top of {@link #GEOMETRY_RESOURCE_PATH}. The bytecode
-     * tooling can't reach every Java-pipeline geometry (e.g. {@code AdultPiglinModel}'s
-     * post-build {@code head.clearChild("hat")} or the {@code DonkeyModel} ear-bone pivot
-     * capture); this file is the escape hatch for those. Entries here survive tooling
-     * regenerations.
-     */
-    private static final @NotNull String GEOMETRY_HANDEDITS_RESOURCE_PATH = "/lib/minecraft/renderer/entity_geometry_handedits.json";
 
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
@@ -480,17 +465,12 @@ public class EntityModelLoader {
     }
 
     /**
-     * Reads {@link #GEOMETRY_RESOURCE_PATH} and merges
-     * {@link #GEOMETRY_HANDEDITS_RESOURCE_PATH} on top (hand-edits take precedence on key
-     * collision). Returns an empty map when the primary file is absent (so {@link #load()}
-     * can short-circuit to "no Java pipeline available" without throwing during environments
-     * that haven't run {@code ToolingEntityModels} yet).
+     * Reads {@link #GEOMETRY_RESOURCE_PATH}. Returns an empty map when the file is absent (so
+     * {@link #load()} can short-circuit to "no Java pipeline available" without throwing during
+     * environments that haven't run {@code ToolingEntityModels} yet).
      */
     private static @NotNull Map<String, EntityModelData> loadGeometries() {
-        Map<String, EntityModelData> out = readGeometriesJsonResource(GEOMETRY_RESOURCE_PATH, /*required*/ false);
-        Map<String, EntityModelData> handedits = readGeometriesJsonResource(GEOMETRY_HANDEDITS_RESOURCE_PATH, /*required*/ false);
-        out.putAll(handedits);
-        return out;
+        return readGeometriesJsonResource(GEOMETRY_RESOURCE_PATH, /*required*/ false);
     }
 
     private static volatile Map<String, List<String>> FAMILIES_CACHE;

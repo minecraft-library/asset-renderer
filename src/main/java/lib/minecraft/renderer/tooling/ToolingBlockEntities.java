@@ -39,6 +39,7 @@ import lib.minecraft.renderer.tooling.util.FastTrig;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.*;
 
@@ -994,6 +995,78 @@ public final class ToolingBlockEntities {
         }
 
         /**
+         * Resolves a static {@code MeshTransformer} field whose {@code <clinit>} initialises it
+         * via an {@code invokedynamic apply -> lambda$static$N} pair to the underlying
+         * {@code modifyMesh(PartDefinition)V} method the lambda invokes. This is the canonical
+         * vanilla pattern for transformers that mutate a {@link
+         * net.minecraft.client.model.geom.builders.MeshDefinition} rather than wrap it with a
+         * uniform scale - {@code DonkeyModel.DONKEY_TRANSFORMER} is the only example in vanilla
+         * 26.1: it appends taller ear bones and adds {@code left_chest} / {@code right_chest}
+         * to the base AbstractEquineModel mesh before the per-renderer scale is applied.
+         *
+         * <p>The expected {@code <clinit>} shape is
+         * <pre>
+         *   invokedynamic apply -&gt; lambda$static$N (LambdaMetafactory)
+         *   putstatic     &lt;fieldName&gt; : MeshTransformer
+         * </pre>
+         * with {@code lambda$static$N} body
+         * <pre>
+         *   aload_0                    // MeshDefinition
+         *   invokevirtual getRoot      // -&gt; PartDefinition
+         *   invokestatic  modifyMesh   // (PartDefinition)V
+         *   aload_0
+         *   areturn
+         * </pre>
+         * Returns the {@code modifyMesh} {@link MethodNode} the caller can feed to
+         * {@link #inlineStaticMethodBody}. Returns {@code null} for any non-matching shape
+         * (different bootstrap, no lambda body, lambda doesn't invoke a
+         * {@code (PartDefinition)V} static).
+         */
+        private static @Nullable MethodNode findStaticModifyMeshTarget(
+            @NotNull String owner, @NotNull String fieldName, @NotNull ZipFile zip
+        ) {
+            ClassNode cls = AsmKit.loadClass(zip, owner);
+            MethodNode clinit = cls != null ? AsmKit.findMethod(cls, AsmKit.CLINIT) : null;
+            if (clinit == null) return null;
+
+            InvokeDynamicInsnNode pendingIndy = null;
+            for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+                if (AsmKit.isPseudoNode(in)) continue;
+                if (in instanceof InvokeDynamicInsnNode indy && AsmKit.isLambdaInvokeDynamic(indy)) {
+                    pendingIndy = indy;
+                    continue;
+                }
+                if (in instanceof FieldInsnNode fi
+                    && in.getOpcode() == Opcodes.PUTSTATIC
+                    && MESH_TRANSFORMER_DESC.equals(fi.desc)
+                    && fi.owner.equals(owner)
+                    && fi.name.equals(fieldName)
+                    && pendingIndy != null) {
+                    Handle handle = AsmKit.extractLambdaHandle(pendingIndy);
+                    if (handle == null
+                        || handle.getTag() != Opcodes.H_INVOKESTATIC
+                        || !handle.getOwner().equals(owner)) return null;
+                    MethodNode lambda = AsmKit.findMethod(cls, handle.getName(), handle.getDesc());
+                    if (lambda == null) return null;
+                    // The lambda body is the canonical `mesh.getRoot(); modifyMesh(...);
+                    // aload_0; areturn` pattern. Find the first INVOKESTATIC whose descriptor is
+                    // (Lnet/.../PartDefinition;)V - that's the modifyMesh-style callback.
+                    for (AbstractInsnNode body = lambda.instructions.getFirst(); body != null; body = body.getNext()) {
+                        if (AsmKit.isPseudoNode(body)) continue;
+                        if (body instanceof MethodInsnNode mi
+                            && mi.getOpcode() == Opcodes.INVOKESTATIC
+                            && mi.desc.startsWith("(L" + VanillaSourceClasses.PART_DEFINITION + ";)V")) {
+                            return AsmKit.findMethodInHierarchy(zip, mi.owner, mi.name, mi.desc);
+                        }
+                    }
+                    return null;
+                }
+                pendingIndy = null;
+            }
+            return null;
+        }
+
+        /**
          * Bakes the captured {@link ParseState#meshTransformerScale} (from
          * {@code MeshTransformer.scaling(F)} call(s) on the {@code LayerDefinition}) into every
          * emitted bone. Vanilla's expansion is, per {@code PartPose},
@@ -1504,10 +1577,28 @@ public final class ToolingBlockEntities {
                         // LayerDefinition refs anyway). Cached per-class so repeated parses of the
                         // same source don't reload. Gated on {@code paramFloatValues != null} so
                         // legacy literal-stack walkers keep their byte-stable behaviour.
+                        //
+                        // <p>Fallback for non-scaling transformers: when the field is initialised
+                        // via {@code invokedynamic apply -> lambda$static$N} that calls
+                        // {@code <Owner>.modifyMesh(MeshDefinition.getRoot())} (the
+                        // {@code DonkeyModel.DONKEY_TRANSFORMER} pattern), inline that
+                        // {@code modifyMesh} method into the current parse so the
+                        // {@code addOrReplaceChild} calls inside it land in our bone tree before
+                        // the subsequent {@code .apply(MeshTransformer.scaling(F))} bakes the
+                        // per-renderer scale across every bone. modifyMesh's
+                        // {@code body.addOrReplaceChild("left_chest", ...)} relies on the
+                        // {@link ParseState#boneMeta} entries already populated by
+                        // {@code AbstractEquineModel.createBodyMesh}, which flow through
+                        // {@link #inlineStaticMethodBody}'s save/restore set untouched.
                         else if (state.paramFloatValues != null
                             && MESH_TRANSFORMER_DESC.equals(fieldInsn.desc)) {
                             Float f = resolveStaticMeshTransformer(fieldInsn.owner, fieldInsn.name, state, zip);
-                            if (f != null) state.meshTransformerScale *= f;
+                            if (f != null) {
+                                state.meshTransformerScale *= f;
+                            } else {
+                                MethodNode modifyMesh = findStaticModifyMeshTarget(fieldInsn.owner, fieldInsn.name, zip);
+                                if (modifyMesh != null) inlineStaticMethodBody(modifyMesh, null, state, zip);
+                            }
                         }
                     }
                     case MethodInsnNode methodInsn -> handleMethodInsn(methodInsn, opcode, state, zip);
@@ -1751,84 +1842,93 @@ public final class ToolingBlockEntities {
                 && methodInsn.owner.startsWith("net/minecraft/client/model/")
                 && !methodInsn.owner.startsWith("net/minecraft/client/model/geom/")) {
                 MethodNode inlined = AsmKit.findMethodInHierarchy(zip, methodInsn.owner, methodInsn.name, methodInsn.desc);
-                if (inlined != null) {
-                    // Propagate the call-site's numeric literal args to the inlined method as
-                    // {@code paramIntValues} / {@code paramFloatValues} for slot-N reads. Vanilla
-                    // shares quadruped construction in {@code QuadrupedModel.createBodyMesh(int
-                    // legSize, boolean fur, boolean other, CubeDeformation)} and similar
-                    // helpers - the call site pushes literal ints (pig's {@code bipush 6,
-                    // iconst_1, iconst_0}); without this the inlined method's {@code iload_0}
-                    // resolves to a non-literal marker and downstream {@code 18 - legSize}
-                    // arithmetic produces 18 instead of 12. Saved/restored around the recurse so
-                    // the outer parse state stays unaffected.
-                    int[] previousInts = state.paramIntValues;
-                    float[] previousFloats = state.paramFloatValues;
-                    if (state.paramFloatValues != null) {
-                        InlineParams params = captureInlineParams(methodInsn.desc, state, inlined.maxLocals);
-                        state.paramIntValues = params.ints;
-                        state.paramFloatValues = params.floats;
-                    }
-                    // Save call-frame-local state and reset it for the callee. JVM local
-                    // variable slots are method-scoped: {@code astore_2} inside
-                    // {@code QuadrupedModel.createBodyMesh} writes to a slot independent of
-                    // the caller's slot 2, so the caller's {@code aload_2} after the helper
-                    // returns must not pick up the helper's bone bindings. Without this reset,
-                    // the helper's last flushed bone (e.g. {@code left_front_leg}) leaks into
-                    // the caller's slot map and the caller's next {@code addOrReplaceChild}
-                    // mis-parents to a leg instead of the mesh root.
-                    ConcurrentMap<Integer, String> savedLocalSlotBone = state.localSlotBone;
-                    ConcurrentMap<Integer, ConcurrentList<float[]>> savedSlotToCubes = state.slotToCubes;
-                    String savedPendingPartName = state.pendingPartName;
-                    String savedBoneName = state.boneName;
-                    String savedParentBone = state.parentBone;
-                    String savedNextParent = state.nextParent;
-                    String savedLastFlushedBone = state.lastFlushedBone;
-                    ConcurrentList<float[]> savedPendingCubes = state.pendingCubes;
-                    int[] savedPendingUv = state.pendingUv;
-                    float[] savedPendingPivot = state.pendingPivot;
-                    float[] savedPendingRotation = state.pendingRotation;
-                    float savedPendingScale = state.pendingScale;
-                    // Builder-level mirror flag is scoped to the current CubeListBuilder chain.
-                    // Without saving it across the recurse, a callee that internally toggles
-                    // mirror (HumanoidModel.createMesh's left-arm/left-leg .mirror() calls)
-                    // leaks the flag into the caller's continuation. ZombieVillagerModel's
-                    // post-recurse `new CubeListBuilder().texOffs(0,0).addBox(...)` then emits
-                    // its head cubes with mirror=true, U-flipping head face UVs and producing
-                    // a +3.32 delta against vanilla. Save/restore matches the rest of the
-                    // builder/bone state already preserved here.
-                    boolean savedPendingMirror = state.pendingMirror;
-                    state.localSlotBone = Concurrent.newMap();
-                    state.slotToCubes = Concurrent.newMap();
-                    state.pendingPartName = null;
-                    state.boneName = null;
-                    state.parentBone = null;
-                    state.nextParent = null;
-                    state.lastFlushedBone = null;
-                    state.pendingCubes = Concurrent.newList();
-                    state.pendingUv = new int[]{ 0, 0 };
-                    state.pendingPivot = new float[]{ 0, 0, 0 };
-                    state.pendingRotation = new float[]{ 0, 0, 0 };
-                    state.pendingScale = 1f;
-                    try {
-                        walkInstructions(inlined.instructions, state, zip);
-                    } finally {
-                        state.paramIntValues = previousInts;
-                        state.paramFloatValues = previousFloats;
-                        state.localSlotBone = savedLocalSlotBone;
-                        state.slotToCubes = savedSlotToCubes;
-                        state.pendingPartName = savedPendingPartName;
-                        state.boneName = savedBoneName;
-                        state.parentBone = savedParentBone;
-                        state.nextParent = savedNextParent;
-                        state.lastFlushedBone = savedLastFlushedBone;
-                        state.pendingCubes = savedPendingCubes;
-                        state.pendingUv = savedPendingUv;
-                        state.pendingPivot = savedPendingPivot;
-                        state.pendingRotation = savedPendingRotation;
-                        state.pendingScale = savedPendingScale;
-                        state.pendingMirror = savedPendingMirror;
-                    }
-                }
+                if (inlined != null) inlineStaticMethodBody(inlined, methodInsn.desc, state, zip);
+            }
+        }
+
+        /**
+         * Walks {@code inlined}'s instructions on {@code state}, saving and restoring every
+         * call-frame-local field (slot maps, pending pose, pending mirror, paramIntValues /
+         * paramFloatValues) around the call. Output containers ({@link ParseState#bones},
+         * {@link ParseState#boneMeta}, {@link ParseState#boneParents}) flow through unchanged
+         * so bones flushed inside the callee land in the caller's geometry.
+         *
+         * <p>JVM local-variable slots are method-scoped: {@code astore_2} inside the callee
+         * writes to a slot independent of the caller's slot 2, so the caller's {@code aload_2}
+         * after the helper returns must not pick up the callee's bone bindings. Without this
+         * reset, the callee's last flushed bone (e.g. {@code left_front_leg}) leaks into the
+         * caller's slot map and the caller's next {@code addOrReplaceChild} mis-parents to a
+         * leg instead of the mesh root. Builder-level {@link ParseState#pendingMirror} is
+         * scoped to the current CubeListBuilder chain - without saving it across the recurse,
+         * a callee that internally toggles mirror (HumanoidModel.createMesh's left-arm /
+         * left-leg .mirror() calls) leaks the flag into the caller's continuation.
+         *
+         * <p>When {@code callDesc} is non-null and {@link ParseState#paramFloatValues} is
+         * non-null, the call-site's numeric literals are captured into the callee's parameter
+         * slots via {@link #captureInlineParams}. Vanilla shares quadruped construction in
+         * {@code QuadrupedModel.createBodyMesh(int legSize, ...)} - the call site pushes
+         * literal ints (pig's {@code bipush 6, iconst_1, iconst_0}); without this the inlined
+         * method's {@code iload_0} resolves to a non-literal marker and downstream
+         * {@code 18 - legSize} arithmetic produces 18 instead of 12. Pass {@code null} for
+         * synthetic call sites (e.g. lambda-mediated MeshTransformer invokes) that have no
+         * on-stack numeric args.
+         */
+        private static void inlineStaticMethodBody(
+            @NotNull MethodNode inlined,
+            @Nullable String callDesc,
+            @NotNull ParseState state,
+            @NotNull ZipFile zip
+        ) {
+            int[] previousInts = state.paramIntValues;
+            float[] previousFloats = state.paramFloatValues;
+            if (callDesc != null && state.paramFloatValues != null) {
+                InlineParams params = captureInlineParams(callDesc, state, inlined.maxLocals);
+                state.paramIntValues = params.ints;
+                state.paramFloatValues = params.floats;
+            }
+            ConcurrentMap<Integer, String> savedLocalSlotBone = state.localSlotBone;
+            ConcurrentMap<Integer, ConcurrentList<float[]>> savedSlotToCubes = state.slotToCubes;
+            String savedPendingPartName = state.pendingPartName;
+            String savedBoneName = state.boneName;
+            String savedParentBone = state.parentBone;
+            String savedNextParent = state.nextParent;
+            String savedLastFlushedBone = state.lastFlushedBone;
+            ConcurrentList<float[]> savedPendingCubes = state.pendingCubes;
+            int[] savedPendingUv = state.pendingUv;
+            float[] savedPendingPivot = state.pendingPivot;
+            float[] savedPendingRotation = state.pendingRotation;
+            float savedPendingScale = state.pendingScale;
+            boolean savedPendingMirror = state.pendingMirror;
+            state.localSlotBone = Concurrent.newMap();
+            state.slotToCubes = Concurrent.newMap();
+            state.pendingPartName = null;
+            state.boneName = null;
+            state.parentBone = null;
+            state.nextParent = null;
+            state.lastFlushedBone = null;
+            state.pendingCubes = Concurrent.newList();
+            state.pendingUv = new int[]{ 0, 0 };
+            state.pendingPivot = new float[]{ 0, 0, 0 };
+            state.pendingRotation = new float[]{ 0, 0, 0 };
+            state.pendingScale = 1f;
+            try {
+                walkInstructions(inlined.instructions, state, zip);
+            } finally {
+                state.paramIntValues = previousInts;
+                state.paramFloatValues = previousFloats;
+                state.localSlotBone = savedLocalSlotBone;
+                state.slotToCubes = savedSlotToCubes;
+                state.pendingPartName = savedPendingPartName;
+                state.boneName = savedBoneName;
+                state.parentBone = savedParentBone;
+                state.nextParent = savedNextParent;
+                state.lastFlushedBone = savedLastFlushedBone;
+                state.pendingCubes = savedPendingCubes;
+                state.pendingUv = savedPendingUv;
+                state.pendingPivot = savedPendingPivot;
+                state.pendingRotation = savedPendingRotation;
+                state.pendingScale = savedPendingScale;
+                state.pendingMirror = savedPendingMirror;
             }
         }
 
@@ -1998,9 +2098,20 @@ public final class ToolingBlockEntities {
                     // Clear {@code lastFlushedBone} since a new builder is now on the operand
                     // stack - any astore_N that follows stores the builder, not a stale
                     // PartDefinition the caller already discarded via {@code pop}.
-                    if (state.pendingPartName != null)
+                    //
+                    // The parentBone snapshot is conditional on having a pendingPartName so
+                    // shared-builder factories (DonkeyModel.modifyMesh pre-builds one chest
+                    // CubeListBuilder and reuses it for left_chest + right_chest) don't
+                    // capture stale {@code nextParent} from a previous bone group. The
+                    // shared-builder pattern is: create() with no preceding ldc String, then
+                    // later aload(parent), aload(builder_slot), ldc(name), PartPose,
+                    // addOrReplaceChild. By the time the flush fires, the parent has been
+                    // re-aload'd into {@code nextParent} so resolvedParent picks it up
+                    // through the nextParent fallback in {@link #flushPendingBone}.
+                    if (state.pendingPartName != null) {
                         state.boneName = state.pendingPartName;
-                    state.parentBone = state.nextParent;
+                        state.parentBone = state.nextParent;
+                    }
                     state.nextParent = null;
                     state.lastFlushedBone = null;
                     // Each new builder starts fresh - clear the mirror flag so it doesn't leak
