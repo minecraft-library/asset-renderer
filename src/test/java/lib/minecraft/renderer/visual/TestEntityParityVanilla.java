@@ -18,6 +18,7 @@ import org.jetbrains.annotations.NotNull;
 import javax.imageio.ImageIO;
 import java.awt.Color;
 import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
@@ -358,18 +359,31 @@ public final class TestEntityParityVanilla {
      * <p>Aggregate stats (mean Δ, mean signed luma Δ, coverage tallies) are stamped at the
      * bottom of the panel for quick scanning across many entities.
      */
+    /**
+     * Supersample factor applied to every panel dimension (cell size, gaps, fonts). Rendering
+     * the whole panel at this multiple of natural pixel size produces text that's crisp at any
+     * zoom level - the cell images get scaled up with nearest-neighbor (preserves the pixel-art
+     * grid) while AWT renders fonts directly at the higher point size so glyph edges hit the
+     * native pixel grid instead of being downsampled.
+     */
+    private static final int PANEL_SUPERSAMPLE = 2;
+
+    /**
+     * Natural-resolution font sizes (multiplied by {@link #PANEL_SUPERSAMPLE} at render time).
+     */
+    private static final int PANEL_LABEL_FONT_PT = 14;
+    private static final int PANEL_STATS_FONT_PT = 13;
+
     private static @NotNull BufferedImage panelDiff(
         @NotNull BufferedImage vanilla, @NotNull BufferedImage java,
         @NotNull PixelBuffer vanillaPB, @NotNull PixelBuffer javaPB
     ) {
-        int cellW = Math.max(vanilla.getWidth(), java.getWidth());
-        int cellH = Math.max(vanilla.getHeight(), java.getHeight());
-        int gap = 8;
-        int labelH = 18;
-        int statsH = 96;
-        int minPanelW = 540; // floor so the stats footer text isn't clipped on tiny entities
-        int panelW = Math.max(minPanelW, 3 * cellW + 4 * gap);
-        int panelH = 2 * (cellH + labelH) + 3 * gap + statsH;
+        int ss = PANEL_SUPERSAMPLE;
+        int gap = 8 * ss;
+        int labelPad = 8 * ss;        // horizontal pad between label text and cell edges
+        int statsBlockPad = 12 * ss;  // vertical pad between paired stats lines
+        Font labelFont = new Font(Font.MONOSPACED, Font.BOLD, PANEL_LABEL_FONT_PT * ss);
+        Font statsFont = new Font(Font.MONOSPACED, Font.PLAIN, PANEL_STATS_FONT_PT * ss);
 
         BufferedImage[] cells = {
             vanilla,
@@ -383,56 +397,139 @@ public final class TestEntityParityVanilla {
             "vanilla",
             "java",
             "|delta| x4",
-            "luma+/- (red=vanilla>, blue=java>)",
-            "RGB+/- (grey=match)",
+            "luma +/- (red=vanilla>, blue=java>)",
+            "RGB +/- (grey=match)",
             "coverage (M=vanilla, C=java)"
         };
-        // Grid backdrop for diff cells. The PixelDiff API writes ColorMath.TRANSPARENT for
-        // out-of-silhouette pixels (and for some modes, in-silhouette match too); compositing
-        // each diff over a fresh grid keeps the canvas-extent visible without dominating the
-        // view. Built once and re-blitted under each diff cell.
+        String[] statsLines = formatStatsLines(aggregateDiffStats(vanilla, java));
+
+        // Probe font metrics on a throwaway Graphics2D so cellW can be widened to the longest
+        // label and panelW widened to the longest stats line - prevents text overflow into
+        // adjacent cells or off the right panel edge on tiny entities.
+        int maxLabelWidth;
+        int labelLineHeight;
+        int statsLineHeight;
+        int maxStatsWidth;
+        try (DisposingGraphics probe = new DisposingGraphics(1, 1)) {
+            Graphics2D pg = probe.g;
+            pg.setFont(labelFont);
+            FontMetrics lfm = pg.getFontMetrics();
+            int m = 0;
+            for (String l : labels) m = Math.max(m, lfm.stringWidth(l));
+            maxLabelWidth = m;
+            labelLineHeight = lfm.getHeight();
+            pg.setFont(statsFont);
+            FontMetrics sfm = pg.getFontMetrics();
+            statsLineHeight = sfm.getHeight();
+            int sw = 0;
+            for (String s : statsLines) sw = Math.max(sw, sfm.stringWidth(s));
+            maxStatsWidth = sw;
+        }
+
+        int naturalCellW = Math.max(vanilla.getWidth(), java.getWidth()) * ss;
+        int naturalCellH = Math.max(vanilla.getHeight(), java.getHeight()) * ss;
+        // Widen each cell column so the longest label fits with padding on both sides; this
+        // is the single fix that stops labels from spilling into the next column on entities
+        // whose native render is narrower than the label text.
+        int cellW = Math.max(naturalCellW, maxLabelWidth + 2 * labelPad);
+        int cellH = naturalCellH;
+        int labelH = labelLineHeight + 2 * (3 * ss);    // glyph height + breathing room
+        // Stats footer: one line per statsLines entry plus a half-line gap before the quadrant
+        // block (statsLines[2] onward). +statsBlockPad on top to separate from the cell rows.
+        int statsH = statsBlockPad + statsLineHeight * statsLines.length + statsLineHeight / 2;
+
+        int cellRowW = 3 * cellW + 4 * gap;
+        int statsRowW = maxStatsWidth + 2 * gap;
+        int panelW = Math.max(cellRowW, statsRowW);
+        int panelH = 2 * (cellH + labelH) + 3 * gap + statsH;
+
         BufferedImage gridBackdrop = buildGridBackdrop(cellW, cellH);
 
         BufferedImage panel = new BufferedImage(panelW, panelH, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = panel.createGraphics();
         try {
-            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            // GASP hinting + fractional metrics give the crispest small-glyph rendering on
+            // Windows + Linux; ON-without-GASP can read fuzzy at small point sizes.
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_GASP);
+            g.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
             g.setColor(new Color(28, 28, 32));
             g.fillRect(0, 0, panelW, panelH);
-            g.setFont(new Font(Font.MONOSPACED, Font.BOLD, 11));
+            g.setFont(labelFont);
+            FontMetrics lfm = g.getFontMetrics();
+            int labelBaselineOffset = (labelH + lfm.getAscent() - lfm.getDescent()) / 2;
             for (int i = 0; i < 6; i++) {
                 int col = i % 3;
                 int row = i / 3;
                 int x = gap + col * (cellW + gap);
                 int y = gap + row * (cellH + labelH + gap);
+                // Label band: own row above each cell, padded so glyph cells never reach the
+                // cell image footprint. Horizontal pad keeps the leftmost glyph inset from
+                // the cell's left edge.
                 g.setColor(new Color(220, 220, 230));
-                g.drawString(labels[i], x, y + labelH - 5);
+                g.drawString(labels[i], x + labelPad, y + labelBaselineOffset);
+                int cellY = y + labelH;
                 g.setColor(new Color(80, 80, 90));
-                g.drawRect(x - 1, y + labelH - 1, cellW + 1, cellH + 1);
-                // Diff cells (indexes 2-5) get the grid backdrop so transparent-elsewhere
-                // pixels don't read as a flat panel-background patch.
-                if (i >= 2) g.drawImage(gridBackdrop, x, y + labelH, null);
-                g.drawImage(cells[i], x, y + labelH, null);
+                g.drawRect(x - 1, cellY - 1, cellW + 1, cellH + 1);
+                if (i >= 2) g.drawImage(gridBackdrop, x, cellY, null);
+                // Cell image gets nearest-neighbor-upscaled to ss times its natural size so the
+                // entity's pixel-art grid stays pixel-sharp at the supersampled resolution.
+                // When cellW exceeds the scaled image width (e.g. a tiny entity whose label is
+                // wider than its render), the image is centered within the cell footprint.
+                int scaledW = cells[i].getWidth() * ss;
+                int scaledH = cells[i].getHeight() * ss;
+                int imgX = x + (cellW - scaledW) / 2;
+                int imgY = cellY + (cellH - scaledH) / 2;
+                Object prevInterp = g.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
+                g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+                g.drawImage(cells[i], imgX, imgY, scaledW, scaledH, null);
+                if (prevInterp != null) g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, prevInterp);
+                else g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
             }
             // Stats footer
-            DiffStats ds = aggregateDiffStats(vanilla, java);
             g.setColor(new Color(220, 220, 230));
-            g.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 11));
-            int sy = 2 * (cellH + labelH) + 3 * gap + 14;
-            g.drawString(String.format("mean |delta|     : %8.2f / 765   mean signed luma: %+8.2f   (+ = vanilla brighter)", ds.meanAbsDelta, ds.meanSignedLuma), gap, sy);
-            g.drawString(String.format("coverage         : v=%-5d j=%-5d both=%-5d vanilla-only=%-4d java-only=%-4d",
-                ds.vanillaPx, ds.javaPx, ds.bothPx, ds.vanillaOnlyPx, ds.javaOnlyPx), gap, sy + 14);
-            // Per-quadrant signed luma + mean abs delta - localises which side of the silhouette
-            // is over/under lit.
-            g.drawString("quadrant signed-luma (silhouette intersection only):", gap, sy + 32);
-            g.drawString(String.format("  TL=%+6.2f  TR=%+6.2f  BL=%+6.2f  BR=%+6.2f",
-                ds.qTL, ds.qTR, ds.qBL, ds.qBR), gap, sy + 46);
-            g.drawString(String.format("quadrant |delta|     TL=%6.1f  TR=%6.1f  BL=%6.1f  BR=%6.1f",
-                ds.qTLAbs, ds.qTRAbs, ds.qBLAbs, ds.qBRAbs), gap, sy + 60);
+            g.setFont(statsFont);
+            int sy = 2 * (cellH + labelH) + 3 * gap + statsBlockPad + statsLineHeight;
+            for (int i = 0; i < statsLines.length; i++) {
+                // Inject a half-line gap before the quadrant block (line index 2) so it reads
+                // as a distinct sub-section under the two-line "totals" block.
+                int extraGap = i >= 2 ? statsLineHeight / 2 : 0;
+                g.drawString(statsLines[i], gap, sy + i * statsLineHeight + extraGap);
+            }
         } finally {
             g.dispose();
         }
         return panel;
+    }
+
+    /**
+     * Formats the panel's stats footer into individual lines so layout code can probe the
+     * maximum line width via {@link FontMetrics#stringWidth} and widen the panel accordingly.
+     */
+    private static @NotNull String[] formatStatsLines(@NotNull DiffStats ds) {
+        return new String[]{
+            String.format("mean |delta|     : %8.2f / 765   mean signed luma: %+8.2f   (+ = vanilla brighter)", ds.meanAbsDelta, ds.meanSignedLuma),
+            String.format("coverage         : v=%-5d j=%-5d both=%-5d vanilla-only=%-4d java-only=%-4d",
+                ds.vanillaPx, ds.javaPx, ds.bothPx, ds.vanillaOnlyPx, ds.javaOnlyPx),
+            "quadrant signed-luma (silhouette intersection only):",
+            String.format("  TL=%+6.2f  TR=%+6.2f  BL=%+6.2f  BR=%+6.2f",
+                ds.qTL, ds.qTR, ds.qBL, ds.qBR),
+            String.format("quadrant |delta|     TL=%6.1f  TR=%6.1f  BL=%6.1f  BR=%6.1f",
+                ds.qTLAbs, ds.qTRAbs, ds.qBLAbs, ds.qBRAbs)
+        };
+    }
+
+    /**
+     * AutoCloseable wrapper around a throwaway {@link Graphics2D} used purely for probing
+     * {@link FontMetrics}. The probe buffer is 1x1 so the allocation cost is negligible.
+     */
+    private static final class DisposingGraphics implements AutoCloseable {
+        final BufferedImage probe;
+        final Graphics2D g;
+        DisposingGraphics(int w, int h) {
+            this.probe = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+            this.g = probe.createGraphics();
+        }
+        @Override public void close() { g.dispose(); }
     }
 
     /**
