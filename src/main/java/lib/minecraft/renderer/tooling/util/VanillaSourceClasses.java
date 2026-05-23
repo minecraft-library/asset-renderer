@@ -341,4 +341,13 @@ public final class VanillaSourceClasses {
     /** SpriteMapper builds SpriteIds from a sheet Identifier + path prefix. */
     public static final @NotNull String SPRITE_MAPPER = RENDERER_ROOT + "SpriteMapper";
 
+    /**
+     * RandomSource interface - vanilla's PRNG abstraction. Implementations
+     * ({@code SingleThreadedRandomSource}, {@code LegacyRandomSource}) use the standard
+     * java.util.Random LCG (multiplier {@code 25214903917L}, increment {@code 11L}, modulus
+     * mask {@code (1L << 48) - 1}). Seeded factory {@code createThreadLocalInstance(J)} is
+     * deterministic and the parser folds it via {@link java.util.Random} substitution.
+     */
+    public static final @NotNull String RANDOM_SOURCE = VANILLA_SOURCE_ROOT + "util/RandomSource";
+
 }

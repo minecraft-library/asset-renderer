@@ -68,10 +68,7 @@ public final class EntityProceduralLoops {
      * @return {@code true} when an applier template is registered for the factory
      */
     public static boolean hasTemplate(@NotNull String factoryKey) {
-        return switch (factoryKey) {
-            case "net/minecraft/client/model/monster/ghast/GhastModel#createBodyLayer" -> true;
-            default -> false;
-        };
+        return false;
     }
 
     /**
@@ -96,12 +93,7 @@ public final class EntityProceduralLoops {
         // emitted with garbage values).
         Map<String, JsonObject> preExisting = snapshotBones(geometry);
 
-        String key = resolution.targetClass() + "#" + resolution.targetMethod();
-        switch (key) {
-            case "net/minecraft/client/model/monster/ghast/GhastModel#createBodyLayer" ->
-                applyGhastTentacles(geometry);
-            default -> { /* no template registered yet */ }
-        }
+        // No appliers remain - every procedural-loop entity now folds at parse time.
 
         // Post-pass: scale every applier-emitted bone to match the parsed body bone's scale.
         // Without this each per-entity applier would need to know its factory's
@@ -184,62 +176,6 @@ public final class EntityProceduralLoops {
                 bone.add("pivot", scaled);
             }
             if (!bone.has("scale")) bone.addProperty("scale", f);
-        }
-    }
-
-    /**
-     * Adds the 9 tentacle bones that {@code GhastModel.createBodyLayer}'s loop emits.
-     * Mirrors the bytecode at offsets 50-166: a deterministic-seeded {@code RandomSource}
-     * (seed {@code 1660L}) drives the per-iteration tentacle height; the per-tentacle X/Z
-     * pivot is laid out as a 3x3 grid centered on the body's pivot:
-     * <ul>
-     * <li>{@code px = ((i % 3) - 0.5f * ((i / 3) % 2) - 0.75f) * 5f}</li>
-     * <li>{@code pz = ((i / 3) - 1) * 5f}</li>
-     * <li>{@code height = new Random(1660L).nextInt(7) + 8} (consumed in source order)</li>
-     * </ul>
-     *
-     * <p>Tentacles are children of the {@code root} (NOT {@code body} - the bytecode reuses
-     * the root local from {@code astore_1} at offset 12 inside the loop), so the world pivot
-     * equals the local pivot directly: {@code (px, 24.6, pz)}. Cube:
-     * {@code addBox(-1, 0, -1, 2, height, 2)} at {@code texOffs(0, 0)}.
-     *
-     * <p>The factory's final step wraps the LayerDefinition with
-     * {@code MeshTransformer.scaling(4.5f)} (inline, not via a class-level static MT field);
-     * this applier emits the raw addBox-literal values and the shared
-     * {@link #scaleAugmentedBones} post-pass in {@link #augment} bakes the scaling into the
-     * pivot + {@code scale} field uniformly across every appender, matching what the Parser
-     * does for the body bone via
-     * {@code lib.minecraft.renderer.tooling.ToolingBlockEntities}'s
-     * {@code applyMeshTransformerScaling}.
-     */
-    private static void applyGhastTentacles(@NotNull JsonObject geometry) {
-        JsonObject bones = geometry.getAsJsonObject("bones");
-        if (bones == null) return;
-        java.util.Random rng = new java.util.Random(1660L);
-        for (int i = 0; i < 9; i++) {
-            float px = (float) (((i % 3) - 0.5 * ((i / 3) % 2) - 0.75) * 5.0);
-            float pz = (float) (((i / 3) - 1) * 5.0);
-            int height = rng.nextInt(7) + 8;
-            JsonObject bone = new JsonObject();
-            bone.add("pivot", floatArray(px, 24.6f, pz));
-            bone.add("rotation", floatArray(0f, 0f, 0f));
-            JsonObject cube = new JsonObject();
-            cube.add("origin", floatArray(-1f, 0f, -1f));
-            cube.add("size", floatArray(2f, height, 2f));
-            JsonArray uv = new JsonArray();
-            uv.add(0);
-            uv.add(0);
-            cube.add("uv", uv);
-            cube.addProperty("inflate", 0.0);
-            cube.addProperty("mirror", false);
-            cube.add("face_uv", new JsonObject());
-            JsonArray cubes = new JsonArray();
-            cubes.add(cube);
-            bone.add("cubes", cubes);
-            // Use the same name format as {@code PartNames.tentacle(int)} produces
-            // ("tentacle" + i, no underscore) so this bone overwrites the partial bone the
-            // parser's linear walk emits for the loop's first iteration with garbage values.
-            bones.add("tentacle" + i, bone);
         }
     }
 

@@ -1847,6 +1847,14 @@ public final class ToolingBlockEntities {
                         }
                         state.pendingFreshArrayLength = null;
                         state.pendingFreshArrayType = '\0';
+                    } else if (state.pendingRandomSource != null) {
+                        // The previous {@code RandomSource.createThreadLocalInstance(J)}
+                        // captured a seeded {@link java.util.Random}; bind it to this slot so
+                        // subsequent {@code aload <slot>; <bound>; invokeinterface nextInt}
+                        // calls can step it. GhastModel's {@code ldc2_w 1660L;
+                        // invokestatic createThreadLocalInstance; astore_2} hits this exactly.
+                        state.localRandomSources.put(varInsn.var, state.pendingRandomSource);
+                        state.pendingRandomSource = null;
                     } else if (state.pendingFreshDeformationInflate != null) {
                         state.cubeDeformationSlots.put(varInsn.var, state.pendingFreshDeformationInflate);
                         state.pendingFreshDeformationInflate = null;
@@ -2122,6 +2130,62 @@ public final class ToolingBlockEntities {
                 state.numStack.push(result);
                 return;
             }
+            // {@code RandomSource.createThreadLocalInstance(J)} - seeded factory. Mojang's
+            // {@code SingleThreadedRandomSource} ctor calls {@code setSeed} with the same LCG
+            // as {@link java.util.Random#setSeed} (multiplier {@code 25214903917L}, increment
+            // {@code 11L}, modulus mask {@code (1L << 48) - 1}). The subsequent
+            // {@code BitRandomSource#nextInt(int)} default method is also identical to
+            // {@code java.util.Random#nextInt(int)} - same power-of-2 fast path, same
+            // rejection-sampling loop for non-power-of-2 bounds. So substituting
+            // {@code new java.util.Random(seed)} produces bit-identical results. Pops the
+            // long seed from numStack, stashes a fresh Random on
+            // {@link ParseState#pendingRandomSource}; the next {@code ASTORE} binds it to a
+            // local slot.
+            //
+            // <p>GhastModel.createBodyLayer uses seed {@code 1660L} to deterministically
+            // produce 9 tentacle heights via repeated {@code nextInt(7) + 8} calls.
+            if (state.paramFloatValues != null
+                && opcode == Opcodes.INVOKESTATIC
+                && methodInsn.owner.equals(VanillaSourceClasses.RANDOM_SOURCE)
+                && methodInsn.name.equals("createThreadLocalInstance")
+                && methodInsn.desc.equals("(J)Lnet/minecraft/util/RandomSource;")) {
+                // The long seed isn't tracked on numStack (the parser's literal walk handles
+                // int / float / double only). Walk back to the preceding {@code LDC2_W} or
+                // {@code LCONST_0} / {@code LCONST_1} directly via {@link AsmKit#readLongLiteral}.
+                AbstractInsnNode seedNode = AsmKit.previousReal(methodInsn);
+                Long seed = seedNode != null ? AsmKit.readLongLiteral(seedNode) : null;
+                if (seed != null) {
+                    state.pendingRandomSource = new java.util.Random(seed);
+                }
+                return;
+            }
+            // {@code RandomSource.nextInt(I)I} via invokeinterface. Walks back over preceding
+            // real instructions to find the {@code ALOAD <slot>} that pushed the random
+            // reference; when the slot has a tracked {@link java.util.Random} AND the bound
+            // operand is a real literal, steps the random and pushes the literal int result.
+            // Otherwise pops the bound and pushes a non-literal marker so the JVM stack stays
+            // aligned.
+            if (state.paramFloatValues != null
+                && opcode == Opcodes.INVOKEINTERFACE
+                && methodInsn.owner.equals(VanillaSourceClasses.RANDOM_SOURCE)
+                && methodInsn.name.equals("nextInt")
+                && methodInsn.desc.equals("(I)I")
+                && !state.numStack.isEmpty()) {
+                Number bound = state.numStack.popLiteralNumber();
+                if (bound != null) {
+                    AbstractInsnNode boundNode = AsmKit.previousReal(methodInsn);
+                    AbstractInsnNode aloadNode = boundNode != null ? AsmKit.previousReal(boundNode) : null;
+                    if (aloadNode instanceof VarInsnNode aload && aload.getOpcode() == Opcodes.ALOAD) {
+                        java.util.Random rng = state.localRandomSources.get(aload.var);
+                        if (rng != null && bound.intValue() > 0) {
+                            state.numStack.push(rng.nextInt(bound.intValue()));
+                            return;
+                        }
+                    }
+                }
+                state.numStack.pushNonLiteral();
+                return;
+            }
             // Invokestatic-follow: recurse into model-building statics outside the builder/geom
             // package (e.g. PiglinHeadModel.createHeadModel -> PiglinModel.addHead). The JVM
             // resolves invokestatic through the superclass chain, so {@link AsmKit#findMethodInHierarchy}
@@ -2186,6 +2250,8 @@ public final class ToolingBlockEntities {
             ConcurrentMap<Integer, float[]> savedLocalFloatArrays = state.localFloatArrays;
             Integer savedPendingFreshArrayLength = state.pendingFreshArrayLength;
             char savedPendingFreshArrayType = state.pendingFreshArrayType;
+            ConcurrentMap<Integer, java.util.Random> savedLocalRandomSources = state.localRandomSources;
+            java.util.Random savedPendingRandomSource = state.pendingRandomSource;
             String savedPendingPartName = state.pendingPartName;
             String savedBoneName = state.boneName;
             String savedParentBone = state.parentBone;
@@ -2203,6 +2269,8 @@ public final class ToolingBlockEntities {
             state.localFloatArrays = Concurrent.newMap();
             state.pendingFreshArrayLength = null;
             state.pendingFreshArrayType = '\0';
+            state.localRandomSources = Concurrent.newMap();
+            state.pendingRandomSource = null;
             state.pendingPartName = null;
             state.boneName = null;
             state.parentBone = null;
@@ -2224,6 +2292,8 @@ public final class ToolingBlockEntities {
                 state.localFloatArrays = savedLocalFloatArrays;
                 state.pendingFreshArrayLength = savedPendingFreshArrayLength;
                 state.pendingFreshArrayType = savedPendingFreshArrayType;
+                state.localRandomSources = savedLocalRandomSources;
+                state.pendingRandomSource = savedPendingRandomSource;
                 state.pendingPartName = savedPendingPartName;
                 state.boneName = savedBoneName;
                 state.parentBone = savedParentBone;
@@ -2856,6 +2926,26 @@ public final class ToolingBlockEntities {
              * leak its local arrays into the caller's scope.
              */
             @NotNull ConcurrentMap<Integer, float[]> localFloatArrays = Concurrent.newMap();
+
+            /**
+             * JVM local-variable slot -> tracked {@link java.util.Random} created by a seeded
+             * {@code RandomSource.createThreadLocalInstance(J)} factory + {@code ASTORE} pair.
+             * Each subsequent {@code aload <slot>; <bound>; invokeinterface
+             * RandomSource.nextInt(I)I} sequence steps the random and pushes the literal
+             * result. Vanilla's {@code GhastModel.createBodyLayer} uses seed {@code 1660L} to
+             * deterministically produce tentacle heights; the parser substitutes the same
+             * {@link java.util.Random} algorithm (Mojang's {@code BitRandomSource} matches the
+             * standard LCG bit-for-bit). Cleared in {@link #inlineStaticMethodBody}.
+             */
+            @NotNull ConcurrentMap<Integer, java.util.Random> localRandomSources = Concurrent.newMap();
+
+            /**
+             * Random instance captured by a {@code RandomSource.createThreadLocalInstance(J)}
+             * invokestatic that hasn't yet been bound to a slot via the subsequent
+             * {@code ASTORE}. Reset on consumption. Non-null only across that single
+             * createThreadLocalInstance-then-ASTORE pair.
+             */
+            @Nullable java.util.Random pendingRandomSource;
 
             /**
              * Length captured by a {@code NEWARRAY <T>} instruction that hasn't yet been bound
