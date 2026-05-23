@@ -74,8 +74,7 @@ public final class EntityProceduralLoops {
                  "net/minecraft/client/model/monster/slime/MagmaCubeModel#createBodyLayer",
                  "net/minecraft/client/model/monster/ghast/GhastModel#createBodyLayer",
                  "net/minecraft/client/model/monster/silverfish/SilverfishModel#createBodyLayer",
-                 "net/minecraft/client/model/monster/endermite/EndermiteModel#createBodyLayer",
-                 "net/minecraft/client/model/monster/dragon/EnderDragonModel#createBodyLayer" -> true;
+                 "net/minecraft/client/model/monster/endermite/EndermiteModel#createBodyLayer" -> true;
             default -> false;
         };
     }
@@ -115,8 +114,6 @@ public final class EntityProceduralLoops {
                 applySilverfishSegments(geometry);
             case "net/minecraft/client/model/monster/endermite/EndermiteModel#createBodyLayer" ->
                 applyEndermiteSegments(geometry);
-            case "net/minecraft/client/model/monster/dragon/EnderDragonModel#createBodyLayer" ->
-                applyEnderDragonNeckAndTail(geometry);
             default -> { /* no template registered yet */ }
         }
 
@@ -495,73 +492,6 @@ public final class EntityProceduralLoops {
             int v = ENDERMITE_BODY_TEXS[i][1];
             bones.add("segment" + i, segmentBone(0f, 24f - sy, f[i], -0.5f * sx, 0f, -0.5f * sz, sx, sy, sz, u, v));
         }
-    }
-
-    /**
-     * Adds the 5 neck bones and 12 tail bones that {@code EnderDragonModel.createBodyLayer}'s
-     * two loops emit. Both loops share a pre-built {@code CubeListBuilder} (local slot 4) with
-     * two named cubes:
-     * <ul>
-     *   <li>{@code "box"}: {@code addBox(-5, -5, -5, 10, 10, 10)} at {@code texOffs(192, 104)}</li>
-     *   <li>{@code "scale"}: {@code addBox(-1, -9, -3, 2, 4, 6)} at {@code texOffs(48, 0)}</li>
-     * </ul>
-     *
-     * <p>Per-iteration:
-     * <ul>
-     *   <li>Neck (i=0..4): {@code name = "neck" + i}, {@code pivot = (0, 20, -12 - i*10)} - parts
-     *       extend forward in -Z from the body, 10 units apart.</li>
-     *   <li>Tail (i=0..11): {@code name = "tail" + i}, {@code pivot = (0, 10, 60 + i*10)} - parts
-     *       extend backward in +Z from the body, 10 units apart.</li>
-     * </ul>
-     *
-     * <p>Both loops use the same {@code makeConcatWithConstants} pattern as silverfish /
-     * endermite for bone names (verified via {@code javap -v} bootstrap method args
-     * {@code neck} and {@code tail}). Pre-built CubeListBuilder pattern means parent translation
-     * isn't an issue here - both neck and tail parts are children of root with pivots in
-     * absolute root-frame space.
-     */
-    private static void applyEnderDragonNeckAndTail(@NotNull JsonObject geometry) {
-        JsonObject bones = geometry.getAsJsonObject("bones");
-        if (bones == null) return;
-        for (int i = 0; i < 5; i++)
-            bones.add("neck" + i, dragonNeckTailBone(0f, 20f, -12f - i * 10f));
-        for (int i = 0; i < 12; i++)
-            bones.add("tail" + i, dragonNeckTailBone(0f, 10f, 60f + i * 10f));
-    }
-
-    /**
-     * Builds one neck-or-tail bone JSON with the pre-built {@code [box, scale]} cube pair from
-     * {@code EnderDragonModel.createBodyLayer}'s slot-4 builder. Both cubes are the same
-     * regardless of which loop emits the bone; only the bone's pivot differs.
-     */
-    private static @NotNull JsonObject dragonNeckTailBone(float px, float py, float pz) {
-        JsonObject bone = new JsonObject();
-        bone.add("pivot", floatArray(px, py, pz));
-        bone.add("rotation", floatArray(0f, 0f, 0f));
-        JsonArray cubes = new JsonArray();
-        cubes.add(makeCube(-5f, -5f, -5f, 10f, 10f, 10f, 192, 104));
-        cubes.add(makeCube(-1f, -9f, -3f, 2f, 4f, 6f, 48, 0));
-        bone.add("cubes", cubes);
-        return bone;
-    }
-
-    /**
-     * Builds a single cube JSON in the parser's serialisation shape. Used by templates that
-     * need to emit raw cube records (origin/size/uv/inflate/mirror/face_uv) without going
-     * through the {@code segmentBone} single-cube wrapper.
-     */
-    private static @NotNull JsonObject makeCube(float ox, float oy, float oz, float sx, float sy, float sz, int u, int v) {
-        JsonObject cube = new JsonObject();
-        cube.add("origin", floatArray(ox, oy, oz));
-        cube.add("size", floatArray(sx, sy, sz));
-        JsonArray uv = new JsonArray();
-        uv.add(u);
-        uv.add(v);
-        cube.add("uv", uv);
-        cube.addProperty("inflate", 0.0);
-        cube.addProperty("mirror", false);
-        cube.add("face_uv", new JsonObject());
-        return cube;
     }
 
     /**
