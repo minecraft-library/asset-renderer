@@ -3169,59 +3169,105 @@ public final class ToolingBlockEntities {
             if (prev1 == null) return null;
 
             if (loadOp == Opcodes.IALOAD) {
-                // 2D shape: <field>:[[I; ILOAD; AALOAD; <int lit>; IALOAD
+                // 2D shape: <field>:[[I; <row expr>; AALOAD; <int lit col>; IALOAD
                 Integer colIdx = AsmKit.readIntLiteral(prev1);
                 if (colIdx != null) {
                     AbstractInsnNode aaload = AsmKit.previousReal(prev1);
                     if (aaload != null && aaload.getOpcode() == Opcodes.AALOAD) {
-                        AbstractInsnNode iloadNode = AsmKit.previousReal(aaload);
-                        if (iloadNode instanceof VarInsnNode iload && iload.getOpcode() == Opcodes.ILOAD) {
-                            AbstractInsnNode getstaticNode = AsmKit.previousReal(iloadNode);
+                        AbstractInsnNode beforeAaload = AsmKit.previousReal(aaload);
+                        RowResolution rr = resolveRowExpression(beforeAaload, state);
+                        if (rr != null) {
+                            AbstractInsnNode getstaticNode = AsmKit.previousReal(rr.startNode());
                             if (getstaticNode instanceof FieldInsnNode field
                                 && field.getOpcode() == Opcodes.GETSTATIC
                                 && "[[I".equals(field.desc)) {
-                                Integer rowIdx = resolveSlotInt(state, iload.var);
-                                if (rowIdx != null) {
-                                    int[][] arr = AsmKit.readStaticIntArray2D(zip, field.owner, field.name);
-                                    if (arr != null && rowIdx >= 0 && rowIdx < arr.length
-                                        && arr[rowIdx] != null && colIdx >= 0 && colIdx < arr[rowIdx].length) {
-                                        return arr[rowIdx][colIdx];
-                                    }
+                                int[][] arr = AsmKit.readStaticIntArray2D(zip, field.owner, field.name);
+                                if (arr != null && rr.value() >= 0 && rr.value() < arr.length
+                                    && arr[rr.value()] != null && colIdx >= 0 && colIdx < arr[rr.value()].length) {
+                                    return arr[rr.value()][colIdx];
                                 }
                             }
                         }
                     }
                 }
-                // 1D shape: <field>:[I; ILOAD; IALOAD
-                if (prev1 instanceof VarInsnNode iload1d && iload1d.getOpcode() == Opcodes.ILOAD) {
-                    AbstractInsnNode getstaticNode = AsmKit.previousReal(prev1);
+                // 1D shape: <field>:[I; <row expr>; IALOAD
+                RowResolution rr1d = resolveRowExpression(prev1, state);
+                if (rr1d != null) {
+                    AbstractInsnNode getstaticNode = AsmKit.previousReal(rr1d.startNode());
                     if (getstaticNode instanceof FieldInsnNode field
                         && field.getOpcode() == Opcodes.GETSTATIC
                         && "[I".equals(field.desc)) {
-                        Integer idx = resolveSlotInt(state, iload1d.var);
-                        if (idx != null) {
-                            int[] arr = AsmKit.readStaticIntArray1D(zip, field.owner, field.name);
-                            if (arr != null && idx >= 0 && idx < arr.length) {
-                                return arr[idx];
-                            }
+                        int[] arr = AsmKit.readStaticIntArray1D(zip, field.owner, field.name);
+                        if (arr != null && rr1d.value() >= 0 && rr1d.value() < arr.length) {
+                            return arr[rr1d.value()];
                         }
                     }
                 }
             }
             if (loadOp == Opcodes.FALOAD) {
-                // 1D shape: <field>:[F; ILOAD; FALOAD
-                if (prev1 instanceof VarInsnNode iload && iload.getOpcode() == Opcodes.ILOAD) {
-                    AbstractInsnNode getstaticNode = AsmKit.previousReal(prev1);
+                // 1D shape: <field>:[F; <row expr>; FALOAD
+                RowResolution rr = resolveRowExpression(prev1, state);
+                if (rr != null) {
+                    AbstractInsnNode getstaticNode = AsmKit.previousReal(rr.startNode());
                     if (getstaticNode instanceof FieldInsnNode field
                         && field.getOpcode() == Opcodes.GETSTATIC
                         && "[F".equals(field.desc)) {
-                        Integer idx = resolveSlotInt(state, iload.var);
-                        if (idx != null) {
-                            float[] arr = AsmKit.readStaticFloatArray1D(zip, field.owner, field.name);
-                            if (arr != null && idx >= 0 && idx < arr.length) {
-                                return arr[idx];
-                            }
+                        float[] arr = AsmKit.readStaticFloatArray1D(zip, field.owner, field.name);
+                        if (arr != null && rr.value() >= 0 && rr.value() < arr.length) {
+                            return arr[rr.value()];
                         }
+                    }
+                }
+            }
+            return null;
+        }
+
+        /**
+         * Resolution result for a row-index expression preceding an {@code AALOAD} or
+         * {@code [IF]ALOAD}: the literal index value and the first real instruction in the
+         * expression. The caller scans backward from {@code startNode().getPrevious()} to find
+         * the {@code GETSTATIC} of the array field.
+         */
+        private record RowResolution(int value, @NotNull AbstractInsnNode startNode) {}
+
+        /**
+         * Resolves a row-index expression at {@code endNode}, returning the literal value and
+         * the expression's starting instruction. Supports:
+         * <ul>
+         *   <li>{@code ILOAD slot} - the simple case, when {@link #resolveSlotInt} can resolve
+         *       the slot via {@link ParseState#numericLocals} or
+         *       {@link ParseState#paramIntValues}.</li>
+         *   <li>{@code ILOAD slot; <int lit>; IADD} / {@code ISUB} - silverfish / endermite
+         *       update {@code f += sizes[i][2] + sizes[i+1][2]} which compiles to
+         *       {@code iload <slot>; iconst_1; iadd; aaload}.</li>
+         * </ul>
+         * Returns {@code null} when the expression doesn't match a supported shape or any
+         * piece is non-literal.
+         */
+        private static @Nullable RowResolution resolveRowExpression(
+            @Nullable AbstractInsnNode endNode,
+            @NotNull ParseState state
+        ) {
+            if (endNode == null) return null;
+            // Literal int row: silverfish's post-loop layer bones use ICONST_2 / ICONST_4 /
+            // ICONST_1 as direct row indices into BODY_SIZES.
+            Integer literalRow = AsmKit.readIntLiteral(endNode);
+            if (literalRow != null) {
+                return new RowResolution(literalRow, endNode);
+            }
+            if (endNode instanceof VarInsnNode iload && iload.getOpcode() == Opcodes.ILOAD) {
+                Integer v = resolveSlotInt(state, iload.var);
+                if (v != null) return new RowResolution(v, iload);
+            }
+            if (endNode.getOpcode() == Opcodes.IADD || endNode.getOpcode() == Opcodes.ISUB) {
+                AbstractInsnNode rhs = AsmKit.previousReal(endNode);
+                AbstractInsnNode lhs = rhs == null ? null : AsmKit.previousReal(rhs);
+                if (rhs != null && lhs instanceof VarInsnNode iload && iload.getOpcode() == Opcodes.ILOAD) {
+                    Integer rhsLit = AsmKit.readIntLiteral(rhs);
+                    Integer base = resolveSlotInt(state, iload.var);
+                    if (rhsLit != null && base != null) {
+                        int v = endNode.getOpcode() == Opcodes.IADD ? base + rhsLit : base - rhsLit;
+                        return new RowResolution(v, iload);
                     }
                 }
             }

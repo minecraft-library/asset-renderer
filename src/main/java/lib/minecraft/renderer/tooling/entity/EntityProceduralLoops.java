@@ -69,11 +69,8 @@ public final class EntityProceduralLoops {
      */
     public static boolean hasTemplate(@NotNull String factoryKey) {
         return switch (factoryKey) {
-            case "net/minecraft/client/model/monster/guardian/GuardianModel#createBodyLayer",
-                 "net/minecraft/client/model/monster/guardian/GuardianModel#createElderGuardianLayer",
-                 "net/minecraft/client/model/monster/ghast/GhastModel#createBodyLayer",
-                 "net/minecraft/client/model/monster/silverfish/SilverfishModel#createBodyLayer",
-                 "net/minecraft/client/model/monster/endermite/EndermiteModel#createBodyLayer" -> true;
+            case "net/minecraft/client/model/monster/ghast/GhastModel#createBodyLayer",
+                 "net/minecraft/client/model/monster/silverfish/SilverfishModel#createBodyLayer" -> true;
             default -> false;
         };
     }
@@ -102,15 +99,10 @@ public final class EntityProceduralLoops {
 
         String key = resolution.targetClass() + "#" + resolution.targetMethod();
         switch (key) {
-            case "net/minecraft/client/model/monster/guardian/GuardianModel#createBodyLayer",
-                 "net/minecraft/client/model/monster/guardian/GuardianModel#createElderGuardianLayer" ->
-                applyGuardianSpikes(geometry);
             case "net/minecraft/client/model/monster/ghast/GhastModel#createBodyLayer" ->
                 applyGhastTentacles(geometry);
             case "net/minecraft/client/model/monster/silverfish/SilverfishModel#createBodyLayer" ->
                 applySilverfishSegments(geometry);
-            case "net/minecraft/client/model/monster/endermite/EndermiteModel#createBodyLayer" ->
-                applyEndermiteSegments(geometry);
             default -> { /* no template registered yet */ }
         }
 
@@ -197,90 +189,6 @@ public final class EntityProceduralLoops {
             if (!bone.has("scale")) bone.addProperty("scale", f);
         }
     }
-
-    /**
-     * Adds the 12 spike bones that {@code GuardianModel.createBodyLayer}'s loop emits.
-     * Mirrors the bytecode at offsets 151-253: per-iteration {@code i = 0..12}, the spike's
-     * pivot and rotation are computed from six static {@code float[12]} arrays bound in
-     * {@code GuardianModel.<clinit>} ({@code SPIKE_X}, {@code SPIKE_Y}, {@code SPIKE_Z},
-     * {@code SPIKE_X_ROT}, {@code SPIKE_Y_ROT}, {@code SPIKE_Z_ROT}). The position is jittered
-     * by {@code getSpikeOffset(i, partialTick, swimAnim) = 1 + cos(swimAnim*1.5 + i)*0.01 -
-     * partialTick}; at static layer-build time both {@code partialTick} and {@code swimAnim}
-     * are zero, so {@code getSpikeOffset(i, 0, 0) = 1 + cos(i) * 0.01} - a near-1 jitter that
-     * the spike position is multiplied by, plus a constant {@code +16} on Y.
-     *
-     * <p>Cube: {@code addBox(-1, -4.5, -1, 2, 9, 2)} at {@code texOffs(0, 0)} (the builder
-     * created at offset 129-150 before the loop and reused for every iteration).
-     *
-     * <p>Spikes are children of the {@code head} bone; the head bone has
-     * {@code PartPose.ZERO} so the world pivot equals the local spike pivot. Both
-     * {@code GuardianModel#createBodyLayer} (regular guardian) and
-     * {@code #createElderGuardianLayer} share the spike loop verbatim - elder guardian wraps
-     * the resulting LayerDefinition with {@code MeshTransformer.scaling(2.35f)} which the
-     * parser doesn't yet handle (tracked separately in the resume marker).
-     */
-    private static void applyGuardianSpikes(@NotNull JsonObject geometry) {
-        JsonObject bones = geometry.getAsJsonObject("bones");
-        if (bones == null) return;
-        for (int i = 0; i < 12; i++) {
-            // Vanilla {@code GuardianModel#getSpikeOffset} uses {@code Mth.cos}, not libm
-            // {@code Math.cos}. {@link FastTrig} ports the 65536-entry sin-table bit-for-bit.
-            float offset = 1.0f + FastTrig.cos(i) * 0.01f;
-            float px = SPIKE_X[i] * offset;
-            float py = 16f + SPIKE_Y[i] * offset;
-            float pz = SPIKE_Z[i] * offset;
-            float rx = (float) Math.toDegrees(Math.PI * SPIKE_X_ROT[i]);
-            float ry = (float) Math.toDegrees(Math.PI * SPIKE_Y_ROT[i]);
-            float rz = (float) Math.toDegrees(Math.PI * SPIKE_Z_ROT[i]);
-            JsonObject bone = new JsonObject();
-            bone.add("pivot", floatArray(px, py, pz));
-            bone.add("rotation", floatArray(rx, ry, rz));
-            JsonObject cube = new JsonObject();
-            cube.add("origin", floatArray(-1f, -4.5f, -1f));
-            cube.add("size", floatArray(2f, 9f, 2f));
-            JsonArray uv = new JsonArray();
-            uv.add(0);
-            uv.add(0);
-            cube.add("uv", uv);
-            cube.addProperty("inflate", 0.0);
-            cube.addProperty("mirror", false);
-            cube.add("face_uv", new JsonObject());
-            JsonArray cubes = new JsonArray();
-            cubes.add(cube);
-            bone.add("cubes", cubes);
-            bones.add("spike_" + i, bone);
-        }
-    }
-
-    /**
-     * Per-spike X position factor; multiplied by {@code getSpikeOffset(i, 0, 0)} at layer build.
-     */
-    private static final float[] SPIKE_X = { 0f, 0f, 8f, -8f, -8f, 8f, 8f, -8f, 0f, 0f, 8f, -8f };
-
-    /**
-     * Per-spike Y position factor; the final Y is {@code 16 + SPIKE_Y[i] * getSpikeOffset(i, 0, 0)}.
-     */
-    private static final float[] SPIKE_Y = { -8f, -8f, -8f, -8f, 0f, 0f, 0f, 0f, 8f, 8f, 8f, 8f };
-
-    /**
-     * Per-spike Z position factor.
-     */
-    private static final float[] SPIKE_Z = { 8f, -8f, 0f, 0f, -8f, -8f, 8f, 8f, 8f, -8f, 0f, 0f };
-
-    /**
-     * Per-spike X rotation in units of π.
-     */
-    private static final float[] SPIKE_X_ROT = { 1.75f, 0.25f, 0f, 0f, 0.5f, 0.5f, 0.5f, 0.5f, 1.25f, 0.75f, 0f, 0f };
-
-    /**
-     * Per-spike Y rotation in units of π.
-     */
-    private static final float[] SPIKE_Y_ROT = { 0f, 0f, 0f, 0f, 0.25f, 1.75f, 1.25f, 0.75f, 0f, 0f, 0f, 0f };
-
-    /**
-     * Per-spike Z rotation in units of π.
-     */
-    private static final float[] SPIKE_Z_ROT = { 0f, 0f, 0.25f, 1.75f, 0f, 0f, 0f, 0f, 0f, 0f, 0.75f, 1.25f };
 
     /**
      * Adds the 9 tentacle bones that {@code GhastModel.createBodyLayer}'s loop emits.
