@@ -907,6 +907,7 @@ public final class ToolingBlockEntities {
                 diagnostics.info("%s: %d leftover literal(s) on numStack after parse - unhandled method-owner descriptor?", source.entityId(), state.numStack.size());
 
             applyRetainedNamesFilter(state);
+            applyClearedBonesFilter(state);
             applyMeshTransformerScaling(state);
 
             if (state.bones.isEmpty()) return null;
@@ -1057,6 +1058,35 @@ public final class ToolingBlockEntities {
             for (Map.Entry<String, JsonElement> entry : state.bones.entrySet()) {
                 if (!hasRetainedAncestor(entry.getKey(), retained, state.boneParents))
                     toRemove.add(entry.getKey());
+            }
+            for (String name : toRemove) state.bones.remove(name);
+        }
+
+        /**
+         * Drops every bone named in {@link ParseState#clearedBones} along with every descendant
+         * (walked via {@link ParseState#boneParents}). Mirrors {@code PartDefinition.clearChild}'s
+         * cascading delete - removing a child from a PartDefinition orphans its sub-tree, which
+         * vanilla then renders nothing for. The canonical case (AdultPiglinModel) clears a leaf
+         * ("hat"), so the descendant walk is just a safety net for future models that might
+         * prune a non-leaf.
+         *
+         * <p>No-op when {@link ParseState#clearedBones} is empty.
+         */
+        private static void applyClearedBonesFilter(@NotNull ParseState state) {
+            if (state.clearedBones.isEmpty()) return;
+            Set<String> toRemove = new LinkedHashSet<>(state.clearedBones);
+            // Expand to include descendants: any bone whose parent chain hits a cleared name.
+            for (String candidate : state.boneParents.keySet()) {
+                if (toRemove.contains(candidate)) continue;
+                String cursor = state.boneParents.get(candidate);
+                Set<String> seen = new LinkedHashSet<>();
+                while (cursor != null && seen.add(cursor)) {
+                    if (toRemove.contains(cursor)) {
+                        toRemove.add(candidate);
+                        break;
+                    }
+                    cursor = state.boneParents.get(cursor);
+                }
             }
             for (String name : toRemove) state.bones.remove(name);
         }
@@ -1586,6 +1616,26 @@ public final class ToolingBlockEntities {
                 if (state.pendingRetainSet != null) {
                     state.retainedNames = state.pendingRetainSet;
                     state.pendingRetainSet = null;
+                }
+                return;
+            }
+            // Post-build pruning: {@code <parent>.clearChild("<name>")} drops the named child
+            // (and its sub-tree) from the parent's PartDefinition. The previous {@code ALOAD}
+            // identified the parent slot and the previous {@code LDC} pushed the child name into
+            // {@link ParseState#pendingPartName}; record the name and let
+            // {@link #applyClearedBonesFilter} drop it (and any descendants) from {@link #bones}
+            // after the walk completes. The parent identification is informational only - bone
+            // names are globally unique within a model, so name-keyed removal is sufficient.
+            // Canonical case: {@code AdultPiglinModel.createBodyLayer} inherits "hat" from
+            // {@code PlayerModel.createMesh}, then prunes it via {@code head.clearChild("hat")}.
+            // Gated on {@code paramFloatValues != null} so legacy block-entity walkers (which
+            // never see clearChild) keep their byte-stable output.
+            if (methodInsn.owner.equals(VanillaSourceClasses.PART_DEFINITION)
+                && methodInsn.name.equals("clearChild")
+                && state.paramFloatValues != null) {
+                if (state.pendingPartName != null) {
+                    state.clearedBones.add(state.pendingPartName);
+                    state.pendingPartName = null;
                 }
                 return;
             }
@@ -2399,6 +2449,18 @@ public final class ToolingBlockEntities {
              * {@code paramFloatValues != null} so legacy walker parses are unaffected.
              */
             @Nullable Set<String> retainedNames;
+
+            /**
+             * Bone names removed via {@code PartDefinition.clearChild(String)} after the bone
+             * was already flushed (vanilla pattern: build a sub-tree via a shared helper, then
+             * post-prune unwanted children). Canonical case: {@code AdultPiglinModel.createBodyLayer}
+             * inherits a "hat" bone via {@code PlayerModel.createMesh}, then calls
+             * {@code head.clearChild("hat")} to drop it. Applied in
+             * {@link #applyClearedBonesFilter} after the walk, which also drops descendants
+             * (since {@code clearChild} cascades through the child's sub-tree in vanilla).
+             * Only populated when {@code paramFloatValues != null}.
+             */
+            final @NotNull Set<String> clearedBones = new LinkedHashSet<>();
 
             /**
              * Cubes accumulated for the current builder chain, flushed by the next {@code addOrReplaceChild}.
