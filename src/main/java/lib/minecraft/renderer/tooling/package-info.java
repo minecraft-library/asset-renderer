@@ -85,11 +85,13 @@
  *       {@link EntityBlockOverlayResolver
  *       block-overlay resolution},
  *       {@link EntitySetupRotationsResolver
- *       setupRotations audit}, and
- *       {@link EntityProceduralLoops procedural-loop
- *       supplemental bones} for {@code SquidModel}, {@code BlazeModel}, {@code GhastModel},
- *       {@code SilverfishModel}, {@code EndermiteModel}, {@code SlimeModel} families whose
- *       bytecode is impractical for the shared {@code Parser} to unroll.</li>
+ *       setupRotations audit}. Procedural-loop entity factories (squid, blaze, ghast,
+ *       magma_cube, ender_dragon, silverfish, endermite, guardian, elder_guardian) used to
+ *       have supplemental hand-coded bone tables here; Phase 20 (HEAD ~7625b17) replaced
+ *       them with parser-side for-loop unrolling, static-array fold, local-array tracking,
+ *       Math.cos/sin + Mth.cos/sin handlers, makeConcatWithConstants resolution, and
+ *       RandomSource simulation so the shared {@code Parser} now folds every vanilla
+ *       procedural-loop body at parse time.</li>
  *   <li>{@link lib.minecraft.renderer.tooling.util util} - ASM scaffolding
  *       ({@link AsmKit AsmKit}),
  *       {@link Diagnostics Diagnostics} dump scaffolding,
@@ -132,7 +134,6 @@ import lib.minecraft.renderer.tooling.entity.EntityBlockOverlayResolver;
 import lib.minecraft.renderer.tooling.entity.EntityLayerDefinitionResolver;
 import lib.minecraft.renderer.tooling.entity.EntityLayerScanner;
 import lib.minecraft.renderer.tooling.entity.EntityOverlayResolver;
-import lib.minecraft.renderer.tooling.entity.EntityProceduralLoops;
 import lib.minecraft.renderer.tooling.entity.EntityRendererDiscovery;
 import lib.minecraft.renderer.tooling.entity.EntitySetupRotationsResolver;
 import lib.minecraft.renderer.tooling.entity.EntityTextureResolver;

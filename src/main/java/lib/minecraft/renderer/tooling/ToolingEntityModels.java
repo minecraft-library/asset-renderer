@@ -18,7 +18,6 @@ import lib.minecraft.renderer.tooling.entity.EntityHiddenBonesResolver;
 import lib.minecraft.renderer.tooling.entity.EntityLayerDefinitionResolver;
 import lib.minecraft.renderer.tooling.entity.EntityLayerScanner;
 import lib.minecraft.renderer.tooling.entity.EntityOverlayResolver;
-import lib.minecraft.renderer.tooling.entity.EntityProceduralLoops;
 import lib.minecraft.renderer.tooling.entity.EntityRendererDiscovery;
 import lib.minecraft.renderer.tooling.entity.EntityRendererScaleResolver;
 import lib.minecraft.renderer.tooling.entity.EntitySetupRotationsResolver;
@@ -471,33 +470,6 @@ public final class ToolingEntityModels {
 
             ConcurrentMap<String, JsonObject> geometries = ToolingBlockEntities.Parser.parse(clientJar, sources, diagnostics);
             System.out.println("Parsed geometry for " + geometries.size() + " entities + overlays");
-
-            // Stub-injection for procedural-loop entities the Parser can't extract bones for
-            // (silverfish + endermite both build bone names via {@code makeConcatWithConstants}
-            // and pull cube dimensions from static {@code int[][] BODY_SIZES} arrays the parser
-            // can't decode - the parser returns no geometry, so without this stub the entity
-            // drops out of {@code entity_models.json}). The stub is just an empty bones
-            // container with a sensible 64x32 default texture size; the procedural-loop template
-            // populates the bones in the next pass.
-            for (Map.Entry<String, EntityLayerDefinitionResolver.Resolution> entry : entityToResolution.entrySet()) {
-                if (geometries.containsKey(entry.getKey())) continue;
-                if (!EntityProceduralLoops.hasTemplate(entry.getValue())) continue;
-                JsonObject stub = new JsonObject();
-                stub.addProperty("textureWidth", entry.getValue().texWidthOverride() != null
-                    ? entry.getValue().texWidthOverride() : 64);
-                stub.addProperty("textureHeight", entry.getValue().texHeightOverride() != null
-                    ? entry.getValue().texHeightOverride() : 32);
-                stub.add("bones", new JsonObject());
-                geometries.put(entry.getKey(), stub);
-            }
-
-            // Phase E.3: augment procedural-loop geometries (squid tentacles etc.) that the
-            // shared linear-walking Parser collapses into a single iteration. See
-            // {@link EntityProceduralLoops} for the per-class template registry.
-            for (Map.Entry<String, JsonObject> entry : geometries.entrySet()) {
-                EntityLayerDefinitionResolver.Resolution res = entityToResolution.get(entry.getKey());
-                if (res != null) EntityProceduralLoops.augment(entry.getValue(), res);
-            }
 
             JsonObject geometryRoot = buildGeometryDiagnosticJson(
                 options, mobs.size(), records.size(), entityToResolution, geometries, diagnostics

@@ -32,7 +32,6 @@ import lib.minecraft.renderer.tooling.blockentity.SourceDiscovery;
 import lib.minecraft.renderer.tooling.blockentity.TintDiscovery;
 import lib.minecraft.renderer.tooling.blockentity.YAxis;
 import lib.minecraft.renderer.tooling.entity.EntityLayerDefinitionResolver;
-import lib.minecraft.renderer.tooling.entity.EntityProceduralLoops;
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
@@ -894,15 +893,6 @@ public final class ToolingBlockEntities {
             // captures during the walk so both layers compose correctly.
             state.meshTransformerScale = source.appliedMeshTransformerScale();
             state.currentSource = source;
-            // Strip the trailing ".class" so the key shape matches EntityProceduralLoops's
-            // {@code <internalName>#<method>} key. When set, the parser skips its loop-unrolling
-            // and indy / helper bone-name resolution handlers so the applier's output isn't
-            // duplicated by parser-emitted bones with the same {@code recipe + i} names.
-            String factoryKey = source.classEntry().endsWith(".class")
-                ? source.classEntry().substring(0, source.classEntry().length() - ".class".length())
-                    + "#" + source.methodName()
-                : source.classEntry() + "#" + source.methodName();
-            state.skipProceduralUnroll = EntityProceduralLoops.hasTemplate(factoryKey);
             state.diagnostics = diagnostics;
             walkInstructions(instructions, state, zip);
 
@@ -1264,7 +1254,7 @@ public final class ToolingBlockEntities {
             // Return {@code firstInsnAfterLoop.getPrevious()} so the outer walkRange's
             // {@code .getNext()} lands on {@code firstInsnAfterLoop} - i.e. the parser
             // resumes at the first real instruction after the loop.
-            if (state.paramFloatValues != null && !state.skipProceduralUnroll) {
+            if (state.paramFloatValues != null) {
                 AsmKit.IntForLoop loop = AsmKit.detectIntForLoop(node);
                 if (loop != null) {
                     int slot = loop.iteratorSlot();
@@ -1815,7 +1805,6 @@ public final class ToolingBlockEntities {
                 // indy directly; helper-wrapped variants (squid's createTentacleName, blaze's
                 // getPartName) are resolved in {@link #handleMethodInsn}'s invokestatic-follow.
                 case InvokeDynamicInsnNode indy when state.paramFloatValues != null
-                    && !state.skipProceduralUnroll
                     && indy.desc.equals("(I)Ljava/lang/String;")
                     && !state.numStack.isEmpty() -> {
                     String recipe = AsmKit.resolveStringConcatRecipe(indy);
@@ -2014,7 +2003,6 @@ public final class ToolingBlockEntities {
             if (opcode == Opcodes.INVOKESTATIC
                 && methodInsn.desc.equals("(I)Ljava/lang/String;")
                 && state.paramFloatValues != null
-                && !state.skipProceduralUnroll
                 && !state.numStack.isEmpty()) {
                 MethodNode helper = AsmKit.findMethodInHierarchy(zip, methodInsn.owner, methodInsn.name, methodInsn.desc);
                 if (helper != null) {
@@ -3131,16 +3119,6 @@ public final class ToolingBlockEntities {
              * The top-level source whose bytecode is being parsed. Used to tag diagnostics.
              */
             @Nullable Source currentSource;
-
-            /**
-             * Disables the for-loop unrolling + indy / helper bone-name resolution handlers
-             * when the source's factory key matches a {@link EntityProceduralLoops} template
-             * (set in {@link #parseLayerMethod}). The corresponding {@code apply*} dispatch
-             * emits the loop's bones; running both produces duplicate bones in the output. As
-             * each entity migrates, the matching template is dropped from the applier and the
-             * gate flips off naturally for that factory.
-             */
-            boolean skipProceduralUnroll;
 
             /**
              * Diagnostics sink for strict-mode surfacing of silent failures.
