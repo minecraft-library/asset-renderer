@@ -69,8 +69,7 @@ public final class EntityProceduralLoops {
      */
     public static boolean hasTemplate(@NotNull String factoryKey) {
         return switch (factoryKey) {
-            case "net/minecraft/client/model/monster/blaze/BlazeModel#createBodyLayer",
-                 "net/minecraft/client/model/monster/guardian/GuardianModel#createBodyLayer",
+            case "net/minecraft/client/model/monster/guardian/GuardianModel#createBodyLayer",
                  "net/minecraft/client/model/monster/guardian/GuardianModel#createElderGuardianLayer",
                  "net/minecraft/client/model/monster/slime/MagmaCubeModel#createBodyLayer",
                  "net/minecraft/client/model/monster/ghast/GhastModel#createBodyLayer",
@@ -105,8 +104,6 @@ public final class EntityProceduralLoops {
 
         String key = resolution.targetClass() + "#" + resolution.targetMethod();
         switch (key) {
-            case "net/minecraft/client/model/monster/blaze/BlazeModel#createBodyLayer" ->
-                applyBlazeRods(geometry);
             case "net/minecraft/client/model/monster/guardian/GuardianModel#createBodyLayer",
                  "net/minecraft/client/model/monster/guardian/GuardianModel#createElderGuardianLayer" ->
                 applyGuardianSpikes(geometry);
@@ -204,88 +201,6 @@ public final class EntityProceduralLoops {
                 bone.add("pivot", scaled);
             }
             if (!bone.has("scale")) bone.addProperty("scale", f);
-        }
-    }
-
-    /**
-     * Adds the 12 rod bones that {@code BlazeModel.createBodyLayer}'s three nested loops emit.
-     * Mirrors the bytecode at offsets 71-308: three rings of four rods each, all sharing the
-     * cube {@code addBox(0, 0, 0, 2, 8, 2)} at {@code texOffs(0, 16)} that the factory pushes
-     * once into local slot 3 before the first loop. Per-ring formulas (Java's Y-down frame, so
-     * a Java pivot at {@code y=-1} sits 1 unit ABOVE the head pivot at {@code y=0}):
-     * <ul>
-     * <li>Outer ring (i=0..3, radius 9, angle starts 0 and steps by π/2):
-     *     {@code (cos(angle)*9, -2 + cos(i*0.5), sin(angle)*9)}</li>
-     * <li>Middle ring (i=4..7, radius 7, angle starts π/4 and steps by π/2):
-     *     {@code (cos(angle)*7, 2 + cos(i*0.5), sin(angle)*7)}</li>
-     * <li>Inner ring (i=8..11, radius 5, angle starts 3π/20 ≈ 0.4712 and steps by π/2):
-     *     {@code (cos(angle)*5, 11 + cos(i*0.75), sin(angle)*5)}</li>
-     * </ul>
-     *
-     * <p>The {@code getPartName(int)} synthetic compiles to {@code "part_" + i} via
-     * {@code makeConcatWithConstants}; vanilla authors the same bones as
-     * {@code upperBodyParts0..11}. Since the parity test is image-based the chosen name doesn't
-     * affect the comparison; using {@code part_N} matches the Java factory's own convention.
-     */
-    private static void applyBlazeRods(@NotNull JsonObject geometry) {
-        JsonObject bones = geometry.getAsJsonObject("bones");
-        if (bones == null) return;
-        // Outer ring: radius 9, y baseline -2, angle starts 0, step π/2.
-        applyBlazeRing(bones, 0, 4, 9f, -2f, 0.5f, 0f);
-        // Middle ring: radius 7, y baseline +2, angle starts π/4.
-        applyBlazeRing(bones, 4, 8, 7f, 2f, 0.5f, (float) (Math.PI / 4.0));
-        // Inner ring: radius 5, y baseline +11, angle starts 3π/20, y stride 0.75.
-        applyBlazeRing(bones, 8, 12, 5f, 11f, 0.75f, 0.47123894f);
-    }
-
-    /**
-     * Emits one ring of blaze rods. Vanilla's three loops share the same shape - radius +
-     * y-baseline + per-iteration angle increment of {@code π/2} - so they fold cleanly into a
-     * single loop here.
-     *
-     * @param bones the bones JSON object to mutate
-     * @param iStart inclusive lower index (loop variable {@code i})
-     * @param iEnd exclusive upper index
-     * @param radius distance from the central axis
-     * @param yBaseline constant added to {@code cos(i * yStride)} for the rod's Y pivot
-     * @param yStride argument scale for the per-iteration {@code cos(i * yStride)} term
-     * @param angleStart initial angle for {@code i = iStart}; subsequent iterations add {@code π/2}
-     */
-    private static void applyBlazeRing(
-        @NotNull JsonObject bones,
-        int iStart,
-        int iEnd,
-        float radius,
-        float yBaseline,
-        float yStride,
-        float angleStart
-    ) {
-        float angle = angleStart;
-        for (int i = iStart; i < iEnd; i++) {
-            // Vanilla {@code BlazeModel.createBodyLayer} uses {@code Mth.cos / Mth.sin} (the
-            // 65536-entry sin table). {@link FastTrig} ports the table bit-for-bit; libm
-            // {@code Math.cos} drifts by up to ~1.8e-5 vs the table values.
-            float px = FastTrig.cos(angle) * radius;
-            float py = yBaseline + FastTrig.cos(i * yStride);
-            float pz = FastTrig.sin(angle) * radius;
-            JsonObject bone = new JsonObject();
-            bone.add("pivot", floatArray(px, py, pz));
-            bone.add("rotation", floatArray(0f, 0f, 0f));
-            JsonObject cube = new JsonObject();
-            cube.add("origin", floatArray(0f, 0f, 0f));
-            cube.add("size", floatArray(2f, 8f, 2f));
-            JsonArray uv = new JsonArray();
-            uv.add(0);
-            uv.add(16);
-            cube.add("uv", uv);
-            cube.addProperty("inflate", 0.0);
-            cube.addProperty("mirror", false);
-            cube.add("face_uv", new JsonObject());
-            JsonArray cubes = new JsonArray();
-            cubes.add(cube);
-            bone.add("cubes", cubes);
-            bones.add("part_" + i, bone);
-            angle += (float) (Math.PI / 2.0);
         }
     }
 
