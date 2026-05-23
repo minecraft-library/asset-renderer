@@ -10,8 +10,12 @@ import java.util.zip.ZipFile;
 
 /**
  * Per-context cache of {@link ClassNode} parses keyed by JVM internal name. The tooling
- * entity pipeline re-resolves the same renderer / model / layer classes across multiple
+ * entity pipeline re-resolves the same renderer / model / layer class across multiple
  * resolver passes; without a cache every pass re-reads and re-parses the jar entry.
+ *
+ * <p>The cache owns the {@link ZipFile} it loads from - one cache instance is bound to one
+ * jar at construction time. Callers ask for classes by internal name only; the jar handle
+ * never appears at call sites.
  *
  * <p>A {@link #MISSING} sentinel records "this class is not in the jar" so absent classes
  * also cache - the second lookup returns the sentinel instead of touching the jar again.
@@ -31,20 +35,31 @@ public final class ClassNodeCache {
      */
     private static final @NotNull ClassNode MISSING = new ClassNode();
 
+    private final @NotNull ZipFile zip;
     private final @NotNull ConcurrentMap<String, ClassNode> nodes = new ConcurrentHashMap<>();
+
+    /**
+     * Constructs a cache bound to {@code zip}. The cache holds the handle for its lifetime;
+     * the jar is closed by the owner (typically {@link lib.minecraft.renderer.tooling.entity.ToolingEntityContext}),
+     * not by the cache.
+     *
+     * @param zip the jar to load classes from on cache miss
+     */
+    public ClassNodeCache(@NotNull ZipFile zip) {
+        this.zip = zip;
+    }
 
     /**
      * Returns the {@link ClassNode} for {@code internalName}, loading and caching the parse
      * on first lookup. Returns {@code null} when the jar has no matching entry; absence is
      * also cached so repeat lookups for missing classes do not re-touch the jar.
      *
-     * @param zip the jar to load from on cache miss
      * @param internalName the class's JVM internal name (e.g. {@code net/minecraft/X})
      * @return the cached or freshly-parsed node, or {@code null} when absent from the jar
      */
-    public @Nullable ClassNode load(@NotNull ZipFile zip, @NotNull String internalName) {
+    public @Nullable ClassNode load(@NotNull String internalName) {
         ClassNode cached = this.nodes.computeIfAbsent(internalName, key -> {
-            ClassNode loaded = AsmKit.loadClass(zip, key);
+            ClassNode loaded = AsmKit.loadClass(this.zip, key);
             return loaded != null ? loaded : MISSING;
         });
         return cached == MISSING ? null : cached;

@@ -6,6 +6,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.tooling.ToolingEntityModels;
 import lib.minecraft.renderer.tooling.util.AsmKit;
+import lib.minecraft.renderer.tooling.util.ClassNodeCache;
 import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lombok.experimental.UtilityClass;
@@ -26,7 +27,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.zip.ZipFile;
 
 /**
  * Bytecode-driven discovery of block-model overlays attached to entity renderers via
@@ -98,20 +98,20 @@ public final class EntityBlockOverlayResolver {
      * block-decoration layer classes. Returns an empty list when the renderer has no recognised
      * layers - the common case (only ~4 vanilla entities have block-decoration layers).
      *
-     * @param zip the deobfuscated client jar
+     * @param classNodes the ClassNode cache (shared with sibling resolver walks)
      * @param entityId the entity id being resolved (used in diagnostics)
      * @param rendererInternalName the renderer class JVM internal name (e.g
      *     {@code net/minecraft/client/renderer/entity/MushroomCowRenderer})
      * @param diagnostics the diagnostic sink for parse-failure WARN messages
      */
     public static @NotNull ConcurrentList<Result> resolve(
-        @NotNull ZipFile zip,
+        @NotNull ClassNodeCache classNodes,
         @NotNull String entityId,
         @NotNull String rendererInternalName,
         @NotNull Diagnostics diagnostics
     ) {
         ConcurrentList<Result> out = Concurrent.newList();
-        ClassNode renderer = AsmKit.loadClass(zip, rendererInternalName);
+        ClassNode renderer = classNodes.load(rendererInternalName);
         if (renderer == null) return out;
 
         // Walk the renderer's <init> for {@code new XLayer; ... ; addLayer} patterns.
@@ -124,19 +124,19 @@ public final class EntityBlockOverlayResolver {
             String layerInternalName = typeInsn.desc;
             KnownLayer layerInfo = KNOWN_LAYER_CACHE.computeIfAbsent(layerInternalName,
                 key -> {
-                    KnownLayer detected = detectKnownLayer(zip, key);
+                    KnownLayer detected = detectKnownLayer(classNodes, key);
                     return detected != null ? detected : KNOWN_LAYER_NONE;
                 });
             if (layerInfo == KNOWN_LAYER_NONE) continue;
 
-            String defaultBlockId = resolveDefaultBlockId(zip, layerInfo, entityId, diagnostics);
+            String defaultBlockId = resolveDefaultBlockId(classNodes, layerInfo, entityId, diagnostics);
             if (defaultBlockId == null) {
                 diagnostics.warn("%s: layer '%s' default block id could not be resolved (variant class '%s')",
                     entityId, layerInternalName, layerInfo.variantClass());
                 continue;
             }
 
-            ClassNode layerClass = AsmKit.loadClass(zip, layerInternalName);
+            ClassNode layerClass = classNodes.load(layerInternalName);
             if (layerClass == null) {
                 diagnostics.warn("%s: layer class '%s' not found in client jar", entityId, layerInternalName);
                 continue;
@@ -171,8 +171,8 @@ public final class EntityBlockOverlayResolver {
      * {@code FrogTongueLayer} reading a state.tongue:BlockModelRenderState + state.variant:Frog$Variant)
      * auto-classifies without an allowlist change.
      */
-    private static @Nullable KnownLayer detectKnownLayer(@NotNull ZipFile zip, @NotNull String layerInternalName) {
-        ClassNode layerCn = AsmKit.loadClass(zip, layerInternalName);
+    private static @Nullable KnownLayer detectKnownLayer(@NotNull ClassNodeCache classNodes, @NotNull String layerInternalName) {
+        ClassNode layerCn = classNodes.load(layerInternalName);
         if (layerCn == null) return null;
         MethodNode submit = findSubmitMethod(layerCn);
         if (submit == null) return null;
@@ -186,7 +186,7 @@ public final class EntityBlockOverlayResolver {
             }
         }
         if (stateClass == null) return null;
-        ClassNode stateCn = AsmKit.loadClass(zip, stateClass);
+        ClassNode stateCn = classNodes.load(stateClass);
         if (stateCn == null) return null;
         for (FieldNode field : stateCn.fields) {
             if (field.desc == null) continue;
@@ -352,13 +352,13 @@ public final class EntityBlockOverlayResolver {
      * present and the variant walk fails / is absent.
      */
     private static @Nullable String resolveDefaultBlockId(
-        @NotNull ZipFile zip,
+        @NotNull ClassNodeCache classNodes,
         @NotNull KnownLayer layerInfo,
         @NotNull String entityId,
         @NotNull Diagnostics diagnostics
     ) {
         if (layerInfo.variantClass() == null) return layerInfo.defaultBlockId();
-        ClassNode variantClass = AsmKit.loadClass(zip, layerInfo.variantClass());
+        ClassNode variantClass = classNodes.load(layerInfo.variantClass());
         if (variantClass == null) {
             diagnostics.warn("%s: variant class '%s' missing from client jar", entityId, layerInfo.variantClass());
             return layerInfo.defaultBlockId();

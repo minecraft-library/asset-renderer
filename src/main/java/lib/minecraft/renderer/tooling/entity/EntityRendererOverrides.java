@@ -1,6 +1,8 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import lib.minecraft.renderer.tooling.util.AsmKit;
+import lib.minecraft.renderer.tooling.util.ClassNodeCache;
+import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -37,7 +39,7 @@ import java.util.Map;
  *
  * <p>Both walks target the same renderer class for adjacent overrides; one resolver call
  * produces both outputs in a single {@link Result} and avoids two separate
- * {@code AsmKit.loadClass} hits on the renderer class.
+ * {@code ClassNodeCache#load} hits on the renderer class.
  */
 @UtilityClass
 public final class EntityRendererOverrides {
@@ -84,12 +86,12 @@ public final class EntityRendererOverrides {
     /**
      * Runs both override walks against the renderer class and returns the combined result.
      */
-    public static @NotNull Result resolve(@NotNull ToolingEntityContext context, @NotNull String rendererInternalName) {
-        ClassNode cn = AsmKit.loadClass(context.classNodes(), context.zip(), rendererInternalName);
+    public static @NotNull Result resolve(@NotNull ClassNodeCache classNodes, @NotNull String rendererInternalName, @NotNull Diagnostics diagnostics) {
+        ClassNode cn = classNodes.load(rendererInternalName);
         if (cn == null) return new Result(0f, null);
 
         float yawAddend = resolveSetupYawAddend(cn);
-        Float scaleResidue = resolveRendererScale(cn, rendererInternalName, context);
+        Float scaleResidue = resolveRendererScale(cn, rendererInternalName, diagnostics);
         return new Result(yawAddend, scaleResidue);
     }
 
@@ -143,7 +145,7 @@ public final class EntityRendererOverrides {
      * Returns the uniform scale extracted from the renderer's {@code scale} override, or
      * {@code null} when no literal surfaces or the product collapses to identity.
      */
-    private static @Nullable Float resolveRendererScale(@NotNull ClassNode cn, @NotNull String rendererInternalName, @NotNull ToolingEntityContext context) {
+    private static @Nullable Float resolveRendererScale(@NotNull ClassNode cn, @NotNull String rendererInternalName, @NotNull Diagnostics diagnostics) {
         MethodNode scaleMethod = findPrimaryScaleMethod(cn);
         if (scaleMethod == null) return null;
 
@@ -160,7 +162,7 @@ public final class EntityRendererOverrides {
         }
         if (!anyResolved) return null;
         if (Math.abs(accum - 1f) <= UNIFORM_SCALE_TOLERANCE) return null;
-        context.diagnostics().info("renderer-scale: '%s' -> %.6f from poseStack.scale chain", rendererInternalName, accum);
+        diagnostics.info("renderer-scale: '%s' -> %.6f from poseStack.scale chain", rendererInternalName, accum);
         return accum;
     }
 

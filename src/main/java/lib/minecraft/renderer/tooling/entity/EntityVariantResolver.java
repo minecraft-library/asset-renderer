@@ -8,6 +8,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.tooling.util.AsmKit;
+import lib.minecraft.renderer.tooling.util.ClassNodeCache;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -161,14 +162,15 @@ public final class EntityVariantResolver {
      * ordered list of variant entries. Empty when the jar ships no variant directories
      * (pre-1.21).
      *
-     * @param zip the deobfuscated client jar
+     * @param context the tooling context (jar + diagnostics + ClassNode cache)
      * @param diagnostics the diagnostic sink shared with sibling discovery walks
      * @return variant stem -&gt; ordered variant list
      */
     public static @NotNull ConcurrentMap<String, ConcurrentList<Result>> loadAll(
-        @NotNull ZipFile zip,
+        @NotNull ToolingEntityContext context,
         @NotNull Diagnostics diagnostics
     ) {
+        ZipFile zip = context.zip();
         ConcurrentMap<String, ConcurrentList<Result>> out = Concurrent.newMap();
         Enumeration<? extends ZipEntry> entries = zip.entries();
         while (entries.hasMoreElements()) {
@@ -213,9 +215,10 @@ public final class EntityVariantResolver {
      * when the jar ships no holder classes.
      */
     public static @NotNull ConcurrentMap<String, String> loadDataDrivenDefaults(
-        @NotNull ZipFile zip,
+        @NotNull ToolingEntityContext context,
         @NotNull Diagnostics diagnostics
     ) {
+        ZipFile zip = context.zip();
         ConcurrentMap<String, String> out = Concurrent.newMap();
         Enumeration<? extends ZipEntry> entries = zip.entries();
         while (entries.hasMoreElements()) {
@@ -226,7 +229,7 @@ public final class EntityVariantResolver {
             // simple ends with "Variants"; strip and snake-case to get the variant stem
             String stem = camelToSnake(simple.substring(0, simple.length() - "Variants".length()));
             String holderInternal = name.substring(0, name.length() - ".class".length());
-            String defaultId = findDataDrivenDefaultId(zip, holderInternal);
+            String defaultId = findDataDrivenDefaultId(context.classNodes(), holderInternal);
             if (defaultId != null) out.put(stem, defaultId);
         }
         return out;
@@ -249,10 +252,11 @@ public final class EntityVariantResolver {
      *     variant exists in the directory
      */
     public static @Nullable String findAlphaFirstUnconditionalVariantId(
-        @NotNull ZipFile zip,
+        @NotNull ToolingEntityContext context,
         @NotNull String variantStem,
         @NotNull Diagnostics diagnostics
     ) {
+        ZipFile zip = context.zip();
         String dirPrefix = DATA_PREFIX + variantStem + "_variant/";
         java.util.TreeSet<String> unconditional = new java.util.TreeSet<>();
         Enumeration<? extends ZipEntry> entries = zip.entries();
@@ -311,10 +315,10 @@ public final class EntityVariantResolver {
      * doesn't match.
      */
     private static @Nullable String findDataDrivenDefaultId(
-        @NotNull ZipFile zip,
+        @NotNull ClassNodeCache classNodes,
         @NotNull String holderInternalName
     ) {
-        var cn = AsmKit.loadClass(zip, holderInternalName);
+        var cn = classNodes.load(holderInternalName);
         if (cn == null) return null;
         var clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return null;

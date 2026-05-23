@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.tooling.ToolingEntityModels;
 import lib.minecraft.renderer.tooling.util.AsmKit;
+import lib.minecraft.renderer.tooling.util.ClassNodeCache;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lombok.experimental.UtilityClass;
@@ -21,7 +22,6 @@ import org.objectweb.asm.tree.VarInsnNode;
 
 import java.util.LinkedHashSet;
 import java.util.Locale;
-import java.util.zip.ZipFile;
 
 /**
  * Walks each {@code RenderLayer} subclass attached to an entity renderer (per
@@ -184,7 +184,8 @@ public final class EntityOverlayResolver {
      * overlay shape are silently dropped - they're either runtime-driven (armor / equipment /
      * item-in-hand) or deferred to a later increment.
      *
-     * @param zip the deobfuscated client jar
+     * @param classNodes the ClassNode cache (shared with sibling resolver walks)
+     * @param rendererInternalName the renderer's JVM internal name
      * @param layerClasses ordered list of layer-class internal names from
      *     {@link EntityBoneResolver#scanOverlayLayers}
      * @param entityId the entity-id this layer set belongs to (diagnostic context only)
@@ -192,7 +193,7 @@ public final class EntityOverlayResolver {
      * @return overlay descriptors in source order; empty when no recognised overlay was found
      */
     public static @NotNull ConcurrentList<Result> resolve(
-        @NotNull ZipFile zip,
+        @NotNull ClassNodeCache classNodes,
         @NotNull String rendererInternalName,
         @NotNull ConcurrentList<String> layerClasses,
         @NotNull String entityId,
@@ -200,7 +201,7 @@ public final class EntityOverlayResolver {
     ) {
         ConcurrentList<Result> out = Concurrent.newList();
         for (String layerClass : layerClasses) {
-            ClassNode cn = AsmKit.loadClass(zip, layerClass);
+            ClassNode cn = classNodes.load(layerClass);
             if (cn == null) continue;
             // Eye overlay first - shares the base entity's geometry, so no extra parse. The
             // factory-name discriminator marks fully-emissive variants (`RenderTypes.eyes` →
@@ -211,7 +212,7 @@ public final class EntityOverlayResolver {
             // skin texel below it.
             EyesOverlayBinding eyes = findEyesOverlayBinding(cn);
             if (eyes != null) {
-                boolean fullyEmissive = factoryHasNoCardinalLighting(zip, eyes.factoryName());
+                boolean fullyEmissive = factoryHasNoCardinalLighting(classNodes, eyes.factoryName());
                 out.add(new Result(layerClass, eyes.texturePath(), fullyEmissive, null, 0xFFFFFFFF));
                 continue;
             }
@@ -249,7 +250,7 @@ public final class EntityOverlayResolver {
             if (VanillaSourceClasses.LLAMA_DECOR_LAYER.equals(layerClass)
                 && "minecraft:trader_llama".equals(entityId)) {
                 String layerSubdir = findEquipmentLayerSubdir(cn);
-                String assetId = findEquipmentAssetId(zip, "TRADER_LLAMA");
+                String assetId = findEquipmentAssetId(classNodes, "TRADER_LLAMA");
                 if (layerSubdir != null && assetId != null) {
                     String texture = TEXTURE_PATH_PREFIX + "equipment/" + layerSubdir + "/" + assetId + ".png";
                     out.add(new Result(layerClass, texture, false, null, 0xFFFFFFFF, 0.5f, true));
@@ -269,9 +270,9 @@ public final class EntityOverlayResolver {
             if (VanillaSourceClasses.TROPICAL_FISH_PATTERN_LAYER.equals(layerClass)) {
                 String patternTexture = findFirstNonBabyTextureLiteral(cn);
                 if (patternTexture != null) {
-                    float inflate = walkCubeDeformationFloat(zip,
+                    float inflate = walkCubeDeformationFloat(classNodes,
                         VanillaSourceClasses.LAYER_DEFINITIONS, "FISH_PATTERN_DEFORMATION");
-                    int tint = walkDyeColorWhiteTextureDiffuseColor(zip);
+                    int tint = walkDyeColorWhiteTextureDiffuseColor(classNodes);
                     out.add(new Result(layerClass, patternTexture, false, null, tint,
                         inflate != 0f ? inflate : 0.008f, false));
                 }
@@ -288,7 +289,7 @@ public final class EntityOverlayResolver {
             // call site. Emit as a same-geometry overlay so the runtime gets the auto-applied
             // inflate=0.001 (equal-Z depth-fail clearance).
             if (VanillaSourceClasses.VILLAGER_PROFESSION_LAYER.equals(layerClass)) {
-                String prefix = extractVillagerProfessionPrefix(zip, rendererInternalName);
+                String prefix = extractVillagerProfessionPrefix(classNodes, rendererInternalName);
                 if (prefix != null) {
                     String texture = TEXTURE_PATH_PREFIX + prefix + "/type/plains.png";
                     out.add(new Result(layerClass, texture, false, null, 0xFFFFFFFF));
@@ -309,9 +310,9 @@ public final class EntityOverlayResolver {
             // {@code coloredCutoutModelCopyLayerRender} call site enforces the
             // {@code entityCutout} render type (no translucent / additive variant uses this
             // helper).
-            ParameterizedOverlayBinding param = findParameterizedOverlayBinding(zip, cn, rendererInternalName);
+            ParameterizedOverlayBinding param = findParameterizedOverlayBinding(classNodes, cn, rendererInternalName);
             if (param != null) {
-                int tintArgb = extractColoredCutoutTint(zip, cn);
+                int tintArgb = extractColoredCutoutTint(classNodes, cn);
                 out.add(new Result(layerClass, param.texturePath(), false, param.modelLayerField(), tintArgb));
                 continue;
             }
@@ -332,14 +333,14 @@ public final class EntityOverlayResolver {
             if (modelLayerField != null
                 && !POLICY_SUPPRESS.contains(modelLayerField)
                 && (POLICY_FORCE_EMIT.contains(modelLayerField)
-                    || derivationAcceptsCompositeOverlay(zip, cn))) {
-                String compositeTexture = findCompositeOverlayTexture(zip, cn);
+                    || derivationAcceptsCompositeOverlay(classNodes, cn))) {
+                String compositeTexture = findCompositeOverlayTexture(classNodes, cn);
                 if (compositeTexture == null) {
                     diagnostics.info("entity '%s' overlay '%s' bakes ModelLayers.%s but no texture path resolved", entityId, layerClass, modelLayerField);
                     continue;
                 }
-                int tintArgb = extractColoredCutoutTint(zip, cn);
-                boolean unlit = layerInvokesNoCardinalLightingRenderType(zip, cn);
+                int tintArgb = extractColoredCutoutTint(classNodes, cn);
+                boolean unlit = layerInvokesNoCardinalLightingRenderType(classNodes, cn);
                 out.add(new Result(layerClass, compositeTexture, unlit, modelLayerField, tintArgb));
                 continue;
             }
@@ -368,13 +369,13 @@ public final class EntityOverlayResolver {
                 break;
             }
         if (!hasEmissiveSameGeometryOverlay) {
-            ClassNode rendererCn = AsmKit.loadClass(zip, rendererInternalName);
+            ClassNode rendererCn = classNodes.load(rendererInternalName);
             if (rendererCn != null) {
                 EyesOverlayBinding direct = findEyesOverlayBinding(rendererCn);
                 if (direct != null) {
                     out.add(new Result(rendererInternalName, direct.texturePath(), true, null, 0xFFFFFFFF));
                 } else {
-                    String emissiveTexture = findLivingEntityEmissiveTexture(zip, rendererCn);
+                    String emissiveTexture = findLivingEntityEmissiveTexture(classNodes, rendererCn);
                     if (emissiveTexture != null)
                         out.add(new Result(rendererInternalName, emissiveTexture, true, null, 0xFFFFFFFF));
                 }
@@ -446,7 +447,7 @@ public final class EntityOverlayResolver {
      * by requiring the layer to establish its own render type.
      */
     private static @Nullable String findCompositeOverlayTexture(
-        @NotNull ZipFile zip,
+        @NotNull ClassNodeCache classNodes,
         @NotNull ClassNode layerClass
     ) {
         String own = findFirstNonBabyTextureLiteral(layerClass);
@@ -457,7 +458,7 @@ public final class EntityOverlayResolver {
                 if (in.getOpcode() != Opcodes.GETSTATIC) continue;
                 if (!(in instanceof FieldInsnNode fi)) continue;
                 if (!IDENTIFIER_DESC.equals(fi.desc)) continue;
-                String chased = chaseTextureFieldOwner(zip, fi.owner, fi.name);
+                String chased = chaseTextureFieldOwner(classNodes, fi.owner, fi.name);
                 if (chased != null) return chased;
             }
         }
@@ -513,11 +514,11 @@ public final class EntityOverlayResolver {
      * picks up {@code "textures/entity/slime/slime.png"}.
      */
     private static @Nullable String chaseTextureFieldOwner(
-        @NotNull ZipFile zip,
+        @NotNull ClassNodeCache classNodes,
         @NotNull String ownerInternalName,
         @NotNull String fieldName
     ) {
-        ClassNode owner = AsmKit.loadClass(zip, ownerInternalName);
+        ClassNode owner = classNodes.load(ownerInternalName);
         if (owner == null) return null;
         MethodNode clinit = AsmKit.findMethod(owner, AsmKit.CLINIT);
         if (clinit == null) return null;
@@ -586,7 +587,7 @@ public final class EntityOverlayResolver {
      * static-eval here; the caller falls back to {@code 0xFFFFFFFF} so the runtime tints with
      * the un-modified texel (slight over-bright but better than failing the regen).
      */
-    private static int extractColoredCutoutTint(@NotNull ZipFile zip, @NotNull ClassNode layerCn) {
+    private static int extractColoredCutoutTint(@NotNull ClassNodeCache classNodes, @NotNull ClassNode layerCn) {
         for (MethodNode method : layerCn.methods) {
             if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name)) continue;
             for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
@@ -597,7 +598,7 @@ public final class EntityOverlayResolver {
                 // Walk back from the call to find the INVOKEVIRTUAL on a state class that supplied it.
                 AbstractInsnNode stateColorCall = findPrecedingStateColorCall(in);
                 if (stateColorCall == null) continue;
-                int resolved = resolveStateColorMethod(zip, (MethodInsnNode) stateColorCall);
+                int resolved = resolveStateColorMethod(classNodes, (MethodInsnNode) stateColorCall);
                 if (resolved != 0xFFFFFFFF) return resolved;
             }
         }
@@ -632,8 +633,8 @@ public final class EntityOverlayResolver {
      * the result for the field's default dye color. Returns {@code 0xFFFFFFFF} when the method
      * doesn't match the recognised pattern.
      */
-    private static int resolveStateColorMethod(@NotNull ZipFile zip, @NotNull MethodInsnNode stateColorCall) {
-        ClassNode stateClass = AsmKit.loadClass(zip, stateColorCall.owner);
+    private static int resolveStateColorMethod(@NotNull ClassNodeCache classNodes, @NotNull MethodInsnNode stateColorCall) {
+        ClassNode stateClass = classNodes.load(stateColorCall.owner);
         if (stateClass == null) return 0xFFFFFFFF;
         MethodNode stateMethod = AsmKit.findMethod(stateClass, stateColorCall.name, stateColorCall.desc);
         if (stateMethod == null) return 0xFFFFFFFF;
@@ -741,7 +742,7 @@ public final class EntityOverlayResolver {
      * change, while purely-static composite layers (sheep wool, drowned outer) keep their
      * existing {@link #findOverlayModelLayerField}-driven path.
      *
-     * @param zip the deobfuscated client jar
+     * @param classNodes the ClassNode cache (shared with sibling resolver walks)
      * @param layerCn the candidate layer class (its constructor descriptor is inspected)
      * @param rendererInternalName the renderer composing this layer (its constructor is
      *     scanned for the matching {@code addLayer(new layerCn(...))} call site)
@@ -749,7 +750,7 @@ public final class EntityOverlayResolver {
      *     pattern doesn't match
      */
     private static @Nullable ParameterizedOverlayBinding findParameterizedOverlayBinding(
-        @NotNull ZipFile zip,
+        @NotNull ClassNodeCache classNodes,
         @NotNull ClassNode layerCn,
         @NotNull String rendererInternalName
     ) {
@@ -760,13 +761,13 @@ public final class EntityOverlayResolver {
 
         // Step 2: walk renderer constructors for the addLayer(new <layerCn>(...args)) call
         // site and pull out the GETSTATIC values pushed at the matching argument positions.
-        ClassNode rendererCn = AsmKit.loadClass(zip, rendererInternalName);
+        ClassNode rendererCn = classNodes.load(rendererInternalName);
         if (rendererCn == null) return null;
         String layerInternalName = layerCn.name;
         for (MethodNode method : rendererCn.methods) {
             if (!AsmKit.INIT.equals(method.name)) continue;
             ParameterizedOverlayBinding binding = scanRendererForParameterizedAddLayer(
-                zip, method, layerInternalName);
+                classNodes, method, layerInternalName);
             if (binding != null) return binding;
         }
         return null;
@@ -844,7 +845,7 @@ public final class EntityOverlayResolver {
      * future renderer that reorders the ModelLayerLocation / Identifier args.
      */
     private static @Nullable ParameterizedOverlayBinding scanRendererForParameterizedAddLayer(
-        @NotNull ZipFile zip,
+        @NotNull ClassNodeCache classNodes,
         @NotNull MethodNode rendererCtor,
         @NotNull String layerInternalName
     ) {
@@ -869,7 +870,7 @@ public final class EntityOverlayResolver {
                 }
             }
             if (modelLayerField == null || identifierFieldName == null) continue;
-            String texturePath = chaseTextureFieldOwner(zip, identifierFieldOwner, identifierFieldName);
+            String texturePath = chaseTextureFieldOwner(classNodes, identifierFieldOwner, identifierFieldName);
             if (texturePath == null) continue;
             return new ParameterizedOverlayBinding(modelLayerField, texturePath);
         }
@@ -908,14 +909,14 @@ public final class EntityOverlayResolver {
      * invocation in the layer body resolves to a no-cardinal-lighting pipeline (which the
      * runtime emits as an unlit overlay).
      */
-    private static boolean layerInvokesNoCardinalLightingRenderType(@NotNull ZipFile zip, @NotNull ClassNode layerCn) {
+    private static boolean layerInvokesNoCardinalLightingRenderType(@NotNull ClassNodeCache classNodes, @NotNull ClassNode layerCn) {
         for (MethodNode method : layerCn.methods) {
             if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name)) continue;
             for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
                 if (in.getOpcode() != Opcodes.INVOKESTATIC) continue;
                 if (!(in instanceof MethodInsnNode mi)) continue;
                 if (!VanillaSourceClasses.RENDER_TYPES.equals(mi.owner)) continue;
-                if (factoryHasNoCardinalLighting(zip, mi.name)) return true;
+                if (factoryHasNoCardinalLighting(classNodes, mi.name)) return true;
             }
         }
         return false;
@@ -933,10 +934,10 @@ public final class EntityOverlayResolver {
      * pipeline reference lives behind an {@code InvokeDynamic} - the static walker treats
      * those as cardinal-lit).
      */
-    private static boolean factoryHasNoCardinalLighting(@NotNull ZipFile zip, @NotNull String factoryName) {
+    private static boolean factoryHasNoCardinalLighting(@NotNull ClassNodeCache classNodes, @NotNull String factoryName) {
         Boolean cached = FACTORY_EMISSIVE_CACHE.get(factoryName);
         if (cached != null) return cached;
-        ClassNode renderTypes = AsmKit.loadClass(zip, VanillaSourceClasses.RENDER_TYPES);
+        ClassNode renderTypes = classNodes.load(VanillaSourceClasses.RENDER_TYPES);
         if (renderTypes == null) {
             FACTORY_EMISSIVE_CACHE.put(factoryName, false);
             return false;
@@ -948,7 +949,7 @@ public final class EntityOverlayResolver {
             return false;
         }
 
-        boolean result = pipelineHasNoCardinalLighting(zip, pipelineField);
+        boolean result = pipelineHasNoCardinalLighting(classNodes, pipelineField);
         FACTORY_EMISSIVE_CACHE.put(factoryName, result);
         return result;
     }
@@ -1016,8 +1017,8 @@ public final class EntityOverlayResolver {
      * ends with one). Traits accumulate until the block boundary; reset on every {@code
      * PUTSTATIC} so the previous pipeline's shader-defines don't leak into the next.
      */
-    private static boolean pipelineHasNoCardinalLighting(@NotNull ZipFile zip, @NotNull String pipelineFieldName) {
-        ClassNode cn = AsmKit.loadClass(zip, VanillaSourceClasses.RENDER_PIPELINES);
+    private static boolean pipelineHasNoCardinalLighting(@NotNull ClassNodeCache classNodes, @NotNull String pipelineFieldName) {
+        ClassNode cn = classNodes.load(VanillaSourceClasses.RENDER_PIPELINES);
         if (cn == null) return false;
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return false;
@@ -1068,10 +1069,10 @@ public final class EntityOverlayResolver {
      * is translucent without {@code NO_CARDINAL_LIGHTING} (slime outer's
      * {@code entityTranslucent}, wolf armor's {@code armorTranslucent}).
      */
-    private static boolean factoryHasTranslucentBlend(@NotNull ZipFile zip, @NotNull String factoryName) {
+    private static boolean factoryHasTranslucentBlend(@NotNull ClassNodeCache classNodes, @NotNull String factoryName) {
         Boolean cached = FACTORY_TRANSLUCENT_CACHE.get(factoryName);
         if (cached != null) return cached;
-        ClassNode renderTypes = AsmKit.loadClass(zip, VanillaSourceClasses.RENDER_TYPES);
+        ClassNode renderTypes = classNodes.load(VanillaSourceClasses.RENDER_TYPES);
 
         if (renderTypes == null) {
             FACTORY_TRANSLUCENT_CACHE.put(factoryName, false);
@@ -1084,7 +1085,7 @@ public final class EntityOverlayResolver {
             return false;
         }
 
-        boolean result = pipelineHasTranslucentBlend(zip, pipelineField);
+        boolean result = pipelineHasTranslucentBlend(classNodes, pipelineField);
         FACTORY_TRANSLUCENT_CACHE.put(factoryName, result);
         return result;
     }
@@ -1095,8 +1096,8 @@ public final class EntityOverlayResolver {
      * {@code GETSTATIC BlendFunction.TRANSLUCENT}. Build-block boundaries are marked by
      * any {@code PUTSTATIC} on a {@code RenderPipeline}-typed field.
      */
-    private static boolean pipelineHasTranslucentBlend(@NotNull ZipFile zip, @NotNull String pipelineFieldName) {
-        ClassNode cn = AsmKit.loadClass(zip, VanillaSourceClasses.RENDER_PIPELINES);
+    private static boolean pipelineHasTranslucentBlend(@NotNull ClassNodeCache classNodes, @NotNull String pipelineFieldName) {
+        ClassNode cn = classNodes.load(VanillaSourceClasses.RENDER_PIPELINES);
         if (cn == null) return false;
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return false;
@@ -1140,7 +1141,7 @@ public final class EntityOverlayResolver {
      * TropicalFishPatternLayer, VillagerProfessionLayer) BEFORE this generic gate so they
      * claim their classes via {@code continue} - no class-name short-circuit needed here.
      */
-    private static boolean derivationAcceptsCompositeOverlay(@NotNull ZipFile zip, @NotNull ClassNode layerCn) {
+    private static boolean derivationAcceptsCompositeOverlay(@NotNull ClassNodeCache classNodes, @NotNull ClassNode layerCn) {
         boolean hasDirectRenderType = false;
         boolean usesHelper = false;
 
@@ -1154,8 +1155,8 @@ public final class EntityOverlayResolver {
 
                 if (VanillaSourceClasses.RENDER_TYPES.equals(mi.owner)) {
                     hasDirectRenderType = true;
-                    if (factoryHasTranslucentBlend(zip, mi.name)
-                        && !factoryHasNoCardinalLighting(zip, mi.name))
+                    if (factoryHasTranslucentBlend(classNodes, mi.name)
+                        && !factoryHasNoCardinalLighting(classNodes, mi.name))
                         return false;
                 } else if (COLORED_CUTOUT_HELPER.equals(mi.name))
                     usesHelper = true;
@@ -1191,8 +1192,8 @@ public final class EntityOverlayResolver {
      * -&gt; LDC {@code "trader_llama"}). Returns {@code null} when the field isn't bound to a
      * literal id (e.g., {@code CARPETS} / {@code HARNESSES} are Map builders, not single ids).
      */
-    private static @Nullable String findEquipmentAssetId(@NotNull ZipFile zip, @NotNull String fieldName) {
-        ClassNode cn = AsmKit.loadClass(zip, VanillaSourceClasses.EQUIPMENT_ASSETS);
+    private static @Nullable String findEquipmentAssetId(@NotNull ClassNodeCache classNodes, @NotNull String fieldName) {
+        ClassNode cn = classNodes.load(VanillaSourceClasses.EQUIPMENT_ASSETS);
         if (cn == null) return null;
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return null;
@@ -1226,8 +1227,8 @@ public final class EntityOverlayResolver {
      * <p>Returns {@code 0xFFFFFFFF} (the no-op multiplicative tint) when the renderer doesn't
      * reference {@code DyeColor.getTextureDiffuseColor}.
      */
-    public static int resolveBaseTint(@NotNull ZipFile zip, @NotNull String rendererInternalName) {
-        ClassNode cn = AsmKit.loadClass(zip, rendererInternalName);
+    public static int resolveBaseTint(@NotNull ClassNodeCache classNodes, @NotNull String rendererInternalName) {
+        ClassNode cn = classNodes.load(rendererInternalName);
         if (cn == null) return 0xFFFFFFFF;
         for (MethodNode method : cn.methods)
             for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
@@ -1235,7 +1236,7 @@ public final class EntityOverlayResolver {
                     && in instanceof MethodInsnNode mi
                     && VanillaSourceClasses.DYE_COLOR.equals(mi.owner)
                     && "getTextureDiffuseColor".equals(mi.name))
-                    return walkDyeColorWhiteTextureDiffuseColor(zip);
+                    return walkDyeColorWhiteTextureDiffuseColor(classNodes);
         return 0xFFFFFFFF;
     }
 
@@ -1244,8 +1245,8 @@ public final class EntityOverlayResolver {
      * CubeDeformation(F); PUTSTATIC <fieldName>} and returns the literal float arg. Returns
      * {@code 0} when the field doesn't exist or isn't a CubeDeformation literal init.
      */
-    private static float walkCubeDeformationFloat(@NotNull ZipFile zip, @NotNull String ownerClass, @NotNull String fieldName) {
-        ClassNode cn = AsmKit.loadClass(zip, ownerClass);
+    private static float walkCubeDeformationFloat(@NotNull ClassNodeCache classNodes, @NotNull String ownerClass, @NotNull String fieldName) {
+        ClassNode cn = classNodes.load(ownerClass);
         if (cn == null) return 0f;
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return 0f;
@@ -1287,8 +1288,8 @@ public final class EntityOverlayResolver {
      * {@code base_tint} JSON fields. Returns {@code 0xFFFFFFFF} (no-op tint) when the
      * pattern isn't matched.
      */
-    private static int walkDyeColorWhiteTextureDiffuseColor(@NotNull ZipFile zip) {
-        ClassNode cn = AsmKit.loadClass(zip, VanillaSourceClasses.DYE_COLOR);
+    private static int walkDyeColorWhiteTextureDiffuseColor(@NotNull ClassNodeCache classNodes) {
+        ClassNode cn = classNodes.load(VanillaSourceClasses.DYE_COLOR);
         if (cn == null) return 0xFFFFFFFF;
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return 0xFFFFFFFF;
@@ -1330,10 +1331,10 @@ public final class EntityOverlayResolver {
      * passes {@code "villager"}, ZombieVillagerRenderer passes {@code "zombie_villager"}.
      */
     private static @Nullable String extractVillagerProfessionPrefix(
-        @NotNull ZipFile zip,
+        @NotNull ClassNodeCache classNodes,
         @NotNull String rendererInternalName
     ) {
-        ClassNode renderer = AsmKit.loadClass(zip, rendererInternalName);
+        ClassNode renderer = classNodes.load(rendererInternalName);
         if (renderer == null) return null;
 
         for (MethodNode method : renderer.methods) {
@@ -1384,7 +1385,7 @@ public final class EntityOverlayResolver {
      * {@code <clinit>} - because the data class's enum-like {@code <clinit>} allocates the
      * default-state instance first.
      */
-    private static @Nullable String findLivingEntityEmissiveTexture(@NotNull ZipFile zip, @NotNull ClassNode renderer) {
+    private static @Nullable String findLivingEntityEmissiveTexture(@NotNull ClassNodeCache classNodes, @NotNull ClassNode renderer) {
         // Step 1: require BOTH a `new LivingEntityEmissiveLayer` AND a duplicated
         // bakeLayer(ModelLayers.X) GETSTATIC in the same <init>. The duplication signals the
         // emissive layer reuses the base renderer's ModelLayers; renderers using a distinct
@@ -1453,7 +1454,7 @@ public final class EntityOverlayResolver {
         // {@code *_eye.png}) LDC. The data class's <clinit> allocates the default-state
         // instance first, so its eye texture is the first such literal.
         for (String className : candidates) {
-            ClassNode cn = AsmKit.loadClass(zip, className);
+            ClassNode cn = classNodes.load(className);
             if (cn == null) continue;
             MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
             if (clinit == null) continue;

@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.tooling.entity;
 
 import lib.minecraft.renderer.tooling.util.AsmKit;
+import lib.minecraft.renderer.tooling.util.ClassNodeCache;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lombok.experimental.UtilityClass;
@@ -13,7 +14,6 @@ import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
 import java.util.Locale;
-import java.util.zip.ZipFile;
 
 /**
  * Walks a variant-driven renderer's {@code getTextureLocation} body for a
@@ -61,11 +61,11 @@ public final class EntityVariantDefaultResolver {
      * non-overridden getTextureLocation, etc.
      */
     public static @Nullable Result resolve(
-        @NotNull ZipFile zip,
+        @NotNull ClassNodeCache classNodes,
         @NotNull String rendererInternalName,
         @NotNull Diagnostics diag
     ) {
-        ClassNode rendererCn = AsmKit.loadClass(zip, rendererInternalName);
+        ClassNode rendererCn = classNodes.load(rendererInternalName);
         if (rendererCn == null) return null;
         MethodNode getTex = findOwnGetTextureLocation(rendererCn);
         if (getTex == null) return null;
@@ -73,7 +73,7 @@ public final class EntityVariantDefaultResolver {
         String variantClass = findVariantFieldClass(getTex);
         if (variantClass == null) return null;
 
-        String defaultName = findDefaultEnumValue(zip, variantClass);
+        String defaultName = findDefaultEnumValue(classNodes, variantClass);
         if (defaultName == null) return null;
 
         diag.info("variant-default: '%s' -> %s.%s", rendererInternalName, variantClass, defaultName);
@@ -128,8 +128,8 @@ public final class EntityVariantDefaultResolver {
      * static field or the initializer doesn't match the simple GETSTATIC-then-PUTSTATIC
      * pattern.
      */
-    private static @Nullable String findDefaultEnumValue(@NotNull ZipFile zip, @NotNull String variantClassInternal) {
-        ClassNode cn = AsmKit.loadClass(zip, variantClassInternal);
+    private static @Nullable String findDefaultEnumValue(@NotNull ClassNodeCache classNodes, @NotNull String variantClassInternal) {
+        ClassNode cn = classNodes.load(variantClassInternal);
         if (cn == null) return null;
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return null;

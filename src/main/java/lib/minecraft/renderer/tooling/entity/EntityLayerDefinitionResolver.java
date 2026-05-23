@@ -3,6 +3,7 @@ package lib.minecraft.renderer.tooling.entity;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.tooling.util.AsmKit;
+import lib.minecraft.renderer.tooling.util.ClassNodeCache;
 import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lombok.experimental.UtilityClass;
@@ -19,7 +20,6 @@ import org.objectweb.asm.tree.VarInsnNode;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.zip.ZipFile;
 
 /**
  * Resolves an entity to the {@code LayerDefinition}-returning factory method that builds its
@@ -159,10 +159,10 @@ public final class EntityLayerDefinitionResolver {
      * those are real factories that produce their own geometry.
      */
     public static @NotNull Result unaliasDelegate(
-        @NotNull ZipFile zip,
+        @NotNull ClassNodeCache classNodes,
         @NotNull Result res
     ) {
-        ClassNode cn = AsmKit.loadClass(zip, res.targetClass());
+        ClassNode cn = classNodes.load(res.targetClass());
         if (cn == null) return res;
         MethodNode method = AsmKit.findMethod(cn, res.targetMethod(), res.targetDesc());
         if (method == null) return res;
@@ -212,26 +212,26 @@ public final class EntityLayerDefinitionResolver {
      *   <li><b>First field</b> - last resort if neither rule yields a candidate.</li>
      * </ol>
      *
-     * @param zip the deobfuscated client jar
+     * @param classNodes the ClassNode cache (shared with sibling resolver walks)
      * @param rendererInternalName the renderer's JVM internal name
      * @param entityId the namespaced entity id ({@code "minecraft:zombie"}); empty string disables
      *     the entity-id-match preference
      * @param additionalLayerFields extra {@code ModelLayers.X} field names harvested from lambda
      *     bodies that the constructor walk would otherwise miss
      * @param layerDefinitions the precomputed {@code (ModelLayers.X field name -&gt; Result)}
-     *     map from {@link #loadLayerDefinitions(ZipFile, Diagnostics)}
+     *     map from {@link #loadLayerDefinitions(ToolingEntityContext, Diagnostics)}
      * @param diagnostics the diagnostic sink shared with sibling discovery walks
      * @return the primary layer's resolution, or {@code null} when unresolvable
      */
     public static @Nullable Result resolvePrimary(
-        @NotNull ZipFile zip,
+        @NotNull ClassNodeCache classNodes,
         @NotNull String rendererInternalName,
         @NotNull String entityId,
         @NotNull java.util.Collection<String> additionalLayerFields,
         @NotNull Map<String, Result> layerDefinitions,
         @NotNull Diagnostics diagnostics
     ) {
-        java.util.LinkedHashSet<String> candidates = collectModelLayerFields(zip, rendererInternalName);
+        java.util.LinkedHashSet<String> candidates = collectModelLayerFields(classNodes, rendererInternalName);
         // Merge in lambda-sourced fields (squid / endermite / piglin / donkey / llama /
         // zombified_piglin etc. - their renderer constructors take ModelLayerLocation params
         // and so have no GETSTATIC of their own; the supplying lambda in EntityRenderers.<clinit>
@@ -257,11 +257,11 @@ public final class EntityLayerDefinitionResolver {
      * can promote any matching field regardless of order.
      */
     private static @NotNull java.util.LinkedHashSet<String> collectModelLayerFields(
-        @NotNull ZipFile zip,
+        @NotNull ClassNodeCache classNodes,
         @NotNull String rendererInternalName
     ) {
         java.util.LinkedHashSet<String> out = new java.util.LinkedHashSet<>();
-        AsmKit.walkConstructorChain(zip, rendererInternalName, method -> {
+        AsmKit.walkConstructorChain(classNodes, rendererInternalName, method -> {
             for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
                 if (AsmKit.isGetStatic(in, VanillaSourceClasses.MODEL_LAYERS))
                     out.add(((FieldInsnNode) in).name);
@@ -314,16 +314,16 @@ public final class EntityLayerDefinitionResolver {
      * an {@code INVOKESTATIC} returning {@code LayerDefinition} (or its mesh-wrapped variant)
      * or an {@code ALOAD} of a slot holding such a result.
      *
-     * @param zip the deobfuscated client jar
+     * @param classNodes the ClassNode cache (shared with sibling resolver walks)
      * @param diagnostics the diagnostic sink
      * @return the layer-name to factory-target map (empty on error)
      */
     public static @NotNull ConcurrentMap<String, Result> loadLayerDefinitions(
-        @NotNull ZipFile zip,
+        @NotNull ClassNodeCache classNodes,
         @NotNull Diagnostics diagnostics
     ) {
         ConcurrentMap<String, Result> out = Concurrent.newMap();
-        ClassNode cn = AsmKit.loadClass(zip, VanillaSourceClasses.LAYER_DEFINITIONS);
+        ClassNode cn = classNodes.load(VanillaSourceClasses.LAYER_DEFINITIONS);
         if (cn == null) {
             diagnostics.error("'%s' class missing - layer-definition map unresolved", VanillaSourceClasses.LAYER_DEFINITIONS);
             return out;
@@ -418,7 +418,7 @@ public final class EntityLayerDefinitionResolver {
             // base scale of 1f. The subsequent invokevirtual apply consumes pendingAppliedMTScale.
             if (in instanceof FieldInsnNode fi && opcode == Opcodes.GETSTATIC
                 && MESH_TRANSFORMER_DESC.equals(fi.desc)) {
-                pendingAppliedMTScale = resolveStaticMeshTransformer(fi.owner, fi.name, staticMeshTransformerCache, zip);
+                pendingAppliedMTScale = resolveStaticMeshTransformer(fi.owner, fi.name, staticMeshTransformerCache, classNodes);
                 continue;
             }
 
@@ -593,12 +593,12 @@ public final class EntityLayerDefinitionResolver {
      */
     private static @Nullable Float resolveStaticMeshTransformer(
         @NotNull String owner, @NotNull String name,
-        @NotNull Map<String, Float> cache, @NotNull ZipFile zip
+        @NotNull Map<String, Float> cache, @NotNull ClassNodeCache classNodes
     ) {
         String key = owner + "." + name;
         if (cache.containsKey(key)) return cache.get(key);
 
-        ClassNode cls = AsmKit.loadClass(zip, owner);
+        ClassNode cls = classNodes.load(owner);
         MethodNode clinit = cls != null ? AsmKit.findMethod(cls, AsmKit.CLINIT) : null;
         if (clinit == null) {
             cache.put(key, null);

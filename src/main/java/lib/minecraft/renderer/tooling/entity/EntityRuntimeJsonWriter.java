@@ -16,7 +16,6 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.zip.ZipFile;
 
 /**
  * Emits the runtime-consumable {@code entity_models.json} and {@code entity_geometry.json}.
@@ -66,7 +65,6 @@ public final class EntityRuntimeJsonWriter {
      */
     public static int writeAll(
         @NotNull ToolingEntityContext context,
-        @NotNull ZipFile zip,
         @NotNull Map<String, EntitySessionWalk.Result> records,
         @NotNull ConcurrentMap<String, EntityLayerDefinitionResolver.Result> entityToResolution,
         @NotNull ConcurrentMap<String, JsonObject> geometries,
@@ -145,7 +143,7 @@ public final class EntityRuntimeJsonWriter {
                     String canonical = dataVariantDefaults.get(rec.variantStem());
                     if (canonical == null)
                         canonical = EntityVariantResolver.findAlphaFirstUnconditionalVariantId(
-                            zip, rec.variantStem(), diagnostics);
+                            context, rec.variantStem(), diagnostics);
                     EntityVariantResolver.Result defaultVariant = EntityVariantResolver.pickDefault(vlist, canonical);
                     String def = defaultVariant.primaryTexturePath();
                     if (def != null) texture = def;
@@ -210,12 +208,12 @@ public final class EntityRuntimeJsonWriter {
             if (rec.setupYawAddend() != 0f) row.addProperty("setup_yaw_addend", rec.setupYawAddend());
 
             // base_tint - per-entity multiplicative tint; currently only TropicalFishRenderer surfaces a non-default.
-            int baseTint = EntityOverlayResolver.resolveBaseTint(zip, rec.rendererInternalName());
+            int baseTint = EntityOverlayResolver.resolveBaseTint(context.classNodes(), rec.rendererInternalName());
             if (baseTint != 0xFFFFFFFF) row.addProperty("base_tint", String.format("0x%08X", baseTint));
 
             // Constructor-static visibility - armor_stand / illager hat hides plus the chest-bone
             // gates on AbstractChestedHorse subclasses.
-            ConcurrentList<String> hiddenBones = EntityBoneResolver.resolveHiddenBones(context, res.targetClass(), rec.rendererInternalName());
+            ConcurrentList<String> hiddenBones = EntityBoneResolver.resolveHiddenBones(context.classNodes(), res.targetClass(), rec.rendererInternalName(), diagnostics);
             if (!hiddenBones.isEmpty()) {
                 JsonArray hidden = new JsonArray();
                 for (String bone : hiddenBones) hidden.add(bone);

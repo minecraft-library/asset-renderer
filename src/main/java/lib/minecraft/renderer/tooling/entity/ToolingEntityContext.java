@@ -52,7 +52,7 @@ public final class ToolingEntityContext implements AutoCloseable {
     public static @NotNull ToolingEntityContext of(@NotNull Path clientJar, @NotNull PipelineOptions options) {
         try {
             ZipFile zip = new ZipFile(clientJar.toFile());
-            return new ToolingEntityContext(clientJar, options, zip, new ClassNodeCache(), new Diagnostics());
+            return new ToolingEntityContext(clientJar, options, zip, new ClassNodeCache(zip), new Diagnostics());
         } catch (IOException ex) {
             throw new ToolingException(ex, "Failed to open client jar '%s'", clientJar);
         }

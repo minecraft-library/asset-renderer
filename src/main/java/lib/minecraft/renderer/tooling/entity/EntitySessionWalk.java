@@ -76,14 +76,14 @@ public final class EntitySessionWalk {
         String entityId = MINECRAFT_NAMESPACE + this.registryEntry.entityId();
 
         EntityTextureResolver.Result binding = EntityTextureResolver.resolve(
-            zip, renderer, this.registryEntry.entityId(), this.registryEntry.lambdaTypeArgs(), diagnostics
+            this.context.classNodes(), renderer, this.registryEntry.entityId(), this.registryEntry.lambdaTypeArgs(), diagnostics
         );
         // Enum-default variant detection: AxolotlRenderer / RabbitRenderer read their
         // texture via state.variant lookup into a Map<XVariant, Identifier>. The resolver
         // walks the variant enum class for its DEFAULT static field and computes the
         // canonical texture stem (axolotl/axolotl_lucy, rabbit/rabbit_brown).
         EntityVariantDefaultResolver.Result variantDefault =
-            EntityVariantDefaultResolver.resolve(zip, renderer, diagnostics);
+            EntityVariantDefaultResolver.resolve(this.context.classNodes(), renderer, diagnostics);
         if (variantDefault != null) {
             String stem = this.registryEntry.entityId();
             String candidate = "textures/entity/" + stem + "/" + stem + "_" + variantDefault.defaultName() + ".png";
@@ -101,7 +101,7 @@ public final class EntitySessionWalk {
         }
         if (binding.primaryTexturePath() == null) {
             // Class-bytes fallback for renderers the main resolver leaves unresolved.
-            String fallback = EntityTextureResolver.findBaseTextureFallback(zip, renderer);
+            String fallback = EntityTextureResolver.findBaseTextureFallback(this.context.classNodes(), renderer);
             if (fallback != null) {
                 binding = new EntityTextureResolver.Result(
                     "textures/entity/" + fallback + ".png",
@@ -112,7 +112,7 @@ public final class EntitySessionWalk {
             }
         }
 
-        ConcurrentList<String> layers = EntityBoneResolver.scanOverlayLayers(this.context, renderer);
+        ConcurrentList<String> layers = EntityBoneResolver.scanOverlayLayers(this.context.classNodes(), renderer);
 
         String variantStem;
         if (binding.variantSourceClass() != null) {
@@ -128,7 +128,7 @@ public final class EntitySessionWalk {
             variantStem = null;
         }
 
-        EntityRendererOverrides.Result overrides = EntityRendererOverrides.resolve(this.context, renderer);
+        EntityRendererOverrides.Result overrides = EntityRendererOverrides.resolve(this.context.classNodes(), renderer, diagnostics);
 
         return new Result(
             entityId,

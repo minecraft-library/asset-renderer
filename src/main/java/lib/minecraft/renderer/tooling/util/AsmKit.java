@@ -151,34 +151,18 @@ public final class AsmKit {
     }
 
     /**
-     * Cache-backed variant of {@link #loadClass(ZipFile, String)}: routes through the
-     * supplied {@link ClassNodeCache} so repeat lookups in the same tooling run hit cache
-     * instead of re-reading and re-parsing the jar entry. Behaviour and return contract
-     * match the non-cached overload.
+     * Cache-backed variant of {@link #requireClass(ZipFile, String, String)}. Routes through
+     * the supplied {@link ClassNodeCache} (which owns its jar handle); throws with the same
+     * "obfuscated or unsupported version" message when the class is missing.
      *
      * @param cache the per-context cache to consult / populate
-     * @param zip the jar to read from on cache miss
-     * @param internalName the class's JVM internal name
-     * @return the cached or freshly-parsed node, or {@code null} when absent from the jar
-     */
-    public static @Nullable ClassNode loadClass(@NotNull ClassNodeCache cache, @NotNull ZipFile zip, @NotNull String internalName) {
-        return cache.load(zip, internalName);
-    }
-
-    /**
-     * Cache-backed variant of {@link #requireClass(ZipFile, String, String)}. Calls through
-     * the supplied {@link ClassNodeCache}; throws with the same "obfuscated or unsupported
-     * version" message when the class is missing.
-     *
-     * @param cache the per-context cache to consult / populate
-     * @param zip the jar to read from on cache miss
      * @param internalName the class's JVM internal name
      * @param context a short label identifying the caller in the error message
      * @return the populated {@link ClassNode}
      * @throws ToolingException if the class is not in the jar or cannot be read
      */
-    public static @NotNull ClassNode requireClass(@NotNull ClassNodeCache cache, @NotNull ZipFile zip, @NotNull String internalName, @NotNull String context) {
-        ClassNode classNode = cache.load(zip, internalName);
+    public static @NotNull ClassNode requireClass(@NotNull ClassNodeCache cache, @NotNull String internalName, @NotNull String context) {
+        ClassNode classNode = cache.load(internalName);
         if (classNode == null)
             throw new ToolingException(
                 "Jar does not contain '%s.class' for %s - the jar is either obfuscated (pre-26.1) or from an unsupported version",
@@ -422,6 +406,28 @@ public final class AsmKit {
     }
 
     /**
+     * Cache-backed variant of
+     * {@link #walkConstructorChain(ZipFile, String, Consumer) walkConstructorChain}: the
+     * underlying superclass walk consults the supplied {@link ClassNodeCache} (which owns
+     * its jar handle) for every class along the chain so repeat walks of overlapping
+     * hierarchies hit cache instead of re-parsing.
+     *
+     * @param cache the per-context cache to consult / populate
+     * @param startInternalName the class to begin the walk at
+     * @param callback invoked once per matching constructor in walk order
+     */
+    public static void walkConstructorChain(
+        @NotNull ClassNodeCache cache,
+        @NotNull String startInternalName,
+        @NotNull Consumer<MethodNode> callback
+    ) {
+        walkSuperChain(cache, startInternalName, classNode -> {
+            for (MethodNode method : classNode.methods)
+                if (INIT.equals(method.name)) callback.accept(method);
+        });
+    }
+
+    /**
      * Walks each class up the superclass chain starting at {@code startInternalName} and
      * stopping before {@link #OBJECT_INTERNAL java/lang/Object} (so the visitor never sees
      * the Object class, which typically isn't even in the deobfuscated client jar). Stops
@@ -446,6 +452,29 @@ public final class AsmKit {
     }
 
     /**
+     * Cache-backed variant of {@link #walkSuperChain(ZipFile, String, Consumer)}: every
+     * class along the chain is loaded through the supplied {@link ClassNodeCache} (which
+     * owns its jar handle) so repeat walks of overlapping hierarchies share parsed nodes.
+     *
+     * @param cache the per-context cache to consult / populate
+     * @param startInternalName the class to begin the walk at
+     * @param classCallback invoked once per visited class
+     */
+    public static void walkSuperChain(
+        @NotNull ClassNodeCache cache,
+        @NotNull String startInternalName,
+        @NotNull Consumer<ClassNode> classCallback
+    ) {
+        String current = startInternalName;
+        while (current != null && !OBJECT_INTERNAL.equals(current)) {
+            ClassNode classNode = cache.load(current);
+            if (classNode == null) return;
+            classCallback.accept(classNode);
+            current = classNode.superName;
+        }
+    }
+
+    /**
      * Returns {@code true} when {@code startInternalName} (or any of its ancestors) equals
      * {@code targetInternalName}. Walks the superclass chain stopping at {@code null} or at
      * {@link #OBJECT_INTERNAL java/lang/Object}. Returns {@code false} when any link can't
@@ -461,6 +490,31 @@ public final class AsmKit {
         while (current != null && !OBJECT_INTERNAL.equals(current)) {
             if (targetInternalName.equals(current)) return true;
             ClassNode classNode = loadClass(zip, current);
+            if (classNode == null) return false;
+            current = classNode.superName;
+        }
+        return false;
+    }
+
+    /**
+     * Cache-backed variant of {@link #extendsClass(ZipFile, String, String)}: every
+     * superclass along the walk is resolved through the supplied {@link ClassNodeCache}
+     * (which owns its jar handle).
+     *
+     * @param cache the per-context cache to consult / populate
+     * @param startInternalName the class to begin the walk at
+     * @param targetInternalName the candidate ancestor
+     * @return {@code true} when {@code startInternalName} extends or equals {@code targetInternalName}
+     */
+    public static boolean extendsClass(
+        @NotNull ClassNodeCache cache,
+        @NotNull String startInternalName,
+        @NotNull String targetInternalName
+    ) {
+        String current = startInternalName;
+        while (current != null && !OBJECT_INTERNAL.equals(current)) {
+            if (targetInternalName.equals(current)) return true;
+            ClassNode classNode = cache.load(current);
             if (classNode == null) return false;
             current = classNode.superName;
         }

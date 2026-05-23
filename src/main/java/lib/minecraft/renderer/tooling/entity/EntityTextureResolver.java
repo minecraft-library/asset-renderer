@@ -3,6 +3,7 @@ package lib.minecraft.renderer.tooling.entity;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.tooling.util.AsmKit;
+import lib.minecraft.renderer.tooling.util.ClassNodeCache;
 import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lombok.experimental.UtilityClass;
@@ -110,7 +111,7 @@ public final class EntityTextureResolver {
      * (every field {@code null}) when the renderer chain has no recognisable
      * {@code getTextureLocation} or when the binding pattern is unsupported.
      *
-     * @param zip the deobfuscated client jar
+     * @param classNodes the ClassNode cache (shared with sibling resolver walks)
      * @param rendererInternalName the renderer's JVM internal name
      * @param entityId the entity-id (without namespace) being resolved. Used to disambiguate
      *     state-conditional renderers shared across multiple entities - e.g.
@@ -127,13 +128,13 @@ public final class EntityTextureResolver {
      * @return the extracted binding
      */
     public static @NotNull Result resolve(
-        @NotNull ZipFile zip,
+        @NotNull ClassNodeCache classNodes,
         @NotNull String rendererInternalName,
         @NotNull String entityId,
         @NotNull ConcurrentList<EntityRegistryDiscovery.TypeFieldRef> lambdaTypeArgs,
         @NotNull Diagnostics diagnostics
     ) {
-        ResolvedMethod resolved = findGetTextureLocation(zip, rendererInternalName);
+        ResolvedMethod resolved = findGetTextureLocation(classNodes, rendererInternalName);
         if (resolved == null) {
             diagnostics.info("renderer '%s' has no getTextureLocation in its hierarchy - skipped", rendererInternalName);
             return new Result(null, null, null, null);
@@ -155,7 +156,7 @@ public final class EntityTextureResolver {
         // through to a default GETSTATIC (FoxRenderer's `if (texturesByState == null) return
         // RED_FOX_TEXTURE;`). When that returns null the body is a pure dispatch (parrot /
         // shulker / copper_golem) - chase the INVOKESTATIC into its target.
-        Map<String, String> classFieldToPath = collectStaticTextureFields(zip, resolved.declaringClass, diagnostics);
+        Map<String, String> classFieldToPath = collectStaticTextureFields(classNodes, resolved.declaringClass, diagnostics);
         // EntityId-match first: when a renderer is shared across multiple entity ids and branches
         // on a render-state field ({@code PiglinRenderer} returns {@code PIGLIN_BRUTE_LOCATION}
         // when {@code state.isBrute} else {@code PIGLIN_LOCATION}), the default-branch walker
@@ -182,7 +183,7 @@ public final class EntityTextureResolver {
         }
 
         // No default-path GETSTATIC: try chasing INVOKESTATIC dispatch (parrot / shulker).
-        Result chased = chaseStaticDispatch(zip, resolved.method, rendererInternalName, diagnostics);
+        Result chased = chaseStaticDispatch(classNodes, resolved.method, rendererInternalName, diagnostics);
         if (chased != null) return chased;
 
         // Instance-field-driven (donkey / mule / skeleton_horse / zombified_horse): the
@@ -193,7 +194,7 @@ public final class EntityTextureResolver {
         // initialiser gives the resolved path.
         String variantSource = detectVariantPatternFlag(resolved.method);
         if ("(instance-field-driven)".equals(variantSource) && !lambdaTypeArgs.isEmpty()) {
-            Result instanceFieldResolved = resolveInstanceFieldDriven(zip, lambdaTypeArgs, rendererInternalName, diagnostics);
+            Result instanceFieldResolved = resolveInstanceFieldDriven(classNodes, lambdaTypeArgs, rendererInternalName, diagnostics);
             if (instanceFieldResolved != null) return instanceFieldResolved;
         }
         if (variantSource != null) {
@@ -223,12 +224,12 @@ public final class EntityTextureResolver {
             // mooshroom on RED (matching {@code MushroomCow$Variant.DEFAULT = RED}) instead of
             // BROWN (the first key the lambda happens to put). Falls through when no variant
             // enum has a {@code DEFAULT} field (parrot's enum uses the first ordinal).
-            String defaultVariantPath = findDefaultVariantLiteral(zip, resolved.declaringClass);
+            String defaultVariantPath = findDefaultVariantLiteral(classNodes, resolved.declaringClass);
             if (defaultVariantPath != null) {
                 String defaultBaby = derivedBabyPath(defaultVariantPath);
                 return new Result(defaultVariantPath, defaultBaby, variantSource, sourceLabel(resolved, rendererInternalName));
             }
-            ConcurrentList<String> rawLiterals = collectAllTextureLiterals(zip, resolved.declaringClass);
+            ConcurrentList<String> rawLiterals = collectAllTextureLiterals(classNodes, resolved.declaringClass);
             String literalPrimary = pickFirstNonBabyLiteral(rawLiterals);
             if (literalPrimary != null) {
                 String literalBaby = findBabyLiteralByPair(literalPrimary, rawLiterals);
@@ -274,14 +275,14 @@ public final class EntityTextureResolver {
      * whose return type is {@code Identifier}, which is always the renderer's own override.
      */
     private static @Nullable ResolvedMethod findGetTextureLocation(
-        @NotNull ZipFile zip,
+        @NotNull ClassNodeCache classNodes,
         @NotNull String rendererInternalName
     ) {
         // Open-coded super-chain walk; walkSuperChain helper can't early-out so it would load
         // every ancestor unnecessarily here (each loadClass is jar I/O + ASM parse).
         String current = rendererInternalName;
         while (current != null && !AsmKit.OBJECT_INTERNAL.equals(current)) {
-            ClassNode cn = AsmKit.loadClass(zip, current);
+            ClassNode cn = classNodes.load(current);
             if (cn == null) return null;
             // Prefer the non-bridge overload (the one taking the renderer's own state class
             // rather than the LivingEntityRenderState bridge). The bridge does
@@ -419,11 +420,11 @@ public final class EntityTextureResolver {
      * FIELD} triplet and returns the {@code field name -&gt; texture path} map.
      */
     private static @NotNull Map<String, String> collectStaticTextureFields(
-        @NotNull ZipFile zip,
+        @NotNull ClassNodeCache classNodes,
         @NotNull String classInternalName,
         @NotNull Diagnostics diagnostics
     ) {
-        ClassNode cn = AsmKit.loadClass(zip, classInternalName);
+        ClassNode cn = classNodes.load(classInternalName);
         if (cn == null) return Map.of();
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return Map.of();
@@ -490,7 +491,7 @@ public final class EntityTextureResolver {
      * extracted.
      */
     private static @Nullable Result resolveInstanceFieldDriven(
-        @NotNull ZipFile zip,
+        @NotNull ClassNodeCache classNodes,
         @NotNull ConcurrentList<EntityRegistryDiscovery.TypeFieldRef> lambdaTypeArgs,
         @NotNull String rendererInternalName,
         @NotNull Diagnostics diagnostics
@@ -506,7 +507,7 @@ public final class EntityTextureResolver {
         }
         if (adult == null) return null;
 
-        Map<String, String> typeConstantToPath = typeConstantTextureMap(zip, adult.owner(), diagnostics);
+        Map<String, String> typeConstantToPath = typeConstantTextureMap(classNodes, adult.owner(), diagnostics);
         if (typeConstantToPath.isEmpty()) return null;
         String adultPath = typeConstantToPath.get(adult.name());
         if (adultPath == null) return null;
@@ -529,10 +530,10 @@ public final class EntityTextureResolver {
      * behind {@code Type.DONKEY.model = ModelLayers.DONKEY}).
      */
     public static @NotNull Map<String, String> typeConstantModelLayerMap(
-        @NotNull ZipFile zip,
+        @NotNull ClassNodeCache classNodes,
         @NotNull String typeOwner
     ) {
-        ClassNode cn = AsmKit.loadClass(zip, typeOwner);
+        ClassNode cn = classNodes.load(typeOwner);
         if (cn == null) return Map.of();
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return Map.of();
@@ -566,11 +567,11 @@ public final class EntityTextureResolver {
      * {@code PUTSTATIC} of a Type field.
      */
     private static @NotNull Map<String, String> typeConstantTextureMap(
-        @NotNull ZipFile zip,
+        @NotNull ClassNodeCache classNodes,
         @NotNull String typeOwner,
         @NotNull Diagnostics diagnostics
     ) {
-        ClassNode cn = AsmKit.loadClass(zip, typeOwner);
+        ClassNode cn = classNodes.load(typeOwner);
         if (cn == null) {
             diagnostics.info("instance-field-driven Type owner '%s' not loadable - skipped", typeOwner);
             return Map.of();
@@ -624,7 +625,7 @@ public final class EntityTextureResolver {
      * which class supplied the texture path.
      */
     private static @Nullable Result chaseStaticDispatch(
-        @NotNull ZipFile zip,
+        @NotNull ClassNodeCache classNodes,
         @NotNull MethodNode method,
         @NotNull String rendererInternalName,
         @NotNull Diagnostics diagnostics
@@ -641,7 +642,7 @@ public final class EntityTextureResolver {
         }
         if (dispatch == null) return null;
 
-        ClassNode targetCn = AsmKit.loadClass(zip, dispatch.owner);
+        ClassNode targetCn = classNodes.load(dispatch.owner);
         if (targetCn == null) return null;
         MethodNode target = null;
         for (MethodNode m : targetCn.methods) {
@@ -654,7 +655,7 @@ public final class EntityTextureResolver {
 
         String primaryField = findPrimaryByDefaultPath(target);
         if (primaryField == null) return null;
-        Map<String, String> classFieldToPath = collectStaticTextureFields(zip, dispatch.owner, diagnostics);
+        Map<String, String> classFieldToPath = collectStaticTextureFields(classNodes, dispatch.owner, diagnostics);
         String primaryPath = classFieldToPath.get(primaryField);
         if (primaryPath == null) return null;
         String babyPath = findBabyPathByPair(primaryPath, classFieldToPath);
@@ -740,11 +741,11 @@ public final class EntityTextureResolver {
      * declares no matching literals anywhere.
      */
     private static @NotNull ConcurrentList<String> collectAllTextureLiterals(
-        @NotNull ZipFile zip,
+        @NotNull ClassNodeCache classNodes,
         @NotNull String classInternalName
     ) {
         ConcurrentList<String> out = Concurrent.newList();
-        ClassNode cn = AsmKit.loadClass(zip, classInternalName);
+        ClassNode cn = classNodes.load(classInternalName);
         if (cn == null) return out;
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit != null) collectTextureLiteralsFromMethod(clinit, out);
@@ -793,7 +794,7 @@ public final class EntityTextureResolver {
      *     hardcoded set on vanilla 1.21.X; future MC versions may add to it)
      */
     public static @NotNull Set<String> auditNonBaseSuffixes(@NotNull ToolingEntityContext context) {
-        Set<String> stems = collectEntityTextureStems(context.zip());
+        Set<String> stems = collectEntityTextureStems(context);
         Set<String> derived = findRecurringStateSuffixes(stems, 2);
 
         Set<String> missingFromDerivation = new LinkedHashSet<>(NON_BASE_STEM_SUFFIXES);
@@ -822,7 +823,8 @@ public final class EntityTextureResolver {
      * Walks {@code assets/minecraft/textures/entity/*.png} and returns the stem of each PNG
      * (path relative to {@code textures/entity/}, no extension).
      */
-    private static @NotNull Set<String> collectEntityTextureStems(@NotNull ZipFile zip) {
+    private static @NotNull Set<String> collectEntityTextureStems(@NotNull ToolingEntityContext context) {
+        ZipFile zip = context.zip();
         Set<String> out = new LinkedHashSet<>();
         String prefix = "assets/minecraft/textures/entity/";
         java.util.Enumeration<? extends java.util.zip.ZipEntry> entries = zip.entries();
@@ -895,11 +897,11 @@ public final class EntityTextureResolver {
      * fallback table.
      */
     public static @Nullable String findBaseTextureFallback(
-        @NotNull ZipFile zip,
+        @NotNull ClassNodeCache classNodes,
         @NotNull String rendererInternalName
     ) {
-        java.util.List<String> candidates = new java.util.ArrayList<>(collectAllTextureLiterals(zip, rendererInternalName));
-        ClassNode cn = AsmKit.loadClass(zip, rendererInternalName);
+        java.util.List<String> candidates = new java.util.ArrayList<>(collectAllTextureLiterals(classNodes, rendererInternalName));
+        ClassNode cn = classNodes.load(rendererInternalName);
         if (cn != null) {
             Set<String> visited = new HashSet<>();
             visited.add(rendererInternalName);
@@ -911,7 +913,7 @@ public final class EntityTextureResolver {
                         && !mi.owner.equals(rendererInternalName)
                         && !VanillaSourceClasses.IDENTIFIER.equals(mi.owner)
                         && visited.add(mi.owner))
-                        candidates.addAll(collectAllTextureLiterals(zip, mi.owner));
+                        candidates.addAll(collectAllTextureLiterals(classNodes, mi.owner));
                 }
             }
         }
@@ -930,7 +932,7 @@ public final class EntityTextureResolver {
         // ShulkerRenderer (DEFAULT_TEXTURE_LOCATION = Sheets.DEFAULT_SHULKER_TEXTURE_LOCATION
         // .texture().withPath(lambda$static$0)). The texture stem is composed from a
         // {@code SpriteMapper}'s prefix and the name passed to {@code defaultNamespaceApply}.
-        return findSheetsTextureFallback(zip, rendererInternalName);
+        return findSheetsTextureFallback(classNodes, rendererInternalName);
     }
 
     /**
@@ -959,10 +961,10 @@ public final class EntityTextureResolver {
      * expected {@code new SpriteMapper(...)} quintuple).
      */
     private static @Nullable String findSheetsTextureFallback(
-        @NotNull ZipFile zip,
+        @NotNull ClassNodeCache classNodes,
         @NotNull String rendererInternalName
     ) {
-        ClassNode renderer = AsmKit.loadClass(zip, rendererInternalName);
+        ClassNode renderer = classNodes.load(rendererInternalName);
         if (renderer == null) return null;
         MethodNode rendererClinit = AsmKit.findMethod(renderer, AsmKit.CLINIT);
         if (rendererClinit == null) return null;
@@ -988,7 +990,7 @@ public final class EntityTextureResolver {
         }
         if (sheetsOwner == null) return null;
 
-        ClassNode sheetsCn = AsmKit.loadClass(zip, sheetsOwner);
+        ClassNode sheetsCn = classNodes.load(sheetsOwner);
         MethodNode sheetsClinit = sheetsCn == null ? null : AsmKit.findMethod(sheetsCn, AsmKit.CLINIT);
         if (sheetsClinit == null) return null;
 
@@ -1078,15 +1080,15 @@ public final class EntityTextureResolver {
      * pattern).
      */
     private static @Nullable String findDefaultVariantLiteral(
-        @NotNull ZipFile zip,
+        @NotNull ClassNodeCache classNodes,
         @NotNull String rendererInternalName
     ) {
-        ClassNode cn = AsmKit.loadClass(zip, rendererInternalName);
+        ClassNode cn = classNodes.load(rendererInternalName);
         if (cn == null) return null;
         Map<String, String> variantToTexture = new LinkedHashMap<>();
         String variantClass = collectVariantToTextureMap(cn, variantToTexture);
         if (variantClass == null || variantToTexture.isEmpty()) return null;
-        String defaultName = findEnumDefaultName(zip, variantClass);
+        String defaultName = findEnumDefaultName(classNodes, variantClass);
         if (defaultName == null) return null;
         return variantToTexture.get(defaultName);
     }
@@ -1137,8 +1139,8 @@ public final class EntityTextureResolver {
      * {@code null} when no {@code DEFAULT} field exists or its initialiser doesn't follow the
      * standard pattern.
      */
-    private static @Nullable String findEnumDefaultName(@NotNull ZipFile zip, @NotNull String enumInternalName) {
-        ClassNode cn = AsmKit.loadClass(zip, enumInternalName);
+    private static @Nullable String findEnumDefaultName(@NotNull ClassNodeCache classNodes, @NotNull String enumInternalName) {
+        ClassNode cn = classNodes.load(enumInternalName);
         if (cn == null) return null;
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return null;

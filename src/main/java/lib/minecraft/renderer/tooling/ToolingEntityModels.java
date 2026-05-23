@@ -26,7 +26,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.zip.ZipFile;
 
 /**
  * Entry point invoked by the {@code entityModels} Gradle task. Produces the entity-side
@@ -96,7 +95,6 @@ public final class ToolingEntityModels {
 
         try (ToolingEntityContext context = ToolingEntityContext.of(clientJar, options)) {
             Diagnostics diagnostics = context.diagnostics();
-            ZipFile zip = context.zip();
             EntityRegistryDiscovery.Result registry = EntityRegistryDiscovery.discover(context);
             System.out.println("Discovered " + registry.totalMobsDiscovered() + " living-mob entity types");
             System.out.println("Discovered " + registry.entries().size() + " entity-renderer registrations");
@@ -114,12 +112,12 @@ public final class ToolingEntityModels {
                 registryByField.put(entry.entityFieldName(), entry);
 
             ConcurrentMap<String, ConcurrentList<EntityVariantResolver.Result>> variants =
-                EntityVariantResolver.loadAll(zip, diagnostics);
+                EntityVariantResolver.loadAll(context, diagnostics);
             System.out.println("Loaded variant tables for " + variants.size() + " entity types ("
                 + variants.keySet() + ")");
 
             ConcurrentMap<String, String> dataVariantDefaults =
-                EntityVariantResolver.loadDataDrivenDefaults(zip, diagnostics);
+                EntityVariantResolver.loadDataDrivenDefaults(context, diagnostics);
             System.out.println("Canonical data-variant defaults: " + dataVariantDefaults);
 
             // Per-mob Phase-B fan-out: EntitySessionWalk runs the texture / variant /
@@ -152,7 +150,7 @@ public final class ToolingEntityModels {
             // (LayerDefinition.create / CubeListBuilder / PartPose / addOrReplaceChild) are
             // identical between block-entity and entity models.
             ConcurrentMap<String, EntityLayerDefinitionResolver.Result> layerDefs =
-                EntityLayerDefinitionResolver.loadLayerDefinitions(zip, diagnostics);
+                EntityLayerDefinitionResolver.loadLayerDefinitions(context.classNodes(), diagnostics);
             System.out.println("Loaded " + layerDefs.size() + " ModelLayers entries from LayerDefinitions.createRoots");
 
             ConcurrentMap<String, EntityLayerDefinitionResolver.Result> entityToResolution = Concurrent.newMap();
@@ -173,7 +171,7 @@ public final class ToolingEntityModels {
                     : Concurrent.newList();
                 if (!typeArgsForLayer.isEmpty()) {
                     String typeOwner = typeArgsForLayer.getFirst().owner();
-                    Map<String, String> typeToModelLayer = EntityTextureResolver.typeConstantModelLayerMap(zip, typeOwner);
+                    Map<String, String> typeToModelLayer = EntityTextureResolver.typeConstantModelLayerMap(context.classNodes(), typeOwner);
                     for (EntityRegistryDiscovery.TypeFieldRef ref : typeArgsForLayer) {
                         String layer = typeToModelLayer.get(ref.name());
                         if (layer != null && !lambdaFields.contains(layer)) lambdaFields.add(layer);
@@ -181,7 +179,7 @@ public final class ToolingEntityModels {
                 }
                 EntityLayerDefinitionResolver.Result resolution =
                     EntityLayerDefinitionResolver.resolvePrimary(
-                        zip, entry.getValue().rendererInternalName(), entry.getKey(),
+                        context.classNodes(), entry.getValue().rendererInternalName(), entry.getKey(),
                         lambdaFields, layerDefs, diagnostics
                     );
                 if (resolution == null) continue;
@@ -189,7 +187,7 @@ public final class ToolingEntityModels {
                 // AdultPiglinModel.createBodyLayer(). Unaliasing here collapses the delegating
                 // factory onto its base so the factoryKey-&gt;geometryId dedupe maps both piglin
                 // AND zombified_piglin to a single shared geometry entry.
-                resolution = EntityLayerDefinitionResolver.unaliasDelegate(zip, resolution);
+                resolution = EntityLayerDefinitionResolver.unaliasDelegate(context.classNodes(), resolution);
                 entityToResolution.put(entry.getKey(), resolution);
                 // paramFloatValues opts the parser into arithmetic evaluation (FADD / FMUL /
                 // type conversions) and substitutes 0.0f for the first 8 FLOAD slots. Java's
@@ -248,7 +246,7 @@ public final class ToolingEntityModels {
                             baseEntityId, variant.variantId(), variant.model(), modelLayerField);
                         continue;
                     }
-                    variantRes = EntityLayerDefinitionResolver.unaliasDelegate(zip, variantRes);
+                    variantRes = EntityLayerDefinitionResolver.unaliasDelegate(context.classNodes(), variantRes);
                     String variantEntityId = baseEntityId + "_" + variant.variantId();
                     if (entityToResolution.containsKey(variantEntityId)) continue;
                     entityToResolution.put(variantEntityId, variantRes);
@@ -287,7 +285,7 @@ public final class ToolingEntityModels {
                 String entityId = entry.getKey();
                 EntitySessionWalk.Result rec = entry.getValue();
                 ConcurrentList<EntityOverlayResolver.Result> overlays =
-                    EntityOverlayResolver.resolve(zip, rec.rendererInternalName(), rec.layers(), entityId, diagnostics);
+                    EntityOverlayResolver.resolve(context.classNodes(), rec.rendererInternalName(), rec.layers(), entityId, diagnostics);
                 overlaysByEntity.put(entityId, overlays);
                 for (EntityOverlayResolver.Result desc : overlays)
                     if (desc.modelLayerField() != null) compositeOverlayFields.add(desc.modelLayerField());
@@ -296,7 +294,7 @@ public final class ToolingEntityModels {
                 // Walked by EntityBlockOverlayResolver from the renderer's addLayer calls and
                 // each matched layer's submit-method pose-stack ops.
                 ConcurrentList<EntityBlockOverlayResolver.Result> blockOverlays =
-                    EntityBlockOverlayResolver.resolve(zip, entityId, rec.rendererInternalName(), diagnostics);
+                    EntityBlockOverlayResolver.resolve(context.classNodes(), entityId, rec.rendererInternalName(), diagnostics);
                 blockOverlaysByEntity.put(entityId, blockOverlays);
             }
 
@@ -344,7 +342,7 @@ public final class ToolingEntityModels {
             // per-entity rows pointing into the geometry table plus optional variant rows
             // emitted from the data-driven variant tables loaded in Phase B.
             int variantRowsEmitted = EntityRuntimeJsonWriter.writeAll(
-                context, zip, records, entityToResolution, geometries, variants, diagnostics,
+                context, records, entityToResolution, geometries, variants, diagnostics,
                 overlaysByEntity, overlayFieldToResolution, dataVariantDefaults,
                 blockOverlaysByEntity
             );

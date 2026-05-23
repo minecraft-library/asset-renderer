@@ -24,7 +24,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.zip.ZipFile;
 
 /**
  * Single-pass discovery of every living mob entity that has a registered renderer. Joins
@@ -153,10 +152,9 @@ public final class EntityRegistryDiscovery {
      * @return the joined entries plus auxiliary stats for the diagnostic JSON
      */
     public static @NotNull Result discover(@NotNull ToolingEntityContext context) {
-        ZipFile zip = context.zip();
         Diagnostics diagnostics = context.diagnostics();
 
-        ClassNode entityType = AsmKit.requireClass(context.classNodes(), zip, VanillaSourceClasses.ENTITY_TYPE, "EntityType");
+        ClassNode entityType = AsmKit.requireClass(context.classNodes(), VanillaSourceClasses.ENTITY_TYPE, "EntityType");
         Map<String, String> fieldToClass = collectEntityTypeFieldClasses(entityType);
         Map<String, MobRegistration> mobRegistrations = collectMobRegistrations(entityType, diagnostics);
         Map<String, RendererRegistration> rendererRegistrations = collectRendererRegistrations(context);
@@ -174,7 +172,7 @@ public final class EntityRegistryDiscovery {
                 continue;
             }
 
-            if (!AsmKit.extendsClass(zip, entityClass, VanillaSourceClasses.LIVING_ENTITY))
+            if (!AsmKit.extendsClass(context.classNodes(), entityClass, VanillaSourceClasses.LIVING_ENTITY))
                 continue;
 
             totalMobs++;
@@ -288,9 +286,8 @@ public final class EntityRegistryDiscovery {
     private static @NotNull Map<String, RendererRegistration> collectRendererRegistrations(
         @NotNull ToolingEntityContext context
     ) {
-        ZipFile zip = context.zip();
         Diagnostics diagnostics = context.diagnostics();
-        ClassNode registryClass = AsmKit.loadClass(context.classNodes(), zip, VanillaSourceClasses.ENTITY_RENDERERS);
+        ClassNode registryClass = context.classNodes().load(VanillaSourceClasses.ENTITY_RENDERERS);
         if (registryClass == null) {
             diagnostics.error("'%s' class missing from jar - cannot discover entity renderers", VanillaSourceClasses.ENTITY_RENDERERS);
             return Map.of();

@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.tooling.util.AsmKit;
+import lib.minecraft.renderer.tooling.util.ClassNodeCache;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lombok.experimental.UtilityClass;
@@ -23,7 +24,6 @@ import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.zip.ZipFile;
 
 /**
  * Per-entity bone-related resolution. One resolver folds two adjacent bone-related signals
@@ -70,17 +70,17 @@ public final class EntityBoneResolver {
      * {@code addLayer(new XLayer(...))} call sites. Returns the unique set of layer class
      * internal names in insertion order so downstream emission is stable.
      *
-     * @param context the tooling context (jar + diagnostics + ClassNode cache)
+     * @param classNodes the ClassNode cache (shared with sibling resolver walks)
      * @param rendererInternalName the renderer's JVM internal name
      * @return the unique set of layer class internal names attached by this renderer; the
      *     source of {@link Entity}'s overlay-layer enumeration
      */
     public static @NotNull ConcurrentList<String> scanOverlayLayers(
-        @NotNull ToolingEntityContext context,
+        @NotNull ClassNodeCache classNodes,
         @NotNull String rendererInternalName
     ) {
         Set<String> seen = new LinkedHashSet<>();
-        AsmKit.walkConstructorChain(context.zip(), rendererInternalName, method -> scanAddLayerCalls(method, seen));
+        AsmKit.walkConstructorChain(classNodes, rendererInternalName, method -> scanAddLayerCalls(method, seen));
         ConcurrentList<String> out = Concurrent.newList();
         seen.forEach(out::add);
         return out;
@@ -92,28 +92,28 @@ public final class EntityBoneResolver {
      * {@code EntityModel}), minus any bones the renderer's own constructor re-enables via
      * a {@code visible = true} write. Returns an empty list when the resulting set is empty.
      *
-     * @param context the tooling context (jar + diagnostics + ClassNode cache)
+     * @param classNodes the ClassNode cache (shared with sibling resolver walks)
      * @param modelClassInternal the model class's JVM internal name (typically the
      *     {@code factory_class} field on the Phase-C {@code EntityLayerDefinitionResolver}
      *     resolution)
      * @param rendererClassInternal the renderer class's JVM internal name; consulted for
      *     constructor {@code visible = true} re-enables that override an ancestor model's
      *     hide ({@code IllusionerRenderer} pattern)
+     * @param diag the diagnostic sink for hidden-bone INFO traces
      * @return bone names that should be emitted under {@code hidden_bones} in the per-entity
      *     row, in insertion order; empty when no bones are hidden
      */
     public static @NotNull ConcurrentList<String> resolveHiddenBones(
-        @NotNull ToolingEntityContext context,
+        @NotNull ClassNodeCache classNodes,
         @NotNull String modelClassInternal,
-        @NotNull String rendererClassInternal
+        @NotNull String rendererClassInternal,
+        @NotNull Diagnostics diag
     ) {
-        ZipFile zip = context.zip();
-        Diagnostics diag = context.diagnostics();
         LinkedHashSet<String> hiddenFields = new LinkedHashSet<>();
         LinkedHashMap<String, String> fieldToBoneName = new LinkedHashMap<>();
         String current = modelClassInternal;
         while (current != null && !current.equals(VanillaSourceClasses.ENTITY_MODEL) && !current.equals(AsmKit.OBJECT_INTERNAL)) {
-            ClassNode cn = AsmKit.loadClass(context.classNodes(), zip, current);
+            ClassNode cn = classNodes.load(current);
             if (cn == null) break;
             MethodNode ctor = AsmKit.findMethod(cn, AsmKit.INIT);
             if (ctor != null) {
@@ -132,7 +132,7 @@ public final class EntityBoneResolver {
         }
         if (hiddenFields.isEmpty()) return Concurrent.newList();
 
-        LinkedHashSet<String> reEnabled = collectReEnabledBones(context, rendererClassInternal);
+        LinkedHashSet<String> reEnabled = collectReEnabledBones(classNodes, rendererClassInternal);
         if (!reEnabled.isEmpty()) hiddenFields.removeAll(reEnabled);
 
         // Translate model-class field names ({@code rightChest}) to the corresponding bone
@@ -314,9 +314,9 @@ public final class EntityBoneResolver {
      * {@code INVOKEVIRTUAL get<Bone>():LModelPart} accessor. The bone name comes from either
      * the GETFIELD's name or the method's "get" suffix (lowercased first character).
      */
-    private static @NotNull LinkedHashSet<String> collectReEnabledBones(@NotNull ToolingEntityContext context, @NotNull String rendererClassInternal) {
+    private static @NotNull LinkedHashSet<String> collectReEnabledBones(@NotNull ClassNodeCache classNodes, @NotNull String rendererClassInternal) {
         LinkedHashSet<String> out = new LinkedHashSet<>();
-        ClassNode cn = AsmKit.loadClass(context.classNodes(), context.zip(), rendererClassInternal);
+        ClassNode cn = classNodes.load(rendererClassInternal);
         if (cn == null) return out;
         MethodNode ctor = AsmKit.findMethod(cn, AsmKit.INIT);
         if (ctor == null) return out;
