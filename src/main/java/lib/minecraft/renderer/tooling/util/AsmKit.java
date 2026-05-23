@@ -1093,6 +1093,133 @@ public final class AsmKit {
     }
 
     // ----------------------------------------------------------------------------------------
+    // Integer for-loop detection
+    // ----------------------------------------------------------------------------------------
+
+    /**
+     * Description of a detected Java {@code for (int i = INIT; i < BOUND; i += STEP)} loop.
+     *
+     * @param iteratorSlot the JVM local-variable slot that holds the iterator
+     * @param initValue the initial value pushed by the {@code ICONST_N} / {@code BIPUSH} /
+     *     {@code SIPUSH} / {@code LDC} before the iterator's {@code ISTORE}
+     * @param boundExclusive the {@code IF_ICMPGE} comparison value - the loop body executes
+     *     while {@code i < boundExclusive}
+     * @param step the iterator increment, captured from the body's {@code IINC <slot>, +step}.
+     *     Positive for ascending loops; negative loops are not detected
+     * @param firstBodyInsn the first real instruction inside the loop body (after the
+     *     {@code IF_ICMPGE}); guaranteed non-pseudo
+     * @param firstInsnAfterLoop the instruction that follows the loop's exit (the target of
+     *     {@code IF_ICMPGE}, after skipping pseudo-instructions); guaranteed non-pseudo
+     */
+    public record IntForLoop(
+        int iteratorSlot,
+        int initValue,
+        int boundExclusive,
+        int step,
+        @NotNull AbstractInsnNode firstBodyInsn,
+        @NotNull AbstractInsnNode firstInsnAfterLoop
+    ) {
+        /**
+         * Returns the number of times the body executes, or {@code 0} when {@code initValue >=
+         * boundExclusive} or {@code step <= 0}.
+         */
+        public int iterations() {
+            if (this.step <= 0 || this.initValue >= this.boundExclusive) return 0;
+            return (this.boundExclusive - this.initValue + this.step - 1) / this.step;
+        }
+    }
+
+    /**
+     * Detects the canonical javac {@code for (int i = INIT; i < BOUND; i += STEP)} loop
+     * starting at {@code candidateInit}. The expected bytecode shape:
+     * <pre>
+     *   {@code <numeric literal init>}  ICONST_N / BIPUSH / SIPUSH / LDC int  (candidateInit)
+     *   ISTORE &lt;slot&gt;
+     * test:
+     *   ILOAD &lt;slot&gt;
+     *   {@code <numeric literal bound>}
+     *   IF_ICMPGE exit
+     *   ... body ...
+     *   IINC &lt;slot&gt;, +STEP
+     *   GOTO test
+     * exit:
+     * </pre>
+     *
+     * <p>Returns {@code null} when any part of the pattern doesn't match - different opcode at
+     * a slot, non-literal bound, IINC against a different slot, missing GOTO back to the test
+     * label, etc. The walk is purely shape-matching: it doesn't validate that the body is
+     * well-formed, only that the control-flow scaffold is present.
+     *
+     * <p>Only the standard test-at-top javac pattern is detected. Test-at-bottom layouts
+     * ({@code init; GOTO test; body; INC; test: ILOAD; bound; IF_ICMPLT body}) and
+     * non-monotonic loops ({@code i--}, {@code while}, {@code do-while}) return {@code null}.
+     *
+     * @param candidateInit the instruction to test as the loop's initial-value push
+     * @return the loop description, or {@code null} when {@code candidateInit} doesn't open a
+     *     for-loop with the expected shape
+     */
+    public static @Nullable IntForLoop detectIntForLoop(@NotNull AbstractInsnNode candidateInit) {
+        if (isPseudoNode(candidateInit)) return null;
+        Integer initValue = readIntLiteral(candidateInit);
+        if (initValue == null) return null;
+
+        AbstractInsnNode storeNode = nextReal(candidateInit);
+        if (!(storeNode instanceof VarInsnNode store) || store.getOpcode() != Opcodes.ISTORE) return null;
+        int slot = store.var;
+
+        // The test label is the first real instruction after the ISTORE.
+        AbstractInsnNode testLoad = nextReal(storeNode);
+        if (!(testLoad instanceof VarInsnNode load) || load.getOpcode() != Opcodes.ILOAD || load.var != slot) return null;
+
+        AbstractInsnNode boundNode = nextReal(testLoad);
+        if (boundNode == null) return null;
+        Integer boundValue = readIntLiteral(boundNode);
+        if (boundValue == null) return null;
+
+        AbstractInsnNode cmpNode = nextReal(boundNode);
+        if (!(cmpNode instanceof JumpInsnNode cmp) || cmp.getOpcode() != Opcodes.IF_ICMPGE) return null;
+        LabelNode exitLabel = cmp.label;
+
+        AbstractInsnNode bodyFirst = nextReal(cmpNode);
+        if (bodyFirst == null) return null;
+
+        // Walk forward from the body to find the IINC + GOTO that closes the loop. Stop at the
+        // exit label or end-of-stream; abort if a different IINC slot or a non-GOTO-back-to-test
+        // pattern shows up before then.
+        IincInsnNode iinc = null;
+        AbstractInsnNode goBack = null;
+        for (AbstractInsnNode cursor = bodyFirst; cursor != null; cursor = cursor.getNext()) {
+            if (cursor == exitLabel) break;
+            if (!(cursor instanceof IincInsnNode candidateIinc) || candidateIinc.var != slot) continue;
+            AbstractInsnNode after = nextReal(candidateIinc);
+            if (!(after instanceof JumpInsnNode jump) || jump.getOpcode() != Opcodes.GOTO || jump.label != testLoad.getPrevious() && !isLabelOf(jump.label, testLoad)) continue;
+            iinc = candidateIinc;
+            goBack = after;
+            break;
+        }
+        if (iinc == null) return null;
+
+        AbstractInsnNode firstAfter = nextReal(exitLabel);
+        if (firstAfter == null) return null;
+
+        return new IntForLoop(slot, initValue, boundValue, iinc.incr, bodyFirst, firstAfter);
+    }
+
+    /**
+     * Returns {@code true} when {@code label} is a label node whose immediately-following real
+     * instruction is {@code target} - i.e. {@code label} marks the position of {@code target}.
+     * Used by {@link #detectIntForLoop} to verify the closing {@code GOTO} jumps back to the
+     * loop's test header.
+     */
+    private static boolean isLabelOf(@Nullable LabelNode label, @NotNull AbstractInsnNode target) {
+        if (label == null) return false;
+        for (AbstractInsnNode cursor = label; cursor != null; cursor = cursor.getNext()) {
+            if (!isPseudoNode(cursor)) return cursor == target;
+        }
+        return false;
+    }
+
+    // ----------------------------------------------------------------------------------------
     // Lambda metafactory helpers
     // ----------------------------------------------------------------------------------------
 

@@ -1000,6 +1000,131 @@ class AsmKitTest {
     }
 
     @Nested
+    @DisplayName("detectIntForLoop")
+    class DetectIntForLoop {
+
+        /**
+         * Builds the canonical test-at-top {@code for (int i = init; i < bound; i += step)} pattern.
+         * Returns the first instruction (the {@code ICONST/BIPUSH init}).
+         */
+        private static AbstractInsnNode buildLoop(InsnList list, int slot, int init, int bound, int step, AbstractInsnNode... bodyInsns) {
+            // init; istore <slot>; test_label: iload <slot>; <bound>; if_icmpge exit; <body>; iinc slot,step; goto test_label; exit:
+            AbstractInsnNode initNode = init >= -1 && init <= 5 ? new InsnNode(Opcodes.ICONST_0 + init) : new IntInsnNode(Opcodes.BIPUSH, init);
+            list.add(initNode);
+            list.add(new VarInsnNode(Opcodes.ISTORE, slot));
+            LabelNode testLabel = new LabelNode();
+            LabelNode exitLabel = new LabelNode();
+            list.add(testLabel);
+            list.add(new VarInsnNode(Opcodes.ILOAD, slot));
+            list.add(bound >= -1 && bound <= 5 ? new InsnNode(Opcodes.ICONST_0 + bound) : new IntInsnNode(Opcodes.BIPUSH, bound));
+            list.add(new org.objectweb.asm.tree.JumpInsnNode(Opcodes.IF_ICMPGE, exitLabel));
+            for (AbstractInsnNode body : bodyInsns) list.add(body);
+            list.add(new org.objectweb.asm.tree.IincInsnNode(slot, step));
+            list.add(new org.objectweb.asm.tree.JumpInsnNode(Opcodes.GOTO, testLabel));
+            list.add(exitLabel);
+            return initNode;
+        }
+
+        @Test
+        @DisplayName("squid-shape for(i=0; i<8; i++) detects with slot=6, init=0, bound=8, step=1")
+        void canonicalForLoop() {
+            MethodNode m = newMethod("body", "()V");
+            AbstractInsnNode bodyMarker = new InsnNode(Opcodes.NOP);
+            AbstractInsnNode initNode = buildLoop(m.instructions, 6, 0, 8, 1, bodyMarker);
+            // append an instruction after the loop so firstInsnAfterLoop has something to find
+            m.instructions.add(new InsnNode(Opcodes.RETURN));
+
+            AsmKit.IntForLoop loop = AsmKit.detectIntForLoop(initNode);
+            assertThat("loop detected", loop, notNullValue());
+            assertThat(loop.iteratorSlot(), equalTo(6));
+            assertThat(loop.initValue(), equalTo(0));
+            assertThat(loop.boundExclusive(), equalTo(8));
+            assertThat(loop.step(), equalTo(1));
+            assertThat(loop.iterations(), equalTo(8));
+            assertThat(loop.firstBodyInsn(), sameInstance(bodyMarker));
+            assertThat(loop.firstInsnAfterLoop().getOpcode(), equalTo(Opcodes.RETURN));
+        }
+
+        @Test
+        @DisplayName("blaze-shape for(i=4; i<8; i++) with BIPUSH bound")
+        void bipushBoundLoop() {
+            MethodNode m = newMethod("body", "()V");
+            // We test a loop that starts at i=4 (still small enough for ICONST_4) and goes to 8 (BIPUSH).
+            AbstractInsnNode initNode = buildLoop(m.instructions, 4, 4, 8, 1, new InsnNode(Opcodes.NOP));
+            m.instructions.add(new InsnNode(Opcodes.RETURN));
+
+            AsmKit.IntForLoop loop = AsmKit.detectIntForLoop(initNode);
+            assertThat(loop, notNullValue());
+            assertThat(loop.initValue(), equalTo(4));
+            assertThat(loop.boundExclusive(), equalTo(8));
+            assertThat(loop.iterations(), equalTo(4));
+        }
+
+        @Test
+        @DisplayName("step=2 captured from IINC operand")
+        void stepGreaterThanOne() {
+            MethodNode m = newMethod("body", "()V");
+            AbstractInsnNode initNode = buildLoop(m.instructions, 3, 0, 10, 2, new InsnNode(Opcodes.NOP));
+            m.instructions.add(new InsnNode(Opcodes.RETURN));
+
+            AsmKit.IntForLoop loop = AsmKit.detectIntForLoop(initNode);
+            assertThat(loop, notNullValue());
+            assertThat(loop.step(), equalTo(2));
+            assertThat(loop.iterations(), equalTo(5));
+        }
+
+        @Test
+        @DisplayName("non-init opcode at candidateInit returns null")
+        void rejectNonInit() {
+            // ALOAD_0 isn't a numeric literal; not a loop init.
+            AbstractInsnNode notInit = new VarInsnNode(Opcodes.ALOAD, 0);
+            assertThat(AsmKit.detectIntForLoop(notInit), is(nullValue()));
+        }
+
+        @Test
+        @DisplayName("missing ISTORE after init returns null")
+        void rejectMissingStore() {
+            MethodNode m = newMethod("body", "()V");
+            // ICONST_0 followed by something other than ISTORE.
+            AbstractInsnNode init = new InsnNode(Opcodes.ICONST_0);
+            m.instructions.add(init);
+            m.instructions.add(new InsnNode(Opcodes.POP));
+            m.instructions.add(new InsnNode(Opcodes.RETURN));
+            assertThat(AsmKit.detectIntForLoop(init), is(nullValue()));
+        }
+
+        @Test
+        @DisplayName("IINC against a different slot inside body returns null")
+        void rejectIincOnDifferentSlot() {
+            MethodNode m = newMethod("body", "()V");
+            // Build a malformed loop where the IINC inside body targets slot 99, not the iterator.
+            AbstractInsnNode init = new InsnNode(Opcodes.ICONST_0);
+            m.instructions.add(init);
+            m.instructions.add(new VarInsnNode(Opcodes.ISTORE, 5));
+            LabelNode test = new LabelNode();
+            LabelNode exit = new LabelNode();
+            m.instructions.add(test);
+            m.instructions.add(new VarInsnNode(Opcodes.ILOAD, 5));
+            m.instructions.add(new IntInsnNode(Opcodes.BIPUSH, 4));
+            m.instructions.add(new org.objectweb.asm.tree.JumpInsnNode(Opcodes.IF_ICMPGE, exit));
+            m.instructions.add(new org.objectweb.asm.tree.IincInsnNode(99, 1));   // wrong slot
+            m.instructions.add(new org.objectweb.asm.tree.JumpInsnNode(Opcodes.GOTO, test));
+            m.instructions.add(exit);
+            m.instructions.add(new InsnNode(Opcodes.RETURN));
+            assertThat(AsmKit.detectIntForLoop(init), is(nullValue()));
+        }
+
+        @Test
+        @DisplayName("iterations() returns 0 for empty range")
+        void zeroIterations() {
+            AsmKit.IntForLoop empty = new AsmKit.IntForLoop(0, 5, 3, 1,
+                new InsnNode(Opcodes.NOP), new InsnNode(Opcodes.NOP));
+            assertThat(empty.iterations(), equalTo(0));
+        }
+
+    }
+
+    @Nested
     @DisplayName("lambda metafactory helpers")
     class LambdaMetafactoryHelpers {
 
