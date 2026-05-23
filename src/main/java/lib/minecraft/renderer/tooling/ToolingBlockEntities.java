@@ -32,6 +32,7 @@ import lib.minecraft.renderer.tooling.blockentity.SourceDiscovery;
 import lib.minecraft.renderer.tooling.blockentity.TintDiscovery;
 import lib.minecraft.renderer.tooling.blockentity.YAxis;
 import lib.minecraft.renderer.tooling.entity.EntityLayerDefinitionResolver;
+import lib.minecraft.renderer.tooling.entity.EntityProceduralLoops;
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
@@ -893,6 +894,15 @@ public final class ToolingBlockEntities {
             // captures during the walk so both layers compose correctly.
             state.meshTransformerScale = source.appliedMeshTransformerScale();
             state.currentSource = source;
+            // Strip the trailing ".class" so the key shape matches EntityProceduralLoops's
+            // {@code <internalName>#<method>} key. When set, the parser skips its loop-unrolling
+            // and indy / helper bone-name resolution handlers so the applier's output isn't
+            // duplicated by parser-emitted bones with the same {@code recipe + i} names.
+            String factoryKey = source.classEntry().endsWith(".class")
+                ? source.classEntry().substring(0, source.classEntry().length() - ".class".length())
+                    + "#" + source.methodName()
+                : source.classEntry() + "#" + source.methodName();
+            state.skipProceduralUnroll = EntityProceduralLoops.hasTemplate(factoryKey);
             state.diagnostics = diagnostics;
             walkInstructions(instructions, state, zip);
 
@@ -1254,7 +1264,7 @@ public final class ToolingBlockEntities {
             // Return {@code firstInsnAfterLoop.getPrevious()} so the outer walkRange's
             // {@code .getNext()} lands on {@code firstInsnAfterLoop} - i.e. the parser
             // resumes at the first real instruction after the loop.
-            if (state.paramFloatValues != null) {
+            if (state.paramFloatValues != null && !state.skipProceduralUnroll) {
                 AsmKit.IntForLoop loop = AsmKit.detectIntForLoop(node);
                 if (loop != null) {
                     int slot = loop.iteratorSlot();
@@ -1717,6 +1727,24 @@ public final class ToolingBlockEntities {
                     }
                 }
                 case MethodInsnNode methodInsn -> handleMethodInsn(methodInsn, opcode, state, zip);
+                // {@code invokedynamic makeConcatWithConstants:(I)Ljava/lang/String;} - javac
+                // emits this for inline {@code "name" + i} expressions. Pop the int from
+                // numStack, apply the bootstrap recipe (with {@code \u0001} as the dynamic
+                // placeholder), and stash the result in {@code pendingPartName} so the
+                // surrounding {@code addOrReplaceChild} flush picks it up as the bone name.
+                // Vanilla procedural-loop factories (ghast tentacle scaling, etc.) emit the
+                // indy directly; helper-wrapped variants (squid's createTentacleName, blaze's
+                // getPartName) are resolved in {@link #handleMethodInsn}'s invokestatic-follow.
+                case InvokeDynamicInsnNode indy when state.paramFloatValues != null
+                    && !state.skipProceduralUnroll
+                    && indy.desc.equals("(I)Ljava/lang/String;")
+                    && !state.numStack.isEmpty() -> {
+                    String recipe = AsmKit.resolveStringConcatRecipe(indy);
+                    if (recipe != null) {
+                        int i = state.numStack.popNumber().intValue();
+                        state.pendingPartName = AsmKit.applyStringConcatRecipeWithInt(recipe, i);
+                    }
+                }
                 // Track local-variable slot -> bone mapping so child bones inherit their
                 // parent's pivot + scale. Vanilla models use
                 // {@code head = root.addOrReplaceChild("head", ...); head.addOrReplaceChild("jaw", ...);}
@@ -1867,6 +1895,37 @@ public final class ToolingBlockEntities {
                 state.texHeight = popIntWithDiagnostics(state, "LayerDefinition.create(mesh,II) texHeight");
                 state.texWidth = popIntWithDiagnostics(state, "LayerDefinition.create(mesh,II) texWidth");
                 return;
+            }
+            // {@code invokestatic <Owner>.<helper>(I)Ljava/lang/String;} where the helper body
+            // is a thin wrapper around an inline {@code "prefix" + i} concat (e.g.
+            // {@code SquidModel.createTentacleName} - {@code "tentacle" + i};
+            // {@code BlazeModel.getPartName} - {@code "part" + i}). Walks the helper's
+            // instructions for the inner {@code makeConcatWithConstants} invokedynamic via
+            // {@link AsmKit#findStringConcatRecipeIn}, pops the int from numStack, applies the
+            // recipe's dynamic-placeholder substitution and stashes the result in
+            // {@code pendingPartName}. The general helper-walk approach subsumes the
+            // PartNames-specific hack below (the helper name was the literal recipe prefix)
+            // while also working for SquidModel / BlazeModel-style helpers where the helper
+            // name ({@code createTentacleName} / {@code getPartName}) differs from the recipe
+            // prefix ({@code tentacle} / {@code part}).
+            //
+            // <p>Falls through to the PartNames-name-equals-prefix legacy path below when the
+            // helper has no {@code makeConcatWithConstants} indy (e.g. {@code PartNames}'s
+            // static methods just return a constant String field via {@code areturn}).
+            if (opcode == Opcodes.INVOKESTATIC
+                && methodInsn.desc.equals("(I)Ljava/lang/String;")
+                && state.paramFloatValues != null
+                && !state.skipProceduralUnroll
+                && !state.numStack.isEmpty()) {
+                MethodNode helper = AsmKit.findMethodInHierarchy(zip, methodInsn.owner, methodInsn.name, methodInsn.desc);
+                if (helper != null) {
+                    String recipe = AsmKit.findStringConcatRecipeIn(helper);
+                    if (recipe != null) {
+                        int i = state.numStack.popNumber().intValue();
+                        state.pendingPartName = AsmKit.applyStringConcatRecipeWithInt(recipe, i);
+                        return;
+                    }
+                }
             }
             // PartNames is a vanilla utility class with String constants and indexed name
             // generators ({@code tentacle(int)}, etc.). The indexed methods compile to
@@ -2855,6 +2914,16 @@ public final class ToolingBlockEntities {
              * The top-level source whose bytecode is being parsed. Used to tag diagnostics.
              */
             @Nullable Source currentSource;
+
+            /**
+             * Disables the for-loop unrolling + indy / helper bone-name resolution handlers
+             * when the source's factory key matches a {@link EntityProceduralLoops} template
+             * (set in {@link #parseLayerMethod}). The corresponding {@code apply*} dispatch
+             * emits the loop's bones; running both produces duplicate bones in the output. As
+             * each entity migrates, the matching template is dropped from the applier and the
+             * gate flips off naturally for that factory.
+             */
+            boolean skipProceduralUnroll;
 
             /**
              * Diagnostics sink for strict-mode surfacing of silent failures.

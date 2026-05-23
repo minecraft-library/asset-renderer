@@ -43,11 +43,6 @@ import java.util.Map;
 public final class EntityProceduralLoops {
 
     /**
-     * Source of mathematical constants used by the squid template.
-     */
-    private static final double TAU = 2.0 * Math.PI;
-
-    /**
      * Returns {@code true} when a procedural-loop template is registered for the given
      * resolution. Used by {@link ToolingEntityModels} to
      * detect entities that need a stub geometry injected when the {@code Parser} produces no
@@ -57,9 +52,24 @@ public final class EntityProceduralLoops {
      * {@code entity_models.json}).
      */
     public static boolean hasTemplate(@NotNull EntityLayerDefinitionResolver.Resolution resolution) {
-        return switch (resolution.targetClass() + "#" + resolution.targetMethod()) {
-            case "net/minecraft/client/model/animal/squid/SquidModel#createBodyLayer",
-                 "net/minecraft/client/model/monster/blaze/BlazeModel#createBodyLayer",
+        return hasTemplate(resolution.targetClass() + "#" + resolution.targetMethod());
+    }
+
+    /**
+     * String-keyed variant of {@link #hasTemplate(EntityLayerDefinitionResolver.Resolution)}.
+     * Used by {@code ToolingBlockEntities.Parser} to gate its for-loop unrolling + indy /
+     * helper bone-name resolution off for factories the applier still owns - parser-emitted
+     * bone names ({@code partN}) would otherwise duplicate the applier's hand-coded names
+     * ({@code part_N}) in the same JSON. As each entity migrates, its case here is removed
+     * (alongside the corresponding {@code apply*} dispatch and template) and the parser
+     * automatically picks up that factory.
+     *
+     * @param factoryKey the {@code <classInternalName>#<methodName>} key
+     * @return {@code true} when an applier template is registered for the factory
+     */
+    public static boolean hasTemplate(@NotNull String factoryKey) {
+        return switch (factoryKey) {
+            case "net/minecraft/client/model/monster/blaze/BlazeModel#createBodyLayer",
                  "net/minecraft/client/model/monster/guardian/GuardianModel#createBodyLayer",
                  "net/minecraft/client/model/monster/guardian/GuardianModel#createElderGuardianLayer",
                  "net/minecraft/client/model/monster/slime/MagmaCubeModel#createBodyLayer",
@@ -95,8 +105,6 @@ public final class EntityProceduralLoops {
 
         String key = resolution.targetClass() + "#" + resolution.targetMethod();
         switch (key) {
-            case "net/minecraft/client/model/animal/squid/SquidModel#createBodyLayer" ->
-                applySquidTentacles(geometry);
             case "net/minecraft/client/model/monster/blaze/BlazeModel#createBodyLayer" ->
                 applyBlazeRods(geometry);
             case "net/minecraft/client/model/monster/guardian/GuardianModel#createBodyLayer",
@@ -196,47 +204,6 @@ public final class EntityProceduralLoops {
                 bone.add("pivot", scaled);
             }
             if (!bone.has("scale")) bone.addProperty("scale", f);
-        }
-    }
-
-    /**
-     * Adds the 8 tentacle bones that {@code SquidModel.createBodyLayer}'s loop emits.
-     * Mirrors the bytecode at offsets 91-198: for {@code i in 0..8},
-     * {@code angle = i * 2π / 8} feeds {@code (cos(angle) * 5, 15, sin(angle) * 5)} as the
-     * tentacle pivot and {@code -i * π/4 + π/2} as the Y-rotation. The shared cube is the
-     * shape pushed once into local slot 5 before the loop:
-     * {@code addBox(-1, 0, -1, 2, 18, 2)} at {@code texOffs(48, 0)}.
-     *
-     * <p>Names follow the {@code createTentacleName(int)} synthetic which compiles to
-     * {@code "tentacle_" + i} via {@code makeConcatWithConstants}.
-     */
-    private static void applySquidTentacles(@NotNull JsonObject geometry) {
-        JsonObject bones = geometry.getAsJsonObject("bones");
-        if (bones == null) return;
-        for (int i = 0; i < 8; i++) {
-            double pivotAngle = i * TAU / 8.0;
-            float px = (float) (Math.cos(pivotAngle) * 5.0);
-            float py = 15f;
-            float pz = (float) (Math.sin(pivotAngle) * 5.0);
-            float ryRadians = (float) (-i * Math.PI / 4.0 + Math.PI / 2.0);
-            float ryDegrees = (float) Math.toDegrees(ryRadians);
-            JsonObject bone = new JsonObject();
-            bone.add("pivot", floatArray(px, py, pz));
-            bone.add("rotation", floatArray(0f, ryDegrees, 0f));
-            JsonObject cube = new JsonObject();
-            cube.add("origin", floatArray(-1f, 0f, -1f));
-            cube.add("size", floatArray(2f, 18f, 2f));
-            JsonArray uv = new JsonArray();
-            uv.add(48);
-            uv.add(0);
-            cube.add("uv", uv);
-            cube.addProperty("inflate", 0.0);
-            cube.addProperty("mirror", false);
-            cube.add("face_uv", new JsonObject());
-            JsonArray cubes = new JsonArray();
-            cubes.add(cube);
-            bone.add("cubes", cubes);
-            bones.add("tentacle_" + i, bone);
         }
     }
 
