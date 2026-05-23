@@ -1261,15 +1261,26 @@ public final class ToolingBlockEntities {
                     int[] previousInts = state.paramIntValues;
                     int[] working = ensureIntSlotCapacity(previousInts, slot);
                     int savedAtSlot = working[slot];
+                    Number savedNumericLocal = state.numericLocals.remove(slot);
                     state.paramIntValues = working;
                     try {
                         for (int i = loop.initValue(); i < loop.boundExclusive(); i += loop.step()) {
                             working[slot] = i;
+                            // Wipe any numericLocals entry the body may have STORE'd into the
+                            // iterator slot in a prior iteration; otherwise the next iteration's
+                            // ILOAD <slot> would read the stale captured value and shadow the
+                            // freshly-injected paramIntValues[slot] = i.
+                            state.numericLocals.remove(slot);
                             walkRange(instructions, loop.firstBodyInsn(), loop.firstInsnAfterLoop(), state, zip);
                         }
                     } finally {
                         working[slot] = savedAtSlot;
                         state.paramIntValues = previousInts;
+                        if (savedNumericLocal != null) {
+                            state.numericLocals.put(slot, savedNumericLocal);
+                        } else {
+                            state.numericLocals.remove(slot);
+                        }
                     }
                     AbstractInsnNode resumeAt = loop.firstInsnAfterLoop().getPrevious();
                     return resumeAt != null ? resumeAt : loop.firstInsnAfterLoop();
@@ -1403,21 +1414,29 @@ public final class ToolingBlockEntities {
             // into the output cube.
             if (node instanceof VarInsnNode varInsn && opcode == Opcodes.ILOAD) {
                 int slot = varInsn.var;
-                boolean resolved = state.paramIntValues != null && slot >= 0 && slot < state.paramIntValues.length;
-                if (resolved) {
-                    // Java pipeline (paramFloatValues != null) routes ILOAD through numStack
-                    // so call-site-propagated literals (pig's {@code legSize=6}) feed the
-                    // subsequent {@code 18 - legSize} {@link Opcodes#ISUB} arithmetic. The
-                    // matching IFEQ / IFNE / switch consumer above pops from numStack in
-                    // the same gated branch. Legacy pipeline keeps the legacy branchStack
-                    // path so banner standing/wall and similar paramIntValues uses are
-                    // unaffected.
-                    if (state.paramFloatValues != null)
-                        state.numStack.push(state.paramIntValues[slot]);
-                    else
-                        state.branchStack.add(state.paramIntValues[slot]);
+                // numericLocals first: an in-method ISTORE captured a precise value (overrides
+                // any param-table default for the same slot). Java pipeline only - legacy
+                // literal-stack walkers don't STORE into numericLocals.
+                Number local = state.paramFloatValues != null ? state.numericLocals.get(slot) : null;
+                if (local != null) {
+                    state.numStack.push(local.intValue());
                 } else {
-                    state.numStack.pushNonLiteral();
+                    boolean resolved = state.paramIntValues != null && slot >= 0 && slot < state.paramIntValues.length;
+                    if (resolved) {
+                        // Java pipeline (paramFloatValues != null) routes ILOAD through numStack
+                        // so call-site-propagated literals (pig's {@code legSize=6}) feed the
+                        // subsequent {@code 18 - legSize} {@link Opcodes#ISUB} arithmetic. The
+                        // matching IFEQ / IFNE / switch consumer above pops from numStack in
+                        // the same gated branch. Legacy pipeline keeps the legacy branchStack
+                        // path so banner standing/wall and similar paramIntValues uses are
+                        // unaffected.
+                        if (state.paramFloatValues != null)
+                            state.numStack.push(state.paramIntValues[slot]);
+                        else
+                            state.branchStack.add(state.paramIntValues[slot]);
+                    } else {
+                        state.numStack.pushNonLiteral();
+                    }
                 }
             }
 
@@ -1433,10 +1452,16 @@ public final class ToolingBlockEntities {
             if (node instanceof VarInsnNode varInsn
                 && (opcode == Opcodes.FLOAD || opcode == Opcodes.DLOAD || opcode == Opcodes.LLOAD)) {
                 int slot = varInsn.var;
-                if (state.paramFloatValues != null && slot >= 0 && slot < state.paramFloatValues.length)
+                // numericLocals first: an in-method FSTORE / DSTORE / LSTORE captured a precise
+                // value (overrides any param-table default for the same slot).
+                Number local = state.paramFloatValues != null ? state.numericLocals.get(slot) : null;
+                if (local != null) {
+                    state.numStack.push(local);
+                } else if (state.paramFloatValues != null && slot >= 0 && slot < state.paramFloatValues.length) {
                     state.numStack.push(state.paramFloatValues[slot]);
-                else
+                } else {
                     state.numStack.pushNonLiteral();
+                }
             }
 
             // ISTORE / FSTORE / DSTORE / LSTORE: consume the value that the matching
@@ -1453,8 +1478,16 @@ public final class ToolingBlockEntities {
             if (state.paramFloatValues != null
                 && (opcode == Opcodes.ISTORE || opcode == Opcodes.FSTORE
                     || opcode == Opcodes.DSTORE || opcode == Opcodes.LSTORE)
-                && !state.numStack.isEmpty()) {
-                state.numStack.pop();
+                && node instanceof VarInsnNode storeInsn) {
+                // popNumber returns null when the stack is empty - guard so we still drop a
+                // stale captured-local entry on the slot rather than holding onto a value the
+                // bytecode just overwrote with an unknown computation.
+                Number popped = state.numStack.isEmpty() ? null : state.numStack.popNumber();
+                if (popped != null) {
+                    state.numericLocals.put(storeInsn.var, popped);
+                } else {
+                    state.numericLocals.remove(storeInsn.var);
+                }
             }
 
             // Explicit stack pops: {@code POP} discards 1 category-1 slot (int / float /
@@ -1993,6 +2026,11 @@ public final class ToolingBlockEntities {
             }
             ConcurrentMap<Integer, String> savedLocalSlotBone = state.localSlotBone;
             ConcurrentMap<Integer, ConcurrentList<float[]>> savedSlotToCubes = state.slotToCubes;
+            // JVM scoping: callee's ISTORE / FSTORE / DSTORE writes its own slot N, not the
+            // caller's slot N. Swap a fresh numericLocals map for the callee and restore the
+            // caller's on exit so a static helper's locals don't leak into the surrounding
+            // factory's slot table.
+            ConcurrentMap<Integer, Number> savedNumericLocals = state.numericLocals;
             String savedPendingPartName = state.pendingPartName;
             String savedBoneName = state.boneName;
             String savedParentBone = state.parentBone;
@@ -2006,6 +2044,7 @@ public final class ToolingBlockEntities {
             boolean savedPendingMirror = state.pendingMirror;
             state.localSlotBone = Concurrent.newMap();
             state.slotToCubes = Concurrent.newMap();
+            state.numericLocals = Concurrent.newMap();
             state.pendingPartName = null;
             state.boneName = null;
             state.parentBone = null;
@@ -2023,6 +2062,7 @@ public final class ToolingBlockEntities {
                 state.paramFloatValues = previousFloats;
                 state.localSlotBone = savedLocalSlotBone;
                 state.slotToCubes = savedSlotToCubes;
+                state.numericLocals = savedNumericLocals;
                 state.pendingPartName = savedPendingPartName;
                 state.boneName = savedBoneName;
                 state.parentBone = savedParentBone;
@@ -2631,6 +2671,19 @@ public final class ToolingBlockEntities {
              * JVM local-variable slot -> captured CubeListBuilder cubes, for builders reused by multiple addOrReplaceChild calls.
              */
             @NotNull ConcurrentMap<Integer, ConcurrentList<float[]>> slotToCubes = Concurrent.newMap();
+
+            /**
+             * JVM local-variable slot -> last numeric value stored to that slot by ISTORE /
+             * FSTORE / DSTORE / LSTORE. Read back on ILOAD / FLOAD / DLOAD / LLOAD before the
+             * {@link #paramIntValues} / {@link #paramFloatValues} fallback, so a
+             * {@code ldc <value>; fstore <slot>; ...; fload <slot>} sequence (vanilla
+             * {@code BlazeModel.createBodyLayer}'s rolling-angle accumulator slot 2;
+             * {@code SquidModel.createBodyLayer}'s reused-angle double slot 7) folds back to the
+             * literal value instead of the param-table default. Reset by
+             * {@link #inlineStaticMethodBody} so JVM scoping (callee locals don't leak into
+             * caller) is preserved.
+             */
+            @NotNull ConcurrentMap<Integer, Number> numericLocals = Concurrent.newMap();
 
             /**
              * Flattened pivot + scale for each flushed bone, used to resolve child inheritance.
