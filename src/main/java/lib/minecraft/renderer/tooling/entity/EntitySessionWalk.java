@@ -82,8 +82,8 @@ public final class EntitySessionWalk {
         // texture via state.variant lookup into a Map<XVariant, Identifier>. The resolver
         // walks the variant enum class for its DEFAULT static field and computes the
         // canonical texture stem (axolotl/axolotl_lucy, rabbit/rabbit_brown).
-        EntityVariantDefaultResolver.Result variantDefault =
-            EntityVariantDefaultResolver.resolve(this.context.classNodes(), renderer, diagnostics);
+        EntityVariantResolver.EnumDefault variantDefault =
+            EntityVariantResolver.resolveEnumDefault(this.context.classNodes(), renderer, diagnostics);
         if (variantDefault != null) {
             String stem = this.registryEntry.entityId();
             String candidate = "textures/entity/" + stem + "/" + stem + "_" + variantDefault.defaultName() + ".png";

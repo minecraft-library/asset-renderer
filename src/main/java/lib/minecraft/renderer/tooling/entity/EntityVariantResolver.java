@@ -10,15 +10,22 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.util.ClassNodeCache;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
+import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.tree.AbstractInsnNode;
+import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.MethodNode;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Enumeration;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -471,6 +478,111 @@ public final class EntityVariantResolver {
             }
         }
         return out.toString();
+    }
+
+    // ----------------------------------------------------------------------------------------
+    // Enum-DEFAULT variant detection (axolotl / rabbit pattern)
+    // ----------------------------------------------------------------------------------------
+    //
+    // Two vanilla 26.1 entities use a pure-enum variant pattern distinct from the data-driven
+    // tables above: the renderer's getTextureLocation reads `state.variant : L<EnumClass>;`
+    // and the enum exposes a `public static final DEFAULT` initializer. Combined with the
+    // per-entity texture-naming convention `<entity>/<entity>_<default_lowercase>`, this lets
+    // the tooling pick the canonical default texture stem without a hardcoded entry.
+    //
+    // - AxolotlRenderer.getTextureLocation reads state.variant : LAxolotl$Variant;;
+    //   Axolotl$Variant.DEFAULT = LUCY -> axolotl/axolotl_lucy
+    // - RabbitRenderer.getTextureLocation reads state.variant : LRabbit$Variant;;
+    //   Rabbit$Variant.DEFAULT = BROWN -> rabbit/rabbit_brown
+    //
+    // Data-driven entities (cat / cow / pig / chicken / frog / wolf) DON'T match - their
+    // state field is a Holder<XVariant> that resolves through the data/minecraft/X_variant/
+    // registry walked by loadAll above.
+
+    private static final @NotNull String GET_TEXTURE_LOCATION = "getTextureLocation";
+    private static final @NotNull String VARIANT_FIELD = "variant";
+
+    /**
+     * Outcome of {@link #resolveEnumDefault}: the variant enum's internal name plus the
+     * lowercase name of the {@code DEFAULT} enum value. The texture stem is computed by the
+     * caller from the entity id (e.g. {@code minecraft:axolotl} + {@code lucy} -&gt;
+     * {@code axolotl/axolotl_lucy}).
+     *
+     * @param variantClass JVM internal name of the variant enum
+     * @param defaultName lowercase name of the {@code DEFAULT} enum value
+     */
+    public record EnumDefault(@NotNull String variantClass, @NotNull String defaultName) {}
+
+    /**
+     * Returns the enum-default binding for the renderer's {@code getTextureLocation} when the
+     * method reads {@code state.variant} from an enum-typed field AND the variant enum has a
+     * {@code public static final DEFAULT} initializer in its {@code <clinit>}. Returns
+     * {@code null} for any other shape - data-driven Holder variants, no-DEFAULT enums,
+     * non-overridden getTextureLocation, etc.
+     *
+     * @param classNodes the ClassNode cache (shared with sibling resolver walks)
+     * @param rendererInternalName the renderer class's JVM internal name
+     * @param diag the diagnostic sink (one INFO line per resolved enum default)
+     * @return the resolved binding, or {@code null} when no match
+     */
+    public static @Nullable EnumDefault resolveEnumDefault(
+        @NotNull ClassNodeCache classNodes,
+        @NotNull String rendererInternalName,
+        @NotNull Diagnostics diag
+    ) {
+        ClassNode rendererCn = classNodes.load(rendererInternalName);
+        if (rendererCn == null) return null;
+        MethodNode getTex = findOwnGetTextureLocation(rendererCn);
+        if (getTex == null) return null;
+
+        String variantClass = findVariantFieldClass(getTex);
+        if (variantClass == null) return null;
+
+        String defaultName = AsmKit.findEnumDefaultName(classNodes, variantClass);
+        if (defaultName == null) return null;
+
+        diag.info("variant-default: '%s' -> %s.%s", rendererInternalName, variantClass, defaultName);
+        return new EnumDefault(variantClass, defaultName.toLowerCase(Locale.ROOT));
+    }
+
+    /**
+     * Returns the renderer's own (non-bridge) {@code getTextureLocation} method. The bridge
+     * variant that takes {@code LivingEntityRenderState} delegates back to the typed version
+     * via checkcast + invokevirtual - we skip it because the body has no
+     * {@code GETFIELD variant} instruction.
+     */
+    private static @Nullable MethodNode findOwnGetTextureLocation(@NotNull ClassNode cn) {
+        String livingState = "(L" + VanillaSourceClasses.LIVING_ENTITY_RENDER_STATE + ";)L" + VanillaSourceClasses.IDENTIFIER + ";";
+        String identifierReturn = ")L" + VanillaSourceClasses.IDENTIFIER + ";";
+        MethodNode bridge = null;
+        for (MethodNode m : cn.methods) {
+            if (!GET_TEXTURE_LOCATION.equals(m.name)) continue;
+            if (m.desc == null) continue;
+            if (livingState.equals(m.desc)) {
+                bridge = m;
+                continue;
+            }
+            if (m.desc.endsWith(identifierReturn)) return m;
+        }
+        return bridge;
+    }
+
+    /**
+     * Scans the method body for a {@code GETFIELD <state>.variant : L<EnumClass>;}
+     * instruction and returns the enum class's JVM internal name. The variant field is named
+     * exactly {@code "variant"} in vanilla 26.1 RenderState classes
+     * ({@code AxolotlRenderState.variant}, {@code RabbitRenderState.variant}). Returns
+     * {@code null} when no such GETFIELD appears.
+     */
+    private static @Nullable String findVariantFieldClass(@NotNull MethodNode method) {
+        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (in.getOpcode() != Opcodes.GETFIELD) continue;
+            if (!(in instanceof FieldInsnNode fi)) continue;
+            if (!VARIANT_FIELD.equals(fi.name)) continue;
+            if (fi.desc == null || !fi.desc.startsWith("L") || !fi.desc.endsWith(";")) continue;
+            return fi.desc.substring(1, fi.desc.length() - 1);
+        }
+        return null;
     }
 
 }
