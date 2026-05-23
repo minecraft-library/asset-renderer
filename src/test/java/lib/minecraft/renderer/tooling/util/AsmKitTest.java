@@ -1209,6 +1209,86 @@ class AsmKitTest {
     }
 
     @Nested
+    @DisplayName("string concat helpers")
+    class StringConcatHelpers {
+
+        private InvokeDynamicInsnNode makeConcatIndy(String descriptor, Object... bsmArgs) {
+            Handle bsm = new Handle(Opcodes.H_INVOKESTATIC,
+                AsmKit.STRING_CONCAT_FACTORY, "makeConcatWithConstants",
+                "(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/invoke/CallSite;",
+                false);
+            return new InvokeDynamicInsnNode("makeConcatWithConstants", descriptor, bsm, bsmArgs);
+        }
+
+        @Test
+        @DisplayName("resolveStringConcatRecipe returns recipe for typical (I)String concat")
+        void resolveTypicalRecipe() {
+            InvokeDynamicInsnNode indy = makeConcatIndy("(I)Ljava/lang/String;", "tentacle");
+            assertThat(AsmKit.resolveStringConcatRecipe(indy), equalTo("tentacle"));
+        }
+
+        @Test
+        @DisplayName("resolveStringConcatRecipe returns null when bsm is not StringConcatFactory")
+        void rejectsForeignBsm() {
+            Handle foreignBsm = new Handle(Opcodes.H_INVOKESTATIC,
+                "java/lang/invoke/LambdaMetafactory", "metafactory", "()V", false);
+            InvokeDynamicInsnNode indy = new InvokeDynamicInsnNode("makeConcatWithConstants",
+                "(I)Ljava/lang/String;", foreignBsm, "tentacle");
+            assertThat(AsmKit.resolveStringConcatRecipe(indy), is(nullValue()));
+        }
+
+        @Test
+        @DisplayName("resolveStringConcatRecipe returns null when indy name doesn't match")
+        void rejectsWrongName() {
+            Handle bsm = new Handle(Opcodes.H_INVOKESTATIC,
+                AsmKit.STRING_CONCAT_FACTORY, "makeConcatWithConstants", "()V", false);
+            InvokeDynamicInsnNode indy = new InvokeDynamicInsnNode("apply",
+                "(I)Ljava/lang/String;", bsm, "tentacle");
+            assertThat(AsmKit.resolveStringConcatRecipe(indy), is(nullValue()));
+        }
+
+        @Test
+        @DisplayName("resolveStringConcatRecipe returns null when bsmArgs[0] is not a String")
+        void rejectsNonStringRecipe() {
+            InvokeDynamicInsnNode indy = makeConcatIndy("(I)Ljava/lang/String;", 42);
+            assertThat(AsmKit.resolveStringConcatRecipe(indy), is(nullValue()));
+        }
+
+        @Test
+        @DisplayName("applyStringConcatRecipeWithInt substitutes the dynamic placeholder")
+        void applySubstitutesPlaceholder() {
+            assertThat(AsmKit.applyStringConcatRecipeWithInt("tentacle", 3), equalTo("tentacle3"));
+            assertThat(AsmKit.applyStringConcatRecipeWithInt("_tentacle", 3), equalTo("3_tentacle"));
+            assertThat(AsmKit.applyStringConcatRecipeWithInt("seg_", 7), equalTo("seg7_7"));
+        }
+
+        @Test
+        @DisplayName("applyStringConcatRecipeWithInt returns input unchanged when no placeholder")
+        void applyNoPlaceholderUnchanged() {
+            assertThat(AsmKit.applyStringConcatRecipeWithInt("plain", 99), equalTo("plain"));
+        }
+
+        @Test
+        @DisplayName("findStringConcatRecipeIn walks helper for first matching indy")
+        void findInHelper() {
+            MethodNode helper = newMethod("createTentacleName", "(I)Ljava/lang/String;");
+            helper.instructions.add(new VarInsnNode(Opcodes.ILOAD, 0));
+            helper.instructions.add(makeConcatIndy("(I)Ljava/lang/String;", "tentacle"));
+            helper.instructions.add(new InsnNode(Opcodes.ARETURN));
+            assertThat(AsmKit.findStringConcatRecipeIn(helper), equalTo("tentacle"));
+        }
+
+        @Test
+        @DisplayName("findStringConcatRecipeIn returns null when helper has no concat indy")
+        void findInHelperWithoutConcat() {
+            MethodNode helper = newMethod("getCachedName", "(I)Ljava/lang/String;");
+            helper.instructions.add(new FieldInsnNode(Opcodes.GETSTATIC, "PartNames", "TENTACLE_0", "Ljava/lang/String;"));
+            helper.instructions.add(new InsnNode(Opcodes.ARETURN));
+            assertThat(AsmKit.findStringConcatRecipeIn(helper), is(nullValue()));
+        }
+    }
+
+    @Nested
     @DisplayName("extractGenericTypeParameter")
     class GenericSignatureParser {
 

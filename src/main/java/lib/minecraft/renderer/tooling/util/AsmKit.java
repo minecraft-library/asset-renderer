@@ -1311,6 +1311,82 @@ public final class AsmKit {
     }
 
     // ----------------------------------------------------------------------------------------
+    // String concatenation (invokedynamic makeConcatWithConstants)
+    // ----------------------------------------------------------------------------------------
+
+    /**
+     * Internal name of {@code java.lang.invoke.StringConcatFactory}, the bootstrap host of
+     * the {@code makeConcatWithConstants} indy used by javac for {@code String + X} concat.
+     */
+    public static final @NotNull String STRING_CONCAT_FACTORY = "java/lang/invoke/StringConcatFactory";
+
+    /**
+     * Placeholder character javac embeds in the {@code makeConcatWithConstants} recipe at each
+     * spot where a dynamic argument should be substituted. Defined by JEP 280 / JLS 15.18.1.
+     */
+    public static final char STRING_CONCAT_DYNAMIC_PLACEHOLDER = '\u0001';
+
+    /**
+     * Returns the recipe string of a {@code makeConcatWithConstants} invokedynamic, where the
+     * placeholder character {@link #STRING_CONCAT_DYNAMIC_PLACEHOLDER} marks each dynamic-arg
+     * substitution point. For {@code "tentacle" + i} javac emits an indy whose recipe is
+     * {@code "tentacle"}; for {@code i + "_tentacle"} the recipe is
+     * {@code "_tentacle"}. Returns {@code null} when the indy isn't a
+     * {@code makeConcatWithConstants} call or {@code bsmArgs[0]} is missing / non-String.
+     *
+     * <p>Vanilla 26.1 procedural-loop factories use the indy directly inline
+     * ({@code GhastModel.createBodyLayer} - {@code "tentacle" + i}) or wrapped in a helper that
+     * encapsulates the concat ({@code SquidModel.createTentacleName(I)} -
+     * {@code "tentacle" + i}; {@code BlazeModel.getPartName(I)} - {@code "part" + i}). The
+     * helper case is resolved by walking the helper body for an inner invokedynamic that
+     * matches this signature.
+     *
+     * @param indy the instruction to inspect
+     * @return the recipe string, or {@code null} when the shape doesn't match
+     */
+    public static @Nullable String resolveStringConcatRecipe(@NotNull InvokeDynamicInsnNode indy) {
+        if (!"makeConcatWithConstants".equals(indy.name)) return null;
+        if (indy.bsm == null || !STRING_CONCAT_FACTORY.equals(indy.bsm.getOwner())) return null;
+        if (indy.bsmArgs == null || indy.bsmArgs.length == 0) return null;
+        return indy.bsmArgs[0] instanceof String recipe ? recipe : null;
+    }
+
+    /**
+     * Substitutes {@link #STRING_CONCAT_DYNAMIC_PLACEHOLDER} occurrences in {@code recipe} with
+     * the string form of {@code intValue}. Returns the substituted result. Constant-string
+     * placeholders (the {@code \u0002} variant) are not currently substituted - they would
+     * need {@code indy.bsmArgs[1..]} threading, which none of the vanilla 26.1 procedural-loop
+     * factories use.
+     *
+     * @param recipe the recipe from {@link #resolveStringConcatRecipe}
+     * @param intValue the value to substitute at each dynamic placeholder
+     * @return the substituted result, or {@code recipe} when no placeholders are present
+     */
+    public static @NotNull String applyStringConcatRecipeWithInt(@NotNull String recipe, int intValue) {
+        if (recipe.indexOf(STRING_CONCAT_DYNAMIC_PLACEHOLDER) < 0) return recipe;
+        return recipe.replace(String.valueOf(STRING_CONCAT_DYNAMIC_PLACEHOLDER), Integer.toString(intValue));
+    }
+
+    /**
+     * Walks {@code helper}'s instructions for the first {@code makeConcatWithConstants}
+     * invokedynamic and returns its recipe (see {@link #resolveStringConcatRecipe}). Used by
+     * the parser to follow {@code invokestatic <Owner>.<helper>(I)Ljava/lang/String;}
+     * factories like {@code SquidModel.createTentacleName(I)} to their underlying recipe.
+     *
+     * @param helper the method whose body holds the indy
+     * @return the recipe string, or {@code null} when no matching indy is present
+     */
+    public static @Nullable String findStringConcatRecipeIn(@NotNull MethodNode helper) {
+        for (AbstractInsnNode node = helper.instructions.getFirst(); node != null; node = node.getNext()) {
+            if (node instanceof InvokeDynamicInsnNode indy) {
+                String recipe = resolveStringConcatRecipe(indy);
+                if (recipe != null) return recipe;
+            }
+        }
+        return null;
+    }
+
+    // ----------------------------------------------------------------------------------------
     // Generic signature parsing
     // ----------------------------------------------------------------------------------------
 
