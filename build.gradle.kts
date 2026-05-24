@@ -273,6 +273,24 @@ tasks {
             .mapKeys { it.key.toString() }
     }
 
+    register<JavaExec>("blockParityVanilla") {
+        description = "Per-block parity report comparing Java pipeline vs vanilla-reference-harness ground truth. Output -> cache/visual/block-parity-vanilla/<block>/. Run :asset-renderer:renderVanillaReferences first if the cache is missing. -PblockId=minecraft:tnt"
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestBlockParityVanilla")
+        classpath = sourceSets["test"].runtimeClasspath
+        val blockId = project.findProperty("blockId") as String?
+        args = if (blockId != null) listOf(blockId) else listOf()
+    }
+
+    register<JavaExec>("itemParityVanilla") {
+        description = "Per-item parity report comparing Java pipeline vs vanilla-reference-harness ground truth. Output -> cache/visual/item-parity-vanilla/<item>/. Run :asset-renderer:renderVanillaReferences first if the cache is missing. -PitemId=minecraft:diamond_sword"
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestItemParityVanilla")
+        classpath = sourceSets["test"].runtimeClasspath
+        val itemId = project.findProperty("itemId") as String?
+        args = if (itemId != null) listOf(itemId) else listOf()
+    }
+
     register<JavaExec>("fluidRenderer") {
         description = "Renders every FluidRenderer code path (water/lava, iso/2D, static/animated, biome variants, override) to cache/visual/fluid-renderer/ for visual inspection."
         group = "visual"
