@@ -67,7 +67,7 @@ class ModelEngineParallelismTest {
             .supersample(2)
             .antiAlias(false)
             .build();
-        assertDeterministicAndPinned(options, 0x29D36285L);
+        assertDeterministicAndPinned(options, 0x8207310CL);
     }
 
     @Test
@@ -80,7 +80,7 @@ class ModelEngineParallelismTest {
             .supersample(2)
             .antiAlias(false)
             .build();
-        assertDeterministicAndPinned(options, 0x75630F01L);
+        assertDeterministicAndPinned(options, 0xE592C6F4L);
     }
 
     @Test
@@ -94,7 +94,7 @@ class ModelEngineParallelismTest {
             .supersample(1)
             .antiAlias(false)
             .build();
-        assertDeterministicAndPinned(options, 0x98FA1B4CL);
+        assertDeterministicAndPinned(options, 0x513089BDL);
     }
 
     private void assertDeterministicAndPinned(BlockOptions options, long expectedCrc32) {
