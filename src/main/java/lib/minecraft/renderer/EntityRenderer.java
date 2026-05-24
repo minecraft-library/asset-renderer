@@ -6,6 +6,7 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import dev.simplified.image.pixel.PixelBufferPool;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
@@ -127,37 +128,33 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         float modelScale = definition.rendererScale();
         Box scaledBounds = scaleBox(baseBounds, modelScale);
 
-        // Match the vanilla-reference-harness's family-fit algorithm (see
-        // vanilla-reference-harness's HarnessConfig + EntitySweeper.computeFamilyFits): canvas
-        // dimensions are the entity's screen-space bounds (in Minecraft block-units, post-iso)
-        // multiplied by PIXELS_PER_BLOCK, capped uniformly so the longer side does not exceed
-        // MAX_CANVAS_SIZE. The kit then scales model coordinates to NDC such that the rasterizer
-        // projects each entity-pixel-unit to {@code PIXELS_PER_BLOCK/16} canvas pixels - native
-        // resolution, no auto-fit. EntityOptions#getOutputSize is intentionally ignored here so
-        // the Java pipeline matches the harness's PNG dimensions byte-for-byte where the same
-        // entity is being rendered in both projects.
-        CanvasFit fit = computeCanvasFit(options.getEntityId().get(), definition, effective, modelScale, texture.get());
-        PixelBuffer buffer = PixelBuffer.create(fit.canvasW(), fit.canvasH());
+        // Canvas sizing dispatches on EntityOptions.fitMode. OUTPUT_SIZE (default) honours
+        // the caller's outputSize + padding; UNION_BOUNDS and FAMILY_BOUNDS auto-size from
+        // the entity's own / family-unioned bounds at the harness's native PIXELS_PER_BLOCK
+        // ratio (with optional padding expansion). See EntityOptions.FitMode for the math.
+        BoundsScope scope = boundsScopeFor(options.getFitMode());
+        CanvasFit fit = computeFitFor(options, scope, options.getEntityId().get(), definition, effective, modelScale, texture.get());
 
-        // Centre the silhouette on the canvas. The kit subtracts a model-space "anchor" point
-        // from each vertex; whatever point we pass becomes NDC origin, which the rasterizer
-        // maps to canvas-centre. Naively passing {@code scaledBounds.centre()} (the model-space
-        // AABB centre) over-pads non-brick silhouettes: cod's outer AABB extends z=[-4,11] but
-        // most cubes hug z=[0,7], so {@code iso(aabb_centre)} lands several pixels off the
-        // tight silhouette midpoint. Inverse-projecting the screen-space silhouette midpoint
+        // Centre the silhouette on the canvas using the SAME bounds source that sized the
+        // canvas. The kit subtracts a model-space "anchor" point from each vertex; whatever
+        // point we pass becomes NDC origin, which the rasterizer maps to canvas-centre.
+        // Naively passing {@code scaledBounds.centre()} (the model-space AABB centre)
+        // over-pads non-brick silhouettes: cod's outer AABB extends z=[-4,11] but most cubes
+        // hug z=[0,7], so {@code iso(aabb_centre)} lands several pixels off the tight
+        // silhouette midpoint. Inverse-projecting the screen-space silhouette midpoint
         // through the iso transform gives the model-space point whose iso image IS the
-        // silhouette midpoint - using it as the kit anchor centres the silhouette exactly.
-        // Per-entity setupRotations overrides translate the model vertex by
-        // {@code override.modelAnchorShift} (the kit subtracts modelAnchor from every vertex, so
-        // subtracting the shift from the anchor adds it to every vertex). For squid that's a
-        // {@code (0, +11.2, 0)} pixel pre-translate; pufferfish gets {@code (0, -1.28, 0)};
-        // shulker has zero translate but a 180° yaw addend folded into {@code effective} above.
-        Vector3f modelAnchor = computeCentreAnchor(options.getEntityId().get(), definition, effective, modelScale, fit, texture.get());
+        // silhouette midpoint. Per-entity setupRotations overrides translate the model
+        // vertex by {@code override.modelAnchorShift} (the kit subtracts modelAnchor from
+        // every vertex, so subtracting the shift from the anchor adds it to every vertex).
+        // For squid that's a {@code (0, +11.2, 0)} pixel pre-translate; pufferfish gets
+        // {@code (0, -1.28, 0)}; shulker has zero translate but a 180° yaw addend folded
+        // into {@code effective} above.
+        Vector3f modelAnchor = computeCentreAnchor(scope, options.getEntityId().get(), definition, effective, modelScale, texture.get());
 
         EntityGeometryKit.BuildResult buildResult = EntityGeometryKit.buildTriangles(
             model, texture.get(), modelAnchor, false, fit.ndcScale(), modelScale, definition.baseTintArgb());
         if (buildResult.triangles().isEmpty())
-            return RenderEngine.staticFrame(buffer);
+            return RenderEngine.staticFrame(PixelBuffer.create(fit.canvasW(), fit.canvasH()));
 
         ConcurrentList<VisibleTriangle> triangles = buildResult.triangles();
 
@@ -188,16 +185,35 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             options.getHelmet(), options.getChestplate(),
             options.getLeggings(), options.getBoots(), engine));
 
-        engine.rasterize(triangles, buffer, PerspectiveParams.ISOMETRIC_BLOCK, effective);
-
-        if (options.isAntiAlias())
-            buffer.applyFxaa();
-
         boolean enchanted = ArmorKit.hasEnchantedArmor(
             options.getHelmet(), options.getChestplate(),
             options.getLeggings(), options.getBoots()
         );
-        return engine.finaliseWithGlint(buffer, enchanted, GlintKit.GlintOptions.armorDefault(30));
+        GlintKit.GlintOptions glintOptions = GlintKit.GlintOptions.armorDefault(30);
+
+        // Supersample dance mirrors BlockRenderer's pattern: when ssaa > 1 rasterize into a
+        // pooled hi-res buffer, apply FXAA there (if antiAlias is set), then blitScaled-down
+        // to the final canvas. The kit's ndcScale is unchanged - the rasterizer's projection
+        // scales with the buffer dim, so the hi-res buffer naturally rasterizes at higher
+        // resolution and blitScaled handles the downsample.
+        int ssaa = Math.max(1, options.getSupersample());
+        if (ssaa > 1) {
+            int hiResW = fit.canvasW() * ssaa;
+            int hiResH = fit.canvasH() * ssaa;
+            try (PixelBufferPool.Lease lease = PixelBufferPool.acquire(hiResW, hiResH)) {
+                PixelBuffer hiResBuffer = lease.buffer();
+                engine.rasterize(triangles, hiResBuffer, PerspectiveParams.ISOMETRIC_BLOCK, effective);
+                if (options.isAntiAlias()) hiResBuffer.applyFxaa();
+                PixelBuffer output = PixelBuffer.create(fit.canvasW(), fit.canvasH());
+                output.blitScaled(hiResBuffer, 0, 0, fit.canvasW(), fit.canvasH());
+                return engine.finaliseWithGlint(output, enchanted, glintOptions);
+            }
+        }
+
+        PixelBuffer buffer = PixelBuffer.create(fit.canvasW(), fit.canvasH());
+        engine.rasterize(triangles, buffer, PerspectiveParams.ISOMETRIC_BLOCK, effective);
+        if (options.isAntiAlias()) buffer.applyFxaa();
+        return engine.finaliseWithGlint(buffer, enchanted, glintOptions);
     }
 
     /**
@@ -332,24 +348,67 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * Mirrors the vanilla-reference-harness's family-fit math: walks every cube's vertices
-     * through the iso transform (matching {@link EntityGeometryKit#computeScreenBounds the
-     * harness's per-cube measurement}), takes the tight screen-space extent in entity-pixel-
-     * units, then sizes the canvas to {@code (extent * PIXELS_PER_BLOCK / 16)} pixels per axis
-     * with a uniform shrink to keep the longer side at or below {@link #MAX_CANVAS_SIZE}.
+     * Selects whether canvas sizing + silhouette centring measure this entity alone (base
+     * model + non-{@code skipBounds} overlays unioned together) or also union across every
+     * family member from {@link EntityModelLoader#loadFamilies()}. {@link EntityOptions.FitMode}
+     * picks which source via {@link #boundsScopeFor}; both modes share the same per-entity
+     * + overlay primitives so the only difference is whether the family loop runs.
+     */
+    private enum BoundsScope { ENTITY_UNION, FAMILY_UNION }
+
+    /**
+     * Maps a public {@link EntityOptions.FitMode} to the internal {@link BoundsScope} the
+     * canvas / centring math should measure against. {@code OUTPUT_SIZE} and
+     * {@code UNION_BOUNDS} measure this entity only; {@code FAMILY_BOUNDS} additionally
+     * unions every family member so cow + cow_warm + mooshroom share the same canvas.
+     */
+    private static @NotNull BoundsScope boundsScopeFor(@NotNull EntityOptions.FitMode mode) {
+        return mode == EntityOptions.FitMode.FAMILY_BOUNDS ? BoundsScope.FAMILY_UNION : BoundsScope.ENTITY_UNION;
+    }
+
+    /**
+     * Computes the screen-space bounds for the active {@link BoundsScope}. The two existing
+     * primitives ({@link #computeUnionScreenBounds} for one entity, {@link
+     * #computeFamilyUnionScreenBounds} for the whole family) stay unchanged; this method is
+     * the single dispatch point so canvas-sizing and centring agree on which bounds to use.
+     */
+    private @NotNull Box computeScreenBoundsFor(
+        @NotNull BoundsScope scope,
+        @NotNull String entityId,
+        @NotNull EntityModelLoader.EntityDefinition definition,
+        @NotNull Matrix4f transform,
+        float modelScale,
+        @NotNull PixelBuffer texture
+    ) {
+        return switch (scope) {
+            case ENTITY_UNION -> computeUnionScreenBounds(definition, transform, modelScale, texture);
+            case FAMILY_UNION -> computeFamilyUnionScreenBounds(entityId, definition, transform, modelScale, texture);
+        };
+    }
+
+    /**
+     * Dispatches canvas sizing on {@link EntityOptions#getFitMode()}.
      *
-     * <p>Earlier this function projected only the 8 corners of the model's outer AABB, which
-     * over-padded canvases for non-brick-shaped entities (cod, salmon, ender_dragon...) where
-     * the AABB's extent is much larger than the union of actual cube extents. The harness walks
-     * each cube vertex; we now do the same so canvas dimensions agree to within the bounds
-     * walker's discretisation.
+     * <p>{@code UNION_BOUNDS} / {@code FAMILY_BOUNDS}: walk every cube's vertices through the
+     * iso transform (matching {@link EntityGeometryKit#computeScreenBounds the harness's
+     * per-cube measurement}), take the tight screen-space extent in entity-pixel-units, then
+     * size the canvas to {@code (extent * PIXELS_PER_BLOCK / 16)} pixels per axis plus
+     * {@code 2 * padding} on each axis, then uniformly shrink so the longer side stays at or
+     * below {@link #MAX_CANVAS_SIZE}. The two modes differ only in whether bounds union
+     * across the family.
+     *
+     * <p>{@code OUTPUT_SIZE}: canvas is fixed at {@code outputSize x outputSize}. Available
+     * silhouette area is {@code outputSize - 2 * padding} on the longer axis; the entity is
+     * scaled to fit. No upper cap.
      *
      * <p>Returned {@link CanvasFit#ndcScale} is computed from the inverse of the rasterizer's
      * own projection ({@code screen_px = ndc * min(canvasW, canvasH) * projectionScale}), so
      * applying it as the kit's model-units-to-NDC scale produces the desired pixels-per-block
      * ratio at the rasterization step.
      */
-    private @NotNull CanvasFit computeCanvasFit(
+    private @NotNull CanvasFit computeFitFor(
+        @NotNull EntityOptions options,
+        @NotNull BoundsScope scope,
         @NotNull String entityId,
         @NotNull EntityModelLoader.EntityDefinition definition,
         @NotNull EulerRotation userRotation,
@@ -357,27 +416,41 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull PixelBuffer texture
     ) {
         Matrix4f transform = composeIsoTransform(userRotation);
-        Box screenBounds = computeFamilyUnionScreenBounds(entityId, definition, transform, modelScale, texture);
+        Box screenBounds = computeScreenBoundsFor(scope, entityId, definition, transform, modelScale, texture);
         RendererDebug.fitBounds(entityId, screenBounds);
         float extentX = Math.max(0f, screenBounds.maxX() - screenBounds.minX());
         float extentY = Math.max(0f, screenBounds.maxY() - screenBounds.minY());
+        int padding = Math.max(0, options.getPadding());
+        float projectionScale = PerspectiveParams.ISOMETRIC_BLOCK.projectionScale();
+
+        if (options.getFitMode() == EntityOptions.FitMode.OUTPUT_SIZE) {
+            int outputSize = Math.max(1, options.getOutputSize());
+            int avail = Math.max(1, outputSize - 2 * padding);
+            float extent = Math.max(Math.max(extentX, extentY), 1e-6f);
+            float pxPerEntityUnit = avail / extent;
+            float ndcScale = pxPerEntityUnit / (outputSize * projectionScale);
+            return new CanvasFit(outputSize, outputSize, ndcScale);
+        }
+
         float pxPerEntityUnit = PIXELS_PER_BLOCK / 16f;
-        int rawW = Math.max(1, (int) Math.ceil(extentX * pxPerEntityUnit));
-        int rawH = Math.max(1, (int) Math.ceil(extentY * pxPerEntityUnit));
+        int rawW = Math.max(1, (int) Math.ceil(extentX * pxPerEntityUnit)) + 2 * padding;
+        int rawH = Math.max(1, (int) Math.ceil(extentY * pxPerEntityUnit)) + 2 * padding;
         int longest = Math.max(rawW, rawH);
         float shrink = longest > MAX_CANVAS_SIZE ? (float) MAX_CANVAS_SIZE / longest : 1f;
         int canvasW = Math.max(1, (int) Math.ceil(rawW * shrink));
         int canvasH = Math.max(1, (int) Math.ceil(rawH * shrink));
         float effectivePxPerEntityUnit = pxPerEntityUnit * shrink;
         int minDim = Math.min(canvasW, canvasH);
-        float ndcScale = effectivePxPerEntityUnit / (minDim * PerspectiveParams.ISOMETRIC_BLOCK.projectionScale());
+        float ndcScale = effectivePxPerEntityUnit / (minDim * projectionScale);
         return new CanvasFit(canvasW, canvasH, ndcScale);
     }
 
     /**
      * Computes the model-space point that, after iso transformation, lands at the screen-space
      * silhouette midpoint - so passing it as the kit's centre subtraction places the silhouette
-     * tightly centred on the canvas.
+     * tightly centred on the canvas. Uses the same {@link BoundsScope} as canvas sizing so
+     * the centring source matches the sizing source (e.g. {@code OUTPUT_SIZE} centres against
+     * this entity's own silhouette, not the largest family member).
      *
      * <p>Without this, the kit subtracts the model-space AABB centre, which after iso projects
      * to a point that is NOT the silhouette midpoint for non-brick-shaped entities (long fish,
@@ -387,15 +460,15 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * right/bottom edge.
      */
     private @NotNull Vector3f computeCentreAnchor(
+        @NotNull BoundsScope scope,
         @NotNull String entityId,
         @NotNull EntityModelLoader.EntityDefinition definition,
         @NotNull EulerRotation userRotation,
         float modelScale,
-        @NotNull CanvasFit fit,
         @NotNull PixelBuffer texture
     ) {
         Matrix4f isoTransform = composeIsoTransform(userRotation);
-        Box screenBounds = computeFamilyUnionScreenBounds(entityId, definition, isoTransform, modelScale, texture);
+        Box screenBounds = computeScreenBoundsFor(scope, entityId, definition, isoTransform, modelScale, texture);
         float sxMid = (screenBounds.minX() + screenBounds.maxX()) * 0.5f;
         float syMid = (screenBounds.minY() + screenBounds.maxY()) * 0.5f;
         float szMid = (screenBounds.minZ() + screenBounds.maxZ()) * 0.5f;
