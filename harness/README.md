@@ -1,6 +1,6 @@
 # vanilla-reference-harness
 
-Headless Fabric mod for **Minecraft 26.1.2** that drives the actual vanilla client to render every block (1142) and every living entity (102 including variants) into transparent-background reference PNGs at a locked iso pose. The output PNGs become the byte-stable ground truth that sibling [asset-renderer]'s parity tests diff against - the bedrock pipeline becomes a secondary "both pipelines agree" check.
+Headless Fabric mod for **Minecraft 26.1.2** that drives the actual vanilla client to render every block (1142) and every living entity (102 including variants) into transparent-background reference PNGs at a locked iso pose. The output PNGs are the byte-stable ground truth that sibling [asset-renderer]'s parity tests diff its Java entity-rendering pipeline against.
 
 > [!IMPORTANT]
 > This is a single-purpose dev tool. The renders it produces are checked in to asset-renderer's cache as the parity baseline. **Do not delete or modify those PNGs by hand** - re-run the harness instead.
@@ -188,17 +188,23 @@ src/
     │   ├── EntityFrameRenderer.java    # PIP entity render with bounds walker + chirality + family fit
     │   ├── IsoRenderer.java            # Legacy main-framebuffer reader (retained for diagnostics)
     │   └── mixin/
-    │       ├── HeadlessWindowMixin.java       # GLFW_VISIBLE=false
-    │       ├── HideHandMixin.java             # ItemInHandRenderer cancel
-    │       ├── HideSkyMixin.java              # All SkyRenderer draw passes cancel
-    │       ├── HideCloudsMixin.java           # CloudRenderer.render cancel
-    │       ├── FlipFaceShadingMixin.java      # ClientLevel.cardinalLighting() N/S ↔ W/E swap
-    │       ├── FreezeAnimationStateMixin.java # Zero per-tick state on every LivingEntityRenderState
-    │       ├── BeeStateMixin.java             # Force isOnGround=true (rest pose, no wing flap)
-    │       ├── EnderDragonModelMixin.java     # Cancel setupAnim → authored rest pose
-    │       ├── GuardianStateMixin.java        # Pin spikesAnimation, tailAnimation, lookAt
-    │       ├── PhantomStateMixin.java         # Pin flapTime=0
-    │       └── PufferfishStateMixin.java      # Pin puffState=STATE_FULL
+    │       ├── HeadlessWindowMixin.java         # GLFW_VISIBLE=false
+    │       ├── HideHandMixin.java               # ItemInHandRenderer cancel
+    │       ├── HideSkyMixin.java                # All SkyRenderer draw passes cancel
+    │       ├── HideCloudsMixin.java             # CloudRenderer.render cancel
+    │       ├── FlipFaceShadingMixin.java        # ClientLevel.cardinalLighting() N/S ↔ W/E swap
+    │       ├── FreezeAnimationStateMixin.java   # Zero per-tick state on every LivingEntityRenderState
+    │       ├── SuppressShakingMixin.java        # Cancel isShaking bodyRot wobble in setupRotations
+    │       ├── SkipSetupAnimMixin.java          # Generic setupAnim bypass; bind pose for all models
+    │       ├── BeeStateMixin.java               # Force isOnGround=true (rest pose, no wing flap)
+    │       ├── EnderDragonModelMixin.java       # Cancel setupAnim → authored rest pose (redundant under SkipSetupAnimMixin)
+    │       ├── WitherBossModelMixin.java        # Cancel setupAnim → no chest-bob (redundant under SkipSetupAnimMixin)
+    │       ├── GuardianStateMixin.java          # Pin spikesAnimation, tailAnimation, lookAt
+    │       ├── PhantomStateMixin.java           # Pin flapTime=0
+    │       ├── PufferfishStateMixin.java        # Pin puffState=STATE_FULL
+    │       ├── ZombieVillagerStateMixin.java    # Pin villagerData to PLAINS/NONE/1 (default)
+    │       ├── DonkeyModelMixin.java            # Hide left_chest/right_chest bones (equipment-driven)
+    │       └── LlamaModelMixin.java             # Hide left_chest/right_chest bones (equipment-driven)
     └── resources/refharness.client.mixins.json
 ```
 
@@ -229,6 +235,8 @@ src/
 | Mixin                          | Target                                       | Effect                                                                                                                                                                                                                          |
 | ------------------------------ | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `FreezeAnimationStateMixin`    | `LivingEntityRenderer.extractRenderState`    | Zeroes `ageInTicks`, `walkAnimationPos`, `walkAnimationSpeed`, `deathTime`, `ticksSinceKineticHitFeedback`, `wornHeadAnimationPos`. Forces `state.isInWater = true` for `AbstractFish` so salmon/cod/tropical_fish render upright. |
+| `SuppressShakingMixin`         | `LivingEntityRenderer.setupRotations`        | Cancels the `isShaking(state)` bodyRot wobble (`cos(floor(ageInTicks)*3.25) * π * 0.4` degrees), landing on the bind pose instead of an animation yaw offset.                                                                  |
+| `SkipSetupAnimMixin`           | every `EntityModel.setupAnim` callsite from `LivingEntityRenderer.submit` | Skips `setupAnim` so the produced PNG uses the authored `createBodyLayer` bind pose. Most `setupAnim` implementations rewrite pivots / rotations even at `ageInTicks = 0`; bind pose is the only fair comparison target until asset-renderer animates. |
 
 ### Per-renderer state pins
 
@@ -238,13 +246,22 @@ src/
 | Mixin                       | Target                                | Effect                                                                                                                                                                                                                                                          |
 | --------------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `BeeStateMixin`             | `BeeRenderer.extractRenderState`      | Forces `state.isOnGround = true` - skips wing flap math + `bobUpAndDown`'s `0.179 rad` forward-tilt, giving the at-rest pose with flat wings + level body                                                                                                       |
-| `EnderDragonModelMixin`     | `EnderDragonModel.setupAnim`          | Cancels `setupAnim` entirely - leaves every part at its authored `PartPose` (flat wings, straight neck/tail, closed jaw)                                                                                                                                        |
+| `EnderDragonModelMixin`     | `EnderDragonModel.setupAnim`          | Cancels `setupAnim` entirely - leaves every part at its authored `PartPose` (flat wings, straight neck/tail, closed jaw). Now redundant under `SkipSetupAnimMixin`; idempotent and kept as model-specific documentation                                         |
+| `WitherBossModelMixin`      | `WitherBossModel.setupAnim`           | Cancels at-rest chest-bob. Now redundant under `SkipSetupAnimMixin`; kept as model-specific documentation                                                                                                                                                       |
 | `GuardianStateMixin`        | `GuardianRenderer.extractRenderState` | Pins `spikesAnimation = 1.0` (extended-spikes silhouette), `tailAnimation = 0` (defeats per-instance `random.nextFloat()` constructor seed), `lookAtPosition = lookDirection = null` (skips eye-direction block that tracks the player camera)                  |
 | `PhantomStateMixin`         | `PhantomRenderer.extractRenderState`  | Pins `flapTime = 0` - vanilla seeds `flapTime = entity.getUniqueFlapTickOffset() + ageInTicks`, where the offset is per-instance pseudo-random. Pinning to 0 gives the canonical flat-wing glide pose                                                          |
 | `PufferfishStateMixin`      | `PufferfishRenderer.extractRenderState` | Pins `state.puffState = Pufferfish.STATE_FULL` (= 2) - iconic adult silhouette. Vanilla's transient pufferfish defaults to `STATE_SMALL = 0` (deflated)                                                                                                          |
+| `ZombieVillagerStateMixin`  | `ZombieVillagerRenderer.extractRenderState` | Pins `state.villagerData` to `Villager.createDefaultVillagerData()` (type `PLAINS`, profession `NONE`, level 1). Vanilla `ZombieVillager.initializeVillagerData` randomly assigns profession via the registry + spawn-biome-driven type                  |
+
+### Equipment-driven bone visibility
+
+| Mixin                       | Target                                | Effect                                                                                                                                                                                                                                                          |
+| --------------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DonkeyModelMixin`          | `DonkeyModel` ctor + `createBodyLayer` | Hides `left_chest` / `right_chest` bones (8×8×3 cubes that hang off the body at ±6 X). `DonkeyModel.setupAnim` writes `visible = state.hasChest`; for a freshly-loaded harness donkey/mule this is always false, so the bones are vestigial and inflate bounds without contributing pixels |
+| `LlamaModelMixin`           | `LlamaModel` ctor + `createBodyLayer`  | Same as donkey - hides `right_chest` / `left_chest` for every harness-baked llama (covers llama + trader_llama which share the model)                                                                                                                            |
 
 > [!CAUTION]
-> **Delete `EnderDragonModelMixin` once asset-renderer adds animation support.** Without it, the harness produces a static rest pose; once asset-renderer can reproduce the in-flight pose, removing the mixin reverts the harness to vanilla's actual flight cycle so the two pipelines align.
+> **Delete the freeze + skip mixins once asset-renderer adds animation support.** `SkipSetupAnimMixin` is the broadest one - removing it reverts every entity to vanilla's frame-0 animation pose. `EnderDragonModelMixin` and `WitherBossModelMixin` become deletable at the same time (they're already redundant). The state pins (`BeeStateMixin`, `GuardianStateMixin`, `PhantomStateMixin`, `PufferfishStateMixin`, `ZombieVillagerStateMixin`) stay until asset-renderer can reproduce per-renderer state randomization.
 
 ---
 
