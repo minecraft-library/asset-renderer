@@ -19,6 +19,15 @@ import org.jetbrains.annotations.Nullable;
  * @param texWidthOverride overrides the texture width when the parsed method does not call {@code LayerDefinition.create} itself
  * @param texHeightOverride overrides the texture height when the parsed method does not call {@code LayerDefinition.create} itself
  * @param paramIntValues int values to substitute for parameter slots when evaluating branches inside the parsed method
+ * @param paramFloatValues float values to substitute for {@code FLOAD} parameter slots when
+ *     evaluating arithmetic inside the parsed method - {@code null} disables float param
+ *     substitution AND arithmetic evaluation entirely (the parser falls back to the legacy
+ *     literal-stack-only walk used by all legacy block-entity sources). When non-null,
+ *     {@code FLOAD slot} pushes the substituted value when in range, otherwise pushes the
+ *     non-literal marker; binary arithmetic ops ({@code FADD}, {@code FSUB}, {@code FMUL},
+ *     {@code FDIV}, {@code DADD}, {@code DSUB}, {@code DMUL}, {@code DDIV}) pop two operands
+ *     and push the result, treating non-literal markers as the matching parameter's default
+ *     value (or zero when the slot is out of range)
  */
 public record Source(
     @NotNull String classEntry,
@@ -28,7 +37,10 @@ public record Source(
     float inventoryYRotation,
     @Nullable Integer texWidthOverride,
     @Nullable Integer texHeightOverride,
-    int @Nullable [] paramIntValues
+    int @Nullable [] paramIntValues,
+    float @Nullable [] paramFloatValues,
+    float defaultInflate,
+    float appliedMeshTransformerScale
 ) {
 
     /**
@@ -42,7 +54,7 @@ public record Source(
      * @param inventoryYRotation the GUI-facing yaw applied at render time
      */
     public Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation) {
-        this(classEntry, methodName, entityId, yAxis, inventoryYRotation, null, null, null);
+        this(classEntry, methodName, entityId, yAxis, inventoryYRotation, null, null, null, null, 0f, 1f);
     }
 
     /**
@@ -59,7 +71,34 @@ public record Source(
      * @param texHeightOverride the texture height override
      */
     public Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation, @Nullable Integer texWidthOverride, @Nullable Integer texHeightOverride) {
-        this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, null);
+        this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, null, null, 0f, 1f);
+    }
+
+    /**
+     * Legacy constructor preserving the prior 8-arg shape (no float param substitution). All
+     * existing legacy block-entity sources flow through this so adding the
+     * {@code paramFloatValues} field is a non-behavioural change for them.
+     */
+    public Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation, @Nullable Integer texWidthOverride, @Nullable Integer texHeightOverride, int @Nullable [] paramIntValues) {
+        this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, paramIntValues, null, 0f, 1f);
+    }
+
+    /**
+     * Convenience constructor preserving the prior 9-arg shape (no {@code defaultInflate}). Java
+     * pipeline call sites flow through this so adding the {@code defaultInflate} field is a
+     * non-behavioural change for them.
+     */
+    public Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation, @Nullable Integer texWidthOverride, @Nullable Integer texHeightOverride, int @Nullable [] paramIntValues, float @Nullable [] paramFloatValues) {
+        this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, paramIntValues, paramFloatValues, 0f, 1f);
+    }
+
+    /**
+     * Convenience constructor preserving the prior 10-arg shape (no
+     * {@code appliedMeshTransformerScale}). All existing legacy block-entity sources flow
+     * through this so adding the new field is non-behavioural for them.
+     */
+    public Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation, @Nullable Integer texWidthOverride, @Nullable Integer texHeightOverride, int @Nullable [] paramIntValues, float @Nullable [] paramFloatValues, float defaultInflate) {
+        this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, paramIntValues, paramFloatValues, defaultInflate, 1f);
     }
 
 }

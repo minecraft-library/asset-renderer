@@ -113,12 +113,28 @@ gradle-app.setting
 cache/
 texturepacks/
 
-# Copyrighted Bedrock entity PNGs must live in cache/, never in src/main/resources/.
-# ToolingEntityModels writes them to <cacheRoot>/bedrock/<bedrockRef>/textures/entity/
-# at runtime; this guard catches accidental regressions if an older tooling build
-# or manual copy puts them back into the resources tree.
+# Copyrighted vanilla entity PNGs must live in cache/, never in src/main/resources/.
+# This guard catches accidental regressions if a manual copy puts them back into
+# the resources tree.
 src/main/resources/lib/minecraft/renderer/entity_textures/
 
 # Generated H2 schema for IntelliJ JPA resolution
 .schema/
 .gitnexus
+
+# Reference / known-good upstream snapshots used for diffing during dev.
+# Held next to the working file for easy comparison; never loaded at runtime.
+src/main/resources/**/entity_geometry.upstream.json
+
+# Local planning notes / scratch design docs that aren't part of the project's
+# committed artifacts. Pick-up-where-we-left-off documents for follow-up work
+# (vanilla-render-mod plan, etc.) live here.
+notes/
+
+# Parity analysis Python bytecode (outputs land under cache/parity_analysis/, covered
+# by the cache/ ignore above).
+scripts/**/__pycache__/
+
+# JMH scratch outputs (baseline + per-phase results from the Pineda rasterizer
+# migration plan; treated as session artifacts not committed history).
+.jmh/

@@ -17,10 +17,11 @@ import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.geometry.BlockFace;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
+import lib.minecraft.renderer.geometry.SixFaces;
 import lib.minecraft.renderer.geometry.SkinFace;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.kit.ArmorKit;
-import lib.minecraft.renderer.kit.BlockModelGeometryKit;
+import lib.minecraft.renderer.kit.BlockGeometryKit;
 import lib.minecraft.renderer.kit.GlintKit;
 import lib.minecraft.renderer.options.PlayerOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
@@ -53,6 +54,49 @@ import java.util.Optional;
  * renderer's lifetime.
  */
 public final class PlayerRenderer implements Renderer<PlayerOptions> {
+
+    // ---------------------------------------------------------------------------------------
+    // 3D body-part bounding cubes per render type.
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * Skull: unit head cube.
+     */
+    private static final Vector3f SKULL_HEAD_MIN = new Vector3f(-0.5f, -0.5f, -0.5f);
+    private static final Vector3f SKULL_HEAD_MAX = new Vector3f(0.5f, 0.5f, 0.5f);
+
+    /**
+     * Bust: head + torso, matching the original PlayerBust3D proportions.
+     */
+    private static final Vector3f BUST_HEAD_MIN = new Vector3f(-0.25f, 0.1f, -0.25f);
+    private static final Vector3f BUST_HEAD_MAX = new Vector3f(0.25f, 0.6f, 0.25f);
+    private static final Vector3f BUST_TORSO_MIN = new Vector3f(-0.2f, -0.4f, -0.1f);
+    private static final Vector3f BUST_TORSO_MAX = new Vector3f(0.2f, 0.1f, 0.1f);
+    private static final Vector3f BUST_R_ARM_MIN = new Vector3f(-0.33f, -0.4f, -0.1f);
+    private static final Vector3f BUST_R_ARM_MAX = new Vector3f(-0.2f, 0.1f, 0.1f);
+    private static final Vector3f BUST_L_ARM_MIN = new Vector3f(0.2f, -0.4f, -0.1f);
+    private static final Vector3f BUST_L_ARM_MAX = new Vector3f(0.33f, 0.1f, 0.1f);
+
+    /**
+     * Full body: 1 MC pixel = 1/32 model unit, centred vertically.
+     */
+    private static final Vector3f FULL_HEAD_MIN = new Vector3f(-0.12f, 0.24f, -0.12f);
+    private static final Vector3f FULL_HEAD_MAX = new Vector3f(0.12f, 0.48f, 0.12f);
+    private static final Vector3f FULL_TORSO_MIN = new Vector3f(-0.12f, -0.12f, -0.06f);
+    private static final Vector3f FULL_TORSO_MAX = new Vector3f(0.12f, 0.24f, 0.06f);
+    private static final Vector3f FULL_R_ARM_MIN = new Vector3f(-0.24f, -0.12f, -0.06f);
+    private static final Vector3f FULL_R_ARM_MAX = new Vector3f(-0.12f, 0.24f, 0.06f);
+    private static final Vector3f FULL_L_ARM_MIN = new Vector3f(0.12f, -0.12f, -0.06f);
+    private static final Vector3f FULL_L_ARM_MAX = new Vector3f(0.24f, 0.24f, 0.06f);
+    private static final Vector3f FULL_R_LEG_MIN = new Vector3f(-0.12f, -0.48f, -0.06f);
+    private static final Vector3f FULL_R_LEG_MAX = new Vector3f(0.0f, -0.12f, 0.06f);
+    private static final Vector3f FULL_L_LEG_MIN = new Vector3f(0.0f, -0.48f, -0.06f);
+    private static final Vector3f FULL_L_LEG_MAX = new Vector3f(0.12f, -0.12f, 0.06f);
+
+    /**
+     * Overlay (hat / hood / second layer) outset over the base cube.
+     */
+    private static final float OVERLAY_INFLATE = 0.01f;
 
     private final @NotNull RendererContext context;
     private final @NotNull ImageFactory imageFactory = new ImageFactory();
@@ -121,7 +165,9 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         }
     }
 
-    /** Whether any of the four armor slots carries an enchanted piece. */
+    /**
+     * Whether any of the four armor slots carries an enchanted piece.
+     */
     private static boolean hasEnchantedArmor(@NotNull PlayerOptions options) {
         return ArmorKit.hasEnchantedArmor(
             options.getHelmet(), options.getChestplate(),
@@ -129,12 +175,16 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         );
     }
 
-    /** Whether the skin is wide enough to have overlay layers. */
+    /**
+     * Whether the skin is wide enough to have overlay layers.
+     */
     private static boolean hasOverlay(@NotNull PixelBuffer skin) {
         return skin.width() >= 64 && skin.height() >= 64;
     }
 
-    /** Whether the skin is wide enough to have hat overlay (smaller threshold than full overlay). */
+    /**
+     * Whether the skin is wide enough to have hat overlay (smaller threshold than full overlay).
+     */
     private static boolean hasHatOverlay(@NotNull PixelBuffer skin) {
         return skin.width() >= 48 && skin.height() >= 16;
     }
@@ -177,15 +227,15 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * y=1:  [1px WEST][10px SOUTH][1px EAST][10px NORTH]  (16 rows)
      * </pre>
      */
-    private static @NotNull PixelBuffer @NotNull [] cropCapeFaces(@NotNull PixelBuffer cape) {
-        PixelBuffer[] faces = new PixelBuffer[6];
-        faces[BlockFace.DOWN.ordinal()] = cropRect(cape, 11, 0, 10, 1);
-        faces[BlockFace.UP.ordinal()] = cropRect(cape, 1, 0, 10, 1);
-        faces[BlockFace.NORTH.ordinal()] = cropRect(cape, 12, 1, 10, 16);
-        faces[BlockFace.SOUTH.ordinal()] = cropRect(cape, 1, 1, 10, 16);
-        faces[BlockFace.WEST.ordinal()] = cropRect(cape, 0, 1, 1, 16);
-        faces[BlockFace.EAST.ordinal()] = cropRect(cape, 11, 1, 1, 16);
-        return faces;
+    private static @NotNull SixFaces cropCapeFaces(@NotNull PixelBuffer cape) {
+        return new SixFaces(
+            cropRect(cape, 11, 0, 10, 1),  // DOWN
+            cropRect(cape,  1, 0, 10, 1),  // UP
+            cropRect(cape, 12, 1, 10, 16), // NORTH
+            cropRect(cape,  1, 1, 10, 16), // SOUTH
+            cropRect(cape,  0, 1,  1, 16), // WEST
+            cropRect(cape, 11, 1,  1, 16)  // EAST
+        );
     }
 
     private static @NotNull PixelBuffer cropRect(@NotNull PixelBuffer source, int x, int y, int w, int h) {
@@ -222,8 +272,8 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         Vector3f capeMin = new Vector3f(cx - capeW / 2f, capeTop - capeH, capeBack);
         Vector3f capeMax = new Vector3f(cx + capeW / 2f, capeTop, capeBack + capeD);
 
-        PixelBuffer[] faces = cropCapeFaces(capeTexture);
-        triangles.addAll(BlockModelGeometryKit.box(capeMin, capeMax, faces, ColorMath.WHITE));
+        SixFaces faces = cropCapeFaces(capeTexture);
+        triangles.addAll(BlockGeometryKit.buildBoxTriangles(capeMin, capeMax, faces, ColorMath.WHITE));
     }
 
     // ---------------------------------------------------------------------------------------
@@ -344,40 +394,6 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     }
 
     // ---------------------------------------------------------------------------------------
-    // 3D helpers - body part positions for each type.
-    // ---------------------------------------------------------------------------------------
-
-    // Skull: unit head cube.
-    private static final Vector3f SKULL_HEAD_MIN = new Vector3f(-0.5f, -0.5f, -0.5f);
-    private static final Vector3f SKULL_HEAD_MAX = new Vector3f(0.5f, 0.5f, 0.5f);
-
-    // Bust: head + torso, matching the original PlayerBust3D proportions.
-    private static final Vector3f BUST_HEAD_MIN = new Vector3f(-0.25f, 0.1f, -0.25f);
-    private static final Vector3f BUST_HEAD_MAX = new Vector3f(0.25f, 0.6f, 0.25f);
-    private static final Vector3f BUST_TORSO_MIN = new Vector3f(-0.2f, -0.4f, -0.1f);
-    private static final Vector3f BUST_TORSO_MAX = new Vector3f(0.2f, 0.1f, 0.1f);
-    private static final Vector3f BUST_R_ARM_MIN = new Vector3f(-0.33f, -0.4f, -0.1f);
-    private static final Vector3f BUST_R_ARM_MAX = new Vector3f(-0.2f, 0.1f, 0.1f);
-    private static final Vector3f BUST_L_ARM_MIN = new Vector3f(0.2f, -0.4f, -0.1f);
-    private static final Vector3f BUST_L_ARM_MAX = new Vector3f(0.33f, 0.1f, 0.1f);
-
-    // Full body: 1 MC pixel = 1/32 model unit, centred vertically.
-    private static final Vector3f FULL_HEAD_MIN = new Vector3f(-0.12f, 0.24f, -0.12f);
-    private static final Vector3f FULL_HEAD_MAX = new Vector3f(0.12f, 0.48f, 0.12f);
-    private static final Vector3f FULL_TORSO_MIN = new Vector3f(-0.12f, -0.12f, -0.06f);
-    private static final Vector3f FULL_TORSO_MAX = new Vector3f(0.12f, 0.24f, 0.06f);
-    private static final Vector3f FULL_R_ARM_MIN = new Vector3f(-0.24f, -0.12f, -0.06f);
-    private static final Vector3f FULL_R_ARM_MAX = new Vector3f(-0.12f, 0.24f, 0.06f);
-    private static final Vector3f FULL_L_ARM_MIN = new Vector3f(0.12f, -0.12f, -0.06f);
-    private static final Vector3f FULL_L_ARM_MAX = new Vector3f(0.24f, 0.24f, 0.06f);
-    private static final Vector3f FULL_R_LEG_MIN = new Vector3f(-0.12f, -0.48f, -0.06f);
-    private static final Vector3f FULL_R_LEG_MAX = new Vector3f(0.0f, -0.12f, 0.06f);
-    private static final Vector3f FULL_L_LEG_MIN = new Vector3f(0.0f, -0.48f, -0.06f);
-    private static final Vector3f FULL_L_LEG_MAX = new Vector3f(0.12f, -0.12f, 0.06f);
-
-    private static final float OVERLAY_INFLATE = 0.01f;
-
-    // ---------------------------------------------------------------------------------------
     // Sub-renderers.
     // ---------------------------------------------------------------------------------------
 
@@ -398,13 +414,13 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            IsometricEngine engine = IsometricEngine.standard(this.parent.context);
+            IsometricEngine engine = IsometricEngine.forBlockIcon(this.parent.context);
             PixelBuffer buffer = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
 
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
-            triangles.addAll(BlockModelGeometryKit.unitCube(SkinFace.HEAD.cropAll(skin, false), ColorMath.WHITE));
+            triangles.addAll(BlockGeometryKit.unitCube(SkinFace.HEAD.cropAll(skin, false), ColorMath.WHITE));
             if (options.isRenderOverlay() && hasHatOverlay(skin))
-                triangles.addAll(BlockModelGeometryKit.box(
+                triangles.addAll(BlockGeometryKit.buildBoxTriangles(
                     new Vector3f(-0.52f, -0.52f, -0.52f),
                     new Vector3f(0.52f, 0.52f, 0.52f),
                     SkinFace.HEAD.cropAll(skin, true), ColorMath.WHITE));
@@ -439,7 +455,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            IsometricEngine engine = IsometricEngine.standard(this.parent.context);
+            IsometricEngine engine = IsometricEngine.forBlockIcon(this.parent.context);
             PixelBuffer buffer = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
@@ -484,7 +500,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            IsometricEngine engine = IsometricEngine.standard(this.parent.context);
+            IsometricEngine engine = IsometricEngine.forBlockIcon(this.parent.context);
             PixelBuffer buffer = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
@@ -527,9 +543,9 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         @NotNull Vector3f max,
         @NotNull PlayerOptions options
     ) {
-        triangles.addAll(BlockModelGeometryKit.box(min, max, part.cropAll(skin, false), ColorMath.WHITE));
+        triangles.addAll(BlockGeometryKit.buildBoxTriangles(min, max, part.cropAll(skin, false), ColorMath.WHITE));
         if (options.isRenderOverlay() && hasOverlay(skin))
-            triangles.addAll(BlockModelGeometryKit.box(
+            triangles.addAll(BlockGeometryKit.buildBoxTriangles(
                 new Vector3f(min.x() - OVERLAY_INFLATE, min.y() - OVERLAY_INFLATE, min.z() - OVERLAY_INFLATE),
                 new Vector3f(max.x() + OVERLAY_INFLATE, max.y() + OVERLAY_INFLATE, max.z() + OVERLAY_INFLATE),
                 part.cropAll(skin, true), ColorMath.WHITE));

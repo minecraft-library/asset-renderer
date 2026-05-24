@@ -1,28 +1,26 @@
 package lib.minecraft.renderer.geometry;
 
-import lib.minecraft.renderer.kit.BlockModelGeometryKit;
-import lib.minecraft.renderer.kit.EntityGeometryKit;
-import lib.minecraft.renderer.tensor.Vector2f;
+import lib.minecraft.renderer.kit.BlockGeometryKit;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tensor.Vector4f;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Accessors;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 /**
- * The six cardinal face directions of an axis-aligned Minecraft box element.
+ * The six cardinal face directions of an axis-aligned Minecraft block element.
  * <p>
- * Each constant knows its lowercase direction name (the key used in vanilla block and item model
- * JSON plus Bedrock per-face {@code cube.uv} overrides), its four vertex indices into the
- * canonical 8-corner box, its outward unit normal, a {@link BlockLayout} plus {@link EntityLayout}
- * that capture the data each {@link #defaultUv defaultUv} overload needs to project face geometry
- * into a UV rectangle without a per-face {@code switch}, and an inventory {@link #lighting shade
- * factor}. The box vertex layout is:
+ * Each constant knows its lowercase {@link #direction direction name} ({@code "down"} etc., derived
+ * from {@link #name()}), its four vertex indices into the canonical 8-corner box, its outward
+ * unit normal, a {@link Layout} carrying the per-face axis / inversion data that
+ * {@link #defaultUv} needs to project face geometry into a UV rectangle without a per-face
+ * {@code switch}, and an inventory {@link #lighting shade factor}. The box vertex layout is:
  * <pre>
  * 0: (x0, y0, z0)   4: (x0, y0, z1)
  * 1: (x1, y0, z0)   5: (x1, y0, z1)
@@ -31,21 +29,10 @@ import java.util.Locale;
  * </pre>
  * The four indices per face are wound top-left, bottom-left, bottom-right, top-right when viewed
  * from the outward normal direction (CCW), matching vanilla's {@code FaceInfo} vertex order and
- * the convention used by {@link BlockModelGeometryKit}'s triangle builders.
+ * the convention used by {@link BlockGeometryKit}'s triangle builders.
  * <p>
- * Two UV pipelines share this enum through two companion records:
- * <ul>
- * <li>{@link BlockLayout} feeds {@link #defaultUv(Box)} for Java block-model and held-item
- *     rendering, where every face samples its own texture from the cross-section of the
- *     element bounds.</li>
- * <li>{@link EntityLayout} feeds {@link #defaultUv(int[], float[])} for
- *     Bedrock entity-cube rendering, where all six faces share one skin image laid out in a
- *     standard strip.</li>
- * </ul>
- * The two unwraps disagree on which face lands in which atlas slot (Java puts BACK where
- * Bedrock expects FRONT, and LEFT where Bedrock expects RIGHT) so callers must pick the right
- * overload for their pipeline - crossing them sends front-face pixels to the back face and
- * mirrors right-face pixels onto the left.
+ * Entity-cube unwrap (one shared skin image across six faces) is a different convention and
+ * lives on {@link EntityFace} - this enum is block-model-only.
  * <p>
  * The {@link #lighting} field carries the shade factor applied to this face under vanilla's
  * {@code Lighting.ITEMS_3D} GUI pose. Note the per-axis values are <b>reversed</b> relative to
@@ -55,7 +42,8 @@ import java.util.Locale;
  * replicate the dual-directional light shader, each face carries a pre-baked scalar that
  * approximates the vanilla inventory output ({@code 0.8} for E/W, {@code 0.6} for N/S,
  * {@code 1.0} for UP, {@code 0.5} for DOWN). Callers that have a surface normal rather than a
- * face enum should resolve it via {@link #fromNormal(Vector3f)}.
+ * face enum should resolve it via {@link #fromNormal(Vector3f)}; callers that have a direction
+ * string should use {@link #fromName(String)}.
  */
 @Getter
 @Accessors(fluent = true)
@@ -63,51 +51,84 @@ import java.util.Locale;
 public enum BlockFace {
 
     DOWN(
-        "down", new int[]{ 4, 0, 1, 5 }, new Vector3f(0f, -1f, 0f),
-        new BlockLayout(0, 2, false, true),
-        new EntityLayout(0, 2, 1, 1, 0, 0),
+        new int[]{ 4, 0, 1, 5 },
+        new Vector3f(0f, -1f, 0f),
+        new Layout(0, 2, false, true),
         0.5f
     ),
     UP(
-        "up", new int[]{ 3, 7, 6, 2 }, new Vector3f(0f, 1f, 0f),
-        new BlockLayout(0, 2, false, false),
-        new EntityLayout(0, 2, 0, 1, 0, 0),
+        new int[]{ 3, 7, 6, 2 },
+        new Vector3f(0f, 1f, 0f),
+        new Layout(0, 2, false, false),
         1.0f
     ),
     NORTH(
-        "north", new int[]{ 2, 1, 0, 3 }, new Vector3f(0f, 0f, -1f),
-        new BlockLayout(0, 1, true, true),
-        new EntityLayout(0, 1, 0, 1, 0, 1),
+        new int[]{ 2, 1, 0, 3 },
+        new Vector3f(0f, 0f, -1f),
+        new Layout(0, 1, true, true),
         0.6f
     ),
     SOUTH(
-        "south", new int[]{ 7, 4, 5, 6 }, new Vector3f(0f, 0f, 1f),
-        new BlockLayout(0, 1, false, true),
-        new EntityLayout(0, 1, 1, 2, 0, 1),
+        new int[]{ 7, 4, 5, 6 },
+        new Vector3f(0f, 0f, 1f),
+        new Layout(0, 1, false, true),
         0.6f
     ),
     WEST(
-        "west", new int[]{ 3, 0, 4, 7 }, new Vector3f(-1f, 0f, 0f),
-        new BlockLayout(2, 1, false, true),
-        new EntityLayout(2, 1, 1, 1, 0, 1),
+        new int[]{ 3, 0, 4, 7 },
+        new Vector3f(-1f, 0f, 0f),
+        new Layout(2, 1, false, true),
         0.8f
     ),
     EAST(
-        "east", new int[]{ 6, 5, 1, 2 }, new Vector3f(1f, 0f, 0f),
-        new BlockLayout(2, 1, true, true),
-        new EntityLayout(2, 1, 0, 0, 0, 1),
+        new int[]{ 6, 5, 1, 2 },
+        new Vector3f(1f, 0f, 0f),
+        new Layout(2, 1, true, true),
         0.8f
     );
 
-    private final @NotNull String direction;
+    /**
+     * Cached snapshot of {@link #values()} reused by lookups and iteration to avoid the per-call
+     * defensive array clone the JLS mandates.
+     */
+    public static final BlockFace @NotNull [] CACHED_VALUES = values();
+
+    /**
+     * Index of {@link #direction direction names} to enum constants for O(1) lookup by lowercase
+     * name. Powers {@link #fromName(String)}.
+     */
+    private static final @NotNull Map<String, BlockFace> BY_NAME;
+
+    static {
+        Map<String, BlockFace> byName = new HashMap<>(CACHED_VALUES.length * 2);
+
+        for (BlockFace face : CACHED_VALUES)
+            byName.put(face.direction, face);
+
+        BY_NAME = Map.copyOf(byName);
+    }
+
+    /**
+     * Lowercase direction name ({@code "down"}, {@code "up"}, ...), derived once at class-load
+     * time from {@link #name()} so external callers don't pay a per-call {@code toLowerCase}.
+     * Matches the vanilla block / item model JSON key for this face.
+     */
+    private final @NotNull String direction = this.name().toLowerCase(Locale.ROOT);
+
+    /**
+     * Four vertex indices into the canonical 8-corner box (see the class javadoc diagram).
+     */
     private final int @NotNull [] vertexIndices;
+
+    /**
+     * Outward unit normal of this face in model space.
+     */
     private final @NotNull Vector3f normal;
 
-    @Getter(AccessLevel.NONE)
-    private final @NotNull BlockLayout blockLayout;
-
-    @Getter(AccessLevel.NONE)
-    private final @NotNull EntityLayout entityLayout;
+    /**
+     * Per-face axis-and-inversion data driving {@link #defaultUv}.
+     */
+    private final @NotNull Layout layout;
 
     /**
      * Shade factor applied to this face under vanilla {@code Lighting.ITEMS_3D} GUI pose. E/W
@@ -144,26 +165,25 @@ public enum BlockFace {
      * <p>
      * Block model elements reference an independent texture per face (via their {@code #var}
      * bindings), so every face samples the full {@code [0, 16]} UV rectangle projected onto its
-     * cross-section. This overload is used by the block and held-item rendering paths and reads
-     * from {@link BlockLayout}. Callers compose
+     * cross-section. Callers compose
      * {@link Vector4f#toUvCorners(float, float, int, boolean)} with
-     * {@link ModelGrid#VANILLA_PIXEL_UNITS_PER_BLOCK} on the result to obtain normalized
+     * {@link BlockGeometryKit#VANILLA_PIXEL_UNITS_PER_BLOCK} on the result to obtain normalized
      * per-vertex corners.
      *
      * @param element the element bounds in 0-16 space
      * @return the UV rectangle as {@code (uMin, vMin, uMax, vMax)} in 0-16 space
      */
     public @NotNull Vector4f defaultUv(@NotNull Box element) {
-        int uAxis = this.blockLayout.widthAxis();
-        int vAxis = this.blockLayout.heightAxis();
+        int uAxis = this.layout.widthAxis();
+        int vAxis = this.layout.heightAxis();
         float fromU = axisComponent(element, uAxis, false);
         float toU = axisComponent(element, uAxis, true);
         float fromV = axisComponent(element, vAxis, false);
         float toV = axisComponent(element, vAxis, true);
-        float u0 = this.blockLayout.uInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - toU : fromU;
-        float u1 = this.blockLayout.uInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - fromU : toU;
-        float v0 = this.blockLayout.vInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - toV : fromV;
-        float v1 = this.blockLayout.vInverted() ? ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - fromV : toV;
+        float u0 = this.layout.uInverted() ? BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - toU : fromU;
+        float u1 = this.layout.uInverted() ? BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - fromU : toU;
+        float v0 = this.layout.vInverted() ? BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - toV : fromV;
+        float v1 = this.layout.vInverted() ? BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK - fromV : toV;
         return new Vector4f(u0, v0, u1, v1);
     }
 
@@ -173,60 +193,6 @@ public enum BlockFace {
             case 1 -> max ? box.maxY() : box.minY();
             default -> max ? box.maxZ() : box.minZ();
         };
-    }
-
-    /**
-     * Returns the default UV rectangle for this face in pixel space, using the <b>Bedrock
-     * Edition {@code geo.json}</b> entity-cube atlas unwrap where all six faces of a single cube
-     * share one texture image.
-     * <p>
-     * Bedrock lays out the strip with top and bottom in a first row sized {@code sx x sz}, then
-     * east, north, west, south in a second row sized {@code sz, sx, sz, sx} wide by {@code sy}
-     * tall - reading left-to-right that's {@code RIGHT, FRONT, LEFT, BACK}:
-     * <pre>
-     *        +-------+--------+
-     *        |  TOP  | BOTTOM |                      row 1: height sz
-     * +------+-------+--------+-------+
-     * | EAST | NORTH |  WEST  | SOUTH |              row 2: height sy
-     * +------+-------+--------+-------+
-     * </pre>
-     * Each face's pixel rectangle comes from the {@link EntityLayout} coefficients:
-     * {@code uOff = atlasUSxCoef*sx + atlasUSzCoef*sz}, {@code vOff = atlasVSxCoef*sx +
-     * atlasVSzCoef*sz}, with width and height drawn from {@code size[widthAxis]} and
-     * {@code size[heightAxis]}. The {@code sy} dimension never contributes to an atlas offset
-     * because vertical extent on the strip is always expressed in terms of {@code sz} (top row)
-     * or the face's own height.
-     * <p>
-     * Used by entity cube rendering (via {@link EntityGeometryKit}) where one skin image
-     * supplies every face of a body part. Callers compose
-     * {@link Vector4f#toUvCorners(float, float, int, boolean)} with the texture dimensions and
-     * the cube's {@code mirror} flag on the result to obtain normalized per-vertex corners.
-     * Java block elements use the {@link #defaultUv(Box)} overload instead - crossing the two
-     * sends front-face pixels to the back face and mirrors right-face pixels onto the left,
-     * which is immediately visible on asymmetric textures (cow udder, zombie face, pig snout,
-     * villager nose).
-     * <p>
-     * <b>Note:</b> Java Edition's {@code ModelPart$Cube} uses a third strip order that isn't
-     * expressible via the same axis coefficients. That layout is owned by
-     * {@code ToolingBlockEntities.BlockModelConverter.ModelPartPolygonFace.uvFormula}, which is
-     * only used at tooling time to convert Java client-jar bytecode into block-model JSON.
-     *
-     * @param uv the cube's texture origin in pixels on the source image ({@code [u, v]})
-     * @param size the cube's extent along each axis in model units ({@code [sx, sy, sz]})
-     * @return the UV rectangle as {@code (uMin, vMin, uMax, vMax)} in pixel space
-     */
-    public @NotNull Vector4f defaultUv(@NotNull Vector2f uv, @NotNull Vector3f size) {
-        float sx = size.x();
-        float sz = size.z();
-        float uOff = this.entityLayout.atlasUSxCoef() * sx + this.entityLayout.atlasUSzCoef() * sz;
-        float vOff = this.entityLayout.atlasVSxCoef() * sx + this.entityLayout.atlasVSzCoef() * sz;
-
-        float u0 = uv.x() + uOff;
-        float u1 = u0 + size.get(this.entityLayout.widthAxis());
-        float v0 = uv.y() + vOff;
-        float v1 = v0 + size.get(this.entityLayout.heightAxis());
-
-        return new Vector4f(u0, v0, u1, v1);
     }
 
     /**
@@ -252,27 +218,19 @@ public enum BlockFace {
 
     /**
      * Parses a lowercase direction name ({@code "down"}, {@code "up"}, {@code "north"},
-     * {@code "south"}, {@code "west"}, {@code "east"}) into its {@code BlockFace} constant.
+     * {@code "south"}, {@code "west"}, {@code "east"}) into its {@code BlockFace} constant via
+     * an O(1) lookup against {@link #BY_NAME}. Returns {@code null} when the name is
+     * {@code null} or unrecognized.
      *
      * @param name the direction name, or {@code null}
      * @return the matching face, or {@code null} when the name is {@code null} or unrecognized
      */
     public static @Nullable BlockFace fromName(@Nullable String name) {
-        if (name == null) return null;
-        return switch (name.toLowerCase(Locale.ROOT)) {
-            case "down" -> DOWN;
-            case "up" -> UP;
-            case "north" -> NORTH;
-            case "south" -> SOUTH;
-            case "west" -> WEST;
-            case "east" -> EAST;
-            default -> null;
-        };
+        return name == null ? null : BY_NAME.get(name.toLowerCase(Locale.ROOT));
     }
 
     /**
      * Per-face data used by {@link #defaultUv(Box)} for Java block-model element unwrap.
-     * Self-contained - the element-unwrap overload never touches {@link EntityLayout}.
      * <ul>
      * <li>{@link #widthAxis()} / {@link #heightAxis()} - which of {@code [x, y, z]} map to U and V
      *     ({@code 0=x}, {@code 1=y}, {@code 2=z}). Picks the face's cross-section from the
@@ -286,45 +244,11 @@ public enum BlockFace {
      * @param uInverted whether the element unwrap inverts U for this face
      * @param vInverted whether the element unwrap inverts V for this face
      */
-    public record BlockLayout(
+    public record Layout(
         int widthAxis,
         int heightAxis,
         boolean uInverted,
         boolean vInverted
-    ) {}
-
-    /**
-     * Per-face data used by {@link #defaultUv(int[], float[])} for
-     * Bedrock entity-cube atlas unwrap. Self-contained - the entity-atlas overload never
-     * touches {@link BlockLayout}.
-     * <ul>
-     * <li>{@link #widthAxis()} / {@link #heightAxis()} - which of {@code [x, y, z]} map to U and V
-     *     ({@code 0=x}, {@code 1=y}, {@code 2=z}). Picks the face's size along U and V from the
-     *     cube's {@code size} array.</li>
-     * <li>{@link #atlasUSxCoef()} / {@link #atlasUSzCoef()} - coefficients in the atlas U offset
-     *     formula {@code uOff = atlasUSxCoef*sx + atlasUSzCoef*sz}.</li>
-     * <li>{@link #atlasVSxCoef()} / {@link #atlasVSzCoef()} - coefficients in the atlas V offset
-     *     formula {@code vOff = atlasVSxCoef*sx + atlasVSzCoef*sz}.</li>
-     * </ul>
-     * The {@code sy} dimension never contributes to an atlas offset because vertical extent on
-     * the strip is always expressed in terms of {@code sz} (top row) or the face's own height.
-     * The coefficients encode Bedrock's {@code EAST, NORTH, WEST, SOUTH} side-strip order -
-     * swapping any pair breaks the cow udder / mob-face tests.
-     *
-     * @param widthAxis the size-axis index that maps to U ({@code 0=x}, {@code 1=y}, {@code 2=z})
-     * @param heightAxis the size-axis index that maps to V
-     * @param atlasUSxCoef the {@code sx} coefficient in the atlas U offset formula
-     * @param atlasUSzCoef the {@code sz} coefficient in the atlas U offset formula
-     * @param atlasVSxCoef the {@code sx} coefficient in the atlas V offset formula
-     * @param atlasVSzCoef the {@code sz} coefficient in the atlas V offset formula
-     */
-    public record EntityLayout(
-        int widthAxis,
-        int heightAxis,
-        int atlasUSxCoef,
-        int atlasUSzCoef,
-        int atlasVSxCoef,
-        int atlasVSzCoef
     ) {}
 
 }

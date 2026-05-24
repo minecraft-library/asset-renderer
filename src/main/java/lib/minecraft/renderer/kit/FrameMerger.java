@@ -22,7 +22,9 @@ import org.jetbrains.annotations.NotNull;
 @UtilityClass
 public class FrameMerger {
 
-    /** Upper bound on the merged loop duration to prevent runaway LCM math. */
+    /**
+     * Upper bound on the merged loop duration to prevent runaway LCM math.
+     */
     private static final long MAX_LOOP_MS = 10_000L;
 
     /**

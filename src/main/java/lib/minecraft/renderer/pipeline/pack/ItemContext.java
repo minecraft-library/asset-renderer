@@ -38,7 +38,9 @@ public record ItemContext(
     @NotNull ConcurrentList<String> potionEffects
 ) {
 
-    /** The empty context: no item id, no metadata. CIT rules never match against this context. */
+    /**
+     * The empty context: no item id, no metadata. CIT rules never match against this context.
+     */
     public static final @NotNull ItemContext EMPTY = new ItemContext(
         "",
         0,

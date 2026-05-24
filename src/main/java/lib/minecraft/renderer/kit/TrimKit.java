@@ -28,7 +28,9 @@ public class TrimKit {
     private static final @NotNull String TRIM_TEXTURE_PREFIX = "minecraft:trims/items/";
     private static final @NotNull String TRIM_INFIX = "_trim_";
 
-    /** Prefix for per-material palette textures (e.g. {@code minecraft:trims/color_palettes/amethyst}). */
+    /**
+     * Prefix for per-material palette textures (e.g. {@code minecraft:trims/color_palettes/amethyst}).
+     */
     private static final @NotNull String PALETTE_MATERIAL_PREFIX = "minecraft:trims/color_palettes/";
 
     /**
@@ -50,7 +52,7 @@ public class TrimKit {
      * {@code minecraft:trims/items/{slot}_trim_{material}}.
      *
      * @param engine the texture engine for pack-aware texture resolution
-     * @param textureRef the full texture reference (e.g.
+     * @param textureRef the full texture reference (e.g
      *     {@code "minecraft:trims/items/chestplate_trim_amethyst"})
      * @return the permuted trim overlay, or empty when the reference doesn't match or required
      *     textures are missing

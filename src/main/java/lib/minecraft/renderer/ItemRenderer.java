@@ -6,7 +6,6 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.binding.DyeColor;
 import lib.minecraft.renderer.asset.model.ModelElement;
@@ -18,18 +17,18 @@ import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.TextureEngine;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.geometry.EulerRotation;
-import lib.minecraft.renderer.geometry.ModelGrid;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
+import lib.minecraft.renderer.geometry.SixFaces;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.kit.BannerKit;
-import lib.minecraft.renderer.kit.BlockModelGeometryKit;
-import lib.minecraft.renderer.kit.EntityGeometryKit;
+import lib.minecraft.renderer.kit.BlockGeometryKit;
 import lib.minecraft.renderer.kit.GlintKit;
 import lib.minecraft.renderer.kit.ItemStackKit;
 import lib.minecraft.renderer.kit.TrimKit;
 import lib.minecraft.renderer.options.ItemOptions;
 import lib.minecraft.renderer.pipeline.pack.ItemContext;
 import lib.minecraft.renderer.tensor.Matrix4f;
+import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.text.font.MinecraftFont;
 import lombok.RequiredArgsConstructor;
@@ -52,7 +51,7 @@ import java.util.Optional;
  * firework stars, tipped arrows); items without an overlay fall through to the standard
  * layered-sprite path that respects per-face {@code tintindex}.</li>
  * <li>{@link Held3D} dispatches on whether the item's model provides element boxes - block items
- * build real cubes via {@link BlockModelGeometryKit#buildFromElements}, flat sprite items fall back to a
+ * build real cubes via {@link BlockGeometryKit#buildFromElements}, flat sprite items fall back to a
  * thin textured slab. Both paths route through {@link ModelEngine} with the item model's
  * {@code thirdperson_righthand} display transform applied.</li>
  * </ul>
@@ -87,31 +86,49 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             .orElseThrow(() -> new RenderException("No item registered for id '%s'", itemId));
     }
 
-    /** The "water" potion colour - used as the fallback when no potion effect is supplied. */
+    /**
+     * The "water" potion colour - used as the fallback when no potion effect is supplied.
+     */
     private static final int DEFAULT_POTION_ARGB = 0xFF385DC6;
 
-    /** Model-space minimum-X bound for the flat-sprite item Z-axis slab. */
+    /**
+     * Model-space minimum-X bound for the flat-sprite item Z-axis slab.
+     */
     private static final float FLAT_ITEM_SLAB_MIN_X = -0.45f;
 
-    /** Model-space maximum-X bound for the flat-sprite item Z-axis slab. */
+    /**
+     * Model-space maximum-X bound for the flat-sprite item Z-axis slab.
+     */
     private static final float FLAT_ITEM_SLAB_MAX_X = 0.45f;
 
-    /** Model-space minimum-Z bound - the thin side of the flat sprite slab. */
+    /**
+     * Model-space minimum-Z bound - the thin side of the flat sprite slab.
+     */
     private static final float FLAT_ITEM_SLAB_MIN_Z = -0.02f;
 
-    /** Model-space maximum-Z bound - the thin side of the flat sprite slab. */
+    /**
+     * Model-space maximum-Z bound - the thin side of the flat sprite slab.
+     */
     private static final float FLAT_ITEM_SLAB_MAX_Z = 0.02f;
 
-    /** Prefix for multi-layer item texture keys ({@code layer0}, {@code layer1}, ...). */
+    /**
+     * Prefix for multi-layer item texture keys ({@code layer0}, {@code layer1}, ...).
+     */
     private static final @NotNull String LAYER_TEXTURE_PREFIX = "layer";
 
-    /** Item model display slot for the 3D held-item pose (vanilla {@code thirdperson_righthand}). */
+    /**
+     * Item model display slot for the 3D held-item pose (vanilla {@code thirdperson_righthand}).
+     */
     private static final @NotNull String DISPLAY_SLOT_HELD_3D = "thirdperson_righthand";
 
-    /** Item id suffix that flags a banner: {@code minecraft:white_banner}, etc. */
+    /**
+     * Item id suffix that flags a banner: {@code minecraft:white_banner}, etc.
+     */
     private static final @NotNull String BANNER_ITEM_SUFFIX = "_banner";
 
-    /** The sole shield item id. */
+    /**
+     * The sole shield item id.
+     */
     private static final @NotNull String SHIELD_ITEM_ID = "minecraft:shield";
 
     /**
@@ -152,13 +169,11 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
     /**
      * Composites a fresh banner / shield texture via {@link BannerKit#composite2D} and folds it
-     * into the 3D held-item render path. Banners route through the
-     * {@code minecraft:banner} block-entity model (single flag bone) when the context knows it,
-     * so the HELD_3D view shows proper 3D flag geometry rather than a flat sprite. Shields - and
-     * banners when the block-entity model is absent - fall back to the existing thin-Z-slab
-     * treatment so callers still get a 3D frame with the correct pattern stack applied.
+     * into the 3D held-item render path. Banners and shields both fall back to a thin-Z-slab using
+     * the composited texture so the HELD_3D view reflects the pattern stack. Using the composited
+     * texture for all six slab faces mirrors the flat-sprite fallback already used for other item
+     * kinds.
      *
-     * @param context the renderer context used to resolve the banner entity model
      * @param engine the model engine that also serves as the {@link TextureEngine} for pattern
      *     resolution
      * @param itemId the item id (used to pick the banner vs. shield atlas variant)
@@ -166,7 +181,6 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * @return the list of triangles ready for rasterisation
      */
     static @NotNull ConcurrentList<VisibleTriangle> buildBannerOrShield3D(
-        @NotNull RendererContext context,
         @NotNull ModelEngine engine,
         @NotNull String itemId,
         @NotNull ItemOptions options
@@ -179,22 +193,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
         PixelBuffer composite = BannerKit.composite2D(engine, baseDye, options.getBannerLayers(), variant);
 
-        // Banners get real 3D geometry when the block-entity model is registered; shields and
-        // banners-without-model fall back to a thin Z-slab using the composited texture so the
-        // HELD_3D view still reflects the pattern stack. Using the composited texture for all
-        // six slab faces mirrors the flat-sprite fallback already used for other item kinds.
-        if (!isShield) {
-            Optional<Entity> bannerEntity = context.findEntity("minecraft:banner");
-            if (bannerEntity.isPresent()) {
-                return EntityGeometryKit.buildTriangles(bannerEntity.get().getModel(), composite).triangles();
-            }
-        }
-
-        PixelBuffer[] faces = new PixelBuffer[]{ composite, composite, composite, composite, composite, composite };
-        return BlockModelGeometryKit.box(
+        return BlockGeometryKit.buildBoxTriangles(
             new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),
             new Vector3f(FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_Z),
-            faces,
+            SixFaces.uniform(composite),
             ColorMath.WHITE
         );
     }
@@ -205,7 +207,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * {@link ItemOptions#getLeatherColor()} → {@link ItemOptions#getTintColor()} →
      * {@link Item.Overlay.Leather#defaultColor()} ({@code #A06540}). Returns a fresh
      * {@link PixelBuffer} at the base texture's native dimensions, so the 2D path can scale it
-     * up while the 3D path can feed it directly into {@link BlockModelGeometryKit#box} as the face texture.
+     * up while the 3D path can feed it directly into {@link BlockGeometryKit#box} as the face texture.
      */
     static @NotNull PixelBuffer composeLeatherOverlay(
         @NotNull TextureEngine engine,
@@ -380,7 +382,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 if (faceRef.equals("#" + layerKey) || faceRef.equals(layerRef))
                     return face.getTintIndex();
 
-                String resolved = TextureEngine.dereferenceVariable(faceRef, variables);
+                String resolved = TextureEngine.resolveTextureReference(faceRef, variables);
                 if (resolved.equals(layerRef))
                     return face.getTintIndex();
             }
@@ -483,7 +485,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
     /**
      * Held 3D item renderer. Dispatches on whether the item model supplies element boxes - block
-     * items with non-empty element lists build real cubes via {@link BlockModelGeometryKit#buildFromElements},
+     * items with non-empty element lists build real cubes via {@link BlockGeometryKit#buildFromElements},
      * while flat sprite items fall back to a thin textured slab derived from {@code layer0}.
      * Both branches feed the same {@link ModelEngine#rasterize} overload with the item's
      * {@code thirdperson_righthand} display transform.
@@ -514,21 +516,20 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             ConcurrentList<VisibleTriangle> triangles;
             if (item.getOverlay().isPresent()) {
                 PixelBuffer overlayTexture = composeOverlayTexture(this.context, engine, item.getOverlay().get(), options);
-                PixelBuffer[] faces = new PixelBuffer[]{ overlayTexture, overlayTexture, overlayTexture, overlayTexture, overlayTexture, overlayTexture };
-                triangles = BlockModelGeometryKit.box(
+                triangles = BlockGeometryKit.buildBoxTriangles(
                     new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),
                     new Vector3f(FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_Z),
-                    faces,
+                    SixFaces.uniform(overlayTexture),
                     ColorMath.WHITE
                 );
             } else if (isBannerOrShield(options.getItemId())) {
-                triangles = buildBannerOrShield3D(this.context, engine, options.getItemId(), options);
+                triangles = buildBannerOrShield3D(engine, options.getItemId(), options);
             } else if (!item.getModel().getElements().isEmpty()) {
                 // Element-based path - held block items and any custom item whose model JSON
                 // supplies 'elements'. The element bounds and face bindings are fully resolved
                 // at pipeline time.
                 Map<String, PixelBuffer> faceTextures = loadFaceTextures(engine, item);
-                triangles = BlockModelGeometryKit.buildFromElements(item.getModel().getElements(), faceTextures, tint);
+                triangles = BlockGeometryKit.buildFromElements(item.getModel().getElements(), faceTextures, tint);
             } else {
                 // Flat sprite fallback - layer0 rendered as a thin Z-axis slab. Matches the
                 // previous behaviour for item/generated and item/handheld parented items.
@@ -541,11 +542,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                     throw new RenderException("Item '%s' has no elements and no layer0 - nothing to render in Held3D path", options.getItemId());
 
                 PixelBuffer texture = engine.resolveTexture(layerRef);
-                PixelBuffer[] faces = new PixelBuffer[]{ texture, texture, texture, texture, texture, texture };
-                triangles = BlockModelGeometryKit.box(
+                triangles = BlockGeometryKit.buildBoxTriangles(
                     new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),
                     new Vector3f(FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_Z),
-                    faces,
+                    SixFaces.uniform(texture),
                     tint
                 );
             }
@@ -561,7 +561,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          * chains against the model's texture bindings, and loads each unique resolved id into a
          * {@link PixelBuffer}. The returned map is keyed by the original face reference string
          * (including any leading {@code #}), which matches what
-         * {@link BlockModelGeometryKit#buildFromElements} expects.
+         * {@link BlockGeometryKit#buildFromElements} expects.
          */
         private static @NotNull Map<String, PixelBuffer> loadFaceTextures(
             @NotNull ModelEngine engine,
@@ -573,7 +573,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 for (ModelFace face : element.getFaces().values()) {
                     String ref = face.getTexture();
                     if (ref.isBlank() || result.containsKey(ref)) continue;
-                    String resolvedId = TextureEngine.dereferenceVariable(ref, variables);
+                    String resolvedId = TextureEngine.resolveTextureReference(ref, variables);
                     if (resolvedId.startsWith("#")) continue;
                     result.put(ref, engine.resolveTexture(resolvedId));
                 }
@@ -589,12 +589,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          * <p>
          * Applied to a row vector in the order <b>scale, then rotate, then translate</b>, which
          * is what vanilla produces for {@code poseStack.scale(); poseStack.mulPose(rXYZ);
-         * poseStack.translate();}. The rotation composition itself has to be
-         * {@code R_z * R_y * R_x} (row-vector convention) to match JOML's
-         * {@code Quaternionf.rotationXYZ(x, y, z)} - that quaternion rotates a vector in
-         * Z-then-Y-then-X order innermost-first, whose column-vector matrix is
-         * {@code R_x * R_y * R_z} and transposes to {@code R_z * R_y * R_x} under row vectors.
-         * Getting the rotation order wrong silently flips the tilt direction of compound poses.
+         * poseStack.translate();}. Column-vector composition: rightmost (translation) applies
+         * first to a vertex, then rotation, then scale - matching the PoseStack op sequence.
          */
         private static @NotNull Matrix4f resolveDisplayTransform(@NotNull Item item, @NotNull String slot) {
             ModelTransform transform = item.getModel().getDisplay().get(slot);
@@ -602,16 +598,16 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
             Matrix4f scale = Matrix4f.createScale(transform.getScaleX(), transform.getScaleY(), transform.getScaleZ());
             EulerRotation angles = transform.getRotation();
-            Matrix4f rotation = Matrix4f.createRotationZ(angles.rollRadians())
-                .multiply(Matrix4f.createRotationY(angles.yawRadians()))
-                .multiply(Matrix4f.createRotationX(angles.pitchRadians()));
+            Matrix4f rotation = Quaternionf
+                .rotationXYZ(angles.pitchRadians(), angles.yawRadians(), angles.rollRadians())
+                .toMatrix4f();
             // Vanilla display transforms use sub-unit translation values in {@code /16} space;
             // apply them to the model vertex positions directly since our unit cube is already
             // normalized.
             Matrix4f translation = Matrix4f.createTranslation(
-                transform.getTranslationX() / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK,
-                transform.getTranslationY() / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK,
-                transform.getTranslationZ() / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK
+                transform.getTranslationX() / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK,
+                transform.getTranslationY() / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK,
+                transform.getTranslationZ() / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK
             );
             return scale.multiply(rotation).multiply(translation);
         }

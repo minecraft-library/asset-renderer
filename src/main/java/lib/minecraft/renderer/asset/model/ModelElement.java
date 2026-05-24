@@ -23,10 +23,14 @@ import java.util.Optional;
 @NoArgsConstructor
 public class ModelElement {
 
-    /** The minimum corner in 0-16 space {@code [x, y, z]}. */
+    /**
+     * The minimum corner in 0-16 space {@code [x, y, z]}.
+     */
     private float @NotNull [] from = new float[]{ 0f, 0f, 0f };
 
-    /** The maximum corner in 0-16 space {@code [x, y, z]}. */
+    /**
+     * The maximum corner in 0-16 space {@code [x, y, z]}.
+     */
     private float @NotNull [] to = new float[]{ 16f, 16f, 16f };
 
     /**
@@ -38,10 +42,14 @@ public class ModelElement {
      */
     private @NotNull ConcurrentMap<String, ModelFace> faces = Concurrent.newLinkedMap();
 
-    /** An optional element-level rotation, matching vanilla's {@code rotation} object. */
+    /**
+     * An optional element-level rotation, matching vanilla's {@code rotation} object.
+     */
     private @NotNull Optional<ElementRotation> rotation = Optional.empty();
 
-    /** Whether the element casts shadow. Defaults to {@code true} in vanilla. */
+    /**
+     * Whether the element casts shadow. Defaults to {@code true} in vanilla.
+     */
     private boolean shade = true;
 
     @Override

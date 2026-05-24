@@ -12,7 +12,9 @@ import org.jetbrains.annotations.NotNull;
 @UtilityClass
 public final class ArmorTrim {
 
-    /** The armor slot that determines which trim pattern texture to use. */
+    /**
+     * The armor slot that determines which trim pattern texture to use.
+     */
     @Getter
     @RequiredArgsConstructor
     public enum Slot {
@@ -22,7 +24,9 @@ public final class ArmorTrim {
         LEGGINGS("leggings"),
         BOOTS("boots");
 
-        /** The texture key used in trim pattern paths ({@code trims/items/{key}_trim}). */
+        /**
+         * The texture key used in trim pattern paths ({@code trims/items/{key}_trim}).
+         */
         private final @NotNull String key;
 
     }
@@ -53,7 +57,9 @@ public final class ArmorTrim {
         REDSTONE("redstone"),
         RESIN("resin");
 
-        /** The palette file key ({@code trims/color_palettes/{key}}). */
+        /**
+         * The palette file key ({@code trims/color_palettes/{key}}).
+         */
         private final @NotNull String key;
 
     }
@@ -86,7 +92,9 @@ public final class ArmorTrim {
         WAYFINDER("wayfinder"),
         WILD("wild");
 
-        /** The pattern file key ({@code trims/entity/humanoid/{key}}). */
+        /**
+         * The pattern file key ({@code trims/entity/humanoid/{key}}).
+         */
         private final @NotNull String key;
 
     }

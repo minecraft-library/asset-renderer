@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
 import lib.minecraft.renderer.tooling.util.AsmKit;
+import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
@@ -58,9 +59,12 @@ import java.util.zip.ZipFile;
  *   <li><b>Skull variants</b> - {@code SkullModel.createHeadModel} is reached indirectly via
  *       {@code SkullModel.createMobHeadLayer} (which calls {@code LayerDefinition.create(mesh,
  *       64, 32)}) and {@code SkullModel.createHumanoidHeadLayer} (64x64). Rather than emit a
- *       pair of redundant wrapper-method Sources, {@link #SKULL_VARIANT_POLICY} collapses the
- *       mob + humanoid wrapper names into two Source emissions with explicit
- *       {@code texHeightOverride} values.</li>
+ *       pair of redundant wrapper-method Sources, {@link #SKULL_VARIANT_POLICY} maps each
+ *       wrapper name to the tooling-side entity id (the {@code skull_head} /
+ *       {@code skull_humanoid_head} split is our convention - vanilla has one
+ *       {@code BlockEntityType.SKULL}); per-variant texture dimensions are read from each
+ *       wrapper's tail {@code LayerDefinition.create(mesh, W, H)} via
+ *       {@link #resolveSkullWrapperDimensions}.</li>
  *   <li><b>Banner standing/wall split</b> - {@code BannerModel.createBodyLayer} and
  *       {@code BannerFlagModel.createFlagLayer} both take a {@code boolean isStanding} param.
  *       {@link #PARAM_INT_SUFFIX} maps (class, boolean) &rarr; suffix ({@code "wall_"} or
@@ -76,13 +80,9 @@ import java.util.zip.ZipFile;
 @UtilityClass
 public final class SourceDiscovery {
 
-    private static final @NotNull String BLOCK_ENTITY_RENDERERS = "net/minecraft/client/renderer/blockentity/BlockEntityRenderers";
-    private static final @NotNull String BLOCK_ENTITY_TYPE = "net/minecraft/world/level/block/entity/BlockEntityType";
-    private static final @NotNull String LAYER_DEFINITIONS = "net/minecraft/client/model/geom/LayerDefinitions";
-    private static final @NotNull String MODEL_LAYERS = "net/minecraft/client/model/geom/ModelLayers";
-    private static final @NotNull String LAYER_DEFINITION_DESC_RETURN = ")Lnet/minecraft/client/model/geom/builders/LayerDefinition;";
-    private static final @NotNull String MESH_DEFINITION_DESC_RETURN = ")Lnet/minecraft/client/model/geom/builders/MeshDefinition;";
-    private static final @NotNull String LAYER_DEFINITION_CLASS = "net/minecraft/client/model/geom/builders/LayerDefinition";
+    private static final @NotNull String MODEL_LAYERS = VanillaSourceClasses.MODEL_LAYERS;
+    private static final @NotNull String LAYER_DEFINITION_DESC_RETURN = ")L" + VanillaSourceClasses.LAYER_DEFINITION + ";";
+    private static final @NotNull String MESH_DEFINITION_DESC_RETURN = ")L" + VanillaSourceClasses.MESH_DEFINITION + ";";
 
     /**
      * GUI-facing yaws baked into inventory tiles. These rotations are NOT present in vanilla
@@ -91,6 +91,12 @@ public final class SourceDiscovery {
      * property. The 180 degrees here restores the camera-facing side under our standard
      * [30, 225, 0] isometric gui pose (vanilla's chest/banner/skull items use [30, 45, 0],
      * a 180 degrees delta).
+     *
+     * <p>This is the <b>canonical</b> source. The actual rotation is baked into
+     * {@code block_entities.json}'s {@code elements} by {@code BlockModelConverter}, which
+     * reads {@code parsedEntity.inventory_y_rotation} - itself populated from this map by
+     * the source-walk emission in {@link #emitSourcesFor}. Generalising to a bytecode scan of
+     * {@code BlockEntityRenderer.modelTransformation} is future work.
      */
     private static final @NotNull Map<String, Float> ID_TO_INVENTORY_Y_ROTATION = Map.of(
         "minecraft:chest", 180f,
@@ -119,20 +125,20 @@ public final class SourceDiscovery {
     );
 
     /**
-     * Maps {@code SkullModel.create*HeadLayer} wrapper method names to (entityIdSuffix,
-     * texHeightOverride). The actual geometry lives in {@code SkullModel.createHeadModel}
-     * (MeshDefinition); the two wrappers bind different texture dimensions per variant
-     * (mob skulls: 64x32; humanoid/player heads: 64x64). Rather than emit the wrapper methods
-     * themselves (which would just be parsed as pass-through via invokestatic-follow), we
-     * redirect to {@code createHeadModel} and set {@code texHeightOverride} explicitly.
+     * Maps {@code SkullModel.create*HeadLayer} wrapper method names to the tooling-side
+     * entity id under which the corresponding {@code SkullModel.createHeadModel} mesh is
+     * emitted. Vanilla has a single {@code BlockEntityType.SKULL}; the
+     * {@code skull_head} / {@code skull_humanoid_head} split is our naming convention for
+     * the two distinct geometry outputs (mob skulls share the bare head; humanoid skulls
+     * add a {@code hat} overlay cube via {@code addOrReplaceChild}). The per-wrapper
+     * texture dimensions are NOT in this table - they're read from each wrapper's
+     * {@code LayerDefinition.create(mesh, W, H)} tail at emission time via
+     * {@link #resolveSkullWrapperDimensions}.
      */
-    private static final @NotNull Map<String, SkullVariant> SKULL_VARIANT_POLICY = Map.of(
-        "createMobHeadLayer", new SkullVariant("minecraft:skull_head", 64, 32),
-        "createHumanoidHeadLayer", new SkullVariant("minecraft:skull_humanoid_head", 64, 64)
+    private static final @NotNull Map<String, String> SKULL_VARIANT_POLICY = Map.of(
+        "createMobHeadLayer", "minecraft:skull_head",
+        "createHumanoidHeadLayer", "minecraft:skull_humanoid_head"
     );
-
-    /** An explicit skull variant binding: entity id + texture dimension override. */
-    private record SkullVariant(@NotNull String entityId, int texWidth, int texHeight) {}
 
     /**
      * The set of "primary" layer method names that produce whole-block geometry (as opposed to
@@ -196,20 +202,20 @@ public final class SourceDiscovery {
      * notes surface as info entries.
      *
      * @param zip the cached deobfuscated Minecraft client jar
-     * @param diag the diagnostic sink shared across discovery phases
+     * @param diag the diagnostic sink shared across discovery passes
      * @return the discovered sources in emission order (registry iteration order, with a final
      *     deterministic sort by entity id so repeated runs produce byte-identical output)
      */
     public static @NotNull ConcurrentList<Source> discover(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
         // Step 1 - registry walk
-        ClassNode registryClass = AsmKit.loadClass(zip, BLOCK_ENTITY_RENDERERS);
+        ClassNode registryClass = AsmKit.loadClass(zip, VanillaSourceClasses.BLOCK_ENTITY_RENDERERS);
         if (registryClass == null) {
-            diag.error("'%s' class missing from jar - cannot discover block-entity sources", BLOCK_ENTITY_RENDERERS);
+            diag.error("'%s' class missing from jar - cannot discover block-entity sources", VanillaSourceClasses.BLOCK_ENTITY_RENDERERS);
             return Concurrent.newList();
         }
-        MethodNode registryInit = AsmKit.findMethod(registryClass, "<clinit>");
+        MethodNode registryInit = AsmKit.findMethod(registryClass, AsmKit.CLINIT);
         if (registryInit == null) {
-            diag.error("'%s.<clinit>' missing - cannot discover block-entity sources", BLOCK_ENTITY_RENDERERS);
+            diag.error("'%s.<clinit>' missing - cannot discover block-entity sources", VanillaSourceClasses.BLOCK_ENTITY_RENDERERS);
             return Concurrent.newList();
         }
         // Ordered map: BE field name -> renderer internal name. Preserves clinit registration order.
@@ -290,10 +296,8 @@ public final class SourceDiscovery {
             // Capture the most recent BlockEntityType.X GETSTATIC. When the next INVOKEDYNAMIC
             // (lambda factory) appears its target Handle is the renderer constructor we want to
             // bind to this BE field.
-            if (in instanceof FieldInsnNode fieldInsn
-                && fieldInsn.getOpcode() == Opcodes.GETSTATIC
-                && fieldInsn.owner.equals(BLOCK_ENTITY_TYPE)) {
-                pendingBeField = fieldInsn.name;
+            if (AsmKit.isGetStatic(in, VanillaSourceClasses.BLOCK_ENTITY_TYPE)) {
+                pendingBeField = ((FieldInsnNode) in).name;
                 continue;
             }
             if (in instanceof InvokeDynamicInsnNode indy && pendingBeField != null) {
@@ -316,21 +320,7 @@ public final class SourceDiscovery {
      * ({@code tag=6 lambda$static$N}, whose body {@code NEW}s the renderer).
      */
     private static @Nullable String resolveLambdaRenderer(@NotNull InvokeDynamicInsnNode indy, @NotNull ClassNode ownerClass) {
-        if (indy.bsmArgs.length < 2) return null;
-        if (!(indy.bsmArgs[1] instanceof Handle handle)) return null;
-        // tag=8 (REF_newInvokeSpecial) points directly at Renderer.<init>.
-        if (handle.getTag() == Opcodes.H_NEWINVOKESPECIAL && handle.getName().equals("<init>"))
-            return handle.getOwner();
-        // tag=6 (REF_invokeStatic) points at a synthetic lambda in this class whose body
-        // NEWs the real renderer. Walk the lambda to find the NEW.
-        if (handle.getTag() == Opcodes.H_INVOKESTATIC && handle.getOwner().equals(ownerClass.name)) {
-            MethodNode lambda = AsmKit.findMethod(ownerClass, handle.getName(), handle.getDesc());
-            if (lambda == null) return null;
-            for (AbstractInsnNode node = lambda.instructions.getFirst(); node != null; node = node.getNext())
-                if (node instanceof TypeInsnNode type && type.getOpcode() == Opcodes.NEW)
-                    return type.desc;
-        }
-        return null;
+        return AsmKit.resolveLambdaTargetClass(indy, ownerClass);
     }
 
     // ------------------------------------------------------------------------------------------
@@ -344,14 +334,14 @@ public final class SourceDiscovery {
      * {@code field -> id} (without the {@code minecraft:} namespace prefix - callers add it).
      */
     private static @NotNull Map<String, String> walkEntityTypeIds(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
-        ClassNode cn = AsmKit.loadClass(zip, BLOCK_ENTITY_TYPE);
+        ClassNode cn = AsmKit.loadClass(zip, VanillaSourceClasses.BLOCK_ENTITY_TYPE);
         if (cn == null) {
-            diag.error("'%s' class missing - entity ids unresolved", BLOCK_ENTITY_TYPE);
+            diag.error("'%s' class missing - entity ids unresolved", VanillaSourceClasses.BLOCK_ENTITY_TYPE);
             return Map.of();
         }
-        MethodNode init = AsmKit.findMethod(cn, "<clinit>");
+        MethodNode init = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (init == null) {
-            diag.error("'%s.<clinit>' missing - entity ids unresolved", BLOCK_ENTITY_TYPE);
+            diag.error("'%s.<clinit>' missing - entity ids unresolved", VanillaSourceClasses.BLOCK_ENTITY_TYPE);
             return Map.of();
         }
         Map<String, String> out = new LinkedHashMap<>();
@@ -359,13 +349,10 @@ public final class SourceDiscovery {
         for (AbstractInsnNode in = init.instructions.getFirst(); in != null; in = in.getNext()) {
             String lit = AsmKit.readStringLiteral(in);
             if (lit != null) pendingId = lit;
-            if (in instanceof FieldInsnNode fi
-                && fi.getOpcode() == Opcodes.PUTSTATIC
-                && fi.owner.equals(BLOCK_ENTITY_TYPE)
-                && pendingId != null) {
+            if (AsmKit.isPutStatic(in, VanillaSourceClasses.BLOCK_ENTITY_TYPE) && pendingId != null) {
                 // Only the first PUTSTATIC after each LDC captures the id. Subsequent fields
                 // (e.g. OP_ONLY_CUSTOM_DATA) reset pendingId with their own LDC or stay cleared.
-                out.put(fi.name, pendingId);
+                out.put(((FieldInsnNode) in).name, pendingId);
                 pendingId = null;
             }
         }
@@ -389,20 +376,20 @@ public final class SourceDiscovery {
      * {@code put} resolves directly.
      */
     private static @NotNull Map<String, LayerTarget> walkLayerDefinitions(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
-        ClassNode cn = AsmKit.loadClass(zip, LAYER_DEFINITIONS);
+        ClassNode cn = AsmKit.loadClass(zip, VanillaSourceClasses.LAYER_DEFINITIONS);
         if (cn == null) {
-            diag.error("'%s' class missing - model-layer map unresolved", LAYER_DEFINITIONS);
+            diag.error("'%s' class missing - model-layer map unresolved", VanillaSourceClasses.LAYER_DEFINITIONS);
             return Map.of();
         }
         MethodNode createRoots = AsmKit.findMethod(cn, "createRoots");
         if (createRoots == null) {
-            diag.error("'%s.createRoots' missing - model-layer map unresolved", LAYER_DEFINITIONS);
+            diag.error("'%s.createRoots' missing - model-layer map unresolved", VanillaSourceClasses.LAYER_DEFINITIONS);
             return Map.of();
         }
 
         // Local-slot tracking: slot -> most recent INVOKESTATIC producing a LayerDefinition
         // (directly or via MeshDefinition + LayerDefinition.create wrapper).
-        Map<Integer, LayerTarget> slotState = new LinkedHashMap<>();
+        AsmKit.SlotTracker<LayerTarget> slotState = new AsmKit.SlotTracker<>();
         String pendingLayerField = null;
         LayerTarget pendingDirect = null;
         // pendingMesh captures an INVOKESTATIC returning MeshDefinition; if the next
@@ -444,7 +431,7 @@ public final class SourceDiscovery {
                     pendingInt = null;
                     continue;
                 }
-                if (mi.owner.equals(LAYER_DEFINITION_CLASS) && mi.name.equals("create") && pendingMesh != null) {
+                if (mi.owner.equals(VanillaSourceClasses.LAYER_DEFINITION) && mi.name.equals("create") && pendingMesh != null) {
                     // Wrapper {@code LayerDefinition.create(mesh, W, H)} over the pending mesh.
                     // Extract the two ints that were pushed right before this call from
                     // {@code widthHeight} so the mesh factory's Source records them as
@@ -460,19 +447,19 @@ public final class SourceDiscovery {
                     pendingMesh = null;
                     continue;
                 }
-                if (mi.desc.endsWith(LAYER_DEFINITION_DESC_RETURN) && !mi.owner.equals(LAYER_DEFINITION_CLASS))
+                if (mi.desc.endsWith(LAYER_DEFINITION_DESC_RETURN) && !mi.owner.equals(VanillaSourceClasses.LAYER_DEFINITION))
                     pendingDirect = new LayerTarget(mi.owner, mi.name, mi.desc, pendingInt);
                 continue;
             }
 
             if (in instanceof VarInsnNode vi && opcode == Opcodes.ASTORE && pendingDirect != null) {
-                slotState.put(vi.var, pendingDirect);
+                slotState.store(vi.var, pendingDirect);
                 pendingDirect = null;
                 continue;
             }
 
             if (in instanceof VarInsnNode vi && opcode == Opcodes.ALOAD) {
-                LayerTarget stored = slotState.get(vi.var);
+                LayerTarget stored = slotState.load(vi.var);
                 if (stored != null) pendingDirect = stored;
                 continue;
             }
@@ -510,14 +497,12 @@ public final class SourceDiscovery {
             if (cn == null) break;
             for (MethodNode m : cn.methods) {
                 for (AbstractInsnNode in = m.instructions.getFirst(); in != null; in = in.getNext()) {
-                    if (in instanceof FieldInsnNode fi
-                        && fi.getOpcode() == Opcodes.GETSTATIC
-                        && fi.owner.equals(MODEL_LAYERS))
-                        out.add(fi.name);
+                    if (AsmKit.isGetStatic(in, MODEL_LAYERS))
+                        out.add(((FieldInsnNode) in).name);
                 }
             }
             current = cn.superName;
-            if ("java/lang/Object".equals(current)) break;
+            if (AsmKit.OBJECT_INTERNAL.equals(current)) break;
         }
         return out;
     }
@@ -543,28 +528,37 @@ public final class SourceDiscovery {
         @NotNull Set<String> emittedForSkullHumanoid
     ) {
         // Skull wrapper collapse: SkullModel.createMobHeadLayer / createHumanoidHeadLayer are
-        // thin wrappers around SkullModel.createHeadModel + LayerDefinition.create(mesh, W, H).
-        // Collapse via SKULL_VARIANT_POLICY so we emit the MeshDefinition method directly and
-        // preserve the per-variant tex dims as explicit overrides.
-        SkullVariant skullVariant = SKULL_VARIANT_POLICY.get(layer.targetMethod);
-        if (skullVariant != null && layer.targetClass.equals("net/minecraft/client/model/object/skull/SkullModel")) {
-            Set<String> dedupeBucket = skullVariant.entityId.equals("minecraft:skull_head") ? emittedForSkullMob : emittedForSkullHumanoid;
-            if (!dedupeBucket.add(skullVariant.entityId)) return;
+        // wrappers around SkullModel.createHeadModel + LayerDefinition.create(mesh, W, H)
+        // (humanoid additionally adds a "hat" overlay cube). Collapse via SKULL_VARIANT_POLICY
+        // so we emit the MeshDefinition method directly under the tooling-side entity id, and
+        // read texWidth/texHeight from each wrapper's LayerDefinition.create tail (mob: 64x32;
+        // humanoid: 64x64) so the dimensions stay derived rather than hardcoded.
+        String skullEntityId = SKULL_VARIANT_POLICY.get(layer.targetMethod);
+        if (skullEntityId != null && layer.targetClass.equals("net/minecraft/client/model/object/skull/SkullModel")) {
+            Set<String> dedupeBucket = skullEntityId.equals("minecraft:skull_head") ? emittedForSkullMob : emittedForSkullHumanoid;
+            if (!dedupeBucket.add(skullEntityId)) return;
             String headClass = "net/minecraft/client/model/object/skull/SkullModel";
             String headMethod = "createHeadModel";
+            int[] dims = resolveSkullWrapperDimensions(zip, layer.targetMethod);
+            if (dims == null) {
+                diag.warn("skull variant '%s': could not resolve LayerDefinition.create(mesh, W, H) from %s.%s - skipping",
+                    skullEntityId, layer.targetClass, layer.targetMethod);
+                return;
+            }
             YAxis yAxis = inferYAxis(zip, headClass, headMethod);
-            float invYRot = ID_TO_INVENTORY_Y_ROTATION.getOrDefault(skullVariant.entityId, 0f);
+            float invYRot = ID_TO_INVENTORY_Y_ROTATION.getOrDefault(skullEntityId, 0f);
             out.add(new Source(
                 headClass + ".class",
                 headMethod,
-                skullVariant.entityId,
+                skullEntityId,
                 yAxis,
                 invYRot,
-                skullVariant.texWidth,
-                skullVariant.texHeight,
+                dims[0],
+                dims[1],
                 null
             ));
-            diag.info("skull variant '%s' emitted via SKULL_VARIANT_POLICY (%s renderer)", skullVariant.entityId, rendererInternal);
+            diag.info("skull variant '%s' emitted via SKULL_VARIANT_POLICY (%s renderer, dims %dx%d)",
+                skullEntityId, rendererInternal, dims[0], dims[1]);
             return;
         }
 
@@ -697,13 +691,44 @@ public final class SourceDiscovery {
     }
 
     /**
+     * Extracts {@code (texWidth, texHeight)} from a {@code SkullModel} wrapper's tail
+     * {@code LayerDefinition.create(MeshDefinition, II)} call. Both vanilla wrappers
+     * ({@code createMobHeadLayer} = 64x32, {@code createHumanoidHeadLayer} = 64x64) end with a
+     * {@code BIPUSH W; BIPUSH H; INVOKESTATIC LayerDefinition.create; ARETURN} sequence; we
+     * walk to the last {@code create} call and read the two preceding numeric literals.
+     *
+     * <p>Returns {@code null} when the wrapper class is unloadable, the method isn't present,
+     * no {@code LayerDefinition.create} call is found, or the two predecessors aren't both
+     * numeric literals - any of which signals a vanilla pattern shift that the caller should
+     * surface as a diagnostic rather than emit a Source with stale dimensions.
+     */
+    private static int @Nullable [] resolveSkullWrapperDimensions(@NotNull ZipFile zip, @NotNull String wrapperMethodName) {
+        ClassNode cn = AsmKit.loadClass(zip, "net/minecraft/client/model/object/skull/SkullModel");
+        if (cn == null) return null;
+        MethodNode method = AsmKit.findMethod(cn, wrapperMethodName);
+        if (method == null) return null;
+        AbstractInsnNode lastCreate = null;
+        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (AsmKit.isInvokeStatic(in, VanillaSourceClasses.LAYER_DEFINITION, "create"))
+                lastCreate = in;
+        }
+        if (lastCreate == null) return null;
+        AbstractInsnNode h = AsmKit.previousReal(lastCreate);
+        AbstractInsnNode w = AsmKit.previousReal(h);
+        Integer hLit = AsmKit.readIntLiteral(h);
+        Integer wLit = AsmKit.readIntLiteral(w);
+        if (wLit == null || hLit == null) return null;
+        return new int[]{ wLit, hLit };
+    }
+
+    /**
      * Inspects {@code layer.targetMethod}'s bytecode for the {@code
      * INVOKESTATIC X.Y()MeshDefinition; [int literals]; LayerDefinition.create(mesh,II); ARETURN}
      * pattern. When matched, returns a new {@link LayerTarget} pointing at the inner
      * {@code X.Y} mesh factory so the downstream Parser walks the raw mesh directly rather
      * than through the redundant {@code LayerDefinition.create} wrapper. The intermediate
-     * int literals (texture width / height) are dropped - the Parser picks them up at
-     * parse time when it encounters {@code LayerDefinition.create} via
+     * int literals (texture width / height) are dropped - the Parser picks them up at parse
+     * time when it encounters {@code LayerDefinition.create} via
      * {@code net/minecraft/client/model/} invokestatic-follow, OR they carry through as
      * defaults (64x64) when the mesh factory doesn't chain out to {@code create}.
      *
@@ -727,17 +752,13 @@ public final class SourceDiscovery {
         MethodInsnNode lastCreate = null;
         AbstractInsnNode lastReal = null;
         for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
-            if (in.getOpcode() < 0) continue;
+            if (AsmKit.isPseudoNode(in)) continue;
             if (firstInvoke == null && in instanceof MethodInsnNode mi && in.getOpcode() == Opcodes.INVOKESTATIC
-                && mi.desc.endsWith(MESH_DEFINITION_DESC_RETURN)) {
+                && AsmKit.descriptorReturns(mi.desc, VanillaSourceClasses.MESH_DEFINITION)) {
                 firstInvoke = mi;
             }
-            if (in instanceof MethodInsnNode mi
-                && in.getOpcode() == Opcodes.INVOKESTATIC
-                && mi.owner.equals(LAYER_DEFINITION_CLASS)
-                && mi.name.equals("create")) {
-                lastCreate = mi;
-            }
+            if (AsmKit.isInvokeStatic(in, VanillaSourceClasses.LAYER_DEFINITION, "create"))
+                lastCreate = (MethodInsnNode) in;
             lastReal = in;
         }
         if (firstInvoke == null || lastCreate == null) return layer;

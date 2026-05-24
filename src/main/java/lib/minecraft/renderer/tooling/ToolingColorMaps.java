@@ -37,7 +37,9 @@ import java.util.Optional;
 @UtilityClass
 public final class ToolingColorMaps {
 
-    /** Fixed output path for the bundled color-map resource. */
+    /**
+     * Fixed output path for the bundled color-map resource.
+     */
     private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/lib/minecraft/renderer/color_maps.json");
 
     /**
@@ -112,7 +114,9 @@ public final class ToolingColorMaps {
     @UtilityClass
     static class Parser {
 
-        /** The three vanilla colormap PNGs to look for under {@code textures/colormap/}. */
+        /**
+         * The three vanilla colormap PNGs to look for under {@code textures/colormap/}.
+         */
         private static final @NotNull List<Source> SOURCES = List.of(
             new Source("grass.png", "vanilla", ColorMap.Type.GRASS),
             new Source("foliage.png", "vanilla", ColorMap.Type.FOLIAGE),

@@ -1,26 +1,39 @@
 package lib.minecraft.renderer.engine;
 
+import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
+import lib.minecraft.renderer.tensor.Quaternionf;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * A {@link ModelEngine} whose camera transform is a named vanilla-Minecraft {@code display.*}
- * pose. Callers use one of two factories rather than {@code new} to pick which pose ends up in
- * the camera:
+ * A {@link ModelEngine} whose camera transform is a named vanilla {@code display.*} pose.
+ *
+ * <p>Three factories pick which pose ends up baked into the camera; callers reach for the
+ * factory rather than {@code new}:
  * <ul>
- * <li>{@link #standard(RendererContext)} - the stock {@code [30, 225, 0]} pitch/yaw/roll from
- * the root {@code block/block.json} model's {@code display.gui}. Use for renders that want the
- * default three-quarter block-icon view (skulls, busts, full-body skin renders).</li>
- * <li>{@link #withGuiPose(RendererContext, EulerRotation)} - a caller-supplied pose.
- * Use when a block or item model overrides the default (stairs author {@code display.gui} as
- * {@code [30, 135, 0]}) so the engine's camera reflects the specific model's authored
- * orientation.</li>
+ *   <li><b>{@link #forBlockIcon(RendererContext)}</b> - the stock {@code [30, 225, 0]}
+ *       pitch / yaw / roll from the root {@code block/block.json} model's
+ *       {@code display.gui}. Use for renders that want the default three-quarter block-icon
+ *       view (block atlases, skulls, busts, full-body skin renders).</li>
+ *   <li><b>{@link #forEntityIcon(RendererContext)}</b> - vanilla's
+ *       {@code EntityFrameRenderer.ISO_ROTATION} ({@code [210, 45, 0]}) plus the LER
+ *       chirality and reflection scales that the vanilla-reference harness applies. Required
+ *       for {@link EntityRenderer} parity against the harness PNGs.</li>
+ *   <li><b>{@link #withGuiPose(RendererContext, EulerRotation)}</b> - a caller-supplied pose.
+ *       Use when a block or item model overrides the default (stairs author
+ *       {@code display.gui} as {@code [30, 135, 0]}) so the engine's camera reflects the
+ *       model's authored orientation.</li>
  * </ul>
- * The camera is applied after the caller's model transform during rasterization, equivalent to
- * vanilla's {@code PoseStack.mulPose(Quaternionf.rotationXYZ(...))} call around the model
- * rendering block. Renderers that are not isometric (free-rotation entity views, handheld item
- * placements) should use plain {@link ModelEngine} instead.
+ *
+ * <p>The camera is applied <b>after</b> the caller's model transform during rasterization,
+ * equivalent to vanilla's
+ * <pre>{@code PoseStack.mulPose(Quaternionf.rotationXYZ(...))}</pre>
+ * call around the model rendering block. Renderers that are not isometric (free-rotation
+ * entity views, handheld item placements) should use plain {@link ModelEngine} instead.
+ *
+ * @see ModelEngine
+ * @see lib.minecraft.renderer.tensor.Quaternionf
  */
 public class IsometricEngine extends ModelEngine {
 
@@ -29,6 +42,45 @@ public class IsometricEngine extends ModelEngine {
      * a single matrix. Matches {@code Quaternionf.rotationXYZ(toRadians(30), toRadians(225), 0)}.
      */
     private static final @NotNull Matrix4f CAMERA = buildGuiDisplayTransform(EulerRotation.STANDARD_ISO_BLOCK);
+
+    /**
+     * Vanilla's full entity-preview transform chain expressed as the column-vector matrix our
+     * column-form rasterizer consumes, AFTER accounting for the kit's pre-applied
+     * {@code FLIP_Y} on positions.
+     * <p>
+     * The harness applies (col form, applied to a Y-down model vertex right-to-left):
+     * <pre>
+     * scale(1,1,-1) outer chirality
+     *   × R_X(210°)   iso pitch
+     *   × R_Y(45°)    iso yaw
+     *   × R_X(180°)   LER chirality (scale(-1,-1,1)) + setupRotations (rotateY(180°))
+     * </pre>
+     * Our pipeline applies kit {@code FLIP_Y = diag(1,-1,1)} to positions before the engine sees
+     * them. The trailing {@code scale(1,-1,1)} absorbs the kit's flip into the camera matrix
+     * (and simplifies {@code scale(1,-1,1) × R_X(180°) = diag(1,1,-1)} so two outer
+     * {@code scale(1,1,-1)} factors remain). Equivalent to
+     * {@code scale(1,1,-1) × R_Y(yaw) × R_X(pitch) × scale(1,1,-1) × scale(1,-1,1)} in
+     * column-vector form, applied right-to-left to a model vertex.
+     * <p>
+     * The two outer {@code scale(1,1,-1)} factors give a det=-1 transform total - matching the
+     * harness's odd-reflection-count chirality. The simpler {@code Quaternionf.rotationXYZ(210°,
+     * 45°, 0°)} alone (det=+1) is INSUFFICIENT - it produces the iso rotation but omits the LER
+     * chirality and reflection components, which Round 2 confirmed regresses every entity ~6x.
+     */
+    private static final @NotNull Matrix4f CAMERA_ENTITY = buildEntityCameraTransform();
+
+    private static @NotNull Matrix4f buildEntityCameraTransform() {
+        EulerRotation iso = EulerRotation.STANDARD_ISO_ENTITY;
+        // Vanilla PoseStack-equivalent chain via fluent ops (each matches JOML's in-place
+        // translate/scale/rotate bit-for-bit with default `joml.useMathFma=false`).
+        // Application order rightmost-first under col-vec: scale(1,1,-1) * isoQuat *
+        // scale(1,1,-1) * scale(1,-1,1).
+        return Matrix4f.IDENTITY
+            .scale(1f, -1f, 1f)
+            .scale(1f, 1f, -1f)
+            .rotate(Quaternionf.rotationXYZ(iso.pitchRadians(), iso.yawRadians(), 0f))
+            .scale(1f, 1f, -1f);
+    }
 
     private IsometricEngine(@NotNull RendererContext context, @NotNull Matrix4f camera) {
         super(context, camera);
@@ -42,8 +94,23 @@ public class IsometricEngine extends ModelEngine {
      * @param context the renderer context
      * @return an isometric engine with the standard block-icon camera
      */
-    public static @NotNull IsometricEngine standard(@NotNull RendererContext context) {
+    public static @NotNull IsometricEngine forBlockIcon(@NotNull RendererContext context) {
         return new IsometricEngine(context, CAMERA);
+    }
+
+    /**
+     * Returns an engine wired to vanilla Minecraft's standard entity inventory-preview pose
+     * ({@code [210, 45, 0]} pitch/yaw/roll), matching {@code EntityFrameRenderer.ISO_ROTATION}
+     * in the vanilla-reference-harness. Use for entity rendering through
+     * {@link EntityRenderer} so the output pose aligns with the
+     * harness ground-truth PNGs. Block / item rendering should continue using
+     * {@link #forBlockIcon(RendererContext)}.
+     *
+     * @param context the renderer context
+     * @return an isometric engine with the standard entity-preview camera
+     */
+    public static @NotNull IsometricEngine forEntityIcon(@NotNull RendererContext context) {
+        return new IsometricEngine(context, CAMERA_ENTITY);
     }
 
     /**
@@ -66,26 +133,14 @@ public class IsometricEngine extends ModelEngine {
 
     /**
      * Builds the matrix equivalent of vanilla's {@code Quaternionf.rotationXYZ(x, y, z)} for
-     * a {@code display.*} transform's Euler angles in degrees.
-     * <p>
-     * JOML's {@code rotationXYZ} produces the quaternion {@code q_x * q_y * q_z}; when that
-     * quaternion rotates a vector {@code q * v * q^-1}, the rotations apply to the vector in
-     * the order Z, then Y, then X (innermost first). The equivalent column-vector matrix is
-     * {@code R_x * R_y * R_z}. Under this codebase's row-vector convention ({@code v * M}) the
-     * correct composition is therefore the transpose, {@code R_z * R_y * R_x}, which is
-     * exactly {@link Matrix4f#createRotationZ createRotationZ} {@link Matrix4f#multiply
-     * multiply} {@link Matrix4f#createRotationY createRotationY} {@link Matrix4f#multiply
-     * multiply} {@link Matrix4f#createRotationX createRotationX}.
-     * <p>
-     * Getting the order right matters: swapping it to {@code Rx * Ry * Rz} produces the same
-     * math for single-axis rotations but silently flips the tilt direction for compound poses
-     * like the standard {@code [30, 225, 0]} block-icon pose, which shows up as the block's
-     * bottom face being visible instead of the top.
+     * a {@code display.*} transform's Euler angles in degrees. Bit-identical to vanilla's
+     * {@code new Matrix4f().rotation(new Quaternionf().rotationXYZ(...))} by routing through
+     * the same {@link Quaternionf} quaternion-to-matrix conversion.
      */
     private static @NotNull Matrix4f buildGuiDisplayTransform(@NotNull EulerRotation rotation) {
-        return Matrix4f.createRotationZ(rotation.rollRadians())
-            .multiply(Matrix4f.createRotationY(rotation.yawRadians()))
-            .multiply(Matrix4f.createRotationX(rotation.pitchRadians()));
+        return Quaternionf
+            .rotationXYZ(rotation.pitchRadians(), rotation.yawRadians(), rotation.rollRadians())
+            .toMatrix4f();
     }
 
 }

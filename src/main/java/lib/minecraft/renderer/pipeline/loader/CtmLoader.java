@@ -3,7 +3,7 @@ package lib.minecraft.renderer.pipeline.loader;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.pipeline.VanillaPaths;
+import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lib.minecraft.renderer.pipeline.pack.CtmMethod;
 import lib.minecraft.renderer.pipeline.pack.CtmRule;
 import lombok.experimental.UtilityClass;
@@ -30,8 +30,8 @@ import java.util.stream.Stream;
 public class CtmLoader {
 
     private static final @NotNull String[] CTM_ROOTS = {
-        VanillaPaths.OPTIFINE_CTM_DIR,
-        VanillaPaths.MCPATCHER_CTM_DIR
+        VanillaSourcePaths.OPTIFINE_CTM_DIR,
+        VanillaSourcePaths.MCPATCHER_CTM_DIR
     };
 
     /**
@@ -92,7 +92,7 @@ public class CtmLoader {
         ArrayList<String> matchedBlocks = new ArrayList<>();
         String blocksValue = props.getProperty("matchBlocks", "");
         for (String id : blocksValue.split("\\s+")) {
-            if (!id.isBlank()) matchedBlocks.add(id.contains(":") ? id : VanillaPaths.MINECRAFT_NAMESPACE + id);
+            if (!id.isBlank()) matchedBlocks.add(id.contains(":") ? id : VanillaSourcePaths.MINECRAFT_NAMESPACE + id);
         }
 
         ArrayList<String> matchedTiles = new ArrayList<>();

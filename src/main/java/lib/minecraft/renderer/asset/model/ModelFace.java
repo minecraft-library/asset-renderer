@@ -17,7 +17,9 @@ import java.util.Optional;
 @NoArgsConstructor
 public class ModelFace {
 
-    /** The texture variable reference, e.g. {@code "#top"} or {@code "#all"}. */
+    /**
+     * The texture variable reference, e.g. {@code "#top"} or {@code "#all"}.
+     */
     private @NotNull String texture = "";
 
     /**
@@ -27,7 +29,9 @@ public class ModelFace {
      */
     private @NotNull Optional<Vector4f> uv = Optional.empty();
 
-    /** The face to cull against. Present for solid block faces that hide behind neighbors. */
+    /**
+     * The face to cull against. Present for solid block faces that hide behind neighbors.
+     */
     @SerializedName("cullface")
     private @NotNull Optional<String> cullface = Optional.empty();
 
@@ -38,7 +42,9 @@ public class ModelFace {
     @SerializedName("tintindex")
     private int tintIndex = -1;
 
-    /** The UV rotation in degrees, a multiple of 90. */
+    /**
+     * The UV rotation in degrees, a multiple of 90.
+     */
     private int rotation = 0;
 
     @Override

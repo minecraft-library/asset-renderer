@@ -21,10 +21,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Regression coverage for Task 3 - row-parallel {@link PortalRenderer#bakeFace}. Confirms the
- * parallel path is pixel-deterministic (two consecutive renders produce identical bytes) and
- * pins a CRC32 of each output so a future rasterization-math regression (e.g. during Task 11's
- * SIMD rewrite) fails loud rather than silently drifting output.
+ * Regression coverage for row-parallel {@link PortalRenderer#bakeFace}. Confirms the parallel
+ * path is pixel-deterministic (two consecutive renders produce identical bytes) and pins a
+ * CRC32 of each output so a future rasterization-math regression fails loud rather than
+ * silently drifting output.
  * <p>
  * Tagged {@code slow} because it boots the full asset pipeline; run with
  * {@code ./gradlew :asset-renderer:slowTest}.

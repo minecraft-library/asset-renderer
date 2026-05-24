@@ -9,7 +9,7 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
-import lib.minecraft.renderer.pipeline.VanillaPaths;
+import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -77,7 +77,7 @@ public class ItemDefinitionLoader {
      * subtree is absent.
      */
     private static @NotNull ConcurrentMap<String, String> scanRoot(@NotNull Path packRoot) {
-        Path itemsDir = packRoot.resolve(VanillaPaths.ITEMS_DIR);
+        Path itemsDir = packRoot.resolve(VanillaSourcePaths.ITEMS_DIR);
         if (!Files.isDirectory(itemsDir)) return Concurrent.newMap();
 
         // Two-phase walk: enumerate item definition JSON paths serially, then parallelise
@@ -102,7 +102,7 @@ public class ItemDefinitionLoader {
     private static @Nullable Map.Entry<String, String> parseItemDef(@NotNull Path p, @NotNull Path itemsDir) {
         String relative = itemsDir.relativize(p).toString().replace('\\', '/');
         if (!relative.endsWith(".json")) return null;
-        String itemId = VanillaPaths.MINECRAFT_NAMESPACE + relative.substring(0, relative.length() - ".json".length());
+        String itemId = VanillaSourcePaths.MINECRAFT_NAMESPACE + relative.substring(0, relative.length() - ".json".length());
 
         try {
             String content = Files.readString(p);
@@ -115,7 +115,7 @@ public class ItemDefinitionLoader {
             if (!"minecraft:model".equals(model.get("type").getAsString())) return null;
 
             String modelRef = model.get("model").getAsString();
-            return modelRef.startsWith(VanillaPaths.MODEL_BLOCK_ID_PREFIX)
+            return modelRef.startsWith(VanillaSourcePaths.MODEL_BLOCK_ID_PREFIX)
                 ? Map.entry(itemId, modelRef)
                 : null;
         } catch (IOException ex) {

@@ -34,6 +34,7 @@ import lib.minecraft.renderer.pipeline.pack.CtmResolution;
 import lib.minecraft.renderer.pipeline.pack.CtmRule;
 import lib.minecraft.renderer.pipeline.pack.ItemContext;
 import lib.minecraft.renderer.pipeline.resolver.OverlayResolver;
+import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lib.minecraft.renderer.tooling.ToolingColorMaps;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -108,16 +109,109 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull ConcurrentList<CitRule> citRules;
     private final @NotNull ConcurrentList<CtmRule> ctmRules;
 
-    /**
-     * On-disk root for the bedrock-derived entity texture cache, populated by
-     * {@link Pipeline#extractBedrockEntityTextures(Path, Path, Path, boolean)} during
-     * {@link Pipeline#run(PipelineOptions)}. Read by {@link #resolveBedrockEntityTexture(String)}.
-     */
-    private final @NotNull Path bedrockRoot;
-
     private final @NotNull ImageFactory imageFactory = new ImageFactory();
     private final @NotNull ConcurrentMap<String, PixelBuffer> textureCache = Concurrent.newMap();
-    private final @NotNull ConcurrentMap<String, PixelBuffer> bedrockTextureCache = Concurrent.newMap();
+
+    /**
+     * Exact local-name matches for block-side template parents and multipart submodels that
+     * should not appear as standalone atlas tiles. Every entry has been confirmed either
+     * fully-transparent or sparse ({@code <2%} opaque) in the atlas diagnostic. Categories:
+     * <ul>
+     * <li>Parent templates ({@code stairs}, {@code slab}, {@code leaves}, {@code cross}, etc.) -
+     *     concrete blocks inherit from these via the {@code parent:} chain.</li>
+     * <li>Implicit templates ({@code flowerbed_*}, {@code stem_*}, {@code coral_fan}, etc.) -
+     *     inherited by concrete blocks but not following the {@code template_*} naming convention.</li>
+     * <li>Multipart submodels ({@code redstone_dust_*}, {@code brewing_stand_bottle2}, {@code tripwire_*},
+     *     {@code glass_pane_post}, {@code *_bars_post_ends}, etc.) - only meaningful as part of a
+     *     composite blockstate, never rendered standalone.</li>
+     * <li>Early growth stages ({@code melon_stem_stage0..2}, {@code pumpkin_stem_stage0..2}) -
+     *     sparse partial renders that add no atlas value.</li>
+     * </ul>
+     */
+    private static final Set<String> TEMPLATE_BLOCK_NAMES = Set.of(
+        // Parent templates - empty block.json files that concrete blocks inherit from. Kept
+        // out of the atlas because they have no own geometry. {@code banner}, {@code bed},
+        // {@code skull} stay in this list even after the Block.Entity refactor: they are still
+        // template parents for their concrete variants, not tile-entity block ids themselves.
+        // The real tile-entity ids ({@code red_bed}, {@code white_banner}, {@code skeleton_skull})
+        // don't match this filter since they aren't in this set.
+        "banner", "bed", "block", "button", "button_inventory", "button_pressed",
+        "carpet", "crop", "cross", "cross_emissive",
+        "door_bottom_left", "door_bottom_left_open", "door_bottom_right", "door_bottom_right_open",
+        "door_top_left", "door_top_left_open", "door_top_right", "door_top_right_open",
+        "fence_inventory", "fence_post", "fence_side",
+        "inner_stairs", "leaves", "mossy_carpet_side", "outer_stairs",
+        "piston_extended", "pressure_plate_down", "pressure_plate_up",
+        "rail_curved", "rail_flat", "skull", "slab", "slab_top", "stairs",
+        "thin_block", "tinted_cross", "wall_inventory",
+        // Implicit templates (inherited by concrete blocks)
+        "flowerbed_1", "flowerbed_2", "flowerbed_3", "flowerbed_4",
+        "stem_fruit", "stem_growth0", "stem_growth1", "stem_growth2", "stem_growth3",
+        "stem_growth4", "stem_growth5", "stem_growth6", "stem_growth7",
+        "coral_fan", "coral_wall_fan",
+        // Multipart submodels - redstone dust
+        "redstone_dust_dot", "redstone_dust_side", "redstone_dust_side_alt", "redstone_dust_up",
+        "redstone_dust_side0", "redstone_dust_side1", "redstone_dust_side_alt0", "redstone_dust_side_alt1",
+        // Multipart submodels - brewing stand / pitcher crop
+        "brewing_stand_bottle2", "brewing_stand_empty2",
+        "pitcher_crop_top_stage_0", "pitcher_crop_top_stage_1", "pitcher_crop_top_stage_2",
+        // Multipart submodels - tripwire
+        "tripwire_n", "tripwire_ne", "tripwire_ns", "tripwire_nse", "tripwire_nsew",
+        "tripwire_attached_n", "tripwire_attached_ne", "tripwire_attached_ns",
+        "tripwire_attached_nse", "tripwire_attached_nsew",
+        // Multipart submodels - pane / bar posts
+        "glass_pane_post", "glass_pane_noside", "glass_pane_noside_alt",
+        "black_stained_glass_pane_post", "blue_stained_glass_pane_post",
+        "brown_stained_glass_pane_post", "cyan_stained_glass_pane_post",
+        "gray_stained_glass_pane_post", "green_stained_glass_pane_post",
+        "light_blue_stained_glass_pane_post", "light_gray_stained_glass_pane_post",
+        "lime_stained_glass_pane_post", "magenta_stained_glass_pane_post",
+        "orange_stained_glass_pane_post", "pink_stained_glass_pane_post",
+        "purple_stained_glass_pane_post", "red_stained_glass_pane_post",
+        "white_stained_glass_pane_post", "yellow_stained_glass_pane_post",
+        "iron_bars_post_ends", "copper_bars_post_ends", "exposed_copper_bars_post_ends",
+        "weathered_copper_bars_post_ends", "oxidized_copper_bars_post_ends",
+        // Early growth stages (sparse renders, no atlas value)
+        "melon_stem_stage0", "melon_stem_stage1", "melon_stem_stage2",
+        "pumpkin_stem_stage0", "pumpkin_stem_stage1", "pumpkin_stem_stage2",
+        // Sparse wildflower submodels
+        "wildflowers_2", "wildflowers_4"
+    );
+
+    /**
+     * Blocks that are invisible by design in vanilla - renderer intentionally produces empty
+     * geometry for them, so they do not belong in the atlas. {@code end_gateway} is not listed
+     * because it now renders via {@link PortalRenderer} through {@link AtlasRenderer}'s
+     * {@code PORTAL_BLOCK_IDS} intercept (no block-model file, no block-entity geometry).
+     */
+    private static final Set<String> INVISIBLE_BLOCK_NAMES = Set.of(
+        "air", "barrier", "moving_piston", "structure_void"
+    );
+
+    /**
+     * Exact local-name matches for item-side templates / flat parents / held-pose predicate outputs.
+     * {@code decorated_pot} is intentionally NOT in this set - it is a real item that renders via
+     * its block-entity mapping, not a template. Held-pose predicate variants
+     * ({@code *_in_hand}, {@code *_throwing}, {@code shield_blocking}) ship as regular item
+     * models in {@code models/item/} but are not real inventory items - they are the result of
+     * vanilla's held-pose predicate dispatch and have no place in a GUI atlas.
+     */
+    private static final Set<String> TEMPLATE_ITEM_NAMES = Set.of(
+        // Parent item templates - empty item.json files that concrete items inherit from.
+        // Kept out of the atlas because they have no own content. Block-entity-item templates
+        // ({@code template_bed}, {@code template_chest}, etc.) stay in this list: they are
+        // template parents, not tile-entity item ids themselves. The concrete tile-entity
+        // items ({@code red_bed}, {@code chest}, etc.) are filtered out of {@code itemIndex}
+        // upstream so the item pass never sees them; they render via the block pass instead.
+        "generated", "handheld", "handheld_mace", "handheld_rod",
+        "template_bed", "template_bundle_open_back", "template_bundle_open_front",
+        "template_chest", "template_copper_golem_statue", "template_music_disc",
+        "template_shulker_box", "template_skull",
+        "air",
+        "amethyst_bud",
+        "shield_blocking", "spear_in_hand", "spyglass_in_hand",
+        "trident_in_hand", "trident_throwing"
+    );
 
     /**
      * Builds a context from a completed pipeline result.
@@ -156,8 +250,7 @@ public final class PipelineRendererContext implements RendererContext {
             blockEntityEntries,
             result.getColorOverrides(),
             result.getCitRules(),
-            result.getCtmRules(),
-            result.getBedrockRoot()
+            result.getCtmRules()
         );
     }
 
@@ -454,15 +547,14 @@ public final class PipelineRendererContext implements RendererContext {
                         .stream()
                         .map(o -> new Entity.Layer(o.model(), o.textureRef(), o.emissive()))
                         .collect(Concurrent.toList())
-                        .toUnmodifiable(),
-                    definition.forceOpaque()
+                        .toUnmodifiable()
                 );
             }));
     }
 
     @Override
     public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
-        String normalized = textureId.contains(":") ? textureId : VanillaPaths.MINECRAFT_NAMESPACE + textureId;
+        String normalized = textureId.contains(":") ? textureId : VanillaSourcePaths.MINECRAFT_NAMESPACE + textureId;
         PixelBuffer cached = this.textureCache.get(normalized);
         if (cached != null) return Optional.of(cached);
 
@@ -480,26 +572,18 @@ public final class PipelineRendererContext implements RendererContext {
 
         Path winning = null;
         for (Path root : owner.getAssetRoots()) {
-            Path candidate = root.resolve(VanillaPaths.TEXTURES_DIR).resolve(texture.getRelativePath());
+            Path candidate = root.resolve(VanillaSourcePaths.TEXTURES_DIR).resolve(texture.getRelativePath());
             if (Files.isRegularFile(candidate)) winning = candidate;
         }
         if (winning == null) return Optional.empty();
 
+        // PixelBuffer.wrap handles every BufferedImage layout the vanilla 1.21 pack ships -
+        // INT_ARGB, INT_RGB, INT_BGR, 4BYTE_ABGR, 3BYTE_BGR, BYTE_INDEXED, BYTE_GRAY, BYTE_BINARY
+        // (IndexColorModel), and TYPE_CUSTOM with ComponentColorModel of TYPE_GRAY (2-band
+        // tRNS-keyed grayscale) - without applying the sRGB-gamma transform that would inflate
+        // raw byte values on calibrated-gray sources.
         PixelBuffer buffer = PixelBuffer.wrap(this.imageFactory.fromFile(winning.toFile()).toBufferedImage());
         this.textureCache.put(normalized, buffer);
-        return Optional.of(buffer);
-    }
-
-    @Override
-    public @NotNull Optional<PixelBuffer> resolveBedrockEntityTexture(@NotNull String textureRef) {
-        PixelBuffer cached = this.bedrockTextureCache.get(textureRef);
-        if (cached != null) return Optional.of(cached);
-
-        Path candidate = this.bedrockRoot.resolve("textures").resolve("entity").resolve(textureRef + ".png");
-        if (!Files.isRegularFile(candidate)) return Optional.empty();
-
-        PixelBuffer buffer = PixelBuffer.wrap(this.imageFactory.fromFile(candidate.toFile()).toBufferedImage());
-        this.bedrockTextureCache.put(textureRef, buffer);
         return Optional.of(buffer);
     }
 
@@ -525,7 +609,7 @@ public final class PipelineRendererContext implements RendererContext {
 
     @Override
     public @NotNull Optional<AnimationData> findAnimation(@NotNull String textureId) {
-        String normalized = textureId.contains(":") ? textureId : VanillaPaths.MINECRAFT_NAMESPACE + textureId;
+        String normalized = textureId.contains(":") ? textureId : VanillaSourcePaths.MINECRAFT_NAMESPACE + textureId;
         Texture texture = this.textureIndex.get(normalized);
         return texture == null ? Optional.empty() : texture.getAnimation();
     }
@@ -651,116 +735,10 @@ public final class PipelineRendererContext implements RendererContext {
     }
 
     /**
-     * Exact local-name matches for block-side template parents and multipart submodels that
-     * should not appear as standalone atlas tiles. Every entry has been confirmed either
-     * fully-transparent or sparse ({@code <2%} opaque) in the atlas diagnostic. Categories:
-     * <ul>
-     * <li>Parent templates ({@code stairs}, {@code slab}, {@code leaves}, {@code cross}, etc.) -
-     *     concrete blocks inherit from these via the {@code parent:} chain.</li>
-     * <li>Implicit templates ({@code flowerbed_*}, {@code stem_*}, {@code coral_fan}, etc.) -
-     *     inherited by concrete blocks but not following the {@code template_*} naming convention.</li>
-     * <li>Multipart submodels ({@code redstone_dust_*}, {@code brewing_stand_bottle2}, {@code tripwire_*},
-     *     {@code glass_pane_post}, {@code *_bars_post_ends}, etc.) - only meaningful as part of a
-     *     composite blockstate, never rendered standalone.</li>
-     * <li>Early growth stages ({@code melon_stem_stage0..2}, {@code pumpkin_stem_stage0..2}) -
-     *     sparse partial renders that add no atlas value.</li>
-     * </ul>
-     */
-    private static final Set<String> TEMPLATE_BLOCK_NAMES = Set.of(
-        // Parent templates - empty block.json files that concrete blocks inherit from. Kept
-        // out of the atlas because they have no own geometry. {@code banner}, {@code bed},
-        // {@code skull} stay in this list even after the Block.Entity refactor: they are still
-        // template parents for their concrete variants, not tile-entity block ids themselves.
-        // The real tile-entity ids ({@code red_bed}, {@code white_banner}, {@code skeleton_skull})
-        // don't match this filter since they aren't in this set.
-        "banner", "bed", "block", "button", "button_inventory", "button_pressed",
-        "carpet", "crop", "cross", "cross_emissive",
-        "door_bottom_left", "door_bottom_left_open", "door_bottom_right", "door_bottom_right_open",
-        "door_top_left", "door_top_left_open", "door_top_right", "door_top_right_open",
-        "fence_inventory", "fence_post", "fence_side",
-        "inner_stairs", "leaves", "mossy_carpet_side", "outer_stairs",
-        "piston_extended", "pressure_plate_down", "pressure_plate_up",
-        "rail_curved", "rail_flat", "skull", "slab", "slab_top", "stairs",
-        "thin_block", "tinted_cross", "wall_inventory",
-        // Implicit templates (inherited by concrete blocks)
-        "flowerbed_1", "flowerbed_2", "flowerbed_3", "flowerbed_4",
-        "stem_fruit", "stem_growth0", "stem_growth1", "stem_growth2", "stem_growth3",
-        "stem_growth4", "stem_growth5", "stem_growth6", "stem_growth7",
-        "coral_fan", "coral_wall_fan",
-        // Multipart submodels - redstone dust
-        "redstone_dust_dot", "redstone_dust_side", "redstone_dust_side_alt", "redstone_dust_up",
-        "redstone_dust_side0", "redstone_dust_side1", "redstone_dust_side_alt0", "redstone_dust_side_alt1",
-        // Multipart submodels - brewing stand / pitcher crop
-        "brewing_stand_bottle2", "brewing_stand_empty2",
-        "pitcher_crop_top_stage_0", "pitcher_crop_top_stage_1", "pitcher_crop_top_stage_2",
-        // Multipart submodels - tripwire
-        "tripwire_n", "tripwire_ne", "tripwire_ns", "tripwire_nse", "tripwire_nsew",
-        "tripwire_attached_n", "tripwire_attached_ne", "tripwire_attached_ns",
-        "tripwire_attached_nse", "tripwire_attached_nsew",
-        // Multipart submodels - pane / bar posts
-        "glass_pane_post", "glass_pane_noside", "glass_pane_noside_alt",
-        "black_stained_glass_pane_post", "blue_stained_glass_pane_post",
-        "brown_stained_glass_pane_post", "cyan_stained_glass_pane_post",
-        "gray_stained_glass_pane_post", "green_stained_glass_pane_post",
-        "light_blue_stained_glass_pane_post", "light_gray_stained_glass_pane_post",
-        "lime_stained_glass_pane_post", "magenta_stained_glass_pane_post",
-        "orange_stained_glass_pane_post", "pink_stained_glass_pane_post",
-        "purple_stained_glass_pane_post", "red_stained_glass_pane_post",
-        "white_stained_glass_pane_post", "yellow_stained_glass_pane_post",
-        "iron_bars_post_ends", "copper_bars_post_ends", "exposed_copper_bars_post_ends",
-        "weathered_copper_bars_post_ends", "oxidized_copper_bars_post_ends",
-        // Early growth stages (sparse renders, no atlas value)
-        "melon_stem_stage0", "melon_stem_stage1", "melon_stem_stage2",
-        "pumpkin_stem_stage0", "pumpkin_stem_stage1", "pumpkin_stem_stage2",
-        // Sparse wildflower submodels
-        "wildflowers_2", "wildflowers_4"
-    );
-
-    /**
-     * Blocks that are invisible by design in vanilla - renderer intentionally produces empty
-     * geometry for them, so they do not belong in the atlas.
-     * <p>
-     * {@code end_gateway} was here before Task 8 because it has neither a block-model file nor a
-     * block-entity geometry extraction; it now renders via
-     * {@link PortalRenderer} through {@link AtlasRenderer}'s
-     * {@code PORTAL_BLOCK_IDS} intercept.
-     */
-    private static final Set<String> INVISIBLE_BLOCK_NAMES = Set.of(
-        "air", "barrier", "moving_piston", "structure_void"
-    );
-
-    /**
-     * Exact local-name matches for item-side templates / flat parents / held-pose predicate outputs.
-     * {@code decorated_pot} is intentionally NOT in this set - it is a real item that renders blank
-     * only because its block-entity mapping was missing before Task 3b, not because it is a
-     * template. Held-pose predicate variants ({@code *_in_hand}, {@code *_throwing},
-     * {@code shield_blocking}) ship as regular item models in {@code models/item/} but are not
-     * real inventory items - they are the result of vanilla's held-pose predicate dispatch and
-     * have no place in a GUI atlas.
-     */
-    private static final Set<String> TEMPLATE_ITEM_NAMES = Set.of(
-        // Parent item templates - empty item.json files that concrete items inherit from.
-        // Kept out of the atlas because they have no own content. Block-entity-item templates
-        // ({@code template_bed}, {@code template_chest}, etc.) stay in this list: they are
-        // template parents, not tile-entity item ids themselves. The concrete tile-entity
-        // items ({@code red_bed}, {@code chest}, etc.) are filtered out of {@code itemIndex}
-        // upstream so the item pass never sees them; they render via the block pass instead.
-        "generated", "handheld", "handheld_mace", "handheld_rod",
-        "template_bed", "template_bundle_open_back", "template_bundle_open_front",
-        "template_chest", "template_copper_golem_statue", "template_music_disc",
-        "template_shulker_box", "template_skull",
-        "air",
-        "amethyst_bud",
-        "shield_blocking", "spear_in_hand", "spyglass_in_hand",
-        "trident_in_hand", "trident_throwing"
-    );
-
-    /**
      * Returns {@code true} when a block id is a known parent/template model file or an
-     * intentionally-invisible vanilla block. Matches the plan's Task 1 allow-list exactly:
-     * {@code template_*}, {@code cube*}, {@code custom_fence_*}, {@code orientable*},
-     * {@code light_NN}, plus the explicit {@link #TEMPLATE_BLOCK_NAMES} and
-     * {@link #INVISIBLE_BLOCK_NAMES} sets.
+     * intentionally-invisible vanilla block. Matches: {@code template_*}, {@code cube*},
+     * {@code custom_fence_*}, {@code orientable*}, {@code light_NN}, plus the explicit
+     * {@link #TEMPLATE_BLOCK_NAMES} and {@link #INVISIBLE_BLOCK_NAMES} sets.
      */
     private static boolean isParentOrTemplateBlockId(@NotNull String blockId) {
         String name = blockId.contains(":") ? blockId.substring(blockId.indexOf(':') + 1) : blockId;
@@ -773,10 +751,10 @@ public final class PipelineRendererContext implements RendererContext {
     }
 
     /**
-     * Returns {@code true} when an item id is a known parent/template item file. Matches the
-     * plan's Task 1 allow-list exactly: {@code template_*}, {@code handheld*},
-     * {@code generated}, plus the explicit {@link #TEMPLATE_ITEM_NAMES} set (which includes
-     * the item-side {@code decorated_pot} template, not the real block-item of the same id).
+     * Returns {@code true} when an item id is a known parent/template item file. Matches:
+     * {@code template_*}, {@code handheld*}, {@code generated}, plus the explicit
+     * {@link #TEMPLATE_ITEM_NAMES} set (which includes the item-side {@code decorated_pot}
+     * template, not the real block-item of the same id).
      */
     private static boolean isParentOrTemplateItemId(@NotNull String itemId) {
         String name = itemId.contains(":") ? itemId.substring(itemId.indexOf(':') + 1) : itemId;
@@ -863,12 +841,12 @@ public final class PipelineRendererContext implements RendererContext {
         if (model.getElements().isEmpty()) return;
         ModelElement element = model.getElements().getFirst();
 
-        for (BlockFace blockFace : BlockFace.values()) {
+        for (BlockFace blockFace : BlockFace.CACHED_VALUES) {
             ModelFace face = element.getFaces().get(blockFace.direction());
             if (face == null) continue;
             String textureRef = face.getTexture();
             if (textureRef.isBlank()) continue;
-            String resolved = TextureEngine.dereferenceVariable(textureRef, model.getTextures());
+            String resolved = TextureEngine.resolveTextureReference(textureRef, model.getTextures());
             if (resolved.startsWith("#")) continue;
             textures.put(blockFace.direction(), resolved);
         }

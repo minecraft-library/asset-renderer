@@ -11,6 +11,7 @@ import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
 import lib.minecraft.renderer.tooling.util.AsmKit;
+import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -49,7 +50,9 @@ import java.util.zip.ZipFile;
 @UtilityClass
 public final class ToolingBlockTints {
 
-    /** Fixed output path for the bundled block-tint resource. */
+    /**
+     * Fixed output path for the bundled block-tint resource.
+     */
     private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/lib/minecraft/renderer/block_tints.json");
 
     /**
@@ -133,9 +136,6 @@ public final class ToolingBlockTints {
     @UtilityClass
     static class Parser {
 
-        private static final @NotNull String BLOCK_COLORS_INTERNAL_NAME = "net/minecraft/client/color/block/BlockColors";
-        private static final @NotNull String BLOCK_TINT_SOURCES_INTERNAL_NAME = "net/minecraft/client/color/block/BlockTintSources";
-        private static final @NotNull String BLOCKS_INTERNAL_NAME = "net/minecraft/world/level/block/Blocks";
         private static final @NotNull String CREATE_DEFAULT_METHOD_NAME = "createDefault";
         private static final @NotNull String REGISTER_METHOD_NAME = "register";
         private static final @NotNull String LIST_INTERNAL_NAME = "java/util/List";
@@ -149,7 +149,9 @@ public final class ToolingBlockTints {
          */
         private static final @NotNull ConcurrentMap<String, Biome.TintTarget> SUPPORTED_SOURCES = buildSupportedSources();
 
-        /** Builds the {@link #SUPPORTED_SOURCES} policy table. */
+        /**
+         * Builds the {@link #SUPPORTED_SOURCES} policy table.
+         */
         private static @NotNull ConcurrentMap<String, Biome.TintTarget> buildSupportedSources() {
             ConcurrentMap<String, Biome.TintTarget> map = Concurrent.newMap();
             // GRASS colormap sources - the BlockTintSources helper distinguishes several grass
@@ -177,13 +179,8 @@ public final class ToolingBlockTints {
          */
         public static @NotNull ConcurrentMap<String, Block.Tint> parse(@NotNull Path jarPath) {
             try (ZipFile zip = new ZipFile(jarPath.toFile())) {
-                ClassNode classNode = AsmKit.requireClass(zip, BLOCK_COLORS_INTERNAL_NAME, "BlockColors");
-                MethodNode createDefault = AsmKit.findMethod(classNode, CREATE_DEFAULT_METHOD_NAME);
-                if (createDefault == null)
-                    throw new ToolingException(
-                        "BlockColors class does not expose a '%s' method - jar may be obfuscated or from an unsupported version",
-                        CREATE_DEFAULT_METHOD_NAME
-                    );
+                ClassNode classNode = AsmKit.requireClass(zip, VanillaSourceClasses.BLOCK_COLORS, "BlockColors");
+                MethodNode createDefault = AsmKit.requireMethod(classNode, CREATE_DEFAULT_METHOD_NAME, "BlockColors");
                 return parseCreateDefault(createDefault.instructions);
             } catch (IOException ex) {
                 throw new ToolingException(ex, "Failed to read BlockColors class from jar '%s'", jarPath);
@@ -221,11 +218,11 @@ public final class ToolingBlockTints {
 
                 switch (node) {
                     case FieldInsnNode fieldInsn when opcode == Opcodes.GETSTATIC -> {
-                        if (fieldInsn.owner.equals(BLOCKS_INTERNAL_NAME))
+                        if (fieldInsn.owner.equals(VanillaSourceClasses.BLOCKS))
                             pendingBlocks.add(blockIdFromField(fieldInsn.name));
                     }
                     case MethodInsnNode methodInsn when opcode == Opcodes.INVOKESTATIC -> {
-                        if (methodInsn.owner.equals(BLOCK_TINT_SOURCES_INTERNAL_NAME)) {
+                        if (methodInsn.owner.equals(VanillaSourceClasses.BLOCK_TINT_SOURCES)) {
                             pendingSource = methodInsn.name;
                             pendingSourceLayers++;
 
@@ -246,7 +243,7 @@ public final class ToolingBlockTints {
                             pendingSource = null;
                         }
                     }
-                    case MethodInsnNode methodInsn when opcode == Opcodes.INVOKEVIRTUAL && methodInsn.owner.equals(BLOCK_COLORS_INTERNAL_NAME) && methodInsn.name.equals(REGISTER_METHOD_NAME) -> {
+                    case MethodInsnNode methodInsn when opcode == Opcodes.INVOKEVIRTUAL && methodInsn.owner.equals(VanillaSourceClasses.BLOCK_COLORS) && methodInsn.name.equals(REGISTER_METHOD_NAME) -> {
 
                         if (pendingSource != null && pendingSourceLayers == 1 && !pendingBlocks.isEmpty())
                             emitTints(tints, pendingSource, pendingConstantA, pendingConstantB, pendingConstantCount, pendingBlocks);

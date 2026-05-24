@@ -17,7 +17,7 @@ import java.util.Optional;
  * Two flavours are supported:
  * <ul>
  * <li><b>{@link Vanilla}</b> - a fixed enum of every known vanilla biome with its baked temperature,
- * downfall, hardcoded colour overrides, and {@link GrassColorModifier}. Callers normally reference
+ * downfall, hardcoded colour overrides, and {@link Biome.GrassColorModifier}. Callers normally reference
  * these directly (e.g. {@code Biome.Vanilla.PLAINS}).</li>
  * <li><b>{@link Custom}</b> - a record for modded or user-defined biomes. Construct via the
  * {@link #of(String, float, float) shorthand factory} or the {@link #builder(String)} for
@@ -32,7 +32,7 @@ import java.util.Optional;
 public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
 
     /**
-     * The warm swamp grass colour returned by vanilla's swamp {@link GrassColorModifier#SWAMP}
+     * The warm swamp grass colour returned by vanilla's swamp {@link Biome.GrassColorModifier#SWAMP}
      * modifier when the {@code BIOME_INFO_NOISE} Perlin sample is at or above {@code -0.1}.
      * Matches the {@code ldc #24} constant in
      * {@code BiomeSpecialEffects$GrassColorModifier$3.modifyColor}.
@@ -40,7 +40,7 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
     int SWAMP_GRASS_WARM = 0xFF6A7039;
 
     /**
-     * The cold swamp grass colour returned by vanilla's swamp {@link GrassColorModifier#SWAMP}
+     * The cold swamp grass colour returned by vanilla's swamp {@link Biome.GrassColorModifier#SWAMP}
      * modifier when the {@code BIOME_INFO_NOISE} Perlin sample is below {@code -0.1}. Matches the
      * {@code ldc #23} constant in {@code BiomeSpecialEffects$GrassColorModifier$3.modifyColor}.
      * Only reachable by explicit caller override since icon rendering has no world coordinates.
@@ -119,16 +119,24 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
      */
     enum TintTarget {
 
-        /** The face is not biome-tinted. */
+        /**
+         * The face is not biome-tinted.
+         */
         NONE,
 
-        /** Sample the grass colormap. Applies to grass blocks, tall grass, ferns, etc. */
+        /**
+         * Sample the grass colormap. Applies to grass blocks, tall grass, ferns, etc.
+         */
         GRASS,
 
-        /** Sample the foliage colormap. Applies to most leaves. */
+        /**
+         * Sample the foliage colormap. Applies to most leaves.
+         */
         FOLIAGE,
 
-        /** Sample the dry-foliage colormap. Applies to pale oak and a handful of other biomes. */
+        /**
+         * Sample the dry-foliage colormap. Applies to pale oak and a handful of other biomes.
+         */
         DRY_FOLIAGE,
 
         /**
@@ -138,7 +146,9 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
          */
         WATER,
 
-        /** Use the block's {@code tintConstant} field directly. Applies to redstone wire, stems, etc. */
+        /**
+         * Use the block's {@code tintConstant} field directly. Applies to redstone wire, stems, etc.
+         */
         CONSTANT
 
     }
@@ -148,10 +158,14 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
      */
     enum GrassColorModifier {
 
-        /** Pass through the sampled value unchanged. */
+        /**
+         * Pass through the sampled value unchanged.
+         */
         NONE,
 
-        /** Darkens the sampled value via {@code ((color & 0xFEFEFE) + 0x28340A) >> 1}. */
+        /**
+         * Darkens the sampled value via {@code ((color & 0xFEFEFE) + 0x28340A) >> 1}.
+         */
         DARK_FOREST,
 
         /**

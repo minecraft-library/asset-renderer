@@ -15,8 +15,8 @@ import java.util.concurrent.TimeUnit;
 /**
  * Cold texture pack load benchmark - measures a fresh {@link Pipeline#run} invocation on
  * an already-cached pack root (so the network hop is excluded but all PNG decode, JSON parse,
- * and {@code ImageIO.read} work is on the critical path). Primary measurement target for
- * Task 2 (parallel pack loading).
+ * and {@code ImageIO.read} work is on the critical path). Measures parallel pack-load
+ * scaling.
  * <p>
  * Intentionally does <b>not</b> extend {@link AbstractRendererBenchmark} because the base class
  * would hide the very work this benchmark measures behind its {@code @Setup(Level.Trial)} hook.

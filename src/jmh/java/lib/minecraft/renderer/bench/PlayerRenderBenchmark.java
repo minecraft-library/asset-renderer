@@ -14,8 +14,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Player render benchmark across all three body scopes in 3D mode. With no skin source supplied,
  * {@link PlayerRenderer} falls back to the pack-resolved {@code minecraft:entity/steve} texture,
- * so results are deterministic across runs. Primary measurement target for Task 10 (SIMD math)
- * and Task 6 (skin-fetch dedup - meaningful once Task 1 parallelises callers above us).
+ * so results are deterministic across runs. Measures SIMD math and skin-fetch dedup overhead.
  */
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)

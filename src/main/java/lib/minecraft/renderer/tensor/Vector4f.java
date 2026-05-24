@@ -28,7 +28,9 @@ import java.io.IOException;
  */
 public record Vector4f(float x, float y, float z, float w) {
 
-    /** The zero vector. */
+    /**
+     * The zero vector.
+     */
     public static final @NotNull Vector4f ZERO = new Vector4f(0, 0, 0, 0);
 
     /**

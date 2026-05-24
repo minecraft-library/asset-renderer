@@ -4,7 +4,10 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageFormat;
 import dev.simplified.image.pixel.ColorMath;
+import lib.minecraft.renderer.ItemRenderer;
+import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.options.ItemOptions;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -12,30 +15,56 @@ import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Configures a single {@code MenuRenderer} invocation. Supports vanilla menu types plus a custom
- * grid mode with caller-controlled row and column dimensions.
+ * Configures a single {@link MenuRenderer MenuRenderer} invocation.
+ *
+ * <p>Supports vanilla menu types ({@link Type#PLAYER}, {@link Type#CHEST},
+ * {@link Type#VANILLA_CRAFTING}, {@link Type#VANILLA_ANVIL}) plus two caller-driven layouts:
+ * <ul>
+ *   <li><b>{@link Type#CUSTOM}</b> - a {@code rows x columns} grid with arbitrary dimensions,
+ *       the generic theme chrome, and per-slot item icons drawn through
+ *       {@link ItemRenderer ItemRenderer}.</li>
+ *   <li><b>{@link Type#SLOT}</b> - a single inventory slot, useful for previewing one item in
+ *       the menu chrome.</li>
+ * </ul>
+ *
+ * <p><b>Slot population.</b> {@link #getSlots slots} maps zero-based slot indices to
+ * {@link ItemOptions ItemOptions}, which the renderer dispatches
+ * to {@link ItemRenderer ItemRenderer} per slot. Empty slots stay
+ * transparent.
+ *
+ * @see lib.minecraft.renderer.MenuRenderer
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
 public class MenuOptions {
 
-    /** Menu layout type */
+    /**
+     * Menu layout type
+     */
     @lombok.Builder.Default
     private final @NotNull Type type = Type.CHEST;
 
-    /** Number of slot rows */
+    /**
+     * Number of slot rows
+     */
     @lombok.Builder.Default
     private final int rows = 3;
 
-    /** Number of slot columns */
+    /**
+     * Number of slot columns
+     */
     @lombok.Builder.Default
     private final int columns = 9;
 
-    /** Slot index to content mapping */
+    /**
+     * Slot index to content mapping
+     */
     @lombok.Builder.Default
     private final @NotNull ConcurrentMap<Integer, MenuSlotContent> slots = Concurrent.newMap();
 
-    /** Menu title text rendered in the header */
+    /**
+     * Menu title text rendered in the header
+     */
     @lombok.Builder.Default
     private final @NotNull String title = "";
 
@@ -55,7 +84,9 @@ public class MenuOptions {
     @lombok.Builder.Default
     private final int xpCost = 0;
 
-    /** Visual theme applied to the menu chrome */
+    /**
+     * Visual theme applied to the menu chrome
+     */
     @lombok.Builder.Default
     private final @NotNull Theme theme = Theme.VANILLA;
 
@@ -67,11 +98,15 @@ public class MenuOptions {
     @lombok.Builder.Default
     private final @NotNull Fill fill = Fill.EMPTY;
 
-    /** Target frame rate for animated output when any slot contains an animated item. */
+    /**
+     * Target frame rate for animated output when any slot contains an animated item.
+     */
     @lombok.Builder.Default
     private final int framesPerSecond = 30;
 
-    /** Output image format */
+    /**
+     * Output image format
+     */
     @lombok.Builder.Default
     private final @NotNull ImageFormat outputFormat = ImageFormat.PNG;
 
@@ -127,19 +162,29 @@ public class MenuOptions {
 
     }
 
-    /** The supported menu types. */
+    /**
+     * The supported menu types.
+     */
     public enum Type {
 
-        /** The 4x9 player inventory view (9 hotbar + 27 main). */
+        /**
+         * The 4x9 player inventory view (9 hotbar + 27 main).
+         */
         PLAYER,
 
-        /** A chest with configurable {@code rows} (3 for single, 6 for double). */
+        /**
+         * A chest with configurable {@code rows} (3 for single, 6 for double).
+         */
         CHEST,
 
-        /** A custom rows x columns grid with no hard-coded dimensions. */
+        /**
+         * A custom rows x columns grid with no hard-coded dimensions.
+         */
         CUSTOM,
 
-        /** A single 1x1 slot. */
+        /**
+         * A single 1x1 slot.
+         */
         SLOT,
 
         /**
@@ -157,7 +202,9 @@ public class MenuOptions {
          */
         SKYBLOCK_CRAFTING,
 
-        /** The vanilla 2-input 1-output anvil. */
+        /**
+         * The vanilla 2-input 1-output anvil.
+         */
         VANILLA_ANVIL,
 
         /**
@@ -175,25 +222,39 @@ public class MenuOptions {
         SKYBLOCK_ANVIL
     }
 
-    /** Visual theme applied to the menu chrome. */
+    /**
+     * Visual theme applied to the menu chrome.
+     */
     @Getter
     @RequiredArgsConstructor
     public enum Theme {
 
-        /** Classic Minecraft inventory palette - light grey chrome, mid-grey slots. */
+        /**
+         * Classic Minecraft inventory palette - light grey chrome, mid-grey slots.
+         */
         VANILLA  (0xFFC6C6C6, 0xFF8B8B8B, 0xFF404040),
-        /** High-contrast dark mode - near-black chrome and slots, white title text. */
+        /**
+         * High-contrast dark mode - near-black chrome and slots, white title text.
+         */
         DARK     (0xFF303030, 0xFF1A1A1A, ColorMath.WHITE),
-        /** Hypixel SkyBlock palette - deep purple chrome, black slots, white title text. */
+        /**
+         * Hypixel SkyBlock palette - deep purple chrome, black slots, white title text.
+         */
         SKYBLOCK (0xFF1E1E2E, 0xFF111122, ColorMath.WHITE);
 
-        /** ARGB fill for the canvas behind the slot grid. */
+        /**
+         * ARGB fill for the canvas behind the slot grid.
+         */
         private final int backgroundArgb;
 
-        /** ARGB fill for each slot's interior. */
+        /**
+         * ARGB fill for each slot's interior.
+         */
         private final int slotArgb;
 
-        /** Default title-bar text ARGB when the caller does not override {@link MenuOptions#titleColor}. */
+        /**
+         * Default title-bar text ARGB when the caller does not override {@link MenuOptions#titleColor}.
+         */
         private final int defaultTitleArgb;
 
     }
@@ -212,7 +273,9 @@ public class MenuOptions {
          */
         BLACK_STAINED_GLASS_PANE,
 
-        /** Leave non-functional slots transparent so the chrome shows through. */
+        /**
+         * Leave non-functional slots transparent so the chrome shows through.
+         */
         EMPTY
 
     }

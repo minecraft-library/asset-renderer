@@ -11,7 +11,9 @@ import org.jetbrains.annotations.NotNull;
  */
 public record IntRange(int min, int max) {
 
-    /** A range that matches every possible integer. */
+    /**
+     * A range that matches every possible integer.
+     */
     public static final @NotNull IntRange ANY = new IntRange(Integer.MIN_VALUE, Integer.MAX_VALUE);
 
     /**

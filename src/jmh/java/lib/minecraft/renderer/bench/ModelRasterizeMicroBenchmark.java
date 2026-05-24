@@ -16,8 +16,7 @@ import java.util.concurrent.TimeUnit;
  * ModelEngine rasterization loop dominates the wall-clock time - model lookup and texture
  * resolution are effectively free after warmup.
  * <p>
- * Primary measurement target for Task 7 (parallel triangle transform) and Task 8 (tiled
- * rasterization with per-tile depth slices).
+ * Measures the parallel triangle transform and tiled rasterization (per-tile depth slices).
  */
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)

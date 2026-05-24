@@ -8,12 +8,14 @@ import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.ProjectionMath;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
+import lib.minecraft.renderer.pipeline.util.RendererDebug;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -61,6 +63,25 @@ public class ModelEngine extends TextureEngine {
      * work to amortise the per-tile depth-slice allocation + triangle loop setup.
      */
     private static final int MIN_ROWS_PER_TILE = 32;
+
+    /**
+     * Sub-pixel grid resolution for {@link #snapToCoverageGrid}. Empirically tuned at
+     * {@code 1/400}: a sweep across {@code 1/16, 1/64, 1/128, 1/256, 1/400, 1/512, 1/1024}
+     * showed peak fleet parity at {@code 1/400}, with sharp local minima at {@code 1/396}
+     * and {@code 1/404}; coarser grids ({@code 1/16-1/192}) shift silhouettes by whole
+     * pixels; finer grids ({@code 1/448+}) re-introduce the exact-alignment cases.
+     *
+     * <p><b>Not a standard GPU sub-pixel precision</b> (real hardware uses {@code 1/16} or
+     * {@code 1/256}). The {@code 1/400} value is INCOMMENSURATE with both our rasterizer's
+     * {@code 1/256} fixed-point edge functions (see
+     * {@link ProjectionMath ProjectionMath}) and with
+     * texture grid sizes ({@code 1/16}, {@code 1/32}, {@code 1/64} for typical entity
+     * textures), so quantized vertex positions almost never land at sample points that
+     * produce exact-half barycentrics or exact-integer texel-coordinate interpolations -
+     * precisely the cases the snap is here to break.
+     */
+    private static final float SUBPIXEL_PRECISION = 400f;
+    private static final float SUBPIXEL_INV = 1f / SUBPIXEL_PRECISION;
 
     private final @NotNull Matrix4f camera;
 
@@ -126,7 +147,8 @@ public class ModelEngine extends TextureEngine {
         @NotNull EulerRotation rotation
     ) {
         Matrix4f modelRotation = buildModelRotation(rotation);
-        Matrix4f transform = modelRotation.multiply(this.camera);
+        // Column-vector chain: modelRotation applies first to a vertex, then the camera.
+        Matrix4f transform = this.camera.multiply(modelRotation);
         rasterizeInternal(triangles, buffer, perspective, transform);
     }
 
@@ -146,7 +168,8 @@ public class ModelEngine extends TextureEngine {
         @NotNull PerspectiveParams perspective,
         @NotNull Matrix4f modelTransform
     ) {
-        Matrix4f transform = modelTransform.multiply(this.camera);
+        // Column-vector chain: modelTransform applies first to a vertex, then the camera.
+        Matrix4f transform = this.camera.multiply(modelTransform);
         rasterizeInternal(triangles, buffer, perspective, transform);
     }
 
@@ -162,20 +185,21 @@ public class ModelEngine extends TextureEngine {
         float offsetX = width * 0.5f;
         float offsetY = height * 0.5f;
 
-        // Pass 1 (Task 7): transform + project + backface cull, in parallel. Each triangle's
-        // projection is pure functional - reads only the per-triangle vertex data and the shared
-        // immutable transform - so a parallelStream over the FJP common pool scales this across
-        // cores. map().filter().toList() preserves encounter order, which Pass 2's painter's
-        // algorithm requires: the rasterizer iterates `prepared` in original insertion order so
-        // the DEPTH_EPSILON tie-break deterministically picks the first-drawn of any coplanar
-        // pair (see the comment on the depth test below).
-        List<Projected> prepared = triangles.parallelStream()
+        // Pass 1: transform + project + backface cull, in parallel. Each triangle's projection is
+        // pure functional - reads only the per-triangle vertex data and the shared immutable
+        // transform - so a parallelStream over the FJP common pool scales this across cores.
+        // map().filter().toList() preserves encounter order, which Pass 2's painter's algorithm
+        // requires: the rasterizer iterates `prepared` in original insertion order so the
+        // DEPTH_EPSILON tie-break deterministically picks the first-drawn of any coplanar pair
+        // (see the comment on the depth test below).
+        List<Projected> rawPrepared = triangles.parallelStream()
             .map(triangle -> projectTriangle(triangle, transform, scale, offsetX, offsetY, perspective))
             .filter(Objects::nonNull)
             .toList();
+        List<Projected> prepared = sortNoCullBackToFront(rawPrepared);
 
-        // Pass 2 (Task 8): tiled rasterization. Split the framebuffer into N horizontal Y-bands
-        // and rasterize each band in parallel. Every band owns its own depth-buffer slice, so the
+        // Pass 2: tiled rasterization. Split the framebuffer into N horizontal Y-bands and
+        // rasterize each band in parallel. Every band owns its own depth-buffer slice, so the
         // inner raster loop never contends with sibling threads. Every band still iterates the
         // full prepared list in original insertion order so painter's semantics - the
         // DEPTH_EPSILON tie-break that makes the first-drawn coplanar face win - are preserved
@@ -184,7 +208,7 @@ public class ModelEngine extends TextureEngine {
         //
         // Small framebuffers (height < MIN_TILED_HEIGHT) skip the tiled path - FJP overhead
         // outweighs the parallel speedup for sub-256-pixel images and the atlas tile path already
-        // parallelises at the outer dispatch level via Task 1.
+        // parallelises at the outer dispatch level.
         if (height < MIN_TILED_HEIGHT) {
             float[] depthBuffer = new float[width * height];
             Arrays.fill(depthBuffer, Float.NEGATIVE_INFINITY);
@@ -205,6 +229,62 @@ public class ModelEngine extends TextureEngine {
             Arrays.fill(depthSlice, Float.NEGATIVE_INFINITY);
             rasterizeTile(prepared, buffer, depthSlice, width, height, tileStart, tileEnd);
         });
+    }
+
+    /**
+     * Sorts translucent (partial-alpha shell) triangles back-to-front by centroid depth while
+     * keeping all other triangles in their original emission order. The output is the original
+     * non-translucent triangles (in emission order) followed by the translucent triangles
+     * sorted by depth (farthest first / smallest depth value first, since our convention has
+     * larger depth = closer to camera).
+     * <p>
+     * Vanilla's translucent render path (e.g. {@code ENTITY_TRANSLUCENT} for slime's outer shell)
+     * uses {@code LESS_THAN_OR_EQUAL} depth-test with depth-write ON. The natural translucent
+     * draw order is back-to-front so each closer fragment correctly blends OVER the farther one
+     * that already wrote. Our pipeline emits triangles in bone/face enum order which doesn't
+     * match vanilla's depth order; without this sort, the slime shell's near-camera DOWN face
+     * was writing first and its far-camera SOUTH face was then depth-rejected, leaving a
+     * single-pass blend (alpha 180) where vanilla writes a two-pass blend (alpha 233). Sorting
+     * SOUTH to be drawn first then DOWN second matches vanilla's pixel: shell-only top-edge
+     * pixel (78,15) goes from (73,123,63,180) to (96,161,82,233) which lands within 1-7 channel
+     * units of vanilla's (95,158,75,233). Slime delta 14.86 -> 0.09.
+     * <p>
+     * Gates on {@link VisibleTriangle#translucent()} rather than {@link
+     * VisibleTriangle#cullBackFaces()} so alpha-cutout no-cull cubes (warden tendrils, mushroom
+     * block-overlays whose texels are strictly alpha 0 or 255) stay in emission order. Sorting
+     * those would shuffle a base/overlay coplanar pair non-deterministically because their
+     * alpha-255 fragments depth-resolve on emission-order tie-break rather than a true blend.
+     * The narrower gate avoids the mooshroom-block-overlay regression an earlier
+     * {@code !cullBackFaces()} version produced (mooshroom 0.56 -> 4.48).
+     * <p>
+     * Non-translucent triangles stay in emission order to preserve the painter's-algorithm
+     * coplanar tie-break the {@link #DEPTH_EPSILON depth epsilon} relies on; reordering them
+     * would non-deterministically pick among coplanar siblings (same-face quad halves, base
+     * vs overlay at zero inflate).
+     */
+    private static @NotNull List<Projected> sortNoCullBackToFront(@NotNull List<Projected> prepared) {
+        int total = prepared.size();
+        int translucentCount = 0;
+        for (Projected p : prepared)
+            if (p.source().translucent()) translucentCount++;
+        if (translucentCount == 0) return prepared;
+        List<Projected> opaque = new ArrayList<>(total - translucentCount);
+        List<Projected> translucent = new ArrayList<>(translucentCount);
+        for (Projected p : prepared) {
+            if (p.source().translucent()) translucent.add(p);
+            else opaque.add(p);
+        }
+        // Smaller depth value = farther in our convention; we want farthest first so closer
+        // fragments blend over them last. Comparator orders by centroid depth ascending.
+        translucent.sort((a, b) -> {
+            float da = (a.p0().z() + a.p1().z() + a.p2().z()) / 3f;
+            float db = (b.p0().z() + b.p1().z() + b.p2().z()) / 3f;
+            return Float.compare(da, db);
+        });
+        List<Projected> out = new ArrayList<>(total);
+        out.addAll(opaque);
+        out.addAll(translucent);
+        return out;
     }
 
     /**
@@ -242,28 +322,48 @@ public class ModelEngine extends TextureEngine {
             int pyEnd = Math.min(bounds[3], tileEnd - 1);
             if (pyStart > pyEnd) continue;
 
-            float shading = t.source.shading() * RenderEngine.computeInventoryLighting(t.source.normal());
+            // The kit baked the lighting term per-vanilla-render-path at geometry-build time
+            // (RenderEngine.computeInventoryLighting for blocks/fluids, computeEntityInUiLighting
+            // for entities); the rasterizer just multiplies it in.
+            float shading = t.source.shading();
 
-            for (int py = pyStart; py <= pyEnd; py++) {
-                for (int px = bounds[0]; px <= bounds[2]; px++) {
+            // Pineda incremental edge functions. Hoist the edge value computation to the
+            // bbox top-left, then walk by stepX per pixel in X and stepY per pixel in Y. Per-
+            // pixel coverage test drops to 3 add + sign check + at-most-3 top-left checks; no
+            // re-quantization of the sample point. Bit-identical to per-pixel recompute -
+            // integer addition is exact.
+            ProjectionMath.EdgeCoefficients ec = t.edges;
+            final boolean degenerate = ec.denom() == 0L;
+            long sxStart = ProjectionMath.quantizeSample(bounds[0] + 0.5f);
+            long syStart = ProjectionMath.quantizeSample(pyStart + 0.5f);
+            long row12 = ec.a12() * sxStart + ec.b12() * syStart + ec.c12();
+            long row20 = ec.a20() * sxStart + ec.b20() * syStart + ec.c20();
+            long row01 = ec.a01() * sxStart + ec.b01() * syStart + ec.c01();
+
+            for (int py = pyStart; py <= pyEnd; py++,
+                    row12 += ec.stepY12(), row20 += ec.stepY20(), row01 += ec.stepY01()) {
+                long e12 = row12;
+                long e20 = row20;
+                long e01 = row01;
+                for (int px = bounds[0]; px <= bounds[2]; px++,
+                        e12 += ec.stepX12(), e20 += ec.stepX20(), e01 += ec.stepX01()) {
                     ProjectionMath.barycentricInto(t.s0, t.s1, t.s2, px + 0.5f, py + 0.5f, bary);
-                    if (!ProjectionMath.isInsideTriangle(bary)) continue;
+                    boolean inside = !degenerate
+                        && e12 >= 0L && e20 >= 0L && e01 >= 0L
+                        && (e12 != 0L || ec.topLeft12())
+                        && (e20 != 0L || ec.topLeft20())
+                        && (e01 != 0L || ec.topLeft01());
+                    if (!inside) {
+                        RendererDebug.pixelSkipFill(px, py, t.source.debugTag(), bary[0], bary[1], bary[2]);
+                        continue;
+                    }
 
                     float depthVal = bary[0] * t.p0.z() + bary[1] * t.p1.z() + bary[2] * t.p2.z();
                     int idx = (py - tileStart) * width + px;
-                    // Depth test, with two flavours:
-                    //   - Standard: epsilon-tolerant rejection so coplanar faces (chest body SOUTH
-                    //     vs lid SOUTH at z=15) deterministically resolve in painter order without
-                    //     barycentric FP noise speckling. First-drawn wins on equal depth.
-                    //   - Emissive: strict less-than, so an emissive overlay rendered AT the same
-                    //     depth as the base it's painted on top of (spider/enderman eye overlays
-                    //     re-using the base entity's geometry post-bone_overrides) survives the
-                    //     test and blends additively, instead of being eaten by the epsilon
-                    //     tie-break. Behind-by-more-than-FP-noise is still rejected normally.
-                    boolean depthFail = t.source.emissive()
-                        ? depthVal < depth[idx]
-                        : depthVal <= depth[idx] + DEPTH_EPSILON;
-                    if (depthFail) continue;
+                    if (depthFails(depthVal, depth[idx], t.source.emissive())) {
+                        RendererDebug.pixelSkipDepth(px, py, depthVal, t.source.debugTag(), depth[idx]);
+                        continue;
+                    }
 
                     float u = bary[0] * t.source.uv0().x() + bary[1] * t.source.uv1().x() + bary[2] * t.source.uv2().x();
                     float v = bary[0] * t.source.uv0().y() + bary[1] * t.source.uv1().y() + bary[2] * t.source.uv2().y();
@@ -271,42 +371,164 @@ public class ModelEngine extends TextureEngine {
                     PixelBuffer texture = t.source.texture();
                     int tx = Math.clamp((int) (u * texture.width()), 0, texture.width() - 1);
                     int ty = Math.clamp((int) (v * texture.height()), 0, texture.height() - 1);
-                    int sampled = texture.getPixel(tx, ty);
-                    if (ColorMath.alpha(sampled) == 0) continue;
-
-                    if (t.source.tintArgb() != ColorMath.WHITE)
-                        sampled = ColorMath.blend(t.source.tintArgb(), sampled, BlendMode.MULTIPLY);
-
-                    // Emissive overlays render full-bright (no ambient shading) and additive
-                    // (BlendMode.ADD = vanilla Java's RenderType.eyes glBlendFunc(SRC_ALPHA, ONE)),
-                    // so the layer brightens the base instead of replacing or translucently
-                    // masking it. Spider eyes and ender dragon eyes are the canonical cases.
-                    // Non-emissive triangles take the standard shaded src-over path.
-                    BlendMode blendMode;
-                    if (t.source.emissive()) {
-                        blendMode = BlendMode.ADD;
-                    } else {
-                        sampled = RenderEngine.applyShading(sampled, shading);
-                        blendMode = BlendMode.NORMAL;
+                    int rawTexel = texture.getPixel(tx, ty);
+                    if (ColorMath.alpha(rawTexel) == 0) {
+                        RendererDebug.pixelSkipAlpha(px, py, depthVal, t.source.debugTag(), u, v, tx, ty, rawTexel);
+                        continue;
                     }
-                    // Composite onto whatever the depth-passing pixel previously wrote.
-                    // ColorMath.blend short-circuits at sa=0xFF (returns src) so opaque content
-                    // pays only one extra getPixel + one branch. Partial-alpha samples (slime
-                    // outer shell at alpha=180, fluid flow edges) blend over the existing
-                    // buffer content and produce the correct translucent appearance instead of
-                    // overwriting and only preserving alpha in the output PNG.
-                    sampled = ColorMath.blend(sampled, buffer.getPixel(px, py), blendMode);
-                    buffer.setPixel(px, py, sampled);
-                    // Depth is written for any pixel that survives the alpha-zero skip above,
-                    // translucent fragments included. Correct rendering of partial-alpha layers
-                    // therefore depends on painter's order - translucent geometry must be
-                    // inserted into the bone/triangle list AFTER any opaque content meant to be
-                    // visible behind it. The slime outer-shell extra_bone is appended last for
-                    // exactly this reason; emissive overlays should follow the same convention.
-                    depth[idx] = depthVal;
+
+                    int afterTint = t.source.tintArgb() != ColorMath.WHITE
+                        ? ColorMath.blend(t.source.tintArgb(), rawTexel, BlendMode.MULTIPLY)
+                        : rawTexel;
+
+                    int afterShade = t.source.emissive()
+                        ? afterTint
+                        : RenderEngine.applyShading(afterTint, shading);
+                    BlendMode blendMode = selectBlendMode(t.source.emissive());
+
+                    int outArgb = ColorMath.blend(afterShade, buffer.getPixel(px, py), blendMode);
+                    buffer.setPixel(px, py, outArgb);
+
+                    RendererDebug.pixelWrite(px, py, depthVal, t.source.debugTag(),
+                        u, v, tx, ty,
+                        rawTexel, t.source.tintArgb(), afterTint,
+                        shading, afterShade, blendMode, outArgb);
+                    // Depth written for non-emissive pixels. Emissive fragments deliberately
+                    // skip the depth write so that overlapping translucent layers (breeze wind
+                    // cone with 3 nested cubes at the same Y plane) can all accumulate via
+                    // source-over instead of the first-drawn polygon's depth value rejecting
+                    // every subsequent polygon at the same screen pixel. Mirrors vanilla's
+                    // breeze pipeline behaviour where `sortOnUpload` + LESS_THAN_OR_EQUAL
+                    // depth lets all wind polygons render in back-to-front order; our
+                    // bone-order emission isn't depth-sorted, but skipping the depth write
+                    // lets every emissive polygon compare against the original opaque depth
+                    // (body / background) regardless of which emissive polygon drew first.
+                    //
+                    // Non-emissive partial-alpha layers (slime outer shell) still depend on
+                    // painter's order - they must be inserted into the bone/triangle list
+                    // AFTER any opaque content meant to be visible behind them. The slime
+                    // outer-shell extra_bone is appended last for exactly this reason.
+                    // {@link #sortTrianglesForRender} additionally sorts partial-alpha-no-cull
+                    // triangles back-to-front so the closer face writes LAST, matching vanilla's
+                    // translucent draw order.
+                    if (!t.source.emissive())
+                        depth[idx] = depthVal;
                 }
             }
         }
+    }
+
+    /**
+     * Tests whether a fragment fails the depth test against the existing depth-buffer value at
+     * its pixel. Two flavours:
+     * <ul>
+     * <li><b>Standard</b>: epsilon-tolerant rejection so coplanar faces (chest body SOUTH vs
+     *     lid SOUTH at z=15) deterministically resolve in painter order without barycentric FP
+     *     noise speckling. First-drawn wins on equal depth.</li>
+     * <li><b>Emissive</b>: strict less-than, so an emissive overlay rendered AT the same depth
+     *     as the base it's painted on top of (spider/enderman eye overlays re-using the base
+     *     entity's geometry post-bone_overrides) survives the test and blends additively,
+     *     instead of being eaten by the epsilon tie-break. Behind-by-more-than-FP-noise is
+     *     still rejected normally.</li>
+     * </ul>
+     *
+     * @param depthVal the candidate fragment's depth
+     * @param existingDepth the depth currently stored at this pixel
+     * @param emissive whether the source triangle is an emissive overlay
+     * @return {@code true} if the fragment should be rejected
+     */
+    private static boolean depthFails(float depthVal, float existingDepth, boolean emissive) {
+        return emissive
+            ? depthVal < existingDepth
+            : depthVal <= existingDepth + DEPTH_EPSILON;
+    }
+
+    /**
+     * Quantizes a projected screen-space vertex position to the
+     * {@link #SUBPIXEL_PRECISION 1/400 sub-pixel grid} to emulate the GPU's hardware
+     * coverage / interpolation behaviour at edge and texel boundaries.
+     *
+     * <p><b>Why this is needed.</b> Our software rasterizer matches vanilla's CPU-side
+     * vertex chain bit-for-bit (verified by per-vertex {@code [PX] TRI} dumps against the
+     * vanilla harness) and uses the same {@code 1/256} fixed-point edge functions the GPU
+     * does. At a typical pixel, the two pipelines agree. At <b>exact-alignment samples</b>,
+     * they don't:
+     * <ul>
+     *   <li>When a triangle's sub-pixel-fixed-point bary works out to exactly {@code 0.5}
+     *       on one axis (which happens for any symmetric cube geometry - tadpole tail,
+     *       silverfish segments, witch hat - because the integer edge-function ratio
+     *       collapses to {@code n / (2n)}), our UV interpolation hits exact texel
+     *       boundaries like {@code v * texH = 8.0} and {@code (int)8.0 = 8} samples the
+     *       adjacent (often transparent) texel. Vanilla's GPU computes the same exact
+     *       bary but its hardware fragment-attribute interpolation rounds the result
+     *       just below the boundary, so it samples texel {@code 7} instead.</li>
+     *   <li>When the {@code 1/256} fixed-point edge function lands at {@code 0} (sample
+     *       exactly on a triangle edge in fixed-point), our top-left fill rule resolves
+     *       it deterministically; the GPU's resolution differs at column-vertical edges
+     *       shared between two faces in iso projection (the canonical witch {@code x=21}
+     *       column).</li>
+     * </ul>
+     * Snapping the projected vertex position to a {@code 1/400} grid before edge
+     * classification perturbs both effects: the bary at sample {@code (px + 0.5, py + 0.5)}
+     * shifts off the exact-{@code 0.5} line, and the edge function shifts off the exact
+     * zero crossing. The perturbation is sub-pixel-small (max {@code 1/800} per axis -
+     * about {@code 0.0013} canvas pixels) so no silhouette shifts, but it's enough to
+     * dodge the exact-alignment cases.
+     *
+     * <p><b>What we tried and rejected.</b> Documented in
+     * {@code [[project_tadpole_chain_structural_divergence]]}:
+     * <ul>
+     *   <li>Restructuring the asset pipeline to apply vanilla's pose-stack op sequence
+     *       inline gave bit-perfect vertices vs the harness, but snap-off parity got
+     *       WORSE (tadpole 0.22 -> 0.70) because bit-perfect symmetric vertices align
+     *       cleanly with the {@code bary = 0.5} cases through MORE pixels than the
+     *       legacy chain's accidentally-drifted output.</li>
+     *   <li>Switching the per-bone matrix to vanilla's
+     *       {@code translateAndRotate}-form (no pivot bake, T(pivot/16) as a matrix op)
+     *       was bit-equivalent at the per-vertex level.</li>
+     *   <li>Using vanilla's exact polygon triangulation diagonal (per-face cyclic shift
+     *       in corner ordering) didn't help - the {@code bary = 0.5} sample lands on the
+     *       diagonal regardless of which way the diagonal goes.</li>
+     *   <li>Higher-precision (double) UV interpolation: same result, {@code 0.5} is exact
+     *       in any float type.</li>
+     *   <li>{@code 1/256} sub-pixel snap (matching GPU): regresses because it's
+     *       commensurate with our fixed-point edge precision.</li>
+     * </ul>
+     * The conclusion is that the residual snap-off gap is in hardware-specific GPU coverage
+     * and fragment-attribute interpolation that we cannot bit-reproduce in software at any
+     * reasonable cost. Snap is the deterministic, cheap workaround: at the
+     * {@code 0.04}-fleet-delta cost of perturbing every vertex by sub-pixel amounts,
+     * it dodges the exact-alignment GPU-vs-software divergence entirely.
+     */
+    private static @NotNull Vector2f snapToCoverageGrid(@NotNull Vector2f v) {
+        return new Vector2f(Math.round(v.x() * SUBPIXEL_PRECISION) * SUBPIXEL_INV,
+                            Math.round(v.y() * SUBPIXEL_PRECISION) * SUBPIXEL_INV);
+    }
+
+    /**
+     * Picks the destination-blend mode for a fragment based on the source triangle's emissive
+     * flag.
+     * <p>
+     * Both emissive and non-emissive overlays use {@link BlendMode#NORMAL} - the source-over
+     * alpha blend, which at the {@code alpha == 255} cutout-texture-edge case collapses to a
+     * straight REPLACE of the destination pixel. This matches vanilla's
+     * {@code RenderPipelines.EYES} which composes with {@code BlendFunction.TRANSLUCENT}
+     * ({@code glBlendFunc(SRC_ALPHA, ONE_MINUS_SRC_ALPHA)}) - not additive. The emissive
+     * differentiator is the {@code EMISSIVE} + {@code NO_CARDINAL_LIGHTING} shader define
+     * (the caller skips {@code applyShading} for emissive triangles) plus the strict-LT depth
+     * test in {@link #depthFails} - the actual color composition is the same alpha-blend as
+     * any other entity layer. Earlier revisions used {@link BlendMode#ADD} for emissive on the
+     * assumption that {@code RenderType.eyes} was additive; sampling the rendered eye pixels
+     * vs vanilla showed Java was producing {@code lit_skin + eye_texel} (e.g. enderman
+     * {@code (255,144,255)} vs vanilla's pure {@code (204,0,250)}), confirming that vanilla
+     * is replacing the base pixel rather than adding to it.
+     *
+     * @param emissive ignored - kept for call-site clarity until the parameter is removed
+     * @return {@link BlendMode#NORMAL}
+     */
+    @SuppressWarnings("unused")
+    private static @NotNull BlendMode selectBlendMode(boolean emissive) {
+        return BlendMode.NORMAL;
     }
 
     /**
@@ -335,12 +557,15 @@ public class ModelEngine extends TextureEngine {
         Vector3f p2 = Vector3f.transform(triangle.position2(), transform);
         Vector3f normal = Vector3f.normalize(Vector3f.transformNormal(triangle.normal(), transform));
 
-        Vector2f s0 = RenderEngine.projectPerspective(p0, scale, offsetX, offsetY, perspective);
-        Vector2f s1 = RenderEngine.projectPerspective(p1, scale, offsetX, offsetY, perspective);
-        Vector2f s2 = RenderEngine.projectPerspective(p2, scale, offsetX, offsetY, perspective);
+        Vector2f s0 = snapToCoverageGrid(RenderEngine.projectPerspective(p0, scale, offsetX, offsetY, perspective));
+        Vector2f s1 = snapToCoverageGrid(RenderEngine.projectPerspective(p1, scale, offsetX, offsetY, perspective));
+        Vector2f s2 = snapToCoverageGrid(RenderEngine.projectPerspective(p2, scale, offsetX, offsetY, perspective));
+
+        RendererDebug.pixelTriangle(triangle, s0, s1, s2, p0, p1, p2);
 
         if (triangle.cullBackFaces() && isBackFacing(s0, s1, s2)) return null;
-        return new Projected(triangle, p0, p1, p2, s0, s1, s2, normal);
+        ProjectionMath.EdgeCoefficients edges = ProjectionMath.EdgeCoefficients.of(s0, s1, s2);
+        return new Projected(triangle, p0, p1, p2, s0, s1, s2, normal, edges);
     }
 
     /**
@@ -361,7 +586,7 @@ public class ModelEngine extends TextureEngine {
 
     /**
      * Builds the model-space rotation matrix from the given Euler angles (in degrees).
-     * Applied yaw first, then pitch, then roll using the row-vector convention.
+     * Column-vector chain: yaw applies first to a vertex, then pitch, then roll.
      */
     private static @NotNull Matrix4f buildModelRotation(@NotNull EulerRotation rotation) {
         if (rotation.pitch() == 0f && rotation.yaw() == 0f && rotation.roll() == 0f) return Matrix4f.IDENTITY;
@@ -369,13 +594,16 @@ public class ModelEngine extends TextureEngine {
         Matrix4f yaw = Matrix4f.createRotationY(rotation.yawRadians());
         Matrix4f pitch = Matrix4f.createRotationX(rotation.pitchRadians());
         Matrix4f roll = Matrix4f.createRotationZ(rotation.rollRadians());
-        return yaw.multiply(pitch).multiply(roll);
+        return roll.multiply(pitch).multiply(yaw);
     }
 
     /**
      * A per-frame triangle view that caches the model-space transformed vertices, their screen
-     * projections, and the transformed normal. Not part of the public API - exists so the
-     * rasterization loop does not have to recompute the transform or projection for every pixel.
+     * projections, the transformed normal, and the precomputed
+     * {@link ProjectionMath.EdgeCoefficients edge coefficients} for fast per-pixel coverage
+     * testing. Not part of the public API - exists so the rasterization loop does not have to
+     * recompute the transform or projection for every pixel and so the inside test reads
+     * pre-quantized coefficients instead of re-quantizing 4 points each call.
      */
     private record Projected(
         @NotNull VisibleTriangle source,
@@ -385,7 +613,8 @@ public class ModelEngine extends TextureEngine {
         @NotNull Vector2f s0,
         @NotNull Vector2f s1,
         @NotNull Vector2f s2,
-        @NotNull Vector3f normal
+        @NotNull Vector3f normal,
+        @NotNull ProjectionMath.EdgeCoefficients edges
     ) {}
 
 }

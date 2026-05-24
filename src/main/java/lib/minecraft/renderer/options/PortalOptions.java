@@ -25,11 +25,15 @@ import org.jetbrains.annotations.Nullable;
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
 public class PortalOptions {
 
-    /** The portal variant - drives {@code PORTAL_LAYERS} count and per-layer colour table selection. */
+    /**
+     * The portal variant - drives {@code PORTAL_LAYERS} count and per-layer colour table selection.
+     */
     @lombok.Builder.Default
     private final @NotNull Portal portal = Portal.END_PORTAL;
 
-    /** Render type - isometric 3D cube / slab or flat 2D top-face icon. */
+    /**
+     * Render type - isometric 3D cube / slab or flat 2D top-face icon.
+     */
     @lombok.Builder.Default
     private final @NotNull Type type = Type.ISOMETRIC_3D;
 
@@ -40,15 +44,21 @@ public class PortalOptions {
      */
     private final @Nullable Integer tintArgbOverride;
 
-    /** Model rotation applied before the camera transform, in degrees. No-op on the 2D face path. */
+    /**
+     * Model rotation applied before the camera transform, in degrees. No-op on the 2D face path.
+     */
     @lombok.Builder.Default
     private final @NotNull EulerRotation rotation = EulerRotation.NONE;
 
-    /** Output image dimensions in pixels (square). */
+    /**
+     * Output image dimensions in pixels (square).
+     */
     @lombok.Builder.Default
     private final int outputSize = Renderer.DEFAULT_OUTPUT_SIZE;
 
-    /** Whether to apply FXAA post-processing. No-op on the 2D face path. */
+    /**
+     * Whether to apply FXAA post-processing. No-op on the 2D face path.
+     */
     @lombok.Builder.Default
     private final boolean antiAlias = true;
 
@@ -60,15 +70,21 @@ public class PortalOptions {
     @lombok.Builder.Default
     private final int supersample = 2;
 
-    /** Additional texture pack ids to layer on top of vanilla. */
+    /**
+     * Additional texture pack ids to layer on top of vanilla.
+     */
     @lombok.Builder.Default
     private final @NotNull ConcurrentList<String> texturePackIds = Concurrent.newList();
 
-    /** Output image format. */
+    /**
+     * Output image format.
+     */
     @lombok.Builder.Default
     private final @NotNull ImageFormat outputFormat = ImageFormat.PNG;
 
-    /** Animation seed tick. Frame 0 feeds {@code GameTime} into the parallax layer transform at this tick. */
+    /**
+     * Animation seed tick. Frame 0 feeds {@code GameTime} into the parallax layer transform at this tick.
+     */
     @lombok.Builder.Default
     private final int startTick = 0;
 
@@ -120,18 +136,26 @@ public class PortalOptions {
         return builder().build();
     }
 
-    /** The portal variants supported by {@code PortalRenderer}. */
+    /**
+     * The portal variants supported by {@code PortalRenderer}.
+     */
     public enum Portal {
 
-        /** End portal - {@code PORTAL_LAYERS = 15} in {@code RenderPipelines.END_PORTAL}. */
+        /**
+         * End portal - {@code PORTAL_LAYERS = 15} in {@code RenderPipelines.END_PORTAL}.
+         */
         END_PORTAL,
 
-        /** End gateway - {@code PORTAL_LAYERS = 16} in {@code RenderPipelines.END_GATEWAY}. */
+        /**
+         * End gateway - {@code PORTAL_LAYERS = 16} in {@code RenderPipelines.END_GATEWAY}.
+         */
         END_GATEWAY
 
     }
 
-    /** The supported render types for {@code PortalRenderer}. */
+    /**
+     * The supported render types for {@code PortalRenderer}.
+     */
     public enum Type {
 
         /**
@@ -141,7 +165,9 @@ public class PortalOptions {
          */
         ISOMETRIC_3D,
 
-        /** Flat top-down portal-face icon - the parallax bake blitted onto a 2D quad. */
+        /**
+         * Flat top-down portal-face icon - the parallax bake blitted onto a 2D quad.
+         */
         PORTAL_FACE_2D
 
     }

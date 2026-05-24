@@ -11,7 +11,6 @@ import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.kit.EntityGeometryKit;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
-import lib.minecraft.renderer.tooling.ToolingEntityModels;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -21,21 +20,16 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Objects;
 
 /**
- * A minimal entity model schema modelled on Mojang's Bedrock Edition {@code .geo.json} format.
- * The asset pipeline parses a slim in-repo descriptor per entity that lists its bones and their
- * cube geometry without trying to express every vanilla feature.
+ * A minimal entity model schema produced by the Java-derived entity-models pipeline
+ * ({@code ToolingEntityModels} bytecode walk of the vanilla client jar). Lists each entity's
+ * bones and their cube geometry without trying to express every vanilla feature.
  * <p>
- * Used by {@code EntityRenderer.ENTITY_3D} to turn an entity id into a list of cubes that can be
- * fed to the model engine.
+ * Used by {@link EntityGeometryKit}'s triangle builders to turn an entity id into a list of cubes
+ * that can be fed to the rasterizer.
  * <p>
- * The canonical coordinate convention is Bedrock-native: Y-up, right-handed, with every position
- * field - {@link Bone#getPivot() bone pivot}, {@link Cube#getOrigin() cube origin},
- * {@link Cube#getPivot() cube pivot} - stored in absolute entity-root space, exactly as authored
- * in the source {@code .geo.json}. Bone pivots are pure rotation anchors; they do not translate
- * the bone's subtree. Bedrock data is stored verbatim by
- * {@link ToolingEntityModels ToolingEntityModels} at asset-generation
- * time so the generated {@code entity_geometry.json} stays byte-diffable against Mojang's
- * {@code bedrock-samples} source.
+ * The canonical coordinate convention is vanilla Java's native frame: Y-down, right-handed, with
+ * every position field - {@link Bone#getPivot() bone pivot}, {@link Cube#getOrigin() cube origin},
+ * {@link Cube#getPivot() cube pivot} - stored in absolute entity-root space.
  *
  * @see EntityGeometryKit
  */
@@ -44,10 +38,14 @@ import java.util.Objects;
 @AllArgsConstructor
 public class EntityModelData {
 
-    /** Texture size in pixels, typically {@code 64} or {@code 128}. */
+    /**
+     * Texture size in pixels, typically {@code 64} or {@code 128}.
+     */
     private int textureWidth = 64;
 
-    /** Texture size in pixels. */
+    /**
+     * Texture size in pixels.
+     */
     private int textureHeight = 64;
 
     /**
@@ -105,8 +103,9 @@ public class EntityModelData {
         private @NotNull Vector3f pivot = Vector3f.ZERO;
 
         /**
-         * The bone's dynamic pose rotation - animated in Bedrock at runtime. Propagates through
-         * the ancestor anchor chain so descendant bones swing along with this bone.
+         * The bone's dynamic pose rotation - animated at runtime in vanilla's
+         * {@code setupAnim} step. Propagates through the ancestor anchor chain so descendant
+         * bones swing along with this bone.
          */
         @JsonAdapter(EulerRotation.Adapter.class)
         private @NotNull EulerRotation rotation = EulerRotation.NONE;
@@ -123,6 +122,22 @@ public class EntityModelData {
         @SerializedName("bind_pose_rotation")
         private @NotNull EulerRotation bindPoseRotation = EulerRotation.NONE;
 
+        /**
+         * Uniform multiplier applied to this bone's own cube vertices after positioning at
+         * {@link #pivot} and before the cubes are emitted to the kit. Defaults to {@code 1f}
+         * - the identity. Captures both vanilla {@code PartPose.scaled(F)} (per-bone) and
+         * {@code MeshTransformer.scaling(F)} (whole-layer) which write {@code F} into the
+         * underlying {@code PartPose.scale} field; {@code ModelPart.render} consumes that via
+         * {@code poseStack.scale(...)} AFTER positioning the bone at its pivot and BEFORE
+         * rendering the cube list. Unlike a JSON-bake onto {@link Cube#getOrigin() cube origin}
+         * or {@link Cube#getSize() size}, this post-positioning scale does not affect UV
+         * resolution (cube UV regions stay tied to the authored {@code size} value), matching
+         * vanilla's per-vertex scale semantics.
+         *
+         * @see lib.minecraft.renderer.kit.EntityGeometryKit
+         */
+        private float scale = 1f;
+
         private @NotNull ConcurrentList<Cube> cubes = Concurrent.newList();
 
         /**
@@ -132,14 +147,28 @@ public class EntityModelData {
         @SerializedName("parent")
         private @Nullable String parent = null;
 
-        /** Convenience constructor for the common case of no parent and no bind pose. */
+        /**
+         * Convenience constructor for the common case of no parent and no bind pose.
+         */
         public Bone(@NotNull Vector3f pivot, @NotNull EulerRotation rotation, @NotNull ConcurrentList<Cube> cubes) {
-            this(pivot, rotation, EulerRotation.NONE, cubes, null);
+            this(pivot, rotation, EulerRotation.NONE, 1f, cubes, null);
         }
 
-        /** Convenience constructor preserving the historic (pivot, rotation, cubes, parent) signature. */
+        /**
+         * Convenience constructor preserving the historic (pivot, rotation, cubes, parent) signature.
+         */
         public Bone(@NotNull Vector3f pivot, @NotNull EulerRotation rotation, @NotNull ConcurrentList<Cube> cubes, @Nullable String parent) {
-            this(pivot, rotation, EulerRotation.NONE, cubes, parent);
+            this(pivot, rotation, EulerRotation.NONE, 1f, cubes, parent);
+        }
+
+        /**
+         * Convenience constructor preserving the (pivot, rotation, bindPoseRotation, cubes, parent)
+         * signature in use before {@link #scale} was added. Sets {@code scale} to its identity
+         * default {@code 1f} so all existing call sites stay compile-stable until they choose to
+         * opt in to the new field.
+         */
+        public Bone(@NotNull Vector3f pivot, @NotNull EulerRotation rotation, @NotNull EulerRotation bindPoseRotation, @NotNull ConcurrentList<Cube> cubes, @Nullable String parent) {
+            this(pivot, rotation, bindPoseRotation, 1f, cubes, parent);
         }
 
         @Override
@@ -149,22 +178,23 @@ public class EntityModelData {
             return Objects.equals(pivot, that.pivot)
                 && Objects.equals(rotation, that.rotation)
                 && Objects.equals(bindPoseRotation, that.bindPoseRotation)
+                && Float.compare(scale, that.scale) == 0
                 && Objects.equals(cubes, that.cubes)
                 && Objects.equals(parent, that.parent);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(pivot, cubes, rotation, bindPoseRotation, parent);
+            return Objects.hash(pivot, cubes, rotation, bindPoseRotation, scale, parent);
         }
 
     }
 
     /**
      * A single cube within a bone. {@link #origin} is the cube's minimum corner in absolute
-     * entity-root space, exactly as authored in Bedrock {@code .geo.json}; {@link #size} is the
-     * cube's extent along each axis in model units; {@link #uv} is the top-left corner of the
-     * cube's texture region on the shared atlas.
+     * entity-root space, exactly as authored in our JSON schema; {@link #size} is the cube's
+     * extent along each axis in model units; {@link #uv} is the top-left corner of the cube's
+     * texture region on the shared atlas.
      */
     @Getter
     @NoArgsConstructor
@@ -179,12 +209,12 @@ public class EntityModelData {
 
         /**
          * The cube's rotation pivot in absolute entity-root space, matching {@link #origin}'s
-         * coordinate space. Modern Bedrock {@code .geo.json} (1.12+) lets individual cubes carry
-         * their own {@code pivot}/{@code rotation} pair - used by the 1.21 cow/pig variants to
-         * author body cubes vertically and then tilt them into the standard horizontal pose
-         * without affecting other cubes in the same bone. When a cube's JSON omits
-         * {@code pivot} the parser fills it from the owning bone's pivot, matching Bedrock's
-         * semantics that a cube-rotation-without-pivot anchors on the bone. Ignored when
+         * coordinate space. Our JSON schema lets individual cubes carry their own
+         * {@code pivot}/{@code rotation} pair - used by the 1.21 cow/pig variants to author
+         * body cubes vertically and then tilt them into the standard horizontal pose without
+         * affecting other cubes in the same bone. When a cube's JSON omits {@code pivot} the
+         * parser fills it from the owning bone's pivot, matching the
+         * convention that a cube-rotation-without-pivot anchors on the bone. Ignored when
          * {@link #rotation} is zero.
          */
         private @NotNull Vector3f pivot = Vector3f.ZERO;
@@ -200,9 +230,10 @@ public class EntityModelData {
          * atlas unwrap derived from {@link #getUv()} and {@link #getSize()}. Faces absent from
          * the map fall back to the atlas unwrap so packs can override only the faces they need.
          * <p>
-         * Matches the Bedrock {@code geo.json} per-face UV schema used by Blockbench's cube
-         * exports, though the container key differs ({@code "face_uv"} here vs {@code "uv"} as
-         * an object in the raw geo.json format) so a Gson {@code TypeAdapter} is not required.
+         * Matches our per-face UV schema used by Blockbench's cube exports,
+         * though the container key differs ({@code "face_uv"} here vs {@code "uv"} as an
+         * object in the raw schema) so a Gson {@code TypeAdapter} is not
+         * required.
          */
         @SerializedName("face_uv")
         private @NotNull ConcurrentMap<String, FaceUv> faceUv = Concurrent.newMap();
@@ -230,7 +261,7 @@ public class EntityModelData {
 
     /**
      * An explicit per-face UV rectangle on an entity {@link Cube}. Stored in pixel coordinates
-     * on the source texture, matching the Bedrock {@code geo.json} cube face UV schema used by
+     * on the source texture, matching our per-face UV schema used by
      * Blockbench exports.
      * <p>
      * {@link #getUv()} is the top-left origin of the rectangle on the texture image;
@@ -242,10 +273,14 @@ public class EntityModelData {
     @AllArgsConstructor
     public static class FaceUv {
 
-        /** The rectangle's top-left origin on the texture image in pixels ({@code [u, v]}). */
+        /**
+         * The rectangle's top-left origin on the texture image in pixels ({@code [u, v]}).
+         */
         private @NotNull Vector2f uv = Vector2f.ZERO;
 
-        /** The rectangle's size on the texture image in pixels ({@code [width, height]}). */
+        /**
+         * The rectangle's size on the texture image in pixels ({@code [width, height]}).
+         */
         @SerializedName("uv_size")
         private @NotNull Vector2f uvSize = Vector2f.ZERO;
 

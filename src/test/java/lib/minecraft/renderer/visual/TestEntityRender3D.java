@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.visual;
 
+import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.exception.PipelineException;
@@ -21,29 +22,24 @@ import java.util.Optional;
 import java.util.TreeSet;
 
 /**
- * Diagnostic task that renders every entity listed in the bundled
- * {@code /lib/minecraft/renderer/entity_models.json} snapshot through {@link EntityRenderer} in
- * its default 3D GUI-item pose and dumps each output to {@code cache/visual/entity-render-3d/}
- * for visual inspection. Per-entity failures are logged to stderr and the run continues, so a
- * single broken model never aborts the sweep.
+ * Renders every entity from the Java-derived pipeline ({@code entity_models.json} /
+ * {@code entity_geometry.json}) through {@link EntityRenderer}'s Y-down engine path. Output
+ * lands in {@code cache/visual/entity-render-3d/} for visual inspection.
  * <p>
  * Usage: {@code ./gradlew :asset-renderer:entityRender3D [-PrenderSize=512] [-PentityId=minecraft:zombie]}.
- * Passing {@code -PentityId} limits the run to a single entity; omitting it renders the full set.
  */
 @UtilityClass
 public final class TestEntityRender3D {
 
-    /** Output directory for every entity render. */
     private static final Path OUTPUT_DIR = Path.of("cache/visual/entity-render-3d");
 
     /** Square edge length (pixels) for each render. */
     private static final int DEFAULT_SIZE = 512;
 
     /**
-     * Runs the entity sweep.
+     * Runs the Java-pipeline entity sweep.
      *
-     * @param args {@code args[0]} is an optional render size (defaults to {@value #DEFAULT_SIZE});
-     *     {@code args[1]} is an optional single entity id to restrict the sweep to
+     * @param args {@code args[0]} is an optional render size; {@code args[1]} an optional single entity id
      * @throws IOException if the output directory cannot be created or a render cannot be written
      */
     public static void main(String @NotNull [] args) throws IOException {
@@ -61,13 +57,18 @@ public final class TestEntityRender3D {
         }
 
         PipelineRendererContext context = PipelineRendererContext.of(result);
-        EntityRenderer renderer = new EntityRenderer(context);
+        ConcurrentMap<String, EntityModelLoader.EntityDefinition> javaEntities = EntityModelLoader.load();
+        if (javaEntities.isEmpty()) {
+            System.err.println("entity_models.json / entity_geometry.json not present on the classpath - run ./gradlew :asset-renderer:entityModelsJava first");
+            return;
+        }
+        EntityRenderer renderer = new EntityRenderer(context, javaEntities);
 
         List<String> entityIds = singleEntityId
             .map(List::of)
-            .orElseGet(() -> List.copyOf(new TreeSet<>(EntityModelLoader.load().keySet())));
+            .orElseGet(() -> List.copyOf(new TreeSet<>(javaEntities.keySet())));
 
-        System.out.printf("Rendering %d entit%s at %dx%d to %s%n",
+        System.out.printf("Rendering %d entit%s via Java pipeline at %dx%d to %s%n",
             entityIds.size(),
             entityIds.size() == 1 ? "y" : "ies",
             size, size,
@@ -82,6 +83,7 @@ public final class TestEntityRender3D {
             EntityOptions options = EntityOptions.builder()
                 .entityId(Optional.of(entityId))
                 .outputSize(size)
+                .supersample(2)
                 .antiAlias(true)
                 .build();
 
@@ -101,8 +103,7 @@ public final class TestEntityRender3D {
         }
 
         long totalMs = (System.nanoTime() - t0) / 1_000_000L;
-        System.out.printf("Done. %d rendered, %d failed, %d ms total.%n",
-            rendered, failed, totalMs);
+        System.out.printf("Done. %d rendered, %d failed, %d ms total.%n", rendered, failed, totalMs);
     }
 
 }

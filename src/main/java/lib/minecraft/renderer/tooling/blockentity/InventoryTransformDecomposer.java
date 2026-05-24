@@ -30,8 +30,9 @@ import java.util.zip.ZipFile;
  * conduit / sign / hanging_sign / banner variants. The sole exception is
  * {@code minecraft:skull_dragon_head}, whose distinguishing {@code tz = 1.25} comes from the
  * {@code DragonHeadModel} geometry rather than the shared {@code SkullBlockRenderer} factory
- * method. The decomposer emits the shared skull tuple for dragon heads; the caller merges the
- * dragon-specific override from {@code block_entities_overrides.json}.
+ * method. The decomposer emits the shared skull tuple for dragon heads; the
+ * {@code recenterInventoryTransformsByBbox} geometry-aware post-pass in
+ * {@code ToolingBlockEntities} recovers the {@code tz = 1.25} from the parsed cube bbox.
  *
  * <p><b>Policy</b>. The only hand-curated map is {@link #RENDERER_ENTRY_METHODS}: for each
  * renderer class internal name, the factory method (or static field prefixed
@@ -69,7 +70,9 @@ public final class InventoryTransformDecomposer {
 
     private static final @NotNull Map<String, String> RENDERER_ENTRY_METHODS = buildRendererEntryMethods();
 
-    /** Builds the {@link #RENDERER_ENTRY_METHODS} table mapping renderer internal name to factory entry. */
+    /**
+     * Builds the {@link #RENDERER_ENTRY_METHODS} table mapping renderer internal name to factory entry.
+     */
     private static @NotNull Map<String, String> buildRendererEntryMethods() {
         Map<String, String> m = new LinkedHashMap<>();
         m.put("net/minecraft/client/renderer/blockentity/BedRenderer", "createModelTransform");
@@ -93,12 +96,13 @@ public final class InventoryTransformDecomposer {
     private static final @NotNull String VECTOR3F = "org/joml/Vector3f";
     private static final @NotNull String VECTOR3FC = "org/joml/Vector3fc";
     private static final @NotNull String QUATERNIONF = "org/joml/Quaternionf";
+    private static final @NotNull String QUATERNIONFC = "org/joml/Quaternionfc";
     private static final @NotNull String AXIS = "com/mojang/math/Axis";
     private static final @NotNull String TRANSFORMATION = "com/mojang/math/Transformation";
     private static final @NotNull String TRANSFORMATION_DESC = "L" + TRANSFORMATION + ";";
     private static final @NotNull String TRANSFORMATION_CTOR_MATRIX = "(Lorg/joml/Matrix4fc;)V";
     private static final @NotNull String TRANSFORMATION_CTOR_COMPONENTS =
-        "(Lorg/joml/Vector3fc;Lorg/joml/Quaternionfc;Lorg/joml/Vector3fc;Lorg/joml/Quaternionfc;)V";
+        "(L" + VECTOR3FC + ";L" + QUATERNIONFC + ";L" + VECTOR3FC + ";L" + QUATERNIONFC + ";)V";
 
     private static final float UNIT_EPS = 1e-3f;
     private static final int MAX_INLINE_DEPTH = 2;
@@ -236,7 +240,7 @@ public final class InventoryTransformDecomposer {
         @NotNull String fieldName,
         @NotNull Diagnostics diag
     ) {
-        MethodNode clinit = AsmKit.findMethod(cn, "<clinit>");
+        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) {
             diag.warn("inventory-transform: no <clinit> on '%s' for field '%s'", cn.name, fieldName);
             return null;
@@ -253,7 +257,9 @@ public final class InventoryTransformDecomposer {
         return canonicalise(walker.finalTransform, diag);
     }
 
-    /** Walks a factory method's bytecode and decomposes the returned {@code Transformation}. */
+    /**
+     * Walks a factory method's bytecode and decomposes the returned {@code Transformation}.
+     */
     private static float @Nullable [] decomposeMethod(
         @NotNull ZipFile zip,
         @NotNull ClassNode cn,
@@ -261,7 +267,7 @@ public final class InventoryTransformDecomposer {
         @NotNull Diagnostics diag
     ) {
         Walker walker = new Walker(zip, cn, diag, 0);
-        walker.isStaticInit = method.name.equals("<clinit>");
+        walker.isStaticInit = AsmKit.CLINIT.equals(method.name);
         // Seed any float parameter slots with YAW sentinels. Our factory methods take at
         // most one float parameter (the yaw angle); this covers both (I), (F), (Attachment, F),
         // and (F, Attachment) descriptors without a per-shape policy.
@@ -284,7 +290,7 @@ public final class InventoryTransformDecomposer {
         Type[] args = Type.getArgumentTypes(methodDesc);
         int slot = 0;
         for (Type t : args) {
-            if (t.getSort() == Type.FLOAT) walker.locals.put(slot, Value.ofYaw());
+            if (t.getSort() == Type.FLOAT) walker.locals.store(slot, Value.ofYaw());
             slot += t.getSize();
         }
     }
@@ -293,7 +299,9 @@ public final class InventoryTransformDecomposer {
     // Symbolic value model
     // --------------------------------------------------------------------------------------
 
-    /** Tag for the kinds of values our symbolic JVM stack tracks. */
+    /**
+     * Tag for the kinds of values our symbolic JVM stack tracks.
+     */
     private enum ValueKind { FLOAT, YAW, VECTOR, QUATERNION, MATRIX, NULL, CLASS_REF, OTHER }
 
     /**
@@ -323,7 +331,9 @@ public final class InventoryTransformDecomposer {
         static @NotNull Value ofOther() { return new Value(ValueKind.OTHER, 0f, null, null, null); }
     }
 
-    /** Axis-angle rotation (degrees). axis in {@code 'X', 'Y', 'Z'}. */
+    /**
+     * Axis-angle rotation (degrees). axis in {@code 'X', 'Y', 'Z'}.
+     */
     private record Quat(char axis, float angleDeg) {
         static final Quat IDENTITY = new Quat('I', 0f);
         boolean isIdentity() { return axis == 'I' || angleDeg == 0f; }
@@ -349,14 +359,18 @@ public final class InventoryTransformDecomposer {
             }
         }
 
-        /** Sets translation to {@code v}, resetting everything else. Matrix4f.translation() semantics. */
+        /**
+         * Sets translation to {@code v}, resetting everything else. Matrix4f.translation() semantics.
+         */
         void setTranslation(@NotNull Vector3f v) {
             this.tx = v.x(); this.ty = v.y(); this.tz = v.z();
             this.rotations = Concurrent.newList();
             this.sx = 1f; this.sy = 1f; this.sz = 1f;
         }
 
-        /** Right-multiplies by {@code T(v)}. */
+        /**
+         * Right-multiplies by {@code T(v)}.
+         */
         void postTranslate(@NotNull Vector3f v) {
             // M' = M * T(v). Decomposed: if M = T * R * S, then M' = T * R * S * T(v).
             // We only track T on the outside and S on the inside; rotations are tracked
@@ -387,7 +401,9 @@ public final class InventoryTransformDecomposer {
             return s;
         }
 
-        /** Right-multiplies by {@code R(q)}. */
+        /**
+         * Right-multiplies by {@code R(q)}.
+         */
         void postRotate(@NotNull Quat q) {
             if (q.isIdentity()) {
                 this.rotations.add(q); // preserve ordering even for identities
@@ -396,12 +412,16 @@ public final class InventoryTransformDecomposer {
             this.rotations.add(q);
         }
 
-        /** Right-multiplies by {@code S(v)}. */
+        /**
+         * Right-multiplies by {@code S(v)}.
+         */
         void postScale(@NotNull Vector3f v) {
             this.sx *= v.x(); this.sy *= v.y(); this.sz *= v.z();
         }
 
-        /** Right-multiplies by {@code T(c) * R(q) * T(-c)}. */
+        /**
+         * Right-multiplies by {@code T(c) * R(q) * T(-c)}.
+         */
         void postRotateAround(@NotNull Quat q, float cx, float cy, float cz) {
             // This equals translate(c) * rotate(q) * translate(-c) fed into the right side.
             // At cx=cy=cz=0.5 (block-center) the baseline treats it as a yaw-equivalent
@@ -440,7 +460,9 @@ public final class InventoryTransformDecomposer {
         return nearUnit(mod, 0f) || nearUnit(mod, 180f);
     }
 
-    /** {@code true} when {@code a} is within {@link #UNIT_EPS} of {@code target}. */
+    /**
+     * {@code true} when {@code a} is within {@link #UNIT_EPS} of {@code target}.
+     */
     private static boolean nearUnit(float a, float target) {
         return Math.abs(a - target) < UNIT_EPS;
     }
@@ -466,12 +488,16 @@ public final class InventoryTransformDecomposer {
         final @NotNull Diagnostics diag;
         final int depth;
         final @NotNull ConcurrentList<Value> stack = Concurrent.newList();
-        final @NotNull Map<Integer, Value> locals = new LinkedHashMap<>();
+        final @NotNull AsmKit.SlotTracker<Value> locals = new AsmKit.SlotTracker<>();
         @Nullable TransformState finalTransform;
-        /** Value captured at the stop-PUTSTATIC event (for static field resolution). */
+        /**
+         * Value captured at the stop-PUTSTATIC event (for static field resolution).
+         */
         @Nullable Value stoppedFieldValue;
         boolean poisoned;
-        /** {@code true} when walking a static initializer (FLOAD 0 is then a local, not yaw). */
+        /**
+         * {@code true} when walking a static initializer (FLOAD 0 is then a local, not yaw).
+         */
         boolean isStaticInit;
 
         Walker(@NotNull ZipFile zip, @NotNull ClassNode owner, @NotNull Diagnostics diag, int depth) {
@@ -479,8 +505,8 @@ public final class InventoryTransformDecomposer {
         }
 
         void push(@NotNull Value v) { this.stack.add(v); }
-        @Nullable Value pop() { return this.stack.isEmpty() ? null : this.stack.remove(this.stack.size() - 1); }
-        @Nullable Value peek() { return this.stack.isEmpty() ? null : this.stack.get(this.stack.size() - 1); }
+        @Nullable Value pop() { return this.stack.isEmpty() ? null : this.stack.removeLast(); }
+        @Nullable Value peek() { return this.stack.isEmpty() ? null : this.stack.getLast(); }
 
         void poison(@NotNull String reason) {
             if (this.poisoned) return;
@@ -622,18 +648,18 @@ public final class InventoryTransformDecomposer {
         private void handleVarInsn(@NotNull VarInsnNode vi) {
             int op = vi.getOpcode();
             if (op == Opcodes.FLOAD) {
-                Value v = this.locals.get(vi.var);
+                Value v = this.locals.load(vi.var);
                 push(v != null ? v : Value.ofOther());
                 return;
             }
             if (op == Opcodes.ALOAD) {
-                Value v = this.locals.get(vi.var);
+                Value v = this.locals.load(vi.var);
                 push(v != null ? v : Value.ofOther());
                 return;
             }
             if (op == Opcodes.FSTORE || op == Opcodes.ASTORE) {
                 Value v = pop();
-                if (v != null) this.locals.put(vi.var, v);
+                if (v != null) this.locals.store(vi.var, v);
                 return;
             }
             if (op == Opcodes.ILOAD) { push(Value.ofOther()); return; }
@@ -641,7 +667,9 @@ public final class InventoryTransformDecomposer {
             poison("unsupported var insn op=" + op);
         }
 
-        /** Handles FNEG / FADD / FSUB / FMUL / FDIV. */
+        /**
+         * Handles FNEG / FADD / FSUB / FMUL / FDIV.
+         */
         private boolean handleInsn(int op) {
             if (op == Opcodes.FNEG) {
                 Value v = pop();
@@ -676,7 +704,9 @@ public final class InventoryTransformDecomposer {
             return false;
         }
 
-        /** FLOAT -> value, YAW -> 0. Everything else -> NaN (poisons caller). */
+        /**
+         * FLOAT -> value, YAW -> 0. Everything else -> NaN (poisons caller).
+         */
         private static float valueAsFloat(@NotNull Value v) {
             if (v.kind == ValueKind.FLOAT) return v.floatVal;
             if (v.kind == ValueKind.YAW) return 0f;
@@ -712,7 +742,7 @@ public final class InventoryTransformDecomposer {
          * assignment); returns {@code null} for anything more complex.
          */
         private @Nullable Value resolveOwnStaticField(@NotNull String fieldName) {
-            MethodNode clinit = AsmKit.findMethod(this.owner, "<clinit>");
+            MethodNode clinit = AsmKit.findMethod(this.owner, AsmKit.CLINIT);
             if (clinit == null) return null;
             Walker sub = new Walker(this.zip, this.owner, this.diag, this.depth + 1);
             sub.isStaticInit = true;
@@ -734,7 +764,7 @@ public final class InventoryTransformDecomposer {
             String desc = mi.desc;
 
             // Matrix4f / Matrix4fc constructor -----------------------------------------------
-            if (owner.equals(MATRIX4F) && name.equals("<init>") && op == Opcodes.INVOKESPECIAL) {
+            if (owner.equals(MATRIX4F) && AsmKit.INIT.equals(name) && op == Opcodes.INVOKESPECIAL) {
                 if (!desc.equals("()V")) { poison("Matrix4f ctor desc " + desc); return; }
                 // Stack before: ..., NEW, DUP. INVOKESPECIAL pops 1 'this'. The remaining
                 // NEW placeholder becomes the constructed (identity) matrix.
@@ -752,7 +782,7 @@ public final class InventoryTransformDecomposer {
             }
 
             // Vector3f constructor -----------------------------------------------------------
-            if (owner.equals(VECTOR3F) && name.equals("<init>") && op == Opcodes.INVOKESPECIAL) {
+            if (owner.equals(VECTOR3F) && AsmKit.INIT.equals(name) && op == Opcodes.INVOKESPECIAL) {
                 if (desc.equals("(FFF)V")) {
                     Value vz = pop(); Value vy = pop(); Value vx = pop();
                     if (vx == null || vy == null || vz == null) { poison("Vector3f ctor args"); return; }
@@ -788,7 +818,7 @@ public final class InventoryTransformDecomposer {
             }
 
             // Transformation constructor -----------------------------------------------------
-            if (owner.equals(TRANSFORMATION) && name.equals("<init>") && op == Opcodes.INVOKESPECIAL) {
+            if (owner.equals(TRANSFORMATION) && AsmKit.INIT.equals(name) && op == Opcodes.INVOKESPECIAL) {
                 if (desc.equals(TRANSFORMATION_CTOR_MATRIX)) {
                     Value m = pop();
                     if (m == null || m.matrix == null) { poison("Transformation(Matrix) with no matrix on stack"); return; }
@@ -859,7 +889,9 @@ public final class InventoryTransformDecomposer {
             passThroughUnknown(mi);
         }
 
-        /** Handles {@code Matrix4f.translation / translate / rotate / rotateAround / scale} calls. */
+        /**
+         * Handles {@code Matrix4f.translation / translate / rotate / rotateAround / scale} calls.
+         */
         private void handleMatrix4fInvoke(@NotNull String name, @NotNull String desc) {
             switch (name) {
                 case "translation" -> {
@@ -949,7 +981,7 @@ public final class InventoryTransformDecomposer {
             for (int k = 0; k < argTypes.length; k++) {
                 Type t = argTypes[k];
                 Value a = callerArgs[k] != null ? callerArgs[k] : Value.ofOther();
-                sub.locals.put(slot, a);
+                sub.locals.store(slot, a);
                 slot += t.getSize();
             }
             sub.walk(callee.instructions, null);

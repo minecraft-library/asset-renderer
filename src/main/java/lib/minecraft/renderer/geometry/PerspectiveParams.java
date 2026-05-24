@@ -82,7 +82,9 @@ public record PerspectiveParams(float amount, float cameraDistance, float focalL
         0f, 0f, 0f, CONSERVATIVE_PROJECTION_SCALE
     );
 
-    /** A moderate perspective suitable for GUI item icons. */
+    /**
+     * A moderate perspective suitable for GUI item icons.
+     */
     public static final @NotNull PerspectiveParams GUI_ITEM = new PerspectiveParams(
         GUI_ITEM_PERSPECTIVE_AMOUNT,
         GUI_ITEM_CAMERA_DISTANCE,

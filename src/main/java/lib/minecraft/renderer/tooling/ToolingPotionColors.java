@@ -9,6 +9,7 @@ import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.loader.PotionColorLoader;
 import lib.minecraft.renderer.tooling.util.AsmKit;
+import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lombok.experimental.UtilityClass;
@@ -45,7 +46,9 @@ import java.util.zip.ZipFile;
 @UtilityClass
 public final class ToolingPotionColors {
 
-    /** Fixed output path for the bundled potion-colour resource. */
+    /**
+     * Fixed output path for the bundled potion-colour resource.
+     */
     private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/lib/minecraft/renderer/potion_colors.json");
 
     /**
@@ -120,11 +123,7 @@ public final class ToolingPotionColors {
     @UtilityClass
     static class Parser {
 
-        private static final @NotNull String MOB_EFFECTS_INTERNAL_NAME = "net/minecraft/world/effect/MobEffects";
-        private static final @NotNull String EFFECT_PACKAGE_PREFIX = "net/minecraft/world/effect/";
         private static final @NotNull String MOB_EFFECT_INIT_DESCRIPTOR = "(Lnet/minecraft/world/effect/MobEffectCategory;I)V";
-        private static final @NotNull String CLINIT_METHOD_NAME = "<clinit>";
-        private static final @NotNull String INIT_METHOD_NAME = "<init>";
         private static final @NotNull String REGISTER_METHOD_NAME = "register";
 
         /**
@@ -137,13 +136,8 @@ public final class ToolingPotionColors {
          */
         public static @NotNull ConcurrentMap<String, Integer> parse(@NotNull Path jarPath) {
             try (ZipFile zip = new ZipFile(jarPath.toFile())) {
-                ClassNode classNode = AsmKit.requireClass(zip, MOB_EFFECTS_INTERNAL_NAME, "MobEffects");
-                MethodNode clinit = AsmKit.findMethod(classNode, CLINIT_METHOD_NAME);
-                if (clinit == null)
-                    throw new ToolingException(
-                        "MobEffects class does not expose a '%s' method - jar may be obfuscated or from an unsupported version",
-                        CLINIT_METHOD_NAME
-                    );
+                ClassNode classNode = AsmKit.requireClass(zip, VanillaSourceClasses.MOB_EFFECTS, "MobEffects");
+                MethodNode clinit = AsmKit.requireClinit(classNode, "MobEffects");
                 return parseClinit(clinit.instructions);
             } catch (IOException ex) {
                 throw new ToolingException(ex, "Failed to read MobEffects class from jar '%s'", jarPath);
@@ -177,7 +171,7 @@ public final class ToolingPotionColors {
                     continue;
                 }
 
-                if (AsmKit.isNewInstance(node, EFFECT_PACKAGE_PREFIX)) {
+                if (AsmKit.isNewInstance(node, VanillaSourceClasses.EFFECT_PACKAGE_PREFIX)) {
                     // A new MobEffect (or subclass) is being constructed; reset the int stack so
                     // only the literals pushed between now and the invokespecial are considered
                     // for the colour.
@@ -190,15 +184,15 @@ public final class ToolingPotionColors {
                 // int) - the int literal on top of the stack is the ARGB colour.
                 if (node.getOpcode() == Opcodes.INVOKESPECIAL
                     && node instanceof MethodInsnNode methodInsn
-                    && methodInsn.name.equals(INIT_METHOD_NAME)
-                    && methodInsn.owner.startsWith(EFFECT_PACKAGE_PREFIX)
+                    && methodInsn.name.equals(AsmKit.INIT)
+                    && methodInsn.owner.startsWith(VanillaSourceClasses.EFFECT_PACKAGE_PREFIX)
                     && methodInsn.desc.equals(MOB_EFFECT_INIT_DESCRIPTOR)) {
                     Integer top = intLiteralStack.popInt();
                     if (top != null) pendingColor = top;
                     continue;
                 }
 
-                if (AsmKit.isInvoke(node, Opcodes.INVOKESTATIC, MOB_EFFECTS_INTERNAL_NAME, REGISTER_METHOD_NAME)) {
+                if (AsmKit.isInvokeStatic(node, VanillaSourceClasses.MOB_EFFECTS, REGISTER_METHOD_NAME)) {
                     if (pendingEffectId != null && pendingColor != null) {
                         colors.put("minecraft:" + pendingEffectId, pendingColor);
                     }

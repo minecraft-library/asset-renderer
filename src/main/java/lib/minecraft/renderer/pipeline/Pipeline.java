@@ -13,10 +13,8 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
-import dev.simplified.image.ImageData;
-import dev.simplified.image.codec.png.PngImageWriter;
-import dev.simplified.image.codec.tga.TgaImageReader;
 import dev.simplified.util.Lazy;
+import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockTag;
 import lib.minecraft.renderer.asset.binding.BannerPattern;
@@ -34,27 +32,23 @@ import lib.minecraft.renderer.pipeline.loader.CitLoader;
 import lib.minecraft.renderer.pipeline.loader.ColorMapLoader;
 import lib.minecraft.renderer.pipeline.loader.CtmLoader;
 import lib.minecraft.renderer.pipeline.loader.ItemDefinitionLoader;
-import lib.minecraft.renderer.pipeline.resolver.ModelResolver;
 import lib.minecraft.renderer.pipeline.loader.PotionColorLoader;
 import lib.minecraft.renderer.pipeline.loader.TexturePackLoader;
 import lib.minecraft.renderer.pipeline.pack.CitRule;
 import lib.minecraft.renderer.pipeline.pack.ColorProperties;
 import lib.minecraft.renderer.pipeline.pack.CtmRule;
+import lib.minecraft.renderer.pipeline.resolver.ModelResolver;
 import lib.minecraft.renderer.pipeline.resolver.PackResolver;
 import lib.minecraft.renderer.pipeline.util.PackAcquirer;
+import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -82,7 +76,7 @@ public class Pipeline {
 
     private static final @NotNull Lazy<Proxy<MojangContract>> MOJANG_PROXY = Lazy.of(() ->
         Proxy.builder(
-            ClientConfig.builder(MojangContract.class, GsonSettings.defaults().create())
+            ClientConfig.builder(MojangContract.class, GsonSettings.defaults())
                 .withErrorDecoder(MojangApiException::new)
                 .build()
         ).build()
@@ -98,10 +92,6 @@ public class Pipeline {
         Path packRoot = packRoot(options);
         Path jarPath = downloadJarToCache(options);
         extractClientJar(jarPath, packRoot);
-
-        Path bedrockRoot = bedrockRoot(options);
-        Path bedrockZip = downloadBedrockPackToCache(options);
-        extractBedrockEntityTextures(bedrockZip, jarPath, bedrockRoot, options.isForceBedrockDownload());
 
         PackBundle packs = resolvePacks(options, packRoot);
 
@@ -121,7 +111,7 @@ public class Pipeline {
         ConcurrentList<CitRule> citRules = collectCitRules(packs.ascending());
         ConcurrentList<CtmRule> ctmRules = collectCtmRules(packs.ascending());
 
-        return new Result(packRoot, bedrockRoot, packs.vanilla(), packs.descending(), textures, colorMaps, blockTints, blockModels, itemModels,
+        return new Result(packRoot, packs.vanilla(), packs.descending(), textures, colorMaps, blockTints, blockModels, itemModels,
             blockStateResult.getVariants(), blockStateResult.getMultiparts(), itemDefinitions, blockTags,
             potionEffectColors, bannerPatterns, colorOverrides, citRules, ctmRules);
     }
@@ -278,170 +268,13 @@ public class Pipeline {
      * The lazily-initialised shared {@link MojangContract}. Single proxy per JVM via
      * {@link #MOJANG_PROXY}, so concurrent callers ({@link #run}, {@link #downloadJarToCache},
      * the player skin / cape paths in
-     * {@link lib.minecraft.renderer.PlayerRenderer PlayerRenderer}) share the same domain-aware
+     * {@link PlayerRenderer PlayerRenderer}) share the same domain-aware
      * rate limiter.
      *
      * @return the shared Mojang contract
      */
     public static @NotNull MojangContract mojang() {
         return MOJANG_PROXY.get().getContract();
-    }
-
-    /**
-     * Downloads {@code Mojang/bedrock-samples} at {@code options.getBedrockRef()} into the local
-     * cache and returns the {@link Path} - skips the unzip step. The cached archive lives at
-     * {@code <cacheRoot>/bedrock/<bedrockRef>/pack.zip}; subsequent calls hit the cache unless
-     * {@link PipelineOptions#isForceBedrockDownload()} is {@code true}.
-     * <p>
-     * Routed through the JDK {@link HttpClient} (with redirect-following enabled, since GitHub
-     * hands tag/branch archive requests off to {@code codeload.github.com}) rather than
-     * {@link MojangContract} - {@code github.com} sits outside the Mojang Piston API surface and
-     * has its own rate limits independent of the shared Mojang proxy.
-     *
-     * @param options the pipeline options
-     * @return the path to the cached bedrock-samples zip
-     */
-    public static @NotNull Path downloadBedrockPackToCache(@NotNull PipelineOptions options) {
-        Path target = bedrockRoot(options).resolve("pack.zip");
-        if (Files.isRegularFile(target) && !options.isForceBedrockDownload())
-            return target;
-
-        try {
-            Files.createDirectories(target.getParent());
-            String url = "https://github.com/Mojang/bedrock-samples/archive/refs/tags/"
-                + options.getBedrockRef() + ".zip";
-
-            HttpClient client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build();
-            HttpResponse<byte[]> response = client.send(
-                HttpRequest.newBuilder(URI.create(url)).GET().build(),
-                HttpResponse.BodyHandlers.ofByteArray()
-            );
-            if (response.statusCode() / 100 != 2)
-                throw new PipelineException("GET '%s' returned HTTP '%d'", url, response.statusCode());
-            Files.write(target, response.body());
-        } catch (IOException ex) {
-            throw new PipelineException(ex, "Failed to cache bedrock pack at '%s'", target);
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            throw new PipelineException(ex, "Interrupted while downloading bedrock pack to '%s'", target);
-        }
-
-        return target;
-    }
-
-    /**
-     * Streams the {@code resource_pack/textures/entity/} subtree out of the cached bedrock zip
-     * into {@code <bedrockRoot>/textures/entity/}, then layers the Java client jar's
-     * {@code assets/minecraft/textures/entity/**\/*_eyes.png} emissive overlays on top in the
-     * same flat namespace (the runtime entity pipeline keys both into a single texture root).
-     * <p>
-     * PNGs copy verbatim. TGA files are decoded through {@link TgaImageReader} and re-encoded as
-     * PNG so the runtime only ever needs PNG support. Idempotent - skips when the target tree
-     * exists, unless {@code force} is {@code true}. Public so tooling generators can reuse the
-     * same population path.
-     *
-     * @param bedrockZip path to the cached bedrock-samples zip from
-     *     {@link #downloadBedrockPackToCache(PipelineOptions)}
-     * @param clientJar path to the cached Java client jar from
-     *     {@link #downloadJarToCache(PipelineOptions)}; used as the source of emissive overlays
-     * @param bedrockRoot the destination cache root, typically {@link #bedrockRoot(PipelineOptions)}
-     * @param force when {@code true}, re-extract even when {@code <bedrockRoot>/textures/entity/}
-     *     already exists
-     */
-    public static void extractBedrockEntityTextures(
-        @NotNull Path bedrockZip,
-        @NotNull Path clientJar,
-        @NotNull Path bedrockRoot,
-        boolean force
-    ) {
-        Path destination = bedrockRoot.resolve("textures").resolve("entity");
-        if (Files.isDirectory(destination) && !force) return;
-
-        try {
-            Files.createDirectories(destination);
-            extractBedrockSamplesEntityTree(bedrockZip, destination);
-            copyJavaEmissiveOverlays(clientJar, destination);
-        } catch (IOException ex) {
-            throw new PipelineException(ex, "Failed to populate bedrock entity textures at '%s'", destination);
-        }
-    }
-
-    /**
-     * Walks the bedrock-samples zip for {@code resource_pack/textures/entity/} entries and writes
-     * each as PNG into {@code destination}. PNG entries copy verbatim; TGA entries decode through
-     * {@link TgaImageReader} and re-encode through {@link PngImageWriter} so the runtime only
-     * ever sees PNG. The bedrock-samples archive's top-level directory varies by ref (e.g.
-     * {@code bedrock-samples-1.26.10.4/}), so the prefix match is substring-based.
-     */
-    private static void extractBedrockSamplesEntityTree(@NotNull Path bedrockZip, @NotNull Path destination) throws IOException {
-        TgaImageReader tgaReader = new TgaImageReader();
-        PngImageWriter pngWriter = new PngImageWriter();
-        String prefix = "resource_pack/textures/entity/";
-
-        try (ZipFile zip = new ZipFile(bedrockZip.toFile())) {
-            Enumeration<? extends ZipEntry> entries = zip.entries();
-            while (entries.hasMoreElements()) {
-                ZipEntry entry = entries.nextElement();
-                if (entry.isDirectory()) continue;
-                String name = entry.getName();
-                int idx = name.indexOf(prefix);
-                if (idx < 0) continue;
-                String subPath = name.substring(idx + prefix.length());
-                if (subPath.isEmpty()) continue;
-
-                String pngSubPath;
-                byte[] payload;
-                try (InputStream in = zip.getInputStream(entry)) {
-                    if (subPath.endsWith(".png")) {
-                        pngSubPath = subPath;
-                        payload = in.readAllBytes();
-                    } else if (subPath.endsWith(".tga")) {
-                        pngSubPath = subPath.substring(0, subPath.length() - ".tga".length()) + ".png";
-                        try {
-                            ImageData decoded = tgaReader.read(in.readAllBytes(), null);
-                            payload = pngWriter.write(decoded, null);
-                        } catch (RuntimeException ex) {
-                            continue;
-                        }
-                    } else {
-                        continue;
-                    }
-                }
-
-                Path outPath = destination.resolve(pngSubPath);
-                Files.createDirectories(outPath.getParent());
-                if (Files.exists(outPath) && pngSubPath.equals(subPath)) continue;
-                Files.write(outPath, payload);
-            }
-        }
-    }
-
-    /**
-     * Copies every {@code assets/minecraft/textures/entity/**\/*_eyes.png} from the Java client
-     * jar into the same {@code destination} directory the bedrock textures populate. PNGs that
-     * already exist (e.g. {@code breeze/breeze_eyes.png} which is in both packs) are left alone -
-     * bedrock copies wins on collisions.
-     */
-    private static void copyJavaEmissiveOverlays(@NotNull Path clientJar, @NotNull Path destination) throws IOException {
-        String prefix = "assets/minecraft/textures/entity/";
-
-        try (ZipFile zip = new ZipFile(clientJar.toFile())) {
-            Enumeration<? extends ZipEntry> entries = zip.entries();
-            while (entries.hasMoreElements()) {
-                ZipEntry entry = entries.nextElement();
-                if (entry.isDirectory()) continue;
-                String name = entry.getName();
-                if (!name.startsWith(prefix) || !name.endsWith("_eyes.png")) continue;
-                String subPath = name.substring(prefix.length());
-
-                Path outPath = destination.resolve(subPath);
-                if (Files.exists(outPath)) continue;
-                Files.createDirectories(outPath.getParent());
-                try (InputStream in = zip.getInputStream(entry)) {
-                    Files.copy(in, outPath, StandardCopyOption.REPLACE_EXISTING);
-                }
-            }
-        }
     }
 
     /**
@@ -497,8 +330,8 @@ public class Pipeline {
                 ZipEntry entry = entries.nextElement();
                 if (entry.isDirectory()) continue;
                 String name = entry.getName();
-                boolean isAssetTree = name.startsWith(VanillaPaths.VANILLA_ASSET_ROOT)
-                    || name.startsWith(VanillaPaths.VANILLA_DATA_ROOT);
+                boolean isAssetTree = name.startsWith(VanillaSourcePaths.VANILLA_ASSET_ROOT)
+                    || name.startsWith(VanillaSourcePaths.VANILLA_DATA_ROOT);
                 boolean isRootMcmeta = name.equals("pack.mcmeta");
                 boolean isVersionJson = name.equals("version.json");
 
@@ -584,27 +417,14 @@ public class Pipeline {
 
     private static final @NotNull Gson MCMETA_GSON = GsonSettings.defaults().create();
 
-    /** The standard {@code <cacheRoot>/vanilla/<version>} pack-root path for the given options. */
+    /**
+     * The standard {@code <cacheRoot>/vanilla/<version>} pack-root path for the given options.
+     */
     private static @NotNull Path packRoot(@NotNull PipelineOptions options) {
         return options.getCacheRoot()
             .toPath()
             .resolve("vanilla")
             .resolve(options.getVersion());
-    }
-
-    /**
-     * The standard {@code <cacheRoot>/bedrock/<bedrockRef>} root path for the given options - the
-     * shared cache for the bedrock pack zip and its extracted entity textures. Mirrors
-     * {@link #packRoot(PipelineOptions)} for the Java side.
-     *
-     * @param options the pipeline options
-     * @return the bedrock cache root for the configured ref
-     */
-    public static @NotNull Path bedrockRoot(@NotNull PipelineOptions options) {
-        return options.getCacheRoot()
-            .toPath()
-            .resolve("bedrock")
-            .resolve(options.getBedrockRef());
     }
 
     /**
@@ -615,16 +435,6 @@ public class Pipeline {
     public static final class Result {
 
         private final @NotNull Path packRoot;
-
-        /**
-         * The on-disk root for bedrock-derived entity textures, populated by
-         * {@link Pipeline#extractBedrockEntityTextures(Path, Path, Path, boolean)} during
-         * {@link Pipeline#run(PipelineOptions)}. The renderer context exposes this through
-         * {@link lib.minecraft.renderer.engine.RendererContext#resolveBedrockEntityTexture(String)
-         * resolveBedrockEntityTexture}; PNGs live at
-         * {@code <bedrockRoot>/textures/entity/<ref>.png}.
-         */
-        private final @NotNull Path bedrockRoot;
 
         private final @NotNull TexturePack vanillaPack;
 
@@ -647,10 +457,14 @@ public class Pipeline {
         private final @NotNull ConcurrentMap<String, String> itemDefinitions;
         private final @NotNull ConcurrentMap<String, BlockTag> blockTags;
 
-        /** Namespaced effect id to ARGB colour, parsed from {@code MobEffects} by the pipeline's potion colour loader. */
+        /**
+         * Namespaced effect id to ARGB colour, parsed from {@code MobEffects} by the pipeline's potion colour loader.
+         */
         private final @NotNull ConcurrentMap<String, Integer> potionEffectColors;
 
-        /** Namespaced banner pattern id to descriptor, parsed from {@code data/minecraft/banner_pattern/} by the banner pattern loader. */
+        /**
+         * Namespaced banner pattern id to descriptor, parsed from {@code data/minecraft/banner_pattern/} by the banner pattern loader.
+         */
         private final @NotNull ConcurrentMap<String, BannerPattern> bannerPatterns;
 
         /**

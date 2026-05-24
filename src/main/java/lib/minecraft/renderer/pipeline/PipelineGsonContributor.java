@@ -21,7 +21,7 @@ import java.util.ServiceLoader;
 public class PipelineGsonContributor implements GsonContributor {
 
     @Override
-    public void contribute(GsonSettings.@NotNull Builder builder) {
+    public void contribute(@NotNull GsonSettings.Builder builder) {
         builder
             .withTypeAdapter(Vector2f.class, new Vector2f.Adapter())
             .withTypeAdapter(Vector3f.class, new Vector3f.Adapter())

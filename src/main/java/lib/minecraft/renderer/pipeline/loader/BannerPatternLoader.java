@@ -7,7 +7,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.binding.BannerPattern;
-import lib.minecraft.renderer.pipeline.VanillaPaths;
+import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -84,7 +84,7 @@ public class BannerPatternLoader {
         @NotNull HashMap<String, BannerPattern> result
     ) {
         String relative = patternDir.relativize(file).toString().replace('\\', '/');
-        String patternId = VanillaPaths.MINECRAFT_NAMESPACE + relative.substring(0, relative.length() - ".json".length());
+        String patternId = VanillaSourcePaths.MINECRAFT_NAMESPACE + relative.substring(0, relative.length() - ".json".length());
         try {
             JsonObject root = GSON.fromJson(Files.readString(file), JsonObject.class);
             if (root == null || !root.has("asset_id")) return;

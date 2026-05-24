@@ -2,14 +2,42 @@ package lib.minecraft.renderer.engine;
 
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.MenuRenderer;
+import lib.minecraft.renderer.TextRenderer;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * A 2D raster drawing engine. Extends {@link TextureEngine} so every 2D renderer can resolve
- * pack-aware textures in addition to drawing with pure pixel operations.
+ * A 2D raster drawing engine for renderers that compose pixels into a flat output buffer
+ * without going through the {@link ModelEngine} triangle rasterizer.
+ *
+ * <p>Extends {@link TextureEngine} so every 2D renderer inherits pack-aware texture
+ * resolution alongside its allocation and blit helpers. Used by:
+ * <ul>
+ *   <li>{@link MenuRenderer MenuRenderer} - inventory chrome and slot
+ *       backgrounds.</li>
+ *   <li>{@link TextRenderer TextRenderer} - tooltip backgrounds and
+ *       borders.</li>
+ *   <li>2D sub-renderers like {@code FluidRenderer.FluidFace2D} and
+ *       {@code PortalRenderer.PortalFace2D}.</li>
+ * </ul>
+ *
+ * <p>Two helper families:
+ * <ul>
+ *   <li><b>{@code createBuffer}</b> - blank and pre-filled buffer allocation.</li>
+ *   <li><b>{@code drawTexture} / {@code drawTintedTexture}</b> - pack-resolved texture blits
+ *       at a destination rectangle, optionally tinted through a {@link BlendMode}.</li>
+ * </ul>
+ *
+ * @see TextureEngine
+ * @see ModelEngine
  */
 public class RasterEngine extends TextureEngine {
 
+    /**
+     * Constructs a raster engine bound to the given context.
+     *
+     * @param context the renderer context
+     */
     public RasterEngine(@NotNull RendererContext context) {
         super(context);
     }

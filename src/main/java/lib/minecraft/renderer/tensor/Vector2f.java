@@ -24,7 +24,9 @@ import java.io.IOException;
  */
 public record Vector2f(float x, float y) {
 
-    /** The zero vector. */
+    /**
+     * The zero vector.
+     */
     public static final @NotNull Vector2f ZERO = new Vector2f(0, 0);
 
     /**
@@ -67,7 +69,9 @@ public record Vector2f(float x, float y) {
         return new Vector2f(this.x * scalar, this.y * scalar);
     }
 
-    /** The Euclidean length of this vector. */
+    /**
+     * The Euclidean length of this vector.
+     */
     public float length() {
         return (float) Math.sqrt(this.lengthSquared());
     }

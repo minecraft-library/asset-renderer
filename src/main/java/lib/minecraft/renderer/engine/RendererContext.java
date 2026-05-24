@@ -13,6 +13,7 @@ import lib.minecraft.renderer.asset.pack.AnimationData;
 import lib.minecraft.renderer.asset.pack.ColorMap;
 import lib.minecraft.renderer.asset.pack.Texture;
 import lib.minecraft.renderer.asset.pack.TexturePack;
+import lib.minecraft.renderer.pipeline.pack.CitMatcher;
 import lib.minecraft.renderer.pipeline.pack.CtmResolution;
 import lib.minecraft.renderer.pipeline.pack.CtmRule;
 import lib.minecraft.renderer.pipeline.pack.ItemContext;
@@ -183,23 +184,6 @@ public interface RendererContext {
     }
 
     /**
-     * Resolves a Bedrock-derived entity PNG out of the on-disk bedrock cache.
-     * <p>
-     * The {@code ref} is the Bedrock {@code textures/entity/} sub-path stripped of its prefix
-     * and {@code .png} suffix (e.g. {@code "cow/cow_v2"}, {@code "wither_boss/wither"}) - the
-     * same key shape stored as {@code texture_ref} in {@code entity_models.json}. Production
-     * contexts read the file from {@code <cacheRoot>/bedrock/<bedrockRef>/textures/entity/<ref>.png}
-     * and memoise the decoded buffer; the default returns empty so non-entity contexts and test
-     * stubs do not need to override it.
-     *
-     * @param textureRef the Bedrock-namespace texture reference without {@code .png}
-     * @return the decoded texture, or empty when the ref is unknown or the cache is empty
-     */
-    default @NotNull Optional<PixelBuffer> resolveBedrockEntityTexture(@NotNull String textureRef) {
-        return Optional.empty();
-    }
-
-    /**
      * Resolves a Connected Textures rule for the given block face, walking the parsed
      * {@code optifine/ctm/**} and {@code mcpatcher/ctm/**} rule list in descending weight order
      * and returning the first rule whose {@code appliesTo} predicate accepts the
@@ -228,10 +212,10 @@ public interface RendererContext {
 
     /**
      * Resolves the highest-priority Custom Item Texture override for a render-time
-     * {@link lib.minecraft.renderer.pipeline.pack.ItemContext ItemContext}, walking the parsed
+     * {@link ItemContext ItemContext}, walking the parsed
      * {@code optifine/cit/**} and {@code mcpatcher/cit/**} rule list in descending weight order
      * and returning the first rule whose
-     * {@link lib.minecraft.renderer.pipeline.pack.CitMatcher} predicate accepts the context. The
+     * {@link CitMatcher} predicate accepts the context. The
      * default returns empty so test stubs do not need to override it.
      *
      * @param context the per-render item context (item id + NBT + enchantments + display name)

@@ -31,8 +31,9 @@ import static org.hamcrest.Matchers.*;
  * {@code DragonHeadModel} geometry rather than the renderer's
  * {@code createGroundTransformation}. The shared {@code SkullBlockRenderer} factory
  * produces {@code [8, 0, 8, 180, 0, 0]} for every skull variant; the dragon's
- * {@code tz=1.25} override is carried by {@code block_entities_overrides.json} and merged at
- * generation time by {@link ToolingBlockEntities}.
+ * {@code tz=1.25} is recovered post-decomposition by
+ * {@code ToolingBlockEntities.recenterInventoryTransformsByBbox}, a geometry-aware bbox
+ * pass run at generation time by {@link ToolingBlockEntities}.
  */
 @DisplayName("InventoryTransformDecomposer parity")
 @Tag("slow")
@@ -82,8 +83,8 @@ class InventoryTransformDecomposerParityTest {
                 float[] tuple = actual.get(id);
                 if ("minecraft:skull_dragon_head".equals(id)) {
                     // Dragon head: decomposer must produce the shared skull tuple
-                    // [8, 0, 8, 180, 0, 0]; the baseline's tz=1.25 is supplied by
-                    // block_entities_overrides.json at generation time.
+                    // [8, 0, 8, 180, 0, 0]; the baseline's tz=1.25 is recovered post-decomposition
+                    // by ToolingBlockEntities.recenterInventoryTransformsByBbox.
                     assertThat("skull_dragon_head: decomposer returns shared skull shape", tuple, notNullValue());
                     assertTuple(id, tuple, new float[]{ 8f, 0f, 8f, 180f, 0f, 0f });
                     decomposed++;

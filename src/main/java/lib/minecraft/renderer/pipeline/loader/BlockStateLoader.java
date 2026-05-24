@@ -10,7 +10,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.pipeline.VanillaPaths;
+import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.UtilityClass;
@@ -88,7 +88,7 @@ public class BlockStateLoader {
         @NotNull HashMap<String, ConcurrentMap<String, Block.Variant>> variants,
         @NotNull HashMap<String, Block.Multipart> multiparts
     ) {
-        Path blockstatesDir = packRoot.resolve(VanillaPaths.BLOCKSTATES_DIR);
+        Path blockstatesDir = packRoot.resolve(VanillaSourcePaths.BLOCKSTATES_DIR);
         if (!Files.isDirectory(blockstatesDir)) return;
 
         // Two-phase walk: serial path enumeration, then parallel JSON parse per file. Per-file
@@ -122,7 +122,7 @@ public class BlockStateLoader {
     private static @Nullable Parsed parseBlockstateFile(@NotNull Path file) {
         String fileName = file.getFileName().toString();
         String blockName = fileName.substring(0, fileName.length() - 5);
-        String blockId = VanillaPaths.MINECRAFT_NAMESPACE + blockName;
+        String blockId = VanillaSourcePaths.MINECRAFT_NAMESPACE + blockName;
 
         try {
             String json = Files.readString(file);

@@ -8,10 +8,10 @@ import lib.minecraft.renderer.asset.model.BlockModelData;
 import lib.minecraft.renderer.asset.model.ItemModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
-import lib.minecraft.renderer.exception.RenderException;
+import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.geometry.BlockFace;
 import lib.minecraft.renderer.geometry.Box;
-import lib.minecraft.renderer.geometry.ModelGrid;
+import lib.minecraft.renderer.geometry.SixFaces;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector2f;
@@ -32,24 +32,34 @@ import java.util.Map;
  * and default UV derivation - lives on {@link BlockFace}.
  */
 @UtilityClass
-public class BlockModelGeometryKit {
+public class BlockGeometryKit {
+
+    /**
+     * Edge length of a full block in vanilla model-authoring units. Every vanilla {@code block/}
+     * and {@code item/} model JSON authors coordinates against this grid - element
+     * {@code from} / {@code to} values of {@code [0, 0, 0]} and {@code [16, 16, 16]} describe a
+     * full unit cube, face UVs run from {@code 0} to {@code 16}, and {@code display.*.translation}
+     * values are in the same space. This kit and its consumers ({@link BlockFace#defaultUv},
+     * {@link BlockRenderer}, item renderer's display-transform path) divide by this constant to
+     * normalise into the engine's {@code [-0.5, +0.5]} unit-cube space before projection.
+     */
+    public static final float VANILLA_PIXEL_UNITS_PER_BLOCK = 16f;
 
     /**
      * Builds a list of 12 triangles (2 per face) describing a unit cube centered at the origin
      * with the given per-face textures.
      * <p>
-     * Texture array order must match the declaration order of {@link BlockFace} (DOWN, UP, NORTH,
-     * SOUTH, WEST, EAST). Every face uses the full {@code [0, 1]} UV rectangle.
+     * Every face uses the full {@code [0, 1]} UV rectangle.
      *
-     * @param faces the six face textures in canonical {@link BlockFace} order
+     * @param faces the six face textures, keyed by {@link BlockFace} direction
      * @param tintArgb the ARGB tint applied to every face, or {@code 0xFFFFFFFF} for no tint
      * @return the 12-triangle list, ready for rasterization
      */
     public static @NotNull ConcurrentList<VisibleTriangle> unitCube(
-        @NotNull PixelBuffer @NotNull [] faces,
+        @NotNull SixFaces faces,
         int tintArgb
     ) {
-        return box(
+        return buildBoxTriangles(
             new Vector3f(-0.5f, -0.5f, -0.5f),
             new Vector3f(0.5f, 0.5f, 0.5f),
             faces,
@@ -62,28 +72,25 @@ public class BlockModelGeometryKit {
      *
      * @param min the minimum corner in model space
      * @param max the maximum corner in model space
-     * @param faces the six face textures in canonical {@link BlockFace} order
+     * @param faces the six face textures, keyed by {@link BlockFace} direction
      * @param tintArgb the ARGB tint applied to every face
      * @return the 12-triangle list
      */
-    public static @NotNull ConcurrentList<VisibleTriangle> box(
+    public static @NotNull ConcurrentList<VisibleTriangle> buildBoxTriangles(
         @NotNull Vector3f min,
         @NotNull Vector3f max,
-        @NotNull PixelBuffer @NotNull [] faces,
+        @NotNull SixFaces faces,
         int tintArgb
     ) {
-        if (faces.length != 6)
-            throw new RenderException("Box requires exactly 6 face textures");
-
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
         Box box = Box.of(min, max);
 
-        for (BlockFace face : BlockFace.values()) {
+        for (BlockFace face : BlockFace.CACHED_VALUES) {
             Vector3f[] corners = face.corners(box);
             addQuad(
                 triangles,
                 corners[0], corners[1], corners[2], corners[3],
-                faces[face.ordinal()], tintArgb,
+                faces.byFace(face), tintArgb,
                 face.normal()
             );
         }
@@ -151,12 +158,12 @@ public class BlockModelGeometryKit {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
         for (ModelElement element : elements) {
-            float x0 = element.getFrom()[0] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
-            float y0 = element.getFrom()[1] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
-            float z0 = element.getFrom()[2] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
-            float x1 = element.getTo()[0] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
-            float y1 = element.getTo()[1] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
-            float z1 = element.getTo()[2] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+            float x0 = element.getFrom()[0] / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+            float y0 = element.getFrom()[1] / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+            float z0 = element.getFrom()[2] / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+            float x1 = element.getTo()[0] / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+            float y1 = element.getTo()[1] / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+            float z1 = element.getTo()[2] / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
 
             // Build element rotation transform if present. The rotation is applied around
             // an arbitrary origin on a single axis. When rescale is set, the two axes
@@ -168,9 +175,9 @@ public class BlockModelGeometryKit {
                 ModelElement.ElementRotation rot = element.getRotation().get();
                 if (rot.angle() != 0f) {
                     float[] rawOrigin = rot.origin();
-                    float ox = rawOrigin[0] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
-                    float oy = rawOrigin[1] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
-                    float oz = rawOrigin[2] / ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+                    float ox = rawOrigin[0] / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+                    float oy = rawOrigin[1] / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
+                    float oz = rawOrigin[2] / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f;
 
                     Vector3f axisVec = switch (rot.axis()) {
                         case "x" -> new Vector3f(1, 0, 0);
@@ -190,9 +197,11 @@ public class BlockModelGeometryKit {
                             case "y" -> Matrix4f.createScale(s, 1f, s);
                             default -> Matrix4f.createScale(s, s, 1f);
                         };
-                        elementTransform = toOrigin.multiply(rotation).multiply(scale).multiply(fromOrigin);
+                        // Column-vector chain: toOrigin (rightmost) applies first to a vertex,
+                        // then rotation, then scale, then fromOrigin moves the pivot back.
+                        elementTransform = fromOrigin.multiply(scale).multiply(rotation).multiply(toOrigin);
                     } else {
-                        elementTransform = toOrigin.multiply(rotation).multiply(fromOrigin);
+                        elementTransform = fromOrigin.multiply(rotation).multiply(toOrigin);
                     }
                     normalTransform = rotation;
                 }
@@ -251,8 +260,8 @@ public class BlockModelGeometryKit {
         Vector4f rect = face.getUv()
             .orElseGet(() -> blockFace.defaultUv(Box.of(element.getFrom(), element.getTo())));
         return rect.toUvCorners(
-            ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK,
-            ModelGrid.VANILLA_PIXEL_UNITS_PER_BLOCK,
+            VANILLA_PIXEL_UNITS_PER_BLOCK,
+            VANILLA_PIXEL_UNITS_PER_BLOCK,
             face.getRotation(),
             false
         );
@@ -318,7 +327,13 @@ public class BlockModelGeometryKit {
         @NotNull Vector3f normal,
         boolean cullBackFaces
     ) {
-        float shading = 1f;
+        // Bake the inventory shade factor into each triangle so the rasterizer can apply shading
+        // directly without a per-triangle face lookup. {@link RenderEngine#computeInventoryLighting}
+        // resolves the dominant cardinal of the (post-element-rotation) face normal and returns
+        // the matching {@code Lighting.ITEMS_3D} approximation - cardinal-aligned faces produce
+        // exactly the per-face values from {@link BlockFace#lighting} (1.0/0.5/0.6/0.8), and faces
+        // rotated by {@code element.rotation} resolve to the closest cardinal's shade.
+        float shading = RenderEngine.computeInventoryLighting(normal);
         out.add(new VisibleTriangle(topLeft, bottomLeft, bottomRight, uvTL, uvBL, uvBR, texture, tintArgb, normal, shading, cullBackFaces, false));
         out.add(new VisibleTriangle(topLeft, bottomRight, topRight, uvTL, uvBR, uvTR, texture, tintArgb, normal, shading, cullBackFaces, false));
     }

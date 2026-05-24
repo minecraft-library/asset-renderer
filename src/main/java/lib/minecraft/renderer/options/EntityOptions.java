@@ -14,47 +14,118 @@ import java.util.Optional;
  * Configures a single {@code EntityRenderer} invocation for mob entities. The entity is resolved
  * by {@code entityId} through the active {@code RendererContext} and rendered as an isometric 3D
  * icon via its {@code EntityModelData} bone/cube tree. The {@link #getRotation() rotation} field
- * is the user-override layer applied on top of the engine's baked {@code [30, 225, 0]} iso pose.
+ * is the user-override layer applied on top of the engine's baked iso pose.
+ *
+ * <p>The {@link #getFitMode() fitMode} field selects how the output canvas is sized:
+ * {@link FitMode#OUTPUT_SIZE} (default) renders into a fixed {@code outputSize x outputSize}
+ * square with the entity scaled to fit and {@code padding} pixels of clear space inside;
+ * {@link FitMode#UNION_BOUNDS} and {@link FitMode#FAMILY_BOUNDS} size the canvas dynamically
+ * from the entity's bounds at native pixel resolution and are intended for vanilla-reference
+ * parity work. See each enum constant's javadoc for the precise math.
+ *
+ * <p>{@link #getSupersample() supersample} composes orthogonally with {@link #isAntiAlias()
+ * antiAlias}: supersample renders at {@code supersample x} the final canvas dim then
+ * downsamples (SSAA), while antiAlias applies an FXAA post-process on whichever buffer the
+ * rasterizer wrote into. Defaults are {@code supersample = 1} and {@code antiAlias = false},
+ * so an end-user one-off render ships with no AA unless explicitly opted into.
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
 public class EntityOptions {
 
-    /** Entity id for lookup, e.g. {@code "minecraft:zombie"}. */
+    /**
+     * Entity id for lookup, e.g. {@code "minecraft:zombie"}.
+     */
     @lombok.Builder.Default
     private final @NotNull Optional<String> entityId = Optional.empty();
 
-    /** Optional texture id override, resolvable through the active pack stack. */
+    /**
+     * Optional texture id override, resolvable through the active pack stack.
+     */
     @lombok.Builder.Default
     private final @NotNull Optional<String> textureId = Optional.empty();
 
-    /** Helmet armor piece to render on humanoid entities. */
+    /**
+     * Helmet armor piece to render on humanoid entities.
+     */
     @lombok.Builder.Default
     private final @NotNull Optional<ArmorPiece> helmet = Optional.empty();
 
-    /** Chestplate armor piece to render on humanoid entities. */
+    /**
+     * Chestplate armor piece to render on humanoid entities.
+     */
     @lombok.Builder.Default
     private final @NotNull Optional<ArmorPiece> chestplate = Optional.empty();
 
-    /** Leggings armor piece to render on humanoid entities. */
+    /**
+     * Leggings armor piece to render on humanoid entities.
+     */
     @lombok.Builder.Default
     private final @NotNull Optional<ArmorPiece> leggings = Optional.empty();
 
-    /** Boots armor piece to render on humanoid entities. */
+    /**
+     * Boots armor piece to render on humanoid entities.
+     */
     @lombok.Builder.Default
     private final @NotNull Optional<ArmorPiece> boots = Optional.empty();
 
-    /** Output image dimensions in pixels (square) */
+    /**
+     * Canvas-sizing strategy. {@link FitMode#OUTPUT_SIZE} (default) honours {@link #outputSize}
+     * and centres the entity inside a fixed square canvas; {@link FitMode#UNION_BOUNDS} and
+     * {@link FitMode#FAMILY_BOUNDS} size the canvas dynamically from the entity's screen
+     * bounds for parity work. See each constant's javadoc for the precise sizing math.
+     */
+    @lombok.Builder.Default
+    private final @NotNull FitMode fitMode = FitMode.OUTPUT_SIZE;
+
+    /**
+     * Output image dimensions in pixels (square). Only consumed when {@link #fitMode} is
+     * {@link FitMode#OUTPUT_SIZE}; ignored by the two BOUNDS modes (which derive canvas dims
+     * from the entity's own bounds).
+     */
     @lombok.Builder.Default
     private final int outputSize = Renderer.DEFAULT_OUTPUT_SIZE;
 
-    /** Model rotation applied before the camera transform, in degrees */
+    /**
+     * Clear-space padding in canvas pixels. Universal across every {@link FitMode}, with
+     * mode-specific semantics:
+     * <ul>
+     *   <li>{@link FitMode#OUTPUT_SIZE} - shrinks the available silhouette area inside the
+     *       fixed {@link #outputSize} canvas by {@code padding} pixels on each side.</li>
+     *   <li>{@link FitMode#UNION_BOUNDS}, {@link FitMode#FAMILY_BOUNDS} - expands the
+     *       dynamically-computed canvas by {@code padding} pixels on each side around the
+     *       native-sized silhouette.</li>
+     * </ul>
+     * Default {@code 0} so the BOUNDS modes are unchanged from current parity behaviour
+     * without an explicit override.
+     */
+    @lombok.Builder.Default
+    private final int padding = 0;
+
+    /**
+     * Model rotation applied before the camera transform, in degrees.
+     */
     @lombok.Builder.Default
     private final @NotNull EulerRotation rotation = EulerRotation.NONE;
 
-    /** Whether to apply FXAA post-processing after the main render pass. */
+    /**
+     * Supersample scale factor. The entity is rasterized at {@code (canvas dims) * supersample}
+     * resolution, then downsampled to the final canvas size for sharper output (SSAA). A value
+     * of {@code 1} (default) disables supersampling. Composes orthogonally with
+     * {@link #antiAlias} - when both are set, FXAA runs on the hi-res buffer before
+     * downsampling, which gives the cleanest silhouette at the cost of extra cycles.
+     */
     @lombok.Builder.Default
-    private final boolean antiAlias = true;
+    private final int supersample = 1;
+
+    /**
+     * Whether to apply FXAA post-processing on the rasterized buffer. Default {@code false}
+     * so end-user one-off renders ship without FXAA blur; opt in for soft edges on small
+     * thumbnails or when supersample alone isn't enough. When {@link #supersample} is
+     * {@code > 1}, FXAA runs on the hi-res buffer before downsampling.
+     */
+    @lombok.Builder.Default
+    private final boolean antiAlias = false;
 
     public @NotNull EntityOptionsBuilder mutate() {
         return this.toBuilder();
@@ -62,6 +133,44 @@ public class EntityOptions {
 
     public static @NotNull EntityOptions defaults() {
         return builder().build();
+    }
+
+    /**
+     * Canvas-sizing strategy for {@code EntityRenderer}. The three modes share the same
+     * per-entity / family bounds computation but derive canvas dimensions differently.
+     */
+    public enum FitMode {
+
+        /**
+         * Canvas is {@code outputSize x outputSize}. The entity's union silhouette (base
+         * model plus non-{@code skipBounds} overlays) is scaled to fit, leaving
+         * {@code padding} pixels of clear space inside the canvas on each side. Family
+         * siblings are not considered. No upper cap on canvas dimensions - the caller is
+         * in control. Use for one-off renders (web API call, webpage icon, catalog tile)
+         * where output dimensions are dictated by the consumer.
+         */
+        OUTPUT_SIZE,
+
+        /**
+         * Canvas is sized to this entity's union silhouette at native
+         * {@code PIXELS_PER_BLOCK / 16} ratio (mirroring the vanilla-reference-harness's
+         * per-entity bounds), then expanded by {@code padding} pixels on each side. The
+         * longer axis is uniformly capped at {@code MAX_CANVAS_SIZE} post-padding so large
+         * entities (ender_dragon) stay manageable. {@code outputSize} is ignored. Use for
+         * native-resolution single-entity renders.
+         */
+        UNION_BOUNDS,
+
+        /**
+         * Canvas is sized to the union across this entity AND every family member from
+         * {@code EntityModelLoader.loadFamilies()} (e.g. cow + cow_cold + cow_warm +
+         * mooshroom all share cow's family canvas). Same native ratio + {@code padding}
+         * expansion + {@code MAX_CANVAS_SIZE} cap as {@link #UNION_BOUNDS}. Required by
+         * {@code TestEntityParityVanilla} since the harness sizes by family-union too;
+         * keep {@code padding = 0} to preserve byte-equal output against the harness PNGs.
+         */
+        FAMILY_BOUNDS
+
     }
 
 }

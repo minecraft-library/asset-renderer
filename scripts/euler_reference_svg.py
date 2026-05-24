@@ -343,8 +343,8 @@ emit("</svg>")
 # so it works regardless of the current working directory.
 script_dir = Path(__file__).resolve().parent
 out_path = (script_dir
-            / ".." / ".." / ".."
-            / "java" / "lib" / "minecraft" / "renderer" / "geometry"
+            / ".."
+            / "src" / "main" / "java" / "lib" / "minecraft" / "renderer" / "geometry"
             / "doc-files" / "euler_reference.svg").resolve()
 
 out_path.parent.mkdir(parents=True, exist_ok=True)

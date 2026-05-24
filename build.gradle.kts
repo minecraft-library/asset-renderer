@@ -58,6 +58,10 @@ dependencies {
     testImplementation(libs.junit.jupiter.api)
     testRuntimeOnly(libs.junit.jupiter.engine)
     testImplementation(libs.junit.platform.launcher)
+    // JOML for precision-hunt tests: side-by-side bit-comparisons of our tensor math vs
+    // vanilla's actual matrix backend, since vanilla's PoseStack.Pose.pose is org.joml.Matrix4f.
+    // Test-only - production code uses our own lib.minecraft.renderer.tensor.Matrix4f.
+    testImplementation(libs.joml)
 
     // Simplified Libraries (extracted to github.com/simplified-dev). Temporarily pinned to
     // explicit master commits while JitPack's master-SNAPSHOT cache catches up across the
@@ -69,16 +73,16 @@ dependencies {
     // picks the stale SNAPSHOT JAR over our pin and produces NoSuchMethodError at runtime.
     // Each upstream lib also strict-pins its own internal deps to these same hashes so
     // master-SNAPSHOT consumers of any single lib see a consistent transitive chain.
-    api("com.github.simplified-dev:collections") { version { strictly("6586657") } }
-    api("com.github.simplified-dev:utils") { version { strictly("5c6c96a") } }
-    api("com.github.simplified-dev:image") { version { strictly("4140130") } }
-    api("com.github.simplified-dev:gson-extras") { version { strictly("c1b9a84") } }
-    api("com.github.simplified-dev:reflection") { version { strictly("ed2e17c") } }
-    api("com.github.simplified-dev:client") { version { strictly("8435d8d") } }
+    api("com.github.simplified-dev:collections") { version { strictly("2f2aa58") } }
+    api("com.github.simplified-dev:utils") { version { strictly("a932b44") } }
+    api("com.github.simplified-dev:image") { version { strictly("0e71835") } }
+    api("com.github.simplified-dev:gson-extras") { version { strictly("26278a3") } }
+    api("com.github.simplified-dev:reflection") { version { strictly("c02511a") } }
+    api("com.github.simplified-dev:client") { version { strictly("47d3c2f") } }
 
     // Simplified API (extracted to github.com/simplified-api) - typed Feign contract for
     // Mojang's launcher / Piston / textures endpoints, owns all renderer HTTP via Pipeline.
-    api("com.github.simplified-api:mojang") { version { strictly("82d9652") } }
+    api("com.github.simplified-api:mojang") { version { strictly("06c9e8e") } }
 
     // Minecraft-Library (extracted to github.com/minecraft-library)
     // Owns lib.minecraft.text.**, lib.minecraft.text.font.**, and the
@@ -127,6 +131,13 @@ tasks {
         workingDir = layout.projectDirectory.asFile
     }
 
+    // Dev-time reference snapshots (entity_geometry.upstream.json etc.) sit beside their working
+    // counterparts under src/main/resources for easy diffing but never load at runtime - keep
+    // them out of the published JAR.
+    processResources {
+        exclude("**/*.upstream.json")
+    }
+
     // Tooling
 
     register<JavaExec>("atlas") {
@@ -161,16 +172,9 @@ tasks {
     }
 
     register<JavaExec>("entityModels") {
-        description = "Downloads the Bedrock Edition vanilla resource pack and generates src/main/resources/lib/minecraft/renderer/entity_models.json from .geo.json files. Run on a Minecraft version bump."
+        description = "Walks the Java client jar via ASM and generates src/main/resources/lib/minecraft/renderer/entity_models.json + entity_geometry.json (per-entity bone trees + variant metadata). Run on a Minecraft version bump."
         group = "tooling"
         mainClass.set("lib.minecraft.renderer.tooling.ToolingEntityModels")
-        classpath = sourceSets["main"].runtimeClasspath
-    }
-
-    register<JavaExec>("bindPoses") {
-        description = "Parses Java Edition Model subclasses via ASM and generates src/main/resources/lib/minecraft/renderer/entity_bind_poses.json - per-bone static rotations the Bedrock 1.21+ geometry expects an animation to apply. Run on a Minecraft version bump."
-        group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.ToolingBindPoses")
         classpath = sourceSets["main"].runtimeClasspath
     }
 
@@ -255,6 +259,20 @@ tasks {
         args = if (entityId != null) listOf(renderSize, entityId) else listOf(renderSize)
     }
 
+    register<JavaExec>("entityParityVanilla") {
+        description = "Per-entity parity report comparing Java pipeline vs vanilla-reference-harness ground truth (mean ARGB delta + per-entity vanilla/java/diff PNGs). Output -> cache/visual/entity-parity-vanilla/<entity>/. Run :asset-renderer:renderVanillaReferences first if the cache is missing. -PentityId=minecraft:zombie"
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestEntityParityVanilla")
+        classpath = sourceSets["test"].runtimeClasspath
+        val entityId = project.findProperty("entityId") as String?
+        args = if (entityId != null) listOf(entityId) else listOf()
+        // Forward -Dentity.bounds.dump=true so the per-polygon screen-bounds dump in
+        // EntityGeometryKit.contributeFaceAlphaTight surfaces when the caller asks for it.
+        systemProperties = System.getProperties().toMap()
+            .filter { it.key.toString().startsWith("entity.") }
+            .mapKeys { it.key.toString() }
+    }
+
     register<JavaExec>("fluidRenderer") {
         description = "Renders every FluidRenderer code path (water/lava, iso/2D, static/animated, biome variants, override) to cache/visual/fluid-renderer/ for visual inspection."
         group = "visual"
@@ -285,6 +303,52 @@ tasks {
         classpath = sourceSets["test"].runtimeClasspath
         val renderSize = (project.findProperty("renderSize") as String?) ?: "64"
         args = listOf(renderSize)
+    }
+
+    // Delegates to the sibling vanilla-reference-harness Fabric mod, which boots a
+    // headless Minecraft 26.1.2 client, renders every block + living entity to PNG
+    // via the in-game vanilla pipeline, then exits. Output lands under
+    // cache/asset-renderer/vanilla/<version>/references/{blocks,entities}/ so
+    // parity tests can diff against ground truth.
+    //
+    // Run on a Minecraft version bump (~5 minutes total). Regenerated PNGs are
+    // gitignored via the cache/ exclusion.
+    //
+    // Filter to a subset for iteration:
+    //   ./gradlew :asset-renderer:renderVanillaReferences -PrefharnessTargets=minecraft:cow,minecraft:stone
+    register<Exec>("renderVanillaReferences") {
+        description = "Runs the sibling vanilla-reference-harness mod and copies its PNG output into asset-renderer's vanilla cache. Re-run on Minecraft version bump."
+        group = "tooling"
+        workingDir = file("../vanilla-reference-harness")
+        // The sibling project's renderReferences run-config writes PNGs into its own
+        // build/refharness-output/. We point it at asset-renderer's vanilla cache
+        // directly via -Drefharness.outputDir, no copy step needed.
+        val outputDir = layout.projectDirectory.dir("cache/asset-renderer/vanilla/26.1/references")
+        val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
+        val gradlewPath = file("../vanilla-reference-harness/${if (isWindows) "gradlew.bat" else "gradlew"}").absolutePath
+        val baseArgs = mutableListOf<String>()
+        if (isWindows) {
+            baseArgs.add("cmd")
+            baseArgs.add("/c")
+        }
+        baseArgs.add(gradlewPath)
+        baseArgs.add("runRenderReferences")
+        baseArgs.add("--no-daemon")
+        // -P (project property) propagates through the sibling's build.gradle to its
+        // Loom run config, which sets the system property the mod actually reads.
+        // -D would only affect the wrapper's JVM, not the forked Minecraft process.
+        baseArgs.add("-PrefharnessOutputDir=${outputDir.asFile.absolutePath}")
+        if (project.hasProperty("refharnessTargets")) {
+            baseArgs.add("-PrefharnessTargets=${project.property("refharnessTargets")}")
+        }
+        if (project.hasProperty("refharnessPitchRollSweep")) {
+            baseArgs.add("-PrefharnessPitchRollSweep=${project.property("refharnessPitchRollSweep")}")
+        }
+        commandLine = baseArgs
+        doFirst {
+            println("renderVanillaReferences: writing to ${outputDir.asFile.absolutePath}")
+            outputDir.asFile.mkdirs()
+        }
     }
 
     // `./gradlew fonts` now lives in the minecraft-text build at

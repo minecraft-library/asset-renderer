@@ -12,8 +12,9 @@ import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.TextureEngine;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
+import lib.minecraft.renderer.geometry.SixFaces;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
-import lib.minecraft.renderer.kit.BlockModelGeometryKit;
+import lib.minecraft.renderer.kit.BlockGeometryKit;
 import lib.minecraft.renderer.options.PortalOptions;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.RequiredArgsConstructor;
@@ -30,7 +31,7 @@ import java.util.stream.IntStream;
  * <p>
  * Two sub-renderers are exposed, matching the {@link FluidRenderer} shape:
  * <ul>
- * <li>{@link Isometric3D} - builds geometry via {@link BlockModelGeometryKit} (full unit cube for
+ * <li>{@link Isometric3D} - builds geometry via {@link BlockGeometryKit} (full unit cube for
  * {@link PortalOptions.Portal#END_GATEWAY}, thin slab at vanilla's {@code BOTTOM=0.375}/
  * {@code TOP=0.75} for {@link PortalOptions.Portal#END_PORTAL}) and rasterizes through the
  * standard {@code [30, 225, 0]} isometric pose.</li>
@@ -50,10 +51,14 @@ import java.util.stream.IntStream;
  */
 public final class PortalRenderer implements Renderer<PortalOptions> {
 
-    /** Resource id of {@code assets/minecraft/textures/environment/end_sky.png} (Sampler0 in the vanilla shader). */
+    /**
+     * Resource id of {@code assets/minecraft/textures/environment/end_sky.png} (Sampler0 in the vanilla shader).
+     */
     static final @NotNull String END_SKY_TEXTURE_ID = "minecraft:environment/end_sky";
 
-    /** Resource id of {@code assets/minecraft/textures/entity/end_portal/end_portal.png} (Sampler1 in the vanilla shader). */
+    /**
+     * Resource id of {@code assets/minecraft/textures/entity/end_portal/end_portal.png} (Sampler1 in the vanilla shader).
+     */
     static final @NotNull String END_PORTAL_NOISE_TEXTURE_ID = "minecraft:entity/end_portal/end_portal";
 
     /**
@@ -72,10 +77,14 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
      */
     private static final int GAME_TIME_PERIOD_TICKS = 24000;
 
-    /** {@code PORTAL_LAYERS} for {@link PortalOptions.Portal#END_PORTAL} (from {@code RenderPipelines.END_PORTAL}). */
+    /**
+     * {@code PORTAL_LAYERS} for {@link PortalOptions.Portal#END_PORTAL} (from {@code RenderPipelines.END_PORTAL}).
+     */
     private static final int LAYER_COUNT_END_PORTAL = 15;
 
-    /** {@code PORTAL_LAYERS} for {@link PortalOptions.Portal#END_GATEWAY} (from {@code RenderPipelines.END_GATEWAY}). */
+    /**
+     * {@code PORTAL_LAYERS} for {@link PortalOptions.Portal#END_GATEWAY} (from {@code RenderPipelines.END_GATEWAY}).
+     */
     private static final int LAYER_COUNT_END_GATEWAY = 16;
 
     /**
@@ -159,10 +168,14 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
 
     // --- end_portal slab dimensions (vanilla TheEndPortalRenderer.BOTTOM / .TOP) ---
 
-    /** End portal slab bottom Y in unit-cube model space. Matches {@code TheEndPortalRenderer.BOTTOM}. */
+    /**
+     * End portal slab bottom Y in unit-cube model space. Matches {@code TheEndPortalRenderer.BOTTOM}.
+     */
     private static final float END_PORTAL_SLAB_BOTTOM_Y = 0.375f;
 
-    /** End portal slab top Y in unit-cube model space. Matches {@code TheEndPortalRenderer.TOP}. */
+    /**
+     * End portal slab top Y in unit-cube model space. Matches {@code TheEndPortalRenderer.TOP}.
+     */
     private static final float END_PORTAL_SLAB_TOP_Y = 0.75f;
 
     private final @NotNull Isometric3D isometric3D;
@@ -436,12 +449,12 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
         // worker, so there is no cross-thread read-after-write on any pixel.
         IntStream.range(0, height).parallel().forEach(y -> {
             for (int x = 0; x < width; x++) {
-                int fp = frame.getPixel(x, y);
-                int pp = partner.getPixel(x, y);
-                int a = Math.clamp((int) (ColorMath.alpha(fp) * alpha + ColorMath.alpha(pp) * invAlpha + 0.5f), 0, 255);
-                int r = Math.clamp((int) (ColorMath.red(fp)   * alpha + ColorMath.red(pp)   * invAlpha + 0.5f), 0, 255);
-                int g = Math.clamp((int) (ColorMath.green(fp) * alpha + ColorMath.green(pp) * invAlpha + 0.5f), 0, 255);
-                int b = Math.clamp((int) (ColorMath.blue(fp)  * alpha + ColorMath.blue(pp)  * invAlpha + 0.5f), 0, 255);
+                int framePixel = frame.getPixel(x, y);
+                int partnerPixel = partner.getPixel(x, y);
+                int a = Math.clamp((int) (ColorMath.alpha(framePixel) * alpha + ColorMath.alpha(partnerPixel) * invAlpha + 0.5f), 0, 255);
+                int r = Math.clamp((int) (ColorMath.red(framePixel)   * alpha + ColorMath.red(partnerPixel)   * invAlpha + 0.5f), 0, 255);
+                int g = Math.clamp((int) (ColorMath.green(framePixel) * alpha + ColorMath.green(partnerPixel) * invAlpha + 0.5f), 0, 255);
+                int b = Math.clamp((int) (ColorMath.blue(framePixel)  * alpha + ColorMath.blue(partnerPixel)  * invAlpha + 0.5f), 0, 255);
                 frame.setPixel(x, y, ColorMath.pack(a, r, g, b));
             }
         });
@@ -460,7 +473,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
     }
 
     /**
-     * Full 3D isometric portal renderer. Builds geometry via {@link BlockModelGeometryKit} and rasterizes
+     * Full 3D isometric portal renderer. Builds geometry via {@link BlockGeometryKit} and rasterizes
      * through {@link IsometricEngine}'s standard {@code [30, 225, 0]} pose. {@code END_GATEWAY}
      * renders as a unit cube with the baked face on all 6 sides; {@code END_PORTAL} renders as a
      * slab from {@code y = 0.375} to {@code y = 0.75} matching vanilla's
@@ -487,11 +500,11 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             }
             applyBridgeCrossfade(frames, outputCount, bridge);
             trimBridgeFrames(frames, outputCount);
-            return RenderEngine.output(frames, FRAME_DELAY_MS);
+            return RenderEngine.wrapFrames(frames, FRAME_DELAY_MS);
         }
 
         private @NotNull PixelBuffer renderFrame(@NotNull PortalOptions options, int tick) {
-            IsometricEngine engine = IsometricEngine.standard(this.context);
+            IsometricEngine engine = IsometricEngine.forBlockIcon(this.context);
             TextureEngine textures = new TextureEngine(this.context);
             PixelBuffer endSky = textures.resolveTexture(END_SKY_TEXTURE_ID);
             PixelBuffer endPortalNoise = textures.resolveTexture(END_PORTAL_NOISE_TEXTURE_ID);
@@ -513,8 +526,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             // coefficient * 255 - no need to ask the engine for a separate shading pass.
             PixelBuffer white = PixelBuffer.create(1, 1);
             white.setPixel(0, 0, ColorMath.WHITE);
-            PixelBuffer[] whiteFaces = { white, white, white, white, white, white };
-            ConcurrentList<VisibleTriangle> triangles = buildGeometry(options.getPortal(), whiteFaces);
+            ConcurrentList<VisibleTriangle> triangles = buildGeometry(options.getPortal(), SixFaces.uniform(white));
 
             // shadingMask is scope-local scratch: populated by rasterize, consumed once by
             // the compose loop, then discarded. Always pool it.
@@ -557,11 +569,11 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
                     int maskAlpha = ColorMath.alpha(mask);
                     if (maskAlpha == 0) continue;
 
-                    int shader = shaderCanvas.getPixel(x, y);
+                    int shaderPixel = shaderCanvas.getPixel(x, y);
                     float factor = ColorMath.red(mask) / 255f;
-                    int r = Math.clamp((int) (ColorMath.red(shader)   * factor + 0.5f), 0, 255);
-                    int g = Math.clamp((int) (ColorMath.green(shader) * factor + 0.5f), 0, 255);
-                    int b = Math.clamp((int) (ColorMath.blue(shader)  * factor + 0.5f), 0, 255);
+                    int r = Math.clamp((int) (ColorMath.red(shaderPixel)   * factor + 0.5f), 0, 255);
+                    int g = Math.clamp((int) (ColorMath.green(shaderPixel) * factor + 0.5f), 0, 255);
+                    int b = Math.clamp((int) (ColorMath.blue(shaderPixel)  * factor + 0.5f), 0, 255);
                     out.setPixel(x, y, ColorMath.pack(maskAlpha, r, g, b));
                 }
             }
@@ -574,15 +586,15 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
          */
         private static @NotNull ConcurrentList<VisibleTriangle> buildGeometry(
             @NotNull PortalOptions.Portal portal,
-            @NotNull PixelBuffer @NotNull [] faces
+            @NotNull SixFaces faces
         ) {
             if (portal == PortalOptions.Portal.END_GATEWAY)
-                return BlockModelGeometryKit.unitCube(faces, ColorMath.WHITE);
+                return BlockGeometryKit.unitCube(faces, ColorMath.WHITE);
 
             // End portal slab: x and z span the full unit range, y clipped to vanilla's [BOTTOM, TOP].
             // Model space is [-0.5, +0.5] per axis (see GeometryKit.unitCube), so the slab's Y
             // offsets are measured from the cube's centre.
-            return BlockModelGeometryKit.box(
+            return BlockGeometryKit.buildBoxTriangles(
                 new Vector3f(-0.5f, END_PORTAL_SLAB_BOTTOM_Y - 0.5f, -0.5f),
                 new Vector3f(0.5f, END_PORTAL_SLAB_TOP_Y - 0.5f, 0.5f),
                 faces,
@@ -618,7 +630,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             }
             applyBridgeCrossfade(frames, outputCount, bridge);
             trimBridgeFrames(frames, outputCount);
-            return RenderEngine.output(frames, FRAME_DELAY_MS);
+            return RenderEngine.wrapFrames(frames, FRAME_DELAY_MS);
         }
 
         private @NotNull PixelBuffer renderFrame(@NotNull PortalOptions options, int tick) {

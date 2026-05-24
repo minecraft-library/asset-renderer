@@ -20,7 +20,9 @@ import java.util.Objects;
 @NoArgsConstructor
 public class ModelTransform {
 
-    /** The identity transform - zero rotation, zero translation, unit scale. */
+    /**
+     * The identity transform - zero rotation, zero translation, unit scale.
+     */
     public static final @NotNull ModelTransform IDENTITY = new ModelTransform(
         EulerRotation.NONE,
         new float[]{ 0f, 0f, 0f },
@@ -38,7 +40,9 @@ public class ModelTransform {
         this.scale = scale;
     }
 
-    /** The Euler-angle rotation in degrees, applied about X/Y/Z in that order. */
+    /**
+     * The Euler-angle rotation in degrees, applied about X/Y/Z in that order.
+     */
     public @NotNull EulerRotation getRotation() { return this.rotation; }
 
     public float getTranslationX() { return this.translation[0]; }

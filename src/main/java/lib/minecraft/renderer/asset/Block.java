@@ -46,7 +46,9 @@ public class Block {
 
     private @NotNull Optional<Multipart> multipart = Optional.empty();
 
-    /** Tag names this block belongs to, e.g. {@code ["minecraft:stairs", "minecraft:wooden_stairs"]}. */
+    /**
+     * Tag names this block belongs to, e.g. {@code ["minecraft:stairs", "minecraft:wooden_stairs"]}.
+     */
     private @NotNull ConcurrentList<String> tags = Concurrent.newList();
 
     private @NotNull Tint tint = new Tint(Biome.TintTarget.NONE, Optional.empty());
@@ -97,7 +99,9 @@ public class Block {
      */
     public enum Source {
 
-        /** Registered from a primary {@code block/<id>.json} model file. */
+        /**
+         * Registered from a primary {@code block/<id>.json} model file.
+         */
         PRIMARY,
 
         /**
@@ -178,7 +182,7 @@ public class Block {
      *
      * @param beType vanilla {@code BlockEntityType} reference for diagnostics ({@code "minecraft:bed"})
      * @param model extracted geometry (elements + face UVs)
-     * @param textureId entity texture id bound to the {@code "#entity"} texture variable, e.g.
+     * @param textureId entity texture id bound to the {@code "#entity"} texture variable, e.g
      *     {@code "minecraft:entity/bed/red"}
      * @param tintArgb ARGB tint multiplied against every sampled texel - used for per-dye banner
      *     colouring; {@link ColorMath#WHITE} for no tint
@@ -207,7 +211,9 @@ public class Block {
         boolean additive
     ) {
 
-        /** Backwards-compatible constructor for the existing replace-the-model entries. */
+        /**
+         * Backwards-compatible constructor for the existing replace-the-model entries.
+         */
         public Entity(@NotNull String beType, @NotNull BlockModelData model, @NotNull String textureId,
                       int tintArgb, int iconRotation, boolean multiBlock, @NotNull ConcurrentList<Part> parts) {
             this(beType, model, textureId, tintArgb, iconRotation, multiBlock, parts, false);

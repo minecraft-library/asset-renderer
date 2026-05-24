@@ -53,7 +53,9 @@ import java.util.List;
 @UtilityClass
 public final class ToolingAtlasDiagnose {
 
-    /** How often to emit a progress dot while slicing tiles. */
+    /**
+     * How often to emit a progress dot while slicing tiles.
+     */
     private static final int PROGRESS_DOT_INTERVAL = 256;
 
     /**
@@ -188,14 +190,18 @@ public final class ToolingAtlasDiagnose {
         return new ScanResult(fullyTransparent, sparseContent, opaqueRatio);
     }
 
-    /** Output of {@link #scan}: both flag values plus the opaque-pixel ratio. */
+    /**
+     * Output of {@link #scan}: both flag values plus the opaque-pixel ratio.
+     */
     private record ScanResult(
         boolean fullyTransparent,
         boolean sparseContent,
         double opaqueRatio
     ) {}
 
-    /** Rounds a ratio to 4 decimal places so JSON output stays readable. */
+    /**
+     * Rounds a ratio to 4 decimal places so JSON output stays readable.
+     */
     private static double round4(double value) {
         return Math.round(value * 10_000.0) / 10_000.0;
     }
@@ -237,8 +243,8 @@ public final class ToolingAtlasDiagnose {
      * value. Output lands at {@code <root>/<sourceFilter>/}: a fresh {@code atlas.png} grid
      * composed from the filtered slices, an {@code atlas.json} trimmed to just those tiles, and
      * an {@code ids.txt} with the matching ids one per line, alphabetically sorted. Used to
-     * visually verify additions from a specific registration path (e.g. Task 10's
-     * {@code blockstate_only}) without hunting through the full atlas.
+     * visually verify additions from a specific registration path (e.g. the
+     * {@code blockstate_only} source) without hunting through the full atlas.
      */
     private static void runSourceFilter(@NotNull Path root, @NotNull Path atlasPng, @NotNull Path atlasJson, @NotNull String sourceFilter) throws IOException {
         Path outDir = resolveContained(root, sourceFilter, "--source-filter");

@@ -42,10 +42,14 @@ import java.util.Optional;
 @UtilityClass
 public class ArmorKit {
 
-    /** Per-side inflation in model units so armor sits visibly above the skin geometry. */
+    /**
+     * Per-side inflation in model units so armor sits visibly above the skin geometry.
+     */
     private static final float ARMOR_INFLATE = 0.015f;
 
-    /** Additional inflate for trim so it sits above the armor base and avoids z-fighting. */
+    /**
+     * Additional inflate for trim so it sits above the armor base and avoids z-fighting.
+     */
     private static final float TRIM_INFLATE = 0.003f;
 
     // ---------------------------------------------------------------------------------------
@@ -258,8 +262,7 @@ public class ArmorKit {
     ) {
         Vector3f inflatedMin = new Vector3f(min.x() - inflate, min.y() - inflate, min.z() - inflate);
         Vector3f inflatedMax = new Vector3f(max.x() + inflate, max.y() + inflate, max.z() + inflate);
-        PixelBuffer[] faces = part.cropAll(texture, false);
-        return BlockModelGeometryKit.box(inflatedMin, inflatedMax, faces, ColorMath.WHITE);
+        return BlockGeometryKit.buildBoxTriangles(inflatedMin, inflatedMax, part.cropAll(texture, false), ColorMath.WHITE);
     }
 
     /**

@@ -18,7 +18,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
-class BlockModelGeometryKitTest {
+class BlockGeometryKitTest {
 
     private static final int TINT_ARGB = 0xFFAABBCC;
 
@@ -38,7 +38,7 @@ class BlockModelGeometryKitTest {
         faceTextures.put("#all", texture);
 
         ConcurrentList<VisibleTriangle> triangles =
-            BlockModelGeometryKit.buildFromElements(one(element), faceTextures, TINT_ARGB);
+            BlockGeometryKit.buildFromElements(one(element), faceTextures, TINT_ARGB);
 
         assertThat(triangles.size(), equalTo(12));
         for (VisibleTriangle triangle : triangles) {
@@ -58,7 +58,7 @@ class BlockModelGeometryKitTest {
         faceTextures.put("#all", texture1x1());
 
         ConcurrentList<VisibleTriangle> triangles =
-            BlockModelGeometryKit.buildFromElements(one(element), faceTextures, TINT_ARGB);
+            BlockGeometryKit.buildFromElements(one(element), faceTextures, TINT_ARGB);
 
         assertThat(triangles.size(), equalTo(4));
     }
@@ -73,7 +73,7 @@ class BlockModelGeometryKitTest {
         faceTextures.put("#all", texture1x1());
 
         ConcurrentList<VisibleTriangle> triangles =
-            BlockModelGeometryKit.buildFromElements(one(element), faceTextures, TINT_ARGB);
+            BlockGeometryKit.buildFromElements(one(element), faceTextures, TINT_ARGB);
 
         assertThat(triangles.size(), equalTo(2));
         VisibleTriangle firstHalf = triangles.getFirst();
@@ -95,7 +95,7 @@ class BlockModelGeometryKitTest {
         faceTextures.put("#all", texture1x1());
 
         ConcurrentList<VisibleTriangle> triangles =
-            BlockModelGeometryKit.buildFromElements(one(element), faceTextures, TINT_ARGB);
+            BlockGeometryKit.buildFromElements(one(element), faceTextures, TINT_ARGB);
 
         assertThat(triangles.size(), equalTo(2));
     }
@@ -110,7 +110,7 @@ class BlockModelGeometryKitTest {
         faceTextures.put("#all", texture1x1());
 
         ConcurrentList<VisibleTriangle> triangles =
-            BlockModelGeometryKit.buildFromElements(one(element), faceTextures, TINT_ARGB);
+            BlockGeometryKit.buildFromElements(one(element), faceTextures, TINT_ARGB);
 
         assertThat(triangles.size(), equalTo(2));
         VisibleTriangle firstHalf = triangles.getFirst();

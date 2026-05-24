@@ -128,7 +128,9 @@ public class CtmMatcher {
         return validated;
     }
 
-    /** 256-entry lookup mapping each raw 8-bit pattern (post-validation) to a tile index 0..46. */
+    /**
+     * 256-entry lookup mapping each raw 8-bit pattern (post-validation) to a tile index 0..46.
+     */
     private static final int @NotNull [] CTM_TILE_TABLE = buildCtmTileTable();
 
     private static int @NotNull [] buildCtmTileTable() {

@@ -21,8 +21,8 @@ import java.util.concurrent.TimeUnit;
  * <li>{@code oak_stairs} - orientation + camera override</li>
  * <li>{@code piston} - multipart head + body, most triangles</li>
  * </ul>
- * Primary measurement target for Task 1 (via atlas dispatch), Task 7 (triangle transform pass),
- * Task 8 (tiled rasterization), Task 10 (SIMD math), and Task 12 (trig LUT).
+ * Exercises the full block-render hot path: triangle transform, tiled rasterization, SIMD math,
+ * and the trig LUT.
  */
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)

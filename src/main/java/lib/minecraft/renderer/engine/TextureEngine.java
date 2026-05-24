@@ -27,11 +27,24 @@ import java.util.Optional;
 
 /**
  * Baseline texture-aware engine. Every higher-level engine ({@link RasterEngine},
- * {@link ModelEngine}) extends this class and inherits pack resolution, biome tint sampling, and
- * colour overlay helpers.
- * <p>
- * The engine itself is stateless beyond its {@link RendererContext}. All methods are idempotent
- * and thread-safe provided the underlying context is too.
+ * {@link ModelEngine}) extends this class and inherits its three families of helpers:
+ * <ul>
+ *   <li><b>Pack resolution</b> - {@code resolveTexture}, animation strip extraction via
+ *       {@link AnimationKit AnimationKit}, glint compositing via
+ *       {@link GlintKit GlintKit}, and the CIT override lookup.</li>
+ *   <li><b>Biome tint sampling</b> - the vanilla
+ *       {@code BiomeSpecialEffects$GrassColorModifier} dark-forest / swamp variants and the
+ *       default water tint table.</li>
+ *   <li><b>Colour overlay</b> - leather-armor dye, dyed-item layers, and arbitrary ARGB tint
+ *       compositing.</li>
+ * </ul>
+ *
+ * <p>The engine itself is stateless beyond its {@link RendererContext}. All methods are
+ * idempotent and thread-safe provided the underlying context is too.
+ *
+ * @see RendererContext
+ * @see RasterEngine
+ * @see ModelEngine
  */
 @Getter
 @RequiredArgsConstructor
@@ -57,13 +70,19 @@ public class TextureEngine implements RenderEngine {
      */
     private static final int DARK_FOREST_LOW_BIT_MASK = 0xFE;
 
-    /** Red-channel add vanilla applies to the base grass color for dark-forest biomes. */
+    /**
+     * Red-channel add vanilla applies to the base grass color for dark-forest biomes.
+     */
     private static final int DARK_FOREST_RED_OFFSET = 0x28;
 
-    /** Green-channel add for dark-forest grass modifier. */
+    /**
+     * Green-channel add for dark-forest grass modifier.
+     */
     private static final int DARK_FOREST_GREEN_OFFSET = 0x34;
 
-    /** Blue-channel add for dark-forest grass modifier. */
+    /**
+     * Blue-channel add for dark-forest grass modifier.
+     */
     private static final int DARK_FOREST_BLUE_OFFSET = 0x0A;
 
     /**
@@ -155,9 +174,9 @@ public class TextureEngine implements RenderEngine {
         if (glintTexture.isEmpty())
             return RenderEngine.staticFrame(buffer);
 
-        ConcurrentList<PixelBuffer> frames = GlintKit.apply(buffer, glintTexture.get(), glintOptions);
+        ConcurrentList<PixelBuffer> frames = GlintKit.applyGlint(buffer, glintTexture.get(), glintOptions);
         int frameDelayMs = Math.max(1, Math.round(1000f / glintOptions.framesPerSecond()));
-        return RenderEngine.output(frames, frameDelayMs);
+        return RenderEngine.wrapFrames(frames, frameDelayMs);
     }
 
     /**
@@ -347,7 +366,7 @@ public class TextureEngine implements RenderEngine {
      * @param variables the variable map to resolve against
      * @return the resolved namespaced texture id, or the last unresolvable {@code #variable}
      */
-    public static @NotNull String dereferenceVariable(@NotNull String reference, @NotNull ConcurrentMap<String, String> variables) {
+    public static @NotNull String resolveTextureReference(@NotNull String reference, @NotNull ConcurrentMap<String, String> variables) {
         String current = reference;
 
         if (!current.startsWith("#") && !current.contains(":") && variables.containsKey(current))

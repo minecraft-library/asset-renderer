@@ -1,10 +1,5 @@
 package lib.minecraft.renderer.engine;
 
-import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.geometry.BlockFace;
-import lib.minecraft.renderer.geometry.PerspectiveParams;
-import lib.minecraft.renderer.tensor.Vector2f;
-import lib.minecraft.renderer.tensor.Vector3f;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
@@ -12,17 +7,93 @@ import dev.simplified.image.data.AnimatedImageData;
 import dev.simplified.image.data.ImageFrame;
 import dev.simplified.image.data.StaticImageData;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.engine.IsometricEngine;
+import lib.minecraft.renderer.exception.RenderException;
+import lib.minecraft.renderer.geometry.BlockFace;
+import lib.minecraft.renderer.geometry.PerspectiveParams;
+import lib.minecraft.renderer.tensor.Matrix4f;
+import lib.minecraft.renderer.tensor.Quaternionf;
+import lib.minecraft.renderer.tensor.Vector2f;
+import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
 
 /**
  * Baseline contract and shared static helpers for every rendering engine.
- * <p>
- * Every method that does not require instance state is bundled here as a {@code static} so every
- * concrete engine has direct access to projection, shading, and output helpers without an
- * instance lookup. Instance state (pack resolution, biome sampling, etc.) lives on subclasses
- * starting with {@link TextureEngine}.
+ *
+ * <p>Every method that does not require instance state is bundled here as a {@code static} so
+ * every concrete engine has direct access to:
+ * <ul>
+ *   <li><b>Projection</b> - {@code projectOrtho} and {@code projectPerspective} for the
+ *       camera-to-screen transform.</li>
+ *   <li><b>Lighting</b> - the {@code computeInventoryLighting} / {@code computeEntityInUiLighting}
+ *       helpers that bake the vanilla {@code Lighting.Entry} dot product per-face or per-vertex
+ *       at kit-build time, plus the precomputed {@link #ENTITY_IN_UI_LIGHT_0} and
+ *       {@link #ENTITY_IN_UI_LIGHT_1} constants that drive entity rendering parity against the
+ *       vanilla-reference harness.</li>
+ *   <li><b>Shading</b> - {@code applyShading} multiplies a precomputed scalar into each ARGB
+ *       channel with round-half-up matching vanilla GLSL.</li>
+ *   <li><b>Output building</b> - {@code buildStaticOutput} / {@code buildAnimatedOutput} that
+ *       wrap a {@link PixelBuffer} into the final
+ *       {@link ImageData ImageData} record.</li>
+ * </ul>
+ *
+ * <p>Instance state (pack resolution, biome sampling, etc.) lives on subclasses starting with
+ * {@link TextureEngine}.
+ *
+ * @see TextureEngine
+ * @see ModelEngine
  */
 public interface RenderEngine {
+
+    // --- entity inventory lighting constants (vanilla Lighting.ENTITY_IN_UI parity) ---
+
+    /**
+     * First diffuse light direction for vanilla's {@code Lighting.Entry.ENTITY_IN_UI} entry,
+     * pre-rotated by vanilla's iso transform chain so the kit-time dot product against a
+     * kit-frame (post-Y-flip, pre-engine-camera) bone-chain normal gives the same shade as
+     * vanilla's fragment-shader dot against a post-camera-frame normal.
+     * <p>
+     * Vanilla source: {@code INVENTORY_DIFFUSE_LIGHT_0 = normalize(0.2, -1, 1)} in camera frame
+     * (post-iso, Y-down). Our kit dots lights against a normal that is only Y-flipped (not iso-
+     * rotated). Solving:
+     * <pre>
+     * dot(L_kit, diag(1,-1,1) × n_model) = dot(L_camera, M_view × n_model)  for all n_model
+     * </pre>
+     * yields {@code L_kit = diag(1,-1,1) × M_view^T × L_camera}, where {@code M_view =
+     * scale(1,1,-1) × R_X(210°) × R_Y(45°) × R_X(180°)} (col-form) is the harness LER chain.
+     * Verified to give identical shade on all six cardinal-axis normals (cod-style entities). For
+     * rotated bones the dot agrees per-vertex with vanilla's post-iso fragment shader, removing
+     * the per-quadrant signed-luma signature that lingered after A1. Pairs with
+     * {@link IsometricEngine#forEntityIcon}'s camera chain.
+     * <p>
+     * The previous value {@code normalize(0.2, 1, 1)} was a naive Y-flip of vanilla's source
+     * (matched +Y and -Y axes exactly but diverged 0.04 / 0.07 / 0.13 / 0.17 on ±X / ±Z). A
+     * Round 8 attempt at this fix regressed cardinal-shaded entities; root cause unverified,
+     * but the per-face math has since been re-derived from scratch against the post-A1 chain
+     * and the cardinal-axis match is now bit-stable.
+     *
+     * @see <a href="https://github.com/Mojang/blaze3d/blob/main/src/main/java/com/mojang/blaze3d/platform/Lighting.java">com.mojang.blaze3d.platform.Lighting</a>
+     */
+    Vector3f ENTITY_IN_UI_LIGHT_0 = deriveEntityInUiLightKit(0.2f, -1f, 1f);
+
+    /**
+     * Second diffuse light direction; pre-rotated by the same {@code diag(1,-1,1) × M_view^T} as
+     * {@link #ENTITY_IN_UI_LIGHT_0} from vanilla's {@code INVENTORY_DIFFUSE_LIGHT_1 =
+     * normalize(-0.2, -1, 0)}.
+     */
+    Vector3f ENTITY_IN_UI_LIGHT_1 = deriveEntityInUiLightKit(-0.2f, -1f, 0f);
+
+    /**
+     * Diffuse contribution scale matching vanilla's GLSL {@code MINECRAFT_LIGHT_POWER} constant.
+     * The shader uses the value to scale the dot-product sum before the ambient floor is added.
+     */
+    float MINECRAFT_LIGHT_POWER = 0.6f;
+
+    /**
+     * Constant ambient contribution matching vanilla's GLSL {@code MINECRAFT_AMBIENT_LIGHT}
+     * constant. Sets the floor brightness when both diffuse dot products clamp to zero.
+     */
+    float MINECRAFT_AMBIENT_LIGHT = 0.4f;
 
     // --- projection ---
 
@@ -76,12 +147,73 @@ public interface RenderEngine {
      * {@link BlockFace#lighting() lighting} factor. See {@link BlockFace}'s class-level doc for
      * the rationale behind the reversed E/W vs N/S values (vanilla {@code Lighting.ITEMS_3D}
      * uses two directional lights offset in X, inverting world-block brightness).
+     * <p>
+     * Used by block + fluid kits to bake a per-triangle shading scalar at geometry-build time;
+     * the rasterizer then applies the result to the sampled texel. Entity rendering uses
+     * {@link #computeEntityInUiLighting} instead so the output matches vanilla's
+     * {@code Lighting.ENTITY_IN_UI} dual-light shader rather than the four-cardinal-bucket
+     * approximation.
      *
      * @param normal the world-space surface normal (should be normalized)
      * @return the shade factor for the face that best matches the normal
      */
     static float computeInventoryLighting(@NotNull Vector3f normal) {
         return BlockFace.fromNormal(normal).lighting();
+    }
+
+    // --- entity inventory lighting (vanilla Lighting.ENTITY_IN_UI parity) ---
+
+    /**
+     * Derives a kit-frame diffuse light direction from a vanilla camera-frame
+     * {@code INVENTORY_DIFFUSE_LIGHT_N = normalize(x, y, z)} literal, using the same Matrix4f
+     * chain the per-vertex shader composes for the iso pose. The result is bit-identical to
+     * {@code diag(1,-1,1) × M_view^T × L_camera} computed via our column-vector
+     * {@link Matrix4f} / {@link Quaternionf} ops - matching whatever sub-ULP drift our matrix
+     * math has against vanilla's per-vertex GLSL chain. Replaces the 6-decimal hardcoded
+     * constants with values produced by the same float chain that runs at render-time.
+     */
+    private static @NotNull Vector3f deriveEntityInUiLightKit(float cameraX, float cameraY, float cameraZ) {
+        // L_camera_normalized via our Vector3f.normalize (same code path as runtime normals)
+        Vector3f lCamera = Vector3f.normalize(new Vector3f(cameraX, cameraY, cameraZ));
+
+        // M_view = scale(1,1,-1) × R_X(210°) × R_Y(45°) × R_X(180°) col-form
+        // M_view^T = R_X(-180°) × R_Y(-45°) × R_X(-210°) × scale(1,1,-1)
+        // diag(1,-1,1) × M_view^T = diag(1,-1,1) × (above)
+        // Built via fluent ops to match vanilla's PoseStack composition exactly.
+        Matrix4f viewToKit = Matrix4f.IDENTITY
+            .scale(1f, -1f, 1f)
+            .rotate(Quaternionf.rotationXYZ((float) -Math.PI, 0f, 0f))
+            .rotate(Quaternionf.rotationXYZ(0f, (float) Math.toRadians(-45.0), 0f))
+            .rotate(Quaternionf.rotationXYZ((float) Math.toRadians(-210.0), 0f, 0f))
+            .scale(1f, 1f, -1f);
+        Vector3f kitDir = Vector3f.transformNormal(lCamera, viewToKit);
+        return Vector3f.normalize(kitDir);
+    }
+
+    /**
+     * Computes the dual-directional Lambertian shade factor for a world-space surface normal
+     * under vanilla's {@code Lighting.Entry#ENTITY_IN_UI} entry - the lighting setup used for
+     * mob portraits in containers and the inventory screen. Implements vanilla's
+     * {@code light.glsl#minecraft_mix_light_separate} verbatim:
+     * <pre>
+     * shading = min(1, (max(0, dot(L0, n)) + max(0, dot(L1, n))) * 0.6 + 0.4)
+     * </pre>
+     * <p>
+     * Two directional lights provide diffuse contributions (clamped at zero so back-facing
+     * surfaces do not subtract); their sum is scaled by {@link #MINECRAFT_LIGHT_POWER} and added
+     * to {@link #MINECRAFT_AMBIENT_LIGHT}, then clamped to {@code [0, 1]}. The result is
+     * <b>continuous in the surface normal</b> rather than bucketed to one of six cardinal-face
+     * constants - critical for matching the refharness output on rotated bones (running zombie
+     * legs, leashed bees, etc.) where the normal is no longer axis-aligned and a per-face lookup
+     * collapses neighbouring faces to the same shade.
+     *
+     * @param normal the world-space surface normal (should be normalized)
+     * @return the shade factor in {@code [0.4, 1.0]} - never below ambient, never above unity
+     */
+    static float computeEntityInUiLighting(@NotNull Vector3f normal) {
+        float dot0 = Math.max(0f, Vector3f.dot(ENTITY_IN_UI_LIGHT_0, normal));
+        float dot1 = Math.max(0f, Vector3f.dot(ENTITY_IN_UI_LIGHT_1, normal));
+        return Math.min(1f, (dot0 + dot1) * MINECRAFT_LIGHT_POWER + MINECRAFT_AMBIENT_LIGHT);
     }
 
     // --- shading ---
@@ -94,10 +226,13 @@ public interface RenderEngine {
      * @return the shaded ARGB pixel
      */
     static int applyShading(int argb, float factor) {
+        // Vanilla GLSL quantizes via `floor(min(1, v) * 255 + 0.5)` (round-half-up); truncating
+        // here biases every shaded channel ~0.5 LSB low and leaves a single-LSB precision floor
+        // across un-tinted entities (goat / husk / zombie / skeleton family etc).
         int a = (argb >>> 24) & 0xFF;
-        int r = (int) (((argb >>> 16) & 0xFF) * factor);
-        int g = (int) (((argb >>> 8) & 0xFF) * factor);
-        int b = (int) ((argb & 0xFF) * factor);
+        int r = Math.round(((argb >>> 16) & 0xFF) * factor);
+        int g = Math.round(((argb >>> 8) & 0xFF) * factor);
+        int b = Math.round((argb & 0xFF) * factor);
 
         r = Math.clamp(r, 0, 255);
         g = Math.clamp(g, 0, 255);
@@ -117,7 +252,7 @@ public interface RenderEngine {
      * @param frameDelayMs the per-frame display duration in milliseconds
      * @return the wrapped image data
      */
-    static @NotNull ImageData output(@NotNull ConcurrentList<PixelBuffer> frames, int frameDelayMs) {
+    static @NotNull ImageData wrapFrames(@NotNull ConcurrentList<PixelBuffer> frames, int frameDelayMs) {
         if (frames.isEmpty())
             throw new RenderException("Frame list must contain at least one frame");
 
@@ -141,7 +276,7 @@ public interface RenderEngine {
     static @NotNull ImageData staticFrame(@NotNull PixelBuffer buffer) {
         ConcurrentList<PixelBuffer> frames = Concurrent.newList();
         frames.add(buffer);
-        return output(frames, 0);
+        return wrapFrames(frames, 0);
     }
 
 }

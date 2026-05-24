@@ -10,8 +10,15 @@ package lib.minecraft.renderer.tooling.blockentity;
  * back into the canonical Y-down form before emission.
  */
 public enum YAxis {
-    /** Y-up source: cubes authored in block-space (positive Y is up). The parser pre-flips into the canonical Y-down form before emission. */
+
+    /**
+     * Y-up source: cubes authored in block-space (positive Y is up). The parser pre-flips into the canonical Y-down form before emission.
+     */
     UP,
-    /** Y-down source: standard Java {@code ModelPart} convention. No pre-processing required. */
+
+    /**
+     * Y-down source: standard Java {@code ModelPart} convention. No pre-processing required.
+     */
     DOWN
+
 }

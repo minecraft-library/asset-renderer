@@ -26,12 +26,12 @@ import java.util.Optional;
  * {@code cache/visual/fluid-renderer/} for visual inspection. Static renders dump as PNG, animated
  * renders as GIF. Covers:
  * <ul>
- * <li>Source-block renders for both water and lava in both render types (phase 1).</li>
+ * <li>Source-block renders for both water and lava in both render types.</li>
  * <li>Animated renders that sample the {@code water_still} / {@code lava_still} strips across
- * their full frame cycle (phase 2).</li>
- * <li>Sloped corner-height and flow-direction renders (phase 3 - will look flat-topped until
+ * their full frame cycle.</li>
+ * <li>Sloped corner-height and flow-direction renders (will look flat-topped until
  * {@link FluidGeometryKit#buildFluidCube} is expanded).</li>
- * <li>Biome-tint variants and the explicit ARGB override (phase 4 biome variants will all look
+ * <li>Biome-tint variants and the explicit ARGB override (biome variants will all look
  * identical until {@link Biome.TintTarget#WATER} is wired; the override path works today).</li>
  * </ul>
  * Usage: {@code ./gradlew :asset-renderer:fluidRenderer}.
@@ -69,7 +69,7 @@ public final class TestFluidRenderer {
         FluidRenderer renderer = new FluidRenderer(context);
         ImageFactory imageFactory = new ImageFactory();
 
-        // Phase 1 - source blocks + 2D face.
+        // Source blocks + 2D face.
         render(renderer, imageFactory, "water_source_iso", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)
             .outputSize(STATIC_SIZE)
@@ -89,8 +89,8 @@ public final class TestFluidRenderer {
             .outputSize(STATIC_SIZE)
             .build());
 
-        // Phase 2 - animation. water_still has 32 frames at frametime=2; lava_still has 20 frames
-        // at frametime=3. Sample at native frametime so the strip is walked exactly once.
+        // Animation. water_still has 32 frames at frametime=2; lava_still has 20 frames at
+        // frametime=3. Sample at native frametime so the strip is walked exactly once.
         render(renderer, imageFactory, "water_animated_iso", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)
             .outputSize(ANIMATED_SIZE)
@@ -104,7 +104,7 @@ public final class TestFluidRenderer {
             .ticksPerFrame(3)
             .build());
 
-        // Phase 3 - sloped top + flow direction. Will look flat-topped until FluidGeometryKit is
+        // Sloped top + flow direction. Will look flat-topped until FluidGeometryKit is
         // expanded; kept in the matrix so the fix lights these up without any driver changes.
         render(renderer, imageFactory, "water_level_4_flow_ne", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)
@@ -113,8 +113,8 @@ public final class TestFluidRenderer {
             .flowAngleRadians(Optional.of((float) Math.toRadians(45)))
             .build());
 
-        // Phase 4 - biome tint. Until Biome.TintTarget.WATER ships these will all render at the
-        // vanilla default water colour; only the override variant differs.
+        // Biome tint. Until Biome.TintTarget.WATER ships these will all render at the vanilla
+        // default water colour; only the override variant differs.
         render(renderer, imageFactory, "water_plains", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)
             .outputSize(STATIC_SIZE)

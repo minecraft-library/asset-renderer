@@ -9,7 +9,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.BlockTag;
-import lib.minecraft.renderer.pipeline.VanillaPaths;
+import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -90,7 +90,7 @@ public class BlockTagLoader {
                 .filter(p -> p.toString().endsWith(".json"))
                 .forEach(file -> {
                     String relative = tagsDir.relativize(file).toString().replace('\\', '/');
-                    String tagId = VanillaPaths.MINECRAFT_NAMESPACE + relative.substring(0, relative.length() - 5);
+                    String tagId = VanillaSourcePaths.MINECRAFT_NAMESPACE + relative.substring(0, relative.length() - 5);
                     try {
                         JsonObject root = GSON.fromJson(Files.readString(file), JsonObject.class);
                         if (root == null || !root.has("values")) return;

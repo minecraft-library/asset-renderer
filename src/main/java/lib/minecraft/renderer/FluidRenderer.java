@@ -50,7 +50,9 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
     static final @NotNull String LAVA_STILL_TEXTURE_ID = "minecraft:block/lava_still";
     static final @NotNull String LAVA_FLOW_TEXTURE_ID = "minecraft:block/lava_flow";
 
-    /** One vanilla tick is 50 ms - used to convert {@code ticksPerFrame} into a GIF delay. */
+    /**
+     * One vanilla tick is 50 ms - used to convert {@code ticksPerFrame} into a GIF delay.
+     */
     private static final int MILLIS_PER_TICK = 50;
 
     private final @NotNull Isometric3D isometric3D;
@@ -135,11 +137,11 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             frames.addAll(IntStream.range(0, options.getFrameCount()).parallel()
                 .mapToObj(f -> renderFrame(options, options.getStartTick() + f * options.getTicksPerFrame()))
                 .toList());
-            return RenderEngine.output(frames, options.getTicksPerFrame() * MILLIS_PER_TICK);
+            return RenderEngine.wrapFrames(frames, options.getTicksPerFrame() * MILLIS_PER_TICK);
         }
 
         private @NotNull PixelBuffer renderFrame(@NotNull FluidOptions options, int tick) {
-            IsometricEngine engine = IsometricEngine.standard(this.context);
+            IsometricEngine engine = IsometricEngine.forBlockIcon(this.context);
             TextureEngine textures = new TextureEngine(this.context);
             PixelBuffer still = textures.resolveTextureAtTick(stillTextureId(options.getFluid()), tick);
             PixelBuffer flow = textures.resolveTextureAtTick(flowTextureId(options.getFluid()), tick);
@@ -190,7 +192,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             frames.addAll(IntStream.range(0, options.getFrameCount()).parallel()
                 .mapToObj(f -> renderFrame(options, options.getStartTick() + f * options.getTicksPerFrame()))
                 .toList());
-            return RenderEngine.output(frames, options.getTicksPerFrame() * MILLIS_PER_TICK);
+            return RenderEngine.wrapFrames(frames, options.getTicksPerFrame() * MILLIS_PER_TICK);
         }
 
         private @NotNull PixelBuffer renderFrame(@NotNull FluidOptions options, int tick) {

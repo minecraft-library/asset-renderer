@@ -13,8 +13,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Held-item 3D render benchmark - exercises {@link ItemRenderer.Held3D} via the display
- * transform path. Primary measurement target for Task 7/8 (ModelEngine) and Task 10 (SIMD math)
- * on the non-block rasterization branch.
+ * transform path. Measures the ModelEngine + SIMD math on the non-block rasterization branch.
  */
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)

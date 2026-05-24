@@ -18,7 +18,9 @@ import org.jetbrains.annotations.NotNull;
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
 public class TextOptions {
 
-    /** Default per-side inner padding between the tooltip border and the first glyph (mcPixels). */
+    /**
+     * Default per-side inner padding between the tooltip border and the first glyph (mcPixels).
+     */
     public static final int TOOLTIP_PADDING_MCPX = 5;
 
     /**
@@ -33,21 +35,31 @@ public class TextOptions {
      */
     public static final int VANILLA_TOOLTIP_BORDER_ALPHA = 80;
 
-    /** Default wrap width; matches vanilla tooltip line break behaviour (~38 chars). */
+    /**
+     * Default wrap width; matches vanilla tooltip line break behaviour (~38 chars).
+     */
     public static final int VANILLA_WRAP_WIDTH_CHARS = 38;
 
-    /** Obfuscation animation frame rate; matches vanilla's 20 ticks-per-second refresh. */
+    /**
+     * Obfuscation animation frame rate; matches vanilla's 20 ticks-per-second refresh.
+     */
     public static final int VANILLA_TICK_FPS = 20;
 
-    /** Rendering style - tooltip or plain chat text */
+    /**
+     * Rendering style - tooltip or plain chat text
+     */
     @lombok.Builder.Default
     private final @NotNull Style style = Style.LORE;
 
-    /** Styled text segments to render */
+    /**
+     * Styled text segments to render
+     */
     @lombok.Builder.Default
     private final @NotNull ConcurrentList<LineSegment> lines = Concurrent.newList();
 
-    /** Padding in mcPixels between the tooltip border and the text content (1 mcPixel = 2 output pixels at native sampling). */
+    /**
+     * Padding in mcPixels between the tooltip border and the text content (1 mcPixel = 2 output pixels at native sampling).
+     */
     @lombok.Builder.Default
     private final int padding = TOOLTIP_PADDING_MCPX;
 
@@ -67,19 +79,27 @@ public class TextOptions {
     @lombok.Builder.Default
     private final int borderAlpha = VANILLA_TOOLTIP_BORDER_ALPHA;
 
-    /** Maximum characters per line before wrapping */
+    /**
+     * Maximum characters per line before wrapping
+     */
     @lombok.Builder.Default
     private final int wrapWidth = VANILLA_WRAP_WIDTH_CHARS;
 
-    /** Total number of frames produced when obfuscated text is present. */
+    /**
+     * Total number of frames produced when obfuscated text is present.
+     */
     @lombok.Builder.Default
     private final int frameCount = 20;
 
-    /** Target output frame rate; matches vanilla's tick-synced obfuscation refresh. */
+    /**
+     * Target output frame rate; matches vanilla's tick-synced obfuscation refresh.
+     */
     @lombok.Builder.Default
     private final int framesPerSecond = VANILLA_TICK_FPS;
 
-    /** Output image format */
+    /**
+     * Output image format
+     */
     @lombok.Builder.Default
     private final @NotNull ImageFormat outputFormat = ImageFormat.PNG;
 
@@ -91,13 +111,19 @@ public class TextOptions {
         return builder().build();
     }
 
-    /** Controls background rendering and line spacing behavior. */
+    /**
+     * Controls background rendering and line spacing behavior.
+     */
     public enum Style {
 
-        /** Plain text on a transparent background with uniform line spacing. */
+        /**
+         * Plain text on a transparent background with uniform line spacing.
+         */
         CHAT,
 
-        /** Minecraft tooltip with purple border/background and wider gap after the first line. */
+        /**
+         * Minecraft tooltip with purple border/background and wider gap after the first line.
+         */
         LORE
 
     }

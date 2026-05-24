@@ -13,8 +13,8 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Fluid animation benchmark - walks the full {@code water_still} (32 frames, frametime=2) or
- * {@code lava_still} (20 frames, frametime=3) strip through {@link FluidRenderer}. Primary
- * measurement target for Task 4 (frame-parallel animation baking).
+ * {@code lava_still} (20 frames, frametime=3) strip through {@link FluidRenderer}. Measures
+ * frame-parallel animation baking.
  */
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)

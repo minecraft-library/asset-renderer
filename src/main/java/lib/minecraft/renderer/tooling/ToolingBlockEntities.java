@@ -6,40 +6,44 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
+import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.asset.model.EntityModelData.Bone;
+import lib.minecraft.renderer.asset.model.EntityModelData.Cube;
+import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.exception.ToolingException;
 import lib.minecraft.renderer.geometry.BlockFace;
 import lib.minecraft.renderer.geometry.Box;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.geometry.EntityFace;
+import lib.minecraft.renderer.kit.EntityGeometryKit;
 import lib.minecraft.renderer.pipeline.Pipeline;
+import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockEntityLoader;
+import lib.minecraft.renderer.tensor.Matrix4f;
+import lib.minecraft.renderer.tensor.Quaternionf;
+import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tensor.Vector4f;
-import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.blockentity.BlockListDiscovery;
-import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lib.minecraft.renderer.tooling.blockentity.InventoryTransformDecomposer;
 import lib.minecraft.renderer.tooling.blockentity.Source;
 import lib.minecraft.renderer.tooling.blockentity.SourceDiscovery;
 import lib.minecraft.renderer.tooling.blockentity.TintDiscovery;
 import lib.minecraft.renderer.tooling.blockentity.YAxis;
-import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
-import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.tooling.entity.EntityLayerDefinitionResolver;
+import lib.minecraft.renderer.tooling.parser.GeometryParser;
+import lib.minecraft.renderer.tooling.util.AsmKit;
+import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
+import lib.minecraft.renderer.tooling.util.Diagnostics;
+import lib.minecraft.renderer.tooling.util.FastTrig;
+import lib.minecraft.renderer.tooling.util.JsonOptional;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.tree.AbstractInsnNode;
-import org.objectweb.asm.tree.ClassNode;
-import org.objectweb.asm.tree.FieldInsnNode;
-import org.objectweb.asm.tree.InsnList;
-import org.objectweb.asm.tree.JumpInsnNode;
-import org.objectweb.asm.tree.LdcInsnNode;
-import org.objectweb.asm.tree.LookupSwitchInsnNode;
-import org.objectweb.asm.tree.MethodInsnNode;
-import org.objectweb.asm.tree.MethodNode;
-import org.objectweb.asm.tree.TableSwitchInsnNode;
-import org.objectweb.asm.tree.VarInsnNode;
+import org.objectweb.asm.tree.*;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -54,19 +58,48 @@ import java.util.zip.ZipFile;
 
 /**
  * Entry point invoked by the {@code blockEntities} Gradle task.
- * <p>
- * Downloads the deobfuscated Minecraft client jar, parses block entity model classes via
- * {@link Parser}, and writes the result to
- * {@code src/main/resources/lib/minecraft/renderer/tile_entity_models.json}. The runtime pipeline reads
- * the JSON via {@link BlockEntityLoader}.
+ *
+ * <p>Downloads the deobfuscated Minecraft client jar, parses every block-entity model class
+ * via {@link GeometryParser}, and writes the result to
+ * {@code src/main/resources/lib/minecraft/renderer/block_entities.json}.
+ *
+ * <p>Output composition:
+ * <ul>
+ *   <li><b>Geometry</b> - decomposed from each block-entity model class's
+ *       {@code createBodyLayer} / {@code createSingleHeadLayer} bytecode. Y-axis normalised
+ *       to the canonical Y-down convention via
+ *       {@link YAxis YAxis}.</li>
+ *   <li><b>Inventory transform</b> - extracted from each renderer's static factory via
+ *       {@link InventoryTransformDecomposer
+ *       InventoryTransformDecomposer}.</li>
+ *   <li><b>Block list</b> - per-family registry walk via
+ *       {@link BlockListDiscovery
+ *       BlockListDiscovery}.</li>
+ *   <li><b>Tint marker</b> - applied to entries whose renderer bytecode invokes a known tint
+ *       accessor (see
+ *       {@link TintDiscovery TintDiscovery}).</li>
+ *   <li><b>Per-block atlas/GUI fields</b> - {@code iconRotation} (beds), {@code additive}
+ *       (bells), and per-block {@code tint} (banners) pattern-matched onto block entries by
+ *       {@code applyPerBlockPatternFields}; baked directly into the output JSON.</li>
+ * </ul>
+ *
+ * <p>The runtime pipeline reads the JSON via {@link BlockEntityLoader}; the ASM walker is
+ * never on the production classpath.
+ *
+ * @see BlockEntityLoader
+ * @see GeometryParser
  */
 @UtilityClass
 public final class ToolingBlockEntities {
 
-    /** Fixed output path for the bundled block-entity catalog resource. */
+    /**
+     * Fixed output path for the bundled block-entity catalog resource.
+     */
     private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/lib/minecraft/renderer/block_entities.json");
 
-    /** Client-jar Minecraft version this generator targets; written to the JSON header for drift tracking. */
+    /**
+     * Client-jar Minecraft version this generator targets; written to the JSON header for drift tracking.
+     */
     private static final @NotNull String SOURCE_VERSION = "26.1";
 
     /**
@@ -101,12 +134,20 @@ public final class ToolingBlockEntities {
 
             Map<String, String> entityIdToRenderer = buildEntityIdToRendererMap(zip, sources);
             Map<String, float[]> inventoryTransforms = InventoryTransformDecomposer.decomposeAll(zip, entityIdToRenderer, diagnostics);
-            mergeInventoryTransformOverrides(entityIdToRenderer.keySet(), inventoryTransforms, diagnostics);
             Set<String> tinted = TintDiscovery.discover(zip, sources, entityIdToRenderer, diagnostics);
 
             System.out.printf("Discovered %d sources; parsing...%n", sources.size());
-            ConcurrentMap<String, JsonObject> models = Parser.parse(jarPath, sources, diagnostics);
+            ConcurrentMap<String, JsonObject> models = GeometryParser.parse(jarPath, sources, diagnostics);
             System.out.printf("Parsed %d / %d sources%n", models.size(), sources.size());
+
+            // Geometry-aware recenter pass: the InventoryTransformDecomposer extracts the bytecode
+            // tuple of each BlockEntityRenderer.modelTransformation (e.g. skull_dragon_head shares
+            // SkullBlockRenderer's {8, 0, 8, 180, 0, 0} with the simple skulls), but some models
+            // bake an asymmetric extent into the LayerDefinition (dragon head's snout extending
+            // to z=-10) that pushes the post-transform bbox off block centre. This pass walks the
+            // parsed cubes, computes the bbox under the current tuple, and shifts tx/tz so the
+            // bbox midpoint lands at (8, ?, 8) - replacing the historic hand-edited override.
+            recenterInventoryTransformsByBbox(models, inventoryTransforms, diagnostics);
 
             // Lenient mode prints every diagnostic for manual inspection. Strict mode (default)
             // only prints and then fails so the output stays visible in CI logs before the error.
@@ -120,7 +161,8 @@ public final class ToolingBlockEntities {
                 );
 
             JsonObject blockModels = BlockModelConverter.convert(models, inventoryTransforms, tinted);
-            merged = buildMergedOutput(blockModels, models, blockList, inventoryTransforms, tinted);
+            Map<String, String> bannerTintByBlockId = BlockListDiscovery.bannerTintByBlockId(zip, diagnostics);
+            merged = buildMergedOutput(blockModels, models, blockList, inventoryTransforms, tinted, bannerTintByBlockId);
         }
 
         Files.createDirectories(OUTPUT_PATH.getParent());
@@ -174,51 +216,183 @@ public final class ToolingBlockEntities {
     }
 
     /**
-     * Merges hand-curated inventory-transform overrides from
-     * {@code block_entities_overrides.json} into the bytecode-decomposed map.
-     *
-     * <p>Used for the single entity id ({@code minecraft:skull_dragon_head}) whose
-     * distinguishing {@code tz=1.25} comes from the {@code DragonHeadModel} geometry rather
-     * than the {@code SkullBlockRenderer.createGroundTransformation} factory - the decomposer
-     * emits the shared skull tuple {@code [8, 0, 8, 180, 0, 0]} for every skull variant, and
-     * the dragon-specific override supplies the off-centre Z translate from the overrides
-     * file. The loader is unchanged: at runtime it reads {@code inventory_transform}
-     * straight from {@code block_entities.json} as the decomposer-plus-override merged value.
-     *
-     * <p>Entity ids present in {@code decomposed} keep their bytecode-extracted tuple unless
-     * the overrides file explicitly sets a different {@code inventory_transform} field. Ids
-     * missing from {@code decomposed} pull their tuple from overrides outright; ids missing
-     * from both drop out of the final map and a {@code diag.warn} surfaces so the next MC
-     * version bump can revisit.
+     * Recenter threshold in block units. Bbox midpoint deviations smaller than this stay put;
+     * larger ones get a tx/tz shift to land the bbox at block centre. Empirically tuned: bed /
+     * conduit / decorated_pot / signs / banners all land within ~1 of (8, ?, 8) under their
+     * bytecode-derived transforms; skull_dragon_head's snout protrusion pushes it 6.75 units
+     * off centre - a generous 1.0 threshold cleanly separates the two regimes.
      */
-    private static void mergeInventoryTransformOverrides(
-        @NotNull Set<String> entityIds,
-        @NotNull Map<String, float[]> decomposed,
+    private static final float INVENTORY_TRANSFORM_RECENTER_THRESHOLD = 1.0f;
+
+    /**
+     * Block bbox half-extent in model units. The recenter only fires when the bbox actually
+     * escapes the {@code [0, 16]} block bbox on the deviating axis (i.e. an extent beyond the
+     * standard cube). Wall-mounted entities (wall_banner, wall_banner_flag) have intentionally
+     * off-centre bboxes that stay within the block - they should NOT be recentered.
+     */
+    private static final float BLOCK_BBOX_MAX = 16f;
+
+    /**
+     * Bbox-aware post-pass on the decomposer's {@code inventory_transform} tuples. The
+     * decomposer walks {@code <Block>EntityRenderer.modelTransformation} bytecode to extract
+     * the tuple {@code [tx, ty, tz, pitch, yaw, roll]} that vanilla applies before the standard
+     * block atlas pose - but some entity models bake an asymmetric extent into their
+     * {@code LayerDefinition} (dragon head's snout reaching z=-10 in model space) that the
+     * renderer's symmetric transform alone cannot recover. This pass walks the parsed bone/
+     * cube tree, applies the current tuple to all cube corners (scale, bone rotation, pivot,
+     * uniform inv-scale, Rx(pitch), translate - skipping the {@code invYRot} step since
+     * rotation around the block centre does not shift the bbox centroid), computes the
+     * bbox midpoint, and if X or Z deviation from {@code 8} exceeds
+     * {@link #INVENTORY_TRANSFORM_RECENTER_THRESHOLD} shifts the tuple's {@code tx}/{@code tz}
+     * so the centroid lands at block centre.
+     *
+     * <p>For {@code minecraft:skull_dragon_head} this produces {@code tz = 1.25} from the
+     * decomposer's shared-skull {@code tz = 8}, matching the historic hand-edited override.
+     * For all other entities the deviation stays well below threshold and no shift applies -
+     * verified against bed_head, bed_foot, shulker_box, the three other skulls, decorated_pot,
+     * decorated_pot_sides, conduit, and the sign / hanging-sign family.
+     */
+    private static void recenterInventoryTransformsByBbox(
+        @NotNull ConcurrentMap<String, JsonObject> parsedModels,
+        @NotNull Map<String, float[]> inventoryTransforms,
         @NotNull Diagnostics diag
     ) {
-        Path overridesPath = Path.of("src/main/resources/lib/minecraft/renderer/block_entities_overrides.json");
-        if (!Files.exists(overridesPath)) return;
-        JsonObject overrides;
-        try {
-            overrides = new Gson().fromJson(Files.readString(overridesPath), JsonObject.class);
-        } catch (Exception ex) {
-            diag.warn("inventory-transform: overrides file '%s' unreadable - %s", overridesPath, ex.getMessage());
-            return;
-        }
-        if (overrides == null || !overrides.has("per_entity")) return;
-        JsonObject perEntity = overrides.getAsJsonObject("per_entity");
+        final float blockCentre = 8f;
+        for (Map.Entry<String, float[]> entry : inventoryTransforms.entrySet()) {
+            String entityId = entry.getKey();
+            float[] tuple = entry.getValue();
+            if (tuple.length < 4) continue;
+            JsonObject model = parsedModels.get(entityId);
+            if (model == null || !model.has("bones")) continue;
 
-        for (String entityId : entityIds) {
-            if (!perEntity.has(entityId)) continue;
-            JsonObject entry = perEntity.getAsJsonObject(entityId);
-            if (!entry.has("inventory_transform")) continue;
-            JsonArray arr = entry.getAsJsonArray("inventory_transform");
-            float[] tuple = new float[arr.size()];
-            for (int i = 0; i < tuple.length; i++) tuple[i] = arr.get(i).getAsFloat();
-            // Overrides always win - the field is only present for entities the decomposer
-            // cannot fully resolve (currently just minecraft:skull_dragon_head).
-            decomposed.put(entityId, tuple);
+            float[] bbox = computeBboxAfterInventoryTransform(model, tuple);
+            if (bbox == null) continue;
+
+            float xMid = (bbox[0] + bbox[3]) * 0.5f;
+            float zMid = (bbox[2] + bbox[5]) * 0.5f;
+            float deltaX = blockCentre - xMid;
+            float deltaZ = blockCentre - zMid;
+            // Only recenter when the bbox actually escapes the block bbox on the deviating axis.
+            // Wall-mounted entities (wall_banner, wall_banner_flag) have intentionally off-centre
+            // bboxes that stay within [0, 16] and should keep their decomposer-derived tuple.
+            boolean xEscapes = bbox[0] < 0 || bbox[3] > BLOCK_BBOX_MAX;
+            boolean zEscapes = bbox[2] < 0 || bbox[5] > BLOCK_BBOX_MAX;
+
+            float applyDx = Math.abs(deltaX) > INVENTORY_TRANSFORM_RECENTER_THRESHOLD && xEscapes ? deltaX : 0f;
+            float applyDz = Math.abs(deltaZ) > INVENTORY_TRANSFORM_RECENTER_THRESHOLD && zEscapes ? deltaZ : 0f;
+
+            if (applyDx != 0f || applyDz != 0f) {
+                tuple[0] += applyDx;
+                tuple[2] += applyDz;
+                diag.info("inventory-transform recenter '%s': bbox X[%.2f,%.2f] Z[%.2f,%.2f] -> tx=%.2f tz=%.2f (delta x=%.2f z=%.2f)",
+                    entityId, bbox[0], bbox[3], bbox[2], bbox[5], tuple[0], tuple[2], applyDx, applyDz);
+            }
         }
+    }
+
+    /**
+     * Returns {@code [xMin, yMin, zMin, xMax, yMax, zMax]} of all cube corners of {@code model}
+     * after the bone scale + Rz·Ry·Rx rotation + pivot chain and the inventory transform
+     * tuple's uniform-scale + Rx(pitch) + translate. Skips the {@code invYRot} step (it
+     * rotates around the block centre and does not shift the bbox centroid). Returns
+     * {@code null} when no cubes are present. Mirrors {@link BlockModelConverter.CubeTransform#applyChain}
+     * for the corresponding chain ordering.
+     */
+    private static float @Nullable [] computeBboxAfterInventoryTransform(
+        @NotNull JsonObject model,
+        @NotNull float[] invTransform
+    ) {
+        JsonObject bones = model.getAsJsonObject("bones");
+        if (bones == null) return null;
+
+        float xMin = Float.POSITIVE_INFINITY, yMin = Float.POSITIVE_INFINITY, zMin = Float.POSITIVE_INFINITY;
+        float xMax = Float.NEGATIVE_INFINITY, yMax = Float.NEGATIVE_INFINITY, zMax = Float.NEGATIVE_INFINITY;
+        boolean anyCube = false;
+
+        float invScale = invTransform.length > 6 && invTransform[6] != 0f ? invTransform[6] : 1f;
+        float pitch = (float) Math.toRadians(invTransform[3]);
+        float cosP = (float) Math.cos(pitch);
+        float sinP = (float) Math.sin(pitch);
+
+        for (Map.Entry<String, JsonElement> boneEntry : bones.entrySet()) {
+            if (!boneEntry.getValue().isJsonObject()) continue;
+            JsonObject bone = boneEntry.getValue().getAsJsonObject();
+            JsonArray cubes = JsonOptional.optArray(bone, "cubes");
+            if (cubes == null || cubes.isEmpty()) continue;
+
+            float boneScale = JsonOptional.optFloat(bone, "scale", 1f);
+            JsonArray pivotArr = JsonOptional.optArray(bone, "pivot");
+            float bpx = pivotArr != null ? pivotArr.get(0).getAsFloat() : 0f;
+            float bpy = pivotArr != null ? pivotArr.get(1).getAsFloat() : 0f;
+            float bpz = pivotArr != null ? pivotArr.get(2).getAsFloat() : 0f;
+
+            JsonArray rotArr = JsonOptional.optArray(bone, "rotation");
+            double[][] boneRotMatrix = null;
+            if (rotArr != null && rotArr.size() == 3) {
+                double brx = Math.toRadians(rotArr.get(0).getAsFloat());
+                double bry = Math.toRadians(rotArr.get(1).getAsFloat());
+                double brz = Math.toRadians(rotArr.get(2).getAsFloat());
+                if (brx != 0 || bry != 0 || brz != 0) boneRotMatrix = rotationZYX(brx, bry, brz);
+            }
+
+            for (JsonElement cubeEl : cubes) {
+                if (!cubeEl.isJsonObject()) continue;
+                JsonObject cube = cubeEl.getAsJsonObject();
+                JsonArray oArr = JsonOptional.optArray(cube, "origin");
+                JsonArray sArr = JsonOptional.optArray(cube, "size");
+                if (oArr == null || sArr == null) continue;
+                float ox = oArr.get(0).getAsFloat(), oy = oArr.get(1).getAsFloat(), oz = oArr.get(2).getAsFloat();
+                float sw = sArr.get(0).getAsFloat(), sh = sArr.get(1).getAsFloat(), sd = sArr.get(2).getAsFloat();
+
+                for (int i = 0; i < 8; i++) {
+                    float cx = (i & 1) == 0 ? ox : ox + sw;
+                    float cy = (i & 2) == 0 ? oy : oy + sh;
+                    float cz = (i & 4) == 0 ? oz : oz + sd;
+                    cx *= boneScale; cy *= boneScale; cz *= boneScale;
+                    if (boneRotMatrix != null) {
+                        double nx = boneRotMatrix[0][0]*cx + boneRotMatrix[0][1]*cy + boneRotMatrix[0][2]*cz;
+                        double ny = boneRotMatrix[1][0]*cx + boneRotMatrix[1][1]*cy + boneRotMatrix[1][2]*cz;
+                        double nz = boneRotMatrix[2][0]*cx + boneRotMatrix[2][1]*cy + boneRotMatrix[2][2]*cz;
+                        cx = (float) nx; cy = (float) ny; cz = (float) nz;
+                    }
+                    cx += bpx; cy += bpy; cz += bpz;
+                    cx *= invScale; cy *= invScale; cz *= invScale;
+                    float ry = cy * cosP - cz * sinP;
+                    float rz = cy * sinP + cz * cosP;
+                    cy = ry; cz = rz;
+                    cx += invTransform[0]; cy += invTransform[1]; cz += invTransform[2];
+
+                    if (cx < xMin) xMin = cx; if (cx > xMax) xMax = cx;
+                    if (cy < yMin) yMin = cy; if (cy > yMax) yMax = cy;
+                    if (cz < zMin) zMin = cz; if (cz > zMax) zMax = cz;
+                    anyCube = true;
+                }
+            }
+        }
+        return anyCube ? new float[]{ xMin, yMin, zMin, xMax, yMax, zMax } : null;
+    }
+
+    /**
+     * Builds the {@code Rz · Ry · Rx} rotation matrix matching vanilla's
+     * {@code Quaternionf.rotationZYX}. Duplicates {@link BlockModelConverter.CubeTransform#of}'s
+     * matrix construction so the recenter pass does not depend on the inner class.
+     */
+    private static double @NotNull [] @NotNull [] rotationZYX(double rxR, double ryR, double rzR) {
+        double[][] mRx = {{ 1, 0, 0 }, { 0, Math.cos(rxR), -Math.sin(rxR) }, { 0, Math.sin(rxR), Math.cos(rxR) }};
+        double[][] mRy = {{ Math.cos(ryR), 0, Math.sin(ryR) }, { 0, 1, 0 }, { -Math.sin(ryR), 0, Math.cos(ryR) }};
+        double[][] mRz = {{ Math.cos(rzR), -Math.sin(rzR), 0 }, { Math.sin(rzR), Math.cos(rzR), 0 }, { 0, 0, 1 }};
+        return mat3Mul(mat3Mul(mRz, mRy), mRx);
+    }
+
+    /**
+     * 3x3 matrix multiply returning {@code a · b}.
+     */
+    private static double @NotNull [] @NotNull [] mat3Mul(double[][] a, double[][] b) {
+        double[][] r = new double[3][3];
+        for (int i = 0; i < 3; i++)
+            for (int j = 0; j < 3; j++)
+                r[i][j] = a[i][0]*b[0][j] + a[i][1]*b[1][j] + a[i][2]*b[2][j];
+        return r;
     }
 
     /**
@@ -233,7 +407,8 @@ public final class ToolingBlockEntities {
         @NotNull ConcurrentMap<String, JsonObject> parsedEntityModels,
         @NotNull Map<String, BlockListDiscovery.EntityBlockMapping> blockList,
         @NotNull Map<String, float[]> inventoryTransforms,
-        @NotNull Set<String> tintedModelIds
+        @NotNull Set<String> tintedModelIds,
+        @NotNull Map<String, String> bannerTintByBlockId
     ) throws IOException {
         @Nullable JsonObject existing = null;
         if (Files.exists(OUTPUT_PATH)) {
@@ -297,7 +472,7 @@ public final class ToolingBlockEntities {
             if (catalogEntry != null) {
                 JsonArray parts = buildPartsArray(catalogEntry);
                 if (parts != null) entityOut.add("parts", parts);
-                JsonArray blocks = buildBlocksArray(catalogEntry);
+                JsonArray blocks = buildBlocksArray(catalogEntry, modelId, bannerTintByBlockId);
                 if (blocks != null) entityOut.add("blocks", blocks);
             } else {
                 JsonObject existingEntity = existingEntities.has(modelId) ? existingEntities.getAsJsonObject(modelId) : null;
@@ -343,8 +518,24 @@ public final class ToolingBlockEntities {
      * Serialises {@code blocks} entries to the JSON shape the loader expects. Returns
      * {@code null} when the entry has no blocks; the caller omits the key entirely in that
      * case, matching how the previous hand-curated JSON was structured.
+     *
+     * <p>Beyond the bare {@code blockId}/{@code textureId} pair, emits three per-block fields
+     * derived from the entity-id family (which is itself bytecode-derived by
+     * {@link BlockListDiscovery}'s family adapters):
+     * <ul>
+     *   <li>{@code iconRotation: 90} when {@code entityId == "minecraft:bed_head"}.</li>
+     *   <li>{@code additive: true} when {@code entityId == "minecraft:bell_body"}.</li>
+     *   <li>{@code tint: <DYE>} when the block id appears in {@code bannerTintByBlockId} (the
+     *       map walked by {@link BlockListDiscovery#bannerTintByBlockId} from each banner /
+     *       wall-banner block's {@code (Wall)BannerBlock(DyeColor, Properties)} constructor in
+     *       {@code Blocks.<clinit>}).</li>
+     * </ul>
      */
-    private static @Nullable JsonArray buildBlocksArray(@NotNull BlockListDiscovery.EntityBlockMapping entry) {
+    private static @Nullable JsonArray buildBlocksArray(
+        @NotNull BlockListDiscovery.EntityBlockMapping entry,
+        @NotNull String entityId,
+        @NotNull Map<String, String> bannerTintByBlockId
+    ) {
         List<BlockListDiscovery.BlockMapping> blocks = entry.blocks();
         if (blocks.isEmpty()) return null;
         JsonArray arr = new JsonArray();
@@ -352,9 +543,38 @@ public final class ToolingBlockEntities {
             JsonObject block = new JsonObject();
             block.addProperty("blockId", b.blockId());
             block.addProperty("textureId", b.textureId());
+            applyPerBlockFamilyFields(block, b.blockId(), entityId, bannerTintByBlockId);
             arr.add(block);
         }
         return arr;
+    }
+
+    /**
+     * Dispatches per-block atlas / tint fields off the bytecode-derived entity-id family. The
+     * three render-pipeline policy fields ({@code iconRotation} on the bed family,
+     * {@code additive} on the bell family) are emitted by family membership rather than by
+     * lexical block-id matching; the data-derived {@code tint} field is read directly from the
+     * banner-block {@code DyeColor} constructor-argument map walked by
+     * {@link BlockListDiscovery#bannerTintByBlockId}.
+     */
+    private static void applyPerBlockFamilyFields(
+        @NotNull JsonObject block,
+        @NotNull String blockId,
+        @NotNull String entityId,
+        @NotNull Map<String, String> bannerTintByBlockId
+    ) {
+        if (entityId.equals("minecraft:bed_head")) {
+            block.addProperty("iconRotation", 90);
+            return;
+        }
+        if (entityId.equals("minecraft:bell_body")) {
+            block.addProperty("additive", true);
+            return;
+        }
+        if (entityId.equals("minecraft:banner") || entityId.equals("minecraft:wall_banner")) {
+            String dye = bannerTintByBlockId.get(blockId);
+            if (dye != null) block.addProperty("tint", dye);
+        }
     }
 
     /**
@@ -372,7 +592,9 @@ public final class ToolingBlockEntities {
         return model;
     }
 
-    /** Builds the human-readable header comment prepended to the generated JSON. */
+    /**
+     * Builds the human-readable header comment prepended to the generated JSON.
+     */
     private static @NotNull String mergedHeader() {
         return "Generated by ToolingBlockEntities (tooling/blockEntities Gradle task). Unified "
             + "block-entity catalog keyed by entity-model id: each entry carries the ASM-extracted "
@@ -383,905 +605,13 @@ public final class ToolingBlockEntities {
             + "along with their entity-texture paths. Supersedes the former split between "
             + "tile_entity_models.json (generated geometry) and tile_entity_mappings.json "
             + "(hand-edited block bindings); both source files are now derived in one pass from "
-            + "the 26.1 client jar. Hand-edited atlas/GUI fields (iconRotation, additive, "
-            + "per-block tint, forced inventory_y_rotation) live in the sibling "
-            + "block_entities_overrides.json and are merged at load time by BlockEntityLoader. "
+            + "the 26.1 client jar. Atlas/GUI fields (iconRotation, additive, per-block tint, "
+            + "forced inventory_y_rotation) are pattern-matched onto block entries by "
+            + "applyPerBlockPatternFields at tooling time. "
             + "Run the tooling/blockEntities Gradle task to refresh; BlockEntitiesGoldenTest "
             + "guards against silent drift via a SHA-256 over the canonical JSON.";
     }
 
-    /**
-     * An ASM bytecode walker that extracts block entity model geometry from the deobfuscated
-     * Minecraft 26.1 client jar. Parses the {@code createSingleBodyLayer()} / {@code createBodyLayer()}
-     * methods of model classes to extract cube definitions, UV offsets, pivot points, and texture
-     * dimensions into {@code EntityModelData}-compatible JSON.
-     * <p>
-     * The parser tracks a numeric literal stack and recognises the builder-chain pattern used by
-     * vanilla model classes:
-     * <pre><code>
-     * root.addOrReplaceChild("name",
-     *     CubeListBuilder.create().texOffs(u, v).addBox(x, y, z, w, h, d),
-     *     PartPose.offset(px, py, pz));
-     * </code></pre>
-     * Each {@code addOrReplaceChild} call emits a bone with its cubes. The texture dimensions are
-     * extracted from the final {@code LayerDefinition.create(mesh, texW, texH)} call.
-     *
-     * @see BlockEntityLoader
-     */
-    @UtilityClass
-    static class Parser {
-
-        private static final @NotNull String CUBE_LIST_BUILDER = "net/minecraft/client/model/geom/builders/CubeListBuilder";
-        private static final @NotNull String PART_POSE = "net/minecraft/client/model/geom/PartPose";
-        private static final @NotNull String PART_DEFINITION = "net/minecraft/client/model/geom/builders/PartDefinition";
-        private static final @NotNull String LAYER_DEFINITION = "net/minecraft/client/model/geom/builders/LayerDefinition";
-
-        // Block-entity sources are discovered by {@link SourceDiscovery} and passed through
-        // {@link #parse} at runtime; the former hardcoded {@code SOURCES} list was removed
-        // in PR 2 once {@code SourceDiscovery} demonstrated parity against the baseline.
-        // The commented-out reference set below is retained as a quick-reference of what
-        // vanilla 26.1 produces, for the maintainer diffing against a future MC version.
-        /*
-        private static final @NotNull List<Source> SOURCES = List.of(
-            // ChestModel is authored in Y-up block-space (positive Y is up) rather than the
-            // Y-down ModelPart convention used elsewhere - the lid sits at y=9..14 and the body
-            // at y=0..10 in the raw data, which is how the chest block looks when rendered.
-            // {@code ChestRenderer} yaws the rendering by {@code -NORTH.toYRot() = 180} to face
-            // the lock toward the camera; that pose is carried through as {@code inventoryYRotation}.
-            new Source("net/minecraft/client/model/object/chest/ChestModel.class", "createSingleBodyLayer", "minecraft:chest", YAxis.UP, 180f),
-
-            // BannerModel.createBodyLayer(boolean isStanding) + BannerFlagModel.createFlagLayer(boolean isStanding)
-            // - vanilla splits banner geometry across two model classes. BannerModel owns
-            // pole + bar; BannerFlagModel owns the flag. Both select standing-vs-wall via a
-            // boolean parameter that gates PartPose.offset and addBox values through ifeq/goto
-            // chains. We parse each branch separately via {@code paramIntValues} so the parser
-            // follows the control flow (see {@link #walkInstructions}'s ILOAD / IFEQ / GOTO
-            // handling) and splits the standing and wall variants into their own model ids.
-            // Each flag merges into its body via the `parts` field in tile_entity_mappings.json.
-            //
-            // Standing variant (paramIntValues=[1], ids {@code banner} + {@code banner_flag}):
-            //   body  → pole (2×42×2 vertical post) + bar (20×2×2 crossbar at y=-44)
-            //   flag  → pivot (0, -44, 0), cube (-10..10, 0..40, -2..-1) - hangs from bar
-            //
-            // Wall variant (paramIntValues=[0], ids {@code wall_banner} + {@code wall_banner_flag}):
-            //   body  → just the bar (20×2×2 at y=-20.5, z=9.5..11.5) - no pole, since wall
-            //           banners mount to a wall surface instead of a standing post
-            //   flag  → pivot (0, -20.5, 10.5), same cube as standing - the wall-specific
-            //           pivot places the flag hanging from the bar against the wall surface
-            //
-            // inventoryYRotation=180: vanilla's BannerRenderer places the flag on the +Z
-            // (SOUTH) side of the pole, which under our standard iso gui rotation [30, 225, 0]
-            // ends up BEHIND the pole (camera-facing side is NORTH / -Z). The banner item's
-            // display.gui rotation is [30, 20, 0] - a ~180° yaw delta from our block default -
-            // so the actual inventory icon the player sees has the flag facing the camera. Bake
-            // a Y-rotation around block centre so the flag lands on -Z side and stays visible
-            // under our iso pose (same pattern as chest).
-            new Source("net/minecraft/client/model/object/banner/BannerModel.class", "createBodyLayer", "minecraft:banner", YAxis.DOWN, 180f, null, null, new int[]{ 1 }),
-            new Source("net/minecraft/client/model/object/banner/BannerFlagModel.class", "createFlagLayer", "minecraft:banner_flag", YAxis.DOWN, 180f, null, null, new int[]{ 1 }),
-            // Wall variants use the same 180° Y-rotation as standing variants. The prior analysis
-            // thought the wall flag's entity-space z=10.5 pivot landed it on the camera-facing
-            // side without a yaw, but empirically the resulting icon shows the flag facing away
-            // from the iso camera (bar in front, flag hanging to the back) - the same failure
-            // mode standing variants have without the 180° fix. Match the standing setup so wall
-            // banners render with the flag facing the camera.
-            new Source("net/minecraft/client/model/object/banner/BannerModel.class", "createBodyLayer", "minecraft:wall_banner", YAxis.DOWN, 180f, null, null, new int[]{ 0 }),
-            new Source("net/minecraft/client/model/object/banner/BannerFlagModel.class", "createFlagLayer", "minecraft:wall_banner_flag", YAxis.DOWN, 180f, null, null, new int[]{ 0 }),
-            new Source("net/minecraft/client/renderer/blockentity/BedRenderer.class", "createHeadLayer", "minecraft:bed_head", YAxis.DOWN, 0f),
-            new Source("net/minecraft/client/renderer/blockentity/BedRenderer.class", "createFootLayer", "minecraft:bed_foot", YAxis.DOWN, 0f),
-            new Source("net/minecraft/client/model/monster/shulker/ShulkerModel.class", "createShellMesh", "minecraft:shulker_box", YAxis.DOWN, 0f),
-            new Source("net/minecraft/client/renderer/blockentity/StandingSignRenderer.class", "createSignLayer", "minecraft:sign", YAxis.DOWN, 0f),
-            new Source("net/minecraft/client/renderer/blockentity/HangingSignRenderer.class", "createHangingSignLayer", "minecraft:hanging_sign", YAxis.DOWN, 0f),
-            new Source("net/minecraft/client/renderer/blockentity/ConduitRenderer.class", "createShellLayer", "minecraft:conduit", YAxis.DOWN, 0f),
-
-            // BellModel.createBodyLayer - bell-cup geometry that hangs from the bar built by
-            // {@code block/bell_floor.json} / {@code block/bell_ceiling.json} / etc. Authored in
-            // Y-UP block space (pivot at y=12, cube spans y=6..13 - i.e. dangling below the bar
-            // at y=13-14 in vanilla world coords). Marked {@link YAxis#UP} so the parser pre-flips
-            // to the canonical Y-DOWN form; with no INVENTORY_TRANSFORMS entry the default
-            // {@code cy = -cy} unflip restores the original block-space positions exactly.
-            // <p>
-            // Wired as an {@code additive}
-            // mapping so the bar+post primary geometry from the four bell variant blocks
-            // ({@code bell_floor}, {@code bell_ceiling}, {@code bell_wall}, {@code bell_between_walls})
-            // is preserved and the bell cup is layered on top at render time.
-            new Source("net/minecraft/client/model/object/bell/BellModel.class", "createBodyLayer", "minecraft:bell_body", YAxis.UP, 0f),
-
-            // DecoratedPotRenderer authors its cubes in block-space Y-up (cube y=17..20 for the
-            // neck rim sits above the block top, lid/base decals at y=16 / y=0), so the default
-            // Y-flip would bury everything below the block floor. The neutral INVENTORY_TRANSFORMS
-            // entry below skips the flip and leaves positions as-authored.
-            //
-            // The pot needs TWO layers because vanilla's decorated_pot block.json has no elements -
-            // the whole pot comes from the renderer:
-            //   - createBaseLayer produces the neck/lid/base (neck bone with two cubes, plus
-            //     top + bottom flat decals sharing one pre-built CubeListBuilder via astore_4 +
-            //     aload_4).
-            //   - createSidesLayer produces the four wall panels (front/back/left/right) that
-            //     form the pot body, each rotated around its pivot to face a different side.
-            // Both layers are linked via `parts` in tile_entity_mappings.json so the loader
-            // merges them into a single pot model.
-            new Source("net/minecraft/client/renderer/blockentity/DecoratedPotRenderer.class", "createBaseLayer", "minecraft:decorated_pot", YAxis.DOWN, 0f),
-            new Source("net/minecraft/client/renderer/blockentity/DecoratedPotRenderer.class", "createSidesLayer", "minecraft:decorated_pot_sides", YAxis.DOWN, 0f),
-
-            // CopperGolemStatueBlockRenderer bakes four Copper Golem poses
-            // (COPPER_GOLEM / _RUNNING / _SITTING / _STAR from ModelLayers); picks one per
-            // blockstate pose at runtime. For the atlas we pick COPPER_GOLEM (the default
-            // standing pose) via CopperGolemModel.createBodyLayer - same geometry as the
-            // copper golem mob, just rendered as a static block.
-            new Source("net/minecraft/client/model/animal/golem/CopperGolemModel.class", "createBodyLayer", "minecraft:copper_golem_statue", YAxis.DOWN, 0f),
-
-            // Skulls. MC 26.1 skulls use the new items/*.json "minecraft:special" +
-            // "minecraft:head" type which our pipeline doesn't consume, so the only way to
-            // get them in the atlas is to register block-entity geometry and let the block-
-            // item redirect in ItemRenderer pick them up.
-            //
-            // SkullModel.createHeadModel (MeshDefinition) builds the shared 8x8x8 head cube
-            // at origin=(-4,-8,-4). Its two callers - createMobHeadLayer (tex 64x32, used for
-            // skeleton / wither_skeleton / creeper) and createHumanoidHeadLayer (tex 64x64,
-            // adds a 0.25-inflated "hat" overlay, used for zombie / player) - aren't parseable
-            // directly because they call createHeadModel via invokestatic-follow into the
-            // MeshDefinition builder. Parse createHeadModel directly and override tex
-            // dimensions per variant.
-            //
-            // inventoryYRotation=180: vanilla item/template_skull's display.gui.rotation is
-            // [30, 45, 0] (yaw 45) while our renderer uses the default [30, 225, 0] (yaw 225).
-            // Same 180° delta as chest - bake a Y-rotation here so the skull's front face is
-            // camera-facing under our gui pose.
-            //
-            // Two parses of SkullModel.createHeadModel are needed because different skull
-            // variants bind textures with different heights: mob skulls (skeleton, wither_skeleton,
-            // creeper) use 64x32 entity textures, while humanoid skulls (zombie, player) use
-            // 64x64 player-skin textures where the head occupies the same top-left 32x16 region.
-            // The block-model UV system normalises to (0..16) against the texture's actual
-            // dimensions at render time, so the converter needs to scale V differently per
-            // target texture height. Same geometry, two UV calibrations.
-            new Source("net/minecraft/client/model/object/skull/SkullModel.class", "createHeadModel", "minecraft:skull_head", YAxis.DOWN, 180f, 64, 32),
-            new Source("net/minecraft/client/model/object/skull/SkullModel.class", "createHeadModel", "minecraft:skull_humanoid_head", YAxis.DOWN, 180f, 64, 64),
-
-            // DragonHeadModel.createHeadLayer - "head" bone with 6 cubes (upper_lip, upper_head,
-            // scale x2, nostril x2) built via addBox(String,FFF,IIIII) inline-UV variant, wrapped
-            // in PartPose.offset(FFF).scaled(0.75f). Plus a "jaw" child bone with one cube via the
-            // standard texOffs+addBox(FFFFFF) pattern. Texture is 256x256 (LayerDefinition.create).
-            new Source("net/minecraft/client/model/object/skull/DragonHeadModel.class", "createHeadLayer", "minecraft:skull_dragon_head", YAxis.DOWN, 180f),
-
-            // PiglinHeadModel.createHeadModel - returns a MeshDefinition populated by invokestatic
-            // AbstractPiglinModel.addHead(CubeDeformation.NONE, mesh). The addHead static is
-            // declared on AbstractPiglinModel but invoked via PiglinModel.addHead (JVM walks
-            // superclass chain). Parser follows net/minecraft/client/model/ invokestatic calls
-            // outside the /geom/ builder package to pick up this pattern.
-            new Source("net/minecraft/client/model/object/skull/PiglinHeadModel.class", "createHeadModel", "minecraft:skull_piglin_head", YAxis.DOWN, 180f, 64, 64)
-        );
-        */
-
-        /**
-         * Parses block entity model classes from the supplied client jar and returns the
-         * extracted models as serialised JSON objects keyed by entity id. The sources list is
-         * produced by {@link SourceDiscovery#discover} - see that class for the bytecode walk
-         * that drives it.
-         *
-         * @param jarPath the deobfuscated client jar (MC 26.1+)
-         * @param sources the sources to parse (one per entity id)
-         * @param diagnostics diagnostic sink
-         * @return a map of entity id to model JSON
-         */
-        public static @NotNull ConcurrentMap<String, JsonObject> parse(@NotNull Path jarPath, @NotNull List<Source> sources, @NotNull Diagnostics diagnostics) {
-            ConcurrentMap<String, JsonObject> results = Concurrent.newMap();
-
-            try (ZipFile zip = new ZipFile(jarPath.toFile())) {
-                for (Source source : sources) {
-                    String internalName = stripClassSuffix(source.classEntry());
-                    ClassNode classNode = AsmKit.loadClass(zip, internalName);
-                    if (classNode == null) {
-                        diagnostics.error("%s: class '%s' not found in client jar (renamed in MC version bump?)", source.entityId(), source.classEntry());
-                        continue;
-                    }
-
-                    try {
-                        MethodNode method = AsmKit.findMethod(classNode, source.methodName());
-
-                        if (method == null) {
-                            diagnostics.error("%s: method '%s' not found on class '%s' (renamed in MC version bump?)", source.entityId(), source.methodName(), source.classEntry());
-                            continue;
-                        }
-
-                        JsonObject model = parseLayerMethod(method.instructions, zip, source, diagnostics);
-                        if (model != null) {
-                            // Source overrides apply when the parsed method doesn't call
-                            // LayerDefinition.create itself (e.g. SkullModel.createHeadModel returns
-                            // a MeshDefinition; the caller supplies the texture dimensions).
-                            if (source.texWidthOverride() != null)
-                                model.addProperty("textureWidth", source.texWidthOverride());
-                            if (source.texHeightOverride() != null)
-                                model.addProperty("textureHeight", source.texHeightOverride());
-                            if (source.yAxis() == YAxis.UP)
-                                flipToYDown(model);
-                            model.addProperty("y_axis", source.yAxis().name());
-                            if (source.inventoryYRotation() != 0f)
-                                model.addProperty("inventory_y_rotation", source.inventoryYRotation());
-                            results.put(source.entityId(), model);
-                        }
-
-                    } catch (Exception ex) {
-                        diagnostics.error("%s: parse failure - %s", source.entityId(), ex.getMessage());
-                    }
-                }
-            } catch (IOException ex) {
-                throw new ToolingException(ex, "Failed to read client jar '%s'", jarPath);
-            }
-
-            return results;
-        }
-
-        /**
-         * Post-processes a Y-up block entity model into the canonical Y-down form. For each
-         * bone, negates the pivot's Y so the {@code PartPose} offset flips into the Y-down
-         * frame; for each cube, mirrors the {@code origin.y} about the pivot's XZ plane. Because
-         * {@code origin} is the <b>min</b> corner and {@code size} is an unsigned extent, the
-         * new min Y is the negated former max: {@code origin.y = -origin.y - size.y}. X, Z, and
-         * size are unaffected.
-         */
-        private static void flipToYDown(@NotNull JsonObject model) {
-            JsonObject bones = model.getAsJsonObject("bones");
-            if (bones == null) return;
-
-            for (Map.Entry<String, JsonElement> entry : bones.entrySet()) {
-                JsonObject bone = entry.getValue().getAsJsonObject();
-
-                JsonArray pivot = bone.getAsJsonArray("pivot");
-                if (pivot != null && pivot.size() == 3)
-                    pivot.set(1, new JsonPrimitive(-pivot.get(1).getAsFloat()));
-
-                JsonArray cubes = bone.getAsJsonArray("cubes");
-                if (cubes == null) continue;
-
-                for (JsonElement cubeElement : cubes) {
-                    JsonObject cube = cubeElement.getAsJsonObject();
-                    JsonArray origin = cube.getAsJsonArray("origin");
-                    JsonArray size = cube.getAsJsonArray("size");
-                    if (origin == null || size == null || origin.size() != 3 || size.size() != 3)
-                        continue;
-
-                    float oy = origin.get(1).getAsFloat();
-                    float sy = size.get(1).getAsFloat();
-                    origin.set(1, new JsonPrimitive(-oy - sy));
-                }
-            }
-        }
-
-        /**
-         * Parses a single layer-creation method's bytecode and extracts the model geometry.
-         * Invokestatic calls targeting other model-building methods (not in the builder/geom
-         * package) are followed recursively so chains like
-         * {@code PiglinHeadModel.createHeadModel -> PiglinModel.addHead} resolve without
-         * needing a dedicated source entry per delegate.
-         */
-        private static @Nullable JsonObject parseLayerMethod(@NotNull InsnList instructions, @NotNull ZipFile zip, @NotNull Source source, @NotNull Diagnostics diagnostics) {
-            ParseState state = new ParseState();
-            state.paramIntValues = source.paramIntValues();
-            state.currentSource = source;
-            state.diagnostics = diagnostics;
-            walkInstructions(instructions, state, zip);
-
-            // Literals left on the numeric stack after a parse usually mean a method-owner
-            // descriptor we didn't recognise pushed arguments we never consumed. Kept at INFO
-            // severity (does not fail strict mode) because end-of-method leftovers don't
-            // corrupt output - only underflow does, and that has its own strict-failing
-            // diagnostic at every addBox / PartPose site. The three 26.1 sources that
-            // currently hit this ({@code decorated_pot}, {@code copper_golem_statue},
-            // {@code skull_dragon_head}) all produce correct geometry; the leftovers are
-            // just accounting gaps in the parser's method-owner dispatch.
-            if (!state.numStack.isEmpty())
-                diagnostics.info("%s: %d leftover literal(s) on numStack after parse - unhandled method-owner descriptor?", source.entityId(), state.numStack.size());
-
-            if (state.bones.isEmpty()) return null;
-
-            JsonObject model = new JsonObject();
-            model.addProperty("textureWidth", state.texWidth);
-            model.addProperty("textureHeight", state.texHeight);
-            model.add("bones", state.bones);
-            return model;
-        }
-
-        /**
-         * Walks an instruction list, accumulating numeric literals on a stack and matching
-         * builder-chain patterns. Recurses via {@link #handleMethodInsn}'s invokestatic-follow
-         * branch so a single {@link ParseState} spans the entire dispatch chain.
-         */
-        private static void walkInstructions(@NotNull InsnList instructions, @NotNull ParseState state, @NotNull ZipFile zip) {
-            for (AbstractInsnNode node = instructions.getFirst(); node != null; node = node.getNext()) {
-                Number literal = readNumericLiteral(node);
-                if (literal != null) {
-                    state.numStack.add(literal);
-                    if (state.numStack.size() > 16) {
-                        // First overflow in this parse surfaces a warning; subsequent drops are
-                        // silent so a truly broken source doesn't spam 1000 copies. If the cap
-                        // is ever hit on real sources it's a bug in the parser's pop accounting,
-                        // not in the source bytecode - the stack shouldn't grow unbounded.
-                        if (state.diagnostics != null && !state.overflowWarned && state.currentSource != null) {
-                            state.diagnostics.warn("%s: numStack overflow (>16 literals) - oldest literals being dropped, pop accounting may be broken", state.currentSource.entityId());
-                            state.overflowWarned = true;
-                        }
-                        state.numStack.removeFirst();
-                    }
-                    continue;
-                }
-
-                int opcode = node.getOpcode();
-
-                // Conditional / unconditional jumps. Only followed when {@code paramIntValues}
-                // is supplied - without a known parameter value, the parser falls back to its
-                // default linear walk (which picks up LDCs on both branches of an if/else).
-                // GOTO always jumps (target is determined statically by javac); IFEQ / IFNE
-                // consume the top of {@link ParseState#branchStack} so the taken branch is
-                // decided by the ILOAD slot's known value. Other jump opcodes (icmp, ifnull,
-                // etc.) aren't emitted by the layer-build patterns we parse and are treated
-                // as no-ops for now.
-                if (state.paramIntValues != null && node instanceof JumpInsnNode jumpInsn) {
-                    if (opcode == Opcodes.GOTO) {
-                        node = jumpInsn.label;
-                        continue;
-                    }
-                    if ((opcode == Opcodes.IFEQ || opcode == Opcodes.IFNE) && !state.branchStack.isEmpty()) {
-                        int value = state.branchStack.remove(state.branchStack.size() - 1);
-                        boolean jump = opcode == Opcodes.IFEQ ? value == 0 : value != 0;
-                        if (jump) {
-                            node = jumpInsn.label;
-                            continue;
-                        }
-                    }
-                }
-
-                // Task 19: TABLESWITCH / LOOKUPSWITCH evaluation. Follows the same
-                // {@code paramIntValues}-driven branch-evaluation gate as IFEQ / IFNE - when the
-                // top of {@link ParseState#branchStack} holds a concrete value (put there by a
-                // preceding ILOAD of a paramIntValues-registered slot), jump to the matching case
-                // label. Otherwise the parser falls through linearly to preserve pre-Task 19
-                // behaviour, and - when {@code paramIntValues} is set but the switch value is
-                // unknown - surfaces a {@code WARN:} so the maintainer knows an unmodelled
-                // dispatch slipped through.
-                if (node instanceof TableSwitchInsnNode tableSwitch) {
-                    if (state.paramIntValues != null && !state.branchStack.isEmpty()) {
-                        int value = state.branchStack.remove(state.branchStack.size() - 1);
-                        node = value >= tableSwitch.min && value <= tableSwitch.max
-                            ? tableSwitch.labels.get(value - tableSwitch.min)
-                            : tableSwitch.dflt;
-                        continue;
-                    }
-                    if (state.paramIntValues != null && state.diagnostics != null && state.currentSource != null)
-                        state.diagnostics.warn("%s: TABLESWITCH encountered with unknown value - falling through linearly, case bodies may corrupt numStack", state.currentSource.entityId());
-                }
-                if (node instanceof LookupSwitchInsnNode lookupSwitch) {
-                    if (state.paramIntValues != null && !state.branchStack.isEmpty()) {
-                        int value = state.branchStack.remove(state.branchStack.size() - 1);
-                        int idx = lookupSwitch.keys.indexOf(value);
-                        node = idx >= 0 ? lookupSwitch.labels.get(idx) : lookupSwitch.dflt;
-                        continue;
-                    }
-                    if (state.paramIntValues != null && state.diagnostics != null && state.currentSource != null)
-                        state.diagnostics.warn("%s: LOOKUPSWITCH encountered with unknown value - falling through linearly, case bodies may corrupt numStack", state.currentSource.entityId());
-                }
-
-                // ILOAD N: if the source declared a value for slot N, push it onto the
-                // branch stack so the upcoming IFEQ / IFNE / switch can evaluate the
-                // conditional. If the slot is NOT in {@code paramIntValues} (or the source
-                // didn't supply any values), push a {@link NonLiteralMarker} onto
-                // {@link ParseState#numStack} instead - when a downstream addBox / PartPose
-                // consumes it, {@link #popIntWithDiagnostics} surfaces a {@code WARN:} so the
-                // silent-zero failure mode doesn't get baked into the output cube.
-                if (node instanceof VarInsnNode varInsn && opcode == Opcodes.ILOAD) {
-                    int slot = varInsn.var;
-                    boolean resolved = state.paramIntValues != null && slot >= 0 && slot < state.paramIntValues.length;
-                    if (resolved)
-                        state.branchStack.add(state.paramIntValues[slot]);
-                    else
-                        state.numStack.add(NON_LITERAL);
-                }
-
-                // FLOAD / DLOAD / LLOAD: the value comes from a local variable the parser
-                // can't resolve. Push {@link #NON_LITERAL} so the next {@link #popFloatWithDiagnostics}
-                // / {@link #popIntWithDiagnostics} surfaces the attribution instead of silently
-                // consuming a stale zero off an earlier literal or a fresh zero from an empty
-                // stack.
-                if (node instanceof VarInsnNode
-                    && (opcode == Opcodes.FLOAD || opcode == Opcodes.DLOAD || opcode == Opcodes.LLOAD))
-                    state.numStack.add(NON_LITERAL);
-
-                switch (node) {
-                    case FieldInsnNode fieldInsn when opcode == Opcodes.GETSTATIC -> {
-                        if (fieldInsn.owner.equals(PART_POSE) && fieldInsn.name.equals("ZERO")) {
-                            state.pendingPivot = new float[]{ 0, 0, 0 };
-                            state.pendingRotation = new float[]{ 0, 0, 0 };
-                            state.pendingScale = 1f;
-                        }
-                    }
-                    case MethodInsnNode methodInsn -> handleMethodInsn(methodInsn, opcode, state, zip);
-                    // Track local-variable slot -> bone mapping so child bones inherit their
-                    // parent's pivot + scale. Vanilla models use
-                    // {@code head = root.addOrReplaceChild("head", ...); head.addOrReplaceChild("jaw", ...);}
-                    // which compiles to {@code invokevirtual; astore_N; aload_N;} around the child's
-                    // builder chain - so astore-after-flush and aload-before-chain are our hooks.
-                    // Additionally, slots may hold a pre-built CubeListBuilder that multiple
-                    // addOrReplaceChild calls share (DecoratedPotRenderer stores one builder and
-                    // reuses it for both {@code top} and {@code bottom} bones). Snapshot pending
-                    // cubes into {@link ParseState#slotToCubes} so a later aload_N can re-hydrate
-                    // them for the next bone without re-reading the same addBox literals.
-                    case VarInsnNode varInsn when opcode == Opcodes.ASTORE -> {
-                        if (state.lastFlushedBone != null) {
-                            state.localSlotBone.put(varInsn.var, state.lastFlushedBone);
-                            state.lastFlushedBone = null;
-                        } else if (!state.pendingCubes.isEmpty()) {
-                            ConcurrentList<float[]> snapshot = Concurrent.newList();
-                            for (float[] c : state.pendingCubes) snapshot.add(c.clone());
-                            state.slotToCubes.put(varInsn.var, snapshot);
-                            state.pendingCubes = Concurrent.newList();
-                            state.pendingUv = new int[]{ 0, 0 };
-                        }
-                    }
-                    case VarInsnNode varInsn when opcode == Opcodes.ALOAD -> {
-                        String parent = state.localSlotBone.get(varInsn.var);
-                        if (parent != null)
-                            state.nextParent = parent;
-                        ConcurrentList<float[]> savedCubes = state.slotToCubes.get(varInsn.var);
-                        if (savedCubes != null) {
-                            for (float[] c : savedCubes) state.pendingCubes.add(c.clone());
-                        }
-                    }
-                    case LdcInsnNode ldc when ldc.cst instanceof String s ->
-                        state.pendingPartName = s;
-                    default -> { }
-                }
-            }
-        }
-
-        /**
-         * Dispatches a {@code MethodInsnNode} by owner: builder chains (CubeListBuilder,
-         * PartPose), bone-finalising ({@code PartDefinition.addOrReplaceChild}), texture dim
-         * extraction ({@code LayerDefinition.create}), and model-package invokestatic-follow for
-         * cross-class delegation patterns like
-         * {@code PiglinHeadModel.createHeadModel -> PiglinModel.addHead}.
-         */
-        private static void handleMethodInsn(@NotNull MethodInsnNode methodInsn, int opcode, @NotNull ParseState state, @NotNull ZipFile zip) {
-            if (methodInsn.owner.equals(CUBE_LIST_BUILDER)) {
-                handleCubeListBuilder(methodInsn, state);
-                return;
-            }
-            if (methodInsn.owner.equals(PART_POSE)) {
-                handlePartPose(methodInsn, state);
-                return;
-            }
-            if (methodInsn.owner.equals(PART_DEFINITION) && methodInsn.name.equals("addOrReplaceChild")) {
-                flushPendingBone(state);
-                return;
-            }
-            if (methodInsn.owner.equals(LAYER_DEFINITION) && methodInsn.name.equals("create")) {
-                requireStack(state, 2, "LayerDefinition.create(mesh,II)");
-                state.texHeight = popIntWithDiagnostics(state, "LayerDefinition.create(mesh,II) texHeight");
-                state.texWidth = popIntWithDiagnostics(state, "LayerDefinition.create(mesh,II) texWidth");
-                return;
-            }
-            // Invokestatic-follow: recurse into model-building statics outside the builder/geom
-            // package (e.g. PiglinHeadModel.createHeadModel -> PiglinModel.addHead). The JVM
-            // resolves invokestatic through the superclass chain, so {@link AsmKit#findMethodInHierarchy}
-            // walks {@code superName} until the method is found.
-            if (opcode == Opcodes.INVOKESTATIC
-                && methodInsn.owner.startsWith("net/minecraft/client/model/")
-                && !methodInsn.owner.startsWith("net/minecraft/client/model/geom/")) {
-                MethodNode inlined = AsmKit.findMethodInHierarchy(zip, methodInsn.owner, methodInsn.name, methodInsn.desc);
-                if (inlined != null)
-                    walkInstructions(inlined.instructions, state, zip);
-            }
-        }
-
-        /**
-         * Warns when {@code state.numStack} has fewer than {@code required} entries at a
-         * builder-dispatch site. The pop still proceeds with zero-fill (via
-         * {@link #popInt} / {@link #popFloat}'s empty-stack fallback), but the diagnostic
-         * surfaces the underflow so a bogus-coord cube doesn't silently ship.
-         */
-        private static void requireStack(@NotNull ParseState state, int required, @NotNull String where) {
-            if (state.diagnostics == null || state.currentSource == null) return;
-            int have = state.numStack.size();
-            if (have < required)
-                state.diagnostics.warn(
-                    "%s at %s: numStack underflow (need %d, have %d) - output coords likely wrong",
-                    state.currentSource.entityId(), where, required, have
-                );
-        }
-
-        /**
-         * Handles {@code CubeListBuilder.create / texOffs / addBox / mirror} calls, consuming
-         * literals off {@link ParseState#numStack} and emitting pending cubes. Four addBox
-         * variants are recognised - see the inline comment for the per-variant pop order.
-         */
-        private static void handleCubeListBuilder(@NotNull MethodInsnNode methodInsn, @NotNull ParseState state) {
-            switch (methodInsn.name) {
-                case "create" -> {
-                    // CubeListBuilder.create() opens a builder chain. Snapshot the outer bone
-                    // name (the ldc String pushed before the chain) into {@code boneName} so
-                    // inner ldc Strings from per-cube addBox(String, ...) variants don't
-                    // overwrite the addOrReplaceChild key. Also snapshot the parent captured
-                    // from the most recent aload (typically the slot holding the parent
-                    // PartDefinition returned by an earlier addOrReplaceChild).
-                    // Clear {@code lastFlushedBone} since a new builder is now on the operand
-                    // stack - any astore_N that follows stores the builder, not a stale
-                    // PartDefinition the caller already discarded via {@code pop}.
-                    if (state.pendingPartName != null)
-                        state.boneName = state.pendingPartName;
-                    state.parentBone = state.nextParent;
-                    state.nextParent = null;
-                    state.lastFlushedBone = null;
-                }
-                case "texOffs" -> {
-                    if (methodInsn.desc.startsWith("(II")) {
-                        requireStack(state, 2, "CubeListBuilder.texOffs(II)");
-                        state.pendingUv[1] = popIntWithDiagnostics(state, "CubeListBuilder.texOffs(II) v");
-                        state.pendingUv[0] = popIntWithDiagnostics(state, "CubeListBuilder.texOffs(II) u");
-                    }
-                }
-                case "addBox" -> {
-                    // Four addBox variants observed in vanilla (names/CubeDeformation args don't
-                    // land on numStack, so only the numeric literals drive the pop order):
-                    //  1. (FFFFFF) or (FFFFFF + CubeDeformation) - origin xyz + size whd; uses current texOffs.
-                    //  2. (Ljava/lang/String;FFFFFF) - named single-cube, uses current texOffs. Dragon's jaw bone.
-                    //  3. (Ljava/lang/String;FFFIIIII) - named multi-cube with inline (w,h,d,u,v) ints. Dragon's head bone
-                    //     stacks 6 cubes this way, each with its own UV.
-                    if (methodInsn.desc.startsWith("(Ljava/lang/String;FFFIIIII")) {
-                        requireStack(state, 8, "CubeListBuilder.addBox(name,FFFIIIII)");
-                        int v = popIntWithDiagnostics(state, "CubeListBuilder.addBox(name,FFFIIIII) v");
-                        int u = popIntWithDiagnostics(state, "CubeListBuilder.addBox(name,FFFIIIII) u");
-                        int d = popIntWithDiagnostics(state, "CubeListBuilder.addBox(name,FFFIIIII) d");
-                        int h = popIntWithDiagnostics(state, "CubeListBuilder.addBox(name,FFFIIIII) h");
-                        int w = popIntWithDiagnostics(state, "CubeListBuilder.addBox(name,FFFIIIII) w");
-                        float z = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(name,FFFIIIII) z");
-                        float y = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(name,FFFIIIII) y");
-                        float x = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(name,FFFIIIII) x");
-                        state.pendingCubes.add(new float[]{ x, y, z, w, h, d, u, v });
-                    } else if (methodInsn.desc.startsWith("(FFFFFF") || methodInsn.desc.startsWith("(Ljava/lang/String;FFFFFF")) {
-                        requireStack(state, 6, "CubeListBuilder.addBox(FFFFFF)");
-                        float d = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFF) d");
-                        float h = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFF) h");
-                        float w = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFF) w");
-                        float z = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFF) z");
-                        float y = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFF) y");
-                        float x = popFloatWithDiagnostics(state, "CubeListBuilder.addBox(FFFFFF) x");
-                        state.pendingCubes.add(new float[]{ x, y, z, w, h, d, state.pendingUv[0], state.pendingUv[1] });
-                    }
-                }
-                case "mirror" -> {
-                    // mirror(Z) flips face-UVs on subsequent addBox cubes in vanilla. The atlas
-                    // pipeline doesn't model per-cube mirror yet; pop the boolean to keep the
-                    // literal stack aligned so it doesn't leak into the next builder call.
-                    if (methodInsn.desc.startsWith("(Z")) {
-                        requireStack(state, 1, "CubeListBuilder.mirror(Z)");
-                        popIntWithDiagnostics(state, "CubeListBuilder.mirror(Z)");
-                    }
-                }
-                default -> { }
-            }
-        }
-
-        /**
-         * Handles {@code PartPose.offset / rotation / offsetAndRotation / scaled} calls,
-         * consuming literals off {@link ParseState#numStack} and storing the result on
-         * {@link ParseState#pendingPivot} / {@link ParseState#pendingRotation} /
-         * {@link ParseState#pendingScale} for the next {@code addOrReplaceChild} flush.
-         */
-        private static void handlePartPose(@NotNull MethodInsnNode methodInsn, @NotNull ParseState state) {
-            switch (methodInsn.name) {
-                case "offset" -> {
-                    if (methodInsn.desc.startsWith("(FFF")) {
-                        requireStack(state, 3, "PartPose.offset(FFF)");
-                        float pz = popFloatWithDiagnostics(state, "PartPose.offset(FFF) z");
-                        float py = popFloatWithDiagnostics(state, "PartPose.offset(FFF) y");
-                        float px = popFloatWithDiagnostics(state, "PartPose.offset(FFF) x");
-                        state.pendingPivot = new float[]{ px, py, pz };
-                        state.pendingRotation = new float[]{ 0, 0, 0 };
-                    }
-                }
-                case "rotation" -> {
-                    // PartPose.rotation(rx, ry, rz) - rotation only, pivot stays at origin.
-                    // Used by BedRenderer legs.
-                    if (methodInsn.desc.startsWith("(FFF")) {
-                        requireStack(state, 3, "PartPose.rotation(FFF)");
-                        float rz = popFloatWithDiagnostics(state, "PartPose.rotation(FFF) z");
-                        float ry = popFloatWithDiagnostics(state, "PartPose.rotation(FFF) y");
-                        float rx = popFloatWithDiagnostics(state, "PartPose.rotation(FFF) x");
-                        state.pendingPivot = new float[]{ 0, 0, 0 };
-                        state.pendingRotation = new float[]{
-                            (float) Math.toDegrees(rx),
-                            (float) Math.toDegrees(ry),
-                            (float) Math.toDegrees(rz)
-                        };
-                    }
-                }
-                case "offsetAndRotation" -> {
-                    if (methodInsn.desc.startsWith("(FFFFFF")) {
-                        requireStack(state, 6, "PartPose.offsetAndRotation(FFFFFF)");
-                        float rz = popFloatWithDiagnostics(state, "PartPose.offsetAndRotation(FFFFFF) rz");
-                        float ry = popFloatWithDiagnostics(state, "PartPose.offsetAndRotation(FFFFFF) ry");
-                        float rx = popFloatWithDiagnostics(state, "PartPose.offsetAndRotation(FFFFFF) rx");
-                        float pz = popFloatWithDiagnostics(state, "PartPose.offsetAndRotation(FFFFFF) pz");
-                        float py = popFloatWithDiagnostics(state, "PartPose.offsetAndRotation(FFFFFF) py");
-                        float px = popFloatWithDiagnostics(state, "PartPose.offsetAndRotation(FFFFFF) px");
-                        state.pendingPivot = new float[]{ px, py, pz };
-                        state.pendingRotation = new float[]{
-                            (float) Math.toDegrees(rx),
-                            (float) Math.toDegrees(ry),
-                            (float) Math.toDegrees(rz)
-                        };
-                    }
-                }
-                case "scaled" -> {
-                    // PartPose.scaled(F) - uniform scale around pivot at render time. Vanilla's
-                    // render order is translate(pivot) * rotation * scale * cube, so applying
-                    // scale to each cube's origin + size (before rotation + pivot) reproduces it.
-                    // Baked in {@link #flushPendingBone} so the scale is tied to the cubes it
-                    // applies to and resets when the next addOrReplaceChild finalises the bone.
-                    if (methodInsn.desc.startsWith("(F") && !methodInsn.desc.startsWith("(FF")) {
-                        requireStack(state, 1, "PartPose.scaled(F)");
-                        state.pendingScale = popFloatWithDiagnostics(state, "PartPose.scaled(F)");
-                    }
-                }
-                default -> { }
-            }
-        }
-
-        /**
-         * Closes the current pending bone: composes parent pivot + scale with the child's local
-         * values (vanilla renders children with {@code T(parent.pivot) * S(parent.scale) *
-         * T(child.pivot) * S(child.scale) * cube}), builds the bone JSON, records meta for
-         * future children, then resets all pending state for the next {@code addOrReplaceChild}.
-         */
-        private static void flushPendingBone(@NotNull ParseState state) {
-            // Prefer the snapshot taken at CubeListBuilder.create(); fall back to pendingPartName
-            // for models that set the name immediately before addOrReplaceChild (no builder
-            // chain - rare, but cheap to support).
-            String name = state.boneName != null ? state.boneName : state.pendingPartName;
-            if (name != null && !state.pendingCubes.isEmpty()) {
-                // Flatten parent-child hierarchy at parse time: a child bone's world pivot
-                // and world scale fold in the parent's already-flattened values. Vanilla renders
-                // children with pose T(parent.pivot) * S(parent.scale) * T(child.pivot) * S(child.scale)
-                // then draws child cubes. Ignoring parent rotation (none of our current sources use
-                // a rotated parent with children), that collapses to
-                //   world_pivot = parent.world_pivot + parent.world_scale * child.local_pivot
-                //   world_scale = parent.world_scale * child.local_scale
-                float[] worldPivot = state.pendingPivot;
-                float worldScale = state.pendingScale;
-                if (state.parentBone != null) {
-                    BoneMeta parent = state.boneMeta.get(state.parentBone);
-                    if (parent != null) {
-                        worldPivot = new float[]{
-                            parent.pivot[0] + parent.scale * state.pendingPivot[0],
-                            parent.pivot[1] + parent.scale * state.pendingPivot[1],
-                            parent.pivot[2] + parent.scale * state.pendingPivot[2]
-                        };
-                        worldScale = parent.scale * state.pendingScale;
-                    }
-                }
-                state.bones.add(name, buildBone(worldPivot, state.pendingRotation, worldScale, state.pendingCubes));
-                state.boneMeta.put(name, new BoneMeta(worldPivot, worldScale));
-                state.lastFlushedBone = name;
-            }
-            state.pendingPartName = null;
-            state.boneName = null;
-            state.parentBone = null;
-            state.pendingCubes = Concurrent.newList();
-            state.pendingPivot = new float[]{ 0, 0, 0 };
-            state.pendingRotation = new float[]{ 0, 0, 0 };
-            state.pendingUv = new int[]{ 0, 0 };
-            state.pendingScale = 1f;
-        }
-
-        /**
-         * Strips the trailing {@code .class} suffix from a zip entry path to recover the
-         * corresponding JVM internal name.
-         */
-        private static @NotNull String stripClassSuffix(@NotNull String classEntry) {
-            return classEntry.endsWith(".class") ? classEntry.substring(0, classEntry.length() - ".class".length()) : classEntry;
-        }
-
-        /** Mutable parse state threaded through one top-level method parse (plus any inlined invokestatic targets). */
-        private static final class ParseState {
-
-            final @NotNull ConcurrentList<Number> numStack = Concurrent.newList();
-
-            /**
-             * Int values to substitute for {@code ILOAD_N} parameters when evaluating branches.
-             * {@code paramIntValues[N]} is pushed onto {@link #branchStack} whenever an iload
-             * references slot {@code N}, so the subsequent {@code IFEQ} / {@code IFNE} pops a
-             * concrete value and jumps (or not). {@code null} disables branch evaluation -
-             * the parser falls back to its default linear walk and lets both sides of any
-             * conditional land on {@link #numStack}.
-             */
-            int @Nullable [] paramIntValues;
-
-            /** Pushed by ILOAD when the slot maps to a paramIntValues entry; consumed by IFEQ / IFNE. */
-            final @NotNull ConcurrentList<Integer> branchStack = Concurrent.newList();
-
-            /** Most recent ldc String - tracks both bone names and inner cube names. */
-            @Nullable String pendingPartName;
-
-            /** Snapshot of {@link #pendingPartName} at CubeListBuilder.create(); preserved across inner ldc Strings from addBox(String, ...) variants. */
-            @Nullable String boneName;
-
-            /** Parent bone name captured from {@link #nextParent} at CubeListBuilder.create(). */
-            @Nullable String parentBone;
-
-            /** Parent bone captured from the most recent aload_N; consumed by CubeListBuilder.create(). */
-            @Nullable String nextParent;
-
-            /** Most recently flushed bone; the next astore_N after flush binds it to that slot. */
-            @Nullable String lastFlushedBone;
-
-            /** JVM local-variable slot -> bone name that was stored there via astore_N. */
-            final @NotNull ConcurrentMap<Integer, String> localSlotBone = Concurrent.newMap();
-
-            /** JVM local-variable slot -> captured CubeListBuilder cubes, for builders reused by multiple addOrReplaceChild calls. */
-            final @NotNull ConcurrentMap<Integer, ConcurrentList<float[]>> slotToCubes = Concurrent.newMap();
-
-            /** Flattened pivot + scale for each flushed bone, used to resolve child inheritance. */
-            final @NotNull ConcurrentMap<String, BoneMeta> boneMeta = Concurrent.newMap();
-
-            /** Cubes accumulated for the current builder chain, flushed by the next {@code addOrReplaceChild}. */
-            @NotNull ConcurrentList<float[]> pendingCubes = Concurrent.newList();
-
-            /** Current {@code texOffs(u, v)} values used by subsequent {@code addBox} variants that omit inline UV. */
-            int @NotNull [] pendingUv = { 0, 0 };
-
-            /** Current {@code PartPose} pivot for the next bone flush; defaults to origin. */
-            float @NotNull [] pendingPivot = { 0, 0, 0 };
-
-            /** Current {@code PartPose} rotation (Euler degrees) for the next bone flush. */
-            float @NotNull [] pendingRotation = { 0, 0, 0 };
-
-            /** Uniform scale from {@code PartPose.scaled}; {@code 1f} when no scale was applied. */
-            float pendingScale = 1f;
-
-            /** Accumulated per-bone JSON objects keyed by bone name. Written to the final model. */
-            final @NotNull JsonObject bones = new JsonObject();
-
-            /** Texture width extracted from {@code LayerDefinition.create(mesh, W, H)}; defaults to 64. */
-            int texWidth = 64;
-
-            /** Texture height extracted from {@code LayerDefinition.create(mesh, W, H)}; defaults to 64. */
-            int texHeight = 64;
-
-            /** The top-level source whose bytecode is being parsed. Used to tag diagnostics. */
-            @Nullable Source currentSource;
-
-            /** Diagnostics sink for strict-mode surfacing of silent failures. */
-            @Nullable Diagnostics diagnostics;
-
-            /** Set after the first overflow warn so a single parse doesn't spam the log. */
-            boolean overflowWarned;
-
-        }
-
-        /** Parent lookup data: the bone's pivot and scale in world-flattened form. */
-        private record BoneMeta(float @NotNull [] pivot, float scale) {}
-
-        /**
-         * Builds the JSON object for one bone from its flattened pivot, rotation, scale, and
-         * cube list. The output shape matches what {@code EntityModelData}'s Gson binding expects.
-         */
-        private static @NotNull JsonObject buildBone(float @NotNull [] pivot, float @NotNull [] rotation, float scale, @NotNull ConcurrentList<float[]> cubes) {
-            JsonObject bone = new JsonObject();
-            bone.add("pivot", floatArray(pivot));
-            bone.add("rotation", floatArray(rotation));
-            if (scale != 1f)
-                bone.addProperty("scale", scale);
-
-            JsonArray cubeArray = new JsonArray();
-            for (float[] c : cubes) {
-                JsonObject cube = new JsonObject();
-                cube.add("origin", floatArray(c[0], c[1], c[2]));
-                cube.add("size", floatArray(c[3], c[4], c[5]));
-
-                JsonArray uv = new JsonArray();
-                uv.add((int) c[6]);
-                uv.add((int) c[7]);
-                cube.add("uv", uv);
-
-                cube.addProperty("inflate", 0.0);
-                cube.addProperty("mirror", false);
-                cube.add("face_uv", new JsonObject());
-                cubeArray.add(cube);
-            }
-            bone.add("cubes", cubeArray);
-            return bone;
-        }
-
-        /** Builds a {@link JsonArray} from a variadic float list. */
-        private static @NotNull JsonArray floatArray(float @NotNull ... values) {
-            JsonArray arr = new JsonArray();
-            for (float v : values) arr.add(v);
-            return arr;
-        }
-
-        /**
-         * Decodes an int or float literal from the instruction, returning the boxed numeric
-         * value or {@code null} when the node is not a compile-time numeric push. The geometry
-         * walker tracks these on a single {@code Number}-typed stack so a downstream
-         * {@code addBox(FFFFFF)} can pop floats from the same list that earlier collected ints
-         * for an {@code addBox(name,FFFIIIII)} variant.
-         */
-        private static @Nullable Number readNumericLiteral(@NotNull AbstractInsnNode node) {
-            Integer asInt = AsmKit.readIntLiteral(node);
-            if (asInt != null) return asInt;
-            return AsmKit.readFloatLiteral(node);
-        }
-
-        /**
-         * Sentinel value pushed onto {@link ParseState#numStack} for {@code FLOAD} / {@code DLOAD}
-         * / {@code LLOAD} and for {@code ILOAD} slots without a known {@code paramIntValues}
-         * entry. When a builder-dispatch site pops one of these via
-         * {@link #popIntWithDiagnostics} / {@link #popFloatWithDiagnostics}, the parser surfaces
-         * a {@code WARN:} identifying the entity id and pop site - the marker resolves to {@code 0}
-         * but the developer sees that a computed local slipped through the literal-only
-         * assumption instead of silently baking a zero into the output cube.
-         * <p>
-         * {@link Number#intValue()} / {@link Number#floatValue()} return {@code 0} so any caller
-         * that pops without going through the diagnostics-aware helpers still gets the same
-         * zero-fill behaviour as before Task 20.
-         */
-        private static final @NotNull Number NON_LITERAL = new NonLiteralMarker();
-
-        /**
-         * {@link Number} subclass that stands in on {@link ParseState#numStack} for values the
-         * parser cannot resolve to a compile-time literal. Numeric accessors return zero so
-         * callers that bypass the diagnostics-aware pops still see the pre-existing zero-fill
-         * behaviour.
-         */
-        private static final class NonLiteralMarker extends Number {
-            @Override public int intValue() { return 0; }
-            @Override public long longValue() { return 0L; }
-            @Override public float floatValue() { return 0f; }
-            @Override public double doubleValue() { return 0d; }
-            @Override public @NotNull String toString() { return "<non-literal>"; }
-        }
-
-        /**
-         * {@link #popInt} with a {@link NonLiteralMarker} check that surfaces a {@code WARN:}
-         * through {@link ParseState#diagnostics} identifying the entity id and the dispatch
-         * site. Used by builder handlers whose coord/uv arg is expected to be a literal; when
-         * a method was compiled with the value in a local variable populated by computation,
-         * the resulting zero-fill is called out instead of silently baked.
-         */
-        private static int popIntWithDiagnostics(@NotNull ParseState state, @NotNull String where) {
-            if (state.numStack.isEmpty()) return 0;
-            Number top = state.numStack.remove(state.numStack.size() - 1);
-            if (top instanceof NonLiteralMarker) {
-                warnNonLiteral(state, where);
-                return 0;
-            }
-            return top.intValue();
-        }
-
-        /** Float-typed counterpart of {@link #popIntWithDiagnostics}. */
-        private static float popFloatWithDiagnostics(@NotNull ParseState state, @NotNull String where) {
-            if (state.numStack.isEmpty()) return 0f;
-            Number top = state.numStack.remove(state.numStack.size() - 1);
-            if (top instanceof NonLiteralMarker) {
-                warnNonLiteral(state, where);
-                return 0f;
-            }
-            return top.floatValue();
-        }
-
-        /**
-         * Emits the {@code WARN:} entry shared by {@link #popIntWithDiagnostics} and
-         * {@link #popFloatWithDiagnostics} when a {@link NonLiteralMarker} is consumed. Silent
-         * no-op when no diagnostic sink is attached.
-         */
-        private static void warnNonLiteral(@NotNull ParseState state, @NotNull String where) {
-            if (state.diagnostics == null || state.currentSource == null) return;
-            state.diagnostics.warn(
-                "%s at %s: non-literal argument consumed - a local variable populated from a computation, resolved to 0",
-                state.currentSource.entityId(), where
-            );
-        }
-
-    }
 
     /**
      * Converts parsed entity model JSON (bones/cubes with box UV) into block model elements
@@ -1303,98 +633,12 @@ public final class ToolingBlockEntities {
     @UtilityClass
     static class BlockModelConverter {
 
-        // The per-model inventory transform tuples and tinted-id set were removed in PR 2 -
-        // they now come from {@link InventoryTransformDecomposer} (bytecode-driven) and
-        // {@link TintDiscovery} respectively. The block-level constants below are kept as a
-        // diff-friendly reference of the 26.1 shapes, but are not evaluated at runtime.
-        /*
-        private static final @NotNull Set<String> TINTED_MODEL_IDS = Set.of(
-            "minecraft:banner_flag",
-            "minecraft:wall_banner_flag"
-        );
-
-        private static final @NotNull Map<String, float[]> INVENTORY_TRANSFORMS = Map.ofEntries(
-            // BedRenderer: translate(0, 9, 0) * Rx(90°) in model units
-            Map.entry("minecraft:bed_head", new float[]{ 0, 9, 0, 90, 0, 0 }),
-            Map.entry("minecraft:bed_foot", new float[]{ 0, 9, 0, 90, 0, 0 }),
-            // ShulkerBoxRenderer: translate(0.5, 0.5, 0.5) * scale(1, -1, -1) * translate(0, -1, 0)
-            // in block units. scale(1, -1, -1) is Rx(180), and in our "Rx then translate" form the
-            // two translates fold into translate(8, 24, 8): +8 on all axes to shift from the
-            // centered frame back to block-corner-at-origin, and an extra +16 on Y because
-            // vanilla's inner translate(0, -1, 0) is applied before the flip (post-flip this
-            // becomes +16 px, which together with the +8 centering yields +24).
-            Map.entry("minecraft:shulker_box", new float[]{ 8, 24, 8, 180, 0, 0 }),
-            // SkullBlockRenderer: translate(0.5, 0, 0.5) * scale(-1, -1, 1) * translate(-0.5, 0, -0.5).
-            // scale(-1, -1, 1) ≡ Rz(180), which combined with the translate pair centres the
-            // skull at x/z block-centre with Y flipping the Y-DOWN source to Y-UP. Our converter's
-            // inv-transform path uses Rx, not Rz, but Rx(180) is the equivalent for a cube
-            // centred on the X axis: flips Y and Z. Since the head cube spans z=-4..4 (symmetric
-            // around z=0), the Z-flip is a no-op on the bbox, leaving a clean Y-flip. The
-            // translate(+8, 0, +8) then centres the head at (4..12, 0..8, 4..12).
-            //
-            // Critical: this must live in INVENTORY_TRANSFORMS (not rely on the default Y-flip)
-            // because the default Y-flip doesn't translate X/Z and would leave the cube at
-            // (-4..4, 0..8, -4..4), escaping the 0..16 block bbox and triggering the runtime
-            // recenterAndFit that compresses the tile to one-face visibility.
-            Map.entry("minecraft:skull_head", new float[]{ 8, 0, 8, 180, 0, 0 }),
-            Map.entry("minecraft:skull_humanoid_head", new float[]{ 8, 0, 8, 180, 0, 0 }),
-            // Piglin skull: same Rx(180) + translate(+8, 0, +8) as the simple skull - head cube
-            // and ears all stay inside the block bbox.
-            Map.entry("minecraft:skull_piglin_head", new float[]{ 8, 0, 8, 180, 0, 0 }),
-            // Dragon skull: tz=1.25 instead of 8 shifts the whole model +6.75 in post-invYRot
-            // block-space Z so the bbox midpoint (snout extending to z=-10 + head cube at z=0.5..12.5
-            // under the simple {8,0,8,180,0,0} transform) lands at block centre 8. Without this
-            // the bbox midpoint is ~1.25 and recenterAndFit's recentering pushes the head to the
-            // back corner of the tile, with the snout clipping off the near corner. Post-shift
-            // the bbox is symmetric around block centre; recenterAndFit only scales by ~0.99 and
-            // doesn't shift, so head + snout render centred in the atlas tile with the snout
-            // naturally extending toward +z (camera-facing) like vanilla's inventory icon.
-            Map.entry("minecraft:skull_dragon_head", new float[]{ 8, 0, 1.25f, 180, 0, 0 }),
-            // DecoratedPotRenderer authors cubes in block-space Y-up (neck rim at y=17..20,
-            // lid/base decals at y=16/y=0), and its runtime modelTransformation is just a Y-rotation
-            // around block center for facing - no translate or Y-flip. A neutral inventory transform
-            // (all zeros) skips the default {@code cy = -cy} reflection path so cubes land where
-            // vanilla renders them. The neck rim extending past y=16 triggers the multi-block
-            // recenterAndFit pass at render time.
-            Map.entry("minecraft:decorated_pot", new float[]{ 0, 0, 0, 0, 0, 0 }),
-            Map.entry("minecraft:decorated_pot_sides", new float[]{ 0, 0, 0, 0, 0, 0 }),
-            // ConduitRenderer: translate(0.5, 0.5, 0.5) + rotateY(activeRotation), no Y-flip
-            // (conduit authored as 6x6x6 cube centred at origin). Baking pitch=0 skips the
-            // default {@code cy = -cy} reflection (cube is symmetric around origin so a flip is
-            // a no-op) and translates to block centre so the shell lands at (5..11) on each axis.
-            Map.entry("minecraft:conduit", new float[]{ 8, 8, 8, 0, 0, 0 }),
-            // AbstractSignRenderer (StandingSignRenderer): translate(0.5, 0.5, 0.5) *
-            // rotateY(-yaw) * scale(2/3, -2/3, -2/3) in block units. The 2/3 scale shrinks the
-            // authored sign (24-wide board, taller than a block) to fit a single tile. The
-            // negative Y/Z scales compose with a uniform positive scale into {@code Rx(180) *
-            // scale(2/3)} - baking uniform 2/3 in slot 6 plus pitch=180 + translate(8,8,8)
-            // matches vanilla's matrix composition exactly. Yaw=0 for the default iso render.
-            Map.entry("minecraft:sign", new float[]{ 8, 8, 8, 180, 0, 0, 0.6666667f }),
-            // HangingSignRenderer: translate(0.5, 0.9375, 0.5) * rotateY(-yaw) *
-            // translate(0, -0.3125, 0) * scale(1, -1, -1). Folds to translate(0.5, 0.625, 0.5)
-            // for yaw=0, i.e. model-units translate(8, 10, 8), plus Rx(180) for the Y/Z flips.
-            // No uniform shrink - hanging sign is authored to fit within a block already.
-            Map.entry("minecraft:hanging_sign", new float[]{ 8, 10, 8, 180, 0, 0 }),
-            // BannerRenderer.modelTransformation: Transformation(MODEL_TRANSLATION,
-            // Axis.YP.rotationDegrees(-yaw), MODEL_SCALE, null) where MODEL_TRANSLATION =
-            // (0.5, 0, 0.5) and MODEL_SCALE = (2/3, -2/3, -2/3). Same decomposition as the
-            // standing sign: positive uniform 2/3 + Rx(180) for the Y/Z sign flips, with
-            // translate(8, 0, 8) to land at block centre on X/Z (Y stays at 0 because vanilla
-            // doesn't translate the banner up - the pole extends from y=0 down to y=-42 in
-            // model units, flipped up post-Rx). Same transform for pole+bar (`minecraft:banner`)
-            // and the flag (`minecraft:banner_flag`) since both are rendered under the same
-            // PoseStack in BannerRenderer.submitBanner.
-            Map.entry("minecraft:banner", new float[]{ 8, 0, 8, 180, 0, 0, 0.6666667f }),
-            Map.entry("minecraft:banner_flag", new float[]{ 8, 0, 8, 180, 0, 0, 0.6666667f }),
-            // Wall banner variants share the same pose decomposition - the BannerRenderer
-            // runs wall and standing variants through identical MODEL_SCALE + MODEL_TRANSLATION.
-            // The wall-specific geometry difference (no pole, flag pivoted at (0, -20.5, 10.5)
-            // instead of (0, -44, 0)) comes from the BannerModel / BannerFlagModel branch we
-            // parse, not from a separate render transform.
-            Map.entry("minecraft:wall_banner", new float[]{ 8, 0, 8, 180, 0, 0, 0.6666667f }),
-            Map.entry("minecraft:wall_banner_flag", new float[]{ 8, 0, 8, 180, 0, 0, 0.6666667f })
-        );
-        */
+        // Per-model inventory_transform tuples (A10) and tinted-id set (A9) now live in
+        // {@link InventoryTransformDecomposer} (bytecode-driven) and {@link TintDiscovery}
+        // respectively. {@link #convert} consumes both as parameters; nothing is hardcoded
+        // here. The skull_dragon_head tz=1.25 special case is recovered by
+        // {@link #recenterInventoryTransformsByBbox} as a post-pass over the decomposer's
+        // output. See those classes for the per-model derivation provenance.
 
         /**
          * Converts all parsed entity models into a JSON object containing block model elements
@@ -1415,8 +659,8 @@ public final class ToolingBlockEntities {
                 String modelId = entry.getKey();
                 JsonObject entityModel = entry.getValue();
 
-                int texW = entityModel.has("textureWidth") ? entityModel.get("textureWidth").getAsInt() : 64;
-                int texH = entityModel.has("textureHeight") ? entityModel.get("textureHeight").getAsInt() : 64;
+                int texW = JsonOptional.optInt(entityModel, "textureWidth", 64);
+                int texH = JsonOptional.optInt(entityModel, "textureHeight", 64);
 
                 JsonObject bones = entityModel.getAsJsonObject("bones");
                 if (bones == null) continue;
@@ -1430,7 +674,7 @@ public final class ToolingBlockEntities {
                 // camera-facing side - that's where the lock cube lives. Our renderer uses the
                 // standard [30, 225, 0] (block.json default), so we bake an equivalent +180 yaw
                 // into the chest model here. Lock at z=14..15 lands at z=0..1, NORTH-visible.
-                float invYRot = entityModel.has("inventory_y_rotation") ? entityModel.get("inventory_y_rotation").getAsFloat() : 0f;
+                float invYRot = JsonOptional.optFloat(entityModel, "inventory_y_rotation", 0f);
 
                 // For Y-UP source models (chest), the parser pre-flipped to Y-DOWN so the rest of
                 // the pipeline sees a uniform convention - but that flip swaps which corner of the
@@ -1438,7 +682,7 @@ public final class ToolingBlockEntities {
                 // render-bottom corner and carries a specific UV via the SOUTH/NORTH/etc polygon
                 // assignments). Our entityCorners array indexes vertices by the post-flip Y values,
                 // so for Y-UP source we swap yLo <-> yHi to recover vanilla's labels.
-                boolean isYUpSource = "UP".equals(entityModel.has("y_axis") ? entityModel.get("y_axis").getAsString() : "DOWN");
+                boolean isYUpSource = "UP".equals(JsonOptional.optString(entityModel, "y_axis", "DOWN"));
                 boolean emitTintIndex = tintedIds.contains(modelId);
 
                 JsonArray elements = new JsonArray();
@@ -1499,8 +743,22 @@ public final class ToolingBlockEntities {
             float scaleV = 16.0f / texH;
 
             JsonObject faces = new JsonObject();
-            for (ModelPartPolygonFace layout : ModelPartPolygonFace.values())
-                emitBlockFace(layout.faceFor(cube, scaleU, scaleV), blockCorners, box, faces, emitTintIndex);
+            Vector2f cubeUv = new Vector2f(cube.u, cube.v);
+            Vector3f cubeSize = new Vector3f(cube.sw, cube.sh, cube.sd);
+            for (EntityFace face : EntityFace.CACHED_VALUES) {
+                Vector4f rect = face.defaultUv(cubeUv, cubeSize);
+                // Expand the normalized pixel-space rect into TL/BL/BR/TR corners scaled into
+                // the 0-16 block-UV space (block-model UV is independent of texture size; the
+                // runtime multiplies u by texW/16 and v by texH/16 to recover pixel coords).
+                Vector2f[] tlBlBrTr = {
+                    new Vector2f(rect.x() * scaleU, rect.y() * scaleV),
+                    new Vector2f(rect.x() * scaleU, rect.w() * scaleV),
+                    new Vector2f(rect.z() * scaleU, rect.w() * scaleV),
+                    new Vector2f(rect.z() * scaleU, rect.y() * scaleV)
+                };
+                Vector2f[] perVertexUvs = face.permuteToPolygonOrder(tlBlBrTr);
+                emitBlockFace(face, perVertexUvs, blockCorners, box, faces, emitTintIndex);
+            }
 
             JsonObject element = new JsonObject();
             JsonArray from = new JsonArray(); from.add(round2(box.minX())); from.add(round2(box.minY())); from.add(round2(box.minZ()));
@@ -1524,7 +782,9 @@ public final class ToolingBlockEntities {
             return element;
         }
 
-        /** Axis-aligned rotation the renderer should apply to an element - one of x/y/z in degrees. */
+        /**
+         * Axis-aligned rotation the renderer should apply to an element - one of x/y/z in degrees.
+         */
         private record ElementRotationInfo(@NotNull String axis, float angle) {}
 
         /**
@@ -1535,15 +795,17 @@ public final class ToolingBlockEntities {
          */
         private static void emitBlockFace(
             @NotNull EntityFace face,
+            @NotNull Vector2f @NotNull [] perVertexUvs,
             float @NotNull [] @NotNull [] blockCorners,
             @NotNull Box box,
             @NotNull JsonObject facesOut,
             boolean emitTintIndex
         ) {
-            float[] p0 = blockCorners[face.vertexIndices[0]];
-            float[] p1 = blockCorners[face.vertexIndices[1]];
-            float[] p2 = blockCorners[face.vertexIndices[2]];
-            float[] p3 = blockCorners[face.vertexIndices[3]];
+            float[][] p = face.cornersOf(blockCorners);
+            float[] p0 = p[0];
+            float[] p1 = p[1];
+            float[] p2 = p[2];
+            float[] p3 = p[3];
 
             // Cross product of two edges gives the face normal; snapping to the cardinal axis
             // tells us which of the six block-face slots the polygon belongs to.
@@ -1556,32 +818,21 @@ public final class ToolingBlockEntities {
             };
             // Zero-thickness cubes (flat decals like decorated_pot's lid/base) collapse 4 of the
             // 6 entity faces into degenerate line segments with zero-magnitude normals. Emitting
-            // them would let the axis-snapping default to blockFaceIdx=0 (down) and clobber the
-            // actual DOWN face's UV with a blank rectangle. Skip any face whose normal vanishes.
+            // them would let the axis-snapping default to DOWN (BlockFace.fromNormal's fall-through
+            // for an all-zero normal picks the X axis, then EAST/WEST by sign; either lands on
+            // some block-face slot and clobbers its real UV). Skip any face whose normal vanishes.
             float normalLenSq = normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2];
             if (normalLenSq < 1e-6f) return;
-            float aNX = Math.abs(normal[0]), aNY = Math.abs(normal[1]), aNZ = Math.abs(normal[2]);
-            int blockFaceIdx;
-            if (aNY >= aNX && aNY >= aNZ) blockFaceIdx = normal[1] > 0 ? 1 : 0;
-            else if (aNZ >= aNX) blockFaceIdx = normal[2] > 0 ? 3 : 2;
-            else blockFaceIdx = normal[0] > 0 ? 5 : 4;
+            BlockFace blockFace = BlockFace.fromNormal(new Vector3f(normal[0], normal[1], normal[2]));
+            Vector3f[] blockFaceCorners = blockFace.corners(box);
 
-            Vector3f[] blockFaceCorners = BlockFace.values()[blockFaceIdx].corners(box);
-
-            // For each transformed vertex of the entity face, look up the (uMin/uMax, vMin/vMax)
-            // it carries (per the four-corner UV order: v[0]→(u1,v0), v[1]→(u0,v0), v[2]→(u0,v1), v[3]→(u1,v1)),
-            // then attach that UV to whichever block-face corner the vertex landed at.
-            float[][] entityFaceUv = {
-                { face.u1, face.v0 },
-                { face.u0, face.v0 },
-                { face.u0, face.v1 },
-                { face.u1, face.v1 }
-            };
+            // For each transformed vertex of the entity face, read the UV it carries (already
+            // in vanilla polygon-vertex order via EntityFace.permuteToPolygonOrder), then attach
+            // that UV to whichever block-face corner the vertex landed at.
             float[][] blockCornerUv = new float[4][2];
-            float[][] entityFacePos = { p0, p1, p2, p3 };
             for (int i = 0; i < 4; i++) {
-                int blockCorner = matchCorner(entityFacePos[i], blockFaceCorners);
-                blockCornerUv[blockCorner] = entityFaceUv[i];
+                int blockCorner = matchCorner(p[i], blockFaceCorners);
+                blockCornerUv[blockCorner] = new float[]{ perVertexUvs[i].x(), perVertexUvs[i].y() };
             }
 
             UvRect uvRect = resolveUvRotation(blockCornerUv);
@@ -1597,14 +848,14 @@ public final class ToolingBlockEntities {
                 || bounds.y() < -0.01f || bounds.w() < -0.01f || bounds.y() > 16.01f || bounds.w() > 16.01f)
                 return;
 
-            JsonObject blockFace = new JsonObject();
-            blockFace.addProperty("texture", "#entity");
+            JsonObject blockFaceJson = new JsonObject();
+            blockFaceJson.addProperty("texture", "#entity");
             JsonArray uvArr = new JsonArray();
             uvArr.add(round2(bounds.x())); uvArr.add(round2(bounds.y())); uvArr.add(round2(bounds.z())); uvArr.add(round2(bounds.w()));
-            blockFace.add("uv", uvArr);
-            if (uvRect.rotation() != 0) blockFace.addProperty("rotation", uvRect.rotation());
-            if (emitTintIndex) blockFace.addProperty("tintindex", 0);
-            facesOut.add(BlockFace.values()[blockFaceIdx].direction(), blockFace);
+            blockFaceJson.add("uv", uvArr);
+            if (uvRect.rotation() != 0) blockFaceJson.addProperty("rotation", uvRect.rotation());
+            if (emitTintIndex) blockFaceJson.addProperty("tintindex", 0);
+            facesOut.add(blockFace.direction(), blockFaceJson);
         }
 
         /**
@@ -1629,7 +880,9 @@ public final class ToolingBlockEntities {
             return new UvRect(Vector4f.ZERO, 0);
         }
 
-        /** Returns the index (0=TL, 1=BL, 2=BR, 3=TR) of {@code blockFaceCorners} closest to {@code position}. */
+        /**
+         * Returns the index (0=TL, 1=BL, 2=BR, 3=TR) of {@code blockFaceCorners} closest to {@code position}.
+         */
         private static int matchCorner(float @NotNull [] position, @NotNull Vector3f @NotNull [] blockFaceCorners) {
             int best = 0;
             float bestDist = Float.MAX_VALUE;
@@ -1643,12 +896,16 @@ public final class ToolingBlockEntities {
             return best;
         }
 
-        /** {@code true} when two floats are within {@code 1e-4} of each other. */
+        /**
+         * {@code true} when two floats are within {@code 1e-4} of each other.
+         */
         private static boolean approxEqual(float a, float b) {
             return Math.abs(a - b) < 1e-4f;
         }
 
-        /** Multiplies two 3x3 matrices, returning {@code a * b}. */
+        /**
+         * Multiplies two 3x3 matrices, returning {@code a * b}.
+         */
         private static double[][] matMul3(double[][] a, double[][] b) {
             double[][] r = new double[3][3];
             for (int i = 0; i < 3; i++)
@@ -1657,12 +914,16 @@ public final class ToolingBlockEntities {
             return r;
         }
 
-        /** Rounds {@code v} to 2 decimal places for readable JSON output. */
+        /**
+         * Rounds {@code v} to 2 decimal places for readable JSON output.
+         */
         private static float round2(double v) {
             return (float) (Math.round(v * 100.0) / 100.0);
         }
 
-        /** A cube's origin, size, and UV offset as parsed from one entry of {@code bones[].cubes[]}. */
+        /**
+         * A cube's origin, size, and UV offset as parsed from one entry of {@code bones[].cubes[]}.
+         */
         private record CubeDef(float ox, float oy, float oz, float sw, float sh, float sd, int u, int v) {
 
             static @NotNull CubeDef of(@NotNull JsonObject cube) {
@@ -1740,7 +1001,7 @@ public final class ToolingBlockEntities {
                 }
                 boolean hasBoneRot = brx != 0 || bry != 0 || brz != 0;
 
-                float scale = bone.has("scale") ? bone.get("scale").getAsFloat() : 1f;
+                float scale = JsonOptional.optFloat(bone, "scale", 1f);
 
                 // Bone rotation matrix: Rz * Ry * Rx (matches vanilla's Quaternionf.rotationZYX,
                 // which applies X first, then Y, then Z).
@@ -1753,12 +1014,16 @@ public final class ToolingBlockEntities {
                 return new CubeTransform(boneRot, scale, px, py, pz, invTransform, invYRot);
             }
 
-            /** Applies scale + pivot + inventory transform (or Y-flip) + inventory yaw, skipping bone rotation. */
+            /**
+             * Applies scale + pivot + inventory transform (or Y-flip) + inventory yaw, skipping bone rotation.
+             */
             float @NotNull [] applyNoBoneRot(float @NotNull [] corner) {
                 return applyChain(corner, false);
             }
 
-            /** Applies scale, bone rotation, pivot, inventory transform (or Y-flip), then inventory yaw. */
+            /**
+             * Applies scale, bone rotation, pivot, inventory transform (or Y-flip), then inventory yaw.
+             */
             float @NotNull [] apply(float @NotNull [] corner) {
                 return applyChain(corner, true);
             }
@@ -1864,80 +1129,9 @@ public final class ToolingBlockEntities {
             }
         }
 
-        /** Vanilla's per-face vertex-to-UV pairing, per {@code ModelPart$Polygon} constructor. */
-        @FunctionalInterface
-        private interface UvFormula {
-            float @NotNull [] compute(int u, int v, @NotNull CubeDef c);
-        }
-
         /**
-         * The six faces of a vanilla Java {@code ModelPart$Cube}, each carrying its four vertex
-         * indices into the shared 8-corner box layout and the UV formula that computes the face's
-         * {@code (u0, v0, u1, v1)} rectangle from the cube's UV origin and dimensions. The formula
-         * expresses vanilla's per-face box-UV layout (width {@code d+w+d+w} across, height
-         * {@code d+h} down, with the two cap faces sharing the top strip).
-         * <p>
-         * The vertex ordering mirrors vanilla's {@code ModelPart$Polygon} constructor: {@code v[0]}
-         * pairs with UV {@code (u1, v0)} (top-right of the texture rect), {@code v[1]} with
-         * {@code (u0, v0)}, {@code v[2]} with {@code (u0, v1)}, {@code v[3]} with {@code (u1, v1)}.
-         * This is a <i>different</i> convention from {@link BlockFace#corners(Box)}, whose indices
-         * start at the face's top-left corner to feed {@code GeometryKit.addQuad}'s
-         * {@code (topLeft, bottomLeft, bottomRight, topRight)} parameter order.
-         * <p>
-         * Both conventions index the same 8-corner box and are CCW; they differ by a 1-position
-         * shift whose direction flips between {@code UP}/{@code DOWN} and the four vertical faces
-         * because the two conventions disagree about which world corner is "first" per face. The
-         * two cannot be unified - {@link BlockFace} serves block-model rendering via
-         * {@code GeometryKit.addQuad}, while {@code ModelPartPolygonFace} serves the
-         * bytecode-to-block-model conversion in {@link BlockModelConverter}, which must round-trip
-         * vanilla's per-vertex UVs exactly.
-         * <p>
-         * The UV strip layout encoded here is also <i>different</i> from the Bedrock Edition
-         * geo.json strip layout encoded in
-         * {@link BlockFace#defaultUv(int[], float[], float, float, boolean)}. Those are two
-         * distinct Mojang conventions and must stay separate.
+         * The resolved UV rectangle plus a rotation tag from per-corner UV sampling.
          */
-        private enum ModelPartPolygonFace {
-            // DOWN: vertices v24, v23, v19, v20; UV (u+d, v, u+d+w, v+d)
-            DOWN (new int[]{ 5, 4, 0, 1 }, (u, v, c) -> new float[]{ u + c.sd,                     v,                u + c.sd + c.sw,               v + c.sd }),
-            // UP: vertices v21, v22, v26, v25; UV (u+d+w, v+d, u+d+w+w, v) - note v0 > v1
-            UP   (new int[]{ 2, 3, 7, 6 }, (u, v, c) -> new float[]{ u + c.sd + c.sw,              v + c.sd,         u + c.sd + c.sw + c.sw,        v }),
-            // NORTH: vertices v20, v19, v22, v21; UV (u+d, v+d, u+d+w, v+d+h)
-            NORTH(new int[]{ 1, 0, 3, 2 }, (u, v, c) -> new float[]{ u + c.sd,                     v + c.sd,         u + c.sd + c.sw,               v + c.sd + c.sh }),
-            // SOUTH: vertices v23, v24, v25, v26; UV (u+d+w+d, v+d, u+d+w+d+w, v+d+h)
-            SOUTH(new int[]{ 4, 5, 6, 7 }, (u, v, c) -> new float[]{ u + c.sd + c.sw + c.sd,       v + c.sd,         u + c.sd + c.sw + c.sd + c.sw, v + c.sd + c.sh }),
-            // WEST: vertices v19, v23, v26, v22; UV (u, v+d, u+d, v+d+h)
-            WEST (new int[]{ 0, 4, 7, 3 }, (u, v, c) -> new float[]{ u,                            v + c.sd,         u + c.sd,                      v + c.sd + c.sh }),
-            // EAST: vertices v24, v20, v21, v25; UV (u+d+w, v+d, u+d+w+d, v+d+h)
-            EAST (new int[]{ 5, 1, 2, 6 }, (u, v, c) -> new float[]{ u + c.sd + c.sw,              v + c.sd,         u + c.sd + c.sw + c.sd,        v + c.sd + c.sh });
-
-            private final int @NotNull [] vertexIndices;
-            private final @NotNull UvFormula uvFormula;
-
-            ModelPartPolygonFace(int @NotNull [] vertexIndices, @NotNull UvFormula uvFormula) {
-                this.vertexIndices = vertexIndices;
-                this.uvFormula = uvFormula;
-            }
-
-            /** Instantiates an {@link EntityFace} with the four UV edges scaled to texture-relative coordinates. */
-            @NotNull EntityFace faceFor(@NotNull CubeDef c, float scaleU, float scaleV) {
-                float[] uv = uvFormula.compute(c.u, c.v, c);
-                return new EntityFace(vertexIndices, uv[0] * scaleU, uv[1] * scaleV, uv[2] * scaleU, uv[3] * scaleV);
-            }
-        }
-
-        /**
-         * One of the six entity faces of a cube: the four vertex indices into the shared
-         * 8-corner box layout and the four UV-rectangle edges. The UVs
-         * {@code (u1, v0), (u0, v0), (u0, v1), (u1, v1)} are paired with the four vertices
-         * starting at the <b>texture top-right</b> corner and walking CCW, matching vanilla's
-         * {@code ModelPart$Polygon} constructor - <i>not</i> {@link BlockFace}'s top-left-first
-         * CCW convention. See {@link ModelPartPolygonFace} for why the two conventions
-         * coexist.
-         */
-        private record EntityFace(int @NotNull [] vertexIndices, float u0, float v0, float u1, float v1) {}
-
-        /** The resolved UV rectangle plus a rotation tag from per-corner UV sampling. */
         private record UvRect(@NotNull Vector4f bounds, int rotation) {}
 
     }

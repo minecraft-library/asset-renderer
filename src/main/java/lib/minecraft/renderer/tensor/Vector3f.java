@@ -30,7 +30,9 @@ import java.io.IOException;
  */
 public record Vector3f(float x, float y, float z) {
 
-    /** The zero vector. */
+    /**
+     * The zero vector.
+     */
     public static final @NotNull Vector3f ZERO = new Vector3f(0, 0, 0);
 
     /**
@@ -80,7 +82,9 @@ public record Vector3f(float x, float y, float z) {
         return new Vector3f(this.x / scalar, this.y / scalar, this.z / scalar);
     }
 
-    /** This vector with all three components negated. */
+    /**
+     * This vector with all three components negated.
+     */
     public @NotNull Vector3f negate() {
         return new Vector3f(-this.x, -this.y, -this.z);
     }
@@ -103,7 +107,9 @@ public record Vector3f(float x, float y, float z) {
         };
     }
 
-    /** The Euclidean length of this vector. */
+    /**
+     * The Euclidean length of this vector.
+     */
     public float length() {
         return (float) Math.sqrt(this.lengthSquared());
     }
@@ -114,7 +120,9 @@ public record Vector3f(float x, float y, float z) {
      * Cheaper than {@link #length()} when only magnitude comparisons are needed.
      */
     public float lengthSquared() {
-        return this.x * this.x + this.y * this.y + this.z * this.z;
+        // Right-associated mul-add matching JOML's {@code Vector3fc.lengthSquared} with
+        // {@code joml.useMathFma=false}.
+        return this.x * this.x + (this.y * this.y + this.z * this.z);
     }
 
     /**
@@ -140,7 +148,10 @@ public record Vector3f(float x, float y, float z) {
      * @return the dot product
      */
     public static float dot(@NotNull Vector3f a, @NotNull Vector3f b) {
-        return a.x * b.x + a.y * b.y + a.z * b.z;
+        // Right-associated mul-add matching JOML's {@code Vector3fc.dot} with default
+        // {@code joml.useMathFma=false}: JOML's source calls {@code Math.fma} but with FMA
+        // disabled, the expression collapses to {@code x*v.x() + (y*v.y() + z*v.z())}.
+        return a.x * b.x + (a.y * b.y + a.z * b.z);
     }
 
     /**
@@ -173,9 +184,9 @@ public record Vector3f(float x, float y, float z) {
     }
 
     /**
-     * Transforms {@code v} by {@code m} as a point ({@code w=1}). Auto-dispatches to a 4-lane
-     * SIMD implementation when the JDK Vector API module is available; otherwise computes the
-     * three components scalar.
+     * Transforms {@code v} by {@code m} as a point ({@code w=1}) under the column-vector
+     * convention {@code m * v_col}. Auto-dispatches to a 4-lane SIMD implementation when the
+     * JDK Vector API module is available; otherwise computes the three components scalar.
      *
      * @param v the vector to transform
      * @param m the transformation matrix
@@ -183,16 +194,22 @@ public record Vector3f(float x, float y, float z) {
      */
     public static @NotNull Vector3f transform(@NotNull Vector3f v, @NotNull Matrix4f m) {
         if (SimdSupport.ENABLED) return SimdOps.transform(v, m);
-        float tx = v.x * m.getM11() + v.y * m.getM21() + v.z * m.getM31() + m.getM41();
-        float ty = v.x * m.getM12() + v.y * m.getM22() + v.z * m.getM32() + m.getM42();
-        float tz = v.x * m.getM13() + v.y * m.getM23() + v.z * m.getM33() + m.getM43();
+        // Right-associated mul-add chain matching JOML's Vector3f.mulPositionGeneric with
+        // default `joml.useMathFma=false` (vanilla Minecraft's setting). JOML source reads as
+        // `Math.fma(m00, x, Math.fma(m10, y, Math.fma(m20, z, m30)))`; with FMA off, each
+        // fma(a, b, c) collapses to `a * b + c`, producing the right-associated chain
+        // `m00*x + (m10*y + (m20*z + m30))`. Validated bit-identical in JomlSideBySideTest.
+        float tx = m.get(1, 1) * v.x + (m.get(2, 1) * v.y + (m.get(3, 1) * v.z + m.get(4, 1)));
+        float ty = m.get(1, 2) * v.x + (m.get(2, 2) * v.y + (m.get(3, 2) * v.z + m.get(4, 2)));
+        float tz = m.get(1, 3) * v.x + (m.get(2, 3) * v.y + (m.get(3, 3) * v.z + m.get(4, 3)));
         return new Vector3f(tx, ty, tz);
     }
 
     /**
-     * Transforms {@code v} by {@code m} as a direction ({@code w=0}), ignoring the translation
-     * row. Auto-dispatches to a 4-lane SIMD implementation when the JDK Vector API module is
-     * available; otherwise computes the three components scalar.
+     * Transforms {@code v} by {@code m} as a direction ({@code w=0}) under the column-vector
+     * convention {@code m * v_col}, ignoring the translation column. Auto-dispatches to a
+     * 4-lane SIMD implementation when the JDK Vector API module is available; otherwise computes
+     * the three components scalar.
      *
      * @param v the direction vector to transform
      * @param m the transformation matrix
@@ -200,9 +217,10 @@ public record Vector3f(float x, float y, float z) {
      */
     public static @NotNull Vector3f transformNormal(@NotNull Vector3f v, @NotNull Matrix4f m) {
         if (SimdSupport.ENABLED) return SimdOps.transformNormal(v, m);
-        float tx = v.x * m.getM11() + v.y * m.getM21() + v.z * m.getM31();
-        float ty = v.x * m.getM12() + v.y * m.getM22() + v.z * m.getM32();
-        float tz = v.x * m.getM13() + v.y * m.getM23() + v.z * m.getM33();
+        // Right-associated chain matching JOML's Vector3f.mulDirection (w=0; no translation).
+        float tx = m.get(1, 1) * v.x + (m.get(2, 1) * v.y + m.get(3, 1) * v.z);
+        float ty = m.get(1, 2) * v.x + (m.get(2, 2) * v.y + m.get(3, 2) * v.z);
+        float tz = m.get(1, 3) * v.x + (m.get(2, 3) * v.y + m.get(3, 3) * v.z);
         return new Vector3f(tx, ty, tz);
     }
 

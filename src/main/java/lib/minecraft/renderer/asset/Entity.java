@@ -3,6 +3,7 @@ package lib.minecraft.renderer.asset;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.engine.RendererContext;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -12,7 +13,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * A fully-parsed entity definition - geometry and Bedrock-sourced texture reference - for use by
+ * A fully-parsed entity definition - geometry and vanilla texture reference - for use by
  * the entity renderer's {@code ENTITY_3D} mode. Player skins are never stored on this DTO; they
  * are supplied at render time through the {@code EntityOptions.skinBytes}/{@code skinUrl}/
  * {@code skinTextureId} fields.
@@ -31,14 +32,10 @@ public class Entity {
     private @NotNull EntityModelData model = new EntityModelData();
 
     /**
-     * The Bedrock-namespace texture sub-path (without {@code .png}), or empty when the entity has
-     * no default texture binding. Resolved at render time against the on-disk bedrock cache via
-     * {@link lib.minecraft.renderer.engine.RendererContext#resolveBedrockEntityTexture(String)
-     * RendererContext.resolveBedrockEntityTexture}; no Java atlas involvement. The PNG itself is
-     * extracted verbatim from {@code Mojang/bedrock-samples} by
-     * {@link lib.minecraft.renderer.pipeline.Pipeline#extractBedrockEntityTextures(java.nio.file.Path,
-     * java.nio.file.Path, java.nio.file.Path, boolean) Pipeline.extractBedrockEntityTextures} into
-     * {@code <cacheRoot>/bedrock/<bedrockRef>/textures/entity/<ref>.png}.
+     * The vanilla {@code textures/entity/} sub-path (without {@code .png}), or empty when the
+     * entity has no default texture binding. Resolved at render time through the active pack
+     * stack via {@link RendererContext#resolveTexture(String)
+     * RendererContext.resolveTexture} as {@code minecraft:entity/<ref>}.
      */
     private @NotNull Optional<String> textureRef = Optional.empty();
 
@@ -52,17 +49,6 @@ public class Entity {
     private @NotNull ConcurrentList<Layer> overlays = Concurrent.newList();
 
     /**
-     * When {@code true} the entity's bundled base texture has every partial-alpha texel bumped
-     * to {@code alpha=255} at load time. Used by entities whose Bedrock texture is authored at
-     * low alpha for an additive-blending pass that the static iso renderer can't reproduce
-     * (blaze rods at alpha=90, magma cube), or for aesthetic partial alpha that should render
-     * opaque under this renderer's binary-canvas convention (sheep wool fluff). Replaces the
-     * legacy {@code ToolingEntityModels.OPAQUE_ALPHA_TEXTURE_REFS} hardcoded set with a
-     * per-entity opt-in, so the bundled PNG stays exactly as Bedrock ships it.
-     */
-    private boolean forceOpaque = false;
-
-    /**
      * Convenience constructor for the no-overlay case so existing call sites don't have to
      * supply an empty list.
      */
@@ -73,21 +59,7 @@ public class Entity {
         @NotNull EntityModelData model,
         @NotNull Optional<String> textureRef
     ) {
-        this(id, namespace, name, model, textureRef, Concurrent.newList(), false);
-    }
-
-    /**
-     * Convenience constructor for entities with overlays but no force-opaque flag.
-     */
-    public Entity(
-        @NotNull String id,
-        @NotNull String namespace,
-        @NotNull String name,
-        @NotNull EntityModelData model,
-        @NotNull Optional<String> textureRef,
-        @NotNull ConcurrentList<Layer> overlays
-    ) {
-        this(id, namespace, name, model, textureRef, overlays, false);
+        this(id, namespace, name, model, textureRef, Concurrent.newList());
     }
 
     @Override
@@ -99,13 +71,12 @@ public class Entity {
             && Objects.equals(this.getName(), entity.getName())
             && Objects.equals(this.getModel(), entity.getModel())
             && Objects.equals(this.getTextureRef(), entity.getTextureRef())
-            && Objects.equals(this.getOverlays(), entity.getOverlays())
-            && this.isForceOpaque() == entity.isForceOpaque();
+            && Objects.equals(this.getOverlays(), entity.getOverlays());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.getId(), this.getNamespace(), this.getName(), this.getModel(), this.getTextureRef(), this.getOverlays(), this.isForceOpaque());
+        return Objects.hash(this.getId(), this.getNamespace(), this.getName(), this.getModel(), this.getTextureRef(), this.getOverlays());
     }
 
     /**
@@ -113,13 +84,12 @@ public class Entity {
      * own bundled texture sub-path; combined with the base model under one shared auto-fit
      * transform at render time.
      *
-     * @param model the overlay's bone/cube tree, in the same Bedrock-native coordinate frame as
-     *     the base model so the layers register without per-overlay placement
-     * @param textureRef the Bedrock-namespace texture sub-path (without {@code .png}), resolved
-     *     against the on-disk bedrock cache by
-     *     {@link lib.minecraft.renderer.engine.RendererContext#resolveBedrockEntityTexture(String)
-     *     RendererContext.resolveBedrockEntityTexture}, or empty when the overlay reuses the
-     *     base texture
+     * @param model the overlay's bone/cube tree, in the same Y-down entity-root coordinate frame
+     *     as the base model so the layers register without per-overlay placement
+     * @param textureRef the vanilla {@code textures/entity/} sub-path (without {@code .png}),
+     *     resolved through {@link RendererContext#resolveTexture(String)
+     *     RendererContext.resolveTexture} as {@code minecraft:entity/<ref>}, or empty when the
+     *     overlay reuses the base texture
      * @param emissive when {@code true} the overlay renders full-bright + additive (vanilla
      *     Java's {@code RenderType.eyes} pattern - spider eyes, ender dragon eyes) instead of
      *     the default shaded src-over. Tagged through every triangle the overlay produces; the

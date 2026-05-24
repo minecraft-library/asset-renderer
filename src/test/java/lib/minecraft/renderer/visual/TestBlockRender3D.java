@@ -108,7 +108,7 @@ public final class TestBlockRender3D {
             }
 
             // Render each 2D face for comparison
-            for (BlockFace face : BlockFace.values()) {
+            for (BlockFace face : BlockFace.CACHED_VALUES) {
                 try {
                     BlockOptions faceOpt = BlockOptions.builder()
                         .blockId(blockId)

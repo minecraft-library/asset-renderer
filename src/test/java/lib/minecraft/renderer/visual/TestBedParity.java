@@ -18,7 +18,7 @@ import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.engine.IsometricEngine;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
-import lib.minecraft.renderer.kit.BlockModelGeometryKit;
+import lib.minecraft.renderer.kit.BlockGeometryKit;
 import lib.minecraft.renderer.options.BlockOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
@@ -97,7 +97,7 @@ public final class TestBedParity {
 
     /**
      * Loads mc-assets bed_head + bed_foot JSON, merges elements (foot Z+16), resolves the
-     * bed texture, builds triangles via {@link BlockModelGeometryKit#buildFromElements}, and rasterizes
+     * bed texture, builds triangles via {@link BlockGeometryKit#buildFromElements}, and rasterizes
      * with the standard isometric engine. Pure block model rendering - no entity pipeline.
      */
     private static void renderMcAssetsBed(@NotNull PipelineRendererContext context, int size, @NotNull Path out) throws IOException {
@@ -119,7 +119,7 @@ public final class TestBedParity {
         // Build triangles - "#bed" maps to the bed texture
         ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
         faceTextures.put("#bed", texture);
-        ConcurrentList<VisibleTriangle> triangles = BlockModelGeometryKit.buildFromElements(elements, faceTextures, ColorMath.WHITE);
+        ConcurrentList<VisibleTriangle> triangles = BlockGeometryKit.buildFromElements(elements, faceTextures, ColorMath.WHITE);
 
         System.out.printf("  Built %d triangles from mc-assets bed model%n", triangles.size());
         if (triangles.isEmpty()) { System.err.println("  FAILED: zero triangles"); return; }
@@ -147,7 +147,7 @@ public final class TestBedParity {
         ConcurrentList<VisibleTriangle> centered = recenterAndFit(rotated, 1.4f);
 
         // Rasterize with standard isometric engine
-        IsometricEngine engine = IsometricEngine.standard(context);
+        IsometricEngine engine = IsometricEngine.forBlockIcon(context);
         PixelBuffer buffer = PixelBuffer.create(size, size);
         engine.rasterize(centered, buffer, PerspectiveParams.NONE);
         ImageIO.write(buffer.toBufferedImage(), "PNG", out.toFile());
@@ -172,7 +172,7 @@ public final class TestBedParity {
 
         ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
         faceTextures.put("#chest", texOpt.get());
-        ConcurrentList<VisibleTriangle> triangles = BlockModelGeometryKit.buildFromElements(elements, faceTextures, ColorMath.WHITE);
+        ConcurrentList<VisibleTriangle> triangles = BlockGeometryKit.buildFromElements(elements, faceTextures, ColorMath.WHITE);
 
         System.out.printf("  Built %d triangles from mc-assets chest model%n", triangles.size());
         if (triangles.isEmpty()) { System.err.println("  FAILED: zero triangles"); return; }
@@ -193,7 +193,7 @@ public final class TestBedParity {
             ));
         }
 
-        IsometricEngine engine = IsometricEngine.standard(context);
+        IsometricEngine engine = IsometricEngine.forBlockIcon(context);
         PixelBuffer buffer = PixelBuffer.create(size, size);
         engine.rasterize(rotated, buffer, PerspectiveParams.NONE);
         ImageIO.write(buffer.toBufferedImage(), "PNG", out.toFile());

@@ -2,9 +2,8 @@ package lib.minecraft.renderer.pipeline.loader;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.pipeline.VanillaPaths;
+import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lib.minecraft.renderer.pipeline.pack.CitRule;
 import lib.minecraft.renderer.pipeline.pack.IntRange;
 import lib.minecraft.renderer.pipeline.pack.NbtCondition;
@@ -33,8 +32,8 @@ import java.util.stream.Stream;
 public class CitLoader {
 
     private static final @NotNull String[] CIT_ROOTS = {
-        VanillaPaths.OPTIFINE_CIT_DIR,
-        VanillaPaths.MCPATCHER_CIT_DIR
+        VanillaSourcePaths.OPTIFINE_CIT_DIR,
+        VanillaSourcePaths.MCPATCHER_CIT_DIR
     };
 
     /**
@@ -83,7 +82,7 @@ public class CitLoader {
         ArrayList<String> matchedItems = new ArrayList<>();
         String itemsProperty = props.getProperty("items", props.getProperty("matchItems", ""));
         for (String id : itemsProperty.split("\\s+")) {
-            if (!id.isBlank()) matchedItems.add(id.contains(":") ? id : VanillaPaths.MINECRAFT_NAMESPACE + id);
+            if (!id.isBlank()) matchedItems.add(id.contains(":") ? id : VanillaSourcePaths.MINECRAFT_NAMESPACE + id);
         }
         if (matchedItems.isEmpty()) return Optional.empty();
 
@@ -93,7 +92,7 @@ public class CitLoader {
         ArrayList<String> enchantmentIds = new ArrayList<>();
         String enchantments = props.getProperty("enchantmentIDs", "");
         for (String id : enchantments.split("\\s+")) {
-            if (!id.isBlank()) enchantmentIds.add(id.contains(":") ? id : VanillaPaths.MINECRAFT_NAMESPACE + id);
+            if (!id.isBlank()) enchantmentIds.add(id.contains(":") ? id : VanillaSourcePaths.MINECRAFT_NAMESPACE + id);
         }
 
         HashMap<String, IntRange> enchantmentLevels = new HashMap<>();
@@ -104,7 +103,7 @@ public class CitLoader {
             if (eq < 0) continue;
             String key = token.substring(0, eq);
             IntRange range = parseRange(token.substring(eq + 1)).orElse(IntRange.ANY);
-            enchantmentLevels.put(key.contains(":") ? key : VanillaPaths.MINECRAFT_NAMESPACE + key, range);
+            enchantmentLevels.put(key.contains(":") ? key : VanillaSourcePaths.MINECRAFT_NAMESPACE + key, range);
         }
 
         HashMap<String, NbtCondition> nbtConditions = new HashMap<>();
@@ -128,12 +127,12 @@ public class CitLoader {
 
     private static @NotNull String normalizeTextureId(@NotNull String texture) {
         if (texture.contains(":")) return texture;
-        if (texture.startsWith(VanillaPaths.TEXTURES_PREFIX)) {
-            String trimmed = texture.substring(VanillaPaths.TEXTURES_PREFIX.length());
+        if (texture.startsWith(VanillaSourcePaths.TEXTURES_PREFIX)) {
+            String trimmed = texture.substring(VanillaSourcePaths.TEXTURES_PREFIX.length());
             if (trimmed.endsWith(".png")) trimmed = trimmed.substring(0, trimmed.length() - 4);
-            return VanillaPaths.MINECRAFT_NAMESPACE + trimmed;
+            return VanillaSourcePaths.MINECRAFT_NAMESPACE + trimmed;
         }
-        return VanillaPaths.MINECRAFT_NAMESPACE + texture;
+        return VanillaSourcePaths.MINECRAFT_NAMESPACE + texture;
     }
 
     private static @NotNull Optional<IntRange> parseRange(String expression) {

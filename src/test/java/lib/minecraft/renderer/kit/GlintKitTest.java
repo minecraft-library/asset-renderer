@@ -80,7 +80,7 @@ class GlintKitTest {
         PixelBuffer glint = solidBuffer(32, 32, 0x40FFFFFF);
         GlintKit.GlintOptions options = GlintKit.GlintOptions.itemDefault(10);
 
-        ConcurrentList<PixelBuffer> frames = GlintKit.apply(base, glint, options);
+        ConcurrentList<PixelBuffer> frames = GlintKit.applyGlint(base, glint, options);
 
         assertThat(frames.size(), is(options.totalFrames()));
         for (PixelBuffer frame : frames) {
@@ -102,7 +102,7 @@ class GlintKitTest {
         PixelBuffer base = PixelBuffer.of(pixels, 16, 16);
         PixelBuffer glint = solidBuffer(32, 32, 0xFFFFFFFF);
 
-        ConcurrentList<PixelBuffer> frames = GlintKit.apply(base, glint, GlintKit.GlintOptions.itemDefault(1));
+        ConcurrentList<PixelBuffer> frames = GlintKit.applyGlint(base, glint, GlintKit.GlintOptions.itemDefault(1));
         PixelBuffer first = frames.get(0);
 
         // Left half must be opaque (base red possibly brightened by glint).

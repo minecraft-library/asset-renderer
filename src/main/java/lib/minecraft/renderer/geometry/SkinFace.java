@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.geometry;
 
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.kit.BlockModelGeometryKit;
+import lib.minecraft.renderer.kit.BlockGeometryKit;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.AccessLevel;
@@ -121,9 +121,8 @@ public enum SkinFace {
         this.overlayMappings = new EnumMap<>(BlockFace.class);
         this.faceVertices = new EnumMap<>(BlockFace.class);
 
-        BlockFace[] order = BlockFace.values();
-        for (int i = 0; i < order.length; i++) {
-            BlockFace face = order[i];
+        for (int i = 0; i < BlockFace.CACHED_VALUES.length; i++) {
+            BlockFace face = BlockFace.CACHED_VALUES[i];
             int[] xy = faceCoords[i];
             int[] size = faceSize(face, width, height, depth);
             this.baseMappings.put(face, new Rectangle(xy[0], xy[1], size[0], size[1]));
@@ -159,7 +158,7 @@ public enum SkinFace {
         UV_LAYOUTS.put(BlockFace.EAST, UvLayout.STANDARD.uvMap);
 
         for (SkinFace part : values()) {
-            for (BlockFace face : BlockFace.values()) {
+            for (BlockFace face : BlockFace.CACHED_VALUES) {
                 int[] indices = face.vertexIndices();
                 part.faceVertices.put(face, new Vector3f[]{
                     part.cornerVertices[indices[0]],
@@ -185,7 +184,7 @@ public enum SkinFace {
 
     /**
      * Returns the four local-space vertices for the given face on this body part's box, in the
-     * TL, TR, BR, BL CCW order used by {@link BlockModelGeometryKit}.
+     * TL, TR, BR, BL CCW order used by {@link BlockGeometryKit}.
      *
      * @param face the cube face direction
      * @return the four face corner positions in local model space
@@ -233,23 +232,27 @@ public enum SkinFace {
                 pixels[dy * w + dx] = skin.getPixel(sx, sy);
             }
         }
+
         return PixelBuffer.of(pixels, w, h);
     }
 
     /**
-     * Crops all six faces of this body part out of the skin image in {@link BlockFace}
-     * declaration order (DOWN, UP, NORTH, SOUTH, WEST, EAST), matching the array layout that
-     * {@link BlockModelGeometryKit#box} expects.
+     * Crops all six faces of this body part out of the skin image into a {@link SixFaces} ready
+     * to feed {@link BlockGeometryKit#box}.
      *
      * @param skin the source skin image
      * @param overlayLayer whether to crop the overlay layer instead of the base layer
-     * @return a six-element array of cropped faces ordered by {@code BlockFace.ordinal()}
+     * @return the six cropped faces keyed by {@link BlockFace} direction
      */
-    public @NotNull PixelBuffer @NotNull [] cropAll(@NotNull PixelBuffer skin, boolean overlayLayer) {
-        PixelBuffer[] result = new PixelBuffer[BlockFace.values().length];
-        for (BlockFace face : BlockFace.values())
-            result[face.ordinal()] = crop(skin, face, overlayLayer);
-        return result;
+    public @NotNull SixFaces cropAll(@NotNull PixelBuffer skin, boolean overlayLayer) {
+        return new SixFaces(
+            crop(skin, BlockFace.DOWN, overlayLayer),
+            crop(skin, BlockFace.UP, overlayLayer),
+            crop(skin, BlockFace.NORTH, overlayLayer),
+            crop(skin, BlockFace.SOUTH, overlayLayer),
+            crop(skin, BlockFace.WEST, overlayLayer),
+            crop(skin, BlockFace.EAST, overlayLayer)
+        );
     }
 
     /**

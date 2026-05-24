@@ -10,7 +10,7 @@ import lib.minecraft.renderer.asset.pack.Texture;
 import lib.minecraft.renderer.asset.pack.TexturePack;
 import lib.minecraft.renderer.asset.pack.AnimationData;
 import lib.minecraft.renderer.kit.AnimationKit;
-import lib.minecraft.renderer.pipeline.VanillaPaths;
+import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -74,7 +74,7 @@ public class TexturePackLoader {
      * absent.
      */
     private static @NotNull ConcurrentMap<String, Texture> scanRoot(@NotNull Path packRoot, @NotNull String packId) {
-        Path texturesDir = packRoot.resolve(VanillaPaths.TEXTURES_DIR);
+        Path texturesDir = packRoot.resolve(VanillaSourcePaths.TEXTURES_DIR);
         if (!Files.isDirectory(texturesDir)) return Concurrent.newMap();
 
         // Two-phase walk: materialise the PNG path list serially (Files.walk spliterators do not
@@ -101,7 +101,7 @@ public class TexturePackLoader {
     private static @NotNull Texture buildTexture(@NotNull Path file, @NotNull Path texturesRoot, @NotNull String packId) {
         String relative = texturesRoot.relativize(file).toString().replace('\\', '/');
         String withoutExtension = relative.endsWith(".png") ? relative.substring(0, relative.length() - 4) : relative;
-        String id = VanillaPaths.MINECRAFT_NAMESPACE + withoutExtension;
+        String id = VanillaSourcePaths.MINECRAFT_NAMESPACE + withoutExtension;
 
         int width = 0;
         int height = 0;

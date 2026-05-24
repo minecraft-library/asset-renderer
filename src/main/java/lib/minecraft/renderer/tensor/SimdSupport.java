@@ -12,10 +12,10 @@ import lombok.experimental.UtilityClass;
  * was started without {@code --add-modules=jdk.incubator.vector}.
  * <p>
  * Public tensor classes ({@link Vector3f}, {@link Matrix4f}) read this flag inside their
- * hot-path methods and dispatch to {@link Vector3fOps} / {@link Matrix4fOps} when it is
- * {@code true}. The dispatcher classes themselves carry zero {@code jdk.incubator.*}
- * imports, so the JVM never resolves the SIMD classes when the module is absent and the
- * library degrades silently to the scalar fallback.
+ * hot-path methods and dispatch to {@link SimdOps} when it is {@code true}. The dispatcher
+ * class itself carries zero {@code jdk.incubator.*} imports, so the JVM never resolves the
+ * SIMD class when the module is absent and the library degrades silently to the scalar
+ * fallback.
  *
  * @see Vector3f#transform
  * @see Matrix4f#multiply
@@ -23,8 +23,13 @@ import lombok.experimental.UtilityClass;
 @UtilityClass
 final class SimdSupport {
 
-    /** Whether {@code jdk.incubator.vector.FloatVector} is resolvable on this JVM. */
-    static final boolean ENABLED = detect();
+    /**
+     * Whether {@code jdk.incubator.vector.FloatVector} is resolvable on this JVM AND the user
+     * has not explicitly disabled SIMD dispatch via {@code -Dentity.simd=false}. The kill
+     * switch exists for precision-hunt baselines that want to A/B SIMD vs scalar without
+     * changing the JVM module flags.
+     */
+    static final boolean ENABLED = detect() && !"false".equalsIgnoreCase(System.getProperty("entity.simd", "true"));
 
     private static boolean detect() {
         try {
