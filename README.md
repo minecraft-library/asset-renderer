@@ -20,6 +20,7 @@ Headless rendering library for Minecraft blocks, items, entities, fluids, and po
   - [JMH Benchmarks](#jmh-benchmarks)
 - [Package Structure](#package-structure)
 - [Bundled Resources](#bundled-resources)
+- [Parity Testing](#parity-testing)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -245,11 +246,9 @@ asset-renderer/
 | File | Purpose |
 |------|---------|
 | `block_entities.json` | Block-entity model metadata (chest, sign, bed, etc.) |
-| `block_entities_overrides.json` | Hand-curated fixes on top of the ASM scan |
 | `block_tints.json` | Block-colour tint hooks extracted from `BlockColors` |
 | `color_maps.json` | Grass/foliage/water biome tint maps |
 | `entity_models.json` + `entity_geometry.json` | Vanilla-client-derived entity geometry |
-| `entity_models_overrides.json` | Hand-curated overrides applied on top of the geometry scan |
 | `potion_colors.json` | Vanilla `MobEffects` colour values |
 
 > [!NOTE]
@@ -264,6 +263,24 @@ Created during execution and excluded from version control:
 | `cache/` | Client JARs, extracted assets, test-render output |
 | `texturepacks/` | User-supplied overlay packs discovered by `TexturePackLoader` |
 | `build/` | Gradle outputs and `atlas` task products |
+
+## Parity Testing
+
+The Java entity-rendering pipeline is validated against pixel-perfect ground-truth renders driven by the sibling [vanilla-reference-harness] - a headless Fabric mod that drives the actual MC client to render every block and every living entity (with variants) at a locked iso pose. The output PNGs land under `cache/asset-renderer/vanilla/<mc-version>/references/{blocks,entities}/`; `TestEntityParityVanilla` diffs the asset-renderer pipeline output against them and groups results into delta buckets (`<0.25 / <0.5 / <0.75 / <1` per-pixel mean ARGB).
+
+Run a single-entity parity check:
+```bash
+./gradlew entityParityVanilla -PentityId=minecraft:zombie
+```
+
+Re-render ground truth (only needed on MC version bumps or harness fixes):
+```bash
+./gradlew renderVanillaReferences
+```
+
+See `CLAUDE.md` for the parity / harness session-refresh checklist and per-renderer override gotchas.
+
+[vanilla-reference-harness]: https://github.com/minecraft-library/vanilla-reference-harness
 
 ## Contributing
 
