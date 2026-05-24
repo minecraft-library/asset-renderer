@@ -1,14 +1,5 @@
 package lib.minecraft.refharness;
 
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
-
 import com.mojang.blaze3d.platform.Lighting.Entry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -28,6 +19,15 @@ import net.minecraft.world.entity.MobCategory;
 import org.joml.Quaternionf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Tick-driven entity sweep. Each iteration:
@@ -123,9 +123,15 @@ public final class EntitySweeper implements AutoCloseable {
      * Add an entry here only when two distinct {@code EntityType} values should visually
      * group. Other candidates if vanilla adds them: {@code zombified_piglin → piglin},
      * {@code wither_skeleton → skeleton}, {@code husk → zombie}.
+     * <p>
+     * {@code STRAY → SKELETON} mirrors the asset-renderer's auto-detected cross-entity family
+     * (shared {@code geometry.skeleton}): the Java pipeline canvas-fits skeleton with stray's
+     * inflated clothing-layer overlay, so the harness must apply the same union to keep
+     * skeleton's reference PNG at the same canvas dimensions as stray's.
      */
     private static final Map<EntityType<?>, EntityType<?>> FAMILY_OVERRIDES = Map.of(
-        EntityType.MOOSHROOM, EntityType.COW
+        EntityType.MOOSHROOM, EntityType.COW,
+        EntityType.STRAY, EntityType.SKELETON
     );
 
     /**
