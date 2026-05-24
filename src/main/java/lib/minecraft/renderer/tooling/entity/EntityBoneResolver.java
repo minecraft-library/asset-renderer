@@ -45,11 +45,12 @@ import java.util.Set;
  *       {@code IllagerModel}'s hat hide) and subtracts those from the hidden set.</li>
  * </ul>
  *
- * <p>The layer-scan output drives {@code addLayer}-style overlay enumeration (Phase B) and
- * the hidden-bone output drives the {@code hidden_bones} array in {@code entity_models.json}
- * (Phase D). Both run per-entity but at different timings - the layer scan runs as part of
- * the per-entity {@link EntitySessionWalk}, while the hidden-bone resolution waits until
- * after Phase C (geometry parse) produces the model class for the entity.
+ * <p>The layer-scan output drives {@code addLayer}-style overlay enumeration during the
+ * per-entity binding walk, and the hidden-bone output drives the {@code hidden_bones} array
+ * in {@code entity_models.json} during emission. Both run per-entity but at different timings
+ * - the layer scan runs as part of the per-entity {@link EntitySessionWalk}, while the
+ * hidden-bone resolution waits until geometry parsing produces the model class for the
+ * entity.
  */
 @UtilityClass
 public final class EntityBoneResolver {
@@ -94,8 +95,7 @@ public final class EntityBoneResolver {
      *
      * @param classNodes the ClassNode cache (shared with sibling resolver walks)
      * @param modelClassInternal the model class's JVM internal name (typically the
-     *     {@code factory_class} field on the Phase-C {@code EntityLayerDefinitionResolver}
-     *     resolution)
+     *     {@code factory_class} field on the {@link EntityLayerDefinitionResolver} resolution)
      * @param rendererClassInternal the renderer class's JVM internal name; consulted for
      *     constructor {@code visible = true} re-enables that override an ancestor model's
      *     hide ({@code IllusionerRenderer} pattern)

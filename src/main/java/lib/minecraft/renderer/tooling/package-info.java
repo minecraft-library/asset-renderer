@@ -70,8 +70,8 @@
  *       {@link YAxis YAxis} convention helper round
  *       out the discovery surface.</li>
  *   <li>{@link lib.minecraft.renderer.tooling.entity entity} - the Java-derived entity-model
- *       pipeline phases A-D, orchestrated by
- *       {@link lib.minecraft.renderer.tooling.entity.ToolingEntityContext ToolingEntityContext}
+ *       pipeline (discovery, per-entity binding, geometry parse, emission), orchestrated by
+ *       {@link lib.minecraft.renderer.tooling.entity.EntityToolingContext EntityToolingContext}
  *       and the per-entity
  *       {@link lib.minecraft.renderer.tooling.entity.EntitySessionWalk EntitySessionWalk}:
  *       {@link EntityRegistryDiscovery mob + renderer registry},

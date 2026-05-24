@@ -10,17 +10,17 @@ import org.jetbrains.annotations.Nullable;
 import java.util.zip.ZipFile;
 
 /**
- * Per-entity walker that fans every Phase-B resolver out over a single
+ * Per-entity walker that fans every binding-stage resolver out over a single
  * {@link EntityRegistryDiscovery.Result.Entry} and folds the per-entity outputs into one
  * {@link Result} record. Owns the per-entity orchestration so
  * {@link lib.minecraft.renderer.tooling.ToolingEntityModels#main(String[])} keeps to a
  * single loop over registry entries.
  *
  * <p>The walk sequence: texture binding ({@link EntityTextureResolver}) - variant-default
- * enum lookup ({@link EntityVariantDefaultResolver}) - class-bytes fallback - overlay
- * layer scan ({@link EntityBoneResolver}) - variant-stem decision - renderer overrides
- * ({@link EntityRendererOverrides}). Each step's output lands in one field on the returned
- * {@link Result}.
+ * enum lookup ({@link EntityVariantResolver#resolveEnumDefault}) - class-bytes fallback -
+ * overlay layer scan ({@link EntityBoneResolver}) - variant-stem decision - renderer
+ * overrides ({@link EntityRendererOverrides}). Each step's output lands in one field on the
+ * returned {@link Result}.
  *
  * <p>Stateless per-walk: one instance binds the context + registry entry + variant tables,
  * then {@link #walk()} runs the full per-entity sequence and returns the {@link Result}.
@@ -35,12 +35,12 @@ public final class EntitySessionWalk {
      */
     private static final @NotNull String MINECRAFT_NAMESPACE = "minecraft:";
 
-    private final @NotNull ToolingEntityContext context;
+    private final @NotNull EntityToolingContext context;
     private final @NotNull EntityRegistryDiscovery.Result.Entry registryEntry;
     private final @NotNull ConcurrentMap<String, ConcurrentList<EntityVariantResolver.Result>> variantTables;
 
     /**
-     * Per-entity output bundling every Phase-B resolver's result for one entity.
+     * Per-entity output bundling every binding-stage resolver's result for one entity.
      *
      * @param entityId the namespaced id, e.g. {@code "minecraft:zombie"}
      * @param entityFieldName the {@code EntityType} static field name, e.g. {@code "ZOMBIE"}

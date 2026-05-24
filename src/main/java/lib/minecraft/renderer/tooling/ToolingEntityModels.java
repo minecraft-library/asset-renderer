@@ -42,13 +42,13 @@ import java.util.Set;
  *       method. Entities that share a factory point at the same geometry entry.</li>
  * </ul>
  *
- * <p><b>Pipeline phases.</b> Each phase narrows to one resolver in
+ * <p><b>Pipeline stages.</b> Each stage narrows to one resolver in
  * {@link lib.minecraft.renderer.tooling.entity}:
  * <ol>
- *   <li><b>Phase A - mob discovery</b>
- *       ({@link EntityRegistryDiscovery}). Map every living mob
+ *   <li><b>Mob discovery</b>
+ *       ({@link EntityRegistryDiscovery}). Maps every living mob
  *       to its registered renderer class.</li>
- *   <li><b>Phase B - per-renderer binding</b>
+ *   <li><b>Per-renderer binding</b>
  *       ({@link EntitySessionWalk} orchestrates per entity, fanning out to
  *       {@link EntityTextureResolver}, {@link EntityVariantResolver},
  *       {@link EntityBoneResolver}, {@link EntityRendererOverrides}). Texture references
@@ -56,12 +56,12 @@ import java.util.Set;
  *       {@code data/minecraft/X_variant/}, the overlay enumeration from
  *       {@code addLayer(...)} call sites, and renderer-override extraction
  *       (setupRotations yaw addend + scale residue).</li>
- *   <li><b>Phase C - geometry parse</b>
+ *   <li><b>Geometry parse</b>
  *       ({@link EntityLayerDefinitionResolver}). Walks the {@code LayerDefinition}-returning
  *       factory; procedural-loop entity bodies (squid / blaze / ghast / silverfish / endermite
  *       / slime families) are folded by the shared
  *       {@link lib.minecraft.renderer.tooling.parser.GeometryParser} at parse time.</li>
- *   <li><b>Phase D - overlay resolution + emission</b>
+ *   <li><b>Overlay resolution + emission</b>
  *       ({@link EntityOverlayResolver}, {@link EntityBlockOverlayResolver},
  *       {@link EntityRuntimeJsonWriter}). Resolves overlay rows and emits the runtime JSON
  *       {@link EntityRenderer EntityRenderer} consumes (cross-entity family clustering folded
@@ -94,7 +94,7 @@ public final class ToolingEntityModels {
         System.out.println("Downloading Minecraft client jar...");
         Path clientJar = Pipeline.downloadJarToCache(options);
 
-        try (ToolingEntityContext context = ToolingEntityContext.of(clientJar, options)) {
+        try (EntityToolingContext context = EntityToolingContext.of(clientJar, options)) {
             Diagnostics diagnostics = context.diagnostics();
             EntityRegistryDiscovery.Result registry = EntityRegistryDiscovery.discover(context);
             System.out.println("Discovered " + registry.totalMobsDiscovered() + " living-mob entity types");
@@ -105,7 +105,7 @@ public final class ToolingEntityModels {
             // that adds a new state-overlay suffix surfaces here instead of as a silent
             // fallback-binding regression.
             EntityTextureResolver.auditNonBaseSuffixes(context);
-            // Field-keyed view of the registry so the Phase-C variant-enumeration loop can
+            // Field-keyed view of the registry so the geometry-stage variant-enumeration loop can
             // pull each entity's lambdaLayerFields / lambdaTypeArgs from a single map lookup
             // rather than re-walking the registry list.
             Map<String, EntityRegistryDiscovery.Result.Entry> registryByField = new LinkedHashMap<>();
@@ -121,7 +121,7 @@ public final class ToolingEntityModels {
                 EntityVariantResolver.loadDataDrivenDefaults(context, diagnostics);
             System.out.println("Canonical data-variant defaults: " + dataVariantDefaults);
 
-            // Per-mob Phase-B fan-out: EntitySessionWalk runs the texture / variant /
+            // Per-mob binding fan-out: EntitySessionWalk runs the texture / variant /
             // bone-layer / renderer-overrides resolvers per entity and returns one Result;
             // this loop just records each Result and accumulates the texture-coverage
             // stats for the diagnostic line below.
@@ -139,13 +139,13 @@ public final class ToolingEntityModels {
                 else unresolvedTexture++;
             }
 
-            Path phaseAbOut = EntityDiagnosticsWriter.writePhaseAB(
+            Path discoveryDiagOut = EntityDiagnosticsWriter.writeDiscoveryDiagnostic(
                 options, registry, records, variants,
                 withPrimaryTexture, variantDriven, unresolvedTexture, diagnostics
             );
-            System.out.println("Wrote " + phaseAbOut);
+            System.out.println("Wrote " + discoveryDiagOut);
 
-            // Phase C: per-mob geometry extraction. Resolve each renderer's primary
+            // Per-mob geometry extraction. Resolve each renderer's primary
             // ModelLayers.X via LayerDefinitions.createRoots, build synthetic Sources, and
             // delegate to the shared GeometryParser - the bytecode patterns
             // (LayerDefinition.create / CubeListBuilder / PartPose / addOrReplaceChild) are
@@ -332,16 +332,16 @@ public final class ToolingEntityModels {
             ConcurrentMap<String, JsonObject> geometries = GeometryParser.parse(clientJar, sources, diagnostics);
             System.out.println("Parsed geometry for " + geometries.size() + " entities + overlays");
 
-            Path phaseCOut = EntityDiagnosticsWriter.writePhaseC(
+            Path geometryDiagOut = EntityDiagnosticsWriter.writeGeometryDiagnostic(
                 options, registry.totalMobsDiscovered(), records.size(), entityToResolution, geometries, diagnostics
             );
-            System.out.println("Wrote " + phaseCOut);
+            System.out.println("Wrote " + geometryDiagOut);
 
-            // Phase D: emit the runtime-consumable JSONs in the EntityModelLoader-expected
+            // Emit the runtime-consumable JSONs in the EntityModelLoader-expected
             // shape. entity_geometry.json carries one entry per unique factory (deduplicated
             // when multiple entities share a createBodyLayer); entity_models.json carries
             // per-entity rows pointing into the geometry table plus optional variant rows
-            // emitted from the data-driven variant tables loaded in Phase B.
+            // emitted from the data-driven variant tables loaded during binding.
             int variantRowsEmitted = EntityRuntimeJsonWriter.writeAll(
                 context, records, entityToResolution, geometries, variants, diagnostics,
                 overlaysByEntity, overlayFieldToResolution, dataVariantDefaults,

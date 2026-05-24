@@ -27,7 +27,7 @@ import java.util.Map;
  * The geometry file deduplicates by factory class+method so multiple entities sharing one
  * {@code createBodyLayer} (e.g. zombie / husk / drowned all point at the same
  * {@code AbstractZombieRenderer} chain) share one geometry entry. The models file emits one
- * row per Phase-A entity plus additional rows per non-default data-driven variant
+ * row per discovered entity plus additional rows per non-default data-driven variant
  * (cow_cold / cow_warm / pig_cold / etc.), each carrying {@code variant_of} pointing back at
  * its base entity.
  *
@@ -41,7 +41,7 @@ import java.util.Map;
 public final class EntityRuntimeJsonWriter {
 
     /**
-     * Phase-D runtime-consumable per-entity metadata path. Same shape as the legacy
+     * Runtime-consumable per-entity metadata path. Same shape as the legacy
      * {@code entity_models.json} but populated by the Java pipeline; loaded by
      * {@code EntityModelLoader} when {@code PipelineOptions.entityModelSource = JAVA}.
      */
@@ -49,7 +49,7 @@ public final class EntityRuntimeJsonWriter {
         Path.of("src/main/resources/lib/minecraft/renderer/entity_models.json");
 
     /**
-     * Phase-D runtime-consumable per-geometry bone/cube data path. Same shape as the legacy
+     * Runtime-consumable per-geometry bone/cube data path. Same shape as the legacy
      * {@code entity_geometry.json}; one geometry entry per unique factory method,
      * deduplicated when multiple entities share the same {@code createBodyLayer}.
      */
@@ -69,7 +69,7 @@ public final class EntityRuntimeJsonWriter {
      * to base-entity rows) for the caller's summary line.
      */
     public static int writeAll(
-        @NotNull ToolingEntityContext context,
+        @NotNull EntityToolingContext context,
         @NotNull Map<String, EntitySessionWalk.Result> records,
         @NotNull ConcurrentMap<String, EntityLayerDefinitionResolver.Result> entityToResolution,
         @NotNull ConcurrentMap<String, JsonObject> geometries,

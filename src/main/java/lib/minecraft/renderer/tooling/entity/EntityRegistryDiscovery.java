@@ -82,7 +82,7 @@ public final class EntityRegistryDiscovery {
     );
 
     /**
-     * Bundle returned by {@link #discover(ToolingEntityContext)} carrying the joined per-entity
+     * Bundle returned by {@link #discover(EntityToolingContext)} carrying the joined per-entity
      * entries plus auxiliary stats consumed by the diagnostics writer.
      *
      * @param entries one {@link Entry} per mob that has a matching renderer registration, in
@@ -151,7 +151,7 @@ public final class EntityRegistryDiscovery {
      * @param context the tooling context carrying the open jar, ClassNode cache, and diagnostics sink
      * @return the joined entries plus auxiliary stats for the diagnostic JSON
      */
-    public static @NotNull Result discover(@NotNull ToolingEntityContext context) {
+    public static @NotNull Result discover(@NotNull EntityToolingContext context) {
         Diagnostics diagnostics = context.diagnostics();
 
         ClassNode entityType = AsmKit.requireClass(context.classNodes(), VanillaSourceClasses.ENTITY_TYPE, "EntityType");
@@ -284,7 +284,7 @@ public final class EntityRegistryDiscovery {
      * references seen in the lambda body.
      */
     private static @NotNull Map<String, RendererRegistration> collectRendererRegistrations(
-        @NotNull ToolingEntityContext context
+        @NotNull EntityToolingContext context
     ) {
         Diagnostics diagnostics = context.diagnostics();
         ClassNode registryClass = context.classNodes().load(VanillaSourceClasses.ENTITY_RENDERERS);

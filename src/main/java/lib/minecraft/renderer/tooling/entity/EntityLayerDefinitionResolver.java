@@ -2,10 +2,11 @@ package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.tooling.ToolingEntityModels;
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.util.ClassNodeCache;
-import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
+import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -28,7 +29,7 @@ import java.util.Map;
  * <ol>
  *   <li><b>Renderer constructor</b> -&gt; first {@code GETSTATIC ModelLayers.X} - the primary
  *       layer the renderer bakes via {@code context.bakeLayer(X)}. Subsequent layers
- *       (baby variants, armor model sets) are skipped at this phase since the entity's "main"
+ *       (baby variants, armor model sets) are skipped here since the entity's "main"
  *       geometry is the first one wired.</li>
  *   <li><b>{@code LayerDefinitions.createRoots}</b> map - resolves {@code ModelLayers.X} to a
  *       {@code (class, method, descriptor)} target via {@code Builder.put(X, factoryCall)}.
@@ -219,7 +220,7 @@ public final class EntityLayerDefinitionResolver {
      * @param additionalLayerFields extra {@code ModelLayers.X} field names harvested from lambda
      *     bodies that the constructor walk would otherwise miss
      * @param layerDefinitions the precomputed {@code (ModelLayers.X field name -&gt; Result)}
-     *     map from {@link #loadLayerDefinitions(ToolingEntityContext, Diagnostics)}
+     *     map from {@link #loadLayerDefinitions(ClassNodeCache, Diagnostics)} )}
      * @param diagnostics the diagnostic sink shared with sibling discovery walks
      * @return the primary layer's resolution, or {@code null} when unresolvable
      */
@@ -290,7 +291,7 @@ public final class EntityLayerDefinitionResolver {
             if (!isVariantSuffixed(field)) return field;
         }
         // Fallback: first field in encounter order.
-        return candidates.iterator().next();
+        return candidates.getFirst();
     }
 
     /**

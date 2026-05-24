@@ -40,7 +40,7 @@ public final class ClassNodeCache {
 
     /**
      * Constructs a cache bound to {@code zip}. The cache holds the handle for its lifetime;
-     * the jar is closed by the owner (typically {@link lib.minecraft.renderer.tooling.entity.ToolingEntityContext}),
+     * the jar is closed by the owner (typically {@link lib.minecraft.renderer.tooling.entity.EntityToolingContext}),
      * not by the cache.
      *
      * @param zip the jar to load classes from on cache miss

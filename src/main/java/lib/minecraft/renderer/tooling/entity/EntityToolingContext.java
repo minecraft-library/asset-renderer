@@ -31,7 +31,7 @@ import java.util.zip.ZipFile;
 @Getter
 @Accessors(fluent = true)
 @RequiredArgsConstructor
-public final class ToolingEntityContext implements AutoCloseable {
+public final class EntityToolingContext implements AutoCloseable {
 
     private final @NotNull Path clientJar;
     private final @NotNull PipelineOptions options;
@@ -49,10 +49,10 @@ public final class ToolingEntityContext implements AutoCloseable {
      *     {@link ClassNodeCache}
      * @throws ToolingException if the jar cannot be opened
      */
-    public static @NotNull ToolingEntityContext of(@NotNull Path clientJar, @NotNull PipelineOptions options) {
+    public static @NotNull EntityToolingContext of(@NotNull Path clientJar, @NotNull PipelineOptions options) {
         try {
             ZipFile zip = new ZipFile(clientJar.toFile());
-            return new ToolingEntityContext(clientJar, options, zip, new ClassNodeCache(zip), new Diagnostics());
+            return new EntityToolingContext(clientJar, options, zip, new ClassNodeCache(zip), new Diagnostics());
         } catch (IOException ex) {
             throw new ToolingException(ex, "Failed to open client jar '%s'", clientJar);
         }

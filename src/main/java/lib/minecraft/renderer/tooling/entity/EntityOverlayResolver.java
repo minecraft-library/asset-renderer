@@ -233,7 +233,7 @@ public final class EntityOverlayResolver {
             // for the trader_llama entity-id - that's the only vanilla case with a hardcoded
             // default-equipment ResourceKey. Deriving the per-entity equipment default from
             // entity-class bytecode (TraderLlama.<init> -> ItemStack with TRADER_LLAMA asset) is
-            // deferred to a later phase; using the entity-id check here is defensible because
+            // deferred for now; using the entity-id check here is defensible because
             // entity_id itself is bytecode-derived (EntityType registry walk).
             //
             // Texture composition: walk LlamaDecorLayer for the EquipmentClientInfo$LayerType

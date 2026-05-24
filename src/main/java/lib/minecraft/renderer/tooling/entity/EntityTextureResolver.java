@@ -793,7 +793,7 @@ public final class EntityTextureResolver {
      * @return the union of the hardcoded set and the derived set (currently equal to the
      *     hardcoded set on vanilla 1.21.X; future MC versions may add to it)
      */
-    public static @NotNull Set<String> auditNonBaseSuffixes(@NotNull ToolingEntityContext context) {
+    public static @NotNull Set<String> auditNonBaseSuffixes(@NotNull EntityToolingContext context) {
         Set<String> stems = collectEntityTextureStems(context);
         Set<String> derived = findRecurringStateSuffixes(stems, 2);
 
@@ -823,7 +823,7 @@ public final class EntityTextureResolver {
      * Walks {@code assets/minecraft/textures/entity/*.png} and returns the stem of each PNG
      * (path relative to {@code textures/entity/}, no extension).
      */
-    private static @NotNull Set<String> collectEntityTextureStems(@NotNull ToolingEntityContext context) {
+    private static @NotNull Set<String> collectEntityTextureStems(@NotNull EntityToolingContext context) {
         ZipFile zip = context.zip();
         Set<String> out = new LinkedHashSet<>();
         String prefix = "assets/minecraft/textures/entity/";

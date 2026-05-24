@@ -202,7 +202,7 @@ public final class SourceDiscovery {
      * notes surface as info entries.
      *
      * @param zip the cached deobfuscated Minecraft client jar
-     * @param diag the diagnostic sink shared across discovery phases
+     * @param diag the diagnostic sink shared across discovery passes
      * @return the discovered sources in emission order (registry iteration order, with a final
      *     deterministic sort by entity id so repeated runs produce byte-identical output)
      */

@@ -174,7 +174,7 @@ public final class EntityVariantResolver {
      * @return variant stem -&gt; ordered variant list
      */
     public static @NotNull ConcurrentMap<String, ConcurrentList<Result>> loadAll(
-        @NotNull ToolingEntityContext context,
+        @NotNull EntityToolingContext context,
         @NotNull Diagnostics diagnostics
     ) {
         ZipFile zip = context.zip();
@@ -222,7 +222,7 @@ public final class EntityVariantResolver {
      * when the jar ships no holder classes.
      */
     public static @NotNull ConcurrentMap<String, String> loadDataDrivenDefaults(
-        @NotNull ToolingEntityContext context,
+        @NotNull EntityToolingContext context,
         @NotNull Diagnostics diagnostics
     ) {
         ZipFile zip = context.zip();
@@ -259,7 +259,7 @@ public final class EntityVariantResolver {
      *     variant exists in the directory
      */
     public static @Nullable String findAlphaFirstUnconditionalVariantId(
-        @NotNull ToolingEntityContext context,
+        @NotNull EntityToolingContext context,
         @NotNull String variantStem,
         @NotNull Diagnostics diagnostics
     ) {
