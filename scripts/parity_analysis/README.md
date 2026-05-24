@@ -1,6 +1,6 @@
 # scripts/parity_analysis
 
-Throwaway tooling used during the Java-pipeline parity push. Self-contained; reads
+Developer tooling for the Java-pipeline parity work. Self-contained; reads
 asset-renderer's local `cache/visual/entity-parity-vanilla/<entity>/*.png` output
 and writes summaries that drive per-entity remediation decisions.
 
@@ -9,7 +9,9 @@ and writes summaries that drive per-entity remediation decisions.
 - `analyze_diff_panels.py` - walks every entity dir under
   `cache/visual/entity-parity-vanilla/`, re-derives the signed/abs/coverage metrics
   pixel-by-pixel (does NOT parse the panel image's footer text), and emits
-  `out/diff_summary.json`, `out/diff_ranking.tsv`, `out/clusters.json`.
+  `cache/parity_analysis/diff_summary.json`,
+  `cache/parity_analysis/diff_ranking.tsv`,
+  `cache/parity_analysis/clusters.json`.
 
 ## Run
 
@@ -19,8 +21,11 @@ python scripts/parity_analysis/analyze_diff_panels.py
 # or with custom roots
 python scripts/parity_analysis/analyze_diff_panels.py \
     --root cache/visual/entity-parity-vanilla \
-    --out scripts/parity_analysis/out
+    --out cache/parity_analysis
 ```
+
+Output lands under `cache/parity_analysis/` (gitignored along with the rest of
+`cache/`).
 
 Requires Pillow:
 

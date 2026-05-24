@@ -22,12 +22,12 @@ input, sized vanilla.w x vanilla.h; the panel pads them up to a common cellW x c
 
 Usage:
     python analyze_diff_panels.py [--root cache/visual/entity-parity-vanilla]
-                                  [--out scripts/parity_analysis/out]
+                                  [--out cache/parity_analysis]
 
-Writes:
-    out/diff_summary.json        - per-entity metrics + classification
-    out/diff_ranking.tsv         - sorted by severity (mean |delta| desc)
-    out/clusters.json            - grouped by primary failure signature
+Writes (under --out):
+    diff_summary.json        - per-entity metrics + classification
+    diff_ranking.tsv         - sorted by severity (mean |delta| desc)
+    clusters.json            - grouped by primary failure signature
 """
 
 from __future__ import annotations
@@ -283,7 +283,7 @@ def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default="cache/visual/entity-parity-vanilla",
                     help="Folder containing one subdir per entity")
-    ap.add_argument("--out", default="scripts/parity_analysis/out",
+    ap.add_argument("--out", default="cache/parity_analysis",
                     help="Output folder for JSON + TSV")
     args = ap.parse_args(argv)
 

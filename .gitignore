@@ -131,8 +131,8 @@ src/main/resources/**/entity_geometry.upstream.json
 # (vanilla-render-mod plan, etc.) live here.
 notes/
 
-# Parity analysis output is regenerated from cache/ — keep scripts, drop outputs.
-scripts/parity_analysis/out/
+# Parity analysis Python bytecode (outputs land under cache/parity_analysis/, covered
+# by the cache/ ignore above).
 scripts/**/__pycache__/
 
 # JMH scratch outputs (baseline + per-phase results from the Pineda rasterizer
