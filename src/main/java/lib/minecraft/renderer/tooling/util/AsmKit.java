@@ -1322,7 +1322,9 @@ public final class AsmKit {
         for (AbstractInsnNode cursor = putstatic.getPrevious(); cursor != null; cursor = cursor.getPrevious()) {
             if (isPseudoNode(cursor)) continue;
             if (cursor instanceof IntInsnNode intInsn && intInsn.getOpcode() == Opcodes.NEWARRAY && intInsn.operand == newArrayOperand) {
-                Integer length = readIntLiteral(previousReal(cursor));
+                AbstractInsnNode lenNode = previousReal(cursor);
+                if (lenNode == null) return null;
+                Integer length = readIntLiteral(lenNode);
                 if (length == null || length < 0) return null;
                 return new PrimitiveNewArray(cursor, length);
             }
