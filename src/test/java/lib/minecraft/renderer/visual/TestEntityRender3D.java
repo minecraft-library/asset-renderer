@@ -83,6 +83,7 @@ public final class TestEntityRender3D {
             EntityOptions options = EntityOptions.builder()
                 .entityId(Optional.of(entityId))
                 .outputSize(size)
+                .supersample(2)
                 .antiAlias(true)
                 .build();
 

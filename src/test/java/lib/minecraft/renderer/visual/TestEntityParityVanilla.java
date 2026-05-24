@@ -153,7 +153,7 @@ public final class TestEntityParityVanilla {
 
                 EntityOptions options = EntityOptions.builder()
                     .entityId(Optional.of(entityId))
-                    .antiAlias(false)
+                    .fitMode(EntityOptions.FitMode.FAMILY_BOUNDS)
                     .build();
                 ImageData java;
                 lib.minecraft.renderer.pipeline.util.RendererDebug.beginPerEntityBoundsDump(entityId);
