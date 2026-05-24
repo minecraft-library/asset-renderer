@@ -13,32 +13,40 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.state.BlockState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Tick-driven block sweep. Each iteration:
+ * Tick-driven block sweep. Per block:
  * <ol>
- *   <li>Resolves the block's default {@link ItemStack} via {@link Block#asItem}.</li>
- *   <li>Renders it through {@link ItemFrameRenderer} - the same pipeline vanilla uses
- *       to draw inventory icons (GUI display transform {@code [30, 225, 0]} +
- *       {@code Lighting.Entry#ITEMS_3D ITEMS_3D} lighting + per-feature dispatch to an
- *       offscreen RGBA8 texture).</li>
- *   <li>Writes the texture to PNG.</li>
+ *   <li><b>Plain blocks</b> render through {@link BlockFrameRenderer} - the vanilla block-model
+ *       rendering pipeline ({@code SubmitNodeStorage.submitBlockModel}) at the standard iso
+ *       {@code display.gui} pose ({@code [30, 225, 0]} + scale {@code 0.625}) under
+ *       {@link com.mojang.blaze3d.platform.Lighting.Entry#ITEMS_3D ITEMS_3D} lighting. This
+ *       bypasses the item-model dispatch, so blocks whose item model uses
+ *       {@code item/generated} as a parent (rails, vines, ladders, lily_pad, seagrass,
+ *       sculk_vein, doors, hanging signs) render as actual 3D geometry rather than the flat
+ *       2D billboard the inventory icon would show.</li>
+ *   <li><b>{@link EntityBlock} blocks</b> (chest, shulker_box, banner, sign, decorated_pot,
+ *       skull, bell, beacon, ...) render through {@link ItemFrameRenderer} - the vanilla GUI
+ *       inventory pipeline - because their visible geometry comes from a
+ *       {@code BlockEntityWithoutLevelRenderer}, not the static block model. The block-model
+ *       path would emit only a placeholder cube (or empty geometry), losing the per-entity
+ *       art.</li>
  * </ol>
  *
- * <p>Unlike the previous version, no block is ever placed in the world: there's no
- * camera dependency, no per-tick re-snap, no falling-block corner case, no support-block
- * rig. Block-entity renderers (chest, sign, banner, ...) get the same shading the player
- * sees in their inventory because the {@code BlockEntityWithoutLevelRenderer} path runs
- * end-to-end exactly as it does in {@code GuiItemAtlas.drawToSlot}.
+ * <p>No block is ever placed in the world: there's no camera dependency, no per-tick
+ * re-snap, no falling-block corner case, no support-block rig.
  */
 public final class BlockSweeper implements AutoCloseable {
 
     private static final Logger LOG = LoggerFactory.getLogger("refharness");
 
     private final List<Block> targets;
-    private final ItemFrameRenderer frameRenderer;
+    private final BlockFrameRenderer blockRenderer;
+    private final ItemFrameRenderer entityBlockRenderer;
     private int index;
     private int rendered;
     private int skipped;
@@ -47,7 +55,8 @@ public final class BlockSweeper implements AutoCloseable {
 
     private BlockSweeper(List<Block> targets) {
         this.targets = targets;
-        this.frameRenderer = new ItemFrameRenderer();
+        this.blockRenderer = new BlockFrameRenderer();
+        this.entityBlockRenderer = new ItemFrameRenderer();
         this.index = 0;
     }
 
@@ -61,10 +70,8 @@ public final class BlockSweeper implements AutoCloseable {
         for (Holder.Reference<Block> holder : BuiltInRegistries.BLOCK.listElements().toList()) {
             Block block = holder.value();
             if (block == Blocks.AIR || block == Blocks.CAVE_AIR || block == Blocks.VOID_AIR) continue;
-            // Some blocks (technical ones like piston_head, moving_piston, fire) don't have
-            // an associated Item, so block.asItem() returns AIR. The PIP renderer needs an
-            // ItemStack so we filter these out at build time. They had no inventory icon to
-            // parity-match against anyway.
+            // Technical blocks (piston_head, moving_piston, fire, etc.) have no associated
+            // Item - skip them since the asset-renderer parity sweep keys on the item-form id.
             if (block.asItem() == net.minecraft.world.item.Items.AIR) { noItem++; continue; }
 
             String id = BuiltInRegistries.BLOCK.getKey(block).toString();
@@ -90,21 +97,26 @@ public final class BlockSweeper implements AutoCloseable {
         String safeName = id.getNamespace() + "__" + id.getPath();
         Path out = HarnessConfig.OUTPUT_DIR.resolve("blocks").resolve(safeName + ".png");
 
-        ItemStack stack = new ItemStack(block);
-        if (stack.isEmpty()) {
-            LOG.warn("BlockSweeper: empty stack for {}", id);
-            skipped++;
-        } else {
-            try {
-                frameRenderer.renderAndWrite(client, stack, HarnessConfig.IMAGE_SIZE, out);
+        try {
+            if (block instanceof EntityBlock) {
+                ItemStack stack = new ItemStack(block);
+                if (stack.isEmpty()) {
+                    LOG.warn("BlockSweeper: empty stack for entity-block {}", id);
+                    skipped++;
+                } else {
+                    entityBlockRenderer.renderAndWrite(client, stack, HarnessConfig.IMAGE_SIZE, out);
+                    rendered++;
+                }
+            } else {
+                blockRenderer.renderAndWrite(client, block.defaultBlockState(), HarnessConfig.IMAGE_SIZE, out);
                 rendered++;
-            } catch (IOException ex) {
-                LOG.error("BlockSweeper: PNG write failed for {}", id, ex);
-                failed++;
-            } catch (RuntimeException ex) {
-                LOG.error("BlockSweeper: GPU render failed for {}", id, ex);
-                failed++;
             }
+        } catch (IOException ex) {
+            LOG.error("BlockSweeper: PNG write failed for {}", id, ex);
+            failed++;
+        } catch (RuntimeException ex) {
+            LOG.error("BlockSweeper: GPU render failed for {}", id, ex);
+            failed++;
         }
         index++;
         if (index >= targets.size()) finish();
