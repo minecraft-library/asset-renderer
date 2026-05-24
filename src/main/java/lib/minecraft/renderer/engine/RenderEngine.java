@@ -45,6 +45,30 @@ import org.jetbrains.annotations.NotNull;
  */
 public interface RenderEngine {
 
+    // --- block-icon inventory lighting constants (vanilla Lighting.Entry.ITEMS_3D parity) ---
+
+    /**
+     * First {@code Lighting.Entry.ITEMS_3D} light direction, pre-rotated by vanilla's
+     * {@code item3DPose} chain so the dot product against a render-frame (post-PoseStack-Y-flip
+     * + post-display.gui-rotation) block face normal matches vanilla's GLSL fragment shader.
+     * <p>
+     * Vanilla source: {@code DIFFUSE_LIGHT_0 = normalize(0.2, 1, -0.7)} in model frame. Vanilla
+     * uploads {@code item3DPose × DIFFUSE_LIGHT_0} to the {@code Lighting} UBO at startup; the
+     * fragment shader then dot-products it against the post-pose surface normal coming out of
+     * the vertex shader's {@code pose.transformNormal} call. We replicate the same precomputation
+     * here so callers can apply the same dot against any normal already rotated through the
+     * block's {@code display.gui} pose. Vanilla source:
+     * {@code blaze3d/platform/Lighting.java} item3DPose chain.
+     */
+    Vector3f BLOCK_ITEMS_3D_LIGHT_0 = deriveItems3dLightKit(0.2f, 1.0f, -0.7f);
+
+    /**
+     * Second {@code Lighting.Entry.ITEMS_3D} light direction; pre-rotated by the same
+     * {@code item3DPose} chain as {@link #BLOCK_ITEMS_3D_LIGHT_0} from vanilla's
+     * {@code DIFFUSE_LIGHT_1 = normalize(-0.2, 1, 0.7)}.
+     */
+    Vector3f BLOCK_ITEMS_3D_LIGHT_1 = deriveItems3dLightKit(-0.2f, 1.0f, 0.7f);
+
     // --- entity inventory lighting constants (vanilla Lighting.ENTITY_IN_UI parity) ---
 
     /**
@@ -213,6 +237,60 @@ public interface RenderEngine {
     static float computeEntityInUiLighting(@NotNull Vector3f normal) {
         float dot0 = Math.max(0f, Vector3f.dot(ENTITY_IN_UI_LIGHT_0, normal));
         float dot1 = Math.max(0f, Vector3f.dot(ENTITY_IN_UI_LIGHT_1, normal));
+        return Math.min(1f, (dot0 + dot1) * MINECRAFT_LIGHT_POWER + MINECRAFT_AMBIENT_LIGHT);
+    }
+
+    // --- block-icon inventory lighting (vanilla Lighting.Entry.ITEMS_3D parity) ---
+
+    /**
+     * Derives a render-frame light direction from a vanilla model-frame
+     * {@code DIFFUSE_LIGHT_N = normalize(x, y, z)} literal by applying vanilla's
+     * {@code item3DPose} chain - the matrix vanilla uses to pre-rotate the ITEMS_3D lights into
+     * the GUI-icon render frame before uploading them to the {@code Lighting} UBO.
+     * <p>
+     * Vanilla chain ({@code blaze3d/platform/Lighting.java}):
+     * <pre>
+     * item3DPose = scaling(1, -1, 1)
+     *   × rotateYXZ(1.0821041, 3.2375858, 0)
+     *   × rotateYXZ(-pi/8, 3pi/4, 0)
+     * </pre>
+     * Built here via fluent ops in the same chain order so the float math agrees with vanilla's
+     * JOML composition. The result is dotted by callers against post-pose-stack block face
+     * normals (model normal × PoseStack-Y-flip × {@code display.gui} rotation) to give vanilla's
+     * GLSL fragment-shader output for the block iso icon.
+     */
+    private static @NotNull Vector3f deriveItems3dLightKit(float modelX, float modelY, float modelZ) {
+        Vector3f lModel = Vector3f.normalize(new Vector3f(modelX, modelY, modelZ));
+        // JOML's rotateYXZ(y, x, z) = post-multiply by Ry × Rx × Rz. Z is zero in both calls so
+        // we drop those identity Rz factors.
+        Matrix4f pose = Matrix4f.IDENTITY
+            .scale(1f, -1f, 1f)
+            .rotate(Quaternionf.rotationXYZ(0f, 1.0821041f, 0f))
+            .rotate(Quaternionf.rotationXYZ(3.2375858f, 0f, 0f))
+            .rotate(Quaternionf.rotationXYZ(0f, (float) (-Math.PI / 8), 0f))
+            .rotate(Quaternionf.rotationXYZ((float) (3 * Math.PI / 4), 0f, 0f));
+        return Vector3f.normalize(Vector3f.transformNormal(lModel, pose));
+    }
+
+    /**
+     * Computes the dual-directional Lambertian shade factor for a render-frame surface normal
+     * under vanilla's {@code Lighting.Entry#ITEMS_3D} entry - the lighting setup used for the
+     * block-in-inventory icon. Implements vanilla's
+     * {@code light.glsl#minecraft_mix_light_separate} verbatim with the
+     * {@link #BLOCK_ITEMS_3D_LIGHT_0} / {@link #BLOCK_ITEMS_3D_LIGHT_1} pre-rotated lights.
+     * <p>
+     * The {@code normal} argument must already be in render frame - rotated through the
+     * block's {@code display.gui} pose and Y-flipped to match vanilla's PoseStack
+     * {@code scale(W, -H, W)}. Callers in {@link lib.minecraft.renderer.BlockRenderer
+     * BlockRenderer.Isometric3D} compose this transform with the block's per-model gui rotation
+     * before calling.
+     *
+     * @param normal the render-frame surface normal (should be normalized)
+     * @return the shade factor in {@code [0.4, 1.0]} - never below ambient, never above unity
+     */
+    static float computeBlockItems3dLighting(@NotNull Vector3f normal) {
+        float dot0 = Math.max(0f, Vector3f.dot(BLOCK_ITEMS_3D_LIGHT_0, normal));
+        float dot1 = Math.max(0f, Vector3f.dot(BLOCK_ITEMS_3D_LIGHT_1, normal));
         return Math.min(1f, (dot0 + dot1) * MINECRAFT_LIGHT_POWER + MINECRAFT_AMBIENT_LIGHT);
     }
 

@@ -30,6 +30,7 @@ import lib.minecraft.renderer.kit.BlockGeometryKit;
 import lib.minecraft.renderer.options.BlockOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockEntityLoader;
 import lib.minecraft.renderer.tensor.Matrix4f;
+import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -132,7 +133,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // default [30, 225, 0], etc.) lives in the engine's camera transform; the user's
             // pitch/yaw/roll go through the standard rasterize path. This matches vanilla's
             // PoseStack.mulPose(Quaternionf.rotationXYZ(gui.rotation)) exactly.
-            IsometricEngine engine = engineForBlockIcon(this.context, block);
+            EulerRotation guiRotation = resolveGuiRotation(block);
+            IsometricEngine engine = IsometricEngine.withGuiPose(this.context, guiRotation);
 
             // Block-entity mappings may supply a per-entry tint that overrides the block's
             // biome / constant tint. Used for banners: vanilla resolves DyeColor via
@@ -207,6 +209,15 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // pitcher_crop_top_stage_*, redstone_dust, coral_fan, brewing_stand_bottle2, etc.
             if (triangles.isEmpty())
                 triangles = tryFirstBlockstateApply(block, tint, untintedTint);
+
+            // Replace BlockGeometryKit's cardinal-bucket shading (1.0/0.8/0.6/0.5 lookup) with
+            // vanilla's Lighting.ITEMS_3D Lambertian on the post-display.gui normal. Vanilla
+            // 26.1 dropped per-face cardinal multiplication from the GUI inventory render path
+            // entirely - the shader's only lighting input is two directional dot products. The
+            // resulting shade is continuous in the surface normal so face-rotated geometry
+            // (stairs corners, slab edges, fence posts) gets per-quad lighting that matches
+            // the harness PNGs instead of bucketing to the closest cardinal's pre-baked value.
+            triangles = relightForItems3d(triangles, guiRotation);
 
             int ssaa = Math.max(1, options.getSupersample());
             if (ssaa > 1) {
@@ -610,16 +621,55 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         }
 
         /**
-         * Returns an {@link IsometricEngine} whose camera reflects the block's own
-         * {@code display.gui} rotation. Falls back to the standard {@code [30, 225, 0]} from
-         * {@code block/block.json} when the block doesn't supply its own gui transform, matching
-         * vanilla's inheritance behaviour - stairs ship {@code [30, 135, 0]}, slabs and fence
-         * gates override too.
+         * Resolves the block's own {@code display.gui} rotation. Falls back to the standard
+         * {@code [30, 225, 0]} from {@code block/block.json} when the block doesn't supply its
+         * own gui transform, matching vanilla's inheritance behaviour - stairs ship
+         * {@code [30, 135, 0]}, slabs and fence gates override too. Drives both the iso
+         * camera matrix and the post-pose normal transform used in {@link #relightForItems3d}.
          */
-        private static @NotNull IsometricEngine engineForBlockIcon(@NotNull RendererContext context, @NotNull Block block) {
+        private static @NotNull EulerRotation resolveGuiRotation(@NotNull Block block) {
             ModelTransform gui = block.getModel().getDisplay().get("gui");
-            EulerRotation rotation = gui != null ? gui.getRotation() : EulerRotation.STANDARD_ISO_BLOCK;
-            return IsometricEngine.withGuiPose(context, rotation);
+            return gui != null ? gui.getRotation() : EulerRotation.STANDARD_ISO_BLOCK;
+        }
+
+        /**
+         * Re-shades every triangle with vanilla's {@code Lighting.ITEMS_3D} Lambertian based on
+         * the triangle's normal rotated through the block's {@code display.gui} pose and the
+         * GUI PoseStack's Y-flip ({@code scale(W, -H, W)}). Replaces the cardinal-bucket
+         * shading {@link BlockGeometryKit} bakes at quad-emit time.
+         * <p>
+         * The transform chain mirrors vanilla's render path exactly: vanilla submits each
+         * quad's normal via {@code pose.transformNormal(quadNormal)}, where {@code pose} =
+         * {@code translate(W/2,H/2,0) × scale(W,-H,W) × Q_{display.gui}}. Translation doesn't
+         * affect direction; the upper-3x3 of the scale is {@code diag(1, -1, 1)} (up to magnitude,
+         * which renormalises out for direction vectors); the gui rotation is a pure rotation.
+         * So the per-vertex normal handed to the fragment shader is
+         * {@code S(1,-1,1) × R_{gui} × n_model}, and that's what
+         * {@link RenderEngine#computeBlockItems3dLighting} expects.
+         */
+        private static @NotNull ConcurrentList<VisibleTriangle> relightForItems3d(
+            @NotNull ConcurrentList<VisibleTriangle> triangles,
+            @NotNull EulerRotation guiRotation
+        ) {
+            Matrix4f normalTransform = Matrix4f.IDENTITY
+                .scale(1f, -1f, 1f)
+                .rotate(Quaternionf.rotationXYZ(
+                    guiRotation.pitchRadians(),
+                    guiRotation.yawRadians(),
+                    guiRotation.rollRadians()
+                ));
+            ConcurrentList<VisibleTriangle> out = Concurrent.newList();
+            for (VisibleTriangle t : triangles) {
+                Vector3f renderNormal = Vector3f.normalize(Vector3f.transformNormal(t.normal(), normalTransform));
+                float shading = RenderEngine.computeBlockItems3dLighting(renderNormal);
+                out.add(new VisibleTriangle(
+                    t.position0(), t.position1(), t.position2(),
+                    t.uv0(), t.uv1(), t.uv2(),
+                    t.texture(), t.tintArgb(), t.normal(),
+                    shading, t.cullBackFaces(), t.emissive()
+                ));
+            }
+            return out;
         }
 
     }

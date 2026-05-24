@@ -89,10 +89,13 @@ public class BlockOptions {
     private final int outputSize = Renderer.DEFAULT_OUTPUT_SIZE;
 
     /**
-     * Whether to apply FXAA post-processing
+     * Whether to apply FXAA post-processing. Off by default: vanilla's GUI block icon path
+     * does no post-process AA, so leaving FXAA on diverges from the {@code Lighting.ITEMS_3D}
+     * harness baseline by blurring sub-texel edges that vanilla leaves sharp. Callers that
+     * want soft edges for non-parity use cases can opt in via the builder.
      */
     @lombok.Builder.Default
-    private final boolean antiAlias = true;
+    private final boolean antiAlias = false;
 
     /**
      * Supersample scale factor for isometric 3D rendering. The block is rasterized at
