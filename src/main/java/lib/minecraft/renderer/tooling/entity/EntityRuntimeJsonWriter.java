@@ -314,6 +314,10 @@ public final class EntityRuntimeJsonWriter {
      * Builds the families JSON object by clustering non-variant entities that share a
      * {@code geometry_ref} and selecting the canonical root per cluster.
      *
+     * <p>Package-private (rather than private) so {@code EntityRuntimeJsonWriterTest} can
+     * exercise the pure JSON-in / JSON-out clustering in isolation without standing up
+     * {@link #writeAll}'s full record + geometry + variant fixture surface.
+     *
      * @param entitiesOut the {@code entities} JSON object from {@code entity_models.json}
      *     (one row per entity-id; rows with {@code variant_of} are skipped)
      * @param diagnostics the diagnostic sink; emits one {@code INFO} line per resolved or
@@ -321,7 +325,7 @@ public final class EntityRuntimeJsonWriter {
      * @return a JSON object mapping each non-root sibling to its family root; empty when no
      *     family resolves
      */
-    private static @NotNull JsonObject deriveFamilies(@NotNull JsonObject entitiesOut, @NotNull Diagnostics diagnostics) {
+    static @NotNull JsonObject deriveFamilies(@NotNull JsonObject entitiesOut, @NotNull Diagnostics diagnostics) {
         Map<String, List<String>> geometryToBaseEntities = new LinkedHashMap<>();
         for (Map.Entry<String, JsonElement> entry : entitiesOut.entrySet()) {
             if (!entry.getValue().isJsonObject()) continue;

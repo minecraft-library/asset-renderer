@@ -1560,6 +1560,73 @@ class AsmKitTest {
 
     }
 
+    @Nested
+    @DisplayName("findEnumDefaultName")
+    class FindEnumDefaultName {
+
+        @Test
+        @DisplayName("returns the enum value name pinned to DEFAULT via GETSTATIC + PUTSTATIC")
+        void happyPath(@TempDir Path tmp) throws IOException {
+            byte[] enumBytes = writeEnumWithDefault("FakeVariant", "LUCY");
+            try (ZipFile zip = makeJar(tmp, Map.of("FakeVariant", enumBytes))) {
+                ClassNodeCache cache = new ClassNodeCache(zip);
+                assertThat(AsmKit.findEnumDefaultName(cache, "FakeVariant"), equalTo("LUCY"));
+            }
+        }
+
+        @Test
+        @DisplayName("returns null when the class is not in the jar")
+        void missingClass(@TempDir Path tmp) throws IOException {
+            try (ZipFile zip = makeJar(tmp, Map.of())) {
+                ClassNodeCache cache = new ClassNodeCache(zip);
+                assertThat(AsmKit.findEnumDefaultName(cache, "Missing"), is(nullValue()));
+            }
+        }
+
+        @Test
+        @DisplayName("returns null when the enum has no DEFAULT field initializer")
+        void noDefault(@TempDir Path tmp) throws IOException {
+            byte[] enumBytes = writeEnumWithoutDefault("NoDefaultEnum", "BROWN");
+            try (ZipFile zip = makeJar(tmp, Map.of("NoDefaultEnum", enumBytes))) {
+                ClassNodeCache cache = new ClassNodeCache(zip);
+                assertThat(AsmKit.findEnumDefaultName(cache, "NoDefaultEnum"), is(nullValue()));
+            }
+        }
+
+        @Test
+        @DisplayName("ignores GETSTATIC from a different owner before PUTSTATIC DEFAULT")
+        void foreignOwnerGetstatic(@TempDir Path tmp) throws IOException {
+            // <clinit> shape: GETSTATIC OtherClass.X; PUTSTATIC FakeVariant.DEFAULT; RETURN
+            // The walker should NOT capture X because the GETSTATIC owner doesn't match
+            // FakeVariant, and the PUTSTATIC has no pending field -> returns null.
+            byte[] enumBytes = writeEnumWithForeignGetstatic("FakeVariant", "OtherClass", "X");
+            byte[] otherBytes = writeClass("OtherClass", "java/lang/Object",
+                List.of(new FieldDef("X", "LFakeVariant;")), List.of());
+            try (ZipFile zip = makeJar(tmp, Map.of(
+                "FakeVariant", enumBytes,
+                "OtherClass", otherBytes
+            ))) {
+                ClassNodeCache cache = new ClassNodeCache(zip);
+                assertThat(AsmKit.findEnumDefaultName(cache, "FakeVariant"), is(nullValue()));
+            }
+        }
+
+        @Test
+        @DisplayName("captures the most recent GETSTATIC on the enum class when DEFAULT fires")
+        void mostRecentGetstaticWins(@TempDir Path tmp) throws IOException {
+            // <clinit> shape: GETSTATIC FakeVariant.RED; GETSTATIC FakeVariant.LUCY;
+            //                 PUTSTATIC FakeVariant.DEFAULT; RETURN
+            // The walker's pendingFieldName running state should hold LUCY (the latest)
+            // when the PUTSTATIC DEFAULT fires, so the result is LUCY not RED.
+            byte[] enumBytes = writeEnumWithTwoGetstatics("FakeVariant", "RED", "LUCY");
+            try (ZipFile zip = makeJar(tmp, Map.of("FakeVariant", enumBytes))) {
+                ClassNodeCache cache = new ClassNodeCache(zip);
+                assertThat(AsmKit.findEnumDefaultName(cache, "FakeVariant"), equalTo("LUCY"));
+            }
+        }
+
+    }
+
     // ============================================================================================
     // Fixture helpers — synthetic ClassWriter bytecode + in-memory jars
     // ============================================================================================
@@ -1613,6 +1680,93 @@ class AsmKitTest {
             mv.visitMaxs(1, 1);
             mv.visitEnd();
         }
+        cw.visitEnd();
+        return cw.toByteArray();
+    }
+
+    /**
+     * Emits an enum-shaped class whose {@code <clinit>} is the canonical
+     * {@code GETSTATIC <constName>; PUTSTATIC DEFAULT; RETURN} pattern the
+     * {@link AsmKit#findEnumDefaultName} walker matches.
+     */
+    private static byte[] writeEnumWithDefault(String enumName, String constName) {
+        ClassWriter cw = new ClassWriter(0);
+        String fieldDesc = "L" + enumName + ";";
+        cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL, enumName, null, "java/lang/Object", null);
+        cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, constName, fieldDesc, null, null).visitEnd();
+        cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "DEFAULT", fieldDesc, null, null).visitEnd();
+        org.objectweb.asm.MethodVisitor mv = cw.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
+        mv.visitCode();
+        mv.visitFieldInsn(Opcodes.GETSTATIC, enumName, constName, fieldDesc);
+        mv.visitFieldInsn(Opcodes.PUTSTATIC, enumName, "DEFAULT", fieldDesc);
+        mv.visitInsn(Opcodes.RETURN);
+        mv.visitMaxs(1, 0);
+        mv.visitEnd();
+        cw.visitEnd();
+        return cw.toByteArray();
+    }
+
+    /**
+     * Same shape as {@link #writeEnumWithDefault} but omits the closing
+     * {@code PUTSTATIC DEFAULT} so the walker exits without finding a match.
+     */
+    private static byte[] writeEnumWithoutDefault(String enumName, String constName) {
+        ClassWriter cw = new ClassWriter(0);
+        String fieldDesc = "L" + enumName + ";";
+        cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL, enumName, null, "java/lang/Object", null);
+        cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, constName, fieldDesc, null, null).visitEnd();
+        org.objectweb.asm.MethodVisitor mv = cw.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
+        mv.visitCode();
+        mv.visitFieldInsn(Opcodes.GETSTATIC, enumName, constName, fieldDesc);
+        mv.visitInsn(Opcodes.POP);
+        mv.visitInsn(Opcodes.RETURN);
+        mv.visitMaxs(1, 0);
+        mv.visitEnd();
+        cw.visitEnd();
+        return cw.toByteArray();
+    }
+
+    /**
+     * Enum class whose {@code <clinit>} reads from a foreign owner before the
+     * {@code PUTSTATIC DEFAULT}, so the walker's owner-strict capture should NOT match.
+     */
+    private static byte[] writeEnumWithForeignGetstatic(String enumName, String foreignOwner, String foreignField) {
+        ClassWriter cw = new ClassWriter(0);
+        String enumDesc = "L" + enumName + ";";
+        cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL, enumName, null, "java/lang/Object", null);
+        cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "DEFAULT", enumDesc, null, null).visitEnd();
+        org.objectweb.asm.MethodVisitor mv = cw.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
+        mv.visitCode();
+        mv.visitFieldInsn(Opcodes.GETSTATIC, foreignOwner, foreignField, enumDesc);
+        mv.visitFieldInsn(Opcodes.PUTSTATIC, enumName, "DEFAULT", enumDesc);
+        mv.visitInsn(Opcodes.RETURN);
+        mv.visitMaxs(1, 0);
+        mv.visitEnd();
+        cw.visitEnd();
+        return cw.toByteArray();
+    }
+
+    /**
+     * Enum class whose {@code <clinit>} reads two GETSTATICs on the enum class before
+     * the {@code PUTSTATIC DEFAULT}. Used to verify the walker's pendingFieldName running
+     * state holds the most recent capture when DEFAULT fires.
+     */
+    private static byte[] writeEnumWithTwoGetstatics(String enumName, String firstConst, String secondConst) {
+        ClassWriter cw = new ClassWriter(0);
+        String fieldDesc = "L" + enumName + ";";
+        cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL, enumName, null, "java/lang/Object", null);
+        cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, firstConst, fieldDesc, null, null).visitEnd();
+        cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, secondConst, fieldDesc, null, null).visitEnd();
+        cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "DEFAULT", fieldDesc, null, null).visitEnd();
+        org.objectweb.asm.MethodVisitor mv = cw.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
+        mv.visitCode();
+        mv.visitFieldInsn(Opcodes.GETSTATIC, enumName, firstConst, fieldDesc);
+        mv.visitInsn(Opcodes.POP);
+        mv.visitFieldInsn(Opcodes.GETSTATIC, enumName, secondConst, fieldDesc);
+        mv.visitFieldInsn(Opcodes.PUTSTATIC, enumName, "DEFAULT", fieldDesc);
+        mv.visitInsn(Opcodes.RETURN);
+        mv.visitMaxs(1, 0);
+        mv.visitEnd();
         cw.visitEnd();
         return cw.toByteArray();
     }
