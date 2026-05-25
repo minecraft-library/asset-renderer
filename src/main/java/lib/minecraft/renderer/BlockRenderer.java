@@ -661,7 +661,15 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             ConcurrentList<VisibleTriangle> out = Concurrent.newList();
             for (VisibleTriangle t : triangles) {
                 Vector3f renderNormal = Vector3f.normalize(Vector3f.transformNormal(t.normal(), normalTransform));
-                float shading = RenderEngine.computeBlockItems3dLighting(renderNormal);
+                // Match vanilla's vertex-stream byte-packed normal: the shader receives the
+                // normal after a signed-byte SNORM round-trip ({@code (int)(c * 127.0F) / 127.0F},
+                // truncated toward zero). For the LEFT face of a default iso pose, this maps
+                // unit (-0.7071, 0.3536, 0.6124) -> (-0.7008, 0.3465, 0.6063), magnitude 0.9894;
+                // the resulting Lambertian shade drops from 0.6505 to 0.6490, matching vanilla's
+                // empirical 0.647 within precision. Without this step every block shows the
+                // visible-LEFT face's texels rounded ~1 LSB high.
+                Vector3f packedNormal = packAsSnormByte(renderNormal);
+                float shading = RenderEngine.computeBlockItems3dLighting(packedNormal);
                 out.add(new VisibleTriangle(
                     t.position0(), t.position1(), t.position2(),
                     t.uv0(), t.uv1(), t.uv2(),
@@ -670,6 +678,21 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 ));
             }
             return out;
+        }
+
+        /**
+         * Replicates vanilla's {@code BufferBuilder.normalIntValue} byte-packing followed by
+         * the shader's SNORM unpacking. Each component {@code c} is mapped to
+         * {@code (int)(clamp(c, -1, 1) * 127.0F) / 127.0F}, with the integer cast truncating
+         * toward zero (so {@code 0.6124 -> 77/127 = 0.6063}, not {@code 78/127 = 0.6142}).
+         * The result is not unit length - vanilla's shader doesn't renormalize either.
+         */
+        private static @NotNull Vector3f packAsSnormByte(@NotNull Vector3f n) {
+            return new Vector3f(
+                ((int) (Math.clamp(n.x(), -1f, 1f) * 127.0f)) / 127.0f,
+                ((int) (Math.clamp(n.y(), -1f, 1f) * 127.0f)) / 127.0f,
+                ((int) (Math.clamp(n.z(), -1f, 1f) * 127.0f)) / 127.0f
+            );
         }
 
     }
