@@ -139,9 +139,18 @@ public final class TestBlockParityVanilla {
                 int vw = vanillaImg.getWidth();
                 int vh = vanillaImg.getHeight();
 
+                // Sidecar variant file written by the harness (BlockSweeper.writeDefaultVariantSidecar)
+                // - the comma-joined property=value string for vanilla's `block.defaultBlockState()`.
+                // Passing this to BlockOptions makes asset-renderer's BlockRenderer resolve the
+                // same variant + any per-variant y/x rotation vanilla applies. Without it, blocks
+                // like doors / glazed_terracotta render mirrored or face-wrong because
+                // asset-renderer falls back to "first variant in JSON, no rotation".
+                Path variantSidecar = VANILLA_DIR.resolve(VANILLA_PREFIX + blockId.substring("minecraft:".length()) + ".variant");
+                String variant = Files.exists(variantSidecar) ? Files.readString(variantSidecar).trim() : "";
                 BlockOptions options = BlockOptions.builder()
                     .blockId(blockId)
                     .type(BlockOptions.Type.ISOMETRIC_3D)
+                    .variant(variant)
                     .outputSize(RENDER_SIZE)
                     .supersample(1)
                     .build();

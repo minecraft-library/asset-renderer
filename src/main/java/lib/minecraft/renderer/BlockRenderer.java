@@ -572,7 +572,31 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          */
         private static @Nullable Block.Variant resolveVariant(@NotNull Block block, @NotNull String variantKey) {
             if (variantKey.isEmpty()) return null;
-            return block.getVariants().get(variantKey);
+            // Exact key hit (caller knows the precise variant). Fast path.
+            Block.Variant exact = block.getVariants().get(variantKey);
+            if (exact != null) return exact;
+            // Partial-superset match: the caller supplied a fully-qualified blockstate
+            // (e.g. `facing=north,half=lower,hinge=left,open=false,powered=false` from the
+            // harness's defaultBlockState dump) but the JSON variant keys only list the
+            // properties that actually affect the model (`facing/half/hinge/open` for doors,
+            // omitting `powered`). Walk the variants map and pick the entry whose props are
+            // a SUBSET of the caller's props. Returns the variant whose conditions are all
+            // satisfied by the caller's blockstate.
+            ConcurrentMap<String, String> callerProps = parseProperties(variantKey);
+            for (Map.Entry<String, Block.Variant> entry : block.getVariants().entrySet()) {
+                ConcurrentMap<String, String> variantProps = parseProperties(entry.getKey());
+                if (isSubsetMatch(variantProps, callerProps)) return entry.getValue();
+            }
+            return null;
+        }
+
+        /** Returns true when every entry in {@code subset} appears with the same value in {@code superset}. */
+        private static boolean isSubsetMatch(@NotNull ConcurrentMap<String, String> subset, @NotNull ConcurrentMap<String, String> superset) {
+            for (Map.Entry<String, String> e : subset.entrySet()) {
+                String supersetVal = superset.get(e.getKey());
+                if (supersetVal == null || !supersetVal.equals(e.getValue())) return false;
+            }
+            return true;
         }
 
         /**
