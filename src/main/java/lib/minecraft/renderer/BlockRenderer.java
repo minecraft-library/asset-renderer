@@ -164,15 +164,20 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             if (block.getMultipart().isPresent()) {
                 triangles = assembleMultipart(block.getMultipart().get(), options, tint, untintedTint);
             } else {
-                triangles = buildFromBlockElements(block, tint, untintedTint);
-
-                // Apply blockstate variant rotation (x/y) to the geometry. When the caller
-                // didn't specify a variant we intentionally skip variant resolution so the
-                // block renders in its raw model pose - matching vanilla inventory, which
-                // consults the item model + display.gui transform and never the blockstate.
-                // Callers that want a specific orientation pass {@code "facing=east,..."}
-                // explicitly on {@link BlockOptions#getVariant()}.
+                // Resolve the blockstate variant BEFORE building geometry so its model id can
+                // override {@link Block#getModel()}. Blocks like {@code sweet_berry_bush} have
+                // per-stage models ({@code sweet_berry_bush_stage0..3}) keyed off the {@code age}
+                // property; without this hop, {@code block.getModel()} returns whichever stage
+                // happened to register first (effectively non-deterministic for blockstate-only
+                // ids), producing a mature-bush render for an {@code age=0} request. When the
+                // caller didn't specify a variant we keep {@code block.getModel()} as-is so the
+                // block renders in its raw model pose - matching vanilla inventory, which never
+                // consults the blockstate.
                 Block.Variant variant = resolveVariant(block, options.getVariant());
+                BlockModelData modelToUse = variant != null
+                    ? this.context.findBlockModel(variant.modelId()).orElse(block.getModel())
+                    : block.getModel();
+                triangles = buildFromBlockElements(modelToUse, tint, untintedTint);
                 if (variant != null && variant.hasRotation())
                     triangles = applyRotation(triangles, buildVariantRotation(variant));
             }
@@ -372,14 +377,17 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * Builds triangles from all elements in a multi-element block model. Walks every
          * element's face texture references, dereferences {@code #variable} chains against
          * the model's texture bindings, and builds geometry via
-         * {@link BlockGeometryKit#buildFromElements}.
+         * {@link BlockGeometryKit#buildFromElements}. Accepts the model directly (rather than
+         * a {@link Block}) so callers can pass a variant-resolved model that differs from the
+         * block's primary {@link Block#getModel()} - e.g. {@code sweet_berry_bush_stage0} for
+         * an {@code age=0} render.
          */
-        private @NotNull ConcurrentList<VisibleTriangle> buildFromBlockElements(@NotNull Block block, int tint, int untintedTint) {
+        private @NotNull ConcurrentList<VisibleTriangle> buildFromBlockElements(@NotNull BlockModelData model, int tint, int untintedTint) {
             RasterEngine raster = new RasterEngine(this.context);
             ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
-            ConcurrentMap<String, String> variables = block.getModel().getTextures();
+            ConcurrentMap<String, String> variables = model.getTextures();
 
-            for (ModelElement element : block.getModel().getElements()) {
+            for (ModelElement element : model.getElements()) {
                 for (ModelFace face : element.getFaces().values()) {
                     String ref = face.getTexture();
                     if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
@@ -389,7 +397,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 }
             }
 
-            return BlockGeometryKit.buildFromElements(block.getModel().getElements(), faceTextures, tint, untintedTint);
+            return BlockGeometryKit.buildFromElements(model.getElements(), faceTextures, tint, untintedTint);
         }
 
         /**

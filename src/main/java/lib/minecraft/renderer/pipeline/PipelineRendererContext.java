@@ -108,6 +108,7 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull ConcurrentMap<String, Integer> colorOverrides;
     private final @NotNull ConcurrentList<CitRule> citRules;
     private final @NotNull ConcurrentList<CtmRule> ctmRules;
+    private final @NotNull ConcurrentMap<String, BlockModelData> blockModelIndex;
 
     private final @NotNull ImageFactory imageFactory = new ImageFactory();
     private final @NotNull ConcurrentMap<String, PixelBuffer> textureCache = Concurrent.newMap();
@@ -250,7 +251,8 @@ public final class PipelineRendererContext implements RendererContext {
             blockEntityEntries,
             result.getColorOverrides(),
             result.getCitRules(),
-            result.getCtmRules()
+            result.getCtmRules(),
+            result.getBlockModels()
         );
     }
 
@@ -595,6 +597,11 @@ public final class PipelineRendererContext implements RendererContext {
     @Override
     public @NotNull Optional<Block> findBlock(@NotNull String id) {
         return this.blockIndex.getOptional(id);
+    }
+
+    @Override
+    public @NotNull Optional<BlockModelData> findBlockModel(@NotNull String modelId) {
+        return this.blockModelIndex.getOptional(modelId);
     }
 
     @Override
