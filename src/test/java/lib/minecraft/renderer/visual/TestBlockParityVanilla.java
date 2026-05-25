@@ -143,6 +143,7 @@ public final class TestBlockParityVanilla {
                     .blockId(blockId)
                     .type(BlockOptions.Type.ISOMETRIC_3D)
                     .outputSize(RENDER_SIZE)
+                    .supersample(1)
                     .build();
                 ImageData java = javaRenderer.render(options);
                 BufferedImage javaImg = java.toBufferedImage();
