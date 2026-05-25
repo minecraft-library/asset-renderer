@@ -46,7 +46,8 @@ public final class BlockSweeper implements AutoCloseable {
 
     private final List<Block> targets;
     private final BlockFrameRenderer blockRenderer;
-    private final ItemFrameRenderer entityBlockRenderer;
+    private final BlockEntityFrameRenderer beRenderer;
+    private final ItemFrameRenderer itemFallbackRenderer;
     private int index;
     private int rendered;
     private int skipped;
@@ -56,7 +57,8 @@ public final class BlockSweeper implements AutoCloseable {
     private BlockSweeper(List<Block> targets) {
         this.targets = targets;
         this.blockRenderer = new BlockFrameRenderer();
-        this.entityBlockRenderer = new ItemFrameRenderer();
+        this.beRenderer = new BlockEntityFrameRenderer();
+        this.itemFallbackRenderer = new ItemFrameRenderer();
         this.index = 0;
     }
 
@@ -99,13 +101,23 @@ public final class BlockSweeper implements AutoCloseable {
 
         try {
             if (block instanceof EntityBlock) {
-                ItemStack stack = new ItemStack(block);
-                if (stack.isEmpty()) {
-                    LOG.warn("BlockSweeper: empty stack for entity-block {}", id);
-                    skipped++;
-                } else {
-                    entityBlockRenderer.renderAndWrite(client, stack, HarnessConfig.IMAGE_SIZE, out);
+                // Block-entity blocks: try the BE-renderer-via-dispatcher path first
+                // (renders the actual 3D in-world geometry for signs / beds / banners / heads /
+                // shulker_boxes / etc.). Fall back to the item-model path (2D billboards from
+                // item/generated) only when the BE path declines (no registered renderer,
+                // null render state, submit threw).
+                boolean rendered3d = beRenderer.renderAndWrite(client, block.defaultBlockState(), HarnessConfig.IMAGE_SIZE, out);
+                if (rendered3d) {
                     rendered++;
+                } else {
+                    ItemStack stack = new ItemStack(block);
+                    if (stack.isEmpty()) {
+                        LOG.warn("BlockSweeper: empty stack for entity-block {}", id);
+                        skipped++;
+                    } else {
+                        itemFallbackRenderer.renderAndWrite(client, stack, HarnessConfig.IMAGE_SIZE, out);
+                        rendered++;
+                    }
                 }
             } else {
                 blockRenderer.renderAndWrite(client, block.defaultBlockState(), HarnessConfig.IMAGE_SIZE, out);
