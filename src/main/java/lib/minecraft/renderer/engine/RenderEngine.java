@@ -49,25 +49,33 @@ public interface RenderEngine {
 
     /**
      * First {@code Lighting.Entry.ITEMS_3D} light direction, pre-rotated by vanilla's
-     * {@code item3DPose} chain so the dot product against a render-frame (post-PoseStack-Y-flip
-     * + post-display.gui-rotation) block face normal matches vanilla's GLSL fragment shader.
+     * {@code item3DPose} chain. Bit-exact FP32 values copied from JOML's
+     * {@code new Matrix4f().scaling(1,-1,1).rotateYXZ(1.0821041, 3.2375858, 0).rotateYXZ(-pi/8,
+     * 3pi/4, 0).transformDirection(normalize(0.2, 1, -0.7))} - which is precisely what vanilla
+     * uploads to the Lighting UBO at startup. Hardcoded as bit patterns so we don't depend
+     * on JOML at runtime and don't drift from vanilla due to differences between JOML's direct
+     * cos/sin matrix path and our Quaternionf-routed equivalent (the latter loses ~4 ULPs on
+     * the Y component of L0, enough to flip rounding at the LEFT face's 0.6489 shade boundary
+     * on the gunpowder gray texel).
      * <p>
-     * Vanilla source: {@code DIFFUSE_LIGHT_0 = normalize(0.2, 1, -0.7)} in model frame. Vanilla
-     * uploads {@code item3DPose × DIFFUSE_LIGHT_0} to the {@code Lighting} UBO at startup; the
-     * fragment shader then dot-products it against the post-pose surface normal coming out of
-     * the vertex shader's {@code pose.transformNormal} call. We replicate the same precomputation
-     * here so callers can apply the same dot against any normal already rotated through the
-     * block's {@code display.gui} pose. Vanilla source:
-     * {@code blaze3d/platform/Lighting.java} item3DPose chain.
+     * Vanilla source: {@code blaze3d/platform/Lighting.java} item3DPose chain.
      */
-    Vector3f BLOCK_ITEMS_3D_LIGHT_0 = deriveItems3dLightKit(0.2f, 1.0f, -0.7f);
+    Vector3f BLOCK_ITEMS_3D_LIGHT_0 = new Vector3f(
+        Float.intBitsToFloat(0xBF6EF5DF),  // -0.9334391952
+        Float.intBitsToFloat(0xBE867FEC),  // -0.2626947165
+        Float.intBitsToFloat(0xBE7A29D2)   // -0.2443001568
+    );
 
     /**
      * Second {@code Lighting.Entry.ITEMS_3D} light direction; pre-rotated by the same
      * {@code item3DPose} chain as {@link #BLOCK_ITEMS_3D_LIGHT_0} from vanilla's
-     * {@code DIFFUSE_LIGHT_1 = normalize(-0.2, 1, 0.7)}.
+     * {@code DIFFUSE_LIGHT_1 = normalize(-0.2, 1, 0.7)}. Bit-exact FP32 values from JOML.
      */
-    Vector3f BLOCK_ITEMS_3D_LIGHT_1 = deriveItems3dLightKit(-0.2f, 1.0f, 0.7f);
+    Vector3f BLOCK_ITEMS_3D_LIGHT_1 = new Vector3f(
+        Float.intBitsToFloat(0xBDD41D3A),  // -0.1035713702
+        Float.intBitsToFloat(0xBF7A02E7),  // -0.9766067863
+        Float.intBitsToFloat(0x3E40F819)   //  0.1884464175
+    );
 
     // --- entity inventory lighting constants (vanilla Lighting.ENTITY_IN_UI parity) ---
 
@@ -241,36 +249,6 @@ public interface RenderEngine {
     }
 
     // --- block-icon inventory lighting (vanilla Lighting.Entry.ITEMS_3D parity) ---
-
-    /**
-     * Derives a render-frame light direction from a vanilla model-frame
-     * {@code DIFFUSE_LIGHT_N = normalize(x, y, z)} literal by applying vanilla's
-     * {@code item3DPose} chain - the matrix vanilla uses to pre-rotate the ITEMS_3D lights into
-     * the GUI-icon render frame before uploading them to the {@code Lighting} UBO.
-     * <p>
-     * Vanilla chain ({@code blaze3d/platform/Lighting.java}):
-     * <pre>
-     * item3DPose = scaling(1, -1, 1)
-     *   × rotateYXZ(1.0821041, 3.2375858, 0)
-     *   × rotateYXZ(-pi/8, 3pi/4, 0)
-     * </pre>
-     * Built here via fluent ops in the same chain order so the float math agrees with vanilla's
-     * JOML composition. The result is dotted by callers against post-pose-stack block face
-     * normals (model normal × PoseStack-Y-flip × {@code display.gui} rotation) to give vanilla's
-     * GLSL fragment-shader output for the block iso icon.
-     */
-    private static @NotNull Vector3f deriveItems3dLightKit(float modelX, float modelY, float modelZ) {
-        Vector3f lModel = Vector3f.normalize(new Vector3f(modelX, modelY, modelZ));
-        // JOML's rotateYXZ(y, x, z) = post-multiply by Ry × Rx × Rz. Z is zero in both calls so
-        // we drop those identity Rz factors.
-        Matrix4f pose = Matrix4f.IDENTITY
-            .scale(1f, -1f, 1f)
-            .rotate(Quaternionf.rotationXYZ(0f, 1.0821041f, 0f))
-            .rotate(Quaternionf.rotationXYZ(3.2375858f, 0f, 0f))
-            .rotate(Quaternionf.rotationXYZ(0f, (float) (-Math.PI / 8), 0f))
-            .rotate(Quaternionf.rotationXYZ((float) (3 * Math.PI / 4), 0f, 0f));
-        return Vector3f.normalize(Vector3f.transformNormal(lModel, pose));
-    }
 
     /**
      * Computes the dual-directional Lambertian shade factor for a render-frame surface normal

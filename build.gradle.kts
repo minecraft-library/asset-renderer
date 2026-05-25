@@ -280,6 +280,11 @@ tasks {
         classpath = sourceSets["test"].runtimeClasspath
         val blockId = project.findProperty("blockId") as String?
         args = if (blockId != null) listOf(blockId) else listOf()
+        // Forward -Dentity.pixel.dump=x0,y0,x1,y1 etc so the per-pixel rasterizer trace in
+        // ModelEngine fires when the caller asks for it. Same pattern as entityParityVanilla.
+        systemProperties = System.getProperties().toMap()
+            .filter { it.key.toString().startsWith("entity.") }
+            .mapKeys { it.key.toString() }
     }
 
     register<JavaExec>("itemParityVanilla") {
