@@ -173,10 +173,21 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 // caller didn't specify a variant we keep {@code block.getModel()} as-is so the
                 // block renders in its raw model pose - matching vanilla inventory, which never
                 // consults the blockstate.
+                //
+                // {@link Block.Source#TILE_ENTITY} blocks (chests, banners, beds, skulls, ...)
+                // are an exception: their variant's modelId points to an empty template (e.g.
+                // {@code block/skull}, {@code block/banner}) and the geometry-bearing model is
+                // the BE-derived one already attached as {@link Block#getModel()}. For these
+                // blocks we keep the BE model and only let the variant carry rotation. The
+                // model lookup is also skipped when the resolved model would be element-less,
+                // which guards against pack-level surprises for non-TILE_ENTITY blocks too.
                 Block.Variant variant = resolveVariant(block, options.getVariant());
-                BlockModelData modelToUse = variant != null
-                    ? this.context.findBlockModel(variant.modelId()).orElse(block.getModel())
-                    : block.getModel();
+                BlockModelData modelToUse = block.getModel();
+                if (variant != null && block.getSource() != Block.Source.TILE_ENTITY) {
+                    BlockModelData variantModel = this.context.findBlockModel(variant.modelId()).orElse(null);
+                    if (variantModel != null && !variantModel.getElements().isEmpty())
+                        modelToUse = variantModel;
+                }
                 triangles = buildFromBlockElements(modelToUse, tint, untintedTint);
                 if (variant != null && variant.hasRotation())
                     triangles = applyRotation(triangles, buildVariantRotation(variant));
