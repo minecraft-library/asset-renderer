@@ -3,6 +3,7 @@
   "package": "lib.minecraft.refharness.mixin",
   "compatibilityLevel": "JAVA_25",
   "client": [
+    "BannerFlagModelMixin",
     "BeeStateMixin",
     "DonkeyModelMixin",
     "EnderDragonModelMixin",

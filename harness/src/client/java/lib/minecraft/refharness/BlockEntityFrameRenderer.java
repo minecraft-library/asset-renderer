@@ -1,8 +1,10 @@
 package lib.minecraft.refharness;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.function.Consumer;
 
 import com.mojang.blaze3d.ProjectionType;
 import com.mojang.blaze3d.buffers.GpuBuffer;
@@ -15,7 +17,11 @@ import com.mojang.blaze3d.textures.GpuTexture;
 import com.mojang.blaze3d.textures.GpuTextureView;
 import com.mojang.blaze3d.textures.TextureFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.math.Axis;
+import com.mojang.math.Transformation;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.model.object.banner.BannerFlagModel;
+import net.minecraft.client.model.object.banner.BannerModel;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.Projection;
 import net.minecraft.client.renderer.ProjectionMatrixBuffer;
@@ -26,19 +32,30 @@ import net.minecraft.client.renderer.SubmitNodeStorage;
 import net.minecraft.client.renderer.block.BlockStateModelSet;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
+import net.minecraft.client.renderer.blockentity.BannerRenderer;
+import net.minecraft.client.renderer.blockentity.BedRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderDispatcher;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
+import net.minecraft.client.renderer.blockentity.state.BannerRenderState;
+import net.minecraft.client.renderer.blockentity.state.BedRenderState;
 import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
 import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Vec3i;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.level.block.BannerBlock;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BedPart;
+import org.joml.Matrix4f;
 import org.joml.Quaternionf;
+import org.joml.Vector3f;
+import org.joml.Vector3fc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,6 +78,28 @@ import org.slf4j.LoggerFactory;
  *
  * <p>The transient BE never enters the world's tick / save loop - it's a stack-local
  * placeholder for the renderer's state-extraction step.
+ *
+ * <h2>Inventory-icon composition (bed / banner / wall_banner)</h2>
+ * For most block-entities the raw in-world BEWR render <em>is</em> the icon: skull, shulker_box,
+ * chest, conduit, decorated_pot and beacon all sit on or inside the unit block, so the harness's
+ * block-centred iso pose reproduces asset-renderer's icon directly. Three families diverge,
+ * because asset-renderer composes them into an inventory icon rather than rendering the raw
+ * in-world block:
+ * <ul>
+ *   <li><b>Facing</b> - {@code BedRenderer.createModelTransform} and {@code BannerRenderer}'s
+ *       per-rotation/per-facing transform turn the geometry to its in-world direction. The icon
+ *       faces a fixed canonical direction instead (asset-renderer's {@code iconRotation}).</li>
+ *   <li><b>Centering / fit</b> - the raw geometry is centred on the block, but the bed spans two
+ *       blocks and the wall-banner flag hangs below the block, so both fall off a block-centred
+ *       canvas. asset-renderer recenters on the geometry bbox and shrinks anything taller than
+ *       {@value #ICON_FIT_EXTENT} units to fit ({@code recenterAndFit}).</li>
+ *   <li><b>Multi-block</b> - the bed default state is one half (the foot); asset-renderer merges
+ *       both halves. The harness renders both pieces with the in-world block offset between
+ *       them.</li>
+ * </ul>
+ * Mirrors {@code BlockRenderer.Isometric3D}'s composition: it reuses vanilla's own geometry-extent
+ * walkers ({@link BedRenderer#getExtents}, {@link BannerRenderer#getExtents}) to size the fit, then
+ * submits through the unchanged vanilla BE renderer so sprites / dye / patterns stay vanilla-correct.
  */
 public final class BlockEntityFrameRenderer implements AutoCloseable {
 
@@ -80,6 +119,55 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
     private static final float BLOCK_GUI_SCALE = 0.625f;
 
     private static final int[] NO_TINTS = new int[0];
+
+    /**
+     * Maximum bbox extent (block units) the icon-composition fit pass allows; geometry taller /
+     * longer than this is shrunk uniformly so it fits the canvas. Matches asset-renderer's
+     * {@code BlockRenderer.recenterAndFit} threshold.
+     */
+    private static final float ICON_FIT_EXTENT = 1.4f;
+
+    /**
+     * Canonical bed facing - the in-world {@code BedRenderer.createModelTransform} is built for
+     * this direction so the icon faces a fixed way regardless of the block's default-state facing.
+     * {@code NORTH} yields {@code toYRot()=180} so the transform's {@code Z(180+toYRot())} term is
+     * a no-op rotation, leaving only the lay-flat {@code X+90}.
+     */
+    private static final Direction BED_CANONICAL_FACING = Direction.NORTH;
+
+    /** Y-rotation (degrees) applied to the merged bed before fit - asset-renderer's {@code iconRotation}. */
+    private static final float BED_ICON_ROTATION_DEG = 90f;
+
+    /**
+     * Canonical standing-banner rotation (degrees) - turns the flag to the icon direction. At 0
+     * the pole faces the camera (in front of the cloth); the icon wants the pole behind the
+     * cloth, a 180-degree flip about the vertical.
+     */
+    private static final float BANNER_CANONICAL_DEG = 180f;
+
+    /** Canonical wall-banner rotation (degrees) - replaces the in-world {@code facing.toYRot()}. */
+    private static final float WALL_BANNER_CANONICAL_DEG = 180f;
+
+    /** Banner model-frame translation - {@code BannerRenderer.MODEL_TRANSLATION}. */
+    private static final Vector3fc BANNER_MODEL_TRANSLATION = new Vector3f(0.5f, 0f, 0.5f);
+
+    /** Banner model-frame scale (Y/Z negated = stand-upright flip) - {@code BannerRenderer.MODEL_SCALE}. */
+    private static final Vector3fc BANNER_MODEL_SCALE = new Vector3f(0.6666667f, -0.6666667f, -0.6666667f);
+
+    /** Wall-banner sub-models (no pole, hanging flag) - private on {@link BannerRenderer}, walked for bbox. */
+    private static final Field BANNER_WALL_MODEL;
+    private static final Field BANNER_WALL_FLAG_MODEL;
+
+    static {
+        try {
+            BANNER_WALL_MODEL = BannerRenderer.class.getDeclaredField("wallModel");
+            BANNER_WALL_MODEL.setAccessible(true);
+            BANNER_WALL_FLAG_MODEL = BannerRenderer.class.getDeclaredField("wallFlagModel");
+            BANNER_WALL_FLAG_MODEL.setAccessible(true);
+        } catch (NoSuchFieldException e) {
+            throw new RuntimeException("BannerRenderer wall-model field layout changed in this Minecraft version", e);
+        }
+    }
 
     private final Projection projection = new Projection();
     private final ProjectionMatrixBuffer projectionMatrixBuffer = new ProjectionMatrixBuffer("refharness BE PIP");
@@ -131,38 +219,21 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
             projection.setupOrtho(-1000.0f, 1000.0f, textureWidth, textureHeight, /*invertY*/ true);
             RenderSystem.setProjectionMatrix(projectionMatrixBuffer.getBuffer(projection), ProjectionType.ORTHOGRAPHIC);
 
-            PoseStack poseStack = new PoseStack();
-            poseStack.translate(textureWidth / 2.0f, textureHeight / 2.0f, 0.0f);
-            poseStack.scale(textureWidth, -textureHeight, textureWidth);
-            poseStack.mulPose(BLOCK_GUI_ROTATION);
-            poseStack.scale(BLOCK_GUI_SCALE, BLOCK_GUI_SCALE, BLOCK_GUI_SCALE);
-            poseStack.translate(-0.5f, -0.5f, -0.5f);
-
             lighting.setupFor(Lighting.Entry.ITEMS_3D);
-
-            // 1. Submit the static block model first - same call BlockFrameRenderer makes for
-            //    plain blocks. For blocks where the BE adds geometry on top of an existing
-            //    block model (beacon = obsidian/glass cube + beacon stand; suspicious_sand =
-            //    full cube + brushed item overlay), this draws the cube part. For blocks where
-            //    the block model is empty (signs, chests, banners), submitBlockModel is a no-op
-            //    and the BE renderer in step 2 supplies all geometry.
-            BlockStateModelSet modelSet = client.getModelManager().getBlockStateModelSet();
-            BlockStateModel blockStateModel = modelSet.get(state);
-            if (blockStateModel != null) {
-                partsScratch.clear();
-                blockStateModel.collectParts(random, partsScratch);
-                if (!partsScratch.isEmpty()) {
-                    RenderType renderType = Sheets.cutoutBlockSheet();
-                    storage.submitBlockModel(poseStack, renderType, partsScratch, NO_TINTS,
-                        FULL_BRIGHT_LIGHT, OverlayTexture.NO_OVERLAY, 0xFFFFFFFF);
-                }
-            }
-
-            // 2. Submit the BlockEntity renderer on top - the actual sign post / bed blanket /
-            //    chest box / head model / banner cloth / etc.
             dispatcher.prepare(net.minecraft.world.phys.Vec3.ZERO);
+
             try {
-                renderer.submit(renderState, poseStack, storage, cameraState);
+                // Bed / banner / wall_banner: compose an inventory icon (canonical facing, geometry-
+                // bbox fit, both bed halves) instead of rendering the raw in-world block. Every other
+                // block-entity renders raw - for symmetric BEs (skull / chest / shulker_box / conduit /
+                // decorated_pot / beacon) the in-world render already equals the icon.
+                if ((Object) renderer instanceof BedRenderer bed) {
+                    submitBedIcon(bed, (BedRenderState) renderState, storage);
+                } else if ((Object) renderer instanceof BannerRenderer banner) {
+                    submitBannerIcon(banner, (BannerRenderState) renderState, storage);
+                } else {
+                    submitRawBlockEntity(client, state, renderer, renderState, storage);
+                }
             } catch (RuntimeException ex) {
                 LOG.warn("BlockEntityFrameRenderer: submit failed for {}: {}", state, ex.toString());
                 return false;
@@ -176,6 +247,190 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
 
         writeTextureToPng(outputPath);
         return true;
+    }
+
+    /**
+     * Raw in-world BE render path - the standard block-centred iso pose. Submits the static block
+     * model first (beacon cube, suspicious_sand overlay base) then the BE renderer on top. Used
+     * for every block-entity except the three icon-composition families.
+     */
+    private void submitRawBlockEntity(Minecraft client, BlockState state,
+                                      BlockEntityRenderer<BlockEntity, BlockEntityRenderState> renderer,
+                                      BlockEntityRenderState renderState, SubmitNodeStorage storage) {
+        PoseStack poseStack = new PoseStack();
+        poseStack.translate(textureWidth / 2.0f, textureHeight / 2.0f, 0.0f);
+        poseStack.scale(textureWidth, -textureHeight, textureWidth);
+        poseStack.mulPose(BLOCK_GUI_ROTATION);
+        poseStack.scale(BLOCK_GUI_SCALE, BLOCK_GUI_SCALE, BLOCK_GUI_SCALE);
+        poseStack.translate(-0.5f, -0.5f, -0.5f);
+
+        // 1. Submit the static block model first - same call BlockFrameRenderer makes for plain
+        //    blocks. For blocks where the BE adds geometry on top of an existing block model
+        //    (beacon = obsidian/glass cube + beacon stand; suspicious_sand = full cube + brushed
+        //    item overlay), this draws the cube part. For blocks where the block model is empty
+        //    (signs, chests, banners), it's a no-op and the BE renderer supplies all geometry.
+        BlockStateModelSet modelSet = client.getModelManager().getBlockStateModelSet();
+        BlockStateModel blockStateModel = modelSet.get(state);
+        if (blockStateModel != null) {
+            partsScratch.clear();
+            blockStateModel.collectParts(random, partsScratch);
+            if (!partsScratch.isEmpty()) {
+                RenderType renderType = Sheets.cutoutBlockSheet();
+                storage.submitBlockModel(poseStack, renderType, partsScratch, NO_TINTS,
+                    FULL_BRIGHT_LIGHT, OverlayTexture.NO_OVERLAY, 0xFFFFFFFF);
+            }
+        }
+
+        // 2. Submit the BlockEntity renderer on top - the actual sign post / chest box / head model.
+        renderer.submit(renderState, poseStack, storage, cameraState);
+    }
+
+    /**
+     * Composes a bed inventory icon: both halves merged at a canonical facing, rotated by
+     * {@link #BED_ICON_ROTATION_DEG}, recentred on the merged bbox and shrunk to fit. The two
+     * pieces are submitted through vanilla's {@link BedRenderer} (so the dye sprite stays correct)
+     * with the in-world head-block offset between them.
+     */
+    private void submitBedIcon(BedRenderer bed, BedRenderState state, SubmitNodeStorage storage) {
+        Matrix4f modelTransform = new Matrix4f(BedRenderer.modelTransform(BED_CANONICAL_FACING).getMatrix());
+        float iconRad = (float) Math.toRadians(BED_ICON_ROTATION_DEG);
+        Vec3i headOffset = BED_CANONICAL_FACING.getUnitVec3i();
+
+        // Bounds in the post-(iconRot . createModelTransform) frame, matching the submit pose below.
+        Matrix4f footFrame = new Matrix4f().rotateY(iconRad).mul(modelTransform);
+        Matrix4f headFrame = new Matrix4f().rotateY(iconRad)
+            .translate(headOffset.getX(), headOffset.getY(), headOffset.getZ())
+            .mul(modelTransform);
+        Bounds bounds = new Bounds();
+        expandExtents(bounds, footFrame, c -> bed.getExtents(BedPart.FOOT, c));
+        expandExtents(bounds, headFrame, c -> bed.getExtents(BedPart.HEAD, c));
+
+        PoseStack ps = isoFitPose(bounds);
+        ps.mulPose(Axis.YP.rotationDegrees(BED_ICON_ROTATION_DEG));
+
+        state.facing = BED_CANONICAL_FACING;
+        state.part = BedPart.FOOT;
+        bed.submit(state, ps, storage, cameraState);
+
+        ps.pushPose();
+        ps.translate(headOffset.getX(), headOffset.getY(), headOffset.getZ());
+        state.part = BedPart.HEAD;
+        bed.submit(state, ps, storage, cameraState);
+        ps.popPose();
+    }
+
+    /**
+     * Composes a standing- or wall-banner inventory icon: the in-world facing transform is
+     * replaced with a canonical one (no per-rotation / per-facing yaw), then the post + flag (or
+     * the wall bar + hanging flag) are recentred on their bbox and shrunk to fit. Submitted
+     * through vanilla's {@link BannerRenderer} so the base dye + patterns stay correct.
+     */
+    private void submitBannerIcon(BannerRenderer banner, BannerRenderState state, SubmitNodeStorage storage) {
+        boolean wall = state.attachmentType == BannerBlock.AttachmentType.WALL;
+        Transformation canonical = bannerModelTransformation(wall ? WALL_BANNER_CANONICAL_DEG : BANNER_CANONICAL_DEG);
+        Matrix4f frame = new Matrix4f(canonical.getMatrix());
+
+        Bounds bounds = new Bounds();
+        if (wall) {
+            expandExtents(bounds, frame, c -> walkWallBannerExtents(banner, c));
+        } else {
+            expandExtents(bounds, frame, banner::getExtents);
+        }
+
+        PoseStack ps = isoFitPose(bounds);
+        state.transformation = canonical;
+        // Pin the wave phase to 0 for reproducibility (extractRenderState seeds it from world
+        // position + game time). The cloth is flattened to match asset-renderer's flat flag by
+        // BannerFlagModelMixin (which cancels the wave entirely); this just removes the game-time
+        // dependency for any path the mixin doesn't cover and documents the intent.
+        state.phase = 0f;
+        banner.submit(state, ps, storage, cameraState);
+    }
+
+    /**
+     * Walks the wall-banner sub-models (bar + hanging flag, no pole) the same way
+     * {@link BannerRenderer#getExtents} walks the standing models, feeding each raw vertex to
+     * {@code out}. Vanilla's public {@code getExtents} only exposes the standing models, so the
+     * wall variants are reached reflectively.
+     */
+    private void walkWallBannerExtents(BannerRenderer banner, Consumer<Vector3fc> out) {
+        try {
+            BannerModel wallModel = (BannerModel) BANNER_WALL_MODEL.get(banner);
+            BannerFlagModel wallFlagModel = (BannerFlagModel) BANNER_WALL_FLAG_MODEL.get(banner);
+            PoseStack identity = new PoseStack();
+            wallModel.root().getExtentsForGui(identity, out);
+            wallFlagModel.setupAnim(0f);
+            wallFlagModel.root().getExtentsForGui(identity, out);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException("Failed to read BannerRenderer wall models", e);
+        }
+    }
+
+    /**
+     * Builds the canonical banner facing transform ({@code BannerRenderer.modelTransformation}):
+     * {@code T(0.5,0,0.5) . R_Y(-deg) . S(0.667,-0.667,-0.667)}. Replaces the in-world
+     * rotation/facing yaw with a fixed icon yaw.
+     */
+    private static Transformation bannerModelTransformation(float deg) {
+        Matrix4f matrix = new Matrix4f()
+            .translation(BANNER_MODEL_TRANSLATION.x(), BANNER_MODEL_TRANSLATION.y(), BANNER_MODEL_TRANSLATION.z())
+            .rotateY((float) Math.toRadians(-deg))
+            .scale(BANNER_MODEL_SCALE.x(), BANNER_MODEL_SCALE.y(), BANNER_MODEL_SCALE.z());
+        return new Transformation(matrix);
+    }
+
+    /**
+     * Feeds every raw geometry vertex from {@code source} through {@code frame} and expands
+     * {@code bounds} with the result. {@code source} is a vanilla extent walker
+     * ({@code getExtents} / {@code getExtentsForGui}) that emits raw mesh-frame vertices;
+     * {@code frame} carries them into the same coordinate frame the submit pose composes on top of.
+     */
+    private void expandExtents(Bounds bounds, Matrix4f frame, Consumer<Consumer<Vector3fc>> source) {
+        source.accept(v -> {
+            Vector3f t = frame.transformPosition(v.x(), v.y(), v.z(), new Vector3f());
+            bounds.expand(t.x(), t.y(), t.z());
+        });
+    }
+
+    /**
+     * Builds the iso PIP pose with a bbox-fit baked in: the standard block iso chain (no fixed
+     * block centring), then a uniform shrink so the bbox's largest extent is at most
+     * {@link #ICON_FIT_EXTENT}, then a recenter that maps the bbox midpoint to the origin (canvas
+     * centre). Mirrors asset-renderer's {@code recenterAndFit}. Callers append any per-piece
+     * model transform (bed icon rotation, banner facing) after this returns.
+     */
+    private PoseStack isoFitPose(Bounds bounds) {
+        float extent = bounds.maxExtent();
+        float scale = extent > ICON_FIT_EXTENT ? ICON_FIT_EXTENT / extent : 1.0f;
+
+        PoseStack ps = new PoseStack();
+        ps.translate(textureWidth / 2.0f, textureHeight / 2.0f, 0.0f);
+        ps.scale(textureWidth, -textureHeight, textureWidth);
+        ps.mulPose(BLOCK_GUI_ROTATION);
+        ps.scale(BLOCK_GUI_SCALE, BLOCK_GUI_SCALE, BLOCK_GUI_SCALE);
+        ps.scale(scale, scale, scale);
+        ps.translate(-bounds.centerX(), -bounds.centerY(), -bounds.centerZ());
+        return ps;
+    }
+
+    /** Mutable axis-aligned bounding box accumulated over transformed geometry vertices. */
+    private static final class Bounds {
+        private float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE, minZ = Float.MAX_VALUE;
+        private float maxX = -Float.MAX_VALUE, maxY = -Float.MAX_VALUE, maxZ = -Float.MAX_VALUE;
+
+        void expand(float x, float y, float z) {
+            minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+            minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+            minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
+        }
+
+        float centerX() { return (minX + maxX) * 0.5f; }
+        float centerY() { return (minY + maxY) * 0.5f; }
+        float centerZ() { return (minZ + maxZ) * 0.5f; }
+
+        float maxExtent() {
+            return Math.max(Math.max(maxX - minX, maxY - minY), maxZ - minZ);
+        }
     }
 
     private void ensureTextures(int width, int height) {
