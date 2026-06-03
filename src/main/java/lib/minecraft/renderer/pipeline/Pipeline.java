@@ -101,7 +101,7 @@ public class Pipeline {
         ConcurrentMap<String, Texture> textures = TexturePackLoader.scanTextures(packs.ascending());
         ConcurrentMap<ColorMap.Type, ColorMap> colorMaps = ColorMapLoader.load();
         ConcurrentMap<String, Block.Tint> blockTints = BlockTintsLoader.load();
-        BlockStateLoader.LoadResult blockStateResult = BlockStateLoader.load(packs.combinedRoots());
+        BlockStateLoader.LoadResult blockStateResult = BlockStateLoader.load(packs.combinedRoots(), blockModels);
         ConcurrentMap<String, String> itemDefinitions = ItemDefinitionLoader.load(packs.combinedRoots());
         ConcurrentMap<String, BlockTag> blockTags = BlockTagLoader.load(packs.combinedRoots());
         ConcurrentMap<String, Integer> potionEffectColors = PotionColorLoader.load();
@@ -113,7 +113,7 @@ public class Pipeline {
 
         return new Result(packRoot, packs.vanilla(), packs.descending(), textures, colorMaps, blockTints, blockModels, itemModels,
             blockStateResult.getVariants(), blockStateResult.getMultiparts(), itemDefinitions, blockTags,
-            potionEffectColors, bannerPatterns, colorOverrides, citRules, ctmRules);
+            potionEffectColors, bannerPatterns, colorOverrides, citRules, ctmRules, blockStateResult.getDefaultStateKeys());
     }
 
     /**
@@ -452,7 +452,7 @@ public class Pipeline {
         private final @NotNull ConcurrentMap<String, Block.Tint> blockTints;
         private final @NotNull ConcurrentMap<String, BlockModelData> blockModels;
         private final @NotNull ConcurrentMap<String, ItemModelData> itemModels;
-        private final @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockStates;
+        private final @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants;
         private final @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts;
         private final @NotNull ConcurrentMap<String, String> itemDefinitions;
         private final @NotNull ConcurrentMap<String, BlockTag> blockTags;
@@ -489,6 +489,14 @@ public class Pipeline {
          * and external callers; the renderer itself doesn't yet apply them.
          */
         private final @NotNull ConcurrentList<CtmRule> ctmRules;
+
+        /**
+         * Per-block canonical default-state key, from the bundled {@code block_states.json}
+         * snapshot (parsed from the vanilla {@code Blocks} registry by {@code ToolingBlockStates}
+         * and read by {@link BlockStateLoader}). Lets production callers resolve a block's default
+         * variant without a harness sidecar. Empty-property blocks are absent.
+         */
+        private final @NotNull ConcurrentMap<String, String> blockDefaultStateKeys;
 
     }
 

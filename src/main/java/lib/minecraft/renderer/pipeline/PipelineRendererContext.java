@@ -108,7 +108,6 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull ConcurrentMap<String, Integer> colorOverrides;
     private final @NotNull ConcurrentList<CitRule> citRules;
     private final @NotNull ConcurrentList<CtmRule> ctmRules;
-    private final @NotNull ConcurrentMap<String, BlockModelData> blockModelIndex;
 
     private final @NotNull ImageFactory imageFactory = new ImageFactory();
     private final @NotNull ConcurrentMap<String, PixelBuffer> textureCache = Concurrent.newMap();
@@ -251,8 +250,7 @@ public final class PipelineRendererContext implements RendererContext {
             blockEntityEntries,
             result.getColorOverrides(),
             result.getCitRules(),
-            result.getCtmRules(),
-            result.getBlockModels()
+            result.getCtmRules()
         );
     }
 
@@ -294,6 +292,18 @@ public final class PipelineRendererContext implements RendererContext {
     }
 
     /**
+     * Returns the bundled default-state key for a block id, or empty when the block has no
+     * entry in {@code block_states.json} (an empty-property block).
+     *
+     * @param result the pipeline result supplying the loaded default-state-key table
+     * @param blockId the namespaced block id
+     * @return the default-state key, or empty
+     */
+    private static @NotNull String defaultKeyFor(@NotNull Pipeline.Result result, @NotNull String blockId) {
+        return result.getBlockDefaultStateKeys().getOrDefault(blockId, "");
+    }
+
+    /**
      * Builds the primary block index by walking every parsed {@link BlockModelData} entry and
      * materialising a {@link Block} per id.
      * <p>
@@ -322,7 +332,7 @@ public final class PipelineRendererContext implements RendererContext {
     ) {
         ConcurrentMap<String, Block.Tint> tints = result.getBlockTints();
         ConcurrentMap<String, String> itemDefs = result.getItemDefinitions();
-        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap = result.getBlockStates();
+        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap = result.getBlockVariants();
         ConcurrentMap<String, Block.Multipart> multipartMap = result.getBlockMultiparts();
 
         HashMap<String, Block> blockIndex = new HashMap<>();
@@ -358,8 +368,22 @@ public final class PipelineRendererContext implements RendererContext {
                 source = Block.Source.TILE_ENTITY;
             }
 
-            blockIndex.put(blockId, new Block(blockId, "minecraft", name, modelToUse, Concurrent.adoptMap(textures), variants, multipart, tags, tint, Optional.ofNullable(entity), source));
+            blockIndex.put(blockId, new Block(
+                blockId,
+                "minecraft",
+                name,
+                modelToUse,
+                Concurrent.adoptMap(textures),
+                variants,
+                multipart,
+                tags,
+                tint,
+                Optional.ofNullable(entity),
+                source,
+                defaultKeyFor(result, blockId)
+            ));
         }
+
         return Concurrent.adoptMap(blockIndex);
     }
 
@@ -383,7 +407,7 @@ public final class PipelineRendererContext implements RendererContext {
         @NotNull Pipeline.Result result,
         @NotNull ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex
     ) {
-        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap = result.getBlockStates();
+        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap = result.getBlockVariants();
         ConcurrentMap<String, Block.Multipart> multipartMap = result.getBlockMultiparts();
 
         for (Map.Entry<String, Block.Entity> entry : blockEntityEntries.entrySet()) {
@@ -398,12 +422,17 @@ public final class PipelineRendererContext implements RendererContext {
             HashMap<String, String> textures = new HashMap<>();
             textures.put("#entity", be.textureId());
             blockIndex.put(blockId, new Block(
-                blockId, "minecraft", shortName,
-                be.model(), Concurrent.adoptMap(textures),
-                variants, multipart, tags,
+                blockId,
+                "minecraft", shortName,
+                be.model(),
+                Concurrent.adoptMap(textures),
+                variants,
+                multipart,
+                tags,
                 new Block.Tint(Biome.TintTarget.NONE, Optional.empty()),
                 Optional.of(be),
-                Block.Source.TILE_ENTITY
+                Block.Source.TILE_ENTITY,
+                defaultKeyFor(result, blockId)
             ));
         }
     }
@@ -412,7 +441,7 @@ public final class PipelineRendererContext implements RendererContext {
      * Registers the Task-10 blockstate-only fallbacks: ids whose blockstate exists but whose
      * {@code block/<id>.json} model is absent (fence/wall/door inventories, {@code small_dripleaf},
      * etc.). The primary block-model loop misses these because it keys on model files; this pass
-     * walks {@code blockStates} + {@code blockMultiparts} keys, skips parent/template ids, and
+     * walks {@code blockVariants} + {@code blockMultiparts} keys, skips parent/template ids, and
      * resolves each remaining id through {@link #resolveBlockStateModel} (item-def override first,
      * then the first variant's model id - multipart-only blocks deliberately resolve to empty).
      * <p>
@@ -437,7 +466,7 @@ public final class PipelineRendererContext implements RendererContext {
     ) {
         ConcurrentMap<String, Block.Tint> tints = result.getBlockTints();
         ConcurrentMap<String, String> itemDefs = result.getItemDefinitions();
-        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap = result.getBlockStates();
+        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap = result.getBlockVariants();
         ConcurrentMap<String, Block.Multipart> multipartMap = result.getBlockMultiparts();
 
         Set<String> blockstateOnlyIds = new HashSet<>();
@@ -465,7 +494,19 @@ public final class PipelineRendererContext implements RendererContext {
             Optional<Block.Entity> attachedEntity = additiveEntity != null && additiveEntity.additive()
                 ? Optional.of(additiveEntity) : Optional.empty();
             Block.Source source = attachedEntity.isPresent() ? Block.Source.TILE_ENTITY : Block.Source.BLOCKSTATE_ONLY;
-            blockIndex.put(blockId, new Block(blockId, "minecraft", shortName, modelToUse, Concurrent.adoptMap(textures), variants, multipart, tags, tint, attachedEntity, source));
+            blockIndex.put(blockId, new Block(
+                blockId,
+                "minecraft",
+                shortName,
+                modelToUse,
+                Concurrent.adoptMap(textures),
+                variants,
+                multipart,
+                tags,
+                tint,
+                attachedEntity,
+                source,
+                defaultKeyFor(result, blockId)));
             blockstateOnlyIds.add(blockId);
         }
         return blockstateOnlyIds;
@@ -597,11 +638,6 @@ public final class PipelineRendererContext implements RendererContext {
     @Override
     public @NotNull Optional<Block> findBlock(@NotNull String id) {
         return this.blockIndex.getOptional(id);
-    }
-
-    @Override
-    public @NotNull Optional<BlockModelData> findBlockModel(@NotNull String modelId) {
-        return this.blockModelIndex.getOptional(modelId);
     }
 
     @Override

@@ -185,6 +185,13 @@ tasks {
         classpath = sourceSets["main"].runtimeClasspath
     }
 
+    register<JavaExec>("blockStates") {
+        description = "Bytewalks registerDefaultState in the Blocks registry via ASM and rewrites src/main/resources/lib/minecraft/renderer/block_states.json (per-block default state + variant keys). Run on a Minecraft version bump."
+        group = "tooling"
+        mainClass.set("lib.minecraft.renderer.tooling.ToolingBlockStates")
+        classpath = sourceSets["main"].runtimeClasspath
+    }
+
     register<JavaExec>("colorMaps") {
         description = "Reads vanilla biome colormap PNGs and generates src/main/resources/lib/minecraft/renderer/color_maps.json. Run on a Minecraft version bump."
         group = "tooling"

@@ -71,6 +71,16 @@ public class Block {
      */
     private @NotNull Source source = Source.PRIMARY;
 
+    /**
+     * The block's canonical default blockstate key as {@code property=value} pairs sorted
+     * alphabetically (e.g. {@code "facing=north,half=lower,hinge=left,open=false,powered=false"}),
+     * or empty when the block has no properties. Sourced from {@code block_states.json} (an ASM
+     * bytewalk of {@code registerDefaultState}) and baked on at pipeline-context construction. The
+     * renderer falls back to this key when a caller supplies no explicit variant, so blocks with
+     * per-state models render their default rather than whichever state registered first.
+     */
+    private @NotNull String defaultStateKey = "";
+
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
@@ -85,12 +95,13 @@ public class Block {
             && Objects.equals(this.getTags(), block.getTags())
             && Objects.equals(this.getTint(), block.getTint())
             && Objects.equals(this.getEntity(), block.getEntity())
-            && this.getSource() == block.getSource();
+            && this.getSource() == block.getSource()
+            && Objects.equals(this.getDefaultStateKey(), block.getDefaultStateKey());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.getId(), this.getNamespace(), this.getName(), this.getModel(), this.getTextures(), this.getVariants(), this.getMultipart(), this.getTags(), this.getTint(), this.getEntity(), this.getSource());
+        return Objects.hash(this.getId(), this.getNamespace(), this.getName(), this.getModel(), this.getTextures(), this.getVariants(), this.getMultipart(), this.getTags(), this.getTint(), this.getEntity(), this.getSource(), this.getDefaultStateKey());
     }
 
     /**
@@ -137,13 +148,19 @@ public class Block {
      * <p>
      * The {@code x} and {@code y} rotations are multiples of 90 degrees applied to the entire
      * model before rendering. These are distinct from element-level rotations in the model JSON.
+     * <p>
+     * The {@code model} is the resolved {@link BlockModelData} this variant references, baked in
+     * at pipeline-context construction time so a variant reaches its geometry through its owning
+     * {@link Block} rather than a context-level model registry. Variants whose {@code modelId}
+     * cannot be resolved against the loaded model set carry an element-less {@code BlockModelData}.
      *
      * @param modelId the namespaced model reference (e.g. {@code "minecraft:block/furnace"})
+     * @param model the resolved model this variant references, or element-less when unresolved
      * @param x the whole-model X rotation in degrees (0, 90, 180, or 270)
      * @param y the whole-model Y rotation in degrees (0, 90, 180, or 270)
      * @param uvlock whether UVs should be locked to the block grid during rotation
      */
-    public record Variant(@NotNull String modelId, int x, int y, boolean uvlock) {
+    public record Variant(@NotNull String modelId, @NotNull BlockModelData model, int x, int y, boolean uvlock) {
 
         /**
          * Returns {@code true} when this variant applies rotation to the model.

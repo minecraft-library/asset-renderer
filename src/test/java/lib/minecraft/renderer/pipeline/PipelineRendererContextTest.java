@@ -161,7 +161,8 @@ class PipelineRendererContextTest {
             textures, colorMaps, blockTints, blockModels, itemModels,
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
-            Concurrent.newMap(), Concurrent.newList(), Concurrent.newList()
+            Concurrent.newMap(), Concurrent.newList(), Concurrent.newList(),
+            Concurrent.newMap()
         );
         context = PipelineRendererContext.of(result);
     }
@@ -321,11 +322,12 @@ class PipelineRendererContextTest {
             result.getPacks(),
             result.getTextures(), result.getColorMaps(), result.getBlockTints(),
             result.getBlockModels(), result.getItemModels(),
-            result.getBlockStates(), result.getBlockMultiparts(),
+            result.getBlockVariants(), result.getBlockMultiparts(),
             result.getItemDefinitions(), result.getBlockTags(),
             result.getPotionEffectColors(), result.getBannerPatterns(),
             result.getColorOverrides(), result.getCitRules(),
-            Concurrent.newList(miss, hit)
+            Concurrent.newList(miss, hit),
+            result.getBlockDefaultStateKeys()
         );
         PipelineRendererContext ctx = PipelineRendererContext.of(resultWithCtm);
 

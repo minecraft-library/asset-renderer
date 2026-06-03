@@ -159,20 +159,28 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // friends render unchanged.
             int untintedTint = entityTinted ? ColorMath.WHITE : tint;
 
+            // Fall back to the block's tooling-derived default blockstate key when the caller
+            // supplies no explicit variant, so blocks with per-state models
+            // ({@code sweet_berry_bush}, doors, {@code furnace}, glazed terracotta, crops) render
+            // their canonical default rather than whichever model registered first. Property-less
+            // blocks have an empty default key, which resolves to the raw model pose. This replaces
+            // the harness {@code .variant} sidecar the parity test used to consume.
+            String effectiveVariant = options.getVariant().isEmpty() ? block.getDefaultStateKey() : options.getVariant();
+
             ConcurrentList<VisibleTriangle> triangles;
 
             if (block.getMultipart().isPresent()) {
-                triangles = assembleMultipart(block.getMultipart().get(), options, tint, untintedTint);
+                triangles = assembleMultipart(block.getMultipart().get(), effectiveVariant, tint, untintedTint);
             } else {
                 // Resolve the blockstate variant BEFORE building geometry so its model id can
                 // override {@link Block#getModel()}. Blocks like {@code sweet_berry_bush} have
                 // per-stage models ({@code sweet_berry_bush_stage0..3}) keyed off the {@code age}
                 // property; without this hop, {@code block.getModel()} returns whichever stage
                 // happened to register first (effectively non-deterministic for blockstate-only
-                // ids), producing a mature-bush render for an {@code age=0} request. When the
-                // caller didn't specify a variant we keep {@code block.getModel()} as-is so the
-                // block renders in its raw model pose - matching vanilla inventory, which never
-                // consults the blockstate.
+                // ids), producing a mature-bush render for an {@code age=0} request. The variant
+                // key is the caller's when supplied, otherwise the block's default state key
+                // (see {@code effectiveVariant} above); only property-less blocks fall through to
+                // {@code block.getModel()}'s raw pose.
                 //
                 // {@link Block.Source#TILE_ENTITY} blocks (chests, banners, beds, skulls, ...)
                 // are an exception: their variant's modelId points to an empty template (e.g.
@@ -181,11 +189,11 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 // blocks we keep the BE model and only let the variant carry rotation. The
                 // model lookup is also skipped when the resolved model would be element-less,
                 // which guards against pack-level surprises for non-TILE_ENTITY blocks too.
-                Block.Variant variant = resolveVariant(block, options.getVariant());
+                Block.Variant variant = resolveVariant(block, effectiveVariant);
                 BlockModelData modelToUse = block.getModel();
                 if (variant != null && block.getSource() != Block.Source.TILE_ENTITY) {
-                    BlockModelData variantModel = this.context.findBlockModel(variant.modelId()).orElse(null);
-                    if (variantModel != null && !variantModel.getElements().isEmpty())
+                    BlockModelData variantModel = variant.model();
+                    if (!variantModel.getElements().isEmpty())
                         modelToUse = variantModel;
                 }
                 triangles = buildFromBlockElements(modelToUse, tint, untintedTint);
@@ -259,8 +267,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * each part's condition against the variant properties and builds triangles for every
          * matching model, applying per-part rotation where specified.
          */
-        private @NotNull ConcurrentList<VisibleTriangle> assembleMultipart(@NotNull Block.Multipart multipart, @NotNull BlockOptions options, int tint, int untintedTint) {
-            ConcurrentMap<String, String> properties = parseProperties(options.getVariant());
+        private @NotNull ConcurrentList<VisibleTriangle> assembleMultipart(@NotNull Block.Multipart multipart, @NotNull String variantKey, int tint, int untintedTint) {
+            ConcurrentMap<String, String> properties = parseProperties(variantKey);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
             RasterEngine raster = new RasterEngine(this.context);
 
@@ -268,12 +276,10 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 if (!matchesCondition(part.when(), properties)) continue;
 
                 Block.Variant apply = part.apply();
-                // Convert model id (minecraft:block/brewing_stand) to block id (minecraft:brewing_stand)
-                String partBlockId = apply.modelId().replace(":block/", ":");
-                BlockModelData partModel = this.context.findBlock(partBlockId)
-                    .map(Block::getModel)
-                    .orElse(null);
-                if (partModel == null) continue;
+                // The variant carries its baked model (resolved from the full model set at
+                // context construction); element-less means the apply's model id didn't resolve.
+                BlockModelData partModel = apply.model();
+                if (partModel.getElements().isEmpty()) continue;
 
                 // Build triangles for this part's model
                 ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
@@ -526,12 +532,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             if (first == null)
                 return Concurrent.newList();
 
-            String partBlockId = first.modelId().replace(":block/", ":");
-            BlockModelData partModel = this.context.findBlock(partBlockId)
-                .map(Block::getModel)
-                .orElse(null);
+            BlockModelData partModel = first.model();
 
-            if (partModel == null || partModel.getElements().isEmpty())
+            if (partModel.getElements().isEmpty())
                 return Concurrent.newList();
 
             RasterEngine raster = new RasterEngine(this.context);

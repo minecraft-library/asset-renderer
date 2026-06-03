@@ -9,7 +9,6 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.binding.BannerPattern;
-import lib.minecraft.renderer.asset.model.BlockModelData;
 import lib.minecraft.renderer.asset.pack.AnimationData;
 import lib.minecraft.renderer.asset.pack.ColorMap;
 import lib.minecraft.renderer.asset.pack.Texture;
@@ -83,21 +82,6 @@ public interface RendererContext {
      * @return the block DTO, or empty if unknown
      */
     @NotNull Optional<Block> findBlock(@NotNull String id);
-
-    /**
-     * Looks up a parsed block model by its full namespaced model id
-     * ({@code "minecraft:block/sweet_berry_bush_stage0"}). Used by callers that need to render a
-     * specific blockstate variant's model rather than the registered block's default model -
-     * variants like {@code age=0} reference per-stage models that aren't first-class block ids
-     * themselves, so a separate keyed lookup is needed. The default returns empty so test stubs
-     * do not need to override it.
-     *
-     * @param modelId the full namespaced model id, including the {@code block/} prefix
-     * @return the parsed model data, or empty when no pack supplies the model
-     */
-    default @NotNull Optional<BlockModelData> findBlockModel(@NotNull String modelId) {
-        return Optional.empty();
-    }
 
     /**
      * Looks up the block-entity metadata for a block id. Returns the {@link Block.Entity} carrying

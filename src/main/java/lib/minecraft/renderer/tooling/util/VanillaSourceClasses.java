@@ -255,6 +255,9 @@ public final class VanillaSourceClasses {
     /** Block-id constant table - {@code Blocks.<NAME>} GETSTATIC. */
     public static final @NotNull String BLOCKS = BLOCK_ROOT + "Blocks";
 
+    /** Block-state property constant table - {@code BlockStateProperties.<NAME>} GETSTATIC. */
+    public static final @NotNull String BLOCK_STATE_PROPERTIES = BLOCK_PROPERTIES_ROOT + "BlockStateProperties";
+
     /** Vanilla chest block (oak / spruce / ... variants). */
     public static final @NotNull String CHEST_BLOCK = BLOCK_ROOT + "ChestBlock";
 
