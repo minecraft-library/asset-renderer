@@ -238,7 +238,7 @@ public enum SkinFace {
 
     /**
      * Crops all six faces of this body part out of the skin image into a {@link SixFaces} ready
-     * to feed {@link BlockGeometryKit#box}.
+     * to feed {@link BlockGeometryKit#buildBoxTriangles(Vector3f, Vector3f, SixFaces, int)}.
      *
      * @param skin the source skin image
      * @param overlayLayer whether to crop the overlay layer instead of the base layer
