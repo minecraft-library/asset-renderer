@@ -99,15 +99,6 @@ public final class BlockSweeper implements AutoCloseable {
         String safeName = id.getNamespace() + "__" + id.getPath();
         Path out = HarnessConfig.OUTPUT_DIR.resolve("blocks").resolve(safeName + ".png");
 
-        // Sidecar variant key so the parity test can ask asset-renderer's BlockRenderer to
-        // resolve the same blockstate variant vanilla uses for its default state. Vanilla's
-        // BlockFrameRenderer renders `block.defaultBlockState()` which applies any per-variant
-        // x/y rotation (e.g. doors face NORTH default -> oak_door_bottom_left rotated y=270;
-        // glazed_terracotta default puts the design face in a specific orientation). Without
-        // this hint, asset-renderer falls back to "first variant in JSON, no rotation" which
-        // produces a mirrored / wrongly-rotated render.
-        writeDefaultVariantSidecar(block, safeName);
-
         try {
             if (block instanceof EntityBlock) {
                 // Block-entity blocks: try the BE-renderer-via-dispatcher path first
@@ -141,31 +132,6 @@ public final class BlockSweeper implements AutoCloseable {
         }
         index++;
         if (index >= targets.size()) finish();
-    }
-
-    /**
-     * Writes a sidecar text file {@code blocks/<safeName>.variant} containing the comma-joined
-     * {@code property=value} keys of {@link Block#defaultBlockState()} in vanilla's blockstate
-     * JSON sort order. Asset-renderer's parity test reads this and passes it as
-     * {@code BlockOptions.variant} so its {@code BlockRenderer} resolves the same variant
-     * vanilla just rendered, including any baked y / x rotation that goes with it.
-     */
-    private static void writeDefaultVariantSidecar(Block block, String safeName) {
-        net.minecraft.world.level.block.state.BlockState defaultState = block.defaultBlockState();
-        // Property.Value.toString() returns "property=value" already using vanilla's
-        // canonical value naming (enum serializedName, lowercase booleans, decimal ints).
-        // Sort by property name alphabetically to match vanilla's blockstate JSON key form.
-        String variant = defaultState.getValues()
-            .sorted(java.util.Comparator.comparing(v -> v.property().getName()))
-            .map(net.minecraft.world.level.block.state.properties.Property.Value::toString)
-            .collect(java.util.stream.Collectors.joining(","));
-        Path sidecar = HarnessConfig.OUTPUT_DIR.resolve("blocks").resolve(safeName + ".variant");
-        try {
-            java.nio.file.Files.createDirectories(sidecar.getParent());
-            java.nio.file.Files.writeString(sidecar, variant);
-        } catch (java.io.IOException ex) {
-            LOG.warn("BlockSweeper: failed to write variant sidecar for {}", safeName, ex);
-        }
     }
 
     private void finish() {
