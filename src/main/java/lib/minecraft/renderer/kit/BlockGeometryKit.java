@@ -155,6 +155,35 @@ public class BlockGeometryKit {
         int tintedArgb,
         int untintedArgb
     ) {
+        return buildFromElements(elements, faceTextures, tintedArgb, untintedArgb, 0, false);
+    }
+
+    /**
+     * {@code uvlock}-aware variant of
+     * {@link #buildFromElements(ConcurrentList, Map, int, int)}. When {@code uvLock} is set, the
+     * UV of every face whose normal lies along the blockstate variant's Y-rotation axis (the
+     * {@code up} and {@code down} faces) is counter-rotated by the variant's Y angle so the
+     * texture stays aligned to the world grid rather than spinning with the rotated model -
+     * matching vanilla's per-face {@code uvlock} baking. The caller still applies the variant's
+     * position rotation separately (the UV lock is independent of where the vertices land), so
+     * passing {@code uvLock = false} reproduces the plain overload byte-for-byte.
+     * <p>
+     * Only the Y axis is handled: blockstate variants drive horizontally-oriented blocks
+     * (stairs, walls, fence gates) whose default-state {@code uvlock} is a pure Y rotation, and
+     * a Y rotation keeps every side face's vertical axis vertical so only {@code up}/{@code down}
+     * need correcting.
+     *
+     * @param variantRotationY the variant's whole-model Y rotation in degrees (0/90/180/270)
+     * @param uvLock whether the blockstate variant requested {@code uvlock}
+     */
+    public static @NotNull ConcurrentList<VisibleTriangle> buildFromElements(
+        @NotNull ConcurrentList<ModelElement> elements,
+        @NotNull Map<String, PixelBuffer> faceTextures,
+        int tintedArgb,
+        int untintedArgb,
+        int variantRotationY,
+        boolean uvLock
+    ) {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
         for (ModelElement element : elements) {
@@ -219,7 +248,8 @@ public class BlockGeometryKit {
                 PixelBuffer texture = faceTextures.get(face.getTexture());
                 if (texture == null) continue;
 
-                Vector2f[] uv = resolveFaceUv(face, blockFace, element);
+                int uvLockTurns = uvLock ? uvLockQuarterTurns(blockFace, variantRotationY) : 0;
+                Vector2f[] uv = resolveFaceUv(face, blockFace, element, uvLockTurns);
                 Vector3f[] corners = blockFace.corners(new Box(x0, y0, z0, x1, y1, z1));
                 Vector3f faceNormal = blockFace.normal();
 
@@ -251,20 +281,72 @@ public class BlockGeometryKit {
      * {@code 90}/{@code 180}/{@code 270} is applied by
      * {@link Vector4f#toUvCorners(float, float, int, boolean)} via a forward cyclic shift
      * matching vanilla's {@code Quadrant}-based UV rotation.
+     * <p>
+     * {@code uvLockQuarterTurnsCw} applies a blockstate {@code uvlock} rotation by spinning the
+     * resolved UV coordinates about the <b>texture center</b> {@code (0.5, 0.5)} rather than the
+     * authored rectangle's center. For a full-face square UV the two are identical, but for a
+     * partial face (e.g. a stair step's {@code [8, 0, 16, 16]} top) only the texture-center spin
+     * keeps the actual texels world-locked the way vanilla's {@code getUVLockTransform} does -
+     * a {@code Vector4f#toUvCorners} {@code faceRotation} would rotate within the rectangle and
+     * shift the sampled texels.
      */
     private static @NotNull Vector2f @NotNull [] resolveFaceUv(
         @NotNull ModelFace face,
         @NotNull BlockFace blockFace,
-        @NotNull ModelElement element
+        @NotNull ModelElement element,
+        int uvLockQuarterTurnsCw
     ) {
         Vector4f rect = face.getUv()
             .orElseGet(() -> blockFace.defaultUv(Box.of(element.getFrom(), element.getTo())));
-        return rect.toUvCorners(
+        Vector2f[] corners = rect.toUvCorners(
             VANILLA_PIXEL_UNITS_PER_BLOCK,
             VANILLA_PIXEL_UNITS_PER_BLOCK,
             face.getRotation(),
             false
         );
+        return rotateUvAboutCenter(corners, uvLockQuarterTurnsCw);
+    }
+
+    /**
+     * Spins the four UV coordinates clockwise about the texture center {@code (0.5, 0.5)} by
+     * {@code quarterTurns} right angles, keeping each value in its TL/BL/BR/TR vertex slot so the
+     * texture content rotates while the vertex winding is untouched. {@code quarterTurns == 0}
+     * returns the input array unchanged.
+     */
+    private static @NotNull Vector2f @NotNull [] rotateUvAboutCenter(@NotNull Vector2f @NotNull [] corners, int quarterTurns) {
+        int k = ((quarterTurns % 4) + 4) % 4;
+        if (k == 0) return corners;
+        Vector2f[] out = new Vector2f[corners.length];
+        for (int i = 0; i < corners.length; i++) {
+            float u = corners[i].x();
+            float v = corners[i].y();
+            for (int t = 0; t < k; t++) {
+                // Clockwise quarter turn about (0.5, 0.5): (u, v) -> (0.5 + (v - 0.5), 0.5 - (u - 0.5)).
+                float nu = 0.5f + (v - 0.5f);
+                float nv = 0.5f - (u - 0.5f);
+                u = nu;
+                v = nv;
+            }
+            out[i] = new Vector2f(u, v);
+        }
+        return out;
+    }
+
+    /**
+     * Returns the {@code uvlock} UV rotation (in clockwise quarter turns) for a face under a
+     * blockstate variant Y rotation. The {@code up} and {@code down} faces are perpendicular to
+     * the Y axis and would otherwise spin with the rotated model; rotating their UV about the
+     * texture center by the variant angle keeps the texture aligned to the world grid. {@code down}
+     * is viewed from the opposite side so it takes the opposite sense. Side faces keep vertical-up
+     * under a Y rotation and need no correction.
+     */
+    private static int uvLockQuarterTurns(@NotNull BlockFace face, int variantRotationY) {
+        int turns = variantRotationY / 90;
+        return switch (face) {
+            case UP -> -turns;
+            case DOWN -> turns;
+            default -> 0;
+        };
     }
 
     /**

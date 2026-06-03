@@ -15,7 +15,6 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.model.BlockModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
-import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.engine.IsometricEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RenderEngine;
@@ -46,11 +45,11 @@ import java.util.Map;
  * Each sub-renderer is a {@code public static final} inner class implementing
  * {@link Renderer Renderer&lt;BlockOptions&gt;}:
  * <ul>
- * <li>{@link Isometric3D} uses an {@link IsometricEngine} whose camera transform is the
- * block's own {@code display.gui} rotation (via {@link IsometricEngine#withGuiPose}),
- * matching vanilla's {@code PoseStack.mulPose(Quaternionf.rotationXYZ(gui.rotation))}
- * exactly so stairs, slabs, fence gates, and other blocks that override the standard
- * {@code [30, 225, 0]} pose render vanilla-accurate without any yaw-delta fixup.</li>
+ * <li>{@link Isometric3D} uses an {@link IsometricEngine} fixed to the standard
+ * {@code [30, 225, 0]} block-icon pose (via {@link IsometricEngine#forBlockIcon}). The
+ * vanilla-reference harness renders every block at this uniform iso pose and ignores each
+ * model's authored {@code display.gui} (stairs/slabs/fence gates ship {@code [30, 135, 0]}),
+ * so per-state orientation comes from the baked blockstate variant rotation, not the camera.</li>
  * <li>{@link BlockFace2D} delegates to {@link RasterEngine} for single-face output.</li>
  * </ul>
  * Shared block lookup and biome tint resolution live as package-private static helpers on this
@@ -129,12 +128,18 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         @Override
         public @NotNull ImageData render(@NotNull BlockOptions options) {
             Block block = requireBlock(this.context, options.getBlockId());
-            // The block's own display.gui rotation (stairs use [30, 135, 0] instead of the
-            // default [30, 225, 0], etc.) lives in the engine's camera transform; the user's
-            // pitch/yaw/roll go through the standard rasterize path. This matches vanilla's
-            // PoseStack.mulPose(Quaternionf.rotationXYZ(gui.rotation)) exactly.
-            EulerRotation guiRotation = resolveGuiRotation(block);
-            IsometricEngine engine = IsometricEngine.withGuiPose(this.context, guiRotation);
+            // Every block renders at the standard [30, 225, 0] iso pose - NOT the model's own
+            // authored display.gui. The vanilla-reference harness deliberately ignores each
+            // model's display.gui and hardcodes BLOCK_GUI_ROTATION = rotationXYZ(30, 225, 0) for
+            // both its plain-block (BlockFrameRenderer) and entity-block (BlockEntityFrameRenderer)
+            // paths, so a uniform iso pose is the ground truth. Reading the model's display.gui
+            // mirrored every y=90/270 oriented block (stairs/slabs/fence-gates ship [30, 135, 0],
+            // the reflection of 225 about yaw=180): the stair step faced the opposite horizontal
+            // side from vanilla. The blockstate variant rotation (baked into the harness's
+            // BlockStateModel quads, applied here via buildVariantRotation) supplies the real
+            // per-state orientation; the camera pose stays fixed.
+            EulerRotation guiRotation = EulerRotation.STANDARD_ISO_BLOCK;
+            IsometricEngine engine = IsometricEngine.forBlockIcon(this.context);
 
             // Block-entity mappings may supply a per-entry tint that overrides the block's
             // biome / constant tint. Used for banners: vanilla resolves DyeColor via
@@ -196,7 +201,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     if (!variantModel.getElements().isEmpty())
                         modelToUse = variantModel;
                 }
-                triangles = buildFromBlockElements(modelToUse, tint, untintedTint);
+                triangles = buildFromBlockElements(modelToUse, variant, tint, untintedTint);
                 if (variant != null && variant.hasRotation())
                     triangles = applyRotation(triangles, buildVariantRotation(variant));
             }
@@ -294,8 +299,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     }
                 }
 
-                ConcurrentList<VisibleTriangle> partTriangles =
-                    BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint);
+                ConcurrentList<VisibleTriangle> partTriangles = apply.uvlock()
+                    ? BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint, apply.y(), true)
+                    : BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint);
 
                 // Apply per-part rotation if specified
                 if (apply.hasRotation())
@@ -399,7 +405,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * block's primary {@link Block#getModel()} - e.g. {@code sweet_berry_bush_stage0} for
          * an {@code age=0} render.
          */
-        private @NotNull ConcurrentList<VisibleTriangle> buildFromBlockElements(@NotNull BlockModelData model, int tint, int untintedTint) {
+        private @NotNull ConcurrentList<VisibleTriangle> buildFromBlockElements(@NotNull BlockModelData model, @Nullable Block.Variant variant, int tint, int untintedTint) {
             RasterEngine raster = new RasterEngine(this.context);
             ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
             ConcurrentMap<String, String> variables = model.getTextures();
@@ -414,6 +420,11 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 }
             }
 
+            // uvlock counter-rotates the up/down-face UVs against the variant Y rotation so the
+            // texture stays world-aligned (the position rotation is applied separately by the
+            // caller via applyRotation). Non-uvlock variants fall through to the plain build.
+            if (variant != null && variant.uvlock())
+                return BlockGeometryKit.buildFromElements(model.getElements(), faceTextures, tint, untintedTint, variant.y(), true);
             return BlockGeometryKit.buildFromElements(model.getElements(), faceTextures, tint, untintedTint);
         }
 
@@ -550,12 +561,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 }
             }
 
-            ConcurrentList<VisibleTriangle> triangles = BlockGeometryKit.buildFromElements(
-                partModel.getElements(),
-                faceTextures,
-                tint,
-                untintedTint
-            );
+            ConcurrentList<VisibleTriangle> triangles = first.uvlock()
+                ? BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint, first.y(), true)
+                : BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint);
 
             if (first.hasRotation())
                 triangles = applyRotation(triangles, buildVariantRotation(first));
@@ -664,18 +672,6 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 ));
             }
             return result;
-        }
-
-        /**
-         * Resolves the block's own {@code display.gui} rotation. Falls back to the standard
-         * {@code [30, 225, 0]} from {@code block/block.json} when the block doesn't supply its
-         * own gui transform, matching vanilla's inheritance behaviour - stairs ship
-         * {@code [30, 135, 0]}, slabs and fence gates override too. Drives both the iso
-         * camera matrix and the post-pose normal transform used in {@link #relightForItems3d}.
-         */
-        private static @NotNull EulerRotation resolveGuiRotation(@NotNull Block block) {
-            ModelTransform gui = block.getModel().getDisplay().get("gui");
-            return gui != null ? gui.getRotation() : EulerRotation.STANDARD_ISO_BLOCK;
         }
 
         /**
