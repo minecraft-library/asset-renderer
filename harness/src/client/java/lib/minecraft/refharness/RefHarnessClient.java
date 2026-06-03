@@ -50,6 +50,9 @@ public final class RefHarnessClient implements ClientModInitializer {
             }
             if (ticksSinceWorldReady < 0) {
                 LOG.info("World loaded. Warming up for {} ticks before sweep.", WARMUP_TICKS);
+                // Pin noon + freeze the day/night cycle now, while warming up, so the change has
+                // fully propagated to the client lightmap before the first block-entity renders.
+                RefHarnessRenderer.pinNoonLighting(client);
                 ticksSinceWorldReady = 0;
                 return;
             }

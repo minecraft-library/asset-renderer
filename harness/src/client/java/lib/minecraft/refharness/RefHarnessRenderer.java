@@ -1,6 +1,9 @@
 package lib.minecraft.refharness;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.gamerules.GameRules;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,6 +47,38 @@ public final class RefHarnessRenderer {
         blockSweeper = BlockSweeper.build();
         itemSweeper = ItemSweeper.build();
         entitySweeper = EntitySweeper.build();
+    }
+
+    /**
+     * Pins the overworld to noon and freezes the day/night cycle so the in-world LIGHTMAP the
+     * block-entity render path samples is a stable neutral full-bright value.
+     *
+     * <p>{@link BlockEntityFrameRenderer} wires a transient block-entity to {@code client.level}
+     * and submits it through the vanilla BE renderer, which samples the world lightmap. That
+     * lightmap is time-of-day dependent, so with the daylight cycle running the time advances
+     * across the sweep and each BE block bakes a different sky tint into its reference PNG - and a
+     * later subset re-render lands at a different time (e.g. a night-blue lightmap) than the
+     * block's original full-sweep position, silently corrupting the reference. Plain blocks
+     * ({@link BlockFrameRenderer}, rendered in isolation) never sample the lightmap, so they were
+     * already stable; this only matters for the in-world BE path.
+     *
+     * <p>Called once the moment the world loads - <em>before</em> the warmup ticks - because the
+     * time change is applied on the server thread and needs a few ticks to propagate to the
+     * client lightmap; the warmup window guarantees it has landed before the first block renders.
+     * MC 26.1 renamed the cycle rule to {@code ADVANCE_TIME} and moved the day-time setter into
+     * the reworked clock/timeline system, so noon is pinned through the {@code /time} command.
+     */
+    static void pinNoonLighting(Minecraft client) {
+        MinecraftServer server = client.getSingleplayerServer();
+        if (server == null) {
+            LOG.warn("RefHarnessRenderer: no integrated server, cannot pin noon lighting");
+            return;
+        }
+        server.execute(() -> {
+            ServerLevel overworld = server.overworld();
+            overworld.getGameRules().set(GameRules.ADVANCE_TIME, false, server);
+            server.getCommands().performPrefixedCommand(server.createCommandSourceStack(), "time set noon");
+        });
     }
 
     static boolean isDone() {
