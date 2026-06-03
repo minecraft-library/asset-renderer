@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.geometry;
 
+import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
-import dev.simplified.image.pixel.PixelBuffer;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -57,20 +57,6 @@ public record VisibleTriangle(
     boolean translucent,
     @Nullable String debugTag
 ) {
-
-    /**
-     * Convenience constructor that omits {@link #debugTag} for production call sites.
-     */
-    public VisibleTriangle(
-        @NotNull Vector3f position0, @NotNull Vector3f position1, @NotNull Vector3f position2,
-        @NotNull Vector2f uv0, @NotNull Vector2f uv1, @NotNull Vector2f uv2,
-        @NotNull PixelBuffer texture, int tintArgb,
-        @NotNull Vector3f normal, float shading,
-        boolean cullBackFaces, boolean emissive, boolean translucent
-    ) {
-        this(position0, position1, position2, uv0, uv1, uv2, texture, tintArgb, normal, shading,
-             cullBackFaces, emissive, translucent, null);
-    }
 
     /**
      * Convenience constructor for non-translucent triangles (the historic 12-arg signature in use
