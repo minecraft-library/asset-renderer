@@ -22,6 +22,7 @@ import com.mojang.math.Transformation;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.object.banner.BannerFlagModel;
 import net.minecraft.client.model.object.banner.BannerModel;
+import net.minecraft.client.model.object.skull.SkullModelBase;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.Projection;
 import net.minecraft.client.renderer.ProjectionMatrixBuffer;
@@ -36,9 +37,11 @@ import net.minecraft.client.renderer.blockentity.BannerRenderer;
 import net.minecraft.client.renderer.blockentity.BedRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderDispatcher;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
+import net.minecraft.client.renderer.blockentity.SkullBlockRenderer;
 import net.minecraft.client.renderer.blockentity.state.BannerRenderState;
 import net.minecraft.client.renderer.blockentity.state.BedRenderState;
 import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
+import net.minecraft.client.renderer.blockentity.state.SkullBlockRenderState;
 import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
@@ -49,6 +52,8 @@ import net.minecraft.core.Vec3i;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.BannerBlock;
 import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.SkullBlock;
+import net.minecraft.world.level.block.WallSkullBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BedPart;
@@ -139,6 +144,14 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
     private static final float BED_ICON_ROTATION_DEG = 90f;
 
     /**
+     * Skull animation position that closes the ender-dragon jaw to match asset-renderer's static
+     * (bind-pose) geometry. {@code DragonHeadModel.setupAnim} drives {@code jaw.xRot =
+     * (sin(animationPos * PI * 0.2) + 1) * 0.2}; this is the {@code sin = -1} root so the jaw rests
+     * flush with the head. At the default {@code 0} the jaw gapes open by {@code 0.2} rad.
+     */
+    private static final float DRAGON_JAW_CLOSED_ANIM = -2.5f;
+
+    /**
      * Canonical standing-banner rotation (degrees) - turns the flag to the icon direction. At 0
      * the pole faces the camera (in front of the cloth); the icon wants the pole behind the
      * cloth, a 180-degree flip about the vertical.
@@ -158,6 +171,9 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
     private static final Field BANNER_WALL_MODEL;
     private static final Field BANNER_WALL_FLAG_MODEL;
 
+    /** Per-type skull model factory - private on {@link SkullBlockRenderer}, used to walk the dragon-head bbox. */
+    private static final Field SKULL_MODEL_BY_TYPE;
+
     static {
         try {
             BANNER_WALL_MODEL = BannerRenderer.class.getDeclaredField("wallModel");
@@ -166,6 +182,12 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
             BANNER_WALL_FLAG_MODEL.setAccessible(true);
         } catch (NoSuchFieldException e) {
             throw new RuntimeException("BannerRenderer wall-model field layout changed in this Minecraft version", e);
+        }
+        try {
+            SKULL_MODEL_BY_TYPE = SkullBlockRenderer.class.getDeclaredField("modelByType");
+            SKULL_MODEL_BY_TYPE.setAccessible(true);
+        } catch (NoSuchFieldException e) {
+            throw new RuntimeException("SkullBlockRenderer model-factory field layout changed in this Minecraft version", e);
         }
     }
 
@@ -231,6 +253,8 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
                     submitBedIcon(bed, (BedRenderState) renderState, storage);
                 } else if ((Object) renderer instanceof BannerRenderer banner) {
                     submitBannerIcon(banner, (BannerRenderState) renderState, storage);
+                } else if ((Object) renderer instanceof SkullBlockRenderer skull) {
+                    submitSkullIcon(skull, (SkullBlockRenderState) renderState, state, storage);
                 } else {
                     submitRawBlockEntity(client, state, renderer, renderState, storage);
                 }
@@ -257,12 +281,7 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
     private void submitRawBlockEntity(Minecraft client, BlockState state,
                                       BlockEntityRenderer<BlockEntity, BlockEntityRenderState> renderer,
                                       BlockEntityRenderState renderState, SubmitNodeStorage storage) {
-        PoseStack poseStack = new PoseStack();
-        poseStack.translate(textureWidth / 2.0f, textureHeight / 2.0f, 0.0f);
-        poseStack.scale(textureWidth, -textureHeight, textureWidth);
-        poseStack.mulPose(BLOCK_GUI_ROTATION);
-        poseStack.scale(BLOCK_GUI_SCALE, BLOCK_GUI_SCALE, BLOCK_GUI_SCALE);
-        poseStack.translate(-0.5f, -0.5f, -0.5f);
+        PoseStack poseStack = blockCenteredPose();
 
         // 1. Submit the static block model first - same call BlockFrameRenderer makes for plain
         //    blocks. For blocks where the BE adds geometry on top of an existing block model
@@ -348,6 +367,67 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
     }
 
     /**
+     * Composes a skull / mob-head inventory icon. Floor heads already match asset-renderer (they sit
+     * centred on the block), so the work is twofold:
+     * <ul>
+     *   <li><b>Wall heads</b> ({@link WallSkullBlock}) - the in-world transform mounts the head on a
+     *       wall (a {@code 0.25} offset toward the wall + a facing rotation). asset-renderer renders
+     *       the wall block with the same centred icon as the floor block (one {@code skull_head}
+     *       entry covers both), so the wall head is re-pointed at the canonical ground transform at
+     *       rotation 0 - exactly what the floor head already uses.</li>
+     *   <li><b>Dragon head</b> - the ender-dragon head model is far larger than a block and overflows
+     *       a block-centred canvas. It keeps the (correct) ground orientation but is recentred on its
+     *       bbox and shrunk to fit, mirroring asset-renderer's {@code recenterAndFit}. Normal heads
+     *       fit within the block so they take the plain block-centred pose untouched.</li>
+     * </ul>
+     */
+    private void submitSkullIcon(SkullBlockRenderer skull, SkullBlockRenderState state, BlockState blockState, SubmitNodeStorage storage) {
+        if (blockState.getBlock() instanceof WallSkullBlock) {
+            state.transformation = SkullBlockRenderer.TRANSFORMATIONS.freeTransformations(0);
+        }
+
+        // Only the ender-dragon head is larger than a block; every other head fits and takes the
+        // plain block-centred pose (matching the floor heads that already hit ~0). The dragon keeps
+        // its (correct) ground orientation but is recentred on its bbox and shrunk to fit.
+        PoseStack ps;
+        if (state.skullType == SkullBlock.Types.DRAGON) {
+            // Close the jaw to the bind pose asset-renderer baked (the default open jaw would diverge
+            // and inflate the silhouette). Both the bbox walk and the submit read animationProgress,
+            // so they stay in the same pose.
+            state.animationProgress = DRAGON_JAW_CLOSED_ANIM;
+            Matrix4f frame = new Matrix4f(state.transformation.getMatrix());
+            Bounds bounds = new Bounds();
+            expandExtents(bounds, frame, c -> walkSkullExtents(skull, state, c));
+            ps = isoFitPose(bounds);
+        } else {
+            ps = blockCenteredPose();
+        }
+        skull.submit(state, ps, storage, cameraState);
+    }
+
+    /**
+     * Walks the skull model for {@code state.skullType} in its raw mesh frame, feeding each vertex to
+     * {@code out}. The per-type {@link SkullModelBase} factory is private on
+     * {@link SkullBlockRenderer}, so it is reached reflectively; {@code setupAnim} is run at the same
+     * {@code state.animationProgress} the submit uses (the closed-jaw pose for the dragon) so the
+     * measured bbox matches the rendered geometry.
+     */
+    private void walkSkullExtents(SkullBlockRenderer skull, SkullBlockRenderState state, Consumer<Vector3fc> out) {
+        try {
+            @SuppressWarnings("unchecked")
+            java.util.function.Function<Object, SkullModelBase> factory =
+                (java.util.function.Function<Object, SkullModelBase>) SKULL_MODEL_BY_TYPE.get(skull);
+            SkullModelBase model = factory.apply(state.skullType);
+            SkullModelBase.State animState = new SkullModelBase.State();
+            animState.animationPos = state.animationProgress;
+            model.setupAnim(animState);
+            model.root().getExtentsForGui(new PoseStack(), out);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException("Failed to read SkullBlockRenderer model factory", e);
+        }
+    }
+
+    /**
      * Walks the wall-banner sub-models (bar + hanging flag, no pole) the same way
      * {@link BannerRenderer#getExtents} walks the standing models, feeding each raw vertex to
      * {@code out}. Vanilla's public {@code getExtents} only exposes the standing models, so the
@@ -390,6 +470,22 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
             Vector3f t = frame.transformPosition(v.x(), v.y(), v.z(), new Vector3f());
             bounds.expand(t.x(), t.y(), t.z());
         });
+    }
+
+    /**
+     * The standard block-centred iso PIP pose: centre on canvas, 1 model unit -&gt; canvas pixels
+     * (Y-down -&gt; Y-up), the block {@code display.gui} rotation + scale, then centre the
+     * {@code [0,1]} block model on the origin. Used by the raw BE path and by heads that fit inside
+     * the block.
+     */
+    private PoseStack blockCenteredPose() {
+        PoseStack ps = new PoseStack();
+        ps.translate(textureWidth / 2.0f, textureHeight / 2.0f, 0.0f);
+        ps.scale(textureWidth, -textureHeight, textureWidth);
+        ps.mulPose(BLOCK_GUI_ROTATION);
+        ps.scale(BLOCK_GUI_SCALE, BLOCK_GUI_SCALE, BLOCK_GUI_SCALE);
+        ps.translate(-0.5f, -0.5f, -0.5f);
+        return ps;
     }
 
     /**
