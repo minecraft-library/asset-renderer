@@ -33,6 +33,7 @@ import net.minecraft.client.renderer.SubmitNodeStorage;
 import net.minecraft.client.renderer.block.BlockStateModelSet;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
+import net.minecraft.client.renderer.blockentity.AbstractSignRenderer;
 import net.minecraft.client.renderer.blockentity.BannerRenderer;
 import net.minecraft.client.renderer.blockentity.BedRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderDispatcher;
@@ -41,6 +42,7 @@ import net.minecraft.client.renderer.blockentity.SkullBlockRenderer;
 import net.minecraft.client.renderer.blockentity.state.BannerRenderState;
 import net.minecraft.client.renderer.blockentity.state.BedRenderState;
 import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
+import net.minecraft.client.renderer.blockentity.state.SignRenderState;
 import net.minecraft.client.renderer.blockentity.state.SkullBlockRenderState;
 import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
 import net.minecraft.client.renderer.rendertype.RenderType;
@@ -255,6 +257,8 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
                     submitBannerIcon(banner, (BannerRenderState) renderState, storage);
                 } else if ((Object) renderer instanceof SkullBlockRenderer skull) {
                     submitSkullIcon(skull, (SkullBlockRenderState) renderState, state, storage);
+                } else if ((Object) renderer instanceof AbstractSignRenderer) {
+                    submitSignIcon(renderer, (SignRenderState) renderState, storage);
                 } else {
                     submitRawBlockEntity(client, state, renderer, renderState, storage);
                 }
@@ -403,6 +407,32 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
             ps = blockCenteredPose();
         }
         skull.submit(state, ps, storage, cameraState);
+    }
+
+    /**
+     * Composes a sign inventory icon for every variant - standing (board + post), wall (board
+     * only), and the three hanging forms (ceiling V-chains, ceiling-middle straight chains, wall
+     * bar + splayed chains). {@link AbstractSignRenderer} already renders each block at the
+     * attachment its default state selects: {@code extractRenderState} populates
+     * {@code transformations.body()} with the per-attachment mount transform (the wall mount adds
+     * its own translate) and {@code getSignModel(state)} picks the matching mesh by
+     * {@code attachmentType}. The only icon adjustment is a 180-degree yaw about the block-centre
+     * vertical axis pre-composed into the body transform, turning the sign face toward the camera
+     * to match asset-renderer's iso icon (confirmed: standing 1.52 -&gt; 0.06). The same yaw applies
+     * to all sign types - each block's default state already carries a {@code rotation=8} /
+     * {@code facing=north} yaw of 180 degrees, so the pre-composed flip lands the face at the
+     * canonical reference orientation asset-renderer bakes its inventory transform at.
+     */
+    private void submitSignIcon(BlockEntityRenderer<BlockEntity, BlockEntityRenderState> renderer,
+                                SignRenderState state, SubmitNodeStorage storage) {
+        SignRenderState.SignTransformations t = state.transformations;
+        Matrix4f body = new Matrix4f()
+            .translate(0.5f, 0f, 0.5f)
+            .rotateY((float) Math.PI)
+            .translate(-0.5f, 0f, -0.5f)
+            .mul(t.body().getMatrix());
+        state.transformations = new SignRenderState.SignTransformations(new Transformation(body), t.frontText(), t.backText());
+        renderer.submit(state, blockCenteredPose(), storage, cameraState);
     }
 
     /**
