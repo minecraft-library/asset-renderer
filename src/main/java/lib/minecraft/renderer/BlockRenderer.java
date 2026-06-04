@@ -720,6 +720,18 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             ConcurrentList<VisibleTriangle> out = Concurrent.newList();
             for (VisibleTriangle t : triangles) {
                 Vector3f renderNormal = Vector3f.normalize(Vector3f.transformNormal(t.normal(), normalTransform));
+                // Two-sided (no back-face cull) faces: shade by the camera-facing normal. Vanilla's
+                // ENTITY_CUTOUT / sign pipeline composes withCull(false) + PER_FACE_LIGHTING, whose
+                // fragment shader picks the front- or back-vertex colour by screen-space winding -
+                // equivalent to shading against whichever normal points at the camera. A zero-depth
+                // plane emits two coplanar polygons with opposite normals (sign chains, banner cloth,
+                // item-frame backing); without this, the asset shades by whichever polygon wins the
+                // coplanar depth tie (the away-facing one over-brightens to ~1.0 where vanilla shows
+                // the camera-facing ~0.5). Visible iso faces point at +Z in this render frame, so an
+                // away-facing (z < 0) two-sided normal is flipped before lighting. Cull-enabled faces
+                // already present only their front side, so they are left untouched.
+                if (!t.cullBackFaces() && renderNormal.z() < 0f)
+                    renderNormal = new Vector3f(-renderNormal.x(), -renderNormal.y(), -renderNormal.z());
                 // Match vanilla's vertex-stream byte-packed normal: the shader receives the
                 // normal after a signed-byte SNORM round-trip ({@code (int)(c * 127.0F) / 127.0F},
                 // truncated toward zero). For the LEFT face of a default iso pose, this maps
