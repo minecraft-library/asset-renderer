@@ -458,8 +458,8 @@ public final class PipelineRendererContext implements RendererContext {
     ) {
         if (beVariants == null || beVariants.isEmpty()) return packVariants;
         HashMap<String, Block.Variant> merged = new HashMap<>();
-        for (Map.Entry<String, Block.Variant> e : packVariants.entrySet()) merged.put(e.getKey(), e.getValue());
-        for (Map.Entry<String, Block.Variant> e : beVariants.entrySet()) merged.put(e.getKey(), e.getValue());
+        merged.putAll(packVariants);
+        merged.putAll(beVariants);
         return Concurrent.adoptMap(merged).toUnmodifiable();
     }
 
@@ -869,14 +869,16 @@ public final class PipelineRendererContext implements RendererContext {
         String itemModelRef = itemDefs.get(blockId);
         if (itemModelRef != null) {
             BlockModelData model = blockModels.get(itemModelRef);
-            if (isUsableResolvedModel(itemModelRef, model)) return Optional.of(new ResolvedBlockModel(itemModelRef, model));
+            if (isUsableResolvedModel(itemModelRef, model))
+                return Optional.of(new ResolvedBlockModel(itemModelRef, model));
         }
 
         ConcurrentMap<String, Block.Variant> variants = variantMap.get(blockId);
         if (variants != null && !variants.isEmpty()) {
             String variantModelId = variants.values().iterator().next().modelId();
             BlockModelData model = blockModels.get(variantModelId);
-            if (isUsableResolvedModel(variantModelId, model)) return Optional.of(new ResolvedBlockModel(variantModelId, model));
+            if (isUsableResolvedModel(variantModelId, model))
+                return Optional.of(new ResolvedBlockModel(variantModelId, model));
         }
 
         return Optional.empty();
