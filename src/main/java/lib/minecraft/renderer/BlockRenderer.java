@@ -27,7 +27,7 @@ import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.kit.BlockGeometryKit;
 import lib.minecraft.renderer.options.BlockOptions;
-import lib.minecraft.renderer.pipeline.loader.BlockEntityLoader;
+import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -196,7 +196,14 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 // which guards against pack-level surprises for non-TILE_ENTITY blocks too.
                 Block.Variant variant = resolveVariant(block, effectiveVariant);
                 BlockModelData modelToUse = block.getModel();
-                if (variant != null && block.getSource() != Block.Source.TILE_ENTITY) {
+                // Use the resolved variant's geometry whenever it carries real elements. For plain
+                // blocks this picks the per-state model (sweet_berry_bush age stages, doors). For
+                // {@link Block.Source#TILE_ENTITY} blocks the pack variant points at an empty
+                // particle-only template (so this falls through to the BE model), but a
+                // block-entity may inject a geometry-bearing variant for a state its mesh varies on
+                // (the ceiling hanging sign's attached=true straight-chain mesh) - the non-empty
+                // check keeps the empty pack variants from clobbering the default BE model.
+                if (variant != null) {
                     BlockModelData variantModel = variant.model();
                     if (!variantModel.getElements().isEmpty())
                         modelToUse = variantModel;
@@ -465,7 +472,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * element's rotated-cube corners land at the correct final positions either way.
          * <p>
          * This is the atlas-time composition path that used to live in
-         * {@link BlockEntityLoader}. Moving it to render time
+         * {@link BlockModelLoader}. Moving it to render time
          * lets scene callers skip the merge for a per-variant-geometry render.
          */
         private @NotNull ConcurrentList<VisibleTriangle> buildFromEntityParts(@NotNull Block.Entity entity, int tint, int untintedTint) {
@@ -612,12 +619,22 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // omitting `powered`). Walk the variants map and pick the entry whose props are
             // a SUBSET of the caller's props. Returns the variant whose conditions are all
             // satisfied by the caller's blockstate.
+            // Most-specific subset wins: among the variants whose props are all satisfied by the
+            // caller's blockstate, pick the one matching the most properties. This lets a
+            // geometry-bearing {@code attached=true} variant (injected for the ceiling hanging
+            // sign) beat the unconditional {@code ""} catch-all that also subset-matches every
+            // state; for blocks with equal-specificity variants the first encountered still wins.
             ConcurrentMap<String, String> callerProps = parseProperties(variantKey);
+            Block.Variant best = null;
+            int bestSpecificity = -1;
             for (Map.Entry<String, Block.Variant> entry : block.getVariants().entrySet()) {
                 ConcurrentMap<String, String> variantProps = parseProperties(entry.getKey());
-                if (isSubsetMatch(variantProps, callerProps)) return entry.getValue();
+                if (isSubsetMatch(variantProps, callerProps) && variantProps.size() > bestSpecificity) {
+                    best = entry.getValue();
+                    bestSpecificity = variantProps.size();
+                }
             }
-            return null;
+            return best;
         }
 
         /** Returns true when every entry in {@code subset} appears with the same value in {@code superset}. */

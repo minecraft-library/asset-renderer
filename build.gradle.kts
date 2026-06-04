@@ -178,10 +178,10 @@ tasks {
         classpath = sourceSets["main"].runtimeClasspath
     }
 
-    register<JavaExec>("blockEntities") {
-        description = "Parses block entity model classes (chest, sign, bed, etc.) from the client jar via ASM and generates src/main/resources/lib/minecraft/renderer/block_entities.json."
+    register<JavaExec>("blockModels") {
+        description = "Parses block-entity model classes (chest, sign, bed, etc.) from the client jar via ASM and generates src/main/resources/lib/minecraft/renderer/block_models.json."
         group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.ToolingBlockEntities")
+        mainClass.set("lib.minecraft.renderer.tooling.ToolingBlockModels")
         classpath = sourceSets["main"].runtimeClasspath
     }
 

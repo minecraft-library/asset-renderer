@@ -24,7 +24,7 @@ import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.TextureEngine;
 import lib.minecraft.renderer.geometry.Biome;
 import lib.minecraft.renderer.geometry.BlockFace;
-import lib.minecraft.renderer.pipeline.loader.BlockEntityLoader;
+import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.pipeline.pack.CitMatcher;
@@ -40,6 +40,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Accessors;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -84,7 +85,7 @@ import java.util.stream.Collectors;
  * Every stored index is unmodifiable: indexes built locally inside {@link #of(Pipeline.Result)}
  * ({@code blockIndex}, {@code itemIndex}, {@code entityIndex}, {@code packs}) are wrapped via
  * {@link ConcurrentMap#toUnmodifiable()} at construction; indexes that came in already
- * keyed off the {@link Pipeline.Result} (or {@link BlockEntityLoader#load()}) are wrapped at
+ * keyed off the {@link Pipeline.Result} (or {@link BlockModelLoader#load()}) are wrapped at
  * the loader exit so consumers between pipeline finish and context construction see the same
  * read-lock-free semantics. Read paths bypass the source map's read lock since the unmodifiable
  * wrapper is itself thread-safe by virtue of being immutable. The lazy {@code textureCache} is
@@ -224,11 +225,13 @@ public final class PipelineRendererContext implements RendererContext {
      * @return a new context scoped to the given result
      */
     public static @NotNull PipelineRendererContext of(@NotNull Pipeline.Result result) {
-        ConcurrentMap<String, Block.Entity> blockEntityEntries = BlockEntityLoader.load();
+        BlockModelLoader.LoadResult beResult = BlockModelLoader.load();
+        ConcurrentMap<String, Block.Entity> blockEntityEntries = beResult.models();
+        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> beVariants = beResult.variants();
         ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex = buildReverseTagIndex(result.getBlockTags());
 
-        ConcurrentMap<String, Block> blockIndex = buildPrimaryBlockIndex(result, blockEntityEntries, reverseTagIndex);
-        attachOrphanBlockEntities(blockIndex, blockEntityEntries, result, reverseTagIndex);
+        ConcurrentMap<String, Block> blockIndex = buildPrimaryBlockIndex(result, blockEntityEntries, beVariants, reverseTagIndex);
+        attachOrphanBlockEntities(blockIndex, blockEntityEntries, beVariants, result, reverseTagIndex);
         Set<String> blockstateOnlyIds = attachBlockstateOnlyBlocks(blockIndex, blockEntityEntries, result, reverseTagIndex);
         System.out.printf("Atlas blockstate-only registration: added %d blocks%n", blockstateOnlyIds.size());
 
@@ -321,13 +324,14 @@ public final class PipelineRendererContext implements RendererContext {
      * on top; these stay {@link Block.Source#PRIMARY}.
      *
      * @param result the pipeline result supplying block models, tints, item-defs, variants, and multiparts
-     * @param blockEntityEntries the block-entity geometry table from {@link BlockEntityLoader}
+     * @param blockEntityEntries the block-entity geometry table from {@link BlockModelLoader}
      * @param reverseTagIndex block id -&gt; tag names, from {@link #buildReverseTagIndex}
      * @return a fresh map keyed by stripped block id
      */
     private static @NotNull ConcurrentMap<String, Block> buildPrimaryBlockIndex(
         @NotNull Pipeline.Result result,
         @NotNull ConcurrentMap<String, Block.Entity> blockEntityEntries,
+        @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> beVariants,
         @NotNull ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex
     ) {
         ConcurrentMap<String, Block.Tint> tints = result.getBlockTints();
@@ -354,7 +358,7 @@ public final class PipelineRendererContext implements RendererContext {
             flattenElementFaces(modelToUse, textures);
 
             Block.Tint tint = tints.getOrDefault(blockId, new Block.Tint(Biome.TintTarget.NONE, Optional.empty()));
-            ConcurrentMap<String, Block.Variant> variants = variantMap.getOrDefault(blockId, Concurrent.newMap());
+            ConcurrentMap<String, Block.Variant> variants = mergeBlockEntityVariants(variantMap.getOrDefault(blockId, Concurrent.newMap()), beVariants.get(blockId));
             Optional<Block.Multipart> multipart = Optional.ofNullable(multipartMap.get(blockId));
             ConcurrentList<String> tags = reverseTagIndex.getOrDefault(blockId, Concurrent.newList());
 
@@ -397,13 +401,14 @@ public final class PipelineRendererContext implements RendererContext {
      * like {@code bell}).
      *
      * @param blockIndex the primary index produced by {@link #buildPrimaryBlockIndex}; mutated in place
-     * @param blockEntityEntries the block-entity geometry table from {@link BlockEntityLoader}
+     * @param blockEntityEntries the block-entity geometry table from {@link BlockModelLoader}
      * @param result the pipeline result supplying variants and multiparts
      * @param reverseTagIndex block id -&gt; tag names, from {@link #buildReverseTagIndex}
      */
     private static void attachOrphanBlockEntities(
         @NotNull ConcurrentMap<String, Block> blockIndex,
         @NotNull ConcurrentMap<String, Block.Entity> blockEntityEntries,
+        @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> beVariants,
         @NotNull Pipeline.Result result,
         @NotNull ConcurrentMap<String, ConcurrentList<String>> reverseTagIndex
     ) {
@@ -417,7 +422,7 @@ public final class PipelineRendererContext implements RendererContext {
             if (be.additive()) continue;
             String shortName = blockId.contains(":") ? blockId.substring(blockId.indexOf(':') + 1) : blockId;
             ConcurrentList<String> tags = reverseTagIndex.getOrDefault(blockId, Concurrent.newList());
-            ConcurrentMap<String, Block.Variant> variants = variantMap.getOrDefault(blockId, Concurrent.newMap());
+            ConcurrentMap<String, Block.Variant> variants = mergeBlockEntityVariants(variantMap.getOrDefault(blockId, Concurrent.newMap()), beVariants.get(blockId));
             Optional<Block.Multipart> multipart = Optional.ofNullable(multipartMap.get(blockId));
             HashMap<String, String> textures = new HashMap<>();
             textures.put("#entity", be.textureId());
@@ -438,6 +443,27 @@ public final class PipelineRendererContext implements RendererContext {
     }
 
     /**
+     * Merges a block's pack-derived blockstate variants with any geometry-bearing variants a
+     * block-entity model registers for the same id ({@link BlockModelLoader.LoadResult#variants()}).
+     * The block-entity variants win on key collision. Returns {@code packVariants} unchanged when the
+     * block has no block-entity variants, so the common case allocates nothing.
+     *
+     * @param packVariants the variants parsed from the resource pack's blockstate JSON
+     * @param beVariants the block-entity state-conditional variants for this id, or {@code null}
+     * @return the merged variant map
+     */
+    private static @NotNull ConcurrentMap<String, Block.Variant> mergeBlockEntityVariants(
+        @NotNull ConcurrentMap<String, Block.Variant> packVariants,
+        @Nullable ConcurrentMap<String, Block.Variant> beVariants
+    ) {
+        if (beVariants == null || beVariants.isEmpty()) return packVariants;
+        HashMap<String, Block.Variant> merged = new HashMap<>();
+        for (Map.Entry<String, Block.Variant> e : packVariants.entrySet()) merged.put(e.getKey(), e.getValue());
+        for (Map.Entry<String, Block.Variant> e : beVariants.entrySet()) merged.put(e.getKey(), e.getValue());
+        return Concurrent.adoptMap(merged).toUnmodifiable();
+    }
+
+    /**
      * Registers the Task-10 blockstate-only fallbacks: ids whose blockstate exists but whose
      * {@code block/<id>.json} model is absent (fence/wall/door inventories, {@code small_dripleaf},
      * etc.). The primary block-model loop misses these because it keys on model files; this pass
@@ -452,7 +478,7 @@ public final class PipelineRendererContext implements RendererContext {
      *
      * @param blockIndex the index from {@link #buildPrimaryBlockIndex} +
      *     {@link #attachOrphanBlockEntities}; mutated in place
-     * @param blockEntityEntries the block-entity geometry table from {@link BlockEntityLoader}
+     * @param blockEntityEntries the block-entity geometry table from {@link BlockModelLoader}
      * @param result the pipeline result supplying block models, tints, item-defs, variants, and multiparts
      * @param reverseTagIndex block id -&gt; tag names, from {@link #buildReverseTagIndex}
      * @return the set of ids registered through this fallback path (kept by the caller for the

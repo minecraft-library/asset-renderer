@@ -32,7 +32,7 @@ import java.util.zip.ZipFile;
  * {@code DragonHeadModel} geometry rather than the shared {@code SkullBlockRenderer} factory
  * method. The decomposer emits the shared skull tuple for dragon heads; the
  * {@code recenterInventoryTransformsByBbox} geometry-aware post-pass in
- * {@code ToolingBlockEntities} recovers the {@code tz = 1.25} from the parsed cube bbox.
+ * {@code ToolingBlockModels} recovers the {@code tz = 1.25} from the parsed cube bbox.
  *
  * <p><b>Policy</b>. The only hand-curated map is {@link #RENDERER_ENTRY_METHODS}: for each
  * renderer class internal name, the factory method (or static field prefixed
@@ -154,7 +154,7 @@ public final class InventoryTransformDecomposer {
                     diag.warn("inventory-transform: factory method '%s' not found on '%s' (entityId=%s)", entry, rendererInternal, entityId);
                     continue;
                 }
-                tuple = decomposeMethod(zip, cn, method, diag);
+                tuple = decomposeMethod(zip, cn, method, diag, ATTACHMENT_BINDING_BY_ENTITY.get(entityId));
             }
             if (tuple != null) out.put(entityId, tuple);
         }
@@ -190,7 +190,7 @@ public final class InventoryTransformDecomposer {
             diag.warn("inventory-transform: method '%s%s' not found on '%s'", methodName, methodDesc, classInternalName);
             return null;
         }
-        return decomposeMethod(zip, cn, method, diag);
+        return decomposeMethod(zip, cn, method, diag, null);
     }
 
     /**
@@ -264,14 +264,20 @@ public final class InventoryTransformDecomposer {
         @NotNull ZipFile zip,
         @NotNull ClassNode cn,
         @NotNull MethodNode method,
-        @NotNull Diagnostics diag
+        @NotNull Diagnostics diag,
+        @Nullable String attachmentConst
     ) {
         Walker walker = new Walker(zip, cn, diag, 0);
         walker.isStaticInit = AsmKit.CLINIT.equals(method.name);
         // Seed any float parameter slots with YAW sentinels. Our factory methods take at
         // most one float parameter (the yaw angle); this covers both (I), (F), (Attachment, F),
         // and (F, Attachment) descriptors without a per-shape policy.
-        if (!walker.isStaticInit) bindYawSlotsFromDescriptor(method.desc, walker);
+        if (!walker.isStaticInit) {
+            bindYawSlotsFromDescriptor(method.desc, walker);
+            // Bind a known sign-attachment parameter so the wall-mount {@code if (att == WALL)}
+            // branch resolves precisely (wall signs take the translate; ground signs skip it).
+            if (attachmentConst != null) bindAttachmentSlotsFromDescriptor(method.desc, walker, attachmentConst);
+        }
         walker.walk(method.instructions, null);
         if (walker.finalTransform == null) {
             diag.warn("inventory-transform: could not decompose method '%s%s' on '%s'", method.name, method.desc, cn.name);
@@ -295,6 +301,22 @@ public final class InventoryTransformDecomposer {
         }
     }
 
+    /**
+     * Binds any sign-attachment-typed parameter slot to the supplied enum constant so the
+     * walker can resolve {@code if (attachment == Attachment.WALL)} ({@code IF_ACMP*}) branches
+     * to the right path. Object parameters whose type does not end with
+     * {@link #SIGN_ATTACHMENT_SUFFIX} are left unbound.
+     */
+    private static void bindAttachmentSlotsFromDescriptor(@NotNull String methodDesc, @NotNull Walker walker, @NotNull String attachmentConst) {
+        Type[] args = Type.getArgumentTypes(methodDesc);
+        int slot = 0;
+        for (Type t : args) {
+            if (t.getSort() == Type.OBJECT && t.getInternalName().endsWith(SIGN_ATTACHMENT_SUFFIX))
+                walker.locals.store(slot, Value.ofEnumConst(attachmentConst));
+            slot += t.getSize();
+        }
+    }
+
     // --------------------------------------------------------------------------------------
     // Symbolic value model
     // --------------------------------------------------------------------------------------
@@ -302,7 +324,29 @@ public final class InventoryTransformDecomposer {
     /**
      * Tag for the kinds of values our symbolic JVM stack tracks.
      */
-    private enum ValueKind { FLOAT, YAW, VECTOR, QUATERNION, MATRIX, NULL, CLASS_REF, OTHER }
+    private enum ValueKind { FLOAT, YAW, VECTOR, QUATERNION, MATRIX, NULL, CLASS_REF, ENUM_CONST, OTHER }
+
+    /**
+     * Internal-name suffix shared by both sign-attachment enums ({@code PlainSignBlock$Attachment},
+     * {@code HangingSignBlock$Attachment}). Used to recognise a {@code GETSTATIC} of an attachment
+     * constant so {@code IF_ACMP*} branch dispatch can be resolved when the attachment parameter is
+     * bound to a known value.
+     */
+    private static final @NotNull String SIGN_ATTACHMENT_SUFFIX = "SignBlock$Attachment";
+
+    /**
+     * Per-entity attachment binding for the standing-sign renderer, whose
+     * {@code bodyTransformation(Attachment, yaw)} adds a wall-mount translate only when the
+     * attachment is {@code WALL}. Standing signs ({@code GROUND}) and wall signs ({@code WALL})
+     * share the renderer + factory method, so this binds the otherwise-symbolic attachment
+     * parameter to the constant each entity id renders. Entity ids absent here leave the parameter
+     * unbound (the walker's optimistic enum-branch skip selects the non-wall path). The hanging
+     * renderer's {@code bodyTransformation(float)} has no attachment parameter and needs no entry.
+     */
+    private static final @NotNull Map<String, String> ATTACHMENT_BINDING_BY_ENTITY = Map.of(
+        "minecraft:sign", "GROUND",
+        "minecraft:wall_sign", "WALL"
+    );
 
     /**
      * A value on the symbolic JVM stack. We track enough detail to recognise literal Vector3f
@@ -316,19 +360,21 @@ public final class InventoryTransformDecomposer {
         final @Nullable Vector3f vec;  // VECTOR
         final @Nullable Quat quat;  // QUATERNION
         final @Nullable TransformState matrix; // MATRIX (current transform state)
+        final @Nullable String enumConst; // ENUM_CONST (attachment constant field name)
 
-        private Value(@NotNull ValueKind kind, float floatVal, @Nullable Vector3f vec, @Nullable Quat quat, @Nullable TransformState matrix) {
-            this.kind = kind; this.floatVal = floatVal; this.vec = vec; this.quat = quat; this.matrix = matrix;
+        private Value(@NotNull ValueKind kind, float floatVal, @Nullable Vector3f vec, @Nullable Quat quat, @Nullable TransformState matrix, @Nullable String enumConst) {
+            this.kind = kind; this.floatVal = floatVal; this.vec = vec; this.quat = quat; this.matrix = matrix; this.enumConst = enumConst;
         }
 
-        static @NotNull Value ofFloat(float f) { return new Value(ValueKind.FLOAT, f, null, null, null); }
-        static @NotNull Value ofYaw() { return new Value(ValueKind.YAW, 0f, null, null, null); }
-        static @NotNull Value ofVec(@NotNull Vector3f v) { return new Value(ValueKind.VECTOR, 0f, v, null, null); }
-        static @NotNull Value ofQuat(@NotNull Quat q) { return new Value(ValueKind.QUATERNION, 0f, null, q, null); }
-        static @NotNull Value ofMatrix(@NotNull TransformState m) { return new Value(ValueKind.MATRIX, 0f, null, null, m); }
-        static @NotNull Value ofNull() { return new Value(ValueKind.NULL, 0f, null, null, null); }
-        static @NotNull Value ofClassRef() { return new Value(ValueKind.CLASS_REF, 0f, null, null, null); }
-        static @NotNull Value ofOther() { return new Value(ValueKind.OTHER, 0f, null, null, null); }
+        static @NotNull Value ofFloat(float f) { return new Value(ValueKind.FLOAT, f, null, null, null, null); }
+        static @NotNull Value ofYaw() { return new Value(ValueKind.YAW, 0f, null, null, null, null); }
+        static @NotNull Value ofVec(@NotNull Vector3f v) { return new Value(ValueKind.VECTOR, 0f, v, null, null, null); }
+        static @NotNull Value ofQuat(@NotNull Quat q) { return new Value(ValueKind.QUATERNION, 0f, null, q, null, null); }
+        static @NotNull Value ofMatrix(@NotNull TransformState m) { return new Value(ValueKind.MATRIX, 0f, null, null, m, null); }
+        static @NotNull Value ofNull() { return new Value(ValueKind.NULL, 0f, null, null, null, null); }
+        static @NotNull Value ofClassRef() { return new Value(ValueKind.CLASS_REF, 0f, null, null, null, null); }
+        static @NotNull Value ofEnumConst(@NotNull String name) { return new Value(ValueKind.ENUM_CONST, 0f, null, null, null, name); }
+        static @NotNull Value ofOther() { return new Value(ValueKind.OTHER, 0f, null, null, null, null); }
     }
 
     /**
@@ -625,13 +671,21 @@ public final class InventoryTransformDecomposer {
                 }
                 if (op == Opcodes.IFEQ || op == Opcodes.IFNE) { pop(); continue; }
                 if (op == Opcodes.IF_ACMPEQ || op == Opcodes.IF_ACMPNE) {
-                    // Optimistic enum-branch skip: when comparing two OTHER values (both
-                    // unknown), take the jump to avoid re-executing the fall-through block.
-                    // For the sign renderer's `if (attachment == WALL) { ... }` the taken
-                    // branch is the WALL-only translate; skipping it yields the GROUND path
-                    // we actually want. When the stack has fewer than 2 values, poison.
+                    // Enum-branch dispatch. When both operands are resolved attachment constants
+                    // (the bound parameter + a GETSTATIC constant), evaluate the comparison
+                    // precisely so wall signs take the WALL-mount translate and ground signs skip
+                    // it. Otherwise fall back to the optimistic skip: take the jump to avoid
+                    // re-executing the fall-through block (the WALL-only translate), which yields
+                    // the GROUND path. When the stack has fewer than 2 values, poison.
                     Value b = pop(); Value a = pop();
                     if (a == null || b == null) { poison("IF_ACMP* on small stack"); return; }
+                    if (a.kind == ValueKind.ENUM_CONST && b.kind == ValueKind.ENUM_CONST
+                        && a.enumConst != null && b.enumConst != null) {
+                        boolean equal = a.enumConst.equals(b.enumConst);
+                        boolean takeJump = op == Opcodes.IF_ACMPEQ ? equal : !equal;
+                        if (takeJump && node instanceof JumpInsnNode jn) node = jn.label;
+                        continue;
+                    }
                     if (node instanceof JumpInsnNode jn) {
                         node = jn.label;
                     }
@@ -725,7 +779,12 @@ public final class InventoryTransformDecomposer {
                 if (axis == '?') return Value.ofOther();
                 // Represent via an "axis marker" quaternion with angle NaN; the subsequent
                 // INVOKEVIRTUAL rotationDegrees will fold it into a real Quat.
-                return new Value(ValueKind.OTHER, Float.NaN, null, new Quat(axis, Float.NaN), null);
+                return new Value(ValueKind.OTHER, Float.NaN, null, new Quat(axis, Float.NaN), null, null);
+            }
+            // Sign-attachment enum constant (PlainSignBlock$Attachment.WALL / GROUND, etc.) - the
+            // bound parameter + this constant feed the IF_ACMP* wall-mount branch dispatch.
+            if (fi.owner.endsWith(SIGN_ATTACHMENT_SUFFIX)) {
+                return Value.ofEnumConst(fi.name);
             }
             // If this field belongs to our owning class, try to resolve from <clinit>.
             if (fi.owner.equals(this.owner.name)) {

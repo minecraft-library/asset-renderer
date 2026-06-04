@@ -93,7 +93,7 @@ public final class SourceDiscovery {
      * a 180 degrees delta).
      *
      * <p>This is the <b>canonical</b> source. The actual rotation is baked into
-     * {@code block_entities.json}'s {@code elements} by {@code BlockModelConverter}, which
+     * {@code block_models.json}'s {@code elements} by {@code BlockModelConverter}, which
      * reads {@code parsedEntity.inventory_y_rotation} - itself populated from this map by
      * the source-walk emission in {@link #emitSourcesFor}. Generalising to a bytecode scan of
      * {@code BlockEntityRenderer.modelTransformation} is future work.
@@ -527,6 +527,14 @@ public final class SourceDiscovery {
         @NotNull Set<String> emittedForSkullMob,
         @NotNull Set<String> emittedForSkullHumanoid
     ) {
+        // Sign variant split: the two sign renderers each build one mesh per attachment from a
+        // single parameterised factory ({@code createSignLayer(boolean withStick)} for standing /
+        // wall; {@code createHangingSignLayer(Attachment)} for the three hanging forms). Emit one
+        // Source per variant under its own entity id so each renders separately rather than the
+        // collapsed union of every branch. The boolean split rides {@code paramIntValues}; the
+        // attachment split rides the parser's enum-reference branch evaluation ({@link Source.RefParam}).
+        if (emitSignSources(zip, out, layer)) return;
+
         // Skull wrapper collapse: SkullModel.createMobHeadLayer / createHumanoidHeadLayer are
         // wrappers around SkullModel.createHeadModel + LayerDefinition.create(mesh, W, H)
         // (humanoid additionally adds a "hat" overlay cube). Collapse via SKULL_VARIANT_POLICY
@@ -639,6 +647,49 @@ public final class SourceDiscovery {
             layer.texHeight,
             null
         ));
+    }
+
+    /**
+     * Emits the per-variant Sources for the two sign factory methods, or returns {@code false}
+     * when {@code layer} is not a sign factory (so the caller falls through to its normal
+     * emission). The geometry of every sign variant is bytewalk-derived: vanilla branches a
+     * single factory on a parameter, so binding that parameter per variant yields one mesh each.
+     * <ul>
+     *   <li>{@code StandingSignRenderer.createSignLayer(boolean withStick)} - the {@code stick}
+     *       post cube is gated behind {@code if (withStick)}. {@code minecraft:sign} (standing,
+     *       {@code GROUND}) sets {@code withStick=true} (board + post); {@code minecraft:wall_sign}
+     *       sets {@code withStick=false} (board only).</li>
+     *   <li>{@code HangingSignRenderer.createHangingSignLayer(Attachment)} - the {@code plank} bar,
+     *       {@code normalChains} V-chains, and {@code vChains} straight chains are each gated behind
+     *       {@code if (attachment == X)}. {@code minecraft:hanging_sign} binds {@code CEILING}
+     *       (board + V-chains, the {@code attached=false} default); {@code minecraft:hanging_sign_attached}
+     *       binds {@code CEILING_MIDDLE} (board + straight chains, the {@code attached=true} state);
+     *       {@code minecraft:wall_hanging_sign} binds {@code WALL} (board + bar + V-chains).</li>
+     * </ul>
+     */
+    private static boolean emitSignSources(@NotNull ZipFile zip, @NotNull ConcurrentList<Source> out, @NotNull LayerTarget layer) {
+        boolean standing = layer.targetClass.equals(VanillaSourceClasses.STANDING_SIGN_RENDERER) && layer.targetMethod.equals("createSignLayer");
+        boolean hanging = layer.targetClass.equals(VanillaSourceClasses.HANGING_SIGN_RENDERER) && layer.targetMethod.equals("createHangingSignLayer");
+        if (!standing && !hanging) return false;
+
+        String classEntry = layer.targetClass + ".class";
+        // Dedup: a renderer that exposes the factory through more than one path (LayerDefinitions
+        // + the direct-scan fallback) must not emit the variant set twice.
+        String probeId = standing ? "minecraft:sign" : "minecraft:hanging_sign";
+        for (Source s : out)
+            if (s.entityId().equals(probeId)) return true;
+
+        YAxis yAxis = inferYAxis(zip, layer.targetClass, layer.targetMethod);
+        if (standing) {
+            out.add(new Source(classEntry, "createSignLayer", "minecraft:sign", yAxis, 0f, new int[]{ 1 }, null));
+            out.add(new Source(classEntry, "createSignLayer", "minecraft:wall_sign", yAxis, 0f, new int[]{ 0 }, null));
+            return true;
+        }
+        String attachment = VanillaSourceClasses.HANGING_SIGN_BLOCK_ATTACHMENT;
+        out.add(new Source(classEntry, "createHangingSignLayer", "minecraft:hanging_sign", yAxis, 0f, null, new Source.RefParam(0, attachment, "CEILING")));
+        out.add(new Source(classEntry, "createHangingSignLayer", "minecraft:hanging_sign_attached", yAxis, 0f, null, new Source.RefParam(0, attachment, "CEILING_MIDDLE")));
+        out.add(new Source(classEntry, "createHangingSignLayer", "minecraft:wall_hanging_sign", yAxis, 0f, null, new Source.RefParam(0, attachment, "WALL")));
+        return true;
     }
 
     /**

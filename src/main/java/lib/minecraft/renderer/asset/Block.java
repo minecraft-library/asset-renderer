@@ -8,7 +8,7 @@ import lib.minecraft.renderer.asset.model.BlockModelData;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.geometry.Biome;
 import lib.minecraft.renderer.options.BlockOptions;
-import lib.minecraft.renderer.pipeline.loader.BlockEntityLoader;
+import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import dev.simplified.image.pixel.ColorMath;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -194,7 +194,7 @@ public class Block {
      * Rendering metadata for a block entity - carries the custom geometry extracted from a vanilla
      * {@code BlockEntityRenderer} plus per-block presentation knobs (entity texture, dye tint, icon
      * rotation, multi-block flag, atlas-time composition parts). Populated by
-     * {@link BlockEntityLoader} for the ~180 block ids whose
+     * {@link BlockModelLoader} for the ~180 block ids whose
      * visual appearance comes from a tile-entity renderer rather than their {@code block.json}.
      *
      * @param beType vanilla {@code BlockEntityType} reference for diagnostics ({@code "minecraft:bed"})

@@ -24,7 +24,7 @@ import lib.minecraft.renderer.options.FluidOptions;
 import lib.minecraft.renderer.options.GridOptions;
 import lib.minecraft.renderer.options.ItemOptions;
 import lib.minecraft.renderer.options.PortalOptions;
-import lib.minecraft.renderer.pipeline.loader.BlockEntityLoader;
+import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.LinkedHashSet;
@@ -436,7 +436,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
          *     matches the id (fences, walls, small_dripleaf, etc.).</li>
          * <li>{@link #TILE_ENTITY} - blocks whose geometry comes from a {@link Block.Entity} -
          *     vanilla {@code BlockEntityRenderer} geometry baked into block model elements by
-         *     {@link BlockEntityLoader} (beds, chests, banners,
+         *     {@link BlockModelLoader} (beds, chests, banners,
          *     shulkers, signs, skulls, conduit, decorated_pot, etc.).</li>
          * <li>{@link #FLUID} - block rendered through {@link FluidRenderer} from the still fluid
          *     texture (water, lava). Vanilla {@code block/water.json} and {@code block/lava.json}

@@ -8,7 +8,7 @@ import org.jetbrains.annotations.NotNull;
  * <p>
  * The canonical min/max pair wherever a renderer needs to reason about a cube's extent - element
  * bounds from a block model's {@code from}/{@code to}, transformed-cube AABBs from the
- * {@code ToolingBlockEntities} parse chain, bone footprints in entity rendering, etc. Replaces
+ * {@code ToolingBlockModels} parse chain, bone footprints in entity rendering, etc. Replaces
  * the ad-hoc 6-float tuples and {@code (Vector3f min, Vector3f max)} pairs that previously lived
  * in several places under different type names.
  *

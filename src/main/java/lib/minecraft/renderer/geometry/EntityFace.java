@@ -268,7 +268,7 @@ public enum EntityFace {
      * For non-UP faces this is a cyclic shift placing TR first; UP additionally swaps TL/BL
      * with BR/TR slots to compensate for vanilla's inverted v-args on the UP polygon. Both the
      * renderer's {@code resolvePolygonUv} and the tooling's
-     * {@code ToolingBlockEntities.BlockModelConverter} call this so the per-face permutation
+     * {@code ToolingBlockModels.BlockModelConverter} call this so the per-face permutation
      * lives in exactly one place.
      *
      * @param tlBlBrTr the four UV corners in atlas-position order (top-left, bottom-left,

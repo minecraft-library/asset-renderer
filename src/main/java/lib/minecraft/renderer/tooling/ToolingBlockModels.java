@@ -19,7 +19,7 @@ import lib.minecraft.renderer.geometry.EntityFace;
 import lib.minecraft.renderer.kit.EntityGeometryKit;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
-import lib.minecraft.renderer.pipeline.loader.BlockEntityLoader;
+import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector2f;
@@ -57,11 +57,11 @@ import java.util.Set;
 import java.util.zip.ZipFile;
 
 /**
- * Entry point invoked by the {@code blockEntities} Gradle task.
+ * Entry point invoked by the {@code blockModels} Gradle task.
  *
  * <p>Downloads the deobfuscated Minecraft client jar, parses every block-entity model class
  * via {@link GeometryParser}, and writes the result to
- * {@code src/main/resources/lib/minecraft/renderer/block_entities.json}.
+ * {@code src/main/resources/lib/minecraft/renderer/block_models.json}.
  *
  * <p>Output composition:
  * <ul>
@@ -83,19 +83,19 @@ import java.util.zip.ZipFile;
  *       {@code applyPerBlockPatternFields}; baked directly into the output JSON.</li>
  * </ul>
  *
- * <p>The runtime pipeline reads the JSON via {@link BlockEntityLoader}; the ASM walker is
+ * <p>The runtime pipeline reads the JSON via {@link BlockModelLoader}; the ASM walker is
  * never on the production classpath.
  *
- * @see BlockEntityLoader
+ * @see BlockModelLoader
  * @see GeometryParser
  */
 @UtilityClass
-public final class ToolingBlockEntities {
+public final class ToolingBlockModels {
 
     /**
      * Fixed output path for the bundled block-entity catalog resource.
      */
-    private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/lib/minecraft/renderer/block_entities.json");
+    private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/lib/minecraft/renderer/block_models.json");
 
     /**
      * Client-jar Minecraft version this generator targets; written to the JSON header for drift tracking.
@@ -396,7 +396,7 @@ public final class ToolingBlockEntities {
     }
 
     /**
-     * Composes the unified {@code block_entities.json} output. Parses the existing file (if
+     * Composes the unified {@code block_models.json} output. Parses the existing file (if
      * present) to preserve hand-curated fields ({@code blocks} variants, {@code parts}
      * shape) that are not yet auto-discovered, then overwrites the auto-derivable fields
      * ({@code model} geometry from the ASM parse, {@code y_axis} + {@code inventory_transform}
@@ -419,27 +419,27 @@ public final class ToolingBlockEntities {
                 System.err.println("  Warning: could not parse existing " + OUTPUT_PATH + " - writing fresh output");
             }
         }
-        JsonObject existingEntities = existing != null && existing.has("entities")
-            ? existing.getAsJsonObject("entities")
+        JsonObject existingModels = existing != null && existing.has("models")
+            ? existing.getAsJsonObject("models")
             : new JsonObject();
 
         JsonObject root = new JsonObject();
         root.addProperty("//", mergedHeader());
         root.addProperty("source_version", SOURCE_VERSION);
 
-        JsonObject entities = new JsonObject();
+        JsonObject models = new JsonObject();
 
         // Iterate in the existing file's key order when we have one (keeps diffs small across
         // regeneration passes); then append any newly discovered models that did not appear
         // in the existing file (e.g. a freshly added entity id from a MC version rev). The
         // blockList catalog is the authoritative source of which entity ids ship.
-        LinkedHashSet<String> entityOrder = new LinkedHashSet<>();
-        if (!existingEntities.entrySet().isEmpty())
-            entityOrder.addAll(existingEntities.keySet());
-        entityOrder.addAll(blockList.keySet());
-        entityOrder.addAll(parsedEntityModels.keySet());
+        LinkedHashSet<String> modelOrder = new LinkedHashSet<>();
+        if (!existingModels.entrySet().isEmpty())
+            modelOrder.addAll(existingModels.keySet());
+        modelOrder.addAll(blockList.keySet());
+        modelOrder.addAll(parsedEntityModels.keySet());
 
-        for (String modelId : entityOrder) {
+        for (String modelId : modelOrder) {
             if (modelId.equals("//")) continue;
 
             JsonObject converted = blockModels.has(modelId) && blockModels.get(modelId).isJsonObject()
@@ -448,44 +448,44 @@ public final class ToolingBlockEntities {
             JsonObject parsedEntity = parsedEntityModels.get(modelId);
             if (converted == null && parsedEntity == null) continue;
 
-            JsonObject entityOut = new JsonObject();
+            JsonObject modelOut = new JsonObject();
             if (converted != null)
-                entityOut.add("model", buildModelSubobject(converted));
+                modelOut.add("model", buildModelSubobject(converted));
 
             String yAxis = parsedEntity != null && parsedEntity.has("y_axis")
                 ? parsedEntity.get("y_axis").getAsString()
                 : "DOWN";
-            entityOut.addProperty("y_axis", yAxis);
-            entityOut.addProperty("inventory_y_rotation", 0);
+            modelOut.addProperty("y_axis", yAxis);
+            modelOut.addProperty("inventory_y_rotation", 0);
 
             float[] invTransform = inventoryTransforms.get(modelId);
             if (invTransform != null) {
                 JsonArray arr = new JsonArray();
                 for (float v : invTransform) arr.add(v);
-                entityOut.add("inventory_transform", arr);
+                modelOut.add("inventory_transform", arr);
             }
-            entityOut.addProperty("tinted", tintedModelIds.contains(modelId));
+            modelOut.addProperty("tinted", tintedModelIds.contains(modelId));
 
             // Block list + parts come from BlockListDiscovery; only fall back to existing
             // hand-curated arrays when discovery doesn't carry the entity.
             BlockListDiscovery.EntityBlockMapping catalogEntry = blockList.get(modelId);
             if (catalogEntry != null) {
                 JsonArray parts = buildPartsArray(catalogEntry);
-                if (parts != null) entityOut.add("parts", parts);
+                if (parts != null) modelOut.add("parts", parts);
                 JsonArray blocks = buildBlocksArray(catalogEntry, modelId, bannerTintByBlockId);
-                if (blocks != null) entityOut.add("blocks", blocks);
+                if (blocks != null) modelOut.add("blocks", blocks);
             } else {
-                JsonObject existingEntity = existingEntities.has(modelId) ? existingEntities.getAsJsonObject(modelId) : null;
-                if (existingEntity != null) {
-                    if (existingEntity.has("parts")) entityOut.add("parts", existingEntity.get("parts"));
-                    if (existingEntity.has("blocks")) entityOut.add("blocks", existingEntity.get("blocks"));
+                JsonObject existingModel = existingModels.has(modelId) ? existingModels.getAsJsonObject(modelId) : null;
+                if (existingModel != null) {
+                    if (existingModel.has("parts")) modelOut.add("parts", existingModel.get("parts"));
+                    if (existingModel.has("blocks")) modelOut.add("blocks", existingModel.get("blocks"));
                 }
             }
 
-            entities.add(modelId, entityOut);
+            models.add(modelId, modelOut);
         }
 
-        root.add("entities", entities);
+        root.add("models", models);
         return root;
     }
 
@@ -543,6 +543,10 @@ public final class ToolingBlockEntities {
             JsonObject block = new JsonObject();
             block.addProperty("blockId", b.blockId());
             block.addProperty("textureId", b.textureId());
+            // A state-conditional model lists its blocks under the blockstate key that selects it
+            // (the ceiling hanging sign's straight-chain mesh under {@code attached=true}); absent
+            // for a block's default (primary) geometry.
+            if (b.variant() != null) block.addProperty("variant", b.variant());
             applyPerBlockFamilyFields(block, b.blockId(), entityId, bannerTintByBlockId);
             arr.add(block);
         }
@@ -596,7 +600,7 @@ public final class ToolingBlockEntities {
      * Builds the human-readable header comment prepended to the generated JSON.
      */
     private static @NotNull String mergedHeader() {
-        return "Generated by ToolingBlockEntities (tooling/blockEntities Gradle task). Unified "
+        return "Generated by ToolingBlockModels (tooling/blockModels Gradle task). Unified "
             + "block-entity catalog keyed by entity-model id: each entry carries the ASM-extracted "
             + "geometry (elements from LayerDefinition bytecode), metadata (y_axis source "
             + "convention, inventory_y_rotation GUI-facing fix, inventory_transform decomposed "
@@ -608,7 +612,7 @@ public final class ToolingBlockEntities {
             + "the 26.1 client jar. Atlas/GUI fields (iconRotation, additive, per-block tint, "
             + "forced inventory_y_rotation) are pattern-matched onto block entries by "
             + "applyPerBlockPatternFields at tooling time. "
-            + "Run the tooling/blockEntities Gradle task to refresh; BlockEntitiesGoldenTest "
+            + "Run the tooling/blockModels Gradle task to refresh; BlockModelsGoldenTest "
             + "guards against silent drift via a SHA-256 over the canonical JSON.";
     }
 
@@ -653,7 +657,7 @@ public final class ToolingBlockEntities {
             @NotNull Set<String> tintedIds
         ) {
             JsonObject result = new JsonObject();
-            result.addProperty("//", "Generated block model elements from entity model geometry. Run tooling/blockEntities to refresh.");
+            result.addProperty("//", "Generated block model elements from entity model geometry. Run tooling/blockModels to refresh.");
 
             for (Map.Entry<String, JsonObject> entry : entityModels.entrySet()) {
                 String modelId = entry.getKey();

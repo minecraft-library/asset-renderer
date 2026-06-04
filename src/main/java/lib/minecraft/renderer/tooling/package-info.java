@@ -23,9 +23,9 @@
  *     <td>{@code potion_colors.json}</td>
  *   </tr>
  *   <tr>
- *     <td>{@code blockEntities}</td>
- *     <td>{@link ToolingBlockEntities}</td>
- *     <td>{@code block_entities.json}</td>
+ *     <td>{@code blockModels}</td>
+ *     <td>{@link ToolingBlockModels}</td>
+ *     <td>{@code block_models.json}</td>
  *   </tr>
  *   <tr>
  *     <td>{@code entityModels}</td>
@@ -59,7 +59,7 @@
  * <p><b>Sub-packages.</b>
  * <ul>
  *   <li>{@link lib.minecraft.renderer.tooling.blockentity blockentity} - shared block-entity
- *       scaffolding consumed by both {@code ToolingBlockEntities} and the entity pipeline.
+ *       scaffolding consumed by both {@code ToolingBlockModels} and the entity pipeline.
  *       {@link Source Source} is the resolved
  *       call-site root (a {@code createBodyLayer} method or equivalent), and
  *       {@link SourceDiscovery SourceDiscovery},
@@ -129,7 +129,7 @@ import lib.minecraft.renderer.kit.EntityGeometryKit;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.tooling.ToolingAtlas;
 import lib.minecraft.renderer.tooling.ToolingAtlasDiagnose;
-import lib.minecraft.renderer.tooling.ToolingBlockEntities;
+import lib.minecraft.renderer.tooling.ToolingBlockModels;
 import lib.minecraft.renderer.tooling.ToolingBlockTints;
 import lib.minecraft.renderer.tooling.ToolingColorMaps;
 import lib.minecraft.renderer.tooling.ToolingEntityModels;

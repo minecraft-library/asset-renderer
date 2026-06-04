@@ -10,7 +10,7 @@ import static org.hamcrest.Matchers.*;
 /**
  * Unit tests for the {@link Diagnostics} severity pipeline. Exercises the error/warn/info
  * split, the strict-failing counter, and the dedupe behaviour - the three invariants that
- * gate strict-mode behaviour in {@link ToolingBlockEntities#main(String[])}.
+ * gate strict-mode behaviour in {@link ToolingBlockModels#main(String[])}.
  */
 @DisplayName("Diagnostics severity pipeline")
 class DiagnosticsTest {

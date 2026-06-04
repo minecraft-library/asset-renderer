@@ -27,8 +27,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Loads block entity geometry from {@code /lib/minecraft/renderer/block_entities.json},
- * the tooling-generated catalog keyed by entity-model id. Each entry carries the
+ * Loads block-entity model geometry from {@code /lib/minecraft/renderer/block_models.json},
+ * the tooling-generated catalog keyed by block-entity-model id. Each entry carries the
  * ASM-extracted geometry, y_axis source convention, inventory transform, tinted flag,
  * optional sub-model parts, and the list of block variants + entity-texture paths that
  * render as this entity model. The pattern-derived per-block fields
@@ -41,42 +41,58 @@ import java.util.Map;
  * ({@link BlockGeometryKit#buildFromElements}) with no entity model pipeline.
  */
 @UtilityClass
-public class BlockEntityLoader {
+public class BlockModelLoader {
 
-    private static final @NotNull String BLOCK_ENTITIES_PATH = "/lib/minecraft/renderer/block_entities.json";
+    private static final @NotNull String BLOCK_MODELS_PATH = "/lib/minecraft/renderer/block_models.json";
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**
-     * Loads block entity geometry and wiring, producing a map of block id to model + texture.
+     * The result of loading {@code block_models.json}: the per-block-id primary geometry
+     * ({@link #models}) plus any state-conditional geometry ({@link #variants}) a block-entity
+     * model registers under a blockstate variant key. The pipeline context merges {@link #variants}
+     * into each block's {@link Block#getVariants()} so the standard variant path selects them - the
+     * ceiling hanging sign's straight-chain mesh is bound to {@code attached=true} this way.
      *
-     * @return the loaded block entity entries keyed by block id
-     * @throws PipelineException if either resource is missing or cannot be parsed
+     * @param models block id to its primary (default-state) block-entity model
+     * @param variants block id to its {@code variantKey -> geometry-bearing variant} map
      */
-    public static @NotNull ConcurrentMap<String, Block.Entity> load() {
-        JsonObject entitiesRoot = readJson(BLOCK_ENTITIES_PATH);
+    public record LoadResult(
+        @NotNull ConcurrentMap<String, Block.Entity> models,
+        @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variants
+    ) {}
 
-        JsonObject entities = entitiesRoot.has("entities")
-            ? entitiesRoot.getAsJsonObject("entities")
-            : entitiesRoot;
+    /**
+     * Loads block-entity geometry and wiring from {@code block_models.json}.
+     *
+     * @return the primary models keyed by block id plus any per-variant state-conditional models
+     * @throws PipelineException if the resource is missing or cannot be parsed
+     */
+    public static @NotNull LoadResult load() {
+        JsonObject root = readJson(BLOCK_MODELS_PATH);
+
+        JsonObject models = root.has("models")
+            ? root.getAsJsonObject("models")
+            : root;
 
         HashMap<String, Block.Entity> result = new HashMap<>();
+        HashMap<String, HashMap<String, Block.Variant>> variantModels = new HashMap<>();
 
-        for (Map.Entry<String, JsonElement> entityEntry : entities.entrySet()) {
-            String modelId = entityEntry.getKey();
-            if (modelId.equals("//") || !entityEntry.getValue().isJsonObject()) continue;
-            JsonObject entity = entityEntry.getValue().getAsJsonObject();
+        for (Map.Entry<String, JsonElement> modelEntry : models.entrySet()) {
+            String modelId = modelEntry.getKey();
+            if (modelId.equals("//") || !modelEntry.getValue().isJsonObject()) continue;
+            JsonObject modelObj = modelEntry.getValue().getAsJsonObject();
 
-            JsonObject modelJson = entity.has("model") ? entity.getAsJsonObject("model") : null;
+            JsonObject modelJson = modelObj.has("model") ? modelObj.getAsJsonObject("model") : null;
             if (modelJson == null) {
-                System.err.printf("  Warning: no model for entity '%s'%n", modelId);
+                System.err.printf("  Warning: no model for entry '%s'%n", modelId);
                 continue;
             }
 
-            JsonArray entityParts = entity.has("parts") && entity.get("parts").isJsonArray()
-                ? entity.getAsJsonArray("parts")
+            JsonArray modelParts = modelObj.has("parts") && modelObj.get("parts").isJsonArray()
+                ? modelObj.getAsJsonArray("parts")
                 : null;
 
-            JsonArray blocks = entity.has("blocks") ? entity.getAsJsonArray("blocks") : null;
+            JsonArray blocks = modelObj.has("blocks") ? modelObj.getAsJsonArray("blocks") : null;
             if (blocks == null) continue;
 
             for (JsonElement blockEl : blocks) {
@@ -86,9 +102,19 @@ public class BlockEntityLoader {
 
                 BlockModelData modelData = parseBlockModelData(modelJson, textureId);
 
+                // A block listed under a blockstate {@code variant} contributes a state-conditional
+                // model, not the block's primary geometry: register it as a geometry-bearing
+                // {@link Block.Variant} for the runtime variant path. The ceiling hanging sign's
+                // straight-chain mesh is bound here under {@code attached=true}.
+                if (block.has("variant")) {
+                    variantModels.computeIfAbsent(blockId, k -> new HashMap<>())
+                        .put(block.get("variant").getAsString(), new Block.Variant(modelId, modelData, 0, 0, false));
+                    continue;
+                }
+
                 ArrayList<Block.Entity.Part> parts = new ArrayList<>();
-                if (entityParts != null) {
-                    for (JsonElement partEl : entityParts) {
+                if (modelParts != null) {
+                    for (JsonElement partEl : modelParts) {
                         JsonObject partObj = partEl.getAsJsonObject();
                         String partModelId = partObj.get("model").getAsString();
                         // Entity-level parts[*].texture pins a constant (e.g. decorated_pot_sides
@@ -104,9 +130,9 @@ public class BlockEntityLoader {
                             offset = new float[]{ off.get(0).getAsFloat(), off.get(1).getAsFloat(), off.get(2).getAsFloat() };
                         }
 
-                        JsonObject partEntity = entities.has(partModelId) ? entities.getAsJsonObject(partModelId) : null;
-                        if (partEntity == null) continue;
-                        JsonObject partModelJson = partEntity.has("model") ? partEntity.getAsJsonObject("model") : null;
+                        JsonObject partModel = models.has(partModelId) ? models.getAsJsonObject(partModelId) : null;
+                        if (partModel == null) continue;
+                        JsonObject partModelJson = partModel.has("model") ? partModel.getAsJsonObject("model") : null;
                         if (partModelJson == null) continue;
                         BlockModelData partData = parseBlockModelData(partModelJson, partTexture);
                         parts.add(new Block.Entity.Part(partModelId, partData, partTexture, offset));
@@ -121,7 +147,7 @@ public class BlockEntityLoader {
                 }
 
                 // Per-block fields read straight off the tooling-emitted block entry.
-                // ToolingBlockEntities pattern-matches iconRotation (beds), tint (banners), and
+                // ToolingBlockModels pattern-matches iconRotation (beds), tint (banners), and
                 // additive (bells) on block id and bakes the result into the JSON.
                 int iconRotation = block.has("iconRotation") ? block.get("iconRotation").getAsInt() : 0;
                 int tintArgb = block.has("tint") ? resolveTint(block.get("tint").getAsString()) : ColorMath.WHITE;
@@ -131,7 +157,14 @@ public class BlockEntityLoader {
             }
         }
 
-        return Concurrent.adoptMap(result).toUnmodifiable();
+        ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variants = Concurrent.newMap();
+        for (Map.Entry<String, HashMap<String, Block.Variant>> e : variantModels.entrySet())
+            variants.put(e.getKey(), Concurrent.adoptMap(e.getValue()).toUnmodifiable());
+
+        return new LoadResult(
+            Concurrent.adoptMap(result).toUnmodifiable(),
+            variants.toUnmodifiable()
+        );
     }
 
     /**
@@ -139,16 +172,16 @@ public class BlockEntityLoader {
      * missing resource, empty payload, or parse failure.
      */
     private static @NotNull JsonObject readJson(@NotNull String path) {
-        try (InputStream stream = BlockEntityLoader.class.getResourceAsStream(path)) {
+        try (InputStream stream = BlockModelLoader.class.getResourceAsStream(path)) {
             if (stream == null)
-                throw new PipelineException("Block entity resource '%s' not found", path);
+                throw new PipelineException("Block model resource '%s' not found", path);
             String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
             JsonObject root = GSON.fromJson(json, JsonObject.class);
             if (root == null)
-                throw new PipelineException("Block entity resource '%s' is empty", path);
+                throw new PipelineException("Block model resource '%s' is empty", path);
             return root;
         } catch (IOException | JsonSyntaxException ex) {
-            throw new PipelineException(ex, "Failed to load block entity resource '%s'", path);
+            throw new PipelineException(ex, "Failed to load block model resource '%s'", path);
         }
     }
 

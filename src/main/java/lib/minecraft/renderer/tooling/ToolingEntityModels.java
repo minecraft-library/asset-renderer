@@ -29,7 +29,7 @@ import java.util.Set;
 
 /**
  * Entry point invoked by the {@code entityModels} Gradle task. Produces the entity-side
- * counterpart of {@link ToolingBlockEntities} - a single ASM walk over the deobfuscated
+ * counterpart of {@link ToolingBlockModels} - a single ASM walk over the deobfuscated
  * client jar that emits two paired JSON resources the runtime pipeline reads:
  *
  * <ul>
@@ -75,7 +75,7 @@ import java.util.Set;
  * standard EntityRenderer flow (rendered through the avatar pipeline) and shows up only in
  * the diagnostics' {@code mobs_without_renderer_list}.
  *
- * @see ToolingBlockEntities
+ * @see ToolingBlockModels
  * @see lib.minecraft.renderer.EntityRenderer
  * @see lib.minecraft.renderer.kit.EntityGeometryKit
  */

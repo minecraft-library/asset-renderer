@@ -17,20 +17,20 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Slow end-to-end parity test. The full pipeline is exercised via the committed
- * {@code src/main/resources/lib/minecraft/renderer/block_entities.json} file rather than re-running the
- * tooling in-process (which needs disk I/O and would interfere with the BlockEntitiesGoldenTest
+ * {@code src/main/resources/lib/minecraft/renderer/block_models.json} file rather than re-running the
+ * tooling in-process (which needs disk I/O and would interfere with the BlockModelsGoldenTest
  * fixture). Here we only confirm the committed file is internally consistent - every entity
  * id in the catalog has a matching {@code entities} entry with geometry and the expected
  * metadata fields.
  */
-@DisplayName("block_entities.json full-pipeline parity")
+@DisplayName("block_models.json full-pipeline parity")
 @Tag("slow")
 class BlockEntityParityTest {
 
-    private static final Path OUTPUT = Path.of("src/main/resources/lib/minecraft/renderer/block_entities.json");
+    private static final Path OUTPUT = Path.of("src/main/resources/lib/minecraft/renderer/block_models.json");
 
     @Test
-    @DisplayName("every catalog entity id has a block_entities.json entry with elements")
+    @DisplayName("every catalog entity id has a block_models.json entry with elements")
     void allEntitiesPresent() throws IOException {
         JsonObject root = new Gson().fromJson(Files.readString(OUTPUT), JsonObject.class);
         JsonObject entities = root.getAsJsonObject("entities");
@@ -38,7 +38,7 @@ class BlockEntityParityTest {
         try {
             Map<String, BlockListDiscovery.EntityBlockMapping> catalog = BlockListDiscovery.discover(zip, new Diagnostics());
             for (String entityId : catalog.keySet()) {
-                assertThat("entity '" + entityId + "' present in block_entities.json", entities.has(entityId), equalTo(true));
+                assertThat("entity '" + entityId + "' present in block_models.json", entities.has(entityId), equalTo(true));
                 JsonObject entity = entities.getAsJsonObject(entityId);
                 assertThat("entity '" + entityId + "' has y_axis", entity.has("y_axis"), equalTo(true));
                 assertThat("entity '" + entityId + "' has tinted", entity.has("tinted"), equalTo(true));

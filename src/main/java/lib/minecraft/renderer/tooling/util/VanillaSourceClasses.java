@@ -294,6 +294,15 @@ public final class VanillaSourceClasses {
     /** Wall hanging sign - per wood type. */
     public static final @NotNull String WALL_HANGING_SIGN_BLOCK = BLOCK_ROOT + "WallHangingSignBlock";
 
+    /** Hanging-sign attachment enum ({@code WALL}, {@code CEILING}, {@code CEILING_MIDDLE}). */
+    public static final @NotNull String HANGING_SIGN_BLOCK_ATTACHMENT = BLOCK_ROOT + "HangingSignBlock$Attachment";
+
+    /** Standing-sign block-entity renderer (also drives wall signs). */
+    public static final @NotNull String STANDING_SIGN_RENDERER = BLOCK_ENTITY_RENDERER_ROOT + "StandingSignRenderer";
+
+    /** Hanging-sign block-entity renderer (drives ceiling + wall hanging signs). */
+    public static final @NotNull String HANGING_SIGN_RENDERER = BLOCK_ENTITY_RENDERER_ROOT + "HangingSignRenderer";
+
     /** Standing banner block - per dye color. */
     public static final @NotNull String BANNER_BLOCK = BLOCK_ROOT + "BannerBlock";
 
