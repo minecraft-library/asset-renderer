@@ -18,7 +18,7 @@ import org.jetbrains.annotations.NotNull;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Optional;
 
 /**
@@ -55,7 +55,8 @@ public class BlockTintsLoader {
      * @throws PipelineException if the resource is missing or cannot be parsed
      */
     public static @NotNull ConcurrentMap<String, Block.Tint> load() {
-        HashMap<String, Block.Tint> tints = new HashMap<>();
+        // Linked map so the runtime lookup table mirrors the JSON's deterministic on-disk order.
+        LinkedHashMap<String, Block.Tint> tints = new LinkedHashMap<>();
 
         try (InputStream stream = BlockTintsLoader.class.getResourceAsStream(RESOURCE_PATH)) {
             if (stream == null)
@@ -80,7 +81,7 @@ public class BlockTintsLoader {
             throw new PipelineException(ex, "Failed to load vanilla tints resource '%s'", RESOURCE_PATH);
         }
 
-        return Concurrent.adoptMap(tints).toUnmodifiable();
+        return Concurrent.adoptLinkedMap(tints).toUnmodifiable();
     }
 
 }
