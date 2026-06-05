@@ -160,7 +160,17 @@ public final class ToolingBlockModels {
                     diagnostics.strictFailingCount()
                 );
 
-            JsonObject blockModels = BlockModelConverter.convert(models, inventoryTransforms, tinted);
+            // Block entities without a decomposed inventory transform (chest, bell, the new
+            // copper_golem_statue) bake vanilla's entity-render flip directly. Whether they take
+            // the full scale(-1, -1, 1) flip is read from the item icon's display.gui roll (180 =
+            // flip, 0 = the chest's real-yaw path); ids whose icon is a flat sprite default to the
+            // flip. See InventoryTransformDecomposer#resolveEntityRenderFlips.
+            Set<String> noInventoryModelIds = new LinkedHashSet<>();
+            for (String modelId : models.keySet())
+                if (!inventoryTransforms.containsKey(modelId)) noInventoryModelIds.add(modelId);
+            Map<String, Boolean> entityRenderFlips = InventoryTransformDecomposer.resolveEntityRenderFlips(zip, noInventoryModelIds);
+
+            JsonObject blockModels = BlockModelConverter.convert(models, inventoryTransforms, entityRenderFlips, tinted);
             Map<String, String> bannerTintByBlockId = BlockListDiscovery.bannerTintByBlockId(zip, diagnostics);
             merged = buildMergedOutput(blockModels, models, blockList, inventoryTransforms, tinted, bannerTintByBlockId);
         }
@@ -649,11 +659,15 @@ public final class ToolingBlockModels {
          * keyed by entity model id. The {@code inventoryTransforms} and {@code tintedIds}
          * parameters come from {@link InventoryTransformDecomposer} (merged with the overrides
          * file for {@code skull_dragon_head}) and {@link TintDiscovery} respectively - see
-         * those classes for provenance.
+         * those classes for provenance. The {@code entityRenderFlips} map (also from
+         * {@link InventoryTransformDecomposer#resolveEntityRenderFlips}) gates the entity-render
+         * {@code scale(-1, -1, 1)} flip on each inventory-transform-less model's item
+         * {@code display.gui} roll; ids absent from the map default to the flip.
          */
         static @NotNull JsonObject convert(
             @NotNull ConcurrentMap<String, JsonObject> entityModels,
             @NotNull Map<String, float[]> inventoryTransforms,
+            @NotNull Map<String, Boolean> entityRenderFlips,
             @NotNull Set<String> tintedIds
         ) {
             JsonObject result = new JsonObject();
@@ -680,6 +694,11 @@ public final class ToolingBlockModels {
                 // into the chest model here. Lock at z=14..15 lands at z=0..1, NORTH-visible.
                 float invYRot = JsonOptional.optFloat(entityModel, "inventory_y_rotation", 0f);
 
+                // Whether this model's geometry takes vanilla's entity-render scale(-1, -1, 1)
+                // flip when baked into an inventory icon. Read from the item display.gui roll
+                // (180 -> flip), defaulting to the flip for flat-sprite icons absent from the map.
+                boolean entityRenderFlip = entityRenderFlips.getOrDefault(modelId, Boolean.TRUE);
+
                 // For Y-UP source models (chest), the parser pre-flipped to Y-DOWN so the rest of
                 // the pipeline sees a uniform convention - but that flip swaps which corner of the
                 // cube vanilla calls "v19" (its yMin in source coords, which is the cube's
@@ -692,7 +711,7 @@ public final class ToolingBlockModels {
                 JsonArray elements = new JsonArray();
                 for (Map.Entry<String, JsonElement> boneEntry : bones.entrySet()) {
                     JsonObject bone = boneEntry.getValue().getAsJsonObject();
-                    CubeTransform transform = CubeTransform.of(bone, invTransform, invYRot);
+                    CubeTransform transform = CubeTransform.of(bone, invTransform, invYRot, entityRenderFlip);
 
                     JsonArray cubes = bone.getAsJsonArray("cubes");
                     if (cubes == null) continue;
@@ -987,10 +1006,11 @@ public final class ToolingBlockModels {
             float scale,
             float px, float py, float pz,
             float @Nullable [] invTransform,
-            float invYRot
+            float invYRot,
+            boolean entityFlip
         ) {
 
-            static @NotNull CubeTransform of(@NotNull JsonObject bone, float @Nullable [] invTransform, float invYRot) {
+            static @NotNull CubeTransform of(@NotNull JsonObject bone, float @Nullable [] invTransform, float invYRot, boolean entityFlip) {
                 JsonArray pivotArr = bone.getAsJsonArray("pivot");
                 float px = pivotArr != null ? pivotArr.get(0).getAsFloat() : 0f;
                 float py = pivotArr != null ? pivotArr.get(1).getAsFloat() : 0f;
@@ -1015,7 +1035,7 @@ public final class ToolingBlockModels {
                 double[][] mRz = {{ Math.cos(rzR), -Math.sin(rzR), 0 }, { Math.sin(rzR), Math.cos(rzR), 0 }, { 0, 0, 1 }};
                 double[][] boneRot = hasBoneRot ? matMul3(matMul3(mRz, mRy), mRx) : null;
 
-                return new CubeTransform(boneRot, scale, px, py, pz, invTransform, invYRot);
+                return new CubeTransform(boneRot, scale, px, py, pz, invTransform, invYRot, entityFlip);
             }
 
             /**
@@ -1067,11 +1087,12 @@ public final class ToolingBlockModels {
                     // Symmetric block-entity skins (skull, sign) hid it; the copper-golem statue's
                     // asymmetric face/body exposed the inside-out, eyes-on-the-wrong-side render.
                     //
-                    // Only when no inventory yaw is baked. Models that DO bake a yaw (chest
-                    // invYRot=180 to face the lock at the camera) were authored around the bare
-                    // cy=-cy reflection - their invYRot rotation already supplies the X handling, so
-                    // adding cx=-cx there double-flips them out of the block.
-                    if (invYRot == 0f) cx = -cx;
+                    // The cx half is gated on {@code entityFlip}, read from the item icon's
+                    // display.gui roll (InventoryTransformDecomposer#resolveEntityRenderFlips):
+                    // copper_golem_statue's roll of 180 IS this scale(-1,-1,1), so it flips; chest's
+                    // roll of 0 means its X is instead handled by the baked invYRot=180 yaw, so it
+                    // must NOT take cx=-cx (that flips about 0 and double-flips it out of the block).
+                    if (entityFlip) cx = -cx;
                     cy = -cy;
                 }
 

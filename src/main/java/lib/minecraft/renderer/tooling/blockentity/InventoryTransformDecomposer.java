@@ -1,5 +1,10 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -12,8 +17,14 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.*;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 /**
@@ -159,6 +170,154 @@ public final class InventoryTransformDecomposer {
             if (tuple != null) out.put(entityId, tuple);
         }
         return out;
+    }
+
+    // --------------------------------------------------------------------------------------
+    // Entity-render flip resolution (item-model display.gui roll)
+    // --------------------------------------------------------------------------------------
+
+    private static final @NotNull String ITEMS_PREFIX = "assets/minecraft/items/";
+    private static final @NotNull String MODELS_PREFIX = "assets/minecraft/models/";
+
+    /**
+     * Bounds the {@code parent} walk when reading a model's {@code display.gui} so a malformed
+     * cyclic parent chain cannot loop forever. No vanilla item model nests deeper than three.
+     */
+    private static final int MAX_MODEL_PARENT_DEPTH = 8;
+
+    /**
+     * Resolves whether each {@code modelId} needs vanilla's entity-render {@code scale(-1, -1, 1)}
+     * flip when its block-entity geometry is baked into an inventory icon, by reading the item
+     * model's {@code display.gui} rotation from the client jar.
+     *
+     * <p>A block entity whose item icon is a {@code minecraft:special} renderer authored in the
+     * entity convention (head-down, mirrored) carries a {@code display.gui} <b>roll of 180</b> -
+     * the {@code scale(-1, -1, 1)} flip expressed as a Z rotation - which the
+     * {@code BlockModelConverter} reproduces as the {@code cx = -cx} / {@code cy = -cy} pair (see
+     * {@code CubeTransform#applyChain}). The chest's icon, by contrast, carries roll {@code 0} and
+     * a real yaw difference (its {@code display.gui} is {@code [30, 45, 0]}, yaw 45 vs the standard
+     * 225) that the converter already handles via {@code inventory_y_rotation}, so it must NOT get
+     * the {@code cx} flip. Returning the flip keyed on the resolved roll lets the converter drop
+     * the incidental {@code invYRot == 0} proxy it used before.
+     *
+     * <p>Resolution follows the item model chain: {@code items/<id>.json} &rarr; the
+     * {@code minecraft:select} fallback case &rarr; the {@code minecraft:special} {@code base}
+     * (or a {@code minecraft:model} {@code model}) &rarr; the referenced item model and its
+     * {@code parent} chain, returning the first {@code display.gui.rotation} roll found. Ids whose
+     * icon is a flat {@code item/generated} sprite (e.g. {@code bell}) bottom out with no
+     * {@code display.gui} and are absent from the result; callers default those to the flip, which
+     * preserves the standard block-entity convention.
+     *
+     * @param zip the cached client jar
+     * @param modelIds the model ids to resolve (typically those lacking an inventory transform)
+     * @return {@code modelId -> true} when the entity flip applies, {@code modelId -> false} when
+     *     the resolved roll is 0; ids that do not resolve are omitted
+     */
+    public static @NotNull Map<String, Boolean> resolveEntityRenderFlips(
+        @NotNull ZipFile zip,
+        @NotNull Set<String> modelIds
+    ) {
+        Map<String, Boolean> out = new LinkedHashMap<>();
+        Gson gson = new Gson();
+        for (String modelId : modelIds) {
+            Float roll = resolveDisplayGuiRoll(zip, gson, modelId);
+            if (roll != null) out.put(modelId, !nearUnit(roll, 0f));
+        }
+        return out;
+    }
+
+    /**
+     * Resolves the {@code display.gui} roll of {@code modelId}'s item icon, or {@code null} when
+     * the chain bottoms out without a {@code display.gui} (flat sprites) or any link is missing.
+     */
+    private static @Nullable Float resolveDisplayGuiRoll(@NotNull ZipFile zip, @NotNull Gson gson, @NotNull String modelId) {
+        JsonObject itemDef = readJson(zip, gson, ITEMS_PREFIX + stripNamespace(modelId) + ".json");
+        if (itemDef == null) return null;
+        String modelRef = resolveModelRef(optObject(itemDef, "model"));
+        if (modelRef == null) return null;
+        return readDisplayGuiRoll(zip, gson, modelRef);
+    }
+
+    /**
+     * Reduces an item-model component to the model reference it ultimately draws: a
+     * {@code minecraft:select} resolves through its {@code fallback}, a {@code minecraft:special}
+     * yields its {@code base}, a {@code minecraft:model} yields its {@code model}. Other component
+     * types (the {@code copper_golem_pose} cases never reach here at reference pose) return
+     * {@code null}.
+     */
+    private static @Nullable String resolveModelRef(@Nullable JsonObject component) {
+        if (component == null) return null;
+        String type = optString(component, "type");
+        if (type == null) return null;
+        return switch (type) {
+            case "minecraft:model" -> optString(component, "model");
+            case "minecraft:special" -> optString(component, "base");
+            case "minecraft:select" -> resolveModelRef(optObject(component, "fallback"));
+            default -> null;
+        };
+    }
+
+    /**
+     * Walks {@code modelRef} and its {@code parent} chain, returning the first
+     * {@code display.gui.rotation} roll (the third component) or {@code null} when none is present.
+     */
+    private static @Nullable Float readDisplayGuiRoll(@NotNull ZipFile zip, @NotNull Gson gson, @NotNull String modelRef) {
+        String path = stripNamespace(modelRef);
+        for (int depth = 0; depth < MAX_MODEL_PARENT_DEPTH && path != null; depth++) {
+            JsonObject model = readJson(zip, gson, MODELS_PREFIX + path + ".json");
+            if (model == null) return null; // builtin/* parent or missing model - no gui pose
+            JsonObject gui = optObject(optObject(model, "display"), "gui");
+            if (gui != null) {
+                JsonElement rot = gui.get("rotation");
+                if (rot != null && rot.isJsonArray() && rot.getAsJsonArray().size() == 3)
+                    return rot.getAsJsonArray().get(2).getAsFloat();
+            }
+            String parent = optString(model, "parent");
+            path = parent != null ? stripNamespace(parent) : null;
+        }
+        return null;
+    }
+
+    /**
+     * Reads and parses a jar JSON entry as a {@link JsonObject}, or {@code null} when the entry is
+     * absent or not a JSON object.
+     */
+    private static @Nullable JsonObject readJson(@NotNull ZipFile zip, @NotNull Gson gson, @NotNull String entryPath) {
+        ZipEntry entry = zip.getEntry(entryPath);
+        if (entry == null) return null;
+        try (InputStream in = zip.getInputStream(entry)) {
+            JsonElement parsed = gson.fromJson(new InputStreamReader(in, StandardCharsets.UTF_8), JsonElement.class);
+            return parsed != null && parsed.isJsonObject() ? parsed.getAsJsonObject() : null;
+        } catch (IOException | JsonParseException ex) {
+            return null;
+        }
+    }
+
+    /**
+     * Strips a {@code minecraft:} (or any) namespace prefix from a resource id.
+     */
+    private static @NotNull String stripNamespace(@NotNull String id) {
+        int colon = id.indexOf(':');
+        return colon >= 0 ? id.substring(colon + 1) : id;
+    }
+
+    /**
+     * Returns the object-valued member {@code key} of {@code obj}, or {@code null} when {@code obj}
+     * is {@code null}, the member is absent, or the member is not an object.
+     */
+    private static @Nullable JsonObject optObject(@Nullable JsonObject obj, @NotNull String key) {
+        if (obj == null) return null;
+        JsonElement el = obj.get(key);
+        return el != null && el.isJsonObject() ? el.getAsJsonObject() : null;
+    }
+
+    /**
+     * Returns the string-valued member {@code key} of {@code obj}, or {@code null} when absent or
+     * not a primitive.
+     */
+    private static @Nullable String optString(@NotNull JsonObject obj, @NotNull String key) {
+        JsonElement el = obj.get(key);
+        return el != null && el.isJsonPrimitive() ? el.getAsString() : null;
     }
 
     /**
