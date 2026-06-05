@@ -1991,7 +1991,15 @@ public final class GeometryParser {
             }
             return;
         }
-        if (AsmKit.INIT.equals(methodInsn.name) && state.paramFloatValues != null) {
+        // Inline {@code new CubeDeformation(F)} / {@code (FFF)} - pop the inflate literal(s)
+        // unconditionally (NOT gated on the Java pipeline). The block-entity (legacy) pipeline
+        // runs with {@code paramFloatValues == null}; gating the pop there left the inflate float
+        // on numStack, corrupting the following addBox's coordinate pops. copper_golem_statue is
+        // the first block-entity model to construct a CubeDeformation inline (head cube + the two
+        // antenna cubes use {@code new CubeDeformation(0.015F)} / {@code (-0.015F)}); before it,
+        // block-entity models only referenced {@code CubeDeformation.NONE}. emitCube applies
+        // pendingInflate in both pipelines, so the inflate is now also baked into those cubes.
+        if (AsmKit.INIT.equals(methodInsn.name)) {
             if (methodInsn.desc.startsWith("(FFF")) {
                 requireStack(state, 3, "CubeDeformation.<init>(FFF)");
                 float dz = popFloatWithDiagnostics(state, "CubeDeformation.<init>(FFF) z");

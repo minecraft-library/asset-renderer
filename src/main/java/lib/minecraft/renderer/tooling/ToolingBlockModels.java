@@ -1061,6 +1061,17 @@ public final class ToolingBlockModels {
                     cz = rz + invTransform[2];
                     cx += invTransform[0];
                 } else {
+                    // No inventory transform: apply vanilla's entity-render flip scale(-1,-1,1)
+                    // (a 180-degree roll about Z), NOT a bare Y-flip. The X negation is the
+                    // missing half: cy=-cy alone is a reflection (det=-1) that X-mirrors the model.
+                    // Symmetric block-entity skins (skull, sign) hid it; the copper-golem statue's
+                    // asymmetric face/body exposed the inside-out, eyes-on-the-wrong-side render.
+                    //
+                    // Only when no inventory yaw is baked. Models that DO bake a yaw (chest
+                    // invYRot=180 to face the lock at the camera) were authored around the bare
+                    // cy=-cy reflection - their invYRot rotation already supplies the X handling, so
+                    // adding cx=-cx there double-flips them out of the block.
+                    if (invYRot == 0f) cx = -cx;
                     cy = -cy;
                 }
 
