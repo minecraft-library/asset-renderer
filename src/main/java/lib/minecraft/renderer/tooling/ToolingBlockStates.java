@@ -144,6 +144,7 @@ public final class ToolingBlockStates {
         private static final @NotNull String INTEGER_BOXED = "java/lang/Integer";
         private static final @NotNull String BOOLEAN_BOXED = "java/lang/Boolean";
         private static final @NotNull String PROPERTY_DESC_SUFFIX = "Property;";
+        private static final @NotNull String MAP_DESC = "Ljava/util/Map;";
         private static final @NotNull String FUNCTION_RETURN_SUFFIX = ")Ljava/util/function/Function;";
         private static final @NotNull String VALUE_OF = "valueOf";
         private static final @NotNull String CREATE = "create";
@@ -529,8 +530,21 @@ public final class ToolingBlockStates {
                     if ((node.getOpcode() == Opcodes.INVOKEVIRTUAL || node.getOpcode() == Opcodes.INVOKESTATIC)
                         && node instanceof MethodInsnNode call
                         && call.desc.startsWith("()") && call.desc.endsWith(PROPERTY_DESC_SUFFIX)
-                        && call.desc.charAt(2) != '[')
+                        && call.desc.charAt(2) != '[') {
                         addDeclared(declared, resolveMethodReturnedProperty(blockClass, call.name, call.desc));
+                        continue;
+                    }
+                    // Property selected from a Map<Direction, Property> by a single-argument
+                    // accessor, e.g. MultifaceBlock.getFaceProperty(Direction) reading
+                    // PROPERTY_BY_DIRECTION inside the per-direction createBlockStateDefinition loop.
+                    // The no-arg branch above skips it (it takes a Direction), so resolve every
+                    // property the map can return - the loop adds one per supported direction.
+                    if ((node.getOpcode() == Opcodes.INVOKEVIRTUAL || node.getOpcode() == Opcodes.INVOKESTATIC)
+                        && node instanceof MethodInsnNode call
+                        && !call.desc.startsWith("()") && call.desc.endsWith(PROPERTY_DESC_SUFFIX)
+                        && !call.desc.contains(")["))
+                        for (FieldRef ref : resolveDirectionPropertyMapValues(call.owner, call.name, call.desc))
+                            addDeclared(declared, ref);
                 }
             });
             return declared;
@@ -603,6 +617,83 @@ public final class ToolingBlockStates {
                         if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode f
                             && f.desc.endsWith(PROPERTY_DESC_SUFFIX) && f.desc.charAt(0) != '[')
                             return new FieldRef(f.owner, f.name);
+                if (cn.superName != null) queue.add(cn.superName);
+                if (cn.interfaces != null) queue.addAll(cn.interfaces);
+            }
+            return null;
+        }
+
+        /**
+         * Resolves every property a single-argument accessor selects from a
+         * {@code Map<Direction, Property>}, e.g. {@code MultifaceBlock.getFaceProperty(Direction)}
+         * reading {@code PROPERTY_BY_DIRECTION}. The per-direction {@code createBlockStateDefinition}
+         * loop adds one property per supported face, so the block declares the map's full value set.
+         * Finds the accessor body, follows its {@code GETSTATIC <map>:Ljava/util/Map;} (through any
+         * {@code MAP = OtherClass.MAP} redirect) to the class that builds the map, and returns every
+         * property field referenced in that class's {@code <clinit>}, deduplicated by serialised name.
+         *
+         * @param startClass the accessor's owner JVM internal name
+         * @param methodName the accessor method name
+         * @param methodDesc the accessor method descriptor
+         * @return the map's property field references, or empty when the shape doesn't match
+         */
+        private @NotNull List<FieldRef> resolveDirectionPropertyMapValues(@NotNull String startClass, @NotNull String methodName, @NotNull String methodDesc) {
+            FieldInsnNode mapField = findAccessorMapField(startClass, methodName, methodDesc);
+            if (mapField == null) return List.of();
+
+            // Follow MAP = OtherClass.MAP redirects to the class that actually builds the map
+            // (MultifaceBlock.PROPERTY_BY_DIRECTION = PipeBlock.PROPERTY_BY_DIRECTION).
+            String owner = mapField.owner;
+            String field = mapField.name;
+            for (int depth = 0; depth < 8; depth++) {
+                AbstractInsnNode init = findFieldInitValue(owner, field);
+                if (init != null && init.getOpcode() == Opcodes.GETSTATIC && init instanceof FieldInsnNode redirect
+                    && redirect.desc.equals(MAP_DESC)) {
+                    owner = redirect.owner;
+                    field = redirect.name;
+                } else {
+                    break;
+                }
+            }
+
+            ClassNode declaring = this.cache.load(owner);
+            if (declaring == null) return List.of();
+            MethodNode clinit = AsmKit.findMethod(declaring, AsmKit.CLINIT);
+            if (clinit == null) return List.of();
+
+            // Every property GETSTATIC in the map's declaring class clinit is one of the map's
+            // values (both the field-init source and the put-into-map read resolve to the same
+            // serialised name); dedup keeps one field reference per face property.
+            Map<String, FieldRef> byName = new LinkedHashMap<>();
+            for (AbstractInsnNode node = clinit.instructions.getFirst(); node != null; node = node.getNext())
+                if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode prop
+                    && prop.desc.endsWith(PROPERTY_DESC_SUFFIX) && prop.desc.charAt(0) != '[') {
+                    String name = resolvePropertyName(prop.owner, prop.name);
+                    if (name != null) byName.putIfAbsent(name, new FieldRef(prop.owner, prop.name));
+                }
+            return new ArrayList<>(byName.values());
+        }
+
+        /**
+         * Finds the {@code GETSTATIC <map>:Ljava/util/Map;} a single-argument property accessor
+         * reads from, searching the class graph (most-derived first) for the method body. Returns
+         * {@code null} when the accessor reads no map field.
+         */
+        private @Nullable FieldInsnNode findAccessorMapField(@NotNull String startClass, @NotNull String methodName, @NotNull String methodDesc) {
+            java.util.ArrayDeque<String> queue = new java.util.ArrayDeque<>();
+            Set<String> visited = new java.util.HashSet<>();
+            queue.add(startClass);
+            while (!queue.isEmpty()) {
+                String current = queue.poll();
+                if (AsmKit.OBJECT_INTERNAL.equals(current) || !visited.add(current)) continue;
+                ClassNode cn = this.cache.load(current);
+                if (cn == null) continue;
+                MethodNode method = AsmKit.findMethod(cn, methodName, methodDesc);
+                if (method != null && method.instructions.size() > 0)
+                    for (AbstractInsnNode node = method.instructions.getFirst(); node != null; node = node.getNext())
+                        if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode f
+                            && f.desc.equals(MAP_DESC))
+                            return f;
                 if (cn.superName != null) queue.add(cn.superName);
                 if (cn.interfaces != null) queue.addAll(cn.interfaces);
             }

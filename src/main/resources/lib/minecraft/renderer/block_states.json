@@ -3809,7 +3809,7 @@
       "variants": []
     },
     "minecraft:glow_lichen": {
-      "default": "waterlogged\u003dfalse",
+      "default": "down\u003dfalse,east\u003dfalse,north\u003dfalse,south\u003dfalse,up\u003dfalse,waterlogged\u003dfalse,west\u003dfalse",
       "variants": []
     },
     "minecraft:gold_ore": {
@@ -8020,7 +8020,7 @@
       "variants": []
     },
     "minecraft:resin_clump": {
-      "default": "waterlogged\u003dfalse",
+      "default": "down\u003dfalse,east\u003dfalse,north\u003dfalse,south\u003dfalse,up\u003dfalse,waterlogged\u003dfalse,west\u003dfalse",
       "variants": []
     },
     "minecraft:respawn_anchor": {
@@ -8145,7 +8145,7 @@
       ]
     },
     "minecraft:sculk_vein": {
-      "default": "waterlogged\u003dfalse",
+      "default": "down\u003dfalse,east\u003dfalse,north\u003dfalse,south\u003dfalse,up\u003dfalse,waterlogged\u003dfalse,west\u003dfalse",
       "variants": []
     },
     "minecraft:sea_pickle": {
