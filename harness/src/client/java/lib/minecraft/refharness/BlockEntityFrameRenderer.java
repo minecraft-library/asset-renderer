@@ -20,9 +20,11 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import com.mojang.math.Transformation;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.model.geom.ModelLayers;
 import net.minecraft.client.model.object.banner.BannerFlagModel;
 import net.minecraft.client.model.object.banner.BannerModel;
 import net.minecraft.client.model.object.skull.SkullModelBase;
+import net.minecraft.client.model.object.statue.CopperGolemStatueModel;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.Projection;
 import net.minecraft.client.renderer.ProjectionMatrixBuffer;
@@ -38,8 +40,10 @@ import net.minecraft.client.renderer.blockentity.BannerRenderer;
 import net.minecraft.client.renderer.blockentity.BedRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderDispatcher;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
+import net.minecraft.client.renderer.blockentity.CopperGolemStatueBlockRenderer;
 import net.minecraft.client.renderer.blockentity.SkullBlockRenderer;
 import net.minecraft.client.renderer.blockentity.state.BannerRenderState;
+import net.minecraft.client.renderer.blockentity.state.CopperGolemStatueRenderState;
 import net.minecraft.client.renderer.blockentity.state.BedRenderState;
 import net.minecraft.client.renderer.blockentity.state.BlockEntityRenderState;
 import net.minecraft.client.renderer.blockentity.state.SignRenderState;
@@ -259,6 +263,8 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
                     submitSkullIcon(skull, (SkullBlockRenderState) renderState, state, storage);
                 } else if ((Object) renderer instanceof AbstractSignRenderer) {
                     submitSignIcon(renderer, (SignRenderState) renderState, storage);
+                } else if ((Object) renderer instanceof CopperGolemStatueBlockRenderer cg) {
+                    submitCopperGolemStatueIcon(client, cg, (CopperGolemStatueRenderState) renderState, storage);
                 } else {
                     submitRawBlockEntity(client, state, renderer, renderState, storage);
                 }
@@ -407,6 +413,38 @@ public final class BlockEntityFrameRenderer implements AutoCloseable {
             ps = blockCenteredPose();
         }
         skull.submit(state, ps, storage, cameraState);
+    }
+
+    /**
+     * Upright correction for the copper-golem statue. Its block-entity renders an entity-convention
+     * model (authored y-down / mirrored, like a mob), so the plain block-centred pose renders it
+     * head-down; a 180-degree roll about Z (the entity {@code scale(-1,-1,1)} convention) rights it.
+     */
+    private static final float CG_FLIP_DEG = 180f;
+    private static final Axis CG_FLIP_AXIS = Axis.ZP;
+
+    /**
+     * Composes a copper-golem-statue inventory icon. The block-entity renders an entity-convention
+     * model (authored y-down / mirrored, like a mob model) rather than a block-space model, so the
+     * plain block-centred pose renders it head-down and overflowing the canvas. Recenter on the
+     * model bbox + shrink to fit (like the dragon head), with an upright flip baked into the same
+     * frame the submit pose composes on top of.
+     */
+    private void submitCopperGolemStatueIcon(Minecraft client, CopperGolemStatueBlockRenderer cg,
+                                             CopperGolemStatueRenderState rs, SubmitNodeStorage storage) {
+        CopperGolemStatueModel probe = new CopperGolemStatueModel(client.getEntityModels().bakeLayer(ModelLayers.COPPER_GOLEM));
+        probe.setupAnim(net.minecraft.util.Unit.INSTANCE);
+
+        Matrix4f modelTransform = new Matrix4f(CopperGolemStatueBlockRenderer.modelTransformation(rs.direction).getMatrix());
+        Matrix4f flip = new Matrix4f().rotate(CG_FLIP_AXIS.rotationDegrees(CG_FLIP_DEG));
+        Matrix4f frame = new Matrix4f(flip).mul(modelTransform);
+
+        Bounds bounds = new Bounds();
+        expandExtents(bounds, frame, c -> probe.root().getExtentsForGui(new PoseStack(), c));
+
+        PoseStack ps = isoFitPose(bounds);
+        ps.mulPose(CG_FLIP_AXIS.rotationDegrees(CG_FLIP_DEG));
+        cg.submit(rs, ps, storage, cameraState);
     }
 
     /**
