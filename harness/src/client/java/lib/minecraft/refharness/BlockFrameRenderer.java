@@ -28,6 +28,7 @@ import net.minecraft.client.renderer.Sheets;
 import net.minecraft.client.renderer.block.BlockStateModelSet;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
+import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.texture.OverlayTexture;
@@ -176,13 +177,21 @@ public final class BlockFrameRenderer implements AutoCloseable {
             // mirrors via its L_kit pattern.
             lighting.setupFor(Lighting.Entry.ITEMS_3D);
 
-            // Sheet choice: cutout covers solid + cutout (most blocks) and is the default
-            // BlockModelRenderState picks when its translucent flag is false. Translucent
-            // blocks (glass, water, leaves with transparency, ice) would technically want
-            // Sheets.translucentBlockSheet(), but for parity comparison cutout works for
-            // the majority and is the default vanilla submitBlockModel handles for moving
-            // blocks too. Promote to translucent on a per-block basis if needed.
-            RenderType renderType = Sheets.cutoutBlockSheet();
+            // Sheet choice per block, mirroring vanilla's chunk render-type routing. A block's
+            // baked quads carry BakedQuad.FLAG_TRANSLUCENT (OR-folded into each part's
+            // materialFlags) when its render type is translucent - stained_glass, ice,
+            // slime_block, honey_block, tinted_glass, etc. Those must use translucentBlockSheet
+            // so the reference alpha-blends the way real vanilla does (source-over over the
+            // transparent canvas), matching asset-renderer's per-texel alpha blend; cutout would
+            // write the texel colour straight (opaque) and diverge. cutoutBlockSheet covers
+            // solid + cutout (the opaque majority), so it stays the default.
+            boolean translucent = false;
+            for (BlockStateModelPart part : partsScratch)
+                if ((part.materialFlags() & BakedQuad.FLAG_TRANSLUCENT) != 0) {
+                    translucent = true;
+                    break;
+                }
+            RenderType renderType = translucent ? Sheets.translucentBlockSheet() : Sheets.cutoutBlockSheet();
 
             // Resolve biome / constant tints to vanilla's INVENTORY colour (no world context), the
             // same value vanilla bakes into a block-item GUI icon. Without this, grass / leaves /
