@@ -21,6 +21,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.Projection;
 import net.minecraft.client.renderer.ProjectionMatrixBuffer;
+import net.minecraft.client.color.block.BlockColors;
+import net.minecraft.client.color.block.BlockTintSource;
 import net.minecraft.client.renderer.SubmitNodeStorage;
 import net.minecraft.client.renderer.Sheets;
 import net.minecraft.client.renderer.block.BlockStateModelSet;
@@ -76,9 +78,10 @@ public final class BlockFrameRenderer implements AutoCloseable {
     private static final int FULL_BRIGHT_LIGHT = 15728880;
 
     /**
-     * Empty tint-layer array - one slot per block tint index, but since we don't resolve biome
-     * tints we leave the array empty. Per-quad tint indices fall back to white during
-     * {@code BlockFeatureRenderer.putQuad}.
+     * Empty tint-layer array, used for blocks with no registered {@link BlockTintSource} (the vast
+     * majority). Biome-tinted and constant-tinted blocks resolve a real array via
+     * {@link #resolveInventoryTints} instead; see that method for why the inventory (no-world)
+     * colour is the correct ground truth.
      */
     private static final int[] NO_TINTS = new int[0];
 
@@ -102,7 +105,11 @@ public final class BlockFrameRenderer implements AutoCloseable {
 
     private final Projection projection = new Projection();
     private final ProjectionMatrixBuffer projectionMatrixBuffer = new ProjectionMatrixBuffer("refharness block PIP");
-    private final RandomSource random = RandomSource.create();
+    // Pinned-to-index-0 random so weighted variant lists (bedrock/stone/netherrack rotations)
+    // always emit variants[0], matching asset-renderer's BlockStateLoader.parseVariants pick.
+    // A live RandomSource.create() baked a random rotation into the reference, rotating the texture
+    // noise relative to the asset on an otherwise byte-matching silhouette. See FirstVariantRandomSource.
+    private final RandomSource random = new FirstVariantRandomSource();
     private final List<BlockStateModelPart> partsScratch = new ArrayList<>();
 
     private GpuTexture colorTexture;
@@ -177,7 +184,12 @@ public final class BlockFrameRenderer implements AutoCloseable {
             // blocks too. Promote to translucent on a per-block basis if needed.
             RenderType renderType = Sheets.cutoutBlockSheet();
 
-            storage.submitBlockModel(poseStack, renderType, partsScratch, NO_TINTS,
+            // Resolve biome / constant tints to vanilla's INVENTORY colour (no world context), the
+            // same value vanilla bakes into a block-item GUI icon. Without this, grass / leaves /
+            // vine etc. rendered at their raw grayscale texture while asset-renderer tints them.
+            int[] tints = resolveInventoryTints(client, state);
+
+            storage.submitBlockModel(poseStack, renderType, partsScratch, tints,
                 FULL_BRIGHT_LIGHT, OverlayTexture.NO_OVERLAY, 0xFFFFFFFF);
             fed.renderAllFeatures();
             bufferSource.endBatch();
@@ -187,6 +199,29 @@ public final class BlockFrameRenderer implements AutoCloseable {
         }
 
         writeTextureToPng(outputPath);
+    }
+
+    /**
+     * Resolves the per-tint-index colour array vanilla bakes into a block-item GUI icon.
+     *
+     * <p>Vanilla 26.1 resolves block tints through {@link BlockTintSource}: {@code color(state)} is
+     * the no-world-context "in hand" colour (a block-item icon, a held block), while
+     * {@code colorInWorld(state, level, pos)} samples the actual biome. The GUI inventory icon uses
+     * {@code color(state)}, which for grass / foliage returns the colormap DEFAULT
+     * ({@code GrassColor.getDefaultColor()} = colormap centre, temperature 0.5 / downfall 1.0) and
+     * for the constant-tint blocks (birch / spruce leaves, lily_pad) returns their fixed colour.
+     * That is the value asset-renderer must match, so the reference uses it rather than a biome
+     * sample. {@link BlockColors#getTintSources} returns one source per tint index in index order
+     * (see {@code ModelBlockRenderer}); blocks with no source get {@link #NO_TINTS}.
+     */
+    private static int[] resolveInventoryTints(Minecraft client, BlockState state) {
+        BlockColors blockColors = client.getBlockColors();
+        List<BlockTintSource> sources = blockColors.getTintSources(state);
+        if (sources.isEmpty()) return NO_TINTS;
+        int[] tints = new int[sources.size()];
+        for (int i = 0; i < sources.size(); i++)
+            tints[i] = sources.get(i).color(state);
+        return tints;
     }
 
     private void ensureTextures(int width, int height) {
