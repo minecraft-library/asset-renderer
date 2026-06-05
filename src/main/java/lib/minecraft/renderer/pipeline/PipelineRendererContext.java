@@ -651,7 +651,7 @@ public final class PipelineRendererContext implements RendererContext {
         // (IndexColorModel), and TYPE_CUSTOM with ComponentColorModel of TYPE_GRAY (2-band
         // tRNS-keyed grayscale) - without applying the sRGB-gamma transform that would inflate
         // raw byte values on calibrated-gray sources.
-        PixelBuffer buffer = PixelBuffer.wrap(this.imageFactory.fromFile(winning.toFile()).toBufferedImage());
+        PixelBuffer buffer = this.imageFactory.fromFile(winning.toFile()).toPixelBuffer();
         this.textureCache.put(normalized, buffer);
         return Optional.of(buffer);
     }
