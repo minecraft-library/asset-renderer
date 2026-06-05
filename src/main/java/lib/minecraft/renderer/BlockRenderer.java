@@ -289,21 +289,6 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         }
 
         /**
-         * Resolves a block face texture reference to its first animation frame. Block inventory
-         * icons render frame 0 of an animated texture (matching vanilla's pinned-tick GUI render);
-         * blitting the raw {@code .mcmeta} strip instead squashes every frame onto the face - e.g.
-         * magma's 16x48 three-frame strip collapses into horizontal bands instead of its frame-0
-         * diamond. Non-animated textures have no sidecar and pass through unchanged.
-         *
-         * @param raster the pack-aware raster engine
-         * @param resolvedId the fully resolved (non-{@code #variable}) texture id
-         * @return the frame-0 texture buffer, or the source buffer when not animated
-         */
-        private static @NotNull PixelBuffer resolveFaceTexture(@NotNull RasterEngine raster, @NotNull String resolvedId) {
-            return raster.resolveTextureAtTick(resolvedId, 0);
-        }
-
-        /**
          * Assembles geometry from all matching parts of a multipart blockstate. Evaluates
          * each part's condition against the variant properties and builds triangles for every
          * matching model, applying per-part rotation where specified.
@@ -331,7 +316,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                         if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
                         String resolvedId = TextureEngine.resolveTextureReference(ref, variables);
                         if (resolvedId.startsWith("#")) continue;
-                        faceTextures.put(ref, resolveFaceTexture(raster, resolvedId));
+                        faceTextures.put(ref, raster.resolveTextureAtTick(resolvedId, 0));
                     }
                 }
 
@@ -452,7 +437,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
                     String resolvedId = TextureEngine.resolveTextureReference(ref, variables);
                     if (resolvedId.startsWith("#")) continue;
-                    faceTextures.put(ref, resolveFaceTexture(raster, resolvedId));
+                    faceTextures.put(ref, raster.resolveTextureAtTick(resolvedId, 0));
                 }
             }
 
@@ -482,7 +467,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
                     String resolvedId = TextureEngine.resolveTextureReference(ref, variables);
                     if (resolvedId.startsWith("#")) continue;
-                    faceTextures.put(ref, resolveFaceTexture(raster, resolvedId));
+                    faceTextures.put(ref, raster.resolveTextureAtTick(resolvedId, 0));
                 }
             }
             return BlockGeometryKit.buildFromElements(entity.model().getElements(), faceTextures, tint, untintedTint);
@@ -522,7 +507,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                         if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
                         String resolvedId = TextureEngine.resolveTextureReference(ref, variables);
                         if (resolvedId.startsWith("#")) continue;
-                        faceTextures.put(ref, resolveFaceTexture(raster, resolvedId));
+                        faceTextures.put(ref, raster.resolveTextureAtTick(resolvedId, 0));
                     }
                 }
 
@@ -593,7 +578,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
                     String resolvedId = TextureEngine.resolveTextureReference(ref, variables);
                     if (resolvedId.startsWith("#")) continue;
-                    faceTextures.put(ref, resolveFaceTexture(raster, resolvedId));
+                    faceTextures.put(ref, raster.resolveTextureAtTick(resolvedId, 0));
                 }
             }
 
