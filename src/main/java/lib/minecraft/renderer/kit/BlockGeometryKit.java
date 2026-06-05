@@ -155,7 +155,7 @@ public class BlockGeometryKit {
         int tintedArgb,
         int untintedArgb
     ) {
-        return buildFromElements(elements, faceTextures, tintedArgb, untintedArgb, 0, false);
+        return buildFromElements(elements, faceTextures, tintedArgb, untintedArgb, 0, 0, false);
     }
 
     /**
@@ -168,11 +168,14 @@ public class BlockGeometryKit {
      * position rotation separately (the UV lock is independent of where the vertices land), so
      * passing {@code uvLock = false} reproduces the plain overload byte-for-byte.
      * <p>
-     * Only the Y axis is handled: blockstate variants drive horizontally-oriented blocks
-     * (stairs, walls, fence gates) whose default-state {@code uvlock} is a pure Y rotation, and
-     * a Y rotation keeps every side face's vertical axis vertical so only {@code up}/{@code down}
-     * need correcting.
+     * Both rotation axes are handled. A Y rotation spins the {@code up}/{@code down} faces in
+     * place (stairs, walls, fence gates), so only those are counter-rotated. An X rotation tips a
+     * zero-thickness {@code north}/{@code south} billboard onto another cube face with its texture
+     * inverted - the up/down planes of the multipart {@code vine}/{@code sculk_vein}/
+     * {@code glow_lichen}/{@code resin_clump} blocks and the single-face {@code mushroom_block}/
+     * {@code mushroom_stem} skins - so those faces take a half-turn (see {@link #uvLockQuarterTurns}).
      *
+     * @param variantRotationX the variant's whole-model X rotation in degrees (0/90/180/270)
      * @param variantRotationY the variant's whole-model Y rotation in degrees (0/90/180/270)
      * @param uvLock whether the blockstate variant requested {@code uvlock}
      */
@@ -181,6 +184,7 @@ public class BlockGeometryKit {
         @NotNull Map<String, PixelBuffer> faceTextures,
         int tintedArgb,
         int untintedArgb,
+        int variantRotationX,
         int variantRotationY,
         boolean uvLock
     ) {
@@ -239,6 +243,11 @@ public class BlockGeometryKit {
             // Flat planes (zero thickness on any axis) must disable backface culling so
             // both sides render - used by brewing stand bottles, banners, item frames, etc.
             boolean twoSided = x0 == x1 || y0 == y1 || z0 == z1;
+            // The X-rotation uvlock half-turn is only correct for a zero-thickness north/south
+            // billboard (the up/down planes of vine/sculk_vein/glow_lichen/resin_clump and the
+            // single-face mushroom_block/mushroom_stem skins). Applying it to a thick box's
+            // north/south faces (wall buttons, x:90) shifts the texels the wrong way, so gate it.
+            boolean flatNorthSouthPlane = z0 == z1;
 
             for (Map.Entry<String, ModelFace> entry : element.getFaces().entrySet()) {
                 BlockFace blockFace = BlockFace.fromName(entry.getKey());
@@ -248,7 +257,7 @@ public class BlockGeometryKit {
                 PixelBuffer texture = faceTextures.get(face.getTexture());
                 if (texture == null) continue;
 
-                int uvLockTurns = uvLock ? uvLockQuarterTurns(blockFace, variantRotationY) : 0;
+                int uvLockTurns = uvLock ? uvLockQuarterTurns(blockFace, variantRotationX, variantRotationY, flatNorthSouthPlane) : 0;
                 Vector2f[] uv = resolveFaceUv(face, blockFace, element, uvLockTurns);
                 Vector3f[] corners = blockFace.corners(new Box(x0, y0, z0, x1, y1, z1));
                 Vector3f faceNormal = blockFace.normal();
@@ -334,13 +343,32 @@ public class BlockGeometryKit {
 
     /**
      * Returns the {@code uvlock} UV rotation (in clockwise quarter turns) for a face under a
-     * blockstate variant Y rotation. The {@code up} and {@code down} faces are perpendicular to
-     * the Y axis and would otherwise spin with the rotated model; rotating their UV about the
-     * texture center by the variant angle keeps the texture aligned to the world grid. {@code down}
-     * is viewed from the opposite side so it takes the opposite sense. Side faces keep vertical-up
-     * under a Y rotation and need no correction.
+     * blockstate variant rotation. X is checked first because vanilla never combines X and Y on a
+     * single {@code uvlock} part.
+     * <p>
+     * An X rotation tips a vertical {@code north}/{@code south} plane onto another cube face with
+     * its texture vertically inverted, so its UV needs a half-turn (180 degrees, two quarter turns)
+     * to stay world-locked - the same correction for every {@code x} angle (90/180/270), since each
+     * inverts the plane's vertical sense. This holds only for a zero-thickness north/south billboard
+     * ({@code flatNorthSouthPlane}): the up/down planes of {@code vine}/{@code sculk_vein}/
+     * {@code glow_lichen}/{@code resin_clump} and the single-face {@code mushroom_block}/
+     * {@code mushroom_stem} skins (validated to drive vine 22.44 -&gt; 0.18, red_mushroom_block -&gt;
+     * 0.00, mushroom_stem -&gt; 0.06). For a thick box's north/south faces (a wall button at x:90)
+     * the half-turn shifts the texels the wrong way, so the caller passes {@code false} there.
+     * <p>
+     * A Y rotation instead spins the {@code up}/{@code down} faces in place (stairs, walls, fence
+     * gates); their UV is counter-rotated by the variant angle. {@code down} is viewed from the
+     * opposite side so it takes the opposite sense. Side faces keep their vertical axis under Y and
+     * need no correction.
      */
-    private static int uvLockQuarterTurns(@NotNull BlockFace face, int variantRotationY) {
+    private static int uvLockQuarterTurns(@NotNull BlockFace face, int variantRotationX, int variantRotationY, boolean flatNorthSouthPlane) {
+        if (variantRotationX != 0)
+            return flatNorthSouthPlane
+                ? switch (face) {
+                    case NORTH, SOUTH -> 2;
+                    default -> 0;
+                }
+                : 0;
         int turns = variantRotationY / 90;
         return switch (face) {
             case UP -> -turns;

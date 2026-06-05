@@ -321,7 +321,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 }
 
                 ConcurrentList<VisibleTriangle> partTriangles = apply.uvlock()
-                    ? BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint, apply.y(), true)
+                    ? BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint, apply.x(), apply.y(), true)
                     : BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint);
 
                 // Apply per-part rotation if specified
@@ -445,7 +445,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // texture stays world-aligned (the position rotation is applied separately by the
             // caller via applyRotation). Non-uvlock variants fall through to the plain build.
             if (variant != null && variant.uvlock())
-                return BlockGeometryKit.buildFromElements(model.getElements(), faceTextures, tint, untintedTint, variant.y(), true);
+                return BlockGeometryKit.buildFromElements(model.getElements(), faceTextures, tint, untintedTint, variant.x(), variant.y(), true);
             return BlockGeometryKit.buildFromElements(model.getElements(), faceTextures, tint, untintedTint);
         }
 
@@ -583,7 +583,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             }
 
             ConcurrentList<VisibleTriangle> triangles = first.uvlock()
-                ? BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint, first.y(), true)
+                ? BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint, first.x(), first.y(), true)
                 : BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint);
 
             if (first.hasRotation())
