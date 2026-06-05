@@ -253,7 +253,19 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // resulting shade is continuous in the surface normal so face-rotated geometry
             // (stairs corners, slab edges, fence posts) gets per-quad lighting that matches
             // the harness PNGs instead of bucketing to the closest cardinal's pre-baked value.
-            triangles = relightForItems3d(triangles, guiRotation);
+            //
+            // Plain block models (no {@link Block.Entity}) cull back faces like vanilla's block
+            // render type ({@code RenderType.cutout}/{@code solid}/... all bind CULL): a
+            // zero-thickness {@code block/cross} element declares both faces (north+south) and the
+            // GPU keeps only the camera-facing one. {@link BlockGeometryKit} marks every
+            // zero-thickness face two-sided ({@code cullBackFaces=false}); without this the
+            // away-facing polygon's MIRRORED-UV cutout texels draw extra silhouette pixels vanilla
+            // never shows (cobweb +19797 java-only px). Block-ENTITY surfaces (signs, banner cloth,
+            // hanging-sign chains) are genuinely vanilla-no-cull ({@code entityCutoutNoCull}) and
+            // keep their two-sided faces + camera-facing flip, so the cull is gated on the absence
+            // of a {@link Block.Entity}.
+            boolean cullBlockModelFaces = be == null;
+            triangles = relightForItems3d(triangles, guiRotation, cullBlockModelFaces);
 
             int ssaa = Math.max(1, options.getSupersample());
             if (ssaa > 1) {
@@ -705,10 +717,21 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * So the per-vertex normal handed to the fragment shader is
          * {@code S(1,-1,1) × R_{gui} × n_model}, and that's what
          * {@link RenderEngine#computeBlockItems3dLighting} expects.
+         * <p>
+         * When {@code forceCullBackFaces} is set (plain block models, see the caller) every emitted
+         * triangle is marked {@code cullBackFaces=true} regardless of its built-in flag, matching
+         * vanilla's block render types, which all bind GL culling. {@link BlockGeometryKit} marks
+         * zero-thickness ({@code block/cross}, crop, multiface) faces two-sided so both authored
+         * sides survive; the rasterizer's winding cull then keeps only the camera-facing one - the
+         * same single-sided result vanilla shows, without the away-facing mirror-UV overdraw. The
+         * camera-facing flip below is therefore skipped for those faces (they cull instead). Passing
+         * {@code false} (block-entity surfaces - signs, banner cloth, hanging-sign chains, which
+         * vanilla renders with {@code entityCutoutNoCull}) keeps the two-sided faces and the flip.
          */
         private static @NotNull ConcurrentList<VisibleTriangle> relightForItems3d(
             @NotNull ConcurrentList<VisibleTriangle> triangles,
-            @NotNull EulerRotation guiRotation
+            @NotNull EulerRotation guiRotation,
+            boolean forceCullBackFaces
         ) {
             Matrix4f normalTransform = Matrix4f.IDENTITY
                 .scale(1f, -1f, 1f)
@@ -719,6 +742,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 ));
             ConcurrentList<VisibleTriangle> out = Concurrent.newList();
             for (VisibleTriangle t : triangles) {
+                boolean cull = forceCullBackFaces || t.cullBackFaces();
                 Vector3f renderNormal = Vector3f.normalize(Vector3f.transformNormal(t.normal(), normalTransform));
                 // Two-sided (no back-face cull) faces: shade by the camera-facing normal. Vanilla's
                 // ENTITY_CUTOUT / sign pipeline composes withCull(false) + PER_FACE_LIGHTING, whose
@@ -728,9 +752,10 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 // item-frame backing); without this, the asset shades by whichever polygon wins the
                 // coplanar depth tie (the away-facing one over-brightens to ~1.0 where vanilla shows
                 // the camera-facing ~0.5). Visible iso faces point at +Z in this render frame, so an
-                // away-facing (z < 0) two-sided normal is flipped before lighting. Cull-enabled faces
+                // away-facing (z < 0) two-sided normal is flipped before lighting. Faces that cull
+                // (genuine cube faces, or plain block models under {@code forceCullBackFaces})
                 // already present only their front side, so they are left untouched.
-                if (!t.cullBackFaces() && renderNormal.z() < 0f)
+                if (!cull && renderNormal.z() < 0f)
                     renderNormal = new Vector3f(-renderNormal.x(), -renderNormal.y(), -renderNormal.z());
                 // Match vanilla's vertex-stream byte-packed normal: the shader receives the
                 // normal after a signed-byte SNORM round-trip ({@code (int)(c * 127.0F) / 127.0F},
@@ -745,7 +770,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     t.position0(), t.position1(), t.position2(),
                     t.uv0(), t.uv1(), t.uv2(),
                     t.texture(), t.tintArgb(), t.normal(),
-                    shading, t.cullBackFaces(), t.emissive()
+                    shading, cull, t.emissive()
                 ));
             }
             return out;
