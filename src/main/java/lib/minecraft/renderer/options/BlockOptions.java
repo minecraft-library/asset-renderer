@@ -112,12 +112,6 @@ public class BlockOptions {
     private final @NotNull ConcurrentList<String> texturePackIds = Concurrent.newList();
 
     /**
-     * Output image format
-     */
-    @lombok.Builder.Default
-    private final @NotNull ImageFormat outputFormat = ImageFormat.PNG;
-
-    /**
      * Whether the renderer should compose a {@link Block.Entity}'s
      * {@link Block.Entity#parts() parts} into the tile output.
      * <p>
