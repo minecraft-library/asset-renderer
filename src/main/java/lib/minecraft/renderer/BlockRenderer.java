@@ -772,7 +772,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     t.position0(), t.position1(), t.position2(),
                     t.uv0(), t.uv1(), t.uv2(),
                     t.texture(), t.tintArgb(), t.normal(),
-                    shading, cull, t.emissive()
+                    shading, cull, t.emissive(), t.translucent(), t.debugTag()
                 ));
             }
             return out;
