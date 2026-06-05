@@ -9,6 +9,7 @@
     "EnderDragonModelMixin",
     "FlipFaceShadingMixin",
     "FreezeAnimationStateMixin",
+    "FreezeSpriteAnimationMixin",
     "GuardianStateMixin",
     "HeadlessWindowMixin",
     "HideCloudsMixin",
