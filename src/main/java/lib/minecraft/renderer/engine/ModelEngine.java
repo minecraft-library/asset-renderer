@@ -422,14 +422,16 @@ public class ModelEngine extends TextureEngine {
      * Tests whether a fragment fails the depth test against the existing depth-buffer value at
      * its pixel. Two flavours:
      * <ul>
-     * <li><b>Standard</b>: epsilon-tolerant rejection so coplanar faces (chest body SOUTH vs
-     *     lid SOUTH at z=15) deterministically resolve in painter order without barycentric FP
-     *     noise speckling. First-drawn wins on equal depth.</li>
-     * <li><b>Emissive</b>: strict less-than, so an emissive overlay rendered AT the same depth
-     *     as the base it's painted on top of (spider/enderman eye overlays re-using the base
-     *     entity's geometry post-bone_overrides) survives the test and blends additively,
-     *     instead of being eaten by the epsilon tie-break. Behind-by-more-than-FP-noise is
-     *     still rejected normally.</li>
+     * <li><b>Standard</b>: matches vanilla's {@code GL_LEQUAL} - a fragment passes when it is at
+     *     or in front of the stored depth, so a coplanar LATER fragment overwrites the earlier one
+     *     (last-drawn wins), reproducing the way a model's overlay element paints over an
+     *     identically-shaped base (grass_block tinted {@code #overlay} over its dirt
+     *     {@code #side}).</li>
+     * <li><b>Emissive</b>: same, plus a {@link #DEPTH_EPSILON} slack so an emissive overlay
+     *     rendered AT - or within FP noise behind - the base it's painted on top of
+     *     (spider/enderman eye overlays re-using the base entity's geometry post-bone_overrides)
+     *     survives the test and blends additively. Behind-by-more-than-FP-noise is still rejected
+     *     normally.</li>
      * </ul>
      *
      * @param depthVal the candidate fragment's depth
@@ -438,9 +440,13 @@ public class ModelEngine extends TextureEngine {
      * @return {@code true} if the fragment should be rejected
      */
     private static boolean depthFails(float depthVal, float existingDepth, boolean emissive) {
-        return emissive
-            ? depthVal < existingDepth
-            : depthVal <= existingDepth + DEPTH_EPSILON;
+        // Vanilla's GL_LEQUAL: a coplanar later fragment passes and overwrites the earlier one
+        // (last-drawn wins). The previous `<= existingDepth + DEPTH_EPSILON` was first-drawn-wins,
+        // which diverged from vanilla wherever a model paints a coplanar overlay over a base
+        // (grass_block tinted `#overlay` over its dirt `#side`). Emissive overlays keep the
+        // epsilon slack so one rendered at - or within FP noise behind - the base it sits on
+        // (spider / enderman eye re-using base geometry) still blends instead of being culled.
+        return depthVal < existingDepth - (emissive ? DEPTH_EPSILON : 0f);
     }
 
     /**
