@@ -157,12 +157,14 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             int tint = entityTinted
                 ? be.tintArgb()
                 : resolveBlockTint(this.context, block, options);
-            // When the block's tint comes from a {@link Block.Entity} (banner dye colour), only
-            // faces carrying {@code "tintindex": 0} should receive the dye - untinted faces
-            // (banner pole + bar) stay wood-brown via {@link ColorMath#WHITE}. Biome-tinted
-            // and untinted blocks keep uniform tinting (both slots equal) so grass_block and
-            // friends render unchanged.
-            int untintedTint = entityTinted ? ColorMath.WHITE : tint;
+            // Only faces carrying a {@code "tintindex"} (>= 0) receive the colour, exactly as
+            // vanilla tints; faces with {@code tintindex = -1} render at their raw texture colour.
+            // This holds for both the banner dye ({@link Block.Entity} tint - pole + bar stay
+            // wood-brown) and biome tints: grass_block's {@code #side} dirt faces are tintindex -1
+            // and must stay brown while only its {@code #top} + {@code #overlay} (tintindex 0) go
+            // green. Leaves / grass / cross plants carry tintindex 0 on every face, so they tint
+            // uniformly regardless.
+            int untintedTint = ColorMath.WHITE;
 
             // Fall back to the block's tooling-derived default blockstate key when the caller
             // supplies no explicit variant, so blocks with per-state models
