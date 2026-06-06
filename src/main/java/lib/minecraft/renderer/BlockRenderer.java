@@ -760,7 +760,22 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     ));
                     continue;
                 }
-                Vector3f renderNormal = Vector3f.normalize(Vector3f.transformNormal(t.normal(), normalTransform));
+                // Vanilla shades a quad by its GEOMETRIC facing ({@code FaceBakery.calculateFacing}
+                // from the vertex winding), not the authored face-name normal. The two agree for
+                // every normal or element-rotated face, but the {@code spawner}/{@code trial_spawner}
+                // inner-faces models ({@code block/cube_all_inner_faces} etc.) emit a second cube with
+                // INVERTED geometry ({@code from > to}, reversed winding) so the semi-transparent cage
+                // shows on the far walls too. Its authored face normals point the wrong way - the
+                // inner {@code down} face carries a stored DOWN normal but actually faces UP - so the
+                // back walls seen through the cage shaded by the opposite cardinal (bottom too dark,
+                // rear-left too bright). Recover the true facing from the winding and use it whenever
+                // it contradicts the stored normal; for all non-inverted faces the dot stays positive
+                // and the stored normal is used verbatim (zero shading change).
+                Vector3f geometricNormal = Vector3f.normalize(Vector3f.cross(
+                    t.position1().subtract(t.position0()),
+                    t.position2().subtract(t.position0())));
+                Vector3f shadeNormal = Vector3f.dot(geometricNormal, t.normal()) < 0f ? geometricNormal : t.normal();
+                Vector3f renderNormal = Vector3f.normalize(Vector3f.transformNormal(shadeNormal, normalTransform));
                 // Two-sided (no back-face cull) faces: shade by the camera-facing normal. Vanilla's
                 // ENTITY_CUTOUT / sign pipeline composes withCull(false) + PER_FACE_LIGHTING, whose
                 // fragment shader picks the front- or back-vertex colour by screen-space winding -
