@@ -374,15 +374,21 @@ public class BlockGeometryKit {
      * blockstate variant rotation. X is checked first because vanilla never combines X and Y on a
      * single {@code uvlock} part.
      * <p>
-     * An X rotation tips a vertical {@code north}/{@code south} plane onto another cube face with
-     * its texture vertically inverted, so its UV needs a half-turn (180 degrees, two quarter turns)
-     * to stay world-locked - the same correction for every {@code x} angle (90/180/270), since each
-     * inverts the plane's vertical sense. This holds only for a zero-thickness north/south billboard
+     * An X rotation tips a vertical {@code north}/{@code south} plane onto another cube face, and
+     * vanilla's per-direction {@code uvlock} bake ({@code BlockMath.getFaceTransformation} composed
+     * through {@code FaceBakery}) lands the two source faces on <b>different</b> corrections: the
+     * {@code north} face takes a half-turn (180 degrees, two quarter turns), the {@code south} face
+     * stays unrotated. This asymmetry holds identically for {@code x:90} (down plane) and
+     * {@code x:270} (up plane); only {@code x:180} (which keeps both faces vertical) gives both a
+     * half-turn. Because the plane is rendered single-sided after back-face culling, the visible
+     * surface is the {@code north}-derived face on the up plane (needs the half-turn) and the
+     * {@code south}-derived face on the down plane (needs none) - mirroring whichever face the
+     * x-rotation tips toward the camera. This holds only for a zero-thickness north/south billboard
      * ({@code flatNorthSouthPlane}): the up/down planes of {@code vine}/{@code sculk_vein}/
      * {@code glow_lichen}/{@code resin_clump} and the single-face {@code mushroom_block}/
-     * {@code mushroom_stem} skins (validated to drive vine 22.44 -&gt; 0.18, red_mushroom_block -&gt;
-     * 0.00, mushroom_stem -&gt; 0.06). For a thick box's north/south faces (a wall button at x:90)
-     * the half-turn shifts the texels the wrong way, so the caller passes {@code false} there.
+     * {@code mushroom_stem} skins (whose model declares only a {@code north} face). For a thick box's
+     * north/south faces (a wall button at x:90) the correction shifts the texels the wrong way, so
+     * the caller passes {@code false} there.
      * <p>
      * A Y rotation instead spins the {@code up}/{@code down} faces in place (stairs, walls, fence
      * gates); their UV is counter-rotated by the variant angle. {@code down} is viewed from the
@@ -393,7 +399,8 @@ public class BlockGeometryKit {
         if (variantRotationX != 0)
             return flatNorthSouthPlane
                 ? switch (face) {
-                    case NORTH, SOUTH -> 2;
+                    case NORTH -> 2;
+                    case SOUTH -> variantRotationX == 180 ? 2 : 0;
                     default -> 0;
                 }
                 : 0;
