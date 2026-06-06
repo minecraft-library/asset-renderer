@@ -10,16 +10,15 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.EntityBlock;
-import net.minecraft.world.level.block.state.BlockState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Tick-driven block sweep. Per block:
+ * Tick-driven block sweep. Every block's ground truth is its 3D in-world render at the standard
+ * iso pose - this is a block-parity sweep, never an item-icon sweep. Per block:
  * <ol>
  *   <li><b>Plain blocks</b> render through {@link BlockFrameRenderer} - the vanilla block-model
  *       rendering pipeline ({@code SubmitNodeStorage.submitBlockModel}) at the standard iso
@@ -29,12 +28,15 @@ import org.slf4j.LoggerFactory;
  *       {@code item/generated} as a parent (rails, vines, ladders, lily_pad, seagrass,
  *       sculk_vein, doors, hanging signs) render as actual 3D geometry rather than the flat
  *       2D billboard the inventory icon would show.</li>
- *   <li><b>{@link EntityBlock} blocks</b> (chest, shulker_box, banner, sign, decorated_pot,
- *       skull, bell, beacon, ...) render through {@link ItemFrameRenderer} - the vanilla GUI
- *       inventory pipeline - because their visible geometry comes from a
- *       {@code BlockEntityWithoutLevelRenderer}, not the static block model. The block-model
- *       path would emit only a placeholder cube (or empty geometry), losing the per-entity
- *       art.</li>
+ *   <li><b>{@link EntityBlock} blocks</b> with a registered {@code BlockEntityRenderer} (chest,
+ *       shulker_box, banner, sign, decorated_pot, skull, bell, beacon, ...) render through
+ *       {@link BlockEntityFrameRenderer} so their per-entity art (drawn by a
+ *       {@code BlockEntityWithoutLevelRenderer}) is captured.</li>
+ *   <li><b>{@link EntityBlock} blocks without a renderer</b> (barrel, hopper, brewing_stand,
+ *       furnace, chiseled_bookshelf, calibrated_sculk_sensor, ...) fall back to the same
+ *       {@link BlockFrameRenderer} plain-block path - NOT the item model. Their visible geometry
+ *       is the static block model, and routing them through the item icon would draw a flat 2D
+ *       sprite or a divergent inventory model that does not reflect the 3D block.</li>
  * </ol>
  *
  * <p>No block is ever placed in the world: there's no camera dependency, no per-tick
@@ -47,7 +49,6 @@ public final class BlockSweeper implements AutoCloseable {
     private final List<Block> targets;
     private final BlockFrameRenderer blockRenderer;
     private final BlockEntityFrameRenderer beRenderer;
-    private final ItemFrameRenderer itemFallbackRenderer;
     private int index;
     private int rendered;
     private int skipped;
@@ -58,7 +59,6 @@ public final class BlockSweeper implements AutoCloseable {
         this.targets = targets;
         this.blockRenderer = new BlockFrameRenderer();
         this.beRenderer = new BlockEntityFrameRenderer();
-        this.itemFallbackRenderer = new ItemFrameRenderer();
         this.index = 0;
     }
 
@@ -103,22 +103,17 @@ public final class BlockSweeper implements AutoCloseable {
             if (block instanceof EntityBlock) {
                 // Block-entity blocks: try the BE-renderer-via-dispatcher path first
                 // (renders the actual 3D in-world geometry for signs / beds / banners / heads /
-                // shulker_boxes / etc.). Fall back to the item-model path (2D billboards from
-                // item/generated) only when the BE path declines (no registered renderer,
-                // null render state, submit threw).
+                // shulker_boxes / bell / etc.). When the BE path declines (no registered
+                // BlockEntityRenderer - barrel, hopper, brewing_stand, furnace, chiseled_bookshelf,
+                // calibrated_sculk_sensor, ...), fall back to the PLAIN-BLOCK 3D path, NOT the
+                // item-model path. This is a block-parity sweep: the ground truth is the 3D
+                // in-world block at the iso pose, not the inventory icon, which for these blocks is
+                // either a flat item/generated sprite (hopper, brewing_stand) or a divergent model
+                // (barrel un-rotated, chiseled_bookshelf_inventory, calibrated's display.gui pose).
                 boolean rendered3d = beRenderer.renderAndWrite(client, block.defaultBlockState(), HarnessConfig.IMAGE_SIZE, out);
-                if (rendered3d) {
-                    rendered++;
-                } else {
-                    ItemStack stack = new ItemStack(block);
-                    if (stack.isEmpty()) {
-                        LOG.warn("BlockSweeper: empty stack for entity-block {}", id);
-                        skipped++;
-                    } else {
-                        itemFallbackRenderer.renderAndWrite(client, stack, HarnessConfig.IMAGE_SIZE, out);
-                        rendered++;
-                    }
-                }
+                if (!rendered3d)
+                    blockRenderer.renderAndWrite(client, block.defaultBlockState(), HarnessConfig.IMAGE_SIZE, out);
+                rendered++;
             } else {
                 blockRenderer.renderAndWrite(client, block.defaultBlockState(), HarnessConfig.IMAGE_SIZE, out);
                 rendered++;
