@@ -172,42 +172,6 @@ class BlockListDiscoveryTest {
     }
 
     @Nested
-    @DisplayName("walkBellAttachTypesOrder")
-    class WalkBellAttachTypesOrderTests {
-
-        @Test
-        @DisplayName("returns field names in declaration order")
-        void orderPreserved() throws IOException {
-            byte[] bell = buildTwoLdcEnumClass("net/minecraft/world/level/block/state/properties/BellAttachType",
-                List.of(
-                    new EnumEntry("FLOOR", "floor"),
-                    new EnumEntry("CEILING", "ceiling"),
-                    new EnumEntry("SINGLE_WALL", "single_wall"),
-                    new EnumEntry("DOUBLE_WALL", "double_wall")
-                ));
-            Path jar = writeJar(Map.of("net/minecraft/world/level/block/state/properties/BellAttachType", bell));
-            try (ZipFile zf = new ZipFile(jar.toFile())) {
-                List<String> out = BlockListDiscovery.walkBellAttachTypesOrder(zf);
-                assertThat(out, contains("FLOOR", "CEILING", "SINGLE_WALL", "DOUBLE_WALL"));
-            }
-        }
-
-        @Test
-        @DisplayName("dropping an entry shrinks the list")
-        void dropEntry() throws IOException {
-            byte[] bell = buildTwoLdcEnumClass("net/minecraft/world/level/block/state/properties/BellAttachType",
-                List.of(
-                    new EnumEntry("FLOOR", "floor"),
-                    new EnumEntry("CEILING", "ceiling")
-                ));
-            Path jar = writeJar(Map.of("net/minecraft/world/level/block/state/properties/BellAttachType", bell));
-            try (ZipFile zf = new ZipFile(jar.toFile())) {
-                assertThat(BlockListDiscovery.walkBellAttachTypesOrder(zf), hasSize(2));
-            }
-        }
-    }
-
-    @Nested
     @DisplayName("walkChestSpecialRendererVariants")
     class WalkChestVariantsTests {
 
@@ -352,38 +316,30 @@ class BlockListDiscoveryTest {
     class BellTests {
 
         @Test
-        @DisplayName("emits 4 faux block ids per BELL_ATTACH_SUFFIX")
-        void fourFauxIds() throws IOException {
+        @DisplayName("binds the additive bell_body to the single minecraft:bell block")
+        void singleBellBinding() throws IOException {
             byte[] beType = buildBlockEntityTypeClass(b -> {
                 b.ldc("bell");
                 b.getstaticBlocks("BELL");
                 b.putstaticBeType("BELL");
             });
             byte[] bellRenderer = buildBellRenderer("bell/bell_body");
-            byte[] bellAttach = buildTwoLdcEnumClass("net/minecraft/world/level/block/state/properties/BellAttachType",
-                List.of(
-                    new EnumEntry("FLOOR", "floor"),
-                    new EnumEntry("CEILING", "ceiling"),
-                    new EnumEntry("SINGLE_WALL", "single_wall"),
-                    new EnumEntry("DOUBLE_WALL", "double_wall")
-                ));
             Path jar = writeJar(Map.of(
                 "net/minecraft/world/level/block/entity/BlockEntityType", beType,
                 "net/minecraft/world/level/block/Blocks", emptyClass("net/minecraft/world/level/block/Blocks"),
-                "net/minecraft/client/renderer/blockentity/BellRenderer", bellRenderer,
-                "net/minecraft/world/level/block/state/properties/BellAttachType", bellAttach
+                "net/minecraft/client/renderer/blockentity/BellRenderer", bellRenderer
             ));
             try (ZipFile zf = new ZipFile(jar.toFile())) {
                 Map<String, BlockListDiscovery.EntityBlockMapping> out = BlockListDiscovery.discover(zf, new Diagnostics());
                 BlockListDiscovery.EntityBlockMapping bell = out.get("minecraft:bell_body");
                 assertThat(bell, notNullValue());
-                assertThat(bell.blocks(), hasSize(4));
-                assertThat("BellAttachType order -> bell_floor, bell_ceiling, bell_wall, bell_between_walls",
-                    bell.blocks().stream().map(BlockListDiscovery.BlockMapping::blockId).toList(),
-                    contains("minecraft:bell_floor", "minecraft:bell_ceiling", "minecraft:bell_wall", "minecraft:bell_between_walls"));
-                // All 4 share the bell_body texture (prepended with entity/ by the mapper base).
-                for (BlockListDiscovery.BlockMapping bm : bell.blocks())
-                    assertThat(bm.textureId(), equalTo("minecraft:entity/bell/bell_body"));
+                assertThat(bell.blocks(), hasSize(1));
+                // BellRenderer.submit draws the bell_body with the raw PoseStack (no per-attachment
+                // offset), so the additive overlay binds to the single minecraft:bell block.
+                BlockListDiscovery.BlockMapping mapping = bell.blocks().getFirst();
+                assertThat(mapping.blockId(), equalTo("minecraft:bell"));
+                // Texture is prepended with entity/ by the mapper base.
+                assertThat(mapping.textureId(), equalTo("minecraft:entity/bell/bell_body"));
             }
         }
     }

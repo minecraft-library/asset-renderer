@@ -54,10 +54,6 @@ import java.util.zip.ZipFile;
  *       our 4-entity-id split ({@code skull_head}, {@code skull_humanoid_head},
  *       {@code skull_dragon_head}, {@code skull_piglin_head}). This is our output convention;
  *       vanilla uses a single {@code BlockEntityType.SKULL}.</li>
- *   <li>{@link #BELL_ATTACH_SUFFIX} - maps the 4 {@code BellAttachType} enum constants to our
- *       sub-id suffix ({@code floor}, {@code ceiling}, {@code wall}, {@code between_walls}).
- *       This is our output convention - {@code SINGLE_WALL} and {@code DOUBLE_WALL} don't match
- *       their serialized names ({@code single_wall} / {@code double_wall}).</li>
  *   <li>{@link #DECORATED_POT_SIDES_OFFSET} - the sub-model offset for the pot sides part.
  *       Definitionally {@code (0, 0, 0)} because {@code DecoratedPotRenderer.submit} makes no
  *       {@code PoseStack.translate} call between the base and sides submitModel calls.</li>
@@ -135,19 +131,6 @@ public final class BlockListDiscovery {
         "PLAYER",          "skull_humanoid_head",
         "DRAGON",          "skull_dragon_head",
         "PIGLIN",          "skull_piglin_head"
-    );
-
-    /**
-     * Suffix per {@code BellAttachType} enum constant. {@code SINGLE_WALL} and
-     * {@code DOUBLE_WALL} do not match their serialized names - our convention drops the
-     * {@code single_} prefix on the single-wall form and renames the double-wall form to
-     * {@code between_walls} for clarity.
-     */
-    private static final @NotNull Map<String, String> BELL_ATTACH_SUFFIX = Map.of(
-        "FLOOR",       "floor",
-        "CEILING",     "ceiling",
-        "SINGLE_WALL", "wall",
-        "DOUBLE_WALL", "between_walls"
     );
 
     /**
@@ -363,17 +346,6 @@ public final class BlockListDiscovery {
      */
     static @NotNull Map<String, String> walkSkullTypesNames(@NotNull ZipFile zip) {
         return walkEnumSerializedNames(zip, VanillaSourceClasses.SKULL_TYPES);
-    }
-
-    /**
-     * Walks {@code BellAttachType.<clinit>} and returns the ordered list of enum field names.
-     * Used both as our iteration order and as the left-hand side of {@link #BELL_ATTACH_SUFFIX}.
-     *
-     * @return the insertion-ordered list of field names (e.g
-     *     {@code ["FLOOR", "CEILING", "SINGLE_WALL", "DOUBLE_WALL"]})
-     */
-    static @NotNull List<String> walkBellAttachTypesOrder(@NotNull ZipFile zip) {
-        return List.copyOf(walkEnumSerializedNames(zip, VanillaSourceClasses.BELL_ATTACH_TYPE).keySet());
     }
 
     /**
@@ -1620,10 +1592,12 @@ public final class BlockListDiscovery {
     }
 
     /**
-     * Bell family. {@code BlockEntityType.BELL.validBlocks} is {@code [BELL]}, but our output
-     * splits into 4 faux block ids keyed on {@code BellAttachType} enum values per
-     * {@link #BELL_ATTACH_SUFFIX}. All 4 share {@code entity/bell/bell_body} resolved via
-     * {@link #resolveBellTexture}.
+     * Bell family. {@code BlockEntityType.BELL.validBlocks} is {@code [BELL]} - a single block
+     * {@code minecraft:bell} whose attachment / facing live in its blockstate. The additive
+     * {@code bell_body} overlay binds to that one block id: {@code BellRenderer.submit} renders the
+     * {@code bell_body} model with the raw {@code PoseStack} (no per-attachment offset), so the
+     * same overlay position covers every attachment state. Texture is {@code entity/bell/bell_body}
+     * resolved via {@link #resolveBellTexture}.
      */
     @UtilityClass
     private static final class Bell {
@@ -1631,14 +1605,7 @@ public final class BlockListDiscovery {
         static @NotNull EntityBlockMapping discover(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
             String tex = resolveBellTexture(zip, diag);
             if (tex == null) return new EntityBlockMapping(List.of(), null);
-            List<String> attachOrder = walkBellAttachTypesOrder(zip);
-            ConcurrentList<BlockMapping> mappings = Concurrent.newList();
-            for (String attachField : attachOrder) {
-                String suffix = BELL_ATTACH_SUFFIX.get(attachField);
-                if (suffix == null) continue;
-                mappings.add(new BlockMapping("minecraft:bell_" + suffix, "minecraft:" + tex));
-            }
-            return new EntityBlockMapping(List.copyOf(mappings), null);
+            return new EntityBlockMapping(List.of(new BlockMapping("minecraft:bell", "minecraft:" + tex)), null);
         }
     }
 

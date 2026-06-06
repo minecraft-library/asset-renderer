@@ -2102,35 +2102,35 @@
         "elements": [
           {
             "from": [
-              -11.0,
+              5.0,
               6.0,
               5.0
             ],
             "to": [
-              -5.0,
+              11.0,
               13.0,
               11.0
             ],
             "faces": {
-              "up": {
-                "texture": "#entity",
-                "uv": [
-                  6.0,
-                  3.0,
-                  3.0,
-                  0.0
-                ]
-              },
               "down": {
                 "texture": "#entity",
                 "uv": [
-                  9.0,
+                  3.0,
                   0.0,
                   6.0,
                   3.0
                 ]
               },
-              "south": {
+              "up": {
+                "texture": "#entity",
+                "uv": [
+                  6.0,
+                  3.0,
+                  9.0,
+                  0.0
+                ]
+              },
+              "north": {
                 "texture": "#entity",
                 "uv": [
                   6.0,
@@ -2139,7 +2139,7 @@
                   3.0
                 ]
               },
-              "north": {
+              "south": {
                 "texture": "#entity",
                 "uv": [
                   12.0,
@@ -2170,35 +2170,35 @@
           },
           {
             "from": [
-              -12.0,
+              4.0,
               4.0,
               4.0
             ],
             "to": [
-              -4.0,
+              12.0,
               6.0,
               12.0
             ],
             "faces": {
-              "up": {
-                "texture": "#entity",
-                "uv": [
-                  8.0,
-                  10.5,
-                  4.0,
-                  6.5
-                ]
-              },
               "down": {
                 "texture": "#entity",
                 "uv": [
-                  12.0,
+                  4.0,
                   6.5,
                   8.0,
                   10.5
                 ]
               },
-              "south": {
+              "up": {
+                "texture": "#entity",
+                "uv": [
+                  8.0,
+                  10.5,
+                  12.0,
+                  6.5
+                ]
+              },
+              "north": {
                 "texture": "#entity",
                 "uv": [
                   8.0,
@@ -2207,7 +2207,7 @@
                   10.5
                 ]
               },
-              "north": {
+              "south": {
                 "texture": "#entity",
                 "uv": [
                   16.0,
@@ -2243,22 +2243,7 @@
       "tinted": false,
       "blocks": [
         {
-          "blockId": "minecraft:bell_floor",
-          "textureId": "minecraft:entity/bell/bell_body",
-          "additive": true
-        },
-        {
-          "blockId": "minecraft:bell_ceiling",
-          "textureId": "minecraft:entity/bell/bell_body",
-          "additive": true
-        },
-        {
-          "blockId": "minecraft:bell_wall",
-          "textureId": "minecraft:entity/bell/bell_body",
-          "additive": true
-        },
-        {
-          "blockId": "minecraft:bell_between_walls",
+          "blockId": "minecraft:bell",
           "textureId": "minecraft:entity/bell/bell_body",
           "additive": true
         }

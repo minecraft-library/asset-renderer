@@ -169,6 +169,13 @@ public final class ToolingBlockModels {
             for (String modelId : models.keySet())
                 if (!inventoryTransforms.containsKey(modelId)) noInventoryModelIds.add(modelId);
             Map<String, Boolean> entityRenderFlips = InventoryTransformDecomposer.resolveEntityRenderFlips(zip, noInventoryModelIds);
+            // The additive bell_body is the one BE whose renderer (BellRenderer.submit) draws its
+            // model with the raw block PoseStack - no scale(-1, -1, 1) entity flip. Its model is
+            // authored in block space (bell_body pivot (8, 12, 8) -> cube x=5..11), so the cx=-cx
+            // half of the flip would push it to x=-11..-5, off the block. Its item icon is a flat
+            // item/generated sprite (no display.gui), which the resolver would otherwise default to
+            // the flip; force it off so the bell hangs centred under the bar.
+            entityRenderFlips.put("minecraft:bell_body", Boolean.FALSE);
 
             JsonObject blockModels = BlockModelConverter.convert(models, inventoryTransforms, entityRenderFlips, tinted);
             Map<String, String> bannerTintByBlockId = BlockListDiscovery.bannerTintByBlockId(zip, diagnostics);

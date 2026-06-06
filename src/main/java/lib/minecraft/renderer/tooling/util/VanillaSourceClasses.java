@@ -354,9 +354,6 @@ public final class VanillaSourceClasses {
     /** Wood type enum (oak, spruce, birch, ...) - keyed by sign / banner variants. */
     public static final @NotNull String WOOD_TYPE = BLOCK_PROPERTIES_ROOT + "WoodType";
 
-    /** Bell attach-type enum (floor, ceiling, single wall, double wall). */
-    public static final @NotNull String BELL_ATTACH_TYPE = BLOCK_PROPERTIES_ROOT + "BellAttachType";
-
     // ============================================================================================
     // Banners
     // ============================================================================================
