@@ -33,6 +33,8 @@ import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.level.GrassColor;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import org.joml.Quaternionf;
 import org.slf4j.Logger;
@@ -57,11 +59,10 @@ import org.slf4j.LoggerFactory;
  *   × T(-0.5, -0.5, -0.5)   // center block model (baked in [0,1] coords) on origin
  * </pre>
  *
- * <p>Tints are not resolved (passes {@code int[0]} per part). Biome-tinted blocks (grass_block,
- * oak_leaves, water) consequently render at their untinted texture colour rather than the
- * Plains-biome inventory icon vanilla draws. Acceptable for the iso-3D-geometry parity goal;
- * tint resolution can be layered on later via a {@link net.minecraft.client.renderer.block.MovingBlockRenderState}
- * stub if needed.
+ * <p>Tints are resolved to vanilla's inventory (no-world) colour per tint index via
+ * {@link #resolveInventoryTints}; biome-tinted blocks (grass_block, oak_leaves) render at the
+ * colormap-default the held block draws rather than a live biome sample. See that method for the
+ * sugar_cane exception (its inventory colour is white but the in-world block is grass-tinted).
  *
  * <p>Lifecycle mirrors {@link ItemFrameRenderer}: PIP textures are reused across calls while
  * the requested {@code width × height} stays constant, and the textures are deliberately leaked
@@ -222,14 +223,28 @@ public final class BlockFrameRenderer implements AutoCloseable {
      * That is the value asset-renderer must match, so the reference uses it rather than a biome
      * sample. {@link BlockColors#getTintSources} returns one source per tint index in index order
      * (see {@code ModelBlockRenderer}); blocks with no source get {@link #NO_TINTS}.
+     *
+     * <p><b>sugar_cane exception.</b> A handful of tint sources return the untinted-white sentinel
+     * ({@code -1}) from {@code color(state)} because vanilla deliberately leaves their <i>held
+     * item</i> uncolored - {@code BlockTintSources.sugarCane()} is the only such source on a block
+     * that appears in this 3D block-parity sweep. The in-world block, however, IS grass-tinted
+     * ({@code colorInWorld -> BiomeColors.getAverageGrassColor}). Since this reference renders the
+     * in-world 3D block (not the inventory icon), the grass tint is the correct ground truth, so we
+     * substitute the grass colormap default ({@link GrassColor#getDefaultColor()} {@code = get(0.5,
+     * 1.0)}) - the same value tall_grass / fern resolve through {@code grass()} and asset-renderer
+     * applies via its {@code INVENTORY_DEFAULT_BIOME}. (water / waterParticles share the white
+     * sentinel but are fluids, not in this block sweep.)
      */
     private static int[] resolveInventoryTints(Minecraft client, BlockState state) {
         BlockColors blockColors = client.getBlockColors();
         List<BlockTintSource> sources = blockColors.getTintSources(state);
         if (sources.isEmpty()) return NO_TINTS;
         int[] tints = new int[sources.size()];
-        for (int i = 0; i < sources.size(); i++)
-            tints[i] = sources.get(i).color(state);
+        for (int i = 0; i < sources.size(); i++) {
+            int color = sources.get(i).color(state);
+            if (color == -1 && state.is(Blocks.SUGAR_CANE)) color = GrassColor.getDefaultColor();
+            tints[i] = color;
+        }
         return tints;
     }
 
