@@ -1861,7 +1861,7 @@
       ]
     },
     "minecraft:chiseled_bookshelf": {
-      "default": "facing\u003dnorth",
+      "default": "facing\u003dnorth,slot_0_occupied\u003dfalse,slot_1_occupied\u003dfalse,slot_2_occupied\u003dfalse,slot_3_occupied\u003dfalse,slot_4_occupied\u003dfalse,slot_5_occupied\u003dfalse",
       "variants": []
     },
     "minecraft:chiseled_copper": {

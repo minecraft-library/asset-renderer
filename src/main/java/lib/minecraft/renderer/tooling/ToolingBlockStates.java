@@ -145,6 +145,9 @@ public final class ToolingBlockStates {
         private static final @NotNull String BOOLEAN_BOXED = "java/lang/Boolean";
         private static final @NotNull String PROPERTY_DESC_SUFFIX = "Property;";
         private static final @NotNull String MAP_DESC = "Ljava/util/Map;";
+        private static final @NotNull String LIST_DESC = "Ljava/util/List;";
+        private static final @NotNull String LIST_INTERNAL = "java/util/List";
+        private static final @NotNull String FOR_EACH = "forEach";
         private static final @NotNull String FUNCTION_RETURN_SUFFIX = ")Ljava/util/function/Function;";
         private static final @NotNull String VALUE_OF = "valueOf";
         private static final @NotNull String CREATE = "create";
@@ -545,9 +548,66 @@ public final class ToolingBlockStates {
                         && !call.desc.contains(")["))
                         for (FieldRef ref : resolveDirectionPropertyMapValues(call.owner, call.name, call.desc))
                             addDeclared(declared, ref);
+                    // Properties iterated from a static List and added one-by-one, e.g.
+                    // ChiseledBookShelfBlock's SLOT_OCCUPIED_PROPERTIES.forEach(builder::add).
+                    // A GETSTATIC <field>:Ljava/util/List; consumed by a List.forEach - resolve the
+                    // list's element properties from where it's built (List.of(...) in the clinit).
+                    if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode listField
+                        && listField.desc.equals(LIST_DESC) && isFollowedByListForEach(node))
+                        for (FieldRef ref : resolvePropertyListElements(listField.owner, listField.name))
+                            addDeclared(declared, ref);
                 }
             });
             return declared;
+        }
+
+        /**
+         * Returns {@code true} when {@code start} (a {@code GETSTATIC ...List;}) is consumed by a
+         * later {@code List.forEach} in the same method - the iterate-into-the-builder shape
+         * ({@code SLOT_OCCUPIED_PROPERTIES.forEach(builder::add)}), as opposed to an incidental
+         * list reference.
+         */
+        private static boolean isFollowedByListForEach(@NotNull AbstractInsnNode start) {
+            for (AbstractInsnNode node = start.getNext(); node != null; node = node.getNext())
+                if (node.getOpcode() == Opcodes.INVOKEINTERFACE && node instanceof MethodInsnNode call
+                    && call.owner.equals(LIST_INTERNAL) && call.name.equals(FOR_EACH))
+                    return true;
+            return false;
+        }
+
+        /**
+         * Resolves the property element field references of a static {@code List<Property>}, e.g.
+         * {@code ChiseledBookShelfBlock.SLOT_OCCUPIED_PROPERTIES = List.of(SLOT_0_OCCUPIED, ...)}.
+         * Locates the list's {@code PUTSTATIC} in the owning class's {@code <clinit>}, confirms the
+         * value-producing call is a {@code List.of} / {@code copyOf}, then collects every property
+         * {@code GETSTATIC} feeding that build (in declaration order) - covering both the fixed-arg
+         * {@code of(a, b, ...)} shape and the {@code of(new Property[]{...})} array shape.
+         *
+         * @param owner the list field's owner JVM internal name
+         * @param field the list field name
+         * @return the element property field references in declaration order, or empty when unresolved
+         */
+        private @NotNull List<FieldRef> resolvePropertyListElements(@NotNull String owner, @NotNull String field) {
+            FieldInsnNode put = findPutStaticNode(owner, field);
+            if (put == null) return List.of();
+            AbstractInsnNode build = AsmKit.previousReal(put);
+            if (!(build instanceof MethodInsnNode of) || of.getOpcode() != Opcodes.INVOKESTATIC
+                || !of.desc.endsWith(")" + LIST_DESC))
+                return List.of();
+
+            // Walk back from the List build to the preceding statement (the prior field's PUTSTATIC,
+            // or the method start), collecting every property GETSTATIC. For List.of(a, b, ...)
+            // these are the consecutive arg getstatics; for List.of(new Property[]{...}) they are
+            // the ANEWARRAY/AASTORE element getstatics. Pushing while walking back then reading the
+            // deque head-to-tail restores declaration order.
+            java.util.Deque<FieldRef> ordered = new java.util.ArrayDeque<>();
+            for (AbstractInsnNode node = AsmKit.previousReal(of); node != null; node = AsmKit.previousReal(node)) {
+                if (node.getOpcode() == Opcodes.PUTSTATIC) break;
+                if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode prop
+                    && prop.desc.endsWith(PROPERTY_DESC_SUFFIX) && prop.desc.charAt(0) != '[')
+                    ordered.push(new FieldRef(prop.owner, prop.name));
+            }
+            return new ArrayList<>(ordered);
         }
 
         /**
