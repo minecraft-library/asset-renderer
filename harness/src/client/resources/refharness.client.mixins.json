@@ -18,6 +18,7 @@
     "LlamaModelMixin",
     "PhantomStateMixin",
     "PufferfishStateMixin",
+    "ShadeFalseFullBrightMixin",
     "SkipSetupAnimMixin",
     "SuppressShakingMixin",
     "WitherBossModelMixin",
