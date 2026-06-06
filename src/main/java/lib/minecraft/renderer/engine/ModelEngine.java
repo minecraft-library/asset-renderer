@@ -79,9 +79,15 @@ public class ModelEngine extends TextureEngine {
      * textures), so quantized vertex positions almost never land at sample points that
      * produce exact-half barycentrics or exact-integer texel-coordinate interpolations -
      * precisely the cases the snap is here to break.
+     *
+     * <p>Overridable via {@code -Dsnap.grid=N} for empirical sweeps (e.g. confirming the block
+     * pipeline shares the entity-tuned optimum). {@code N <= 0} disables the snap entirely
+     * ({@link #snapToCoverageGrid} returns the vertex unchanged); the default {@code 400} is the
+     * tuned value above. Both the entity ({@link ModelEngine}) and block
+     * ({@link IsometricEngine}) pipelines read this single constant.
      */
-    private static final float SUBPIXEL_PRECISION = 400f;
-    private static final float SUBPIXEL_INV = 1f / SUBPIXEL_PRECISION;
+    private static final float SUBPIXEL_PRECISION = Float.parseFloat(System.getProperty("snap.grid", "400"));
+    private static final float SUBPIXEL_INV = SUBPIXEL_PRECISION > 0f ? 1f / SUBPIXEL_PRECISION : 0f;
 
     private final @NotNull Matrix4f camera;
 
@@ -507,6 +513,7 @@ public class ModelEngine extends TextureEngine {
      * it dodges the exact-alignment GPU-vs-software divergence entirely.
      */
     private static @NotNull Vector2f snapToCoverageGrid(@NotNull Vector2f v) {
+        if (SUBPIXEL_PRECISION <= 0f) return v;
         return new Vector2f(Math.round(v.x() * SUBPIXEL_PRECISION) * SUBPIXEL_INV,
                             Math.round(v.y() * SUBPIXEL_PRECISION) * SUBPIXEL_INV);
     }

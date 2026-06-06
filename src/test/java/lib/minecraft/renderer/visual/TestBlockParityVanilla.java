@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -147,67 +148,16 @@ public final class TestBlockParityVanilla {
             vanillaKeys.size() - intersection.size(),
             javaKeys.size() - intersection.size());
 
-        List<Row> rows = new ArrayList<>();
         long t0 = System.nanoTime();
-        for (String blockId : blockIds) {
-            String safeName = blockId.replace(':', '_');
-            Path blockDir = OUTPUT_DIR.resolve(safeName);
-            Files.createDirectories(blockDir);
-            try {
-                Path vanillaPng = VANILLA_DIR.resolve(VANILLA_PREFIX + blockId.substring("minecraft:".length()) + ".png");
-                BufferedImage vanillaImg = ImageIO.read(vanillaPng.toFile());
-                if (vanillaImg == null) {
-                    System.err.printf("       %-40s vanilla PNG unreadable: %s%n", blockId, vanillaPng);
-                    rows.add(new Row(blockId, Double.POSITIVE_INFINITY, -1, 0, 0, false, 0, 0, 0, 0));
-                    continue;
-                }
-                int vw = vanillaImg.getWidth();
-                int vh = vanillaImg.getHeight();
-
-                // No explicit variant: BlockRenderer falls back to the block's tooling-derived
-                // default blockstate key (block_states.json, baked onto Block.defaultStateKey),
-                // which is vanilla's `block.defaultBlockState()`. This replaces the harness
-                // `.variant` sidecar this test used to consume - blocks like doors /
-                // glazed_terracotta still resolve the correct variant + per-variant rotation.
-                BlockOptions options = BlockOptions.builder()
-                    .blockId(blockId)
-                    .type(BlockOptions.Type.ISOMETRIC_3D)
-                    .outputSize(RENDER_SIZE)
-                    .supersample(1)
-                    .biome(INVENTORY_DEFAULT_BIOME)
-                    .build();
-                ImageData java = javaRenderer.render(options);
-                BufferedImage javaImg = java.toBufferedImage();
-                int jw = javaImg.getWidth();
-                int jh = javaImg.getHeight();
-
-                int cw = Math.max(vw, jw);
-                int ch = Math.max(vh, jh);
-                BufferedImage vanillaPadded = padToCanvas(vanillaImg, cw, ch);
-                BufferedImage javaPadded = padToCanvas(javaImg, cw, ch);
-
-                ImageIO.write(vanillaImg, "PNG", new File(blockDir.toFile(), "vanilla.png"));
-                ImageIO.write(javaImg, "PNG", new File(blockDir.toFile(), "java.png"));
-                PixelBuffer vanillaPB = PixelBuffer.wrap(vanillaPadded);
-                PixelBuffer javaPB = PixelBuffer.wrap(javaPadded);
-                BufferedImage diffImg = vanillaPB.diff(javaPB, DiffType.OVER_WHITE).toBufferedImage();
-                ImageIO.write(diffImg, "PNG", new File(blockDir.toFile(), "diff.png"));
-                BufferedImage panelImg = panelDiff(vanillaPadded, javaPadded, vanillaPB, javaPB);
-                ImageIO.write(panelImg, "PNG", new File(blockDir.toFile(), "diff_panel.png"));
-
-                Stats stats = compareImages(vanillaPadded, javaPadded);
-                boolean achieved = ACHIEVED_PARITY.contains(blockId);
-                String dimMismatch = (vw == jw && vh == jh) ? "" : String.format(" [%dx%d vs %dx%d]", jw, jh, vw, vh);
-                rows.add(new Row(blockId, stats.meanDelta(), stats.differingPixels(), stats.javaCoverage(), stats.vanillaCoverage(), achieved, jw, jh, vw, vh));
-                System.out.printf("  %s %-40s mean delta %.2f  diff-px %d  java-cov %.1f%%  vanilla-cov %.1f%%%s%n",
-                    achieved ? "[OK]" : "    ",
-                    blockId, stats.meanDelta(), stats.differingPixels(),
-                    stats.javaCoverage() * 100, stats.vanillaCoverage() * 100, dimMismatch);
-            } catch (Exception ex) {
-                System.err.printf("       %-40s FAILED: %s%n", blockId, ex.getMessage());
-                rows.add(new Row(blockId, Double.POSITIVE_INFINITY, -1, 0, 0, false, 0, 0, 0, 0));
-            }
-        }
+        // Parallel dispatch across independent per-block renders, mirroring
+        // AtlasRenderer.render's parallelStream pattern: the RendererContext indexes are
+        // ConcurrentMaps and the texture cache is thread-safe, BlockRenderer holds only the
+        // read-only context, and each render allocates its own engine + buffers - so a single
+        // shared javaRenderer is safe to call concurrently. Each block writes to its own
+        // sub-directory and returns its Row; no shared mutable state beyond the collector.
+        List<Row> rows = blockIds.parallelStream()
+            .map(blockId -> renderAndCompare(blockId, javaRenderer))
+            .collect(Collectors.toCollection(ArrayList::new));
         long totalMs = (System.nanoTime() - t0) / 1_000_000L;
 
         rows.sort((a, b) -> Double.compare(a.meanDelta(), b.meanDelta()));
@@ -239,6 +189,72 @@ public final class TestBlockParityVanilla {
         System.out.println("Focus pool (not in achieved-parity list, worst first):");
         for (Row r : focus.subList(0, Math.min(15, focus.size())))
             System.out.printf("    %-40s mean delta %.2f%n", r.blockId(), r.meanDelta());
+    }
+
+    /**
+     * Renders one block through the Java pipeline, diffs it against the vanilla reference, writes
+     * the per-block {@code vanilla/java/diff/diff_panel} PNGs, and returns the comparison
+     * {@link Row}. Self-contained (no shared mutable state) so it can run concurrently across
+     * blocks via {@code parallelStream}; the shared {@code javaRenderer} reads only the immutable
+     * {@link PipelineRendererContext}. Any failure (missing/unreadable reference, render error) is
+     * captured as a {@code POSITIVE_INFINITY} sentinel row rather than aborting the sweep.
+     */
+    private static @NotNull Row renderAndCompare(@NotNull String blockId, @NotNull BlockRenderer javaRenderer) {
+        Path blockDir = OUTPUT_DIR.resolve(blockId.replace(':', '_'));
+        try {
+            Files.createDirectories(blockDir);
+            Path vanillaPng = VANILLA_DIR.resolve(VANILLA_PREFIX + blockId.substring("minecraft:".length()) + ".png");
+            BufferedImage vanillaImg = ImageIO.read(vanillaPng.toFile());
+            if (vanillaImg == null) {
+                System.err.printf("       %-40s vanilla PNG unreadable: %s%n", blockId, vanillaPng);
+                return new Row(blockId, Double.POSITIVE_INFINITY, -1, 0, 0, false, 0, 0, 0, 0);
+            }
+            int vw = vanillaImg.getWidth();
+            int vh = vanillaImg.getHeight();
+
+            // No explicit variant: BlockRenderer falls back to the block's tooling-derived
+            // default blockstate key (block_states.json, baked onto Block.defaultStateKey),
+            // which is vanilla's `block.defaultBlockState()`. This replaces the harness
+            // `.variant` sidecar this test used to consume - blocks like doors /
+            // glazed_terracotta still resolve the correct variant + per-variant rotation.
+            BlockOptions options = BlockOptions.builder()
+                .blockId(blockId)
+                .type(BlockOptions.Type.ISOMETRIC_3D)
+                .outputSize(RENDER_SIZE)
+                .supersample(1)
+                .biome(INVENTORY_DEFAULT_BIOME)
+                .build();
+            ImageData java = javaRenderer.render(options);
+            BufferedImage javaImg = java.toBufferedImage();
+            int jw = javaImg.getWidth();
+            int jh = javaImg.getHeight();
+
+            int cw = Math.max(vw, jw);
+            int ch = Math.max(vh, jh);
+            BufferedImage vanillaPadded = padToCanvas(vanillaImg, cw, ch);
+            BufferedImage javaPadded = padToCanvas(javaImg, cw, ch);
+
+            ImageIO.write(vanillaImg, "PNG", new File(blockDir.toFile(), "vanilla.png"));
+            ImageIO.write(javaImg, "PNG", new File(blockDir.toFile(), "java.png"));
+            PixelBuffer vanillaPB = PixelBuffer.wrap(vanillaPadded);
+            PixelBuffer javaPB = PixelBuffer.wrap(javaPadded);
+            BufferedImage diffImg = vanillaPB.diff(javaPB, DiffType.OVER_WHITE).toBufferedImage();
+            ImageIO.write(diffImg, "PNG", new File(blockDir.toFile(), "diff.png"));
+            BufferedImage panelImg = panelDiff(vanillaPadded, javaPadded, vanillaPB, javaPB);
+            ImageIO.write(panelImg, "PNG", new File(blockDir.toFile(), "diff_panel.png"));
+
+            Stats stats = compareImages(vanillaPadded, javaPadded);
+            boolean achieved = ACHIEVED_PARITY.contains(blockId);
+            String dimMismatch = (vw == jw && vh == jh) ? "" : String.format(" [%dx%d vs %dx%d]", jw, jh, vw, vh);
+            System.out.printf("  %s %-40s mean delta %.2f  diff-px %d  java-cov %.1f%%  vanilla-cov %.1f%%%s%n",
+                achieved ? "[OK]" : "    ",
+                blockId, stats.meanDelta(), stats.differingPixels(),
+                stats.javaCoverage() * 100, stats.vanillaCoverage() * 100, dimMismatch);
+            return new Row(blockId, stats.meanDelta(), stats.differingPixels(), stats.javaCoverage(), stats.vanillaCoverage(), achieved, jw, jh, vw, vh);
+        } catch (Exception ex) {
+            System.err.printf("       %-40s FAILED: %s%n", blockId, ex.getMessage());
+            return new Row(blockId, Double.POSITIVE_INFINITY, -1, 0, 0, false, 0, 0, 0, 0);
+        }
     }
 
     /**

@@ -287,10 +287,13 @@ tasks {
         classpath = sourceSets["test"].runtimeClasspath
         val blockId = project.findProperty("blockId") as String?
         args = if (blockId != null) listOf(blockId) else listOf()
-        // Forward -Dentity.pixel.dump=x0,y0,x1,y1 etc so the per-pixel rasterizer trace in
-        // ModelEngine fires when the caller asks for it. Same pattern as entityParityVanilla.
+        // Forward selected -D properties to the forked JVM: entity.* (per-pixel rasterizer trace,
+        // same pattern as entityParityVanilla) and snap.* (-Dsnap.grid=N sub-pixel coverage-grid
+        // override in ModelEngine, for empirical snap sweeps). CLI -D lands in the daemon's
+        // System.getProperties(); the prefix filter keeps gradle-internal properties out of the
+        // forked JVM.
         systemProperties = System.getProperties().toMap()
-            .filter { it.key.toString().startsWith("entity.") }
+            .filter { val k = it.key.toString(); k.startsWith("entity.") || k.startsWith("snap.") }
             .mapKeys { it.key.toString() }
     }
 
