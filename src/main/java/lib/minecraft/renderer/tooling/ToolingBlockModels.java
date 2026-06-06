@@ -952,9 +952,16 @@ public final class ToolingBlockModels {
         }
 
         /**
-         * A cube's origin, size, and UV offset as parsed from one entry of {@code bones[].cubes[]}.
+         * A cube's origin, size, UV offset, and inflate as parsed from one entry of
+         * {@code bones[].cubes[]}.
+         *
+         * @param inflate vanilla {@code CubeDeformation} grow, in entity-pixel units; the cube's
+         *  geometry expands outward by this on every axis ({@code origin - inflate} to
+         *  {@code origin + size + inflate}) while the UV rectangle stays keyed to the unscaled
+         *  {@code size}. copper_golem_statue uses {@code +0.015} (head) / {@code -0.015}
+         *  (antennae); all other block-entity cubes are {@code 0}.
          */
-        private record CubeDef(float ox, float oy, float oz, float sw, float sh, float sd, int u, int v) {
+        private record CubeDef(float ox, float oy, float oz, float sw, float sh, float sd, int u, int v, float inflate) {
 
             static @NotNull CubeDef of(@NotNull JsonObject cube) {
                 JsonArray originArr = cube.getAsJsonArray("origin");
@@ -963,13 +970,15 @@ public final class ToolingBlockModels {
                 return new CubeDef(
                     originArr.get(0).getAsFloat(), originArr.get(1).getAsFloat(), originArr.get(2).getAsFloat(),
                     sizeArr.get(0).getAsFloat(), sizeArr.get(1).getAsFloat(), sizeArr.get(2).getAsFloat(),
-                    uvArr.get(0).getAsInt(), uvArr.get(1).getAsInt()
+                    uvArr.get(0).getAsInt(), uvArr.get(1).getAsInt(),
+                    JsonOptional.optFloat(cube, "inflate", 0f)
                 );
             }
 
             /**
              * Returns the eight entity-space corners of this cube in vanilla {@code v19..v26}
-             * bit-pattern order (xMax?, yMax?, zMax? selecting one of 8 corners).
+             * bit-pattern order (xMax?, yMax?, zMax? selecting one of 8 corners), grown outward
+             * by {@link #inflate} on every axis to match vanilla's {@code CubeDeformation}.
              * <p>
              * Vanilla labels {@code v19..v22} as the "yMin" vertices and {@code v23..v26} as the
              * "yMax" vertices BY THE SOURCE Y CONVENTION. For Y-DOWN source the post-flip Y
@@ -978,17 +987,20 @@ public final class ToolingBlockModels {
              * recover vanilla's labels.
              */
             float @NotNull [] @NotNull [] entityCorners(boolean yUpSource) {
-                float yLo = yUpSource ? oy + sh : oy;
-                float yHi = yUpSource ? oy      : oy + sh;
+                float xLo = ox - inflate,      xHi = ox + sw + inflate;
+                float zLo = oz - inflate,      zHi = oz + sd + inflate;
+                float yLoRaw = oy - inflate,   yHiRaw = oy + sh + inflate;
+                float yLo = yUpSource ? yHiRaw : yLoRaw;
+                float yHi = yUpSource ? yLoRaw : yHiRaw;
                 return new float[][]{
-                    { ox,      yLo, oz      },
-                    { ox + sw, yLo, oz      },
-                    { ox + sw, yHi, oz      },
-                    { ox,      yHi, oz      },
-                    { ox,      yLo, oz + sd },
-                    { ox + sw, yLo, oz + sd },
-                    { ox + sw, yHi, oz + sd },
-                    { ox,      yHi, oz + sd }
+                    { xLo, yLo, zLo },
+                    { xHi, yLo, zLo },
+                    { xHi, yHi, zLo },
+                    { xLo, yHi, zLo },
+                    { xLo, yLo, zHi },
+                    { xHi, yLo, zHi },
+                    { xHi, yHi, zHi },
+                    { xLo, yHi, zHi }
                 };
             }
         }
