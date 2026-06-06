@@ -47,6 +47,25 @@ public class BlockGeometryKit {
     public static final float VANILLA_PIXEL_UNITS_PER_BLOCK = 16f;
 
     /**
+     * Sentinel {@link VisibleTriangle#shading} value marking a face of a {@code "shade": false}
+     * model element (coral fans, {@code cross}/{@code crop} plants, ladder, vine, tripwire,
+     * redstone dust, torches, ...) that must render full-bright. Vanilla's in-world
+     * {@code getShade(direction, shade=false)} returns {@code 1.0} - the face skips the directional
+     * darkening entirely - so the block iso renderer renders it at {@code 1.0} instead of applying
+     * the {@code Lighting.ITEMS_3D} Lambertian. The reference harness matches this via its
+     * {@code ShadeFalseFullBrightMixin} (which feeds shade:false quads an up normal so the GUI
+     * diffuse saturates to {@code 1.0}).
+     * <p>
+     * The renderer's relight pass ({@code BlockRenderer.Isometric3D.relightForItems3d}) discards
+     * and recomputes the baked shading for every face, so this otherwise-unused field carries the
+     * signal through the intervening triangle copies ({@code applyRotation}, {@code recenterAndFit},
+     * which preserve {@code shading} verbatim) to the relight pass. The value is negative so it can
+     * never collide with a real shade factor (both {@link RenderEngine#computeInventoryLighting} and
+     * {@code computeBlockItems3dLighting} return values in {@code [0.4, 1.0]}).
+     */
+    public static final float SHADE_DISABLED = -1f;
+
+    /**
      * Builds a list of 12 triangles (2 per face) describing a unit cube centered at the origin
      * with the given per-face textures.
      * <p>
@@ -283,7 +302,8 @@ public class BlockGeometryKit {
                     texture, faceTint,
                     faceNormal,
                     !twoSided,
-                    translucent
+                    translucent,
+                    element.isShade()
                 );
             }
         }
@@ -445,7 +465,7 @@ public class BlockGeometryKit {
         @NotNull Vector3f normal,
         boolean cullBackFaces
     ) {
-        addQuad(out, topLeft, bottomLeft, bottomRight, topRight, uvTL, uvBL, uvBR, uvTR, texture, tintArgb, normal, cullBackFaces, false);
+        addQuad(out, topLeft, bottomLeft, bottomRight, topRight, uvTL, uvBL, uvBR, uvTR, texture, tintArgb, normal, cullBackFaces, false, true);
     }
 
     private static void addQuad(
@@ -462,7 +482,8 @@ public class BlockGeometryKit {
         int tintArgb,
         @NotNull Vector3f normal,
         boolean cullBackFaces,
-        boolean translucent
+        boolean translucent,
+        boolean directionalLight
     ) {
         // Bake the inventory shade factor into each triangle so the rasterizer can apply shading
         // directly without a per-triangle face lookup. {@link RenderEngine#computeInventoryLighting}
@@ -470,7 +491,10 @@ public class BlockGeometryKit {
         // the matching {@code Lighting.ITEMS_3D} approximation - cardinal-aligned faces produce
         // exactly the per-face values from {@link BlockFace#lighting} (1.0/0.5/0.6/0.8), and faces
         // rotated by {@code element.rotation} resolve to the closest cardinal's shade.
-        float shading = RenderEngine.computeInventoryLighting(normal);
+        // {@code directionalLight == false} (a face of a {@code "shade": false} element) instead
+        // carries {@link #SHADE_DISABLED} so the relight pass renders it full-bright, matching
+        // vanilla's in-world {@code getShade(dir, false) == 1.0}.
+        float shading = directionalLight ? RenderEngine.computeInventoryLighting(normal) : SHADE_DISABLED;
         out.add(new VisibleTriangle(topLeft, bottomLeft, bottomRight, uvTL, uvBL, uvBR, texture, tintArgb, normal, shading, cullBackFaces, false, translucent, null));
         out.add(new VisibleTriangle(topLeft, bottomRight, topRight, uvTL, uvBR, uvTR, texture, tintArgb, normal, shading, cullBackFaces, false, translucent, null));
     }

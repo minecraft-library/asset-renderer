@@ -745,6 +745,21 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             ConcurrentList<VisibleTriangle> out = Concurrent.newList();
             for (VisibleTriangle t : triangles) {
                 boolean cull = forceCullBackFaces || t.cullBackFaces();
+                // A {@code "shade": false} model element (coral fans, cross/crop plants, ladder,
+                // vine, tripwire, redstone dust, torches) carries {@link BlockGeometryKit#SHADE_DISABLED}.
+                // Vanilla's {@code getShade(direction, shade=false)} returns 1.0 - the face skips the
+                // directional darkening entirely - so render it full-bright instead of applying the
+                // {@code Lighting.ITEMS_3D} Lambertian. (The cull / two-sided handling is unchanged;
+                // only the shade factor differs.)
+                if (t.shading() == BlockGeometryKit.SHADE_DISABLED) {
+                    out.add(new VisibleTriangle(
+                        t.position0(), t.position1(), t.position2(),
+                        t.uv0(), t.uv1(), t.uv2(),
+                        t.texture(), t.tintArgb(), t.normal(),
+                        1.0f, cull, t.emissive(), t.translucent(), t.debugTag()
+                    ));
+                    continue;
+                }
                 Vector3f renderNormal = Vector3f.normalize(Vector3f.transformNormal(t.normal(), normalTransform));
                 // Two-sided (no back-face cull) faces: shade by the camera-facing normal. Vanilla's
                 // ENTITY_CUTOUT / sign pipeline composes withCull(false) + PER_FACE_LIGHTING, whose
