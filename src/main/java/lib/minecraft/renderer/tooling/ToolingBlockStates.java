@@ -156,6 +156,7 @@ public final class ToolingBlockStates {
         private static final @NotNull String REGISTER_PREFIX = "register";
         private static final @NotNull String BLOCK_RETURN_DESC = ")L" + BLOCK_INTERNAL + ";";
         private static final @NotNull String STRING_ARG_PREFIX = "(Ljava/lang/String;";
+        private static final @NotNull String RESOURCE_KEY_ARG_PREFIX = "(Lnet/minecraft/resources/ResourceKey;";
 
         private final @NotNull ZipFile zip;
         private final @NotNull ClassNodeCache cache;
@@ -163,6 +164,8 @@ public final class ToolingBlockStates {
 
         /** {@code BlockStateProperties.FOO} field name to serialised property name. */
         private final @NotNull Map<String, String> bspNames = new HashMap<>();
+        /** {@code BlockIds.FOO} {@code ResourceKey} field name to serialised block id. */
+        private final @NotNull Map<String, String> blockIdsNames = new HashMap<>();
         /** Resolved {@code (owner, field)} property-field references to serialised property name. */
         private final @NotNull Map<String, String> propNameCache = new HashMap<>();
         /** Per-enum-class constant -&gt; serialised-name maps, keyed by enum internal name. */
@@ -202,6 +205,7 @@ public final class ToolingBlockStates {
 
         private @NotNull Map<String, Entry> run() {
             buildBspNameMap();
+            buildBlockIdsMap();
 
             ClassNode blocks = AsmKit.requireClass(this.cache, VanillaSourceClasses.BLOCKS, "Blocks");
             MethodNode clinit = AsmKit.requireClinit(blocks, "Blocks");
@@ -218,10 +222,25 @@ public final class ToolingBlockStates {
                     continue;
                 }
 
+                // The 26.x register(ResourceKey, Function, Properties) overload sources its id from a
+                // GETSTATIC BlockIds.FOO rather than a "foo" string literal (stems, copper bars/chains/
+                // lanterns, item frames). Map the field back to its serialised id so these blocks are
+                // discovered like the string-literal register("foo", ...) calls.
+                if (node instanceof FieldInsnNode field
+                    && field.getOpcode() == Opcodes.GETSTATIC
+                    && field.owner.equals(VanillaSourceClasses.BLOCK_IDS)) {
+                    String mapped = this.blockIdsNames.get(field.name);
+                    if (mapped != null) {
+                        pendingId = mapped;
+                        ctorClass = null;
+                    }
+                    continue;
+                }
+
                 if (node instanceof InvokeDynamicInsnNode indy
                     && indy.desc.endsWith(FUNCTION_RETURN_SUFFIX)
                     && pendingId != null
-                    && isLdcString(AsmKit.previousReal(indy), pendingId)) {
+                    && isPendingIdSource(AsmKit.previousReal(indy), pendingId)) {
                     ctorClass = AsmKit.resolveLambdaTargetClass(indy, blocks);
                     continue;
                 }
@@ -230,7 +249,7 @@ public final class ToolingBlockStates {
                     && call.getOpcode() == Opcodes.INVOKESTATIC
                     && call.owner.equals(VanillaSourceClasses.BLOCKS)
                     && call.name.startsWith(REGISTER_PREFIX)
-                    && call.desc.startsWith(STRING_ARG_PREFIX)
+                    && (call.desc.startsWith(STRING_ARG_PREFIX) || call.desc.startsWith(RESOURCE_KEY_ARG_PREFIX))
                     && call.desc.endsWith(BLOCK_RETURN_DESC)) {
 
                     if (pendingId != null) {
@@ -249,12 +268,18 @@ public final class ToolingBlockStates {
         }
 
         /**
-         * Returns {@code true} when {@code node} is an {@code LDC} of exactly the given string -
-         * used to confirm a block-constructor reference indy immediately follows its block-id
-         * literal rather than a stray {@code Function}-producing lambda elsewhere in the chain.
+         * Returns {@code true} when {@code node} is the id source for {@code pendingId} - either an
+         * {@code LDC} of the literal id (the {@code register("foo", ...)} form) or a {@code GETSTATIC
+         * BlockIds.FOO} whose mapped id matches (the {@code register(ResourceKey, ...)} form). Used
+         * to confirm a block-constructor reference indy immediately follows its block-id source
+         * rather than a stray {@code Function}-producing lambda elsewhere in the chain.
          */
-        private static boolean isLdcString(@Nullable AbstractInsnNode node, @NotNull String value) {
-            return node instanceof LdcInsnNode ldc && value.equals(ldc.cst);
+        private boolean isPendingIdSource(@Nullable AbstractInsnNode node, @NotNull String pendingId) {
+            if (node instanceof LdcInsnNode ldc && pendingId.equals(ldc.cst)) return true;
+            return node instanceof FieldInsnNode field
+                && field.getOpcode() == Opcodes.GETSTATIC
+                && field.owner.equals(VanillaSourceClasses.BLOCK_IDS)
+                && pendingId.equals(this.blockIdsNames.get(field.name));
         }
 
         // -------------------------------------------------------------------------------------
@@ -289,6 +314,33 @@ public final class ToolingBlockStates {
                 if (AsmKit.isPutStatic(node, VanillaSourceClasses.BLOCK_STATE_PROPERTIES) && createName != null) {
                     this.bspNames.put(((FieldInsnNode) node).name, createName);
                     createName = null;
+                }
+            }
+        }
+
+        /**
+         * Populates {@link #blockIdsNames} by walking {@code BlockIds.<clinit>}: each field is
+         * assigned {@code createKey("id")} preceded by the id string literal, so the literal that
+         * most recently appeared before a {@code PUTSTATIC BlockIds.FOO} is that field's id. Absent
+         * {@code BlockIds} (older jars) leaves the map empty - the {@code register(ResourceKey, ...)}
+         * path then discovers nothing extra, matching the pre-26.x behaviour.
+         */
+        private void buildBlockIdsMap() {
+            ClassNode blockIds = this.cache.load(VanillaSourceClasses.BLOCK_IDS);
+            if (blockIds == null) return;
+            MethodNode clinit = AsmKit.findMethod(blockIds, AsmKit.CLINIT);
+            if (clinit == null) return;
+
+            String lastString = null;
+            for (AbstractInsnNode node = clinit.instructions.getFirst(); node != null; node = node.getNext()) {
+                String literal = AsmKit.readStringLiteral(node);
+                if (literal != null) {
+                    lastString = literal;
+                    continue;
+                }
+                if (AsmKit.isPutStatic(node, VanillaSourceClasses.BLOCK_IDS) && lastString != null) {
+                    this.blockIdsNames.put(((FieldInsnNode) node).name, lastString);
+                    lastString = null;
                 }
             }
         }

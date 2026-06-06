@@ -255,6 +255,13 @@ public final class VanillaSourceClasses {
     /** Block-id constant table - {@code Blocks.<NAME>} GETSTATIC. */
     public static final @NotNull String BLOCKS = BLOCK_ROOT + "Blocks";
 
+    /**
+     * Block-id {@code ResourceKey} table - {@code BlockIds.<NAME>} GETSTATIC. The 26.x
+     * {@code register(ResourceKey, Function, Properties)} overload sources its id from one of
+     * these fields instead of a {@code register("id", ...)} string literal.
+     */
+    public static final @NotNull String BLOCK_IDS = VANILLA_SOURCE_ROOT + "references/BlockIds";
+
     /** Block-state property constant table - {@code BlockStateProperties.<NAME>} GETSTATIC. */
     public static final @NotNull String BLOCK_STATE_PROPERTIES = BLOCK_PROPERTIES_ROOT + "BlockStateProperties";
 

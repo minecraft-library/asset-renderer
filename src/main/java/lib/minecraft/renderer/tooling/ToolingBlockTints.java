@@ -141,11 +141,24 @@ public final class ToolingBlockTints {
         private static final @NotNull String LIST_INTERNAL_NAME = "java/util/List";
         private static final @NotNull String LIST_OF_SINGLE_DESCRIPTOR = "(Ljava/lang/Object;)Ljava/util/List;";
 
+        /** {@code BlockTintSources.stem()} factory name (melon_stem / pumpkin_stem). */
+        private static final @NotNull String STEM_SOURCE = "stem";
+        /**
+         * The stem tint at the freshly-placed default state. {@code BlockTintSources.stem().color}
+         * computes {@code ARGB.color(age*32, 255 - age*8, age*4)} from {@code StemBlock.AGE}; the
+         * GUI / block-parity render uses the {@code age=0} default, whose colour is pure green
+         * {@code ARGB.color(0, 255, 0) = 0xFF00FF00}. The age-dependent browning of older stems is
+         * not represented because the renderer applies one tint per block id, not per state.
+         */
+        private static final int STEM_DEFAULT_COLOR = 0xFF00FF00;
+
         /**
          * Maps the short name of a {@code BlockTintSources.X()} factory method to the corresponding
          * {@link Biome.TintTarget}. Sources whose tint depends on dynamic per-block state - water,
-         * waterParticles, redstone, stem - are not in the map and are silently dropped because the
-         * atlas renderer cannot resolve them at static-render time.
+         * waterParticles, redstone - are not in the map and are silently dropped because the atlas
+         * renderer cannot resolve them at static-render time. {@code stem} is also state-dependent
+         * but is special-cased in {@link #emitTints} to its {@code age=0} default-state colour
+         * rather than dropped.
          */
         private static final @NotNull ConcurrentMap<String, Biome.TintTarget> SUPPORTED_SOURCES = buildSupportedSources();
 
@@ -296,6 +309,10 @@ public final class ToolingBlockTints {
                 // The renderer produces GUI block icons, which use vanilla's no-context "in hand"
                 // colour ({@code BlockTintSource.color(state)} = the first {@code constant(...)} arg).
                 constantColor = Optional.of(constant);
+            } else if (sourceMethod.equals(STEM_SOURCE)) {
+                // stem() is age-dependent; the default-state (age=0) render is pure green.
+                target = Biome.TintTarget.CONSTANT;
+                constantColor = Optional.of(STEM_DEFAULT_COLOR);
             } else {
                 Biome.TintTarget mapped = SUPPORTED_SOURCES.get(sourceMethod);
                 if (mapped == null) return;

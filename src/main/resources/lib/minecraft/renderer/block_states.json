@@ -342,6 +342,24 @@
         "facing\u003dwest"
       ]
     },
+    "minecraft:attached_melon_stem": {
+      "default": "facing\u003dnorth",
+      "variants": [
+        "facing\u003deast",
+        "facing\u003dnorth",
+        "facing\u003dsouth",
+        "facing\u003dwest"
+      ]
+    },
+    "minecraft:attached_pumpkin_stem": {
+      "default": "facing\u003dnorth",
+      "variants": [
+        "facing\u003deast",
+        "facing\u003dnorth",
+        "facing\u003dsouth",
+        "facing\u003dwest"
+      ]
+    },
     "minecraft:azalea": {
       "default": "",
       "variants": [
@@ -5284,6 +5302,19 @@
         "facing\u003dwest"
       ]
     },
+    "minecraft:melon_stem": {
+      "default": "age\u003d0",
+      "variants": [
+        "age\u003d0",
+        "age\u003d1",
+        "age\u003d2",
+        "age\u003d3",
+        "age\u003d4",
+        "age\u003d5",
+        "age\u003d6",
+        "age\u003d7"
+      ]
+    },
     "minecraft:moss_block": {
       "default": "",
       "variants": [
@@ -7409,6 +7440,25 @@
     "minecraft:prismarine_wall": {
       "default": "east\u003dnone,north\u003dnone,south\u003dnone,up\u003dtrue,waterlogged\u003dfalse,west\u003dnone",
       "variants": []
+    },
+    "minecraft:pumpkin": {
+      "default": "",
+      "variants": [
+        ""
+      ]
+    },
+    "minecraft:pumpkin_stem": {
+      "default": "age\u003d0",
+      "variants": [
+        "age\u003d0",
+        "age\u003d1",
+        "age\u003d2",
+        "age\u003d3",
+        "age\u003d4",
+        "age\u003d5",
+        "age\u003d6",
+        "age\u003d7"
+      ]
     },
     "minecraft:purple_banner": {
       "default": "rotation\u003d8",

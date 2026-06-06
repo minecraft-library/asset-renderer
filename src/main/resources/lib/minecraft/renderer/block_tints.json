@@ -83,6 +83,16 @@
       "constant": "0xFFE0C71C"
     },
     {
+      "block": "minecraft:melon_stem",
+      "target": "CONSTANT",
+      "constant": "0xFF00FF00"
+    },
+    {
+      "block": "minecraft:pumpkin_stem",
+      "target": "CONSTANT",
+      "constant": "0xFF00FF00"
+    },
+    {
       "block": "minecraft:lily_pad",
       "target": "CONSTANT",
       "constant": "0xFF71C35C"
