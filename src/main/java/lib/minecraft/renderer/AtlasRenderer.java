@@ -151,11 +151,13 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * when {@link AtlasOptions#isProgressLogging()} is set.
      */
     private @NotNull ConcurrentList<TileSpec> renderBlocks(@NotNull AtlasOptions options, @NotNull BlockRenderer renderer, @NotNull FluidRenderer fluids, @NotNull PortalRenderer portals) {
-        // end_gateway has no block-model file; the primary {@code knownBlockIds()} walk doesn't
-        // surface it. The portal-tile path intercepts it here, so ensure it's part of the
-        // iteration set even when the primary pipeline didn't register it.
+        // end_gateway has no block-model file, and water/lava carry an empty (particle-only) model
+        // so the structural empty-model filter drops them from {@code knownBlockIds()}. Both render
+        // through dedicated renderers (portal / fluid) off their textures, not the block index, so
+        // add them to the iteration set explicitly to keep their tiles in the atlas.
         LinkedHashSet<String> blockIds = new LinkedHashSet<>(this.context.knownBlockIds());
         blockIds.addAll(PORTAL_BLOCK_IDS);
+        blockIds.addAll(FLUID_BLOCK_IDS);
 
         // Parallel dispatch across independent block renders. parallelStream preserves encounter
         // order through the terminal toList() collector, so composeAtlas + the sidecar JSON still
