@@ -791,8 +791,8 @@ public final class ToolingBlockModels {
             }
 
             JsonObject element = new JsonObject();
-            JsonArray from = new JsonArray(); from.add(round2(box.minX())); from.add(round2(box.minY())); from.add(round2(box.minZ()));
-            JsonArray to = new JsonArray(); to.add(round2(box.maxX())); to.add(round2(box.maxY())); to.add(round2(box.maxZ()));
+            JsonArray from = new JsonArray(); from.add(roundCoord(box.minX())); from.add(roundCoord(box.minY())); from.add(roundCoord(box.minZ()));
+            JsonArray to = new JsonArray(); to.add(roundCoord(box.maxX())); to.add(roundCoord(box.maxY())); to.add(roundCoord(box.maxZ()));
             element.add("from", from);
             element.add("to", to);
             if (blockRot != null) {
@@ -802,7 +802,7 @@ public final class ToolingBlockModels {
                 float[] origin = transform.applyNoBoneRot(new float[]{ 0f, 0f, 0f });
                 JsonObject rotObj = new JsonObject();
                 JsonArray originArr = new JsonArray();
-                originArr.add(round2(origin[0])); originArr.add(round2(origin[1])); originArr.add(round2(origin[2]));
+                originArr.add(roundCoord(origin[0])); originArr.add(roundCoord(origin[1])); originArr.add(roundCoord(origin[2]));
                 rotObj.add("origin", originArr);
                 rotObj.addProperty("axis", blockRot.axis);
                 rotObj.addProperty("angle", blockRot.angle);
@@ -881,7 +881,7 @@ public final class ToolingBlockModels {
             JsonObject blockFaceJson = new JsonObject();
             blockFaceJson.addProperty("texture", "#entity");
             JsonArray uvArr = new JsonArray();
-            uvArr.add(round2(bounds.x())); uvArr.add(round2(bounds.y())); uvArr.add(round2(bounds.z())); uvArr.add(round2(bounds.w()));
+            uvArr.add(roundCoord(bounds.x())); uvArr.add(roundCoord(bounds.y())); uvArr.add(roundCoord(bounds.z())); uvArr.add(roundCoord(bounds.w()));
             blockFaceJson.add("uv", uvArr);
             if (uvRect.rotation() != 0) blockFaceJson.addProperty("rotation", uvRect.rotation());
             if (emitTintIndex) blockFaceJson.addProperty("tintindex", 0);
@@ -945,10 +945,12 @@ public final class ToolingBlockModels {
         }
 
         /**
-         * Rounds {@code v} to 2 decimal places for readable JSON output.
+         * Rounds {@code v} to 5 decimal places for readable JSON output. 5 places preserve
+         * vanilla's {@code CubeDeformation} inflate values (e.g. {@code 0.015}) and bone-composed
+         * fractional coordinates to sub-pixel accuracy.
          */
-        private static float round2(double v) {
-            return (float) (Math.round(v * 100.0) / 100.0);
+        private static float roundCoord(double v) {
+            return (float) (Math.round(v * 100000.0) / 100000.0);
         }
 
         /**
