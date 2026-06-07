@@ -334,6 +334,16 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // bucketed. Sampling mooshroom mushroom red showed our 0.67-0.90 block-cardinal range
             // vs vanilla's 0.45-0.71 Lambertian range.
             float shading = RenderEngine.computeEntityInUiLighting(transformedNormal);
+            // Force back-face culling, matching vanilla's block render types (all bind GL culling)
+            // exactly as {@link BlockRenderer#relightForItems3d} does for plain block models. The
+            // {@code red_mushroom} cross model emits its two zero-thickness planes as paired
+            // north+south / west+east quads with opposite winding so vanilla's cull keeps exactly the
+            // camera-facing one. {@link BlockGeometryKit} marks those quads two-sided
+            // ({@code cullBackFaces=false}); carrying that flag through here drew BOTH coincident
+            // faces, and once the global depth tie-break became GL_LEQUAL (last-drawn-wins) the two
+            // faces - sampling horizontally-mirrored UVs - won per-pixel by sub-ULP depth noise,
+            // producing the mushroom-cap speckle / apparent UV flip. Culling drops the away-facing
+            // half so only the correctly-oriented face survives, no depth fight.
             out.add(new VisibleTriangle(
                 Vector3f.transform(tri.position0(), finalMatrix),
                 Vector3f.transform(tri.position1(), finalMatrix),
@@ -341,7 +351,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 tri.uv0(), tri.uv1(), tri.uv2(),
                 tri.texture(), tri.tintArgb(),
                 transformedNormal,
-                shading, tri.cullBackFaces(), tri.emissive()
+                shading, true, tri.emissive()
             ));
         }
         return out;
