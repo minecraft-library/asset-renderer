@@ -189,11 +189,12 @@ public class BlockGeometryKit {
      * passing {@code uvLock = false} reproduces the plain overload byte-for-byte.
      * <p>
      * Both rotation axes are handled. A Y rotation spins the {@code up}/{@code down} faces in
-     * place (stairs, walls, fence gates), so only those are counter-rotated. An X rotation tips a
-     * zero-thickness {@code north}/{@code south} billboard onto another cube face with its texture
-     * inverted - the up/down planes of the multipart {@code vine}/{@code sculk_vein}/
-     * {@code glow_lichen}/{@code resin_clump} blocks and the single-face {@code mushroom_block}/
-     * {@code mushroom_stem} skins - so those faces take a half-turn (see {@link #uvLockQuarterTurns}).
+     * place (stairs, walls, fence gates), so only those are counter-rotated. An X rotation tips
+     * every face onto a new world direction, so each takes its own per-face turn - half-turns on the
+     * up/down planes of the multipart {@code vine}/{@code sculk_vein}/{@code glow_lichen}/
+     * {@code resin_clump} blocks and the single-face {@code mushroom_block}/{@code mushroom_stem}
+     * skins, plus the quarter-turn {@code east}/{@code west} side corrections a thick box such as a
+     * wall button needs (see {@link #uvLockQuarterTurns} for the full per-face table).
      *
      * @param variantRotationX the variant's whole-model X rotation in degrees (0/90/180/270)
      * @param variantRotationY the variant's whole-model Y rotation in degrees (0/90/180/270)
@@ -263,11 +264,6 @@ public class BlockGeometryKit {
             // Flat planes (zero thickness on any axis) must disable backface culling so
             // both sides render - used by brewing stand bottles, banners, item frames, etc.
             boolean twoSided = x0 == x1 || y0 == y1 || z0 == z1;
-            // The X-rotation uvlock half-turn is only correct for a zero-thickness north/south
-            // billboard (the up/down planes of vine/sculk_vein/glow_lichen/resin_clump and the
-            // single-face mushroom_block/mushroom_stem skins). Applying it to a thick box's
-            // north/south faces (wall buttons, x:90) shifts the texels the wrong way, so gate it.
-            boolean flatNorthSouthPlane = z0 == z1;
 
             for (Map.Entry<String, ModelFace> entry : element.getFaces().entrySet()) {
                 BlockFace blockFace = BlockFace.fromName(entry.getKey());
@@ -277,7 +273,7 @@ public class BlockGeometryKit {
                 PixelBuffer texture = faceTextures.get(face.getTexture());
                 if (texture == null) continue;
 
-                int uvLockTurns = uvLock ? uvLockQuarterTurns(blockFace, variantRotationX, variantRotationY, flatNorthSouthPlane) : 0;
+                int uvLockTurns = uvLock ? uvLockQuarterTurns(blockFace, variantRotationX, variantRotationY) : 0;
                 Vector2f[] uv = resolveFaceUv(face, blockFace, element, uvLockTurns);
                 Vector3f[] corners = blockFace.corners(new Box(x0, y0, z0, x1, y1, z1));
                 Vector3f faceNormal = blockFace.normal();
@@ -374,36 +370,55 @@ public class BlockGeometryKit {
      * blockstate variant rotation. X is checked first because vanilla never combines X and Y on a
      * single {@code uvlock} part.
      * <p>
-     * An X rotation tips a vertical {@code north}/{@code south} plane onto another cube face, and
-     * vanilla's per-direction {@code uvlock} bake ({@code BlockMath.getFaceTransformation} composed
-     * through {@code FaceBakery}) lands the two source faces on <b>different</b> corrections: the
-     * {@code north} face takes a half-turn (180 degrees, two quarter turns), the {@code south} face
-     * stays unrotated. This asymmetry holds identically for {@code x:90} (down plane) and
-     * {@code x:270} (up plane); only {@code x:180} (which keeps both faces vertical) gives both a
-     * half-turn. Because the plane is rendered single-sided after back-face culling, the visible
-     * surface is the {@code north}-derived face on the up plane (needs the half-turn) and the
-     * {@code south}-derived face on the down plane (needs none) - mirroring whichever face the
-     * x-rotation tips toward the camera. This holds only for a zero-thickness north/south billboard
-     * ({@code flatNorthSouthPlane}): the up/down planes of {@code vine}/{@code sculk_vein}/
-     * {@code glow_lichen}/{@code resin_clump} and the single-face {@code mushroom_block}/
-     * {@code mushroom_stem} skins (whose model declares only a {@code north} face). For a thick box's
-     * north/south faces (a wall button at x:90) the correction shifts the texels the wrong way, so
-     * the caller passes {@code false} there.
+     * An X rotation tips each face onto a new world direction, and vanilla's per-direction
+     * {@code uvlock} bake ({@code BlockMath.getFaceTransformation} composed through
+     * {@code FaceBakery}) counter-rotates that face's UV so the texture stays world-aligned. The
+     * per-face correction is a property of the face direction and the X angle alone (it holds
+     * identically for a zero-thickness {@code north}/{@code south} billboard - the up/down planes of
+     * {@code vine}/{@code sculk_vein}/{@code glow_lichen}/{@code resin_clump} and the single-face
+     * {@code mushroom_block}/{@code mushroom_stem} skins - and for a thick box like a wall button,
+     * whose six faces each need their own turn). The table below is the reconstructed result. Each
+     * cell shows the human-readable correction and, in parentheses, the value this method returns -
+     * the number of <b>clockwise</b> quarter turns {@link #rotateUvAboutCenter} applies to the UV
+     * coordinates. Note {@code 90 CW} maps to {@code 3} and {@code 90 CCW} to {@code 1}, because
+     * {@code rotateUvAboutCenter}'s clockwise UV-coordinate spin rotates the sampled texture content
+     * the opposite way:
+     * <pre>
+     *          UP        DOWN      NORTH     SOUTH     EAST        WEST
+     *   x:90   180 (2)   - (0)     180 (2)   - (0)     90 CW (3)   90 CCW (1)
+     *   x:180  - (0)     - (0)     180 (2)   180 (2)   180 (2)     180 (2)
+     *   x:270  - (0)     180 (2)   180 (2)   - (0)     90 CCW (1)  90 CW (3)
+     * </pre>
+     * For a single-sided plane only the camera-facing derived face survives back-face culling, so
+     * the up plane shows the {@code north}-derived {@code 180 (2)} and the down plane the
+     * {@code south}-derived {@code - (0)}.
      * <p>
      * A Y rotation instead spins the {@code up}/{@code down} faces in place (stairs, walls, fence
      * gates); their UV is counter-rotated by the variant angle. {@code down} is viewed from the
      * opposite side so it takes the opposite sense. Side faces keep their vertical axis under Y and
      * need no correction.
      */
-    private static int uvLockQuarterTurns(@NotNull BlockFace face, int variantRotationX, int variantRotationY, boolean flatNorthSouthPlane) {
+    private static int uvLockQuarterTurns(@NotNull BlockFace face, int variantRotationX, int variantRotationY) {
         if (variantRotationX != 0)
-            return flatNorthSouthPlane
-                ? switch (face) {
-                    case NORTH -> 2;
-                    case SOUTH -> variantRotationX == 180 ? 2 : 0;
-                    default -> 0;
-                }
-                : 0;
+            return switch (variantRotationX) {
+                case 90 -> switch (face) {
+                    case UP, NORTH -> 2;
+                    case EAST -> 3;
+                    case WEST -> 1;
+                    default -> 0; // DOWN, SOUTH
+                };
+                case 180 -> switch (face) {
+                    case NORTH, SOUTH, EAST, WEST -> 2;
+                    default -> 0; // UP, DOWN
+                };
+                case 270 -> switch (face) {
+                    case DOWN, NORTH -> 2;
+                    case EAST -> 1;
+                    case WEST -> 3;
+                    default -> 0; // UP, SOUTH
+                };
+                default -> 0;
+            };
         int turns = variantRotationY / 90;
         return switch (face) {
             case UP -> -turns;
