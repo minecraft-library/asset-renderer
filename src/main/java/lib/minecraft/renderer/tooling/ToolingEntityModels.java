@@ -332,6 +332,22 @@ public final class ToolingEntityModels {
             ConcurrentMap<String, JsonObject> geometries = GeometryParser.parse(clientJar, sources, diagnostics);
             System.out.println("Parsed geometry for " + geometries.size() + " entities + overlays");
 
+            // Flag geometries whose model class requests vanilla's back-face-culling render type
+            // (RenderTypes.entityCutoutCull) instead of the no-cull default (entityCutout). The
+            // runtime kit reads this to cull zero-thickness plane cubes - a culled plane shows only
+            // its camera-facing side (the bat ear's pink inner face) rather than drawing both
+            // coincident sides and letting the LEQUAL depth tie-break pick the away (brown) side.
+            int cullGeometries = 0;
+            for (Source source : sources) {
+                JsonObject geometry = geometries.get(source.entityId());
+                if (geometry == null || geometry.has("cull")) continue;
+                if (EntityRenderTypeResolver.usesCullRenderType(context.classNodes(), source.classEntry())) {
+                    geometry.addProperty("cull", true);
+                    cullGeometries++;
+                }
+            }
+            System.out.println("Marked " + cullGeometries + " entityCutoutCull geometries (back-face culling)");
+
             Path geometryDiagOut = EntityDiagnosticsWriter.writeGeometryDiagnostic(
                 options, registry.totalMobsDiscovered(), records.size(), entityToResolution, geometries, diagnostics
             );

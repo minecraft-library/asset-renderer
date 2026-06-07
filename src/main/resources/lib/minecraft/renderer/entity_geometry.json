@@ -18718,7 +18718,8 @@
           ]
         }
       },
-      "y_axis": "DOWN"
+      "y_axis": "DOWN",
+      "cull": true
     },
     "geometry.skeleton_2": {
       "textureWidth": 64,

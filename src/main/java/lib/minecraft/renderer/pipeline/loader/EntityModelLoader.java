@@ -292,7 +292,7 @@ public class EntityModelLoader {
         }
         return new EntityModelData(
             source.getTextureWidth(), source.getTextureHeight(),
-            source.getInventoryYRotation(), Concurrent.adoptLinkedMap(inflated)
+            source.getInventoryYRotation(), Concurrent.adoptLinkedMap(inflated), source.isCull()
         );
     }
 
@@ -386,7 +386,8 @@ public class EntityModelLoader {
                     baseModel.getTextureWidth(),
                     baseModel.getTextureHeight(),
                     baseModel.getInventoryYRotation(),
-                    Concurrent.adoptLinkedMap(bones)
+                    Concurrent.adoptLinkedMap(bones),
+                    baseModel.isCull()
                 );
             }
 

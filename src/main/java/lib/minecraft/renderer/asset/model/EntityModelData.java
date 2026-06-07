@@ -69,6 +69,17 @@ public class EntityModelData {
      */
     private @NotNull ConcurrentLinkedMap<String, Bone> bones = Concurrent.newLinkedMap();
 
+    /**
+     * Whether vanilla renders this entity through a back-face-culling render type
+     * ({@code RenderTypes.entityCutoutCull}) rather than the no-cull default ({@code entityCutout}).
+     * The tooling detects it from the model class constructor's render-type function. When set, the
+     * geometry kit culls back faces on every cube - including zero-thickness plane cubes, whose two
+     * coincident sides would otherwise both draw and let the depth tie-break pick the away side (the
+     * bat ear's brown outer winning over its pink inner under vanilla-matching LEQUAL). With culling
+     * on, the rasterizer's winding test keeps only the camera-facing side, matching vanilla.
+     */
+    private boolean cull = false;
+
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
@@ -76,12 +87,13 @@ public class EntityModelData {
         return textureWidth == that.textureWidth
             && textureHeight == that.textureHeight
             && Float.compare(inventoryYRotation, that.inventoryYRotation) == 0
+            && cull == that.cull
             && Objects.equals(bones, that.bones);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(textureWidth, textureHeight, inventoryYRotation, bones);
+        return Objects.hash(textureWidth, textureHeight, inventoryYRotation, bones, cull);
     }
 
     /**

@@ -318,7 +318,12 @@ public class EntityGeometryKit {
                 Matrix4f kitFitBoneChain = kitFitChainTransforms.get(boneName);
                 Matrix4f perCubeChainFluent = composeCubeTransform(cube, bone, kitFitBoneChain);
 
-                boolean cubeCullBackFaces = shouldCullBackFaces(cube, size, texture, texW, texH);
+                // entityCutoutCull entities (bat, baby_turtle, ...) cull every face the way vanilla's
+                // GL back-face cull does - including zero-thickness planes, whose two coincident sides
+                // would otherwise both draw and let the LEQUAL depth tie-break pick the away side (the
+                // bat ear's brown outer winning over its pink inner). Culling keeps only the camera-
+                // facing side via the rasterizer's winding test, matching vanilla.
+                boolean cubeCullBackFaces = model.isCull() || shouldCullBackFaces(cube, size, texture, texW, texH);
                 // True iff this cube is no-cull AND its visible-face UVs include any
                 // 0<alpha<255 texels - signal for the rasterizer's back-to-front sort (slime
                 // outer shell, glass-like shells). Alpha-cutout no-cull cubes (warden tendrils,

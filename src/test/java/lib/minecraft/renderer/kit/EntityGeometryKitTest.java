@@ -189,7 +189,7 @@ class EntityGeometryKitTest {
         ConcurrentLinkedMap<String, EntityModelData.Bone> bones = Concurrent.newLinkedMap();
         bones.put("body", bone);
 
-        EntityModelData model = new EntityModelData(64, 64, 0f, bones);
+        EntityModelData model = new EntityModelData(64, 64, 0f, bones, false);
         return EntityGeometryKit.buildTriangles(model, solidTexture(64, 64));
     }
 
