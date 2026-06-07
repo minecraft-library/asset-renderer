@@ -61,6 +61,17 @@ public class EntityModelLoader {
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**
+     * The auto-emitted depth-clearance inflate applied to same-geometry overlays (eyes, clothing
+     * patterns) so they win the coplanar depth tie against the base mesh. This is OUR artifact -
+     * vanilla submits the identical {@code ModelPart} with no deformation - so a same-geometry
+     * overlay carrying at most this much inflate is excluded from canvas-sizing bounds (see
+     * {@link #loadOverlays}). A larger inflate is a real vanilla {@code CubeDeformation}
+     * (tropical_fish 0.008, llama carpet 0.5) that vanilla's bounds walk includes, so it keeps
+     * contributing.
+     */
+    private static final float DEPTH_CLEARANCE_INFLATE = 0.001f;
+
+    /**
      * An entity definition loaded from the bundled resources.
      *
      * @param model the parsed bone/cube tree (shared across all entities with the same geometry_ref)
@@ -232,7 +243,8 @@ public class EntityModelLoader {
             // applied to the base. Otherwise (different geometry, e.g. slime outer shell or
             // creeper power overlay) resolve fresh from the geometry table.
             EntityModelData overlayModel;
-            if (geometryRef.equals(baseGeometryRef)) {
+            boolean sameGeometry = geometryRef.equals(baseGeometryRef);
+            if (sameGeometry) {
                 overlayModel = baseModel;
             } else {
                 overlayModel = geometries.get(geometryRef);
@@ -260,7 +272,27 @@ public class EntityModelLoader {
             // around a body that doesn't actually need that margin. `skip_bounds=true` mirrors
             // that policy here: the overlay still renders, but EntityRenderer.computeUnionScreen
             // Bounds ignores it when sizing the canvas.
-            boolean skipBounds = entry.has("skip_bounds") && entry.get("skip_bounds").getAsBoolean();
+            //
+            // Same-geometry overlays (eyes / clothing-pattern - geometry_ref == base) carrying
+            // ONLY the auto-emitted depth-clearance inflate are skipped from bounds: they render
+            // the IDENTICAL cube tree as the base (vanilla submits the same ModelPart through a
+            // second render type with NO inflate), so the base already contributes their full
+            // silhouette extent. The {@value #DEPTH_CLEARANCE_INFLATE} we add to win the coplanar
+            // depth tie is OUR artifact, not vanilla geometry; letting it pad the bounds shifts
+            // the whole silhouette off-centre - breeze's solid head, sitting at the canvas top,
+            // rendered 1px short because its inflated eyes overlay defined a canvas top ~0.016px
+            // higher than the bare head (breeze 0.41 -> 0.18; the eye silhouette coverage now
+            // matches vanilla exactly). The inflate is preserved for the render, only excluded
+            // from canvas sizing.
+            //
+            // A LARGER inflate on a same-geometry overlay is a real vanilla {@code CubeDeformation}
+            // (tropical_fish FISH_PATTERN_DEFORMATION 0.008, llama carpet 0.5) that vanilla's own
+            // bounds walk includes - those MUST keep contributing or the canvas comes out 1px
+            // short (tropical_fish 103 -> 102, delta 0.31 -> 6.20). So gate the auto-skip on the
+            // inflate being the small depth-clearance value; explicit skip_bounds still wins.
+            boolean depthClearanceOnly = sameGeometry && inflate <= DEPTH_CLEARANCE_INFLATE;
+            boolean skipBounds = (entry.has("skip_bounds") && entry.get("skip_bounds").getAsBoolean())
+                || depthClearanceOnly;
             out.add(new OverlayLayer(materialised, overlayTexture, emissive, overlayTint, skipBounds));
         }
         return out;
