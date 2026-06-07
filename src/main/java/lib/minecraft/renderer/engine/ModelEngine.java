@@ -281,16 +281,45 @@ public class ModelEngine extends TextureEngine {
             else opaque.add(p);
         }
         // Smaller depth value = farther in our convention; we want farthest first so closer
-        // fragments blend over them last. Comparator orders by centroid depth ascending.
-        translucent.sort((a, b) -> {
-            float da = (a.p0().z() + a.p1().z() + a.p2().z()) / 3f;
-            float db = (b.p0().z() + b.p1().z() + b.p2().z()) / 3f;
-            return Float.compare(da, db);
-        });
+        // fragments blend over them last. Sort by the parent QUAD's depth (via {@link #quadDepthKey}),
+        // not the triangle centroid: vanilla sorts whole translucent quads back-to-front, but each
+        // quad reaches us as two triangles split along its diagonal. Centroid-sorting them
+        // independently lets nested geometry (honey_block's 1px-inset inner cube) reorder one
+        // triangle of a face relative to the other, so the two halves layer differently and a seam
+        // appears along the shared diagonal. The quad key is identical for both triangles, so a
+        // stable sort keeps them adjacent and orders by quad centre, matching vanilla.
+        translucent.sort((a, b) -> Float.compare(quadDepthKey(a), quadDepthKey(b)));
         List<Projected> out = new ArrayList<>(total);
         out.addAll(opaque);
         out.addAll(translucent);
         return out;
+    }
+
+    /**
+     * Depth sort key for a translucent triangle that is stable across the two triangles a quad is
+     * split into. A quad emits {@code (TL, BL, BR)} and {@code (TL, BR, TR)}, both sharing the
+     * {@code TL-BR} diagonal - which is the hypotenuse, i.e. the longest edge of each triangle. The
+     * midpoint depth of that longest edge is therefore the same value for both triangles (the quad's
+     * diagonal centre), so sorting on it keeps a quad's halves together and orders quads back-to-front
+     * the way vanilla's per-quad translucent sort does. Uses screen-space edge lengths to pick the
+     * diagonal (the visual triangulation) and camera-space {@code z} for the depth value.
+     *
+     * @param t the projected translucent triangle
+     * @return the parent quad's diagonal-midpoint depth (smaller = farther)
+     */
+    private static float quadDepthKey(@NotNull Projected t) {
+        float e01 = screenDistSq(t.s0(), t.s1());
+        float e12 = screenDistSq(t.s1(), t.s2());
+        float e20 = screenDistSq(t.s2(), t.s0());
+        if (e01 >= e12 && e01 >= e20) return (t.p0().z() + t.p1().z()) * 0.5f;
+        if (e12 >= e20) return (t.p1().z() + t.p2().z()) * 0.5f;
+        return (t.p2().z() + t.p0().z()) * 0.5f;
+    }
+
+    private static float screenDistSq(@NotNull Vector2f a, @NotNull Vector2f b) {
+        float dx = a.x() - b.x();
+        float dy = a.y() - b.y();
+        return dx * dx + dy * dy;
     }
 
     /**
