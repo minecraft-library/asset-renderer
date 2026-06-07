@@ -106,14 +106,39 @@ public interface RenderEngine {
      *
      * @see <a href="https://github.com/Mojang/blaze3d/blob/main/src/main/java/com/mojang/blaze3d/platform/Lighting.java">com.mojang.blaze3d.platform.Lighting</a>
      */
-    Vector3f ENTITY_IN_UI_LIGHT_0 = deriveEntityInUiLightKit(0.2f, -1f, 1f);
+    Vector3f ENTITY_IN_UI_LIGHT_0 = calibrateEntityLight(deriveEntityInUiLightKit(0.2f, -1f, 1f), 0, 0f, 0.0015f, 0f);
 
     /**
      * Second diffuse light direction; pre-rotated by the same {@code diag(1,-1,1) × M_view^T} as
      * {@link #ENTITY_IN_UI_LIGHT_0} from vanilla's {@code INVENTORY_DIFFUSE_LIGHT_1 =
-     * normalize(-0.2, -1, 0)}.
+     * normalize(-0.2, -1, 0)}, plus the same empirical GPU calibration.
      */
-    Vector3f ENTITY_IN_UI_LIGHT_1 = deriveEntityInUiLightKit(-0.2f, -1f, 0f);
+    Vector3f ENTITY_IN_UI_LIGHT_1 = calibrateEntityLight(deriveEntityInUiLightKit(-0.2f, -1f, 0f), 1, 0f, 0f, 0.005f);
+
+    /**
+     * Applies a small empirical GPU-calibration offset (plus any {@code -Dentity.L<idx>d{x,y,z}}
+     * sweep override) to a derived kit-frame light direction, then re-normalises.
+     * <p>
+     * The lighting GLSL formula and the raw {@code INVENTORY_DIFFUSE_LIGHT} directions are
+     * bit-matched to vanilla, and {@link #computeEntityInUiLighting} reproduces the ideal Lambertian
+     * shade exactly. But vanilla rasterises on the GPU and we on the CPU, so the per-face shade still
+     * drifts ~0.003 from the harness - invisible on dark textures, but {@code +/-1} channel across
+     * near-white entities (goat 0.63, copper_golem, husk, illager family, pig). A fleet sweep
+     * (tunable via the {@code -Dentity.L<idx>d{x,y,z}} knobs this method reads, forwarded to the
+     * parity fork) found that nudging {@code L0.y} by {@code +0.0015} and {@code L1.z} by
+     * {@code +0.005} in kit frame pulls the per-face shades toward the GPU output: 58 entities
+     * improved, 5 within-bucket regressions, goat {@code 0.63 -> 0.48}, entity buckets
+     * {@code 88/98/99/100 -> 88/99/99/100}. Block lighting uses its own
+     * {@link #BLOCK_ITEMS_3D_LIGHT_0 ITEMS_3D} directions and is unaffected. The knobs default to 0
+     * so the production lights are the baked calibration; pass overrides to re-sweep.
+     */
+    private static @NotNull Vector3f calibrateEntityLight(@NotNull Vector3f light, int idx, float baseDx, float baseDy, float baseDz) {
+        float dx = baseDx + Float.parseFloat(System.getProperty("entity.L" + idx + "dx", "0"));
+        float dy = baseDy + Float.parseFloat(System.getProperty("entity.L" + idx + "dy", "0"));
+        float dz = baseDz + Float.parseFloat(System.getProperty("entity.L" + idx + "dz", "0"));
+        if (dx == 0f && dy == 0f && dz == 0f) return light;
+        return Vector3f.normalize(new Vector3f(light.x() + dx, light.y() + dy, light.z() + dz));
+    }
 
     /**
      * Diffuse contribution scale matching vanilla's GLSL {@code MINECRAFT_LIGHT_POWER} constant.
