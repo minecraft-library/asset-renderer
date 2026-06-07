@@ -29,14 +29,18 @@ import net.minecraft.client.renderer.block.BlockStateModelSet;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
 import net.minecraft.client.resources.model.geometry.BakedQuad;
+import net.minecraft.client.resources.model.sprite.Material;
 import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.core.Direction;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.GrassColor;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import org.joml.Quaternionf;
+import org.joml.Vector3f;
+import org.joml.Vector3fc;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -152,6 +156,17 @@ public final class BlockFrameRenderer implements AutoCloseable {
             return;
         }
 
+        // tripwire_hook hard-coded shading fix (see CardinalSnapPart). Vanilla's putBakedQuad lights
+        // each quad by BakedQuad.direction = FaceBakery.calculateFacing(verts), whose sub-ULP winding
+        // magnitude snaps the hook's +/-45deg faces to a horizontal cardinal (NORTH -> 0.40, too dark).
+        // In-game and asset-renderer render those faces bright (UP); re-snap the directions so the
+        // reference matches. Same "make the harness render the in-world appearance" pattern as the
+        // sugar_cane tint and shade:false / EntityBlock-3D fixes.
+        if (state.is(Blocks.TRIPWIRE_HOOK)) {
+            for (int i = 0; i < partsScratch.size(); i++)
+                partsScratch.set(i, new CardinalSnapPart(partsScratch.get(i)));
+        }
+
         FeatureRenderDispatcher fed = client.gameRenderer.getFeatureRenderDispatcher();
         SubmitNodeStorage storage = fed.getSubmitNodeStorage();
         MultiBufferSource.BufferSource bufferSource = client.renderBuffers().bufferSource();
@@ -246,6 +261,76 @@ public final class BlockFrameRenderer implements AutoCloseable {
             tints[i] = color;
         }
         return tints;
+    }
+
+    /**
+     * Near-tie epsilon for {@link #assetCardinalDirection}. The hook's faces are exactly 45deg, so
+     * their two candidate cardinals' dot products differ only by float noise (~1e-7 on a normalized
+     * normal); any value well above that and well below the gap to a genuinely-different cardinal
+     * works.
+     */
+    private static final float CARDINAL_TIE_EPSILON = 1.0e-3f;
+
+    /**
+     * Re-derives the cardinal a quad should shade by, matching asset-renderer's
+     * {@code BlockRenderer.closestCardinalUnitVec}. Vanilla's {@code FaceBakery.findClosestDirection}
+     * breaks an exactly-45deg tie on the sub-ULP winding magnitude of the baked normal, which for
+     * tripwire_hook's tilted faces lands on a horizontal cardinal (NORTH, shaded 0.40). asset-renderer
+     * (and the in-world block) snap such a face to the earlier {@code Direction.values()} axis (UP),
+     * shaded full-bright. Replicate that by iterating the cardinals in declaration order and keeping
+     * the first whose dot is within {@link #CARDINAL_TIE_EPSILON} of the maximum.
+     *
+     * @param quad the baked quad whose shading cardinal to recompute
+     * @return the re-snapped cardinal, or the quad's existing direction for a degenerate normal
+     */
+    private static Direction assetCardinalDirection(BakedQuad quad) {
+        Vector3fc p0 = quad.position0();
+        Vector3f normal = new Vector3f(quad.position1()).sub(p0)
+            .cross(new Vector3f(quad.position2()).sub(p0));
+        if (!normal.isFinite() || normal.lengthSquared() < 1.0e-12f) return quad.direction();
+        normal.normalize();
+        Direction best = null;
+        float bestDot = 0f;
+        for (Direction dir : Direction.values()) {
+            float dot = normal.dot(dir.getUnitVec3f());
+            if (dot >= 0f && dot > bestDot + CARDINAL_TIE_EPSILON) {
+                bestDot = dot;
+                best = dir;
+            }
+        }
+        return best != null ? best : quad.direction();
+    }
+
+    /**
+     * Delegating {@link BlockStateModelPart} that rewrites each quad's shading direction via
+     * {@link #assetCardinalDirection}. Only the {@code direction} changes - positions, UVs, and
+     * material are untouched, so geometry and back-face culling (which keys off the vertex winding,
+     * not the stored direction) are identical; only the per-face diffuse cardinal differs.
+     */
+    private record CardinalSnapPart(BlockStateModelPart delegate) implements BlockStateModelPart {
+        @Override
+        public List<BakedQuad> getQuads(Direction face) {
+            List<BakedQuad> src = delegate.getQuads(face);
+            if (src.isEmpty()) return src;
+            List<BakedQuad> out = new ArrayList<>(src.size());
+            for (BakedQuad q : src) {
+                Direction snapped = assetCardinalDirection(q);
+                out.add(snapped == q.direction() ? q : new BakedQuad(
+                    q.position0(), q.position1(), q.position2(), q.position3(),
+                    q.packedUV0(), q.packedUV1(), q.packedUV2(), q.packedUV3(),
+                    snapped, q.materialInfo()));
+            }
+            return out;
+        }
+
+        @Override
+        public boolean useAmbientOcclusion() { return delegate.useAmbientOcclusion(); }
+
+        @Override
+        public Material.Baked particleMaterial() { return delegate.particleMaterial(); }
+
+        @Override
+        public int materialFlags() { return delegate.materialFlags(); }
     }
 
     private void ensureTextures(int width, int height) {
