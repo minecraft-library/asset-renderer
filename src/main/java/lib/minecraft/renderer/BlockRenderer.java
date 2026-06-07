@@ -622,7 +622,15 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * pipeline never consults the blockstate.
          */
         private static @Nullable Block.Variant resolveVariant(@NotNull Block block, @NotNull String variantKey) {
-            if (variantKey.isEmpty()) return null;
+            // A property-less block maps to its unconditional {@code ""} blockstate variant, whose
+            // model is authoritative and need NOT equal {@link Block#getModel()} (the by-id
+            // {@code block/<id>} guess). mud_bricks points {@code ""} at
+            // {@code block/mud_bricks_north_west_mirrored} (north/west faces UV-flipped) where
+            // {@code getModel()} is the plain {@code block/mud_bricks} cube_all - falling through to
+            // {@code getModel()} dropped the mirror. The caller only swaps in the variant's geometry
+            // when it carries real elements, so an empty particle-only template (TILE_ENTITY blocks
+            // whose mesh comes from the block-entity model) still falls back to the BE model.
+            if (variantKey.isEmpty()) return block.getVariants().get("");
             // Exact key hit (caller knows the precise variant). Fast path.
             Block.Variant exact = block.getVariants().get(variantKey);
             if (exact != null) return exact;
