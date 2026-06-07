@@ -91,7 +91,6 @@ class ModelEngineParallelismTest {
             .blockId("minecraft:piston")
             .type(BlockOptions.Type.ISOMETRIC_3D)
             .outputSize(128)
-            .supersample(1)
             .antiAlias(false)
             .build();
         assertDeterministicAndPinned(options, 0x513089BDL);

@@ -221,7 +221,6 @@ public final class TestBlockParityVanilla {
                 .blockId(blockId)
                 .type(BlockOptions.Type.ISOMETRIC_3D)
                 .outputSize(RENDER_SIZE)
-                .supersample(1)
                 .biome(INVENTORY_DEFAULT_BIOME)
                 .build();
             ImageData java = javaRenderer.render(options);

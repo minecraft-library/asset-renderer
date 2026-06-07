@@ -103,7 +103,7 @@ public class BlockOptions {
      * tile sizes. A value of 1 disables supersampling.
      */
     @lombok.Builder.Default
-    private final int supersample = 2;
+    private final int supersample = 1;
 
     /**
      * Additional texture pack ids to layer on top of vanilla
