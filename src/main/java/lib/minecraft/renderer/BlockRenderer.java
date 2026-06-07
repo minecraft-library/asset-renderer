@@ -760,21 +760,39 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     ));
                     continue;
                 }
-                // Vanilla shades a quad by its GEOMETRIC facing ({@code FaceBakery.calculateFacing}
-                // from the vertex winding), not the authored face-name normal. The two agree for
-                // every normal or element-rotated face, but the {@code spawner}/{@code trial_spawner}
-                // inner-faces models ({@code block/cube_all_inner_faces} etc.) emit a second cube with
-                // INVERTED geometry ({@code from > to}, reversed winding) so the semi-transparent cage
-                // shows on the far walls too. Its authored face normals point the wrong way - the
-                // inner {@code down} face carries a stored DOWN normal but actually faces UP - so the
-                // back walls seen through the cage shaded by the opposite cardinal (bottom too dark,
-                // rear-left too bright). Recover the true facing from the winding and use it whenever
-                // it contradicts the stored normal; for all non-inverted faces the dot stays positive
-                // and the stored normal is used verbatim (zero shading change).
+                // The outward facing of this quad. Normally the authored face normal ({@code
+                // t.normal()}) - the cardinal pushed through the element-rotation matrix - but the
+                // {@code spawner}/{@code trial_spawner}/{@code vault} inner-faces models emit a second
+                // cube with INVERTED geometry ({@code from > to}, reversed winding) whose authored
+                // normals point the wrong way; for those the winding (cross-product) normal is the
+                // true facing. Use the winding normal only when it contradicts the authored one.
                 Vector3f geometricNormal = Vector3f.normalize(Vector3f.cross(
                     t.position1().subtract(t.position0()),
                     t.position2().subtract(t.position0())));
-                Vector3f shadeNormal = Vector3f.dot(geometricNormal, t.normal()) < 0f ? geometricNormal : t.normal();
+                Vector3f outwardNormal = Vector3f.dot(geometricNormal, t.normal()) < 0f ? geometricNormal : t.normal();
+                // Vanilla's plain-block GUI path ({@code BlockFeatureRenderer.putBakedQuad}) carries NO
+                // per-vertex normal: every quad lights by its single {@code BakedQuad.direction =
+                // requireNonNullElse(FaceBakery.calculateFacing(verts), UP)}, the cardinal nearest the
+                // quad's geometric normal - not the continuous tilted normal. So lectern's -22.5deg
+                // reading surface ((0, 0.924, -0.383)) lights as its nearest cardinal UP (full bright),
+                // exactly as if it were a flat top, and the iso reference matches.
+                //
+                // Snap from {@code outwardNormal} (the authored normal pushed through the element-
+                // rotation matrix) rather than {@code geometricNormal} (the cross of the tessellated
+                // TRIANGLE, one of whose edges is the quad diagonal). At an exactly-45deg face the two
+                // tied cardinals decide on the sub-ULP balance of the normal's components, and the
+                // triangle-diagonal cross drifts one ULP off symmetry - e.g. on a sculk-sensor tendril
+                // it pushes |x| past |z| and wrongly snaps EAST/WEST (shade 0.65/0.49) where the
+                // reference shows the Z cardinal (0.40). The element-rotation matrix yields a bit-
+                // symmetric authored normal ({@code |x| == |z|} to the raw int bits), so the tie falls
+                // to the lower {@code Direction.values()} index and reproduces the reference shade.
+                //
+                // Block-entity surfaces (signs, banner cloth, hanging-sign chains) render through
+                // vanilla's entity path ({@code entityCutoutNoCull} + {@code PER_FACE_LIGHTING}), not
+                // {@code putBakedQuad}, so they keep the continuous normal and the camera-facing flip.
+                Vector3f shadeNormal = forceCullBackFaces
+                    ? closestCardinalUnitVec(outwardNormal)
+                    : outwardNormal;
                 Vector3f renderNormal = Vector3f.normalize(Vector3f.transformNormal(shadeNormal, normalTransform));
                 // Two-sided (no back-face cull) faces: shade by the camera-facing normal. Vanilla's
                 // ENTITY_CUTOUT / sign pipeline composes withCull(false) + PER_FACE_LIGHTING, whose
@@ -806,6 +824,48 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 ));
             }
             return out;
+        }
+
+        /**
+         * Six cardinal unit vectors in {@code net.minecraft.core.Direction.values()} declaration
+         * order (DOWN, UP, NORTH, SOUTH, WEST, EAST), matching the iteration order of vanilla's
+         * {@code FaceBakery.findClosestDirection}.
+         */
+        private static final Vector3f[] CARDINAL_UNIT_VECS = {
+            new Vector3f(0f, -1f, 0f),  // DOWN
+            new Vector3f(0f, 1f, 0f),   // UP
+            new Vector3f(0f, 0f, -1f),  // NORTH
+            new Vector3f(0f, 0f, 1f),   // SOUTH
+            new Vector3f(-1f, 0f, 0f),  // WEST
+            new Vector3f(1f, 0f, 0f)    // EAST
+        };
+
+        /**
+         * Returns the unit vector of the cardinal facing a baked block quad stores, replicating
+         * vanilla's {@code FaceBakery.findClosestDirection} plus the {@code BakedQuad} constructor's
+         * {@code requireNonNullElse(direction, UP)}.
+         * <p>
+         * Iterates the six cardinals in {@code Direction.values()} order and keeps the one with the
+         * strictly-greatest non-negative dot against {@code normal} - so a 45deg face resolves to the
+         * earlier cardinal on a tie (first wins), exactly as vanilla does. A degenerate face whose
+         * normal is zero (cross of collinear edges) leaves no winner and falls back to UP, matching
+         * vanilla's null-to-UP path. The selection is invariant to a positive uniform scale of
+         * {@code normal} (it preserves dot ordering), so an un-normalized normal works too.
+         *
+         * @param normal the quad's outward surface normal in model space
+         * @return the nearest cardinal's unit vector, or UP for a degenerate normal
+         */
+        private static @NotNull Vector3f closestCardinalUnitVec(@NotNull Vector3f normal) {
+            Vector3f closest = null;
+            float bestDot = 0f;
+            for (Vector3f cardinal : CARDINAL_UNIT_VECS) {
+                float d = Vector3f.dot(normal, cardinal);
+                if (d >= 0f && d > bestDot) {
+                    bestDot = d;
+                    closest = cardinal;
+                }
+            }
+            return closest != null ? closest : CARDINAL_UNIT_VECS[1]; // UP
         }
 
         /**
