@@ -63,9 +63,9 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull ConcurrentMap<String, Block> blockIndex;
     private final @NotNull ConcurrentMap<String, Item> itemIndex;
     private final @NotNull ConcurrentMap<String, Entity> entityIndex;
-    private final @NotNull ConcurrentMap<String, Texture> textureIndex;
-    private final @NotNull ConcurrentMap<ColorMap.Type, ColorMap> colorMapIndex;
-    private final @NotNull ConcurrentMap<String, BlockTag> blockTagIndex;
+    private final @NotNull ConcurrentMap<String, Texture> textures;
+    private final @NotNull ConcurrentMap<ColorMap.Type, ColorMap> colorMaps;
+    private final @NotNull ConcurrentMap<String, BlockTag> blockTags;
     private final @NotNull ConcurrentMap<String, Integer> potionEffectColors;
     private final @NotNull ConcurrentMap<String, BannerPattern> bannerPatterns;
     private final @NotNull ConcurrentMap<String, Block.Entity> blockEntities;
@@ -159,7 +159,7 @@ public final class PipelineRendererContext implements RendererContext {
         PixelBuffer cached = this.textureCache.get(normalized);
         if (cached != null) return Optional.of(cached);
 
-        Texture texture = this.textureIndex.get(normalized);
+        Texture texture = this.textures.get(normalized);
         if (texture == null) return Optional.empty();
 
         TexturePack owner = this.packs.get(texture.getPackId());
@@ -184,7 +184,7 @@ public final class PipelineRendererContext implements RendererContext {
 
     @Override
     public @NotNull Optional<ColorMap> findColorMap(@NotNull ColorMap.Type type) {
-        return this.colorMapIndex.getOptional(type);
+        return this.colorMaps.getOptional(type);
     }
 
     @Override
@@ -205,7 +205,7 @@ public final class PipelineRendererContext implements RendererContext {
     @Override
     public @NotNull Optional<AnimationData> findAnimation(@NotNull String textureId) {
         String normalized = textureId.contains(":") ? textureId : VanillaSourcePaths.MINECRAFT_NAMESPACE + textureId;
-        Texture texture = this.textureIndex.get(normalized);
+        Texture texture = this.textures.get(normalized);
         return texture == null ? Optional.empty() : texture.getAnimation();
     }
 
@@ -287,8 +287,8 @@ public final class PipelineRendererContext implements RendererContext {
         if (block != null && !block.getTags().isEmpty()) {
             return block.getTags()
                 .stream()
-                .filter(this.blockTagIndex::containsKey)
-                .min(Comparator.comparingInt(tag -> this.blockTagIndex.get(tag).getValues().size()))
+                .filter(this.blockTags::containsKey)
+                .min(Comparator.comparingInt(tag -> this.blockTags.get(tag).getValues().size()))
                 .orElse(blockId);
         }
 
