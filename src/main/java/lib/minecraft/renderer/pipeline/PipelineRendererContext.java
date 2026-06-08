@@ -251,8 +251,11 @@ public final class PipelineRendererContext implements RendererContext {
 
     @Override
     public @NotNull Optional<String> resolveItemTextureOverride(@NotNull ItemContext context) {
-        for (CitRule rule : this.citRules)
-            if (CitMatcher.match(rule, context)) return Optional.of(rule.outputTextureId());
+        for (CitRule rule : this.citRules) {
+            if (CitMatcher.match(rule, context))
+                return Optional.of(rule.outputTextureId());
+        }
+
         return Optional.empty();
     }
 
@@ -267,6 +270,7 @@ public final class PipelineRendererContext implements RendererContext {
             Optional<CtmResolution> resolution = CtmMatcher.resolve(rule, blockId, baseTextureId);
             if (resolution.isPresent()) return resolution;
         }
+
         return Optional.empty();
     }
 
@@ -277,6 +281,7 @@ public final class PipelineRendererContext implements RendererContext {
      */
     private @NotNull String primaryTag(@NotNull String blockId) {
         Block block = this.blockIndex.get(blockId);
+
         if (block != null && !block.getTags().isEmpty()) {
             return block.getTags()
                 .stream()
