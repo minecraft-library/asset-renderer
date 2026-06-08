@@ -4,7 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.asset.model.ItemModelData;
+import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.resolver.OverlayResolver;
 import lib.minecraft.renderer.pipeline.util.Models;
@@ -47,9 +47,9 @@ public class ItemIndexLoader {
         @NotNull ConcurrentMap<String, Block.Entity> beEntries
     ) {
         HashMap<String, Item> itemIndex = new HashMap<>();
-        for (Map.Entry<String, ItemModelData> itemEntry : result.getItemModels().entrySet()) {
+        for (Map.Entry<String, ModelData> itemEntry : result.getItemModels().entrySet()) {
             String modelId = itemEntry.getKey();
-            ItemModelData model = itemEntry.getValue();
+            ModelData model = itemEntry.getValue();
             String itemId = Models.stripPrefix(modelId, ":item/");
             String name = Models.localName(modelId);
             if (beEntries.containsKey(itemId)) continue;

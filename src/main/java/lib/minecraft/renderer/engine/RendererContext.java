@@ -36,18 +36,19 @@ import java.util.Optional;
  * list, decodes a resource off disk, or combines multiple arguments to produce a result. Reach
  * for this prefix when the call is more than a map lookup.</li>
  * </ul>
- * Bulk-iteration accessors that return {@link ConcurrentList} use bare names ({@link #activePacks},
- * {@link #knownBlockIds}, etc.) and provide empty defaults so individual stubs only need to
- * override what they care about.
+ * Bulk-iteration accessors that return {@link ConcurrentList} use bare names ({@link #knownBlockIds},
+ * {@link #knownItemIds}, etc.) and provide empty defaults so individual stubs only need to override
+ * what they care about.
  */
 public interface RendererContext {
 
     /**
-     * The active texture packs in render priority order - highest priority first.
+     * Looks up an active texture pack by its id.
      *
-     * @return the pack list
+     * @param id the pack id, e.g. {@code "vanilla"}
+     * @return the pack, or empty when no active pack has that id
      */
-    @NotNull ConcurrentList<TexturePack> activePacks();
+    @NotNull Optional<TexturePack> findPack(@NotNull String id);
 
     /**
      * Looks up the parsed {@code .mcmeta} animation sidecar for the given texture, if any. The

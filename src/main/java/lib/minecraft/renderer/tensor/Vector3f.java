@@ -125,6 +125,80 @@ public record Vector3f(float x, float y, float z) {
         return this.x * this.x + (this.y * this.y + this.z * this.z);
     }
 
+    // --- Fluent instance forms of the static operations below ---
+    //
+    // Each delegates verbatim to its static counterpart, so the float result is bit-identical
+    // (same right-associated mul-add chains, same SIMD dispatch). They exist so call sites can
+    // read as method chains - {@code a.subtract(b).cross(c).normalize()} - instead of nested
+    // chain-parameter static calls. No fused convenience methods: each maps 1:1 to one static op
+    // so the composition stays visible at the call site.
+
+    /**
+     * Returns the cross product of this vector and {@code other}. Instance form of
+     * {@link #cross(Vector3f, Vector3f)}.
+     *
+     * @param other the right-hand vector
+     * @return a new vector perpendicular to both
+     */
+    public @NotNull Vector3f cross(@NotNull Vector3f other) {
+        return cross(this, other);
+    }
+
+    /**
+     * Returns the dot product of this vector and {@code other}. Instance form of
+     * {@link #dot(Vector3f, Vector3f)}.
+     *
+     * @param other the right-hand vector
+     * @return the dot product
+     */
+    public float dot(@NotNull Vector3f other) {
+        return dot(this, other);
+    }
+
+    /**
+     * Returns a unit-length vector in this vector's direction, or {@link #ZERO} when the length
+     * falls below {@link #NORMALIZE_EPSILON}. Instance form of {@link #normalize(Vector3f)}.
+     *
+     * @return a new normalized vector, or {@link #ZERO}
+     */
+    public @NotNull Vector3f normalize() {
+        return normalize(this);
+    }
+
+    /**
+     * Linearly interpolates from this vector toward {@code other} by {@code t}. Instance form of
+     * {@link #lerp(Vector3f, Vector3f, float)}.
+     *
+     * @param other the end vector
+     * @param t the interpolation factor, typically in {@code [0, 1]}
+     * @return a new interpolated vector
+     */
+    public @NotNull Vector3f lerp(@NotNull Vector3f other, float t) {
+        return lerp(this, other, t);
+    }
+
+    /**
+     * Transforms this vector by {@code m} as a point ({@code w=1}). Instance form of
+     * {@link #transform(Vector3f, Matrix4f)}.
+     *
+     * @param m the transformation matrix
+     * @return a new transformed vector
+     */
+    public @NotNull Vector3f transform(@NotNull Matrix4f m) {
+        return transform(this, m);
+    }
+
+    /**
+     * Transforms this vector by {@code m} as a direction ({@code w=0}), ignoring translation.
+     * Instance form of {@link #transformNormal(Vector3f, Matrix4f)}.
+     *
+     * @param m the transformation matrix
+     * @return a new transformed direction vector
+     */
+    public @NotNull Vector3f transformNormal(@NotNull Matrix4f m) {
+        return transformNormal(this, m);
+    }
+
     /**
      * Computes the cross product of two vectors.
      *

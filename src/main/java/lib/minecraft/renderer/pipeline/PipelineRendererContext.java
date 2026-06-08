@@ -29,9 +29,7 @@ import lib.minecraft.renderer.pipeline.pack.ItemContext;
 import lib.minecraft.renderer.pipeline.util.Models;
 import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lib.minecraft.renderer.tooling.ToolingColorMaps;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import lombok.experimental.Accessors;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.file.Files;
@@ -61,9 +59,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public final class PipelineRendererContext implements RendererContext {
 
-    @Getter
-    @Accessors(fluent = true)
-    private final @NotNull ConcurrentList<TexturePack> activePacks;
+    private final @NotNull ConcurrentMap<String, TexturePack> packs;
     private final @NotNull ConcurrentMap<String, Block> blockIndex;
     private final @NotNull ConcurrentMap<String, Item> itemIndex;
     private final @NotNull ConcurrentMap<String, Entity> entityIndex;
@@ -97,8 +93,15 @@ public final class PipelineRendererContext implements RendererContext {
         ConcurrentMap<String, Item> itemIndex = ItemIndexLoader.load(result, blockEntities);
         ConcurrentMap<String, Entity> entityIndex = loadEntityIndex();
 
+        // Index the active packs by id once at bootstrap. Insertion-ordered so values() preserves
+        // render priority (highest first); first-wins on a duplicate id. resolveTexture then does
+        // an O(1) pack-by-id lookup instead of a per-call linear scan.
+        ConcurrentMap<String, TexturePack> packs = Concurrent.newLinkedMap();
+        for (TexturePack pack : result.getPacks())
+            packs.putIfAbsent(pack.getId(), pack);
+
         return new PipelineRendererContext(
-            result.getPacks(),
+            packs,
             blockIndex,
             itemIndex,
             entityIndex,
@@ -146,6 +149,11 @@ public final class PipelineRendererContext implements RendererContext {
     }
 
     @Override
+    public @NotNull Optional<TexturePack> findPack(@NotNull String id) {
+        return Optional.ofNullable(this.packs.get(id));
+    }
+
+    @Override
     public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
         String normalized = textureId.contains(":") ? textureId : VanillaSourcePaths.MINECRAFT_NAMESPACE + textureId;
         PixelBuffer cached = this.textureCache.get(normalized);
@@ -154,13 +162,7 @@ public final class PipelineRendererContext implements RendererContext {
         Texture texture = this.textureIndex.get(normalized);
         if (texture == null) return Optional.empty();
 
-        TexturePack owner = null;
-        for (TexturePack pack : this.activePacks) {
-            if (pack.getId().equals(texture.getPackId())) {
-                owner = pack;
-                break;
-            }
-        }
+        TexturePack owner = this.packs.get(texture.getPackId());
         if (owner == null) return Optional.empty();
 
         Path winning = null;

@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.pipeline.resolver;
 
 import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.asset.model.ItemModelData;
+import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.options.ItemOptions;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -11,7 +11,7 @@ import java.util.Optional;
 /**
  * Synthesises {@link Item.Overlay} metadata for an item from its parsed model textures. Runs at
  * pipeline time with no file I/O - every decision is made from the item id and its
- * {@link ItemModelData#getTextures() texture variable map}.
+ * {@link ModelData#getTextures() texture variable map}.
  * <p>
  * Each overlay kind is recognised by a deterministic naming convention that matches vanilla's
  * own layout under {@code assets/minecraft/textures/item/}:
@@ -55,7 +55,7 @@ public class OverlayResolver {
      */
     public static @NotNull Optional<Item.Overlay> resolve(
         @NotNull String itemId,
-        @NotNull ItemModelData model
+        @NotNull ModelData model
     ) {
         String layer0 = model.getTextures().get("layer0");
         String layer1 = model.getTextures().get("layer1");

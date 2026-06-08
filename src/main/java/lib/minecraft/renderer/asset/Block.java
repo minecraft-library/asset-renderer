@@ -4,7 +4,7 @@ import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import lib.minecraft.renderer.asset.model.BlockModelData;
+import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.geometry.Biome;
 import lib.minecraft.renderer.options.BlockOptions;
@@ -38,7 +38,7 @@ public class Block {
 
     private @NotNull String name = "";
 
-    private @NotNull BlockModelData model = new BlockModelData();
+    private @NotNull ModelData model = new ModelData();
 
     private @NotNull ConcurrentMap<String, String> textures = Concurrent.newMap();
 
@@ -149,10 +149,10 @@ public class Block {
      * The {@code x} and {@code y} rotations are multiples of 90 degrees applied to the entire
      * model before rendering. These are distinct from element-level rotations in the model JSON.
      * <p>
-     * The {@code model} is the resolved {@link BlockModelData} this variant references, baked in
+     * The {@code model} is the resolved {@link ModelData} this variant references, baked in
      * at pipeline-context construction time so a variant reaches its geometry through its owning
      * {@link Block} rather than a context-level model registry. Variants whose {@code modelId}
-     * cannot be resolved against the loaded model set carry an element-less {@code BlockModelData}.
+     * cannot be resolved against the loaded model set carry an element-less {@code ModelData}.
      *
      * @param modelId the namespaced model reference (e.g. {@code "minecraft:block/furnace"})
      * @param model the resolved model this variant references, or element-less when unresolved
@@ -160,7 +160,7 @@ public class Block {
      * @param y the whole-model Y rotation in degrees (0, 90, 180, or 270)
      * @param uvlock whether UVs should be locked to the block grid during rotation
      */
-    public record Variant(@NotNull String modelId, @NotNull BlockModelData model, int x, int y, boolean uvlock) {
+    public record Variant(@NotNull String modelId, @NotNull ModelData model, int x, int y, boolean uvlock) {
 
         /**
          * Returns {@code true} when this variant applies rotation to the model.
@@ -219,7 +219,7 @@ public class Block {
      */
     public record Entity(
         @NotNull String beType,
-        @NotNull BlockModelData model,
+        @NotNull ModelData model,
         @NotNull String textureId,
         int tintArgb,
         int iconRotation,
@@ -231,7 +231,7 @@ public class Block {
         /**
          * Backwards-compatible constructor for the existing replace-the-model entries.
          */
-        public Entity(@NotNull String beType, @NotNull BlockModelData model, @NotNull String textureId,
+        public Entity(@NotNull String beType, @NotNull ModelData model, @NotNull String textureId,
                       int tintArgb, int iconRotation, boolean multiBlock, @NotNull ConcurrentList<Part> parts) {
             this(beType, model, textureId, tintArgb, iconRotation, multiBlock, parts, false);
         }
@@ -255,7 +255,7 @@ public class Block {
          */
         public record Part(
             @NotNull String modelId,
-            @NotNull BlockModelData model,
+            @NotNull ModelData model,
             @NotNull String texture,
             float @NotNull [] offset
         ) {

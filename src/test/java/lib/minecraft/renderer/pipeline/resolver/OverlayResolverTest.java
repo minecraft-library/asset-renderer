@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.pipeline.resolver;
 
 import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.asset.model.ItemModelData;
+import lib.minecraft.renderer.asset.model.ModelData;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -17,8 +17,8 @@ import static org.hamcrest.Matchers.*;
  */
 class OverlayResolverTest {
 
-    private static @NotNull ItemModelData modelWithTextures(String... layerPairs) {
-        ItemModelData model = new ItemModelData();
+    private static @NotNull ModelData modelWithTextures(String... layerPairs) {
+        ModelData model = new ModelData();
         for (int i = 0; i < layerPairs.length; i += 2)
             model.getTextures().put(layerPairs[i], layerPairs[i + 1]);
         return model;
@@ -27,7 +27,7 @@ class OverlayResolverTest {
     @Test
     @DisplayName("leather helmet produces Leather overlay with default dye color")
     void resolvesLeatherHelmet() {
-        ItemModelData model = modelWithTextures(
+        ModelData model = modelWithTextures(
             "layer0", "minecraft:item/leather_helmet",
             "layer1", "minecraft:item/leather_helmet_overlay"
         );
@@ -48,7 +48,7 @@ class OverlayResolverTest {
             "minecraft:leather_leggings",
             "minecraft:leather_boots"
         }) {
-            ItemModelData model = modelWithTextures(
+            ModelData model = modelWithTextures(
                 "layer0", "minecraft:item/" + id.substring("minecraft:".length()),
                 "layer1", "minecraft:item/" + id.substring("minecraft:".length()) + "_overlay"
             );
@@ -59,7 +59,7 @@ class OverlayResolverTest {
     @Test
     @DisplayName("non-leather helmet returns empty (e.g. diamond_helmet)")
     void rejectsNonLeatherHelmet() {
-        ItemModelData model = modelWithTextures(
+        ModelData model = modelWithTextures(
             "layer0", "minecraft:item/diamond_helmet"
         );
         assertThat(OverlayResolver.resolve("minecraft:diamond_helmet", model).isPresent(), is(false));
@@ -68,7 +68,7 @@ class OverlayResolverTest {
     @Test
     @DisplayName("leather helmet missing layer1 returns empty")
     void requiresOverlayLayer() {
-        ItemModelData model = modelWithTextures(
+        ModelData model = modelWithTextures(
             "layer0", "minecraft:item/leather_helmet"
         );
         assertThat(OverlayResolver.resolve("minecraft:leather_helmet", model).isPresent(), is(false));
@@ -77,7 +77,7 @@ class OverlayResolverTest {
     @Test
     @DisplayName("items unrelated to any overlay kind return empty")
     void rejectsUnrelatedItems() {
-        ItemModelData model = modelWithTextures(
+        ModelData model = modelWithTextures(
             "layer0", "minecraft:item/diamond_sword"
         );
         assertThat(OverlayResolver.resolve("minecraft:diamond_sword", model).isPresent(), is(false));
@@ -89,7 +89,7 @@ class OverlayResolverTest {
     @DisplayName("potion, splash_potion, and lingering_potion resolve to Potion overlay")
     void resolvesPotionVariants() {
         for (String id : new String[]{ "minecraft:potion", "minecraft:splash_potion", "minecraft:lingering_potion" }) {
-            ItemModelData model = modelWithTextures(
+            ModelData model = modelWithTextures(
                 "layer0", "minecraft:item/potion_bottle_drinkable",
                 "layer1", "minecraft:item/potion_overlay"
             );
@@ -105,7 +105,7 @@ class OverlayResolverTest {
     @Test
     @DisplayName("tipped_arrow resolves to TippedArrow overlay")
     void resolvesTippedArrow() {
-        ItemModelData model = modelWithTextures(
+        ModelData model = modelWithTextures(
             "layer0", "minecraft:item/tipped_arrow_base",
             "layer1", "minecraft:item/tipped_arrow_head"
         );
@@ -117,7 +117,7 @@ class OverlayResolverTest {
     @Test
     @DisplayName("firework_star resolves to Firework overlay with the gray placeholder default")
     void resolvesFireworkStar() {
-        ItemModelData model = modelWithTextures(
+        ModelData model = modelWithTextures(
             "layer0", "minecraft:item/firework_star",
             "layer1", "minecraft:item/firework_star_overlay"
         );
@@ -133,7 +133,7 @@ class OverlayResolverTest {
     void spawnEggsNoLongerUseOverlays() {
         // MC 26.1 ships pre-composited per-entity spawn egg PNGs; the old shared-texture
         // two-color tinting is gone. Any item ending in _spawn_egg should return empty.
-        ItemModelData model = modelWithTextures(
+        ModelData model = modelWithTextures(
             "layer0", "minecraft:item/pig_spawn_egg"
         );
         assertThat(OverlayResolver.resolve("minecraft:pig_spawn_egg", model).isPresent(), is(false));
@@ -142,7 +142,7 @@ class OverlayResolverTest {
     @Test
     @DisplayName("potion missing layer1 returns empty")
     void potionRequiresBothLayers() {
-        ItemModelData model = modelWithTextures("layer0", "minecraft:item/potion_bottle_drinkable");
+        ModelData model = modelWithTextures("layer0", "minecraft:item/potion_bottle_drinkable");
         assertThat(OverlayResolver.resolve("minecraft:potion", model).isPresent(), is(false));
     }
 

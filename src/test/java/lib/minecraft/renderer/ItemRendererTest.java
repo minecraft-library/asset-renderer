@@ -5,7 +5,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.asset.model.ItemModelData;
+import lib.minecraft.renderer.asset.model.ModelData;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -38,11 +38,11 @@ class ItemRendererTest {
     void elementFaceTintIndexWins() {
         // Model has one element whose south face references #layer0 with tintindex=0,
         // matching vanilla's item/generated procedural expansion for tintable items.
-        ItemModelData model = GSON.fromJson(
+        ModelData model = GSON.fromJson(
             "{\"textures\":{\"layer0\":\"minecraft:item/leather_helmet\"},"
                 + "\"elements\":[{\"from\":[0,0,7],\"to\":[16,16,9],\"faces\":{"
                 + "\"south\":{\"texture\":\"#layer0\",\"tintindex\":0}}}]}",
-            ItemModelData.class
+            ModelData.class
         );
         Item item = new Item("minecraft:leather_helmet", "minecraft", "leather_helmet",
             model, model.getTextures(), 0, 1, Optional.empty());
@@ -52,11 +52,11 @@ class ItemRendererTest {
     @Test
     @DisplayName("element face with tintindex -1 reports untinted")
     void elementFaceUntinted() {
-        ItemModelData model = GSON.fromJson(
+        ModelData model = GSON.fromJson(
             "{\"textures\":{\"layer0\":\"minecraft:item/diamond_sword\"},"
                 + "\"elements\":[{\"from\":[0,0,7],\"to\":[16,16,9],\"faces\":{"
                 + "\"south\":{\"texture\":\"#layer0\",\"tintindex\":-1}}}]}",
-            ItemModelData.class
+            ModelData.class
         );
         Item item = new Item("minecraft:diamond_sword", "minecraft", "diamond_sword",
             model, model.getTextures(), 0, 64, Optional.empty());
@@ -67,11 +67,11 @@ class ItemRendererTest {
     @DisplayName("element face matching resolved texture id (not #var) picks up tintindex")
     void elementFaceMatchesByResolvedId() {
         // Face directly references the texture id rather than a #variable.
-        ItemModelData model = GSON.fromJson(
+        ModelData model = GSON.fromJson(
             "{\"textures\":{\"layer0\":\"minecraft:item/carrot\"},"
                 + "\"elements\":[{\"from\":[0,0,7],\"to\":[16,16,9],\"faces\":{"
                 + "\"south\":{\"texture\":\"minecraft:item/carrot\",\"tintindex\":0}}}]}",
-            ItemModelData.class
+            ModelData.class
         );
         Item item = new Item("minecraft:carrot", "minecraft", "carrot",
             model, model.getTextures(), 0, 64, Optional.empty());
@@ -82,11 +82,11 @@ class ItemRendererTest {
     @DisplayName("element present but no face references the layer reports untinted")
     void elementsPresentButLayerUnreferenced() {
         // Element references #side, not #layer0, so layer0 has no owning face.
-        ItemModelData model = GSON.fromJson(
+        ModelData model = GSON.fromJson(
             "{\"textures\":{\"layer0\":\"minecraft:item/unrelated\",\"side\":\"minecraft:block/stone\"},"
                 + "\"elements\":[{\"from\":[0,0,0],\"to\":[16,16,16],\"faces\":{"
                 + "\"south\":{\"texture\":\"#side\",\"tintindex\":0}}}]}",
-            ItemModelData.class
+            ModelData.class
         );
         Item item = new Item("minecraft:stick", "minecraft", "stick",
             model, model.getTextures(), 0, 64, Optional.empty());
@@ -94,7 +94,7 @@ class ItemRendererTest {
     }
 
     private static Item simpleItem(String textureKey, String textureRef) {
-        ItemModelData model = new ItemModelData();
+        ModelData model = new ModelData();
         model.getTextures().put(textureKey, textureRef);
         ConcurrentMap<String, String> textures = Concurrent.newMap();
         textures.putAll(model.getTextures());

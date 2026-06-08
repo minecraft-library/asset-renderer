@@ -5,8 +5,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.BlockRenderer;
-import lib.minecraft.renderer.asset.model.BlockModelData;
-import lib.minecraft.renderer.asset.model.ItemModelData;
+import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.engine.RenderEngine;
@@ -119,6 +118,26 @@ public class BlockGeometryKit {
     }
 
     /**
+     * Per-build parameters for {@link #buildFromElements(ConcurrentList, Map, ElementBuildParams)}:
+     * the per-face tints plus the blockstate variant rotation and {@code uvlock} flag. Bundles the
+     * five values that vary per build so callers name them instead of threading a positional
+     * overload cascade.
+     *
+     * @param tintedArgb ARGB applied to faces with {@code tintindex >= 0}
+     * @param untintedArgb ARGB applied to faces with {@code tintindex = -1}
+     * @param variantRotationX the variant's whole-model X rotation in degrees (0/90/180/270)
+     * @param variantRotationY the variant's whole-model Y rotation in degrees (0/90/180/270)
+     * @param uvLock whether the blockstate variant requested {@code uvlock}
+     */
+    public record ElementBuildParams(
+        int tintedArgb,
+        int untintedArgb,
+        int variantRotationX,
+        int variantRotationY,
+        boolean uvLock
+    ) {}
+
+    /**
      * Builds a triangle list from a resolved list of {@link ModelElement element boxes} using
      * pre-loaded face textures. Suitable for the held-item 3D path where the caller has already
      * walked the model's {@code #var} bindings and loaded every unique texture.
@@ -137,8 +156,8 @@ public class BlockGeometryKit {
      * to preserve the element's axis-aligned footprint (used by cross-shaped plants).
      *
      * @param elements the fully-resolved element list from an
-     *     {@link ItemModelData} or
-     *     {@link BlockModelData}
+     *     {@link ModelData} or
+     *     {@link ModelData}
      * @param faceTextures a map keyed by the exact {@link ModelFace#getTexture()} string
      *     (including any leading {@code #}) to a pre-loaded {@link PixelBuffer}. The caller is
      *     responsible for dereferencing {@code #var} chains against the model's texture
@@ -151,7 +170,7 @@ public class BlockGeometryKit {
         @NotNull Map<String, PixelBuffer> faceTextures,
         int tintArgb
     ) {
-        return buildFromElements(elements, faceTextures, tintArgb, tintArgb);
+        return buildFromElements(elements, faceTextures, new ElementBuildParams(tintArgb, tintArgb, 0, 0, false));
     }
 
     /**
@@ -175,7 +194,7 @@ public class BlockGeometryKit {
         int tintedArgb,
         int untintedArgb
     ) {
-        return buildFromElements(elements, faceTextures, tintedArgb, untintedArgb, 0, 0, false);
+        return buildFromElements(elements, faceTextures, new ElementBuildParams(tintedArgb, untintedArgb, 0, 0, false));
     }
 
     /**
@@ -209,6 +228,34 @@ public class BlockGeometryKit {
         int variantRotationY,
         boolean uvLock
     ) {
+        return buildFromElements(elements, faceTextures,
+            new ElementBuildParams(tintedArgb, untintedArgb, variantRotationX, variantRotationY, uvLock));
+    }
+
+    /**
+     * Core build that converts a resolved element list into rasterizer-ready triangles from the
+     * supplied {@link ElementBuildParams}. The three positional overloads delegate here. See
+     * {@link #buildFromElements(ConcurrentList, Map, int)} for the element-to-triangle conversion
+     * details (bounds normalization, UV derivation, element rotation) and the {@code uvlock}
+     * overload for the variant-rotation UV handling.
+     *
+     * @param elements the fully-resolved element list
+     * @param faceTextures a map keyed by the exact {@link ModelFace#getTexture()} string to a
+     *     pre-loaded {@link PixelBuffer}
+     * @param params the per-face tints, blockstate variant rotation, and {@code uvlock} flag
+     * @return the triangle list, ready for rasterization - empty when the elements list is empty
+     */
+    public static @NotNull ConcurrentList<VisibleTriangle> buildFromElements(
+        @NotNull ConcurrentList<ModelElement> elements,
+        @NotNull Map<String, PixelBuffer> faceTextures,
+        @NotNull ElementBuildParams params
+    ) {
+        int tintedArgb = params.tintedArgb();
+        int untintedArgb = params.untintedArgb();
+        int variantRotationX = params.variantRotationX();
+        int variantRotationY = params.variantRotationY();
+        boolean uvLock = params.uvLock();
+
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
         for (ModelElement element : elements) {
@@ -280,8 +327,8 @@ public class BlockGeometryKit {
 
                 if (elementTransform != null) {
                     for (int i = 0; i < corners.length; i++)
-                        corners[i] = Vector3f.transform(corners[i], elementTransform);
-                    faceNormal = Vector3f.normalize(Vector3f.transformNormal(faceNormal, normalTransform));
+                        corners[i] = corners[i].transform(elementTransform);
+                    faceNormal = faceNormal.transformNormal(normalTransform).normalize();
                 }
 
                 int faceTint = face.getTintIndex() >= 0 ? tintedArgb : untintedArgb;

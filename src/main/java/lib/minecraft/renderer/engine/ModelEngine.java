@@ -594,10 +594,10 @@ public class ModelEngine extends TextureEngine {
         // call, so it dominates Pass 1 cost on high-triangle models. Vector3f.transform /
         // transformNormal silently dispatch to a 4-lane SIMD implementation when the JDK Vector
         // API module is loaded.
-        Vector3f p0 = Vector3f.transform(triangle.position0(), transform);
-        Vector3f p1 = Vector3f.transform(triangle.position1(), transform);
-        Vector3f p2 = Vector3f.transform(triangle.position2(), transform);
-        Vector3f normal = Vector3f.normalize(Vector3f.transformNormal(triangle.normal(), transform));
+        Vector3f p0 = triangle.position0().transform(transform);
+        Vector3f p1 = triangle.position1().transform(transform);
+        Vector3f p2 = triangle.position2().transform(transform);
+        Vector3f normal = triangle.normal().transformNormal(transform).normalize();
 
         Vector2f s0 = snapToCoverageGrid(RenderEngine.projectPerspective(p0, scale, offsetX, offsetY, perspective));
         Vector2f s1 = snapToCoverageGrid(RenderEngine.projectPerspective(p1, scale, offsetX, offsetY, perspective));

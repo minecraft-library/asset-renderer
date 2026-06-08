@@ -9,8 +9,6 @@ import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelBufferPool;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.model.EntityModelData;
-import lib.minecraft.renderer.asset.model.ModelElement;
-import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.engine.IsometricEngine;
 import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.engine.RendererContext;
@@ -256,18 +254,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // texture map, exactly mirroring {@code BlockRenderer.Isometric3D.buildFromBlockElements}.
         // Faces whose ref still resolves to a {@code #} after dereference (broken bindings) skip
         // texture loading; the kit treats them as no-texture faces.
-        ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
-        ConcurrentMap<String, String> variables = block.get().getModel().getTextures();
-        for (ModelElement element : block.get().getModel().getElements()) {
-            for (ModelFace face : element.getFaces().values()) {
-                String ref = face.getTexture();
-                if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
-                String resolvedId = TextureEngine.resolveTextureReference(ref, variables);
-                if (resolvedId.startsWith("#")) continue;
-                Optional<PixelBuffer> tex = this.context.resolveTexture(resolvedId);
-                tex.ifPresent(pixelBuffer -> faceTextures.put(ref, pixelBuffer));
-            }
-        }
+        ConcurrentMap<String, PixelBuffer> faceTextures = TextureEngine.loadElementFaceTextures(
+            block.get().getModel().getElements(), block.get().getModel().getTextures(),
+            this.context::resolveTexture);
         if (faceTextures.isEmpty()) return Concurrent.newList();
 
         ConcurrentList<VisibleTriangle> blockTris = BlockGeometryKit.buildFromElements(
@@ -326,7 +315,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
         ConcurrentList<VisibleTriangle> out = Concurrent.newList();
         for (VisibleTriangle tri : blockTris) {
-            Vector3f transformedNormal = Vector3f.normalize(Vector3f.transformNormal(tri.normal(), finalMatrix));
+            Vector3f transformedNormal = tri.normal().transformNormal(finalMatrix).normalize();
             // Re-shade with entity Lambertian lighting on the post-transform normal. The block kit
             // baked cardinal-bucket shading (Lighting.ITEMS_3D-style: 1.0/0.8/0.6/0.5), but vanilla
             // submits these mushroom/flower block models through the entity render type which dots
@@ -345,9 +334,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // producing the mushroom-cap speckle / apparent UV flip. Culling drops the away-facing
             // half so only the correctly-oriented face survives, no depth fight.
             out.add(new VisibleTriangle(
-                Vector3f.transform(tri.position0(), finalMatrix),
-                Vector3f.transform(tri.position1(), finalMatrix),
-                Vector3f.transform(tri.position2(), finalMatrix),
+                tri.position0().transform(finalMatrix),
+                tri.position1().transform(finalMatrix),
+                tri.position2().transform(finalMatrix),
                 tri.uv0(), tri.uv1(), tri.uv2(),
                 tri.texture(), tri.tintArgb(),
                 transformedNormal,
@@ -483,7 +472,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         float syMid = (screenBounds.minY() + screenBounds.maxY()) * 0.5f;
         float szMid = (screenBounds.minZ() + screenBounds.maxZ()) * 0.5f;
         Matrix4f isoInverse = composeIsoInverse(userRotation);
-        return Vector3f.transform(new Vector3f(sxMid, syMid, szMid), isoInverse);
+        return new Vector3f(sxMid, syMid, szMid).transform(isoInverse);
     }
 
     /**

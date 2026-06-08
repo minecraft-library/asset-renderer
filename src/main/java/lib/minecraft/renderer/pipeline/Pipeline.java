@@ -18,8 +18,7 @@ import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockTag;
 import lib.minecraft.renderer.asset.binding.BannerPattern;
-import lib.minecraft.renderer.asset.model.BlockModelData;
-import lib.minecraft.renderer.asset.model.ItemModelData;
+import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.pack.ColorMap;
 import lib.minecraft.renderer.asset.pack.Texture;
 import lib.minecraft.renderer.asset.pack.TexturePack;
@@ -95,8 +94,8 @@ public class Pipeline {
 
         PackBundle packs = resolvePacks(options, packRoot);
 
-        ConcurrentMap<String, BlockModelData> blockModels = ModelResolver.loadBlockModels(packs.combinedRoots());
-        ConcurrentMap<String, ItemModelData> itemModels = ModelResolver.loadItemModels(packs.combinedRoots());
+        ConcurrentMap<String, ModelData> blockModels = ModelResolver.loadBlockModels(packs.combinedRoots());
+        ConcurrentMap<String, ModelData> itemModels = ModelResolver.loadItemModels(packs.combinedRoots());
 
         ConcurrentMap<String, Texture> textures = TexturePackLoader.scanTextures(packs.ascending());
         ConcurrentMap<ColorMap.Type, ColorMap> colorMaps = ColorMapLoader.load();
@@ -450,8 +449,8 @@ public class Pipeline {
         private final @NotNull ConcurrentMap<String, Texture> textures;
         private final @NotNull ConcurrentMap<ColorMap.Type, ColorMap> colorMaps;
         private final @NotNull ConcurrentMap<String, Block.Tint> blockTints;
-        private final @NotNull ConcurrentMap<String, BlockModelData> blockModels;
-        private final @NotNull ConcurrentMap<String, ItemModelData> itemModels;
+        private final @NotNull ConcurrentMap<String, ModelData> blockModels;
+        private final @NotNull ConcurrentMap<String, ModelData> itemModels;
         private final @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants;
         private final @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts;
         private final @NotNull ConcurrentMap<String, String> itemDefinitions;

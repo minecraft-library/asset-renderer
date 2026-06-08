@@ -11,7 +11,7 @@ import dev.simplified.gson.GsonSettings;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.binding.DyeColor;
-import lib.minecraft.renderer.asset.model.BlockModelData;
+import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.kit.BlockGeometryKit;
@@ -36,7 +36,7 @@ import java.util.Map;
  * emitted directly into the block entries by the tooling's id-pattern walker.
  *
  * <p>The output is a flat map of block id to {@link Block.Entity} carrying a populated
- * {@link BlockModelData} (with real {@link ModelElement elements}) and the entity texture
+ * {@link ModelData} (with real {@link ModelElement elements}) and the entity texture
  * reference. These blocks render through the standard block model path
  * ({@link BlockGeometryKit#buildFromElements}) with no entity model pipeline.
  */
@@ -100,7 +100,7 @@ public class BlockModelLoader {
                 String blockId = block.get("blockId").getAsString();
                 String textureId = block.get("textureId").getAsString();
 
-                BlockModelData modelData = parseBlockModelData(modelJson, textureId);
+                ModelData modelData = parseBlockModelData(modelJson, textureId);
 
                 // A block listed under a blockstate {@code variant} contributes a state-conditional
                 // model, not the block's primary geometry: register it as a geometry-bearing
@@ -134,7 +134,7 @@ public class BlockModelLoader {
                         if (partModel == null) continue;
                         JsonObject partModelJson = partModel.has("model") ? partModel.getAsJsonObject("model") : null;
                         if (partModelJson == null) continue;
-                        BlockModelData partData = parseBlockModelData(partModelJson, partTexture);
+                        ModelData partData = parseBlockModelData(partModelJson, partTexture);
                         parts.add(new Block.Entity.Part(partModelId, partData, partTexture, offset));
                     }
                 }
@@ -188,7 +188,7 @@ public class BlockModelLoader {
     /**
      * Returns {@code true} when any element of {@code model} escapes the {@code 0..16} block bbox.
      */
-    private static boolean extentsExceedBlock(@NotNull BlockModelData model) {
+    private static boolean extentsExceedBlock(@NotNull ModelData model) {
         for (ModelElement me : model.getElements()) {
             if (me.getFrom()[0] < -0.1f || me.getFrom()[1] < -0.1f || me.getFrom()[2] < -0.1f ||
                 me.getTo()[0] > 16.1f || me.getTo()[1] > 16.1f || me.getTo()[2] > 16.1f) {
@@ -215,10 +215,10 @@ public class BlockModelLoader {
     }
 
     /**
-     * Parses a block model JSON object (with elements array) into a {@link BlockModelData},
+     * Parses a block model JSON object (with elements array) into a {@link ModelData},
      * including the texture variable binding so {@code #entity} resolves at render time.
      */
-    private static @NotNull BlockModelData parseBlockModelData(@NotNull JsonObject json, @NotNull String textureId) {
+    private static @NotNull ModelData parseBlockModelData(@NotNull JsonObject json, @NotNull String textureId) {
         JsonObject modelJson = new JsonObject();
 
         if (json.has("elements"))
@@ -228,7 +228,7 @@ public class BlockModelLoader {
         textures.addProperty("entity", textureId);
         modelJson.add("textures", textures);
 
-        return GSON.fromJson(modelJson, BlockModelData.class);
+        return GSON.fromJson(modelJson, ModelData.class);
     }
 
     /**

@@ -34,7 +34,6 @@ import lib.minecraft.text.font.MinecraftFont;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -567,18 +566,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             @NotNull ModelEngine engine,
             @NotNull Item item
         ) {
-            Map<String, PixelBuffer> result = new HashMap<>();
-            ConcurrentMap<String, String> variables = item.getModel().getTextures();
-            for (ModelElement element : item.getModel().getElements()) {
-                for (ModelFace face : element.getFaces().values()) {
-                    String ref = face.getTexture();
-                    if (ref.isBlank() || result.containsKey(ref)) continue;
-                    String resolvedId = TextureEngine.resolveTextureReference(ref, variables);
-                    if (resolvedId.startsWith("#")) continue;
-                    result.put(ref, engine.resolveTexture(resolvedId));
-                }
-            }
-            return result;
+            return TextureEngine.loadElementFaceTextures(
+                item.getModel().getElements(), item.getModel().getTextures(),
+                id -> Optional.of(engine.resolveTexture(id)));
         }
 
         /**

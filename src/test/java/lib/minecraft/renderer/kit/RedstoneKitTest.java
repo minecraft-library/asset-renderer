@@ -1,7 +1,5 @@
 package lib.minecraft.renderer.kit;
 
-import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.pack.ColorMap;
 import lib.minecraft.renderer.asset.pack.TexturePack;
@@ -83,8 +81,8 @@ class RedstoneKitTest {
      */
     static @NotNull RendererContext stubContext(@NotNull Map<String, Integer> overrides) {
         return new RendererContext() {
-            @Override public @NotNull ConcurrentList<TexturePack> activePacks() {
-                return Concurrent.newList();
+            @Override public @NotNull Optional<TexturePack> findPack(@NotNull String id) {
+                return Optional.empty();
             }
 
             @Override public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {

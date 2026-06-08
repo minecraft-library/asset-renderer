@@ -100,11 +100,34 @@ public class EntityGeometryKit {
             .multiply(Matrix4f.createRotationY(-iso.yawRadians()))
             .multiply(Matrix4f.createRotationX(-iso.pitchRadians()))
             .multiply(Matrix4f.createScale(1f, 1f, -1f));
-        return Vector3f.transformNormal(new Vector3f(0f, 0f, -1f), viewToKit);
+        return new Vector3f(0f, 0f, -1f).transformNormal(viewToKit);
     }
 
     /**
-     * Convenience overload that auto-computes bounds for a single-layer render.
+     * Parameters for a native-resolution entity triangle build. Bundles the five values that vary
+     * per render so callers spell them at a named call boundary instead of through a telescoping
+     * positional overload cascade.
+     *
+     * @param centreAnchor model-space point that maps to the canvas centre
+     * @param emissive whether every emitted triangle renders full-bright and additive (eyes,
+     *     glowing spots)
+     * @param ndcScale model-units-to-NDC scale applied after centring on {@code centreAnchor}
+     * @param modelScale per-render vertex pre-scale folded in before the NDC scale (vanilla's
+     *     combined renderer-scale + state-scale chain)
+     * @param tintArgb ARGB tint multiplied into every sampled texel; {@link ColorMath#WHITE}
+     *     ({@code 0xFFFFFFFF}) is a no-op tint
+     */
+    public record EntityBuildParams(
+        @NotNull Vector3f centreAnchor,
+        boolean emissive,
+        float ndcScale,
+        float modelScale,
+        int tintArgb
+    ) {}
+
+    /**
+     * Convenience overload that auto-computes bounds and the legacy auto-fit scale
+     * ({@code ENTITY_MODEL_FIT_EXTENT / bounds.maxExtent}) for a single-layer render.
      *
      * @param model the entity model definition (Java Y-down frame)
      * @param texture the shared texture atlas
@@ -114,138 +137,68 @@ public class EntityGeometryKit {
         @NotNull EntityModelData model,
         @NotNull PixelBuffer texture
     ) {
-        return buildTriangles(model, texture, computeBounds(model), false);
-    }
-
-    /**
-     * Variant accepting caller-supplied bounds for layered renders that must share one auto-fit
-     * across base + overlay meshes.
-     */
-    public static @NotNull BuildResult buildTriangles(
-        @NotNull EntityModelData model,
-        @NotNull PixelBuffer texture,
-        @NotNull Box bounds
-    ) {
-        return buildTriangles(model, texture, bounds, false);
-    }
-
-    /**
-     * Full variant tagging every triangle with the supplied {@code emissive} flag for overlay
-     * layers that should render full-bright + additive (eyes / glowing spots). Uses the legacy
-     * auto-fit scale ({@code 0.9 / bounds.maxExtent}); see the {@code ndcScale} overload for
-     * native-resolution rendering aligned to the vanilla harness's pixels-per-block convention.
-     */
-    public static @NotNull BuildResult buildTriangles(
-        @NotNull EntityModelData model,
-        @NotNull PixelBuffer texture,
-        @NotNull Box bounds,
-        boolean emissive
-    ) {
+        Box bounds = computeBounds(model);
         float extent = Math.max(bounds.maxExtent(), MIN_MODEL_EXTENT);
-        float cx = (bounds.minX() + bounds.maxX()) * 0.5f;
-        float cy = (bounds.minY() + bounds.maxY()) * 0.5f;
-        float cz = (bounds.minZ() + bounds.maxZ()) * 0.5f;
-        return buildTrianglesWithScale(model, texture, new Vector3f(cx, cy, cz), emissive, ENTITY_MODEL_FIT_EXTENT / extent, 1f, ColorMath.WHITE);
+        Vector3f centre = new Vector3f(
+            (bounds.minX() + bounds.maxX()) * 0.5f,
+            (bounds.minY() + bounds.maxY()) * 0.5f,
+            (bounds.minZ() + bounds.maxZ()) * 0.5f);
+        return buildTriangles(model, texture,
+            new EntityBuildParams(centre, false, ENTITY_MODEL_FIT_EXTENT / extent, 1f, ColorMath.WHITE));
     }
 
     /**
-     * Native-resolution variant: caller supplies the model-units-to-NDC scale instead of the kit
-     * auto-fitting via {@link #ENTITY_MODEL_FIT_EXTENT}. Used by
-     * {@link EntityRenderer} to match the vanilla-reference-harness's
-     * fixed {@code pixelsPerBlock} convention so two pipelines render at the same screen scale.
+     * Native-resolution overload taking an explicit model-space centre anchor and per-render tint.
+     * Used by {@link EntityRenderer} to match the vanilla-reference-harness's fixed
+     * {@code pixelsPerBlock} convention and to centre the silhouette on the canvas via the
+     * model-space point whose iso projection equals the screen-space silhouette midpoint.
+     * Convenience wrapper over {@link #buildTriangles(EntityModelData, PixelBuffer, EntityBuildParams)}.
      *
      * @param model the entity model definition (Java Y-down frame)
      * @param texture the shared texture atlas
-     * @param bounds caller-supplied bounds (used for the centre anchor only - not for scale)
+     * @param modelCentreAnchor model-space point that maps to the canvas centre
      * @param emissive whether triangles render full-bright + additive
-     * @param ndcScale model-units-to-NDC scale; pre-computed by the renderer from the canvas
-     *     dimensions and target pixels-per-block so {@code (vec - centre) * ndcScale} lands in NDC
+     * @param ndcScale model-units-to-NDC scale pre-computed from the canvas dimensions and target
+     *     pixels-per-block
+     * @param modelScale per-render vertex pre-scale (vanilla renderer-scale + state-scale chain)
+     * @param tintArgb the ARGB tint applied to every triangle this call produces; use
+     *     {@code 0xFFFFFFFF} ({@link ColorMath#WHITE}) for no tint
      * @return the build result containing triangles and per-bone bounds
      */
     public static @NotNull BuildResult buildTriangles(
         @NotNull EntityModelData model,
         @NotNull PixelBuffer texture,
-        @NotNull Box bounds,
-        boolean emissive,
-        float ndcScale
-    ) {
-        float cx = (bounds.minX() + bounds.maxX()) * 0.5f;
-        float cy = (bounds.minY() + bounds.maxY()) * 0.5f;
-        float cz = (bounds.minZ() + bounds.maxZ()) * 0.5f;
-        return buildTrianglesWithScale(model, texture, new Vector3f(cx, cy, cz), emissive, ndcScale, 1f, ColorMath.WHITE);
-    }
-
-    /**
-     * Native-resolution variant with a per-render model pre-scale. {@code modelScale} multiplies
-     * every model vertex before the {@code (vec - centre) * ndcScale} step so vanilla's combined
-     * renderer-scale + state-scale chain (e.g. wither's {@code scale(2,2,2)}, giant's
-     * {@code state.scale=6}) lands at the harness's submit-time size. Caller-supplied bounds
-     * must be the K-scaled bounds (so the centre matches the scaled vertices).
-     */
-    public static @NotNull BuildResult buildTriangles(
-        @NotNull EntityModelData model,
-        @NotNull PixelBuffer texture,
-        @NotNull Box bounds,
-        boolean emissive,
-        float ndcScale,
-        float modelScale
-    ) {
-        float cx = (bounds.minX() + bounds.maxX()) * 0.5f;
-        float cy = (bounds.minY() + bounds.maxY()) * 0.5f;
-        float cz = (bounds.minZ() + bounds.maxZ()) * 0.5f;
-        return buildTrianglesWithScale(model, texture, new Vector3f(cx, cy, cz), emissive, ndcScale, modelScale, ColorMath.WHITE);
-    }
-
-    /**
-     * Native-resolution variant taking an explicit model-space centre anchor (replacing the
-     * {@code bounds.centre()} default). Used by
-     * {@link EntityRenderer} to centre the silhouette on the canvas
-     * by passing the model-space point whose iso projection equals the screen-space silhouette
-     * midpoint - the {@code bounds.centre()} default over-pads non-brick-shaped silhouettes.
-     */
-    public static @NotNull BuildResult buildTriangles(
-        @NotNull EntityModelData model,
-        @NotNull PixelBuffer texture,
         @NotNull Vector3f modelCentreAnchor,
         boolean emissive,
         float ndcScale,
-        float modelScale
+        float modelScale,
+        int tintArgb
     ) {
-        return buildTrianglesWithScale(model, texture, modelCentreAnchor, emissive, ndcScale, modelScale, ColorMath.WHITE);
+        return buildTriangles(model, texture,
+            new EntityBuildParams(modelCentreAnchor, emissive, ndcScale, modelScale, tintArgb));
     }
 
     /**
-     * Variant taking a per-render ARGB tint that the rasterizer multiplies into every sampled
-     * texel ({@code MULTIPLY} blend). Mirrors vanilla {@code LivingEntityRenderer.getModelTint}
-     * (passed via {@code coloredCutoutModelRender}) and the per-layer pattern colors in
-     * {@code TropicalFishPatternLayer} / {@code SheepWoolLayer}. {@link
-     * dev.simplified.image.pixel.ColorMath#WHITE} is a no-op tint - same as the
-     * non-tint overload.
+     * Builds rasterizer-ready triangles for an entity model at native resolution from the supplied
+     * build parameters. Both the auto-fit convenience overload and the renderer's native-scale
+     * overload delegate here.
      *
-     * @param tintArgb the ARGB tint applied to every triangle this call produces. Use
-     *     {@code 0xFFFFFFFF} ({@link ColorMath#WHITE}) for no tint
+     * @param model the entity model definition (Java Y-down frame)
+     * @param texture the shared texture atlas
+     * @param params the centre anchor, emissive flag, scale factors, and tint for this build
+     * @return the build result containing triangles and per-bone bounds
      */
     public static @NotNull BuildResult buildTriangles(
         @NotNull EntityModelData model,
         @NotNull PixelBuffer texture,
-        @NotNull Vector3f modelCentreAnchor,
-        boolean emissive,
-        float ndcScale,
-        float modelScale,
-        int tintArgb
+        @NotNull EntityBuildParams params
     ) {
-        return buildTrianglesWithScale(model, texture, modelCentreAnchor, emissive, ndcScale, modelScale, tintArgb);
-    }
+        Vector3f centre = params.centreAnchor();
+        boolean emissive = params.emissive();
+        float scale = params.ndcScale();
+        float modelScale = params.modelScale();
+        int tintArgb = params.tintArgb();
 
-    private static @NotNull BuildResult buildTrianglesWithScale(
-        @NotNull EntityModelData model,
-        @NotNull PixelBuffer texture,
-        @NotNull Vector3f centre,
-        boolean emissive,
-        float scale,
-        float modelScale,
-        int tintArgb
-    ) {
         Map<String, Matrix4f> chainTransforms = buildChainTransforms(model.getBones());
 
         float cx = centre.x();
@@ -337,7 +290,7 @@ public class EntityGeometryKit {
                 for (EntityFace face : EntityFace.CACHED_VALUES) {
                     Vector3f[] corners = face.corners(cubeBounds);
                     for (int i = 0; i < 4; i++) {
-                        Vector3f transformed = Vector3f.transform(corners[i], perCubeChain);
+                        Vector3f transformed = corners[i].transform(perCubeChain);
                         float nx = transformed.x();
                         float ny = transformed.y();
                         float nz = transformed.z();
@@ -351,7 +304,7 @@ public class EntityGeometryKit {
                         bMaxZ = Math.max(bMaxZ, nz);
                     }
 
-                    Vector3f rawNormal = Vector3f.normalize(Vector3f.transformNormal(face.normal(), fullTransform));
+                    Vector3f rawNormal = face.normal().transformNormal(fullTransform).normalize();
                     // Kit's permanent Y-flip on normals matches the Y-flip on positions so
                     // shading consults the post-flip face direction.
                     Vector3f normal = new Vector3f(rawNormal.x(), -rawNormal.y(), rawNormal.z());
@@ -627,9 +580,9 @@ public class EntityGeometryKit {
         @NotNull Vector3f p, @NotNull Matrix4f cubeTransform, float modelScale,
         @NotNull Matrix4f screenTransform, @NotNull BoundsAccumulator acc
     ) {
-        Vector3f cubeSpace = Vector3f.transform(p, cubeTransform);
+        Vector3f cubeSpace = p.transform(cubeTransform);
         Vector3f scaled = new Vector3f(cubeSpace.x() * modelScale, cubeSpace.y() * modelScale, cubeSpace.z() * modelScale);
-        Vector3f screen = Vector3f.transform(scaled, screenTransform);
+        Vector3f screen = scaled.transform(screenTransform);
         acc.add(screen);
         return screen;
     }
@@ -759,7 +712,7 @@ public class EntityGeometryKit {
                 float[] zs = { oz - scaledInflate, oz + s * size.z() + scaledInflate };
 
                 for (float x : xs) for (float y : ys) for (float z : zs) {
-                    Vector3f c = Vector3f.transform(new Vector3f(x, y, z), fullTransform);
+                    Vector3f c = new Vector3f(x, y, z).transform(fullTransform);
                     minX = Math.min(minX, c.x());
                     minY = Math.min(minY, c.y());
                     minZ = Math.min(minZ, c.z());
@@ -1106,7 +1059,7 @@ public class EntityGeometryKit {
         if (cubeCullBackFaces)
             return RenderEngine.computeEntityInUiLighting(normal);
 
-        Vector3f cameraFacing = Vector3f.dot(VIEW_DIRECTION_KIT, normal) < 0f
+        Vector3f cameraFacing = VIEW_DIRECTION_KIT.dot(normal) < 0f
             ? normal
             : new Vector3f(-normal.x(), -normal.y(), -normal.z());
         return RenderEngine.computeEntityInUiLighting(cameraFacing);

@@ -5,7 +5,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockTag;
-import lib.minecraft.renderer.asset.model.BlockModelData;
+import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.engine.TextureEngine;
@@ -74,7 +74,7 @@ public class BlockIndexLoader {
 
         int before = blockIndex.size();
         blockIndex.entrySet().removeIf(entry -> {
-            BlockModelData model = entry.getValue().getModel();
+            ModelData model = entry.getValue().getModel();
             return isInvisible(entry.getKey())
                 || Models.rendersNothing(model.getElements(), model.getTextures(), false);
         });
@@ -162,7 +162,7 @@ public class BlockIndexLoader {
     }
 
     /**
-     * Builds the primary block index by walking every parsed {@link BlockModelData} entry and
+     * Builds the primary block index by walking every parsed {@link ModelData} entry and
      * materialising a {@link Block} per id.
      * <p>
      * Three subtleties are folded in. <b>Item-def overrides</b>: when the inventory rendering
@@ -196,16 +196,16 @@ public class BlockIndexLoader {
         ConcurrentMap<String, Block.Multipart> multipartMap = result.getBlockMultiparts();
 
         HashMap<String, Block> blockIndex = new HashMap<>();
-        for (Map.Entry<String, BlockModelData> blockEntry : result.getBlockModels().entrySet()) {
+        for (Map.Entry<String, ModelData> blockEntry : result.getBlockModels().entrySet()) {
             String modelId = blockEntry.getKey();
-            BlockModelData model = blockEntry.getValue();
+            ModelData model = blockEntry.getValue();
             String blockId = Models.stripPrefix(modelId, ":block/");
             String name = Models.localName(modelId);
 
-            BlockModelData modelToUse = model;
+            ModelData modelToUse = model;
             String itemModelRef = itemDefs.get(blockId);
             if (itemModelRef != null && !itemModelRef.equals(modelId)) {
-                BlockModelData override = result.getBlockModels().get(itemModelRef);
+                ModelData override = result.getBlockModels().get(itemModelRef);
                 if (override != null)
                     modelToUse = override;
             }
@@ -364,7 +364,7 @@ public class BlockIndexLoader {
             ResolvedBlockModel hit = resolved.get();
 
             String shortName = blockId.contains(":") ? blockId.substring(blockId.indexOf(':') + 1) : blockId;
-            BlockModelData modelToUse = hit.model();
+            ModelData modelToUse = hit.model();
             HashMap<String, String> textures = new HashMap<>(modelToUse.getTextures());
             flattenElementFaces(modelToUse, textures);
 
@@ -396,10 +396,10 @@ public class BlockIndexLoader {
     }
 
     /**
-     * Paired model id + concrete {@link BlockModelData} returned by the blockstate-only resolver.
+     * Paired model id + concrete {@link ModelData} returned by the blockstate-only resolver.
      * The id is retained alongside the data so the caller can stamp the block's model reference.
      */
-    private record ResolvedBlockModel(@NotNull String modelId, @NotNull BlockModelData model) {}
+    private record ResolvedBlockModel(@NotNull String modelId, @NotNull ModelData model) {}
 
     /**
      * Resolves a blockstate-only id to a concrete block model, trying the item-def inventory
@@ -426,11 +426,11 @@ public class BlockIndexLoader {
         @NotNull String blockId,
         @NotNull ConcurrentMap<String, String> itemDefs,
         @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variantMap,
-        @NotNull ConcurrentMap<String, BlockModelData> blockModels
+        @NotNull ConcurrentMap<String, ModelData> blockModels
     ) {
         String itemModelRef = itemDefs.get(blockId);
         if (itemModelRef != null) {
-            BlockModelData model = blockModels.get(itemModelRef);
+            ModelData model = blockModels.get(itemModelRef);
             if (isUsableResolvedModel(model))
                 return Optional.of(new ResolvedBlockModel(itemModelRef, model));
         }
@@ -438,7 +438,7 @@ public class BlockIndexLoader {
         ConcurrentMap<String, Block.Variant> variants = variantMap.get(blockId);
         if (variants != null && !variants.isEmpty()) {
             String variantModelId = variants.values().iterator().next().modelId();
-            BlockModelData model = blockModels.get(variantModelId);
+            ModelData model = blockModels.get(variantModelId);
             if (isUsableResolvedModel(model))
                 return Optional.of(new ResolvedBlockModel(variantModelId, model));
         }
@@ -454,7 +454,7 @@ public class BlockIndexLoader {
      * to nothing and are rejected here - the same structural signal the renderer uses to keep them
      * out of the atlas, with no hardcoded id list.
      */
-    private static boolean isUsableResolvedModel(@Nullable BlockModelData model) {
+    private static boolean isUsableResolvedModel(@Nullable ModelData model) {
         if (model == null) return false;
         if (model.getElements().isEmpty()) return false;
         HashMap<String, String> faces = new HashMap<>();
@@ -474,7 +474,7 @@ public class BlockIndexLoader {
      * contradictory bindings into the same direction key. A later pipeline phase will walk all
      * elements and pick a representative face per direction for multi-element blocks.
      */
-    private static void flattenElementFaces(@NotNull BlockModelData model, @NotNull Map<String, String> textures) {
+    private static void flattenElementFaces(@NotNull ModelData model, @NotNull Map<String, String> textures) {
         if (model.getElements().isEmpty()) return;
         ModelElement element = model.getElements().getFirst();
 

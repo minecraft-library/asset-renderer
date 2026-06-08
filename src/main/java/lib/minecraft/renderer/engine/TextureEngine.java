@@ -1,6 +1,8 @@
 package lib.minecraft.renderer.engine;
 
 import lib.minecraft.renderer.asset.Item;
+import lib.minecraft.renderer.asset.model.ModelElement;
+import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.geometry.Biome;
 
@@ -24,6 +26,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.nio.ByteBuffer;
 import java.util.Optional;
+import java.util.function.Function;
 
 /**
  * Baseline texture-aware engine. Every higher-level engine ({@link RasterEngine},
@@ -381,6 +384,42 @@ public class TextureEngine implements RenderEngine {
         }
 
         return current;
+    }
+
+    /**
+     * Resolves and loads every unique face texture referenced by a model's elements into a map
+     * keyed by the raw {@link ModelFace#getTexture()} reference (including any leading {@code #}).
+     * <p>
+     * Walks each element's faces, dereferences the {@code #variable} chain via
+     * {@link #resolveTextureReference}, skips refs that stay unresolved ({@code #}-prefixed) or
+     * blank, and loads each concrete id through the supplied {@code resolve} function exactly
+     * once. The caller chooses how a concrete id becomes a {@link PixelBuffer} - block paths pass
+     * a tick-aware {@code id -> Optional.of(resolveTextureAtTick(id, 0))}, the entity path passes
+     * the context's {@code Optional}-returning lookup - so this helper never decides the
+     * resolution strategy. Refs whose {@code resolve} yields an empty {@link Optional} are
+     * dropped, leaving the kit to treat them as no-texture faces.
+     *
+     * @param elements the model elements whose faces reference textures
+     * @param textureVars the model's {@code #variable} bindings to resolve refs against
+     * @param resolve maps a concrete namespaced texture id to its pixel buffer, or empty to skip
+     * @return a new map from raw face ref to its loaded pixel buffer
+     */
+    public static @NotNull ConcurrentMap<String, PixelBuffer> loadElementFaceTextures(
+        @NotNull Iterable<ModelElement> elements,
+        @NotNull ConcurrentMap<String, String> textureVars,
+        @NotNull Function<String, Optional<PixelBuffer>> resolve
+    ) {
+        ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
+        for (ModelElement element : elements) {
+            for (ModelFace face : element.getFaces().values()) {
+                String ref = face.getTexture();
+                if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
+                String resolvedId = resolveTextureReference(ref, textureVars);
+                if (resolvedId.startsWith("#")) continue;
+                resolve.apply(resolvedId).ifPresent(buffer -> faceTextures.put(ref, buffer));
+            }
+        }
+        return faceTextures;
     }
 
     /**

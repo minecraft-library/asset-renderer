@@ -3,7 +3,7 @@ package lib.minecraft.renderer.asset;
 import com.google.gson.annotations.SerializedName;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
-import lib.minecraft.renderer.asset.model.ItemModelData;
+import lib.minecraft.renderer.asset.model.ModelData;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -32,7 +32,7 @@ public class Item {
 
     private @NotNull String name = "";
 
-    private @NotNull ItemModelData model = new ItemModelData();
+    private @NotNull ModelData model = new ModelData();
 
     private @NotNull ConcurrentMap<String, String> textures = Concurrent.newMap();
 

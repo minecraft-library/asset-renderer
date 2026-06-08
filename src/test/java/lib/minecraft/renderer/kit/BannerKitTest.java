@@ -140,8 +140,8 @@ class BannerKitTest {
         }
 
         @Override
-        public @NotNull ConcurrentList<TexturePack> activePacks() {
-            return Concurrent.newList();
+        public @NotNull Optional<TexturePack> findPack(@NotNull String id) {
+            return Optional.empty();
         }
 
         @Override

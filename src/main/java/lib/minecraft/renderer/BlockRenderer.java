@@ -12,9 +12,7 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelBufferPool;
 import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.asset.model.BlockModelData;
-import lib.minecraft.renderer.asset.model.ModelElement;
-import lib.minecraft.renderer.asset.model.ModelFace;
+import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.engine.IsometricEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RenderEngine;
@@ -29,7 +27,6 @@ import lib.minecraft.renderer.kit.BlockGeometryKit;
 import lib.minecraft.renderer.options.BlockOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.tensor.Matrix4f;
-import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -37,6 +34,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Renders a {@link Block} as either a full 3D isometric tile or a single flat face by
@@ -197,7 +195,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 // model lookup is also skipped when the resolved model would be element-less,
                 // which guards against pack-level surprises for non-TILE_ENTITY blocks too.
                 Block.Variant variant = resolveVariant(block, effectiveVariant);
-                BlockModelData modelToUse = block.getModel();
+                ModelData modelToUse = block.getModel();
                 // Use the resolved variant's geometry whenever it carries real elements. For plain
                 // blocks this picks the per-state model (sweet_berry_bush age stages, doors). For
                 // {@link Block.Source#TILE_ENTITY} blocks the pack variant points at an empty
@@ -206,7 +204,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 // (the ceiling hanging sign's attached=true straight-chain mesh) - the non-empty
                 // check keeps the empty pack variants from clobbering the default BE model.
                 if (variant != null) {
-                    BlockModelData variantModel = variant.model();
+                    ModelData variantModel = variant.model();
                     if (!variantModel.getElements().isEmpty())
                         modelToUse = variantModel;
                 }
@@ -267,7 +265,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // keep their two-sided faces + camera-facing flip, so the cull is gated on the absence
             // of a {@link Block.Entity}.
             boolean cullBlockModelFaces = be == null;
-            triangles = relightForItems3d(triangles, guiRotation, cullBlockModelFaces);
+            triangles = RenderEngine.relightForItems3d(triangles, guiRotation, cullBlockModelFaces);
 
             int ssaa = Math.max(1, options.getSupersample());
             if (ssaa > 1) {
@@ -304,21 +302,13 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 Block.Variant apply = part.apply();
                 // The variant carries its baked model (resolved from the full model set at
                 // context construction); element-less means the apply's model id didn't resolve.
-                BlockModelData partModel = apply.model();
+                ModelData partModel = apply.model();
                 if (partModel.getElements().isEmpty()) continue;
 
                 // Build triangles for this part's model
-                ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
-                ConcurrentMap<String, String> variables = partModel.getTextures();
-                for (ModelElement element : partModel.getElements()) {
-                    for (Map.Entry<String, ModelFace> faceEntry : element.getFaces().entrySet()) {
-                        String ref = faceEntry.getValue().getTexture();
-                        if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
-                        String resolvedId = TextureEngine.resolveTextureReference(ref, variables);
-                        if (resolvedId.startsWith("#")) continue;
-                        faceTextures.put(ref, raster.resolveTextureAtTick(resolvedId, 0));
-                    }
-                }
+                ConcurrentMap<String, PixelBuffer> faceTextures = TextureEngine.loadElementFaceTextures(
+                    partModel.getElements(), partModel.getTextures(),
+                    id -> Optional.of(raster.resolveTextureAtTick(id, 0)));
 
                 ConcurrentList<VisibleTriangle> partTriangles = apply.uvlock()
                     ? BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint, apply.x(), apply.y(), true)
@@ -343,12 +333,12 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
             for (VisibleTriangle tri : triangles) {
                 rotated.add(new VisibleTriangle(
-                    Vector3f.transform(tri.position0(), rotation),
-                    Vector3f.transform(tri.position1(), rotation),
-                    Vector3f.transform(tri.position2(), rotation),
+                    tri.position0().transform(rotation),
+                    tri.position1().transform(rotation),
+                    tri.position2().transform(rotation),
                     tri.uv0(), tri.uv1(), tri.uv2(),
                     tri.texture(), tri.tintArgb(),
-                    Vector3f.transformNormal(tri.normal(), rotation),
+                    tri.normal().transformNormal(rotation),
                     tri.shading(), tri.cullBackFaces(), tri.emissive()
                 ));
             }
@@ -426,20 +416,11 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * block's primary {@link Block#getModel()} - e.g. {@code sweet_berry_bush_stage0} for
          * an {@code age=0} render.
          */
-        private @NotNull ConcurrentList<VisibleTriangle> buildFromBlockElements(@NotNull BlockModelData model, @Nullable Block.Variant variant, int tint, int untintedTint) {
+        private @NotNull ConcurrentList<VisibleTriangle> buildFromBlockElements(@NotNull ModelData model, @Nullable Block.Variant variant, int tint, int untintedTint) {
             RasterEngine raster = new RasterEngine(this.context);
-            ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
-            ConcurrentMap<String, String> variables = model.getTextures();
-
-            for (ModelElement element : model.getElements()) {
-                for (ModelFace face : element.getFaces().values()) {
-                    String ref = face.getTexture();
-                    if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
-                    String resolvedId = TextureEngine.resolveTextureReference(ref, variables);
-                    if (resolvedId.startsWith("#")) continue;
-                    faceTextures.put(ref, raster.resolveTextureAtTick(resolvedId, 0));
-                }
-            }
+            ConcurrentMap<String, PixelBuffer> faceTextures = TextureEngine.loadElementFaceTextures(
+                model.getElements(), model.getTextures(),
+                id -> Optional.of(raster.resolveTextureAtTick(id, 0)));
 
             // uvlock counter-rotates the up/down-face UVs against the variant Y rotation so the
             // texture stays world-aligned (the position rotation is applied separately by the
@@ -458,18 +439,11 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          */
         private @NotNull ConcurrentList<VisibleTriangle> buildFromAdditiveEntity(@NotNull Block.Entity entity, int tint, int untintedTint) {
             RasterEngine raster = new RasterEngine(this.context);
-            ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
             ConcurrentMap<String, String> variables = Concurrent.newMap();
             variables.put("entity", entity.textureId());
-            for (ModelElement element : entity.model().getElements()) {
-                for (ModelFace face : element.getFaces().values()) {
-                    String ref = face.getTexture();
-                    if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
-                    String resolvedId = TextureEngine.resolveTextureReference(ref, variables);
-                    if (resolvedId.startsWith("#")) continue;
-                    faceTextures.put(ref, raster.resolveTextureAtTick(resolvedId, 0));
-                }
-            }
+            ConcurrentMap<String, PixelBuffer> faceTextures = TextureEngine.loadElementFaceTextures(
+                entity.model().getElements(), variables,
+                id -> Optional.of(raster.resolveTextureAtTick(id, 0)));
             return BlockGeometryKit.buildFromElements(entity.model().getElements(), faceTextures, tint, untintedTint);
         }
 
@@ -498,18 +472,11 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 // binds to the part's own texture id (which may differ from the primary -
                 // decorated_pot sides use {@code entity/decorated_pot/decorated_pot_side}
                 // while the base uses {@code ..._base}).
-                ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
                 ConcurrentMap<String, String> variables = Concurrent.newMap();
                 variables.put("entity", part.texture());
-                for (ModelElement element : part.model().getElements()) {
-                    for (ModelFace face : element.getFaces().values()) {
-                        String ref = face.getTexture();
-                        if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
-                        String resolvedId = TextureEngine.resolveTextureReference(ref, variables);
-                        if (resolvedId.startsWith("#")) continue;
-                        faceTextures.put(ref, raster.resolveTextureAtTick(resolvedId, 0));
-                    }
-                }
+                ConcurrentMap<String, PixelBuffer> faceTextures = TextureEngine.loadElementFaceTextures(
+                    part.model().getElements(), variables,
+                    id -> Optional.of(raster.resolveTextureAtTick(id, 0)));
 
                 ConcurrentList<VisibleTriangle> partTriangles =
                     BlockGeometryKit.buildFromElements(part.model().getElements(), faceTextures, tint, untintedTint);
@@ -564,23 +531,15 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             if (first == null)
                 return Concurrent.newList();
 
-            BlockModelData partModel = first.model();
+            ModelData partModel = first.model();
 
             if (partModel.getElements().isEmpty())
                 return Concurrent.newList();
 
             RasterEngine raster = new RasterEngine(this.context);
-            ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
-            ConcurrentMap<String, String> variables = partModel.getTextures();
-            for (ModelElement element : partModel.getElements()) {
-                for (Map.Entry<String, ModelFace> faceEntry : element.getFaces().entrySet()) {
-                    String ref = faceEntry.getValue().getTexture();
-                    if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
-                    String resolvedId = TextureEngine.resolveTextureReference(ref, variables);
-                    if (resolvedId.startsWith("#")) continue;
-                    faceTextures.put(ref, raster.resolveTextureAtTick(resolvedId, 0));
-                }
-            }
+            ConcurrentMap<String, PixelBuffer> faceTextures = TextureEngine.loadElementFaceTextures(
+                partModel.getElements(), partModel.getTextures(),
+                id -> Optional.of(raster.resolveTextureAtTick(id, 0)));
 
             ConcurrentList<VisibleTriangle> triangles = first.uvlock()
                 ? BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint, first.x(), first.y(), true)
@@ -711,184 +670,6 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 ));
             }
             return result;
-        }
-
-        /**
-         * Re-shades every triangle with vanilla's {@code Lighting.ITEMS_3D} Lambertian based on
-         * the triangle's normal rotated through the block's {@code display.gui} pose and the
-         * GUI PoseStack's Y-flip ({@code scale(W, -H, W)}). Replaces the cardinal-bucket
-         * shading {@link BlockGeometryKit} bakes at quad-emit time.
-         * <p>
-         * The transform chain mirrors vanilla's render path exactly: vanilla submits each
-         * quad's normal via {@code pose.transformNormal(quadNormal)}, where {@code pose} =
-         * {@code translate(W/2,H/2,0) × scale(W,-H,W) × Q_{display.gui}}. Translation doesn't
-         * affect direction; the upper-3x3 of the scale is {@code diag(1, -1, 1)} (up to magnitude,
-         * which renormalises out for direction vectors); the gui rotation is a pure rotation.
-         * So the per-vertex normal handed to the fragment shader is
-         * {@code S(1,-1,1) × R_{gui} × n_model}, and that's what
-         * {@link RenderEngine#computeBlockItems3dLighting} expects.
-         * <p>
-         * When {@code forceCullBackFaces} is set (plain block models, see the caller) every emitted
-         * triangle is marked {@code cullBackFaces=true} regardless of its built-in flag, matching
-         * vanilla's block render types, which all bind GL culling. {@link BlockGeometryKit} marks
-         * zero-thickness ({@code block/cross}, crop, multiface) faces two-sided so both authored
-         * sides survive; the rasterizer's winding cull then keeps only the camera-facing one - the
-         * same single-sided result vanilla shows, without the away-facing mirror-UV overdraw. The
-         * camera-facing flip below is therefore skipped for those faces (they cull instead). Passing
-         * {@code false} (block-entity surfaces - signs, banner cloth, hanging-sign chains, which
-         * vanilla renders with {@code entityCutoutNoCull}) keeps the two-sided faces and the flip.
-         */
-        private static @NotNull ConcurrentList<VisibleTriangle> relightForItems3d(
-            @NotNull ConcurrentList<VisibleTriangle> triangles,
-            @NotNull EulerRotation guiRotation,
-            boolean forceCullBackFaces
-        ) {
-            Matrix4f normalTransform = Matrix4f.IDENTITY
-                .scale(1f, -1f, 1f)
-                .rotate(Quaternionf.rotationXYZ(
-                    guiRotation.pitchRadians(),
-                    guiRotation.yawRadians(),
-                    guiRotation.rollRadians()
-                ));
-            ConcurrentList<VisibleTriangle> out = Concurrent.newList();
-            for (VisibleTriangle t : triangles) {
-                boolean cull = forceCullBackFaces || t.cullBackFaces();
-                // A {@code "shade": false} model element (coral fans, cross/crop plants, ladder,
-                // vine, tripwire, redstone dust, torches) carries {@link BlockGeometryKit#SHADE_DISABLED}.
-                // Vanilla's {@code getShade(direction, shade=false)} returns 1.0 - the face skips the
-                // directional darkening entirely - so render it full-bright instead of applying the
-                // {@code Lighting.ITEMS_3D} Lambertian. (The cull / two-sided handling is unchanged;
-                // only the shade factor differs.)
-                if (t.shading() == BlockGeometryKit.SHADE_DISABLED) {
-                    out.add(new VisibleTriangle(
-                        t.position0(), t.position1(), t.position2(),
-                        t.uv0(), t.uv1(), t.uv2(),
-                        t.texture(), t.tintArgb(), t.normal(),
-                        1.0f, cull, t.emissive(), t.translucent(), t.debugTag()
-                    ));
-                    continue;
-                }
-                // The outward facing of this quad. Normally the authored face normal ({@code
-                // t.normal()}) - the cardinal pushed through the element-rotation matrix - but the
-                // {@code spawner}/{@code trial_spawner}/{@code vault} inner-faces models emit a second
-                // cube with INVERTED geometry ({@code from > to}, reversed winding) whose authored
-                // normals point the wrong way; for those the winding (cross-product) normal is the
-                // true facing. Use the winding normal only when it contradicts the authored one.
-                Vector3f geometricNormal = Vector3f.normalize(Vector3f.cross(
-                    t.position1().subtract(t.position0()),
-                    t.position2().subtract(t.position0())));
-                Vector3f outwardNormal = Vector3f.dot(geometricNormal, t.normal()) < 0f ? geometricNormal : t.normal();
-                // Vanilla's plain-block GUI path ({@code BlockFeatureRenderer.putBakedQuad}) carries NO
-                // per-vertex normal: every quad lights by its single {@code BakedQuad.direction =
-                // requireNonNullElse(FaceBakery.calculateFacing(verts), UP)}, the cardinal nearest the
-                // quad's geometric normal - not the continuous tilted normal. So lectern's -22.5deg
-                // reading surface ((0, 0.924, -0.383)) lights as its nearest cardinal UP (full bright),
-                // exactly as if it were a flat top, and the iso reference matches.
-                //
-                // Snap from {@code outwardNormal} (the authored normal pushed through the element-
-                // rotation matrix) rather than {@code geometricNormal} (the cross of the tessellated
-                // TRIANGLE, one of whose edges is the quad diagonal). At an exactly-45deg face the two
-                // tied cardinals decide on the sub-ULP balance of the normal's components, and the
-                // triangle-diagonal cross drifts one ULP off symmetry - e.g. on a sculk-sensor tendril
-                // it pushes |x| past |z| and wrongly snaps EAST/WEST (shade 0.65/0.49) where the
-                // reference shows the Z cardinal (0.40). The element-rotation matrix yields a bit-
-                // symmetric authored normal ({@code |x| == |z|} to the raw int bits), so the tie falls
-                // to the lower {@code Direction.values()} index and reproduces the reference shade.
-                //
-                // Block-entity surfaces (signs, banner cloth, hanging-sign chains) render through
-                // vanilla's entity path ({@code entityCutoutNoCull} + {@code PER_FACE_LIGHTING}), not
-                // {@code putBakedQuad}, so they keep the continuous normal and the camera-facing flip.
-                Vector3f shadeNormal = forceCullBackFaces
-                    ? closestCardinalUnitVec(outwardNormal)
-                    : outwardNormal;
-                Vector3f renderNormal = Vector3f.normalize(Vector3f.transformNormal(shadeNormal, normalTransform));
-                // Two-sided (no back-face cull) faces: shade by the camera-facing normal. Vanilla's
-                // ENTITY_CUTOUT / sign pipeline composes withCull(false) + PER_FACE_LIGHTING, whose
-                // fragment shader picks the front- or back-vertex colour by screen-space winding -
-                // equivalent to shading against whichever normal points at the camera. A zero-depth
-                // plane emits two coplanar polygons with opposite normals (sign chains, banner cloth,
-                // item-frame backing); without this, the asset shades by whichever polygon wins the
-                // coplanar depth tie (the away-facing one over-brightens to ~1.0 where vanilla shows
-                // the camera-facing ~0.5). Visible iso faces point at +Z in this render frame, so an
-                // away-facing (z < 0) two-sided normal is flipped before lighting. Faces that cull
-                // (genuine cube faces, or plain block models under {@code forceCullBackFaces})
-                // already present only their front side, so they are left untouched.
-                if (!cull && renderNormal.z() < 0f)
-                    renderNormal = new Vector3f(-renderNormal.x(), -renderNormal.y(), -renderNormal.z());
-                // Match vanilla's vertex-stream byte-packed normal: the shader receives the
-                // normal after a signed-byte SNORM round-trip ({@code (int)(c * 127.0F) / 127.0F},
-                // truncated toward zero). For the LEFT face of a default iso pose, this maps
-                // unit (-0.7071, 0.3536, 0.6124) -> (-0.7008, 0.3465, 0.6063), magnitude 0.9894;
-                // the resulting Lambertian shade drops from 0.6505 to 0.6490, matching vanilla's
-                // empirical 0.647 within precision. Without this step every block shows the
-                // visible-LEFT face's texels rounded ~1 LSB high.
-                Vector3f packedNormal = packAsSnormByte(renderNormal);
-                float shading = RenderEngine.computeBlockItems3dLighting(packedNormal);
-                out.add(new VisibleTriangle(
-                    t.position0(), t.position1(), t.position2(),
-                    t.uv0(), t.uv1(), t.uv2(),
-                    t.texture(), t.tintArgb(), t.normal(),
-                    shading, cull, t.emissive(), t.translucent(), t.debugTag()
-                ));
-            }
-            return out;
-        }
-
-        /**
-         * Six cardinal unit vectors in {@code net.minecraft.core.Direction.values()} declaration
-         * order (DOWN, UP, NORTH, SOUTH, WEST, EAST), matching the iteration order of vanilla's
-         * {@code FaceBakery.findClosestDirection}.
-         */
-        private static final Vector3f[] CARDINAL_UNIT_VECS = {
-            new Vector3f(0f, -1f, 0f),  // DOWN
-            new Vector3f(0f, 1f, 0f),   // UP
-            new Vector3f(0f, 0f, -1f),  // NORTH
-            new Vector3f(0f, 0f, 1f),   // SOUTH
-            new Vector3f(-1f, 0f, 0f),  // WEST
-            new Vector3f(1f, 0f, 0f)    // EAST
-        };
-
-        /**
-         * Returns the unit vector of the cardinal facing a baked block quad stores, replicating
-         * vanilla's {@code FaceBakery.findClosestDirection} plus the {@code BakedQuad} constructor's
-         * {@code requireNonNullElse(direction, UP)}.
-         * <p>
-         * Iterates the six cardinals in {@code Direction.values()} order and keeps the one with the
-         * strictly-greatest non-negative dot against {@code normal} - so a 45deg face resolves to the
-         * earlier cardinal on a tie (first wins), exactly as vanilla does. A degenerate face whose
-         * normal is zero (cross of collinear edges) leaves no winner and falls back to UP, matching
-         * vanilla's null-to-UP path. The selection is invariant to a positive uniform scale of
-         * {@code normal} (it preserves dot ordering), so an un-normalized normal works too.
-         *
-         * @param normal the quad's outward surface normal in model space
-         * @return the nearest cardinal's unit vector, or UP for a degenerate normal
-         */
-        private static @NotNull Vector3f closestCardinalUnitVec(@NotNull Vector3f normal) {
-            Vector3f closest = null;
-            float bestDot = 0f;
-            for (Vector3f cardinal : CARDINAL_UNIT_VECS) {
-                float d = Vector3f.dot(normal, cardinal);
-                if (d >= 0f && d > bestDot) {
-                    bestDot = d;
-                    closest = cardinal;
-                }
-            }
-            return closest != null ? closest : CARDINAL_UNIT_VECS[1]; // UP
-        }
-
-        /**
-         * Replicates vanilla's {@code BufferBuilder.normalIntValue} byte-packing followed by
-         * the shader's SNORM unpacking. Each component {@code c} is mapped to
-         * {@code (int)(clamp(c, -1, 1) * 127.0F) / 127.0F}, with the integer cast truncating
-         * toward zero (so {@code 0.6124 -> 77/127 = 0.6063}, not {@code 78/127 = 0.6142}).
-         * The result is not unit length - vanilla's shader doesn't renormalize either.
-         */
-        private static @NotNull Vector3f packAsSnormByte(@NotNull Vector3f n) {
-            return new Vector3f(
-                ((int) (Math.clamp(n.x(), -1f, 1f) * 127.0f)) / 127.0f,
-                ((int) (Math.clamp(n.y(), -1f, 1f) * 127.0f)) / 127.0f,
-                ((int) (Math.clamp(n.z(), -1f, 1f) * 127.0f)) / 127.0f
-            );
         }
 
     }

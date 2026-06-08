@@ -10,7 +10,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.asset.model.BlockModelData;
+import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lombok.Getter;
@@ -61,10 +61,10 @@ public class BlockStateLoader {
      *
      * @param packRoot the pack root directory
      * @param blockModels the parsed model set, keyed by full model id, used to bake each variant's
-     *     resolved {@link BlockModelData}
+     *     resolved {@link ModelData}
      * @return the parsed blockstate data
      */
-    public static @NotNull LoadResult load(@NotNull Path packRoot, @NotNull ConcurrentMap<String, BlockModelData> blockModels) {
+    public static @NotNull LoadResult load(@NotNull Path packRoot, @NotNull ConcurrentMap<String, ModelData> blockModels) {
         return load(Concurrent.newList(packRoot), blockModels);
     }
 
@@ -74,7 +74,7 @@ public class BlockStateLoader {
      * or multipart - matches Minecraft, which loads exactly one blockstate file per id from the
      * topmost matching pack.
      * <p>
-     * Each parsed {@link Block.Variant} carries its resolved {@link BlockModelData}, baked in from
+     * Each parsed {@link Block.Variant} carries its resolved {@link ModelData}, baked in from
      * {@code blockModels} at parse time so a variant reaches its geometry through its owning
      * {@link Block} rather than a context-level model registry. The bundled
      * {@code block_states.json} snapshot is read here too, supplying each block's canonical
@@ -84,7 +84,7 @@ public class BlockStateLoader {
      * @param blockModels the parsed model set, keyed by full model id
      * @return the parsed blockstate data
      */
-    public static @NotNull LoadResult load(@NotNull ConcurrentList<Path> assetRoots, @NotNull ConcurrentMap<String, BlockModelData> blockModels) {
+    public static @NotNull LoadResult load(@NotNull ConcurrentList<Path> assetRoots, @NotNull ConcurrentMap<String, ModelData> blockModels) {
         HashMap<String, ConcurrentMap<String, Block.Variant>> variants = new HashMap<>();
         HashMap<String, Block.Multipart> multiparts = new HashMap<>();
         for (Path root : assetRoots)
@@ -98,17 +98,17 @@ public class BlockStateLoader {
 
     /**
      * Resolves a variant's {@code modelId} against the full model set, returning the parsed
-     * {@link BlockModelData} or an element-less placeholder when the id is blank or unresolved.
+     * {@link ModelData} or an element-less placeholder when the id is blank or unresolved.
      * This is the single point where the 1:1 block-to-model link is established.
      *
      * @param modelId the full namespaced model id (e.g. {@code "minecraft:block/furnace"})
      * @param blockModels the full parsed-model set keyed by model id
-     * @return the resolved model, or an element-less {@link BlockModelData} when absent
+     * @return the resolved model, or an element-less {@link ModelData} when absent
      */
-    private static @NotNull BlockModelData resolveVariantModel(@NotNull String modelId, @NotNull ConcurrentMap<String, BlockModelData> blockModels) {
-        if (modelId.isEmpty()) return new BlockModelData();
-        BlockModelData model = blockModels.get(modelId);
-        return model != null ? model : new BlockModelData();
+    private static @NotNull ModelData resolveVariantModel(@NotNull String modelId, @NotNull ConcurrentMap<String, ModelData> blockModels) {
+        if (modelId.isEmpty()) return new ModelData();
+        ModelData model = blockModels.get(modelId);
+        return model != null ? model : new ModelData();
     }
 
     /**
@@ -148,7 +148,7 @@ public class BlockStateLoader {
      */
     private static void mergeRoot(
         @NotNull Path packRoot,
-        @NotNull ConcurrentMap<String, BlockModelData> blockModels,
+        @NotNull ConcurrentMap<String, ModelData> blockModels,
         @NotNull HashMap<String, ConcurrentMap<String, Block.Variant>> variants,
         @NotNull HashMap<String, Block.Multipart> multiparts
     ) {
@@ -183,7 +183,7 @@ public class BlockStateLoader {
         }
     }
 
-    private static @Nullable Parsed parseBlockstateFile(@NotNull Path file, @NotNull ConcurrentMap<String, BlockModelData> blockModels) {
+    private static @Nullable Parsed parseBlockstateFile(@NotNull Path file, @NotNull ConcurrentMap<String, ModelData> blockModels) {
         String fileName = file.getFileName().toString();
         String blockName = fileName.substring(0, fileName.length() - 5);
         String blockId = VanillaSourcePaths.MINECRAFT_NAMESPACE + blockName;
@@ -208,7 +208,7 @@ public class BlockStateLoader {
 
     private record Parsed(@NotNull String blockId, @Nullable ConcurrentMap<String, Block.Variant> variants, @Nullable Block.Multipart multipart) {}
 
-    private static @NotNull ConcurrentMap<String, Block.Variant> parseVariants(@NotNull JsonObject variants, @NotNull ConcurrentMap<String, BlockModelData> blockModels) {
+    private static @NotNull ConcurrentMap<String, Block.Variant> parseVariants(@NotNull JsonObject variants, @NotNull ConcurrentMap<String, ModelData> blockModels) {
         HashMap<String, Block.Variant> result = new HashMap<>();
 
         for (Map.Entry<String, JsonElement> entry : variants.entrySet()) {
@@ -231,7 +231,7 @@ public class BlockStateLoader {
         return Concurrent.adoptMap(result).toUnmodifiable();
     }
 
-    private static @NotNull Block.Multipart parseMultipart(@NotNull JsonArray parts, @NotNull ConcurrentMap<String, BlockModelData> blockModels) {
+    private static @NotNull Block.Multipart parseMultipart(@NotNull JsonArray parts, @NotNull ConcurrentMap<String, ModelData> blockModels) {
         ArrayList<Block.Multipart.Part> result = new ArrayList<>();
 
         for (JsonElement element : parts) {
@@ -261,7 +261,7 @@ public class BlockStateLoader {
         return new Block.Multipart(Concurrent.adoptList(result).toUnmodifiable());
     }
 
-    private static @NotNull Block.Variant parseApply(@NotNull JsonObject obj, @NotNull ConcurrentMap<String, BlockModelData> blockModels) {
+    private static @NotNull Block.Variant parseApply(@NotNull JsonObject obj, @NotNull ConcurrentMap<String, ModelData> blockModels) {
         String modelId = obj.has("model") ? obj.get("model").getAsString() : "";
         int x = obj.has("x") ? obj.get("x").getAsInt() : 0;
         int y = obj.has("y") ? obj.get("y").getAsInt() : 0;

@@ -47,7 +47,7 @@
  *       {@code Optional.empty()} when no rule matches.</li>
  * </ul>
  * Bulk-iteration accessors that return {@code ConcurrentList} use bare names
- * ({@code activePacks}, {@code knownBlockIds}, etc.) and provide empty defaults so test stubs
+ * ({@code knownBlockIds}, {@code knownItemIds}, etc.) and provide empty defaults so test stubs
  * only override what they care about.
  *
  * <p><b>Vanilla parity.</b> The triangle rasterizer reproduces vanilla's CPU-side vertex chain

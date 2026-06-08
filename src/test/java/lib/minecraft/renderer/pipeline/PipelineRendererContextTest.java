@@ -9,8 +9,7 @@ import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.pack.Texture;
 import lib.minecraft.renderer.asset.pack.TexturePack;
 import lib.minecraft.renderer.asset.pack.AnimationData;
-import lib.minecraft.renderer.asset.model.BlockModelData;
-import lib.minecraft.renderer.asset.model.ItemModelData;
+import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.pipeline.loader.ColorMapLoader;
 import lib.minecraft.renderer.pipeline.loader.TexturePackLoader;
 import lib.minecraft.renderer.pipeline.pack.CtmMethod;
@@ -18,7 +17,6 @@ import lib.minecraft.renderer.pipeline.pack.CtmResolution;
 import lib.minecraft.renderer.pipeline.pack.CtmRule;
 import lib.minecraft.renderer.pipeline.pack.PackMeta;
 import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.image.pixel.PixelBuffer;
@@ -106,10 +104,10 @@ class PipelineRendererContextTest {
         // the DTOs are already Gson-friendly and the JSON form matches what the production
         // pipeline feeds through ModelResolver.
         Gson gson = GsonSettings.defaults().create();
-        ConcurrentMap<String, BlockModelData> blockModels = Concurrent.newMap();
+        ConcurrentMap<String, ModelData> blockModels = Concurrent.newMap();
         blockModels.put(
             "minecraft:block/stone",
-            gson.fromJson("{\"textures\": {\"all\": \"minecraft:block/fixture\"}}", BlockModelData.class)
+            gson.fromJson("{\"textures\": {\"all\": \"minecraft:block/fixture\"}}", ModelData.class)
         );
         // A second model with a real elements list whose face bindings reference #variables in
         // the textures map. Drives the direction-key flattening test.
@@ -124,24 +122,24 @@ class PipelineRendererContextTest {
                     + "\"south\":{\"texture\":\"#all\"},"
                     + "\"west\":{\"texture\":\"#all\"},"
                     + "\"east\":{\"texture\":\"#all\"}}}]}",
-                BlockModelData.class
+                ModelData.class
             )
         );
         // Real vanilla-named blocks used by the tint pass-through tests. The bundled
         // block_tints.json table maps grass_block -> GRASS and spruce_leaves -> CONSTANT 0xFF619961.
         blockModels.put(
             "minecraft:block/grass_block",
-            gson.fromJson("{\"textures\": {\"all\": \"minecraft:block/fixture\"}}", BlockModelData.class)
+            gson.fromJson("{\"textures\": {\"all\": \"minecraft:block/fixture\"}}", ModelData.class)
         );
         blockModels.put(
             "minecraft:block/spruce_leaves",
-            gson.fromJson("{\"textures\": {\"all\": \"minecraft:block/fixture\"}}", BlockModelData.class)
+            gson.fromJson("{\"textures\": {\"all\": \"minecraft:block/fixture\"}}", ModelData.class)
         );
 
-        ConcurrentMap<String, ItemModelData> itemModels = Concurrent.newMap();
+        ConcurrentMap<String, ModelData> itemModels = Concurrent.newMap();
         itemModels.put(
             "minecraft:item/stick",
-            gson.fromJson("{\"textures\": {\"layer0\": \"minecraft:block/fixture\"}}", ItemModelData.class)
+            gson.fromJson("{\"textures\": {\"layer0\": \"minecraft:block/fixture\"}}", ModelData.class)
         );
         // Leather helmet to verify OverlayResolver wires a Leather overlay onto the materialised
         // Item during PipelineRendererContext.of.
@@ -150,7 +148,7 @@ class PipelineRendererContextTest {
             gson.fromJson(
                 "{\"textures\": {\"layer0\": \"minecraft:item/leather_helmet\","
                     + "\"layer1\": \"minecraft:item/leather_helmet_overlay\"}}",
-                ItemModelData.class
+                ModelData.class
             )
         );
 
@@ -285,12 +283,12 @@ class PipelineRendererContextTest {
     }
 
     @Test
-    @DisplayName("activePacks contains only the vanilla pack entry")
-    void activePacksContainsVanillaOnly() {
-        ConcurrentList<TexturePack> packs = context.activePacks();
-        assertThat(packs.size(), equalTo(1));
-        assertThat(packs.getFirst().getId(), equalTo("vanilla"));
-        assertThat(packs.getFirst().getAssetRoots().isEmpty(), is(false));
+    @DisplayName("findPack resolves the vanilla pack and nothing else")
+    void findPackResolvesVanillaOnly() {
+        Optional<TexturePack> vanilla = context.findPack("vanilla");
+        assertThat(vanilla.isPresent(), is(true));
+        assertThat(vanilla.get().getAssetRoots().isEmpty(), is(false));
+        assertThat(context.findPack("nonexistent").isPresent(), is(false));
     }
 
     @Test

@@ -507,8 +507,8 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     private record StaticTextureContext(@NotNull RendererContext delegate) implements RendererContext {
 
         @Override
-        public @NotNull ConcurrentList<TexturePack> activePacks() {
-            return this.delegate.activePacks();
+        public @NotNull Optional<TexturePack> findPack(@NotNull String id) {
+            return this.delegate.findPack(id);
         }
 
         @Override
