@@ -152,10 +152,13 @@ class PipelineRendererContextTest {
             )
         );
 
+        ConcurrentMap<String, TexturePack> packs = Concurrent.newLinkedMap();
+        packs.put(vanillaPack.getId(), vanillaPack);
+
         result = new Pipeline.Result(
             packRoot,
             vanillaPack,
-            Concurrent.newList(vanillaPack),
+            packs,
             textures, colorMaps, blockTints, blockModels, itemModels,
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),

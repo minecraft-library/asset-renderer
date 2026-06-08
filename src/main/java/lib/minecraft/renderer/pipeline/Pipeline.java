@@ -110,7 +110,7 @@ public class Pipeline {
         ConcurrentList<CitRule> citRules = collectCitRules(packs.ascending());
         ConcurrentList<CtmRule> ctmRules = collectCtmRules(packs.ascending());
 
-        return new Result(packRoot, packs.vanilla(), packs.descending(), textures, colorMaps, blockTints, blockModels, itemModels,
+        return new Result(packRoot, packs.vanilla(), packs.packsById(), textures, colorMaps, blockTints, blockModels, itemModels,
             blockStateResult.getVariants(), blockStateResult.getMultiparts(), itemDefinitions, blockTags,
             potionEffectColors, bannerPatterns, colorOverrides, citRules, ctmRules, blockStateResult.getDefaultStateKeys());
     }
@@ -118,8 +118,8 @@ public class Pipeline {
     /**
      * Resolves the vanilla pack and every user-supplied pack into a single {@link PackBundle},
      * eagerly computing the four projections downstream loaders and collectors consume:
-     * the vanilla {@link TexturePack} itself, the ascending-priority list, the
-     * descending-priority list (for {@link Result#getPacks()}), and the flat list of every
+     * the vanilla {@link TexturePack} itself, the ascending-priority list, the id-keyed
+     * render-priority map (for {@link Result#getPacks()}), and the flat list of every
      * pack's asset roots in ascending priority order (for loaders that don't need pack
      * attribution).
      * <p>
@@ -149,29 +149,35 @@ public class Pipeline {
         }
 
         ConcurrentList<TexturePack> ascending = Concurrent.adoptList(packs).toUnmodifiable();
-        ConcurrentList<TexturePack> descending = ascending.stream()
+
+        // Index the packs by id in render-priority order (highest priority first) so
+        // Result#getPacks() is a ready-to-use O(1) lookup: insertion-ordered, first-wins on a
+        // duplicate id. Built here once so the renderer context consumes the map directly.
+        ConcurrentMap<String, TexturePack> packsById = Concurrent.newLinkedMap();
+        ascending.stream()
             .sorted(Comparator.comparingInt(TexturePack::getPriority).reversed())
-            .collect(Concurrent.toUnmodifiableList());
+            .forEachOrdered(pack -> packsById.putIfAbsent(pack.getId(), pack));
 
         ArrayList<Path> roots = new ArrayList<>();
         for (TexturePack pack : ascending)
             roots.addAll(pack.getAssetRoots());
         ConcurrentList<Path> combinedRoots = Concurrent.adoptList(roots).toUnmodifiable();
 
-        return new PackBundle(vanilla, ascending, descending, combinedRoots);
+        return new PackBundle(vanilla, ascending, packsById.toUnmodifiable(), combinedRoots);
     }
 
     /**
      * Eager projection of the resolved pack stack into the four views downstream consumers need.
      * {@code ascending} drives per-pack walks (texture scan, CIT / CTM / colour collectors);
      * {@code combinedRoots} is the flattened root list every loader that doesn't need pack
-     * attribution consumes; {@code descending} is the render-priority view passed through to
-     * {@link Result}; {@code vanilla} is the bundled minimum every pipeline run carries.
+     * attribution consumes; {@code packsById} is the render-priority, id-keyed view passed
+     * through to {@link Result#getPacks()}; {@code vanilla} is the bundled minimum every pipeline
+     * run carries.
      */
     private record PackBundle(
         @NotNull TexturePack vanilla,
         @NotNull ConcurrentList<TexturePack> ascending,
-        @NotNull ConcurrentList<TexturePack> descending,
+        @NotNull ConcurrentMap<String, TexturePack> packsById,
         @NotNull ConcurrentList<Path> combinedRoots
     ) {}
 
@@ -438,13 +444,14 @@ public class Pipeline {
         private final @NotNull TexturePack vanillaPack;
 
         /**
-         * Every registered pack in render priority order - highest priority first. Always
-         * contains the vanilla pack at minimum; user packs from
-         * {@link PipelineOptions#getTexturePacks()} appear before vanilla when present.
-         * Each pack's {@link TexturePack#getAssetRoots()} carries the on-disk directories the
+         * Every registered pack keyed by its {@link TexturePack#getId() id} for O(1) lookup, in
+         * render priority order - {@code values()} iterate highest priority first. Always contains
+         * the vanilla pack at minimum; user packs from {@link PipelineOptions#getTexturePacks()}
+         * appear before vanilla when present; on a duplicate id the first (highest priority) pack
+         * wins. Each pack's {@link TexturePack#getAssetRoots()} carries the on-disk directories the
          * renderer walks when reading raw PNG bytes for a texture attributed to that pack.
          */
-        private final @NotNull ConcurrentList<TexturePack> packs;
+        private final @NotNull ConcurrentMap<String, TexturePack> packs;
 
         private final @NotNull ConcurrentMap<String, Texture> textures;
         private final @NotNull ConcurrentMap<ColorMap.Type, ColorMap> colorMaps;

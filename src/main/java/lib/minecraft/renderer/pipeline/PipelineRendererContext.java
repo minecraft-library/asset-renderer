@@ -93,15 +93,8 @@ public final class PipelineRendererContext implements RendererContext {
         ConcurrentMap<String, Item> itemIndex = ItemIndexLoader.load(result, blockEntities);
         ConcurrentMap<String, Entity> entityIndex = loadEntityIndex();
 
-        // Index the active packs by id once at bootstrap. Insertion-ordered so values() preserves
-        // render priority (highest first); first-wins on a duplicate id. resolveTexture then does
-        // an O(1) pack-by-id lookup instead of a per-call linear scan.
-        ConcurrentMap<String, TexturePack> packs = Concurrent.newLinkedMap();
-        for (TexturePack pack : result.getPacks())
-            packs.putIfAbsent(pack.getId(), pack);
-
         return new PipelineRendererContext(
-            packs,
+            result.getPacks(),
             blockIndex,
             itemIndex,
             entityIndex,
