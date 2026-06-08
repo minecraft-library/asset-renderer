@@ -217,7 +217,8 @@ public final class ToolingEntityModels {
                     null,
                     paramFloats,
                     0f,
-                    resolution.appliedMeshTransformerScale()
+                    resolution.appliedMeshTransformerScale(),
+                    null
                 ));
             }
             System.out.println("Resolved " + sources.size() + " primary LayerDefinition factories for geometry parsing");
@@ -265,7 +266,8 @@ public final class ToolingEntityModels {
                         null,
                         variantParamFloats,
                         0f,
-                        variantRes.appliedMeshTransformerScale()
+                        variantRes.appliedMeshTransformerScale(),
+                        null
                     ));
                 }
             }
@@ -322,7 +324,9 @@ public final class ToolingEntityModels {
                     res.texHeightOverride(),
                     null,
                     new float[8],
-                    res.defaultInflate()
+                    res.defaultInflate(),
+                    1f,
+                    null
                 ));
                 entityToResolution.put(EntityOverlayResolver.Result.entityKey(field), res);
             }

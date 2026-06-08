@@ -92,56 +92,12 @@ public record Source(
     }
 
     /**
-     * Convenience constructor for sources that need explicit texture dimensions (typically a
-     * {@code MeshDefinition} factory wrapped in {@code LayerDefinition.create(mesh, W, H)} by
-     * the caller) but take no int parameter.
-     *
-     * @param classEntry the zip entry of the source class
-     * @param methodName the name of the method to parse
-     * @param entityId the output model id
-     * @param yAxis the Y axis convention used by the source bytecode
-     * @param inventoryYRotation the GUI-facing yaw applied at render time
-     * @param texWidthOverride the texture width override
-     * @param texHeightOverride the texture height override
-     */
-    public Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation, @Nullable Integer texWidthOverride, @Nullable Integer texHeightOverride) {
-        this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, null, null, 0f, 1f, null);
-    }
-
-    /**
      * Legacy constructor preserving the prior 8-arg shape (no float param substitution). All
      * existing legacy block-entity sources flow through this so adding the
      * {@code paramFloatValues} field is a non-behavioural change for them.
      */
     public Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation, @Nullable Integer texWidthOverride, @Nullable Integer texHeightOverride, int @Nullable [] paramIntValues) {
         this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, paramIntValues, null, 0f, 1f, null);
-    }
-
-    /**
-     * Convenience constructor preserving the prior 9-arg shape (no {@code defaultInflate}). Java
-     * pipeline call sites flow through this so adding the {@code defaultInflate} field is a
-     * non-behavioural change for them.
-     */
-    public Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation, @Nullable Integer texWidthOverride, @Nullable Integer texHeightOverride, int @Nullable [] paramIntValues, float @Nullable [] paramFloatValues) {
-        this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, paramIntValues, paramFloatValues, 0f, 1f, null);
-    }
-
-    /**
-     * Convenience constructor preserving the prior 10-arg shape (no
-     * {@code appliedMeshTransformerScale}). All existing legacy block-entity sources flow
-     * through this so adding the new field is non-behavioural for them.
-     */
-    public Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation, @Nullable Integer texWidthOverride, @Nullable Integer texHeightOverride, int @Nullable [] paramIntValues, float @Nullable [] paramFloatValues, float defaultInflate) {
-        this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, paramIntValues, paramFloatValues, defaultInflate, 1f, null);
-    }
-
-    /**
-     * Convenience constructor preserving the prior 11-arg shape (no {@code refParam}). All
-     * existing entity-pipeline call sites flow through this so adding the new field is
-     * non-behavioural for them.
-     */
-    public Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation, @Nullable Integer texWidthOverride, @Nullable Integer texHeightOverride, int @Nullable [] paramIntValues, float @Nullable [] paramFloatValues, float defaultInflate, float appliedMeshTransformerScale) {
-        this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, paramIntValues, paramFloatValues, defaultInflate, appliedMeshTransformerScale, null);
     }
 
 }

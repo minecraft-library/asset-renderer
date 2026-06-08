@@ -159,30 +159,6 @@ public class EntityModelData {
         @SerializedName("parent")
         private @Nullable String parent = null;
 
-        /**
-         * Convenience constructor for the common case of no parent and no bind pose.
-         */
-        public Bone(@NotNull Vector3f pivot, @NotNull EulerRotation rotation, @NotNull ConcurrentList<Cube> cubes) {
-            this(pivot, rotation, EulerRotation.NONE, 1f, cubes, null);
-        }
-
-        /**
-         * Convenience constructor preserving the historic (pivot, rotation, cubes, parent) signature.
-         */
-        public Bone(@NotNull Vector3f pivot, @NotNull EulerRotation rotation, @NotNull ConcurrentList<Cube> cubes, @Nullable String parent) {
-            this(pivot, rotation, EulerRotation.NONE, 1f, cubes, parent);
-        }
-
-        /**
-         * Convenience constructor preserving the (pivot, rotation, bindPoseRotation, cubes, parent)
-         * signature in use before {@link #scale} was added. Sets {@code scale} to its identity
-         * default {@code 1f} so all existing call sites stay compile-stable until they choose to
-         * opt in to the new field.
-         */
-        public Bone(@NotNull Vector3f pivot, @NotNull EulerRotation rotation, @NotNull EulerRotation bindPoseRotation, @NotNull ConcurrentList<Cube> cubes, @Nullable String parent) {
-            this(pivot, rotation, bindPoseRotation, 1f, cubes, parent);
-        }
-
         @Override
         public boolean equals(Object o) {
             if (o == null || getClass() != o.getClass()) return false;

@@ -181,37 +181,7 @@ public class EntityModelLoader {
         boolean emissive,
         int tintArgb,
         boolean skipBounds
-    ) {
-
-        /**
-         * Convenience constructor preserving the historic {@code (model, textureRef, emissive)}
-         * signature in use before {@link #tintArgb} was added. Defaults the tint to
-         * {@code 0xFFFFFFFF} (white = no-op multiplicative tint) and {@code skipBounds} to
-         * {@code false} (overlay contributes to bounds).
-         */
-        public OverlayLayer(
-            @NotNull EntityModelData model,
-            @NotNull Optional<String> textureRef,
-            boolean emissive
-        ) {
-            this(model, textureRef, emissive, 0xFFFFFFFF, false);
-        }
-
-        /**
-         * Convenience constructor preserving the historic {@code (model, textureRef, emissive,
-         * tintArgb)} signature in use before {@link #skipBounds} was added. Defaults
-         * {@code skipBounds} to {@code false} (overlay contributes to bounds).
-         */
-        public OverlayLayer(
-            @NotNull EntityModelData model,
-            @NotNull Optional<String> textureRef,
-            boolean emissive,
-            int tintArgb
-        ) {
-            this(model, textureRef, emissive, tintArgb, false);
-        }
-
-    }
+    ) {}
 
     /**
      * Resolves an overlays JSON array into a list of {@link OverlayLayer}s. Each entry is an

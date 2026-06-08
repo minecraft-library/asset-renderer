@@ -182,6 +182,7 @@ class EntityGeometryKitTest {
             Vector3f.ZERO, // pivot
             EulerRotation.NONE, // rotation
             EulerRotation.NONE, // bindPoseRotation
+            1f, // scale
             cubes,
             null // parent
         );
