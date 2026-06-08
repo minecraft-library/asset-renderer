@@ -586,20 +586,20 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             ModelTransform transform = item.getModel().getDisplay().get(slot);
             if (transform == null) return Matrix4f.IDENTITY;
 
-            Matrix4f scale = Matrix4f.createScale(transform.getScaleX(), transform.getScaleY(), transform.getScaleZ());
             EulerRotation angles = transform.getRotation();
-            Matrix4f rotation = Quaternionf
-                .rotationXYZ(angles.pitchRadians(), angles.yawRadians(), angles.rollRadians())
-                .toMatrix4f();
             // Vanilla display transforms use sub-unit translation values in {@code /16} space;
             // apply them to the model vertex positions directly since our unit cube is already
-            // normalized.
-            Matrix4f translation = Matrix4f.createTranslation(
-                transform.getTranslationX() / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK,
-                transform.getTranslationY() / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK,
-                transform.getTranslationZ() / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK
-            );
-            return scale.multiply(rotation).multiply(translation);
+            // normalized. Composed via the fluent scale/rotate/translate path (bit-identical to
+            // vanilla's PoseStack; the createX().multiply(...) form drifts 1-4 ULPs per entry) -
+            // IDENTITY * S * R * T applies translation to the vertex first, then rotation, then scale.
+            return Matrix4f.IDENTITY
+                .scale(transform.getScaleX(), transform.getScaleY(), transform.getScaleZ())
+                .rotate(Quaternionf.rotationXYZ(angles.pitchRadians(), angles.yawRadians(), angles.rollRadians()))
+                .translate(
+                    transform.getTranslationX() / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK,
+                    transform.getTranslationY() / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK,
+                    transform.getTranslationZ() / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK
+                );
         }
 
     }

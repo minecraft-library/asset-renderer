@@ -95,11 +95,17 @@ public class EntityGeometryKit {
         // R_X(pitch) * R_Y(yaw) * R_X(180°) is vanilla's iso transform. Each rotation transposes
         // to its negated-angle counterpart; scales are diagonal so transpose is identity.
         // Rightmost applies first.
-        Matrix4f viewToKit = Matrix4f.createScale(1f, -1f, 1f)
-            .multiply(Matrix4f.createRotationX((float) -Math.PI))
-            .multiply(Matrix4f.createRotationY(-iso.yawRadians()))
-            .multiply(Matrix4f.createRotationX(-iso.pitchRadians()))
-            .multiply(Matrix4f.createScale(1f, 1f, -1f));
+        // Fluent scale/rotate path: bit-identical to vanilla's PoseStack composition, whereas the
+        // createX().multiply(...) form drifts 1-4 ULPs per entry (see Matrix4f fluent-vs-multiply
+        // note). Mirrors the same chain in RenderEngine.deriveEntityInUiLightKit. Composition is
+        // unchanged - IDENTITY * S1 * R_X(-180) * R_Y(-yaw) * R_X(-pitch) * S2; rightmost applies
+        // to the vector first.
+        Matrix4f viewToKit = Matrix4f.IDENTITY
+            .scale(1f, -1f, 1f)
+            .rotate(Quaternionf.rotationXYZ((float) -Math.PI, 0f, 0f))
+            .rotate(Quaternionf.rotationXYZ(0f, -iso.yawRadians(), 0f))
+            .rotate(Quaternionf.rotationXYZ(-iso.pitchRadians(), 0f, 0f))
+            .scale(1f, 1f, -1f);
         return new Vector3f(0f, 0f, -1f).transformNormal(viewToKit);
     }
 

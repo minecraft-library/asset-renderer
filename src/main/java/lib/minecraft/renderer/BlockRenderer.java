@@ -27,6 +27,7 @@ import lib.minecraft.renderer.kit.BlockGeometryKit;
 import lib.minecraft.renderer.options.BlockOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.tensor.Matrix4f;
+import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -559,16 +560,19 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * to pre-transform the geometry before the gui display transform.
          */
         private static @NotNull Matrix4f buildVariantRotation(@NotNull Block.Variant variant) {
-            // Column-vector iteration: pre-multiply each rotation so the most-recent factor is
-            // leftmost and applies last to a vertex. Vanilla blockstate variant rotations apply
-            // Y first, then X, both as PoseStack post-mul steps.
+            // Vanilla blockstate variant rotation applies Y first, then X, to a vertex - the
+            // composite R_x * R_y. Built with the fluent rotate path ({@code this * R(q)},
+            // post-multiply, bit-identical to vanilla's {@code PoseStack.mulPose}) rather than
+            // {@code createRotationX(...).multiply(...)}, whose full matrix-matrix multiply drifts
+            // 1-4 ULPs per entry vs vanilla (see {@link Matrix4f} fluent-vs-multiply note).
+            // Applying X then Y under post-multiply yields IDENTITY * R_x * R_y = R_x * R_y.
             Matrix4f result = Matrix4f.IDENTITY;
 
-            if (variant.y() != 0)
-                result = Matrix4f.createRotationY((float) Math.toRadians(-variant.y())).multiply(result);
-
             if (variant.x() != 0)
-                result = Matrix4f.createRotationX((float) Math.toRadians(-variant.x())).multiply(result);
+                result = result.rotate(Quaternionf.rotationXYZ((float) Math.toRadians(-variant.x()), 0f, 0f));
+
+            if (variant.y() != 0)
+                result = result.rotate(Quaternionf.rotationXYZ(0f, (float) Math.toRadians(-variant.y()), 0f));
 
             return result;
         }
