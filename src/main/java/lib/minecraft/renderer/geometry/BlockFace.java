@@ -196,23 +196,55 @@ public enum BlockFace {
     }
 
     /**
-     * Resolves the dominant cardinal face for a surface normal by comparing the magnitude of its
-     * components: the largest-magnitude axis wins, the sign of that component picks between the
-     * two opposing faces on that axis. Ties between axes resolve in Y &gt; Z &gt; X order,
-     * matching the original nested-{@code if} form in the inventory-lighting code.
+     * Resolves the dominant cardinal face for a surface normal - the single {@link BlockFace}
+     * vanilla would assign a baked quad with this geometric normal. Replicates vanilla's
+     * {@code FaceBakery.findClosestDirection} plus the {@code BakedQuad} constructor's
+     * {@code requireNonNullElse(direction, UP)} degenerate fallback in one place: it is the shared
+     * cardinal resolver for both inventory-style lighting and the block-icon relight snap.
+     * <p>
+     * The largest-magnitude axis wins; the sign of that component picks between the two opposing
+     * faces on that axis. Only component-magnitude ordering matters, so the result is invariant to
+     * a positive uniform scale of {@code normal} - an un-normalized normal works too. The
+     * magnitude {@code if}-chain is used over an equivalent six-cardinal dot-product loop: it
+     * resolves the same face with three {@code abs} calls and at most three comparisons, no array
+     * or iteration.
+     * <p>
+     * <b>Ties</b> resolve to the earlier axis in {@code Y > Z > X} order (the {@code >=}
+     * comparisons), matching the {@code Direction.values()} (DOWN, UP, NORTH, SOUTH, WEST, EAST)
+     * first-wins iteration order of vanilla's {@code findClosestDirection}. This is load-bearing
+     * for exact 45-degree faces: a sculk-sensor tendril whose authored normal has {@code |x| ==
+     * |z|} must snap to the Z cardinal (shade 0.40), not EAST/WEST (0.65/0.49). The element-
+     * rotation matrix yields a bit-symmetric {@code |x| == |z|} normal, so the tie falls to the
+     * earlier (Z) axis and reproduces the reference shade. (Folding the relight snap onto the
+     * opposite {@code Y > X > Z}-style tie-break regresses 8 cross / candle / stem blocks out of
+     * the {@code <0.25} block-parity bucket - measured, not assumed.) A zero normal (cross of
+     * collinear edges) has no winning axis and falls back to {@link #UP}.
+     * <p>
+     * Two consumers share this single resolver: {@code RenderEngine.computeInventoryLighting} bakes
+     * the per-face {@code Lighting.ITEMS_3D}-style cardinal shade for block + fluid kits, and the
+     * block-icon relight pass ({@code RenderEngine.relightForItems3d}) snaps a plain-block quad's
+     * authored normal to its nearest cardinal before lighting - matching vanilla's
+     * {@code BlockFeatureRenderer.putBakedQuad}, which lights every quad by its single
+     * {@code BakedQuad.direction} rather than the continuous tilted normal.
      *
-     * @param normal the surface normal (should be normalized, but magnitude is not required)
-     * @return the closest cardinal face to the normal direction
+     * @param normal the surface normal (should be normalized, but only magnitude ordering matters)
+     * @return the closest cardinal face to the normal direction, or {@link #UP} for a zero normal
      */
     public static @NotNull BlockFace fromNormal(@NotNull Vector3f normal) {
         float absX = Math.abs(normal.x());
         float absY = Math.abs(normal.y());
         float absZ = Math.abs(normal.z());
 
-        if (absY > absX && absY > absZ)
+        // Degenerate (zero) normal: vanilla's FaceBakery.calculateFacing returns null, mapped to UP
+        // by the BakedQuad constructor's requireNonNullElse(direction, UP). Match that fallback.
+        if (absX == 0f && absY == 0f && absZ == 0f) return UP;
+
+        if (absY >= absX && absY >= absZ)
             return normal.y() > 0f ? UP : DOWN;
-        if (absZ > absX)
+
+        if (absZ >= absX)
             return normal.z() > 0f ? SOUTH : NORTH;
+
         return normal.x() > 0f ? EAST : WEST;
     }
 

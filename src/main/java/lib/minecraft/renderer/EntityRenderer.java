@@ -577,25 +577,20 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     private static @NotNull Matrix4f composeIsoInverse(@NotNull EulerRotation userRotation) {
         EulerRotation iso = EulerRotation.STANDARD_ISO_ENTITY;
-        Matrix4f flipY = Matrix4f.createScale(1f, -1f, 1f);
-        Matrix4f scaleZneg = Matrix4f.createScale(1f, 1f, -1f);
-        Matrix4f isoRotationInverse = Quaternionf
-            .rotationZYX(0f, -iso.yawRadians(), -iso.pitchRadians())
-            .toMatrix4f();
-        Matrix4f modelRotationInverse = (userRotation.pitch() == 0f && userRotation.yaw() == 0f && userRotation.roll() == 0f)
-            ? Matrix4f.IDENTITY
-            : Quaternionf
-                .rotationZYX(-userRotation.rollRadians(), -userRotation.yawRadians(), -userRotation.pitchRadians())
-                .toMatrix4f();
+        boolean userIdentity = userRotation.pitch() == 0f && userRotation.yaw() == 0f && userRotation.roll() == 0f;
         // Forward = flipY * scaleZneg * isoRotation * scaleZneg * modelRotation * flipY (col-vec).
         // Inverse reverses the factor order and inverts each. flipY and scaleZneg are diagonal
-        // self-inverses; the two rotations invert via their Quaternionf conjugate above.
-        return flipY
-            .multiply(modelRotationInverse)
-            .multiply(scaleZneg)
-            .multiply(isoRotationInverse)
-            .multiply(scaleZneg)
-            .multiply(flipY);
+        // self-inverses; the two rotations invert via their Quaternionf conjugate. Built with the
+        // fluent path (bit-identical to vanilla's PoseStack; createX().multiply(...) drifts 1-4 ULPs).
+        Matrix4f m = Matrix4f.IDENTITY.scale(1f, -1f, 1f); // flipY
+        if (!userIdentity)
+            m = m.rotate(Quaternionf.rotationZYX(
+                -userRotation.rollRadians(), -userRotation.yawRadians(), -userRotation.pitchRadians()));
+        return m
+            .scale(1f, 1f, -1f) // scaleZneg
+            .rotate(Quaternionf.rotationZYX(0f, -iso.yawRadians(), -iso.pitchRadians())) // isoRotationInverse
+            .scale(1f, 1f, -1f) // scaleZneg
+            .scale(1f, -1f, 1f); // flipY
     }
 
     /**

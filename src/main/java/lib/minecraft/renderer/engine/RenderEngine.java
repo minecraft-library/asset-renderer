@@ -456,7 +456,7 @@ public interface RenderEngine {
             // vanilla's entity path ({@code entityCutoutNoCull} + {@code PER_FACE_LIGHTING}), not
             // {@code putBakedQuad}, so they keep the continuous normal and the camera-facing flip.
             Vector3f shadeNormal = forceCullBackFaces
-                ? closestCardinalUnitVec(outwardNormal)
+                ? BlockFace.fromNormal(outwardNormal).normal()
                 : outwardNormal;
             Vector3f renderNormal = shadeNormal.transformNormal(normalTransform).normalize();
             // Two-sided (no back-face cull) faces: shade by the camera-facing normal. Vanilla's
@@ -489,56 +489,6 @@ public interface RenderEngine {
             ));
         }
         return out;
-    }
-
-    /**
-     * Six cardinal unit vectors in {@code net.minecraft.core.Direction.values()} declaration
-     * order (DOWN, UP, NORTH, SOUTH, WEST, EAST), matching the iteration order of vanilla's
-     * {@code FaceBakery.findClosestDirection}.
-     */
-    Vector3f[] CARDINAL_UNIT_VECS = {
-        new Vector3f(0f, -1f, 0f),  // DOWN
-        new Vector3f(0f, 1f, 0f),   // UP
-        new Vector3f(0f, 0f, -1f),  // NORTH
-        new Vector3f(0f, 0f, 1f),   // SOUTH
-        new Vector3f(-1f, 0f, 0f),  // WEST
-        new Vector3f(1f, 0f, 0f)    // EAST
-    };
-
-    /**
-     * Returns the unit vector of the cardinal facing a baked block quad stores, replicating
-     * vanilla's {@code FaceBakery.findClosestDirection} plus the {@code BakedQuad} constructor's
-     * {@code requireNonNullElse(direction, UP)}.
-     * <p>
-     * Iterates the six cardinals in {@code Direction.values()} order and keeps the one with the
-     * strictly-greatest non-negative dot against {@code normal} - so a 45deg face resolves to the
-     * earlier cardinal on a tie (first wins), exactly as vanilla does. A degenerate face whose
-     * normal is zero (cross of collinear edges) leaves no winner and falls back to UP, matching
-     * vanilla's null-to-UP path. The selection is invariant to a positive uniform scale of
-     * {@code normal} (it preserves dot ordering), so an un-normalized normal works too.
-     * <p>
-     * Deliberately NOT folded onto {@link BlockFace#fromNormal}: the two resolve an exact
-     * X/Z 45-degree tie to different axes. This method's {@code Direction.values()} first-wins
-     * order visits the Z faces (NORTH/SOUTH) before the X faces (WEST/EAST), so it picks Z;
-     * {@code fromNormal}'s {@code Y > Z > X} magnitude tie-break picks X. Confirmed by a full block
-     * parity sweep: unconditionally delegating to {@code fromNormal} regresses 8 blocks out of the
-     * {@code <0.25} bucket (1046 -> 1038) - candles, azalea, brewing_stand, melon / pumpkin stems,
-     * lever, tripwire_hook all shade off by the wrong cardinal. So they must stay separate.
-     *
-     * @param normal the quad's outward surface normal in model space
-     * @return the nearest cardinal's unit vector, or UP for a degenerate normal
-     */
-    private static @NotNull Vector3f closestCardinalUnitVec(@NotNull Vector3f normal) {
-        Vector3f closest = null;
-        float bestDot = 0f;
-        for (Vector3f cardinal : CARDINAL_UNIT_VECS) {
-            float d = normal.dot(cardinal);
-            if (d >= 0f && d > bestDot) {
-                bestDot = d;
-                closest = cardinal;
-            }
-        }
-        return closest != null ? closest : CARDINAL_UNIT_VECS[1]; // UP
     }
 
     /**
