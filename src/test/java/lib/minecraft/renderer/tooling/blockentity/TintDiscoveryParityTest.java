@@ -5,6 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -32,6 +33,7 @@ class TintDiscoveryParityTest {
 
     private static final Path JAR = Path.of("cache/asset-renderer/vanilla/26.1/client.jar");
     private static final Path BASELINE = Path.of("src/test/resources/lib/minecraft/renderer/baseline/tinted_model_ids.json");
+    private static final Gson GSON = GsonSettings.defaults().create();
 
     @Test
     @DisplayName("TintDiscovery matches baseline/tinted_model_ids.json")
@@ -48,7 +50,7 @@ class TintDiscoveryParityTest {
 
             Set<String> discovered = TintDiscovery.discover(zip, filtered, entityIdToRenderer, diag);
 
-            JsonArray expectedArr = new Gson().fromJson(Files.readString(BASELINE), JsonArray.class);
+            JsonArray expectedArr = GSON.fromJson(Files.readString(BASELINE), JsonArray.class);
             Set<String> expected = new LinkedHashSet<>();
             for (JsonElement e : expectedArr) expected.add(e.getAsString());
 

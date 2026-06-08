@@ -1,11 +1,11 @@
 package lib.minecraft.renderer;
 
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.gson.GsonSettings;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Block;
@@ -56,6 +56,11 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * Tile-count interval between {@code stdout} progress lines when {@link AtlasOptions#isProgressLogging()} is set.
      */
     private static final int PROGRESS_LOG_INTERVAL = 100;
+
+    /**
+     * Shared pretty-printing Gson carrying the renderer's registered type adapters, for the sidecar.
+     */
+    private static final @NotNull Gson PRETTY_GSON = GsonSettings.defaults().mutate().isPrettyPrint().build().create();
 
     /**
      * Block ids that render through {@link FluidRenderer} instead of {@link BlockRenderer}.
@@ -370,7 +375,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * and the PNG in lockstep.
      */
     private static @NotNull String buildSidecarJson(@NotNull ConcurrentList<TileSpec> tiles, int columns, int tileSize) {
-        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        Gson gson = PRETTY_GSON;
         JsonObject root = new JsonObject();
         root.addProperty("tileSize", tileSize);
         root.addProperty("columns", columns);

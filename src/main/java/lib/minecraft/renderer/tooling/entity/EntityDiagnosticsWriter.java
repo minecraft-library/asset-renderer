@@ -1,11 +1,12 @@
 package lib.minecraft.renderer.tooling.entity;
 
-import com.google.gson.GsonBuilder;
+import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lib.minecraft.renderer.tooling.util.JsonOptional;
@@ -40,6 +41,11 @@ public final class EntityDiagnosticsWriter {
         Path.of("cache/asset-renderer/diagnostics/java_entity_geometry.json");
 
     /**
+     * Shared pretty-printing Gson carrying the renderer's registered type adapters.
+     */
+    private static final @NotNull Gson PRETTY_GSON = GsonSettings.defaults().mutate().isPrettyPrint().build().create();
+
+    /**
      * Builds and writes the discovery + per-entity-binding diagnostic JSON document
      * (per-entity renderer / texture binding / layer enumeration plus the variant tables).
      *
@@ -69,7 +75,7 @@ public final class EntityDiagnosticsWriter {
         Files.createDirectories(DISCOVERY_OUTPUT.getParent());
         Files.writeString(
             DISCOVERY_OUTPUT,
-            new GsonBuilder().setPrettyPrinting().create().toJson(root) + System.lineSeparator()
+            PRETTY_GSON.toJson(root) + System.lineSeparator()
         );
         return DISCOVERY_OUTPUT.toAbsolutePath();
     }
@@ -97,7 +103,7 @@ public final class EntityDiagnosticsWriter {
         JsonObject root = buildGeometryDoc(options, mobsTotal, mobsWithRenderer, entityToResolution, geometries, diagnostics);
         Files.writeString(
             GEOMETRY_DIAGNOSTIC_OUTPUT,
-            new GsonBuilder().setPrettyPrinting().create().toJson(root) + System.lineSeparator()
+            PRETTY_GSON.toJson(root) + System.lineSeparator()
         );
         return GEOMETRY_DIAGNOSTIC_OUTPUT.toAbsolutePath();
     }

@@ -2,6 +2,7 @@ package lib.minecraft.renderer.tooling;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
@@ -29,26 +30,26 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Live-pipeline cross-check for {@code block_states.json}.
+ * Live-pipeline cross-check for {@code block_defaults.json}.
  * <p>
- * The byte-level integrity fixture ({@code block_states.sha256}) is asserted alongside the other
+ * The byte-level integrity fixture ({@code block_defaults.sha256}) is asserted alongside the other
  * bundled JSON in {@code JsonResourceShaTest}. This {@code slow}-tagged test cross-checks the
- * committed snapshot against a live pipeline: every snapshot {@code variants} entry must be present
- * in the runtime {@code block.getVariants().keySet()}, and a non-empty {@code default} must
- * subset-resolve to one of those variants. This catches the snapshot drifting away from the live
- * blockstate parse.
+ * committed snapshot against a live pipeline: each non-empty {@code default} key must subset-resolve
+ * to one of the block's runtime {@code block.getVariants().keySet()} variants. This catches the
+ * ASM-derived default drifting away from the live blockstate parse.
  * <p>
- * Regeneration workflow: run {@code ./gradlew :asset-renderer:blockStates} to refresh the snapshot,
- * then update {@code block_states.sha256} per {@code JsonResourceShaTest}.
+ * Regeneration workflow: run {@code ./gradlew :asset-renderer:blockDefaults} to refresh the snapshot,
+ * then update {@code block_defaults.sha256} per {@code JsonResourceShaTest}.
  */
-@DisplayName("block_states.json agrees with the live pipeline")
-class BlockStatesGoldenTest {
+@DisplayName("block_defaults.json agrees with the live pipeline")
+class BlockDefaultsGoldenTest {
 
-    private static final Path JSON_PATH = Path.of("src/main/resources/lib/minecraft/renderer/block_states.json");
+    private static final Path JSON_PATH = Path.of("src/main/resources/lib/minecraft/renderer/block_defaults.json");
+    private static final Gson GSON = GsonSettings.defaults().create();
 
     @Test
     @Tag("slow")
-    @DisplayName("snapshot variants + default agree with a live pipeline")
+    @DisplayName("each default resolves to a live-pipeline variant")
     void crossCheckAgainstLivePipeline() throws IOException {
         Pipeline.Result result = Pipeline.run(PipelineOptions.builder()
             .version("26.1")
@@ -57,30 +58,20 @@ class BlockStatesGoldenTest {
         PipelineRendererContext context = PipelineRendererContext.of(result);
 
         String raw = Files.readString(JSON_PATH, StandardCharsets.UTF_8);
-        JsonObject blocks = new Gson().fromJson(raw, JsonObject.class).getAsJsonObject("blocks");
+        JsonObject blocks = GSON.fromJson(raw, JsonObject.class).getAsJsonObject("blocks");
 
         List<String> mismatches = new ArrayList<>();
         for (String blockId : blocks.keySet()) {
             Block block = context.findBlock(blockId).orElse(null);
             if (block == null) continue;
 
-            Set<String> snapshotVariants = new TreeSet<>();
-            blocks.getAsJsonObject(blockId).getAsJsonArray("variants").forEach(e -> snapshotVariants.add(e.getAsString()));
             Set<String> runtimeVariants = new TreeSet<>(block.getVariants().keySet());
-            // Runtime variants are a superset of the block-state snapshot: a block-entity block
-            // (e.g. a hanging sign) exposes a synthetic {@code attached=true} variant sourced from
-            // the block-model / block-entity path that the {@code createBlockStateDefinition} walk
-            // behind block_states.json does not - and must not - emit. The snapshot must still be a
-            // subset; a snapshot variant absent at runtime is genuine drift.
-            if (!runtimeVariants.containsAll(snapshotVariants))
-                mismatches.add(blockId + ": snapshot variants " + snapshotVariants + " not all present in runtime " + runtimeVariants);
-
-            String defaultKey = blocks.getAsJsonObject(blockId).get("default").getAsString();
+            String defaultKey = blocks.get(blockId).getAsString();
             if (!defaultKey.isEmpty() && !runtimeVariants.isEmpty() && !subsetResolves(defaultKey, runtimeVariants))
                 mismatches.add(blockId + ": default '" + defaultKey + "' resolves to no variant in " + runtimeVariants);
         }
 
-        assertThat("block_states.json drifted from the live pipeline:\n" + String.join("\n", mismatches),
+        assertThat("block_defaults.json drifted from the live pipeline:\n" + String.join("\n", mismatches),
             mismatches, is(empty()));
     }
 
@@ -101,7 +92,7 @@ class BlockStatesGoldenTest {
     @BeforeAll
     static void ensureGeneratedJsonExists() {
         if (!Files.exists(JSON_PATH))
-            throw new IllegalStateException("Run ./gradlew :asset-renderer:blockStates to generate " + JSON_PATH);
+            throw new IllegalStateException("Run ./gradlew :asset-renderer:blockDefaults to generate " + JSON_PATH);
     }
 
 }

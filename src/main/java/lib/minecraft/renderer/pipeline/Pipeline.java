@@ -497,8 +497,8 @@ public class Pipeline {
         private final @NotNull ConcurrentList<CtmRule> ctmRules;
 
         /**
-         * Per-block canonical default-state key, from the bundled {@code block_states.json}
-         * snapshot (parsed from the vanilla {@code Blocks} registry by {@code ToolingBlockStates}
+         * Per-block canonical default-state key, from the bundled {@code block_defaults.json}
+         * snapshot (parsed from the vanilla {@code Blocks} registry by {@code ToolingBlockDefaults}
          * and read by {@link BlockStateLoader}). Lets production callers resolve a block's default
          * variant without a harness sidecar. Empty-property blocks are absent.
          */

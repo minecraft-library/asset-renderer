@@ -213,7 +213,7 @@ public final class TestBlockParityVanilla {
             int vh = vanillaImg.getHeight();
 
             // No explicit variant: BlockRenderer falls back to the block's tooling-derived
-            // default blockstate key (block_states.json, baked onto Block.defaultStateKey),
+            // default blockstate key (block_defaults.json, baked onto Block.defaultStateKey),
             // which is vanilla's `block.defaultBlockState()`. This replaces the harness
             // `.variant` sidecar this test used to consume - blocks like doors /
             // glazed_terracotta still resolve the correct variant + per-variant rotation.

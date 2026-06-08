@@ -6,6 +6,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -38,6 +39,7 @@ class SourceDiscoveryParityTest {
 
     private static final Path JAR = Path.of("cache/asset-renderer/vanilla/26.1/client.jar");
     private static final Path BASELINE = Path.of("src/test/resources/lib/minecraft/renderer/baseline/sources.json");
+    private static final Gson GSON = GsonSettings.defaults().create();
 
     @Test
     @DisplayName("SourceDiscovery matches baseline/sources.json")
@@ -51,7 +53,7 @@ class SourceDiscoveryParityTest {
             for (Source s : all)
                 if (blockList.containsKey(s.entityId())) filtered.add(s);
 
-            JsonArray expectedJson = new Gson().fromJson(Files.readString(BASELINE), JsonArray.class);
+            JsonArray expectedJson = GSON.fromJson(Files.readString(BASELINE), JsonArray.class);
             Map<String, JsonObject> expectedById = new LinkedHashMap<>();
             for (JsonElement e : expectedJson) {
                 JsonObject o = e.getAsJsonObject();

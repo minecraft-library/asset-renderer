@@ -1,12 +1,13 @@
 package lib.minecraft.renderer.tooling.entity;
 
-import com.google.gson.GsonBuilder;
+import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lombok.experimental.UtilityClass;
@@ -55,6 +56,11 @@ public final class EntityRuntimeJsonWriter {
      */
     public static final @NotNull Path GEOMETRY_OUTPUT =
         Path.of("src/main/resources/lib/minecraft/renderer/entity_geometry.json");
+
+    /**
+     * Shared pretty-printing Gson carrying the renderer's registered type adapters.
+     */
+    private static final @NotNull Gson PRETTY_GSON = GsonSettings.defaults().mutate().isPrettyPrint().isHtmlEscaping(false).build().create();
 
     /**
      * Variant id treated as the base entity (no separate {@code variant_of} row emitted) when
@@ -116,7 +122,7 @@ public final class EntityRuntimeJsonWriter {
         Files.createDirectories(GEOMETRY_OUTPUT.getParent());
         Files.writeString(
             GEOMETRY_OUTPUT,
-            new GsonBuilder().setPrettyPrinting().create().toJson(geometryRoot) + System.lineSeparator()
+            PRETTY_GSON.toJson(geometryRoot) + System.lineSeparator()
         );
 
         JsonObject entitiesOut = new JsonObject();
@@ -271,7 +277,7 @@ public final class EntityRuntimeJsonWriter {
         Files.createDirectories(MODELS_OUTPUT.getParent());
         Files.writeString(
             MODELS_OUTPUT,
-            new GsonBuilder().setPrettyPrinting().create().toJson(modelsRoot) + System.lineSeparator()
+            PRETTY_GSON.toJson(modelsRoot) + System.lineSeparator()
         );
         return variantRows;
     }

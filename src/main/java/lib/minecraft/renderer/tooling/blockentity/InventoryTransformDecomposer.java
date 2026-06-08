@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
@@ -79,6 +80,11 @@ public final class InventoryTransformDecomposer {
     // --------------------------------------------------------------------------------------
 
     private static final @NotNull Map<String, String> RENDERER_ENTRY_METHODS = buildRendererEntryMethods();
+
+    /**
+     * Shared Gson carrying the renderer's registered type adapters, for parsing display transforms.
+     */
+    private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**
      * Builds the {@link #RENDERER_ENTRY_METHODS} table mapping renderer internal name to factory entry.
@@ -217,9 +223,8 @@ public final class InventoryTransformDecomposer {
         @NotNull Set<String> modelIds
     ) {
         Map<String, Boolean> out = new LinkedHashMap<>();
-        Gson gson = new Gson();
         for (String modelId : modelIds) {
-            Float roll = resolveDisplayGuiRoll(zip, gson, modelId);
+            Float roll = resolveDisplayGuiRoll(zip, GSON, modelId);
             if (roll != null) out.put(modelId, !nearUnit(roll, 0f));
         }
         return out;

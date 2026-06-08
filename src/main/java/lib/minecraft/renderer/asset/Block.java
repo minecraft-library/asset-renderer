@@ -74,7 +74,7 @@ public class Block {
     /**
      * The block's canonical default blockstate key as {@code property=value} pairs sorted
      * alphabetically (e.g. {@code "facing=north,half=lower,hinge=left,open=false,powered=false"}),
-     * or empty when the block has no properties. Sourced from {@code block_states.json} (an ASM
+     * or empty when the block has no properties. Sourced from {@code block_defaults.json} (an ASM
      * bytewalk of {@code registerDefaultState}) and baked on at pipeline-context construction. The
      * renderer falls back to this key when a caller supplies no explicit variant, so blocks with
      * per-state models render their default rather than whichever state registered first.

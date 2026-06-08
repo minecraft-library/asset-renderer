@@ -1,7 +1,6 @@
 package lib.minecraft.renderer.tooling;
 
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -9,6 +8,7 @@ import com.google.gson.JsonPrimitive;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.model.EntityModelData.Bone;
 import lib.minecraft.renderer.asset.model.EntityModelData.Cube;
 import lib.minecraft.renderer.asset.model.EntityModelData;
@@ -98,6 +98,12 @@ public final class ToolingBlockModels {
     private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/lib/minecraft/renderer/block_models.json");
 
     /**
+     * Shared Gson carrying the renderer's registered type adapters. Pretty-printing only affects
+     * writes; reads are format-agnostic, so a single instance serves both parse and output.
+     */
+    private static final @NotNull Gson PRETTY_GSON = GsonSettings.defaults().mutate().isPrettyPrint().isHtmlEscaping(false).build().create();
+
+    /**
      * Client-jar Minecraft version this generator targets; written to the JSON header for drift tracking.
      */
     private static final @NotNull String SOURCE_VERSION = "26.1";
@@ -184,7 +190,7 @@ public final class ToolingBlockModels {
 
         Files.createDirectories(OUTPUT_PATH.getParent());
         Files.writeString(OUTPUT_PATH,
-            new GsonBuilder().setPrettyPrinting().create().toJson(merged) + System.lineSeparator());
+            PRETTY_GSON.toJson(merged) + System.lineSeparator());
         System.out.println("Wrote " + OUTPUT_PATH.toAbsolutePath());
     }
 
@@ -431,7 +437,7 @@ public final class ToolingBlockModels {
         if (Files.exists(OUTPUT_PATH)) {
             String raw = Files.readString(OUTPUT_PATH);
             try {
-                existing = new Gson().fromJson(raw, JsonObject.class);
+                existing = PRETTY_GSON.fromJson(raw, JsonObject.class);
             } catch (Exception ex) {
                 System.err.println("  Warning: could not parse existing " + OUTPUT_PATH + " - writing fresh output");
             }

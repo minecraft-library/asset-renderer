@@ -76,13 +76,13 @@ dependencies {
     api("com.github.simplified-dev:collections") { version { strictly("2f2aa58") } }
     api("com.github.simplified-dev:utils") { version { strictly("a932b44") } }
     api("com.github.simplified-dev:image") { version { strictly("d309df7") } }
-    api("com.github.simplified-dev:gson-extras") { version { strictly("26278a3") } }
+    api("com.github.simplified-dev:gson-extras") { version { strictly("b68510e") } }
     api("com.github.simplified-dev:reflection") { version { strictly("c02511a") } }
-    api("com.github.simplified-dev:client") { version { strictly("47d3c2f") } }
+    api("com.github.simplified-dev:client") { version { strictly("64ae978") } }
 
     // Simplified API (extracted to github.com/simplified-api) - typed Feign contract for
     // Mojang's launcher / Piston / textures endpoints, owns all renderer HTTP via Pipeline.
-    api("com.github.simplified-api:mojang") { version { strictly("06c9e8e") } }
+    api("com.github.simplified-api:mojang") { version { strictly("73bd9e2") } }
 
     // Minecraft-Library (extracted to github.com/minecraft-library)
     // Owns lib.minecraft.text.**, lib.minecraft.text.font.**, and the
@@ -185,10 +185,10 @@ tasks {
         classpath = sourceSets["main"].runtimeClasspath
     }
 
-    register<JavaExec>("blockStates") {
-        description = "Bytewalks registerDefaultState in the Blocks registry via ASM and rewrites src/main/resources/lib/minecraft/renderer/block_states.json (per-block default state + variant keys). Run on a Minecraft version bump."
+    register<JavaExec>("blockDefaults") {
+        description = "Bytewalks registerDefaultState in the Blocks registry via ASM and rewrites src/main/resources/lib/minecraft/renderer/block_defaults.json (per-block default state key). Run on a Minecraft version bump."
         group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.ToolingBlockStates")
+        mainClass.set("lib.minecraft.renderer.tooling.ToolingBlockDefaults")
         classpath = sourceSets["main"].runtimeClasspath
     }
 

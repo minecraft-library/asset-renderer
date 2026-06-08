@@ -151,7 +151,7 @@ public class BlockIndexLoader {
 
     /**
      * Returns the bundled default-state key for a block id, or empty when the block has no
-     * entry in {@code block_states.json} (an empty-property block).
+     * entry in {@code block_defaults.json} (an empty-property block).
      *
      * @param result the pipeline result supplying the loaded default-state-key table
      * @param blockId the namespaced block id

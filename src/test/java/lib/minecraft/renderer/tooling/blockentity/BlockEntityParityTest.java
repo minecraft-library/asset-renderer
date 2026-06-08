@@ -2,6 +2,7 @@ package lib.minecraft.renderer.tooling.blockentity;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -28,11 +29,12 @@ import static org.hamcrest.Matchers.equalTo;
 class BlockEntityParityTest {
 
     private static final Path OUTPUT = Path.of("src/main/resources/lib/minecraft/renderer/block_models.json");
+    private static final Gson GSON = GsonSettings.defaults().create();
 
     @Test
     @DisplayName("every catalog entity id has a block_models.json entry with elements")
     void allEntitiesPresent() throws IOException {
-        JsonObject root = new Gson().fromJson(Files.readString(OUTPUT), JsonObject.class);
+        JsonObject root = GSON.fromJson(Files.readString(OUTPUT), JsonObject.class);
         JsonObject entities = root.getAsJsonObject("models");
         java.util.zip.ZipFile zip = new java.util.zip.ZipFile(Path.of("cache/asset-renderer/vanilla/26.1/client.jar").toFile());
         try {

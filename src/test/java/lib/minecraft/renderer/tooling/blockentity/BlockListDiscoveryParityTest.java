@@ -3,6 +3,7 @@ package lib.minecraft.renderer.tooling.blockentity;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -33,13 +34,14 @@ class BlockListDiscoveryParityTest {
 
     private static final Path JAR = Path.of("cache/asset-renderer/vanilla/26.1/client.jar");
     private static final Path BASELINE = Path.of("src/test/resources/lib/minecraft/renderer/baseline/block_list.json");
+    private static final Gson GSON = GsonSettings.defaults().create();
 
     @Test
     @DisplayName("BlockListDiscovery matches baseline/block_list.json")
     void parity() throws IOException {
         try (ZipFile zip = new ZipFile(JAR.toFile())) {
             Map<String, BlockListDiscovery.EntityBlockMapping> actual = BlockListDiscovery.discover(zip, new Diagnostics());
-            JsonObject expectedJson = new Gson().fromJson(Files.readString(BASELINE), JsonObject.class);
+            JsonObject expectedJson = GSON.fromJson(Files.readString(BASELINE), JsonObject.class);
             assertThat("entity-model key set", actual.keySet(), equalTo(expectedJson.keySet()));
             for (Map.Entry<String, BlockListDiscovery.EntityBlockMapping> e : actual.entrySet()) {
                 JsonObject exp = expectedJson.getAsJsonObject(e.getKey());

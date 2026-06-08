@@ -16,7 +16,7 @@ Rewrites JSON in `src/main/resources/lib/minecraft/renderer/`:
 - `blockTints` -> `block_tints.json` (ASM scan of `BlockColors`)
 - `potionColors` -> `potion_colors.json` (ASM scan of `MobEffects`)
 - `blockModels` -> `block_models.json` (ASM scan of block-entity model classes)
-- `blockStates` -> `block_states.json` (ASM bytewalk of `registerDefaultState` + `createBlockStateDefinition` for each block's default state; variant-key list from blockstate JSON). Read at runtime by `BlockStateLoader` -> `Block.defaultStateKey`.
+- `blockDefaults` -> `block_defaults.json` (ASM bytewalk of `registerDefaultState` + `createBlockStateDefinition` for each block's default state). Read at runtime by `BlockStateLoader` -> `Block.defaultStateKey`. Variants come from the vanilla blockstate JSON, not this file.
 - `entityModels` -> `entity_models.json` + `entity_geometry.json` (ASM scan of vanilla client jar). Entry: `ToolingEntityModels.main` -> `EntityToolingContext.of(jar)` -> per-entity resolver fan-out (see `tooling/entity/`).
 - `colorMaps` -> `color_maps.json` (vanilla biome colormap PNGs)
 - `atlas` / `diagnoseAtlas` / `diagnoseAtlasTask10` -> `build/atlas/`

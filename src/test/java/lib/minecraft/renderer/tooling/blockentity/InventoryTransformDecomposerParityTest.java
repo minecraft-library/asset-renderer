@@ -3,6 +3,7 @@ package lib.minecraft.renderer.tooling.blockentity;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.tooling.ToolingBlockModels;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import org.jetbrains.annotations.NotNull;
@@ -41,6 +42,7 @@ class InventoryTransformDecomposerParityTest {
 
     private static final Path JAR = Path.of("cache/asset-renderer/vanilla/26.1/client.jar");
     private static final Path BASELINE = Path.of("src/test/resources/lib/minecraft/renderer/baseline/inventory_transforms.json");
+    private static final Gson GSON = GsonSettings.defaults().create();
 
     /**
      * Entity id to renderer internal name. The decomposer's policy table names the factory
@@ -75,7 +77,7 @@ class InventoryTransformDecomposerParityTest {
         try (ZipFile zip = new ZipFile(JAR.toFile())) {
             Diagnostics diag = new Diagnostics();
             Map<String, float[]> actual = InventoryTransformDecomposer.decomposeAll(zip, entityIdToRenderer(), diag);
-            JsonObject expectedJson = new Gson().fromJson(Files.readString(BASELINE), JsonObject.class);
+            JsonObject expectedJson = GSON.fromJson(Files.readString(BASELINE), JsonObject.class);
 
             int decomposed = 0;
             for (Map.Entry<String, String> e : entityIdToRenderer().entrySet()) {
