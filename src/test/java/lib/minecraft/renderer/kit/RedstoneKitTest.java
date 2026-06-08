@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.kit;
 
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.pack.ColorMap;
-import lib.minecraft.renderer.asset.pack.TexturePack;
+import lib.minecraft.renderer.asset.ColorMap;
+import lib.minecraft.renderer.asset.TexturePack;
 import lib.minecraft.renderer.engine.RendererContext;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;

@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.geometry;
+package lib.minecraft.renderer.appearance;
 
 import lombok.AccessLevel;
 import lombok.Getter;

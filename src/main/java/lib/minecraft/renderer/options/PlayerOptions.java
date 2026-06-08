@@ -3,7 +3,7 @@ package lib.minecraft.renderer.options;
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.Renderer;
-import lib.minecraft.renderer.asset.binding.ArmorPiece;
+import lib.minecraft.renderer.appearance.ArmorPiece;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.kit.ArmorKit;
 import lib.minecraft.renderer.kit.TrimKit;

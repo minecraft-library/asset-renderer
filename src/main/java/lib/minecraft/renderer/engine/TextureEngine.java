@@ -1,17 +1,11 @@
 package lib.minecraft.renderer.engine;
 
+import lib.minecraft.renderer.appearance.Biome;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.geometry.Biome;
 
-import lib.minecraft.renderer.kit.AnimationKit;
-import lib.minecraft.renderer.kit.GlintKit;
-import lib.minecraft.renderer.asset.pack.ColorMap;
-import lib.minecraft.renderer.asset.pack.AnimationData;
-import lib.minecraft.renderer.options.ItemOptions;
-import lib.minecraft.renderer.pipeline.pack.ItemContext;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -20,6 +14,12 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.AnimationData;
+import lib.minecraft.renderer.asset.ColorMap;
+import lib.minecraft.renderer.kit.AnimationKit;
+import lib.minecraft.renderer.kit.GlintKit;
+import lib.minecraft.renderer.options.ItemOptions;
+import lib.minecraft.renderer.pipeline.pack.ItemContext;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;

@@ -3,7 +3,7 @@ package lib.minecraft.renderer.kit;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.pack.AnimationData;
+import lib.minecraft.renderer.asset.AnimationData;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

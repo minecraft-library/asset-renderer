@@ -1,5 +1,6 @@
-package lib.minecraft.renderer.asset.binding;
+package lib.minecraft.renderer.appearance;
 
+import lib.minecraft.renderer.asset.BannerPattern;
 import org.jetbrains.annotations.NotNull;
 
 /**

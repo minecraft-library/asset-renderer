@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.kit;
 
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.pack.AnimationData;
+import lib.minecraft.renderer.asset.AnimationData;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 

@@ -5,8 +5,8 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.DiffType;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.BlockRenderer;
+import lib.minecraft.renderer.appearance.Biome;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.geometry.Biome;
 import lib.minecraft.renderer.options.BlockOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
@@ -14,7 +14,6 @@ import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
-import javax.imageio.ImageIO;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
@@ -31,6 +30,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import javax.imageio.ImageIO;
 
 /**
  * Per-block parity report comparing the Java pipeline output (via {@link BlockRenderer} in

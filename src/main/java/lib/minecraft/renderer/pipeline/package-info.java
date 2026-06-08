@@ -1,77 +1,44 @@
 /**
- * Asset acquisition and parsing pipeline. Turns a Minecraft version number and a stack of
- * resource pack directories into the populated DTOs the renderer layer reads via a
- * {@link RendererContext RendererContext}.
+ * Asset acquisition and parsing pipeline - turns a Minecraft version plus a stack of resource
+ * pack directories into the populated DTOs the renderer reads through a
+ * {@link lib.minecraft.renderer.engine.RendererContext RendererContext}.
  *
- * <p><b>Orchestrator.</b> {@link Pipeline Pipeline} is the
- * single entry point. One {@link PipelineOptions
- * PipelineOptions} -&gt; {@code Pipeline.Result} call:
- * <ol>
- *   <li>Downloads the targeted version's client jar via the
- *       {@code api.simplified.mojang.MojangContract} Feign proxy ({@link
- *       lib.minecraft.renderer.pipeline.Pipeline#mojang() Pipeline.mojang()}), with
- *       domain-aware rate limiting shared across every concurrent caller in the JVM.</li>
- *   <li>Extracts the {@code minecraft/} subtrees ({@link VanillaSourcePaths#VANILLA_ASSET_ROOT assets}
- *       and {@link VanillaSourcePaths#VANILLA_DATA_ROOT data}).</li>
- *   <li>Walks the active pack stack with each domain-specific loader (block models, item
- *       models, blockstates, block tags, textures, color maps, banner patterns, potion
- *       colors).</li>
- *   <li>Reads OptiFine-flavoured pack rules ({@code optifine/cit}, {@code optifine/ctm},
- *       {@code optifine/colormap}, {@code optifine/color.properties}) and produces the
- *       descending-priority resolver list every renderer queries through
- *       {@link PipelineRendererContext PipelineRendererContext}.</li>
- *   <li>Returns a {@code Pipeline.Result} containing the populated maps plus the pack-root
- *       paths the texture loader uses for on-demand sampling.</li>
- * </ol>
+ * <p><b>Orchestrator.</b> {@link lib.minecraft.renderer.pipeline.Pipeline Pipeline} is the lone
+ * entry point: one {@link lib.minecraft.renderer.pipeline.PipelineOptions PipelineOptions} call
+ * downloads the version's client jar (via the {@code MojangContract} Feign proxy with shared
+ * domain-aware rate limiting), extracts the {@code assets/} + {@code data/} subtrees, walks the
+ * active pack stack with each domain loader (models, blockstates, tags, textures, colormaps,
+ * banner patterns, potion colours), reads the OptiFine rules ({@code cit} / {@code ctm} /
+ * {@code colormap} / {@code color.properties}), and returns a {@code Pipeline.Result} of populated
+ * maps plus pack-root paths.
  *
- * <p><b>Production context.</b> {@link
- * lib.minecraft.renderer.pipeline.PipelineRendererContext PipelineRendererContext} is the
- * production {@code RendererContext} - it wires every {@code findX} / {@code resolveX} method
- * onto the {@code Pipeline.Result} maps plus on-demand
- * {@link CitMatcher CIT} /
- * {@link CtmMatcher CTM} matchers. Test contexts and
- * tooling stubs implement {@code RendererContext} directly without going through this class.
+ * <p><b>Production context.</b>
+ * {@link lib.minecraft.renderer.pipeline.PipelineRendererContext PipelineRendererContext} wraps a
+ * {@code Pipeline.Result} into the production {@code RendererContext}, backing every {@code findX}
+ * / {@code resolveX} with an eager index plus on-demand CIT / CTM matchers. Test and tooling stubs
+ * implement {@code RendererContext} directly.
  *
  * <p><b>Sub-packages.</b>
  * <ul>
- *   <li>{@link lib.minecraft.renderer.pipeline.loader loader} - one loader per JSON / NBT /
- *       PNG asset family. Each one walks an ascending or descending pack stack with explicit
- *       merge semantics; see each loader's javadoc for the precedence rules.</li>
+ *   <li>{@link lib.minecraft.renderer.pipeline.loader loader} - one loader per asset family
+ *       (JSON / NBT / PNG), each with its own pack-stack merge precedence.</li>
  *   <li>{@link lib.minecraft.renderer.pipeline.pack pack} - immutable parsed-rule records and
- *       matchers for OptiFine-flavoured pack features: {@code CitRule}, {@code CitMatcher},
- *       {@code CtmRule}, {@code CtmMatcher}, {@code ColorProperties}, {@code IntRange},
- *       {@code NbtCondition}, {@code NeighborPattern}, {@code PackMeta}, plus the
- *       {@code FormatSpec} and {@code ItemContext} value types they consume.</li>
- *   <li>{@link lib.minecraft.renderer.pipeline.resolver resolver} - resolver utilities that
- *       walk multiple loaders' output to produce a single answer: model parent inheritance
- *       ({@code ModelResolver}), block-entity overlay materialization
- *       ({@code OverlayResolver}), and the pack-stack precedence walker
- *       ({@code PackResolver}).</li>
- *   <li>{@link lib.minecraft.renderer.pipeline.util util} - SPI implementations and shared
- *       cross-cutting utilities ({@link PackAcquirer
- *       PackAcquirer}, {@link PackDownloader
- *       PackDownloader}, {@link RendererDebug
- *       RendererDebug} per-pixel diagnostic dump).</li>
+ *       matchers for OptiFine features (CIT / CTM / colormap), plus {@code PackMeta} and the value
+ *       types they consume.</li>
+ *   <li>{@link lib.minecraft.renderer.pipeline.resolver resolver} - cross-loader resolvers: model
+ *       parent inheritance, block-entity overlays, and pack-stack precedence.</li>
+ *   <li>{@link lib.minecraft.renderer.pipeline.util util} - SPI impls and shared utilities (pack
+ *       acquire / download, per-pixel diagnostics, and the {@code VanillaSourcePaths} jar-prefix
+ *       constants every loader keys off).</li>
  * </ul>
  *
- * <p><b>Gson integration.</b> {@link
- * lib.minecraft.renderer.pipeline.PipelineGsonContributor PipelineGsonContributor} registers
- * the {@link Vector2f Vector2f} /
- * {@link Vector3f Vector3f} /
- * {@link Vector4f Vector4f} type adapters with
- * {@code GsonSettings.defaults()} via the {@code GsonContributor}
- * {@link ServiceLoader ServiceLoader} SPI, so any downstream module that builds a
- * {@code Gson} through {@code GsonSettings.defaults().create()} can deserialize asset JSON
- * automatically.
- *
- * <p><b>Path constants.</b> Every loader pulls its vanilla-jar prefixes from
- * {@link VanillaSourcePaths} so a future Mojang rename can be made in one file.
+ * <p><b>Gson.</b> {@link lib.minecraft.renderer.pipeline.PipelineGsonContributor
+ * PipelineGsonContributor} registers the tensor {@code Vector2f/3f/4f} adapters through the
+ * {@code GsonContributor} {@link java.util.ServiceLoader ServiceLoader} SPI, so any downstream
+ * {@code GsonSettings.defaults()} build deserializes asset JSON automatically.
  *
  * @see lib.minecraft.renderer.pipeline.Pipeline
  * @see lib.minecraft.renderer.pipeline.PipelineRendererContext
  * @see lib.minecraft.renderer.engine.RendererContext
  */
 package lib.minecraft.renderer.pipeline;
-
-import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
-

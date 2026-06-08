@@ -2,13 +2,17 @@ package lib.minecraft.renderer.pipeline;
 
 import com.google.gson.Gson;
 
-import lib.minecraft.renderer.geometry.Biome;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.gson.GsonSettings;
+import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.appearance.Biome;
+import lib.minecraft.renderer.asset.AnimationData;
 import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.asset.pack.ColorMap;
+import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.asset.pack.Texture;
-import lib.minecraft.renderer.asset.pack.TexturePack;
-import lib.minecraft.renderer.asset.pack.AnimationData;
+import lib.minecraft.renderer.asset.Texture;
+import lib.minecraft.renderer.asset.TexturePack;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.pipeline.loader.ColorMapLoader;
 import lib.minecraft.renderer.pipeline.loader.TexturePackLoader;
@@ -16,21 +20,17 @@ import lib.minecraft.renderer.pipeline.pack.CtmMethod;
 import lib.minecraft.renderer.pipeline.pack.CtmResolution;
 import lib.minecraft.renderer.pipeline.pack.CtmRule;
 import lib.minecraft.renderer.pipeline.pack.PackMeta;
-import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.gson.GsonSettings;
-import dev.simplified.image.pixel.PixelBuffer;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
+import javax.imageio.ImageIO;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;

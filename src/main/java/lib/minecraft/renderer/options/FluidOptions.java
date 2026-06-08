@@ -2,7 +2,7 @@ package lib.minecraft.renderer.options;
 
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.Renderer;
-import lib.minecraft.renderer.geometry.Biome;
+import lib.minecraft.renderer.appearance.Biome;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lombok.AccessLevel;
 import lombok.Builder;

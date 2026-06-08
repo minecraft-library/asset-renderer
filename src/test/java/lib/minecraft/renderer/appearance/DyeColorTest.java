@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.asset.binding;
+package lib.minecraft.renderer.appearance;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

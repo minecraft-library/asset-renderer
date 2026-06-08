@@ -6,7 +6,7 @@ import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
-import lib.minecraft.renderer.asset.pack.ColorMap;
+import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.tooling.ToolingColorMaps;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;

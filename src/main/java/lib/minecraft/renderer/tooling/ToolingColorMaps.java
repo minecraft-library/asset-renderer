@@ -3,20 +3,19 @@ package lib.minecraft.renderer.tooling;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import lib.minecraft.renderer.engine.TextureEngine;
-import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.exception.ToolingException;
-import lib.minecraft.renderer.asset.pack.ColorMap;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.loader.ColorMapLoader;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.GsonSettings;
+import lib.minecraft.renderer.asset.ColorMap;
+import lib.minecraft.renderer.engine.TextureEngine;
+import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.exception.ToolingException;
+import lib.minecraft.renderer.pipeline.Pipeline;
+import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.loader.ColorMapLoader;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
-import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -25,6 +24,7 @@ import java.nio.file.Path;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
+import javax.imageio.ImageIO;
 
 /**
  * Entry point invoked by the {@code generateColorMaps} Gradle task.

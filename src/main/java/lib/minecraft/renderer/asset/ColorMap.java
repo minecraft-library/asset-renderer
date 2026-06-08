@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.asset.pack;
+package lib.minecraft.renderer.asset;
 
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;

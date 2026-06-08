@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.asset.pack;
+package lib.minecraft.renderer.asset;
 
 import dev.simplified.collection.ConcurrentList;
 import lombok.AllArgsConstructor;

@@ -5,20 +5,19 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
-import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.asset.pack.Texture;
-import lib.minecraft.renderer.asset.pack.TexturePack;
-import lib.minecraft.renderer.asset.pack.AnimationData;
-import lib.minecraft.renderer.kit.AnimationKit;
-import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
+import lib.minecraft.renderer.asset.AnimationData;
+import lib.minecraft.renderer.asset.Texture;
+import lib.minecraft.renderer.asset.TexturePack;
+import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.kit.AnimationKit;
+import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
-import javax.imageio.ImageIO;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,6 +26,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Stream;
+import javax.imageio.ImageIO;
 
 /**
  * A loader that scans a texture pack directory and produces a {@link TexturePack} entity plus a
