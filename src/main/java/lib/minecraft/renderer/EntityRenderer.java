@@ -274,28 +274,23 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // is built via the same {@code Quaternionf.rotationZYX} entry point vanilla uses.
         if (overlay.attachedBone() != null) {
             Vector3f pivot = EntityGeometryKit.resolveBonePivot(model, overlay.attachedBone());
-            Matrix4f tBone = Matrix4f.createTranslation(
-                pivot.x() / 16f, pivot.y() / 16f, pivot.z() / 16f);
-            blockUnitChain = blockUnitChain.multiply(tBone);
+            blockUnitChain = blockUnitChain.translate(pivot.x() / 16f, pivot.y() / 16f, pivot.z() / 16f);
             EntityModelData.Bone bone = model.getBones().get(overlay.attachedBone());
             if (bone != null) {
                 EulerRotation rot = bone.getRotation();
-                if (rot.pitch() != 0f || rot.yaw() != 0f || rot.roll() != 0f) {
-                    Matrix4f rotMat = Quaternionf
-                        .rotationZYX(rot.rollRadians(), rot.yawRadians(), rot.pitchRadians())
-                        .toMatrix4f();
-                    blockUnitChain = blockUnitChain.multiply(rotMat);
-                }
+                if (rot.pitch() != 0f || rot.yaw() != 0f || rot.roll() != 0f)
+                    blockUnitChain = blockUnitChain.rotate(
+                        Quaternionf.rotationZYX(rot.rollRadians(), rot.yawRadians(), rot.pitchRadians()));
             }
         }
 
         for (EntityModelLoader.TransformOp op : overlay.transforms()) {
-            Matrix4f opMat = switch (op) {
-                case EntityModelLoader.Translate t -> Matrix4f.createTranslation(t.x(), t.y(), t.z());
-                case EntityModelLoader.RotateY r -> Matrix4f.createRotationY((float) Math.toRadians(r.degrees()));
-                case EntityModelLoader.Scale s -> Matrix4f.createScale(s.x(), s.y(), s.z());
+            blockUnitChain = switch (op) {
+                case EntityModelLoader.Translate t -> blockUnitChain.translate(t.x(), t.y(), t.z());
+                case EntityModelLoader.RotateY r -> blockUnitChain.rotate(
+                    Quaternionf.rotationXYZ(0f, (float) Math.toRadians(r.degrees()), 0f));
+                case EntityModelLoader.Scale s -> blockUnitChain.scale(s.x(), s.y(), s.z());
             };
-            blockUnitChain = blockUnitChain.multiply(opMat);
         }
 
         // Vanilla expects block-model vertices in {@code [0, 1]} (corner-at-origin) since the
@@ -304,14 +299,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // {@code [-0.5, 0.5]} for inventory/atlas use, so add 0.5 on each axis to recover the
         // corner-at-origin convention before the chain applies. Appended last so that, in
         // column-vector composition, this op is rightmost and applies first to the input vertex.
-        Matrix4f uncenter = Matrix4f.createTranslation(0.5f, 0.5f, 0.5f);
-        blockUnitChain = blockUnitChain.multiply(uncenter);
+        blockUnitChain = blockUnitChain.translate(0.5f, 0.5f, 0.5f);
 
         // Convert block-unit positions to entity pixel-units (x16), then run the entity-fit
         // normalization to land in the rasterizer's working frame. Column-vector chain reads
         // right-to-left: blockUnitChain first, then blockToPixel, then entityFit.
-        Matrix4f blockToPixel = Matrix4f.createScale(16f, 16f, 16f);
-        Matrix4f finalMatrix = entityFit.multiply(blockToPixel).multiply(blockUnitChain);
+        Matrix4f finalMatrix = entityFit.scale(16f, 16f, 16f).multiply(blockUnitChain);
 
         ConcurrentList<VisibleTriangle> out = Concurrent.newList();
         for (VisibleTriangle tri : blockTris) {
