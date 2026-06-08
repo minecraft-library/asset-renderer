@@ -520,8 +520,10 @@ public interface RenderEngine {
      * Deliberately NOT folded onto {@link BlockFace#fromNormal}: the two resolve an exact
      * X/Z 45-degree tie to different axes. This method's {@code Direction.values()} first-wins
      * order visits the Z faces (NORTH/SOUTH) before the X faces (WEST/EAST), so it picks Z;
-     * {@code fromNormal}'s {@code Y > Z > X} magnitude tie-break picks X. The relight pass above
-     * relies on the Z pick (sculk-sensor tendril shade), so they must stay separate.
+     * {@code fromNormal}'s {@code Y > Z > X} magnitude tie-break picks X. Confirmed by a full block
+     * parity sweep: unconditionally delegating to {@code fromNormal} regresses 8 blocks out of the
+     * {@code <0.25} bucket (1046 -> 1038) - candles, azalea, brewing_stand, melon / pumpkin stems,
+     * lever, tripwire_hook all shade off by the wrong cardinal. So they must stay separate.
      *
      * @param normal the quad's outward surface normal in model space
      * @return the nearest cardinal's unit vector, or UP for a degenerate normal
