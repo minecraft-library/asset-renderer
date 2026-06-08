@@ -33,7 +33,7 @@ class BlockEntityParityTest {
     @DisplayName("every catalog entity id has a block_models.json entry with elements")
     void allEntitiesPresent() throws IOException {
         JsonObject root = new Gson().fromJson(Files.readString(OUTPUT), JsonObject.class);
-        JsonObject entities = root.getAsJsonObject("entities");
+        JsonObject entities = root.getAsJsonObject("models");
         java.util.zip.ZipFile zip = new java.util.zip.ZipFile(Path.of("cache/asset-renderer/vanilla/26.1/client.jar").toFile());
         try {
             Map<String, BlockListDiscovery.EntityBlockMapping> catalog = BlockListDiscovery.discover(zip, new Diagnostics());
