@@ -2,7 +2,7 @@ package lib.minecraft.renderer.options;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.ImageFormat;
+import dev.simplified.image.Background;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.Renderer;
 import lib.minecraft.renderer.asset.binding.ArmorTrim;
@@ -122,12 +122,6 @@ public class ItemOptions {
     private final @NotNull ConcurrentList<BannerLayer> bannerLayers = Concurrent.newList();
 
     /**
-     * Total number of frames produced when the renderer generates animated output.
-     */
-    @lombok.Builder.Default
-    private final int animationFrames = 60;
-
-    /**
      * Target frame rate for animated output; drives glint scroll speed and loop period.
      */
     @lombok.Builder.Default
@@ -146,22 +140,17 @@ public class ItemOptions {
     private final int outputSize = Renderer.DEFAULT_OUTPUT_SIZE;
 
     /**
-     * Additional texture pack ids to layer on top of vanilla
-     */
-    @lombok.Builder.Default
-    private final @NotNull ConcurrentList<String> texturePackIds = Concurrent.newList();
-
-    /**
-     * Output image format
-     */
-    @lombok.Builder.Default
-    private final @NotNull ImageFormat outputFormat = ImageFormat.PNG;
-
-    /**
      * The render-time item context used by CIT matching, the damage bar, and stack count overlay.
      */
     @lombok.Builder.Default
     private final @NotNull ItemContext context = ItemContext.EMPTY;
+
+    /**
+     * Background fill composited behind the finished render (solid colour or checkerboard).
+     * Defaults to {@link Background#TRANSPARENT}, a no-op that leaves the render's own alpha intact.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Background background = Background.TRANSPARENT;
 
     public @NotNull ItemOptionsBuilder mutate() {
         return this.toBuilder();

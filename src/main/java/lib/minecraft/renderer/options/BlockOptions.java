@@ -1,8 +1,6 @@
 package lib.minecraft.renderer.options;
 
-import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.ImageFormat;
+import dev.simplified.image.Background;
 import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.Renderer;
 import lib.minecraft.renderer.asset.Block;
@@ -106,12 +104,6 @@ public class BlockOptions {
     private final int supersample = 1;
 
     /**
-     * Additional texture pack ids to layer on top of vanilla
-     */
-    @lombok.Builder.Default
-    private final @NotNull ConcurrentList<String> texturePackIds = Concurrent.newList();
-
-    /**
      * Whether the renderer should compose a {@link Block.Entity}'s
      * {@link Block.Entity#parts() parts} into the tile output.
      * <p>
@@ -124,6 +116,13 @@ public class BlockOptions {
      */
     @lombok.Builder.Default
     private final boolean mergeParts = true;
+
+    /**
+     * Background fill composited behind the finished render (solid colour or checkerboard).
+     * Defaults to {@link Background#TRANSPARENT}, a no-op that leaves the render's own alpha intact.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Background background = Background.TRANSPARENT;
 
     public @NotNull BlockOptionsBuilder mutate() {
         return this.toBuilder();

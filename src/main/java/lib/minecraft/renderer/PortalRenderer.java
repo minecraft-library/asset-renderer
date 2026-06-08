@@ -188,10 +188,11 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
 
     @Override
     public @NotNull ImageData render(@NotNull PortalOptions options) {
-        return switch (options.getType()) {
+        ImageData rendered = switch (options.getType()) {
             case ISOMETRIC_3D -> this.isometric3D.render(options);
             case PORTAL_FACE_2D -> this.portalFace2D.render(options);
         };
+        return options.getBackground().composite(rendered);
     }
 
     /**

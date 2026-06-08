@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.options;
 
-import dev.simplified.image.ImageFormat;
+import dev.simplified.image.Background;
 import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.Renderer;
 import lib.minecraft.renderer.asset.binding.ArmorPiece;
@@ -150,10 +150,11 @@ public class PlayerOptions {
     private final boolean antiAlias = true;
 
     /**
-     * Output image format
+     * Background fill composited behind the finished render (solid colour or checkerboard).
+     * Defaults to {@link Background#TRANSPARENT}, a no-op that leaves the render's own alpha intact.
      */
     @lombok.Builder.Default
-    private final @NotNull ImageFormat outputFormat = ImageFormat.PNG;
+    private final @NotNull Background background = Background.TRANSPARENT;
 
     public @NotNull PlayerOptionsBuilder mutate() {
         return this.toBuilder();

@@ -2,8 +2,8 @@ package lib.minecraft.renderer.options;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
-import dev.simplified.image.ImageFormat;
 import lib.minecraft.renderer.Renderer;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
@@ -20,21 +20,18 @@ public class LayoutOptions {
     private final @NotNull Layout layout;
     private final @NotNull ConcurrentList<Supplier<ImageData>> children;
     private final int framesPerSecond;
-    private final int backgroundArgb;
-    private final @NotNull ImageFormat outputFormat;
+    private final @NotNull Background background;
 
     private LayoutOptions(
         @NotNull Layout layout,
         @NotNull ConcurrentList<Supplier<ImageData>> children,
         int framesPerSecond,
-        int backgroundArgb,
-        @NotNull ImageFormat outputFormat
+        @NotNull Background background
     ) {
         this.layout = layout;
         this.children = children;
         this.framesPerSecond = framesPerSecond;
-        this.backgroundArgb = backgroundArgb;
-        this.outputFormat = outputFormat;
+        this.background = background;
     }
 
     /**
@@ -60,8 +57,7 @@ public class LayoutOptions {
         private @NotNull Layout layout = Layout.row();
         private final @NotNull ConcurrentList<Supplier<ImageData>> children = Concurrent.newList();
         private int framesPerSecond = 30;
-        private int backgroundArgb = 0x00000000;
-        private @NotNull ImageFormat outputFormat = ImageFormat.PNG;
+        private @NotNull Background background = Background.TRANSPARENT;
 
         /**
          * Sets the layout strategy (row, column, grid, stack, custom).
@@ -113,24 +109,13 @@ public class LayoutOptions {
         }
 
         /**
-         * Sets the canvas background colour applied before blitting any child.
+         * Sets the canvas background fill applied before blitting any child.
          *
-         * @param argb the ARGB background colour
+         * @param background the background fill (solid colour or checkerboard)
          * @return this builder
          */
-        public @NotNull Builder backgroundArgb(int argb) {
-            this.backgroundArgb = argb;
-            return this;
-        }
-
-        /**
-         * Sets the preferred output image format for the caller.
-         *
-         * @param format the output format
-         * @return this builder
-         */
-        public @NotNull Builder outputFormat(@NotNull ImageFormat format) {
-            this.outputFormat = format;
+        public @NotNull Builder background(@NotNull Background background) {
+            this.background = background;
             return this;
         }
 
@@ -140,7 +125,7 @@ public class LayoutOptions {
          * @return the options
          */
         public @NotNull LayoutOptions build() {
-            return new LayoutOptions(this.layout, this.children, this.framesPerSecond, this.backgroundArgb, this.outputFormat);
+            return new LayoutOptions(this.layout, this.children, this.framesPerSecond, this.background);
         }
 
     }

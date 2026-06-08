@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.kit;
 
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.data.AnimatedImageData;
 import dev.simplified.image.data.ImageFrame;
@@ -47,14 +48,14 @@ public class FrameMerger {
      * @param canvasW the canvas width in pixels
      * @param canvasH the canvas height in pixels
      * @param framesPerSecond the output frame rate, used only when producing animated output
-     * @param backgroundArgb the canvas background colour applied before blitting any layer
+     * @param background the canvas background fill applied before blitting any layer
      * @return the composited image data
      */
-    public static @NotNull ImageData merge(@NotNull ConcurrentList<Layer> layers, int canvasW, int canvasH, int framesPerSecond, int backgroundArgb) {
+    public static @NotNull ImageData merge(@NotNull ConcurrentList<Layer> layers, int canvasW, int canvasH, int framesPerSecond, @NotNull Background background) {
         boolean anyAnimated = layers.stream().anyMatch(layer -> layer.source() instanceof AnimatedImageData);
 
         if (!anyAnimated)
-            return StaticImageData.of(renderFrame(layers, canvasW, canvasH, backgroundArgb, 0).toBufferedImage());
+            return StaticImageData.of(renderFrame(layers, canvasW, canvasH, background, 0).toBufferedImage());
 
         int outputFrameDelayMs = Math.max(1, Math.round(1000f / framesPerSecond));
         long mergedLoopMs = computeMergedLoopMs(layers);
@@ -63,16 +64,16 @@ public class FrameMerger {
         AnimatedImageData.Builder builder = AnimatedImageData.builder();
         for (int frameIndex = 0; frameIndex < outputFrameCount; frameIndex++) {
             long timeMs = (long) frameIndex * outputFrameDelayMs;
-            PixelBuffer frame = renderFrame(layers, canvasW, canvasH, backgroundArgb, timeMs);
+            PixelBuffer frame = renderFrame(layers, canvasW, canvasH, background, timeMs);
             builder.withFrame(ImageFrame.of(frame, outputFrameDelayMs));
         }
 
         return builder.build();
     }
 
-    private static @NotNull PixelBuffer renderFrame(@NotNull ConcurrentList<Layer> layers, int canvasW, int canvasH, int backgroundArgb, long timeMs) {
+    private static @NotNull PixelBuffer renderFrame(@NotNull ConcurrentList<Layer> layers, int canvasW, int canvasH, @NotNull Background background, long timeMs) {
         PixelBuffer buffer = PixelBuffer.create(canvasW, canvasH);
-        buffer.fill(backgroundArgb);
+        background.fill(buffer);
 
         for (Layer layer : layers) {
             PixelBuffer frame = sampleLayerAtTime(layer.source(), timeMs);

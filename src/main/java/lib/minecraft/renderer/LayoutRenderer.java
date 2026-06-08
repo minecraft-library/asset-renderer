@@ -46,7 +46,7 @@ public final class LayoutRenderer implements Renderer<LayoutOptions> {
         for (int i = 0; i < resolved.size(); i++)
             layers.add(new FrameMerger.Layer(positions[i][0], positions[i][1], resolved.get(i)));
 
-        return FrameMerger.merge(layers, canvas[0], canvas[1], options.getFramesPerSecond(), options.getBackgroundArgb());
+        return FrameMerger.merge(layers, canvas[0], canvas[1], options.getFramesPerSecond(), options.getBackground());
     }
 
     private static @NotNull ConcurrentList<ImageData> resolveChildren(@NotNull ConcurrentList<Supplier<ImageData>> children) {

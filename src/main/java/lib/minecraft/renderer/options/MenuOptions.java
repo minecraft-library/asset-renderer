@@ -2,7 +2,6 @@ package lib.minecraft.renderer.options;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.image.ImageFormat;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.MenuRenderer;
@@ -103,12 +102,6 @@ public class MenuOptions {
      */
     @lombok.Builder.Default
     private final int framesPerSecond = 30;
-
-    /**
-     * Output image format
-     */
-    @lombok.Builder.Default
-    private final @NotNull ImageFormat outputFormat = ImageFormat.PNG;
 
     public @NotNull MenuOptionsBuilder mutate() {
         return this.toBuilder();

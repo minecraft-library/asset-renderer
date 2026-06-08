@@ -1,8 +1,6 @@
 package lib.minecraft.renderer.options;
 
-import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.ImageFormat;
+import dev.simplified.image.Background;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -47,22 +45,10 @@ public class AtlasOptions {
     private final int columns = 16;
 
     /**
-     * ARGB fill color for empty areas
+     * Background fill for empty areas (solid colour or checkerboard).
      */
     @lombok.Builder.Default
-    private final int backgroundArgb = 0x00000000;
-
-    /**
-     * Additional texture pack ids to layer on top of vanilla
-     */
-    @lombok.Builder.Default
-    private final @NotNull ConcurrentList<String> texturePackIds = Concurrent.newList();
-
-    /**
-     * Output image format
-     */
-    @lombok.Builder.Default
-    private final @NotNull ImageFormat outputFormat = ImageFormat.PNG;
+    private final @NotNull Background background = Background.TRANSPARENT;
 
     /**
      * When {@code true}, animated textures are rendered as full animation strips. When

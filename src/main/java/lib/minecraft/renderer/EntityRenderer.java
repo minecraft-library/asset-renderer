@@ -46,24 +46,6 @@ import java.util.Optional;
 public final class EntityRenderer implements Renderer<EntityOptions> {
 
     /**
-     * Texel resolution (image-pixels per Minecraft block-unit). Mirrors
-     * {@code HarnessConfig.PIXELS_PER_BLOCK} in the sibling vanilla-reference-harness so both
-     * pipelines render at the same screen scale. Override with {@code -Drefharness.pixelsPerBlock=N}.
-     * Vanilla model parts author cubes in entity-pixels (16 entity-pixels = 1 block); the
-     * canvas-pixels-per-entity-pixel ratio is therefore {@code PIXELS_PER_BLOCK / 16}.
-     */
-    private static final int PIXELS_PER_BLOCK = Integer.getInteger("refharness.pixelsPerBlock", 256);
-
-    /**
-     * Hard cap (pixels) on either side of the rendered canvas. Entities whose screen-space
-     * bounds × {@link #PIXELS_PER_BLOCK} would exceed this on the longer axis (ender_dragon,
-     * giant) are scaled down uniformly so the longer side equals the cap; the shorter side and
-     * the per-pixel scale shrink proportionally so the entity still fits within the canvas.
-     * Mirrors {@code HarnessConfig.MAX_CANVAS_SIZE}; override with {@code -Drefharness.maxCanvasSize=N}.
-     */
-    private static final int MAX_CANVAS_SIZE = Integer.getInteger("refharness.maxCanvasSize", 1024);
-
-    /**
      * Renderer context for texture resolution + isometric engine setup; not used for entity lookup.
      */
     private final @NotNull RendererContext context;
@@ -77,6 +59,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
     @Override
     public @NotNull ImageData render(@NotNull EntityOptions options) {
+        return options.getBackground().composite(renderEntity(options));
+    }
+
+    private @NotNull ImageData renderEntity(@NotNull EntityOptions options) {
         if (options.getEntityId().isEmpty())
             return RenderEngine.staticFrame(PixelBuffer.create(1, 1));
 
@@ -384,10 +370,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * <p>{@code UNION_BOUNDS} / {@code FAMILY_BOUNDS}: walk every cube's vertices through the
      * iso transform (matching {@link EntityGeometryKit#computeScreenBounds the harness's
      * per-cube measurement}), take the tight screen-space extent in entity-pixel-units, then
-     * size the canvas to {@code (extent * PIXELS_PER_BLOCK / 16)} pixels per axis plus
+     * size the canvas to {@code (extent * pixelsPerBlock / 16)} pixels per axis plus
      * {@code 2 * padding} on each axis, then uniformly shrink so the longer side stays at or
-     * below {@link #MAX_CANVAS_SIZE}. The two modes differ only in whether bounds union
-     * across the family.
+     * below {@link EntityOptions#getMaxCanvasSize() maxCanvasSize}. The two modes differ only in
+     * whether bounds union across the family.
      *
      * <p>{@code OUTPUT_SIZE}: canvas is fixed at {@code outputSize x outputSize}. Available
      * silhouette area is {@code outputSize - 2 * padding} on the longer axis; the entity is
@@ -424,11 +410,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             return new CanvasFit(outputSize, outputSize, ndcScale);
         }
 
-        float pxPerEntityUnit = PIXELS_PER_BLOCK / 16f;
+        int maxCanvasSize = Math.max(1, options.getMaxCanvasSize());
+        float pxPerEntityUnit = options.getPixelsPerBlock() / 16f;
         int rawW = Math.max(1, (int) Math.ceil(extentX * pxPerEntityUnit)) + 2 * padding;
         int rawH = Math.max(1, (int) Math.ceil(extentY * pxPerEntityUnit)) + 2 * padding;
         int longest = Math.max(rawW, rawH);
-        float shrink = longest > MAX_CANVAS_SIZE ? (float) MAX_CANVAS_SIZE / longest : 1f;
+        float shrink = longest > maxCanvasSize ? (float) maxCanvasSize / longest : 1f;
         int canvasW = Math.max(1, (int) Math.ceil(rawW * shrink));
         int canvasH = Math.max(1, (int) Math.ceil(rawH * shrink));
         float effectivePxPerEntityUnit = pxPerEntityUnit * shrink;

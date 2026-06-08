@@ -115,11 +115,12 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
     @Override
     public @NotNull ImageData render(@NotNull PlayerOptions options) {
-        return switch (options.getType()) {
+        ImageData rendered = switch (options.getType()) {
             case SKULL -> this.skull.render(options);
             case BUST -> this.bust.render(options);
             case FULL -> this.full.render(options);
         };
+        return options.getBackground().composite(rendered);
     }
 
     // ---------------------------------------------------------------------------------------

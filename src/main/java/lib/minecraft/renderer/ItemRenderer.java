@@ -70,10 +70,11 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
     @Override
     public @NotNull ImageData render(@NotNull ItemOptions options) {
-        return switch (options.getType()) {
+        ImageData rendered = switch (options.getType()) {
             case GUI_2D -> this.gui2D.render(options);
             case HELD_3D -> this.held3D.render(options);
         };
+        return options.getBackground().composite(rendered);
     }
 
     /**

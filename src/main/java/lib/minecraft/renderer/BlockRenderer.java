@@ -68,10 +68,11 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
     @Override
     public @NotNull ImageData render(@NotNull BlockOptions options) {
-        return switch (options.getType()) {
+        ImageData rendered = switch (options.getType()) {
             case ISOMETRIC_3D -> this.isometric3D.render(options);
             case BLOCK_FACE_2D -> this.blockFace2D.render(options);
         };
+        return options.getBackground().composite(rendered);
     }
 
     /**

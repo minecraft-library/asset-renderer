@@ -65,10 +65,11 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
 
     @Override
     public @NotNull ImageData render(@NotNull FluidOptions options) {
-        return switch (options.getType()) {
+        ImageData rendered = switch (options.getType()) {
             case ISOMETRIC_3D -> this.isometric3D.render(options);
             case FLUID_FACE_2D -> this.fluidFace2D.render(options);
         };
+        return options.getBackground().composite(rendered);
     }
 
     /**

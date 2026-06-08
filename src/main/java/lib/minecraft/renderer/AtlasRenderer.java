@@ -358,7 +358,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             .cellSize(tileSize)
             .columns(columns)
             .rows(rows)
-            .backgroundArgb(options.getBackgroundArgb())
+            .background(options.getBackground())
             .build();
 
         return this.gridRenderer.render(gridOptions);

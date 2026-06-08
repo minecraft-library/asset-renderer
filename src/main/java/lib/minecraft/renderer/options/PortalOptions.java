@@ -1,10 +1,8 @@
 package lib.minecraft.renderer.options;
 
+import dev.simplified.image.Background;
 import lib.minecraft.renderer.Renderer;
 import lib.minecraft.renderer.geometry.EulerRotation;
-import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.ImageFormat;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -71,18 +69,6 @@ public class PortalOptions {
     private final int supersample = 2;
 
     /**
-     * Additional texture pack ids to layer on top of vanilla.
-     */
-    @lombok.Builder.Default
-    private final @NotNull ConcurrentList<String> texturePackIds = Concurrent.newList();
-
-    /**
-     * Output image format.
-     */
-    @lombok.Builder.Default
-    private final @NotNull ImageFormat outputFormat = ImageFormat.PNG;
-
-    /**
      * Animation seed tick. Frame 0 feeds {@code GameTime} into the parallax layer transform at this tick.
      */
     @lombok.Builder.Default
@@ -127,6 +113,13 @@ public class PortalOptions {
      */
     @lombok.Builder.Default
     private final float loopFadeBridgePct = 0.2f;
+
+    /**
+     * Background fill composited behind the finished render (solid colour or checkerboard).
+     * Defaults to {@link Background#TRANSPARENT}, a no-op that leaves the render's own alpha intact.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Background background = Background.TRANSPARENT;
 
     public @NotNull PortalOptionsBuilder mutate() {
         return this.toBuilder();

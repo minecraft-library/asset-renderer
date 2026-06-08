@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.visual;
 
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.DiffType;
@@ -645,13 +646,9 @@ public final class TestEntityParityVanilla {
      * checker keeps the canvas extent visible without dominating the view.
      */
     private static @NotNull BufferedImage buildGridBackdrop(int w, int h) {
-        BufferedImage backdrop = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                backdrop.setRGB(x, y, ((x >> 3) + (y >> 3)) % 2 == 0 ? 0xFF202024 : 0xFF181820);
-            }
-        }
-        return backdrop;
+        PixelBuffer backdrop = PixelBuffer.create(w, h);
+        Background.checkerboard().fill(backdrop);
+        return backdrop.toBufferedImage();
     }
 
     /** Per-entity row in the TSV report. */

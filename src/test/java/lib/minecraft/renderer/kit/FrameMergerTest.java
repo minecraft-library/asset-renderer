@@ -2,6 +2,7 @@ package lib.minecraft.renderer.kit;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.data.AnimatedImageData;
 import dev.simplified.image.data.ImageFrame;
@@ -25,7 +26,7 @@ class FrameMergerTest {
         layers.add(new FrameMerger.Layer(0, 0, StaticImageData.of(solidImage(4, 4, 0xFFFF0000))));
         layers.add(new FrameMerger.Layer(0, 0, StaticImageData.of(solidImage(4, 4, 0x8000FF00))));
 
-        ImageData result = FrameMerger.merge(layers, 4, 4, 30, 0);
+        ImageData result = FrameMerger.merge(layers, 4, 4, 30, Background.TRANSPARENT);
         assertThat(result, is(instanceOf(StaticImageData.class)));
     }
 
@@ -36,7 +37,7 @@ class FrameMergerTest {
         layers.add(new FrameMerger.Layer(0, 0, StaticImageData.of(solidImage(4, 4, 0xFFFF0000))));
         layers.add(new FrameMerger.Layer(0, 0, animated(4, 4, 4, 50)));
 
-        ImageData result = FrameMerger.merge(layers, 4, 4, 30, 0);
+        ImageData result = FrameMerger.merge(layers, 4, 4, 30, Background.TRANSPARENT);
         assertThat(result, is(instanceOf(AnimatedImageData.class)));
         assertThat(((AnimatedImageData) result).getFrames().size(), greaterThan(1));
     }
