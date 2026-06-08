@@ -1,7 +1,6 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
@@ -740,7 +739,8 @@ public final class InventoryTransformDecomposer {
                 if (i != null) { push(Value.ofFloat(i.floatValue())); continue; }
                 if (op == Opcodes.ACONST_NULL) { push(Value.ofNull()); continue; }
                 if (node instanceof LdcInsnNode ldc && ldc.cst instanceof Type) {
-                    push(Value.ofClassRef()); continue;
+                    push(Value.ofClassRef());
+                    continue;
                 }
 
                 // FLOAD / FSTORE / ALOAD / ASTORE -------------------------------------------
@@ -751,7 +751,8 @@ public final class InventoryTransformDecomposer {
 
                 // FNEG / FADD / FSUB / FMUL / FDIV / F2D / etc. ------------------------------
                 if (node instanceof InsnNode insn) {
-                    if (handleInsn(insn.getOpcode())) continue;
+                    if (handleInsn(insn.getOpcode()))
+                        continue;
                 }
 
                 // GETSTATIC / PUTSTATIC -----------------------------------------------------
@@ -841,7 +842,7 @@ public final class InventoryTransformDecomposer {
                     if (a.kind == ValueKind.ENUM_CONST && b.kind == ValueKind.ENUM_CONST
                         && a.enumConst != null && b.enumConst != null) {
                         boolean equal = a.enumConst.equals(b.enumConst);
-                        boolean takeJump = op == Opcodes.IF_ACMPEQ ? equal : !equal;
+                        boolean takeJump = (op == Opcodes.IF_ACMPEQ) == equal;
                         if (takeJump && node instanceof JumpInsnNode jn) node = jn.label;
                         continue;
                     }
