@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Item;
+import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.resolver.OverlayResolver;
@@ -50,12 +51,12 @@ public class ItemIndexLoader {
         for (Map.Entry<String, ModelData> itemEntry : result.getItemModels().entrySet()) {
             String modelId = itemEntry.getKey();
             ModelData model = itemEntry.getValue();
-            String itemId = Models.stripPrefix(modelId, ":item/");
-            String name = Models.localName(modelId);
+            ResourceId itemResource = ResourceId.ofModelId(modelId);
+            String itemId = itemResource.id();
             if (beEntries.containsKey(itemId)) continue;
             HashMap<String, String> textures = new HashMap<>(model.getTextures());
             Optional<Item.Overlay> overlay = OverlayResolver.resolve(itemId, model);
-            itemIndex.put(itemId, new Item(itemId, "minecraft", name, model, Concurrent.adoptMap(textures), 0, 64, overlay));
+            itemIndex.put(itemId, new Item(itemResource, model, Concurrent.adoptMap(textures), 0, overlay));
         }
 
         int before = itemIndex.size();

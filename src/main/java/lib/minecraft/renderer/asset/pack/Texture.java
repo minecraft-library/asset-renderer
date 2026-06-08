@@ -1,11 +1,10 @@
 package lib.minecraft.renderer.asset.pack;
 
 import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -13,37 +12,38 @@ import java.util.Optional;
  * path under the asset cache root - raw PNG bytes stay on disk to keep memory lean.
  */
 @Getter
-@NoArgsConstructor
 @AllArgsConstructor
-public class Texture {
+@EqualsAndHashCode
+public final class Texture {
 
-    private @NotNull String id = "";
+    /**
+     * The namespaced texture id (e.g. {@code minecraft:block/stone}).
+     */
+    private final @NotNull String id;
 
-    private @NotNull String packId = "";
+    /**
+     * The id of the texture pack this texture was sourced from.
+     */
+    private final @NotNull String packId;
 
-    private @NotNull String relativePath = "";
+    /**
+     * The texture's path relative to the asset cache root.
+     */
+    private final @NotNull String relativePath;
 
-    private int width = 0;
+    /**
+     * The texture width in pixels.
+     */
+    private final int width;
 
-    private int height = 0;
+    /**
+     * The texture height in pixels.
+     */
+    private final int height;
 
-    private @NotNull Optional<AnimationData> animation = Optional.empty();
-
-    @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        Texture texture = (Texture) o;
-        return this.getWidth() == texture.getWidth()
-            && this.getHeight() == texture.getHeight()
-            && Objects.equals(this.getId(), texture.getId())
-            && Objects.equals(this.getPackId(), texture.getPackId())
-            && Objects.equals(this.getRelativePath(), texture.getRelativePath())
-            && Objects.equals(this.getAnimation(), texture.getAnimation());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(this.getId(), this.getPackId(), this.getRelativePath(), this.getWidth(), this.getHeight(), this.getAnimation());
-    }
+    /**
+     * The animation metadata when the texture is an animated strip, or empty for a static texture.
+     */
+    private final @NotNull Optional<AnimationData> animation;
 
 }

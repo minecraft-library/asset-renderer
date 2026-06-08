@@ -173,9 +173,9 @@ class PipelineRendererContextTest {
     void findBlockDerivesEntityId() {
         Optional<Block> stone = context.findBlock("minecraft:stone");
         assertThat(stone.isPresent(), is(true));
-        assertThat(stone.get().getId(), equalTo("minecraft:stone"));
-        assertThat(stone.get().getNamespace(), equalTo("minecraft"));
-        assertThat(stone.get().getName(), equalTo("stone"));
+        assertThat(stone.get().getId().id(), equalTo("minecraft:stone"));
+        assertThat(stone.get().getId().namespace(), equalTo("minecraft"));
+        assertThat(stone.get().getId().name(), equalTo("stone"));
         assertThat(stone.get().getModel(), notNullValue());
         assertThat(stone.get().getTextures().get("all"), equalTo("minecraft:block/fixture"));
     }
@@ -191,9 +191,9 @@ class PipelineRendererContextTest {
     void findItemDerivesEntityId() {
         Optional<Item> stick = context.findItem("minecraft:stick");
         assertThat(stick.isPresent(), is(true));
-        assertThat(stick.get().getId(), equalTo("minecraft:stick"));
-        assertThat(stick.get().getNamespace(), equalTo("minecraft"));
-        assertThat(stick.get().getName(), equalTo("stick"));
+        assertThat(stick.get().getId().id(), equalTo("minecraft:stick"));
+        assertThat(stick.get().getId().namespace(), equalTo("minecraft"));
+        assertThat(stick.get().getId().name(), equalTo("stick"));
         assertThat(stick.get().getTextures().get("layer0"), equalTo("minecraft:block/fixture"));
     }
 

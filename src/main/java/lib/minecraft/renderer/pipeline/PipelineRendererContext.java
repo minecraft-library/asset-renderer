@@ -9,6 +9,7 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockTag;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
+import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.binding.BannerPattern;
 import lib.minecraft.renderer.asset.pack.AnimationData;
 import lib.minecraft.renderer.asset.pack.ColorMap;
@@ -26,7 +27,6 @@ import lib.minecraft.renderer.pipeline.pack.CtmMatcher;
 import lib.minecraft.renderer.pipeline.pack.CtmResolution;
 import lib.minecraft.renderer.pipeline.pack.CtmRule;
 import lib.minecraft.renderer.pipeline.pack.ItemContext;
-import lib.minecraft.renderer.pipeline.util.Models;
 import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lib.minecraft.renderer.tooling.ToolingColorMaps;
 import lombok.RequiredArgsConstructor;
@@ -126,9 +126,7 @@ public final class PipelineRendererContext implements RendererContext {
                 EntityModelLoader.EntityDefinition definition = entry.getValue();
 
                 return new Entity(
-                    entityId,
-                    "minecraft",
-                    Models.localName(entityId),
+                    ResourceId.parse(entityId),
                     definition.model(),
                     definition.textureRef(),
                     definition.overlays()

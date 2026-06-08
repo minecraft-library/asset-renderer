@@ -11,42 +11,12 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Map;
 
 /**
- * Model-id and model-content helpers shared by the pipeline index loaders: turning a
- * {@code minecraft:block/<id>} / {@code minecraft:item/<id>} model key into the plain id the
- * renderer indexes by, and testing whether a parsed model would render nothing.
+ * Model-content helper shared by the pipeline index loaders: testing whether a parsed model would
+ * render nothing. Namespaced model-id parsing now lives on
+ * {@link lib.minecraft.renderer.asset.ResourceId}.
  */
 @UtilityClass
 public class Models {
-
-    /**
-     * Removes the first occurrence of a {@code :prefix/} segment from a namespaced model id,
-     * collapsing the result into a plain entity id. Returns the input untouched when the
-     * segment is absent.
-     *
-     * @param modelId the namespaced model id (e.g. {@code minecraft:block/grass_block})
-     * @param segment the segment to strip (e.g. {@code :block/})
-     * @return the collapsed id (e.g. {@code minecraft:grass_block})
-     */
-    public static @NotNull String stripPrefix(@NotNull String modelId, @NotNull String segment) {
-        int idx = modelId.indexOf(segment);
-        if (idx < 0) return modelId;
-        return modelId.substring(0, idx + 1) + modelId.substring(idx + segment.length());
-    }
-
-    /**
-     * Returns the last path segment of a namespaced model id, used to populate an entity's
-     * {@code name} column. Example: {@code minecraft:block/grass_block} - &gt;
-     * {@code grass_block}.
-     *
-     * @param modelId the namespaced model id
-     * @return the trailing path segment
-     */
-    public static @NotNull String localName(@NotNull String modelId) {
-        int slash = modelId.lastIndexOf('/');
-        if (slash >= 0) return modelId.substring(slash + 1);
-        int colon = modelId.lastIndexOf(':');
-        return colon >= 0 ? modelId.substring(colon + 1) : modelId;
-    }
 
     /**
      * Returns {@code true} when a model would render nothing: no element face resolves to a

@@ -84,6 +84,9 @@ public sealed interface DyeColor {
         RED       (0xFFB02E26),
         BLACK     (0xFF1D1D21);
 
+        /**
+         * The packed ARGB colour for this dye.
+         */
         private final int argb;
 
         /**

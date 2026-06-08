@@ -1,7 +1,6 @@
 package lib.minecraft.renderer.asset;
 
 import com.google.gson.JsonObject;
-import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.model.ModelData;
@@ -11,8 +10,8 @@ import lib.minecraft.renderer.options.BlockOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import dev.simplified.image.pixel.ColorMath;
 import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -28,30 +27,45 @@ import java.util.Optional;
  * {@link RendererContext}.
  */
 @Getter
-@NoArgsConstructor
 @AllArgsConstructor
-public class Block {
+@EqualsAndHashCode
+public final class Block {
 
-    private @NotNull String id = "";
+    /**
+     * The block's namespaced identifier (e.g. {@code minecraft:furnace}).
+     */
+    private final @NotNull ResourceId id;
 
-    private @NotNull String namespace = "minecraft";
+    /**
+     * The resolved model supplying the block's geometry and texture bindings.
+     */
+    private final @NotNull ModelData model;
 
-    private @NotNull String name = "";
+    /**
+     * The model's texture variable bindings, keyed by variable name.
+     */
+    private final @NotNull ConcurrentMap<String, String> textures;
 
-    private @NotNull ModelData model = new ModelData();
+    /**
+     * The blockstate variants keyed by their sorted {@code property=value} state key, each carrying
+     * a resolved model and whole-block rotation.
+     */
+    private final @NotNull ConcurrentMap<String, Variant> variants;
 
-    private @NotNull ConcurrentMap<String, String> textures = Concurrent.newMap();
-
-    private @NotNull ConcurrentMap<String, Variant> variants = Concurrent.newMap();
-
-    private @NotNull Optional<Multipart> multipart = Optional.empty();
+    /**
+     * The multipart blockstate definition, or empty when the block uses discrete variants.
+     */
+    private final @NotNull Optional<Multipart> multipart;
 
     /**
      * Tag names this block belongs to, e.g. {@code ["minecraft:stairs", "minecraft:wooden_stairs"]}.
      */
-    private @NotNull ConcurrentList<String> tags = Concurrent.newList();
+    private final @NotNull ConcurrentList<String> tags;
 
-    private @NotNull Tint tint = new Tint(Biome.TintTarget.NONE, Optional.empty());
+    /**
+     * The biome tint binding selecting which colormap or constant the renderer samples for tinted faces.
+     */
+    private final @NotNull Tint tint;
 
     /**
      * Rendering override for blocks whose visual geometry comes from a vanilla
@@ -62,14 +76,14 @@ public class Block {
      * {@link Entity#parts()} for multi-part atlas views (bed head + foot, decorated_pot body +
      * sides, banner post + flag). Absent for plain blocks.
      */
-    private @NotNull Optional<Entity> entity = Optional.empty();
+    private final @NotNull Optional<Entity> entity;
 
     /**
      * Where this block's registration originated. Used by atlas tile classification to label the
      * source path (block-model file, blockstate-only fallback, or block-entity geometry override)
      * without forcing consumers to type-check the {@link RendererContext} implementation.
      */
-    private @NotNull Source source = Source.PRIMARY;
+    private final @NotNull Source source;
 
     /**
      * The block's canonical default blockstate key as {@code property=value} pairs sorted
@@ -79,30 +93,7 @@ public class Block {
      * renderer falls back to this key when a caller supplies no explicit variant, so blocks with
      * per-state models render their default rather than whichever state registered first.
      */
-    private @NotNull String defaultStateKey = "";
-
-    @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        Block block = (Block) o;
-        return Objects.equals(this.getId(), block.getId())
-            && Objects.equals(this.getNamespace(), block.getNamespace())
-            && Objects.equals(this.getName(), block.getName())
-            && Objects.equals(this.getModel(), block.getModel())
-            && Objects.equals(this.getTextures(), block.getTextures())
-            && Objects.equals(this.getVariants(), block.getVariants())
-            && Objects.equals(this.getMultipart(), block.getMultipart())
-            && Objects.equals(this.getTags(), block.getTags())
-            && Objects.equals(this.getTint(), block.getTint())
-            && Objects.equals(this.getEntity(), block.getEntity())
-            && this.getSource() == block.getSource()
-            && Objects.equals(this.getDefaultStateKey(), block.getDefaultStateKey());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(this.getId(), this.getNamespace(), this.getName(), this.getModel(), this.getTextures(), this.getVariants(), this.getMultipart(), this.getTags(), this.getTint(), this.getEntity(), this.getSource(), this.getDefaultStateKey());
-    }
+    private final @NotNull String defaultStateKey;
 
     /**
      * The provenance of a {@link Block}'s registration. Drives atlas tile classification and any
@@ -227,14 +218,6 @@ public class Block {
         @NotNull ConcurrentList<Part> parts,
         boolean additive
     ) {
-
-        /**
-         * Backwards-compatible constructor for the existing replace-the-model entries.
-         */
-        public Entity(@NotNull String beType, @NotNull ModelData model, @NotNull String textureId,
-                      int tintArgb, int iconRotation, boolean multiBlock, @NotNull ConcurrentList<Part> parts) {
-            this(beType, model, textureId, tintArgb, iconRotation, multiBlock, parts, false);
-        }
 
         /**
          * An atlas-time composition instruction - additional geometry merged into the parent

@@ -1,46 +1,38 @@
 package lib.minecraft.renderer.asset.pack;
 
 import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
-
-import java.util.Arrays;
-import java.util.Objects;
 
 /**
  * A 256x256 biome colormap, stored as a raw ARGB byte array (1 MiB uncompressed worst case, but
  * pack-sourced PNGs are typically a few KiB on disk so the serialized form stays small).
  */
 @Getter
-@NoArgsConstructor
 @AllArgsConstructor
-public class ColorMap {
+@EqualsAndHashCode
+public final class ColorMap {
 
-    private @NotNull String id = "";
+    /**
+     * The namespaced colormap texture id.
+     */
+    private final @NotNull String id;
 
-    private @NotNull String packId = "";
+    /**
+     * The id of the texture pack this colormap was sourced from.
+     */
+    private final @NotNull String packId;
 
-    private @NotNull Type type = Type.GRASS;
+    /**
+     * Which biome colormap this row represents.
+     */
+    private final @NotNull Type type;
 
-    private byte @NotNull [] pixels = new byte[0];
-
-    @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        ColorMap that = (ColorMap) o;
-        return Objects.equals(this.getId(), that.getId())
-            && Objects.equals(this.getPackId(), that.getPackId())
-            && this.getType() == that.getType()
-            && Arrays.equals(this.getPixels(), that.getPixels());
-    }
-
-    @Override
-    public int hashCode() {
-        int result = Objects.hash(this.getId(), this.getPackId(), this.getType());
-        result = 31 * result + Arrays.hashCode(this.getPixels());
-        return result;
-    }
+    /**
+     * The raw 256x256 colormap pixels as a flat ARGB byte array.
+     */
+    private final byte @NotNull [] pixels;
 
     /**
      * Identifies which biome colormap a row represents.

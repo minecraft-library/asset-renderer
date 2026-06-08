@@ -112,6 +112,9 @@ public class EntityModelData {
     @AllArgsConstructor
     public static class Bone {
 
+        /**
+         * The absolute entity-root anchor point about which this bone's rotations are applied.
+         */
         private @NotNull Vector3f pivot = Vector3f.ZERO;
 
         /**
@@ -150,6 +153,9 @@ public class EntityModelData {
          */
         private float scale = 1f;
 
+        /**
+         * The cubes this bone owns, in declared order.
+         */
         private @NotNull ConcurrentList<Cube> cubes = Concurrent.newList();
 
         /**
@@ -189,10 +195,30 @@ public class EntityModelData {
     @AllArgsConstructor
     public static class Cube {
 
+        /**
+         * The cube's minimum corner in absolute entity-root space.
+         */
         private @NotNull Vector3f origin = Vector3f.ZERO;
+
+        /**
+         * The cube's extent along each axis in model units.
+         */
         private @NotNull Vector3f size = new Vector3f(1f, 1f, 1f);
+
+        /**
+         * The top-left corner of the cube's texture region on the shared atlas.
+         */
         private @NotNull Vector2f uv = Vector2f.ZERO;
+
+        /**
+         * Uniform outward expansion applied to every face in model units; {@code 0} leaves the cube
+         * at its authored size.
+         */
         private float inflate = 0f;
+
+        /**
+         * Whether the cube's texture UVs are mirrored left-to-right.
+         */
         private boolean mirror = false;
 
         /**
@@ -207,6 +233,9 @@ public class EntityModelData {
          */
         private @NotNull Vector3f pivot = Vector3f.ZERO;
 
+        /**
+         * The cube's own rotation about {@link #pivot}, or {@link EulerRotation#NONE} when unrotated.
+         */
         @JsonAdapter(EulerRotation.Adapter.class)
         private @NotNull EulerRotation rotation = EulerRotation.NONE;
 

@@ -5,6 +5,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Item;
+import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -44,8 +45,8 @@ class ItemRendererTest {
                 + "\"south\":{\"texture\":\"#layer0\",\"tintindex\":0}}}]}",
             ModelData.class
         );
-        Item item = new Item("minecraft:leather_helmet", "minecraft", "leather_helmet",
-            model, model.getTextures(), 0, 1, Optional.empty());
+        Item item = new Item(ResourceId.parse("minecraft:leather_helmet"),
+            model, model.getTextures(), 0, Optional.empty());
         assertThat(ItemRenderer.tintIndexForLayer(item, 0), is(0));
     }
 
@@ -58,8 +59,8 @@ class ItemRendererTest {
                 + "\"south\":{\"texture\":\"#layer0\",\"tintindex\":-1}}}]}",
             ModelData.class
         );
-        Item item = new Item("minecraft:diamond_sword", "minecraft", "diamond_sword",
-            model, model.getTextures(), 0, 64, Optional.empty());
+        Item item = new Item(ResourceId.parse("minecraft:diamond_sword"),
+            model, model.getTextures(), 0, Optional.empty());
         assertThat(ItemRenderer.tintIndexForLayer(item, 0), is(-1));
     }
 
@@ -73,8 +74,8 @@ class ItemRendererTest {
                 + "\"south\":{\"texture\":\"minecraft:item/carrot\",\"tintindex\":0}}}]}",
             ModelData.class
         );
-        Item item = new Item("minecraft:carrot", "minecraft", "carrot",
-            model, model.getTextures(), 0, 64, Optional.empty());
+        Item item = new Item(ResourceId.parse("minecraft:carrot"),
+            model, model.getTextures(), 0, Optional.empty());
         assertThat(ItemRenderer.tintIndexForLayer(item, 0), is(0));
     }
 
@@ -88,8 +89,8 @@ class ItemRendererTest {
                 + "\"south\":{\"texture\":\"#side\",\"tintindex\":0}}}]}",
             ModelData.class
         );
-        Item item = new Item("minecraft:stick", "minecraft", "stick",
-            model, model.getTextures(), 0, 64, Optional.empty());
+        Item item = new Item(ResourceId.parse("minecraft:stick"),
+            model, model.getTextures(), 0, Optional.empty());
         assertThat(ItemRenderer.tintIndexForLayer(item, 0), is(-1));
     }
 
@@ -98,7 +99,7 @@ class ItemRendererTest {
         model.getTextures().put(textureKey, textureRef);
         ConcurrentMap<String, String> textures = Concurrent.newMap();
         textures.putAll(model.getTextures());
-        return new Item("minecraft:test", "minecraft", "test", model, textures, 0, 64, Optional.empty());
+        return new Item(ResourceId.parse("minecraft:test"), model, textures, 0, Optional.empty());
     }
 
 }

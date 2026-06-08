@@ -9,6 +9,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.BlockTag;
+import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -70,7 +71,7 @@ public class BlockTagLoader {
         for (String tagId : merged.keySet()) {
             ArrayList<String> resolved = new ArrayList<>();
             resolve(tagId, merged, resolved, new HashSet<>());
-            result.put(tagId, new BlockTag(tagId, Concurrent.adoptList(resolved).toUnmodifiable()));
+            result.put(tagId, new BlockTag(ResourceId.parse(tagId), Concurrent.adoptList(resolved).toUnmodifiable()));
         }
         return Concurrent.adoptMap(result).toUnmodifiable();
     }

@@ -7,8 +7,6 @@ import lib.minecraft.renderer.asset.pack.AnimationData;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Field;
-
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -144,22 +142,7 @@ class AnimationKitTest {
     // --- fixtures ---
 
     private static AnimationData animation(int frametime, boolean interpolate, ConcurrentList<AnimationData.FrameEntry> frames) {
-        try {
-            AnimationData data = new AnimationData();
-            setField(data, "frametime", frametime);
-            setField(data, "interpolate", interpolate);
-            if (frames != null)
-                setField(data, "frames", frames);
-            return data;
-        } catch (ReflectiveOperationException ex) {
-            throw new IllegalStateException("Failed to build test AnimationData", ex);
-        }
-    }
-
-    private static void setField(Object target, String name, Object value) throws ReflectiveOperationException {
-        Field field = target.getClass().getDeclaredField(name);
-        field.setAccessible(true);
-        field.set(target, value);
+        return new AnimationData(frametime, interpolate, frames != null ? frames : Concurrent.newList(), -1, -1);
     }
 
 }

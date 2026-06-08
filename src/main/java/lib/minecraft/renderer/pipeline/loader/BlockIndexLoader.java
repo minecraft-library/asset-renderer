@@ -5,6 +5,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockTag;
+import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
@@ -109,7 +110,7 @@ public class BlockIndexLoader {
      * Returns {@code true} when an id is an intentionally-invisible vanilla block.
      */
     private static boolean isInvisible(@NotNull String blockId) {
-        return INVISIBLE_BLOCK_NAMES.contains(Models.localName(blockId));
+        return INVISIBLE_BLOCK_NAMES.contains(ResourceId.localName(blockId));
     }
 
     /**
@@ -199,8 +200,8 @@ public class BlockIndexLoader {
         for (Map.Entry<String, ModelData> blockEntry : result.getBlockModels().entrySet()) {
             String modelId = blockEntry.getKey();
             ModelData model = blockEntry.getValue();
-            String blockId = Models.stripPrefix(modelId, ":block/");
-            String name = Models.localName(modelId);
+            ResourceId blockResource = ResourceId.ofModelId(modelId);
+            String blockId = blockResource.id();
 
             ModelData modelToUse = model;
             String itemModelRef = itemDefs.get(blockId);
@@ -229,9 +230,7 @@ public class BlockIndexLoader {
             }
 
             blockIndex.put(blockId, new Block(
-                blockId,
-                "minecraft",
-                name,
+                blockResource,
                 modelToUse,
                 Concurrent.adoptMap(textures),
                 variants,
@@ -277,15 +276,13 @@ public class BlockIndexLoader {
             if (blockIndex.containsKey(blockId)) continue;
             Block.Entity be = entry.getValue();
             if (be.additive()) continue;
-            String shortName = blockId.contains(":") ? blockId.substring(blockId.indexOf(':') + 1) : blockId;
             ConcurrentList<String> tags = reverseTagIndex.getOrDefault(blockId, Concurrent.newList());
             ConcurrentMap<String, Block.Variant> variants = mergeBlockEntityVariants(variantMap.getOrDefault(blockId, Concurrent.newMap()), beVariants.get(blockId));
             Optional<Block.Multipart> multipart = Optional.ofNullable(multipartMap.get(blockId));
             HashMap<String, String> textures = new HashMap<>();
             textures.put("#entity", be.textureId());
             blockIndex.put(blockId, new Block(
-                blockId,
-                "minecraft", shortName,
+                ResourceId.parse(blockId),
                 be.model(),
                 Concurrent.adoptMap(textures),
                 variants,
@@ -363,7 +360,6 @@ public class BlockIndexLoader {
             if (resolved.isEmpty()) continue;
             ResolvedBlockModel hit = resolved.get();
 
-            String shortName = blockId.contains(":") ? blockId.substring(blockId.indexOf(':') + 1) : blockId;
             ModelData modelToUse = hit.model();
             HashMap<String, String> textures = new HashMap<>(modelToUse.getTextures());
             flattenElementFaces(modelToUse, textures);
@@ -378,9 +374,7 @@ public class BlockIndexLoader {
                 ? Optional.of(additiveEntity) : Optional.empty();
             Block.Source source = attachedEntity.isPresent() ? Block.Source.TILE_ENTITY : Block.Source.BLOCKSTATE_ONLY;
             blockIndex.put(blockId, new Block(
-                blockId,
-                "minecraft",
-                shortName,
+                ResourceId.parse(blockId),
                 modelToUse,
                 Concurrent.adoptMap(textures),
                 variants,

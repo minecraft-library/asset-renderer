@@ -1,15 +1,13 @@
 package lib.minecraft.renderer.asset.pack;
 
-import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.pipeline.pack.PackMeta;
 import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.nio.file.Path;
-import java.util.Objects;
 
 /**
  * A registered texture pack - vanilla or a user-supplied override.
@@ -29,34 +27,34 @@ import java.util.Objects;
  * overlay resolution semantics.
  */
 @Getter
-@NoArgsConstructor
 @AllArgsConstructor
-public class TexturePack {
+@EqualsAndHashCode
+public final class TexturePack {
 
-    private @NotNull String id = "";
+    /**
+     * The pack id - {@code vanilla} for the extracted client jar, or the user pack's own id.
+     */
+    private final @NotNull String id;
 
-    private @NotNull String namespace = "minecraft";
+    /**
+     * The pack's resource namespace.
+     */
+    private final @NotNull String namespace;
 
-    private @NotNull PackMeta meta = PackMeta.EMPTY;
+    /**
+     * The parsed {@code pack.mcmeta} - declared format, description, and overlay entries.
+     */
+    private final @NotNull PackMeta meta;
 
-    private @NotNull ConcurrentList<Path> assetRoots = Concurrent.newList();
+    /**
+     * The on-disk asset roots making up this pack: the base root first, followed by every matched
+     * overlay subtree in {@code pack.mcmeta} declaration order.
+     */
+    private final @NotNull ConcurrentList<Path> assetRoots;
 
-    private int priority = 0;
-
-    @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        TexturePack that = (TexturePack) o;
-        return this.getPriority() == that.getPriority()
-            && Objects.equals(this.getId(), that.getId())
-            && Objects.equals(this.getNamespace(), that.getNamespace())
-            && Objects.equals(this.getMeta(), that.getMeta())
-            && Objects.equals(this.getAssetRoots(), that.getAssetRoots());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(this.getId(), this.getNamespace(), this.getMeta(), this.getAssetRoots(), this.getPriority());
-    }
+    /**
+     * The lookup priority; the highest-priority pack wins on a texture id collision ({@code 0} for vanilla).
+     */
+    private final int priority;
 
 }

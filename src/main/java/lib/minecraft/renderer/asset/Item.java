@@ -1,15 +1,12 @@
 package lib.minecraft.renderer.asset;
 
-import com.google.gson.annotations.SerializedName;
-import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -22,50 +19,36 @@ import java.util.Optional;
  * head); see {@link Overlay} for the supported shapes.
  */
 @Getter
-@NoArgsConstructor
 @AllArgsConstructor
-public class Item {
+@EqualsAndHashCode
+public final class Item {
 
-    private @NotNull String id = "";
+    /**
+     * The item's namespaced identifier (e.g. {@code minecraft:diamond_sword}).
+     */
+    private final @NotNull ResourceId id;
 
-    private @NotNull String namespace = "minecraft";
+    /**
+     * The resolved model supplying the item's layered sprites or 3D geometry.
+     */
+    private final @NotNull ModelData model;
 
-    private @NotNull String name = "";
+    /**
+     * The model's texture variable bindings, keyed by variable name (e.g. {@code layer0}).
+     */
+    private final @NotNull ConcurrentMap<String, String> textures;
 
-    private @NotNull ModelData model = new ModelData();
-
-    private @NotNull ConcurrentMap<String, String> textures = Concurrent.newMap();
-
-    @SerializedName("max_durability")
-    private int maxDurability = 0;
-
-    @SerializedName("stack_size")
-    private int stackSize = 64;
+    /**
+     * The item's maximum durability, or {@code 0} for items that take no damage. A non-zero value
+     * gates the GUI damage-bar overlay at render time.
+     */
+    private final int maxDurability;
 
     /**
      * Per-item overlay rendering metadata synthesised by the pipeline (leather, potion, spawn egg,
      * firework, tipped arrow). Empty for items that render as plain layered sprites.
      */
-    private @NotNull Optional<Overlay> overlay = Optional.empty();
-
-    @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        Item item = (Item) o;
-        return this.getMaxDurability() == item.getMaxDurability()
-            && this.getStackSize() == item.getStackSize()
-            && Objects.equals(this.getId(), item.getId())
-            && Objects.equals(this.getNamespace(), item.getNamespace())
-            && Objects.equals(this.getName(), item.getName())
-            && Objects.equals(this.getModel(), item.getModel())
-            && Objects.equals(this.getTextures(), item.getTextures())
-            && Objects.equals(this.getOverlay(), item.getOverlay());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(this.getId(), this.getNamespace(), this.getName(), this.getModel(), this.getTextures(), this.getMaxDurability(), this.getStackSize(), this.getOverlay());
-    }
+    private final @NotNull Optional<Overlay> overlay;
 
     /**
      * A per-item overlay rendering rule. Vanilla uses a handful of shapes that all boil down to
