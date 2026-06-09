@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.asset.model;
 
-import com.google.gson.annotations.SerializedName;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -37,7 +36,6 @@ public class ModelData {
      * Whether the model should receive ambient occlusion during rendering. Defaults to
      * {@code true}, which matches vanilla for most solid blocks. Block-domain field.
      */
-    @SerializedName("ambientocclusion")
     private boolean ambientocclusion = true;
 
     /**

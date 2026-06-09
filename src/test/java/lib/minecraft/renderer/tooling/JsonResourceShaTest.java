@@ -24,8 +24,8 @@ import static org.hamcrest.Matchers.is;
  * Single golden-reference guard for every bundled JSON resource under
  * {@code src/main/resources/lib/minecraft/renderer/}: the block snapshots
  * ({@code block_models}, {@code block_defaults}, {@code block_tints}) plus the colormap, entity, and
- * potion tables ({@code color_maps}, {@code entity_geometry}, {@code entity_models},
- * {@code potion_colors}).
+ * potion / glint tables ({@code color_maps}, {@code entity_geometry}, {@code entity_models},
+ * {@code potion_colors}, {@code glint_items}).
  * <p>
  * Each file is hashed in canonical form (Gson-parsed then compactly re-serialized, so whitespace
  * and line-ending drift does not break the check) and compared against its committed
@@ -48,7 +48,7 @@ class JsonResourceShaTest {
 
     static final @NotNull List<String> COVERED = List.of(
         "block_models", "block_defaults", "block_tints",
-        "color_maps", "entity_geometry", "entity_models", "potion_colors"
+        "color_maps", "entity_geometry", "entity_models", "potion_colors", "glint_items"
     );
 
     @Test

@@ -12,6 +12,7 @@ import dev.simplified.client.Proxy;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.util.Lazy;
 import lib.minecraft.renderer.PlayerRenderer;
@@ -19,6 +20,7 @@ import lib.minecraft.renderer.asset.BannerPattern;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockTag;
 import lib.minecraft.renderer.asset.ColorMap;
+import lib.minecraft.renderer.appearance.LayerTint;
 import lib.minecraft.renderer.asset.Texture;
 import lib.minecraft.renderer.asset.TexturePack;
 import lib.minecraft.renderer.asset.model.ModelData;
@@ -30,6 +32,7 @@ import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
 import lib.minecraft.renderer.pipeline.loader.CitLoader;
 import lib.minecraft.renderer.pipeline.loader.ColorMapLoader;
 import lib.minecraft.renderer.pipeline.loader.CtmLoader;
+import lib.minecraft.renderer.pipeline.loader.GlintItemsLoader;
 import lib.minecraft.renderer.pipeline.loader.ItemDefinitionLoader;
 import lib.minecraft.renderer.pipeline.loader.PotionColorLoader;
 import lib.minecraft.renderer.pipeline.loader.TexturePackLoader;
@@ -56,6 +59,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -102,6 +106,8 @@ public class Pipeline {
         ConcurrentMap<String, Block.Tint> blockTints = BlockTintsLoader.load();
         BlockStateLoader.LoadResult blockStateResult = BlockStateLoader.load(packs.combinedRoots(), blockModels);
         ConcurrentMap<String, String> itemDefinitions = ItemDefinitionLoader.load(packs.combinedRoots());
+        ConcurrentMap<String, List<LayerTint>> itemTints = ItemDefinitionLoader.loadTints(packs.combinedRoots());
+        ConcurrentSet<String> glintItems = GlintItemsLoader.load();
         ConcurrentMap<String, BlockTag> blockTags = BlockTagLoader.load(packs.combinedRoots());
         ConcurrentMap<String, Integer> potionEffectColors = PotionColorLoader.load();
         ConcurrentMap<String, BannerPattern> bannerPatterns = BannerPatternLoader.load(packs.combinedRoots());
@@ -111,7 +117,7 @@ public class Pipeline {
         ConcurrentList<CtmRule> ctmRules = collectCtmRules(packs.ascending());
 
         return new Result(packRoot, packs.vanilla(), packs.packsById(), textures, colorMaps, blockTints, blockModels, itemModels,
-            blockStateResult.getVariants(), blockStateResult.getMultiparts(), itemDefinitions, blockTags,
+            blockStateResult.getVariants(), blockStateResult.getMultiparts(), itemDefinitions, itemTints, glintItems, blockTags,
             potionEffectColors, bannerPatterns, colorOverrides, citRules, ctmRules, blockStateResult.getDefaultStateKeys());
     }
 
@@ -461,6 +467,23 @@ public class Pipeline {
         private final @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants;
         private final @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts;
         private final @NotNull ConcurrentMap<String, String> itemDefinitions;
+
+        /**
+         * Per-item ordered {@link LayerTint} list parsed from {@code assets/minecraft/items/}
+         * {@code model.tints[]} (array index = layer {@code tintindex}), for items that declare
+         * tints. Read at item-index build time and attached to each {@link lib.minecraft.renderer.asset.Item}.
+         */
+        private final @NotNull ConcurrentMap<String, List<LayerTint>> itemTints;
+
+        /**
+         * Namespaced ids of items vanilla registers with {@code enchantment_glint_override = true}
+         * (the always-foil items: enchanted_book, written_book, enchanted_golden_apple,
+         * experience_bottle, nether_star, debug_stick, end_crystal), parsed from {@code Items} by
+         * the glint-item loader. Read at item-index build time and surfaced as
+         * {@link lib.minecraft.renderer.asset.Item#isAlwaysGlinted()}.
+         */
+        private final @NotNull ConcurrentSet<String> glintItems;
+
         private final @NotNull ConcurrentMap<String, BlockTag> blockTags;
 
         /**

@@ -149,16 +149,10 @@ public class TextureEngine implements RenderEngine {
     }
 
     /**
-     * Wraps a finished buffer into an {@link ImageData}, optionally applying a scrolling glint
-     * overlay animation. If {@code enchanted} is {@code false} or the active pack stack has no
-     * glint texture, the buffer is returned as a single-frame static image; otherwise the
-     * configured glint is composed via {@link GlintKit#apply} and the frames are emitted at
-     * {@code glintOptions.framesPerSecond()}.
-     * <p>
-     * Callers differ only in the enchanted predicate (per-item {@code isEnchanted} vs
-     * armor-slot scan) and the {@link GlintKit.GlintOptions} preset ({@code itemDefault} vs
-     * {@code armorDefault} vs {@code entityItemDefault}). All other structure - pack resolution,
-     * empty-texture fallback, frame-rate derivation - is identical across renderers.
+     * Animated-glint convenience overload equivalent to
+     * {@link #finaliseWithGlint(PixelBuffer, boolean, boolean, GlintKit.GlintOptions)} with
+     * {@code animate = true}. Used by the entity / armor renderers, which always want the scrolling
+     * foil when glint applies.
      *
      * @param buffer the finished render surface
      * @param enchanted whether the item / entity is enchanted and should show a glint
@@ -170,6 +164,35 @@ public class TextureEngine implements RenderEngine {
         boolean enchanted,
         @NotNull GlintKit.GlintOptions glintOptions
     ) {
+        return finaliseWithGlint(buffer, enchanted, true, glintOptions);
+    }
+
+    /**
+     * Wraps a finished buffer into an {@link ImageData}, optionally applying a scrolling glint
+     * overlay animation. If {@code enchanted} is {@code false} or the active pack stack has no
+     * glint texture, the buffer is returned as a single-frame static image; otherwise the
+     * configured glint is composed via {@link GlintKit#applyGlint}. When {@code animate} is
+     * {@code true} the frames are emitted at {@code glintOptions.framesPerSecond()}; when
+     * {@code false} only the frame-0 (un-scrolled) glint is kept and returned as a static image -
+     * the atlas path uses this so a glinted tile never promotes the whole grid to animated output.
+     * <p>
+     * Callers differ only in the enchanted predicate (per-item {@code isEnchanted} vs
+     * armor-slot scan) and the {@link GlintKit.GlintOptions} preset ({@code itemDefault} vs
+     * {@code armorDefault} vs {@code entityItemDefault}). All other structure - pack resolution,
+     * empty-texture fallback, frame-rate derivation - is identical across renderers.
+     *
+     * @param buffer the finished render surface
+     * @param enchanted whether the item / entity is enchanted and should show a glint
+     * @param animate whether to emit the animated scroll; {@code false} keeps a single static frame
+     * @param glintOptions the glint preset, carrying the texture id and frame rate
+     * @return a static image when no glint is applied or {@code animate} is false, an animated image otherwise
+     */
+    public @NotNull ImageData finaliseWithGlint(
+        @NotNull PixelBuffer buffer,
+        boolean enchanted,
+        boolean animate,
+        @NotNull GlintKit.GlintOptions glintOptions
+    ) {
         if (!enchanted)
             return RenderEngine.staticFrame(buffer);
 
@@ -178,6 +201,9 @@ public class TextureEngine implements RenderEngine {
             return RenderEngine.staticFrame(buffer);
 
         ConcurrentList<PixelBuffer> frames = GlintKit.applyGlint(buffer, glintTexture.get(), glintOptions);
+        if (!animate)
+            return RenderEngine.staticFrame(frames.getFirst());
+
         int frameDelayMs = Math.max(1, Math.round(1000f / glintOptions.framesPerSecond()));
         return RenderEngine.wrapFrames(frames, frameDelayMs);
     }

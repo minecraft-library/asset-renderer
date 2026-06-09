@@ -355,6 +355,19 @@ public final class VanillaSourceClasses {
     public static final @NotNull String EFFECT_PACKAGE_PREFIX = EFFECT_ROOT;
 
     // ============================================================================================
+    // Items / data components
+    // ============================================================================================
+
+    /** Item registry class - {@code <clinit>} is the always-glinted item walker's entry point. */
+    public static final @NotNull String ITEMS = ITEM_ROOT + "Items";
+
+    /** Base item class - the field type every {@code Items.<NAME>} registration {@code PUTSTATIC}s into. */
+    public static final @NotNull String ITEM = ITEM_ROOT + "Item";
+
+    /** Data-component registry - holds {@code ENCHANTMENT_GLINT_OVERRIDE} and friends, read by the glint walker. */
+    public static final @NotNull String DATA_COMPONENTS = VANILLA_SOURCE_ROOT + "core/component/DataComponents";
+
+    // ============================================================================================
     // Properties / types
     // ============================================================================================
 

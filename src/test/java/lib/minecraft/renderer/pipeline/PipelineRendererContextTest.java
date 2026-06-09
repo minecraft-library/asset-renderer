@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.appearance.Biome;
@@ -11,6 +12,7 @@ import lib.minecraft.renderer.asset.AnimationData;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Item;
+import lib.minecraft.renderer.appearance.LayerTint;
 import lib.minecraft.renderer.asset.Texture;
 import lib.minecraft.renderer.asset.TexturePack;
 import lib.minecraft.renderer.asset.model.ModelData;
@@ -29,6 +31,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 import javax.imageio.ImageIO;
 
@@ -141,8 +144,8 @@ class PipelineRendererContextTest {
             "minecraft:item/stick",
             gson.fromJson("{\"textures\": {\"layer0\": \"minecraft:block/fixture\"}}", ModelData.class)
         );
-        // Leather helmet to verify OverlayResolver wires a Leather overlay onto the materialised
-        // Item during PipelineRendererContext.of.
+        // Leather helmet to verify the item-definition tints flow onto the materialised Item
+        // during PipelineRendererContext.of.
         itemModels.put(
             "minecraft:item/leather_helmet",
             gson.fromJson(
@@ -152,6 +155,16 @@ class PipelineRendererContextTest {
             )
         );
 
+        // Per-layer tints parsed from the item definitions (here a single dye tint on layer0,
+        // matching leather_helmet's vanilla `tints: [{dye, default -6265536}]`).
+        ConcurrentMap<String, List<LayerTint>> itemTints = Concurrent.newMap();
+        itemTints.put("minecraft:leather_helmet", List.of(new LayerTint.Dye(0xFFA06540)));
+
+        // Always-glinted item set. Synthetic: marks the fixture stick as foil so the alwaysGlinted
+        // flag plumbing through ItemIndexLoader can be asserted in isolation; vanilla's real set is
+        // the 7 intrinsically-foil items (enchanted_book, nether_star, ...).
+        ConcurrentSet<String> glintItems = Concurrent.newSet("minecraft:stick");
+
         ConcurrentMap<String, TexturePack> packs = Concurrent.newLinkedMap();
         packs.put(vanillaPack.getId(), vanillaPack);
 
@@ -160,7 +173,7 @@ class PipelineRendererContextTest {
             vanillaPack,
             packs,
             textures, colorMaps, blockTints, blockModels, itemModels,
-            Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
+            Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), itemTints, glintItems,
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
             Concurrent.newMap(), Concurrent.newList(), Concurrent.newList(),
             Concurrent.newMap()
@@ -204,24 +217,30 @@ class PipelineRendererContextTest {
     }
 
     @Test
-    @DisplayName("leather helmet materialises with a Leather overlay carrying the default dye color")
-    void leatherHelmetGetsOverlayAtPipelineTime() {
+    @DisplayName("leather helmet materialises with its item-definition dye tint on layer0")
+    void leatherHelmetGetsTintsAtPipelineTime() {
         Optional<Item> leatherHelmet = context.findItem("minecraft:leather_helmet");
         assertThat(leatherHelmet.isPresent(), is(true));
-        assertThat(leatherHelmet.get().getOverlay().isPresent(), is(true));
-        assertThat(leatherHelmet.get().getOverlay().get(), instanceOf(Item.Overlay.Leather.class));
-        Item.Overlay.Leather leather = (Item.Overlay.Leather) leatherHelmet.get().getOverlay().get();
-        assertThat(leather.baseTexture(), equalTo("minecraft:item/leather_helmet"));
-        assertThat(leather.overlayTexture(), equalTo("minecraft:item/leather_helmet_overlay"));
-        assertThat(leather.defaultColor(), equalTo(Item.Overlay.LEATHER_DEFAULT_ARGB));
+        assertThat(leatherHelmet.get().getTints(), hasSize(1));
+        assertThat(leatherHelmet.get().getTints().getFirst(), instanceOf(LayerTint.Dye.class));
+        LayerTint.Dye dye = (LayerTint.Dye) leatherHelmet.get().getTints().getFirst();
+        assertThat(dye.defaultColor(), equalTo(0xFFA06540));
     }
 
     @Test
-    @DisplayName("non-overlay items materialise with empty overlay")
-    void nonOverlayItemsGetEmptyOverlay() {
+    @DisplayName("non-tinted items materialise with empty tints")
+    void nonTintedItemsGetEmptyTints() {
         Optional<Item> stick = context.findItem("minecraft:stick");
         assertThat(stick.isPresent(), is(true));
-        assertThat(stick.get().getOverlay().isPresent(), is(false));
+        assertThat(stick.get().getTints().isEmpty(), is(true));
+    }
+
+    @Test
+    @DisplayName("items in the glint set materialise with alwaysGlinted=true, others false")
+    void glintItemsGetAlwaysGlintedFlag() {
+        // The fixture marks stick as always-glinted; leather_helmet is not in the set.
+        assertThat(context.findItem("minecraft:stick").orElseThrow().isAlwaysGlinted(), is(true));
+        assertThat(context.findItem("minecraft:leather_helmet").orElseThrow().isAlwaysGlinted(), is(false));
     }
 
     @Test
@@ -324,7 +343,7 @@ class PipelineRendererContextTest {
             result.getTextures(), result.getColorMaps(), result.getBlockTints(),
             result.getBlockModels(), result.getItemModels(),
             result.getBlockVariants(), result.getBlockMultiparts(),
-            result.getItemDefinitions(), result.getBlockTags(),
+            result.getItemDefinitions(), result.getItemTints(), result.getGlintItems(), result.getBlockTags(),
             result.getPotionEffectColors(), result.getBannerPatterns(),
             result.getColorOverrides(), result.getCitRules(),
             Concurrent.newList(miss, hit),

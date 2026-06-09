@@ -300,6 +300,58 @@ public interface RenderEngine {
         return Math.min(1f, (dot0 + dot1) * MINECRAFT_LIGHT_POWER + MINECRAFT_AMBIENT_LIGHT);
     }
 
+    // --- flat-item inventory lighting (vanilla Lighting.Entry.ITEMS_FLAT parity) ---
+
+    /**
+     * First {@code Lighting.Entry.ITEMS_FLAT} light direction: vanilla's
+     * {@code DIFFUSE_LIGHT_0 = normalize(0.2, 1, -0.7)} transformed by the flat-item pose
+     * {@code new Matrix4f().rotationY(-pi/8).rotateX(3pi/4)} (the
+     * {@code rotationY(-0.3926991f).rotateX(2.3561945f)} chain in
+     * {@code com.mojang.blaze3d.platform.Lighting}'s static initialiser).
+     * <p>
+     * Vanilla lights 3D <b>special-model</b> items (the shield's {@code ShieldModel}) with this
+     * {@code ITEMS_FLAT} entry rather than the {@code ITEMS_3D} entry used for block-as-item icons,
+     * so a camera-facing front face shades near full-bright while the side faces darken.
+     */
+    Vector3f ITEMS_FLAT_LIGHT_0 = deriveFlatItemLight(0.2f, 1.0f, -0.7f);
+
+    /**
+     * Second {@code Lighting.Entry.ITEMS_FLAT} light direction; vanilla's
+     * {@code DIFFUSE_LIGHT_1 = normalize(-0.2, 1, 0.7)} under the same flat-item pose as
+     * {@link #ITEMS_FLAT_LIGHT_0}.
+     */
+    Vector3f ITEMS_FLAT_LIGHT_1 = deriveFlatItemLight(-0.2f, 1.0f, 0.7f);
+
+    /**
+     * Transforms a raw vanilla {@code DIFFUSE_LIGHT} direction by the {@code ITEMS_FLAT} pose
+     * {@code rotationY(-0.3926991) * rotateX(2.3561945)} and re-normalises, reproducing the light
+     * direction vanilla uploads to the Lighting UBO for the flat-item entry.
+     */
+    private static @NotNull Vector3f deriveFlatItemLight(float x, float y, float z) {
+        Vector3f raw = new Vector3f(x, y, z).normalize();
+        Matrix4f pose = Matrix4f.IDENTITY
+            .rotate(Quaternionf.rotationXYZ(0f, -0.3926991f, 0f))
+            .rotate(Quaternionf.rotationXYZ(2.3561945f, 0f, 0f));
+        return raw.transformNormal(pose).normalize();
+    }
+
+    /**
+     * Computes the dual-directional Lambertian shade factor for a render-frame surface normal
+     * under vanilla's {@code Lighting.Entry#ITEMS_FLAT} entry, with the same
+     * {@code light.glsl#minecraft_mix_light_separate} formula as
+     * {@link #computeBlockItems3dLighting}. The {@code normal} must already be in render frame -
+     * transformed through the item's {@code display.gui} pose and the GUI PoseStack's
+     * {@code scale(W, -H, W)} Y-flip.
+     *
+     * @param normal the render-frame surface normal (should be normalized)
+     * @return the shade factor in {@code [0.4, 1.0]}
+     */
+    static float computeItemsFlatLighting(@NotNull Vector3f normal) {
+        float dot0 = Math.max(0f, ITEMS_FLAT_LIGHT_0.dot(normal));
+        float dot1 = Math.max(0f, ITEMS_FLAT_LIGHT_1.dot(normal));
+        return Math.min(1f, (dot0 + dot1) * MINECRAFT_LIGHT_POWER + MINECRAFT_AMBIENT_LIGHT);
+    }
+
     // --- shading ---
 
     /**

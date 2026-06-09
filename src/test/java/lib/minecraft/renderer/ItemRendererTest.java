@@ -10,7 +10,7 @@ import lib.minecraft.renderer.asset.model.ModelData;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.Optional;
+import java.util.List;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -46,7 +46,7 @@ class ItemRendererTest {
             ModelData.class
         );
         Item item = new Item(ResourceId.parse("minecraft:leather_helmet"),
-            model, model.getTextures(), 0, Optional.empty());
+            model, model.getTextures(), 0, List.of(), false);
         assertThat(ItemRenderer.tintIndexForLayer(item, 0), is(0));
     }
 
@@ -60,7 +60,7 @@ class ItemRendererTest {
             ModelData.class
         );
         Item item = new Item(ResourceId.parse("minecraft:diamond_sword"),
-            model, model.getTextures(), 0, Optional.empty());
+            model, model.getTextures(), 0, List.of(), false);
         assertThat(ItemRenderer.tintIndexForLayer(item, 0), is(-1));
     }
 
@@ -75,7 +75,7 @@ class ItemRendererTest {
             ModelData.class
         );
         Item item = new Item(ResourceId.parse("minecraft:carrot"),
-            model, model.getTextures(), 0, Optional.empty());
+            model, model.getTextures(), 0, List.of(), false);
         assertThat(ItemRenderer.tintIndexForLayer(item, 0), is(0));
     }
 
@@ -90,7 +90,7 @@ class ItemRendererTest {
             ModelData.class
         );
         Item item = new Item(ResourceId.parse("minecraft:stick"),
-            model, model.getTextures(), 0, Optional.empty());
+            model, model.getTextures(), 0, List.of(), false);
         assertThat(ItemRenderer.tintIndexForLayer(item, 0), is(-1));
     }
 
@@ -99,7 +99,7 @@ class ItemRendererTest {
         model.getTextures().put(textureKey, textureRef);
         ConcurrentMap<String, String> textures = Concurrent.newMap();
         textures.putAll(model.getTextures());
-        return new Item(ResourceId.parse("minecraft:test"), model, textures, 0, Optional.empty());
+        return new Item(ResourceId.parse("minecraft:test"), model, textures, 0, List.of(), false);
     }
 
 }

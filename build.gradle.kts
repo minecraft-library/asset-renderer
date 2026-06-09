@@ -206,6 +206,13 @@ tasks {
         classpath = sourceSets["main"].runtimeClasspath
     }
 
+    register<JavaExec>("glintItems") {
+        description = "Parses the Items registry out of the cached client jar via ASM and rewrites src/main/resources/lib/minecraft/renderer/glint_items.json (always-glinted item ids). Run on a Minecraft version bump."
+        group = "tooling"
+        mainClass.set("lib.minecraft.renderer.tooling.ToolingGlintItems")
+        classpath = sourceSets["main"].runtimeClasspath
+    }
+
     // Visual diagnostics - main() entry points in src/test/java/lib/minecraft/renderer/visual/.
     // Run with `./gradlew tasks --group visual` to list. Outputs land under cache/visual/.
 

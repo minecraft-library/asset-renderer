@@ -128,6 +128,14 @@ public class ItemOptions {
     private final int framesPerSecond = 30;
 
     /**
+     * Whether a glinted item (intrinsically-foil or {@link #enchanted}) emits the animated scrolling
+     * foil. When {@code false} the renderer composites a single static frame-0 glint instead - the
+     * atlas sets this so glinted tiles never promote the whole grid to an animated output.
+     */
+    @lombok.Builder.Default
+    private final boolean animateGlint = true;
+
+    /**
      * Whether to render the vanilla-style durability bar when the item has taken damage.
      */
     @lombok.Builder.Default
