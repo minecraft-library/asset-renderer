@@ -42,6 +42,11 @@ loom {
             if (project.hasProperty('refharnessPitchRollSweep')) {
                 property 'refharness.pitchRollSweep', project.property('refharnessPitchRollSweep').toString()
             }
+            // Glint-only fast path: render just the animated-glint references under glint/,
+            // skipping the full block/item/entity sweep. Driven by renderVanillaGlintReferences.
+            if (project.hasProperty('refharnessGlintOnly')) {
+                property 'refharness.glintOnly', project.property('refharnessGlintOnly').toString()
+            }
             if (project.hasProperty('refharnessBoundsDump')) {
                 property 'refharness.boundsDump', project.property('refharnessBoundsDump').toString()
             }
