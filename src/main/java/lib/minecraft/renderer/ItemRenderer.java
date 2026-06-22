@@ -14,6 +14,7 @@ import lib.minecraft.renderer.asset.model.ModelTransform;
 import lib.minecraft.renderer.engine.IsometricEngine;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
+import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.TextureEngine;
 import lib.minecraft.renderer.exception.RenderException;
