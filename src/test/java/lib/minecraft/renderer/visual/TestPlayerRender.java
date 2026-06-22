@@ -5,6 +5,8 @@ import api.simplified.mojang.response.MojangProfile;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
+import dev.simplified.image.codec.gif.GifImageWriter;
+import dev.simplified.image.codec.gif.GifWriteOptions;
 import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.appearance.ArmorMaterial;
 import lib.minecraft.renderer.appearance.ArmorPiece;
@@ -49,7 +51,9 @@ import java.util.Optional;
  * visible). The sweep covers the scope x dimension grid, the overlay / cape / supersample+FXAA /
  * rotation / background toggles, every armor material on every slot (2D and 3D), dyed leather, a
  * representative trim set, a vanilla-vs-pack armor comparison (with {@code -Ppack}), and a live
- * {@code account} sheet that renders a real player's skin + cape from their Mojang profile.
+ * {@code account} sheet that renders a real player's skin + cape from their Mojang profile. The
+ * {@code glint-per-slot} output is the exception to the contact-sheet format: it writes one
+ * animated GIF per enchanted-iron slot (2D + 3D) so the scrolling foil is watchable.
  *
  * <p>The sweep skin is the vanilla {@code entity/player/wide/steve} texture id (offline); the sweep
  * cape is a synthesized 64x32 texture since the vanilla pack ships none. The {@code account} sheet
@@ -113,6 +117,10 @@ public final class TestPlayerRender {
             if (!sheetFilter.isEmpty() && !sheetFilter.contains(entry.getKey())) continue;
             renderSheet(renderer, entry.getKey(), entry.getValue(), size);
         }
+
+        // Animated glint GIFs (enchanted iron per slot, 2D + 3D) beside the armor-per-slot sheet.
+        if (sheetFilter.isEmpty() || sheetFilter.contains("glint-per-slot"))
+            renderGlintGifs(renderer, "glint-per-slot", glintPerSlot(size));
 
         if (pack && (sheetFilter.isEmpty() || sheetFilter.contains("pack")))
             renderPackSheet(context, opts.getOrDefault("pack", "defrosted"), size);
@@ -198,6 +206,25 @@ public final class TestPlayerRender {
             .dimension(PlayerOptions.Dimension.TWO_D).boots(Optional.of(iron)).build()));
         cells.add(new Cell("enchanted iron 3D", allSlots(base(size).type(PlayerOptions.Type.FULL),
             new ArmorPiece(ArmorMaterial.IRON, Optional.empty(), Optional.empty(), Optional.empty(), true)).build()));
+        return cells;
+    }
+
+    /**
+     * Enchanted-iron mirror of {@link #armorPerSlot}: each slot alone (plus all slots) in both 2D
+     * and 3D, with the piece enchanted so the animated foil renders. Output as GIFs so the scrolling
+     * glint is watchable on each slot in both dimensions.
+     */
+    private static @NotNull List<Cell> glintPerSlot(int size) {
+        ArmorPiece iron = new ArmorPiece(ArmorMaterial.IRON, Optional.empty(), Optional.empty(), Optional.empty(), true);
+        List<Cell> cells = new ArrayList<>();
+        for (PlayerOptions.Dimension dim : PlayerOptions.Dimension.values()) {
+            String d = dim == PlayerOptions.Dimension.THREE_D ? "3D" : "2D";
+            cells.add(new Cell("helmet " + d, base(size).type(PlayerOptions.Type.FULL).dimension(dim).helmet(Optional.of(iron)).build()));
+            cells.add(new Cell("chestplate " + d, base(size).type(PlayerOptions.Type.FULL).dimension(dim).chestplate(Optional.of(iron)).build()));
+            cells.add(new Cell("leggings " + d, base(size).type(PlayerOptions.Type.FULL).dimension(dim).leggings(Optional.of(iron)).build()));
+            cells.add(new Cell("boots " + d, base(size).type(PlayerOptions.Type.FULL).dimension(dim).boots(Optional.of(iron)).build()));
+            cells.add(new Cell("all slots " + d, allSlots(base(size).type(PlayerOptions.Type.FULL).dimension(dim), iron).build()));
+        }
         return cells;
     }
 
@@ -352,6 +379,38 @@ public final class TestPlayerRender {
             rendered.add(new Cell(cell.label(), img));
         }
         writeGrid(name, rendered, columnsFor(defs.size()), size);
+    }
+
+    /** GIF encoder preset: infinite loop, transparent background (matches the glint-parity tool). */
+    private static final GifWriteOptions GIF_OPTIONS = GifWriteOptions.builder()
+        .withLoopCount(0).isTransparent(true).withAlphaThreshold(8).build();
+
+    /**
+     * Renders each config to an animated GIF under {@code <name>/<label>.gif}. Each piece is
+     * enchanted, so {@link PlayerRenderer#render} returns the animated glint frames directly; the
+     * GIF captures the scrolling foil. Warns when a render comes back non-animated (glint absent).
+     */
+    private static void renderGlintGifs(
+        @NotNull PlayerRenderer renderer,
+        @NotNull String name,
+        @NotNull List<Cell> configs
+    ) throws IOException {
+        System.out.printf("Sheet %-16s (%d gifs)...%n", name, configs.size());
+        Path dir = OUTPUT_DIR.resolve(name);
+        Files.createDirectories(dir);
+        GifImageWriter writer = new GifImageWriter();
+        for (Cell cell : configs) {
+            try {
+                ImageData image = renderer.render(cell.options());
+                if (!image.isAnimated())
+                    System.err.printf("    %-24s NOT animated (%d frame) - glint missing%n",
+                        cell.label(), image.getFrames().size());
+                Files.write(dir.resolve(safe(cell.label()) + ".gif"), writer.write(image, GIF_OPTIONS));
+            } catch (Exception ex) {
+                System.err.printf("    %-24s FAILED: %s%n", cell.label(), ex.getMessage());
+            }
+        }
+        System.out.println("  Wrote " + dir.toAbsolutePath());
     }
 
     private static @NotNull BufferedImage render(@NotNull PlayerRenderer renderer, @NotNull PlayerOptions options) {

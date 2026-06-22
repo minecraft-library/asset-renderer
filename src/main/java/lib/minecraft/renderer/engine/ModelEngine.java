@@ -152,10 +152,32 @@ public class ModelEngine extends TextureEngine {
         @NotNull PerspectiveParams perspective,
         @NotNull EulerRotation rotation
     ) {
+        rasterize(triangles, buffer, perspective, rotation, null);
+    }
+
+    /**
+     * As {@link #rasterize(ConcurrentList, PixelBuffer, PerspectiveParams, EulerRotation)} but also
+     * records a per-pixel {@link GlintMask}: each pixel whose winning fragment came from a
+     * {@link VisibleTriangle#glinted() glinted} triangle is marked, so the glint compositor can
+     * restrict the enchantment foil to that geometry. Pass {@code null} for the plain behaviour.
+     *
+     * @param triangles the triangle list
+     * @param buffer the destination buffer
+     * @param perspective the perspective blend parameters
+     * @param rotation the Euler-angle rotation applied to the model before the camera transform
+     * @param glintMask the glint mask to populate, or {@code null} to skip mask recording
+     */
+    public void rasterize(
+        @NotNull ConcurrentList<VisibleTriangle> triangles,
+        @NotNull PixelBuffer buffer,
+        @NotNull PerspectiveParams perspective,
+        @NotNull EulerRotation rotation,
+        @Nullable GlintMask glintMask
+    ) {
         Matrix4f modelRotation = buildModelRotation(rotation);
         // Column-vector chain: modelRotation applies first to a vertex, then the camera.
         Matrix4f transform = this.camera.multiply(modelRotation);
-        rasterizeInternal(triangles, buffer, perspective, transform);
+        rasterizeInternal(triangles, buffer, perspective, transform, glintMask);
     }
 
     /**
@@ -176,7 +198,7 @@ public class ModelEngine extends TextureEngine {
     ) {
         // Column-vector chain: modelTransform applies first to a vertex, then the camera.
         Matrix4f transform = this.camera.multiply(modelTransform);
-        rasterizeInternal(triangles, buffer, perspective, transform);
+        rasterizeInternal(triangles, buffer, perspective, transform, null);
     }
 
     /**
@@ -204,6 +226,31 @@ public class ModelEngine extends TextureEngine {
         @NotNull PerspectiveParams perspective,
         @NotNull EulerRotation rotation,
         float fill
+    ) {
+        rasterizeFitted(triangles, buffer, perspective, rotation, fill, null);
+    }
+
+    /**
+     * As {@link #rasterizeFitted(ConcurrentList, PixelBuffer, PerspectiveParams, EulerRotation, float)}
+     * but also records a per-pixel {@link GlintMask} (see
+     * {@link #rasterize(ConcurrentList, PixelBuffer, PerspectiveParams, EulerRotation, GlintMask)}).
+     * The mask is sized to {@code buffer}; downsample it to the final canvas when rendering at a
+     * supersampled resolution. Pass {@code null} for the plain behaviour.
+     *
+     * @param triangles the triangle list, in fixed model-space units
+     * @param buffer the destination buffer
+     * @param perspective the perspective blend parameters (orthographic recommended)
+     * @param rotation the Euler-angle model rotation applied before the camera
+     * @param fill the fraction in {@code (0, 1]} of the smaller canvas dimension the silhouette spans
+     * @param glintMask the glint mask to populate, or {@code null} to skip mask recording
+     */
+    public void rasterizeFitted(
+        @NotNull ConcurrentList<VisibleTriangle> triangles,
+        @NotNull PixelBuffer buffer,
+        @NotNull PerspectiveParams perspective,
+        @NotNull EulerRotation rotation,
+        float fill,
+        @Nullable GlintMask glintMask
     ) {
         if (triangles.isEmpty()) return;
         Matrix4f modelRotation = buildModelRotation(rotation);
@@ -236,14 +283,15 @@ public class ModelEngine extends TextureEngine {
 
         // vertex -> centre at origin -> uniform fit scale -> model rotation -> (camera).
         Matrix4f modelTransform = modelRotation.scale(fit, fit, fit).translate(-centreX, -centreY, -centreZ);
-        rasterizeInternal(triangles, buffer, perspective, this.camera.multiply(modelTransform));
+        rasterizeInternal(triangles, buffer, perspective, this.camera.multiply(modelTransform), glintMask);
     }
 
     private void rasterizeInternal(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
         @NotNull PerspectiveParams perspective,
-        @NotNull Matrix4f transform
+        @NotNull Matrix4f transform,
+        @Nullable GlintMask glintMask
     ) {
         int width = buffer.width();
         int height = buffer.height();
@@ -278,7 +326,7 @@ public class ModelEngine extends TextureEngine {
         if (height < MIN_TILED_HEIGHT) {
             float[] depthBuffer = new float[width * height];
             Arrays.fill(depthBuffer, Float.NEGATIVE_INFINITY);
-            rasterizeTile(prepared, buffer, depthBuffer, width, height, 0, height);
+            rasterizeTile(prepared, buffer, depthBuffer, width, height, 0, height, glintMask);
             return;
         }
 
@@ -293,7 +341,7 @@ public class ModelEngine extends TextureEngine {
 
             float[] depthSlice = new float[width * (tileEnd - tileStart)];
             Arrays.fill(depthSlice, Float.NEGATIVE_INFINITY);
-            rasterizeTile(prepared, buffer, depthSlice, width, height, tileStart, tileEnd);
+            rasterizeTile(prepared, buffer, depthSlice, width, height, tileStart, tileEnd, glintMask);
         });
     }
 
@@ -400,7 +448,8 @@ public class ModelEngine extends TextureEngine {
         int width,
         int height,
         int tileStart,
-        int tileEnd
+        int tileEnd,
+        @Nullable GlintMask glintMask
     ) {
         // Task A: a single barycentric scratch reused for every pixel in this tile. Each
         // rasterizeTile call runs on one FJP worker thread, so these arrays are thread-confined
@@ -483,6 +532,10 @@ public class ModelEngine extends TextureEngine {
 
                     int outArgb = ColorMath.blend(afterShade, buffer.getPixel(px, py), blendMode);
                     buffer.setPixel(px, py, outArgb);
+                    // Mark the glint mask wherever a glinted (armor) fragment wins the pixel, so the
+                    // foil compositor restricts the enchantment glint to the armor. Uses absolute
+                    // (px, py); the depth `idx` below is per-tile and must not be reused here.
+                    if (glintMask != null && t.source.glinted()) glintMask.mark(px, py);
 
                     RendererDebug.pixelWrite(px, py, depthVal, t.source.debugTag(),
                         u, v, tx, ty,

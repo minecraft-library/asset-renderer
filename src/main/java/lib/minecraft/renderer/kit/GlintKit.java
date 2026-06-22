@@ -5,6 +5,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.engine.GlintMask;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -274,11 +275,32 @@ public class GlintKit {
         @NotNull PixelBuffer glintTexture,
         @NotNull GlintOptions options
     ) {
+        return applyGlint(base, glintTexture, options, null);
+    }
+
+    /**
+     * {@link #applyGlint(PixelBuffer, PixelBuffer, GlintOptions)} that restricts the foil to the
+     * pixels marked in {@code glintMask} - e.g. only the armor of a player / entity render rather
+     * than the whole opaque silhouette. {@code null} applies the foil to every opaque pixel, the
+     * historic behaviour used for whole-subject items and blocks.
+     *
+     * @param base the base render
+     * @param glintTexture the glint scroll texture
+     * @param options the glint configuration
+     * @param glintMask the per-pixel glint coverage mask, or {@code null} to foil all opaque pixels
+     * @return an ordered list of composited frames, one per glint frame
+     */
+    public static @NotNull ConcurrentList<PixelBuffer> applyGlint(
+        @NotNull PixelBuffer base,
+        @NotNull PixelBuffer glintTexture,
+        @NotNull GlintOptions options,
+        @Nullable GlintMask glintMask
+    ) {
         double millisPerFrame = 1000.0 / options.framesPerSecond();
         long[] glintTimes = new long[options.totalFrames()];
         for (int frameIndex = 0; frameIndex < glintTimes.length; frameIndex++)
             glintTimes[frameIndex] = Math.round(frameIndex * millisPerFrame * MAX_ENCHANTMENT_GLINT_SPEED_MILLIS);
-        return applyGlintAtTimes(base, glintTexture, glintTimes, options);
+        return applyGlintAtTimes(base, glintTexture, glintTimes, options, null, glintMask);
     }
 
     /**
@@ -325,6 +347,32 @@ public class GlintKit {
         @NotNull GlintOptions options,
         @Nullable SpriteUv spriteUv
     ) {
+        return applyGlintAtTimes(base, glintTexture, glintTimes, options, spriteUv, null);
+    }
+
+    /**
+     * Core glint compositor: as
+     * {@link #applyGlintAtTimes(PixelBuffer, PixelBuffer, long[], GlintOptions, SpriteUv)} but also
+     * restricts the foil to the pixels marked in {@code glintMask} (e.g. only the armor of a player
+     * / entity render). {@code null} applies the foil to every opaque pixel.
+     *
+     * @param base the base render
+     * @param glintTexture the glint scroll texture
+     * @param glintTimes the ordered glint times (vanilla post-{@code glintSpeed} millis), one per frame
+     * @param options the glint configuration
+     * @param spriteUv the real atlas sprite-UV rect to sample {@code UV0} through, or {@code null} for
+     *     the offline approximation
+     * @param glintMask the per-pixel glint coverage mask, or {@code null} to foil all opaque pixels
+     * @return an ordered list of composited frames, one per supplied glint time
+     */
+    public static @NotNull ConcurrentList<PixelBuffer> applyGlintAtTimes(
+        @NotNull PixelBuffer base,
+        @NotNull PixelBuffer glintTexture,
+        long @NotNull [] glintTimes,
+        @NotNull GlintOptions options,
+        @Nullable SpriteUv spriteUv,
+        @Nullable GlintMask glintMask
+    ) {
         ConcurrentList<PixelBuffer> frames = Concurrent.newList();
         PixelBuffer tintedGlint = options.tintArgb() == ColorMath.WHITE
             ? glintTexture
@@ -332,7 +380,7 @@ public class GlintKit {
 
         for (long glintTime : glintTimes) {
             PixelBuffer frame = base.copy();
-            stampGlint(frame, tintedGlint, glintTime, options, spriteUv);
+            stampGlint(frame, tintedGlint, glintTime, options, spriteUv, glintMask);
             frames.add(frame);
         }
         return frames;
@@ -350,7 +398,8 @@ public class GlintKit {
         @NotNull PixelBuffer glint,
         long glintTimeMillis,
         @NotNull GlintOptions options,
-        @Nullable SpriteUv rect
+        @Nullable SpriteUv rect,
+        @Nullable GlintMask glintMask
     ) {
         int w = target.width();
         int h = target.height();
@@ -375,6 +424,10 @@ public class GlintKit {
             for (int x = 0; x < w; x++) {
                 int dst = target.getPixel(x, y);
                 if (ColorMath.alpha(dst) == 0) continue;
+                // Restrict the foil to glinted geometry (e.g. armor): when a mask is supplied, only
+                // its marked pixels receive the glint. A null mask foils every opaque pixel, which is
+                // correct for whole-subject items and blocks.
+                if (glintMask != null && !glintMask.marked(x, y)) continue;
 
                 // UV0 source: the real sprite atlas sub-rect when known (lerped across the icon by the
                 // pixel-centre fraction), else the offline pixel-centre normalized icon coordinate

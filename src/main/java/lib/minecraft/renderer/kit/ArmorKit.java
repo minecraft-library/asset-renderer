@@ -7,6 +7,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.appearance.ArmorMaterial;
 import lib.minecraft.renderer.appearance.ArmorPiece;
 import lib.minecraft.renderer.appearance.ArmorTrim;
+import lib.minecraft.renderer.engine.GlintMask;
 import lib.minecraft.renderer.engine.TextureEngine;
 import lib.minecraft.renderer.geometry.BlockFace;
 import lib.minecraft.renderer.geometry.SkinFace;
@@ -14,6 +15,7 @@ import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.EnumMap;
 import java.util.Map;
@@ -124,6 +126,8 @@ public class ArmorKit {
      * @param w the destination width
      * @param h the destination height
      * @param engine the texture engine for pack-aware texture resolution
+     * @param glintMask the per-pixel glint mask to stamp the armor / trim coverage into (so the
+     *     enchantment foil lands on the armor, not the bare skin), or {@code null} to skip
      */
     public static void compositeSlot2D(
         @NotNull PixelBuffer target,
@@ -131,13 +135,15 @@ public class ArmorKit {
         @NotNull ArmorTrim.Slot slot,
         @NotNull ArmorPiece piece,
         int x, int y, int w, int h,
-        @NotNull TextureEngine engine
+        @NotNull TextureEngine engine,
+        @Nullable GlintMask glintMask
     ) {
         boolean useLeggingsLayer = slot == ArmorTrim.Slot.LEGGINGS;
         Optional<PixelBuffer> armorTexture = resolveArmorTexture(engine, piece, useLeggingsLayer);
         armorTexture.ifPresent(tex -> {
             PixelBuffer face = part.crop(tex, BlockFace.SOUTH, false);
             target.blitScaled(face, x, y, w, h);
+            stampMaskScaled(glintMask, face, x, y, w, h);
         });
 
         if (piece.trimColor().isPresent() && piece.trimPattern().isPresent()) {
@@ -146,7 +152,30 @@ public class ArmorKit {
                 .ifPresent(trimTex -> {
                     PixelBuffer face = part.crop(trimTex, BlockFace.SOUTH, false);
                     target.blitScaled(face, x, y, w, h);
+                    stampMaskScaled(glintMask, face, x, y, w, h);
                 });
+        }
+    }
+
+    /**
+     * Marks the glint mask over the destination rectangle wherever the scaled source {@code face}
+     * has a non-transparent texel, mirroring {@code blitScaled}'s nearest-neighbour mapping. This is
+     * the 2D analogue of the 3D rasterizer's per-pixel glint marking - it records exactly the armor /
+     * trim coverage so the foil never lands on the bare skin underneath. No-op when {@code mask} is
+     * {@code null}.
+     */
+    private static void stampMaskScaled(@Nullable GlintMask mask, @NotNull PixelBuffer face, int x, int y, int w, int h) {
+        if (mask == null) return;
+        int fw = face.width();
+        int fh = face.height();
+        if (fw <= 0 || fh <= 0 || w <= 0 || h <= 0) return;
+        for (int dy = 0; dy < h; dy++) {
+            int sy = Math.min(fh - 1, dy * fh / h);
+            for (int dx = 0; dx < w; dx++) {
+                int sx = Math.min(fw - 1, dx * fw / w);
+                if (ColorMath.alpha(face.getPixel(sx, sy)) != 0)
+                    mask.mark(x + dx, y + dy);
+            }
         }
     }
 
@@ -274,8 +303,14 @@ public class ArmorKit {
     ) {
         Vector3f inflatedMin = new Vector3f(min.x() - inflate, min.y() - inflate, min.z() - inflate);
         Vector3f inflatedMax = new Vector3f(max.x() + inflate, max.y() + inflate, max.z() + inflate);
-        return BlockGeometryKit.buildBoxTriangles(
+        // Flag every armor / trim triangle as glinted so the rasterizer's per-pixel glint mask
+        // restricts the enchantment foil to the armor, not the whole body silhouette.
+        ConcurrentList<VisibleTriangle> built = BlockGeometryKit.buildBoxTriangles(
             inflatedMin, inflatedMax, part.cropAll(texture, false), ColorMath.WHITE);
+        ConcurrentList<VisibleTriangle> glinted = Concurrent.newList();
+        for (VisibleTriangle triangle : built)
+            glinted.add(triangle.withGlinted(true));
+        return glinted;
     }
 
     /**

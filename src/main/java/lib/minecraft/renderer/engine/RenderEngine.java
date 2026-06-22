@@ -474,7 +474,7 @@ public interface RenderEngine {
                     t.position0(), t.position1(), t.position2(),
                     t.uv0(), t.uv1(), t.uv2(),
                     t.texture(), t.tintArgb(), t.normal(),
-                    1.0f, cull, t.emissive(), t.translucent(), t.debugTag()
+                    1.0f, cull, t.emissive(), t.translucent(), t.glinted(), t.debugTag()
                 ));
                 continue;
             }
@@ -537,7 +537,7 @@ public interface RenderEngine {
                 t.position0(), t.position1(), t.position2(),
                 t.uv0(), t.uv1(), t.uv2(),
                 t.texture(), t.tintArgb(), t.normal(),
-                shading, cull, t.emissive(), t.translucent(), t.debugTag()
+                shading, cull, t.emissive(), t.translucent(), t.glinted(), t.debugTag()
             ));
         }
         return out;

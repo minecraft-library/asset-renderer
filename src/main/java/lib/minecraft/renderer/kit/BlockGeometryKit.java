@@ -564,8 +564,8 @@ public class BlockGeometryKit {
         // carries {@link #SHADE_DISABLED} so the relight pass renders it full-bright, matching
         // vanilla's in-world {@code getShade(dir, false) == 1.0}.
         float shading = directionalLight ? RenderEngine.computeInventoryLighting(normal) : SHADE_DISABLED;
-        out.add(new VisibleTriangle(topLeft, bottomLeft, bottomRight, uvTL, uvBL, uvBR, texture, tintArgb, normal, shading, cullBackFaces, false, translucent, null));
-        out.add(new VisibleTriangle(topLeft, bottomRight, topRight, uvTL, uvBR, uvTR, texture, tintArgb, normal, shading, cullBackFaces, false, translucent, null));
+        out.add(new VisibleTriangle(topLeft, bottomLeft, bottomRight, uvTL, uvBL, uvBR, texture, tintArgb, normal, shading, cullBackFaces, false, translucent, false, null));
+        out.add(new VisibleTriangle(topLeft, bottomRight, topRight, uvTL, uvBR, uvTR, texture, tintArgb, normal, shading, cullBackFaces, false, translucent, false, null));
     }
 
     /**

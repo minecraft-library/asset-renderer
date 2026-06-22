@@ -12,6 +12,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelBufferPool;
 import lib.minecraft.renderer.appearance.ArmorPiece;
 import lib.minecraft.renderer.appearance.ArmorTrim;
+import lib.minecraft.renderer.engine.GlintMask;
 import lib.minecraft.renderer.engine.IsometricEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
@@ -29,6 +30,7 @@ import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -358,6 +360,10 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         BodyPart2D[] parts = layout2D(options.getType(), scale, offsetX);
 
         boolean overlay = options.isRenderOverlay();
+        // Glint only the armor, not the bare skin: when enchanted, the armor / trim composites stamp
+        // their coverage into this mask and the foil is confined to it. Null when nothing glints.
+        boolean enchanted = hasEnchantedArmor(options);
+        GlintMask glintMask = enchanted ? new GlintMask(options.getOutputSize(), options.getOutputSize()) : null;
 
         for (BodyPart2D bp : parts) {
             // Base skin
@@ -374,13 +380,13 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             }
 
             // Armor + trim for this body part (each slot that covers this part gets composited)
-            compositeArmor2D(buffer, bp.part, bp.x, bp.y, bp.w, bp.h, options, engine);
+            compositeArmor2D(buffer, bp.part, bp.x, bp.y, bp.w, bp.h, options, engine, glintMask);
         }
 
         if (options.isAntiAlias())
             buffer.applyFxaa();
 
-        return engine.finaliseWithGlint(buffer, hasEnchantedArmor(options), GlintKit.GlintOptions.armorDefault(30));
+        return engine.finaliseWithGlint(buffer, enchanted, GlintKit.GlintOptions.armorDefault(30), glintMask);
     }
 
     /**
@@ -392,7 +398,8 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         @NotNull SkinFace part,
         int x, int y, int w, int h,
         @NotNull PlayerOptions options,
-        @NotNull RasterEngine engine
+        @NotNull RasterEngine engine,
+        @Nullable GlintMask glintMask
     ) {
         for (ArmorTrim.Slot slot : ArmorTrim.Slot.values()) {
             Optional<ArmorPiece> piece = switch (slot) {
@@ -408,7 +415,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 if (slotPart == part) { partInSlot = true; break; }
             if (!partInSlot) continue;
 
-            ArmorKit.compositeSlot2D(target, part, slot, piece.get(), x, y, w, h, engine);
+            ArmorKit.compositeSlot2D(target, part, slot, piece.get(), x, y, w, h, engine, glintMask);
         }
     }
 
@@ -559,18 +566,23 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         if (ssaa > 1) {
             try (PixelBufferPool.Lease lease = PixelBufferPool.acquire(size * ssaa, size * ssaa)) {
                 PixelBuffer hiRes = lease.buffer();
-                engine.rasterizeFitted(triangles, hiRes, PerspectiveParams.NONE, options.getRotation(), PLAYER_FILL);
+                // The glint mask is recorded at the hi-res raster size, then box-downsampled to the
+                // output so the foil is confined to the armor (not the bare body) after the SSAA blit.
+                GlintMask hiMask = enchanted ? new GlintMask(size * ssaa, size * ssaa) : null;
+                engine.rasterizeFitted(triangles, hiRes, PerspectiveParams.NONE, options.getRotation(), PLAYER_FILL, hiMask);
                 if (options.isAntiAlias()) hiRes.applyFxaa();
                 PixelBuffer output = PixelBuffer.create(size, size);
                 output.blitScaled(hiRes, 0, 0, size, size);
-                return engine.finaliseWithGlint(output, enchanted, glint);
+                GlintMask mask = hiMask == null ? null : hiMask.downsample(size, size);
+                return engine.finaliseWithGlint(output, enchanted, glint, mask);
             }
         }
 
         PixelBuffer buffer = PixelBuffer.create(size, size);
-        engine.rasterizeFitted(triangles, buffer, PerspectiveParams.NONE, options.getRotation(), PLAYER_FILL);
+        GlintMask mask = enchanted ? new GlintMask(size, size) : null;
+        engine.rasterizeFitted(triangles, buffer, PerspectiveParams.NONE, options.getRotation(), PLAYER_FILL, mask);
         if (options.isAntiAlias()) buffer.applyFxaa();
-        return engine.finaliseWithGlint(buffer, enchanted, glint);
+        return engine.finaliseWithGlint(buffer, enchanted, glint, mask);
     }
 
     /**

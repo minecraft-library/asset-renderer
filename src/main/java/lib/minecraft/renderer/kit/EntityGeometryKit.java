@@ -332,7 +332,7 @@ public class EntityGeometryKit {
                         texture, tintArgb,
                         normal, shading,
                         cubeCullBackFaces, emissive, cubeIsTranslucent,
-                        debugTag
+                        false, debugTag
                     ));
                     triangles.add(new VisibleTriangle(
                         corners[0], corners[2], corners[3],
@@ -340,7 +340,7 @@ public class EntityGeometryKit {
                         texture, tintArgb,
                         normal, shading,
                         cubeCullBackFaces, emissive, cubeIsTranslucent,
-                        debugTag
+                        false, debugTag
                     ));
                 }
             }

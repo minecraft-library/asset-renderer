@@ -9,6 +9,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelBufferPool;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.engine.GlintMask;
 import lib.minecraft.renderer.engine.IsometricEngine;
 import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.engine.RendererContext;
@@ -186,18 +187,23 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             int hiResH = fit.canvasH() * ssaa;
             try (PixelBufferPool.Lease lease = PixelBufferPool.acquire(hiResW, hiResH)) {
                 PixelBuffer hiResBuffer = lease.buffer();
-                engine.rasterize(triangles, hiResBuffer, PerspectiveParams.ISOMETRIC_BLOCK, effective);
+                // Record the glint mask at the hi-res raster size, then downsample so the foil is
+                // confined to the (glinted) armor rather than the whole entity silhouette.
+                GlintMask hiMask = enchanted ? new GlintMask(hiResW, hiResH) : null;
+                engine.rasterize(triangles, hiResBuffer, PerspectiveParams.ISOMETRIC_BLOCK, effective, hiMask);
                 if (options.isAntiAlias()) hiResBuffer.applyFxaa();
                 PixelBuffer output = PixelBuffer.create(fit.canvasW(), fit.canvasH());
                 output.blitScaled(hiResBuffer, 0, 0, fit.canvasW(), fit.canvasH());
-                return engine.finaliseWithGlint(output, enchanted, glintOptions);
+                GlintMask mask = hiMask == null ? null : hiMask.downsample(fit.canvasW(), fit.canvasH());
+                return engine.finaliseWithGlint(output, enchanted, glintOptions, mask);
             }
         }
 
         PixelBuffer buffer = PixelBuffer.create(fit.canvasW(), fit.canvasH());
-        engine.rasterize(triangles, buffer, PerspectiveParams.ISOMETRIC_BLOCK, effective);
+        GlintMask mask = enchanted ? new GlintMask(fit.canvasW(), fit.canvasH()) : null;
+        engine.rasterize(triangles, buffer, PerspectiveParams.ISOMETRIC_BLOCK, effective, mask);
         if (options.isAntiAlias()) buffer.applyFxaa();
-        return engine.finaliseWithGlint(buffer, enchanted, glintOptions);
+        return engine.finaliseWithGlint(buffer, enchanted, glintOptions, mask);
     }
 
     /**

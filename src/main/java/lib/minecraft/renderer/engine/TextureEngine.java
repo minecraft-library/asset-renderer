@@ -23,6 +23,7 @@ import lib.minecraft.renderer.pipeline.pack.ItemContext;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.nio.ByteBuffer;
 import java.util.Optional;
@@ -193,6 +194,48 @@ public class TextureEngine implements RenderEngine {
         boolean animate,
         @NotNull GlintKit.GlintOptions glintOptions
     ) {
+        return finaliseWithGlint(buffer, enchanted, animate, glintOptions, null);
+    }
+
+    /**
+     * Animated-glint overload that restricts the foil to the pixels marked in {@code glintMask}.
+     * Equivalent to {@link #finaliseWithGlint(PixelBuffer, boolean, GlintKit.GlintOptions)} but
+     * confines the glint to the masked geometry (e.g. only a player's / entity's armor, not the bare
+     * body); {@code null} foils every opaque pixel, the whole-subject item / block behaviour.
+     *
+     * @param buffer the finished render surface
+     * @param enchanted whether the subject is enchanted and should show a glint
+     * @param glintOptions the glint preset, carrying the texture id and frame rate
+     * @param glintMask the glint coverage mask, or {@code null} to foil every opaque pixel
+     * @return a static image when no glint is applied, an animated image otherwise
+     */
+    public @NotNull ImageData finaliseWithGlint(
+        @NotNull PixelBuffer buffer,
+        boolean enchanted,
+        @NotNull GlintKit.GlintOptions glintOptions,
+        @Nullable GlintMask glintMask
+    ) {
+        return finaliseWithGlint(buffer, enchanted, true, glintOptions, glintMask);
+    }
+
+    /**
+     * Core glint finaliser: as the four-argument {@code (buffer, enchanted, animate, glintOptions)}
+     * overload but additionally confines the foil to the pixels marked in {@code glintMask}.
+     *
+     * @param buffer the finished render surface
+     * @param enchanted whether the subject is enchanted and should show a glint
+     * @param animate whether to emit the animated scroll; {@code false} keeps a single static frame
+     * @param glintOptions the glint preset, carrying the texture id and frame rate
+     * @param glintMask the glint coverage mask, or {@code null} to foil every opaque pixel
+     * @return a static image when no glint is applied or {@code animate} is false, an animated image otherwise
+     */
+    public @NotNull ImageData finaliseWithGlint(
+        @NotNull PixelBuffer buffer,
+        boolean enchanted,
+        boolean animate,
+        @NotNull GlintKit.GlintOptions glintOptions,
+        @Nullable GlintMask glintMask
+    ) {
         if (!enchanted)
             return RenderEngine.staticFrame(buffer);
 
@@ -200,7 +243,7 @@ public class TextureEngine implements RenderEngine {
         if (glintTexture.isEmpty())
             return RenderEngine.staticFrame(buffer);
 
-        ConcurrentList<PixelBuffer> frames = GlintKit.applyGlint(buffer, glintTexture.get(), glintOptions);
+        ConcurrentList<PixelBuffer> frames = GlintKit.applyGlint(buffer, glintTexture.get(), glintOptions, glintMask);
         if (!animate)
             return RenderEngine.staticFrame(frames.getFirst());
 
