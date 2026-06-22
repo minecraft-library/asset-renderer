@@ -75,7 +75,7 @@ dependencies {
     // master-SNAPSHOT consumers of any single lib see a consistent transitive chain.
     api("com.github.simplified-dev:collections") { version { strictly("2f2aa58") } }
     api("com.github.simplified-dev:utils") { version { strictly("a932b44") } }
-    api("com.github.simplified-dev:image") { version { strictly("d309df7") } }
+    api("com.github.simplified-dev:image") { version { strictly("84134f2") } }
     api("com.github.simplified-dev:gson-extras") { version { strictly("b68510e") } }
     api("com.github.simplified-dev:reflection") { version { strictly("c02511a") } }
     api("com.github.simplified-dev:client") { version { strictly("64ae978") } }
@@ -313,6 +313,20 @@ tasks {
         args = if (itemId != null) listOf(itemId) else listOf()
     }
 
+    register<JavaExec>("glintParityVanilla") {
+        description = "Animated enchantment-glint parity: renders the 7 always-foil GUI items (+ 4 worn leather-armor diagnostics) frame-by-frame against the harness glint references at cache/.../references/glint/. Writes per-frame diffs, contact sheets, GIFs, and a TSV to cache/visual/glint-parity-vanilla/. Run :asset-renderer:renderVanillaGlintReferences first. -PitemId=minecraft:nether_star"
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestGlintParityVanilla")
+        classpath = sourceSets["test"].runtimeClasspath
+        val itemId = project.findProperty("itemId") as String?
+        args = if (itemId != null) listOf(itemId) else listOf()
+        // Forward -Dglint.* to the forked JVM for empirical scale calibration of the offline
+        // glint (e.g. -Dglint.itemScale=1.0), mirroring blockRender3D's entity./snap. forwarding.
+        systemProperties = System.getProperties().toMap()
+            .filter { it.key.toString().startsWith("glint.") }
+            .mapKeys { it.key.toString() }
+    }
+
     register<JavaExec>("fluidRenderer") {
         description = "Renders every FluidRenderer code path (water/lava, iso/2D, static/animated, biome variants, override) to cache/visual/fluid-renderer/ for visual inspection."
         group = "visual"
@@ -387,6 +401,37 @@ tasks {
         commandLine = baseArgs
         doFirst {
             println("renderVanillaReferences: writing to ${outputDir.asFile.absolutePath}")
+            outputDir.asFile.mkdirs()
+        }
+    }
+
+    // Glint-only variant: drives the harness with -PrefharnessGlintOnly=true so it renders ONLY the
+    // animated-glint references (7 GUI items + 4 worn leather-armor diagnostics) under
+    // references/glint/<id>/frame_NNN.png, skipping the ~5-minute full sweep. Then run glintParityVanilla.
+    //   ./gradlew :asset-renderer:renderVanillaGlintReferences [-PrefharnessTargets=minecraft:nether_star]
+    register<Exec>("renderVanillaGlintReferences") {
+        description = "Runs the sibling vanilla-reference-harness mod in glint-only mode, writing animated glint references to asset-renderer's vanilla cache (references/glint/). Then run glintParityVanilla."
+        group = "tooling"
+        workingDir = file("../vanilla-reference-harness")
+        val outputDir = layout.projectDirectory.dir("cache/asset-renderer/vanilla/26.1/references")
+        val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
+        val gradlewPath = file("../vanilla-reference-harness/${if (isWindows) "gradlew.bat" else "gradlew"}").absolutePath
+        val baseArgs = mutableListOf<String>()
+        if (isWindows) {
+            baseArgs.add("cmd")
+            baseArgs.add("/c")
+        }
+        baseArgs.add(gradlewPath)
+        baseArgs.add("runRenderReferences")
+        baseArgs.add("--no-daemon")
+        baseArgs.add("-PrefharnessOutputDir=${outputDir.asFile.absolutePath}")
+        baseArgs.add("-PrefharnessGlintOnly=true")
+        if (project.hasProperty("refharnessTargets")) {
+            baseArgs.add("-PrefharnessTargets=${project.property("refharnessTargets")}")
+        }
+        commandLine = baseArgs
+        doFirst {
+            println("renderVanillaGlintReferences: writing glint refs to ${outputDir.asFile.absolutePath}/glint")
             outputDir.asFile.mkdirs()
         }
     }

@@ -452,7 +452,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             if (options.getContext().stackCount() > 1)
                 ItemStackKit.drawStackCount(buffer, options.getContext().stackCount(), MinecraftFont.REGULAR);
 
-            return engine.finaliseWithGlint(buffer, item.isAlwaysGlinted() || options.isEnchanted(),
+            boolean glinted = options.getGlintOverride().orElse(item.isAlwaysGlinted() || options.isEnchanted());
+            return engine.finaliseWithGlint(buffer, glinted,
                 options.isAnimateGlint(), GlintKit.GlintOptions.itemDefault(options.getFramesPerSecond()));
         }
 
@@ -514,7 +515,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             Matrix4f displayTransform = resolveDisplayTransform(item, DISPLAY_SLOT_HELD_3D);
             engine.rasterize(triangles, buffer, PerspectiveParams.GUI_ITEM, displayTransform);
 
-            return engine.finaliseWithGlint(buffer, item.isAlwaysGlinted() || options.isEnchanted(),
+            boolean glinted = options.getGlintOverride().orElse(item.isAlwaysGlinted() || options.isEnchanted());
+            return engine.finaliseWithGlint(buffer, glinted,
                 options.isAnimateGlint(), GlintKit.GlintOptions.itemDefault(options.getFramesPerSecond()));
         }
 

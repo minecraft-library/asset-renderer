@@ -67,6 +67,15 @@ public class ItemOptions {
     private final boolean enchanted = false;
 
     /**
+     * Forces the glint on ({@code true}) or off ({@code false}), overriding the item's intrinsic
+     * {@code alwaysGlinted} flag and {@link #enchanted}. Empty leaves the default behaviour. Set to
+     * {@code false} to obtain the pre-glint base icon a glint-parity harness composites its own
+     * deterministic animated schedule onto.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Optional<Boolean> glintOverride = Optional.empty();
+
+    /**
      * Optional ARGB tint applied to colour-overlay items (leather armour, spawn eggs).
      */
     @lombok.Builder.Default
