@@ -3,7 +3,6 @@ package lib.minecraft.renderer.options;
 import lib.minecraft.text.LineSegment;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.ImageFormat;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -96,12 +95,6 @@ public class TextOptions {
      */
     @lombok.Builder.Default
     private final int framesPerSecond = VANILLA_TICK_FPS;
-
-    /**
-     * Output image format
-     */
-    @lombok.Builder.Default
-    private final @NotNull ImageFormat outputFormat = ImageFormat.PNG;
 
     public @NotNull TextOptionsBuilder mutate() {
         return this.toBuilder();

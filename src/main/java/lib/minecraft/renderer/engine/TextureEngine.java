@@ -1,15 +1,11 @@
 package lib.minecraft.renderer.engine;
 
+import lib.minecraft.renderer.appearance.Biome;
 import lib.minecraft.renderer.asset.Item;
+import lib.minecraft.renderer.asset.model.ModelElement;
+import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.geometry.Biome;
 
-import lib.minecraft.renderer.kit.AnimationKit;
-import lib.minecraft.renderer.kit.GlintKit;
-import lib.minecraft.renderer.asset.pack.ColorMap;
-import lib.minecraft.renderer.asset.pack.AnimationData;
-import lib.minecraft.renderer.options.ItemOptions;
-import lib.minecraft.renderer.pipeline.pack.ItemContext;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -18,12 +14,20 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.AnimationData;
+import lib.minecraft.renderer.asset.ColorMap;
+import lib.minecraft.renderer.kit.AnimationKit;
+import lib.minecraft.renderer.kit.GlintKit;
+import lib.minecraft.renderer.options.ItemOptions;
+import lib.minecraft.renderer.pipeline.pack.ItemContext;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.nio.ByteBuffer;
 import java.util.Optional;
+import java.util.function.Function;
 
 /**
  * Baseline texture-aware engine. Every higher-level engine ({@link RasterEngine},
@@ -146,16 +150,10 @@ public class TextureEngine implements RenderEngine {
     }
 
     /**
-     * Wraps a finished buffer into an {@link ImageData}, optionally applying a scrolling glint
-     * overlay animation. If {@code enchanted} is {@code false} or the active pack stack has no
-     * glint texture, the buffer is returned as a single-frame static image; otherwise the
-     * configured glint is composed via {@link GlintKit#apply} and the frames are emitted at
-     * {@code glintOptions.framesPerSecond()}.
-     * <p>
-     * Callers differ only in the enchanted predicate (per-item {@code isEnchanted} vs
-     * armor-slot scan) and the {@link GlintKit.GlintOptions} preset ({@code itemDefault} vs
-     * {@code armorDefault} vs {@code entityItemDefault}). All other structure - pack resolution,
-     * empty-texture fallback, frame-rate derivation - is identical across renderers.
+     * Animated-glint convenience overload equivalent to
+     * {@link #finaliseWithGlint(PixelBuffer, boolean, boolean, GlintKit.GlintOptions)} with
+     * {@code animate = true}. Used by the entity / armor renderers, which always want the scrolling
+     * foil when glint applies.
      *
      * @param buffer the finished render surface
      * @param enchanted whether the item / entity is enchanted and should show a glint
@@ -167,6 +165,77 @@ public class TextureEngine implements RenderEngine {
         boolean enchanted,
         @NotNull GlintKit.GlintOptions glintOptions
     ) {
+        return finaliseWithGlint(buffer, enchanted, true, glintOptions);
+    }
+
+    /**
+     * Wraps a finished buffer into an {@link ImageData}, optionally applying a scrolling glint
+     * overlay animation. If {@code enchanted} is {@code false} or the active pack stack has no
+     * glint texture, the buffer is returned as a single-frame static image; otherwise the
+     * configured glint is composed via {@link GlintKit#applyGlint}. When {@code animate} is
+     * {@code true} the frames are emitted at {@code glintOptions.framesPerSecond()}; when
+     * {@code false} only the frame-0 (un-scrolled) glint is kept and returned as a static image -
+     * the atlas path uses this so a glinted tile never promotes the whole grid to animated output.
+     * <p>
+     * Callers differ only in the enchanted predicate (per-item {@code isEnchanted} vs
+     * armor-slot scan) and the {@link GlintKit.GlintOptions} preset ({@code itemDefault} vs
+     * {@code armorDefault} vs {@code entityItemDefault}). All other structure - pack resolution,
+     * empty-texture fallback, frame-rate derivation - is identical across renderers.
+     *
+     * @param buffer the finished render surface
+     * @param enchanted whether the item / entity is enchanted and should show a glint
+     * @param animate whether to emit the animated scroll; {@code false} keeps a single static frame
+     * @param glintOptions the glint preset, carrying the texture id and frame rate
+     * @return a static image when no glint is applied or {@code animate} is false, an animated image otherwise
+     */
+    public @NotNull ImageData finaliseWithGlint(
+        @NotNull PixelBuffer buffer,
+        boolean enchanted,
+        boolean animate,
+        @NotNull GlintKit.GlintOptions glintOptions
+    ) {
+        return finaliseWithGlint(buffer, enchanted, animate, glintOptions, null);
+    }
+
+    /**
+     * Animated-glint overload that restricts the foil to the pixels marked in {@code glintMask}.
+     * Equivalent to {@link #finaliseWithGlint(PixelBuffer, boolean, GlintKit.GlintOptions)} but
+     * confines the glint to the masked geometry (e.g. only a player's / entity's armor, not the bare
+     * body); {@code null} foils every opaque pixel, the whole-subject item / block behaviour.
+     *
+     * @param buffer the finished render surface
+     * @param enchanted whether the subject is enchanted and should show a glint
+     * @param glintOptions the glint preset, carrying the texture id and frame rate
+     * @param glintMask the glint coverage mask, or {@code null} to foil every opaque pixel
+     * @return a static image when no glint is applied, an animated image otherwise
+     */
+    public @NotNull ImageData finaliseWithGlint(
+        @NotNull PixelBuffer buffer,
+        boolean enchanted,
+        @NotNull GlintKit.GlintOptions glintOptions,
+        @Nullable GlintMask glintMask
+    ) {
+        return finaliseWithGlint(buffer, enchanted, true, glintOptions, glintMask);
+    }
+
+    /**
+     * Core glint finaliser: as the four-argument {@code (buffer, enchanted, animate, glintOptions)}
+     * overload but additionally confines the foil to the pixels marked in {@code glintMask}.
+     *
+     * @param buffer the finished render surface
+     * @param enchanted whether the subject is enchanted and should show a glint
+     * @param animate whether to emit the animated scroll; {@code false} keeps a single static frame
+     * @param glintOptions the glint preset, carrying the texture id and frame rate
+     * @param glintMask the glint coverage mask, or {@code null} to foil every opaque pixel
+     * @return a static image when no glint is applied or {@code animate} is false, an animated image otherwise
+     */
+    public @NotNull ImageData finaliseWithGlint(
+        @NotNull PixelBuffer buffer,
+        boolean enchanted,
+        boolean animate,
+        @NotNull GlintKit.GlintOptions glintOptions,
+        @Nullable GlintMask glintMask
+    ) {
         if (!enchanted)
             return RenderEngine.staticFrame(buffer);
 
@@ -174,7 +243,10 @@ public class TextureEngine implements RenderEngine {
         if (glintTexture.isEmpty())
             return RenderEngine.staticFrame(buffer);
 
-        ConcurrentList<PixelBuffer> frames = GlintKit.applyGlint(buffer, glintTexture.get(), glintOptions);
+        ConcurrentList<PixelBuffer> frames = GlintKit.applyGlint(buffer, glintTexture.get(), glintOptions, glintMask);
+        if (!animate)
+            return RenderEngine.staticFrame(frames.getFirst());
+
         int frameDelayMs = Math.max(1, Math.round(1000f / glintOptions.framesPerSecond()));
         return RenderEngine.wrapFrames(frames, frameDelayMs);
     }
@@ -381,6 +453,42 @@ public class TextureEngine implements RenderEngine {
         }
 
         return current;
+    }
+
+    /**
+     * Resolves and loads every unique face texture referenced by a model's elements into a map
+     * keyed by the raw {@link ModelFace#getTexture()} reference (including any leading {@code #}).
+     * <p>
+     * Walks each element's faces, dereferences the {@code #variable} chain via
+     * {@link #resolveTextureReference}, skips refs that stay unresolved ({@code #}-prefixed) or
+     * blank, and loads each concrete id through the supplied {@code resolve} function exactly
+     * once. The caller chooses how a concrete id becomes a {@link PixelBuffer} - block paths pass
+     * a tick-aware {@code id -> Optional.of(resolveTextureAtTick(id, 0))}, the entity path passes
+     * the context's {@code Optional}-returning lookup - so this helper never decides the
+     * resolution strategy. Refs whose {@code resolve} yields an empty {@link Optional} are
+     * dropped, leaving the kit to treat them as no-texture faces.
+     *
+     * @param elements the model elements whose faces reference textures
+     * @param textureVars the model's {@code #variable} bindings to resolve refs against
+     * @param resolve maps a concrete namespaced texture id to its pixel buffer, or empty to skip
+     * @return a new map from raw face ref to its loaded pixel buffer
+     */
+    public static @NotNull ConcurrentMap<String, PixelBuffer> loadElementFaceTextures(
+        @NotNull Iterable<ModelElement> elements,
+        @NotNull ConcurrentMap<String, String> textureVars,
+        @NotNull Function<String, Optional<PixelBuffer>> resolve
+    ) {
+        ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
+        for (ModelElement element : elements) {
+            for (ModelFace face : element.getFaces().values()) {
+                String ref = face.getTexture();
+                if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
+                String resolvedId = resolveTextureReference(ref, textureVars);
+                if (resolvedId.startsWith("#")) continue;
+                resolve.apply(resolvedId).ifPresent(buffer -> faceTextures.put(ref, buffer));
+            }
+        }
+        return faceTextures;
     }
 
     /**

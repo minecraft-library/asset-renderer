@@ -1,0 +1,98 @@
+package lib.minecraft.renderer.tooling;
+
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import dev.simplified.gson.GsonSettings;
+import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.pipeline.Pipeline;
+import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.PipelineRendererContext;
+import org.jetbrains.annotations.NotNull;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
+
+/**
+ * Live-pipeline cross-check for {@code block_defaults.json}.
+ * <p>
+ * The byte-level integrity fixture ({@code block_defaults.sha256}) is asserted alongside the other
+ * bundled JSON in {@code JsonResourceShaTest}. This {@code slow}-tagged test cross-checks the
+ * committed snapshot against a live pipeline: each non-empty {@code default} key must subset-resolve
+ * to one of the block's runtime {@code block.getVariants().keySet()} variants. This catches the
+ * ASM-derived default drifting away from the live blockstate parse.
+ * <p>
+ * Regeneration workflow: run {@code ./gradlew :asset-renderer:blockDefaults} to refresh the snapshot,
+ * then update {@code block_defaults.sha256} per {@code JsonResourceShaTest}.
+ */
+@DisplayName("block_defaults.json agrees with the live pipeline")
+class BlockDefaultsGoldenTest {
+
+    private static final Path JSON_PATH = Path.of("src/main/resources/lib/minecraft/renderer/block_defaults.json");
+    private static final Gson GSON = GsonSettings.defaults().create();
+
+    @Test
+    @Tag("slow")
+    @DisplayName("each default resolves to a live-pipeline variant")
+    void crossCheckAgainstLivePipeline() throws IOException {
+        Pipeline.Result result = Pipeline.run(PipelineOptions.builder()
+            .version("26.1")
+            .cacheRoot(new File("cache/it"))
+            .build());
+        PipelineRendererContext context = PipelineRendererContext.of(result);
+
+        String raw = Files.readString(JSON_PATH, StandardCharsets.UTF_8);
+        JsonObject blocks = GSON.fromJson(raw, JsonObject.class).getAsJsonObject("blocks");
+
+        List<String> mismatches = new ArrayList<>();
+        for (String blockId : blocks.keySet()) {
+            Block block = context.findBlock(blockId).orElse(null);
+            if (block == null) continue;
+
+            Set<String> runtimeVariants = new TreeSet<>(block.getVariants().keySet());
+            String defaultKey = blocks.get(blockId).getAsString();
+            if (!defaultKey.isEmpty() && !runtimeVariants.isEmpty() && !subsetResolves(defaultKey, runtimeVariants))
+                mismatches.add(blockId + ": default '" + defaultKey + "' resolves to no variant in " + runtimeVariants);
+        }
+
+        assertThat("block_defaults.json drifted from the live pipeline:\n" + String.join("\n", mismatches),
+            mismatches, is(empty()));
+    }
+
+    /**
+     * Returns {@code true} when some variant key's {@code property=value} pairs are all present in
+     * the (fully-qualified) default key - mirroring {@code BlockRenderer.resolveVariant}'s
+     * superset match.
+     */
+    private static boolean subsetResolves(@NotNull String defaultKey, @NotNull Set<String> variantKeys) {
+        Set<String> defaultPairs = new HashSet<>(Arrays.asList(defaultKey.split(",")));
+        for (String variantKey : variantKeys) {
+            if (variantKey.isEmpty()) return true;
+            if (defaultPairs.containsAll(Arrays.asList(variantKey.split(",")))) return true;
+        }
+        return false;
+    }
+
+    @BeforeAll
+    static void ensureGeneratedJsonExists() {
+        if (!Files.exists(JSON_PATH))
+            throw new IllegalStateException("Run ./gradlew :asset-renderer:blockDefaults to generate " + JSON_PATH);
+    }
+
+}

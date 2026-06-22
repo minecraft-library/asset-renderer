@@ -69,6 +69,15 @@ public record EulerRotation(float pitch, float yaw, float roll) {
     public static final @NotNull EulerRotation STANDARD_ISO_ENTITY = new EulerRotation(210f, 45f, 0f);
 
     /**
+     * The front-facing humanoid GUI pose: {@code [30, 45, 0]} pitch/yaw/roll. Shares the
+     * {@link #STANDARD_ISO_BLOCK block-icon} pose's pitch and roll but flips the yaw by 180&deg; so
+     * a player model's front (the {@code +Z} {@code SOUTH} face) turns toward the camera. The
+     * block-icon pose presents the model's {@code -Z} side, which on a humanoid is its back, so a
+     * player render needs this pose rather than borrowing {@link #STANDARD_ISO_BLOCK}.
+     */
+    public static final @NotNull EulerRotation STANDARD_ISO_PLAYER = new EulerRotation(30f, 45f, 0f);
+
+    /**
      * The rotation about the ({@code X}-axis angle), in radians.
      */
     public float pitchRadians() {

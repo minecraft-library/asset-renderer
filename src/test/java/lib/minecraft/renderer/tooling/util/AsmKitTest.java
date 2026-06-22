@@ -1407,7 +1407,7 @@ class AsmKitTest {
             AsmKit.LiteralStack stack = new AsmKit.LiteralStack(4);
             stack.push(2.7f);
             // Number subclass: coerces via Number.intValue() without WARN. Matches the
-            // original ToolingBlockEntities Parser behaviour where popIntWithDiagnostics
+            // original ToolingBlockModels Parser behaviour where popIntWithDiagnostics
             // called .intValue() on whatever Number sat on top.
             assertThat(stack.popIntOrZero(diag, "ctx", "site"), equalTo(2));
             assertThat(diag.isEmpty(), is(true));

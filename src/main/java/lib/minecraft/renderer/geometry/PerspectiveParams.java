@@ -26,26 +26,15 @@ import org.jetbrains.annotations.NotNull;
 public record PerspectiveParams(float amount, float cameraDistance, float focalLength, float projectionScale) {
 
     /**
-     * Vertical extent of a unit cube after the standard {@code [30, 225, 0]} iso rotation,
-     * relative to the model-space unit. Derived geometrically: yaw 225° rotates the cube so
-     * its top-face diagonal lies along the screen X axis (width {@code √2}); pitch 30° then
-     * tilts the top edge down by {@code cos(30°)} and pulls the front-bottom corner
-     * vertically by {@code √2 · sin(30°)}, giving the projected height
-     * {@code cos(30°) + √2 · sin(30°) ≈ 1.5731}. This is the cube silhouette's longer axis -
-     * the width is only {@code √2 ≈ 1.4142} - so it determines the tightest scale that keeps
-     * a vanilla cobblestone-style full cube inside its tile.
+     * Vanilla's {@code display.gui.scale} for the root {@code block/block.json} model. Every
+     * block inherits this unless its own model overrides the gui display transform. With the
+     * standard {@code [30, 225, 0]} iso rotation it produces a cube silhouette of
+     * {@code 0.625 · √2 ≈ 0.884} wide × {@code 0.625 · (cos30° + √2·sin30°) ≈ 0.983} tall
+     * relative to the inventory slot, leaving a thin band at the top and bottom and ~12% on
+     * each side. Matched against the vanilla-reference-harness PNGs the silhouette is
+     * pixel-identical at the chosen render size.
      */
-    private static final float ISO_CUBE_PROJECTED_HEIGHT = (float) (
-        Math.cos(Math.toRadians(30)) + Math.sqrt(2) * Math.sin(Math.toRadians(30))
-    );
-
-    /**
-     * Fractional margin left empty on each side of the tile around the iso-projected cube.
-     * Small enough that the block still dominates the tile, large enough to absorb the few
-     * extra pixels stairs, slabs, and other variant-rotated geometry can poke past the unit
-     * cube envelope.
-     */
-    private static final float ISO_CUBE_PADDING = 0.04f;
+    private static final float BLOCK_GUI_DISPLAY_SCALE = 0.625f;
 
     /**
      * Conservative scale margin used by the presets that cannot assume a tight unit-cube
@@ -93,24 +82,16 @@ public record PerspectiveParams(float amount, float cameraDistance, float focalL
     );
 
     /**
-     * A pure orthographic projection tuned for isometric block renders. The scale is computed
-     * directly from a unit cube's screen-space silhouette at the standard {@code [30, 225, 0]}
-     * pitch/yaw/roll pose used by vanilla's block inventory icon:
-     * <ul>
-     * <li>width  = {@code √2                       ≈ 1.4142} - top-face diagonal</li>
-     * <li>height = {@code cos(30°) + √2 · sin(30°) ≈ 1.5731} - top edge plus foreshortened side</li>
-     * </ul>
-     * Height is the constraint, so {@code scale = (1 − 2 · padding) / height}. With
-     * {@link #ISO_CUBE_PADDING 4% padding} per side this yields
-     * {@code 0.92 / 1.5731 ≈ 0.5848}, leaving the cube's corners safely inside the tile -
-     * the previous hand-tuned {@code 0.65f} sized for width alone and silently let the iso
-     * top corner clip the tile by ~2% in height. Stairs, slabs, and other variant-rotated
-     * geometry that extend marginally past the unit cube still fit because the horizontal
-     * axis is far from saturated ({@code 0.5848 · 1.4142 ≈ 0.827}, ~17% horizontal headroom).
+     * A pure orthographic projection tuned for isometric block renders. Scale is vanilla's
+     * own {@link #BLOCK_GUI_DISPLAY_SCALE 0.625} {@code display.gui.scale} literal so the
+     * projected silhouette of a unit cube at the iso pose matches the vanilla-reference
+     * harness PNGs byte-for-byte ({@code 0.625 · √2 ≈ 0.884} wide × {@code 0.625 · 1.5731
+     * ≈ 0.983} tall in unit-slot coordinates). Stairs / slabs / fence gates carry their
+     * own {@code display.gui} overrides which {@code engineForBlockIcon} honours, so they
+     * fit at vanilla's footprint too rather than relying on a generic padding margin.
      */
     public static final @NotNull PerspectiveParams ISOMETRIC_BLOCK = new PerspectiveParams(
-        0f, 0f, 0f,
-        (1f - 2f * ISO_CUBE_PADDING) / ISO_CUBE_PROJECTED_HEIGHT
+        0f, 0f, 0f, BLOCK_GUI_DISPLAY_SCALE
     );
 
 }

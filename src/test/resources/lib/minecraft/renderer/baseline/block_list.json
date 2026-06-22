@@ -232,6 +232,26 @@
         "textureId": "minecraft:entity/signs/pale_oak"
       },
       {
+        "blockId": "minecraft:crimson_sign",
+        "textureId": "minecraft:entity/signs/crimson"
+      },
+      {
+        "blockId": "minecraft:warped_sign",
+        "textureId": "minecraft:entity/signs/warped"
+      },
+      {
+        "blockId": "minecraft:mangrove_sign",
+        "textureId": "minecraft:entity/signs/mangrove"
+      },
+      {
+        "blockId": "minecraft:bamboo_sign",
+        "textureId": "minecraft:entity/signs/bamboo"
+      }
+    ]
+  },
+  "minecraft:wall_sign": {
+    "blocks": [
+      {
         "blockId": "minecraft:oak_wall_sign",
         "textureId": "minecraft:entity/signs/oak"
       },
@@ -264,32 +284,16 @@
         "textureId": "minecraft:entity/signs/pale_oak"
       },
       {
-        "blockId": "minecraft:crimson_sign",
-        "textureId": "minecraft:entity/signs/crimson"
-      },
-      {
         "blockId": "minecraft:crimson_wall_sign",
         "textureId": "minecraft:entity/signs/crimson"
-      },
-      {
-        "blockId": "minecraft:warped_sign",
-        "textureId": "minecraft:entity/signs/warped"
       },
       {
         "blockId": "minecraft:warped_wall_sign",
         "textureId": "minecraft:entity/signs/warped"
       },
       {
-        "blockId": "minecraft:mangrove_sign",
-        "textureId": "minecraft:entity/signs/mangrove"
-      },
-      {
         "blockId": "minecraft:mangrove_wall_sign",
         "textureId": "minecraft:entity/signs/mangrove"
-      },
-      {
-        "blockId": "minecraft:bamboo_sign",
-        "textureId": "minecraft:entity/signs/bamboo"
       },
       {
         "blockId": "minecraft:bamboo_wall_sign",
@@ -346,7 +350,63 @@
       {
         "blockId": "minecraft:bamboo_hanging_sign",
         "textureId": "minecraft:entity/signs/hanging/bamboo"
+      }
+    ]
+  },
+  "minecraft:hanging_sign_attached": {
+    "blocks": [
+      {
+        "blockId": "minecraft:oak_hanging_sign",
+        "textureId": "minecraft:entity/signs/hanging/oak"
       },
+      {
+        "blockId": "minecraft:spruce_hanging_sign",
+        "textureId": "minecraft:entity/signs/hanging/spruce"
+      },
+      {
+        "blockId": "minecraft:birch_hanging_sign",
+        "textureId": "minecraft:entity/signs/hanging/birch"
+      },
+      {
+        "blockId": "minecraft:acacia_hanging_sign",
+        "textureId": "minecraft:entity/signs/hanging/acacia"
+      },
+      {
+        "blockId": "minecraft:cherry_hanging_sign",
+        "textureId": "minecraft:entity/signs/hanging/cherry"
+      },
+      {
+        "blockId": "minecraft:jungle_hanging_sign",
+        "textureId": "minecraft:entity/signs/hanging/jungle"
+      },
+      {
+        "blockId": "minecraft:dark_oak_hanging_sign",
+        "textureId": "minecraft:entity/signs/hanging/dark_oak"
+      },
+      {
+        "blockId": "minecraft:pale_oak_hanging_sign",
+        "textureId": "minecraft:entity/signs/hanging/pale_oak"
+      },
+      {
+        "blockId": "minecraft:crimson_hanging_sign",
+        "textureId": "minecraft:entity/signs/hanging/crimson"
+      },
+      {
+        "blockId": "minecraft:warped_hanging_sign",
+        "textureId": "minecraft:entity/signs/hanging/warped"
+      },
+      {
+        "blockId": "minecraft:mangrove_hanging_sign",
+        "textureId": "minecraft:entity/signs/hanging/mangrove"
+      },
+      {
+        "blockId": "minecraft:bamboo_hanging_sign",
+        "textureId": "minecraft:entity/signs/hanging/bamboo"
+      }
+    ]
+  },
+  "minecraft:wall_hanging_sign": {
+    "blocks": [
       {
         "blockId": "minecraft:oak_wall_hanging_sign",
         "textureId": "minecraft:entity/signs/hanging/oak"
@@ -408,19 +468,7 @@
   "minecraft:bell_body": {
     "blocks": [
       {
-        "blockId": "minecraft:bell_floor",
-        "textureId": "minecraft:entity/bell/bell_body"
-      },
-      {
-        "blockId": "minecraft:bell_ceiling",
-        "textureId": "minecraft:entity/bell/bell_body"
-      },
-      {
-        "blockId": "minecraft:bell_wall",
-        "textureId": "minecraft:entity/bell/bell_body"
-      },
-      {
-        "blockId": "minecraft:bell_between_walls",
+        "blockId": "minecraft:bell",
         "textureId": "minecraft:entity/bell/bell_body"
       }
     ]

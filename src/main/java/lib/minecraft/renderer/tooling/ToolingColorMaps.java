@@ -1,21 +1,21 @@
 package lib.minecraft.renderer.tooling;
 
-import com.google.gson.GsonBuilder;
+import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
+import dev.simplified.gson.GsonSettings;
+import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.engine.TextureEngine;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.exception.ToolingException;
-import lib.minecraft.renderer.asset.pack.ColorMap;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
+import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.loader.ColorMapLoader;
-import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
-import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -24,6 +24,7 @@ import java.nio.file.Path;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
+import javax.imageio.ImageIO;
 
 /**
  * Entry point invoked by the {@code generateColorMaps} Gradle task.
@@ -41,6 +42,11 @@ public final class ToolingColorMaps {
      * Fixed output path for the bundled color-map resource.
      */
     private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/lib/minecraft/renderer/color_maps.json");
+
+    /**
+     * Shared pretty-printing Gson carrying the renderer's registered type adapters.
+     */
+    private static final @NotNull Gson PRETTY_GSON = GsonSettings.defaults().mutate().isPrettyPrint().isHtmlEscaping(false).build().create();
 
     /**
      * Runs the generator.
@@ -89,7 +95,7 @@ public final class ToolingColorMaps {
         }
         root.add("color_maps", entries);
 
-        return new GsonBuilder().setPrettyPrinting().create().toJson(root) + System.lineSeparator();
+        return PRETTY_GSON.toJson(root) + System.lineSeparator();
     }
 
     /**

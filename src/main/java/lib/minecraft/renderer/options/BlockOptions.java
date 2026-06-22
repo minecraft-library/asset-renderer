@@ -1,13 +1,11 @@
 package lib.minecraft.renderer.options;
 
-import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.ImageFormat;
+import dev.simplified.image.Background;
 import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.Renderer;
+import lib.minecraft.renderer.appearance.Biome;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.geometry.Biome;
 import lib.minecraft.renderer.geometry.BlockFace;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lombok.AccessLevel;
@@ -89,10 +87,13 @@ public class BlockOptions {
     private final int outputSize = Renderer.DEFAULT_OUTPUT_SIZE;
 
     /**
-     * Whether to apply FXAA post-processing
+     * Whether to apply FXAA post-processing. Off by default: vanilla's GUI block icon path
+     * does no post-process AA, so leaving FXAA on diverges from the {@code Lighting.ITEMS_3D}
+     * harness baseline by blurring sub-texel edges that vanilla leaves sharp. Callers that
+     * want soft edges for non-parity use cases can opt in via the builder.
      */
     @lombok.Builder.Default
-    private final boolean antiAlias = true;
+    private final boolean antiAlias = false;
 
     /**
      * Supersample scale factor for isometric 3D rendering. The block is rasterized at
@@ -100,19 +101,7 @@ public class BlockOptions {
      * tile sizes. A value of 1 disables supersampling.
      */
     @lombok.Builder.Default
-    private final int supersample = 2;
-
-    /**
-     * Additional texture pack ids to layer on top of vanilla
-     */
-    @lombok.Builder.Default
-    private final @NotNull ConcurrentList<String> texturePackIds = Concurrent.newList();
-
-    /**
-     * Output image format
-     */
-    @lombok.Builder.Default
-    private final @NotNull ImageFormat outputFormat = ImageFormat.PNG;
+    private final int supersample = 1;
 
     /**
      * Whether the renderer should compose a {@link Block.Entity}'s
@@ -127,6 +116,13 @@ public class BlockOptions {
      */
     @lombok.Builder.Default
     private final boolean mergeParts = true;
+
+    /**
+     * Background fill composited behind the finished render (solid colour or checkerboard).
+     * Defaults to {@link Background#TRANSPARENT}, a no-op that leaves the render's own alpha intact.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Background background = Background.TRANSPARENT;
 
     public @NotNull BlockOptionsBuilder mutate() {
         return this.toBuilder();

@@ -183,7 +183,7 @@ public class FluidGeometryKit {
     private static @NotNull Vector3f triangleNormal(@NotNull Vector3f a, @NotNull Vector3f b, @NotNull Vector3f c) {
         Vector3f ab = b.subtract(a);
         Vector3f ac = c.subtract(a);
-        return Vector3f.normalize(Vector3f.cross(ab, ac));
+        return ab.cross(ac).normalize();
     }
 
 }

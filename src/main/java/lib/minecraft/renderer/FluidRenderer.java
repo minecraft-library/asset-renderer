@@ -6,12 +6,12 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelBufferPool;
+import lib.minecraft.renderer.appearance.Biome;
 import lib.minecraft.renderer.engine.IsometricEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.TextureEngine;
-import lib.minecraft.renderer.geometry.Biome;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.kit.FluidGeometryKit;
@@ -65,10 +65,11 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
 
     @Override
     public @NotNull ImageData render(@NotNull FluidOptions options) {
-        return switch (options.getType()) {
+        ImageData rendered = switch (options.getType()) {
             case ISOMETRIC_3D -> this.isometric3D.render(options);
             case FLUID_FACE_2D -> this.fluidFace2D.render(options);
         };
+        return options.getBackground().composite(rendered);
     }
 
     /**

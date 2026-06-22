@@ -595,11 +595,6 @@
       "armor_type": "none",
       "overlays": [
         {
-          "geometry_ref": "geometry.sheep",
-          "texture_ref": "sheep/sheep_wool_undercoat",
-          "tint_color": "0xFFE6E6E6"
-        },
-        {
           "geometry_ref": "geometry.sheepfur",
           "texture_ref": "sheep/sheep_wool",
           "tint_color": "0xFFE6E6E6"

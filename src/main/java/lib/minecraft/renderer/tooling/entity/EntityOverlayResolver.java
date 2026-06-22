@@ -86,23 +86,29 @@ public final class EntityOverlayResolver {
 
     /**
      * Composite-overlay layers that pass bytecode derivation (helper-based cutout) but
-     * whose vanilla submit() has a state-gated early-return that bytecode walking can't
-     * reliably distinguish from sibling cases the maintainer accepts as known-divergence
-     * (e.g., {@code SheepWoolUndercoatLayer}'s {@code woolColor == WHITE} skip is
-     * explicitly accepted; {@code CatCollarLayer}'s {@code collarColor == null} skip is
-     * not). Without a state-default-aware detector, listing the no-emit cases here is
-     * more maintainable than encoding the discriminator in bytecode walking.
+     * whose vanilla {@code submit()} has a state-gated early-return that bytecode walking can't
+     * statically resolve, so at the zero/default render state vanilla draws nothing. Without a
+     * state-default-aware detector, listing the no-emit cases here is more maintainable than
+     * encoding the discriminator in bytecode walking.
      * <p>Entries:
      * <ul>
      *   <li>{@code CAT_COLLAR} - the {@code coloredCutoutModelCopyLayerRender}-based
      *       collar layer skips render when {@code state.collarColor == null} (the
-     *       zero-state default). Bytecode-wise indistinguishable from sheep undercoat's
-     *       {@code woolColor == WHITE} skip; visual impact at zero state would be a
-     *       colored collar around every cat where vanilla shows none.</li>
+     *       zero-state default). Visual impact at zero state would be a colored collar around
+     *       every cat where vanilla shows none.</li>
+     *   <li>{@code SHEEP_WOOL_UNDERCOAT} - {@code SheepWoolUndercoatLayer} early-returns unless
+     *       {@code isJebSheep || woolColor != WHITE} (and bails on baby), so a default white
+     *       sheep draws no undercoat. The overlay shares the base {@code geometry.sheep} mesh
+     *       coplanar with the body and tints {@code 0xFFE6E6E6}; emitting it darkened the
+     *       woolless face by {@code 0.902x}. Harmless under the historical first-drawn-wins depth
+     *       tie-break (the coplanar overlay lost the equal-Z fight and stayed hidden); once the
+     *       engine adopted vanilla's GL_LEQUAL last-drawn-wins it began overwriting the base
+     *       face. Suppressed here so the default state matches vanilla.</li>
      * </ul>
      */
     private static final @NotNull java.util.Set<String> POLICY_SUPPRESS = java.util.Set.of(
-        "CAT_COLLAR"
+        "CAT_COLLAR",
+        "SHEEP_WOOL_UNDERCOAT"
     );
 
     /** JVM internal name of the {@code BlendFunction} enum carrying {@code TRANSLUCENT} etc. */

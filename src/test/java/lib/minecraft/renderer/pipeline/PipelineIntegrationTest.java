@@ -1,10 +1,9 @@
 package lib.minecraft.renderer.pipeline;
 
 
-import lib.minecraft.renderer.asset.model.BlockModelData;
-import lib.minecraft.renderer.asset.model.ItemModelData;
-import lib.minecraft.renderer.asset.pack.Texture;
-import lib.minecraft.renderer.geometry.Biome;
+import lib.minecraft.renderer.appearance.Biome;
+import lib.minecraft.renderer.asset.Texture;
+import lib.minecraft.renderer.asset.model.ModelData;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -84,7 +83,7 @@ class PipelineIntegrationTest {
         assertThat(result.getBlockModels(), hasKey("minecraft:block/cobblestone"));
         assertThat(result.getBlockModels(), hasKey("minecraft:block/stone"));
 
-        BlockModelData grass = result.getBlockModels().get("minecraft:block/grass_block");
+        ModelData grass = result.getBlockModels().get("minecraft:block/grass_block");
         assertThat("grass block model resolved", grass, is(notNullValue()));
     }
 
@@ -96,7 +95,7 @@ class PipelineIntegrationTest {
         assertThat(result.getItemModels(), hasKey("minecraft:item/iron_pickaxe"));
         assertThat(result.getItemModels(), hasKey("minecraft:item/apple"));
 
-        ItemModelData sword = result.getItemModels().get("minecraft:item/diamond_sword");
+        ModelData sword = result.getItemModels().get("minecraft:item/diamond_sword");
         assertThat("diamond sword model resolved", sword, is(notNullValue()));
     }
 

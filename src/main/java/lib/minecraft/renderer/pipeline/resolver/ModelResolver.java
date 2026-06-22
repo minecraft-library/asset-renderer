@@ -8,8 +8,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
-import lib.minecraft.renderer.asset.model.BlockModelData;
-import lib.minecraft.renderer.asset.model.ItemModelData;
+import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
@@ -29,7 +28,7 @@ import java.util.stream.Stream;
 
 /**
  * A loader and resolver that walks a pack's {@code assets/minecraft/models/} subtree, parses
- * every JSON file into {@link BlockModelData} or {@link ItemModelData}, and eagerly merges
+ * every JSON file into {@link ModelData} or {@link ModelData}, and eagerly merges
  * parent chains so the resulting DTOs carry everything needed for rendering without further
  * resolution at render time.
  * <p>
@@ -37,8 +36,8 @@ import java.util.stream.Stream;
  * merged result records the original parent id in its {@code parent} field for introspection.
  * Vanilla chains are acyclic and shallow (at most 3 deep), so no cycle detection is needed.
  *
- * @see BlockModelData
- * @see ItemModelData
+ * @see ModelData
+ * @see ModelData
  * @see PipelineRendererContext
  */
 @UtilityClass
@@ -53,7 +52,7 @@ public class ModelResolver {
      * @param packRoot the pack root directory
      * @return a map of model id to resolved block model data
      */
-    public static @NotNull ConcurrentMap<String, BlockModelData> loadBlockModels(@NotNull Path packRoot) {
+    public static @NotNull ConcurrentMap<String, ModelData> loadBlockModels(@NotNull Path packRoot) {
         return loadBlockModels(Concurrent.newList(packRoot));
     }
 
@@ -66,9 +65,9 @@ public class ModelResolver {
      * @param assetRoots the ordered asset roots
      * @return a map of model id to resolved block model data
      */
-    public static @NotNull ConcurrentMap<String, BlockModelData> loadBlockModels(@NotNull ConcurrentList<Path> assetRoots) {
+    public static @NotNull ConcurrentMap<String, ModelData> loadBlockModels(@NotNull ConcurrentList<Path> assetRoots) {
         ConcurrentMap<String, JsonObject> raw = mergeRawAcrossRoots(assetRoots, VanillaSourcePaths.MODEL_BLOCK_DIR, VanillaSourcePaths.MODEL_BLOCK_ID_PREFIX);
-        return resolveTypedModels(raw, BlockModelData.class, "block");
+        return resolveTypedModels(raw, ModelData.class, "block");
     }
 
     /**
@@ -78,7 +77,7 @@ public class ModelResolver {
      * @param packRoot the pack root directory
      * @return a map of model id to resolved item model data
      */
-    public static @NotNull ConcurrentMap<String, ItemModelData> loadItemModels(@NotNull Path packRoot) {
+    public static @NotNull ConcurrentMap<String, ModelData> loadItemModels(@NotNull Path packRoot) {
         return loadItemModels(Concurrent.newList(packRoot));
     }
 
@@ -89,9 +88,9 @@ public class ModelResolver {
      * @param assetRoots the ordered asset roots
      * @return a map of model id to resolved item model data
      */
-    public static @NotNull ConcurrentMap<String, ItemModelData> loadItemModels(@NotNull ConcurrentList<Path> assetRoots) {
+    public static @NotNull ConcurrentMap<String, ModelData> loadItemModels(@NotNull ConcurrentList<Path> assetRoots) {
         ConcurrentMap<String, JsonObject> raw = mergeRawAcrossRoots(assetRoots, VanillaSourcePaths.MODEL_ITEM_DIR, VanillaSourcePaths.MODEL_ITEM_ID_PREFIX);
-        return resolveTypedModels(raw, ItemModelData.class, "item");
+        return resolveTypedModels(raw, ModelData.class, "item");
     }
 
     /**

@@ -15,7 +15,9 @@ Headless renderer for Minecraft blocks/items/entities/fluids/portals. Outputs `I
 Rewrites JSON in `src/main/resources/lib/minecraft/renderer/`:
 - `blockTints` -> `block_tints.json` (ASM scan of `BlockColors`)
 - `potionColors` -> `potion_colors.json` (ASM scan of `MobEffects`)
-- `blockEntities` -> `block_entities.json` (ASM scan of block-entity model classes)
+- `glintItems` -> `glint_items.json` (ASM scan of `Items` for `ENCHANTMENT_GLINT_OVERRIDE=true` - the always-foil items)
+- `blockModels` -> `block_models.json` (ASM scan of block-entity model classes)
+- `blockDefaults` -> `block_defaults.json` (ASM bytewalk of `registerDefaultState` + `createBlockStateDefinition` for each block's default state). Read at runtime by `BlockStateLoader` -> `Block.defaultStateKey`. Variants come from the vanilla blockstate JSON, not this file.
 - `entityModels` -> `entity_models.json` + `entity_geometry.json` (ASM scan of vanilla client jar). Entry: `ToolingEntityModels.main` -> `EntityToolingContext.of(jar)` -> per-entity resolver fan-out (see `tooling/entity/`).
 - `colorMaps` -> `color_maps.json` (vanilla biome colormap PNGs)
 - `atlas` / `diagnoseAtlas` / `diagnoseAtlasTask10` -> `build/atlas/`

@@ -2,8 +2,8 @@ package lib.minecraft.renderer.options;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
-import dev.simplified.image.ImageFormat;
 import lib.minecraft.renderer.GridRenderer;
 import lib.minecraft.renderer.kit.FrameMerger;
 import lombok.AccessLevel;
@@ -58,16 +58,10 @@ public class GridOptions {
     private final int separation = 0;
 
     /**
-     * ARGB fill color for empty areas
+     * Background fill for empty areas (solid colour or checkerboard).
      */
     @lombok.Builder.Default
-    private final int backgroundArgb = 0x00000000;
-
-    /**
-     * Output image format
-     */
-    @lombok.Builder.Default
-    private final @NotNull ImageFormat outputFormat = ImageFormat.PNG;
+    private final @NotNull Background background = Background.TRANSPARENT;
 
     public @NotNull GridOptionsBuilder mutate() {
         return this.toBuilder();

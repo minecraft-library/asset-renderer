@@ -7,22 +7,24 @@ import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
+import dev.simplified.client.Client;
 import dev.simplified.client.ClientConfig;
 import dev.simplified.client.Proxy;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.collection.ConcurrentSet;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.util.Lazy;
 import lib.minecraft.renderer.PlayerRenderer;
+import lib.minecraft.renderer.asset.BannerPattern;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockTag;
-import lib.minecraft.renderer.asset.binding.BannerPattern;
-import lib.minecraft.renderer.asset.model.BlockModelData;
-import lib.minecraft.renderer.asset.model.ItemModelData;
-import lib.minecraft.renderer.asset.pack.ColorMap;
-import lib.minecraft.renderer.asset.pack.Texture;
-import lib.minecraft.renderer.asset.pack.TexturePack;
+import lib.minecraft.renderer.asset.ColorMap;
+import lib.minecraft.renderer.appearance.LayerTint;
+import lib.minecraft.renderer.asset.Texture;
+import lib.minecraft.renderer.asset.TexturePack;
+import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.loader.BannerPatternLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockStateLoader;
@@ -31,6 +33,7 @@ import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
 import lib.minecraft.renderer.pipeline.loader.CitLoader;
 import lib.minecraft.renderer.pipeline.loader.ColorMapLoader;
 import lib.minecraft.renderer.pipeline.loader.CtmLoader;
+import lib.minecraft.renderer.pipeline.loader.GlintItemsLoader;
 import lib.minecraft.renderer.pipeline.loader.ItemDefinitionLoader;
 import lib.minecraft.renderer.pipeline.loader.PotionColorLoader;
 import lib.minecraft.renderer.pipeline.loader.TexturePackLoader;
@@ -57,6 +60,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -65,21 +69,26 @@ import java.util.zip.ZipFile;
  * {@link MojangContract}, extract the {@code minecraft/} subtrees, parse every model JSON, read
  * the texture catalogue, and hand the results back to the caller as a {@link Result} record.
  * <p>
- * All Mojang network access flows through a single lazily-initialised {@link Proxy} of
- * {@link MojangContract}, accessible to siblings in this module via {@link #mojang()}. The proxy
+ * All Mojang network access flows through a single lazily-initialised {@link Client} of
+ * {@link MojangContract}, accessible to siblings in this module via {@link #mojang()}. The client
  * carries domain-aware rate limiting from the upstream module so concurrent callers
  * ({@link #run}, {@link #downloadJarToCache}, the player skin / cape paths) share the same
  * limiter state.
+ * <p>
+ * A plain {@link Client} is used rather than a subnet-rotating {@link Proxy}: the proxy's IPv6
+ * subnet rotation only works on hosts that own a routable {@code /64} (specific Linux servers), and
+ * {@code Proxy.build()} hard-requires a {@code withSubnetRotation} that would otherwise fail every
+ * other environment. The client uses the default single subnet.
  */
 @UtilityClass
 public class Pipeline {
 
-    private static final @NotNull Lazy<Proxy<MojangContract>> MOJANG_PROXY = Lazy.of(() ->
-        Proxy.builder(
+    private static final @NotNull Lazy<Client<MojangContract>> MOJANG_CLIENT = Lazy.of(() ->
+        Client.create(
             ClientConfig.builder(MojangContract.class, GsonSettings.defaults())
                 .withErrorDecoder(MojangApiException::new)
                 .build()
-        ).build()
+        )
     );
 
     /**
@@ -95,14 +104,16 @@ public class Pipeline {
 
         PackBundle packs = resolvePacks(options, packRoot);
 
-        ConcurrentMap<String, BlockModelData> blockModels = ModelResolver.loadBlockModels(packs.combinedRoots());
-        ConcurrentMap<String, ItemModelData> itemModels = ModelResolver.loadItemModels(packs.combinedRoots());
+        ConcurrentMap<String, ModelData> blockModels = ModelResolver.loadBlockModels(packs.combinedRoots());
+        ConcurrentMap<String, ModelData> itemModels = ModelResolver.loadItemModels(packs.combinedRoots());
 
         ConcurrentMap<String, Texture> textures = TexturePackLoader.scanTextures(packs.ascending());
         ConcurrentMap<ColorMap.Type, ColorMap> colorMaps = ColorMapLoader.load();
         ConcurrentMap<String, Block.Tint> blockTints = BlockTintsLoader.load();
-        BlockStateLoader.LoadResult blockStateResult = BlockStateLoader.load(packs.combinedRoots());
+        BlockStateLoader.LoadResult blockStateResult = BlockStateLoader.load(packs.combinedRoots(), blockModels);
         ConcurrentMap<String, String> itemDefinitions = ItemDefinitionLoader.load(packs.combinedRoots());
+        ConcurrentMap<String, List<LayerTint>> itemTints = ItemDefinitionLoader.loadTints(packs.combinedRoots());
+        ConcurrentSet<String> glintItems = GlintItemsLoader.load();
         ConcurrentMap<String, BlockTag> blockTags = BlockTagLoader.load(packs.combinedRoots());
         ConcurrentMap<String, Integer> potionEffectColors = PotionColorLoader.load();
         ConcurrentMap<String, BannerPattern> bannerPatterns = BannerPatternLoader.load(packs.combinedRoots());
@@ -111,16 +122,16 @@ public class Pipeline {
         ConcurrentList<CitRule> citRules = collectCitRules(packs.ascending());
         ConcurrentList<CtmRule> ctmRules = collectCtmRules(packs.ascending());
 
-        return new Result(packRoot, packs.vanilla(), packs.descending(), textures, colorMaps, blockTints, blockModels, itemModels,
-            blockStateResult.getVariants(), blockStateResult.getMultiparts(), itemDefinitions, blockTags,
-            potionEffectColors, bannerPatterns, colorOverrides, citRules, ctmRules);
+        return new Result(packRoot, packs.vanilla(), packs.packsById(), textures, colorMaps, blockTints, blockModels, itemModels,
+            blockStateResult.getVariants(), blockStateResult.getMultiparts(), itemDefinitions, itemTints, glintItems, blockTags,
+            potionEffectColors, bannerPatterns, colorOverrides, citRules, ctmRules, blockStateResult.getDefaultStateKeys());
     }
 
     /**
      * Resolves the vanilla pack and every user-supplied pack into a single {@link PackBundle},
      * eagerly computing the four projections downstream loaders and collectors consume:
-     * the vanilla {@link TexturePack} itself, the ascending-priority list, the
-     * descending-priority list (for {@link Result#getPacks()}), and the flat list of every
+     * the vanilla {@link TexturePack} itself, the ascending-priority list, the id-keyed
+     * render-priority map (for {@link Result#getPacks()}), and the flat list of every
      * pack's asset roots in ascending priority order (for loaders that don't need pack
      * attribution).
      * <p>
@@ -150,29 +161,35 @@ public class Pipeline {
         }
 
         ConcurrentList<TexturePack> ascending = Concurrent.adoptList(packs).toUnmodifiable();
-        ConcurrentList<TexturePack> descending = ascending.stream()
+
+        // Index the packs by id in render-priority order (highest priority first) so
+        // Result#getPacks() is a ready-to-use O(1) lookup: insertion-ordered, first-wins on a
+        // duplicate id. Built here once so the renderer context consumes the map directly.
+        ConcurrentMap<String, TexturePack> packsById = Concurrent.newLinkedMap();
+        ascending.stream()
             .sorted(Comparator.comparingInt(TexturePack::getPriority).reversed())
-            .collect(Concurrent.toUnmodifiableList());
+            .forEachOrdered(pack -> packsById.putIfAbsent(pack.getId(), pack));
 
         ArrayList<Path> roots = new ArrayList<>();
         for (TexturePack pack : ascending)
             roots.addAll(pack.getAssetRoots());
         ConcurrentList<Path> combinedRoots = Concurrent.adoptList(roots).toUnmodifiable();
 
-        return new PackBundle(vanilla, ascending, descending, combinedRoots);
+        return new PackBundle(vanilla, ascending, packsById.toUnmodifiable(), combinedRoots);
     }
 
     /**
      * Eager projection of the resolved pack stack into the four views downstream consumers need.
      * {@code ascending} drives per-pack walks (texture scan, CIT / CTM / colour collectors);
      * {@code combinedRoots} is the flattened root list every loader that doesn't need pack
-     * attribution consumes; {@code descending} is the render-priority view passed through to
-     * {@link Result}; {@code vanilla} is the bundled minimum every pipeline run carries.
+     * attribution consumes; {@code packsById} is the render-priority, id-keyed view passed
+     * through to {@link Result#getPacks()}; {@code vanilla} is the bundled minimum every pipeline
+     * run carries.
      */
     private record PackBundle(
         @NotNull TexturePack vanilla,
         @NotNull ConcurrentList<TexturePack> ascending,
-        @NotNull ConcurrentList<TexturePack> descending,
+        @NotNull ConcurrentMap<String, TexturePack> packsById,
         @NotNull ConcurrentList<Path> combinedRoots
     ) {}
 
@@ -265,8 +282,8 @@ public class Pipeline {
     }
 
     /**
-     * The lazily-initialised shared {@link MojangContract}. Single proxy per JVM via
-     * {@link #MOJANG_PROXY}, so concurrent callers ({@link #run}, {@link #downloadJarToCache},
+     * The lazily-initialised shared {@link MojangContract}. Single client per JVM via
+     * {@link #MOJANG_CLIENT}, so concurrent callers ({@link #run}, {@link #downloadJarToCache},
      * the player skin / cape paths in
      * {@link PlayerRenderer PlayerRenderer}) share the same domain-aware
      * rate limiter.
@@ -274,7 +291,7 @@ public class Pipeline {
      * @return the shared Mojang contract
      */
     public static @NotNull MojangContract mojang() {
-        return MOJANG_PROXY.get().getContract();
+        return MOJANG_CLIENT.get().getContract();
     }
 
     /**
@@ -439,22 +456,40 @@ public class Pipeline {
         private final @NotNull TexturePack vanillaPack;
 
         /**
-         * Every registered pack in render priority order - highest priority first. Always
-         * contains the vanilla pack at minimum; user packs from
-         * {@link PipelineOptions#getTexturePacks()} appear before vanilla when present.
-         * Each pack's {@link TexturePack#getAssetRoots()} carries the on-disk directories the
+         * Every registered pack keyed by its {@link TexturePack#getId() id} for O(1) lookup, in
+         * render priority order - {@code values()} iterate highest priority first. Always contains
+         * the vanilla pack at minimum; user packs from {@link PipelineOptions#getTexturePacks()}
+         * appear before vanilla when present; on a duplicate id the first (highest priority) pack
+         * wins. Each pack's {@link TexturePack#getAssetRoots()} carries the on-disk directories the
          * renderer walks when reading raw PNG bytes for a texture attributed to that pack.
          */
-        private final @NotNull ConcurrentList<TexturePack> packs;
+        private final @NotNull ConcurrentMap<String, TexturePack> packs;
 
         private final @NotNull ConcurrentMap<String, Texture> textures;
         private final @NotNull ConcurrentMap<ColorMap.Type, ColorMap> colorMaps;
         private final @NotNull ConcurrentMap<String, Block.Tint> blockTints;
-        private final @NotNull ConcurrentMap<String, BlockModelData> blockModels;
-        private final @NotNull ConcurrentMap<String, ItemModelData> itemModels;
-        private final @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockStates;
+        private final @NotNull ConcurrentMap<String, ModelData> blockModels;
+        private final @NotNull ConcurrentMap<String, ModelData> itemModels;
+        private final @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants;
         private final @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts;
         private final @NotNull ConcurrentMap<String, String> itemDefinitions;
+
+        /**
+         * Per-item ordered {@link LayerTint} list parsed from {@code assets/minecraft/items/}
+         * {@code model.tints[]} (array index = layer {@code tintindex}), for items that declare
+         * tints. Read at item-index build time and attached to each {@link lib.minecraft.renderer.asset.Item}.
+         */
+        private final @NotNull ConcurrentMap<String, List<LayerTint>> itemTints;
+
+        /**
+         * Namespaced ids of items vanilla registers with {@code enchantment_glint_override = true}
+         * (the always-foil items: enchanted_book, written_book, enchanted_golden_apple,
+         * experience_bottle, nether_star, debug_stick, end_crystal), parsed from {@code Items} by
+         * the glint-item loader. Read at item-index build time and surfaced as
+         * {@link lib.minecraft.renderer.asset.Item#isAlwaysGlinted()}.
+         */
+        private final @NotNull ConcurrentSet<String> glintItems;
+
         private final @NotNull ConcurrentMap<String, BlockTag> blockTags;
 
         /**
@@ -489,6 +524,14 @@ public class Pipeline {
          * and external callers; the renderer itself doesn't yet apply them.
          */
         private final @NotNull ConcurrentList<CtmRule> ctmRules;
+
+        /**
+         * Per-block canonical default-state key, from the bundled {@code block_defaults.json}
+         * snapshot (parsed from the vanilla {@code Blocks} registry by {@code ToolingBlockDefaults}
+         * and read by {@link BlockStateLoader}). Lets production callers resolve a block's default
+         * variant without a harness sidecar. Empty-property blocks are absent.
+         */
+        private final @NotNull ConcurrentMap<String, String> blockDefaultStateKeys;
 
     }
 

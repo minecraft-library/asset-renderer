@@ -3,6 +3,7 @@ package lib.minecraft.renderer;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentSet;
+import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.data.StaticImageData;
 import dev.simplified.image.pixel.ColorMath;
@@ -171,7 +172,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             return RenderEngine.staticFrame(buffer);
         }
 
-        return FrameMerger.merge(layers, canvasW, canvasH, options.getFramesPerSecond(), ColorMath.TRANSPARENT);
+        return FrameMerger.merge(layers, canvasW, canvasH, options.getFramesPerSecond(), Background.TRANSPARENT);
     }
 
     /**

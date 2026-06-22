@@ -69,6 +69,17 @@ public class EntityModelData {
      */
     private @NotNull ConcurrentLinkedMap<String, Bone> bones = Concurrent.newLinkedMap();
 
+    /**
+     * Whether vanilla renders this entity through a back-face-culling render type
+     * ({@code RenderTypes.entityCutoutCull}) rather than the no-cull default ({@code entityCutout}).
+     * The tooling detects it from the model class constructor's render-type function. When set, the
+     * geometry kit culls back faces on every cube - including zero-thickness plane cubes, whose two
+     * coincident sides would otherwise both draw and let the depth tie-break pick the away side (the
+     * bat ear's brown outer winning over its pink inner under vanilla-matching LEQUAL). With culling
+     * on, the rasterizer's winding test keeps only the camera-facing side, matching vanilla.
+     */
+    private boolean cull = false;
+
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
@@ -76,12 +87,13 @@ public class EntityModelData {
         return textureWidth == that.textureWidth
             && textureHeight == that.textureHeight
             && Float.compare(inventoryYRotation, that.inventoryYRotation) == 0
+            && cull == that.cull
             && Objects.equals(bones, that.bones);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(textureWidth, textureHeight, inventoryYRotation, bones);
+        return Objects.hash(textureWidth, textureHeight, inventoryYRotation, bones, cull);
     }
 
     /**
@@ -100,6 +112,9 @@ public class EntityModelData {
     @AllArgsConstructor
     public static class Bone {
 
+        /**
+         * The absolute entity-root anchor point about which this bone's rotations are applied.
+         */
         private @NotNull Vector3f pivot = Vector3f.ZERO;
 
         /**
@@ -138,6 +153,9 @@ public class EntityModelData {
          */
         private float scale = 1f;
 
+        /**
+         * The cubes this bone owns, in declared order.
+         */
         private @NotNull ConcurrentList<Cube> cubes = Concurrent.newList();
 
         /**
@@ -146,30 +164,6 @@ public class EntityModelData {
          */
         @SerializedName("parent")
         private @Nullable String parent = null;
-
-        /**
-         * Convenience constructor for the common case of no parent and no bind pose.
-         */
-        public Bone(@NotNull Vector3f pivot, @NotNull EulerRotation rotation, @NotNull ConcurrentList<Cube> cubes) {
-            this(pivot, rotation, EulerRotation.NONE, 1f, cubes, null);
-        }
-
-        /**
-         * Convenience constructor preserving the historic (pivot, rotation, cubes, parent) signature.
-         */
-        public Bone(@NotNull Vector3f pivot, @NotNull EulerRotation rotation, @NotNull ConcurrentList<Cube> cubes, @Nullable String parent) {
-            this(pivot, rotation, EulerRotation.NONE, 1f, cubes, parent);
-        }
-
-        /**
-         * Convenience constructor preserving the (pivot, rotation, bindPoseRotation, cubes, parent)
-         * signature in use before {@link #scale} was added. Sets {@code scale} to its identity
-         * default {@code 1f} so all existing call sites stay compile-stable until they choose to
-         * opt in to the new field.
-         */
-        public Bone(@NotNull Vector3f pivot, @NotNull EulerRotation rotation, @NotNull EulerRotation bindPoseRotation, @NotNull ConcurrentList<Cube> cubes, @Nullable String parent) {
-            this(pivot, rotation, bindPoseRotation, 1f, cubes, parent);
-        }
 
         @Override
         public boolean equals(Object o) {
@@ -201,10 +195,30 @@ public class EntityModelData {
     @AllArgsConstructor
     public static class Cube {
 
+        /**
+         * The cube's minimum corner in absolute entity-root space.
+         */
         private @NotNull Vector3f origin = Vector3f.ZERO;
+
+        /**
+         * The cube's extent along each axis in model units.
+         */
         private @NotNull Vector3f size = new Vector3f(1f, 1f, 1f);
+
+        /**
+         * The top-left corner of the cube's texture region on the shared atlas.
+         */
         private @NotNull Vector2f uv = Vector2f.ZERO;
+
+        /**
+         * Uniform outward expansion applied to every face in model units; {@code 0} leaves the cube
+         * at its authored size.
+         */
         private float inflate = 0f;
+
+        /**
+         * Whether the cube's texture UVs are mirrored left-to-right.
+         */
         private boolean mirror = false;
 
         /**
@@ -219,6 +233,9 @@ public class EntityModelData {
          */
         private @NotNull Vector3f pivot = Vector3f.ZERO;
 
+        /**
+         * The cube's own rotation about {@link #pivot}, or {@link EulerRotation#NONE} when unrotated.
+         */
         @JsonAdapter(EulerRotation.Adapter.class)
         private @NotNull EulerRotation rotation = EulerRotation.NONE;
 

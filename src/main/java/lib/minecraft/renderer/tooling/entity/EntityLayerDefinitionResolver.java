@@ -90,51 +90,6 @@ public final class EntityLayerDefinitionResolver {
     ) {
 
         /**
-         * Convenience constructor for resolutions whose factory takes no {@code CubeDeformation} arg.
-         */
-        public Result(
-            @NotNull String targetClass,
-            @NotNull String targetMethod,
-            @NotNull String targetDesc,
-            @Nullable Integer texWidthOverride,
-            @Nullable Integer texHeightOverride,
-            @NotNull String sourceLayerField
-        ) {
-            this(targetClass, targetMethod, targetDesc, texWidthOverride, texHeightOverride, sourceLayerField, 0f, null, 1f);
-        }
-
-        /**
-         * Convenience constructor preserving the prior 7-arg signature (no {@code defaultFloatParam}, no applied MT).
-         */
-        public Result(
-            @NotNull String targetClass,
-            @NotNull String targetMethod,
-            @NotNull String targetDesc,
-            @Nullable Integer texWidthOverride,
-            @Nullable Integer texHeightOverride,
-            @NotNull String sourceLayerField,
-            float defaultInflate
-        ) {
-            this(targetClass, targetMethod, targetDesc, texWidthOverride, texHeightOverride, sourceLayerField, defaultInflate, null, 1f);
-        }
-
-        /**
-         * Convenience constructor preserving the prior 8-arg signature (no applied MT).
-         */
-        public Result(
-            @NotNull String targetClass,
-            @NotNull String targetMethod,
-            @NotNull String targetDesc,
-            @Nullable Integer texWidthOverride,
-            @Nullable Integer texHeightOverride,
-            @NotNull String sourceLayerField,
-            float defaultInflate,
-            @Nullable Float defaultFloatParam
-        ) {
-            this(targetClass, targetMethod, targetDesc, texWidthOverride, texHeightOverride, sourceLayerField, defaultInflate, defaultFloatParam, 1f);
-        }
-
-        /**
          * Returns a copy with {@code appliedMeshTransformerScale} multiplied by {@code factor}.
          * Used by the resolver when a chain of {@code .apply(MeshTransformer)} calls follows the
          * factory invocation - each one composes by multiplication with the prior captures.
@@ -458,7 +413,7 @@ public final class EntityLayerDefinitionResolver {
                 if (mi.desc.endsWith(MESH_DEFINITION_DESC_RETURN)) {
                     pendingMesh = new Result(mi.owner, mi.name, mi.desc, null, null,
                         pendingLayerField == null ? "" : pendingLayerField,
-                        pendingDeformationInflate != null ? pendingDeformationInflate : 0f);
+                        pendingDeformationInflate != null ? pendingDeformationInflate : 0f, null, 1f);
                     pendingInt = null;
                     pendingDeformationInflate = null;
                     continue;
@@ -471,7 +426,9 @@ public final class EntityLayerDefinitionResolver {
                         widthHeight[0],
                         widthHeight[1],
                         pendingMesh.sourceLayerField,
-                        pendingMesh.defaultInflate
+                        pendingMesh.defaultInflate,
+                        null,
+                        1f
                     );
                     pendingMesh = null;
                     continue;
@@ -487,7 +444,7 @@ public final class EntityLayerDefinitionResolver {
                     pendingDirect = new Result(mi.owner, mi.name, mi.desc, null, null,
                         pendingLayerField == null ? "" : pendingLayerField,
                         pendingDeformationInflate != null ? pendingDeformationInflate : 0f,
-                        floatParam);
+                        floatParam, 1f);
                     pendingDeformationInflate = null;
                     pendingFloat = null;
                 }

@@ -79,9 +79,15 @@ public class ModelEngine extends TextureEngine {
      * textures), so quantized vertex positions almost never land at sample points that
      * produce exact-half barycentrics or exact-integer texel-coordinate interpolations -
      * precisely the cases the snap is here to break.
+     *
+     * <p>Overridable via {@code -Dsnap.grid=N} for empirical sweeps (e.g. confirming the block
+     * pipeline shares the entity-tuned optimum). {@code N <= 0} disables the snap entirely
+     * ({@link #snapToCoverageGrid} returns the vertex unchanged); the default {@code 400} is the
+     * tuned value above. Both the entity ({@link ModelEngine}) and block
+     * ({@link IsometricEngine}) pipelines read this single constant.
      */
-    private static final float SUBPIXEL_PRECISION = 400f;
-    private static final float SUBPIXEL_INV = 1f / SUBPIXEL_PRECISION;
+    private static final float SUBPIXEL_PRECISION = Float.parseFloat(System.getProperty("snap.grid", "400"));
+    private static final float SUBPIXEL_INV = SUBPIXEL_PRECISION > 0f ? 1f / SUBPIXEL_PRECISION : 0f;
 
     private final @NotNull Matrix4f camera;
 
@@ -146,10 +152,32 @@ public class ModelEngine extends TextureEngine {
         @NotNull PerspectiveParams perspective,
         @NotNull EulerRotation rotation
     ) {
+        rasterize(triangles, buffer, perspective, rotation, null);
+    }
+
+    /**
+     * As {@link #rasterize(ConcurrentList, PixelBuffer, PerspectiveParams, EulerRotation)} but also
+     * records a per-pixel {@link GlintMask}: each pixel whose winning fragment came from a
+     * {@link VisibleTriangle#glinted() glinted} triangle is marked, so the glint compositor can
+     * restrict the enchantment foil to that geometry. Pass {@code null} for the plain behaviour.
+     *
+     * @param triangles the triangle list
+     * @param buffer the destination buffer
+     * @param perspective the perspective blend parameters
+     * @param rotation the Euler-angle rotation applied to the model before the camera transform
+     * @param glintMask the glint mask to populate, or {@code null} to skip mask recording
+     */
+    public void rasterize(
+        @NotNull ConcurrentList<VisibleTriangle> triangles,
+        @NotNull PixelBuffer buffer,
+        @NotNull PerspectiveParams perspective,
+        @NotNull EulerRotation rotation,
+        @Nullable GlintMask glintMask
+    ) {
         Matrix4f modelRotation = buildModelRotation(rotation);
         // Column-vector chain: modelRotation applies first to a vertex, then the camera.
         Matrix4f transform = this.camera.multiply(modelRotation);
-        rasterizeInternal(triangles, buffer, perspective, transform);
+        rasterizeInternal(triangles, buffer, perspective, transform, glintMask);
     }
 
     /**
@@ -170,14 +198,100 @@ public class ModelEngine extends TextureEngine {
     ) {
         // Column-vector chain: modelTransform applies first to a vertex, then the camera.
         Matrix4f transform = this.camera.multiply(modelTransform);
-        rasterizeInternal(triangles, buffer, perspective, transform);
+        rasterizeInternal(triangles, buffer, perspective, transform, null);
+    }
+
+    /**
+     * Rasterizes a fixed-size triangle list scaled and centred to fill {@code fill} of the buffer's
+     * smaller dimension, under this engine's camera and the given model rotation. The plain
+     * {@link #rasterize rasterize} overloads project at the perspective's fixed scale, which leaves
+     * a subject smaller than the canvas; this measures the geometry's projected silhouette and
+     * scales it to the frame, so renderers with fixed model-space geometry (e.g. the player's
+     * hard-coded body cubes) fill the canvas regardless of the model's native extent.
+     * <p>
+     * The silhouette is measured by projecting every vertex through {@code camera x rotation}
+     * (orthographic), which accounts for the iso foreshortening and any caller rotation. The
+     * geometry is translated so its model-space bounds centre projects to the canvas centre, then
+     * uniformly scaled so the tighter projected axis spans {@code fill} of the smaller canvas side.
+     *
+     * @param triangles the triangle list, in fixed model-space units
+     * @param buffer the destination buffer
+     * @param perspective the perspective blend parameters (orthographic recommended)
+     * @param rotation the Euler-angle model rotation applied before the camera
+     * @param fill the fraction in {@code (0, 1]} of the smaller canvas dimension the silhouette spans
+     */
+    public void rasterizeFitted(
+        @NotNull ConcurrentList<VisibleTriangle> triangles,
+        @NotNull PixelBuffer buffer,
+        @NotNull PerspectiveParams perspective,
+        @NotNull EulerRotation rotation,
+        float fill
+    ) {
+        rasterizeFitted(triangles, buffer, perspective, rotation, fill, null);
+    }
+
+    /**
+     * As {@link #rasterizeFitted(ConcurrentList, PixelBuffer, PerspectiveParams, EulerRotation, float)}
+     * but also records a per-pixel {@link GlintMask} (see
+     * {@link #rasterize(ConcurrentList, PixelBuffer, PerspectiveParams, EulerRotation, GlintMask)}).
+     * The mask is sized to {@code buffer}; downsample it to the final canvas when rendering at a
+     * supersampled resolution. Pass {@code null} for the plain behaviour.
+     *
+     * @param triangles the triangle list, in fixed model-space units
+     * @param buffer the destination buffer
+     * @param perspective the perspective blend parameters (orthographic recommended)
+     * @param rotation the Euler-angle model rotation applied before the camera
+     * @param fill the fraction in {@code (0, 1]} of the smaller canvas dimension the silhouette spans
+     * @param glintMask the glint mask to populate, or {@code null} to skip mask recording
+     */
+    public void rasterizeFitted(
+        @NotNull ConcurrentList<VisibleTriangle> triangles,
+        @NotNull PixelBuffer buffer,
+        @NotNull PerspectiveParams perspective,
+        @NotNull EulerRotation rotation,
+        float fill,
+        @Nullable GlintMask glintMask
+    ) {
+        if (triangles.isEmpty()) return;
+        Matrix4f modelRotation = buildModelRotation(rotation);
+        Matrix4f orient = this.camera.multiply(modelRotation);
+
+        float minMx = Float.MAX_VALUE, minMy = Float.MAX_VALUE, minMz = Float.MAX_VALUE;
+        float maxMx = -Float.MAX_VALUE, maxMy = -Float.MAX_VALUE, maxMz = -Float.MAX_VALUE;
+        float minPx = Float.MAX_VALUE, minPy = Float.MAX_VALUE;
+        float maxPx = -Float.MAX_VALUE, maxPy = -Float.MAX_VALUE;
+        for (VisibleTriangle tri : triangles)
+            for (Vector3f v : new Vector3f[]{ tri.position0(), tri.position1(), tri.position2() }) {
+                minMx = Math.min(minMx, v.x()); maxMx = Math.max(maxMx, v.x());
+                minMy = Math.min(minMy, v.y()); maxMy = Math.max(maxMy, v.y());
+                minMz = Math.min(minMz, v.z()); maxMz = Math.max(maxMz, v.z());
+                Vector3f p = v.transform(orient);
+                minPx = Math.min(minPx, p.x()); maxPx = Math.max(maxPx, p.x());
+                minPy = Math.min(minPy, p.y()); maxPy = Math.max(maxPy, p.y());
+            }
+
+        float centreX = (minMx + maxMx) * 0.5f;
+        float centreY = (minMy + maxMy) * 0.5f;
+        float centreZ = (minMz + maxMz) * 0.5f;
+        float halfProjX = Math.max((maxPx - minPx) * 0.5f, 1e-6f);
+        float halfProjY = Math.max((maxPy - minPy) * 0.5f, 1e-6f);
+
+        float baseScale = Math.min(buffer.width(), buffer.height()) * perspective.projectionScale();
+        float fitX = fill * buffer.width() * 0.5f / (halfProjX * baseScale);
+        float fitY = fill * buffer.height() * 0.5f / (halfProjY * baseScale);
+        float fit = Math.min(fitX, fitY);
+
+        // vertex -> centre at origin -> uniform fit scale -> model rotation -> (camera).
+        Matrix4f modelTransform = modelRotation.scale(fit, fit, fit).translate(-centreX, -centreY, -centreZ);
+        rasterizeInternal(triangles, buffer, perspective, this.camera.multiply(modelTransform), glintMask);
     }
 
     private void rasterizeInternal(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
         @NotNull PerspectiveParams perspective,
-        @NotNull Matrix4f transform
+        @NotNull Matrix4f transform,
+        @Nullable GlintMask glintMask
     ) {
         int width = buffer.width();
         int height = buffer.height();
@@ -212,7 +326,7 @@ public class ModelEngine extends TextureEngine {
         if (height < MIN_TILED_HEIGHT) {
             float[] depthBuffer = new float[width * height];
             Arrays.fill(depthBuffer, Float.NEGATIVE_INFINITY);
-            rasterizeTile(prepared, buffer, depthBuffer, width, height, 0, height);
+            rasterizeTile(prepared, buffer, depthBuffer, width, height, 0, height, glintMask);
             return;
         }
 
@@ -227,7 +341,7 @@ public class ModelEngine extends TextureEngine {
 
             float[] depthSlice = new float[width * (tileEnd - tileStart)];
             Arrays.fill(depthSlice, Float.NEGATIVE_INFINITY);
-            rasterizeTile(prepared, buffer, depthSlice, width, height, tileStart, tileEnd);
+            rasterizeTile(prepared, buffer, depthSlice, width, height, tileStart, tileEnd, glintMask);
         });
     }
 
@@ -275,16 +389,45 @@ public class ModelEngine extends TextureEngine {
             else opaque.add(p);
         }
         // Smaller depth value = farther in our convention; we want farthest first so closer
-        // fragments blend over them last. Comparator orders by centroid depth ascending.
-        translucent.sort((a, b) -> {
-            float da = (a.p0().z() + a.p1().z() + a.p2().z()) / 3f;
-            float db = (b.p0().z() + b.p1().z() + b.p2().z()) / 3f;
-            return Float.compare(da, db);
-        });
+        // fragments blend over them last. Sort by the parent QUAD's depth (via {@link #quadDepthKey}),
+        // not the triangle centroid: vanilla sorts whole translucent quads back-to-front, but each
+        // quad reaches us as two triangles split along its diagonal. Centroid-sorting them
+        // independently lets nested geometry (honey_block's 1px-inset inner cube) reorder one
+        // triangle of a face relative to the other, so the two halves layer differently and a seam
+        // appears along the shared diagonal. The quad key is identical for both triangles, so a
+        // stable sort keeps them adjacent and orders by quad centre, matching vanilla.
+        translucent.sort((a, b) -> Float.compare(quadDepthKey(a), quadDepthKey(b)));
         List<Projected> out = new ArrayList<>(total);
         out.addAll(opaque);
         out.addAll(translucent);
         return out;
+    }
+
+    /**
+     * Depth sort key for a translucent triangle that is stable across the two triangles a quad is
+     * split into. A quad emits {@code (TL, BL, BR)} and {@code (TL, BR, TR)}, both sharing the
+     * {@code TL-BR} diagonal - which is the hypotenuse, i.e. the longest edge of each triangle. The
+     * midpoint depth of that longest edge is therefore the same value for both triangles (the quad's
+     * diagonal centre), so sorting on it keeps a quad's halves together and orders quads back-to-front
+     * the way vanilla's per-quad translucent sort does. Uses screen-space edge lengths to pick the
+     * diagonal (the visual triangulation) and camera-space {@code z} for the depth value.
+     *
+     * @param t the projected translucent triangle
+     * @return the parent quad's diagonal-midpoint depth (smaller = farther)
+     */
+    private static float quadDepthKey(@NotNull Projected t) {
+        float e01 = screenDistSq(t.s0(), t.s1());
+        float e12 = screenDistSq(t.s1(), t.s2());
+        float e20 = screenDistSq(t.s2(), t.s0());
+        if (e01 >= e12 && e01 >= e20) return (t.p0().z() + t.p1().z()) * 0.5f;
+        if (e12 >= e20) return (t.p1().z() + t.p2().z()) * 0.5f;
+        return (t.p2().z() + t.p0().z()) * 0.5f;
+    }
+
+    private static float screenDistSq(@NotNull Vector2f a, @NotNull Vector2f b) {
+        float dx = a.x() - b.x();
+        float dy = a.y() - b.y();
+        return dx * dx + dy * dy;
     }
 
     /**
@@ -305,7 +448,8 @@ public class ModelEngine extends TextureEngine {
         int width,
         int height,
         int tileStart,
-        int tileEnd
+        int tileEnd,
+        @Nullable GlintMask glintMask
     ) {
         // Task A: a single barycentric scratch reused for every pixel in this tile. Each
         // rasterizeTile call runs on one FJP worker thread, so these arrays are thread-confined
@@ -388,6 +532,10 @@ public class ModelEngine extends TextureEngine {
 
                     int outArgb = ColorMath.blend(afterShade, buffer.getPixel(px, py), blendMode);
                     buffer.setPixel(px, py, outArgb);
+                    // Mark the glint mask wherever a glinted (armor) fragment wins the pixel, so the
+                    // foil compositor restricts the enchantment glint to the armor. Uses absolute
+                    // (px, py); the depth `idx` below is per-tile and must not be reused here.
+                    if (glintMask != null && t.source.glinted()) glintMask.mark(px, py);
 
                     RendererDebug.pixelWrite(px, py, depthVal, t.source.debugTag(),
                         u, v, tx, ty,
@@ -422,14 +570,16 @@ public class ModelEngine extends TextureEngine {
      * Tests whether a fragment fails the depth test against the existing depth-buffer value at
      * its pixel. Two flavours:
      * <ul>
-     * <li><b>Standard</b>: epsilon-tolerant rejection so coplanar faces (chest body SOUTH vs
-     *     lid SOUTH at z=15) deterministically resolve in painter order without barycentric FP
-     *     noise speckling. First-drawn wins on equal depth.</li>
-     * <li><b>Emissive</b>: strict less-than, so an emissive overlay rendered AT the same depth
-     *     as the base it's painted on top of (spider/enderman eye overlays re-using the base
-     *     entity's geometry post-bone_overrides) survives the test and blends additively,
-     *     instead of being eaten by the epsilon tie-break. Behind-by-more-than-FP-noise is
-     *     still rejected normally.</li>
+     * <li><b>Standard</b>: matches vanilla's {@code GL_LEQUAL} - a fragment passes when it is at
+     *     or in front of the stored depth, so a coplanar LATER fragment overwrites the earlier one
+     *     (last-drawn wins), reproducing the way a model's overlay element paints over an
+     *     identically-shaped base (grass_block tinted {@code #overlay} over its dirt
+     *     {@code #side}).</li>
+     * <li><b>Emissive</b>: same, plus a {@link #DEPTH_EPSILON} slack so an emissive overlay
+     *     rendered AT - or within FP noise behind - the base it's painted on top of
+     *     (spider/enderman eye overlays re-using the base entity's geometry post-bone_overrides)
+     *     survives the test and blends additively. Behind-by-more-than-FP-noise is still rejected
+     *     normally.</li>
      * </ul>
      *
      * @param depthVal the candidate fragment's depth
@@ -438,9 +588,13 @@ public class ModelEngine extends TextureEngine {
      * @return {@code true} if the fragment should be rejected
      */
     private static boolean depthFails(float depthVal, float existingDepth, boolean emissive) {
-        return emissive
-            ? depthVal < existingDepth
-            : depthVal <= existingDepth + DEPTH_EPSILON;
+        // Vanilla's GL_LEQUAL: a coplanar later fragment passes and overwrites the earlier one
+        // (last-drawn wins). The previous `<= existingDepth + DEPTH_EPSILON` was first-drawn-wins,
+        // which diverged from vanilla wherever a model paints a coplanar overlay over a base
+        // (grass_block tinted `#overlay` over its dirt `#side`). Emissive overlays keep the
+        // epsilon slack so one rendered at - or within FP noise behind - the base it sits on
+        // (spider / enderman eye re-using base geometry) still blends instead of being culled.
+        return depthVal < existingDepth - (emissive ? DEPTH_EPSILON : 0f);
     }
 
     /**
@@ -501,6 +655,7 @@ public class ModelEngine extends TextureEngine {
      * it dodges the exact-alignment GPU-vs-software divergence entirely.
      */
     private static @NotNull Vector2f snapToCoverageGrid(@NotNull Vector2f v) {
+        if (SUBPIXEL_PRECISION <= 0f) return v;
         return new Vector2f(Math.round(v.x() * SUBPIXEL_PRECISION) * SUBPIXEL_INV,
                             Math.round(v.y() * SUBPIXEL_PRECISION) * SUBPIXEL_INV);
     }
@@ -552,10 +707,10 @@ public class ModelEngine extends TextureEngine {
         // call, so it dominates Pass 1 cost on high-triangle models. Vector3f.transform /
         // transformNormal silently dispatch to a 4-lane SIMD implementation when the JDK Vector
         // API module is loaded.
-        Vector3f p0 = Vector3f.transform(triangle.position0(), transform);
-        Vector3f p1 = Vector3f.transform(triangle.position1(), transform);
-        Vector3f p2 = Vector3f.transform(triangle.position2(), transform);
-        Vector3f normal = Vector3f.normalize(Vector3f.transformNormal(triangle.normal(), transform));
+        Vector3f p0 = triangle.position0().transform(transform);
+        Vector3f p1 = triangle.position1().transform(transform);
+        Vector3f p2 = triangle.position2().transform(transform);
+        Vector3f normal = triangle.normal().transformNormal(transform).normalize();
 
         Vector2f s0 = snapToCoverageGrid(RenderEngine.projectPerspective(p0, scale, offsetX, offsetY, perspective));
         Vector2f s1 = snapToCoverageGrid(RenderEngine.projectPerspective(p1, scale, offsetX, offsetY, perspective));

@@ -2,37 +2,38 @@ package lib.minecraft.renderer.pipeline;
 
 import com.google.gson.Gson;
 
-import lib.minecraft.renderer.geometry.Biome;
+import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.collection.ConcurrentSet;
+import dev.simplified.gson.GsonSettings;
+import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.appearance.Biome;
+import lib.minecraft.renderer.asset.AnimationData;
 import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.asset.pack.ColorMap;
+import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.asset.pack.Texture;
-import lib.minecraft.renderer.asset.pack.TexturePack;
-import lib.minecraft.renderer.asset.pack.AnimationData;
-import lib.minecraft.renderer.asset.model.BlockModelData;
-import lib.minecraft.renderer.asset.model.ItemModelData;
+import lib.minecraft.renderer.appearance.LayerTint;
+import lib.minecraft.renderer.asset.Texture;
+import lib.minecraft.renderer.asset.TexturePack;
+import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.pipeline.loader.ColorMapLoader;
 import lib.minecraft.renderer.pipeline.loader.TexturePackLoader;
 import lib.minecraft.renderer.pipeline.pack.CtmMethod;
 import lib.minecraft.renderer.pipeline.pack.CtmResolution;
 import lib.minecraft.renderer.pipeline.pack.CtmRule;
 import lib.minecraft.renderer.pipeline.pack.PackMeta;
-import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
-import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.gson.GsonSettings;
-import dev.simplified.image.pixel.PixelBuffer;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
+import javax.imageio.ImageIO;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -106,10 +107,10 @@ class PipelineRendererContextTest {
         // the DTOs are already Gson-friendly and the JSON form matches what the production
         // pipeline feeds through ModelResolver.
         Gson gson = GsonSettings.defaults().create();
-        ConcurrentMap<String, BlockModelData> blockModels = Concurrent.newMap();
+        ConcurrentMap<String, ModelData> blockModels = Concurrent.newMap();
         blockModels.put(
             "minecraft:block/stone",
-            gson.fromJson("{\"textures\": {\"all\": \"minecraft:block/fixture\"}}", BlockModelData.class)
+            gson.fromJson("{\"textures\": {\"all\": \"minecraft:block/fixture\"}}", ModelData.class)
         );
         // A second model with a real elements list whose face bindings reference #variables in
         // the textures map. Drives the direction-key flattening test.
@@ -124,44 +125,58 @@ class PipelineRendererContextTest {
                     + "\"south\":{\"texture\":\"#all\"},"
                     + "\"west\":{\"texture\":\"#all\"},"
                     + "\"east\":{\"texture\":\"#all\"}}}]}",
-                BlockModelData.class
+                ModelData.class
             )
         );
         // Real vanilla-named blocks used by the tint pass-through tests. The bundled
         // block_tints.json table maps grass_block -> GRASS and spruce_leaves -> CONSTANT 0xFF619961.
         blockModels.put(
             "minecraft:block/grass_block",
-            gson.fromJson("{\"textures\": {\"all\": \"minecraft:block/fixture\"}}", BlockModelData.class)
+            gson.fromJson("{\"textures\": {\"all\": \"minecraft:block/fixture\"}}", ModelData.class)
         );
         blockModels.put(
             "minecraft:block/spruce_leaves",
-            gson.fromJson("{\"textures\": {\"all\": \"minecraft:block/fixture\"}}", BlockModelData.class)
+            gson.fromJson("{\"textures\": {\"all\": \"minecraft:block/fixture\"}}", ModelData.class)
         );
 
-        ConcurrentMap<String, ItemModelData> itemModels = Concurrent.newMap();
+        ConcurrentMap<String, ModelData> itemModels = Concurrent.newMap();
         itemModels.put(
             "minecraft:item/stick",
-            gson.fromJson("{\"textures\": {\"layer0\": \"minecraft:block/fixture\"}}", ItemModelData.class)
+            gson.fromJson("{\"textures\": {\"layer0\": \"minecraft:block/fixture\"}}", ModelData.class)
         );
-        // Leather helmet to verify OverlayResolver wires a Leather overlay onto the materialised
-        // Item during PipelineRendererContext.of.
+        // Leather helmet to verify the item-definition tints flow onto the materialised Item
+        // during PipelineRendererContext.of.
         itemModels.put(
             "minecraft:item/leather_helmet",
             gson.fromJson(
                 "{\"textures\": {\"layer0\": \"minecraft:item/leather_helmet\","
                     + "\"layer1\": \"minecraft:item/leather_helmet_overlay\"}}",
-                ItemModelData.class
+                ModelData.class
             )
         );
+
+        // Per-layer tints parsed from the item definitions (here a single dye tint on layer0,
+        // matching leather_helmet's vanilla `tints: [{dye, default -6265536}]`).
+        ConcurrentMap<String, List<LayerTint>> itemTints = Concurrent.newMap();
+        itemTints.put("minecraft:leather_helmet", List.of(new LayerTint.Dye(0xFFA06540)));
+
+        // Always-glinted item set. Synthetic: marks the fixture stick as foil so the alwaysGlinted
+        // flag plumbing through ItemIndexLoader can be asserted in isolation; vanilla's real set is
+        // the 7 intrinsically-foil items (enchanted_book, nether_star, ...).
+        ConcurrentSet<String> glintItems = Concurrent.newSet("minecraft:stick");
+
+        ConcurrentMap<String, TexturePack> packs = Concurrent.newLinkedMap();
+        packs.put(vanillaPack.getId(), vanillaPack);
 
         result = new Pipeline.Result(
             packRoot,
             vanillaPack,
-            Concurrent.newList(vanillaPack),
+            packs,
             textures, colorMaps, blockTints, blockModels, itemModels,
+            Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(), itemTints, glintItems,
             Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
-            Concurrent.newMap(), Concurrent.newMap(), Concurrent.newMap(),
-            Concurrent.newMap(), Concurrent.newList(), Concurrent.newList()
+            Concurrent.newMap(), Concurrent.newList(), Concurrent.newList(),
+            Concurrent.newMap()
         );
         context = PipelineRendererContext.of(result);
     }
@@ -171,9 +186,9 @@ class PipelineRendererContextTest {
     void findBlockDerivesEntityId() {
         Optional<Block> stone = context.findBlock("minecraft:stone");
         assertThat(stone.isPresent(), is(true));
-        assertThat(stone.get().getId(), equalTo("minecraft:stone"));
-        assertThat(stone.get().getNamespace(), equalTo("minecraft"));
-        assertThat(stone.get().getName(), equalTo("stone"));
+        assertThat(stone.get().getId().id(), equalTo("minecraft:stone"));
+        assertThat(stone.get().getId().namespace(), equalTo("minecraft"));
+        assertThat(stone.get().getId().name(), equalTo("stone"));
         assertThat(stone.get().getModel(), notNullValue());
         assertThat(stone.get().getTextures().get("all"), equalTo("minecraft:block/fixture"));
     }
@@ -189,9 +204,9 @@ class PipelineRendererContextTest {
     void findItemDerivesEntityId() {
         Optional<Item> stick = context.findItem("minecraft:stick");
         assertThat(stick.isPresent(), is(true));
-        assertThat(stick.get().getId(), equalTo("minecraft:stick"));
-        assertThat(stick.get().getNamespace(), equalTo("minecraft"));
-        assertThat(stick.get().getName(), equalTo("stick"));
+        assertThat(stick.get().getId().id(), equalTo("minecraft:stick"));
+        assertThat(stick.get().getId().namespace(), equalTo("minecraft"));
+        assertThat(stick.get().getId().name(), equalTo("stick"));
         assertThat(stick.get().getTextures().get("layer0"), equalTo("minecraft:block/fixture"));
     }
 
@@ -202,24 +217,30 @@ class PipelineRendererContextTest {
     }
 
     @Test
-    @DisplayName("leather helmet materialises with a Leather overlay carrying the default dye color")
-    void leatherHelmetGetsOverlayAtPipelineTime() {
+    @DisplayName("leather helmet materialises with its item-definition dye tint on layer0")
+    void leatherHelmetGetsTintsAtPipelineTime() {
         Optional<Item> leatherHelmet = context.findItem("minecraft:leather_helmet");
         assertThat(leatherHelmet.isPresent(), is(true));
-        assertThat(leatherHelmet.get().getOverlay().isPresent(), is(true));
-        assertThat(leatherHelmet.get().getOverlay().get(), instanceOf(Item.Overlay.Leather.class));
-        Item.Overlay.Leather leather = (Item.Overlay.Leather) leatherHelmet.get().getOverlay().get();
-        assertThat(leather.baseTexture(), equalTo("minecraft:item/leather_helmet"));
-        assertThat(leather.overlayTexture(), equalTo("minecraft:item/leather_helmet_overlay"));
-        assertThat(leather.defaultColor(), equalTo(Item.Overlay.LEATHER_DEFAULT_ARGB));
+        assertThat(leatherHelmet.get().getTints(), hasSize(1));
+        assertThat(leatherHelmet.get().getTints().getFirst(), instanceOf(LayerTint.Dye.class));
+        LayerTint.Dye dye = (LayerTint.Dye) leatherHelmet.get().getTints().getFirst();
+        assertThat(dye.defaultColor(), equalTo(0xFFA06540));
     }
 
     @Test
-    @DisplayName("non-overlay items materialise with empty overlay")
-    void nonOverlayItemsGetEmptyOverlay() {
+    @DisplayName("non-tinted items materialise with empty tints")
+    void nonTintedItemsGetEmptyTints() {
         Optional<Item> stick = context.findItem("minecraft:stick");
         assertThat(stick.isPresent(), is(true));
-        assertThat(stick.get().getOverlay().isPresent(), is(false));
+        assertThat(stick.get().getTints().isEmpty(), is(true));
+    }
+
+    @Test
+    @DisplayName("items in the glint set materialise with alwaysGlinted=true, others false")
+    void glintItemsGetAlwaysGlintedFlag() {
+        // The fixture marks stick as always-glinted; leather_helmet is not in the set.
+        assertThat(context.findItem("minecraft:stick").orElseThrow().isAlwaysGlinted(), is(true));
+        assertThat(context.findItem("minecraft:leather_helmet").orElseThrow().isAlwaysGlinted(), is(false));
     }
 
     @Test
@@ -284,12 +305,12 @@ class PipelineRendererContextTest {
     }
 
     @Test
-    @DisplayName("activePacks contains only the vanilla pack entry")
-    void activePacksContainsVanillaOnly() {
-        ConcurrentList<TexturePack> packs = context.activePacks();
-        assertThat(packs.size(), equalTo(1));
-        assertThat(packs.getFirst().getId(), equalTo("vanilla"));
-        assertThat(packs.getFirst().getAssetRoots().isEmpty(), is(false));
+    @DisplayName("findPack resolves the vanilla pack and nothing else")
+    void findPackResolvesVanillaOnly() {
+        Optional<TexturePack> vanilla = context.findPack("vanilla");
+        assertThat(vanilla.isPresent(), is(true));
+        assertThat(vanilla.get().getAssetRoots().isEmpty(), is(false));
+        assertThat(context.findPack("nonexistent").isPresent(), is(false));
     }
 
     @Test
@@ -321,11 +342,12 @@ class PipelineRendererContextTest {
             result.getPacks(),
             result.getTextures(), result.getColorMaps(), result.getBlockTints(),
             result.getBlockModels(), result.getItemModels(),
-            result.getBlockStates(), result.getBlockMultiparts(),
-            result.getItemDefinitions(), result.getBlockTags(),
+            result.getBlockVariants(), result.getBlockMultiparts(),
+            result.getItemDefinitions(), result.getItemTints(), result.getGlintItems(), result.getBlockTags(),
             result.getPotionEffectColors(), result.getBannerPatterns(),
             result.getColorOverrides(), result.getCitRules(),
-            Concurrent.newList(miss, hit)
+            Concurrent.newList(miss, hit),
+            result.getBlockDefaultStateKeys()
         );
         PipelineRendererContext ctx = PipelineRendererContext.of(resultWithCtm);
 

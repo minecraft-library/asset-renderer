@@ -1,19 +1,19 @@
 package lib.minecraft.renderer;
 
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.gson.GsonSettings;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.AnimationData;
 import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.asset.pack.AnimationData;
-import lib.minecraft.renderer.asset.pack.ColorMap;
-import lib.minecraft.renderer.asset.pack.TexturePack;
+import lib.minecraft.renderer.asset.TexturePack;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.exception.RendererException;
@@ -24,7 +24,7 @@ import lib.minecraft.renderer.options.FluidOptions;
 import lib.minecraft.renderer.options.GridOptions;
 import lib.minecraft.renderer.options.ItemOptions;
 import lib.minecraft.renderer.options.PortalOptions;
-import lib.minecraft.renderer.pipeline.loader.BlockEntityLoader;
+import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.LinkedHashSet;
@@ -56,6 +56,11 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * Tile-count interval between {@code stdout} progress lines when {@link AtlasOptions#isProgressLogging()} is set.
      */
     private static final int PROGRESS_LOG_INTERVAL = 100;
+
+    /**
+     * Shared pretty-printing Gson carrying the renderer's registered type adapters, for the sidecar.
+     */
+    private static final @NotNull Gson PRETTY_GSON = GsonSettings.defaults().mutate().isPrettyPrint().build().create();
 
     /**
      * Block ids that render through {@link FluidRenderer} instead of {@link BlockRenderer}.
@@ -151,11 +156,13 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * when {@link AtlasOptions#isProgressLogging()} is set.
      */
     private @NotNull ConcurrentList<TileSpec> renderBlocks(@NotNull AtlasOptions options, @NotNull BlockRenderer renderer, @NotNull FluidRenderer fluids, @NotNull PortalRenderer portals) {
-        // end_gateway has no block-model file; the primary {@code knownBlockIds()} walk doesn't
-        // surface it. The portal-tile path intercepts it here, so ensure it's part of the
-        // iteration set even when the primary pipeline didn't register it.
+        // end_gateway has no block-model file, and water/lava carry an empty (particle-only) model
+        // so the structural empty-model filter drops them from {@code knownBlockIds()}. Both render
+        // through dedicated renderers (portal / fluid) off their textures, not the block index, so
+        // add them to the iteration set explicitly to keep their tiles in the atlas.
         LinkedHashSet<String> blockIds = new LinkedHashSet<>(this.context.knownBlockIds());
         blockIds.addAll(PORTAL_BLOCK_IDS);
+        blockIds.addAll(FLUID_BLOCK_IDS);
 
         // Parallel dispatch across independent block renders. parallelStream preserves encounter
         // order through the terminal toList() collector, so composeAtlas + the sidecar JSON still
@@ -318,10 +325,15 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         @NotNull ItemRenderer renderer,
         @NotNull AtomicInteger completed
     ) {
+        // animateGlint(false): intrinsically-foil items (enchanted_book, nether_star, ...) render
+        // their glint as a single static frame-0 here. An animated glint tile would force the
+        // whole atlas onto GridRenderer's animated path (FrameMerger), turning an otherwise-static
+        // atlas into an animated one; the atlas wants exactly one frame per tile.
         ItemOptions itemOptions = ItemOptions.builder()
             .itemId(itemId)
             .type(ItemOptions.Type.GUI_2D)
             .outputSize(options.getTileSize())
+            .animateGlint(false)
             .build();
         try {
             ImageData image = renderer.render(itemOptions);
@@ -356,7 +368,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             .cellSize(tileSize)
             .columns(columns)
             .rows(rows)
-            .backgroundArgb(options.getBackgroundArgb())
+            .background(options.getBackground())
             .build();
 
         return this.gridRenderer.render(gridOptions);
@@ -368,7 +380,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      * and the PNG in lockstep.
      */
     private static @NotNull String buildSidecarJson(@NotNull ConcurrentList<TileSpec> tiles, int columns, int tileSize) {
-        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        Gson gson = PRETTY_GSON;
         JsonObject root = new JsonObject();
         root.addProperty("tileSize", tileSize);
         root.addProperty("columns", columns);
@@ -436,7 +448,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
          *     matches the id (fences, walls, small_dripleaf, etc.).</li>
          * <li>{@link #TILE_ENTITY} - blocks whose geometry comes from a {@link Block.Entity} -
          *     vanilla {@code BlockEntityRenderer} geometry baked into block model elements by
-         *     {@link BlockEntityLoader} (beds, chests, banners,
+         *     {@link BlockModelLoader} (beds, chests, banners,
          *     shulkers, signs, skulls, conduit, decorated_pot, etc.).</li>
          * <li>{@link #FLUID} - block rendered through {@link FluidRenderer} from the still fluid
          *     texture (water, lava). Vanilla {@code block/water.json} and {@code block/lava.json}
@@ -505,8 +517,8 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     private record StaticTextureContext(@NotNull RendererContext delegate) implements RendererContext {
 
         @Override
-        public @NotNull ConcurrentList<TexturePack> activePacks() {
-            return this.delegate.activePacks();
+        public @NotNull Optional<TexturePack> findPack(@NotNull String id) {
+            return this.delegate.findPack(id);
         }
 
         @Override

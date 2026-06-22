@@ -8,7 +8,7 @@ import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.GsonSettings;
-import lib.minecraft.renderer.asset.pack.TexturePack;
+import lib.minecraft.renderer.asset.TexturePack;
 import lib.minecraft.renderer.exception.PipelineException;
 import org.jetbrains.annotations.NotNull;
 

@@ -1,9 +1,9 @@
 package lib.minecraft.renderer.options;
 
-import dev.simplified.image.ImageFormat;
+import dev.simplified.image.Background;
 import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.Renderer;
-import lib.minecraft.renderer.asset.binding.ArmorPiece;
+import lib.minecraft.renderer.appearance.ArmorPiece;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.kit.ArmorKit;
 import lib.minecraft.renderer.kit.TrimKit;
@@ -144,16 +144,31 @@ public class PlayerOptions {
     private final @NotNull EulerRotation rotation = EulerRotation.NONE;
 
     /**
-     * Whether to apply FXAA post-processing after the main render pass.
+     * Supersample scale factor for the 3D render. The model is rasterized at
+     * {@code outputSize * supersample} resolution then downsampled to {@link #outputSize} for
+     * sharper edges (SSAA). A value of {@code 1} (default) disables supersampling. Composes
+     * orthogonally with {@link #antiAlias} - when both are set, FXAA runs on the hi-res buffer
+     * before downsampling, which gives the cleanest silhouette at the cost of extra cycles.
+     * Ignored by the 2D composite path.
      */
     @lombok.Builder.Default
-    private final boolean antiAlias = true;
+    private final int supersample = 1;
 
     /**
-     * Output image format
+     * Whether to apply FXAA post-processing on the rendered buffer. Default {@code false} so
+     * end-user one-off renders ship without FXAA blur; opt in for soft edges on small thumbnails
+     * or when {@link #supersample} alone isn't enough. When supersample is {@code > 1}, FXAA runs
+     * on the hi-res buffer before downsampling.
      */
     @lombok.Builder.Default
-    private final @NotNull ImageFormat outputFormat = ImageFormat.PNG;
+    private final boolean antiAlias = false;
+
+    /**
+     * Background fill composited behind the finished render (solid colour or checkerboard).
+     * Defaults to {@link Background#TRANSPARENT}, a no-op that leaves the render's own alpha intact.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Background background = Background.TRANSPARENT;
 
     public @NotNull PlayerOptionsBuilder mutate() {
         return this.toBuilder();

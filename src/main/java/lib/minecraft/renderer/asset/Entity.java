@@ -1,15 +1,13 @@
 package lib.minecraft.renderer.asset;
 
-import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.RendererContext;
 import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -19,17 +17,19 @@ import java.util.Optional;
  * {@code skinTextureId} fields.
  */
 @Getter
-@NoArgsConstructor
 @AllArgsConstructor
-public class Entity {
+@EqualsAndHashCode
+public final class Entity {
 
-    private @NotNull String id = "";
+    /**
+     * The entity's namespaced identifier (e.g. {@code minecraft:zombie}).
+     */
+    private final @NotNull ResourceId id;
 
-    private @NotNull String namespace = "minecraft";
-
-    private @NotNull String name = "";
-
-    private @NotNull EntityModelData model = new EntityModelData();
+    /**
+     * The entity's base bone/cube geometry.
+     */
+    private final @NotNull EntityModelData model;
 
     /**
      * The vanilla {@code textures/entity/} sub-path (without {@code .png}), or empty when the
@@ -37,7 +37,7 @@ public class Entity {
      * stack via {@link RendererContext#resolveTexture(String)
      * RendererContext.resolveTexture} as {@code minecraft:entity/<ref>}.
      */
-    private @NotNull Optional<String> textureRef = Optional.empty();
+    private final @NotNull Optional<String> textureRef;
 
     /**
      * Additional geometry/texture pairs rendered on top of the base {@link #model} in declared
@@ -46,38 +46,7 @@ public class Entity {
      * on top of the body. Each layer is built with the same auto-fit transform as the base so
      * coordinates stay co-registered after the unit-cube fit.
      */
-    private @NotNull ConcurrentList<Layer> overlays = Concurrent.newList();
-
-    /**
-     * Convenience constructor for the no-overlay case so existing call sites don't have to
-     * supply an empty list.
-     */
-    public Entity(
-        @NotNull String id,
-        @NotNull String namespace,
-        @NotNull String name,
-        @NotNull EntityModelData model,
-        @NotNull Optional<String> textureRef
-    ) {
-        this(id, namespace, name, model, textureRef, Concurrent.newList());
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        Entity entity = (Entity) o;
-        return Objects.equals(this.getId(), entity.getId())
-            && Objects.equals(this.getNamespace(), entity.getNamespace())
-            && Objects.equals(this.getName(), entity.getName())
-            && Objects.equals(this.getModel(), entity.getModel())
-            && Objects.equals(this.getTextureRef(), entity.getTextureRef())
-            && Objects.equals(this.getOverlays(), entity.getOverlays());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(this.getId(), this.getNamespace(), this.getName(), this.getModel(), this.getTextureRef(), this.getOverlays());
-    }
+    private final @NotNull ConcurrentList<Layer> overlays;
 
     /**
      * One overlay layer attached to an {@link Entity}. Carries an independent bone tree and its

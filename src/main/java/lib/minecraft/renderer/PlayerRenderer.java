@@ -9,8 +9,10 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.binding.ArmorPiece;
-import lib.minecraft.renderer.asset.binding.ArmorTrim;
+import dev.simplified.image.pixel.PixelBufferPool;
+import lib.minecraft.renderer.appearance.ArmorPiece;
+import lib.minecraft.renderer.appearance.ArmorTrim;
+import lib.minecraft.renderer.engine.GlintMask;
 import lib.minecraft.renderer.engine.IsometricEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
@@ -28,6 +30,7 @@ import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -66,16 +69,20 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     private static final Vector3f SKULL_HEAD_MAX = new Vector3f(0.5f, 0.5f, 0.5f);
 
     /**
-     * Bust: head + torso, matching the original PlayerBust3D proportions.
+     * Bust: head + torso + arms at the same vanilla proportions as the {@link #FULL_HEAD_MIN full
+     * body}'s upper half (head 8x8x8, torso 8x12x4, arms 4x12x4 in MC pixels). The head is the same
+     * width as the torso - the earlier bust used an oversized 0.5 head cube against a 0.4-wide
+     * torso, which rendered "bobble-head" large. The auto-fit step centres + scales this group to
+     * the canvas, so only the relative proportions matter here.
      */
-    private static final Vector3f BUST_HEAD_MIN = new Vector3f(-0.25f, 0.1f, -0.25f);
-    private static final Vector3f BUST_HEAD_MAX = new Vector3f(0.25f, 0.6f, 0.25f);
-    private static final Vector3f BUST_TORSO_MIN = new Vector3f(-0.2f, -0.4f, -0.1f);
-    private static final Vector3f BUST_TORSO_MAX = new Vector3f(0.2f, 0.1f, 0.1f);
-    private static final Vector3f BUST_R_ARM_MIN = new Vector3f(-0.33f, -0.4f, -0.1f);
-    private static final Vector3f BUST_R_ARM_MAX = new Vector3f(-0.2f, 0.1f, 0.1f);
-    private static final Vector3f BUST_L_ARM_MIN = new Vector3f(0.2f, -0.4f, -0.1f);
-    private static final Vector3f BUST_L_ARM_MAX = new Vector3f(0.33f, 0.1f, 0.1f);
+    private static final Vector3f BUST_HEAD_MIN = new Vector3f(-0.12f, 0.24f, -0.12f);
+    private static final Vector3f BUST_HEAD_MAX = new Vector3f(0.12f, 0.48f, 0.12f);
+    private static final Vector3f BUST_TORSO_MIN = new Vector3f(-0.12f, -0.12f, -0.06f);
+    private static final Vector3f BUST_TORSO_MAX = new Vector3f(0.12f, 0.24f, 0.06f);
+    private static final Vector3f BUST_R_ARM_MIN = new Vector3f(-0.24f, -0.12f, -0.06f);
+    private static final Vector3f BUST_R_ARM_MAX = new Vector3f(-0.12f, 0.24f, 0.06f);
+    private static final Vector3f BUST_L_ARM_MIN = new Vector3f(0.12f, -0.12f, -0.06f);
+    private static final Vector3f BUST_L_ARM_MAX = new Vector3f(0.24f, 0.24f, 0.06f);
 
     /**
      * Full body: 1 MC pixel = 1/32 model unit, centred vertically.
@@ -98,6 +105,12 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      */
     private static final float OVERLAY_INFLATE = 0.01f;
 
+    /**
+     * Fraction of the canvas's smaller dimension the 3D silhouette spans after auto-fit. Leaves a
+     * thin margin so rotated poses and outset overlays / armor stay inside the frame.
+     */
+    private static final float PLAYER_FILL = 0.9f;
+
     private final @NotNull RendererContext context;
     private final @NotNull ImageFactory imageFactory = new ImageFactory();
     private final @NotNull ConcurrentMap<String, PixelBuffer> skinCache = Concurrent.newMap();
@@ -115,11 +128,12 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
     @Override
     public @NotNull ImageData render(@NotNull PlayerOptions options) {
-        return switch (options.getType()) {
+        ImageData rendered = switch (options.getType()) {
             case SKULL -> this.skull.render(options);
             case BUST -> this.bust.render(options);
             case FULL -> this.full.render(options);
         };
+        return options.getBackground().composite(rendered);
     }
 
     // ---------------------------------------------------------------------------------------
@@ -224,15 +238,21 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * is a 10x16x1 box with UV origin (0,0), following the standard Minecraft cube unwrap:
      * <pre>
      * y=0:  [1px pad][10px TOP][1px pad][10px BOTTOM]
-     * y=1:  [1px WEST][10px SOUTH][1px EAST][10px NORTH]  (16 rows)
+     * y=1:  [1px edge][10px OUTER][1px edge][10px INNER]  (16 rows)
      * </pre>
+     * The {@code OUTER} region ({@code x 1..10}) carries the visible cape design and the
+     * {@code INNER} region ({@code x 12..21}) the plain lining. The cape hangs on the player's back
+     * (its {@code -Z} / {@link BlockFace#NORTH NORTH} face points outward, away from the body), so
+     * the design is mapped to {@code NORTH} and the lining to the body-facing {@code SOUTH}. Vanilla
+     * achieves the same by rotating the cloak cuboid 180&deg; about Y; here the geometry stays
+     * axis-aligned and the two broad faces are assigned directly.
      */
     private static @NotNull SixFaces cropCapeFaces(@NotNull PixelBuffer cape) {
         return new SixFaces(
             cropRect(cape, 11, 0, 10, 1),  // DOWN
             cropRect(cape,  1, 0, 10, 1),  // UP
-            cropRect(cape, 12, 1, 10, 16), // NORTH
-            cropRect(cape,  1, 1, 10, 16), // SOUTH
+            cropRect(cape,  1, 1, 10, 16), // NORTH - outer design (faces outward / rear camera)
+            cropRect(cape, 12, 1, 10, 16), // SOUTH - inner lining (against the back)
             cropRect(cape,  0, 1,  1, 16), // WEST
             cropRect(cape, 11, 1,  1, 16)  // EAST
         );
@@ -267,10 +287,12 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         float cx = (torsoMin.x() + torsoMax.x()) / 2f;
         float capeTop = torsoMax.y();
-        float capeBack = torsoMax.z();
+        // The cape hangs on the player's back (the north / -Z torso face), the side the iso
+        // block-icon pose presents to the camera.
+        float capeBack = torsoMin.z();
 
-        Vector3f capeMin = new Vector3f(cx - capeW / 2f, capeTop - capeH, capeBack);
-        Vector3f capeMax = new Vector3f(cx + capeW / 2f, capeTop, capeBack + capeD);
+        Vector3f capeMin = new Vector3f(cx - capeW / 2f, capeTop - capeH, capeBack - capeD);
+        Vector3f capeMax = new Vector3f(cx + capeW / 2f, capeTop, capeBack);
 
         SixFaces faces = cropCapeFaces(capeTexture);
         triangles.addAll(BlockGeometryKit.buildBoxTriangles(capeMin, capeMax, faces, ColorMath.WHITE));
@@ -338,6 +360,10 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         BodyPart2D[] parts = layout2D(options.getType(), scale, offsetX);
 
         boolean overlay = options.isRenderOverlay();
+        // Glint only the armor, not the bare skin: when enchanted, the armor / trim composites stamp
+        // their coverage into this mask and the foil is confined to it. Null when nothing glints.
+        boolean enchanted = hasEnchantedArmor(options);
+        GlintMask glintMask = enchanted ? new GlintMask(options.getOutputSize(), options.getOutputSize()) : null;
 
         for (BodyPart2D bp : parts) {
             // Base skin
@@ -354,26 +380,26 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             }
 
             // Armor + trim for this body part (each slot that covers this part gets composited)
-            compositeArmor2D(buffer, bp.part, bp.x, bp.y, bp.w, bp.h, options, engine);
+            compositeArmor2D(buffer, bp.part, bp.x, bp.y, bp.w, bp.h, options, engine, glintMask);
         }
 
         if (options.isAntiAlias())
             buffer.applyFxaa();
 
-        return engine.finaliseWithGlint(buffer, hasEnchantedArmor(options), GlintKit.GlintOptions.armorDefault(30));
+        return engine.finaliseWithGlint(buffer, enchanted, GlintKit.GlintOptions.armorDefault(30), glintMask);
     }
 
     /**
-     * Composites all armor slots that cover the given body part in the correct layer order.
-     * Leggings are drawn before chestplate/boots so the outer layer wins on overlapping parts
-     * (torso, legs).
+     * Composites all armor slots that cover the given body part in {@link ArmorTrim.Slot} declaration
+     * order - layer-2 leggings first so the chestplate / boots win on overlapping parts (torso, legs).
      */
     private static void compositeArmor2D(
         @NotNull PixelBuffer target,
         @NotNull SkinFace part,
         int x, int y, int w, int h,
         @NotNull PlayerOptions options,
-        @NotNull RasterEngine engine
+        @NotNull RasterEngine engine,
+        @Nullable GlintMask glintMask
     ) {
         for (ArmorTrim.Slot slot : ArmorTrim.Slot.values()) {
             Optional<ArmorPiece> piece = switch (slot) {
@@ -389,7 +415,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 if (slotPart == part) { partInSlot = true; break; }
             if (!partInSlot) continue;
 
-            ArmorKit.compositeSlot2D(target, part, slot, piece.get(), x, y, w, h, engine);
+            ArmorKit.compositeSlot2D(target, part, slot, piece.get(), x, y, w, h, engine, glintMask);
         }
     }
 
@@ -414,9 +440,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            IsometricEngine engine = IsometricEngine.forBlockIcon(this.parent.context);
-            PixelBuffer buffer = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
-
+            IsometricEngine engine = IsometricEngine.forPlayerIcon(this.parent.context);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
             triangles.addAll(BlockGeometryKit.unitCube(SkinFace.HEAD.cropAll(skin, false), ColorMath.WHITE));
             if (options.isRenderOverlay() && hasHatOverlay(skin))
@@ -431,9 +455,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 options.getHelmet(), options.getChestplate(),
                 options.getLeggings(), options.getBoots(), engine));
 
-            engine.rasterize(triangles, buffer, PerspectiveParams.NONE, options.getRotation());
-            if (options.isAntiAlias()) buffer.applyFxaa();
-            return engine.finaliseWithGlint(buffer, hasEnchantedArmor(options), GlintKit.GlintOptions.armorDefault(30));
+            return rasterize3D(engine, triangles, options);
         }
 
     }
@@ -455,8 +477,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            IsometricEngine engine = IsometricEngine.forBlockIcon(this.parent.context);
-            PixelBuffer buffer = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
+            IsometricEngine engine = IsometricEngine.forPlayerIcon(this.parent.context);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             addBodyPart(triangles, skin, SkinFace.HEAD, BUST_HEAD_MIN, BUST_HEAD_MAX, options);
@@ -476,9 +497,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             resolveCape(this.parent, options)
                 .ifPresent(cape -> addCape(triangles, cape, BUST_TORSO_MIN, BUST_TORSO_MAX));
 
-            engine.rasterize(triangles, buffer, PerspectiveParams.NONE, options.getRotation());
-            if (options.isAntiAlias()) buffer.applyFxaa();
-            return engine.finaliseWithGlint(buffer, hasEnchantedArmor(options), GlintKit.GlintOptions.armorDefault(30));
+            return rasterize3D(engine, triangles, options);
         }
 
     }
@@ -500,8 +519,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            IsometricEngine engine = IsometricEngine.forBlockIcon(this.parent.context);
-            PixelBuffer buffer = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
+            IsometricEngine engine = IsometricEngine.forPlayerIcon(this.parent.context);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             addBodyPart(triangles, skin, SkinFace.HEAD, FULL_HEAD_MIN, FULL_HEAD_MAX, options);
@@ -525,11 +543,46 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             resolveCape(this.parent, options)
                 .ifPresent(cape -> addCape(triangles, cape, FULL_TORSO_MIN, FULL_TORSO_MAX));
 
-            engine.rasterize(triangles, buffer, PerspectiveParams.NONE, options.getRotation());
-            if (options.isAntiAlias()) buffer.applyFxaa();
-            return engine.finaliseWithGlint(buffer, hasEnchantedArmor(options), GlintKit.GlintOptions.armorDefault(30));
+            return rasterize3D(engine, triangles, options);
         }
 
+    }
+
+    /**
+     * Rasterizes the assembled body + armor triangles to a finished image: auto-fits the silhouette
+     * to fill the canvas ({@link #PLAYER_FILL}), applies supersampling (SSAA) and optional FXAA,
+     * then composites the armor glint. Shared by all three 3D sub-renderers.
+     */
+    private static @NotNull ImageData rasterize3D(
+        @NotNull IsometricEngine engine,
+        @NotNull ConcurrentList<VisibleTriangle> triangles,
+        @NotNull PlayerOptions options
+    ) {
+        int size = options.getOutputSize();
+        boolean enchanted = hasEnchantedArmor(options);
+        GlintKit.GlintOptions glint = GlintKit.GlintOptions.armorDefault(30);
+        int ssaa = Math.max(1, options.getSupersample());
+
+        if (ssaa > 1) {
+            try (PixelBufferPool.Lease lease = PixelBufferPool.acquire(size * ssaa, size * ssaa)) {
+                PixelBuffer hiRes = lease.buffer();
+                // The glint mask is recorded at the hi-res raster size, then box-downsampled to the
+                // output so the foil is confined to the armor (not the bare body) after the SSAA blit.
+                GlintMask hiMask = enchanted ? new GlintMask(size * ssaa, size * ssaa) : null;
+                engine.rasterizeFitted(triangles, hiRes, PerspectiveParams.NONE, options.getRotation(), PLAYER_FILL, hiMask);
+                if (options.isAntiAlias()) hiRes.applyFxaa();
+                PixelBuffer output = PixelBuffer.create(size, size);
+                output.blitScaled(hiRes, 0, 0, size, size);
+                GlintMask mask = hiMask == null ? null : hiMask.downsample(size, size);
+                return engine.finaliseWithGlint(output, enchanted, glint, mask);
+            }
+        }
+
+        PixelBuffer buffer = PixelBuffer.create(size, size);
+        GlintMask mask = enchanted ? new GlintMask(size, size) : null;
+        engine.rasterizeFitted(triangles, buffer, PerspectiveParams.NONE, options.getRotation(), PLAYER_FILL, mask);
+        if (options.isAntiAlias()) buffer.applyFxaa();
+        return engine.finaliseWithGlint(buffer, enchanted, glint, mask);
     }
 
     /**

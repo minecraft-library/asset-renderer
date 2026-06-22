@@ -1,10 +1,8 @@
 package lib.minecraft.renderer.options;
 
-import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.ImageFormat;
+import dev.simplified.image.Background;
 import lib.minecraft.renderer.Renderer;
-import lib.minecraft.renderer.geometry.Biome;
+import lib.minecraft.renderer.appearance.Biome;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -101,18 +99,6 @@ public class FluidOptions {
     private final int supersample = 2;
 
     /**
-     * Additional texture pack ids to layer on top of vanilla.
-     */
-    @lombok.Builder.Default
-    private final @NotNull ConcurrentList<String> texturePackIds = Concurrent.newList();
-
-    /**
-     * Output image format.
-     */
-    @lombok.Builder.Default
-    private final @NotNull ImageFormat outputFormat = ImageFormat.PNG;
-
-    /**
      * Animation seed tick. Frame 0 samples the still/flow strip at this tick.
      */
     @lombok.Builder.Default
@@ -130,6 +116,13 @@ public class FluidOptions {
      */
     @lombok.Builder.Default
     private final int ticksPerFrame = 1;
+
+    /**
+     * Background fill composited behind the finished render (solid colour or checkerboard).
+     * Defaults to {@link Background#TRANSPARENT}, a no-op that leaves the render's own alpha intact.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Background background = Background.TRANSPARENT;
 
     public @NotNull FluidOptionsBuilder mutate() {
         return this.toBuilder();

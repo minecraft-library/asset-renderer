@@ -28,6 +28,10 @@ import org.jetbrains.annotations.Nullable;
  *     {@code FDIV}, {@code DADD}, {@code DSUB}, {@code DMUL}, {@code DDIV}) pop two operands
  *     and push the result, treating non-literal markers as the matching parameter's default
  *     value (or zero when the slot is out of range)
+ * @param refParam binds an object-reference parameter slot to a concrete enum constant so the
+ *     parser can evaluate {@code if (param == Enum.CONST)} ({@code IF_ACMPEQ} / {@code IF_ACMPNE})
+ *     branches - used to split {@code HangingSignRenderer.createHangingSignLayer(Attachment)}
+ *     into one mesh per attachment; {@code null} disables enum-ref branch evaluation
  */
 public record Source(
     @NotNull String classEntry,
@@ -40,8 +44,19 @@ public record Source(
     int @Nullable [] paramIntValues,
     float @Nullable [] paramFloatValues,
     float defaultInflate,
-    float appliedMeshTransformerScale
+    float appliedMeshTransformerScale,
+    @Nullable RefParam refParam
 ) {
+
+    /**
+     * Binds an object-reference parameter slot to a concrete enum constant, letting the parser
+     * resolve a method's {@code if (param == Owner.VALUE)} branch dispatch at a chosen variant.
+     *
+     * @param slot the JVM local-variable slot holding the reference parameter
+     * @param ownerInternal the enum class's JVM internal name (e.g. {@code "net/minecraft/world/level/block/HangingSignBlock$Attachment"})
+     * @param value the enum constant field name the slot is bound to (e.g. {@code "CEILING"})
+     */
+    public record RefParam(int slot, @NotNull String ownerInternal, @NotNull String value) {}
 
     /**
      * Convenience constructor for sources whose parsed method calls {@code LayerDefinition.create}
@@ -54,24 +69,26 @@ public record Source(
      * @param inventoryYRotation the GUI-facing yaw applied at render time
      */
     public Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation) {
-        this(classEntry, methodName, entityId, yAxis, inventoryYRotation, null, null, null, null, 0f, 1f);
+        this(classEntry, methodName, entityId, yAxis, inventoryYRotation, null, null, null, null, 0f, 1f, null);
     }
 
     /**
-     * Convenience constructor for sources that need explicit texture dimensions (typically a
-     * {@code MeshDefinition} factory wrapped in {@code LayerDefinition.create(mesh, W, H)} by
-     * the caller) but take no int parameter.
+     * Convenience constructor for sign-variant sources: a method-call-time parameter split by
+     * either an int (boolean stick flag) or a reference (attachment enum). The standing-sign
+     * board / post split passes {@code paramIntValues}; the hanging-sign attachment split passes
+     * {@code refParam}. Texture dimensions are read from the parsed method's
+     * {@code LayerDefinition.create} call.
      *
      * @param classEntry the zip entry of the source class
      * @param methodName the name of the method to parse
      * @param entityId the output model id
      * @param yAxis the Y axis convention used by the source bytecode
      * @param inventoryYRotation the GUI-facing yaw applied at render time
-     * @param texWidthOverride the texture width override
-     * @param texHeightOverride the texture height override
+     * @param paramIntValues int parameter values for boolean branch evaluation, or {@code null}
+     * @param refParam reference-parameter enum binding for attachment branch evaluation, or {@code null}
      */
-    public Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation, @Nullable Integer texWidthOverride, @Nullable Integer texHeightOverride) {
-        this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, null, null, 0f, 1f);
+    public Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation, int @Nullable [] paramIntValues, @Nullable RefParam refParam) {
+        this(classEntry, methodName, entityId, yAxis, inventoryYRotation, null, null, paramIntValues, null, 0f, 1f, refParam);
     }
 
     /**
@@ -80,25 +97,7 @@ public record Source(
      * {@code paramFloatValues} field is a non-behavioural change for them.
      */
     public Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation, @Nullable Integer texWidthOverride, @Nullable Integer texHeightOverride, int @Nullable [] paramIntValues) {
-        this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, paramIntValues, null, 0f, 1f);
-    }
-
-    /**
-     * Convenience constructor preserving the prior 9-arg shape (no {@code defaultInflate}). Java
-     * pipeline call sites flow through this so adding the {@code defaultInflate} field is a
-     * non-behavioural change for them.
-     */
-    public Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation, @Nullable Integer texWidthOverride, @Nullable Integer texHeightOverride, int @Nullable [] paramIntValues, float @Nullable [] paramFloatValues) {
-        this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, paramIntValues, paramFloatValues, 0f, 1f);
-    }
-
-    /**
-     * Convenience constructor preserving the prior 10-arg shape (no
-     * {@code appliedMeshTransformerScale}). All existing legacy block-entity sources flow
-     * through this so adding the new field is non-behavioural for them.
-     */
-    public Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation, @Nullable Integer texWidthOverride, @Nullable Integer texHeightOverride, int @Nullable [] paramIntValues, float @Nullable [] paramFloatValues, float defaultInflate) {
-        this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, paramIntValues, paramFloatValues, defaultInflate, 1f);
+        this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, paramIntValues, null, 0f, 1f, null);
     }
 
 }

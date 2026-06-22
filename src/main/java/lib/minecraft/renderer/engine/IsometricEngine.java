@@ -44,6 +44,12 @@ public class IsometricEngine extends ModelEngine {
     private static final @NotNull Matrix4f CAMERA = buildGuiDisplayTransform(EulerRotation.STANDARD_ISO_BLOCK);
 
     /**
+     * Vanilla's block {@code display.gui} rotation with the yaw flipped 180&deg; so a humanoid's
+     * front faces the camera ({@code [30, 45, 0]}, {@link EulerRotation#STANDARD_ISO_PLAYER}).
+     */
+    private static final @NotNull Matrix4f CAMERA_PLAYER = buildGuiDisplayTransform(EulerRotation.STANDARD_ISO_PLAYER);
+
+    /**
      * Vanilla's full entity-preview transform chain expressed as the column-vector matrix our
      * column-form rasterizer consumes, AFTER accounting for the kit's pre-applied
      * {@code FLIP_Y} on positions.
@@ -96,6 +102,21 @@ public class IsometricEngine extends ModelEngine {
      */
     public static @NotNull IsometricEngine forBlockIcon(@NotNull RendererContext context) {
         return new IsometricEngine(context, CAMERA);
+    }
+
+    /**
+     * Returns an engine wired to the front-facing humanoid GUI pose
+     * ({@link EulerRotation#STANDARD_ISO_PLAYER}, {@code [30, 45, 0]}). Use for player / humanoid
+     * renders built from raw skin cubes: it shares the block-icon three-quarter framing but turns
+     * the model's front toward the camera, where {@link #forBlockIcon(RendererContext)} would show a
+     * humanoid's back. Unlike {@link #forEntityIcon(RendererContext)} it carries no LER chirality
+     * flips, which belong to the entity-kit pipeline rather than the hard-coded player cubes.
+     *
+     * @param context the renderer context
+     * @return an isometric engine with the front-facing player camera
+     */
+    public static @NotNull IsometricEngine forPlayerIcon(@NotNull RendererContext context) {
+        return new IsometricEngine(context, CAMERA_PLAYER);
     }
 
     /**

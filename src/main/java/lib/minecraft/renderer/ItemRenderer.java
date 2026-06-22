@@ -3,16 +3,18 @@ package lib.minecraft.renderer;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
-import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.appearance.DyeColor;
 import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.asset.binding.DyeColor;
+import lib.minecraft.renderer.appearance.LayerTint;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.asset.model.ModelTransform;
+import lib.minecraft.renderer.engine.IsometricEngine;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
+import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.TextureEngine;
 import lib.minecraft.renderer.exception.RenderException;
@@ -24,6 +26,7 @@ import lib.minecraft.renderer.kit.BannerKit;
 import lib.minecraft.renderer.kit.BlockGeometryKit;
 import lib.minecraft.renderer.kit.GlintKit;
 import lib.minecraft.renderer.kit.ItemStackKit;
+import lib.minecraft.renderer.kit.ShieldKit;
 import lib.minecraft.renderer.kit.TrimKit;
 import lib.minecraft.renderer.options.ItemOptions;
 import lib.minecraft.renderer.pipeline.pack.ItemContext;
@@ -34,7 +37,7 @@ import lib.minecraft.text.font.MinecraftFont;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -46,16 +49,16 @@ import java.util.Optional;
  * {@link Renderer Renderer&lt;ItemOptions&gt;}:
  * <ul>
  * <li>{@link Gui2D} composes layered flat sprites with optional damage bar, stack count, and
- * glint animation. Items carrying an {@link Item.Overlay} route through a per-kind helper that
- * honours the vanilla base + overlay + tint composition (leather armor, potions, spawn eggs,
- * firework stars, tipped arrows); items without an overlay fall through to the standard
- * layered-sprite path that respects per-face {@code tintindex}.</li>
+ * glint animation. Each {@code layerN} is multiplied by its
+ * {@link LayerTint} (leather dye, potion colour, firework colour - from the item definition's
+ * {@code model.tints[]}) or the caller's {@code tintColor}; the shield routes through a 3D
+ * {@link ShieldKit} render and banners through {@link BannerKit}.</li>
  * <li>{@link Held3D} dispatches on whether the item's model provides element boxes - block items
- * build real cubes via {@link BlockGeometryKit#buildFromElements}, flat sprite items fall back to a
- * thin textured slab. Both paths route through {@link ModelEngine} with the item model's
- * {@code thirdperson_righthand} display transform applied.</li>
+ * build real cubes via {@link BlockGeometryKit#buildFromElements}, flat sprite items composite
+ * their tinted layer stack onto a thin textured slab. Both paths route through
+ * {@link ModelEngine} with the item model's {@code thirdperson_righthand} display transform applied.</li>
  * </ul>
- * Shared item lookup, the glint-finalization tail, and per-kind overlay helpers live as
+ * Shared item lookup, the glint-finalization tail, and the per-layer tint resolution live as
  * package-private static helpers on this class so both sub-renderers can reach them without
  * duplicating logic.
  */
@@ -71,10 +74,11 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
     @Override
     public @NotNull ImageData render(@NotNull ItemOptions options) {
-        return switch (options.getType()) {
+        ImageData rendered = switch (options.getType()) {
             case GUI_2D -> this.gui2D.render(options);
             case HELD_3D -> this.held3D.render(options);
         };
+        return options.getBackground().composite(rendered);
     }
 
     /**
@@ -85,11 +89,6 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         return context.findItem(itemId)
             .orElseThrow(() -> new RenderException("No item registered for id '%s'", itemId));
     }
-
-    /**
-     * The "water" potion colour - used as the fallback when no potion effect is supplied.
-     */
-    private static final int DEFAULT_POTION_ARGB = 0xFF385DC6;
 
     /**
      * Model-space minimum-X bound for the flat-sprite item Z-axis slab.
@@ -130,6 +129,41 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * The sole shield item id.
      */
     private static final @NotNull String SHIELD_ITEM_ID = "minecraft:shield";
+
+    /**
+     * The shield's plain (no banner pattern) base texture id - the atlas the 3D
+     * {@code ShieldModel} samples for an undyed shield.
+     */
+    private static final @NotNull String SHIELD_NOPATTERN_TEXTURE_ID = "minecraft:entity/shield/shield_base_nopattern";
+
+    /**
+     * The shield item model's {@code display.gui} rotation ({@code [15, -25, -5]} pitch/yaw/roll).
+     */
+    private static final @NotNull EulerRotation SHIELD_GUI_ROTATION = new EulerRotation(15f, -25f, -5f);
+
+    /**
+     * The shield item model's {@code display.gui} scale ({@code 0.65}).
+     */
+    private static final float SHIELD_GUI_DISPLAY_SCALE = 0.65f;
+
+    /**
+     * Model-space translation (block units) that aligns the rendered shield's silhouette 1:1 with
+     * the vanilla reference. The shield's silhouette is byte-identical in size to vanilla's
+     * (270x489 px at the parity render size) but the vanilla GUI item pipeline seats the model
+     * origin off-centre relative to this renderer's centre-on-origin projection; this offset is
+     * {@code R^T} (the inverse {@code display.gui} rotation) applied to the measured
+     * {@code (-29, -9)} px screen offset, so {@code camera * translate(offset)} reproduces it as a
+     * pure post-rotation screen shift.
+     */
+    private static final @NotNull Vector3f SHIELD_ALIGN_OFFSET = new Vector3f(-0.0839f, 0.0189f, 0.0305f);
+
+    /**
+     * Pure-orthographic projection for the GUI shield render. The projection scale is the shield
+     * item model's {@code display.gui} scale ({@code 0.65}), mirroring how the block-icon path
+     * folds {@code block/block.json}'s {@code 0.625} {@code display.gui.scale} into
+     * {@link PerspectiveParams#ISOMETRIC_BLOCK}.
+     */
+    private static final @NotNull PerspectiveParams SHIELD_PERSPECTIVE = new PerspectiveParams(0f, 0f, 0f, SHIELD_GUI_DISPLAY_SCALE);
 
     /**
      * Returns {@code true} when the item id is a banner or shield, which get composited through
@@ -202,157 +236,106 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     }
 
     /**
-     * Builds a native-sized composite of a leather-armor item: base hide layer untinted, overlay
-     * dye layer tinted via {@link BlendMode#MULTIPLY}. Tint precedence is
-     * {@link ItemOptions#getLeatherColor()} → {@link ItemOptions#getTintColor()} →
-     * {@link Item.Overlay.Leather#defaultColor()} ({@code #A06540}). Returns a fresh
-     * {@link PixelBuffer} at the base texture's native dimensions, so the 2D path can scale it
-     * up while the 3D path can feed it directly into {@link BlockGeometryKit#box} as the face texture.
+     * Renders the plain {@code minecraft:shield} item as its vanilla 3D {@code ShieldModel} into
+     * {@code buffer}. Mirrors the block-icon path ({@link lib.minecraft.renderer.BlockRenderer}'s
+     * {@code Isometric3D}): {@link ShieldKit} builds the plate + handle geometry, the
+     * {@code display.gui} pose drives a {@code T * R * S} model transform (translation, then the
+     * {@code [15, -25, -5]} rotation, then the {@code 0.65} scale - vanilla's
+     * {@code ItemTransform.apply} order), and {@link RenderEngine#relightForItems3d} re-shades each
+     * face with vanilla's {@code Lighting.ITEMS_3D} Lambertian. Rendered through an identity-camera
+     * {@link ModelEngine} so the pose lives entirely in the model transform.
+     *
+     * @param context the renderer context for texture resolution
+     * @param buffer the output buffer (the freshly created GUI buffer the shared tail consumes)
+     * @param options the render options (unused beyond the buffer for the plain shield)
      */
-    static @NotNull PixelBuffer composeLeatherOverlay(
-        @NotNull TextureEngine engine,
-        @NotNull Item.Overlay.Leather overlay,
-        @NotNull ItemOptions options
-    ) {
-        int tint = options.getLeatherColor()
-            .or(options::getTintColor)
-            .orElse(overlay.defaultColor());
-
-        PixelBuffer base = engine.resolveTexture(overlay.baseTexture());
-        PixelBuffer dye = engine.resolveTexture(overlay.overlayTexture());
-        PixelBuffer composite = PixelBuffer.create(base.width(), base.height());
-        composite.blit(base, 0, 0);
-        composite.blitTinted(dye, 0, 0, tint, BlendMode.MULTIPLY);
-        return composite;
-    }
-
-    /**
-     * Composites a leather-armor item onto {@code buffer} by scaling the native-size composite
-     * produced by {@link #composeLeatherOverlay} up to {@link ItemOptions#getOutputSize()}.
-     */
-    static @NotNull PixelBuffer renderLeatherOverlay(
-        @NotNull RasterEngine engine,
-        @NotNull PixelBuffer buffer,
-        @NotNull Item.Overlay.Leather overlay,
-        @NotNull ItemOptions options
-    ) {
-        PixelBuffer composite = composeLeatherOverlay(engine, overlay, options);
-        int size = options.getOutputSize();
-        buffer.blitScaled(composite, 0, 0, size, size);
-        return buffer;
-    }
-
-    /**
-     * Builds a native-sized composite of a firework star: body untinted, center overlay tinted
-     * via {@link BlendMode#MULTIPLY}. Tint precedence is {@link ItemOptions#getFireworkColor()}
-     * → {@link ItemOptions#getTintColor()} → {@link Item.Overlay.Firework#defaultColor()}
-     * ({@code #808080}, a visible placeholder). Vanilla firework star colours come from NBT;
-     * callers resolve {@code Fireworks.Explosions[0].Colors[0]} and pass it as
-     * {@code fireworkColor}.
-     */
-    static @NotNull PixelBuffer composeFireworkStar(
-        @NotNull TextureEngine engine,
-        @NotNull Item.Overlay.Firework overlay,
-        @NotNull ItemOptions options
-    ) {
-        int tint = options.getFireworkColor()
-            .or(options::getTintColor)
-            .orElse(overlay.defaultColor());
-
-        PixelBuffer base = engine.resolveTexture(overlay.baseTexture());
-        PixelBuffer center = engine.resolveTexture(overlay.overlayTexture());
-        PixelBuffer composite = PixelBuffer.create(base.width(), base.height());
-        composite.blit(base, 0, 0);
-        composite.blitTinted(center, 0, 0, tint, BlendMode.MULTIPLY);
-        return composite;
-    }
-
-    /**
-     * Composites a firework star onto {@code buffer} by scaling the native-size composite
-     * produced by {@link #composeFireworkStar} up to {@link ItemOptions#getOutputSize()}.
-     */
-    static @NotNull PixelBuffer renderFireworkStar(
-        @NotNull RasterEngine engine,
-        @NotNull PixelBuffer buffer,
-        @NotNull Item.Overlay.Firework overlay,
-        @NotNull ItemOptions options
-    ) {
-        PixelBuffer composite = composeFireworkStar(engine, overlay, options);
-        int size = options.getOutputSize();
-        buffer.blitScaled(composite, 0, 0, size, size);
-        return buffer;
-    }
-
-    /**
-     * Builds a native-sized composite of a potion-shaped item: base untinted, overlay tinted
-     * via {@link BlendMode#MULTIPLY}. Tint precedence is {@link ItemOptions#getPotionColor()}
-     * → the first potion effect in
-     * {@link ItemContext#potionEffects()} resolved via
-     * {@link RendererContext#findPotionEffectColor(String)} → {@link ItemOptions#getTintColor()} →
-     * the water fallback ({@code #385DC6}).
-     */
-    static @NotNull PixelBuffer composePotionOverlay(
+    static void renderShield3D(
         @NotNull RendererContext context,
-        @NotNull TextureEngine engine,
-        @NotNull String baseTexture,
-        @NotNull String overlayTexture,
-        @NotNull ItemOptions options
-    ) {
-        int tint = options.getPotionColor()
-            .or(() -> options.getContext().potionEffects().stream()
-                .findFirst()
-                .flatMap(context::findPotionEffectColor))
-            .or(options::getTintColor)
-            .orElse(DEFAULT_POTION_ARGB);
-
-        PixelBuffer base = engine.resolveTexture(baseTexture);
-        PixelBuffer liquid = engine.resolveTexture(overlayTexture);
-        PixelBuffer composite = PixelBuffer.create(base.width(), base.height());
-        composite.blit(base, 0, 0);
-        composite.blitTinted(liquid, 0, 0, tint, BlendMode.MULTIPLY);
-        return composite;
-    }
-
-    /**
-     * Dispatches to the matching {@code compose*} helper for the given {@link Item.Overlay}
-     * kind, returning a native-sized composite suitable for the thin-Z-slab HELD_3D path.
-     * Mirrors the {@link Gui2D} overlay switch so 2D and 3D paths share the same composition
-     * semantics.
-     */
-    static @NotNull PixelBuffer composeOverlayTexture(
-        @NotNull RendererContext context,
-        @NotNull TextureEngine engine,
-        @NotNull Item.Overlay overlay,
-        @NotNull ItemOptions options
-    ) {
-        return switch (overlay) {
-            case Item.Overlay.Leather leather ->
-                composeLeatherOverlay(engine, leather, options);
-            case Item.Overlay.Potion potion ->
-                composePotionOverlay(context, engine, potion.baseTexture(), potion.overlayTexture(), options);
-            case Item.Overlay.TippedArrow tippedArrow ->
-                composePotionOverlay(context, engine, tippedArrow.baseTexture(), tippedArrow.overlayTexture(), options);
-            case Item.Overlay.Firework firework ->
-                composeFireworkStar(engine, firework, options);
-        };
-    }
-
-    /**
-     * Composites a potion-shaped item onto {@code buffer} by scaling the native-size composite
-     * produced by {@link #composePotionOverlay} up to {@link ItemOptions#getOutputSize()}.
-     */
-    static @NotNull PixelBuffer renderPotionOverlay(
-        @NotNull RendererContext context,
-        @NotNull RasterEngine engine,
         @NotNull PixelBuffer buffer,
-        @NotNull String baseTexture,
-        @NotNull String overlayTexture,
         @NotNull ItemOptions options
     ) {
-        PixelBuffer composite = composePotionOverlay(context, engine, baseTexture, overlayTexture, options);
-        int size = options.getOutputSize();
-        buffer.blitScaled(composite, 0, 0, size, size);
-        return buffer;
+        IsometricEngine engine = IsometricEngine.withGuiPose(context, SHIELD_GUI_ROTATION);
+        PixelBuffer texture = engine.resolveTexture(SHIELD_NOPATTERN_TEXTURE_ID);
+        ConcurrentList<VisibleTriangle> triangles = ShieldKit.buildShield3D(texture);
+        triangles = ShieldKit.relightShield(triangles, SHIELD_GUI_ROTATION);
+
+        Matrix4f modelTransform = Matrix4f.IDENTITY.translate(
+            SHIELD_ALIGN_OFFSET.x(), SHIELD_ALIGN_OFFSET.y(), SHIELD_ALIGN_OFFSET.z());
+        engine.rasterize(triangles, buffer, SHIELD_PERSPECTIVE, modelTransform);
+    }
+
+    /**
+     * Resolves the effective ARGB tint for {@code layerN} of an item. When the item carries a
+     * {@link LayerTint} for that layer (from its definition's {@code model.tints[]}), the colour
+     * resolves from the matching render-option override, else the JSON default:
+     * <ul>
+     * <li>{@link LayerTint.Dye} - {@link ItemOptions#getLeatherColor()} → {@link ItemOptions#getTintColor()} → default.</li>
+     * <li>{@link LayerTint.Potion} - {@link ItemOptions#getPotionColor()} → the first
+     * {@link ItemContext#potionEffects() potion effect}'s colour via
+     * {@link RendererContext#findPotionEffectColor(String)} → {@link ItemOptions#getTintColor()} → default.</li>
+     * <li>{@link LayerTint.Firework} - {@link ItemOptions#getFireworkColor()} → {@link ItemOptions#getTintColor()} → default.</li>
+     * <li>{@link LayerTint.Constant} - the fixed value.</li>
+     * </ul>
+     * When the item has no tint for the layer, falls back to the vanilla {@code item/generated}
+     * convention: the caller's {@link ItemOptions#getTintColor()} applies to the tintindex-0 slot
+     * ({@link #tintIndexForLayer(Item, int)}), every other layer renders untinted. Returns
+     * {@link ColorMath#WHITE} for an untinted layer.
+     */
+    static int resolveLayerTint(
+        @NotNull RendererContext context,
+        @NotNull Item item,
+        int layerIndex,
+        @NotNull ItemOptions options
+    ) {
+        List<LayerTint> tints = item.getTints();
+        if (layerIndex < tints.size()) {
+            return switch (tints.get(layerIndex)) {
+                case LayerTint.Dye dye ->
+                    options.getLeatherColor().or(options::getTintColor).orElse(dye.defaultColor());
+                case LayerTint.Potion potion ->
+                    options.getPotionColor()
+                        .or(() -> options.getContext().potionEffects().stream().findFirst().flatMap(context::findPotionEffectColor))
+                        .or(options::getTintColor).orElse(potion.defaultColor());
+                case LayerTint.Firework firework ->
+                    options.getFireworkColor().or(options::getTintColor).orElse(firework.defaultColor());
+                case LayerTint.Constant constant -> constant.argb();
+            };
+        }
+        int tint = options.getTintColor().orElse(ColorMath.WHITE);
+        return tint != ColorMath.WHITE && tintIndexForLayer(item, layerIndex) == 0 ? tint : ColorMath.WHITE;
+    }
+
+    /**
+     * Composites an item's {@code layerN} sprites into a native-resolution {@link PixelBuffer},
+     * multiplying each layer's {@link #resolveLayerTint resolved tint} in. Used by the HELD_3D
+     * flat-slab path so tinted items (leather armour, potions, firework stars) carry their colour
+     * onto the 3D slab the same way the GUI path tints them.
+     */
+    static @NotNull PixelBuffer composeTintedLayers(
+        @NotNull RendererContext context,
+        @NotNull ModelEngine engine,
+        @NotNull Item item,
+        @NotNull ItemOptions options
+    ) {
+        String layer0Ref = engine.resolveLayer0(item, options);
+        if (layer0Ref == null || layer0Ref.isBlank())
+            throw new RenderException("Item '%s' has no elements and no layer0 - nothing to render in Held3D path", item.getId().id());
+        PixelBuffer base = engine.resolveTexture(layer0Ref);
+        PixelBuffer composite = PixelBuffer.create(base.width(), base.height());
+
+        int layerIndex = 0;
+        while (true) {
+            String textureRef = layerIndex == 0 ? layer0Ref : item.getTextures().get(LAYER_TEXTURE_PREFIX + layerIndex);
+            if (textureRef == null || textureRef.isBlank()) break;
+            PixelBuffer layer = engine.resolveTexture(textureRef);
+            int color = resolveLayerTint(context, item, layerIndex, options);
+            // ColorMath.tint returns a multiplied copy (alpha preserved); blit composites it
+            // source-over so layer0 lands cleanly even when the composite is still empty.
+            PixelBuffer drawable = color != ColorMath.WHITE ? ColorMath.tint(layer, color) : layer;
+            composite.blit(drawable, 0, 0);
+            layerIndex++;
+        }
+        return composite;
     }
 
     /**
@@ -391,21 +374,23 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     }
 
     /**
-     * Renders the standard layered-sprite path for an item without an {@link Item.Overlay}. Each
-     * {@code layerN} texture is composited in order, with {@link ItemOptions#getTintColor()}
-     * applied only to layers whose {@link #tintIndexForLayer(Item, int) tintindex} is {@code 0} -
-     * the primary tintable slot by vanilla convention. Trim overlay textures are resolved via
+     * Renders the standard layered-sprite path for an item. Each {@code layerN} texture is
+     * composited in order, multiplying in the layer's {@link #resolveLayerTint resolved tint} -
+     * the item-definition {@link LayerTint} (leather dye, potion colour, firework colour) when
+     * present, otherwise the caller's {@link ItemOptions#getTintColor()} on the tintindex-0 slot.
+     * A tinted layer is multiplied at its native resolution then scaled up, so the tint covers the
+     * full icon rather than a corner. Trim overlay textures are resolved via
      * {@link TrimKit#resolveFromTextureRef} so the renderer doesn't depend on material-specific
      * PNGs being shipped in the pack.
      */
     static void renderStandardLayers(
+        @NotNull RendererContext context,
         @NotNull RasterEngine engine,
         @NotNull PixelBuffer buffer,
         @NotNull Item item,
         @NotNull ItemOptions options
     ) {
         int size = options.getOutputSize();
-        int tint = options.getTintColor().orElse(ColorMath.WHITE);
         int layerIndex = 0;
         while (true) {
             String layerKey = LAYER_TEXTURE_PREFIX + layerIndex;
@@ -422,12 +407,12 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                     .ifPresent(trim -> buffer.blitScaled(trim, 0, 0, size, size));
             } else {
                 PixelBuffer layer = engine.resolveTexture(textureRef);
-                int layerTintIndex = tintIndexForLayer(item, layerIndex);
-                if (tint != ColorMath.WHITE && layerTintIndex == 0) {
-                    buffer.blitTinted(layer, 0, 0, tint, BlendMode.MULTIPLY);
-                } else {
-                    buffer.blitScaled(layer, 0, 0, size, size);
-                }
+                int color = resolveLayerTint(context, item, layerIndex, options);
+                // ColorMath.tint multiplies each texel by the colour (preserving alpha) and returns
+                // a fresh buffer, then blitScaled composites it over the prior layers - unlike
+                // blitTinted, which blends against the destination and would blank an empty buffer.
+                PixelBuffer drawable = color != ColorMath.WHITE ? ColorMath.tint(layer, color) : layer;
+                buffer.blitScaled(drawable, 0, 0, size, size);
             }
             layerIndex++;
         }
@@ -435,9 +420,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
     /**
      * Flat 2D GUI icon renderer. Composes layered sprites ({@code layer0}, {@code layer1}, ...)
-     * with optional {@link ItemOptions#getTintColor() tint}, damage bar, stack count, and glint
-     * animation. Items carrying an {@link Item.Overlay} route through the matching per-kind
-     * helper instead of the standard layer loop.
+     * with per-layer {@link #resolveLayerTint tint}, damage bar, stack count, and glint animation.
+     * The shield routes through {@link #renderShield3D} and banners through
+     * {@link #renderBannerOrShield} instead of the standard layer loop.
      */
     @RequiredArgsConstructor
     public static final class Gui2D implements Renderer<ItemOptions> {
@@ -450,22 +435,12 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             RasterEngine engine = new RasterEngine(this.context);
             PixelBuffer buffer = engine.createBuffer(options.getOutputSize(), options.getOutputSize());
 
-            Optional<Item.Overlay> overlay = item.getOverlay();
-            if (overlay.isPresent()) {
-                switch (overlay.get()) {
-                    case Item.Overlay.Leather leather ->
-                        renderLeatherOverlay(engine, buffer, leather, options);
-                    case Item.Overlay.Potion potion ->
-                        renderPotionOverlay(this.context, engine, buffer, potion.baseTexture(), potion.overlayTexture(), options);
-                    case Item.Overlay.TippedArrow tippedArrow ->
-                        renderPotionOverlay(this.context, engine, buffer, tippedArrow.baseTexture(), tippedArrow.overlayTexture(), options);
-                    case Item.Overlay.Firework firework ->
-                        renderFireworkStar(engine, buffer, firework, options);
-                }
+            if (options.getItemId().equals(SHIELD_ITEM_ID)) {
+                renderShield3D(this.context, buffer, options);
             } else if (isBannerOrShield(options.getItemId())) {
                 renderBannerOrShield(engine, buffer, options.getItemId(), options);
             } else {
-                renderStandardLayers(engine, buffer, item, options);
+                renderStandardLayers(this.context, engine, buffer, item, options);
             }
 
             if (options.getTrimSlot().isPresent() && options.getTrimColor().isPresent())
@@ -478,7 +453,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             if (options.getContext().stackCount() > 1)
                 ItemStackKit.drawStackCount(buffer, options.getContext().stackCount(), MinecraftFont.REGULAR);
 
-            return engine.finaliseWithGlint(buffer, options.isEnchanted(), GlintKit.GlintOptions.itemDefault(options.getFramesPerSecond()));
+            boolean glinted = options.getGlintOverride().orElse(item.isAlwaysGlinted() || options.isEnchanted());
+            return engine.finaliseWithGlint(buffer, glinted,
+                options.isAnimateGlint(), GlintKit.GlintOptions.itemDefault(options.getFramesPerSecond()));
         }
 
     }
@@ -495,10 +472,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * the {@code minecraft:banner} block-entity model when it is registered, and shields fall
      * back to a thin slab using the composited shield texture.
      * <p>
-     * Overlay items (leather, potion, tipped arrow, firework) composite their base + tinted
-     * overlay into a native-size {@link PixelBuffer} via the shared {@code compose*} helpers
-     * and feed the result into the same thin-Z-slab path as plain flat sprites, so the held
-     * view reflects the correct tint without a separate 3D composition stage.
+     * Flat-sprite items composite their (tinted) layer stack into a native-size
+     * {@link PixelBuffer} via {@link ItemRenderer#composeTintedLayers} and feed the result into the
+     * thin-Z-slab path, so the held view reflects the same per-layer tint as the GUI icon.
      */
     @RequiredArgsConstructor
     public static final class Held3D implements Renderer<ItemOptions> {
@@ -514,15 +490,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             int tint = options.getTintColor().orElse(ColorMath.WHITE);
 
             ConcurrentList<VisibleTriangle> triangles;
-            if (item.getOverlay().isPresent()) {
-                PixelBuffer overlayTexture = composeOverlayTexture(this.context, engine, item.getOverlay().get(), options);
-                triangles = BlockGeometryKit.buildBoxTriangles(
-                    new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),
-                    new Vector3f(FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_Z),
-                    SixFaces.uniform(overlayTexture),
-                    ColorMath.WHITE
-                );
-            } else if (isBannerOrShield(options.getItemId())) {
+            if (isBannerOrShield(options.getItemId())) {
                 triangles = buildBannerOrShield3D(engine, options.getItemId(), options);
             } else if (!item.getModel().getElements().isEmpty()) {
                 // Element-based path - held block items and any custom item whose model JSON
@@ -531,29 +499,26 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 Map<String, PixelBuffer> faceTextures = loadFaceTextures(engine, item);
                 triangles = BlockGeometryKit.buildFromElements(item.getModel().getElements(), faceTextures, tint);
             } else {
-                // Flat sprite fallback - layer0 rendered as a thin Z-axis slab. Matches the
-                // previous behaviour for item/generated and item/handheld parented items.
-                // Degenerate cases (no elements AND no layer0) don't reach this path anymore
-                // now that tile-entity items are filtered out of {@code itemIndex} and the
-                // {@code shouldRedirectToBlockRender} bridge is gone - every id surviving to
-                // here has a layer0 by construction.
-                String layerRef = engine.resolveLayer0(item, options);
-                if (layerRef == null || layerRef.isBlank())
-                    throw new RenderException("Item '%s' has no elements and no layer0 - nothing to render in Held3D path", options.getItemId());
-
-                PixelBuffer texture = engine.resolveTexture(layerRef);
+                // Flat sprite fallback - composite the (tinted) layer stack into one texture and
+                // render it as a thin Z-axis slab. composeTintedLayers folds in each layer's
+                // LayerTint (leather dye, potion colour, firework colour) and the caller's
+                // tintColor, so the held view carries the same colour as the GUI icon. Degenerate
+                // cases (no elements AND no layer0) throw inside composeTintedLayers.
+                PixelBuffer texture = composeTintedLayers(this.context, engine, item, options);
                 triangles = BlockGeometryKit.buildBoxTriangles(
                     new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),
                     new Vector3f(FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_X, FLAT_ITEM_SLAB_MAX_Z),
                     SixFaces.uniform(texture),
-                    tint
+                    ColorMath.WHITE
                 );
             }
 
             Matrix4f displayTransform = resolveDisplayTransform(item, DISPLAY_SLOT_HELD_3D);
             engine.rasterize(triangles, buffer, PerspectiveParams.GUI_ITEM, displayTransform);
 
-            return engine.finaliseWithGlint(buffer, options.isEnchanted(), GlintKit.GlintOptions.itemDefault(options.getFramesPerSecond()));
+            boolean glinted = options.getGlintOverride().orElse(item.isAlwaysGlinted() || options.isEnchanted());
+            return engine.finaliseWithGlint(buffer, glinted,
+                options.isAnimateGlint(), GlintKit.GlintOptions.itemDefault(options.getFramesPerSecond()));
         }
 
         /**
@@ -567,18 +532,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             @NotNull ModelEngine engine,
             @NotNull Item item
         ) {
-            Map<String, PixelBuffer> result = new HashMap<>();
-            ConcurrentMap<String, String> variables = item.getModel().getTextures();
-            for (ModelElement element : item.getModel().getElements()) {
-                for (ModelFace face : element.getFaces().values()) {
-                    String ref = face.getTexture();
-                    if (ref.isBlank() || result.containsKey(ref)) continue;
-                    String resolvedId = TextureEngine.resolveTextureReference(ref, variables);
-                    if (resolvedId.startsWith("#")) continue;
-                    result.put(ref, engine.resolveTexture(resolvedId));
-                }
-            }
-            return result;
+            return TextureEngine.loadElementFaceTextures(
+                item.getModel().getElements(), item.getModel().getTextures(),
+                id -> Optional.of(engine.resolveTexture(id)));
         }
 
         /**
@@ -596,20 +552,20 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             ModelTransform transform = item.getModel().getDisplay().get(slot);
             if (transform == null) return Matrix4f.IDENTITY;
 
-            Matrix4f scale = Matrix4f.createScale(transform.getScaleX(), transform.getScaleY(), transform.getScaleZ());
             EulerRotation angles = transform.getRotation();
-            Matrix4f rotation = Quaternionf
-                .rotationXYZ(angles.pitchRadians(), angles.yawRadians(), angles.rollRadians())
-                .toMatrix4f();
             // Vanilla display transforms use sub-unit translation values in {@code /16} space;
             // apply them to the model vertex positions directly since our unit cube is already
-            // normalized.
-            Matrix4f translation = Matrix4f.createTranslation(
-                transform.getTranslationX() / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK,
-                transform.getTranslationY() / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK,
-                transform.getTranslationZ() / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK
-            );
-            return scale.multiply(rotation).multiply(translation);
+            // normalized. Composed via the fluent scale/rotate/translate path (bit-identical to
+            // vanilla's PoseStack; the createX().multiply(...) form drifts 1-4 ULPs per entry) -
+            // IDENTITY * S * R * T applies translation to the vertex first, then rotation, then scale.
+            return Matrix4f.IDENTITY
+                .scale(transform.getScaleX(), transform.getScaleY(), transform.getScaleZ())
+                .rotate(Quaternionf.rotationXYZ(angles.pitchRadians(), angles.yawRadians(), angles.rollRadians()))
+                .translate(
+                    transform.getTranslationX() / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK,
+                    transform.getTranslationY() / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK,
+                    transform.getTranslationZ() / BlockGeometryKit.VANILLA_PIXEL_UNITS_PER_BLOCK
+                );
         }
 
     }

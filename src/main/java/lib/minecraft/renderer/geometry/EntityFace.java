@@ -45,11 +45,11 @@ import java.util.Map;
  * normal direction:
  * <ul>
  * <li>side faces (NORTH/SOUTH/EAST/WEST) start at the {@code (minY, "front")} corner of the
- *     face (or its mirror for back-facing sides), then wind {@code front-top -&gt;
- *     back-top -&gt; back-bottom -&gt; front-bottom} in CCW order around the face;</li>
+ *     face (or its mirror for back-facing sides), then wind {@code front-top ->
+ *     back-top -> back-bottom -> front-bottom} in CCW order around the face;</li>
  * <li>UP starts at {@code (maxX, maxY, minZ)} and DOWN at {@code (maxX, minY, maxZ)},
  *     winding CCW from the outward-normal viewpoint. The atlas strip's UP polygon is
- *     V-inverted vs DOWN ({@code v_top &gt; v_bottom} in the polygon ctor's
+ *     V-inverted vs DOWN ({@code v_top > v_bottom} in the polygon ctor's
  *     {@code f3 / f5} args); the per-vertex UV slot permutation that compensates for this
  *     lives on each constant as {@link #polygonVertexSlots} and is applied by
  *     {@link #permuteToPolygonOrder}.</li>
@@ -268,7 +268,7 @@ public enum EntityFace {
      * For non-UP faces this is a cyclic shift placing TR first; UP additionally swaps TL/BL
      * with BR/TR slots to compensate for vanilla's inverted v-args on the UP polygon. Both the
      * renderer's {@code resolvePolygonUv} and the tooling's
-     * {@code ToolingBlockEntities.BlockModelConverter} call this so the per-face permutation
+     * {@code ToolingBlockModels.BlockModelConverter} call this so the per-face permutation
      * lives in exactly one place.
      *
      * @param tlBlBrTr the four UV corners in atlas-position order (top-left, bottom-left,

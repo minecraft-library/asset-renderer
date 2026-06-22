@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.tooling;
 
-import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
@@ -29,7 +28,7 @@ import java.util.Set;
 
 /**
  * Entry point invoked by the {@code entityModels} Gradle task. Produces the entity-side
- * counterpart of {@link ToolingBlockEntities} - a single ASM walk over the deobfuscated
+ * counterpart of {@link ToolingBlockModels} - a single ASM walk over the deobfuscated
  * client jar that emits two paired JSON resources the runtime pipeline reads:
  *
  * <ul>
@@ -75,7 +74,7 @@ import java.util.Set;
  * standard EntityRenderer flow (rendered through the avatar pipeline) and shows up only in
  * the diagnostics' {@code mobs_without_renderer_list}.
  *
- * @see ToolingBlockEntities
+ * @see ToolingBlockModels
  * @see lib.minecraft.renderer.EntityRenderer
  * @see lib.minecraft.renderer.kit.EntityGeometryKit
  */
@@ -217,7 +216,8 @@ public final class ToolingEntityModels {
                     null,
                     paramFloats,
                     0f,
-                    resolution.appliedMeshTransformerScale()
+                    resolution.appliedMeshTransformerScale(),
+                    null
                 ));
             }
             System.out.println("Resolved " + sources.size() + " primary LayerDefinition factories for geometry parsing");
@@ -265,7 +265,8 @@ public final class ToolingEntityModels {
                         null,
                         variantParamFloats,
                         0f,
-                        variantRes.appliedMeshTransformerScale()
+                        variantRes.appliedMeshTransformerScale(),
+                        null
                     ));
                 }
             }
@@ -322,7 +323,9 @@ public final class ToolingEntityModels {
                     res.texHeightOverride(),
                     null,
                     new float[8],
-                    res.defaultInflate()
+                    res.defaultInflate(),
+                    1f,
+                    null
                 ));
                 entityToResolution.put(EntityOverlayResolver.Result.entityKey(field), res);
             }
@@ -331,6 +334,22 @@ public final class ToolingEntityModels {
 
             ConcurrentMap<String, JsonObject> geometries = GeometryParser.parse(clientJar, sources, diagnostics);
             System.out.println("Parsed geometry for " + geometries.size() + " entities + overlays");
+
+            // Flag geometries whose model class requests vanilla's back-face-culling render type
+            // (RenderTypes.entityCutoutCull) instead of the no-cull default (entityCutout). The
+            // runtime kit reads this to cull zero-thickness plane cubes - a culled plane shows only
+            // its camera-facing side (the bat ear's pink inner face) rather than drawing both
+            // coincident sides and letting the LEQUAL depth tie-break pick the away (brown) side.
+            int cullGeometries = 0;
+            for (Source source : sources) {
+                JsonObject geometry = geometries.get(source.entityId());
+                if (geometry == null || geometry.has("cull")) continue;
+                if (EntityRenderTypeResolver.usesCullRenderType(context.classNodes(), source.classEntry())) {
+                    geometry.addProperty("cull", true);
+                    cullGeometries++;
+                }
+            }
+            System.out.println("Marked " + cullGeometries + " entityCutoutCull geometries (back-face culling)");
 
             Path geometryDiagOut = EntityDiagnosticsWriter.writeGeometryDiagnostic(
                 options, registry.totalMobsDiscovered(), records.size(), entityToResolution, geometries, diagnostics

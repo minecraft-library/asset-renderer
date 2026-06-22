@@ -2,12 +2,12 @@ package lib.minecraft.renderer.options;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.ImageFormat;
+import dev.simplified.image.Background;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.Renderer;
-import lib.minecraft.renderer.asset.binding.ArmorTrim;
-import lib.minecraft.renderer.asset.binding.BannerLayer;
-import lib.minecraft.renderer.asset.binding.DyeColor;
+import lib.minecraft.renderer.appearance.ArmorTrim;
+import lib.minecraft.renderer.appearance.BannerLayer;
+import lib.minecraft.renderer.appearance.DyeColor;
 import lib.minecraft.renderer.kit.BannerKit;
 import lib.minecraft.renderer.kit.GlintKit;
 import lib.minecraft.renderer.kit.TrimKit;
@@ -67,6 +67,15 @@ public class ItemOptions {
     private final boolean enchanted = false;
 
     /**
+     * Forces the glint on ({@code true}) or off ({@code false}), overriding the item's intrinsic
+     * {@code alwaysGlinted} flag and {@link #enchanted}. Empty leaves the default behaviour. Set to
+     * {@code false} to obtain the pre-glint base icon a glint-parity harness composites its own
+     * deterministic animated schedule onto.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Optional<Boolean> glintOverride = Optional.empty();
+
+    /**
      * Optional ARGB tint applied to colour-overlay items (leather armour, spawn eggs).
      */
     @lombok.Builder.Default
@@ -122,16 +131,18 @@ public class ItemOptions {
     private final @NotNull ConcurrentList<BannerLayer> bannerLayers = Concurrent.newList();
 
     /**
-     * Total number of frames produced when the renderer generates animated output.
-     */
-    @lombok.Builder.Default
-    private final int animationFrames = 60;
-
-    /**
      * Target frame rate for animated output; drives glint scroll speed and loop period.
      */
     @lombok.Builder.Default
     private final int framesPerSecond = 30;
+
+    /**
+     * Whether a glinted item (intrinsically-foil or {@link #enchanted}) emits the animated scrolling
+     * foil. When {@code false} the renderer composites a single static frame-0 glint instead - the
+     * atlas sets this so glinted tiles never promote the whole grid to an animated output.
+     */
+    @lombok.Builder.Default
+    private final boolean animateGlint = true;
 
     /**
      * Whether to render the vanilla-style durability bar when the item has taken damage.
@@ -146,22 +157,17 @@ public class ItemOptions {
     private final int outputSize = Renderer.DEFAULT_OUTPUT_SIZE;
 
     /**
-     * Additional texture pack ids to layer on top of vanilla
-     */
-    @lombok.Builder.Default
-    private final @NotNull ConcurrentList<String> texturePackIds = Concurrent.newList();
-
-    /**
-     * Output image format
-     */
-    @lombok.Builder.Default
-    private final @NotNull ImageFormat outputFormat = ImageFormat.PNG;
-
-    /**
      * The render-time item context used by CIT matching, the damage bar, and stack count overlay.
      */
     @lombok.Builder.Default
     private final @NotNull ItemContext context = ItemContext.EMPTY;
+
+    /**
+     * Background fill composited behind the finished render (solid colour or checkerboard).
+     * Defaults to {@link Background#TRANSPARENT}, a no-op that leaves the render's own alpha intact.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Background background = Background.TRANSPARENT;
 
     public @NotNull ItemOptionsBuilder mutate() {
         return this.toBuilder();

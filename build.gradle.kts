@@ -75,14 +75,14 @@ dependencies {
     // master-SNAPSHOT consumers of any single lib see a consistent transitive chain.
     api("com.github.simplified-dev:collections") { version { strictly("2f2aa58") } }
     api("com.github.simplified-dev:utils") { version { strictly("a932b44") } }
-    api("com.github.simplified-dev:image") { version { strictly("0e71835") } }
-    api("com.github.simplified-dev:gson-extras") { version { strictly("26278a3") } }
+    api("com.github.simplified-dev:image") { version { strictly("84134f2") } }
+    api("com.github.simplified-dev:gson-extras") { version { strictly("b68510e") } }
     api("com.github.simplified-dev:reflection") { version { strictly("c02511a") } }
-    api("com.github.simplified-dev:client") { version { strictly("47d3c2f") } }
+    api("com.github.simplified-dev:client") { version { strictly("64ae978") } }
 
     // Simplified API (extracted to github.com/simplified-api) - typed Feign contract for
     // Mojang's launcher / Piston / textures endpoints, owns all renderer HTTP via Pipeline.
-    api("com.github.simplified-api:mojang") { version { strictly("06c9e8e") } }
+    api("com.github.simplified-api:mojang") { version { strictly("73bd9e2") } }
 
     // Minecraft-Library (extracted to github.com/minecraft-library)
     // Owns lib.minecraft.text.**, lib.minecraft.text.font.**, and the
@@ -178,10 +178,17 @@ tasks {
         classpath = sourceSets["main"].runtimeClasspath
     }
 
-    register<JavaExec>("blockEntities") {
-        description = "Parses block entity model classes (chest, sign, bed, etc.) from the client jar via ASM and generates src/main/resources/lib/minecraft/renderer/block_entities.json."
+    register<JavaExec>("blockModels") {
+        description = "Parses block-entity model classes (chest, sign, bed, etc.) from the client jar via ASM and generates src/main/resources/lib/minecraft/renderer/block_models.json."
         group = "tooling"
-        mainClass.set("lib.minecraft.renderer.tooling.ToolingBlockEntities")
+        mainClass.set("lib.minecraft.renderer.tooling.ToolingBlockModels")
+        classpath = sourceSets["main"].runtimeClasspath
+    }
+
+    register<JavaExec>("blockDefaults") {
+        description = "Bytewalks registerDefaultState in the Blocks registry via ASM and rewrites src/main/resources/lib/minecraft/renderer/block_defaults.json (per-block default state key). Run on a Minecraft version bump."
+        group = "tooling"
+        mainClass.set("lib.minecraft.renderer.tooling.ToolingBlockDefaults")
         classpath = sourceSets["main"].runtimeClasspath
     }
 
@@ -196,6 +203,13 @@ tasks {
         description = "Parses MobEffects out of the cached client jar via ASM and rewrites src/main/resources/lib/minecraft/renderer/potion_colors.json. Run on a Minecraft version bump."
         group = "tooling"
         mainClass.set("lib.minecraft.renderer.tooling.ToolingPotionColors")
+        classpath = sourceSets["main"].runtimeClasspath
+    }
+
+    register<JavaExec>("glintItems") {
+        description = "Parses the Items registry out of the cached client jar via ASM and rewrites src/main/resources/lib/minecraft/renderer/glint_items.json (always-glinted item ids). Run on a Minecraft version bump."
+        group = "tooling"
+        mainClass.set("lib.minecraft.renderer.tooling.ToolingGlintItems")
         classpath = sourceSets["main"].runtimeClasspath
     }
 
@@ -221,6 +235,19 @@ tasks {
         val itemId = project.findProperty("itemId") as String?
         val renderSize = (project.findProperty("renderSize") as String?) ?: "256"
         args = if (itemId != null) listOf(itemId, renderSize) else listOf()
+    }
+
+    register<JavaExec>("playerRender") {
+        description = "Renders the full PlayerRenderer option matrix (scope x dimension, overlay/cape/aa/rotation/background, armor materials per slot, dyed leather, trims) to cache/visual/player-render/ as labelled contact sheets. -PrenderSize=256 -Psheets=core-matrix,toggles,... -Ppack[=<url>]"
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestPlayerRender")
+        classpath = sourceSets["test"].runtimeClasspath
+        val argv = mutableListOf<String>()
+        (project.findProperty("renderSize") as String?)?.let { argv.add("size=$it") }
+        (project.findProperty("sheets") as String?)?.let { argv.add("sheets=$it") }
+        if (project.hasProperty("pack")) argv.add("pack=" + ((project.findProperty("pack") as String?) ?: "defrosted"))
+        (project.findProperty("account") as String?)?.let { argv.add("account=$it") }
+        args = argv
     }
 
     register<JavaExec>("bedParity") {
@@ -270,6 +297,46 @@ tasks {
         // EntityGeometryKit.contributeFaceAlphaTight surfaces when the caller asks for it.
         systemProperties = System.getProperties().toMap()
             .filter { it.key.toString().startsWith("entity.") }
+            .mapKeys { it.key.toString() }
+    }
+
+    register<JavaExec>("blockParityVanilla") {
+        description = "Per-block parity report comparing Java pipeline vs vanilla-reference-harness ground truth. Output -> cache/visual/block-parity-vanilla/<block>/. Run :asset-renderer:renderVanillaReferences first if the cache is missing. -PblockId=minecraft:tnt"
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestBlockParityVanilla")
+        classpath = sourceSets["test"].runtimeClasspath
+        val blockId = project.findProperty("blockId") as String?
+        args = if (blockId != null) listOf(blockId) else listOf()
+        // Forward selected -D properties to the forked JVM: entity.* (per-pixel rasterizer trace,
+        // same pattern as entityParityVanilla) and snap.* (-Dsnap.grid=N sub-pixel coverage-grid
+        // override in ModelEngine, for empirical snap sweeps). CLI -D lands in the daemon's
+        // System.getProperties(); the prefix filter keeps gradle-internal properties out of the
+        // forked JVM.
+        systemProperties = System.getProperties().toMap()
+            .filter { val k = it.key.toString(); k.startsWith("entity.") || k.startsWith("snap.") }
+            .mapKeys { it.key.toString() }
+    }
+
+    register<JavaExec>("itemParityVanilla") {
+        description = "Per-item parity report comparing Java pipeline vs vanilla-reference-harness ground truth. Output -> cache/visual/item-parity-vanilla/<item>/. Run :asset-renderer:renderVanillaReferences first if the cache is missing. -PitemId=minecraft:diamond_sword"
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestItemParityVanilla")
+        classpath = sourceSets["test"].runtimeClasspath
+        val itemId = project.findProperty("itemId") as String?
+        args = if (itemId != null) listOf(itemId) else listOf()
+    }
+
+    register<JavaExec>("glintParityVanilla") {
+        description = "Animated enchantment-glint parity: renders the 7 always-foil GUI items (+ 4 worn leather-armor diagnostics) frame-by-frame against the harness glint references at cache/.../references/glint/. Writes per-frame diffs, contact sheets, GIFs, and a TSV to cache/visual/glint-parity-vanilla/. Run :asset-renderer:renderVanillaGlintReferences first. -PitemId=minecraft:nether_star"
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestGlintParityVanilla")
+        classpath = sourceSets["test"].runtimeClasspath
+        val itemId = project.findProperty("itemId") as String?
+        args = if (itemId != null) listOf(itemId) else listOf()
+        // Forward -Dglint.* to the forked JVM for empirical scale calibration of the offline
+        // glint (e.g. -Dglint.itemScale=1.0), mirroring blockRender3D's entity./snap. forwarding.
+        systemProperties = System.getProperties().toMap()
+            .filter { it.key.toString().startsWith("glint.") }
             .mapKeys { it.key.toString() }
     }
 
@@ -347,6 +414,37 @@ tasks {
         commandLine = baseArgs
         doFirst {
             println("renderVanillaReferences: writing to ${outputDir.asFile.absolutePath}")
+            outputDir.asFile.mkdirs()
+        }
+    }
+
+    // Glint-only variant: drives the harness with -PrefharnessGlintOnly=true so it renders ONLY the
+    // animated-glint references (7 GUI items + 4 worn leather-armor diagnostics) under
+    // references/glint/<id>/frame_NNN.png, skipping the ~5-minute full sweep. Then run glintParityVanilla.
+    //   ./gradlew :asset-renderer:renderVanillaGlintReferences [-PrefharnessTargets=minecraft:nether_star]
+    register<Exec>("renderVanillaGlintReferences") {
+        description = "Runs the sibling vanilla-reference-harness mod in glint-only mode, writing animated glint references to asset-renderer's vanilla cache (references/glint/). Then run glintParityVanilla."
+        group = "tooling"
+        workingDir = file("../vanilla-reference-harness")
+        val outputDir = layout.projectDirectory.dir("cache/asset-renderer/vanilla/26.1/references")
+        val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
+        val gradlewPath = file("../vanilla-reference-harness/${if (isWindows) "gradlew.bat" else "gradlew"}").absolutePath
+        val baseArgs = mutableListOf<String>()
+        if (isWindows) {
+            baseArgs.add("cmd")
+            baseArgs.add("/c")
+        }
+        baseArgs.add(gradlewPath)
+        baseArgs.add("runRenderReferences")
+        baseArgs.add("--no-daemon")
+        baseArgs.add("-PrefharnessOutputDir=${outputDir.asFile.absolutePath}")
+        baseArgs.add("-PrefharnessGlintOnly=true")
+        if (project.hasProperty("refharnessTargets")) {
+            baseArgs.add("-PrefharnessTargets=${project.property("refharnessTargets")}")
+        }
+        commandLine = baseArgs
+        doFirst {
+            println("renderVanillaGlintReferences: writing glint refs to ${outputDir.asFile.absolutePath}/glint")
             outputDir.asFile.mkdirs()
         }
     }

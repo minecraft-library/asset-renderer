@@ -9,8 +9,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelBufferPool;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.model.EntityModelData;
-import lib.minecraft.renderer.asset.model.ModelElement;
-import lib.minecraft.renderer.asset.model.ModelFace;
+import lib.minecraft.renderer.engine.GlintMask;
 import lib.minecraft.renderer.engine.IsometricEngine;
 import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.engine.RendererContext;
@@ -48,24 +47,6 @@ import java.util.Optional;
 public final class EntityRenderer implements Renderer<EntityOptions> {
 
     /**
-     * Texel resolution (image-pixels per Minecraft block-unit). Mirrors
-     * {@code HarnessConfig.PIXELS_PER_BLOCK} in the sibling vanilla-reference-harness so both
-     * pipelines render at the same screen scale. Override with {@code -Drefharness.pixelsPerBlock=N}.
-     * Vanilla model parts author cubes in entity-pixels (16 entity-pixels = 1 block); the
-     * canvas-pixels-per-entity-pixel ratio is therefore {@code PIXELS_PER_BLOCK / 16}.
-     */
-    private static final int PIXELS_PER_BLOCK = Integer.getInteger("refharness.pixelsPerBlock", 256);
-
-    /**
-     * Hard cap (pixels) on either side of the rendered canvas. Entities whose screen-space
-     * bounds × {@link #PIXELS_PER_BLOCK} would exceed this on the longer axis (ender_dragon,
-     * giant) are scaled down uniformly so the longer side equals the cap; the shorter side and
-     * the per-pixel scale shrink proportionally so the entity still fits within the canvas.
-     * Mirrors {@code HarnessConfig.MAX_CANVAS_SIZE}; override with {@code -Drefharness.maxCanvasSize=N}.
-     */
-    private static final int MAX_CANVAS_SIZE = Integer.getInteger("refharness.maxCanvasSize", 1024);
-
-    /**
      * Renderer context for texture resolution + isometric engine setup; not used for entity lookup.
      */
     private final @NotNull RendererContext context;
@@ -79,6 +60,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
     @Override
     public @NotNull ImageData render(@NotNull EntityOptions options) {
+        return options.getBackground().composite(renderEntity(options));
+    }
+
+    private @NotNull ImageData renderEntity(@NotNull EntityOptions options) {
         if (options.getEntityId().isEmpty())
             return RenderEngine.staticFrame(PixelBuffer.create(1, 1));
 
@@ -202,18 +187,23 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             int hiResH = fit.canvasH() * ssaa;
             try (PixelBufferPool.Lease lease = PixelBufferPool.acquire(hiResW, hiResH)) {
                 PixelBuffer hiResBuffer = lease.buffer();
-                engine.rasterize(triangles, hiResBuffer, PerspectiveParams.ISOMETRIC_BLOCK, effective);
+                // Record the glint mask at the hi-res raster size, then downsample so the foil is
+                // confined to the (glinted) armor rather than the whole entity silhouette.
+                GlintMask hiMask = enchanted ? new GlintMask(hiResW, hiResH) : null;
+                engine.rasterize(triangles, hiResBuffer, PerspectiveParams.ISOMETRIC_BLOCK, effective, hiMask);
                 if (options.isAntiAlias()) hiResBuffer.applyFxaa();
                 PixelBuffer output = PixelBuffer.create(fit.canvasW(), fit.canvasH());
                 output.blitScaled(hiResBuffer, 0, 0, fit.canvasW(), fit.canvasH());
-                return engine.finaliseWithGlint(output, enchanted, glintOptions);
+                GlintMask mask = hiMask == null ? null : hiMask.downsample(fit.canvasW(), fit.canvasH());
+                return engine.finaliseWithGlint(output, enchanted, glintOptions, mask);
             }
         }
 
         PixelBuffer buffer = PixelBuffer.create(fit.canvasW(), fit.canvasH());
-        engine.rasterize(triangles, buffer, PerspectiveParams.ISOMETRIC_BLOCK, effective);
+        GlintMask mask = enchanted ? new GlintMask(fit.canvasW(), fit.canvasH()) : null;
+        engine.rasterize(triangles, buffer, PerspectiveParams.ISOMETRIC_BLOCK, effective, mask);
         if (options.isAntiAlias()) buffer.applyFxaa();
-        return engine.finaliseWithGlint(buffer, enchanted, glintOptions);
+        return engine.finaliseWithGlint(buffer, enchanted, glintOptions, mask);
     }
 
     /**
@@ -256,18 +246,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // texture map, exactly mirroring {@code BlockRenderer.Isometric3D.buildFromBlockElements}.
         // Faces whose ref still resolves to a {@code #} after dereference (broken bindings) skip
         // texture loading; the kit treats them as no-texture faces.
-        ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
-        ConcurrentMap<String, String> variables = block.get().getModel().getTextures();
-        for (ModelElement element : block.get().getModel().getElements()) {
-            for (ModelFace face : element.getFaces().values()) {
-                String ref = face.getTexture();
-                if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
-                String resolvedId = TextureEngine.resolveTextureReference(ref, variables);
-                if (resolvedId.startsWith("#")) continue;
-                Optional<PixelBuffer> tex = this.context.resolveTexture(resolvedId);
-                tex.ifPresent(pixelBuffer -> faceTextures.put(ref, pixelBuffer));
-            }
-        }
+        ConcurrentMap<String, PixelBuffer> faceTextures = TextureEngine.loadElementFaceTextures(
+            block.get().getModel().getElements(), block.get().getModel().getTextures(),
+            this.context::resolveTexture);
         if (faceTextures.isEmpty()) return Concurrent.newList();
 
         ConcurrentList<VisibleTriangle> blockTris = BlockGeometryKit.buildFromElements(
@@ -285,28 +266,23 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // is built via the same {@code Quaternionf.rotationZYX} entry point vanilla uses.
         if (overlay.attachedBone() != null) {
             Vector3f pivot = EntityGeometryKit.resolveBonePivot(model, overlay.attachedBone());
-            Matrix4f tBone = Matrix4f.createTranslation(
-                pivot.x() / 16f, pivot.y() / 16f, pivot.z() / 16f);
-            blockUnitChain = blockUnitChain.multiply(tBone);
+            blockUnitChain = blockUnitChain.translate(pivot.x() / 16f, pivot.y() / 16f, pivot.z() / 16f);
             EntityModelData.Bone bone = model.getBones().get(overlay.attachedBone());
             if (bone != null) {
                 EulerRotation rot = bone.getRotation();
-                if (rot.pitch() != 0f || rot.yaw() != 0f || rot.roll() != 0f) {
-                    Matrix4f rotMat = Quaternionf
-                        .rotationZYX(rot.rollRadians(), rot.yawRadians(), rot.pitchRadians())
-                        .toMatrix4f();
-                    blockUnitChain = blockUnitChain.multiply(rotMat);
-                }
+                if (rot.pitch() != 0f || rot.yaw() != 0f || rot.roll() != 0f)
+                    blockUnitChain = blockUnitChain.rotate(
+                        Quaternionf.rotationZYX(rot.rollRadians(), rot.yawRadians(), rot.pitchRadians()));
             }
         }
 
         for (EntityModelLoader.TransformOp op : overlay.transforms()) {
-            Matrix4f opMat = switch (op) {
-                case EntityModelLoader.Translate t -> Matrix4f.createTranslation(t.x(), t.y(), t.z());
-                case EntityModelLoader.RotateY r -> Matrix4f.createRotationY((float) Math.toRadians(r.degrees()));
-                case EntityModelLoader.Scale s -> Matrix4f.createScale(s.x(), s.y(), s.z());
+            blockUnitChain = switch (op) {
+                case EntityModelLoader.Translate t -> blockUnitChain.translate(t.x(), t.y(), t.z());
+                case EntityModelLoader.RotateY r -> blockUnitChain.rotate(
+                    Quaternionf.rotationXYZ(0f, (float) Math.toRadians(r.degrees()), 0f));
+                case EntityModelLoader.Scale s -> blockUnitChain.scale(s.x(), s.y(), s.z());
             };
-            blockUnitChain = blockUnitChain.multiply(opMat);
         }
 
         // Vanilla expects block-model vertices in {@code [0, 1]} (corner-at-origin) since the
@@ -315,18 +291,16 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // {@code [-0.5, 0.5]} for inventory/atlas use, so add 0.5 on each axis to recover the
         // corner-at-origin convention before the chain applies. Appended last so that, in
         // column-vector composition, this op is rightmost and applies first to the input vertex.
-        Matrix4f uncenter = Matrix4f.createTranslation(0.5f, 0.5f, 0.5f);
-        blockUnitChain = blockUnitChain.multiply(uncenter);
+        blockUnitChain = blockUnitChain.translate(0.5f, 0.5f, 0.5f);
 
         // Convert block-unit positions to entity pixel-units (x16), then run the entity-fit
         // normalization to land in the rasterizer's working frame. Column-vector chain reads
         // right-to-left: blockUnitChain first, then blockToPixel, then entityFit.
-        Matrix4f blockToPixel = Matrix4f.createScale(16f, 16f, 16f);
-        Matrix4f finalMatrix = entityFit.multiply(blockToPixel).multiply(blockUnitChain);
+        Matrix4f finalMatrix = entityFit.scale(16f, 16f, 16f).multiply(blockUnitChain);
 
         ConcurrentList<VisibleTriangle> out = Concurrent.newList();
         for (VisibleTriangle tri : blockTris) {
-            Vector3f transformedNormal = Vector3f.normalize(Vector3f.transformNormal(tri.normal(), finalMatrix));
+            Vector3f transformedNormal = tri.normal().transformNormal(finalMatrix).normalize();
             // Re-shade with entity Lambertian lighting on the post-transform normal. The block kit
             // baked cardinal-bucket shading (Lighting.ITEMS_3D-style: 1.0/0.8/0.6/0.5), but vanilla
             // submits these mushroom/flower block models through the entity render type which dots
@@ -334,14 +308,24 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // bucketed. Sampling mooshroom mushroom red showed our 0.67-0.90 block-cardinal range
             // vs vanilla's 0.45-0.71 Lambertian range.
             float shading = RenderEngine.computeEntityInUiLighting(transformedNormal);
+            // Force back-face culling, matching vanilla's block render types (all bind GL culling)
+            // exactly as {@link BlockRenderer#relightForItems3d} does for plain block models. The
+            // {@code red_mushroom} cross model emits its two zero-thickness planes as paired
+            // north+south / west+east quads with opposite winding so vanilla's cull keeps exactly the
+            // camera-facing one. {@link BlockGeometryKit} marks those quads two-sided
+            // ({@code cullBackFaces=false}); carrying that flag through here drew BOTH coincident
+            // faces, and once the global depth tie-break became GL_LEQUAL (last-drawn-wins) the two
+            // faces - sampling horizontally-mirrored UVs - won per-pixel by sub-ULP depth noise,
+            // producing the mushroom-cap speckle / apparent UV flip. Culling drops the away-facing
+            // half so only the correctly-oriented face survives, no depth fight.
             out.add(new VisibleTriangle(
-                Vector3f.transform(tri.position0(), finalMatrix),
-                Vector3f.transform(tri.position1(), finalMatrix),
-                Vector3f.transform(tri.position2(), finalMatrix),
+                tri.position0().transform(finalMatrix),
+                tri.position1().transform(finalMatrix),
+                tri.position2().transform(finalMatrix),
                 tri.uv0(), tri.uv1(), tri.uv2(),
                 tri.texture(), tri.tintArgb(),
                 transformedNormal,
-                shading, tri.cullBackFaces(), tri.emissive()
+                shading, true, tri.emissive()
             ));
         }
         return out;
@@ -392,10 +376,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * <p>{@code UNION_BOUNDS} / {@code FAMILY_BOUNDS}: walk every cube's vertices through the
      * iso transform (matching {@link EntityGeometryKit#computeScreenBounds the harness's
      * per-cube measurement}), take the tight screen-space extent in entity-pixel-units, then
-     * size the canvas to {@code (extent * PIXELS_PER_BLOCK / 16)} pixels per axis plus
+     * size the canvas to {@code (extent * pixelsPerBlock / 16)} pixels per axis plus
      * {@code 2 * padding} on each axis, then uniformly shrink so the longer side stays at or
-     * below {@link #MAX_CANVAS_SIZE}. The two modes differ only in whether bounds union
-     * across the family.
+     * below {@link EntityOptions#getMaxCanvasSize() maxCanvasSize}. The two modes differ only in
+     * whether bounds union across the family.
      *
      * <p>{@code OUTPUT_SIZE}: canvas is fixed at {@code outputSize x outputSize}. Available
      * silhouette area is {@code outputSize - 2 * padding} on the longer axis; the entity is
@@ -432,11 +416,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             return new CanvasFit(outputSize, outputSize, ndcScale);
         }
 
-        float pxPerEntityUnit = PIXELS_PER_BLOCK / 16f;
+        int maxCanvasSize = Math.max(1, options.getMaxCanvasSize());
+        float pxPerEntityUnit = options.getPixelsPerBlock() / 16f;
         int rawW = Math.max(1, (int) Math.ceil(extentX * pxPerEntityUnit)) + 2 * padding;
         int rawH = Math.max(1, (int) Math.ceil(extentY * pxPerEntityUnit)) + 2 * padding;
         int longest = Math.max(rawW, rawH);
-        float shrink = longest > MAX_CANVAS_SIZE ? (float) MAX_CANVAS_SIZE / longest : 1f;
+        float shrink = longest > maxCanvasSize ? (float) maxCanvasSize / longest : 1f;
         int canvasW = Math.max(1, (int) Math.ceil(rawW * shrink));
         int canvasH = Math.max(1, (int) Math.ceil(rawH * shrink));
         float effectivePxPerEntityUnit = pxPerEntityUnit * shrink;
@@ -473,7 +458,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         float syMid = (screenBounds.minY() + screenBounds.maxY()) * 0.5f;
         float szMid = (screenBounds.minZ() + screenBounds.maxZ()) * 0.5f;
         Matrix4f isoInverse = composeIsoInverse(userRotation);
-        return Vector3f.transform(new Vector3f(sxMid, syMid, szMid), isoInverse);
+        return new Vector3f(sxMid, syMid, szMid).transform(isoInverse);
     }
 
     /**
@@ -585,25 +570,20 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     private static @NotNull Matrix4f composeIsoInverse(@NotNull EulerRotation userRotation) {
         EulerRotation iso = EulerRotation.STANDARD_ISO_ENTITY;
-        Matrix4f flipY = Matrix4f.createScale(1f, -1f, 1f);
-        Matrix4f scaleZneg = Matrix4f.createScale(1f, 1f, -1f);
-        Matrix4f isoRotationInverse = Quaternionf
-            .rotationZYX(0f, -iso.yawRadians(), -iso.pitchRadians())
-            .toMatrix4f();
-        Matrix4f modelRotationInverse = (userRotation.pitch() == 0f && userRotation.yaw() == 0f && userRotation.roll() == 0f)
-            ? Matrix4f.IDENTITY
-            : Quaternionf
-                .rotationZYX(-userRotation.rollRadians(), -userRotation.yawRadians(), -userRotation.pitchRadians())
-                .toMatrix4f();
+        boolean userIdentity = userRotation.pitch() == 0f && userRotation.yaw() == 0f && userRotation.roll() == 0f;
         // Forward = flipY * scaleZneg * isoRotation * scaleZneg * modelRotation * flipY (col-vec).
         // Inverse reverses the factor order and inverts each. flipY and scaleZneg are diagonal
-        // self-inverses; the two rotations invert via their Quaternionf conjugate above.
-        return flipY
-            .multiply(modelRotationInverse)
-            .multiply(scaleZneg)
-            .multiply(isoRotationInverse)
-            .multiply(scaleZneg)
-            .multiply(flipY);
+        // self-inverses; the two rotations invert via their Quaternionf conjugate. Built with the
+        // fluent path (bit-identical to vanilla's PoseStack; createX().multiply(...) drifts 1-4 ULPs).
+        Matrix4f m = Matrix4f.IDENTITY.scale(1f, -1f, 1f); // flipY
+        if (!userIdentity)
+            m = m.rotate(Quaternionf.rotationZYX(
+                -userRotation.rollRadians(), -userRotation.yawRadians(), -userRotation.pitchRadians()));
+        return m
+            .scale(1f, 1f, -1f) // scaleZneg
+            .rotate(Quaternionf.rotationZYX(0f, -iso.yawRadians(), -iso.pitchRadians())) // isoRotationInverse
+            .scale(1f, 1f, -1f) // scaleZneg
+            .scale(1f, -1f, 1f); // flipY
     }
 
     /**

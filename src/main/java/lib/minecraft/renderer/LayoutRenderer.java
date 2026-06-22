@@ -4,7 +4,6 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.kit.FrameMerger;
-import lib.minecraft.renderer.options.Layout;
 import lib.minecraft.renderer.options.LayoutOptions;
 import org.jetbrains.annotations.NotNull;
 import org.jspecify.annotations.NonNull;
@@ -19,9 +18,9 @@ import java.util.function.Supplier;
  * <ol>
  *   <li><b>Resolve</b> every {@code Supplier<ImageData>} child to its concrete image. Suppliers
  *       are invoked once and re-used for every layout / paint step that follows.</li>
- *   <li><b>Layout</b> child positions via the selected {@link Layout} strategy
- *       ({@link Layout.Row}, {@link Layout.Column}, {@link Layout.Grid}, {@link Layout.Stack},
- *       {@link Layout.Custom}). Measurement uses each child's first frame to decide canvas
+ *   <li><b>Layout</b> child positions via the selected {@link LayoutOptions.Layout} strategy
+ *       ({@link LayoutOptions.Layout.Row}, {@link LayoutOptions.Layout.Column}, {@link LayoutOptions.Layout.Grid}, {@link LayoutOptions.Layout.Stack},
+ *       {@link LayoutOptions.Layout.Custom}). Measurement uses each child's first frame to decide canvas
  *       dimensions and per-child {@code (x, y)} positions.</li>
  *   <li><b>Composite</b> via {@link FrameMerger#merge FrameMerger.merge}. If every child is
  *       static, the merger short-circuits to a single-frame composite; if any child is
@@ -30,7 +29,7 @@ import java.util.function.Supplier;
  * </ol>
  *
  * @see LayoutOptions
- * @see Layout
+ * @see LayoutOptions.Layout
  * @see FrameMerger
  */
 public final class LayoutRenderer implements Renderer<LayoutOptions> {
@@ -46,7 +45,7 @@ public final class LayoutRenderer implements Renderer<LayoutOptions> {
         for (int i = 0; i < resolved.size(); i++)
             layers.add(new FrameMerger.Layer(positions[i][0], positions[i][1], resolved.get(i)));
 
-        return FrameMerger.merge(layers, canvas[0], canvas[1], options.getFramesPerSecond(), options.getBackgroundArgb());
+        return FrameMerger.merge(layers, canvas[0], canvas[1], options.getFramesPerSecond(), options.getBackground());
     }
 
     private static @NotNull ConcurrentList<ImageData> resolveChildren(@NotNull ConcurrentList<Supplier<ImageData>> children) {
@@ -67,7 +66,7 @@ public final class LayoutRenderer implements Renderer<LayoutOptions> {
     }
 
     private static int @NonNull [][] layoutChildren(
-        @NotNull Layout layout,
+        @NotNull LayoutOptions.Layout layout,
         @NotNull ConcurrentList<ImageData> children,
         int @NotNull [] sizes
     ) {
@@ -76,7 +75,7 @@ public final class LayoutRenderer implements Renderer<LayoutOptions> {
         int padding = layout.padding();
 
         switch (layout) {
-            case Layout.Row row -> {
+            case LayoutOptions.Layout.Row row -> {
                 int maxHeight = 0;
                 for (int i = 0; i < count; i++)
                     maxHeight = Math.max(maxHeight, sizes[i * 2 + 1]);
@@ -90,7 +89,7 @@ public final class LayoutRenderer implements Renderer<LayoutOptions> {
                     x += w + padding;
                 }
             }
-            case Layout.Column col -> {
+            case LayoutOptions.Layout.Column col -> {
                 int maxWidth = 0;
                 for (int i = 0; i < count; i++)
                     maxWidth = Math.max(maxWidth, sizes[i * 2]);
@@ -104,7 +103,7 @@ public final class LayoutRenderer implements Renderer<LayoutOptions> {
                     y += h + padding;
                 }
             }
-            case Layout.Grid grid -> {
+            case LayoutOptions.Layout.Grid grid -> {
                 int columns = Math.max(1, grid.columns());
                 int cellW = 0;
                 int cellH = 0;
@@ -120,7 +119,7 @@ public final class LayoutRenderer implements Renderer<LayoutOptions> {
                     positions[i] = new int[]{ x, y };
                 }
             }
-            case Layout.Stack stack -> {
+            case LayoutOptions.Layout.Stack stack -> {
                 int maxW = 0;
                 int maxH = 0;
                 for (int i = 0; i < count; i++) {
@@ -133,10 +132,10 @@ public final class LayoutRenderer implements Renderer<LayoutOptions> {
                     positions[i] = new int[]{ x, y };
                 }
             }
-            case Layout.Custom custom -> {
+            case LayoutOptions.Layout.Custom custom -> {
                 for (int i = 0; i < count; i++) {
                     if (i < custom.positions().size()) {
-                        Layout.Custom.Position pos = custom.positions().get(i);
+                        LayoutOptions.Layout.Custom.Position pos = custom.positions().get(i);
                         positions[i] = new int[]{ pos.x() + padding, pos.y() + padding };
                     } else {
                         positions[i] = new int[]{ padding, padding };
@@ -147,7 +146,7 @@ public final class LayoutRenderer implements Renderer<LayoutOptions> {
         return positions;
     }
 
-    private static int alignOffset(int slack, @NotNull Layout.Alignment alignment) {
+    private static int alignOffset(int slack, @NotNull LayoutOptions.Layout.Alignment alignment) {
         return switch (alignment) {
             case START -> 0;
             case CENTER -> slack / 2;

@@ -1,7 +1,8 @@
 package lib.minecraft.renderer.options;
 
+import dev.simplified.image.Background;
 import lib.minecraft.renderer.Renderer;
-import lib.minecraft.renderer.asset.binding.ArmorPiece;
+import lib.minecraft.renderer.appearance.ArmorPiece;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -103,6 +104,25 @@ public class EntityOptions {
     private final int padding = 0;
 
     /**
+     * Texel resolution in image-pixels per Minecraft block-unit, consumed by the two
+     * {@code BOUNDS} {@link FitMode}s to size the canvas (the per-axis ratio is
+     * {@code pixelsPerBlock / 16} since vanilla authors cubes in entity-pixels). Ignored by
+     * {@link FitMode#OUTPUT_SIZE}. Defaults to the {@code -Drefharness.pixelsPerBlock} system
+     * property, or {@code 256} when unset, matching the vanilla-reference-harness scale.
+     */
+    @lombok.Builder.Default
+    private final int pixelsPerBlock = Integer.getInteger("refharness.pixelsPerBlock", 256);
+
+    /**
+     * Hard cap in pixels on the longer canvas axis for the two {@code BOUNDS} {@link FitMode}s.
+     * An entity whose bounds would exceed this (ender_dragon, giant) is scaled down uniformly so
+     * the longer side equals the cap. Ignored by {@link FitMode#OUTPUT_SIZE}. Defaults to the
+     * {@code -Drefharness.maxCanvasSize} system property, or {@code 1024} when unset.
+     */
+    @lombok.Builder.Default
+    private final int maxCanvasSize = Integer.getInteger("refharness.maxCanvasSize", 1024);
+
+    /**
      * Model rotation applied before the camera transform, in degrees.
      */
     @lombok.Builder.Default
@@ -126,6 +146,13 @@ public class EntityOptions {
      */
     @lombok.Builder.Default
     private final boolean antiAlias = false;
+
+    /**
+     * Background fill composited behind the finished render (solid colour or checkerboard).
+     * Defaults to {@link Background#TRANSPARENT}, a no-op that leaves the render's own alpha intact.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Background background = Background.TRANSPARENT;
 
     public @NotNull EntityOptionsBuilder mutate() {
         return this.toBuilder();

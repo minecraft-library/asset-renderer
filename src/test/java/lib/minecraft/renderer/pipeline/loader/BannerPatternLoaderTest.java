@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.pipeline.loader;
 
 import dev.simplified.collection.ConcurrentMap;
-import lib.minecraft.renderer.asset.binding.BannerPattern;
+import lib.minecraft.renderer.asset.BannerPattern;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

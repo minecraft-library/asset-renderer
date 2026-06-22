@@ -3,7 +3,8 @@ package lib.minecraft.renderer.tooling.blockentity;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import lib.minecraft.renderer.tooling.ToolingBlockEntities;
+import dev.simplified.gson.GsonSettings;
+import lib.minecraft.renderer.tooling.ToolingBlockModels;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.DisplayName;
@@ -32,8 +33,8 @@ import static org.hamcrest.Matchers.*;
  * {@code createGroundTransformation}. The shared {@code SkullBlockRenderer} factory
  * produces {@code [8, 0, 8, 180, 0, 0]} for every skull variant; the dragon's
  * {@code tz=1.25} is recovered post-decomposition by
- * {@code ToolingBlockEntities.recenterInventoryTransformsByBbox}, a geometry-aware bbox
- * pass run at generation time by {@link ToolingBlockEntities}.
+ * {@code ToolingBlockModels.recenterInventoryTransformsByBbox}, a geometry-aware bbox
+ * pass run at generation time by {@link ToolingBlockModels}.
  */
 @DisplayName("InventoryTransformDecomposer parity")
 @Tag("slow")
@@ -41,11 +42,12 @@ class InventoryTransformDecomposerParityTest {
 
     private static final Path JAR = Path.of("cache/asset-renderer/vanilla/26.1/client.jar");
     private static final Path BASELINE = Path.of("src/test/resources/lib/minecraft/renderer/baseline/inventory_transforms.json");
+    private static final Gson GSON = GsonSettings.defaults().create();
 
     /**
      * Entity id to renderer internal name. The decomposer's policy table names the factory
      * method for each renderer - this parity map names the renderer class per entity id. Must
-     * stay in sync with {@link ToolingBlockEntities}'s
+     * stay in sync with {@link ToolingBlockModels}'s
      * {@code mapEntityIdToRenderer}.
      */
     private static @NotNull Map<String, String> entityIdToRenderer() {
@@ -75,7 +77,7 @@ class InventoryTransformDecomposerParityTest {
         try (ZipFile zip = new ZipFile(JAR.toFile())) {
             Diagnostics diag = new Diagnostics();
             Map<String, float[]> actual = InventoryTransformDecomposer.decomposeAll(zip, entityIdToRenderer(), diag);
-            JsonObject expectedJson = new Gson().fromJson(Files.readString(BASELINE), JsonObject.class);
+            JsonObject expectedJson = GSON.fromJson(Files.readString(BASELINE), JsonObject.class);
 
             int decomposed = 0;
             for (Map.Entry<String, String> e : entityIdToRenderer().entrySet()) {
@@ -84,7 +86,7 @@ class InventoryTransformDecomposerParityTest {
                 if ("minecraft:skull_dragon_head".equals(id)) {
                     // Dragon head: decomposer must produce the shared skull tuple
                     // [8, 0, 8, 180, 0, 0]; the baseline's tz=1.25 is recovered post-decomposition
-                    // by ToolingBlockEntities.recenterInventoryTransformsByBbox.
+                    // by ToolingBlockModels.recenterInventoryTransformsByBbox.
                     assertThat("skull_dragon_head: decomposer returns shared skull shape", tuple, notNullValue());
                     assertTuple(id, tuple, new float[]{ 8f, 0f, 8f, 180f, 0f, 0f });
                     decomposed++;

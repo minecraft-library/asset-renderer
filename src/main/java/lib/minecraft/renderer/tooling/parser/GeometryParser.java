@@ -58,7 +58,7 @@ import java.util.zip.ZipFile;
 /**
  * Shared ASM bytecode walker for vanilla {@code LayerDefinition.create / CubeListBuilder /
  * PartPose / addOrReplaceChild} geometry. Consumed by both the block-entity tooling
- * ({@link lib.minecraft.renderer.tooling.ToolingBlockEntities}) and the entity-models
+ * ({@link lib.minecraft.renderer.tooling.ToolingBlockModels}) and the entity-models
  * tooling ({@link lib.minecraft.renderer.tooling.ToolingEntityModels}) since the bytecode
  * shape is identical for both - the only difference is the
  * {@link lib.minecraft.renderer.tooling.blockentity.Source} list each caller supplies (real
@@ -208,6 +208,15 @@ public final class GeometryParser {
         // model's own {@code createBodyLayer}. Folds with inline {@code MeshTransformer.scaling}
         // captures during the walk so both layers compose correctly.
         state.meshTransformerScale = source.appliedMeshTransformerScale();
+        // Bind an object-reference parameter to a concrete enum constant so the parser can
+        // follow {@code if (attachment == Attachment.X)} branches - splits
+        // {@code createHangingSignLayer(Attachment)} into one mesh per attachment.
+        Source.RefParam refParam = source.refParam();
+        if (refParam != null) {
+            state.refParamSlot = refParam.slot();
+            state.refParamOwner = refParam.ownerInternal();
+            state.refParamValue = refParam.value();
+        }
         state.currentSource = source;
         state.diagnostics = diagnostics;
         walkInstructions(instructions, state, zip);
@@ -700,7 +709,26 @@ public final class GeometryParser {
                 case Opcodes.IF_ACMPEQ, Opcodes.IF_ACMPNE,
                      Opcodes.IFNULL, Opcodes.IFNONNULL -> {
                     // Object-reference comparisons. Object refs aren't tracked on
-                    // numStack, so nothing to pop here.
+                    // numStack. When an enum-reference parameter is bound (sign-hanging
+                    // attachment split), the {@code aload <slot>; getstatic <Enum>.<C>;
+                    // if_acmp*} triplet pushed a sentinel + the constant name onto
+                    // {@link ParseState#refStack}; pop both and evaluate the comparison so the
+                    // parser follows the correct attachment branch.
+                    if (state.refParamOwner != null
+                        && (opcode == Opcodes.IF_ACMPEQ || opcode == Opcodes.IF_ACMPNE)
+                        && state.refStack.size() >= 2) {
+                        String b = state.refStack.removeLast();
+                        String a = state.refStack.removeLast();
+                        String constant = ParseState.REF_PARAM_SENTINEL.equals(a) ? b
+                            : ParseState.REF_PARAM_SENTINEL.equals(b) ? a : null;
+                        boolean sentinelSeen = ParseState.REF_PARAM_SENTINEL.equals(a) || ParseState.REF_PARAM_SENTINEL.equals(b);
+                        if (sentinelSeen && constant != null) {
+                            boolean equal = constant.equals(state.refParamValue);
+                            boolean takeJump = opcode == Opcodes.IF_ACMPEQ ? equal : !equal;
+                            if (takeJump && isForwardJump(instructions, node, jumpInsn.label))
+                                return jumpInsn.label;
+                        }
+                    }
                 }
                 default -> { /* not a jump opcode we model */ }
             }
@@ -1067,6 +1095,10 @@ public final class GeometryParser {
 
         switch (node) {
             case FieldInsnNode fieldInsn when opcode == Opcodes.GETSTATIC -> {
+                // Enum-reference attachment split: a constant of the bound enum class pushes its
+                // field name so the upcoming {@code if_acmp*} can compare against the bound value.
+                if (state.refParamOwner != null && fieldInsn.owner.equals(state.refParamOwner))
+                    state.refStack.add(fieldInsn.name);
                 if (fieldInsn.owner.equals(VanillaSourceClasses.PART_POSE) && fieldInsn.name.equals("ZERO")) {
                     state.pendingPivot = new float[]{ 0, 0, 0 };
                     state.pendingRotation = new float[]{ 0, 0, 0 };
@@ -1184,6 +1216,10 @@ public final class GeometryParser {
                 }
             }
             case VarInsnNode varInsn when opcode == Opcodes.ALOAD -> {
+                // Enum-reference attachment split: loading the bound parameter slot pushes the
+                // sentinel so the upcoming {@code getstatic <Enum>.<C>; if_acmp*} resolves.
+                if (state.refParamOwner != null && varInsn.var == state.refParamSlot)
+                    state.refStack.add(ParseState.REF_PARAM_SENTINEL);
                 Float deformationInflate = state.cubeDeformationSlots.get(varInsn.var);
                 if (deformationInflate != null)
                     state.pendingInflate = deformationInflate;
@@ -1955,7 +1991,15 @@ public final class GeometryParser {
             }
             return;
         }
-        if (AsmKit.INIT.equals(methodInsn.name) && state.paramFloatValues != null) {
+        // Inline {@code new CubeDeformation(F)} / {@code (FFF)} - pop the inflate literal(s)
+        // unconditionally (NOT gated on the Java pipeline). The block-entity (legacy) pipeline
+        // runs with {@code paramFloatValues == null}; gating the pop there left the inflate float
+        // on numStack, corrupting the following addBox's coordinate pops. copper_golem_statue is
+        // the first block-entity model to construct a CubeDeformation inline (head cube + the two
+        // antenna cubes use {@code new CubeDeformation(0.015F)} / {@code (-0.015F)}); before it,
+        // block-entity models only referenced {@code CubeDeformation.NONE}. emitCube applies
+        // pendingInflate in both pipelines, so the inflate is now also baked into those cubes.
+        if (AsmKit.INIT.equals(methodInsn.name)) {
             if (methodInsn.desc.startsWith("(FFF")) {
                 requireStack(state, 3, "CubeDeformation.<init>(FFF)");
                 float dz = popFloatWithDiagnostics(state, "CubeDeformation.<init>(FFF) z");
@@ -2146,6 +2190,13 @@ public final class GeometryParser {
          */
         private static final int NUM_STACK_CAPACITY = 16;
 
+        /**
+         * Marker pushed onto {@link #refStack} when the bound reference parameter is loaded. A
+         * sentinel distinct from any enum constant field name so the {@code IF_ACMP*} evaluator
+         * can tell the parameter side from the constant side of the comparison.
+         */
+        private static final @NotNull String REF_PARAM_SENTINEL = " REF_PARAM";
+
         final @NotNull AsmKit.LiteralStack numStack = new AsmKit.LiteralStack(NUM_STACK_CAPACITY);
 
         /**
@@ -2170,6 +2221,27 @@ public final class GeometryParser {
          * Pushed by ILOAD when the slot maps to a paramIntValues entry; consumed by IFEQ / IFNE.
          */
         final @NotNull ConcurrentList<Integer> branchStack = Concurrent.newList();
+
+        /**
+         * Enum-reference branch evaluation (set from {@link Source#refParam()}). When
+         * {@link #refParamOwner} is non-null, {@code ALOAD <refParamSlot>} pushes the
+         * {@link #REF_PARAM_SENTINEL} marker onto {@link #refStack}, {@code GETSTATIC
+         * <refParamOwner>.<name>} pushes the constant field name, and {@code IF_ACMPEQ} /
+         * {@code IF_ACMPNE} compares the bound {@link #refParamValue} against the constant to
+         * follow the branch. Used to split {@code createHangingSignLayer(Attachment)} per
+         * attachment without hardcoding the mesh.
+         */
+        @Nullable String refParamOwner;
+        @Nullable String refParamValue;
+        int refParamSlot = -1;
+
+        /**
+         * Object-reference branch stack for {@link #refParamOwner} evaluation. Holds either
+         * {@link #REF_PARAM_SENTINEL} (the bound attachment parameter) or an enum constant field
+         * name pushed by {@code GETSTATIC <refParamOwner>}. Each {@code aload;getstatic;if_acmp}
+         * triplet pushes two entries and pops them in the comparison, keeping the stack balanced.
+         */
+        final @NotNull ConcurrentList<String> refStack = Concurrent.newList();
 
         /**
          * Most recent ldc String - tracks both bone names and inner cube names.

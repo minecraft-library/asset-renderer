@@ -11,25 +11,23 @@ import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelBufferPool;
+import lib.minecraft.renderer.appearance.Biome;
 import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.asset.model.BlockModelData;
-import lib.minecraft.renderer.asset.model.ModelElement;
-import lib.minecraft.renderer.asset.model.ModelFace;
-import lib.minecraft.renderer.asset.model.ModelTransform;
+import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.engine.IsometricEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.TextureEngine;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.geometry.Biome;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.kit.BlockGeometryKit;
 import lib.minecraft.renderer.options.BlockOptions;
-import lib.minecraft.renderer.pipeline.loader.BlockEntityLoader;
+import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.tensor.Matrix4f;
+import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -37,6 +35,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Renders a {@link Block} as either a full 3D isometric tile or a single flat face by
@@ -45,11 +44,11 @@ import java.util.Map;
  * Each sub-renderer is a {@code public static final} inner class implementing
  * {@link Renderer Renderer&lt;BlockOptions&gt;}:
  * <ul>
- * <li>{@link Isometric3D} uses an {@link IsometricEngine} whose camera transform is the
- * block's own {@code display.gui} rotation (via {@link IsometricEngine#withGuiPose}),
- * matching vanilla's {@code PoseStack.mulPose(Quaternionf.rotationXYZ(gui.rotation))}
- * exactly so stairs, slabs, fence gates, and other blocks that override the standard
- * {@code [30, 225, 0]} pose render vanilla-accurate without any yaw-delta fixup.</li>
+ * <li>{@link Isometric3D} uses an {@link IsometricEngine} fixed to the standard
+ * {@code [30, 225, 0]} block-icon pose (via {@link IsometricEngine#forBlockIcon}). The
+ * vanilla-reference harness renders every block at this uniform iso pose and ignores each
+ * model's authored {@code display.gui} (stairs/slabs/fence gates ship {@code [30, 135, 0]}),
+ * so per-state orientation comes from the baked blockstate variant rotation, not the camera.</li>
  * <li>{@link BlockFace2D} delegates to {@link RasterEngine} for single-face output.</li>
  * </ul>
  * Shared block lookup and biome tint resolution live as package-private static helpers on this
@@ -69,10 +68,11 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
     @Override
     public @NotNull ImageData render(@NotNull BlockOptions options) {
-        return switch (options.getType()) {
+        ImageData rendered = switch (options.getType()) {
             case ISOMETRIC_3D -> this.isometric3D.render(options);
             case BLOCK_FACE_2D -> this.blockFace2D.render(options);
         };
+        return options.getBackground().composite(rendered);
     }
 
     /**
@@ -128,11 +128,18 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         @Override
         public @NotNull ImageData render(@NotNull BlockOptions options) {
             Block block = requireBlock(this.context, options.getBlockId());
-            // The block's own display.gui rotation (stairs use [30, 135, 0] instead of the
-            // default [30, 225, 0], etc.) lives in the engine's camera transform; the user's
-            // pitch/yaw/roll go through the standard rasterize path. This matches vanilla's
-            // PoseStack.mulPose(Quaternionf.rotationXYZ(gui.rotation)) exactly.
-            IsometricEngine engine = engineForBlockIcon(this.context, block);
+            // Every block renders at the standard [30, 225, 0] iso pose - NOT the model's own
+            // authored display.gui. The vanilla-reference harness deliberately ignores each
+            // model's display.gui and hardcodes BLOCK_GUI_ROTATION = rotationXYZ(30, 225, 0) for
+            // both its plain-block (BlockFrameRenderer) and entity-block (BlockEntityFrameRenderer)
+            // paths, so a uniform iso pose is the ground truth. Reading the model's display.gui
+            // mirrored every y=90/270 oriented block (stairs/slabs/fence-gates ship [30, 135, 0],
+            // the reflection of 225 about yaw=180): the stair step faced the opposite horizontal
+            // side from vanilla. The blockstate variant rotation (baked into the harness's
+            // BlockStateModel quads, applied here via buildVariantRotation) supplies the real
+            // per-state orientation; the camera pose stays fixed.
+            EulerRotation guiRotation = EulerRotation.STANDARD_ISO_BLOCK;
+            IsometricEngine engine = IsometricEngine.forBlockIcon(this.context);
 
             // Block-entity mappings may supply a per-entry tint that overrides the block's
             // biome / constant tint. Used for banners: vanilla resolves DyeColor via
@@ -150,27 +157,60 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             int tint = entityTinted
                 ? be.tintArgb()
                 : resolveBlockTint(this.context, block, options);
-            // When the block's tint comes from a {@link Block.Entity} (banner dye colour), only
-            // faces carrying {@code "tintindex": 0} should receive the dye - untinted faces
-            // (banner pole + bar) stay wood-brown via {@link ColorMath#WHITE}. Biome-tinted
-            // and untinted blocks keep uniform tinting (both slots equal) so grass_block and
-            // friends render unchanged.
-            int untintedTint = entityTinted ? ColorMath.WHITE : tint;
+            // Only faces carrying a {@code "tintindex"} (>= 0) receive the colour, exactly as
+            // vanilla tints; faces with {@code tintindex = -1} render at their raw texture colour.
+            // This holds for both the banner dye ({@link Block.Entity} tint - pole + bar stay
+            // wood-brown) and biome tints: grass_block's {@code #side} dirt faces are tintindex -1
+            // and must stay brown while only its {@code #top} + {@code #overlay} (tintindex 0) go
+            // green. Leaves / grass / cross plants carry tintindex 0 on every face, so they tint
+            // uniformly regardless.
+            int untintedTint = ColorMath.WHITE;
+
+            // Fall back to the block's tooling-derived default blockstate key when the caller
+            // supplies no explicit variant, so blocks with per-state models
+            // ({@code sweet_berry_bush}, doors, {@code furnace}, glazed terracotta, crops) render
+            // their canonical default rather than whichever model registered first. Property-less
+            // blocks have an empty default key, which resolves to the raw model pose. This replaces
+            // the harness {@code .variant} sidecar the parity test used to consume.
+            String effectiveVariant = options.getVariant().isEmpty() ? block.getDefaultStateKey() : options.getVariant();
 
             ConcurrentList<VisibleTriangle> triangles;
 
             if (block.getMultipart().isPresent()) {
-                triangles = assembleMultipart(block.getMultipart().get(), options, tint, untintedTint);
+                triangles = assembleMultipart(block.getMultipart().get(), effectiveVariant, tint, untintedTint);
             } else {
-                triangles = buildFromBlockElements(block, tint, untintedTint);
-
-                // Apply blockstate variant rotation (x/y) to the geometry. When the caller
-                // didn't specify a variant we intentionally skip variant resolution so the
-                // block renders in its raw model pose - matching vanilla inventory, which
-                // consults the item model + display.gui transform and never the blockstate.
-                // Callers that want a specific orientation pass {@code "facing=east,..."}
-                // explicitly on {@link BlockOptions#getVariant()}.
-                Block.Variant variant = resolveVariant(block, options.getVariant());
+                // Resolve the blockstate variant BEFORE building geometry so its model id can
+                // override {@link Block#getModel()}. Blocks like {@code sweet_berry_bush} have
+                // per-stage models ({@code sweet_berry_bush_stage0..3}) keyed off the {@code age}
+                // property; without this hop, {@code block.getModel()} returns whichever stage
+                // happened to register first (effectively non-deterministic for blockstate-only
+                // ids), producing a mature-bush render for an {@code age=0} request. The variant
+                // key is the caller's when supplied, otherwise the block's default state key
+                // (see {@code effectiveVariant} above); only property-less blocks fall through to
+                // {@code block.getModel()}'s raw pose.
+                //
+                // {@link Block.Source#TILE_ENTITY} blocks (chests, banners, beds, skulls, ...)
+                // are an exception: their variant's modelId points to an empty template (e.g.
+                // {@code block/skull}, {@code block/banner}) and the geometry-bearing model is
+                // the BE-derived one already attached as {@link Block#getModel()}. For these
+                // blocks we keep the BE model and only let the variant carry rotation. The
+                // model lookup is also skipped when the resolved model would be element-less,
+                // which guards against pack-level surprises for non-TILE_ENTITY blocks too.
+                Block.Variant variant = resolveVariant(block, effectiveVariant);
+                ModelData modelToUse = block.getModel();
+                // Use the resolved variant's geometry whenever it carries real elements. For plain
+                // blocks this picks the per-state model (sweet_berry_bush age stages, doors). For
+                // {@link Block.Source#TILE_ENTITY} blocks the pack variant points at an empty
+                // particle-only template (so this falls through to the BE model), but a
+                // block-entity may inject a geometry-bearing variant for a state its mesh varies on
+                // (the ceiling hanging sign's attached=true straight-chain mesh) - the non-empty
+                // check keeps the empty pack variants from clobbering the default BE model.
+                if (variant != null) {
+                    ModelData variantModel = variant.model();
+                    if (!variantModel.getElements().isEmpty())
+                        modelToUse = variantModel;
+                }
+                triangles = buildFromBlockElements(modelToUse, variant, tint, untintedTint);
                 if (variant != null && variant.hasRotation())
                     triangles = applyRotation(triangles, buildVariantRotation(variant));
             }
@@ -208,6 +248,27 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             if (triangles.isEmpty())
                 triangles = tryFirstBlockstateApply(block, tint, untintedTint);
 
+            // Replace BlockGeometryKit's cardinal-bucket shading (1.0/0.8/0.6/0.5 lookup) with
+            // vanilla's Lighting.ITEMS_3D Lambertian on the post-display.gui normal. Vanilla
+            // 26.1 dropped per-face cardinal multiplication from the GUI inventory render path
+            // entirely - the shader's only lighting input is two directional dot products. The
+            // resulting shade is continuous in the surface normal so face-rotated geometry
+            // (stairs corners, slab edges, fence posts) gets per-quad lighting that matches
+            // the harness PNGs instead of bucketing to the closest cardinal's pre-baked value.
+            //
+            // Plain block models (no {@link Block.Entity}) cull back faces like vanilla's block
+            // render type ({@code RenderType.cutout}/{@code solid}/... all bind CULL): a
+            // zero-thickness {@code block/cross} element declares both faces (north+south) and the
+            // GPU keeps only the camera-facing one. {@link BlockGeometryKit} marks every
+            // zero-thickness face two-sided ({@code cullBackFaces=false}); without this the
+            // away-facing polygon's MIRRORED-UV cutout texels draw extra silhouette pixels vanilla
+            // never shows (cobweb +19797 java-only px). Block-ENTITY surfaces (signs, banner cloth,
+            // hanging-sign chains) are genuinely vanilla-no-cull ({@code entityCutoutNoCull}) and
+            // keep their two-sided faces + camera-facing flip, so the cull is gated on the absence
+            // of a {@link Block.Entity}.
+            boolean cullBlockModelFaces = be == null;
+            triangles = RenderEngine.relightForItems3d(triangles, guiRotation, cullBlockModelFaces);
+
             int ssaa = Math.max(1, options.getSupersample());
             if (ssaa > 1) {
                 int hiRes = options.getOutputSize() * ssaa;
@@ -232,8 +293,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * each part's condition against the variant properties and builds triangles for every
          * matching model, applying per-part rotation where specified.
          */
-        private @NotNull ConcurrentList<VisibleTriangle> assembleMultipart(@NotNull Block.Multipart multipart, @NotNull BlockOptions options, int tint, int untintedTint) {
-            ConcurrentMap<String, String> properties = parseProperties(options.getVariant());
+        private @NotNull ConcurrentList<VisibleTriangle> assembleMultipart(@NotNull Block.Multipart multipart, @NotNull String variantKey, int tint, int untintedTint) {
+            ConcurrentMap<String, String> properties = parseProperties(variantKey);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
             RasterEngine raster = new RasterEngine(this.context);
 
@@ -241,28 +302,19 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 if (!matchesCondition(part.when(), properties)) continue;
 
                 Block.Variant apply = part.apply();
-                // Convert model id (minecraft:block/brewing_stand) to block id (minecraft:brewing_stand)
-                String partBlockId = apply.modelId().replace(":block/", ":");
-                BlockModelData partModel = this.context.findBlock(partBlockId)
-                    .map(Block::getModel)
-                    .orElse(null);
-                if (partModel == null) continue;
+                // The variant carries its baked model (resolved from the full model set at
+                // context construction); element-less means the apply's model id didn't resolve.
+                ModelData partModel = apply.model();
+                if (partModel.getElements().isEmpty()) continue;
 
                 // Build triangles for this part's model
-                ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
-                ConcurrentMap<String, String> variables = partModel.getTextures();
-                for (ModelElement element : partModel.getElements()) {
-                    for (Map.Entry<String, ModelFace> faceEntry : element.getFaces().entrySet()) {
-                        String ref = faceEntry.getValue().getTexture();
-                        if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
-                        String resolvedId = TextureEngine.resolveTextureReference(ref, variables);
-                        if (resolvedId.startsWith("#")) continue;
-                        faceTextures.put(ref, raster.resolveTexture(resolvedId));
-                    }
-                }
+                ConcurrentMap<String, PixelBuffer> faceTextures = TextureEngine.loadElementFaceTextures(
+                    partModel.getElements(), partModel.getTextures(),
+                    id -> Optional.of(raster.resolveTextureAtTick(id, 0)));
 
-                ConcurrentList<VisibleTriangle> partTriangles =
-                    BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint);
+                ConcurrentList<VisibleTriangle> partTriangles = apply.uvlock()
+                    ? BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint, apply.x(), apply.y(), true)
+                    : BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint);
 
                 // Apply per-part rotation if specified
                 if (apply.hasRotation())
@@ -283,12 +335,12 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
             for (VisibleTriangle tri : triangles) {
                 rotated.add(new VisibleTriangle(
-                    Vector3f.transform(tri.position0(), rotation),
-                    Vector3f.transform(tri.position1(), rotation),
-                    Vector3f.transform(tri.position2(), rotation),
+                    tri.position0().transform(rotation),
+                    tri.position1().transform(rotation),
+                    tri.position2().transform(rotation),
                     tri.uv0(), tri.uv1(), tri.uv2(),
                     tri.texture(), tri.tintArgb(),
-                    Vector3f.transformNormal(tri.normal(), rotation),
+                    tri.normal().transformNormal(rotation),
                     tri.shading(), tri.cullBackFaces(), tri.emissive()
                 ));
             }
@@ -361,24 +413,23 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * Builds triangles from all elements in a multi-element block model. Walks every
          * element's face texture references, dereferences {@code #variable} chains against
          * the model's texture bindings, and builds geometry via
-         * {@link BlockGeometryKit#buildFromElements}.
+         * {@link BlockGeometryKit#buildFromElements}. Accepts the model directly (rather than
+         * a {@link Block}) so callers can pass a variant-resolved model that differs from the
+         * block's primary {@link Block#getModel()} - e.g. {@code sweet_berry_bush_stage0} for
+         * an {@code age=0} render.
          */
-        private @NotNull ConcurrentList<VisibleTriangle> buildFromBlockElements(@NotNull Block block, int tint, int untintedTint) {
+        private @NotNull ConcurrentList<VisibleTriangle> buildFromBlockElements(@NotNull ModelData model, @Nullable Block.Variant variant, int tint, int untintedTint) {
             RasterEngine raster = new RasterEngine(this.context);
-            ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
-            ConcurrentMap<String, String> variables = block.getModel().getTextures();
+            ConcurrentMap<String, PixelBuffer> faceTextures = TextureEngine.loadElementFaceTextures(
+                model.getElements(), model.getTextures(),
+                id -> Optional.of(raster.resolveTextureAtTick(id, 0)));
 
-            for (ModelElement element : block.getModel().getElements()) {
-                for (ModelFace face : element.getFaces().values()) {
-                    String ref = face.getTexture();
-                    if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
-                    String resolvedId = TextureEngine.resolveTextureReference(ref, variables);
-                    if (resolvedId.startsWith("#")) continue;
-                    faceTextures.put(ref, raster.resolveTexture(resolvedId));
-                }
-            }
-
-            return BlockGeometryKit.buildFromElements(block.getModel().getElements(), faceTextures, tint, untintedTint);
+            // uvlock counter-rotates the up/down-face UVs against the variant Y rotation so the
+            // texture stays world-aligned (the position rotation is applied separately by the
+            // caller via applyRotation). Non-uvlock variants fall through to the plain build.
+            if (variant != null && variant.uvlock())
+                return BlockGeometryKit.buildFromElements(model.getElements(), faceTextures, tint, untintedTint, variant.x(), variant.y(), true);
+            return BlockGeometryKit.buildFromElements(model.getElements(), faceTextures, tint, untintedTint);
         }
 
         /**
@@ -390,18 +441,11 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          */
         private @NotNull ConcurrentList<VisibleTriangle> buildFromAdditiveEntity(@NotNull Block.Entity entity, int tint, int untintedTint) {
             RasterEngine raster = new RasterEngine(this.context);
-            ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
             ConcurrentMap<String, String> variables = Concurrent.newMap();
             variables.put("entity", entity.textureId());
-            for (ModelElement element : entity.model().getElements()) {
-                for (ModelFace face : element.getFaces().values()) {
-                    String ref = face.getTexture();
-                    if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
-                    String resolvedId = TextureEngine.resolveTextureReference(ref, variables);
-                    if (resolvedId.startsWith("#")) continue;
-                    faceTextures.put(ref, raster.resolveTexture(resolvedId));
-                }
-            }
+            ConcurrentMap<String, PixelBuffer> faceTextures = TextureEngine.loadElementFaceTextures(
+                entity.model().getElements(), variables,
+                id -> Optional.of(raster.resolveTextureAtTick(id, 0)));
             return BlockGeometryKit.buildFromElements(entity.model().getElements(), faceTextures, tint, untintedTint);
         }
 
@@ -418,7 +462,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * element's rotated-cube corners land at the correct final positions either way.
          * <p>
          * This is the atlas-time composition path that used to live in
-         * {@link BlockEntityLoader}. Moving it to render time
+         * {@link BlockModelLoader}. Moving it to render time
          * lets scene callers skip the merge for a per-variant-geometry render.
          */
         private @NotNull ConcurrentList<VisibleTriangle> buildFromEntityParts(@NotNull Block.Entity entity, int tint, int untintedTint) {
@@ -430,18 +474,11 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 // binds to the part's own texture id (which may differ from the primary -
                 // decorated_pot sides use {@code entity/decorated_pot/decorated_pot_side}
                 // while the base uses {@code ..._base}).
-                ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
                 ConcurrentMap<String, String> variables = Concurrent.newMap();
                 variables.put("entity", part.texture());
-                for (ModelElement element : part.model().getElements()) {
-                    for (ModelFace face : element.getFaces().values()) {
-                        String ref = face.getTexture();
-                        if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
-                        String resolvedId = TextureEngine.resolveTextureReference(ref, variables);
-                        if (resolvedId.startsWith("#")) continue;
-                        faceTextures.put(ref, raster.resolveTexture(resolvedId));
-                    }
-                }
+                ConcurrentMap<String, PixelBuffer> faceTextures = TextureEngine.loadElementFaceTextures(
+                    part.model().getElements(), variables,
+                    id -> Optional.of(raster.resolveTextureAtTick(id, 0)));
 
                 ConcurrentList<VisibleTriangle> partTriangles =
                     BlockGeometryKit.buildFromElements(part.model().getElements(), faceTextures, tint, untintedTint);
@@ -496,33 +533,19 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             if (first == null)
                 return Concurrent.newList();
 
-            String partBlockId = first.modelId().replace(":block/", ":");
-            BlockModelData partModel = this.context.findBlock(partBlockId)
-                .map(Block::getModel)
-                .orElse(null);
+            ModelData partModel = first.model();
 
-            if (partModel == null || partModel.getElements().isEmpty())
+            if (partModel.getElements().isEmpty())
                 return Concurrent.newList();
 
             RasterEngine raster = new RasterEngine(this.context);
-            ConcurrentMap<String, PixelBuffer> faceTextures = Concurrent.newMap();
-            ConcurrentMap<String, String> variables = partModel.getTextures();
-            for (ModelElement element : partModel.getElements()) {
-                for (Map.Entry<String, ModelFace> faceEntry : element.getFaces().entrySet()) {
-                    String ref = faceEntry.getValue().getTexture();
-                    if (ref.isBlank() || faceTextures.containsKey(ref)) continue;
-                    String resolvedId = TextureEngine.resolveTextureReference(ref, variables);
-                    if (resolvedId.startsWith("#")) continue;
-                    faceTextures.put(ref, raster.resolveTexture(resolvedId));
-                }
-            }
+            ConcurrentMap<String, PixelBuffer> faceTextures = TextureEngine.loadElementFaceTextures(
+                partModel.getElements(), partModel.getTextures(),
+                id -> Optional.of(raster.resolveTextureAtTick(id, 0)));
 
-            ConcurrentList<VisibleTriangle> triangles = BlockGeometryKit.buildFromElements(
-                partModel.getElements(),
-                faceTextures,
-                tint,
-                untintedTint
-            );
+            ConcurrentList<VisibleTriangle> triangles = first.uvlock()
+                ? BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint, first.x(), first.y(), true)
+                : BlockGeometryKit.buildFromElements(partModel.getElements(), faceTextures, tint, untintedTint);
 
             if (first.hasRotation())
                 triangles = applyRotation(triangles, buildVariantRotation(first));
@@ -538,16 +561,19 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * to pre-transform the geometry before the gui display transform.
          */
         private static @NotNull Matrix4f buildVariantRotation(@NotNull Block.Variant variant) {
-            // Column-vector iteration: pre-multiply each rotation so the most-recent factor is
-            // leftmost and applies last to a vertex. Vanilla blockstate variant rotations apply
-            // Y first, then X, both as PoseStack post-mul steps.
+            // Vanilla blockstate variant rotation applies Y first, then X, to a vertex - the
+            // composite R_x * R_y. Built with the fluent rotate path ({@code this * R(q)},
+            // post-multiply, bit-identical to vanilla's {@code PoseStack.mulPose}) rather than
+            // {@code createRotationX(...).multiply(...)}, whose full matrix-matrix multiply drifts
+            // 1-4 ULPs per entry vs vanilla (see {@link Matrix4f} fluent-vs-multiply note).
+            // Applying X then Y under post-multiply yields IDENTITY * R_x * R_y = R_x * R_y.
             Matrix4f result = Matrix4f.IDENTITY;
 
-            if (variant.y() != 0)
-                result = Matrix4f.createRotationY((float) Math.toRadians(-variant.y())).multiply(result);
-
             if (variant.x() != 0)
-                result = Matrix4f.createRotationX((float) Math.toRadians(-variant.x())).multiply(result);
+                result = result.rotate(Quaternionf.rotationXYZ((float) Math.toRadians(-variant.x()), 0f, 0f));
+
+            if (variant.y() != 0)
+                result = result.rotate(Quaternionf.rotationXYZ(0f, (float) Math.toRadians(-variant.y()), 0f));
 
             return result;
         }
@@ -560,8 +586,50 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * pipeline never consults the blockstate.
          */
         private static @Nullable Block.Variant resolveVariant(@NotNull Block block, @NotNull String variantKey) {
-            if (variantKey.isEmpty()) return null;
-            return block.getVariants().get(variantKey);
+            // A property-less block maps to its unconditional {@code ""} blockstate variant, whose
+            // model is authoritative and need NOT equal {@link Block#getModel()} (the by-id
+            // {@code block/<id>} guess). mud_bricks points {@code ""} at
+            // {@code block/mud_bricks_north_west_mirrored} (north/west faces UV-flipped) where
+            // {@code getModel()} is the plain {@code block/mud_bricks} cube_all - falling through to
+            // {@code getModel()} dropped the mirror. The caller only swaps in the variant's geometry
+            // when it carries real elements, so an empty particle-only template (TILE_ENTITY blocks
+            // whose mesh comes from the block-entity model) still falls back to the BE model.
+            if (variantKey.isEmpty()) return block.getVariants().get("");
+            // Exact key hit (caller knows the precise variant). Fast path.
+            Block.Variant exact = block.getVariants().get(variantKey);
+            if (exact != null) return exact;
+            // Partial-superset match: the caller supplied a fully-qualified blockstate
+            // (e.g. `facing=north,half=lower,hinge=left,open=false,powered=false` from the
+            // harness's defaultBlockState dump) but the JSON variant keys only list the
+            // properties that actually affect the model (`facing/half/hinge/open` for doors,
+            // omitting `powered`). Walk the variants map and pick the entry whose props are
+            // a SUBSET of the caller's props. Returns the variant whose conditions are all
+            // satisfied by the caller's blockstate.
+            // Most-specific subset wins: among the variants whose props are all satisfied by the
+            // caller's blockstate, pick the one matching the most properties. This lets a
+            // geometry-bearing {@code attached=true} variant (injected for the ceiling hanging
+            // sign) beat the unconditional {@code ""} catch-all that also subset-matches every
+            // state; for blocks with equal-specificity variants the first encountered still wins.
+            ConcurrentMap<String, String> callerProps = parseProperties(variantKey);
+            Block.Variant best = null;
+            int bestSpecificity = -1;
+            for (Map.Entry<String, Block.Variant> entry : block.getVariants().entrySet()) {
+                ConcurrentMap<String, String> variantProps = parseProperties(entry.getKey());
+                if (isSubsetMatch(variantProps, callerProps) && variantProps.size() > bestSpecificity) {
+                    best = entry.getValue();
+                    bestSpecificity = variantProps.size();
+                }
+            }
+            return best;
+        }
+
+        /** Returns true when every entry in {@code subset} appears with the same value in {@code superset}. */
+        private static boolean isSubsetMatch(@NotNull ConcurrentMap<String, String> subset, @NotNull ConcurrentMap<String, String> superset) {
+            for (Map.Entry<String, String> e : subset.entrySet()) {
+                String supersetVal = superset.get(e.getKey());
+                if (supersetVal == null || !supersetVal.equals(e.getValue())) return false;
+            }
+            return true;
         }
 
         /**
@@ -607,19 +675,6 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 ));
             }
             return result;
-        }
-
-        /**
-         * Returns an {@link IsometricEngine} whose camera reflects the block's own
-         * {@code display.gui} rotation. Falls back to the standard {@code [30, 225, 0]} from
-         * {@code block/block.json} when the block doesn't supply its own gui transform, matching
-         * vanilla's inheritance behaviour - stairs ship {@code [30, 135, 0]}, slabs and fence
-         * gates override too.
-         */
-        private static @NotNull IsometricEngine engineForBlockIcon(@NotNull RendererContext context, @NotNull Block block) {
-            ModelTransform gui = block.getModel().getDisplay().get("gui");
-            EulerRotation rotation = gui != null ? gui.getRotation() : EulerRotation.STANDARD_ISO_BLOCK;
-            return IsometricEngine.withGuiPose(context, rotation);
         }
 
     }

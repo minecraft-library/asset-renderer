@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.tooling;
 
-import com.google.gson.GsonBuilder;
+import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import lib.minecraft.renderer.exception.PipelineException;
@@ -12,6 +12,7 @@ import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.gson.GsonSettings;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -50,6 +51,11 @@ public final class ToolingPotionColors {
      * Fixed output path for the bundled potion-colour resource.
      */
     private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/lib/minecraft/renderer/potion_colors.json");
+
+    /**
+     * Shared pretty-printing Gson carrying the renderer's registered type adapters.
+     */
+    private static final @NotNull Gson PRETTY_GSON = GsonSettings.defaults().mutate().isPrettyPrint().isHtmlEscaping(false).build().create();
 
     /**
      * Runs the generator.
@@ -96,7 +102,7 @@ public final class ToolingPotionColors {
         });
         root.add("effects", entries);
 
-        return new GsonBuilder().setPrettyPrinting().create().toJson(root) + System.lineSeparator();
+        return PRETTY_GSON.toJson(root) + System.lineSeparator();
     }
 
     /**

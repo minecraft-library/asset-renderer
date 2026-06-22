@@ -1,7 +1,12 @@
 package lib.minecraft.renderer.tooling.blockentity;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
@@ -12,8 +17,14 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.*;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 /**
@@ -32,7 +43,7 @@ import java.util.zip.ZipFile;
  * {@code DragonHeadModel} geometry rather than the shared {@code SkullBlockRenderer} factory
  * method. The decomposer emits the shared skull tuple for dragon heads; the
  * {@code recenterInventoryTransformsByBbox} geometry-aware post-pass in
- * {@code ToolingBlockEntities} recovers the {@code tz = 1.25} from the parsed cube bbox.
+ * {@code ToolingBlockModels} recovers the {@code tz = 1.25} from the parsed cube bbox.
  *
  * <p><b>Policy</b>. The only hand-curated map is {@link #RENDERER_ENTRY_METHODS}: for each
  * renderer class internal name, the factory method (or static field prefixed
@@ -69,6 +80,11 @@ public final class InventoryTransformDecomposer {
     // --------------------------------------------------------------------------------------
 
     private static final @NotNull Map<String, String> RENDERER_ENTRY_METHODS = buildRendererEntryMethods();
+
+    /**
+     * Shared Gson carrying the renderer's registered type adapters, for parsing display transforms.
+     */
+    private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**
      * Builds the {@link #RENDERER_ENTRY_METHODS} table mapping renderer internal name to factory entry.
@@ -154,11 +170,158 @@ public final class InventoryTransformDecomposer {
                     diag.warn("inventory-transform: factory method '%s' not found on '%s' (entityId=%s)", entry, rendererInternal, entityId);
                     continue;
                 }
-                tuple = decomposeMethod(zip, cn, method, diag);
+                tuple = decomposeMethod(zip, cn, method, diag, ATTACHMENT_BINDING_BY_ENTITY.get(entityId));
             }
             if (tuple != null) out.put(entityId, tuple);
         }
         return out;
+    }
+
+    // --------------------------------------------------------------------------------------
+    // Entity-render flip resolution (item-model display.gui roll)
+    // --------------------------------------------------------------------------------------
+
+    private static final @NotNull String ITEMS_PREFIX = "assets/minecraft/items/";
+    private static final @NotNull String MODELS_PREFIX = "assets/minecraft/models/";
+
+    /**
+     * Bounds the {@code parent} walk when reading a model's {@code display.gui} so a malformed
+     * cyclic parent chain cannot loop forever. No vanilla item model nests deeper than three.
+     */
+    private static final int MAX_MODEL_PARENT_DEPTH = 8;
+
+    /**
+     * Resolves whether each {@code modelId} needs vanilla's entity-render {@code scale(-1, -1, 1)}
+     * flip when its block-entity geometry is baked into an inventory icon, by reading the item
+     * model's {@code display.gui} rotation from the client jar.
+     *
+     * <p>A block entity whose item icon is a {@code minecraft:special} renderer authored in the
+     * entity convention (head-down, mirrored) carries a {@code display.gui} <b>roll of 180</b> -
+     * the {@code scale(-1, -1, 1)} flip expressed as a Z rotation - which the
+     * {@code BlockModelConverter} reproduces as the {@code cx = -cx} / {@code cy = -cy} pair (see
+     * {@code CubeTransform#applyChain}). The chest's icon, by contrast, carries roll {@code 0} and
+     * a real yaw difference (its {@code display.gui} is {@code [30, 45, 0]}, yaw 45 vs the standard
+     * 225) that the converter already handles via {@code inventory_y_rotation}, so it must NOT get
+     * the {@code cx} flip. Returning the flip keyed on the resolved roll lets the converter drop
+     * the incidental {@code invYRot == 0} proxy it used before.
+     *
+     * <p>Resolution follows the item model chain: {@code items/<id>.json} &rarr; the
+     * {@code minecraft:select} fallback case &rarr; the {@code minecraft:special} {@code base}
+     * (or a {@code minecraft:model} {@code model}) &rarr; the referenced item model and its
+     * {@code parent} chain, returning the first {@code display.gui.rotation} roll found. Ids whose
+     * icon is a flat {@code item/generated} sprite (e.g. {@code bell}) bottom out with no
+     * {@code display.gui} and are absent from the result; callers default those to the flip, which
+     * preserves the standard block-entity convention.
+     *
+     * @param zip the cached client jar
+     * @param modelIds the model ids to resolve (typically those lacking an inventory transform)
+     * @return {@code modelId -> true} when the entity flip applies, {@code modelId -> false} when
+     *     the resolved roll is 0; ids that do not resolve are omitted
+     */
+    public static @NotNull Map<String, Boolean> resolveEntityRenderFlips(
+        @NotNull ZipFile zip,
+        @NotNull Set<String> modelIds
+    ) {
+        Map<String, Boolean> out = new LinkedHashMap<>();
+        for (String modelId : modelIds) {
+            Float roll = resolveDisplayGuiRoll(zip, GSON, modelId);
+            if (roll != null) out.put(modelId, !nearUnit(roll, 0f));
+        }
+        return out;
+    }
+
+    /**
+     * Resolves the {@code display.gui} roll of {@code modelId}'s item icon, or {@code null} when
+     * the chain bottoms out without a {@code display.gui} (flat sprites) or any link is missing.
+     */
+    private static @Nullable Float resolveDisplayGuiRoll(@NotNull ZipFile zip, @NotNull Gson gson, @NotNull String modelId) {
+        JsonObject itemDef = readJson(zip, gson, ITEMS_PREFIX + stripNamespace(modelId) + ".json");
+        if (itemDef == null) return null;
+        String modelRef = resolveModelRef(optObject(itemDef, "model"));
+        if (modelRef == null) return null;
+        return readDisplayGuiRoll(zip, gson, modelRef);
+    }
+
+    /**
+     * Reduces an item-model component to the model reference it ultimately draws: a
+     * {@code minecraft:select} resolves through its {@code fallback}, a {@code minecraft:special}
+     * yields its {@code base}, a {@code minecraft:model} yields its {@code model}. Other component
+     * types (the {@code copper_golem_pose} cases never reach here at reference pose) return
+     * {@code null}.
+     */
+    private static @Nullable String resolveModelRef(@Nullable JsonObject component) {
+        if (component == null) return null;
+        String type = optString(component, "type");
+        if (type == null) return null;
+        return switch (type) {
+            case "minecraft:model" -> optString(component, "model");
+            case "minecraft:special" -> optString(component, "base");
+            case "minecraft:select" -> resolveModelRef(optObject(component, "fallback"));
+            default -> null;
+        };
+    }
+
+    /**
+     * Walks {@code modelRef} and its {@code parent} chain, returning the first
+     * {@code display.gui.rotation} roll (the third component) or {@code null} when none is present.
+     */
+    private static @Nullable Float readDisplayGuiRoll(@NotNull ZipFile zip, @NotNull Gson gson, @NotNull String modelRef) {
+        String path = stripNamespace(modelRef);
+        for (int depth = 0; depth < MAX_MODEL_PARENT_DEPTH && path != null; depth++) {
+            JsonObject model = readJson(zip, gson, MODELS_PREFIX + path + ".json");
+            if (model == null) return null; // builtin/* parent or missing model - no gui pose
+            JsonObject gui = optObject(optObject(model, "display"), "gui");
+            if (gui != null) {
+                JsonElement rot = gui.get("rotation");
+                if (rot != null && rot.isJsonArray() && rot.getAsJsonArray().size() == 3)
+                    return rot.getAsJsonArray().get(2).getAsFloat();
+            }
+            String parent = optString(model, "parent");
+            path = parent != null ? stripNamespace(parent) : null;
+        }
+        return null;
+    }
+
+    /**
+     * Reads and parses a jar JSON entry as a {@link JsonObject}, or {@code null} when the entry is
+     * absent or not a JSON object.
+     */
+    private static @Nullable JsonObject readJson(@NotNull ZipFile zip, @NotNull Gson gson, @NotNull String entryPath) {
+        ZipEntry entry = zip.getEntry(entryPath);
+        if (entry == null) return null;
+        try (InputStream in = zip.getInputStream(entry)) {
+            JsonElement parsed = gson.fromJson(new InputStreamReader(in, StandardCharsets.UTF_8), JsonElement.class);
+            return parsed != null && parsed.isJsonObject() ? parsed.getAsJsonObject() : null;
+        } catch (IOException | JsonParseException ex) {
+            return null;
+        }
+    }
+
+    /**
+     * Strips a {@code minecraft:} (or any) namespace prefix from a resource id.
+     */
+    private static @NotNull String stripNamespace(@NotNull String id) {
+        int colon = id.indexOf(':');
+        return colon >= 0 ? id.substring(colon + 1) : id;
+    }
+
+    /**
+     * Returns the object-valued member {@code key} of {@code obj}, or {@code null} when {@code obj}
+     * is {@code null}, the member is absent, or the member is not an object.
+     */
+    private static @Nullable JsonObject optObject(@Nullable JsonObject obj, @NotNull String key) {
+        if (obj == null) return null;
+        JsonElement el = obj.get(key);
+        return el != null && el.isJsonObject() ? el.getAsJsonObject() : null;
+    }
+
+    /**
+     * Returns the string-valued member {@code key} of {@code obj}, or {@code null} when absent or
+     * not a primitive.
+     */
+    private static @Nullable String optString(@NotNull JsonObject obj, @NotNull String key) {
+        JsonElement el = obj.get(key);
+        return el != null && el.isJsonPrimitive() ? el.getAsString() : null;
     }
 
     /**
@@ -190,7 +353,7 @@ public final class InventoryTransformDecomposer {
             diag.warn("inventory-transform: method '%s%s' not found on '%s'", methodName, methodDesc, classInternalName);
             return null;
         }
-        return decomposeMethod(zip, cn, method, diag);
+        return decomposeMethod(zip, cn, method, diag, null);
     }
 
     /**
@@ -264,14 +427,20 @@ public final class InventoryTransformDecomposer {
         @NotNull ZipFile zip,
         @NotNull ClassNode cn,
         @NotNull MethodNode method,
-        @NotNull Diagnostics diag
+        @NotNull Diagnostics diag,
+        @Nullable String attachmentConst
     ) {
         Walker walker = new Walker(zip, cn, diag, 0);
         walker.isStaticInit = AsmKit.CLINIT.equals(method.name);
         // Seed any float parameter slots with YAW sentinels. Our factory methods take at
         // most one float parameter (the yaw angle); this covers both (I), (F), (Attachment, F),
         // and (F, Attachment) descriptors without a per-shape policy.
-        if (!walker.isStaticInit) bindYawSlotsFromDescriptor(method.desc, walker);
+        if (!walker.isStaticInit) {
+            bindYawSlotsFromDescriptor(method.desc, walker);
+            // Bind a known sign-attachment parameter so the wall-mount {@code if (att == WALL)}
+            // branch resolves precisely (wall signs take the translate; ground signs skip it).
+            if (attachmentConst != null) bindAttachmentSlotsFromDescriptor(method.desc, walker, attachmentConst);
+        }
         walker.walk(method.instructions, null);
         if (walker.finalTransform == null) {
             diag.warn("inventory-transform: could not decompose method '%s%s' on '%s'", method.name, method.desc, cn.name);
@@ -295,6 +464,22 @@ public final class InventoryTransformDecomposer {
         }
     }
 
+    /**
+     * Binds any sign-attachment-typed parameter slot to the supplied enum constant so the
+     * walker can resolve {@code if (attachment == Attachment.WALL)} ({@code IF_ACMP*}) branches
+     * to the right path. Object parameters whose type does not end with
+     * {@link #SIGN_ATTACHMENT_SUFFIX} are left unbound.
+     */
+    private static void bindAttachmentSlotsFromDescriptor(@NotNull String methodDesc, @NotNull Walker walker, @NotNull String attachmentConst) {
+        Type[] args = Type.getArgumentTypes(methodDesc);
+        int slot = 0;
+        for (Type t : args) {
+            if (t.getSort() == Type.OBJECT && t.getInternalName().endsWith(SIGN_ATTACHMENT_SUFFIX))
+                walker.locals.store(slot, Value.ofEnumConst(attachmentConst));
+            slot += t.getSize();
+        }
+    }
+
     // --------------------------------------------------------------------------------------
     // Symbolic value model
     // --------------------------------------------------------------------------------------
@@ -302,7 +487,29 @@ public final class InventoryTransformDecomposer {
     /**
      * Tag for the kinds of values our symbolic JVM stack tracks.
      */
-    private enum ValueKind { FLOAT, YAW, VECTOR, QUATERNION, MATRIX, NULL, CLASS_REF, OTHER }
+    private enum ValueKind { FLOAT, YAW, VECTOR, QUATERNION, MATRIX, NULL, CLASS_REF, ENUM_CONST, OTHER }
+
+    /**
+     * Internal-name suffix shared by both sign-attachment enums ({@code PlainSignBlock$Attachment},
+     * {@code HangingSignBlock$Attachment}). Used to recognise a {@code GETSTATIC} of an attachment
+     * constant so {@code IF_ACMP*} branch dispatch can be resolved when the attachment parameter is
+     * bound to a known value.
+     */
+    private static final @NotNull String SIGN_ATTACHMENT_SUFFIX = "SignBlock$Attachment";
+
+    /**
+     * Per-entity attachment binding for the standing-sign renderer, whose
+     * {@code bodyTransformation(Attachment, yaw)} adds a wall-mount translate only when the
+     * attachment is {@code WALL}. Standing signs ({@code GROUND}) and wall signs ({@code WALL})
+     * share the renderer + factory method, so this binds the otherwise-symbolic attachment
+     * parameter to the constant each entity id renders. Entity ids absent here leave the parameter
+     * unbound (the walker's optimistic enum-branch skip selects the non-wall path). The hanging
+     * renderer's {@code bodyTransformation(float)} has no attachment parameter and needs no entry.
+     */
+    private static final @NotNull Map<String, String> ATTACHMENT_BINDING_BY_ENTITY = Map.of(
+        "minecraft:sign", "GROUND",
+        "minecraft:wall_sign", "WALL"
+    );
 
     /**
      * A value on the symbolic JVM stack. We track enough detail to recognise literal Vector3f
@@ -316,19 +523,21 @@ public final class InventoryTransformDecomposer {
         final @Nullable Vector3f vec;  // VECTOR
         final @Nullable Quat quat;  // QUATERNION
         final @Nullable TransformState matrix; // MATRIX (current transform state)
+        final @Nullable String enumConst; // ENUM_CONST (attachment constant field name)
 
-        private Value(@NotNull ValueKind kind, float floatVal, @Nullable Vector3f vec, @Nullable Quat quat, @Nullable TransformState matrix) {
-            this.kind = kind; this.floatVal = floatVal; this.vec = vec; this.quat = quat; this.matrix = matrix;
+        private Value(@NotNull ValueKind kind, float floatVal, @Nullable Vector3f vec, @Nullable Quat quat, @Nullable TransformState matrix, @Nullable String enumConst) {
+            this.kind = kind; this.floatVal = floatVal; this.vec = vec; this.quat = quat; this.matrix = matrix; this.enumConst = enumConst;
         }
 
-        static @NotNull Value ofFloat(float f) { return new Value(ValueKind.FLOAT, f, null, null, null); }
-        static @NotNull Value ofYaw() { return new Value(ValueKind.YAW, 0f, null, null, null); }
-        static @NotNull Value ofVec(@NotNull Vector3f v) { return new Value(ValueKind.VECTOR, 0f, v, null, null); }
-        static @NotNull Value ofQuat(@NotNull Quat q) { return new Value(ValueKind.QUATERNION, 0f, null, q, null); }
-        static @NotNull Value ofMatrix(@NotNull TransformState m) { return new Value(ValueKind.MATRIX, 0f, null, null, m); }
-        static @NotNull Value ofNull() { return new Value(ValueKind.NULL, 0f, null, null, null); }
-        static @NotNull Value ofClassRef() { return new Value(ValueKind.CLASS_REF, 0f, null, null, null); }
-        static @NotNull Value ofOther() { return new Value(ValueKind.OTHER, 0f, null, null, null); }
+        static @NotNull Value ofFloat(float f) { return new Value(ValueKind.FLOAT, f, null, null, null, null); }
+        static @NotNull Value ofYaw() { return new Value(ValueKind.YAW, 0f, null, null, null, null); }
+        static @NotNull Value ofVec(@NotNull Vector3f v) { return new Value(ValueKind.VECTOR, 0f, v, null, null, null); }
+        static @NotNull Value ofQuat(@NotNull Quat q) { return new Value(ValueKind.QUATERNION, 0f, null, q, null, null); }
+        static @NotNull Value ofMatrix(@NotNull TransformState m) { return new Value(ValueKind.MATRIX, 0f, null, null, m, null); }
+        static @NotNull Value ofNull() { return new Value(ValueKind.NULL, 0f, null, null, null, null); }
+        static @NotNull Value ofClassRef() { return new Value(ValueKind.CLASS_REF, 0f, null, null, null, null); }
+        static @NotNull Value ofEnumConst(@NotNull String name) { return new Value(ValueKind.ENUM_CONST, 0f, null, null, null, name); }
+        static @NotNull Value ofOther() { return new Value(ValueKind.OTHER, 0f, null, null, null, null); }
     }
 
     /**
@@ -535,7 +744,8 @@ public final class InventoryTransformDecomposer {
                 if (i != null) { push(Value.ofFloat(i.floatValue())); continue; }
                 if (op == Opcodes.ACONST_NULL) { push(Value.ofNull()); continue; }
                 if (node instanceof LdcInsnNode ldc && ldc.cst instanceof Type) {
-                    push(Value.ofClassRef()); continue;
+                    push(Value.ofClassRef());
+                    continue;
                 }
 
                 // FLOAD / FSTORE / ALOAD / ASTORE -------------------------------------------
@@ -546,7 +756,8 @@ public final class InventoryTransformDecomposer {
 
                 // FNEG / FADD / FSUB / FMUL / FDIV / F2D / etc. ------------------------------
                 if (node instanceof InsnNode insn) {
-                    if (handleInsn(insn.getOpcode())) continue;
+                    if (handleInsn(insn.getOpcode()))
+                        continue;
                 }
 
                 // GETSTATIC / PUTSTATIC -----------------------------------------------------
@@ -625,13 +836,21 @@ public final class InventoryTransformDecomposer {
                 }
                 if (op == Opcodes.IFEQ || op == Opcodes.IFNE) { pop(); continue; }
                 if (op == Opcodes.IF_ACMPEQ || op == Opcodes.IF_ACMPNE) {
-                    // Optimistic enum-branch skip: when comparing two OTHER values (both
-                    // unknown), take the jump to avoid re-executing the fall-through block.
-                    // For the sign renderer's `if (attachment == WALL) { ... }` the taken
-                    // branch is the WALL-only translate; skipping it yields the GROUND path
-                    // we actually want. When the stack has fewer than 2 values, poison.
+                    // Enum-branch dispatch. When both operands are resolved attachment constants
+                    // (the bound parameter + a GETSTATIC constant), evaluate the comparison
+                    // precisely so wall signs take the WALL-mount translate and ground signs skip
+                    // it. Otherwise fall back to the optimistic skip: take the jump to avoid
+                    // re-executing the fall-through block (the WALL-only translate), which yields
+                    // the GROUND path. When the stack has fewer than 2 values, poison.
                     Value b = pop(); Value a = pop();
                     if (a == null || b == null) { poison("IF_ACMP* on small stack"); return; }
+                    if (a.kind == ValueKind.ENUM_CONST && b.kind == ValueKind.ENUM_CONST
+                        && a.enumConst != null && b.enumConst != null) {
+                        boolean equal = a.enumConst.equals(b.enumConst);
+                        boolean takeJump = (op == Opcodes.IF_ACMPEQ) == equal;
+                        if (takeJump && node instanceof JumpInsnNode jn) node = jn.label;
+                        continue;
+                    }
                     if (node instanceof JumpInsnNode jn) {
                         node = jn.label;
                     }
@@ -725,7 +944,12 @@ public final class InventoryTransformDecomposer {
                 if (axis == '?') return Value.ofOther();
                 // Represent via an "axis marker" quaternion with angle NaN; the subsequent
                 // INVOKEVIRTUAL rotationDegrees will fold it into a real Quat.
-                return new Value(ValueKind.OTHER, Float.NaN, null, new Quat(axis, Float.NaN), null);
+                return new Value(ValueKind.OTHER, Float.NaN, null, new Quat(axis, Float.NaN), null, null);
+            }
+            // Sign-attachment enum constant (PlainSignBlock$Attachment.WALL / GROUND, etc.) - the
+            // bound parameter + this constant feed the IF_ACMP* wall-mount branch dispatch.
+            if (fi.owner.endsWith(SIGN_ATTACHMENT_SUFFIX)) {
+                return Value.ofEnumConst(fi.name);
             }
             // If this field belongs to our owning class, try to resolve from <clinit>.
             if (fi.owner.equals(this.owner.name)) {

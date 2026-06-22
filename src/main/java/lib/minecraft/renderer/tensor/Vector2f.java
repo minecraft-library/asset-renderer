@@ -86,6 +86,17 @@ public record Vector2f(float x, float y) {
     }
 
     /**
+     * Returns the dot product of this vector and {@code other}. Instance form of
+     * {@link #dot(Vector2f, Vector2f)}; delegates to the same static so the result is identical.
+     *
+     * @param other the right-hand vector
+     * @return the dot product
+     */
+    public float dot(@NotNull Vector2f other) {
+        return dot(this, other);
+    }
+
+    /**
      * Computes the dot product of two vectors.
      *
      * @param a the first vector

@@ -1,20 +1,21 @@
 package lib.minecraft.renderer.tooling;
 
-import com.google.gson.GsonBuilder;
+import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.exception.ToolingException;
-import lib.minecraft.renderer.geometry.Biome;
-import lib.minecraft.renderer.asset.Block;
-import lib.minecraft.renderer.pipeline.PipelineOptions;
-import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
-import lib.minecraft.renderer.tooling.util.AsmKit;
-import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.gson.GsonSettings;
+import lib.minecraft.renderer.appearance.Biome;
+import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.exception.ToolingException;
+import lib.minecraft.renderer.pipeline.Pipeline;
+import lib.minecraft.renderer.pipeline.PipelineOptions;
+import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
+import lib.minecraft.renderer.tooling.util.AsmKit;
+import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -54,6 +55,11 @@ public final class ToolingBlockTints {
      * Fixed output path for the bundled block-tint resource.
      */
     private static final @NotNull Path OUTPUT_PATH = Path.of("src/main/resources/lib/minecraft/renderer/block_tints.json");
+
+    /**
+     * Shared pretty-printing Gson carrying the renderer's registered type adapters.
+     */
+    private static final @NotNull Gson PRETTY_GSON = GsonSettings.defaults().mutate().isPrettyPrint().isHtmlEscaping(false).build().create();
 
     /**
      * Runs the generator.
@@ -100,7 +106,7 @@ public final class ToolingBlockTints {
         });
         root.add("tints", entries);
 
-        return new GsonBuilder().setPrettyPrinting().create().toJson(root) + System.lineSeparator();
+        return PRETTY_GSON.toJson(root) + System.lineSeparator();
     }
 
 
@@ -141,11 +147,24 @@ public final class ToolingBlockTints {
         private static final @NotNull String LIST_INTERNAL_NAME = "java/util/List";
         private static final @NotNull String LIST_OF_SINGLE_DESCRIPTOR = "(Ljava/lang/Object;)Ljava/util/List;";
 
+        /** {@code BlockTintSources.stem()} factory name (melon_stem / pumpkin_stem). */
+        private static final @NotNull String STEM_SOURCE = "stem";
+        /**
+         * The stem tint at the freshly-placed default state. {@code BlockTintSources.stem().color}
+         * computes {@code ARGB.color(age*32, 255 - age*8, age*4)} from {@code StemBlock.AGE}; the
+         * GUI / block-parity render uses the {@code age=0} default, whose colour is pure green
+         * {@code ARGB.color(0, 255, 0) = 0xFF00FF00}. The age-dependent browning of older stems is
+         * not represented because the renderer applies one tint per block id, not per state.
+         */
+        private static final int STEM_DEFAULT_COLOR = 0xFF00FF00;
+
         /**
          * Maps the short name of a {@code BlockTintSources.X()} factory method to the corresponding
          * {@link Biome.TintTarget}. Sources whose tint depends on dynamic per-block state - water,
-         * waterParticles, redstone, stem - are not in the map and are silently dropped because the
-         * atlas renderer cannot resolve them at static-render time.
+         * waterParticles, redstone - are not in the map and are silently dropped because the atlas
+         * renderer cannot resolve them at static-render time. {@code stem} is also state-dependent
+         * but is special-cased in {@link #emitTints} to its {@code age=0} default-state colour
+         * rather than dropped.
          */
         private static final @NotNull ConcurrentMap<String, Biome.TintTarget> SUPPORTED_SOURCES = buildSupportedSources();
 
@@ -193,12 +212,13 @@ public final class ToolingBlockTints {
          * recognition rules.
          */
         private static @NotNull ConcurrentMap<String, Block.Tint> parseCreateDefault(@NotNull InsnList instructions) {
-            ConcurrentMap<String, Block.Tint> tints = Concurrent.newMap();
+            // Linked map so the emitted JSON keeps a stable, deterministic order (the bytecode walk
+            // order of BlockColors.createDefault). A plain ConcurrentHashMap reorders run to run,
+            // which churns the committed block_tints.json and breaks BlockTintsGoldenTest.
+            ConcurrentMap<String, Block.Tint> tints = Concurrent.newLinkedMap();
 
             @Nullable String pendingSource = null;
-            int pendingConstantA = 0;
-            int pendingConstantB = 0;
-            int pendingConstantCount = 0;
+            int pendingConstant = 0;
             int pendingSourceLayers = 0;
             ConcurrentList<String> pendingBlocks = Concurrent.newList();
             AsmKit.LiteralStack intLiteralStack = new AsmKit.LiteralStack(4);
@@ -228,12 +248,15 @@ public final class ToolingBlockTints {
 
                             if (methodInsn.name.equals("constant") && methodInsn.desc.startsWith("(I")) {
                                 if (methodInsn.desc.equals("(I)Lnet/minecraft/client/color/block/BlockTintSource;")) {
-                                    pendingConstantA = popIntOrZero(intLiteralStack);
-                                    pendingConstantCount = 1;
+                                    pendingConstant = popIntOrZero(intLiteralStack);
                                 } else if (methodInsn.desc.equals("(II)Lnet/minecraft/client/color/block/BlockTintSource;")) {
-                                    pendingConstantB = popIntOrZero(intLiteralStack);
-                                    pendingConstantA = popIntOrZero(intLiteralStack);
-                                    pendingConstantCount = 2;
+                                    // constant(colorInHand, colorInWorld) - the second arg is the
+                                    // in-world biome-independent colour (lily_pad's dark pond green);
+                                    // the FIRST is the no-context "in hand" colour BlockTintSource
+                                    // .color(state) returns, which is what the GUI block icon uses.
+                                    // Drain the in-world arg, keep colorInHand.
+                                    popIntOrZero(intLiteralStack);
+                                    pendingConstant = popIntOrZero(intLiteralStack);
                                 }
                             }
                         } else if (methodInsn.owner.equals(LIST_INTERNAL_NAME) && methodInsn.name.equals("of")
@@ -246,12 +269,10 @@ public final class ToolingBlockTints {
                     case MethodInsnNode methodInsn when opcode == Opcodes.INVOKEVIRTUAL && methodInsn.owner.equals(VanillaSourceClasses.BLOCK_COLORS) && methodInsn.name.equals(REGISTER_METHOD_NAME) -> {
 
                         if (pendingSource != null && pendingSourceLayers == 1 && !pendingBlocks.isEmpty())
-                            emitTints(tints, pendingSource, pendingConstantA, pendingConstantB, pendingConstantCount, pendingBlocks);
+                            emitTints(tints, pendingSource, pendingConstant, pendingBlocks);
 
                         pendingSource = null;
-                        pendingConstantA = 0;
-                        pendingConstantB = 0;
-                        pendingConstantCount = 0;
+                        pendingConstant = 0;
                         pendingSourceLayers = 0;
                         pendingBlocks.clear();
                         intLiteralStack.reset();
@@ -283,28 +304,28 @@ public final class ToolingBlockTints {
         private static void emitTints(
             @NotNull ConcurrentMap<String, Block.Tint> tints,
             @NotNull String sourceMethod,
-            int constantA,
-            int constantB,
-            int constantCount,
+            int constant,
             @NotNull ConcurrentList<String> blocks
         ) {
             Biome.TintTarget target;
-            Optional<Integer> constant = Optional.empty();
+            Optional<Integer> constantColor = Optional.empty();
 
             if (sourceMethod.equals("constant")) {
                 target = Biome.TintTarget.CONSTANT;
-                // BlockTintSources.constant(int, int) is the two-colour overload used for lily_pad:
-                // first int is the in-world colour, second is the GUI default. Atlas rendering is
-                // item-perspective, so the GUI default wins.
-                int argb = constantCount == 2 ? constantB : constantA;
-                constant = Optional.of(argb);
+                // The renderer produces GUI block icons, which use vanilla's no-context "in hand"
+                // colour ({@code BlockTintSource.color(state)} = the first {@code constant(...)} arg).
+                constantColor = Optional.of(constant);
+            } else if (sourceMethod.equals(STEM_SOURCE)) {
+                // stem() is age-dependent; the default-state (age=0) render is pure green.
+                target = Biome.TintTarget.CONSTANT;
+                constantColor = Optional.of(STEM_DEFAULT_COLOR);
             } else {
                 Biome.TintTarget mapped = SUPPORTED_SOURCES.get(sourceMethod);
                 if (mapped == null) return;
                 target = mapped;
             }
 
-            Block.Tint tint = new Block.Tint(target, constant);
+            Block.Tint tint = new Block.Tint(target, constantColor);
             for (String blockId : blocks)
                 tints.put(blockId, tint);
         }

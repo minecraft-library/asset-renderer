@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.visual;
 
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.DiffType;
@@ -31,6 +32,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -134,65 +136,18 @@ public final class TestEntityParityVanilla {
             vanillaKeys.size() - intersection.size(),
             javaKeys.size() - intersection.size());
 
-        List<Row> rows = new ArrayList<>();
         long t0 = System.nanoTime();
-        for (String entityId : entityIds) {
-            String safeName = entityId.replace(':', '_');
-            Path entityDir = OUTPUT_DIR.resolve(safeName);
-            Files.createDirectories(entityDir);
-            try {
-                Path vanillaPng = VANILLA_DIR.resolve(VANILLA_PREFIX + entityId.substring("minecraft:".length()) + ".png");
-                BufferedImage vanillaImg = ImageIO.read(vanillaPng.toFile());
-                if (vanillaImg == null) {
-                    System.err.printf("       %-40s vanilla PNG unreadable: %s%n", entityId, vanillaPng);
-                    rows.add(new Row(entityId, Double.POSITIVE_INFINITY, -1, 0, 0, false, 0, 0, 0, 0));
-                    continue;
-                }
-                int vw = vanillaImg.getWidth();
-                int vh = vanillaImg.getHeight();
-
-                EntityOptions options = EntityOptions.builder()
-                    .entityId(Optional.of(entityId))
-                    .fitMode(EntityOptions.FitMode.FAMILY_BOUNDS)
-                    .build();
-                ImageData java;
-                lib.minecraft.renderer.pipeline.util.RendererDebug.beginPerEntityBoundsDump(entityId);
-                try {
-                    java = javaRenderer.render(options);
-                } finally {
-                    lib.minecraft.renderer.pipeline.util.RendererDebug.endPerEntityBoundsDump(entityId);
-                }
-                BufferedImage javaImg = java.toBufferedImage();
-                int jw = javaImg.getWidth();
-                int jh = javaImg.getHeight();
-
-                int cw = Math.max(vw, jw);
-                int ch = Math.max(vh, jh);
-                BufferedImage vanillaPadded = padToCanvas(vanillaImg, cw, ch);
-                BufferedImage javaPadded = padToCanvas(javaImg, cw, ch);
-
-                ImageIO.write(vanillaImg, "PNG", new File(entityDir.toFile(), "vanilla.png"));
-                ImageIO.write(javaImg, "PNG", new File(entityDir.toFile(), "java.png"));
-                PixelBuffer vanillaPB = PixelBuffer.wrap(vanillaPadded);
-                PixelBuffer javaPB = PixelBuffer.wrap(javaPadded);
-                BufferedImage diffImg = vanillaPB.diff(javaPB, DiffType.OVER_WHITE).toBufferedImage();
-                ImageIO.write(diffImg, "PNG", new File(entityDir.toFile(), "diff.png"));
-                BufferedImage panelImg = panelDiff(vanillaPadded, javaPadded, vanillaPB, javaPB);
-                ImageIO.write(panelImg, "PNG", new File(entityDir.toFile(), "diff_panel.png"));
-
-                Stats stats = compareImages(vanillaPadded, javaPadded);
-                boolean achieved = ACHIEVED_PARITY.contains(entityId);
-                String dimMismatch = (vw == jw && vh == jh) ? "" : String.format(" [%dx%d vs %dx%d]", jw, jh, vw, vh);
-                rows.add(new Row(entityId, stats.meanDelta(), stats.differingPixels(), stats.javaCoverage(), stats.vanillaCoverage(), achieved, jw, jh, vw, vh));
-                System.out.printf("  %s %-40s mean delta %.2f  diff-px %d  java-cov %.1f%%  vanilla-cov %.1f%%%s%n",
-                    achieved ? "[OK]" : "    ",
-                    entityId, stats.meanDelta(), stats.differingPixels(),
-                    stats.javaCoverage() * 100, stats.vanillaCoverage() * 100, dimMismatch);
-            } catch (Exception ex) {
-                System.err.printf("       %-40s FAILED: %s%n", entityId, ex.getMessage());
-                rows.add(new Row(entityId, Double.POSITIVE_INFINITY, -1, 0, 0, false, 0, 0, 0, 0));
-            }
-        }
+        // Parallel dispatch across independent per-entity renders, mirroring
+        // TestBlockParityVanilla / AtlasRenderer.render's parallelStream pattern: the
+        // PipelineRendererContext indexes are ConcurrentMaps and the texture cache is thread-safe,
+        // EntityRenderer holds only the read-only context + immutable entity-definition map, and each
+        // render allocates its own engine + buffers - so a single shared javaRenderer is safe to call
+        // concurrently. Each entity writes to its own sub-directory and returns its Row; no shared
+        // mutable state beyond the collector. (RendererDebug's bounds-dump toggle is a ThreadLocal,
+        // so the per-entity begin/end framing stays correct on each worker thread.)
+        List<Row> rows = entityIds.parallelStream()
+            .map(entityId -> renderAndCompare(entityId, javaRenderer))
+            .collect(Collectors.toCollection(ArrayList::new));
         long totalMs = (System.nanoTime() - t0) / 1_000_000L;
 
         rows.sort((a, b) -> Double.compare(a.meanDelta(), b.meanDelta()));
@@ -224,6 +179,75 @@ public final class TestEntityParityVanilla {
         System.out.println("Focus pool (not in achieved-parity list, worst first):");
         for (Row r : focus.subList(0, Math.min(15, focus.size())))
             System.out.printf("    %-40s mean delta %.2f%n", r.entityId(), r.meanDelta());
+    }
+
+    /**
+     * Renders one entity through the Java pipeline, diffs it against the vanilla reference, writes
+     * the per-entity {@code vanilla/java/diff/diff_panel} PNGs, and returns the comparison
+     * {@link Row}. Self-contained (no shared mutable state) so it can run concurrently across
+     * entities via {@code parallelStream}; the shared {@code javaRenderer} reads only the immutable
+     * {@link PipelineRendererContext} + entity-definition map. Any failure (missing/unreadable
+     * reference, render error) is captured as a {@code POSITIVE_INFINITY} sentinel row rather than
+     * aborting the sweep.
+     *
+     * @param entityId the entity id to render and compare
+     * @param javaRenderer the shared read-only Java entity renderer
+     * @return the comparison row, or a {@code POSITIVE_INFINITY} sentinel on failure
+     */
+    private static @NotNull Row renderAndCompare(@NotNull String entityId, @NotNull EntityRenderer javaRenderer) {
+        Path entityDir = OUTPUT_DIR.resolve(entityId.replace(':', '_'));
+        try {
+            Files.createDirectories(entityDir);
+            Path vanillaPng = VANILLA_DIR.resolve(VANILLA_PREFIX + entityId.substring("minecraft:".length()) + ".png");
+            BufferedImage vanillaImg = ImageIO.read(vanillaPng.toFile());
+            if (vanillaImg == null) {
+                System.err.printf("       %-40s vanilla PNG unreadable: %s%n", entityId, vanillaPng);
+                return new Row(entityId, Double.POSITIVE_INFINITY, -1, 0, 0, false, 0, 0, 0, 0);
+            }
+            int vw = vanillaImg.getWidth();
+            int vh = vanillaImg.getHeight();
+
+            EntityOptions options = EntityOptions.builder()
+                .entityId(Optional.of(entityId))
+                .fitMode(EntityOptions.FitMode.FAMILY_BOUNDS)
+                .build();
+            ImageData java;
+            lib.minecraft.renderer.pipeline.util.RendererDebug.beginPerEntityBoundsDump(entityId);
+            try {
+                java = javaRenderer.render(options);
+            } finally {
+                lib.minecraft.renderer.pipeline.util.RendererDebug.endPerEntityBoundsDump(entityId);
+            }
+            BufferedImage javaImg = java.toBufferedImage();
+            int jw = javaImg.getWidth();
+            int jh = javaImg.getHeight();
+
+            int cw = Math.max(vw, jw);
+            int ch = Math.max(vh, jh);
+            BufferedImage vanillaPadded = padToCanvas(vanillaImg, cw, ch);
+            BufferedImage javaPadded = padToCanvas(javaImg, cw, ch);
+
+            ImageIO.write(vanillaImg, "PNG", new File(entityDir.toFile(), "vanilla.png"));
+            ImageIO.write(javaImg, "PNG", new File(entityDir.toFile(), "java.png"));
+            PixelBuffer vanillaPB = PixelBuffer.wrap(vanillaPadded);
+            PixelBuffer javaPB = PixelBuffer.wrap(javaPadded);
+            BufferedImage diffImg = vanillaPB.diff(javaPB, DiffType.OVER_WHITE).toBufferedImage();
+            ImageIO.write(diffImg, "PNG", new File(entityDir.toFile(), "diff.png"));
+            BufferedImage panelImg = panelDiff(vanillaPadded, javaPadded, vanillaPB, javaPB);
+            ImageIO.write(panelImg, "PNG", new File(entityDir.toFile(), "diff_panel.png"));
+
+            Stats stats = compareImages(vanillaPadded, javaPadded);
+            boolean achieved = ACHIEVED_PARITY.contains(entityId);
+            String dimMismatch = (vw == jw && vh == jh) ? "" : String.format(" [%dx%d vs %dx%d]", jw, jh, vw, vh);
+            System.out.printf("  %s %-40s mean delta %.2f  diff-px %d  java-cov %.1f%%  vanilla-cov %.1f%%%s%n",
+                achieved ? "[OK]" : "    ",
+                entityId, stats.meanDelta(), stats.differingPixels(),
+                stats.javaCoverage() * 100, stats.vanillaCoverage() * 100, dimMismatch);
+            return new Row(entityId, stats.meanDelta(), stats.differingPixels(), stats.javaCoverage(), stats.vanillaCoverage(), achieved, jw, jh, vw, vh);
+        } catch (Exception ex) {
+            System.err.printf("       %-40s FAILED: %s%n", entityId, ex.getMessage());
+            return new Row(entityId, Double.POSITIVE_INFINITY, -1, 0, 0, false, 0, 0, 0, 0);
+        }
     }
 
     /**
@@ -622,13 +646,9 @@ public final class TestEntityParityVanilla {
      * checker keeps the canvas extent visible without dominating the view.
      */
     private static @NotNull BufferedImage buildGridBackdrop(int w, int h) {
-        BufferedImage backdrop = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                backdrop.setRGB(x, y, ((x >> 3) + (y >> 3)) % 2 == 0 ? 0xFF202024 : 0xFF181820);
-            }
-        }
-        return backdrop;
+        PixelBuffer backdrop = PixelBuffer.create(w, h);
+        Background.checkerboard().fill(backdrop);
+        return backdrop.toBufferedImage();
     }
 
     /** Per-entity row in the TSV report. */

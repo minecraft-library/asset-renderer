@@ -67,7 +67,7 @@ class ModelEngineParallelismTest {
             .supersample(2)
             .antiAlias(false)
             .build();
-        assertDeterministicAndPinned(options, 0x8207310CL);
+        assertDeterministicAndPinned(options, 0x81C04777L);
     }
 
     @Test
@@ -80,7 +80,7 @@ class ModelEngineParallelismTest {
             .supersample(2)
             .antiAlias(false)
             .build();
-        assertDeterministicAndPinned(options, 0xE592C6F4L);
+        assertDeterministicAndPinned(options, 0x8189C31EL);
     }
 
     @Test
@@ -91,10 +91,9 @@ class ModelEngineParallelismTest {
             .blockId("minecraft:piston")
             .type(BlockOptions.Type.ISOMETRIC_3D)
             .outputSize(128)
-            .supersample(1)
             .antiAlias(false)
             .build();
-        assertDeterministicAndPinned(options, 0x513089BDL);
+        assertDeterministicAndPinned(options, 0xC41E4FA9L);
     }
 
     private void assertDeterministicAndPinned(BlockOptions options, long expectedCrc32) {

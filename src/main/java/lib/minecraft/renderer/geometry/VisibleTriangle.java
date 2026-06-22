@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.geometry;
 
+import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
-import dev.simplified.image.pixel.PixelBuffer;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -35,6 +35,11 @@ import org.jetbrains.annotations.Nullable;
  *     they blend in vanilla's painter's order; cutout no-cull triangles stay in emission order
  *     because their alpha-255 fragments depth-fail subsequent farther fragments correctly
  *     without sorting.
+ * @param glinted when {@code true} this triangle is worn-armor (or armor-trim) geometry that should
+ *     receive the enchantment foil. The rasterizer records a per-pixel glint mask wherever a glinted
+ *     fragment wins the depth test, and the glint compositor applies the foil only on those pixels,
+ *     so the foil lands on the armor rather than the whole rendered silhouette. Always {@code false}
+ *     for bare skin, blocks, items, and entity bodies
  * @param debugTag opaque identifier (typically {@code "bone:face"} or {@code "block:face"}) carried
  *     for diagnostic dumps only - the rasterizer attaches it to each pixel write when
  *     {@code -Dentity.pixel.dump=x0,y0,x1,y1} is set so per-pixel trace records show which kit
@@ -55,27 +60,15 @@ public record VisibleTriangle(
     boolean cullBackFaces,
     boolean emissive,
     boolean translucent,
+    boolean glinted,
     @Nullable String debugTag
 ) {
 
     /**
-     * Convenience constructor that omits {@link #debugTag} for production call sites.
-     */
-    public VisibleTriangle(
-        @NotNull Vector3f position0, @NotNull Vector3f position1, @NotNull Vector3f position2,
-        @NotNull Vector2f uv0, @NotNull Vector2f uv1, @NotNull Vector2f uv2,
-        @NotNull PixelBuffer texture, int tintArgb,
-        @NotNull Vector3f normal, float shading,
-        boolean cullBackFaces, boolean emissive, boolean translucent
-    ) {
-        this(position0, position1, position2, uv0, uv1, uv2, texture, tintArgb, normal, shading,
-             cullBackFaces, emissive, translucent, null);
-    }
-
-    /**
      * Convenience constructor for non-translucent triangles (the historic 12-arg signature in use
-     * before {@link #translucent} was added). Defaults {@code translucent} to {@code false} -
-     * opaque solid cubes, alpha-cutout cubes (alpha 0 or 255 only), and emissive overlays.
+     * before {@link #translucent} was added). Defaults {@code translucent} and {@link #glinted} to
+     * {@code false} - opaque solid cubes, alpha-cutout cubes (alpha 0 or 255 only), and emissive
+     * overlays, none of which are worn-armor geometry.
      */
     public VisibleTriangle(
         @NotNull Vector3f position0, @NotNull Vector3f position1, @NotNull Vector3f position2,
@@ -85,6 +78,20 @@ public record VisibleTriangle(
         boolean cullBackFaces, boolean emissive
     ) {
         this(position0, position1, position2, uv0, uv1, uv2, texture, tintArgb, normal, shading,
-             cullBackFaces, emissive, false, null);
+             cullBackFaces, emissive, false, false, null);
+    }
+
+    /**
+     * Returns a copy of this triangle with {@link #glinted} set to {@code value}. Lets a builder flag
+     * already-assembled geometry (e.g. armor cubes from a generic box builder) as foil-receiving
+     * without rethreading the flag through the build path.
+     *
+     * @param value the glinted flag for the copy
+     * @return a copy of this triangle with the given glinted flag
+     */
+    public @NotNull VisibleTriangle withGlinted(boolean value) {
+        return new VisibleTriangle(this.position0, this.position1, this.position2,
+            this.uv0, this.uv1, this.uv2, this.texture, this.tintArgb, this.normal, this.shading,
+            this.cullBackFaces, this.emissive, this.translucent, value, this.debugTag);
     }
 }

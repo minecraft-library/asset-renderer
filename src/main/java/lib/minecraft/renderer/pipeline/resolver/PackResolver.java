@@ -2,7 +2,7 @@ package lib.minecraft.renderer.pipeline.resolver;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import lib.minecraft.renderer.asset.pack.TexturePack;
+import lib.minecraft.renderer.asset.TexturePack;
 import lib.minecraft.renderer.pipeline.pack.PackMeta;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;

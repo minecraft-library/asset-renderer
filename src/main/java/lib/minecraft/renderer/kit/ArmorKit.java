@@ -4,8 +4,10 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.binding.ArmorPiece;
-import lib.minecraft.renderer.asset.binding.ArmorTrim;
+import lib.minecraft.renderer.appearance.ArmorMaterial;
+import lib.minecraft.renderer.appearance.ArmorPiece;
+import lib.minecraft.renderer.appearance.ArmorTrim;
+import lib.minecraft.renderer.engine.GlintMask;
 import lib.minecraft.renderer.engine.TextureEngine;
 import lib.minecraft.renderer.geometry.BlockFace;
 import lib.minecraft.renderer.geometry.SkinFace;
@@ -13,6 +15,7 @@ import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.EnumMap;
 import java.util.Map;
@@ -43,14 +46,30 @@ import java.util.Optional;
 public class ArmorKit {
 
     /**
-     * Per-side inflation in model units so armor sits visibly above the skin geometry.
+     * Per-side inflation in model units for the layer-1 pieces (helmet, chestplate, boots) so armor
+     * sits visibly above the skin geometry.
      */
     private static final float ARMOR_INFLATE = 0.015f;
+
+    /**
+     * Per-side inflation for the layer-2 leggings. Smaller than {@link #ARMOR_INFLATE} so the
+     * leggings sit <em>inside</em> the chestplate on the torso and inside the boots on the lower
+     * legs - mirroring vanilla's armor layers (layer 1 inflated {@code 1.0px}, layer 2
+     * {@code 0.5px}). Without the inset the two coplanar torso cubes z-fight and the leggings waist
+     * shows through the chestplate.
+     */
+    private static final float LEGGINGS_INFLATE = 0.008f;
 
     /**
      * Additional inflate for trim so it sits above the armor base and avoids z-fighting.
      */
     private static final float TRIM_INFLATE = 0.003f;
+
+    /**
+     * Vanilla's default {@code minecraft:dye} colour for undyed leather armour ({@code #A06540}),
+     * applied to the leather base layer when an {@link ArmorPiece} carries no explicit dye.
+     */
+    private static final int DEFAULT_LEATHER_COLOR = 0xFFA06540;
 
     // ---------------------------------------------------------------------------------------
     // 3D armor (triangles for IsometricEngine / ModelEngine rasterization).
@@ -107,6 +126,8 @@ public class ArmorKit {
      * @param w the destination width
      * @param h the destination height
      * @param engine the texture engine for pack-aware texture resolution
+     * @param glintMask the per-pixel glint mask to stamp the armor / trim coverage into (so the
+     *     enchantment foil lands on the armor, not the bare skin), or {@code null} to skip
      */
     public static void compositeSlot2D(
         @NotNull PixelBuffer target,
@@ -114,16 +135,15 @@ public class ArmorKit {
         @NotNull ArmorTrim.Slot slot,
         @NotNull ArmorPiece piece,
         int x, int y, int w, int h,
-        @NotNull TextureEngine engine
+        @NotNull TextureEngine engine,
+        @Nullable GlintMask glintMask
     ) {
         boolean useLeggingsLayer = slot == ArmorTrim.Slot.LEGGINGS;
-        String textureId = useLeggingsLayer
-            ? piece.material().leggingsTextureId()
-            : piece.material().humanoidTextureId();
-        Optional<PixelBuffer> armorTexture = engine.tryResolveTexture(textureId);
+        Optional<PixelBuffer> armorTexture = resolveArmorTexture(engine, piece, useLeggingsLayer);
         armorTexture.ifPresent(tex -> {
             PixelBuffer face = part.crop(tex, BlockFace.SOUTH, false);
             target.blitScaled(face, x, y, w, h);
+            stampMaskScaled(glintMask, face, x, y, w, h);
         });
 
         if (piece.trimColor().isPresent() && piece.trimPattern().isPresent()) {
@@ -132,7 +152,30 @@ public class ArmorKit {
                 .ifPresent(trimTex -> {
                     PixelBuffer face = part.crop(trimTex, BlockFace.SOUTH, false);
                     target.blitScaled(face, x, y, w, h);
+                    stampMaskScaled(glintMask, face, x, y, w, h);
                 });
+        }
+    }
+
+    /**
+     * Marks the glint mask over the destination rectangle wherever the scaled source {@code face}
+     * has a non-transparent texel, mirroring {@code blitScaled}'s nearest-neighbour mapping. This is
+     * the 2D analogue of the 3D rasterizer's per-pixel glint marking - it records exactly the armor /
+     * trim coverage so the foil never lands on the bare skin underneath. No-op when {@code mask} is
+     * {@code null}.
+     */
+    private static void stampMaskScaled(@Nullable GlintMask mask, @NotNull PixelBuffer face, int x, int y, int w, int h) {
+        if (mask == null) return;
+        int fw = face.width();
+        int fh = face.height();
+        if (fw <= 0 || fh <= 0 || w <= 0 || h <= 0) return;
+        for (int dy = 0; dy < h; dy++) {
+            int sy = Math.min(fh - 1, dy * fh / h);
+            for (int dx = 0; dx < w; dx++) {
+                int sx = Math.min(fw - 1, dx * fw / w);
+                if (ColorMath.alpha(face.getPixel(sx, sy)) != 0)
+                    mask.mark(x + dx, y + dy);
+            }
         }
     }
 
@@ -225,17 +268,15 @@ public class ArmorKit {
     ) {
         SkinFace[] parts = partsForSlot(slot);
         boolean useLeggingsLayer = slot == ArmorTrim.Slot.LEGGINGS;
+        float baseInflate = useLeggingsLayer ? LEGGINGS_INFLATE : ARMOR_INFLATE;
 
-        String textureId = useLeggingsLayer
-            ? piece.material().leggingsTextureId()
-            : piece.material().humanoidTextureId();
-        Optional<PixelBuffer> armorTexture = engine.tryResolveTexture(textureId);
+        Optional<PixelBuffer> armorTexture = resolveArmorTexture(engine, piece, useLeggingsLayer);
         if (armorTexture.isEmpty()) return;
 
         for (SkinFace part : parts) {
             Vector3f[] bounds = bodyPositions.get(part);
             if (bounds == null) continue;
-            triangles.addAll(buildPart3D(part, bounds[0], bounds[1], armorTexture.get(), ARMOR_INFLATE));
+            triangles.addAll(buildPart3D(part, bounds[0], bounds[1], armorTexture.get(), baseInflate));
         }
 
         if (piece.trimColor().isPresent() && piece.trimPattern().isPresent()) {
@@ -247,7 +288,7 @@ public class ArmorKit {
                     Vector3f[] bounds = bodyPositions.get(part);
                     if (bounds == null) continue;
                     triangles.addAll(buildPart3D(part, bounds[0], bounds[1],
-                        trimTexture.get(), ARMOR_INFLATE + TRIM_INFLATE));
+                        trimTexture.get(), baseInflate + TRIM_INFLATE));
                 }
             }
         }
@@ -262,7 +303,52 @@ public class ArmorKit {
     ) {
         Vector3f inflatedMin = new Vector3f(min.x() - inflate, min.y() - inflate, min.z() - inflate);
         Vector3f inflatedMax = new Vector3f(max.x() + inflate, max.y() + inflate, max.z() + inflate);
-        return BlockGeometryKit.buildBoxTriangles(inflatedMin, inflatedMax, part.cropAll(texture, false), ColorMath.WHITE);
+        // Flag every armor / trim triangle as glinted so the rasterizer's per-pixel glint mask
+        // restricts the enchantment foil to the armor, not the whole body silhouette.
+        ConcurrentList<VisibleTriangle> built = BlockGeometryKit.buildBoxTriangles(
+            inflatedMin, inflatedMax, part.cropAll(texture, false), ColorMath.WHITE);
+        ConcurrentList<VisibleTriangle> glinted = Concurrent.newList();
+        for (VisibleTriangle triangle : built)
+            glinted.add(triangle.withGlinted(true));
+        return glinted;
+    }
+
+    /**
+     * Resolves the base armor texture for a slot, applying leather dye when the piece's material is
+     * {@link ArmorMaterial#LEATHER}: the grayscale base layer is tinted by the piece's
+     * {@link ArmorPiece#dyeColor() dye} (or {@link #DEFAULT_LEATHER_COLOR} when absent), then the
+     * undyed {@code leather_overlay} is composited on top untinted. Non-dyeable materials resolve to
+     * their flat base texture unchanged.
+     *
+     * @param engine the texture engine for pack-aware texture resolution
+     * @param piece the armor piece
+     * @param leggingsLayer whether to resolve the layer 2 leggings atlas instead of layer 1
+     * @return the resolved (and, for leather, dye-tinted + overlaid) texture, or empty when the base
+     *     texture is not present in the active pack
+     */
+    private static @NotNull Optional<PixelBuffer> resolveArmorTexture(
+        @NotNull TextureEngine engine,
+        @NotNull ArmorPiece piece,
+        boolean leggingsLayer
+    ) {
+        ArmorMaterial material = piece.material();
+        String baseId = leggingsLayer ? material.leggingsTextureId() : material.humanoidTextureId();
+        Optional<PixelBuffer> base = engine.tryResolveTexture(baseId);
+        if (base.isEmpty() || !material.dyeable())
+            return base;
+
+        int dye = piece.dyeColor().orElse(DEFAULT_LEATHER_COLOR);
+        PixelBuffer tinted = ColorMath.tint(base.get(), dye);
+
+        String overlayId = leggingsLayer ? material.leggingsOverlayTextureId() : material.humanoidOverlayTextureId();
+        Optional<PixelBuffer> overlay = engine.tryResolveTexture(overlayId);
+        if (overlay.isEmpty())
+            return Optional.of(tinted);
+
+        PixelBuffer combined = PixelBuffer.create(tinted.width(), tinted.height());
+        combined.blit(tinted, 0, 0);
+        combined.blit(overlay.get(), 0, 0);
+        return Optional.of(combined);
     }
 
     /**

@@ -54,10 +54,6 @@ import java.util.zip.ZipFile;
  *       our 4-entity-id split ({@code skull_head}, {@code skull_humanoid_head},
  *       {@code skull_dragon_head}, {@code skull_piglin_head}). This is our output convention;
  *       vanilla uses a single {@code BlockEntityType.SKULL}.</li>
- *   <li>{@link #BELL_ATTACH_SUFFIX} - maps the 4 {@code BellAttachType} enum constants to our
- *       sub-id suffix ({@code floor}, {@code ceiling}, {@code wall}, {@code between_walls}).
- *       This is our output convention - {@code SINGLE_WALL} and {@code DOUBLE_WALL} don't match
- *       their serialized names ({@code single_wall} / {@code double_wall}).</li>
  *   <li>{@link #DECORATED_POT_SIDES_OFFSET} - the sub-model offset for the pot sides part.
  *       Definitionally {@code (0, 0, 0)} because {@code DecoratedPotRenderer.submit} makes no
  *       {@code PoseStack.translate} call between the base and sides submitModel calls.</li>
@@ -78,12 +74,21 @@ public final class BlockListDiscovery {
     // ------------------------------------------------------------------------------------------
 
     /**
-     * A single block that renders as an entity-model entity.
+     * A single block that renders as a block-entity model.
      *
      * @param blockId the block id (e.g. {@code "minecraft:oak_sign"})
      * @param textureId the entity-texture id (e.g. {@code "minecraft:entity/signs/oak"})
+     * @param variant the {@code property=value} blockstate key under which this block uses the
+     *     owning model, or {@code null} when the model is the block's default (primary) geometry.
+     *     Used to register a state-conditional model as a blockstate variant - the ceiling hanging
+     *     sign's straight-chain mesh is bound to {@code attached=true} so the renderer selects it
+     *     via the standard variant path
      */
-    public record BlockMapping(@NotNull String blockId, @NotNull String textureId) {}
+    public record BlockMapping(@NotNull String blockId, @NotNull String textureId, @Nullable String variant) {
+        public BlockMapping(@NotNull String blockId, @NotNull String textureId) {
+            this(blockId, textureId, null);
+        }
+    }
 
     /**
      * A link to a secondary entity-model rendered on top of / next to this one. Used for
@@ -129,19 +134,6 @@ public final class BlockListDiscovery {
     );
 
     /**
-     * Suffix per {@code BellAttachType} enum constant. {@code SINGLE_WALL} and
-     * {@code DOUBLE_WALL} do not match their serialized names - our convention drops the
-     * {@code single_} prefix on the single-wall form and renames the double-wall form to
-     * {@code between_walls} for clarity.
-     */
-    private static final @NotNull Map<String, String> BELL_ATTACH_SUFFIX = Map.of(
-        "FLOOR",       "floor",
-        "CEILING",     "ceiling",
-        "SINGLE_WALL", "wall",
-        "DOUBLE_WALL", "between_walls"
-    );
-
-    /**
      * Render offset for {@code minecraft:decorated_pot_sides} against {@code minecraft:decorated_pot}.
      * Definitionally {@code (0, 0, 0)} because {@code DecoratedPotRenderer.submit} makes no
      * {@code PoseStack.translate} call between the base and sides submitModel calls.
@@ -174,7 +166,7 @@ public final class BlockListDiscovery {
      *       {@code banner_flag}, {@code wall_banner_flag}) at the end.</li>
      * </ol>
      * This matches the key order of {@code baseline/block_list.json} so regenerating
-     * {@code block_entities.json} doesn't reshuffle the output.
+     * {@code block_models.json} doesn't reshuffle the output.
      */
     private static @NotNull Map<String, FamilyAdapter> buildFamilyDispatch() {
         LinkedHashMap<String, FamilyAdapter> m = new LinkedHashMap<>();
@@ -182,8 +174,8 @@ public final class BlockListDiscovery {
         m.put("SHULKER_BOX",         (z, d) -> Map.of("minecraft:shulker_box", Shulker.discover(z, d)));
         m.put("CHEST",               (z, d) -> Map.of("minecraft:chest",       Chest.discover(z, d)));
         m.put("BED",                 (z, d) -> Map.of("minecraft:bed_head",    Bed.discoverHead(z, d)));
-        m.put("SIGN",                (z, d) -> Map.of("minecraft:sign",         Sign.discover(z, d)));
-        m.put("HANGING_SIGN",        (z, d) -> Map.of("minecraft:hanging_sign", HangingSign.discover(z, d)));
+        m.put("SIGN",                Sign::discover);
+        m.put("HANGING_SIGN",        HangingSign::discover);
         m.put("CONDUIT",             (z, d) -> Map.of("minecraft:conduit",      Conduit.discover(z, d)));
         m.put("BELL",                (z, d) -> Map.of("minecraft:bell_body",    Bell.discover(z, d)));
         m.put("DECORATED_POT",       (z, d) -> Map.of("minecraft:decorated_pot", DecoratedPot.discoverPot(z, d)));
@@ -354,17 +346,6 @@ public final class BlockListDiscovery {
      */
     static @NotNull Map<String, String> walkSkullTypesNames(@NotNull ZipFile zip) {
         return walkEnumSerializedNames(zip, VanillaSourceClasses.SKULL_TYPES);
-    }
-
-    /**
-     * Walks {@code BellAttachType.<clinit>} and returns the ordered list of enum field names.
-     * Used both as our iteration order and as the left-hand side of {@link #BELL_ATTACH_SUFFIX}.
-     *
-     * @return the insertion-ordered list of field names (e.g
-     *     {@code ["FLOOR", "CEILING", "SINGLE_WALL", "DOUBLE_WALL"]})
-     */
-    static @NotNull List<String> walkBellAttachTypesOrder(@NotNull ZipFile zip) {
-        return List.copyOf(walkEnumSerializedNames(zip, VanillaSourceClasses.BELL_ATTACH_TYPE).keySet());
     }
 
     /**
@@ -1204,57 +1185,185 @@ public final class BlockListDiscovery {
     }
 
     /**
-     * Sign family. 24 sign blocks (12 standing + 12 wall), all routed under
-     * {@code minecraft:sign}. Each block's ctor lambda has a {@code GETSTATIC WoodType.X}; we
-     * compose {@code entity/signs/<wood.name()>}.
+     * Bytewalks the ceiling hanging sign's attachment dispatch to learn which {@code attached=<bool>}
+     * blockstate selects each {@code HangingSignBlock$Attachment}. The {@code attachmentPoint(BlockState)}
+     * overload reads a {@code BooleanProperty} ({@code BlockStateProperties.ATTACHED}) and dispatches the
+     * {@code getAttachmentPoint(boolean)} overload, whose {@code cond ? CEILING_MIDDLE : CEILING} ternary
+     * javac compiles with the true branch first - so the two attachment {@code GETSTATIC}s appear in
+     * instruction order as {@code [trueAttachment, falseAttachment]}. The property's serialized name
+     * comes from its {@code BooleanProperty.create("attached")} call in the owner's {@code <clinit>}.
+     *
+     * @param zip the client jar
+     * @param diag the diagnostic sink
+     * @return a map from attachment field name to its {@code property=value} key, e.g.
+     *     {@code {"CEILING_MIDDLE" -> "attached=true", "CEILING" -> "attached=false"}}, or an empty
+     *     map when the bytecode shape isn't recognised
+     */
+    static @NotNull Map<String, String> walkHangingAttachmentVariantKeys(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
+        ClassNode cn = AsmKit.loadClass(zip, VanillaSourceClasses.CEILING_HANGING_SIGN_BLOCK);
+        if (cn == null) return Map.of();
+
+        // (1) getAttachmentPoint(Z): collect the two attachment constants in branch order.
+        MethodNode boolMethod = null;
+        for (MethodNode m : cn.methods)
+            if (m.name.equals("getAttachmentPoint") && m.desc.startsWith("(Z)")) { boolMethod = m; break; }
+        if (boolMethod == null) {
+            diag.warn("CeilingHangingSignBlock.getAttachmentPoint(Z) not found - cannot derive attached variants");
+            return Map.of();
+        }
+        ConcurrentList<String> attachmentsInOrder = Concurrent.newList();
+        for (AbstractInsnNode in = boolMethod.instructions.getFirst(); in != null; in = in.getNext())
+            if (AsmKit.isGetStatic(in, VanillaSourceClasses.HANGING_SIGN_BLOCK_ATTACHMENT) && in instanceof FieldInsnNode fi)
+                attachmentsInOrder.add(fi.name);
+        if (attachmentsInOrder.size() != 2) {
+            diag.warn("CeilingHangingSignBlock.getAttachmentPoint(Z) had %d attachment constants (expected a ternary) - cannot derive attached variants", attachmentsInOrder.size());
+            return Map.of();
+        }
+
+        // (2) The BlockState overload reads the BooleanProperty the dispatch keys on.
+        String propField = null;
+        for (MethodNode m : cn.methods) {
+            if (!m.name.equals("attachmentPoint") && !m.name.equals("getAttachmentPoint")) continue;
+            if (!m.desc.contains("/BlockState;)")) continue;
+            for (AbstractInsnNode in = m.instructions.getFirst(); in != null; in = in.getNext())
+                if (AsmKit.isGetStatic(in, VanillaSourceClasses.BLOCK_STATE_PROPERTIES) && in instanceof FieldInsnNode fi) {
+                    propField = fi.name;
+                    break;
+                }
+            if (propField != null) break;
+        }
+        if (propField == null) {
+            diag.warn("CeilingHangingSignBlock attachment dispatch reads no BlockStateProperties field - cannot derive attached variants");
+            return Map.of();
+        }
+        String propName = resolvePropertyName(zip, VanillaSourceClasses.BLOCK_STATE_PROPERTIES, propField);
+        if (propName == null) {
+            diag.warn("Could not resolve BlockStateProperties.%s serialized name - cannot derive attached variants", propField);
+            return Map.of();
+        }
+
+        LinkedHashMap<String, String> out = new LinkedHashMap<>();
+        out.put(attachmentsInOrder.get(0), propName + "=true");   // true branch (fall-through after ifeq)
+        out.put(attachmentsInOrder.get(1), propName + "=false");  // false branch (ifeq target)
+        return out;
+    }
+
+    /**
+     * Resolves a property constant's serialized name by walking {@code propsOwner.<clinit>} for the
+     * {@code LDC "name"; ...; PUTSTATIC <field>} sequence (every {@code XProperty.create("name", ...)}
+     * factory takes the serialized name as its first string literal).
+     */
+    private static @Nullable String resolvePropertyName(@NotNull ZipFile zip, @NotNull String propsOwner, @NotNull String field) {
+        ClassNode cn = AsmKit.loadClass(zip, propsOwner);
+        if (cn == null) return null;
+        MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
+        if (clinit == null) return null;
+        String pendingLdc = null;
+        for (AbstractInsnNode in = clinit.instructions.getFirst(); in != null; in = in.getNext()) {
+            String lit = AsmKit.readStringLiteral(in);
+            if (lit != null) {
+                pendingLdc = lit;
+                continue;
+            }
+            if (AsmKit.isPutStatic(in, propsOwner) && in instanceof FieldInsnNode fi && fi.name.equals(field) && pendingLdc != null)
+                return pendingLdc;
+        }
+        return null;
+    }
+
+    /**
+     * Sign family. 24 sign blocks split by {@code NEW} class into two entity ids:
+     * {@code minecraft:sign} (12 {@code StandingSignBlock}, board + post) and
+     * {@code minecraft:wall_sign} (12 {@code WallSignBlock}, board only). Each block's ctor lambda
+     * has a {@code GETSTATIC WoodType.X}; the texture is {@code entity/signs/<wood.name()>}.
      */
     @UtilityClass
     private static final class Sign {
 
-
-        static @NotNull EntityBlockMapping discover(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
-            return SignLike.discover(zip, diag, "SIGN",
-                "entity/signs/",
-                List.of(VanillaSourceClasses.STANDING_SIGN_BLOCK, VanillaSourceClasses.WALL_SIGN_BLOCK));
+        static @NotNull Map<String, EntityBlockMapping> discover(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
+            LinkedHashMap<String, String> classToEntity = new LinkedHashMap<>();
+            classToEntity.put(VanillaSourceClasses.STANDING_SIGN_BLOCK, "minecraft:sign");
+            classToEntity.put(VanillaSourceClasses.WALL_SIGN_BLOCK, "minecraft:wall_sign");
+            return SignLike.discoverSplit(zip, diag, "SIGN", "entity/signs/", classToEntity, List.of());
         }
     }
 
     /**
-     * Hanging-sign family. 24 hanging-sign blocks (12 standing + 12 wall). Identical wiring to
-     * {@link Sign} but {@code entity/signs/hanging/<wood>} and
-     * {@code CeilingHangingSignBlock} / {@code WallHangingSignBlock} as the accepted ctor
-     * classes.
+     * Hanging-sign family. 24 hanging-sign blocks split by {@code NEW} class:
+     * {@code minecraft:hanging_sign} (12 {@code CeilingHangingSignBlock}, the {@code attached=false}
+     * V-chain ceiling form) and {@code minecraft:wall_hanging_sign} (12 {@code WallHangingSignBlock},
+     * the bar + splayed-chain wall form). A third model {@code minecraft:hanging_sign_attached} holds
+     * the ceiling-middle straight-chain mesh; it lists the same {@code CeilingHangingSignBlock} blocks
+     * as {@code hanging_sign} but qualified by the {@code attached=true} blockstate, so the renderer
+     * selects it through the standard variant path. The {@code attached=true} key is bytewalk-derived
+     * from {@code CeilingHangingSignBlock.getAttachmentPoint} (see
+     * {@link #walkHangingAttachmentVariantKeys}).
      */
     @UtilityClass
     private static final class HangingSign {
 
+        static @NotNull Map<String, EntityBlockMapping> discover(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
+            LinkedHashMap<String, String> classToEntity = new LinkedHashMap<>();
+            classToEntity.put(VanillaSourceClasses.CEILING_HANGING_SIGN_BLOCK, "minecraft:hanging_sign");
+            classToEntity.put(VanillaSourceClasses.WALL_HANGING_SIGN_BLOCK, "minecraft:wall_hanging_sign");
 
-        static @NotNull EntityBlockMapping discover(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
-            return SignLike.discover(zip, diag, "HANGING_SIGN",
-                "entity/signs/hanging/",
-                List.of(VanillaSourceClasses.CEILING_HANGING_SIGN_BLOCK, VanillaSourceClasses.WALL_HANGING_SIGN_BLOCK));
+            // Bytewalk getAttachmentPoint to learn which attached=<bool> selects the ceiling-middle
+            // mesh. CEILING_MIDDLE is the attachment hanging_sign_attached holds (it is the same
+            // constant SourceDiscovery binds when extracting that mesh).
+            Map<String, String> attachmentVariants = walkHangingAttachmentVariantKeys(zip, diag);
+            String middleVariant = attachmentVariants.get("CEILING_MIDDLE");
+            List<SignLike.StateAlternate> alternates = middleVariant == null
+                ? List.of()
+                : List.of(new SignLike.StateAlternate("minecraft:hanging_sign_attached", "minecraft:hanging_sign", middleVariant));
+            if (middleVariant == null)
+                diag.warn("HANGING_SIGN: could not derive the CEILING_MIDDLE attachment variant from getAttachmentPoint - hanging_sign_attached gets no blocks");
+            return SignLike.discoverSplit(zip, diag, "HANGING_SIGN", "entity/signs/hanging/", classToEntity, alternates);
         }
     }
 
     /**
      * Shared adapter body for the two sign families. Walks the BE type's {@code validBlocks},
-     * matches each block to its {@code WoodType}, and emits a texture id with the supplied
-     * prefix.
+     * classifies each block by its {@code NEW} class into the matching primary model id, matches
+     * each to its {@code WoodType} for the texture path, and emits one {@link EntityBlockMapping}
+     * per model. Each {@link StateAlternate} re-lists its source model's blocks under a different
+     * model id, tagged with the alternate's {@code variant} blockstate key, so a state-conditional
+     * mesh is registered as a normal blockstate variant of the same blocks.
      */
     @UtilityClass
     private static final class SignLike {
-        static @NotNull EntityBlockMapping discover(
+
+        /**
+         * A state-conditional model that re-uses another model's blocks under a blockstate variant.
+         *
+         * @param alternateModelId the model id whose mesh renders for the qualified state
+         * @param sourceModelId the model id whose block list is re-used
+         * @param variant the {@code property=value} blockstate key selecting the alternate
+         */
+        record StateAlternate(@NotNull String alternateModelId, @NotNull String sourceModelId, @NotNull String variant) {}
+
+        static @NotNull Map<String, EntityBlockMapping> discoverSplit(
             @NotNull ZipFile zip,
             @NotNull Diagnostics diag,
             @NotNull String beField,
             @NotNull String texturePrefix,
-            @NotNull List<String> acceptedBlockClasses
+            @NotNull Map<String, String> classToEntity,
+            @NotNull List<StateAlternate> stateAlternates
         ) {
             List<String> blocks = validBlocks(zip, beField);
             Map<String, String> woodName = walkWoodTypeNames(zip);
-            Map<String, String> blockToWood = walkBlocksToCtorEnum(zip, blocks, VanillaSourceClasses.WOOD_TYPE, acceptedBlockClasses, diag);
-            ConcurrentList<BlockMapping> mappings = Concurrent.newList();
+            Map<String, String> blockToWood = walkBlocksToCtorEnum(zip, blocks, VanillaSourceClasses.WOOD_TYPE, List.copyOf(classToEntity.keySet()), diag);
+
+            LinkedHashMap<String, ConcurrentList<BlockMapping>> byEntity = new LinkedHashMap<>();
+            for (String entityId : classToEntity.values())
+                byEntity.put(entityId, Concurrent.newList());
+
             for (String blockField : blocks) {
+                String newClass = walkBlockNewClass(zip, blockField);
+                String entityId = newClass != null ? classToEntity.get(newClass) : null;
+                if (entityId == null) {
+                    diag.warn("%s block '%s' has unrecognised NEW class '%s' - skipped", beField, blockField, newClass);
+                    continue;
+                }
                 String woodField = blockToWood.get(blockField);
                 if (woodField == null) {
                     diag.warn("%s block '%s' has no WoodType arg - skipped", beField, blockField);
@@ -1265,9 +1374,23 @@ public final class BlockListDiscovery {
                     diag.warn("WoodType.%s has no name - skipped", woodField);
                     continue;
                 }
-                mappings.add(new BlockMapping(blockFieldToId(blockField), "minecraft:" + texturePrefix + wood));
+                byEntity.get(entityId).add(new BlockMapping(blockFieldToId(blockField), "minecraft:" + texturePrefix + wood));
             }
-            return new EntityBlockMapping(List.copyOf(mappings), null);
+
+            LinkedHashMap<String, EntityBlockMapping> out = new LinkedHashMap<>();
+            // Emit each primary model, immediately followed by any state-alternate sourced from it
+            // (so the ceiling-middle mesh sits next to the ceiling mesh it varies).
+            for (Map.Entry<String, ConcurrentList<BlockMapping>> e : byEntity.entrySet()) {
+                out.put(e.getKey(), new EntityBlockMapping(List.copyOf(e.getValue()), null));
+                for (StateAlternate alt : stateAlternates) {
+                    if (!alt.sourceModelId().equals(e.getKey())) continue;
+                    ConcurrentList<BlockMapping> altBlocks = Concurrent.newList();
+                    for (BlockMapping b : e.getValue())
+                        altBlocks.add(new BlockMapping(b.blockId(), b.textureId(), alt.variant()));
+                    out.put(alt.alternateModelId(), new EntityBlockMapping(List.copyOf(altBlocks), null));
+                }
+            }
+            return out;
         }
     }
 
@@ -1469,10 +1592,12 @@ public final class BlockListDiscovery {
     }
 
     /**
-     * Bell family. {@code BlockEntityType.BELL.validBlocks} is {@code [BELL]}, but our output
-     * splits into 4 faux block ids keyed on {@code BellAttachType} enum values per
-     * {@link #BELL_ATTACH_SUFFIX}. All 4 share {@code entity/bell/bell_body} resolved via
-     * {@link #resolveBellTexture}.
+     * Bell family. {@code BlockEntityType.BELL.validBlocks} is {@code [BELL]} - a single block
+     * {@code minecraft:bell} whose attachment / facing live in its blockstate. The additive
+     * {@code bell_body} overlay binds to that one block id: {@code BellRenderer.submit} renders the
+     * {@code bell_body} model with the raw {@code PoseStack} (no per-attachment offset), so the
+     * same overlay position covers every attachment state. Texture is {@code entity/bell/bell_body}
+     * resolved via {@link #resolveBellTexture}.
      */
     @UtilityClass
     private static final class Bell {
@@ -1480,14 +1605,7 @@ public final class BlockListDiscovery {
         static @NotNull EntityBlockMapping discover(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
             String tex = resolveBellTexture(zip, diag);
             if (tex == null) return new EntityBlockMapping(List.of(), null);
-            List<String> attachOrder = walkBellAttachTypesOrder(zip);
-            ConcurrentList<BlockMapping> mappings = Concurrent.newList();
-            for (String attachField : attachOrder) {
-                String suffix = BELL_ATTACH_SUFFIX.get(attachField);
-                if (suffix == null) continue;
-                mappings.add(new BlockMapping("minecraft:bell_" + suffix, "minecraft:" + tex));
-            }
-            return new EntityBlockMapping(List.copyOf(mappings), null);
+            return new EntityBlockMapping(List.of(new BlockMapping("minecraft:bell", "minecraft:" + tex)), null);
         }
     }
 

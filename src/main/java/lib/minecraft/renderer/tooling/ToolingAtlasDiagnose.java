@@ -1,9 +1,9 @@
 package lib.minecraft.renderer.tooling;
 
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.exception.ToolingException;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -54,6 +54,12 @@ import java.util.List;
 public final class ToolingAtlasDiagnose {
 
     /**
+     * Shared Gson carrying the renderer's registered type adapters. Pretty-printing only affects
+     * writes; reads are format-agnostic, so a single instance serves both parse and output.
+     */
+    private static final @NotNull Gson PRETTY_GSON = GsonSettings.defaults().mutate().isPrettyPrint().build().create();
+
+    /**
      * How often to emit a progress dot while slicing tiles.
      */
     private static final int PROGRESS_DOT_INTERVAL = 256;
@@ -100,7 +106,7 @@ public final class ToolingAtlasDiagnose {
         Files.createDirectories(sliceDir);
 
         System.out.printf("Reading %s...%n", atlasJson);
-        JsonObject sidecar = new Gson().fromJson(Files.readString(atlasJson), JsonObject.class);
+        JsonObject sidecar = PRETTY_GSON.fromJson(Files.readString(atlasJson), JsonObject.class);
         JsonArray tiles = sidecar.getAsJsonArray("tiles");
         int total = tiles.size();
         System.out.printf("Reading %s (%d tiles)...%n", atlasPng, total);
@@ -153,7 +159,7 @@ public final class ToolingAtlasDiagnose {
         report.addProperty("sparseContentThreshold", SPARSE_CONTENT_THRESHOLD);
         report.add("tiles", flagged);
 
-        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        Gson gson = PRETTY_GSON;
         Files.writeString(missingJson, gson.toJson(report) + System.lineSeparator());
 
         System.out.printf(
@@ -251,7 +257,7 @@ public final class ToolingAtlasDiagnose {
         Files.createDirectories(outDir);
 
         System.out.printf("Reading %s...%n", atlasJson);
-        JsonObject sidecar = new Gson().fromJson(Files.readString(atlasJson), JsonObject.class);
+        JsonObject sidecar = PRETTY_GSON.fromJson(Files.readString(atlasJson), JsonObject.class);
         JsonArray tiles = sidecar.getAsJsonArray("tiles");
         int tileSize = sidecar.get("tileSize").getAsInt();
 
@@ -318,7 +324,7 @@ public final class ToolingAtlasDiagnose {
         miniRoot.addProperty("count", matching.size());
         miniRoot.addProperty("sourceFilter", sourceFilter);
         miniRoot.add("tiles", miniTiles);
-        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        Gson gson = PRETTY_GSON;
         Files.writeString(miniJson, gson.toJson(miniRoot) + System.lineSeparator());
 
         ids.sort(String.CASE_INSENSITIVE_ORDER);

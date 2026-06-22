@@ -50,7 +50,7 @@ public final class GridRenderer implements Renderer<GridOptions> {
 
         if (!anyAnimated) {
             PixelBuffer buffer = PixelBuffer.create(canvasW, canvasH);
-            buffer.fill(options.getBackgroundArgb());
+            options.getBackground().fill(buffer);
 
             // Tile-parallel blit. Each tile's (x, y, cellSize) destination rectangle is disjoint
             // from every other tile's (separation is non-negative, so rectangles never overlap),
@@ -74,7 +74,7 @@ public final class GridRenderer implements Renderer<GridOptions> {
             layers.add(new FrameMerger.Layer(x, y, tile.image()));
         }
 
-        return FrameMerger.merge(layers, canvasW, canvasH, DEFAULT_FRAME_FPS, options.getBackgroundArgb());
+        return FrameMerger.merge(layers, canvasW, canvasH, DEFAULT_FRAME_FPS, options.getBackground());
     }
 
 }

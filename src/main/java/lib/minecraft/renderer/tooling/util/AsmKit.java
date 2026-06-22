@@ -28,7 +28,7 @@ import java.util.zip.ZipFile;
 /**
  * Shared ASM scaffolding used by every bytecode-walking tooling parser in the
  * {@link lib.minecraft.renderer.tooling} package
- * ({@code ToolingBlockTints}, {@code ToolingPotionColors}, {@code ToolingBlockEntities},
+ * ({@code ToolingBlockTints}, {@code ToolingPotionColors}, {@code ToolingBlockModels},
  * plus the {@code blockentity} and {@code entity} sub-package resolvers).
  *
  * <p>The kit owns four families of primitives:
