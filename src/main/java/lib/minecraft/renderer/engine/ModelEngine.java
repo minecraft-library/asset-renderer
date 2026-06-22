@@ -179,6 +179,66 @@ public class ModelEngine extends TextureEngine {
         rasterizeInternal(triangles, buffer, perspective, transform);
     }
 
+    /**
+     * Rasterizes a fixed-size triangle list scaled and centred to fill {@code fill} of the buffer's
+     * smaller dimension, under this engine's camera and the given model rotation. The plain
+     * {@link #rasterize rasterize} overloads project at the perspective's fixed scale, which leaves
+     * a subject smaller than the canvas; this measures the geometry's projected silhouette and
+     * scales it to the frame, so renderers with fixed model-space geometry (e.g. the player's
+     * hard-coded body cubes) fill the canvas regardless of the model's native extent.
+     * <p>
+     * The silhouette is measured by projecting every vertex through {@code camera x rotation}
+     * (orthographic), which accounts for the iso foreshortening and any caller rotation. The
+     * geometry is translated so its model-space bounds centre projects to the canvas centre, then
+     * uniformly scaled so the tighter projected axis spans {@code fill} of the smaller canvas side.
+     *
+     * @param triangles the triangle list, in fixed model-space units
+     * @param buffer the destination buffer
+     * @param perspective the perspective blend parameters (orthographic recommended)
+     * @param rotation the Euler-angle model rotation applied before the camera
+     * @param fill the fraction in {@code (0, 1]} of the smaller canvas dimension the silhouette spans
+     */
+    public void rasterizeFitted(
+        @NotNull ConcurrentList<VisibleTriangle> triangles,
+        @NotNull PixelBuffer buffer,
+        @NotNull PerspectiveParams perspective,
+        @NotNull EulerRotation rotation,
+        float fill
+    ) {
+        if (triangles.isEmpty()) return;
+        Matrix4f modelRotation = buildModelRotation(rotation);
+        Matrix4f orient = this.camera.multiply(modelRotation);
+
+        float minMx = Float.MAX_VALUE, minMy = Float.MAX_VALUE, minMz = Float.MAX_VALUE;
+        float maxMx = -Float.MAX_VALUE, maxMy = -Float.MAX_VALUE, maxMz = -Float.MAX_VALUE;
+        float minPx = Float.MAX_VALUE, minPy = Float.MAX_VALUE;
+        float maxPx = -Float.MAX_VALUE, maxPy = -Float.MAX_VALUE;
+        for (VisibleTriangle tri : triangles)
+            for (Vector3f v : new Vector3f[]{ tri.position0(), tri.position1(), tri.position2() }) {
+                minMx = Math.min(minMx, v.x()); maxMx = Math.max(maxMx, v.x());
+                minMy = Math.min(minMy, v.y()); maxMy = Math.max(maxMy, v.y());
+                minMz = Math.min(minMz, v.z()); maxMz = Math.max(maxMz, v.z());
+                Vector3f p = v.transform(orient);
+                minPx = Math.min(minPx, p.x()); maxPx = Math.max(maxPx, p.x());
+                minPy = Math.min(minPy, p.y()); maxPy = Math.max(maxPy, p.y());
+            }
+
+        float centreX = (minMx + maxMx) * 0.5f;
+        float centreY = (minMy + maxMy) * 0.5f;
+        float centreZ = (minMz + maxMz) * 0.5f;
+        float halfProjX = Math.max((maxPx - minPx) * 0.5f, 1e-6f);
+        float halfProjY = Math.max((maxPy - minPy) * 0.5f, 1e-6f);
+
+        float baseScale = Math.min(buffer.width(), buffer.height()) * perspective.projectionScale();
+        float fitX = fill * buffer.width() * 0.5f / (halfProjX * baseScale);
+        float fitY = fill * buffer.height() * 0.5f / (halfProjY * baseScale);
+        float fit = Math.min(fitX, fitY);
+
+        // vertex -> centre at origin -> uniform fit scale -> model rotation -> (camera).
+        Matrix4f modelTransform = modelRotation.scale(fit, fit, fit).translate(-centreX, -centreY, -centreZ);
+        rasterizeInternal(triangles, buffer, perspective, this.camera.multiply(modelTransform));
+    }
+
     private void rasterizeInternal(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,

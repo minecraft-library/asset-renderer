@@ -51,7 +51,6 @@ public enum SkinFace {
         {  0, 8, 32, 8 },  // WEST  (character's right, viewer's left)
         { 16, 8, 48, 8 }   // EAST  (character's left, viewer's right)
     }),
-
     TORSO(8, 12, 4, new int[][]{
         { 28, 16, 28, 32 },
         { 20, 16, 20, 32 },
@@ -60,7 +59,6 @@ public enum SkinFace {
         { 16, 20, 16, 36 },
         { 28, 20, 28, 36 }
     }),
-
     RIGHT_ARM(4, 12, 4, new int[][]{
         { 48, 16, 48, 32 },
         { 44, 16, 44, 32 },
@@ -69,7 +67,6 @@ public enum SkinFace {
         { 40, 20, 40, 36 },
         { 48, 20, 48, 36 }
     }),
-
     LEFT_ARM(4, 12, 4, new int[][]{
         { 40, 48, 56, 48 },
         { 36, 48, 52, 48 },
@@ -78,7 +75,6 @@ public enum SkinFace {
         { 32, 52, 48, 52 },
         { 40, 52, 56, 52 }
     }),
-
     RIGHT_LEG(4, 12, 4, new int[][]{
         {  8, 16,  8, 32 },
         {  4, 16,  4, 32 },
@@ -87,7 +83,6 @@ public enum SkinFace {
         {  0, 20,  0, 36 },
         {  8, 20,  8, 36 }
     }),
-
     LEFT_LEG(4, 12, 4, new int[][]{
         { 24, 48,  8, 48 },
         { 20, 48,  4, 48 },
@@ -208,6 +203,13 @@ public enum SkinFace {
     /**
      * Crops a single face out of the given skin image using the {@link #mapping base or overlay}
      * rectangle for this body part's face.
+     * <p>
+     * Legacy 64x32 skins and the 64x32 equipment atlases carry only the top half of the modern
+     * layout - head, body, the <b>right</b> arm and the <b>right</b> leg - with no dedicated
+     * left-limb (or overlay) regions; vanilla draws the left limb as the right limb mirrored across
+     * the sagittal plane. When a base-layer rectangle falls past the bottom of the texture (the
+     * tell-tale of that format) the left arm / leg is therefore sampled from the mirrored right
+     * limb. A full 64x64 atlas keeps its own left regions and is cropped directly.
      *
      * @param skin the source skin image
      * @param face the cube face to crop
@@ -220,6 +222,23 @@ public enum SkinFace {
         boolean overlayLayer
     ) {
         Rectangle rect = mapping(face, overlayLayer);
+
+        if (!overlayLayer && rect.y + rect.height > skin.height()) {
+            SkinFace mirror = legacyMirrorSource();
+
+            if (mirror != this)
+                return cropRect(skin, mirror.mapping(mirrorFaceX(face), false), true);
+        }
+
+        return cropRect(skin, rect, false);
+    }
+
+    /**
+     * Copies a rectangle out of the skin image, optionally mirrored across its vertical centre line
+     * (a sagittal-plane flip used to derive a left limb from the right limb on legacy atlases).
+     * Out-of-bounds source pixels are left transparent.
+     */
+    private static @NotNull PixelBuffer cropRect(@NotNull PixelBuffer skin, @NotNull Rectangle rect, boolean mirrorX) {
         int w = rect.width;
         int h = rect.height;
         int[] pixels = new int[w * h];
@@ -229,11 +248,36 @@ public enum SkinFace {
                 int sx = rect.x + dx;
                 int sy = rect.y + dy;
                 if (sx < 0 || sx >= skin.width() || sy < 0 || sy >= skin.height()) continue;
-                pixels[dy * w + dx] = skin.getPixel(sx, sy);
+                int tx = mirrorX ? w - 1 - dx : dx;
+                pixels[dy * w + tx] = skin.getPixel(sx, sy);
             }
         }
 
         return PixelBuffer.of(pixels, w, h);
+    }
+
+    /**
+     * The right-limb part whose texture a left limb mirrors on a legacy 64x32 atlas, or this part
+     * itself when no left-limb mirroring applies.
+     */
+    private @NotNull SkinFace legacyMirrorSource() {
+        return switch (this) {
+            case LEFT_ARM -> RIGHT_ARM;
+            case LEFT_LEG -> RIGHT_LEG;
+            default -> this;
+        };
+    }
+
+    /**
+     * Swaps {@link BlockFace#WEST} and {@link BlockFace#EAST} for a sagittal-plane (X-axis) mirror;
+     * the front, back, top, and bottom faces keep their slot (their pixels are flipped instead).
+     */
+    private static @NotNull BlockFace mirrorFaceX(@NotNull BlockFace face) {
+        return switch (face) {
+            case WEST -> BlockFace.EAST;
+            case EAST -> BlockFace.WEST;
+            default -> face;
+        };
     }
 
     /**

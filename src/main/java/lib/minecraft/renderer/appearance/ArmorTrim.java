@@ -14,14 +14,20 @@ public final class ArmorTrim {
 
     /**
      * The armor slot that determines which trim pattern texture to use.
+     * <p>
+     * Declaration order is the back-to-front composite order: {@link #LEGGINGS} (vanilla armor
+     * layer 2, the innermost layer) is declared first so iterating {@link #values()} paints it
+     * before the layer-1 pieces ({@link #HELMET}, {@link #CHESTPLATE}, {@link #BOOTS}). The 2D
+     * armor compositor relies on this so the chestplate paints over the leggings waist on the torso
+     * and the boots over the leggings on the lower legs.
      */
     @Getter
     @RequiredArgsConstructor
     public enum Slot {
 
+        LEGGINGS("leggings"),
         HELMET("helmet"),
         CHESTPLATE("chestplate"),
-        LEGGINGS("leggings"),
         BOOTS("boots");
 
         /**

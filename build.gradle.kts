@@ -237,6 +237,19 @@ tasks {
         args = if (itemId != null) listOf(itemId, renderSize) else listOf()
     }
 
+    register<JavaExec>("playerRender") {
+        description = "Renders the full PlayerRenderer option matrix (scope x dimension, overlay/cape/aa/rotation/background, armor materials per slot, dyed leather, trims) to cache/visual/player-render/ as labelled contact sheets. -PrenderSize=256 -Psheets=core-matrix,toggles,... -Ppack[=<url>]"
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestPlayerRender")
+        classpath = sourceSets["test"].runtimeClasspath
+        val argv = mutableListOf<String>()
+        (project.findProperty("renderSize") as String?)?.let { argv.add("size=$it") }
+        (project.findProperty("sheets") as String?)?.let { argv.add("sheets=$it") }
+        if (project.hasProperty("pack")) argv.add("pack=" + ((project.findProperty("pack") as String?) ?: "defrosted"))
+        (project.findProperty("account") as String?)?.let { argv.add("account=$it") }
+        args = argv
+    }
+
     register<JavaExec>("bedParity") {
         description = "Renders beds and chest via pipeline vs mc-assets ground truth side-by-side at cache/visual/bed-parity/. -PrenderSize=1024"
         group = "visual"

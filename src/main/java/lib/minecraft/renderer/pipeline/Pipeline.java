@@ -7,6 +7,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSyntaxException;
+import dev.simplified.client.Client;
 import dev.simplified.client.ClientConfig;
 import dev.simplified.client.Proxy;
 import dev.simplified.collection.Concurrent;
@@ -68,21 +69,26 @@ import java.util.zip.ZipFile;
  * {@link MojangContract}, extract the {@code minecraft/} subtrees, parse every model JSON, read
  * the texture catalogue, and hand the results back to the caller as a {@link Result} record.
  * <p>
- * All Mojang network access flows through a single lazily-initialised {@link Proxy} of
- * {@link MojangContract}, accessible to siblings in this module via {@link #mojang()}. The proxy
+ * All Mojang network access flows through a single lazily-initialised {@link Client} of
+ * {@link MojangContract}, accessible to siblings in this module via {@link #mojang()}. The client
  * carries domain-aware rate limiting from the upstream module so concurrent callers
  * ({@link #run}, {@link #downloadJarToCache}, the player skin / cape paths) share the same
  * limiter state.
+ * <p>
+ * A plain {@link Client} is used rather than a subnet-rotating {@link Proxy}: the proxy's IPv6
+ * subnet rotation only works on hosts that own a routable {@code /64} (specific Linux servers), and
+ * {@code Proxy.build()} hard-requires a {@code withSubnetRotation} that would otherwise fail every
+ * other environment. The client uses the default single subnet.
  */
 @UtilityClass
 public class Pipeline {
 
-    private static final @NotNull Lazy<Proxy<MojangContract>> MOJANG_PROXY = Lazy.of(() ->
-        Proxy.builder(
+    private static final @NotNull Lazy<Client<MojangContract>> MOJANG_CLIENT = Lazy.of(() ->
+        Client.create(
             ClientConfig.builder(MojangContract.class, GsonSettings.defaults())
                 .withErrorDecoder(MojangApiException::new)
                 .build()
-        ).build()
+        )
     );
 
     /**
@@ -276,8 +282,8 @@ public class Pipeline {
     }
 
     /**
-     * The lazily-initialised shared {@link MojangContract}. Single proxy per JVM via
-     * {@link #MOJANG_PROXY}, so concurrent callers ({@link #run}, {@link #downloadJarToCache},
+     * The lazily-initialised shared {@link MojangContract}. Single client per JVM via
+     * {@link #MOJANG_CLIENT}, so concurrent callers ({@link #run}, {@link #downloadJarToCache},
      * the player skin / cape paths in
      * {@link PlayerRenderer PlayerRenderer}) share the same domain-aware
      * rate limiter.
@@ -285,7 +291,7 @@ public class Pipeline {
      * @return the shared Mojang contract
      */
     public static @NotNull MojangContract mojang() {
-        return MOJANG_PROXY.get().getContract();
+        return MOJANG_CLIENT.get().getContract();
     }
 
     /**

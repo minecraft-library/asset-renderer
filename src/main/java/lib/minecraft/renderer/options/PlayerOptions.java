@@ -144,10 +144,24 @@ public class PlayerOptions {
     private final @NotNull EulerRotation rotation = EulerRotation.NONE;
 
     /**
-     * Whether to apply FXAA post-processing after the main render pass.
+     * Supersample scale factor for the 3D render. The model is rasterized at
+     * {@code outputSize * supersample} resolution then downsampled to {@link #outputSize} for
+     * sharper edges (SSAA). A value of {@code 1} (default) disables supersampling. Composes
+     * orthogonally with {@link #antiAlias} - when both are set, FXAA runs on the hi-res buffer
+     * before downsampling, which gives the cleanest silhouette at the cost of extra cycles.
+     * Ignored by the 2D composite path.
      */
     @lombok.Builder.Default
-    private final boolean antiAlias = true;
+    private final int supersample = 1;
+
+    /**
+     * Whether to apply FXAA post-processing on the rendered buffer. Default {@code false} so
+     * end-user one-off renders ship without FXAA blur; opt in for soft edges on small thumbnails
+     * or when {@link #supersample} alone isn't enough. When supersample is {@code > 1}, FXAA runs
+     * on the hi-res buffer before downsampling.
+     */
+    @lombok.Builder.Default
+    private final boolean antiAlias = false;
 
     /**
      * Background fill composited behind the finished render (solid colour or checkerboard).

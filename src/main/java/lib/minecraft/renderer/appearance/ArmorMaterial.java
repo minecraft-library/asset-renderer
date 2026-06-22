@@ -41,4 +41,28 @@ public enum ArmorMaterial {
         return "minecraft:entity/equipment/humanoid_leggings/" + this.key;
     }
 
+    /**
+     * The namespaced texture id for the layer 1 undyed overlay (vanilla {@code leather_overlay}),
+     * composited untinted on top of the dye-tinted base. Only {@link #LEATHER} ships this texture.
+     */
+    public @NotNull String humanoidOverlayTextureId() {
+        return humanoidTextureId() + "_overlay";
+    }
+
+    /**
+     * The namespaced texture id for the layer 2 leggings undyed overlay, composited untinted on top
+     * of the dye-tinted base. Only {@link #LEATHER} ships this texture.
+     */
+    public @NotNull String leggingsOverlayTextureId() {
+        return leggingsTextureId() + "_overlay";
+    }
+
+    /**
+     * Whether this material is dye-tinted (a grayscale base recoloured by an ARGB dye plus an
+     * undyed overlay). Vanilla dyes leather only.
+     */
+    public boolean dyeable() {
+        return this == LEATHER;
+    }
+
 }
