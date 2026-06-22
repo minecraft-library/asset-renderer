@@ -60,6 +60,15 @@ public final class HarnessConfig {
     public static final String TARGETS = System.getProperty("refharness.targets", "");
 
     /**
+     * When {@code true}, the harness runs <em>only</em> the {@link GlintSweeper} (the 7 always-foil
+     * GUI items + the 4 worn leather-armor diagnostics), each as an animated sequence of per-frame
+     * PNGs under {@code references/glint/}, and skips the block / item / entity sweeps entirely. Keeps
+     * glint iteration fast and decoupled from the ~5-minute full reference sweep. Pair with
+     * {@code -PrefharnessGlintOnly=true} on {@code renderVanillaGlintReferences}.
+     */
+    public static final boolean GLINT_ONLY = Boolean.getBoolean("refharness.glintOnly");
+
+    /**
      * Diagnostic flag: when {@code true}, the entity sweeper renders the first filtered
      * target {@code 24 * 24 = 576} times - every combination of pitch (0°-345° in 15°
      * steps) and roll (0°-345° in 15° steps), holding yaw at the

@@ -10,6 +10,7 @@
     "FlipFaceShadingMixin",
     "FreezeAnimationStateMixin",
     "FreezeSpriteAnimationMixin",
+    "GlintTexturingMixin",
     "GuardianStateMixin",
     "HeadlessWindowMixin",
     "HideCloudsMixin",

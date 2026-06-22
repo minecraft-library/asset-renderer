@@ -22,6 +22,7 @@ public final class RefHarnessRenderer {
     private static BlockSweeper blockSweeper;
     private static ItemSweeper itemSweeper;
     private static EntitySweeper entitySweeper;
+    private static GlintSweeper glintSweeper;
 
     private RefHarnessRenderer() {}
 
@@ -43,6 +44,12 @@ public final class RefHarnessRenderer {
         client.player.setNoGravity(true);
         client.player.setDeltaMovement(0, 0, 0);
         client.options.hideGui = true;
+
+        if (HarnessConfig.GLINT_ONLY) {
+            // Decoupled fast path: render only the animated-glint references, skip the full sweep.
+            glintSweeper = GlintSweeper.build();
+            return;
+        }
 
         blockSweeper = BlockSweeper.build();
         itemSweeper = ItemSweeper.build();
@@ -82,12 +89,18 @@ public final class RefHarnessRenderer {
     }
 
     static boolean isDone() {
+        if (HarnessConfig.GLINT_ONLY)
+            return glintSweeper != null && glintSweeper.isDone();
         return blockSweeper != null && blockSweeper.isDone()
             && itemSweeper != null && itemSweeper.isDone()
             && entitySweeper != null && entitySweeper.isDone();
     }
 
     static void tick(Minecraft client) {
+        if (HarnessConfig.GLINT_ONLY) {
+            if (glintSweeper != null && !glintSweeper.isDone()) glintSweeper.step(client);
+            return;
+        }
         if (blockSweeper != null && !blockSweeper.isDone()) {
             blockSweeper.step(client);
             return;
