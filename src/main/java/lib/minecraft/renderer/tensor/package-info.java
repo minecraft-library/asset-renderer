@@ -66,7 +66,7 @@
  *       {@code public static final boolean}. The probe is side-effect-free (does not
  *       initialize the probed class) and silently returns {@code false} on any throwable,
  *       including the {@link java.lang.NoClassDefFoundError NoClassDefFoundError} a JVM started without
- *       {@code --add-modules=jdk.incubator.vector} produces. A {@code -Dentity.simd=false}
+ *       {@code --add-modules=jdk.incubator.vector} produces. A {@code -Dasset.entity.simd=false}
  *       kill switch exists for A / B precision-hunt baselines.</li>
  *   <li>{@link lib.minecraft.renderer.tensor.SimdOps SimdOps} is the implementation. It
  *       carries every {@code jdk.incubator.*} import in the package, so the JVM never resolves

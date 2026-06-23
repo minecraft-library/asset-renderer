@@ -17,21 +17,21 @@ import org.jetbrains.annotations.Nullable;
  *
  * <p>Three orthogonal diagnostic channels live here.
  *
- * <p><b>Pixel trace</b> ({@code -Dentity.pixel.dump=x0,y0,x1,y1}, inclusive on all four sides).
+ * <p><b>Pixel trace</b> ({@code -Dasset.entity.pixel.dump=x0,y0,x1,y1}, inclusive on all four sides).
  * Emits one TSV {@code [PX]} line per fragment whose screen position lands inside the rect, plus
  * one {@code [PX]\tTRI\t...} line per triangle. Single-pixel probes use
- * {@code -Dentity.pixel.dump=33,18,33,18}; widen the rect for a swath. Multi-threaded
+ * {@code -Dasset.entity.pixel.dump=33,18,33,18}; widen the rect for a swath. Multi-threaded
  * rasterization interleaves output order; each line is atomic and self-contained so offline
  * tooling can sort and group.
  *
- * <p><b>Canvas-fit trace</b> ({@code -Dentity.fit.dump=true}). Emits {@code [PX]\tFIT},
+ * <p><b>Canvas-fit trace</b> ({@code -Dasset.entity.fit.dump=true}). Emits {@code [PX]\tFIT},
  * {@code [PX]\tBASE-BOUNDS}, and {@code [PX]\tOVERLAY-BOUNDS} lines from
  * {@code EntityRenderer.computeCanvasFit} so canvas-size mismatches can be traced back to the
  * specific overlay that contributed the outlier bounds.
  *
  * <p><b>Per-polygon screen-bounds trace</b> (thread-local, bracketed per entity via
  * {@link #beginPerEntityBoundsDump(String)} / {@link #endPerEntityBoundsDump(String)} and
- * gated on {@code -Dentity.bounds.dump=true}). Emits {@code [BD]} lines from
+ * gated on {@code -Dasset.entity.bounds.dump=true}). Emits {@code [BD]} lines from
  * {@code EntityGeometryKit.contributeFaceAlphaTight} with the polygon's UV bbox, opaque-texel
  * bbox, and the four bilinear-interpolated 3D screen corners. The parity sweep flips it on per
  * entity so the dump only fires for the entity currently being investigated, then back off so
@@ -42,7 +42,7 @@ import org.jetbrains.annotations.Nullable;
 public final class RendererDebug {
 
     /**
-     * Per-pixel trace rectangle parsed from {@code -Dentity.pixel.dump=x0,y0,x1,y1}, inclusive on
+     * Per-pixel trace rectangle parsed from {@code -Dasset.entity.pixel.dump=x0,y0,x1,y1}, inclusive on
      * all four sides. {@code null} when the property is absent or malformed.
      */
     private static final int @Nullable [] PIXEL_DUMP_RECT = parsePixelDumpRect();
@@ -50,7 +50,7 @@ public final class RendererDebug {
     /**
      * Canvas-fit bounds dump toggle, parsed once at class init.
      */
-    private static final boolean FIT_DUMP_ENABLED = Boolean.getBoolean("entity.fit.dump");
+    private static final boolean FIT_DUMP_ENABLED = Boolean.getBoolean("asset.entity.fit.dump");
 
     /**
      * Per-polygon screen-bounds trace toggle. Per-thread so the parity sweep can flip it on for
@@ -67,11 +67,11 @@ public final class RendererDebug {
         "blendMode", "outARGB");
 
     private static int @Nullable [] parsePixelDumpRect() {
-        String prop = System.getProperty("entity.pixel.dump");
+        String prop = System.getProperty("asset.entity.pixel.dump");
         if (prop == null || prop.isBlank()) return null;
         String[] parts = prop.split(",");
         if (parts.length != 4) {
-            System.out.println("[PX] malformed entity.pixel.dump: '" + prop + "' (expected x0,y0,x1,y1)");
+            System.out.println("[PX] malformed asset.entity.pixel.dump: '" + prop + "' (expected x0,y0,x1,y1)");
             return null;
         }
         try {
@@ -83,7 +83,7 @@ public final class RendererDebug {
             System.out.println("[PX] dump rect=" + x0 + "," + y0 + "-" + x1 + "," + y1);
             return new int[]{ x0, y0, x1, y1 };
         } catch (NumberFormatException nfe) {
-            System.out.println("[PX] malformed entity.pixel.dump numbers: '" + prop + "'");
+            System.out.println("[PX] malformed asset.entity.pixel.dump numbers: '" + prop + "'");
             return null;
         }
     }
@@ -212,12 +212,12 @@ public final class RendererDebug {
      * Brackets the bounds dump for one entity in the parity sweep. Emits the
      * {@code [BD] ===== <id> START =====} framing line and switches the per-thread bounds-dump
      * toggle on so subsequent {@code bounds*} calls fire. No-op unless
-     * {@code -Dentity.bounds.dump=true} was set at JVM startup; pair every call with
+     * {@code -Dasset.entity.bounds.dump=true} was set at JVM startup; pair every call with
      * {@link #endPerEntityBoundsDump(String)} in a {@code try / finally} so the toggle resets
      * even if the per-entity render throws.
      */
     public static void beginPerEntityBoundsDump(@NotNull String entityId) {
-        if (!Boolean.getBoolean("entity.bounds.dump")) return;
+        if (!Boolean.getBoolean("asset.entity.bounds.dump")) return;
         System.out.printf("[BD] ===== %s START =====%n", entityId);
         BOUNDS_DUMP.set(true);
     }
@@ -226,7 +226,7 @@ public final class RendererDebug {
      * Counterpart to {@link #beginPerEntityBoundsDump(String)}. Resets the toggle and emits the END framing line.
      */
     public static void endPerEntityBoundsDump(@NotNull String entityId) {
-        if (!Boolean.getBoolean("entity.bounds.dump")) return;
+        if (!Boolean.getBoolean("asset.entity.bounds.dump")) return;
         BOUNDS_DUMP.set(false);
         System.out.printf("[BD] ===== %s END =====%n", entityId);
     }

@@ -27,14 +27,26 @@ java {
 // JVM that runs without the module.
 val addVectorModuleArg = "--add-modules=jdk.incubator.vector"
 
+// Forward every -Dasset.* system property to every forked Test + JavaExec JVM, in ONE place, so any
+// future asset.* debug flag (e.g. -Dasset.snap.grid, -Dasset.entity.pixel.dump, -Dasset.glint.itemScale)
+// auto-propagates to every task without per-task wiring. The CLI -D lands in the gradle daemon's
+// System.getProperties(); the `asset.` prefix keeps gradle-internal properties out of the fork.
+fun org.gradle.process.JavaForkOptions.forwardAssetProperties() =
+    System.getProperties().forEach { k, v ->
+        val key = k.toString()
+        if (key.startsWith("asset.")) systemProperty(key, v.toString())
+    }
+
 tasks.withType<JavaCompile>().configureEach {
     options.compilerArgs.add(addVectorModuleArg)
 }
 tasks.withType<Test>().configureEach {
     jvmArgs(addVectorModuleArg)
+    forwardAssetProperties()
 }
 tasks.withType<JavaExec>().configureEach {
     jvmArgs(addVectorModuleArg)
+    forwardAssetProperties()
 }
 
 repositories {
@@ -293,11 +305,8 @@ tasks {
         classpath = sourceSets["test"].runtimeClasspath
         val entityId = project.findProperty("entityId") as String?
         args = if (entityId != null) listOf(entityId) else listOf()
-        // Forward -Dentity.bounds.dump=true so the per-polygon screen-bounds dump in
-        // EntityGeometryKit.contributeFaceAlphaTight surfaces when the caller asks for it.
-        systemProperties = System.getProperties().toMap()
-            .filter { it.key.toString().startsWith("entity.") }
-            .mapKeys { it.key.toString() }
+        // -Dasset.* sysprops (e.g. -Dasset.entity.pixel.dump, -Dasset.entity.bounds.dump, -Dasset.snap.grid)
+        // auto-forward to this fork via the global JavaExec forwarder near the top of this file.
     }
 
     register<JavaExec>("blockParityVanilla") {
@@ -307,14 +316,8 @@ tasks {
         classpath = sourceSets["test"].runtimeClasspath
         val blockId = project.findProperty("blockId") as String?
         args = if (blockId != null) listOf(blockId) else listOf()
-        // Forward selected -D properties to the forked JVM: entity.* (per-pixel rasterizer trace,
-        // same pattern as entityParityVanilla) and snap.* (-Dsnap.grid=N sub-pixel coverage-grid
-        // override in ModelEngine, for empirical snap sweeps). CLI -D lands in the daemon's
-        // System.getProperties(); the prefix filter keeps gradle-internal properties out of the
-        // forked JVM.
-        systemProperties = System.getProperties().toMap()
-            .filter { val k = it.key.toString(); k.startsWith("entity.") || k.startsWith("snap.") }
-            .mapKeys { it.key.toString() }
+        // -Dasset.* sysprops (e.g. -Dasset.snap.grid, -Dasset.entity.pixel.dump) auto-forward to this
+        // fork via the global JavaExec forwarder near the top of this file.
     }
 
     register<JavaExec>("itemParityVanilla") {
@@ -333,11 +336,8 @@ tasks {
         classpath = sourceSets["test"].runtimeClasspath
         val itemId = project.findProperty("itemId") as String?
         args = if (itemId != null) listOf(itemId) else listOf()
-        // Forward -Dglint.* to the forked JVM for empirical scale calibration of the offline
-        // glint (e.g. -Dglint.itemScale=1.0), mirroring blockRender3D's entity./snap. forwarding.
-        systemProperties = System.getProperties().toMap()
-            .filter { it.key.toString().startsWith("glint.") }
-            .mapKeys { it.key.toString() }
+        // -Dasset.glint.* sysprops (e.g. -Dasset.glint.itemScale=1.0) auto-forward to this fork via the
+        // global JavaExec forwarder near the top of this file.
     }
 
     register<JavaExec>("fluidRenderer") {

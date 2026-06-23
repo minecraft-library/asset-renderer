@@ -329,7 +329,7 @@ public final class TestGlintParityVanilla {
      * (passed separately to {@link GlintKit#applyGlintAtTimes}) at vanilla's raw
      * {@link GlintKit#ITEM_SCALE}, so the only unknown is removed and every other factor (scroll,
      * rotation, sampling, blend, alpha) can be checked for bit-parity. Otherwise the offline
-     * approximation runs, with the UV scale overridable via {@code -Dglint.itemScale} for empirical
+     * approximation runs, with the UV scale overridable via {@code -Dasset.glint.itemScale} for empirical
      * calibration (see {@code notes/glint-parity.md}).
      */
     private static GlintKit.@NotNull GlintOptions itemGlintOptions(boolean atlasUvMode) {
@@ -337,9 +337,9 @@ public final class TestGlintParityVanilla {
         // Atlas-UV mode uses vanilla's literal ITEM_SCALE; offline mode honours the calibration knob.
         float scale = atlasUvMode
             ? preset.textureScale()
-            : Float.parseFloat(System.getProperty("glint.itemScale", String.valueOf(preset.textureScale())));
-        // -Dglint.intensity scales the glint texture down via a grey pre-tint (calibration only).
-        float intensity = Float.parseFloat(System.getProperty("glint.intensity", "1.0"));
+            : Float.parseFloat(System.getProperty("asset.glint.itemScale", String.valueOf(preset.textureScale())));
+        // -Dasset.glint.intensity scales the glint texture down via a grey pre-tint (calibration only).
+        float intensity = Float.parseFloat(System.getProperty("asset.glint.intensity", "1.0"));
         int v = Math.clamp(Math.round(intensity * 255f), 0, 255);
         int tint = ColorMath.pack(255, v, v, v);
         return new GlintKit.GlintOptions(preset.framesPerSecond(), preset.totalFrames(), preset.glintTextureId(),
@@ -349,18 +349,18 @@ public final class TestGlintParityVanilla {
     /**
      * Loads the harness-extracted per-item atlas sprite-UV rects (atlas-UV validation mode), keyed by
      * item id, from {@code atlas_uv.json} beside the glint references. Returns empty unless
-     * {@code -Dglint.atlasUv=true} is set, so default runs stay on the production-representative
-     * offline approximation. {@code -Dglint.atlasUvFlipV=true} swaps {@code v0}/{@code v1} for a
+     * {@code -Dasset.glint.atlasUv=true} is set, so default runs stay on the production-representative
+     * offline approximation. {@code -Dasset.glint.atlasUvFlipV=true} swaps {@code v0}/{@code v1} for a
      * one-shot check of the icon-Y vs atlas-V orientation.
      */
     private static @NotNull Map<String, GlintKit.SpriteUv> loadAtlasUv() {
-        if (!Boolean.getBoolean("glint.atlasUv")) return Map.of();
+        if (!Boolean.getBoolean("asset.glint.atlasUv")) return Map.of();
         Path file = VANILLA_DIR.resolve("atlas_uv.json");
         if (!Files.isRegularFile(file)) {
-            System.err.printf("glint.atlasUv set but %s missing - run renderVanillaGlintReferences first%n", file);
+            System.err.printf("asset.glint.atlasUv set but %s missing - run renderVanillaGlintReferences first%n", file);
             return Map.of();
         }
-        boolean flipV = Boolean.getBoolean("glint.atlasUvFlipV");
+        boolean flipV = Boolean.getBoolean("asset.glint.atlasUvFlipV");
         Map<String, GlintKit.SpriteUv> map = new HashMap<>();
         try {
             JsonObject root = JsonParser.parseString(Files.readString(file)).getAsJsonObject();

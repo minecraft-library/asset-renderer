@@ -118,7 +118,7 @@ When porting a new entity, ALWAYS check if its renderer overrides `setupRotation
 1. `git log --oneline master..HEAD | head -30` for branch state.
 2. Look at a single entity's failure: `cache/visual/entity-parity-vanilla/<entity_id>/diff_panel.png`.
 3. Run single-entity parity: `./gradlew entityParityVanilla -PentityId=minecraft:X -q`.
-4. Pixel-level debug: `-Dentity.pixel.dump=x0,y0,x1,y1` and `-Dentity.bounds.dump=true` system properties on the parity task. Walk back from the WRITE log to the texel + shade + blend that produced the mismatch.
+4. Pixel-level debug: `-Dasset.entity.pixel.dump=x0,y0,x1,y1` and `-Dasset.entity.bounds.dump=true` system properties on the parity task. Walk back from the WRITE log to the texel + shade + blend that produced the mismatch. (All custom asset JVM flags live under `asset.*` and auto-forward to every JavaExec/Test fork via the global forwarder in `build.gradle.kts` - new flags need no per-task wiring.)
 5. For vanilla source lookups, `javap` the relevant class in `cache/dragon-extract/` (recipe above).
 
 [vanilla-reference-harness]: ../vanilla-reference-harness

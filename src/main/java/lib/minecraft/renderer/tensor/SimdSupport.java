@@ -25,11 +25,11 @@ final class SimdSupport {
 
     /**
      * Whether {@code jdk.incubator.vector.FloatVector} is resolvable on this JVM AND the user
-     * has not explicitly disabled SIMD dispatch via {@code -Dentity.simd=false}. The kill
+     * has not explicitly disabled SIMD dispatch via {@code -Dasset.entity.simd=false}. The kill
      * switch exists for precision-hunt baselines that want to A/B SIMD vs scalar without
      * changing the JVM module flags.
      */
-    static final boolean ENABLED = detect() && !"false".equalsIgnoreCase(System.getProperty("entity.simd", "true"));
+    static final boolean ENABLED = detect() && !"false".equalsIgnoreCase(System.getProperty("asset.entity.simd", "true"));
 
     private static boolean detect() {
         try {

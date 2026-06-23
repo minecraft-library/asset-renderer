@@ -80,13 +80,13 @@ public class ModelEngine extends TextureEngine {
      * produce exact-half barycentrics or exact-integer texel-coordinate interpolations -
      * precisely the cases the snap is here to break.
      *
-     * <p>Overridable via {@code -Dsnap.grid=N} for empirical sweeps (e.g. confirming the block
+     * <p>Overridable via {@code -Dasset.snap.grid=N} for empirical sweeps (e.g. confirming the block
      * pipeline shares the entity-tuned optimum). {@code N <= 0} disables the snap entirely
      * ({@link #snapToCoverageGrid} returns the vertex unchanged); the default {@code 400} is the
      * tuned value above. Both the entity ({@link ModelEngine}) and block
      * ({@link IsometricEngine}) pipelines read this single constant.
      */
-    private static final float SUBPIXEL_PRECISION = Float.parseFloat(System.getProperty("snap.grid", "400"));
+    private static final float SUBPIXEL_PRECISION = Float.parseFloat(System.getProperty("asset.snap.grid", "400"));
     private static final float SUBPIXEL_INV = SUBPIXEL_PRECISION > 0f ? 1f / SUBPIXEL_PRECISION : 0f;
 
     private final @NotNull Matrix4f camera;

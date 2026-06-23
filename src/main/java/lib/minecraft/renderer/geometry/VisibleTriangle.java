@@ -42,7 +42,7 @@ import org.jetbrains.annotations.Nullable;
  *     for bare skin, blocks, items, and entity bodies
  * @param debugTag opaque identifier (typically {@code "bone:face"} or {@code "block:face"}) carried
  *     for diagnostic dumps only - the rasterizer attaches it to each pixel write when
- *     {@code -Dentity.pixel.dump=x0,y0,x1,y1} is set so per-pixel trace records show which kit
+ *     {@code -Dasset.entity.pixel.dump=x0,y0,x1,y1} is set so per-pixel trace records show which kit
  *     triangle won the depth test. Always {@code null} in non-diagnostic builds; do not branch
  *     rendering on it.
  */
