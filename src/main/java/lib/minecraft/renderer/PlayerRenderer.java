@@ -145,13 +145,13 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
     static @NotNull PixelBuffer resolveSkin(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
         if (options.getSkinBytes().isPresent())
-            return PixelBuffer.wrap(parent.imageFactory.fromByteArray(options.getSkinBytes().get()).toBufferedImage());
+            return parent.imageFactory.fromByteArray(options.getSkinBytes().get()).toPixelBuffer();
 
         if (options.getSkinUrl().isPresent()) {
             String url = options.getSkinUrl().get();
             return parent.skinCache.computeIfAbsent(url, u -> {
                 byte[] bytes = fetchTexture(u);
-                return PixelBuffer.wrap(parent.imageFactory.fromByteArray(bytes).toBufferedImage());
+                return parent.imageFactory.fromByteArray(bytes).toPixelBuffer();
             });
         }
 
@@ -214,13 +214,13 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         if (!options.isRenderCape()) return Optional.empty();
 
         if (options.getCapeBytes().isPresent())
-            return Optional.of(PixelBuffer.wrap(parent.imageFactory.fromByteArray(options.getCapeBytes().get()).toBufferedImage()));
+            return Optional.of(parent.imageFactory.fromByteArray(options.getCapeBytes().get()).toPixelBuffer());
 
         if (options.getCapeUrl().isPresent()) {
             String url = options.getCapeUrl().get();
             return Optional.of(parent.skinCache.computeIfAbsent("cape:" + url, ignored -> {
                 byte[] bytes = fetchTexture(url);
-                return PixelBuffer.wrap(parent.imageFactory.fromByteArray(bytes).toBufferedImage());
+                return parent.imageFactory.fromByteArray(bytes).toPixelBuffer();
             }));
         }
 
