@@ -4,7 +4,7 @@ import dev.simplified.image.Background;
 import lib.minecraft.renderer.Renderer;
 import lib.minecraft.renderer.appearance.ArmorPiece;
 import lib.minecraft.renderer.geometry.EulerRotation;
-import lib.minecraft.renderer.compose.EntityLayerSlot;
+import lib.minecraft.renderer.compose.LayerSlot;
 import lib.minecraft.renderer.compose.GeometryLayer;
 import lib.minecraft.renderer.compose.LayerStack;
 import lombok.AccessLevel;
@@ -161,7 +161,7 @@ public class EntityOptions {
     /**
      * Transform applied to the default geometry {@link GeometryLayer} stack (model overlays, block
      * overlays, worn armor) before it runs, letting callers splice custom layers relative to the
-     * built-in {@link EntityLayerSlot} slots, or replace the stack. The base body is built separately
+     * built-in {@link Slot} slots, or replace the stack. The base body is built separately
      * and is always emitted first. Defaults to {@linkplain UnaryOperator#identity() identity}.
      */
     @lombok.Builder.Default
@@ -173,6 +173,32 @@ public class EntityOptions {
 
     public static @NotNull EntityOptions defaults() {
         return builder().build();
+    }
+
+    /**
+     * Emission-order slots for the entity {@code GeometryLayer} stack. The base body is built
+     * separately and is always emitted first; these are the appended contributors.
+     */
+    public enum Slot implements LayerSlot {
+
+        /** Base entity body geometry. */
+        BASE_BODY,
+        /** Cube-tree model overlays sharing the entity frame (eyes, saddles, coats). */
+        MODEL_OVERLAY,
+        /** Block-model overlays placed on the body (mooshroom mushrooms, copper-golem flower). */
+        BLOCK_OVERLAY,
+        /** Worn-armor geometry receiving the enchantment foil. */
+        ARMOR;
+
+        @Override
+        public int order() {
+            return ordinal();
+        }
+
+        @Override
+        public @NotNull String id() {
+            return name();
+        }
     }
 
     /**

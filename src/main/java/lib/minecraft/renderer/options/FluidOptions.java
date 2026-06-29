@@ -4,7 +4,7 @@ import dev.simplified.image.Background;
 import lib.minecraft.renderer.Renderer;
 import lib.minecraft.renderer.appearance.Biome;
 import lib.minecraft.renderer.geometry.EulerRotation;
-import lib.minecraft.renderer.compose.FluidLayerSlot;
+import lib.minecraft.renderer.compose.LayerSlot;
 import lib.minecraft.renderer.compose.GeometryLayer;
 import lib.minecraft.renderer.compose.LayerStack;
 import lombok.AccessLevel;
@@ -130,7 +130,7 @@ public class FluidOptions {
 
     /**
      * Transform applied to the default {@link GeometryLayer} stack (the fluid cube) before it runs,
-     * letting callers splice custom layers relative to the {@link FluidLayerSlot} slot. Defaults to
+     * letting callers splice custom layers relative to the {@link Slot} slot. Defaults to
      * {@linkplain UnaryOperator#identity() identity}. Only consulted by the 3D isometric path.
      */
     @lombok.Builder.Default
@@ -142,6 +142,26 @@ public class FluidOptions {
 
     public static @NotNull FluidOptions defaults() {
         return builder().build();
+    }
+
+    /**
+     * Render-order slots for the fluid {@code GeometryLayer} stack. The cube is the single built-in
+     * contributor; the slot lets callers splice extra layers relative to it.
+     */
+    public enum Slot implements LayerSlot {
+
+        /** The fluid cube geometry. */
+        CUBE;
+
+        @Override
+        public int order() {
+            return ordinal();
+        }
+
+        @Override
+        public @NotNull String id() {
+            return name();
+        }
     }
 
     /**

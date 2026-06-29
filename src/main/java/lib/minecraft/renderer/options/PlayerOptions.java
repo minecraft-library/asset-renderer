@@ -10,8 +10,7 @@ import lib.minecraft.renderer.kit.TrimKit;
 import lib.minecraft.renderer.compose.GeometryLayer;
 import lib.minecraft.renderer.compose.ImageLayer;
 import lib.minecraft.renderer.compose.LayerStack;
-import lib.minecraft.renderer.compose.Player3DLayerSlot;
-import lib.minecraft.renderer.compose.PlayerLayerSlot;
+import lib.minecraft.renderer.compose.LayerSlot;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -178,7 +177,7 @@ public class PlayerOptions {
 
     /**
      * Transform applied to the default 2D {@link ImageLayer} stack (skin, overlay, armor) before it
-     * runs, letting callers splice custom layers relative to the {@link PlayerLayerSlot} slots.
+     * runs, letting callers splice custom layers relative to the {@link Slot2D} slots.
      * Defaults to {@linkplain UnaryOperator#identity() identity}. Only consulted by the 2D path.
      */
     @lombok.Builder.Default
@@ -186,7 +185,7 @@ public class PlayerOptions {
 
     /**
      * Transform applied to the default 3D {@link GeometryLayer} stack (body, armor, cape) before it
-     * runs, letting callers splice custom layers relative to the {@link Player3DLayerSlot} slots.
+     * runs, letting callers splice custom layers relative to the {@link Slot3D} slots.
      * Defaults to {@linkplain UnaryOperator#identity() identity}. Only consulted by the 3D path.
      */
     @lombok.Builder.Default
@@ -198,6 +197,53 @@ public class PlayerOptions {
 
     public static @NotNull PlayerOptions defaults() {
         return builder().build();
+    }
+
+    /**
+     * Paint-order slots for the 2D player {@code ImageLayer} stack.
+     */
+    public enum Slot2D implements LayerSlot {
+
+        /** Base skin face of every body part. */
+        SKIN,
+        /** Skin overlay (hat / jacket / sleeve) face of every body part. */
+        OVERLAY,
+        /** Worn armor + trim composited over every covered body part. */
+        ARMOR;
+
+        @Override
+        public int order() {
+            return ordinal();
+        }
+
+        @Override
+        public @NotNull String id() {
+            return name();
+        }
+    }
+
+    /**
+     * Emission-order slots for the 3D player {@code GeometryLayer} stack. Body stays one contributor
+     * because 3D triangle emission order is load-bearing.
+     */
+    public enum Slot3D implements LayerSlot {
+
+        /** All body-part skin cubes and their overlays, in fixed emission order. */
+        BODY,
+        /** Worn armor + trim. */
+        ARMOR,
+        /** Cape geometry behind the torso. */
+        CAPE;
+
+        @Override
+        public int order() {
+            return ordinal();
+        }
+
+        @Override
+        public @NotNull String id() {
+            return name();
+        }
     }
 
     /**

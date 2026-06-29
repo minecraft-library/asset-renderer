@@ -24,7 +24,6 @@ import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.kit.BlockGeometryKit;
-import lib.minecraft.renderer.compose.BlockLayerSlot;
 import lib.minecraft.renderer.compose.GeometryLayer;
 import lib.minecraft.renderer.compose.LayerStack;
 import lib.minecraft.renderer.options.BlockOptions;
@@ -185,7 +184,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
             LayerStack<GeometryLayer> stack = new LayerStack<>();
 
-            stack.append(BlockLayerSlot.PRIMARY, sink -> {
+            stack.append(BlockOptions.Slot.PRIMARY, sink -> {
                 if (block.getMultipart().isPresent()) {
                     sink.addAll(assembleMultipart(block.getMultipart().get(), effectiveVariant, tint, untintedTint));
                     return;
@@ -215,9 +214,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // the primary model; non-additive entity geometry IS the primary model already.
             if (be != null && options.isMergeParts()) {
                 if (be.additive())
-                    stack.append(BlockLayerSlot.ADDITIVE_ENTITY, sink -> sink.addAll(buildFromAdditiveEntity(be, tint, untintedTint)));
+                    stack.append(BlockOptions.Slot.ADDITIVE_ENTITY, sink -> sink.addAll(buildFromAdditiveEntity(be, tint, untintedTint)));
                 if (!be.parts().isEmpty())
-                    stack.append(BlockLayerSlot.PARTS, sink -> sink.addAll(buildFromEntityParts(be, tint, untintedTint)));
+                    stack.append(BlockOptions.Slot.PARTS, sink -> sink.addAll(buildFromEntityParts(be, tint, untintedTint)));
             }
 
             for (GeometryLayer layer : options.getLayerDecorator().apply(stack).ordered())

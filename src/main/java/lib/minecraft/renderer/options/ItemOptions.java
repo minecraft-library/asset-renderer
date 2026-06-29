@@ -12,7 +12,7 @@ import lib.minecraft.renderer.kit.BannerKit;
 import lib.minecraft.renderer.kit.GlintKit;
 import lib.minecraft.renderer.kit.TrimKit;
 import lib.minecraft.renderer.compose.ImageLayer;
-import lib.minecraft.renderer.compose.ItemLayerSlot;
+import lib.minecraft.renderer.compose.LayerSlot;
 import lib.minecraft.renderer.compose.LayerStack;
 import lib.minecraft.renderer.pipeline.pack.ItemContext;
 import lombok.AccessLevel;
@@ -175,7 +175,7 @@ public class ItemOptions {
 
     /**
      * Transform applied to the default GUI icon {@link ImageLayer} stack before it runs, letting
-     * callers splice custom layers relative to the built-in {@link ItemLayerSlot} slots, or replace
+     * callers splice custom layers relative to the built-in {@link Slot} slots, or replace
      * the stack entirely. Defaults to {@linkplain UnaryOperator#identity() identity} - the built-in
      * stack unchanged. Only consulted for {@link Type#GUI_2D} renders.
      */
@@ -188,6 +188,32 @@ public class ItemOptions {
 
     public static @NotNull ItemOptions defaults() {
         return builder().build();
+    }
+
+    /**
+     * Render-order slots for the 2D GUI icon {@code ImageLayer} stack: base sprite/banner/shield,
+     * then trim, damage bar, and stack-count decorations.
+     */
+    public enum Slot implements LayerSlot {
+
+        /** Base sprite/layer stack, or the shield / banner dispatch. */
+        BASE,
+        /** Armor-trim overlay composited over the base. */
+        TRIM,
+        /** Durability damage bar. */
+        DAMAGE_BAR,
+        /** Stack-count badge. */
+        STACK_COUNT;
+
+        @Override
+        public int order() {
+            return ordinal();
+        }
+
+        @Override
+        public @NotNull String id() {
+            return name();
+        }
     }
 
     /**

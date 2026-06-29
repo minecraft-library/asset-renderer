@@ -21,7 +21,6 @@ import lib.minecraft.renderer.kit.ArmorKit;
 import lib.minecraft.renderer.kit.BlockGeometryKit;
 import lib.minecraft.renderer.kit.EntityGeometryKit;
 import lib.minecraft.renderer.kit.GlintKit;
-import lib.minecraft.renderer.compose.EntityLayerSlot;
 import lib.minecraft.renderer.compose.GeometryLayer;
 import lib.minecraft.renderer.compose.LayerStack;
 import lib.minecraft.renderer.compose.SceneContext;
@@ -160,7 +159,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
         // Model overlays (spider/enderman eyes, saddles, sheep wool). Each appends to the shared sink.
         for (EntityModelLoader.OverlayLayer overlay : definition.overlays())
-            stack.append(EntityLayerSlot.MODEL_OVERLAY, sink -> {
+            stack.append(EntityOptions.Slot.MODEL_OVERLAY, sink -> {
                 if (overlay.model().getBones().isEmpty()) return;
                 Optional<PixelBuffer> overlayTex = overlay.textureRef().isPresent()
                     ? scene.context().resolveTexture("minecraft:entity/" + overlay.textureRef().get())
@@ -176,12 +175,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (!definition.blockOverlays().isEmpty()) {
             Matrix4f entityFit = EntityGeometryKit.buildEntityFitMatrix(modelAnchor, fit.ndcScale() * modelScale);
             for (EntityModelLoader.BlockOverlayLayer blockOverlay : definition.blockOverlays())
-                stack.append(EntityLayerSlot.BLOCK_OVERLAY, sink ->
+                stack.append(EntityOptions.Slot.BLOCK_OVERLAY, sink ->
                     sink.addAll(buildBlockOverlayTriangles(blockOverlay, model, entityFit)));
         }
 
         // Worn armor (+ trim). Always appended; resolves to no triangles when no pieces are equipped.
-        stack.append(EntityLayerSlot.ARMOR, sink ->
+        stack.append(EntityOptions.Slot.ARMOR, sink ->
             sink.addAll(ArmorKit.buildEntityArmor3D(buildResult.boneBounds(),
                 options.getHelmet(), options.getChestplate(),
                 options.getLeggings(), options.getBoots(), scene.engine())));

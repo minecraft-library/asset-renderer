@@ -15,7 +15,6 @@ import lib.minecraft.renderer.engine.TextureEngine;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.kit.FluidGeometryKit;
-import lib.minecraft.renderer.compose.FluidLayerSlot;
 import lib.minecraft.renderer.compose.GeometryLayer;
 import lib.minecraft.renderer.compose.LayerStack;
 import lib.minecraft.renderer.options.FluidOptions;
@@ -147,7 +146,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             // same stack-driven ordering as every other renderer and callers can splice extra layers.
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
             LayerStack<GeometryLayer> stack = new LayerStack<>();
-            stack.append(FluidLayerSlot.CUBE, sink -> sink.addAll(FluidGeometryKit.buildFluidCube(
+            stack.append(FluidOptions.Slot.CUBE, sink -> sink.addAll(FluidGeometryKit.buildFluidCube(
                 options.getCornerHeights(), still, flow, options.getFlowAngleRadians(), tint)));
             for (GeometryLayer layer : options.getLayerDecorator().apply(stack).ordered())
                 layer.contribute(triangles);

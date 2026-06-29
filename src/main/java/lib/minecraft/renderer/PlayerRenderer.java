@@ -28,8 +28,6 @@ import lib.minecraft.renderer.kit.GlintKit;
 import lib.minecraft.renderer.compose.GeometryLayer;
 import lib.minecraft.renderer.compose.ImageLayer;
 import lib.minecraft.renderer.compose.LayerStack;
-import lib.minecraft.renderer.compose.Player3DLayerSlot;
-import lib.minecraft.renderer.compose.PlayerLayerSlot;
 import lib.minecraft.renderer.options.PlayerOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -373,12 +371,12 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         // than interleaved per body part. Body-part rectangles tile the canvas without overlap, so the
         // per-pass order is equivalent to the historic per-part order.
         LayerStack<ImageLayer> stack = new LayerStack<>();
-        stack.append(PlayerLayerSlot.SKIN, frame -> {
+        stack.append(PlayerOptions.Slot2D.SKIN, frame -> {
             for (BodyPart2D bp : parts)
                 frame.blitScaled(bp.part.crop(skin, BlockFace.SOUTH, false), bp.x, bp.y, bp.w, bp.h);
         });
         if (overlay)
-            stack.append(PlayerLayerSlot.OVERLAY, frame -> {
+            stack.append(PlayerOptions.Slot2D.OVERLAY, frame -> {
                 for (BodyPart2D bp : parts) {
                     if (hasOverlay(skin))
                         frame.blitScaled(bp.part.crop(skin, BlockFace.SOUTH, true), bp.x, bp.y, bp.w, bp.h);
@@ -386,7 +384,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                         frame.blitScaled(SkinFace.HEAD.crop(skin, BlockFace.SOUTH, true), bp.x, bp.y, bp.w, bp.h);
                 }
             });
-        stack.append(PlayerLayerSlot.ARMOR, frame -> {
+        stack.append(PlayerOptions.Slot2D.ARMOR, frame -> {
             for (BodyPart2D bp : parts)
                 compositeArmor2D(frame, bp.part, bp.x, bp.y, bp.w, bp.h, options, engine, glintMask);
         });
@@ -455,7 +453,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
-            stack.append(Player3DLayerSlot.BODY, sink -> {
+            stack.append(PlayerOptions.Slot3D.BODY, sink -> {
                 sink.addAll(BlockGeometryKit.unitCube(SkinFace.HEAD.cropAll(skin, false), ColorMath.WHITE));
                 if (options.isRenderOverlay() && hasHatOverlay(skin))
                     sink.addAll(BlockGeometryKit.buildBoxTriangles(
@@ -463,7 +461,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                         new Vector3f(0.52f, 0.52f, 0.52f),
                         SkinFace.HEAD.cropAll(skin, true), ColorMath.WHITE));
             });
-            stack.append(Player3DLayerSlot.ARMOR, sink -> {
+            stack.append(PlayerOptions.Slot3D.ARMOR, sink -> {
                 Map<SkinFace, Vector3f[]> bp = new EnumMap<>(SkinFace.class);
                 bp.put(SkinFace.HEAD, new Vector3f[]{ SKULL_HEAD_MIN, SKULL_HEAD_MAX });
                 sink.addAll(ArmorKit.buildHumanoidArmor3D(bp,
@@ -500,13 +498,13 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
-            stack.append(Player3DLayerSlot.BODY, sink -> {
+            stack.append(PlayerOptions.Slot3D.BODY, sink -> {
                 addBodyPart(sink, skin, SkinFace.HEAD, BUST_HEAD_MIN, BUST_HEAD_MAX, options);
                 addBodyPart(sink, skin, SkinFace.TORSO, BUST_TORSO_MIN, BUST_TORSO_MAX, options);
                 addBodyPart(sink, skin, SkinFace.RIGHT_ARM, BUST_R_ARM_MIN, BUST_R_ARM_MAX, options);
                 addBodyPart(sink, skin, SkinFace.LEFT_ARM, BUST_L_ARM_MIN, BUST_L_ARM_MAX, options);
             });
-            stack.append(Player3DLayerSlot.ARMOR, sink -> {
+            stack.append(PlayerOptions.Slot3D.ARMOR, sink -> {
                 Map<SkinFace, Vector3f[]> bp = new EnumMap<>(SkinFace.class);
                 bp.put(SkinFace.HEAD, new Vector3f[]{ BUST_HEAD_MIN, BUST_HEAD_MAX });
                 bp.put(SkinFace.TORSO, new Vector3f[]{ BUST_TORSO_MIN, BUST_TORSO_MAX });
@@ -517,7 +515,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                     options.getLeggings(), options.getBoots(), engine));
             });
             resolveCape(this.parent, options)
-                .ifPresent(cape -> stack.append(Player3DLayerSlot.CAPE,
+                .ifPresent(cape -> stack.append(PlayerOptions.Slot3D.CAPE,
                     sink -> addCape(sink, cape, BUST_TORSO_MIN, BUST_TORSO_MAX)));
 
             for (GeometryLayer layer : options.getGeometryLayerDecorator().apply(stack).ordered())
@@ -549,7 +547,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
-            stack.append(Player3DLayerSlot.BODY, sink -> {
+            stack.append(PlayerOptions.Slot3D.BODY, sink -> {
                 addBodyPart(sink, skin, SkinFace.HEAD, FULL_HEAD_MIN, FULL_HEAD_MAX, options);
                 addBodyPart(sink, skin, SkinFace.TORSO, FULL_TORSO_MIN, FULL_TORSO_MAX, options);
                 addBodyPart(sink, skin, SkinFace.RIGHT_ARM, FULL_R_ARM_MIN, FULL_R_ARM_MAX, options);
@@ -557,7 +555,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 addBodyPart(sink, skin, SkinFace.RIGHT_LEG, FULL_R_LEG_MIN, FULL_R_LEG_MAX, options);
                 addBodyPart(sink, skin, SkinFace.LEFT_LEG, FULL_L_LEG_MIN, FULL_L_LEG_MAX, options);
             });
-            stack.append(Player3DLayerSlot.ARMOR, sink -> {
+            stack.append(PlayerOptions.Slot3D.ARMOR, sink -> {
                 Map<SkinFace, Vector3f[]> bp = new EnumMap<>(SkinFace.class);
                 bp.put(SkinFace.HEAD, new Vector3f[]{ FULL_HEAD_MIN, FULL_HEAD_MAX });
                 bp.put(SkinFace.TORSO, new Vector3f[]{ FULL_TORSO_MIN, FULL_TORSO_MAX });
@@ -570,7 +568,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                     options.getLeggings(), options.getBoots(), engine));
             });
             resolveCape(this.parent, options)
-                .ifPresent(cape -> stack.append(Player3DLayerSlot.CAPE,
+                .ifPresent(cape -> stack.append(PlayerOptions.Slot3D.CAPE,
                     sink -> addCape(sink, cape, FULL_TORSO_MIN, FULL_TORSO_MAX)));
 
             for (GeometryLayer layer : options.getGeometryLayerDecorator().apply(stack).ordered())
