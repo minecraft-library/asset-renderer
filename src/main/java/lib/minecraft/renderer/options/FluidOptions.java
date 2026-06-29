@@ -4,6 +4,9 @@ import dev.simplified.image.Background;
 import lib.minecraft.renderer.Renderer;
 import lib.minecraft.renderer.appearance.Biome;
 import lib.minecraft.renderer.geometry.EulerRotation;
+import lib.minecraft.renderer.layer.FluidLayerSlot;
+import lib.minecraft.renderer.layer.GeometryLayer;
+import lib.minecraft.renderer.layer.LayerStack;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -11,6 +14,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 
 /**
  * Configures a single {@code FluidRenderer} invocation.
@@ -123,6 +127,14 @@ public class FluidOptions {
      */
     @lombok.Builder.Default
     private final @NotNull Background background = Background.TRANSPARENT;
+
+    /**
+     * Transform applied to the default {@link GeometryLayer} stack (the fluid cube) before it runs,
+     * letting callers splice custom layers relative to the {@link FluidLayerSlot} slot. Defaults to
+     * {@linkplain UnaryOperator#identity() identity}. Only consulted by the 3D isometric path.
+     */
+    @lombok.Builder.Default
+    private final @NotNull UnaryOperator<LayerStack<GeometryLayer>> layerDecorator = UnaryOperator.identity();
 
     public @NotNull FluidOptionsBuilder mutate() {
         return this.toBuilder();

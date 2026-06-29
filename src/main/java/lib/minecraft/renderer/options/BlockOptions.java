@@ -8,10 +8,15 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.geometry.BlockFace;
 import lib.minecraft.renderer.geometry.EulerRotation;
+import lib.minecraft.renderer.layer.BlockLayerSlot;
+import lib.minecraft.renderer.layer.GeometryLayer;
+import lib.minecraft.renderer.layer.LayerStack;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.function.UnaryOperator;
 
 /**
  * Configures a single {@link BlockRenderer BlockRenderer} invocation.
@@ -123,6 +128,15 @@ public class BlockOptions {
      */
     @lombok.Builder.Default
     private final @NotNull Background background = Background.TRANSPARENT;
+
+    /**
+     * Transform applied to the default {@link GeometryLayer} stack (primary model, additive entity,
+     * merged parts) before it runs, letting callers splice custom layers relative to the
+     * {@link BlockLayerSlot} slots. Defaults to {@linkplain UnaryOperator#identity() identity}. Only
+     * consulted by the 3D isometric path.
+     */
+    @lombok.Builder.Default
+    private final @NotNull UnaryOperator<LayerStack<GeometryLayer>> layerDecorator = UnaryOperator.identity();
 
     public @NotNull BlockOptionsBuilder mutate() {
         return this.toBuilder();

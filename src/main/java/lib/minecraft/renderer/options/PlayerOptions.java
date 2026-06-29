@@ -7,6 +7,9 @@ import lib.minecraft.renderer.appearance.ArmorPiece;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.kit.ArmorKit;
 import lib.minecraft.renderer.kit.TrimKit;
+import lib.minecraft.renderer.layer.ImageLayer;
+import lib.minecraft.renderer.layer.LayerStack;
+import lib.minecraft.renderer.layer.PlayerLayerSlot;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -15,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 
 /**
  * Configures a single {@link PlayerRenderer PlayerRenderer} invocation.
@@ -169,6 +173,15 @@ public class PlayerOptions {
      */
     @lombok.Builder.Default
     private final @NotNull Background background = Background.TRANSPARENT;
+
+    /**
+     * Transform applied to the default 2D {@link ImageLayer} stack (skin, overlay, armor) before it
+     * runs, letting callers splice custom layers relative to the {@link PlayerLayerSlot} slots.
+     * Defaults to {@linkplain UnaryOperator#identity() identity}. Only consulted by the 2D path; the
+     * 3D path builds a fixed body-part set.
+     */
+    @lombok.Builder.Default
+    private final @NotNull UnaryOperator<LayerStack<ImageLayer>> layerDecorator = UnaryOperator.identity();
 
     public @NotNull PlayerOptionsBuilder mutate() {
         return this.toBuilder();

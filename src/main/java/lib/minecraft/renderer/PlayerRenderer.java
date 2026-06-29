@@ -25,6 +25,9 @@ import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.kit.ArmorKit;
 import lib.minecraft.renderer.kit.BlockGeometryKit;
 import lib.minecraft.renderer.kit.GlintKit;
+import lib.minecraft.renderer.layer.ImageLayer;
+import lib.minecraft.renderer.layer.LayerStack;
+import lib.minecraft.renderer.layer.PlayerLayerSlot;
 import lib.minecraft.renderer.options.PlayerOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -355,9 +358,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         PixelBuffer buffer = engine.createBuffer(options.getOutputSize(), options.getOutputSize());
 
         int[] so = scaleAndOffset2D(options.getType(), options.getOutputSize());
-        int scale = so[0];
-        int offsetX = so[1];
-        BodyPart2D[] parts = layout2D(options.getType(), scale, offsetX);
+        BodyPart2D[] parts = layout2D(options.getType(), so[0], so[1]);
 
         boolean overlay = options.isRenderOverlay();
         // Glint only the armor, not the bare skin: when enchanted, the armor / trim composites stamp
@@ -365,23 +366,31 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         boolean enchanted = hasEnchantedArmor(options);
         GlintMask glintMask = enchanted ? new GlintMask(options.getOutputSize(), options.getOutputSize()) : null;
 
-        for (BodyPart2D bp : parts) {
-            // Base skin
-            PixelBuffer face = bp.part.crop(skin, BlockFace.SOUTH, false);
-            buffer.blitScaled(face, bp.x, bp.y, bp.w, bp.h);
+        // Compose the front-facing body as an ordered ImageLayer stack so the skin / overlay / armor
+        // passes are governed by slot order (and extensible via PlayerOptions.layerDecorator) rather
+        // than interleaved per body part. Body-part rectangles tile the canvas without overlap, so the
+        // per-pass order is equivalent to the historic per-part order.
+        LayerStack<ImageLayer> stack = new LayerStack<>();
+        stack.append(PlayerLayerSlot.SKIN, frame -> {
+            for (BodyPart2D bp : parts)
+                frame.blitScaled(bp.part.crop(skin, BlockFace.SOUTH, false), bp.x, bp.y, bp.w, bp.h);
+        });
+        if (overlay)
+            stack.append(PlayerLayerSlot.OVERLAY, frame -> {
+                for (BodyPart2D bp : parts) {
+                    if (hasOverlay(skin))
+                        frame.blitScaled(bp.part.crop(skin, BlockFace.SOUTH, true), bp.x, bp.y, bp.w, bp.h);
+                    else if (bp.part == SkinFace.HEAD && hasHatOverlay(skin))
+                        frame.blitScaled(SkinFace.HEAD.crop(skin, BlockFace.SOUTH, true), bp.x, bp.y, bp.w, bp.h);
+                }
+            });
+        stack.append(PlayerLayerSlot.ARMOR, frame -> {
+            for (BodyPart2D bp : parts)
+                compositeArmor2D(frame, bp.part, bp.x, bp.y, bp.w, bp.h, options, engine, glintMask);
+        });
 
-            // Overlay
-            if (overlay && hasOverlay(skin)) {
-                PixelBuffer overlayFace = bp.part.crop(skin, BlockFace.SOUTH, true);
-                buffer.blitScaled(overlayFace, bp.x, bp.y, bp.w, bp.h);
-            } else if (overlay && bp.part == SkinFace.HEAD && hasHatOverlay(skin)) {
-                PixelBuffer hat = SkinFace.HEAD.crop(skin, BlockFace.SOUTH, true);
-                buffer.blitScaled(hat, bp.x, bp.y, bp.w, bp.h);
-            }
-
-            // Armor + trim for this body part (each slot that covers this part gets composited)
-            compositeArmor2D(buffer, bp.part, bp.x, bp.y, bp.w, bp.h, options, engine, glintMask);
-        }
+        for (ImageLayer layer : options.getLayerDecorator().apply(stack).ordered())
+            layer.apply(buffer);
 
         if (options.isAntiAlias())
             buffer.applyFxaa();

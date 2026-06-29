@@ -15,6 +15,9 @@ import lib.minecraft.renderer.engine.TextureEngine;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.kit.FluidGeometryKit;
+import lib.minecraft.renderer.layer.FluidLayerSlot;
+import lib.minecraft.renderer.layer.GeometryLayer;
+import lib.minecraft.renderer.layer.LayerStack;
 import lib.minecraft.renderer.options.FluidOptions;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -148,8 +151,14 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             PixelBuffer flow = textures.resolveTextureAtTick(flowTextureId(options.getFluid()), tick);
             int tint = resolveFluidTint(this.context, options);
 
-            ConcurrentList<VisibleTriangle> triangles = FluidGeometryKit.buildFluidCube(
-                options.getCornerHeights(), still, flow, options.getFlowAngleRadians(), tint);
+            // Single built-in contributor (the cube), expressed as a GeometryLayer so fluid uses the
+            // same stack-driven ordering as every other renderer and callers can splice extra layers.
+            ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
+            LayerStack<GeometryLayer> stack = new LayerStack<>();
+            stack.append(FluidLayerSlot.CUBE, sink -> sink.addAll(FluidGeometryKit.buildFluidCube(
+                options.getCornerHeights(), still, flow, options.getFlowAngleRadians(), tint)));
+            for (GeometryLayer layer : options.getLayerDecorator().apply(stack).ordered())
+                layer.contribute(triangles);
 
             int ssaa = Math.max(1, options.getSupersample());
             return FinalizeStage.run(options.getOutputSize(), options.getOutputSize(), ssaa, options.isAntiAlias(), false,

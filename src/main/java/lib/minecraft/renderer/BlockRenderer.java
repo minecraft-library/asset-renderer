@@ -24,6 +24,9 @@ import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.kit.BlockGeometryKit;
+import lib.minecraft.renderer.layer.BlockLayerSlot;
+import lib.minecraft.renderer.layer.GeometryLayer;
+import lib.minecraft.renderer.layer.LayerStack;
 import lib.minecraft.renderer.options.BlockOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.tensor.Matrix4f;
@@ -174,61 +177,51 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // the harness {@code .variant} sidecar the parity test used to consume.
             String effectiveVariant = options.getVariant().isEmpty() ? block.getDefaultStateKey() : options.getVariant();
 
-            ConcurrentList<VisibleTriangle> triangles;
+            // Block geometry is assembled through a GeometryLayer stack - primary model, then additive
+            // block-entity geometry, then merged block-entity parts - for uniformity with the other
+            // renderers and so callers can splice layers via BlockOptions.layerDecorator. The shared
+            // whole-mesh steps (multi-block recenter / rotation, empty-fallback rebuild, inventory
+            // relight) run on the assembled sink afterwards.
+            ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
+            LayerStack<GeometryLayer> stack = new LayerStack<>();
 
-            if (block.getMultipart().isPresent()) {
-                triangles = assembleMultipart(block.getMultipart().get(), effectiveVariant, tint, untintedTint);
-            } else {
-                // Resolve the blockstate variant BEFORE building geometry so its model id can
-                // override {@link Block#getModel()}. Blocks like {@code sweet_berry_bush} have
-                // per-stage models ({@code sweet_berry_bush_stage0..3}) keyed off the {@code age}
-                // property; without this hop, {@code block.getModel()} returns whichever stage
-                // happened to register first (effectively non-deterministic for blockstate-only
-                // ids), producing a mature-bush render for an {@code age=0} request. The variant
-                // key is the caller's when supplied, otherwise the block's default state key
-                // (see {@code effectiveVariant} above); only property-less blocks fall through to
-                // {@code block.getModel()}'s raw pose.
-                //
-                // {@link Block.Source#TILE_ENTITY} blocks (chests, banners, beds, skulls, ...)
-                // are an exception: their variant's modelId points to an empty template (e.g.
-                // {@code block/skull}, {@code block/banner}) and the geometry-bearing model is
-                // the BE-derived one already attached as {@link Block#getModel()}. For these
-                // blocks we keep the BE model and only let the variant carry rotation. The
-                // model lookup is also skipped when the resolved model would be element-less,
-                // which guards against pack-level surprises for non-TILE_ENTITY blocks too.
+            stack.append(BlockLayerSlot.PRIMARY, sink -> {
+                if (block.getMultipart().isPresent()) {
+                    sink.addAll(assembleMultipart(block.getMultipart().get(), effectiveVariant, tint, untintedTint));
+                    return;
+                }
+                // Resolve the blockstate variant BEFORE building geometry so its model id can override
+                // Block#getModel() (sweet_berry_bush age stages, doors). The variant key is the
+                // caller's when supplied, else the block's default state key; property-less blocks fall
+                // through to the raw model pose. TILE_ENTITY blocks point the variant at an empty
+                // template, so the non-empty-elements check keeps the geometry-bearing BE model - while
+                // still letting a BE inject a geometry variant for a mesh-varying state (hanging sign).
                 Block.Variant variant = resolveVariant(block, effectiveVariant);
                 ModelData modelToUse = block.getModel();
-                // Use the resolved variant's geometry whenever it carries real elements. For plain
-                // blocks this picks the per-state model (sweet_berry_bush age stages, doors). For
-                // {@link Block.Source#TILE_ENTITY} blocks the pack variant points at an empty
-                // particle-only template (so this falls through to the BE model), but a
-                // block-entity may inject a geometry-bearing variant for a state its mesh varies on
-                // (the ceiling hanging sign's attached=true straight-chain mesh) - the non-empty
-                // check keeps the empty pack variants from clobbering the default BE model.
                 if (variant != null) {
                     ModelData variantModel = variant.model();
                     if (!variantModel.getElements().isEmpty())
                         modelToUse = variantModel;
                 }
-                triangles = buildFromBlockElements(modelToUse, variant, tint, untintedTint);
+                ConcurrentList<VisibleTriangle> primary = buildFromBlockElements(modelToUse, variant, tint, untintedTint);
                 if (variant != null && variant.hasRotation())
-                    triangles = applyRotation(triangles, buildVariantRotation(variant));
+                    primary = applyRotation(primary, buildVariantRotation(variant));
+                sink.addAll(primary);
+            });
+
+            // Atlas-time composition: merge Block.Entity parts into the primary geometry (bed foot onto
+            // head, decorated_pot sides onto base, banner flag onto post). Gated on mergeParts - scene
+            // callers pass false to render one variant at a time. Additive entities (bell body) overlay
+            // the primary model; non-additive entity geometry IS the primary model already.
+            if (be != null && options.isMergeParts()) {
+                if (be.additive())
+                    stack.append(BlockLayerSlot.ADDITIVE_ENTITY, sink -> sink.addAll(buildFromAdditiveEntity(be, tint, untintedTint)));
+                if (!be.parts().isEmpty())
+                    stack.append(BlockLayerSlot.PARTS, sink -> sink.addAll(buildFromEntityParts(be, tint, untintedTint)));
             }
 
-            // Atlas-time composition: merge {@link Block.Entity.Part parts} into the primary
-            // geometry (bed foot onto bed head, decorated_pot sides onto its base, banner flag
-            // onto its post). Gated on {@link BlockOptions#isMergeParts()} - scene callers pass
-            // {@code false} to render one variant's geometry at a time.
-            if (be != null && options.isMergeParts()) {
-                // Additive entities (bell body) leave the primary block.json model in place
-                // and overlay the entity geometry. The entity's own model is appended here
-                // alongside its parts; non-additive entries skip this step because their
-                // entity geometry IS the primary model already (chests, beds, banners).
-                if (be.additive())
-                    triangles.addAll(buildFromAdditiveEntity(be, tint, untintedTint));
-                if (!be.parts().isEmpty())
-                    triangles.addAll(buildFromEntityParts(be, tint, untintedTint));
-            }
+            for (GeometryLayer layer : options.getLayerDecorator().apply(stack).ordered())
+                layer.contribute(triangles);
 
             // Block entity multi-block models (beds) need recentering + rotation + scaling
             // since they extend beyond the standard 0-16 single-block bounds.
