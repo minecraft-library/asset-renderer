@@ -6,6 +6,7 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelBufferPool;
+import lib.minecraft.renderer.engine.FinalizeStage;
 import lib.minecraft.renderer.engine.IsometricEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RenderEngine;
@@ -513,47 +514,29 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             int ssaa = Math.max(1, options.getSupersample());
             int hiRes = options.getOutputSize() * ssaa;
 
-            // Pass 1: bake the parallax shader once at canvas resolution. This is the
-            // "screen-space canvas" - every pixel of the output that lands on the cube will
-            // sample this single buffer at its own screen position, not at a per-face UV. That
-            // matches vanilla's fragment stage (texProj0 is a screen UV, so adjacent cube edges
-            // converge on identical shader output and the starfield is seamless across faces).
-            PixelBuffer shaderCanvas = bakeFace(options.getPortal(), tick, endSky, endPortalNoise, hiRes);
-            shaderCanvas = applyTintIfNeeded(shaderCanvas, resolveTint(options));
+            // Pass 1: bake the parallax shader once at the raster resolution. This is the
+            // "screen-space canvas" - every output pixel that lands on the cube samples this single
+            // buffer at its own screen position, not a per-face UV, so adjacent cube edges converge
+            // on identical shader output and the starfield is seamless across faces.
+            PixelBuffer shaderCanvas = applyTintIfNeeded(
+                bakeFace(options.getPortal(), tick, endSky, endPortalNoise, hiRes), resolveTint(options));
 
-            // Pass 2: rasterize the cube geometry with a uniform-white face texture. The
-            // rasterizer multiplies sampled texel * per-face shading factor, so with a white
-            // sampler the output buffer's red channel at each pixel is literally the shading
-            // coefficient * 255 - no need to ask the engine for a separate shading pass.
+            // Pass 2: rasterize the cube with a uniform-white sampler so each pixel's red channel is
+            // the per-face shading coefficient * 255, compose shader * mask into the target, then FXAA
+            // + downscale via the shared FinalizeStage. The shading mask is scope-local pooled scratch.
             PixelBuffer white = PixelBuffer.create(1, 1);
             white.setPixel(0, 0, ColorMath.WHITE);
             ConcurrentList<VisibleTriangle> triangles = buildGeometry(options.getPortal(), SixFaces.uniform(white));
 
-            // shadingMask is scope-local scratch: populated by rasterize, consumed once by
-            // the compose loop, then discarded. Always pool it.
-            try (PixelBufferPool.Lease maskLease = PixelBufferPool.acquire(hiRes, hiRes)) {
-                PixelBuffer shadingMask = maskLease.buffer();
-                engine.rasterize(triangles, shadingMask, PerspectiveParams.ISOMETRIC_BLOCK, options.getRotation());
-
-                if (ssaa > 1) {
-                    // buffer is also scratch when SSAA downscales - it feeds blitScaled and is
-                    // discarded with the lease.
-                    try (PixelBufferPool.Lease bufLease = PixelBufferPool.acquire(hiRes, hiRes)) {
-                        PixelBuffer buffer = bufLease.buffer();
-                        composeShaderMask(buffer, shadingMask, shaderCanvas, hiRes);
-                        if (options.isAntiAlias()) buffer.applyFxaa();
-                        PixelBuffer output = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
-                        output.blitScaled(buffer, 0, 0, options.getOutputSize(), options.getOutputSize());
-                        return output;
+            return FinalizeStage.run(options.getOutputSize(), options.getOutputSize(), ssaa, options.isAntiAlias(), false,
+                (target, ignoredMask) -> {
+                    try (PixelBufferPool.Lease maskLease = PixelBufferPool.acquire(target.width(), target.height())) {
+                        PixelBuffer shadingMask = maskLease.buffer();
+                        engine.rasterize(triangles, shadingMask, PerspectiveParams.ISOMETRIC_BLOCK, options.getRotation());
+                        composeShaderMask(target, shadingMask, shaderCanvas, target.width());
                     }
-                }
-
-                // ssaa == 1: buffer escapes as the final frame, so it has to own its storage.
-                PixelBuffer buffer = PixelBuffer.create(hiRes, hiRes);
-                composeShaderMask(buffer, shadingMask, shaderCanvas, hiRes);
-                if (options.isAntiAlias()) buffer.applyFxaa();
-                return buffer;
-            }
+                },
+                (buffer, ignoredMask) -> buffer);
         }
 
         /**
