@@ -1,9 +1,10 @@
-package lib.minecraft.renderer.engine;
+package lib.minecraft.renderer.compose;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.engine.RenderEngine;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.stream.IntStream;

@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.layer;
+package lib.minecraft.renderer.compose;
 
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.geometry.VisibleTriangle;

@@ -1,7 +1,8 @@
-package lib.minecraft.renderer.engine;
+package lib.minecraft.renderer.compose;
 
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelBufferPool;
+import lib.minecraft.renderer.engine.GlintMask;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

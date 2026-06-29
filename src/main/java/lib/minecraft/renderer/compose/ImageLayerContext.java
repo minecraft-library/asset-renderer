@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.layer;
+package lib.minecraft.renderer.compose;
 
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.engine.RasterEngine;
