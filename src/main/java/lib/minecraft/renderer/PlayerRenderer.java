@@ -25,8 +25,10 @@ import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.kit.ArmorKit;
 import lib.minecraft.renderer.kit.BlockGeometryKit;
 import lib.minecraft.renderer.kit.GlintKit;
+import lib.minecraft.renderer.layer.GeometryLayer;
 import lib.minecraft.renderer.layer.ImageLayer;
 import lib.minecraft.renderer.layer.LayerStack;
+import lib.minecraft.renderer.layer.Player3DLayerSlot;
 import lib.minecraft.renderer.layer.PlayerLayerSlot;
 import lib.minecraft.renderer.options.PlayerOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
@@ -451,18 +453,26 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             PixelBuffer skin = resolveSkin(this.parent, options);
             IsometricEngine engine = IsometricEngine.forPlayerIcon(this.parent.context);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
-            triangles.addAll(BlockGeometryKit.unitCube(SkinFace.HEAD.cropAll(skin, false), ColorMath.WHITE));
-            if (options.isRenderOverlay() && hasHatOverlay(skin))
-                triangles.addAll(BlockGeometryKit.buildBoxTriangles(
-                    new Vector3f(-0.52f, -0.52f, -0.52f),
-                    new Vector3f(0.52f, 0.52f, 0.52f),
-                    SkinFace.HEAD.cropAll(skin, true), ColorMath.WHITE));
 
-            Map<SkinFace, Vector3f[]> bp = new EnumMap<>(SkinFace.class);
-            bp.put(SkinFace.HEAD, new Vector3f[]{ SKULL_HEAD_MIN, SKULL_HEAD_MAX });
-            triangles.addAll(ArmorKit.buildHumanoidArmor3D(bp,
-                options.getHelmet(), options.getChestplate(),
-                options.getLeggings(), options.getBoots(), engine));
+            LayerStack<GeometryLayer> stack = new LayerStack<>();
+            stack.append(Player3DLayerSlot.BODY, sink -> {
+                sink.addAll(BlockGeometryKit.unitCube(SkinFace.HEAD.cropAll(skin, false), ColorMath.WHITE));
+                if (options.isRenderOverlay() && hasHatOverlay(skin))
+                    sink.addAll(BlockGeometryKit.buildBoxTriangles(
+                        new Vector3f(-0.52f, -0.52f, -0.52f),
+                        new Vector3f(0.52f, 0.52f, 0.52f),
+                        SkinFace.HEAD.cropAll(skin, true), ColorMath.WHITE));
+            });
+            stack.append(Player3DLayerSlot.ARMOR, sink -> {
+                Map<SkinFace, Vector3f[]> bp = new EnumMap<>(SkinFace.class);
+                bp.put(SkinFace.HEAD, new Vector3f[]{ SKULL_HEAD_MIN, SKULL_HEAD_MAX });
+                sink.addAll(ArmorKit.buildHumanoidArmor3D(bp,
+                    options.getHelmet(), options.getChestplate(),
+                    options.getLeggings(), options.getBoots(), engine));
+            });
+
+            for (GeometryLayer layer : options.getGeometryLayerDecorator().apply(stack).ordered())
+                layer.contribute(triangles);
 
             return rasterize3D(engine, triangles, options);
         }
@@ -489,22 +499,29 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             IsometricEngine engine = IsometricEngine.forPlayerIcon(this.parent.context);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
-            addBodyPart(triangles, skin, SkinFace.HEAD, BUST_HEAD_MIN, BUST_HEAD_MAX, options);
-            addBodyPart(triangles, skin, SkinFace.TORSO, BUST_TORSO_MIN, BUST_TORSO_MAX, options);
-            addBodyPart(triangles, skin, SkinFace.RIGHT_ARM, BUST_R_ARM_MIN, BUST_R_ARM_MAX, options);
-            addBodyPart(triangles, skin, SkinFace.LEFT_ARM, BUST_L_ARM_MIN, BUST_L_ARM_MAX, options);
-
-            Map<SkinFace, Vector3f[]> bp = new EnumMap<>(SkinFace.class);
-            bp.put(SkinFace.HEAD, new Vector3f[]{ BUST_HEAD_MIN, BUST_HEAD_MAX });
-            bp.put(SkinFace.TORSO, new Vector3f[]{ BUST_TORSO_MIN, BUST_TORSO_MAX });
-            bp.put(SkinFace.RIGHT_ARM, new Vector3f[]{ BUST_R_ARM_MIN, BUST_R_ARM_MAX });
-            bp.put(SkinFace.LEFT_ARM, new Vector3f[]{ BUST_L_ARM_MIN, BUST_L_ARM_MAX });
-            triangles.addAll(ArmorKit.buildHumanoidArmor3D(bp,
-                options.getHelmet(), options.getChestplate(),
-                options.getLeggings(), options.getBoots(), engine));
-
+            LayerStack<GeometryLayer> stack = new LayerStack<>();
+            stack.append(Player3DLayerSlot.BODY, sink -> {
+                addBodyPart(sink, skin, SkinFace.HEAD, BUST_HEAD_MIN, BUST_HEAD_MAX, options);
+                addBodyPart(sink, skin, SkinFace.TORSO, BUST_TORSO_MIN, BUST_TORSO_MAX, options);
+                addBodyPart(sink, skin, SkinFace.RIGHT_ARM, BUST_R_ARM_MIN, BUST_R_ARM_MAX, options);
+                addBodyPart(sink, skin, SkinFace.LEFT_ARM, BUST_L_ARM_MIN, BUST_L_ARM_MAX, options);
+            });
+            stack.append(Player3DLayerSlot.ARMOR, sink -> {
+                Map<SkinFace, Vector3f[]> bp = new EnumMap<>(SkinFace.class);
+                bp.put(SkinFace.HEAD, new Vector3f[]{ BUST_HEAD_MIN, BUST_HEAD_MAX });
+                bp.put(SkinFace.TORSO, new Vector3f[]{ BUST_TORSO_MIN, BUST_TORSO_MAX });
+                bp.put(SkinFace.RIGHT_ARM, new Vector3f[]{ BUST_R_ARM_MIN, BUST_R_ARM_MAX });
+                bp.put(SkinFace.LEFT_ARM, new Vector3f[]{ BUST_L_ARM_MIN, BUST_L_ARM_MAX });
+                sink.addAll(ArmorKit.buildHumanoidArmor3D(bp,
+                    options.getHelmet(), options.getChestplate(),
+                    options.getLeggings(), options.getBoots(), engine));
+            });
             resolveCape(this.parent, options)
-                .ifPresent(cape -> addCape(triangles, cape, BUST_TORSO_MIN, BUST_TORSO_MAX));
+                .ifPresent(cape -> stack.append(Player3DLayerSlot.CAPE,
+                    sink -> addCape(sink, cape, BUST_TORSO_MIN, BUST_TORSO_MAX)));
+
+            for (GeometryLayer layer : options.getGeometryLayerDecorator().apply(stack).ordered())
+                layer.contribute(triangles);
 
             return rasterize3D(engine, triangles, options);
         }
@@ -531,26 +548,33 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             IsometricEngine engine = IsometricEngine.forPlayerIcon(this.parent.context);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
-            addBodyPart(triangles, skin, SkinFace.HEAD, FULL_HEAD_MIN, FULL_HEAD_MAX, options);
-            addBodyPart(triangles, skin, SkinFace.TORSO, FULL_TORSO_MIN, FULL_TORSO_MAX, options);
-            addBodyPart(triangles, skin, SkinFace.RIGHT_ARM, FULL_R_ARM_MIN, FULL_R_ARM_MAX, options);
-            addBodyPart(triangles, skin, SkinFace.LEFT_ARM, FULL_L_ARM_MIN, FULL_L_ARM_MAX, options);
-            addBodyPart(triangles, skin, SkinFace.RIGHT_LEG, FULL_R_LEG_MIN, FULL_R_LEG_MAX, options);
-            addBodyPart(triangles, skin, SkinFace.LEFT_LEG, FULL_L_LEG_MIN, FULL_L_LEG_MAX, options);
-
-            Map<SkinFace, Vector3f[]> bp = new EnumMap<>(SkinFace.class);
-            bp.put(SkinFace.HEAD, new Vector3f[]{ FULL_HEAD_MIN, FULL_HEAD_MAX });
-            bp.put(SkinFace.TORSO, new Vector3f[]{ FULL_TORSO_MIN, FULL_TORSO_MAX });
-            bp.put(SkinFace.RIGHT_ARM, new Vector3f[]{ FULL_R_ARM_MIN, FULL_R_ARM_MAX });
-            bp.put(SkinFace.LEFT_ARM, new Vector3f[]{ FULL_L_ARM_MIN, FULL_L_ARM_MAX });
-            bp.put(SkinFace.RIGHT_LEG, new Vector3f[]{ FULL_R_LEG_MIN, FULL_R_LEG_MAX });
-            bp.put(SkinFace.LEFT_LEG, new Vector3f[]{ FULL_L_LEG_MIN, FULL_L_LEG_MAX });
-            triangles.addAll(ArmorKit.buildHumanoidArmor3D(bp,
-                options.getHelmet(), options.getChestplate(),
-                options.getLeggings(), options.getBoots(), engine));
-
+            LayerStack<GeometryLayer> stack = new LayerStack<>();
+            stack.append(Player3DLayerSlot.BODY, sink -> {
+                addBodyPart(sink, skin, SkinFace.HEAD, FULL_HEAD_MIN, FULL_HEAD_MAX, options);
+                addBodyPart(sink, skin, SkinFace.TORSO, FULL_TORSO_MIN, FULL_TORSO_MAX, options);
+                addBodyPart(sink, skin, SkinFace.RIGHT_ARM, FULL_R_ARM_MIN, FULL_R_ARM_MAX, options);
+                addBodyPart(sink, skin, SkinFace.LEFT_ARM, FULL_L_ARM_MIN, FULL_L_ARM_MAX, options);
+                addBodyPart(sink, skin, SkinFace.RIGHT_LEG, FULL_R_LEG_MIN, FULL_R_LEG_MAX, options);
+                addBodyPart(sink, skin, SkinFace.LEFT_LEG, FULL_L_LEG_MIN, FULL_L_LEG_MAX, options);
+            });
+            stack.append(Player3DLayerSlot.ARMOR, sink -> {
+                Map<SkinFace, Vector3f[]> bp = new EnumMap<>(SkinFace.class);
+                bp.put(SkinFace.HEAD, new Vector3f[]{ FULL_HEAD_MIN, FULL_HEAD_MAX });
+                bp.put(SkinFace.TORSO, new Vector3f[]{ FULL_TORSO_MIN, FULL_TORSO_MAX });
+                bp.put(SkinFace.RIGHT_ARM, new Vector3f[]{ FULL_R_ARM_MIN, FULL_R_ARM_MAX });
+                bp.put(SkinFace.LEFT_ARM, new Vector3f[]{ FULL_L_ARM_MIN, FULL_L_ARM_MAX });
+                bp.put(SkinFace.RIGHT_LEG, new Vector3f[]{ FULL_R_LEG_MIN, FULL_R_LEG_MAX });
+                bp.put(SkinFace.LEFT_LEG, new Vector3f[]{ FULL_L_LEG_MIN, FULL_L_LEG_MAX });
+                sink.addAll(ArmorKit.buildHumanoidArmor3D(bp,
+                    options.getHelmet(), options.getChestplate(),
+                    options.getLeggings(), options.getBoots(), engine));
+            });
             resolveCape(this.parent, options)
-                .ifPresent(cape -> addCape(triangles, cape, FULL_TORSO_MIN, FULL_TORSO_MAX));
+                .ifPresent(cape -> stack.append(Player3DLayerSlot.CAPE,
+                    sink -> addCape(sink, cape, FULL_TORSO_MIN, FULL_TORSO_MAX)));
+
+            for (GeometryLayer layer : options.getGeometryLayerDecorator().apply(stack).ordered())
+                layer.contribute(triangles);
 
             return rasterize3D(engine, triangles, options);
         }
