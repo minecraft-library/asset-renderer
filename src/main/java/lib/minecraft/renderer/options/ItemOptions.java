@@ -11,6 +11,9 @@ import lib.minecraft.renderer.appearance.DyeColor;
 import lib.minecraft.renderer.kit.BannerKit;
 import lib.minecraft.renderer.kit.GlintKit;
 import lib.minecraft.renderer.kit.TrimKit;
+import lib.minecraft.renderer.layer.ImageLayer;
+import lib.minecraft.renderer.layer.ItemLayerSlot;
+import lib.minecraft.renderer.layer.LayerStack;
 import lib.minecraft.renderer.pipeline.pack.ItemContext;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -18,6 +21,7 @@ import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 
 /**
  * Configures a single {@link ItemRenderer ItemRenderer} invocation.
@@ -168,6 +172,15 @@ public class ItemOptions {
      */
     @lombok.Builder.Default
     private final @NotNull Background background = Background.TRANSPARENT;
+
+    /**
+     * Transform applied to the default GUI icon {@link ImageLayer} stack before it runs, letting
+     * callers splice custom layers relative to the built-in {@link ItemLayerSlot} slots, or replace
+     * the stack entirely. Defaults to {@linkplain UnaryOperator#identity() identity} - the built-in
+     * stack unchanged. Only consulted for {@link Type#GUI_2D} renders.
+     */
+    @lombok.Builder.Default
+    private final @NotNull UnaryOperator<LayerStack<ImageLayer>> layerDecorator = UnaryOperator.identity();
 
     public @NotNull ItemOptionsBuilder mutate() {
         return this.toBuilder();

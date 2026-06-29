@@ -28,6 +28,10 @@ import lib.minecraft.renderer.kit.GlintKit;
 import lib.minecraft.renderer.kit.ItemStackKit;
 import lib.minecraft.renderer.kit.ShieldKit;
 import lib.minecraft.renderer.kit.TrimKit;
+import lib.minecraft.renderer.layer.ImageLayer;
+import lib.minecraft.renderer.layer.ImageLayerContext;
+import lib.minecraft.renderer.layer.ItemLayerSlot;
+import lib.minecraft.renderer.layer.LayerStack;
 import lib.minecraft.renderer.options.ItemOptions;
 import lib.minecraft.renderer.pipeline.pack.ItemContext;
 import lib.minecraft.renderer.tensor.Matrix4f;
@@ -435,27 +439,50 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             RasterEngine engine = new RasterEngine(this.context);
             PixelBuffer buffer = engine.createBuffer(options.getOutputSize(), options.getOutputSize());
 
-            if (options.getItemId().equals(SHIELD_ITEM_ID)) {
-                renderShield3D(this.context, buffer, options);
-            } else if (isBannerOrShield(options.getItemId())) {
-                renderBannerOrShield(engine, buffer, options.getItemId(), options);
-            } else {
-                renderStandardLayers(this.context, engine, buffer, item, options);
-            }
-
-            if (options.getTrimSlot().isPresent() && options.getTrimColor().isPresent())
-                TrimKit.resolve(engine, options.getTrimSlot().get().getKey(), options.getTrimColor().get().getKey())
-                    .ifPresent(trim -> buffer.blitScaled(trim, 0, 0, options.getOutputSize(), options.getOutputSize()));
-
-            if (options.isShowDamageBar())
-                ItemStackKit.drawDamageBar(buffer, options.getContext().damage(), item.getMaxDurability());
-
-            if (options.getContext().stackCount() > 1)
-                ItemStackKit.drawStackCount(buffer, options.getContext().stackCount(), MinecraftFont.REGULAR);
+            // Compose the icon as an ordered ImageLayer stack (base sprite/banner/shield, then the
+            // trim, damage-bar, and stack-count decorations) so callers can splice their own passes
+            // in via ItemOptions.layerDecorator. The terminal glint is the finalisation step, not a
+            // layer, because it expands the single buffer into one or many animation frames.
+            LayerStack<ImageLayer> stack = options.getLayerDecorator().apply(buildGuiLayers(options));
+            ImageLayerContext ctx = new ImageLayerContext(this.context, engine, item, options);
+            for (ImageLayer layer : stack.ordered()) layer.apply(buffer, ctx);
 
             boolean glinted = options.getGlintOverride().orElse(item.isAlwaysGlinted() || options.isEnchanted());
             return engine.finaliseWithGlint(buffer, glinted,
                 options.isAnimateGlint(), GlintKit.GlintOptions.itemDefault(options.getFramesPerSecond()));
+        }
+
+        /**
+         * Builds the default GUI icon layer stack in vanilla pass order: a base sprite/banner/shield
+         * layer, then the conditional trim, damage-bar, and stack-count decorations. Each layer is the
+         * verbatim pass that previously ran inline in {@link #render}.
+         */
+        private static @NotNull LayerStack<ImageLayer> buildGuiLayers(@NotNull ItemOptions options) {
+            LayerStack<ImageLayer> stack = new LayerStack<>();
+
+            if (options.getItemId().equals(SHIELD_ITEM_ID))
+                stack.append(ItemLayerSlot.BASE, (frame, ctx) -> renderShield3D(ctx.context(), frame, ctx.options()));
+            else if (isBannerOrShield(options.getItemId()))
+                stack.append(ItemLayerSlot.BASE, (frame, ctx) ->
+                    renderBannerOrShield(ctx.engine(), frame, ctx.options().getItemId(), ctx.options()));
+            else
+                stack.append(ItemLayerSlot.BASE, (frame, ctx) ->
+                    renderStandardLayers(ctx.context(), ctx.engine(), frame, ctx.item(), ctx.options()));
+
+            if (options.getTrimSlot().isPresent() && options.getTrimColor().isPresent())
+                stack.append(ItemLayerSlot.TRIM, (frame, ctx) ->
+                    TrimKit.resolve(ctx.engine(), ctx.options().getTrimSlot().get().getKey(), ctx.options().getTrimColor().get().getKey())
+                        .ifPresent(trim -> frame.blitScaled(trim, 0, 0, ctx.options().getOutputSize(), ctx.options().getOutputSize())));
+
+            if (options.isShowDamageBar())
+                stack.append(ItemLayerSlot.DAMAGE_BAR, (frame, ctx) ->
+                    ItemStackKit.drawDamageBar(frame, ctx.options().getContext().damage(), ctx.item().getMaxDurability()));
+
+            if (options.getContext().stackCount() > 1)
+                stack.append(ItemLayerSlot.STACK_COUNT, (frame, ctx) ->
+                    ItemStackKit.drawStackCount(frame, ctx.options().getContext().stackCount(), MinecraftFont.REGULAR));
+
+            return stack;
         }
 
     }
