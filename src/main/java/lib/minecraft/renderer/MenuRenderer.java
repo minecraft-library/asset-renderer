@@ -12,6 +12,7 @@ import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.compose.FrameCompositor;
+import lib.minecraft.renderer.compose.FrameLayer;
 import lib.minecraft.renderer.compose.FramePlacement;
 import lib.minecraft.renderer.kit.TextKit;
 import lib.minecraft.renderer.options.BlockOptions;
@@ -124,7 +125,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      */
     static boolean appendFillerLayers(
         @NotNull MenuOptions options,
-        @NotNull ConcurrentList<FramePlacement> layers,
+        @NotNull ConcurrentList<FrameLayer> layers,
         @NotNull ItemRenderer itemRenderer,
         @NotNull ConcurrentSet<Integer> claimed
     ) {
@@ -160,20 +161,22 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      */
     static @NotNull ImageData composite(
         int canvasW, int canvasH,
-        @NotNull ConcurrentList<FramePlacement> layers,
+        @NotNull ConcurrentList<FrameLayer> layers,
         boolean anyAnimated,
         @NotNull MenuOptions options
     ) {
+        ConcurrentList<FramePlacement> placements = FrameCompositor.flatten(options.getLayerDecorator().apply(layers));
+
         if (!anyAnimated) {
             PixelBuffer buffer = PixelBuffer.create(canvasW, canvasH);
 
-            for (FramePlacement layer : layers)
-                buffer.blit(PixelBuffer.wrap(layer.source().toBufferedImage()), layer.x(), layer.y());
+            for (FramePlacement placement : placements)
+                buffer.blit(PixelBuffer.wrap(placement.source().toBufferedImage()), placement.x(), placement.y());
 
             return RenderEngine.staticFrame(buffer);
         }
 
-        return FrameCompositor.merge(layers, canvasW, canvasH, options.getFramesPerSecond(), Background.TRANSPARENT);
+        return FrameCompositor.merge(placements, canvasW, canvasH, options.getFramesPerSecond(), Background.TRANSPARENT);
     }
 
     /**
@@ -592,7 +595,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             ImageData chromeData = renderChrome(chrome, options, INSET + 4, defaultTitleArgb);
 
             ItemRenderer itemRenderer = new ItemRenderer(this.context);
-            ConcurrentList<FramePlacement> layers = Concurrent.newList();
+            ConcurrentList<FrameLayer> layers = Concurrent.newList();
             layers.add(new FramePlacement(0, 0, chromeData));
 
             boolean anyAnimated = chromeData.isAnimated();
@@ -675,7 +678,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             ImageData chromeData = renderChrome(chrome, options, INSET + 4, 0xFF404040);
 
             ItemRenderer itemRenderer = new ItemRenderer(this.context);
-            ConcurrentList<FramePlacement> layers = Concurrent.newList();
+            ConcurrentList<FrameLayer> layers = Concurrent.newList();
             layers.add(new FramePlacement(0, 0, chromeData));
 
             boolean anyAnimated = chromeData.isAnimated();
@@ -751,7 +754,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             ImageData chromeData = renderChrome(chrome, options, INSET + 24, 0xFF404040);
 
             ItemRenderer itemRenderer = new ItemRenderer(this.context);
-            ConcurrentList<FramePlacement> layers = Concurrent.newList();
+            ConcurrentList<FrameLayer> layers = Concurrent.newList();
             layers.add(new FramePlacement(0, 0, chromeData));
 
             boolean anyAnimated = chromeData.isAnimated();
@@ -813,7 +816,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             ImageData chromeData = renderChrome(chrome, options, INSET + 4, 0xFF404040);
 
             ItemRenderer itemRenderer = new ItemRenderer(this.context);
-            ConcurrentList<FramePlacement> layers = Concurrent.newList();
+            ConcurrentList<FrameLayer> layers = Concurrent.newList();
             layers.add(new FramePlacement(0, 0, chromeData));
 
             ConcurrentSet<Integer> claimed = Concurrent.newSet();
@@ -883,7 +886,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
 
             ItemRenderer itemRenderer = new ItemRenderer(this.context);
             BlockRenderer blockRenderer = new BlockRenderer(this.context);
-            ConcurrentList<FramePlacement> layers = Concurrent.newList();
+            ConcurrentList<FrameLayer> layers = Concurrent.newList();
             layers.add(new FramePlacement(0, 0, chromeData));
 
             ConcurrentSet<Integer> claimed = Concurrent.newSet();

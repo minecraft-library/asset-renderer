@@ -1,10 +1,12 @@
 package lib.minecraft.renderer.options;
 
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.MenuRenderer;
+import lib.minecraft.renderer.compose.FrameLayer;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.options.ItemOptions;
 import lombok.AccessLevel;
@@ -12,6 +14,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.function.UnaryOperator;
 
 /**
  * Configures a single {@link MenuRenderer MenuRenderer} invocation.
@@ -102,6 +106,14 @@ public class MenuOptions {
      */
     @lombok.Builder.Default
     private final int framesPerSecond = 30;
+
+    /**
+     * Transform applied to the default menu {@link FrameLayer} stack (chrome, slots, filler) before
+     * it runs, letting callers splice custom layers. Defaults to {@linkplain UnaryOperator#identity()
+     * identity}.
+     */
+    @lombok.Builder.Default
+    private final @NotNull UnaryOperator<ConcurrentList<FrameLayer>> layerDecorator = UnaryOperator.identity();
 
     public @NotNull MenuOptionsBuilder mutate() {
         return this.toBuilder();

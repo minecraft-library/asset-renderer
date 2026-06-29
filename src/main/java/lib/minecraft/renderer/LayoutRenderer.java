@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.compose.FrameCompositor;
+import lib.minecraft.renderer.compose.FrameLayer;
 import lib.minecraft.renderer.compose.FramePlacement;
 import lib.minecraft.renderer.options.LayoutOptions;
 import org.jetbrains.annotations.NotNull;
@@ -42,11 +43,12 @@ public final class LayoutRenderer implements Renderer<LayoutOptions> {
         int[][] positions = layoutChildren(options.getLayout(), resolved, sizes);
         int[] canvas = computeCanvas(positions, sizes, options.getLayout().padding());
 
-        ConcurrentList<FramePlacement> layers = Concurrent.newList();
+        ConcurrentList<FrameLayer> layers = Concurrent.newList();
         for (int i = 0; i < resolved.size(); i++)
             layers.add(new FramePlacement(positions[i][0], positions[i][1], resolved.get(i)));
 
-        return FrameCompositor.merge(layers, canvas[0], canvas[1], options.getFramesPerSecond(), options.getBackground());
+        return FrameCompositor.composite(options.getLayerDecorator().apply(layers),
+            canvas[0], canvas[1], options.getFramesPerSecond(), options.getBackground());
     }
 
     private static @NotNull ConcurrentList<ImageData> resolveChildren(@NotNull ConcurrentList<Supplier<ImageData>> children) {

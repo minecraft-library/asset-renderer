@@ -11,8 +11,6 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.List;
-
 /**
  * Composites {@link FramePlacement} layers into a single output, transparently handling mixed static
  * and animated inputs - the "frame tier" of the layer model, where {@link ImageLayer} mutates one
@@ -42,10 +40,22 @@ public class FrameCompositor {
      * @param background the canvas background fill applied before blitting any layer
      * @return the composited image data
      */
-    public static @NotNull ImageData composite(@NotNull List<? extends FrameLayer> layers, int canvasW, int canvasH, int framesPerSecond, @NotNull Background background) {
+    public static @NotNull ImageData composite(@NotNull ConcurrentList<? extends FrameLayer> layers, int canvasW, int canvasH, int framesPerSecond, @NotNull Background background) {
+        return merge(flatten(layers), canvasW, canvasH, framesPerSecond, background);
+    }
+
+    /**
+     * Runs each frame layer's contribution into a fresh placement list, in order. Useful for callers
+     * that need the flattened placements directly (e.g. a renderer with its own static fast-path)
+     * rather than the merged image.
+     *
+     * @param layers the frame layers to contribute, in back-to-front order
+     * @return the collected placements
+     */
+    public static @NotNull ConcurrentList<FramePlacement> flatten(@NotNull ConcurrentList<? extends FrameLayer> layers) {
         ConcurrentList<FramePlacement> placements = Concurrent.newList();
         for (FrameLayer layer : layers) layer.contribute(placements);
-        return merge(placements, canvasW, canvasH, framesPerSecond, background);
+        return placements;
     }
 
     /**

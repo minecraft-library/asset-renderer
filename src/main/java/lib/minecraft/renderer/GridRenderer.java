@@ -6,6 +6,7 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.compose.FrameCompositor;
+import lib.minecraft.renderer.compose.FrameLayer;
 import lib.minecraft.renderer.compose.FramePlacement;
 import lib.minecraft.renderer.options.GridOptions;
 import org.jetbrains.annotations.NotNull;
@@ -45,37 +46,36 @@ public final class GridRenderer implements Renderer<GridOptions> {
         int canvasW = options.getColumns() * (cellSize + separation) + separation;
         int canvasH = options.getRows() * (cellSize + separation) + separation;
 
-        boolean anyAnimated = options.getTiles()
-            .stream()
-            .anyMatch(tile -> tile.image().isAnimated());
-
-        if (!anyAnimated) {
-            PixelBuffer buffer = PixelBuffer.create(canvasW, canvasH);
-            options.getBackground().fill(buffer);
-
-            // Tile-parallel blit. Each tile's (x, y, cellSize) destination rectangle is disjoint
-            // from every other tile's (separation is non-negative, so rectangles never overlap),
-            // which means blitScaled writes to non-aliasing int[] index ranges across threads.
-            // tile.image().toBufferedImage() allocates a fresh BufferedImage per call, so the
-            // PixelBuffer.wrap snapshot is thread-local.
-            options.getTiles().parallelStream().forEach(tile -> {
-                PixelBuffer tileBuffer = PixelBuffer.wrap(tile.image().toBufferedImage());
-                int x = tile.col() * (cellSize + separation) + separation;
-                int y = tile.row() * (cellSize + separation) + separation;
-                buffer.blitScaled(tileBuffer, x, y, cellSize, cellSize);
-            });
-
-            return RenderEngine.staticFrame(buffer);
-        }
-
-        ConcurrentList<FramePlacement> layers = Concurrent.newList();
+        // Build tile placements as a FrameLayer stack so callers can splice layers via
+        // GridOptions.layerDecorator, then flatten for dispatch.
+        ConcurrentList<FrameLayer> layers = Concurrent.newList();
         for (GridOptions.GridTile tile : options.getTiles()) {
             int x = tile.col() * (cellSize + separation) + separation;
             int y = tile.row() * (cellSize + separation) + separation;
             layers.add(new FramePlacement(x, y, tile.image()));
         }
+        ConcurrentList<FramePlacement> placements = FrameCompositor.flatten(options.getLayerDecorator().apply(layers));
 
-        return FrameCompositor.merge(layers, canvasW, canvasH, DEFAULT_FRAME_FPS, options.getBackground());
+        boolean anyAnimated = placements.stream().anyMatch(placement -> placement.source().isAnimated());
+
+        if (!anyAnimated) {
+            PixelBuffer buffer = PixelBuffer.create(canvasW, canvasH);
+            options.getBackground().fill(buffer);
+
+            // Placement-parallel blit. Each placement's (x, y, cellSize) destination rectangle is
+            // disjoint from every other's (separation is non-negative, so rectangles never overlap),
+            // which means blitScaled writes to non-aliasing int[] index ranges across threads.
+            // source.toBufferedImage() allocates a fresh BufferedImage per call, so the
+            // PixelBuffer.wrap snapshot is thread-local.
+            placements.parallelStream().forEach(placement -> {
+                PixelBuffer tileBuffer = PixelBuffer.wrap(placement.source().toBufferedImage());
+                buffer.blitScaled(tileBuffer, placement.x(), placement.y(), cellSize, cellSize);
+            });
+
+            return RenderEngine.staticFrame(buffer);
+        }
+
+        return FrameCompositor.merge(placements, canvasW, canvasH, DEFAULT_FRAME_FPS, options.getBackground());
     }
 
 }

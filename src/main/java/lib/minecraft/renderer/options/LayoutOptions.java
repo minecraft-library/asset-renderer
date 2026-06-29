@@ -6,10 +6,12 @@ import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.LayoutRenderer;
 import lib.minecraft.renderer.Renderer;
+import lib.minecraft.renderer.compose.FrameLayer;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 /**
  * Configures a single {@code LayoutRenderer} invocation. Uses a custom (non-Lombok) builder so
@@ -22,17 +24,20 @@ public class LayoutOptions {
     private final @NotNull ConcurrentList<Supplier<ImageData>> children;
     private final int framesPerSecond;
     private final @NotNull Background background;
+    private final @NotNull UnaryOperator<ConcurrentList<FrameLayer>> layerDecorator;
 
     private LayoutOptions(
         @NotNull Layout layout,
         @NotNull ConcurrentList<Supplier<ImageData>> children,
         int framesPerSecond,
-        @NotNull Background background
+        @NotNull Background background,
+        @NotNull UnaryOperator<ConcurrentList<FrameLayer>> layerDecorator
     ) {
         this.layout = layout;
         this.children = children;
         this.framesPerSecond = framesPerSecond;
         this.background = background;
+        this.layerDecorator = layerDecorator;
     }
 
     /**
@@ -59,6 +64,7 @@ public class LayoutOptions {
         private final @NotNull ConcurrentList<Supplier<ImageData>> children = Concurrent.newList();
         private int framesPerSecond = 30;
         private @NotNull Background background = Background.TRANSPARENT;
+        private @NotNull UnaryOperator<ConcurrentList<FrameLayer>> layerDecorator = UnaryOperator.identity();
 
         /**
          * Sets the layout strategy (row, column, grid, stack, custom).
@@ -121,12 +127,25 @@ public class LayoutOptions {
         }
 
         /**
+         * Sets the transform applied to the default child {@link FrameLayer} stack before it runs,
+         * letting callers splice custom layers. Defaults to
+         * {@linkplain UnaryOperator#identity() identity}.
+         *
+         * @param layerDecorator the layer-stack transform
+         * @return this builder
+         */
+        public @NotNull Builder layerDecorator(@NotNull UnaryOperator<ConcurrentList<FrameLayer>> layerDecorator) {
+            this.layerDecorator = layerDecorator;
+            return this;
+        }
+
+        /**
          * Builds the immutable options instance.
          *
          * @return the options
          */
         public @NotNull LayoutOptions build() {
-            return new LayoutOptions(this.layout, this.children, this.framesPerSecond, this.background);
+            return new LayoutOptions(this.layout, this.children, this.framesPerSecond, this.background, this.layerDecorator);
         }
 
     }

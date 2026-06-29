@@ -6,10 +6,13 @@ import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.GridRenderer;
 import lib.minecraft.renderer.compose.FrameCompositor;
+import lib.minecraft.renderer.compose.FrameLayer;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.function.UnaryOperator;
 
 /**
  * Configures a single {@link GridRenderer GridRenderer} invocation.
@@ -62,6 +65,14 @@ public class GridOptions {
      */
     @lombok.Builder.Default
     private final @NotNull Background background = Background.TRANSPARENT;
+
+    /**
+     * Transform applied to the default tile {@link FrameLayer} stack before it runs, letting callers
+     * splice custom layers (overlays, watermarks). Defaults to {@linkplain UnaryOperator#identity()
+     * identity}.
+     */
+    @lombok.Builder.Default
+    private final @NotNull UnaryOperator<ConcurrentList<FrameLayer>> layerDecorator = UnaryOperator.identity();
 
     public @NotNull GridOptionsBuilder mutate() {
         return this.toBuilder();
