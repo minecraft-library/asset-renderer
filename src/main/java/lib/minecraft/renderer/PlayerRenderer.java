@@ -9,9 +9,9 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.ImageFactory;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import dev.simplified.image.pixel.PixelBufferPool;
 import lib.minecraft.renderer.appearance.ArmorPiece;
 import lib.minecraft.renderer.appearance.ArmorTrim;
+import lib.minecraft.renderer.engine.FinalizeStage;
 import lib.minecraft.renderer.engine.GlintMask;
 import lib.minecraft.renderer.engine.IsometricEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
@@ -562,27 +562,11 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         boolean enchanted = hasEnchantedArmor(options);
         GlintKit.GlintOptions glint = GlintKit.GlintOptions.armorDefault(30);
         int ssaa = Math.max(1, options.getSupersample());
-
-        if (ssaa > 1) {
-            try (PixelBufferPool.Lease lease = PixelBufferPool.acquire(size * ssaa, size * ssaa)) {
-                PixelBuffer hiRes = lease.buffer();
-                // The glint mask is recorded at the hi-res raster size, then box-downsampled to the
-                // output so the foil is confined to the armor (not the bare body) after the SSAA blit.
-                GlintMask hiMask = enchanted ? new GlintMask(size * ssaa, size * ssaa) : null;
-                engine.rasterizeFitted(triangles, hiRes, PerspectiveParams.NONE, options.getRotation(), PLAYER_FILL, hiMask);
-                if (options.isAntiAlias()) hiRes.applyFxaa();
-                PixelBuffer output = PixelBuffer.create(size, size);
-                output.blitScaled(hiRes, 0, 0, size, size);
-                GlintMask mask = hiMask == null ? null : hiMask.downsample(size, size);
-                return engine.finaliseWithGlint(output, enchanted, glint, mask);
-            }
-        }
-
-        PixelBuffer buffer = PixelBuffer.create(size, size);
-        GlintMask mask = enchanted ? new GlintMask(size, size) : null;
-        engine.rasterizeFitted(triangles, buffer, PerspectiveParams.NONE, options.getRotation(), PLAYER_FILL, mask);
-        if (options.isAntiAlias()) buffer.applyFxaa();
-        return engine.finaliseWithGlint(buffer, enchanted, glint, mask);
+        // The glint mask is recorded at the raster size, then box-downsampled to the output so the
+        // foil is confined to the armor (not the bare body) after the SSAA blit.
+        return FinalizeStage.run(size, size, ssaa, options.isAntiAlias(), enchanted,
+            (target, mask) -> engine.rasterizeFitted(triangles, target, PerspectiveParams.NONE, options.getRotation(), PLAYER_FILL, mask),
+            (buffer, mask) -> engine.finaliseWithGlint(buffer, enchanted, glint, mask));
     }
 
     /**

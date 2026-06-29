@@ -10,10 +10,10 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import dev.simplified.image.pixel.PixelBufferPool;
 import lib.minecraft.renderer.appearance.Biome;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.engine.FinalizeStage;
 import lib.minecraft.renderer.engine.IsometricEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RenderEngine;
@@ -270,22 +270,10 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             triangles = RenderEngine.relightForItems3d(triangles, guiRotation, cullBlockModelFaces);
 
             int ssaa = Math.max(1, options.getSupersample());
-            if (ssaa > 1) {
-                int hiRes = options.getOutputSize() * ssaa;
-                try (PixelBufferPool.Lease lease = PixelBufferPool.acquire(hiRes, hiRes)) {
-                    PixelBuffer buffer = lease.buffer();
-                    engine.rasterize(triangles, buffer, PerspectiveParams.ISOMETRIC_BLOCK, options.getRotation());
-                    if (options.isAntiAlias()) buffer.applyFxaa();
-                    PixelBuffer output = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
-                    output.blitScaled(buffer, 0, 0, options.getOutputSize(), options.getOutputSize());
-                    return RenderEngine.staticFrame(output);
-                }
-            }
-
-            PixelBuffer buffer = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
-            engine.rasterize(triangles, buffer, PerspectiveParams.ISOMETRIC_BLOCK, options.getRotation());
-            if (options.isAntiAlias()) buffer.applyFxaa();
-            return RenderEngine.staticFrame(buffer);
+            ConcurrentList<VisibleTriangle> rasterTriangles = triangles;
+            return FinalizeStage.run(options.getOutputSize(), options.getOutputSize(), ssaa, options.isAntiAlias(), false,
+                (target, mask) -> engine.rasterize(rasterTriangles, target, PerspectiveParams.ISOMETRIC_BLOCK, options.getRotation()),
+                (buffer, mask) -> RenderEngine.staticFrame(buffer));
         }
 
         /**
