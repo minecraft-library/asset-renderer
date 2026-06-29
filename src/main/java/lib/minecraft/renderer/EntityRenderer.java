@@ -160,15 +160,15 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
         // Model overlays (spider/enderman eyes, saddles, sheep wool). Each appends to the shared sink.
         for (EntityModelLoader.OverlayLayer overlay : definition.overlays())
-            stack.append(EntityLayerSlot.MODEL_OVERLAY, (sink, ctx) -> {
+            stack.append(EntityLayerSlot.MODEL_OVERLAY, sink -> {
                 if (overlay.model().getBones().isEmpty()) return;
                 Optional<PixelBuffer> overlayTex = overlay.textureRef().isPresent()
-                    ? ctx.context().resolveTexture("minecraft:entity/" + overlay.textureRef().get())
-                    : Optional.of(ctx.baseTexture());
+                    ? scene.context().resolveTexture("minecraft:entity/" + overlay.textureRef().get())
+                    : Optional.of(scene.baseTexture());
                 if (overlayTex.isEmpty()) return;
                 sink.addAll(EntityGeometryKit.buildTriangles(
-                    overlay.model(), overlayTex.get(), ctx.modelAnchor(), overlay.emissive(),
-                    ctx.ndcScale(), ctx.modelScale(), overlay.tintArgb()).triangles());
+                    overlay.model(), overlayTex.get(), scene.modelAnchor(), overlay.emissive(),
+                    scene.ndcScale(), scene.modelScale(), overlay.tintArgb()).triangles());
             });
 
         // Block-model overlays (mooshroom mushrooms, copper-golem flower): a block model rendered at
@@ -176,18 +176,18 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (!definition.blockOverlays().isEmpty()) {
             Matrix4f entityFit = EntityGeometryKit.buildEntityFitMatrix(modelAnchor, fit.ndcScale() * modelScale);
             for (EntityModelLoader.BlockOverlayLayer blockOverlay : definition.blockOverlays())
-                stack.append(EntityLayerSlot.BLOCK_OVERLAY, (sink, ctx) ->
+                stack.append(EntityLayerSlot.BLOCK_OVERLAY, sink ->
                     sink.addAll(buildBlockOverlayTriangles(blockOverlay, model, entityFit)));
         }
 
         // Worn armor (+ trim). Always appended; resolves to no triangles when no pieces are equipped.
-        stack.append(EntityLayerSlot.ARMOR, (sink, ctx) ->
+        stack.append(EntityLayerSlot.ARMOR, sink ->
             sink.addAll(ArmorKit.buildEntityArmor3D(buildResult.boneBounds(),
                 options.getHelmet(), options.getChestplate(),
-                options.getLeggings(), options.getBoots(), ctx.engine())));
+                options.getLeggings(), options.getBoots(), scene.engine())));
 
         for (GeometryLayer layer : options.getLayerDecorator().apply(stack).ordered())
-            layer.contribute(triangles, scene);
+            layer.contribute(triangles);
 
         boolean enchanted = ArmorKit.hasEnchantedArmor(
             options.getHelmet(), options.getChestplate(),

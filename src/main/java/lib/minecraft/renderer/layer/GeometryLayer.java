@@ -13,6 +13,10 @@ import org.jetbrains.annotations.NotNull;
  * its GL_LEQUAL last-drawn-wins depth test, and its emissive depth-write skip are all coupled across
  * the whole triangle list, so layers cannot be rendered to independent frames and stacked.
  * <p>
+ * Layers capture whatever per-render inputs they need (textures, transforms, scene values) at
+ * construction; the contract is intentionally context-free so a single {@code GeometryLayer} type
+ * serves every 3D renderer (entity, block, fluid) without a renderer-specific context object.
+ * <p>
  * <b>Emission order is load-bearing.</b> The order in which layers append - and the order in which a
  * layer appends within itself - determines coplanar depth tie-breaks and translucent ordering.
  * Layers must append in a deterministic order and must not sort or filter the shared sink. Each layer
@@ -26,7 +30,6 @@ public interface GeometryLayer {
      * Appends this layer's triangles to {@code sink} in emission order.
      *
      * @param sink shared triangle list every layer appends to, rasterized together in one pass
-     * @param scene immutable per-render scene state
      */
-    void contribute(@NotNull ConcurrentList<VisibleTriangle> sink, @NotNull SceneContext scene);
+    void contribute(@NotNull ConcurrentList<VisibleTriangle> sink);
 }

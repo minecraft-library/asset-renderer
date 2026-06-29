@@ -443,9 +443,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // trim, damage-bar, and stack-count decorations) so callers can splice their own passes
             // in via ItemOptions.layerDecorator. The terminal glint is the finalisation step, not a
             // layer, because it expands the single buffer into one or many animation frames.
-            LayerStack<ImageLayer> stack = options.getLayerDecorator().apply(buildGuiLayers(options));
             ImageLayerContext ctx = new ImageLayerContext(this.context, engine, item, options);
-            for (ImageLayer layer : stack.ordered()) layer.apply(buffer, ctx);
+            LayerStack<ImageLayer> stack = options.getLayerDecorator().apply(buildGuiLayers(ctx));
+            for (ImageLayer layer : stack.ordered()) layer.apply(buffer);
 
             boolean glinted = options.getGlintOverride().orElse(item.isAlwaysGlinted() || options.isEnchanted());
             return engine.finaliseWithGlint(buffer, glinted,
@@ -455,32 +455,33 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         /**
          * Builds the default GUI icon layer stack in vanilla pass order: a base sprite/banner/shield
          * layer, then the conditional trim, damage-bar, and stack-count decorations. Each layer is the
-         * verbatim pass that previously ran inline in {@link #render}.
+         * verbatim pass that previously ran inline in {@link #render}, capturing the render {@code ctx}.
          */
-        private static @NotNull LayerStack<ImageLayer> buildGuiLayers(@NotNull ItemOptions options) {
+        private static @NotNull LayerStack<ImageLayer> buildGuiLayers(@NotNull ImageLayerContext ctx) {
+            ItemOptions options = ctx.options();
             LayerStack<ImageLayer> stack = new LayerStack<>();
 
             if (options.getItemId().equals(SHIELD_ITEM_ID))
-                stack.append(ItemLayerSlot.BASE, (frame, ctx) -> renderShield3D(ctx.context(), frame, ctx.options()));
+                stack.append(ItemLayerSlot.BASE, frame -> renderShield3D(ctx.context(), frame, options));
             else if (isBannerOrShield(options.getItemId()))
-                stack.append(ItemLayerSlot.BASE, (frame, ctx) ->
-                    renderBannerOrShield(ctx.engine(), frame, ctx.options().getItemId(), ctx.options()));
+                stack.append(ItemLayerSlot.BASE, frame ->
+                    renderBannerOrShield(ctx.engine(), frame, options.getItemId(), options));
             else
-                stack.append(ItemLayerSlot.BASE, (frame, ctx) ->
-                    renderStandardLayers(ctx.context(), ctx.engine(), frame, ctx.item(), ctx.options()));
+                stack.append(ItemLayerSlot.BASE, frame ->
+                    renderStandardLayers(ctx.context(), ctx.engine(), frame, ctx.item(), options));
 
             if (options.getTrimSlot().isPresent() && options.getTrimColor().isPresent())
-                stack.append(ItemLayerSlot.TRIM, (frame, ctx) ->
-                    TrimKit.resolve(ctx.engine(), ctx.options().getTrimSlot().get().getKey(), ctx.options().getTrimColor().get().getKey())
-                        .ifPresent(trim -> frame.blitScaled(trim, 0, 0, ctx.options().getOutputSize(), ctx.options().getOutputSize())));
+                stack.append(ItemLayerSlot.TRIM, frame ->
+                    TrimKit.resolve(ctx.engine(), options.getTrimSlot().get().getKey(), options.getTrimColor().get().getKey())
+                        .ifPresent(trim -> frame.blitScaled(trim, 0, 0, options.getOutputSize(), options.getOutputSize())));
 
             if (options.isShowDamageBar())
-                stack.append(ItemLayerSlot.DAMAGE_BAR, (frame, ctx) ->
-                    ItemStackKit.drawDamageBar(frame, ctx.options().getContext().damage(), ctx.item().getMaxDurability()));
+                stack.append(ItemLayerSlot.DAMAGE_BAR, frame ->
+                    ItemStackKit.drawDamageBar(frame, options.getContext().damage(), ctx.item().getMaxDurability()));
 
             if (options.getContext().stackCount() > 1)
-                stack.append(ItemLayerSlot.STACK_COUNT, (frame, ctx) ->
-                    ItemStackKit.drawStackCount(frame, ctx.options().getContext().stackCount(), MinecraftFont.REGULAR));
+                stack.append(ItemLayerSlot.STACK_COUNT, frame ->
+                    ItemStackKit.drawStackCount(frame, options.getContext().stackCount(), MinecraftFont.REGULAR));
 
             return stack;
         }

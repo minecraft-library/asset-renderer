@@ -9,8 +9,9 @@ import org.jetbrains.annotations.NotNull;
  * This is the literal "stackable stencil" model: each layer reads and writes the same
  * {@link PixelBuffer}, and applying the whole ordered stack yields the final frame. Layers run in the
  * order produced by {@link LayerStack#ordered()}; a layer may composite a sprite, tint, overlay, or
- * decoration. Frame-multiplying effects (animated glint) are handled by the renderer's finalisation
- * stage rather than an {@code ImageLayer}, because they change the output from one buffer to many.
+ * decoration, and captures whatever per-render inputs it needs at construction. Frame-multiplying
+ * effects (animated glint) are handled by the renderer's finalisation stage rather than an
+ * {@code ImageLayer}, because they change the output from one buffer to many.
  */
 @FunctionalInterface
 public interface ImageLayer {
@@ -19,7 +20,6 @@ public interface ImageLayer {
      * Composites this layer onto {@code frame} in place.
      *
      * @param frame the shared pixel buffer accumulated by the layer stack
-     * @param ctx per-render state shared by every layer in the stack
      */
-    void apply(@NotNull PixelBuffer frame, @NotNull ImageLayerContext ctx);
+    void apply(@NotNull PixelBuffer frame);
 }
