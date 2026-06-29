@@ -68,19 +68,19 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
     private @NotNull ImageData renderEntity(@NotNull EntityOptions options) {
         if (options.getEntityId().isEmpty())
-            return RenderEngine.staticFrame(PixelBuffer.create(1, 1));
+            return RenderEngine.emptyFrame();
 
         EntityModelLoader.EntityDefinition definition = this.javaEntities.get(options.getEntityId().get());
         if (definition == null)
-            return RenderEngine.staticFrame(PixelBuffer.create(1, 1));
+            return RenderEngine.emptyFrame();
 
         Optional<PixelBuffer> texture = resolveEntityTexture(definition, options);
         if (texture.isEmpty())
-            return RenderEngine.staticFrame(PixelBuffer.create(1, 1));
+            return RenderEngine.emptyFrame();
 
         EntityModelData model = definition.model();
         if (model.getBones().isEmpty())
-            return RenderEngine.staticFrame(PixelBuffer.create(1, 1));
+            return RenderEngine.emptyFrame();
 
         // Combined bounds across the base entity AND every overlay so the shared auto-fit
         // window contains both. Slime's outer shell (8x8x8) extends beyond the inner body

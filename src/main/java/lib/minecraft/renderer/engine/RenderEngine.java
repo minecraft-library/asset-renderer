@@ -415,6 +415,16 @@ public interface RenderEngine {
         return wrapFrames(frames, 0);
     }
 
+    /**
+     * Returns a minimal 1x1 transparent static frame - the canonical "nothing to render" result for
+     * renderers short-circuiting on missing or empty input.
+     *
+     * @return a 1x1 transparent static image
+     */
+    static @NotNull ImageData emptyFrame() {
+        return staticFrame(PixelBuffer.create(1, 1));
+    }
+
     // --- block-icon ITEMS_3D relighting (moved out of BlockRenderer) ---
 
     /**

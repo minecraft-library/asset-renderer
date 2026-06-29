@@ -95,6 +95,19 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     }
 
     /**
+     * Resolves the item glint flag and composites the animated foil onto the finished 2D buffer.
+     * Shared terminal step of the GUI and held-item paths, which derive the glint identically.
+     */
+    static @NotNull ImageData finalize2DItem(
+        @NotNull TextureEngine engine, @NotNull PixelBuffer buffer,
+        @NotNull Item item, @NotNull ItemOptions options
+    ) {
+        boolean glinted = options.getGlintOverride().orElse(item.isAlwaysGlinted() || options.isEnchanted());
+        return engine.finaliseWithGlint(buffer, glinted,
+            options.isAnimateGlint(), GlintKit.GlintOptions.itemDefault(options.getFramesPerSecond()));
+    }
+
+    /**
      * Model-space minimum-X bound for the flat-sprite item Z-axis slab.
      */
     private static final float FLAT_ITEM_SLAB_MIN_X = -0.45f;
@@ -447,9 +460,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             LayerStack<ImageLayer> stack = options.getLayerDecorator().apply(buildGuiLayers(ctx));
             for (ImageLayer layer : stack.ordered()) layer.apply(buffer);
 
-            boolean glinted = options.getGlintOverride().orElse(item.isAlwaysGlinted() || options.isEnchanted());
-            return engine.finaliseWithGlint(buffer, glinted,
-                options.isAnimateGlint(), GlintKit.GlintOptions.itemDefault(options.getFramesPerSecond()));
+            return finalize2DItem(engine, buffer, item, options);
         }
 
         /**
@@ -544,9 +555,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             Matrix4f displayTransform = resolveDisplayTransform(item, DISPLAY_SLOT_HELD_3D);
             engine.rasterize(triangles, buffer, PerspectiveParams.GUI_ITEM, displayTransform);
 
-            boolean glinted = options.getGlintOverride().orElse(item.isAlwaysGlinted() || options.isEnchanted());
-            return engine.finaliseWithGlint(buffer, glinted,
-                options.isAnimateGlint(), GlintKit.GlintOptions.itemDefault(options.getFramesPerSecond()));
+            return finalize2DItem(engine, buffer, item, options);
         }
 
         /**
