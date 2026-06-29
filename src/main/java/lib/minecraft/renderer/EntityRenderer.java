@@ -21,6 +21,10 @@ import lib.minecraft.renderer.kit.ArmorKit;
 import lib.minecraft.renderer.kit.BlockGeometryKit;
 import lib.minecraft.renderer.kit.EntityGeometryKit;
 import lib.minecraft.renderer.kit.GlintKit;
+import lib.minecraft.renderer.layer.EntityLayerSlot;
+import lib.minecraft.renderer.layer.GeometryLayer;
+import lib.minecraft.renderer.layer.LayerStack;
+import lib.minecraft.renderer.layer.SceneContext;
 import lib.minecraft.renderer.options.EntityOptions;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.pipeline.util.RendererDebug;
@@ -142,32 +146,48 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
         ConcurrentList<VisibleTriangle> triangles = buildResult.triangles();
 
-        for (EntityModelLoader.OverlayLayer overlay : definition.overlays()) {
-            if (overlay.model().getBones().isEmpty()) continue;
-            Optional<PixelBuffer> overlayTex = overlay.textureRef().isPresent()
-                ? this.context.resolveTexture("minecraft:entity/" + overlay.textureRef().get())
-                : Optional.of(texture.get());
-            if (overlayTex.isEmpty()) continue;
-            triangles.addAll(EntityGeometryKit.buildTriangles(
-                overlay.model(), overlayTex.get(), modelAnchor, overlay.emissive(), fit.ndcScale(), modelScale, overlay.tintArgb()).triangles());
-        }
+        // The base body is built imperatively above and is always the first geometry in the sink (it
+        // also produces the bone bounds the armor layer consumes). The remaining sources - model
+        // overlays, block overlays, worn armor - are GeometryLayers that append to the SAME triangle
+        // list in slot order, then rasterize together in one shared depth pass. Emission order is
+        // load-bearing (depth tie-break, translucent sort, emissive depth-skip), so the slot order
+        // reproduces the historic base -> overlays -> block-overlays -> armor sequence exactly.
+        // Callers can splice their own layers via EntityOptions.layerDecorator.
+        IsometricEngine engine = IsometricEngine.forEntityIcon(this.context);
+        SceneContext scene = new SceneContext(
+            texture.get(), modelAnchor, fit.ndcScale(), modelScale, engine, this.context);
+        LayerStack<GeometryLayer> stack = new LayerStack<>();
 
-        // Block-model overlays (mooshroom mushrooms, copper-golem flower, etc). The vanilla
-        // render layer renders a block model at a transform-stack-applied position on top of
-        // the entity body. Each row carries the block id, an optional entity bone the overlay
-        // attaches to (so head-mounted overlays follow the head's bind pose), and the ordered
-        // list of pose-stack ops the layer issues between {@code pushPose} / {@code popPose}.
-        // See {@link EntityModelLoader.BlockOverlayLayer}.
+        // Model overlays (spider/enderman eyes, saddles, sheep wool). Each appends to the shared sink.
+        for (EntityModelLoader.OverlayLayer overlay : definition.overlays())
+            stack.append(EntityLayerSlot.MODEL_OVERLAY, (sink, ctx) -> {
+                if (overlay.model().getBones().isEmpty()) return;
+                Optional<PixelBuffer> overlayTex = overlay.textureRef().isPresent()
+                    ? ctx.context().resolveTexture("minecraft:entity/" + overlay.textureRef().get())
+                    : Optional.of(ctx.baseTexture());
+                if (overlayTex.isEmpty()) return;
+                sink.addAll(EntityGeometryKit.buildTriangles(
+                    overlay.model(), overlayTex.get(), ctx.modelAnchor(), overlay.emissive(),
+                    ctx.ndcScale(), ctx.modelScale(), overlay.tintArgb()).triangles());
+            });
+
+        // Block-model overlays (mooshroom mushrooms, copper-golem flower): a block model rendered at
+        // a pose-stack-applied position on top of the body. entityFit is computed once and shared.
         if (!definition.blockOverlays().isEmpty()) {
             Matrix4f entityFit = EntityGeometryKit.buildEntityFitMatrix(modelAnchor, fit.ndcScale() * modelScale);
             for (EntityModelLoader.BlockOverlayLayer blockOverlay : definition.blockOverlays())
-                triangles.addAll(buildBlockOverlayTriangles(blockOverlay, model, entityFit));
+                stack.append(EntityLayerSlot.BLOCK_OVERLAY, (sink, ctx) ->
+                    sink.addAll(buildBlockOverlayTriangles(blockOverlay, model, entityFit)));
         }
 
-        IsometricEngine engine = IsometricEngine.forEntityIcon(this.context);
-        triangles.addAll(ArmorKit.buildEntityArmor3D(buildResult.boneBounds(),
-            options.getHelmet(), options.getChestplate(),
-            options.getLeggings(), options.getBoots(), engine));
+        // Worn armor (+ trim). Always appended; resolves to no triangles when no pieces are equipped.
+        stack.append(EntityLayerSlot.ARMOR, (sink, ctx) ->
+            sink.addAll(ArmorKit.buildEntityArmor3D(buildResult.boneBounds(),
+                options.getHelmet(), options.getChestplate(),
+                options.getLeggings(), options.getBoots(), ctx.engine())));
+
+        for (GeometryLayer layer : options.getLayerDecorator().apply(stack).ordered())
+            layer.contribute(triangles, scene);
 
         boolean enchanted = ArmorKit.hasEnchantedArmor(
             options.getHelmet(), options.getChestplate(),

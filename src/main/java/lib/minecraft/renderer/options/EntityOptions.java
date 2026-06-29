@@ -4,12 +4,16 @@ import dev.simplified.image.Background;
 import lib.minecraft.renderer.Renderer;
 import lib.minecraft.renderer.appearance.ArmorPiece;
 import lib.minecraft.renderer.geometry.EulerRotation;
+import lib.minecraft.renderer.layer.EntityLayerSlot;
+import lib.minecraft.renderer.layer.GeometryLayer;
+import lib.minecraft.renderer.layer.LayerStack;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 
 /**
  * Configures a single {@code EntityRenderer} invocation for mob entities. The entity is resolved
@@ -153,6 +157,15 @@ public class EntityOptions {
      */
     @lombok.Builder.Default
     private final @NotNull Background background = Background.TRANSPARENT;
+
+    /**
+     * Transform applied to the default geometry {@link GeometryLayer} stack (model overlays, block
+     * overlays, worn armor) before it runs, letting callers splice custom layers relative to the
+     * built-in {@link EntityLayerSlot} slots, or replace the stack. The base body is built separately
+     * and is always emitted first. Defaults to {@linkplain UnaryOperator#identity() identity}.
+     */
+    @lombok.Builder.Default
+    private final @NotNull UnaryOperator<LayerStack<GeometryLayer>> layerDecorator = UnaryOperator.identity();
 
     public @NotNull EntityOptionsBuilder mutate() {
         return this.toBuilder();
