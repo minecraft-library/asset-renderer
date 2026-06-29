@@ -327,7 +327,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     ) {
         // animateGlint(false): intrinsically-foil items (enchanted_book, nether_star, ...) render
         // their glint as a single static frame-0 here. An animated glint tile would force the
-        // whole atlas onto GridRenderer's animated path (FrameMerger), turning an otherwise-static
+        // whole atlas onto GridRenderer's animated path (FrameCompositor), turning an otherwise-static
         // atlas into an animated one; the atlas wants exactly one frame per tile.
         ItemOptions itemOptions = ItemOptions.builder()
             .itemId(itemId)

@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.kit;
+package lib.minecraft.renderer.compose;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
@@ -17,27 +17,27 @@ import java.util.Arrays;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
-class FrameMergerTest {
+class FrameCompositorTest {
 
     @Test
     @DisplayName("all-static layers produce a StaticImageData fast path")
     void allStaticProducesStatic() {
-        ConcurrentList<FrameMerger.Layer> layers = Concurrent.newList();
-        layers.add(new FrameMerger.Layer(0, 0, StaticImageData.of(solidImage(4, 4, 0xFFFF0000))));
-        layers.add(new FrameMerger.Layer(0, 0, StaticImageData.of(solidImage(4, 4, 0x8000FF00))));
+        ConcurrentList<FramePlacement> layers = Concurrent.newList();
+        layers.add(new FramePlacement(0, 0, StaticImageData.of(solidImage(4, 4, 0xFFFF0000))));
+        layers.add(new FramePlacement(0, 0, StaticImageData.of(solidImage(4, 4, 0x8000FF00))));
 
-        ImageData result = FrameMerger.merge(layers, 4, 4, 30, Background.TRANSPARENT);
+        ImageData result = FrameCompositor.merge(layers, 4, 4, 30, Background.TRANSPARENT);
         assertThat(result, is(instanceOf(StaticImageData.class)));
     }
 
     @Test
     @DisplayName("any animated layer promotes the result to AnimatedImageData")
     void animatedLayerPromotesResult() {
-        ConcurrentList<FrameMerger.Layer> layers = Concurrent.newList();
-        layers.add(new FrameMerger.Layer(0, 0, StaticImageData.of(solidImage(4, 4, 0xFFFF0000))));
-        layers.add(new FrameMerger.Layer(0, 0, animated(4, 4, 4, 50)));
+        ConcurrentList<FramePlacement> layers = Concurrent.newList();
+        layers.add(new FramePlacement(0, 0, StaticImageData.of(solidImage(4, 4, 0xFFFF0000))));
+        layers.add(new FramePlacement(0, 0, animated(4, 4, 4, 50)));
 
-        ImageData result = FrameMerger.merge(layers, 4, 4, 30, Background.TRANSPARENT);
+        ImageData result = FrameCompositor.merge(layers, 4, 4, 30, Background.TRANSPARENT);
         assertThat(result, is(instanceOf(AnimatedImageData.class)));
         assertThat(((AnimatedImageData) result).getFrames().size(), greaterThan(1));
     }

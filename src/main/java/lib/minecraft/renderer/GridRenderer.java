@@ -5,7 +5,8 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.RenderEngine;
-import lib.minecraft.renderer.kit.FrameMerger;
+import lib.minecraft.renderer.compose.FrameCompositor;
+import lib.minecraft.renderer.compose.FramePlacement;
 import lib.minecraft.renderer.options.GridOptions;
 import org.jetbrains.annotations.NotNull;
 
@@ -19,7 +20,7 @@ import org.jetbrains.annotations.NotNull;
  *       rectangles (separation is non-negative) make the parallel writes race-free without
  *       per-tile synchronisation.</li>
  *   <li><b>Mixed / any-animated path</b> - promotes the entire output to animated and walks
- *       every tile through {@link FrameMerger#merge FrameMerger.merge}, which computes a
+ *       every tile through {@link FrameCompositor#merge FrameCompositor.merge}, which computes a
  *       merged loop period (LCM of animated layers, capped at 10 seconds) and samples each
  *       layer per output frame.</li>
  * </ul>
@@ -28,7 +29,7 @@ import org.jetbrains.annotations.NotNull;
  * detects the mix and routes through the animated path automatically.
  *
  * @see GridOptions
- * @see FrameMerger
+ * @see FrameCompositor
  */
 public final class GridRenderer implements Renderer<GridOptions> {
 
@@ -67,14 +68,14 @@ public final class GridRenderer implements Renderer<GridOptions> {
             return RenderEngine.staticFrame(buffer);
         }
 
-        ConcurrentList<FrameMerger.Layer> layers = Concurrent.newList();
+        ConcurrentList<FramePlacement> layers = Concurrent.newList();
         for (GridOptions.GridTile tile : options.getTiles()) {
             int x = tile.col() * (cellSize + separation) + separation;
             int y = tile.row() * (cellSize + separation) + separation;
-            layers.add(new FrameMerger.Layer(x, y, tile.image()));
+            layers.add(new FramePlacement(x, y, tile.image()));
         }
 
-        return FrameMerger.merge(layers, canvasW, canvasH, DEFAULT_FRAME_FPS, options.getBackground());
+        return FrameCompositor.merge(layers, canvasW, canvasH, DEFAULT_FRAME_FPS, options.getBackground());
     }
 
 }

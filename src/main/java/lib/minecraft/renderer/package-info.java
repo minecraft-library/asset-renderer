@@ -28,7 +28,7 @@
  *       top, flow-rotated UVs, animation) or as a flat source-face icon.</li>
  *   <li>{@link lib.minecraft.renderer.GridRenderer GridRenderer} - compose a rectangular grid of tiles, each
  *       a static PNG or animated WebP, into one output via
- *       {@link lib.minecraft.renderer.kit.FrameMerger FrameMerger}.</li>
+ *       {@link lib.minecraft.renderer.compose.FrameCompositor FrameCompositor}.</li>
  *   <li>{@link lib.minecraft.renderer.ItemRenderer ItemRenderer} - vanilla item models with all the
  *       sub-systems an item icon can carry: durability bar, stack count overlay, enchantment
  *       glint, dyed leather tint, banner-pattern composite, armor-trim palette permutation.</li>

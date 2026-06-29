@@ -1,5 +1,6 @@
-package lib.minecraft.renderer.kit;
+package lib.minecraft.renderer.compose;
 
+import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
@@ -10,18 +11,21 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
+
 /**
- * Composites multiple {@link ImageData} layers into a single output, transparently handling mixed
- * static and animated inputs.
+ * Composites {@link FramePlacement} layers into a single output, transparently handling mixed static
+ * and animated inputs - the "frame tier" of the layer model, where {@link ImageLayer} mutates one
+ * buffer and {@link GeometryLayer} feeds a shared depth pass.
  * <p>
- * Used by {@code LayoutRenderer} and {@code MenuRenderer} whenever children may be either static
- * PNGs or animated WebPs. When every layer is static the merger short-circuits to a single-frame
- * composite. When any layer is animated, the merger computes a merged loop period (LCM of the
- * animated layers' durations, capped at 10 seconds), then samples each layer at the correct time
- * offset for each output frame.
+ * Used by the compositor renderers ({@code GridRenderer}, {@code LayoutRenderer},
+ * {@code MenuRenderer}) whenever children may be either static PNGs or animated WebPs. When every
+ * layer is static the merger short-circuits to a single-frame composite. When any layer is animated,
+ * it computes a merged loop period (LCM of the animated layers' durations, capped at 10 seconds),
+ * then samples each layer at the correct time offset for each output frame.
  */
 @UtilityClass
-public class FrameMerger {
+public class FrameCompositor {
 
     /**
      * Upper bound on the merged loop duration to prevent runaway LCM math.
@@ -29,29 +33,36 @@ public class FrameMerger {
     private static final long MAX_LOOP_MS = 10_000L;
 
     /**
-     * A single layer in a composition.
+     * Runs each frame layer's contribution into a fresh sink, then merges the collected placements.
      *
-     * @param x the destination x origin on the merged canvas
-     * @param y the destination y origin on the merged canvas
-     * @param source the layer's image data, either static or animated
-     */
-    public record Layer(int x, int y, @NotNull ImageData source) {}
-
-    /**
-     * Composites the given layers onto a canvas of the specified size.
-     * <p>
-     * If every layer is static, returns a {@link StaticImageData} with a single-frame composite.
-     * Otherwise returns an {@link AnimatedImageData} whose frame count is chosen so every animated
-     * layer completes at least one full loop (or the cap, whichever is smaller).
-     *
-     * @param layers the layers to composite, in back-to-front order
+     * @param layers the frame layers to contribute and composite, in back-to-front order
      * @param canvasW the canvas width in pixels
      * @param canvasH the canvas height in pixels
      * @param framesPerSecond the output frame rate, used only when producing animated output
      * @param background the canvas background fill applied before blitting any layer
      * @return the composited image data
      */
-    public static @NotNull ImageData merge(@NotNull ConcurrentList<Layer> layers, int canvasW, int canvasH, int framesPerSecond, @NotNull Background background) {
+    public static @NotNull ImageData composite(@NotNull List<? extends FrameLayer> layers, int canvasW, int canvasH, int framesPerSecond, @NotNull Background background) {
+        ConcurrentList<FramePlacement> placements = Concurrent.newList();
+        for (FrameLayer layer : layers) layer.contribute(placements);
+        return merge(placements, canvasW, canvasH, framesPerSecond, background);
+    }
+
+    /**
+     * Composites the given placements onto a canvas of the specified size.
+     * <p>
+     * If every placement is static, returns a {@link StaticImageData} with a single-frame composite.
+     * Otherwise returns an {@link AnimatedImageData} whose frame count is chosen so every animated
+     * placement completes at least one full loop (or the cap, whichever is smaller).
+     *
+     * @param layers the placements to composite, in back-to-front order
+     * @param canvasW the canvas width in pixels
+     * @param canvasH the canvas height in pixels
+     * @param framesPerSecond the output frame rate, used only when producing animated output
+     * @param background the canvas background fill applied before blitting any layer
+     * @return the composited image data
+     */
+    public static @NotNull ImageData merge(@NotNull ConcurrentList<FramePlacement> layers, int canvasW, int canvasH, int framesPerSecond, @NotNull Background background) {
         boolean anyAnimated = layers.stream().anyMatch(layer -> layer.source() instanceof AnimatedImageData);
 
         if (!anyAnimated)
@@ -71,11 +82,11 @@ public class FrameMerger {
         return builder.build();
     }
 
-    private static @NotNull PixelBuffer renderFrame(@NotNull ConcurrentList<Layer> layers, int canvasW, int canvasH, @NotNull Background background, long timeMs) {
+    private static @NotNull PixelBuffer renderFrame(@NotNull ConcurrentList<FramePlacement> layers, int canvasW, int canvasH, @NotNull Background background, long timeMs) {
         PixelBuffer buffer = PixelBuffer.create(canvasW, canvasH);
         background.fill(buffer);
 
-        for (Layer layer : layers) {
+        for (FramePlacement layer : layers) {
             PixelBuffer frame = sampleLayerAtTime(layer.source(), timeMs);
             buffer.blit(frame, layer.x(), layer.y());
         }
@@ -95,10 +106,10 @@ public class FrameMerger {
         return source.toPixelBuffer();
     }
 
-    private static long computeMergedLoopMs(@NotNull ConcurrentList<Layer> layers) {
+    private static long computeMergedLoopMs(@NotNull ConcurrentList<FramePlacement> layers) {
         long merged = 0;
 
-        for (Layer layer : layers) {
+        for (FramePlacement layer : layers) {
             if (!(layer.source() instanceof AnimatedImageData animated)) continue;
             long layerMs = animated.getTotalDurationMs();
             if (layerMs <= 0) continue;
@@ -123,5 +134,4 @@ public class FrameMerger {
 
         return a;
     }
-
 }

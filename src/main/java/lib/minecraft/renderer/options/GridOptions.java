@@ -5,7 +5,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.GridRenderer;
-import lib.minecraft.renderer.kit.FrameMerger;
+import lib.minecraft.renderer.compose.FrameCompositor;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -18,10 +18,10 @@ import org.jetbrains.annotations.NotNull;
  * uniform cell size and configurable separation between cells. Mixed static and animated
  * tile sources are handled transparently; if any tile is animated, the renderer promotes the
  * whole output to animated and synchronises tile frames via
- * {@link FrameMerger FrameMerger}.
+ * {@link FrameCompositor FrameCompositor}.
  *
  * @see lib.minecraft.renderer.GridRenderer
- * @see lib.minecraft.renderer.kit.FrameMerger
+ * @see lib.minecraft.renderer.compose.FrameCompositor
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)

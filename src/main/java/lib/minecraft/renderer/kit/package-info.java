@@ -68,7 +68,7 @@
  *   <li>{@link lib.minecraft.renderer.kit.ObfuscationKit ObfuscationKit} - per-frame deterministic glyph
  *       substitution for {@code &sect;k} obfuscated runs. Seeds the random stream on frame
  *       index so animated output is reproducible across runs.</li>
- *   <li>{@link lib.minecraft.renderer.kit.FrameMerger FrameMerger} - composes static and animated layers
+ *   <li>{@link lib.minecraft.renderer.compose.FrameCompositor FrameCompositor} - composes static and animated layers
  *       into a single output, computing a merged loop period (LCM of animated layers, capped
  *       at 10 seconds) and sampling each layer at the correct time offset for every output
  *       frame.</li>

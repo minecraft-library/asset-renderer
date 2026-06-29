@@ -3,7 +3,8 @@ package lib.minecraft.renderer;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
-import lib.minecraft.renderer.kit.FrameMerger;
+import lib.minecraft.renderer.compose.FrameCompositor;
+import lib.minecraft.renderer.compose.FramePlacement;
 import lib.minecraft.renderer.options.LayoutOptions;
 import org.jetbrains.annotations.NotNull;
 import org.jspecify.annotations.NonNull;
@@ -22,7 +23,7 @@ import java.util.function.Supplier;
  *       ({@link LayoutOptions.Layout.Row}, {@link LayoutOptions.Layout.Column}, {@link LayoutOptions.Layout.Grid}, {@link LayoutOptions.Layout.Stack},
  *       {@link LayoutOptions.Layout.Custom}). Measurement uses each child's first frame to decide canvas
  *       dimensions and per-child {@code (x, y)} positions.</li>
- *   <li><b>Composite</b> via {@link FrameMerger#merge FrameMerger.merge}. If every child is
+ *   <li><b>Composite</b> via {@link FrameCompositor#merge FrameCompositor.merge}. If every child is
  *       static, the merger short-circuits to a single-frame composite; if any child is
  *       animated, the merger picks a merged loop period and samples each child per output
  *       frame.</li>
@@ -30,7 +31,7 @@ import java.util.function.Supplier;
  *
  * @see LayoutOptions
  * @see LayoutOptions.Layout
- * @see FrameMerger
+ * @see FrameCompositor
  */
 public final class LayoutRenderer implements Renderer<LayoutOptions> {
 
@@ -41,11 +42,11 @@ public final class LayoutRenderer implements Renderer<LayoutOptions> {
         int[][] positions = layoutChildren(options.getLayout(), resolved, sizes);
         int[] canvas = computeCanvas(positions, sizes, options.getLayout().padding());
 
-        ConcurrentList<FrameMerger.Layer> layers = Concurrent.newList();
+        ConcurrentList<FramePlacement> layers = Concurrent.newList();
         for (int i = 0; i < resolved.size(); i++)
-            layers.add(new FrameMerger.Layer(positions[i][0], positions[i][1], resolved.get(i)));
+            layers.add(new FramePlacement(positions[i][0], positions[i][1], resolved.get(i)));
 
-        return FrameMerger.merge(layers, canvas[0], canvas[1], options.getFramesPerSecond(), options.getBackground());
+        return FrameCompositor.merge(layers, canvas[0], canvas[1], options.getFramesPerSecond(), options.getBackground());
     }
 
     private static @NotNull ConcurrentList<ImageData> resolveChildren(@NotNull ConcurrentList<Supplier<ImageData>> children) {
