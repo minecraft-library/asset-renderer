@@ -64,13 +64,11 @@ public final class GridRenderer implements Renderer<GridOptions> {
 
             // Placement-parallel blit. Each placement's (x, y, cellSize) destination rectangle is
             // disjoint from every other's (separation is non-negative, so rectangles never overlap),
-            // which means blitScaled writes to non-aliasing int[] index ranges across threads.
-            // source.toBufferedImage() allocates a fresh BufferedImage per call, so the
-            // PixelBuffer.wrap snapshot is thread-local.
-            placements.parallelStream().forEach(placement -> {
-                PixelBuffer tileBuffer = PixelBuffer.wrap(placement.source().toBufferedImage());
-                buffer.blitScaled(tileBuffer, placement.x(), placement.y(), cellSize, cellSize);
-            });
+            // so blitScaled writes to non-aliasing int[] index ranges across threads; the source is
+            // read-only. toPixelBuffer() is the direct ImageData -> PixelBuffer conversion, avoiding
+            // the PixelBuffer -> BufferedImage -> PixelBuffer round-trip of wrap(toBufferedImage()).
+            placements.parallelStream().forEach(placement ->
+                buffer.blitScaled(placement.source().toPixelBuffer(), placement.x(), placement.y(), cellSize, cellSize));
 
             return RenderEngine.staticFrame(buffer);
         }

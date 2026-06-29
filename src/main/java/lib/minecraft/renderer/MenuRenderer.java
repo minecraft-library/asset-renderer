@@ -171,7 +171,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             PixelBuffer buffer = PixelBuffer.create(canvasW, canvasH);
 
             for (FramePlacement placement : placements)
-                buffer.blit(PixelBuffer.wrap(placement.source().toBufferedImage()), placement.x(), placement.y());
+                buffer.blit(placement.source().toPixelBuffer(), placement.x(), placement.y());
 
             return RenderEngine.staticFrame(buffer);
         }
