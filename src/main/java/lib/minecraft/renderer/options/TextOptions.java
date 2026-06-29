@@ -3,10 +3,15 @@ package lib.minecraft.renderer.options;
 import lib.minecraft.text.LineSegment;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.compose.ImageLayer;
+import lib.minecraft.renderer.compose.LayerSlot;
+import lib.minecraft.renderer.compose.LayerStack;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.function.UnaryOperator;
 
 /**
  * Configures a single {@code TextRenderer} invocation. Renders styled text in either the
@@ -96,12 +101,44 @@ public class TextOptions {
     @lombok.Builder.Default
     private final int framesPerSecond = VANILLA_TICK_FPS;
 
+    /**
+     * Transform applied to the default {@link ImageLayer} stack (background, border, text) before it
+     * runs, letting callers splice custom passes relative to the {@link Slot} slots. Defaults to
+     * {@linkplain UnaryOperator#identity() identity}.
+     */
+    @lombok.Builder.Default
+    private final @NotNull UnaryOperator<LayerStack<ImageLayer>> layerDecorator = UnaryOperator.identity();
+
     public @NotNull TextOptionsBuilder mutate() {
         return this.toBuilder();
     }
 
     public static @NotNull TextOptions defaults() {
         return builder().build();
+    }
+
+    /**
+     * Paint-order slots for the text {@link ImageLayer} stack: tooltip background and border (LORE
+     * only), then the glyph rows.
+     */
+    public enum Slot implements LayerSlot {
+
+        /** Tooltip background fill (LORE only). */
+        BACKGROUND,
+        /** Tooltip gradient border (LORE only). */
+        BORDER,
+        /** Text glyph rows. */
+        TEXT;
+
+        @Override
+        public int order() {
+            return ordinal();
+        }
+
+        @Override
+        public @NotNull String id() {
+            return name();
+        }
     }
 
     /**

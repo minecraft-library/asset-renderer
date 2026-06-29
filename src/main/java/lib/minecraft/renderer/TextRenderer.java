@@ -5,6 +5,8 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.compose.ImageLayer;
+import lib.minecraft.renderer.compose.LayerStack;
 import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.kit.ObfuscationKit;
 import lib.minecraft.renderer.kit.TextKit;
@@ -108,22 +110,29 @@ public final class TextRenderer implements Renderer<TextOptions> {
         int h = canvasHMcPx * MinecraftFont.MC_PIXEL_SCALE;
         PixelBuffer buffer = PixelBuffer.create(w, h);
 
+        // Compose the frame as an ordered ImageLayer stack: tooltip background + border (LORE only),
+        // then the glyph rows. Callers can splice passes via TextOptions.layerDecorator. The
+        // obfuscation animation stays the renderer's per-frame loop - the TEXT layer captures the seed.
+        LayerStack<ImageLayer> stack = new LayerStack<>();
         if (isLore) {
-            int bgAlpha = Math.clamp(options.getBackgroundAlpha(), 0, 255);
+            int bgArgb = (Math.clamp(options.getBackgroundAlpha(), 0, 255) << 24) | VANILLA_TOOLTIP_BG_RGB;
             int borderAlpha = Math.clamp(options.getBorderAlpha(), 0, 255);
-            buffer.fill((bgAlpha << 24) | VANILLA_TOOLTIP_BG_RGB);
-            drawGradientBorder(buffer, w, h, borderAlpha);
+            stack.append(TextOptions.Slot.BACKGROUND, frame -> frame.fill(bgArgb));
+            stack.append(TextOptions.Slot.BORDER, frame -> drawGradientBorder(frame, w, h, borderAlpha));
         }
+        stack.append(TextOptions.Slot.TEXT, frame -> {
+            MinecraftGraphics g = new MinecraftGraphics(frame);
+            int baselineMcPx = padMcPx + MinecraftFont.REGULAR.getFontMetrics().getAscentMcPixels();
+            for (int i = 0; i < options.getLines().size(); i++) {
+                TextKit.drawLine(g, options.getLines().get(i), padMcPx, baselineMcPx, DEFAULT_COLOR_ARGB, frameSeed);
+                baselineMcPx += LINE_HEIGHT_MCPX;
+                if (isLore && i == 0)
+                    baselineMcPx += LORE_GAP_MCPX;
+            }
+        });
 
-        MinecraftGraphics g = new MinecraftGraphics(buffer);
-        int baselineMcPx = padMcPx + MinecraftFont.REGULAR.getFontMetrics().getAscentMcPixels();
-
-        for (int i = 0; i < options.getLines().size(); i++) {
-            TextKit.drawLine(g, options.getLines().get(i), padMcPx, baselineMcPx, DEFAULT_COLOR_ARGB, frameSeed);
-            baselineMcPx += LINE_HEIGHT_MCPX;
-            if (isLore && i == 0)
-                baselineMcPx += LORE_GAP_MCPX;
-        }
+        for (ImageLayer layer : options.getLayerDecorator().apply(stack).ordered())
+            layer.apply(buffer);
 
         ConcurrentList<PixelBuffer> frames = Concurrent.newList();
         frames.add(buffer);
