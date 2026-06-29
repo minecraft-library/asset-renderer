@@ -6,10 +6,10 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.appearance.Biome;
+import lib.minecraft.renderer.engine.AnimationStage;
 import lib.minecraft.renderer.engine.FinalizeStage;
 import lib.minecraft.renderer.engine.IsometricEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
-import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.TextureEngine;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
@@ -21,8 +21,6 @@ import lib.minecraft.renderer.layer.LayerStack;
 import lib.minecraft.renderer.options.FluidOptions;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
-
-import java.util.stream.IntStream;
 
 /**
  * Renders vanilla fluids (water, lava) as either a full 3D isometric cube or a flat top-down
@@ -130,18 +128,12 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
 
         @Override
         public @NotNull ImageData render(@NotNull FluidOptions options) {
-            if (options.getFrameCount() <= 1)
-                return RenderEngine.staticFrame(renderFrame(options, options.getStartTick()));
-
-            // Frame-parallel bake: renderFrame constructs its own IsometricEngine, TextureEngine,
-            // triangle list, and output PixelBuffer per invocation; context is the only shared
-            // reference and it is read-only. mapToObj().toList() preserves encounter order so
-            // the resulting ConcurrentList stays tick-ordered for GIF/WebP playback.
-            ConcurrentList<PixelBuffer> frames = Concurrent.newList();
-            frames.addAll(IntStream.range(0, options.getFrameCount()).parallel()
-                .mapToObj(f -> renderFrame(options, options.getStartTick() + f * options.getTicksPerFrame()))
-                .toList());
-            return RenderEngine.wrapFrames(frames, options.getTicksPerFrame() * MILLIS_PER_TICK);
+            // renderFrame constructs its own engine, textures, triangle list, and output buffer per
+            // invocation; context is the only shared reference and it is read-only, so the shared
+            // AnimationStage can bake every frame in parallel.
+            return AnimationStage.render(options.getFrameCount(), options.getStartTick(),
+                options.getTicksPerFrame(), options.getTicksPerFrame() * MILLIS_PER_TICK,
+                tick -> renderFrame(options, tick));
         }
 
         private @NotNull PixelBuffer renderFrame(@NotNull FluidOptions options, int tick) {
@@ -180,16 +172,10 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
 
         @Override
         public @NotNull ImageData render(@NotNull FluidOptions options) {
-            if (options.getFrameCount() <= 1)
-                return RenderEngine.staticFrame(renderFrame(options, options.getStartTick()));
-
-            // Frame-parallel bake: each tick constructs its own RasterEngine + output buffer.
-            // mapToObj().toList() preserves encounter order for the animation strip.
-            ConcurrentList<PixelBuffer> frames = Concurrent.newList();
-            frames.addAll(IntStream.range(0, options.getFrameCount()).parallel()
-                .mapToObj(f -> renderFrame(options, options.getStartTick() + f * options.getTicksPerFrame()))
-                .toList());
-            return RenderEngine.wrapFrames(frames, options.getTicksPerFrame() * MILLIS_PER_TICK);
+            // Each tick constructs its own RasterEngine + output buffer, so frames bake in parallel.
+            return AnimationStage.render(options.getFrameCount(), options.getStartTick(),
+                options.getTicksPerFrame(), options.getTicksPerFrame() * MILLIS_PER_TICK,
+                tick -> renderFrame(options, tick));
         }
 
         private @NotNull PixelBuffer renderFrame(@NotNull FluidOptions options, int tick) {
