@@ -24,10 +24,10 @@ import lib.minecraft.renderer.geometry.SixFaces;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.kit.BannerKit;
 import lib.minecraft.renderer.kit.BlockGeometryKit;
-import lib.minecraft.renderer.kit.GlintKit;
 import lib.minecraft.renderer.kit.ItemStackKit;
 import lib.minecraft.renderer.kit.ShieldKit;
 import lib.minecraft.renderer.kit.TrimKit;
+import lib.minecraft.renderer.compose.GlintStage;
 import lib.minecraft.renderer.compose.ImageLayer;
 import lib.minecraft.renderer.compose.ImageLayerContext;
 import lib.minecraft.renderer.compose.LayerStack;
@@ -101,9 +101,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         @NotNull TextureEngine engine, @NotNull PixelBuffer buffer,
         @NotNull Item item, @NotNull ItemOptions options
     ) {
-        boolean glinted = options.getGlintOverride().orElse(item.isAlwaysGlinted() || options.isEnchanted());
-        return engine.finaliseWithGlint(buffer, glinted,
-            options.isAnimateGlint(), GlintKit.GlintOptions.itemDefault(options.getFramesPerSecond()));
+        return GlintStage.forItem(engine::tryResolveTexture, buffer, item, options);
     }
 
     /**

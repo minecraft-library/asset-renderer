@@ -20,8 +20,8 @@ import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.kit.ArmorKit;
 import lib.minecraft.renderer.kit.BlockGeometryKit;
 import lib.minecraft.renderer.kit.EntityGeometryKit;
-import lib.minecraft.renderer.kit.GlintKit;
 import lib.minecraft.renderer.compose.GeometryLayer;
+import lib.minecraft.renderer.compose.GlintStage;
 import lib.minecraft.renderer.compose.LayerStack;
 import lib.minecraft.renderer.compose.SceneContext;
 import lib.minecraft.renderer.options.EntityOptions;
@@ -192,7 +192,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             options.getHelmet(), options.getChestplate(),
             options.getLeggings(), options.getBoots()
         );
-        GlintKit.GlintOptions glintOptions = GlintKit.GlintOptions.armorDefault(30);
 
         // Rasterize + optional FXAA + supersample-downscale + masked glint via the shared tail.
         // The glint mask is recorded at the raster size and downsampled so the foil is confined to
@@ -200,7 +199,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         int ssaa = Math.max(1, options.getSupersample());
         return FinalizeStage.run(fit.canvasW(), fit.canvasH(), ssaa, options.isAntiAlias(), enchanted,
             (target, mask) -> engine.rasterize(triangles, target, PerspectiveParams.ISOMETRIC_BLOCK, effective, mask),
-            (buffer, mask) -> engine.finaliseWithGlint(buffer, enchanted, glintOptions, mask));
+            (buffer, mask) -> GlintStage.forArmor(engine::tryResolveTexture, buffer, enchanted, mask));
     }
 
     /**

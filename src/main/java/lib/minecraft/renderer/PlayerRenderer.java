@@ -24,8 +24,8 @@ import lib.minecraft.renderer.geometry.SkinFace;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.kit.ArmorKit;
 import lib.minecraft.renderer.kit.BlockGeometryKit;
-import lib.minecraft.renderer.kit.GlintKit;
 import lib.minecraft.renderer.compose.GeometryLayer;
+import lib.minecraft.renderer.compose.GlintStage;
 import lib.minecraft.renderer.compose.ImageLayer;
 import lib.minecraft.renderer.compose.LayerStack;
 import lib.minecraft.renderer.options.PlayerOptions;
@@ -395,7 +395,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         if (options.isAntiAlias())
             buffer.applyFxaa();
 
-        return engine.finaliseWithGlint(buffer, enchanted, GlintKit.GlintOptions.armorDefault(30), glintMask);
+        return GlintStage.forArmor(engine::tryResolveTexture, buffer, enchanted, glintMask);
     }
 
     /**
@@ -591,13 +591,12 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     ) {
         int size = options.getOutputSize();
         boolean enchanted = hasEnchantedArmor(options);
-        GlintKit.GlintOptions glint = GlintKit.GlintOptions.armorDefault(30);
         int ssaa = Math.max(1, options.getSupersample());
         // The glint mask is recorded at the raster size, then box-downsampled to the output so the
         // foil is confined to the armor (not the bare body) after the SSAA blit.
         return FinalizeStage.run(size, size, ssaa, options.isAntiAlias(), enchanted,
             (target, mask) -> engine.rasterizeFitted(triangles, target, PerspectiveParams.NONE, options.getRotation(), PLAYER_FILL, mask),
-            (buffer, mask) -> engine.finaliseWithGlint(buffer, enchanted, glint, mask));
+            (buffer, mask) -> GlintStage.forArmor(engine::tryResolveTexture, buffer, enchanted, mask));
     }
 
     /**
