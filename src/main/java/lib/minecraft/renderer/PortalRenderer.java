@@ -6,16 +6,17 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelBufferPool;
-import lib.minecraft.renderer.compose.FinalizeStage;
-import lib.minecraft.renderer.engine.IsometricEngine;
+import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
-import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.engine.TextureEngine;
+import lib.minecraft.renderer.engine.camera.Camera;
+import lib.minecraft.renderer.engine.compose.FinalizeStage;
+import lib.minecraft.renderer.engine.compose.Frames;
+import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
+import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.SixFaces;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
-import lib.minecraft.renderer.kit.BlockGeometryKit;
 import lib.minecraft.renderer.options.PortalOptions;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.RequiredArgsConstructor;
@@ -476,7 +477,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
 
     /**
      * Full 3D isometric portal renderer. Builds geometry via {@link BlockGeometryKit} and rasterizes
-     * through {@link IsometricEngine}'s standard {@code [30, 225, 0]} pose. {@code END_GATEWAY}
+     * through {@link Camera#forBlockIcon}'s standard {@code [30, 225, 0]} pose. {@code END_GATEWAY}
      * renders as a unit cube with the baked face on all 6 sides; {@code END_PORTAL} renders as a
      * slab from {@code y = 0.375} to {@code y = 0.75} matching vanilla's
      * {@code TheEndPortalRenderer.BOTTOM} / {@code .TOP}.
@@ -489,7 +490,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
         @Override
         public @NotNull ImageData render(@NotNull PortalOptions options) {
             if (options.getFrameCount() <= 1)
-                return RenderEngine.staticFrame(renderFrame(options, options.getStartTick()));
+                return Frames.staticFrame(renderFrame(options, options.getStartTick()));
 
             int outputCount = options.getFrameCount();
             int bridge = bridgeFrameCount(options);
@@ -502,12 +503,12 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             }
             applyBridgeCrossfade(frames, outputCount, bridge);
             trimBridgeFrames(frames, outputCount);
-            return RenderEngine.wrapFrames(frames, FRAME_DELAY_MS);
+            return Frames.wrapFrames(frames, FRAME_DELAY_MS);
         }
 
         private @NotNull PixelBuffer renderFrame(@NotNull PortalOptions options, int tick) {
-            IsometricEngine engine = IsometricEngine.forBlockIcon(this.context);
-            TextureEngine textures = new TextureEngine(this.context);
+            ModelEngine engine = new ModelEngine(this.context, Camera.forBlockIcon());
+            Textures textures = new Textures(this.context);
             PixelBuffer endSky = textures.resolveTexture(END_SKY_TEXTURE_ID);
             PixelBuffer endPortalNoise = textures.resolveTexture(END_PORTAL_NOISE_TEXTURE_ID);
 
@@ -601,7 +602,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
         @Override
         public @NotNull ImageData render(@NotNull PortalOptions options) {
             if (options.getFrameCount() <= 1)
-                return RenderEngine.staticFrame(renderFrame(options, options.getStartTick()));
+                return Frames.staticFrame(renderFrame(options, options.getStartTick()));
 
             int outputCount = options.getFrameCount();
             int bridge = bridgeFrameCount(options);
@@ -614,13 +615,13 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             }
             applyBridgeCrossfade(frames, outputCount, bridge);
             trimBridgeFrames(frames, outputCount);
-            return RenderEngine.wrapFrames(frames, FRAME_DELAY_MS);
+            return Frames.wrapFrames(frames, FRAME_DELAY_MS);
         }
 
         private @NotNull PixelBuffer renderFrame(@NotNull PortalOptions options, int tick) {
             RasterEngine engine = new RasterEngine(this.context);
-            PixelBuffer endSky = engine.resolveTexture(END_SKY_TEXTURE_ID);
-            PixelBuffer endPortalNoise = engine.resolveTexture(END_PORTAL_NOISE_TEXTURE_ID);
+            PixelBuffer endSky = engine.textures().resolveTexture(END_SKY_TEXTURE_ID);
+            PixelBuffer endPortalNoise = engine.textures().resolveTexture(END_PORTAL_NOISE_TEXTURE_ID);
 
             PixelBuffer baked = bakeFace(options.getPortal(), tick, endSky, endPortalNoise, options.getOutputSize());
             return applyTintIfNeeded(baked, resolveTint(options));

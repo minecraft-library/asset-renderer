@@ -8,23 +8,25 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.model.EntityModelData;
-import lib.minecraft.renderer.compose.FinalizeStage;
-import lib.minecraft.renderer.engine.IsometricEngine;
-import lib.minecraft.renderer.engine.RenderEngine;
+import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.engine.TextureEngine;
+import lib.minecraft.renderer.engine.camera.Camera;
+import lib.minecraft.renderer.engine.compose.FinalizeStage;
+import lib.minecraft.renderer.engine.compose.Frames;
+import lib.minecraft.renderer.engine.compose.GeometryLayer;
+import lib.minecraft.renderer.engine.compose.GlintStage;
+import lib.minecraft.renderer.engine.compose.LayerStack;
+import lib.minecraft.renderer.engine.compose.SceneContext;
+import lib.minecraft.renderer.engine.kit.ArmorKit;
+import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
+import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
+import lib.minecraft.renderer.engine.light.Lighting;
+import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.geometry.Box;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.SurfaceTraits;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
-import lib.minecraft.renderer.kit.ArmorKit;
-import lib.minecraft.renderer.kit.BlockGeometryKit;
-import lib.minecraft.renderer.kit.EntityGeometryKit;
-import lib.minecraft.renderer.compose.GeometryLayer;
-import lib.minecraft.renderer.compose.GlintStage;
-import lib.minecraft.renderer.compose.LayerStack;
-import lib.minecraft.renderer.compose.SceneContext;
 import lib.minecraft.renderer.options.EntityOptions;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.pipeline.util.RendererDebug;
@@ -68,19 +70,19 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
     private @NotNull ImageData renderEntity(@NotNull EntityOptions options) {
         if (options.getEntityId().isEmpty())
-            return RenderEngine.emptyFrame();
+            return Frames.emptyFrame();
 
         EntityModelLoader.EntityDefinition definition = this.javaEntities.get(options.getEntityId().get());
         if (definition == null)
-            return RenderEngine.emptyFrame();
+            return Frames.emptyFrame();
 
         Optional<PixelBuffer> texture = resolveEntityTexture(definition, options);
         if (texture.isEmpty())
-            return RenderEngine.emptyFrame();
+            return Frames.emptyFrame();
 
         EntityModelData model = definition.model();
         if (model.getBones().isEmpty())
-            return RenderEngine.emptyFrame();
+            return Frames.emptyFrame();
 
         // Combined bounds across the base entity AND every overlay so the shared auto-fit
         // window contains both. Slime's outer shell (8x8x8) extends beyond the inner body
@@ -142,7 +144,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         EntityGeometryKit.BuildResult buildResult = EntityGeometryKit.buildTriangles(
             model, texture.get(), modelAnchor, false, fit.ndcScale(), modelScale, definition.baseTintArgb());
         if (buildResult.triangles().isEmpty())
-            return RenderEngine.staticFrame(PixelBuffer.create(fit.canvasW(), fit.canvasH()));
+            return Frames.staticFrame(PixelBuffer.create(fit.canvasW(), fit.canvasH()));
 
         ConcurrentList<VisibleTriangle> triangles = buildResult.triangles();
 
@@ -153,9 +155,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // load-bearing (depth tie-break, translucent sort, emissive depth-skip), so the slot order
         // reproduces the historic base -> overlays -> block-overlays -> armor sequence exactly.
         // Callers can splice their own layers via EntityOptions.layerDecorator.
-        IsometricEngine engine = IsometricEngine.forEntityIcon(this.context);
+        ModelEngine engine = new ModelEngine(this.context, Camera.forEntityIcon());
         SceneContext scene = new SceneContext(
-            texture.get(), modelAnchor, fit.ndcScale(), modelScale, engine, this.context);
+            texture.get(), modelAnchor, fit.ndcScale(), modelScale, engine.textures(), this.context);
         LayerStack<GeometryLayer> stack = new LayerStack<>();
 
         // Model overlays (spider/enderman eyes, saddles, sheep wool). Each appends to the shared sink.
@@ -184,7 +186,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         stack.append(EntityOptions.Slot.ARMOR, sink ->
             sink.addAll(ArmorKit.buildEntityArmor3D(buildResult.boneBounds(),
                 options.getHelmet(), options.getChestplate(),
-                options.getLeggings(), options.getBoots(), scene.engine())));
+                options.getLeggings(), options.getBoots(), scene.textures())));
 
         for (GeometryLayer layer : options.getLayerDecorator().apply(stack).ordered())
             layer.contribute(triangles);
@@ -200,7 +202,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         int ssaa = Math.max(1, options.getSupersample());
         return FinalizeStage.run(fit.canvasW(), fit.canvasH(), ssaa, options.isAntiAlias(), enchanted,
             (target, mask) -> engine.rasterize(triangles, target, PerspectiveParams.ISOMETRIC_BLOCK, effective, mask),
-            (buffer, mask) -> GlintStage.forArmor(engine::tryResolveTexture, buffer, enchanted, mask));
+            (buffer, mask) -> GlintStage.forArmor(engine.textures()::tryResolveTexture, buffer, enchanted, mask));
     }
 
     /**
@@ -243,7 +245,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // texture map, exactly mirroring {@code BlockRenderer.Isometric3D.buildFromBlockElements}.
         // Faces whose ref still resolves to a {@code #} after dereference (broken bindings) skip
         // texture loading; the kit treats them as no-texture faces.
-        ConcurrentMap<String, PixelBuffer> faceTextures = TextureEngine.loadElementFaceTextures(
+        ConcurrentMap<String, PixelBuffer> faceTextures = Textures.loadElementFaceTextures(
             block.get().getModel().getElements(), block.get().getModel().getTextures(),
             this.context::resolveTexture);
         if (faceTextures.isEmpty()) return Concurrent.newList();
@@ -304,7 +306,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // the post-pose-stack normal against ENTITY_IN_UI lights per pixel - continuous, not
             // bucketed. Sampling mooshroom mushroom red showed our 0.67-0.90 block-cardinal range
             // vs vanilla's 0.45-0.71 Lambertian range.
-            float shading = RenderEngine.computeEntityInUiLighting(transformedNormal);
+            float shading = Lighting.computeEntityInUiLighting(transformedNormal);
             // Force back-face culling, matching vanilla's block render types (all bind GL culling)
             // exactly as {@link BlockRenderer#relightForItems3d} does for plain block models. The
             // {@code red_mushroom} cross model emits its two zero-thickness planes as paired
@@ -604,15 +606,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * separately, so they aren't included here.
      */
     private static @NotNull Matrix4f composeIsoTransform(@NotNull EulerRotation userRotation) {
-        EulerRotation iso = EulerRotation.STANDARD_ISO_ENTITY;
         boolean userIdentity = userRotation.pitch() == 0f && userRotation.yaw() == 0f && userRotation.roll() == 0f;
-        // Vanilla PoseStack-equivalent chain via fluent ops. Application order rightmost-first
-        // under col-vec: flipY -> modelRotation -> scaleZneg -> isoRotation -> scaleZneg -> flipY.
-        Matrix4f m = Matrix4f.IDENTITY
-            .scale(1f, -1f, 1f)
-            .scale(1f, 1f, -1f)
-            .rotate(Quaternionf.rotationXYZ(iso.pitchRadians(), iso.yawRadians(), 0f))
-            .scale(1f, 1f, -1f);
+        // Shared iso prefix (flipY -> scaleZneg -> isoRotation -> scaleZneg) lives on Camera so the
+        // entity camera and this bounds/anchor transform stay a single source of truth. The trailing
+        // modelRotation + outer flipY stay here: this transform is applied to bounds-probe points the
+        // kit FLIP_Y never touches, so it bakes that flip in (unlike Camera.forEntityIcon()).
+        Matrix4f m = Camera.entityIsoChain();
         if (!userIdentity)
             m = m.rotate(Quaternionf.rotationXYZ(userRotation.pitchRadians(), userRotation.yawRadians(), userRotation.rollRadians()));
         return m.scale(1f, -1f, 1f);

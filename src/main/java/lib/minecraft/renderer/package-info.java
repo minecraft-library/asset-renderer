@@ -28,7 +28,7 @@
  *       top, flow-rotated UVs, animation) or as a flat source-face icon.</li>
  *   <li>{@link lib.minecraft.renderer.GridRenderer GridRenderer} - compose a rectangular grid of tiles, each
  *       a static PNG or animated WebP, into one output via
- *       {@link lib.minecraft.renderer.compose.FrameCompositor FrameCompositor}.</li>
+ *       {@link lib.minecraft.renderer.engine.compose.FrameCompositor FrameCompositor}.</li>
  *   <li>{@link lib.minecraft.renderer.ItemRenderer ItemRenderer} - vanilla item models with all the
  *       sub-systems an item icon can carry: durability bar, stack count overlay, enchantment
  *       glint, dyed leather tint, banner-pattern composite, armor-trim palette permutation.</li>
@@ -49,12 +49,11 @@
  *
  * <p><b>Where the real work lives.</b> This package is intentionally a thin dispatch surface:
  * <ul>
- *   <li>Geometry building - {@link lib.minecraft.renderer.kit kit} (per-asset-type kits) and
+ *   <li>Geometry building - {@link lib.minecraft.renderer.engine.kit kit} (per-asset-type kits) and
  *       {@link lib.minecraft.renderer.geometry geometry} (primitive math).</li>
  *   <li>Rasterization - {@link lib.minecraft.renderer.engine engine} (the
  *       {@link lib.minecraft.renderer.engine.ModelEngine ModelEngine} triangle rasterizer and
- *       its {@link lib.minecraft.renderer.engine.IsometricEngine IsometricEngine} pose
- *       subclass).</li>
+ *       its {@link lib.minecraft.renderer.engine.camera.Camera Camera} pose value).</li>
  *   <li>Linear algebra - {@link lib.minecraft.renderer.tensor tensor} (immutable
  *       {@code Matrix4f}, {@code Vector*}, {@code Quaternionf} with optional Vector API
  *       acceleration).</li>

@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.geometry;
 
-import lib.minecraft.renderer.kit.BlockGeometryKit;
+import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tensor.Vector4f;
 import lombok.Getter;
@@ -220,9 +220,9 @@ public enum BlockFace {
      * the {@code <0.25} block-parity bucket - measured, not assumed.) A zero normal (cross of
      * collinear edges) has no winning axis and falls back to {@link #UP}.
      * <p>
-     * Two consumers share this single resolver: {@code RenderEngine.computeInventoryLighting} bakes
+     * Two consumers share this single resolver: {@code Lighting.computeInventoryLighting} bakes
      * the per-face {@code Lighting.ITEMS_3D}-style cardinal shade for block + fluid kits, and the
-     * block-icon relight pass ({@code RenderEngine.relightForItems3d}) snaps a plain-block quad's
+     * block-icon relight pass ({@code Shading.relightForItems3d}) snaps a plain-block quad's
      * authored normal to its nearest cardinal before lighting - matching vanilla's
      * {@code BlockFeatureRenderer.putBakedQuad}, which lights every quad by its single
      * {@code BakedQuad.direction} rather than the continuous tilted normal.

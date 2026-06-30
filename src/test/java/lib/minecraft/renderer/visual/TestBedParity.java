@@ -15,11 +15,12 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
-import lib.minecraft.renderer.engine.IsometricEngine;
+import lib.minecraft.renderer.engine.ModelEngine;
+import lib.minecraft.renderer.engine.camera.Camera;
+import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.SurfaceTraits;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
-import lib.minecraft.renderer.kit.BlockGeometryKit;
 import lib.minecraft.renderer.options.BlockOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
@@ -29,12 +30,12 @@ import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
-import javax.imageio.ImageIO;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Optional;
+import javax.imageio.ImageIO;
 
 /**
  * Comparison test: renders beds using both the mc-assets block model JSON (ground truth)
@@ -148,7 +149,7 @@ public final class TestBedParity {
         ConcurrentList<VisibleTriangle> centered = recenterAndFit(rotated, 1.4f);
 
         // Rasterize with standard isometric engine
-        IsometricEngine engine = IsometricEngine.forBlockIcon(context);
+        ModelEngine engine = new ModelEngine(context, Camera.forBlockIcon());
         PixelBuffer buffer = PixelBuffer.create(size, size);
         engine.rasterize(centered, buffer, PerspectiveParams.NONE);
         ImageIO.write(buffer.toBufferedImage(), "PNG", out.toFile());
@@ -194,7 +195,7 @@ public final class TestBedParity {
             ));
         }
 
-        IsometricEngine engine = IsometricEngine.forBlockIcon(context);
+        ModelEngine engine = new ModelEngine(context, Camera.forBlockIcon());
         PixelBuffer buffer = PixelBuffer.create(size, size);
         engine.rasterize(rotated, buffer, PerspectiveParams.NONE);
         ImageIO.write(buffer.toBufferedImage(), "PNG", out.toFile());

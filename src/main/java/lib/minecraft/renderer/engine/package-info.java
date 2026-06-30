@@ -1,44 +1,45 @@
 /**
- * Rendering engines that turn the abstract geometry and texture data produced by
- * {@link lib.minecraft.renderer.kit kits} and {@link lib.minecraft.renderer.pipeline pipeline}
- * into pixels.
+ * The rendering engine: rasterizers plus the composed subsystems that turn the abstract geometry
+ * and texture data produced by {@link lib.minecraft.renderer.engine.kit kits} and the
+ * {@link lib.minecraft.renderer.pipeline pipeline} into pixels.
  *
- * <p><b>Layered design.</b> Each engine extends the previous one and adds exactly one
- * capability, so a renderer reaches for the smallest engine that meets its needs:
- * <ol>
- *   <li>{@link lib.minecraft.renderer.engine.RenderEngine RenderEngine} - the baseline interface plus
- *       static helpers ({@code projectPerspective}, {@code applyShading},
- *       {@code computeInventoryLighting}, output building). Helpers live as {@code static} so
- *       every concrete engine can reach them without an instance. Instance state begins on
- *       {@link lib.minecraft.renderer.engine.TextureEngine TextureEngine}.</li>
- *   <li>{@link lib.minecraft.renderer.engine.TextureEngine TextureEngine} - adds pack-aware texture
- *       resolution, biome tint sampling, glint compositing, and animation frame extraction. The
- *       baseline for any renderer that needs to read textures.</li>
- *   <li>{@link lib.minecraft.renderer.engine.RasterEngine RasterEngine} - adds 2D drawing primitives
- *       (buffer creation, blits, blends). Used by every 2D renderer
+ * <p><b>Rasterizers.</b> Two engines draw into a {@link dev.simplified.image.pixel.PixelBuffer}:
+ * <ul>
+ *   <li>{@link lib.minecraft.renderer.engine.ModelEngine ModelEngine} - the 3D triangle rasterizer:
+ *       barycentric coverage with a {@code 1/256} fixed-point edge test, an {@code OpenGL}-style
+ *       top-left fill rule, a {@code 1/400} sub-pixel coverage snap, a tiled parallel raster path,
+ *       depth buffering, painter's-algorithm coplanar tie-break, and a back-to-front sort for
+ *       translucent triangles. Two-sided geometry via {@code cullBackFaces=false}, an emissive
+ *       depth-skip for nested translucent overlays, and SIMD-dispatched vertex transforms when the
+ *       JDK Vector API module is loaded.</li>
+ *   <li>{@link lib.minecraft.renderer.engine.RasterEngine RasterEngine} - the 2D blitter (buffer
+ *       allocation, blits, blends) for every flat renderer
  *       ({@link lib.minecraft.renderer.MenuRenderer MenuRenderer},
- *       {@link lib.minecraft.renderer.TextRenderer TextRenderer},
- *       {@code FluidFace2D}, {@code PortalFace2D}).</li>
- *   <li>{@link lib.minecraft.renderer.engine.ModelEngine ModelEngine} - adds the 3D triangle rasterizer:
- *       barycentric coverage with a {@code 1/256} fixed-point edge test, an
- *       {@code OpenGL}-style top-left fill rule, a {@code 1/400} sub-pixel coverage snap, a
- *       tiled parallel raster path, depth buffering, painter's algorithm coplanar tie-break,
- *       and a back-to-front sort for translucent triangles. Implements two-sided geometry via
- *       {@code cullBackFaces=false}, an emissive depth-skip for nested translucent overlays,
- *       and SIMD-dispatched vertex transforms when the JDK Vector API module is loaded.</li>
- *   <li>{@link lib.minecraft.renderer.engine.IsometricEngine IsometricEngine} - a {@code ModelEngine} subclass
- *       whose camera transform is a named vanilla {@code display.gui} pose. Use
- *       {@link lib.minecraft.renderer.engine.IsometricEngine#standard standard()} for the
- *       canonical {@code [30, 225, 0]} block-icon view or
- *       {@link lib.minecraft.renderer.engine.IsometricEngine#withGuiPose(lib.minecraft.renderer.engine.RendererContext, lib.minecraft.renderer.geometry.EulerRotation) withGuiPose(pose)}
- *       for per-model overrides.</li>
- * </ol>
+ *       {@link lib.minecraft.renderer.TextRenderer TextRenderer}, {@code FluidFace2D},
+ *       {@code PortalFace2D}).</li>
+ * </ul>
  *
- * <p><b>Ambient context.</b>
- * {@link lib.minecraft.renderer.engine.RendererContext RendererContext} is the read-only
- * view of active texture packs, biome colormaps, model repositories, banner / item / entity
- * registries, and OptiFine-pack rule lists. Every engine is constructed against one. The
- * interface uses two naming prefixes for {@code Optional}-returning lookups:
+ * <p><b>Composed subsystems.</b> Rather than an inheritance tower, each engine <em>composes</em>
+ * single-responsibility subsystems, each with its own subpackage:
+ * <ul>
+ *   <li>{@link lib.minecraft.renderer.engine.camera.Camera camera} - the baked {@code display.*}
+ *       pose value a {@code ModelEngine} applies after the caller's model transform.</li>
+ *   <li>{@link lib.minecraft.renderer.engine.light.Lighting light} - the vanilla-parity inventory
+ *       lighting ({@code Lighting}) and shade application / block-icon relighting
+ *       ({@code Shading}).</li>
+ *   <li>{@link lib.minecraft.renderer.engine.texture.Textures texture} - the pack-aware texture
+ *       resolution service each engine holds (and vends via {@code textures()}).</li>
+ * </ul>
+ * Projection math lives with the primitives in
+ * {@link lib.minecraft.renderer.geometry.ProjectionMath geometry}; frame-building lives with the
+ * post stages in {@link lib.minecraft.renderer.engine.compose compose}.
+ *
+ * <p><b>Resource-provider port.</b>
+ * {@link lib.minecraft.renderer.engine.RendererContext RendererContext} is the read-only view of
+ * active texture packs, biome colormaps, model repositories, banner / item / entity registries, and
+ * OptiFine-pack rule lists - the seam the {@link lib.minecraft.renderer.pipeline pipeline} fills and
+ * every engine consumes. The interface uses two naming prefixes for {@code Optional}-returning
+ * lookups:
  * <ul>
  *   <li><b>{@code findX(...)}</b> - direct keyed lookup, O(1)-ish, returns
  *       {@code Optional.empty()} when the key is unknown.</li>
@@ -60,7 +61,6 @@
  * any reasonable cost.
  *
  * @see lib.minecraft.renderer.engine.ModelEngine
- * @see lib.minecraft.renderer.engine.IsometricEngine
  * @see lib.minecraft.renderer.engine.RendererContext
  * @see lib.minecraft.renderer.geometry.ProjectionMath
  */

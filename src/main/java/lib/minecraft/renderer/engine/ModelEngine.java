@@ -4,6 +4,9 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.engine.camera.Camera;
+import lib.minecraft.renderer.engine.light.Shading;
+import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.ProjectionMath;
@@ -38,7 +41,7 @@ import java.util.stream.IntStream;
  * to {@code false} - used for two-sided geometry such as glass panes, leaves, banners, and the
  * interior faces of beds and other non-convex blocks.
  */
-public class ModelEngine extends TextureEngine {
+public class ModelEngine {
 
     /**
      * Per-pixel depth comparison epsilon. Absorbs floating-point noise between mathematically
@@ -84,38 +87,51 @@ public class ModelEngine extends TextureEngine {
      * <p>Overridable via {@code -Dasset.snap.grid=N} for empirical sweeps (e.g. confirming the block
      * pipeline shares the entity-tuned optimum). {@code N <= 0} disables the snap entirely
      * ({@link #snapToCoverageGrid} returns the vertex unchanged); the default {@code 400} is the
-     * tuned value above. Both the entity ({@link ModelEngine}) and block
-     * ({@link IsometricEngine}) pipelines read this single constant.
+     * tuned value above. Both the entity and block ({@link Camera#forBlockIcon()})
+     * pipelines read this single constant.
      */
     private static final float SUBPIXEL_PRECISION = Float.parseFloat(System.getProperty("asset.snap.grid", "400"));
     private static final float SUBPIXEL_INV = SUBPIXEL_PRECISION > 0f ? 1f / SUBPIXEL_PRECISION : 0f;
 
     private final @NotNull Matrix4f camera;
 
+    private final @NotNull Textures textures;
+
     /**
      * Constructs a model engine whose camera transform is the identity matrix - geometry is
      * viewed directly down the negative Z axis with no pre-rotation. Callers that want a
-     * preset pose (e.g. the standard block inventory icon) should use {@link IsometricEngine}
-     * instead of composing the pose into their {@code modelTransform}.
+     * preset pose (e.g. the standard block inventory icon) should pass a {@link Camera} factory
+     * (e.g. {@link Camera#forBlockIcon()}) instead of composing the pose into their
+     * {@code modelTransform}.
      *
      * @param context the renderer context
      */
     public ModelEngine(@NotNull RendererContext context) {
-        this(context, Matrix4f.IDENTITY);
+        this(context, Camera.identity());
     }
 
     /**
-     * Constructs a model engine with a preset camera transform, applied after the caller's
-     * model transform during rasterization. Intended as the {@code super(...)} entry point for
-     * subclasses that bake a named pose (e.g. {@link IsometricEngine} with the vanilla
-     * {@code [30, 225, 0]} block-icon camera) into every render.
+     * Constructs a model engine with a preset {@link Camera} pose, applied after the caller's
+     * model transform during rasterization. Pass a named pose (e.g. {@link Camera#forBlockIcon()}
+     * with the vanilla {@code [30, 225, 0]} block-icon camera) so the engine reflects the model's
+     * authored orientation without the caller composing it into a {@code modelTransform}.
      *
      * @param context the renderer context
-     * @param camera the camera transform matrix composed with every rasterization
+     * @param camera the camera pose composed with every rasterization
      */
-    protected ModelEngine(@NotNull RendererContext context, @NotNull Matrix4f camera) {
-        super(context);
-        this.camera = camera;
+    public ModelEngine(@NotNull RendererContext context, @NotNull Camera camera) {
+        this.textures = new Textures(context);
+        this.camera = camera.matrix();
+    }
+
+    /**
+     * The pack-aware texture-resolution service bound to this engine's context, for kits and layers
+     * that resolve textures while sharing the engine's render.
+     *
+     * @return the texture service
+     */
+    public @NotNull Textures textures() {
+        return this.textures;
     }
 
     /**
@@ -468,7 +484,7 @@ public class ModelEngine extends TextureEngine {
             if (pyStart > pyEnd) continue;
 
             // The kit baked the lighting term per-vanilla-render-path at geometry-build time
-            // (RenderEngine.computeInventoryLighting for blocks/fluids, computeEntityInUiLighting
+            // (Lighting.computeInventoryLighting for blocks/fluids, computeEntityInUiLighting
             // for entities); the rasterizer just multiplies it in.
             float shading = t.source.shading();
             // Hoist the surface traits once per triangle; the per-pixel loop below reads
@@ -531,7 +547,7 @@ public class ModelEngine extends TextureEngine {
 
                     int afterShade = tr.emissive()
                         ? afterTint
-                        : RenderEngine.applyShading(afterTint, shading);
+                        : Shading.applyShading(afterTint, shading);
                     BlendMode blendMode = selectBlendMode(tr.emissive());
 
                     int outArgb = ColorMath.blend(afterShade, buffer.getPixel(px, py), blendMode);
@@ -716,9 +732,9 @@ public class ModelEngine extends TextureEngine {
         Vector3f p2 = triangle.position2().transform(transform);
         Vector3f normal = triangle.normal().transformNormal(transform).normalize();
 
-        Vector2f s0 = snapToCoverageGrid(RenderEngine.projectPerspective(p0, scale, offsetX, offsetY, perspective));
-        Vector2f s1 = snapToCoverageGrid(RenderEngine.projectPerspective(p1, scale, offsetX, offsetY, perspective));
-        Vector2f s2 = snapToCoverageGrid(RenderEngine.projectPerspective(p2, scale, offsetX, offsetY, perspective));
+        Vector2f s0 = snapToCoverageGrid(ProjectionMath.projectPerspective(p0, scale, offsetX, offsetY, perspective));
+        Vector2f s1 = snapToCoverageGrid(ProjectionMath.projectPerspective(p1, scale, offsetX, offsetY, perspective));
+        Vector2f s2 = snapToCoverageGrid(ProjectionMath.projectPerspective(p2, scale, offsetX, offsetY, perspective));
 
         RendererDebug.pixelTriangle(triangle, s0, s1, s2, p0, p1, p2);
 

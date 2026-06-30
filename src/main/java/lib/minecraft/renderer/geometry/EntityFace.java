@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.geometry;
 
-import lib.minecraft.renderer.engine.RenderEngine;
-import lib.minecraft.renderer.kit.EntityGeometryKit;
+import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
+import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tensor.Vector4f;
@@ -31,7 +31,7 @@ import java.util.Map;
  * <li>The four vertex indices into the canonical 8-corner box (see the layout diagram on
  *     {@link #corners}).</li>
  * <li>The outward unit {@link #normal} - used by the entity ENTITY_IN_UI lighting model
- *     ({@link RenderEngine#computeEntityInUiLighting}) which dots
+ *     ({@link Lighting#computeEntityInUiLighting}) which dots
  *     this direction against two fixed inventory diffuse light vectors.</li>
  * <li>A {@link Layout} carrying the per-face axis-and-atlas-coefficient data
  *     {@link #defaultUv} needs to project a cube's UV strip into a pixel rectangle without a
@@ -59,7 +59,7 @@ import java.util.Map;
  * a dual-directional Lambertian shader (two normalized light vectors, summed with ambient and
  * clamped) rather than a per-face constant. This enum therefore deliberately does <b>not</b>
  * carry a {@code lighting} scalar - shading is computed per-vertex from the surface normal in
- * {@link RenderEngine#computeEntityInUiLighting}, baked into each
+ * {@link Lighting#computeEntityInUiLighting}, baked into each
  * triangle's {@link VisibleTriangle#shading} field at kit time, and the rasterizer applies it
  * directly without a second per-face lookup. Compare {@link BlockFace#lighting} which carries the
  * {@code Lighting.ITEMS_3D} per-face approximation suitable for block inventory icons.

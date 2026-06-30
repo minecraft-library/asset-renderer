@@ -1,9 +1,9 @@
 /**
- * Geometric primitives and math used by every kit and engine in the module. Engine-coupled
- * projection ({@code projectPerspective}, {@code applyShading}) lives on
- * {@link lib.minecraft.renderer.engine.RenderEngine RenderEngine}; this package stays free of
- * engine state so kit code, tooling, and tests can reuse the math without dragging in
- * {@code RendererContext}.
+ * Geometric primitives and math used by every kit and engine in the module, including the
+ * camera-to-screen projection ({@code ProjectionMath.projectPerspective}). Lighting and shading
+ * ({@code applyShading}) live under {@link lib.minecraft.renderer.engine.light the engine.light
+ * package}; this package stays free of engine state so kit code, tooling, and tests can reuse the
+ * math without dragging in {@code RendererContext}.
  *
  * <p><b>Face enums.</b> Three distinct enums cover the three contexts in which a Minecraft
  * asset cube is unwrapped. Each one carries the per-face data the corresponding kit needs
@@ -12,15 +12,15 @@
  * <ul>
  *   <li>{@link lib.minecraft.renderer.geometry.BlockFace BlockFace} - block-model UV unwrap with the
  *       vanilla {@code AmbientOcclusionFace} lighting scalar baked in. Used by
- *       {@link lib.minecraft.renderer.kit.BlockGeometryKit BlockGeometryKit}.</li>
+ *       {@link lib.minecraft.renderer.engine.kit.BlockGeometryKit BlockGeometryKit}.</li>
  *   <li>{@link lib.minecraft.renderer.geometry.EntityFace EntityFace} - entity-cube UV unwrap (strip
  *       layout, per-face polygon vertex slot permutation). Used by
- *       {@link lib.minecraft.renderer.kit.EntityGeometryKit EntityGeometryKit}. Lighting is
+ *       {@link lib.minecraft.renderer.engine.kit.EntityGeometryKit EntityGeometryKit}. Lighting is
  *       computed per-vertex from the surface normal rather than per-face.</li>
  *   <li>{@link lib.minecraft.renderer.geometry.SkinFace SkinFace} - 64x64 player-skin atlas UV layout
  *       used by both the skin texture and the matching base-armor atlas. Used by
  *       {@link lib.minecraft.renderer.PlayerRenderer PlayerRenderer} and
- *       {@link lib.minecraft.renderer.kit.ArmorKit ArmorKit}.</li>
+ *       {@link lib.minecraft.renderer.engine.kit.ArmorKit ArmorKit}.</li>
  *   <li>{@link lib.minecraft.renderer.geometry.SixFaces SixFaces} - small immutable holder of one
  *       value per face, used for per-face texture id maps, tint indices, and other small
  *       face-keyed tables.</li>
@@ -48,7 +48,7 @@
  *
  * <p><b>Triangle record.</b>
  * {@link lib.minecraft.renderer.geometry.VisibleTriangle VisibleTriangle} is the single
- * record every {@link lib.minecraft.renderer.kit kit} emits and every
+ * record every {@link lib.minecraft.renderer.engine.kit kit} emits and every
  * {@link lib.minecraft.renderer.engine.ModelEngine ModelEngine} consumes - vertex positions,
  * UV coordinates, source texture, tint, normal, shading scalar, plus three behavior flags
  * ({@code cullBackFaces}, {@code emissive}, {@code translucent}) and an optional
@@ -56,6 +56,6 @@
  *
  * @see lib.minecraft.renderer.geometry.VisibleTriangle
  * @see lib.minecraft.renderer.geometry.ProjectionMath
- * @see lib.minecraft.renderer.engine.RenderEngine
+ * @see lib.minecraft.renderer.engine.light.Lighting
  */
 package lib.minecraft.renderer.geometry;

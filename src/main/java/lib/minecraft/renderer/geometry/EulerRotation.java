@@ -4,8 +4,8 @@ import com.google.gson.TypeAdapter;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
-import lib.minecraft.renderer.engine.IsometricEngine;
 import lib.minecraft.renderer.engine.ModelEngine;
+import lib.minecraft.renderer.engine.camera.Camera;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -16,7 +16,7 @@ import java.io.IOException;
  * An immutable Euler-angle triple carrying rotations about the X, Y, and Z axes. Values are
  * always in <b>degrees</b> to match how vanilla Minecraft authors {@code display.*}
  * transforms and how every engine method ({@link ModelEngine#rasterize} /
- * {@link IsometricEngine#withGuiPose}) already documents its inputs.
+ * {@link Camera#withGuiPose}) already documents its inputs.
  * <p>
  * The record is deliberately data-only: it carries the three angles and nothing else.
  * Two distinct rotation-composition orders coexist in the codebase - vanilla {@code display}
@@ -52,7 +52,7 @@ public record EulerRotation(float pitch, float yaw, float roll) {
     /**
      * Vanilla Minecraft's standard block inventory-icon pose: {@code [30, 225, 0]} pitch/yaw/roll.
      * Matches the {@code display.gui} transform baked into the root {@code block/block.json}
-     * model and is the default camera used by {@link IsometricEngine#standard} when a block
+     * model and is the default camera used by {@link Camera#forBlockIcon} when a block
      * model does not override its own GUI pose.
      */
     public static final @NotNull EulerRotation STANDARD_ISO_BLOCK = new EulerRotation(30f, 225f, 0f);

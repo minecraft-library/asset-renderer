@@ -6,17 +6,18 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.appearance.Biome;
-import lib.minecraft.renderer.compose.AnimationStage;
-import lib.minecraft.renderer.compose.FinalizeStage;
-import lib.minecraft.renderer.engine.IsometricEngine;
+import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.engine.TextureEngine;
+import lib.minecraft.renderer.engine.camera.Camera;
+import lib.minecraft.renderer.engine.compose.AnimationStage;
+import lib.minecraft.renderer.engine.compose.FinalizeStage;
+import lib.minecraft.renderer.engine.compose.GeometryLayer;
+import lib.minecraft.renderer.engine.compose.LayerStack;
+import lib.minecraft.renderer.engine.kit.FluidGeometryKit;
+import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
-import lib.minecraft.renderer.kit.FluidGeometryKit;
-import lib.minecraft.renderer.compose.GeometryLayer;
-import lib.minecraft.renderer.compose.LayerStack;
 import lib.minecraft.renderer.options.FluidOptions;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -28,7 +29,7 @@ import org.jetbrains.annotations.NotNull;
  * Each sub-renderer is a {@code public static final} inner class implementing
  * {@link Renderer Renderer&lt;FluidOptions&gt;}:
  * <ul>
- * <li>{@link Isometric3D} uses an {@link IsometricEngine} in its {@code standard} pose - fluids
+ * <li>{@link Isometric3D} uses a {@link ModelEngine} in its block-icon pose - fluids
  * carry no {@code display.gui} transform of their own - and builds a 1x1x1 cube via
  * {@link FluidGeometryKit}. Sloped tops, flow-UV rotation, and animation are all supported
  * through the options object.</li>
@@ -97,7 +98,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
      * <p>
      * Lava is never tinted - it returns {@link ColorMath#WHITE}. Water consults, in priority
      * order: the caller-supplied {@link FluidOptions#getWaterTintArgbOverride()}, then the
-     * biome's water tint via {@link TextureEngine#sampleBiomeTint} using
+     * biome's water tint via {@link Textures#sampleBiomeTint} using
      * {@link Biome.TintTarget#WATER} (which falls back to the engine-level default when the
      * biome carries no {@code water_color} override).
      *
@@ -110,12 +111,12 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             return ColorMath.WHITE;
         if (options.getWaterTintArgbOverride() != null)
             return options.getWaterTintArgbOverride();
-        return new TextureEngine(context).sampleBiomeTint(Biome.TintTarget.WATER, options.getBiome());
+        return new Textures(context).sampleBiomeTint(Biome.TintTarget.WATER, options.getBiome());
     }
 
     /**
      * Full 3D isometric fluid cube renderer. Builds triangles via {@link FluidGeometryKit}, then
-     * rasterizes through {@link IsometricEngine}'s standard {@code [30, 225, 0]} pose.
+     * rasterizes through {@link Camera#forBlockIcon}'s {@code [30, 225, 0]} pose.
      * Animation is driven by {@link FluidOptions#getFrameCount()} - single-frame renders return
      * a static image, multi-frame renders return an animated image with per-frame delay of
      * {@code ticksPerFrame * 50ms}.
@@ -136,8 +137,8 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
         }
 
         private @NotNull PixelBuffer renderFrame(@NotNull FluidOptions options, int tick) {
-            IsometricEngine engine = IsometricEngine.forBlockIcon(this.context);
-            TextureEngine textures = new TextureEngine(this.context);
+            ModelEngine engine = new ModelEngine(this.context, Camera.forBlockIcon());
+            Textures textures = new Textures(this.context);
             PixelBuffer still = textures.resolveTextureAtTick(stillTextureId(options.getFluid()), tick);
             PixelBuffer flow = textures.resolveTextureAtTick(flowTextureId(options.getFluid()), tick);
             int tint = resolveFluidTint(this.context, options);
@@ -180,7 +181,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
         private @NotNull PixelBuffer renderFrame(@NotNull FluidOptions options, int tick) {
             RasterEngine engine = new RasterEngine(this.context);
             PixelBuffer buffer = engine.createBuffer(options.getOutputSize(), options.getOutputSize());
-            PixelBuffer still = engine.resolveTextureAtTick(stillTextureId(options.getFluid()), tick);
+            PixelBuffer still = engine.textures().resolveTextureAtTick(stillTextureId(options.getFluid()), tick);
             int tint = resolveFluidTint(this.context, options);
             PixelBuffer tinted = ColorMath.tint(still, tint);
             buffer.blitScaled(tinted, 0, 0, options.getOutputSize(), options.getOutputSize());

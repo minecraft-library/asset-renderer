@@ -8,12 +8,12 @@ import lib.minecraft.renderer.Renderer;
 import lib.minecraft.renderer.appearance.ArmorTrim;
 import lib.minecraft.renderer.appearance.BannerLayer;
 import lib.minecraft.renderer.appearance.DyeColor;
-import lib.minecraft.renderer.kit.BannerKit;
-import lib.minecraft.renderer.kit.GlintKit;
-import lib.minecraft.renderer.kit.TrimKit;
-import lib.minecraft.renderer.compose.ImageLayer;
-import lib.minecraft.renderer.compose.LayerSlot;
-import lib.minecraft.renderer.compose.LayerStack;
+import lib.minecraft.renderer.engine.compose.ImageLayer;
+import lib.minecraft.renderer.engine.compose.LayerSlot;
+import lib.minecraft.renderer.engine.compose.LayerStack;
+import lib.minecraft.renderer.engine.kit.BannerKit;
+import lib.minecraft.renderer.engine.kit.GlintKit;
+import lib.minecraft.renderer.engine.kit.TrimKit;
 import lib.minecraft.renderer.pipeline.pack.ItemContext;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -40,7 +40,7 @@ import java.util.function.UnaryOperator;
  *
  * <p><b>Vanilla-pattern composition.</b> Banner layers, armor trim, dye colour, and item
  * context inputs ({@link ItemContext}) all flow through to the matching
- * {@link lib.minecraft.renderer.kit kit} composition step. The renderer itself stays
+ * {@link lib.minecraft.renderer.engine.kit kit} composition step. The renderer itself stays
  * thin - all texture pairing logic lives in
  * {@link BannerKit BannerKit},
  * {@link TrimKit TrimKit}, and

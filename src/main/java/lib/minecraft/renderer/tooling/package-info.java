@@ -108,7 +108,7 @@
  *       vanilla's {@code net.minecraft.util.Mth} {@code cos / sin} 65536-entry lookup that
  *       matches the bytecode bit-for-bit; the tooling layer uses it when unrolling
  *       {@code Mth.cos / sin} call sites so the emitted geometry agrees with what
- *       {@link lib.minecraft.renderer.kit.EntityGeometryKit EntityGeometryKit} would produce
+ *       {@link lib.minecraft.renderer.engine.kit.EntityGeometryKit EntityGeometryKit} would produce
  *       at runtime.</li>
  * </ul>
  *
@@ -119,7 +119,7 @@
  * are local-only artifacts intended for hand-eyeballing during a version bump.
  *
  * @see lib.minecraft.renderer.pipeline.Pipeline
- * @see lib.minecraft.renderer.kit.EntityGeometryKit
+ * @see lib.minecraft.renderer.engine.kit.EntityGeometryKit
  * @see lib.minecraft.renderer.tooling.util.AsmKit
  */
 package lib.minecraft.renderer.tooling;

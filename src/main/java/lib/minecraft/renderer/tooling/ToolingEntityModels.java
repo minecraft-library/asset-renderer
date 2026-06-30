@@ -76,7 +76,7 @@ import java.util.Set;
  *
  * @see ToolingBlockModels
  * @see lib.minecraft.renderer.EntityRenderer
- * @see lib.minecraft.renderer.kit.EntityGeometryKit
+ * @see lib.minecraft.renderer.engine.kit.EntityGeometryKit
  */
 @UtilityClass
 public final class ToolingEntityModels {

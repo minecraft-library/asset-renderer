@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.geometry;
 
-import lib.minecraft.renderer.engine.RenderEngine;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -12,7 +11,7 @@ import org.jetbrains.annotations.NotNull;
  * {@link #projectionScale()} is the multiplier applied to model-space coordinates during
  * projection - it controls how much of the output tile the projected geometry covers and
  * supplies the safety margin for rotated or multi-element geometry that would otherwise clip
- * the framebuffer edges. The blend math lives in {@link RenderEngine} and is shared by every
+ * the framebuffer edges. The blend math lives in {@link ProjectionMath} and is shared by every
  * engine that wants a hint of depth without the complexity of a full 3D perspective setup.
  *
  * @param amount the blend factor in {@code [0, 1]} - 0 is pure ortho, 1 is full perspective

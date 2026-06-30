@@ -55,7 +55,7 @@
  *   <li>{@link lib.minecraft.renderer.tensor.Quaternionf Quaternionf} - immutable
  *       {@code (x, y, z, w)} record. JOML algorithm port (~110 lines, no JOML dep) used for
  *       the iso rotation matrix in the entity pipeline and the cube-pivot rotation in
- *       {@link lib.minecraft.renderer.kit.EntityGeometryKit EntityGeometryKit}.</li>
+ *       {@link lib.minecraft.renderer.engine.kit.EntityGeometryKit EntityGeometryKit}.</li>
  * </ul>
  *
  * <p><b>SIMD dispatch.</b>

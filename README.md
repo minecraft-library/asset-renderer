@@ -28,7 +28,7 @@ Headless rendering library for Minecraft blocks, items, entities, fluids, and po
 
 - **Pluggable renderers** - `BlockRenderer`, `ItemRenderer`, `EntityRenderer`, `PlayerRenderer`, `FluidRenderer`, `PortalRenderer`, `TextRenderer`, plus composite `AtlasRenderer`, `GridRenderer`, `LayoutRenderer`, and `MenuRenderer`
 - **Any Minecraft version** - Pulls client JARs via the Piston API and loads overlay resource packs (CIT, CTM, banner patterns, custom item definitions) on top of vanilla
-- **Isometric or 2D output** - `IsometricEngine` for 30/45° block previews, `RasterEngine` for flat tile icons, both sharing the same `ModelEngine` pipeline
+- **Isometric or 2D output** - `ModelEngine` with a `Camera` pose for 30/45° block previews, `RasterEngine` for flat tile icons, both composing the same texture/light subsystems
 - **Static PNG or animated frames** - Returns `StaticImageData` or `AnimatedImageData` from [simplified-dev/image](https://github.com/simplified-dev/image) - animated textures, portals, and fluids drive multi-frame output transparently
 - **Vector API SIMD** - JDK 21 incubator `FloatVector` backs `ModelEngine` matrix math and `PortalRenderer` layer transforms
 - **Stateless renderers** - All input flows through an immutable options record; renderers share an ambient `RendererContext` and can be cached for the lifetime of a pack stack
@@ -219,7 +219,7 @@ asset-renderer/
 │   │   │   ├── binding/    # ArmorMaterial, BannerLayer, DyeColor, ...
 │   │   │   ├── model/      # BlockModelData, EntityModelData, ModelElement, ...
 │   │   │   └── pack/       # Texture, TexturePack, AnimationData, ColorMap
-│   │   ├── engine/         # IsometricEngine, RasterEngine, ModelEngine, TextureEngine
+│   │   ├── engine/         # ModelEngine, RasterEngine + camera/ light/ texture/ subsystems
 │   │   ├── exception/      # RendererException, AssetPipelineException
 │   │   ├── geometry/       # Biome, BlockFace, Box, ProjectionMath, ...
 │   │   ├── kit/            # AnimationKit, BannerKit, GeometryKit, GlintKit, ItemStackKit, ...

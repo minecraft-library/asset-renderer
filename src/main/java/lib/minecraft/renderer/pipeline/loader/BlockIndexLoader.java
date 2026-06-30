@@ -10,7 +10,7 @@ import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
-import lib.minecraft.renderer.engine.TextureEngine;
+import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.geometry.BlockFace;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.util.Models;
@@ -477,7 +477,7 @@ public class BlockIndexLoader {
             if (face == null) continue;
             String textureRef = face.getTexture();
             if (textureRef.isBlank()) continue;
-            String resolved = TextureEngine.resolveTextureReference(textureRef, model.getTextures());
+            String resolved = Textures.resolveTextureReference(textureRef, model.getTextures());
             if (resolved.startsWith("#")) continue;
             textures.put(blockFace.direction(), resolved);
         }

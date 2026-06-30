@@ -2,14 +2,15 @@ package lib.minecraft.renderer.geometry;
 
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.tensor.Vector2f;
+import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Static helpers for 2D rasterization math that are shared by the drawing helpers and the
- * engine layer. Projection and perspective math that depends on the {@link
- * PerspectiveParams} record lives on {@code RenderEngine}; this file is
- * reserved for the primitive triangle and barycentric math that has no dependency on engine types.
+ * Static helpers for the camera-to-screen projection and the 2D rasterization math shared by the
+ * drawing helpers and the engine layer - the orthographic / perspective projection of a model-space
+ * point ({@link #projectPerspective}) plus the primitive triangle and barycentric coverage math the
+ * rasterizer walks per pixel.
  */
 @UtilityClass
 public class ProjectionMath {
@@ -34,6 +35,49 @@ public class ProjectionMath {
      */
     public static long quantizeSample(float coord) {
         return Math.round((double) coord * FIXED_POINT_PRECISION);
+    }
+
+    // --- camera projection ---
+
+    /**
+     * Projects a model-space point onto 2D screen coordinates using a pure orthographic camera.
+     *
+     * @param point the 3D point to project
+     * @param scale the uniform screen-space scale factor
+     * @param offsetX the horizontal screen offset to apply after scaling
+     * @param offsetY the vertical screen offset to apply after scaling
+     * @return the projected 2D point
+     */
+    public static @NotNull Vector2f projectOrtho(@NotNull Vector3f point, float scale, float offsetX, float offsetY) {
+        return new Vector2f(point.x() * scale + offsetX, -point.y() * scale + offsetY);
+    }
+
+    /**
+     * Projects a model-space point onto 2D screen coordinates using a blend of orthographic and
+     * perspective projection. When {@code params.amount() == 0} this is equivalent to
+     * {@link #projectOrtho(Vector3f, float, float, float) projectOrtho}.
+     *
+     * @param point the 3D point to project
+     * @param scale the uniform screen-space scale factor
+     * @param offsetX the horizontal screen offset to apply after scaling
+     * @param offsetY the vertical screen offset to apply after scaling
+     * @param params the perspective parameters
+     * @return the projected 2D point
+     */
+    public static @NotNull Vector2f projectPerspective(
+        @NotNull Vector3f point,
+        float scale,
+        float offsetX,
+        float offsetY,
+        @NotNull PerspectiveParams params
+    ) {
+        if (params.amount() <= 0f)
+            return projectOrtho(point, scale, offsetX, offsetY);
+
+        float denom = params.cameraDistance() - point.z();
+        float perspectiveFactor = denom == 0f ? 1f : (params.focalLength() / denom);
+        float blended = 1f + (perspectiveFactor - 1f) * params.amount();
+        return new Vector2f(point.x() * scale * blended + offsetX, -point.y() * scale * blended + offsetY);
     }
 
     /**

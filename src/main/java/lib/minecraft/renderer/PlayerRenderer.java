@@ -11,23 +11,24 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.appearance.ArmorPiece;
 import lib.minecraft.renderer.appearance.ArmorTrim;
-import lib.minecraft.renderer.compose.FinalizeStage;
 import lib.minecraft.renderer.engine.GlintMask;
-import lib.minecraft.renderer.engine.IsometricEngine;
+import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.engine.camera.Camera;
+import lib.minecraft.renderer.engine.compose.FinalizeStage;
+import lib.minecraft.renderer.engine.compose.GeometryLayer;
+import lib.minecraft.renderer.engine.compose.GlintStage;
+import lib.minecraft.renderer.engine.compose.ImageLayer;
+import lib.minecraft.renderer.engine.compose.LayerStack;
+import lib.minecraft.renderer.engine.kit.ArmorKit;
+import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.geometry.BlockFace;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.SixFaces;
 import lib.minecraft.renderer.geometry.SkinFace;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
-import lib.minecraft.renderer.kit.ArmorKit;
-import lib.minecraft.renderer.kit.BlockGeometryKit;
-import lib.minecraft.renderer.compose.GeometryLayer;
-import lib.minecraft.renderer.compose.GlintStage;
-import lib.minecraft.renderer.compose.ImageLayer;
-import lib.minecraft.renderer.compose.LayerStack;
 import lib.minecraft.renderer.options.PlayerOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -54,7 +55,7 @@ import java.util.Optional;
  * <li><b>2D</b> composites the front-facing (south) crop of each visible body part, layering
  * base skin, overlay, armor, and trim as scaled sprites on a flat canvas.</li>
  * <li><b>3D</b> builds cubes for each visible body part and rasterizes through
- * {@link IsometricEngine}, with armor as slightly inflated overlapping geometry.</li>
+ * {@link ModelEngine} with a {@link Camera#forPlayerIcon} pose, with armor as slightly inflated overlapping geometry.</li>
  * </ul>
  * Skin resolution is shared via the outer class, with URL-fetched skins cached for the
  * renderer's lifetime.
@@ -157,7 +158,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         if (options.getSkinTextureId().isPresent()) {
             RasterEngine engine = new RasterEngine(parent.context);
-            return engine.resolveTexture(options.getSkinTextureId().get());
+            return engine.textures().resolveTexture(options.getSkinTextureId().get());
         }
 
         return parent.context.resolveTexture("minecraft:entity/steve")
@@ -226,7 +227,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         if (options.getCapeTextureId().isPresent()) {
             RasterEngine engine = new RasterEngine(parent.context);
-            return engine.tryResolveTexture(options.getCapeTextureId().get());
+            return engine.textures().tryResolveTexture(options.getCapeTextureId().get());
         }
 
         return Optional.empty();
@@ -395,7 +396,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         if (options.isAntiAlias())
             buffer.applyFxaa();
 
-        return GlintStage.forArmor(engine::tryResolveTexture, buffer, enchanted, glintMask);
+        return GlintStage.forArmor(engine.textures()::tryResolveTexture, buffer, enchanted, glintMask);
     }
 
     /**
@@ -424,7 +425,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 if (slotPart == part) { partInSlot = true; break; }
             if (!partInSlot) continue;
 
-            ArmorKit.compositeSlot2D(target, part, slot, piece.get(), x, y, w, h, engine, glintMask);
+            ArmorKit.compositeSlot2D(target, part, slot, piece.get(), x, y, w, h, engine.textures(), glintMask);
         }
     }
 
@@ -449,7 +450,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            IsometricEngine engine = IsometricEngine.forPlayerIcon(this.parent.context);
+            ModelEngine engine = new ModelEngine(this.parent.context, Camera.forPlayerIcon());
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
@@ -466,7 +467,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 bp.put(SkinFace.HEAD, new Vector3f[]{ SKULL_HEAD_MIN, SKULL_HEAD_MAX });
                 sink.addAll(ArmorKit.buildHumanoidArmor3D(bp,
                     options.getHelmet(), options.getChestplate(),
-                    options.getLeggings(), options.getBoots(), engine));
+                    options.getLeggings(), options.getBoots(), engine.textures()));
             });
 
             for (GeometryLayer layer : options.getGeometryLayerDecorator().apply(stack).ordered())
@@ -494,7 +495,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            IsometricEngine engine = IsometricEngine.forPlayerIcon(this.parent.context);
+            ModelEngine engine = new ModelEngine(this.parent.context, Camera.forPlayerIcon());
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
@@ -512,7 +513,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 bp.put(SkinFace.LEFT_ARM, new Vector3f[]{ BUST_L_ARM_MIN, BUST_L_ARM_MAX });
                 sink.addAll(ArmorKit.buildHumanoidArmor3D(bp,
                     options.getHelmet(), options.getChestplate(),
-                    options.getLeggings(), options.getBoots(), engine));
+                    options.getLeggings(), options.getBoots(), engine.textures()));
             });
             resolveCape(this.parent, options)
                 .ifPresent(cape -> stack.append(PlayerOptions.Slot3D.CAPE,
@@ -543,7 +544,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            IsometricEngine engine = IsometricEngine.forPlayerIcon(this.parent.context);
+            ModelEngine engine = new ModelEngine(this.parent.context, Camera.forPlayerIcon());
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
@@ -565,7 +566,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 bp.put(SkinFace.LEFT_LEG, new Vector3f[]{ FULL_L_LEG_MIN, FULL_L_LEG_MAX });
                 sink.addAll(ArmorKit.buildHumanoidArmor3D(bp,
                     options.getHelmet(), options.getChestplate(),
-                    options.getLeggings(), options.getBoots(), engine));
+                    options.getLeggings(), options.getBoots(), engine.textures()));
             });
             resolveCape(this.parent, options)
                 .ifPresent(cape -> stack.append(PlayerOptions.Slot3D.CAPE,
@@ -585,7 +586,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * then composites the armor glint. Shared by all three 3D sub-renderers.
      */
     private static @NotNull ImageData rasterize3D(
-        @NotNull IsometricEngine engine,
+        @NotNull ModelEngine engine,
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PlayerOptions options
     ) {
@@ -596,7 +597,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         // foil is confined to the armor (not the bare body) after the SSAA blit.
         return FinalizeStage.run(size, size, ssaa, options.isAntiAlias(), enchanted,
             (target, mask) -> engine.rasterizeFitted(triangles, target, PerspectiveParams.NONE, options.getRotation(), PLAYER_FILL, mask),
-            (buffer, mask) -> GlintStage.forArmor(engine::tryResolveTexture, buffer, enchanted, mask));
+            (buffer, mask) -> GlintStage.forArmor(engine.textures()::tryResolveTexture, buffer, enchanted, mask));
     }
 
     /**

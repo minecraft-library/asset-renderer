@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.is;
 
 /**
  * Regression coverage for frame-parallel {@link FluidRenderer} animation baking. Each animation
- * tick owns its own RasterEngine / IsometricEngine / PixelBuffer so parallel execution must
+ * tick owns its own RasterEngine / ModelEngine / PixelBuffer so parallel execution must
  * produce bytes identical to the serial path. Pinning a CRC32 per frame index guards against
  * silent rasterization drift from a future refactor.
  * <p>

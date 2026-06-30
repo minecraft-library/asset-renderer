@@ -4,10 +4,10 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.engine.RenderEngine;
-import lib.minecraft.renderer.compose.FrameCompositor;
-import lib.minecraft.renderer.compose.FrameLayer;
-import lib.minecraft.renderer.compose.FramePlacement;
+import lib.minecraft.renderer.engine.compose.FrameCompositor;
+import lib.minecraft.renderer.engine.compose.FrameLayer;
+import lib.minecraft.renderer.engine.compose.FramePlacement;
+import lib.minecraft.renderer.engine.compose.Frames;
 import lib.minecraft.renderer.options.GridOptions;
 import org.jetbrains.annotations.NotNull;
 
@@ -70,7 +70,7 @@ public final class GridRenderer implements Renderer<GridOptions> {
             placements.parallelStream().forEach(placement ->
                 buffer.blitScaled(placement.source().toPixelBuffer(), placement.x(), placement.y(), cellSize, cellSize));
 
-            return RenderEngine.staticFrame(buffer);
+            return Frames.staticFrame(buffer);
         }
 
         return FrameCompositor.merge(placements, canvasW, canvasH, DEFAULT_FRAME_FPS, options.getBackground());

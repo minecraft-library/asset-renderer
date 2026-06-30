@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.geometry;
 
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.kit.BlockGeometryKit;
+import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.AccessLevel;

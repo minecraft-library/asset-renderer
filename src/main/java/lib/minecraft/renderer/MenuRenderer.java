@@ -8,13 +8,13 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.data.StaticImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.engine.compose.FrameCompositor;
+import lib.minecraft.renderer.engine.compose.FrameLayer;
+import lib.minecraft.renderer.engine.compose.FramePlacement;
+import lib.minecraft.renderer.engine.compose.Frames;
+import lib.minecraft.renderer.engine.kit.TextKit;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.compose.FrameCompositor;
-import lib.minecraft.renderer.compose.FrameLayer;
-import lib.minecraft.renderer.compose.FramePlacement;
-import lib.minecraft.renderer.kit.TextKit;
 import lib.minecraft.renderer.options.BlockOptions;
 import lib.minecraft.renderer.options.ItemOptions;
 import lib.minecraft.renderer.options.MenuOptions;
@@ -173,7 +173,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             for (FramePlacement placement : placements)
                 buffer.blit(placement.source().toPixelBuffer(), placement.x(), placement.y());
 
-            return RenderEngine.staticFrame(buffer);
+            return Frames.staticFrame(buffer);
         }
 
         return FrameCompositor.merge(placements, canvasW, canvasH, options.getFramesPerSecond(), Background.TRANSPARENT);
@@ -503,7 +503,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         }
 
         int delayMs = Math.max(1, Math.round(1000f / options.getFramesPerSecond()));
-        return RenderEngine.wrapFrames(frames, delayMs);
+        return Frames.wrapFrames(frames, delayMs);
     }
 
     private static boolean hasTitleObfuscation(@NotNull LineSegment line) {

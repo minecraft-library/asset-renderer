@@ -5,8 +5,8 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.GridRenderer;
-import lib.minecraft.renderer.compose.FrameCompositor;
-import lib.minecraft.renderer.compose.FrameLayer;
+import lib.minecraft.renderer.engine.compose.FrameCompositor;
+import lib.minecraft.renderer.engine.compose.FrameLayer;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -24,7 +24,7 @@ import java.util.function.UnaryOperator;
  * {@link FrameCompositor FrameCompositor}.
  *
  * @see lib.minecraft.renderer.GridRenderer
- * @see lib.minecraft.renderer.compose.FrameCompositor
+ * @see lib.minecraft.renderer.engine.compose.FrameCompositor
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)

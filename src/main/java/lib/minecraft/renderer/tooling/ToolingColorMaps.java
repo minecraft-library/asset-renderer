@@ -7,7 +7,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.ColorMap;
-import lib.minecraft.renderer.engine.TextureEngine;
+import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.exception.ToolingException;
 import lib.minecraft.renderer.pipeline.Pipeline;
@@ -105,7 +105,7 @@ public final class ToolingColorMaps {
      * <p>
      * Each colormap is a 256x256 indexed lookup table sampled at {@code (temperature, downfall)}.
      * The parser stores the raw ARGB pixels as a packed big-endian byte array on the entity so the
-     * downstream {@link TextureEngine#sampleBiomeTint} path
+     * downstream {@link Textures#sampleBiomeTint} path
      * can round-trip via {@link ByteBuffer#asIntBuffer()}. The output is consumed by the
      * {@code generateColorMaps} Gradle task, which serialises the pixel data as Base64 into the
      * bundled {@code /lib/minecraft/renderer/color_maps.json} resource for runtime use by

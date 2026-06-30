@@ -5,11 +5,11 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.compose.ImageLayer;
-import lib.minecraft.renderer.compose.LayerStack;
-import lib.minecraft.renderer.engine.RenderEngine;
-import lib.minecraft.renderer.kit.ObfuscationKit;
-import lib.minecraft.renderer.kit.TextKit;
+import lib.minecraft.renderer.engine.compose.Frames;
+import lib.minecraft.renderer.engine.compose.ImageLayer;
+import lib.minecraft.renderer.engine.compose.LayerStack;
+import lib.minecraft.renderer.engine.kit.ObfuscationKit;
+import lib.minecraft.renderer.engine.kit.TextKit;
 import lib.minecraft.renderer.options.TextOptions;
 import lib.minecraft.text.ChatColor;
 import lib.minecraft.text.ColorSegment;
@@ -70,7 +70,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
     @Override
     public @NotNull ImageData render(@NotNull TextOptions options) {
         if (options.getLines().isEmpty())
-            return RenderEngine.wrapFrames(singleFrame(1, 1, ColorMath.TRANSPARENT), 0);
+            return Frames.wrapFrames(singleFrame(1, 1, ColorMath.TRANSPARENT), 0);
 
         boolean isLore = options.getStyle() == TextOptions.Style.LORE;
         boolean animated = hasObfuscation(options.getLines());
@@ -87,14 +87,14 @@ public final class TextRenderer implements Renderer<TextOptions> {
         int canvasHMcPx = linesHeightMcPx + padMcPx * 2 + loreGapMcPx;
 
         if (!animated)
-            return RenderEngine.wrapFrames(drawSingleFrame(options, canvasWMcPx, canvasHMcPx, 0L), 0);
+            return Frames.wrapFrames(drawSingleFrame(options, canvasWMcPx, canvasHMcPx, 0L), 0);
 
         ConcurrentList<PixelBuffer> frames = Concurrent.newList();
         for (int frameIndex = 0; frameIndex < options.getFrameCount(); frameIndex++)
             frames.addAll(drawSingleFrame(options, canvasWMcPx, canvasHMcPx, frameIndex));
 
         int delayMs = Math.max(1, Math.round(1000f / options.getFramesPerSecond()));
-        return RenderEngine.wrapFrames(frames, delayMs);
+        return Frames.wrapFrames(frames, delayMs);
     }
 
     private static @NotNull ConcurrentList<PixelBuffer> drawSingleFrame(

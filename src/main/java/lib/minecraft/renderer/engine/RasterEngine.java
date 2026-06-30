@@ -4,14 +4,15 @@ import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.TextRenderer;
+import lib.minecraft.renderer.engine.texture.Textures;
 import org.jetbrains.annotations.NotNull;
 
 /**
  * A 2D raster drawing engine for renderers that compose pixels into a flat output buffer
  * without going through the {@link ModelEngine} triangle rasterizer.
  *
- * <p>Extends {@link TextureEngine} so every 2D renderer inherits pack-aware texture
- * resolution alongside its allocation and blit helpers. Used by:
+ * <p>Holds a {@link Textures} so every 2D renderer gets pack-aware texture resolution
+ * (via {@link #textures()}) alongside its allocation and blit helpers. Used by:
  * <ul>
  *   <li>{@link MenuRenderer MenuRenderer} - inventory chrome and slot
  *       backgrounds.</li>
@@ -28,10 +29,12 @@ import org.jetbrains.annotations.NotNull;
  *       at a destination rectangle, optionally tinted through a {@link BlendMode}.</li>
  * </ul>
  *
- * @see TextureEngine
+ * @see Textures
  * @see ModelEngine
  */
-public class RasterEngine extends TextureEngine {
+public class RasterEngine {
+
+    private final @NotNull Textures textures;
 
     /**
      * Constructs a raster engine bound to the given context.
@@ -39,7 +42,16 @@ public class RasterEngine extends TextureEngine {
      * @param context the renderer context
      */
     public RasterEngine(@NotNull RendererContext context) {
-        super(context);
+        this.textures = new Textures(context);
+    }
+
+    /**
+     * The pack-aware texture-resolution service bound to this engine's context.
+     *
+     * @return the texture service
+     */
+    public @NotNull Textures textures() {
+        return this.textures;
     }
 
     /**
@@ -79,7 +91,7 @@ public class RasterEngine extends TextureEngine {
      * @param dh the destination height
      */
     public void drawTexture(@NotNull String textureId, @NotNull PixelBuffer target, int dx, int dy, int dw, int dh) {
-        target.blitScaled(this.resolveTexture(textureId), dx, dy, dw, dh);
+        target.blitScaled(this.textures.resolveTexture(textureId), dx, dy, dw, dh);
     }
 
     /**
@@ -101,7 +113,7 @@ public class RasterEngine extends TextureEngine {
         int argbTint,
         @NotNull BlendMode mode
     ) {
-        target.blitTinted(this.resolveTexture(textureId), dx, dy, argbTint, mode);
+        target.blitTinted(this.textures.resolveTexture(textureId), dx, dy, argbTint, mode);
     }
 
 }

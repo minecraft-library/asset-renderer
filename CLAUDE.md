@@ -52,7 +52,7 @@ The sibling [vanilla-reference-harness] drives the actual MC client to render ev
 - Entities: `EulerRotation.STANDARD_ISO_ENTITY = (210°, 45°, 0°)` matching harness's `EntityFrameRenderer.ISO_ROTATION = rotationXYZ(210°, 45°, 0°)`.
 - Blocks: `EulerRotation.STANDARD_ISO_BLOCK = (30°, 225°, 0°)` - distinct from entity iso on purpose.
 - Entity iso transform chain has `det=-1` (chirality fix); 5 coupled invariants pinned together: iso constant, engine camera chain, kit emission winding, plane-cube culling, canvas-sizing helpers. The foundation test's "cross OPPOSES stored normal" invariant guards against accidental re-flipping.
-- DO NOT touch `composeIsoTransform` / `IsometricEngine.buildEntityCameraTransform`. Rotation-order swap is math-proven equivalent and an empirical retry regressed piglin 10.27 -> 184.34.
+- DO NOT touch `composeIsoTransform` / `Camera.entityIsoChain` (the shared entity iso prefix). Rotation-order swap is math-proven equivalent and an empirical retry regressed piglin 10.27 -> 184.34.
 
 ### JOML factory conventions (load-bearing)
 JOML's `Quaternionf` has two Tait-Bryan factories with OPPOSITE application order. Vanilla uses both:
@@ -66,14 +66,14 @@ The factory NAME orders the quaternion product; application order to `v` is REVE
 
 Row-form equivalents (this codebase's `v_row × M`; `Matrix4f.createRotationX(θ)` produces a visual `+θ` X-rotation):
 - **Bone rotations** (`rotationZYX`, X-first): `createRotationX(pitch).multiply(createRotationY(yaw)).multiply(createRotationZ(roll))` - locked in `EntityGeometryKitJava.pivotCenteredRotation`.
-- **GUI display poses** (`rotationXYZ`, Z-first): `createRotationZ(roll).multiply(createRotationY(yaw)).multiply(createRotationX(pitch))` - used by `IsometricEngine.buildGuiDisplayTransform`.
+- **GUI display poses** (`rotationXYZ`, Z-first): `createRotationZ(roll).multiply(createRotationY(yaw)).multiply(createRotationX(pitch))` - used by `Camera`'s `display.*` pose builder (`forBlockIcon` / `withGuiPose`).
 
 ### Foundation invariants (locked by unit test)
-`EntityGeometryKitJavaTest` pins seven invariants on a single-bone single-cube fixture. The load-bearing one is **emit-order cross product ⋅ stored normal > 0**: triangles must be wound so their geometric normal agrees with the stored normal, camera- and projection-independent. Catches: removing/adding kit `FLIP_Y` without updating winding-reversal; changing UV-permutation arrays without UP↔DOWN face swap; breaking the atlas layout coefficients in `EntityFace.defaultUv`.
+`EntityGeometryKitTest` pins seven invariants on a single-bone single-cube fixture. The load-bearing one is **emit-order cross product ⋅ stored normal > 0**: triangles must be wound so their geometric normal agrees with the stored normal, camera- and projection-independent. Catches: removing/adding kit `FLIP_Y` without updating winding-reversal; changing UV-permutation arrays without UP↔DOWN face swap; breaking the atlas layout coefficients in `EntityFace.defaultUv`.
 
 Run before/after any kit refactor:
 ```
-./gradlew test --tests "lib.minecraft.renderer.kit.EntityGeometryKitJavaTest"
+./gradlew test --tests "lib.minecraft.renderer.engine.kit.EntityGeometryKitTest"
 ```
 
 ### Parity test entry points

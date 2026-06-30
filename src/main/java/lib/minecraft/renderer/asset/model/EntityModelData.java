@@ -6,9 +6,9 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentLinkedMap;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
 import lib.minecraft.renderer.geometry.BlockFace;
 import lib.minecraft.renderer.geometry.EulerRotation;
-import lib.minecraft.renderer.kit.EntityGeometryKit;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.AllArgsConstructor;
@@ -149,7 +149,7 @@ public class EntityModelData {
          * resolution (cube UV regions stay tied to the authored {@code size} value), matching
          * vanilla's per-vertex scale semantics.
          *
-         * @see lib.minecraft.renderer.kit.EntityGeometryKit
+         * @see lib.minecraft.renderer.engine.kit.EntityGeometryKit
          */
         private float scale = 1f;
 
