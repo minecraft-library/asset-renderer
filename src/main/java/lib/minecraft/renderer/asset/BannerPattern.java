@@ -10,7 +10,7 @@ import org.jetbrains.annotations.NotNull;
  * path differs.
  * <p>
  * Banner composition is a stack of {@link BannerLayer layers}, each binding this pattern to a
- * {@link DyeColor}; the renderer paints a dye-coloured base and blits each pattern's grayscale
+ * {@code DyeColor}; the renderer paints a dye-coloured base and blits each pattern's grayscale
  * mask on top tinted with the layer's colour.
  *
  * @param id the pattern registry id (e.g. {@code "minecraft:base"}, {@code "minecraft:creeper"})

@@ -17,7 +17,14 @@
  *       material atlas, trim slot / colour / pattern, and the composed per-slot piece.</li>
  *   <li>{@link lib.minecraft.renderer.request.BannerLayer BannerLayer} - one banner / shield layer
  *       pairing a {@link lib.minecraft.renderer.asset.BannerPattern BannerPattern} with a
- *       {@link lib.minecraft.renderer.asset.DyeColor DyeColor}.</li>
+ *       {@link lib.minecraft.renderer.request.DyeColor DyeColor}.</li>
+ *   <li>{@link lib.minecraft.renderer.request.DyeColor DyeColor} - the sixteen vanilla dyes plus
+ *       arbitrary custom ARGB; drives banner / shield tinting, wool / leather dye, and block tint
+ *       constants.</li>
+ *   <li>{@link lib.minecraft.renderer.request.Biome Biome} - biome identity (temperature, downfall,
+ *       colour overrides, grass modifier) the caller supplies to resolve grass / foliage / water
+ *       tints. The parsed colormap-selection metadata lives separately as
+ *       {@link lib.minecraft.renderer.asset.Block.TintTarget Block.TintTarget}.</li>
  * </ul>
  */
 package lib.minecraft.renderer.request;

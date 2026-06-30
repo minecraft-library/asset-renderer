@@ -4,12 +4,12 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.DiffType;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.BlockRenderer;
-import lib.minecraft.renderer.asset.Biome;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.options.BlockOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
+import lib.minecraft.renderer.request.Biome;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
