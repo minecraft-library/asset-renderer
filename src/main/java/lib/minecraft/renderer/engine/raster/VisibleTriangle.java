@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.geometry;
+package lib.minecraft.renderer.engine.raster;
 
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.tensor.Vector2f;

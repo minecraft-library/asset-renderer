@@ -1,8 +1,8 @@
 package lib.minecraft.renderer.engine.compose;
 
 import dev.simplified.collection.ConcurrentList;
-import lib.minecraft.renderer.geometry.SurfaceTraits;
-import lib.minecraft.renderer.geometry.VisibleTriangle;
+import lib.minecraft.renderer.engine.raster.SurfaceTraits;
+import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import org.jetbrains.annotations.NotNull;
 
 /**

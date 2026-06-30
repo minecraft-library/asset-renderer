@@ -2,7 +2,7 @@ package lib.minecraft.renderer.engine.compose;
 
 import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelBufferPool;
-import lib.minecraft.renderer.engine.GlintMask;
+import lib.minecraft.renderer.engine.raster.GlintMask;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

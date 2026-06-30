@@ -29,11 +29,15 @@
  *       ({@code Shading}).</li>
  *   <li>{@link lib.minecraft.renderer.engine.texture.Textures texture} - the pack-aware texture
  *       resolution service each engine holds (and vends via {@code textures()}).</li>
+ *   <li>{@link lib.minecraft.renderer.engine.raster raster} - the rasterizer's draw-list IR
+ *       ({@code VisibleTriangle} / {@code SurfaceTraits}), the 2D coverage math
+ *       ({@code RasterMath}), and the glint coverage mask.</li>
  * </ul>
  * Camera-to-screen projection ({@link lib.minecraft.renderer.engine.camera.Projection Projection})
- * sits with {@code Camera} in the camera subpackage; the 2D coverage math stays in
- * {@link lib.minecraft.renderer.geometry.RasterMath geometry}; frame-building lives with the post
- * stages in {@link lib.minecraft.renderer.engine.compose compose}.
+ * sits with {@code Camera} in the camera subpackage; the general geometric primitives
+ * (face enums, {@code Box}, {@code EulerRotation}) stay in
+ * {@link lib.minecraft.renderer.geometry geometry}; frame-building lives with the post stages in
+ * {@link lib.minecraft.renderer.engine.compose compose}.
  *
  * <p><b>Resource-provider port.</b>
  * {@link lib.minecraft.renderer.engine.RendererContext RendererContext} is the read-only view of
@@ -63,6 +67,6 @@
  *
  * @see lib.minecraft.renderer.engine.ModelEngine
  * @see lib.minecraft.renderer.engine.RendererContext
- * @see lib.minecraft.renderer.geometry.RasterMath
+ * @see lib.minecraft.renderer.engine.raster.RasterMath
  */
 package lib.minecraft.renderer.engine;

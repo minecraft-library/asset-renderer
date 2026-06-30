@@ -60,7 +60,7 @@ import java.util.Map;
  * clamped) rather than a per-face constant. This enum therefore deliberately does <b>not</b>
  * carry a {@code lighting} scalar - shading is computed per-vertex from the surface normal in
  * {@link Lighting#entityInUi}, baked into each
- * triangle's {@link VisibleTriangle#shading} field at kit time, and the rasterizer applies it
+ * triangle's {@code VisibleTriangle#shading} field at kit time, and the rasterizer applies it
  * directly without a second per-face lookup. Compare {@link BlockFace#lighting} which carries the
  * {@code Lighting.ITEMS_3D} per-face approximation suitable for block inventory icons.
  */

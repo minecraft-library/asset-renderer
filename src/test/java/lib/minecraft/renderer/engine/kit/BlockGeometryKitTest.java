@@ -6,7 +6,7 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
-import lib.minecraft.renderer.geometry.VisibleTriangle;
+import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.tensor.Vector4f;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

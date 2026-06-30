@@ -8,7 +8,7 @@
  * points. Two layer kinds exist:
  * <ul>
  *   <li>{@link lib.minecraft.renderer.engine.compose.GeometryLayer GeometryLayer} - contributes
- *       {@link lib.minecraft.renderer.geometry.VisibleTriangle triangles} to one shared sink that
+ *       {@link lib.minecraft.renderer.engine.raster.VisibleTriangle triangles} to one shared sink that
  *       rasterizes in a single depth pass. Emission order is load-bearing (depth tie-break,
  *       translucent sort, emissive depth-skip). Per-render state travels via
  *       {@link lib.minecraft.renderer.engine.compose.SceneContext SceneContext}.</li>

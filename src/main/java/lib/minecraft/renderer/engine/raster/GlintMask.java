@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.engine;
+package lib.minecraft.renderer.engine.raster;
 
 import org.jetbrains.annotations.NotNull;
 

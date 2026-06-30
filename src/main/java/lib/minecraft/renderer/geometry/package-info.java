@@ -1,9 +1,10 @@
 /**
- * Geometric primitives and the 2D triangle-rasterization math used by every kit and engine in the
- * module. Camera-to-screen projection lives on {@code engine.camera.Projection}; lighting and
- * shading live under {@link lib.minecraft.renderer.engine.light the engine.light package}. This
- * package stays free of engine state so kit code, tooling, and tests can reuse the math without
- * dragging in {@code RendererContext}.
+ * The shared geometric primitives every layer reuses - the face-unwrap enums plus the {@code Box}
+ * and {@code EulerRotation} value types that {@code options}, {@code asset}, {@code tooling}, and
+ * the renderers all bind. This package stays free of engine state (no {@code RendererContext}, no
+ * rasterizer dependency) so kit code, tooling, and tests reuse it freely. The engine-specific pieces
+ * live elsewhere: camera-to-screen projection on {@code engine.camera.Projection}, the draw-list IR
+ * and 2D coverage math under {@code engine.raster}, lighting / shading under {@code engine.light}.
  *
  * <p><b>Face enums.</b> Three distinct enums cover the three contexts in which a Minecraft
  * asset cube is unwrapped. Each one carries the per-face data the corresponding kit needs
@@ -26,13 +27,8 @@
  *       face-keyed tables.</li>
  * </ul>
  *
- * <p><b>Primitive math.</b>
+ * <p><b>Primitives.</b>
  * <ul>
- *   <li>{@link lib.minecraft.renderer.geometry.RasterMath RasterMath} - 2D rasterization math:
- *       barycentric coordinates, signed triangle areas, the {@code 1/256} fixed-point sub-pixel
- *       sample grid, and the {@code EdgeCoefficients} record that drives Pineda incremental
- *       edge functions in the {@link lib.minecraft.renderer.engine.ModelEngine ModelEngine}
- *       inner loop.</li>
  *   <li>{@link lib.minecraft.renderer.geometry.Box Box} - immutable axis-aligned bounding box,
  *       replacement for the ad-hoc {@code (Vector3f min, Vector3f max)} pairs that previously
  *       lived in several packages. Carries point-list AABB fitting and box arithmetic.</li>
@@ -43,16 +39,7 @@
  *       matrices.</li>
  * </ul>
  *
- * <p><b>Triangle record.</b>
- * {@link lib.minecraft.renderer.geometry.VisibleTriangle VisibleTriangle} is the single
- * record every {@link lib.minecraft.renderer.engine.kit kit} emits and every
- * {@link lib.minecraft.renderer.engine.ModelEngine ModelEngine} consumes - vertex positions,
- * UV coordinates, source texture, tint, normal, shading scalar, plus three behavior flags
- * ({@code cullBackFaces}, {@code emissive}, {@code translucent}) and an optional
- * {@code debugTag} for per-pixel trace dumps.
- *
- * @see lib.minecraft.renderer.geometry.VisibleTriangle
- * @see lib.minecraft.renderer.geometry.RasterMath
- * @see lib.minecraft.renderer.engine.light.Lighting
+ * @see lib.minecraft.renderer.geometry.Box
+ * @see lib.minecraft.renderer.geometry.EulerRotation
  */
 package lib.minecraft.renderer.geometry;
