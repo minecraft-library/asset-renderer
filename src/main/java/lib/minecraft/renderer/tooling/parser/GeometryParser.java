@@ -7,15 +7,16 @@ import com.google.gson.JsonPrimitive;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.EntityModelData.Bone;
 import lib.minecraft.renderer.asset.model.EntityModelData.Cube;
+import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.exception.ToolingException;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tooling.blockentity.Source;
 import lib.minecraft.renderer.tooling.blockentity.YAxis;
+import lib.minecraft.renderer.tooling.entity.EntityLayerDefinitionResolver;
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lib.minecraft.renderer.tooling.util.FastTrig;
@@ -323,8 +324,7 @@ public final class GeometryParser {
      * Resolves a static {@code MeshTransformer} field whose {@code <clinit>} initialises it
      * via an {@code invokedynamic apply -> lambda$static$N} pair to the underlying
      * {@code modifyMesh(PartDefinition)V} method the lambda invokes. This is the canonical
-     * vanilla pattern for transformers that mutate a {@link
-     * net.minecraft.client.model.geom.builders.MeshDefinition} rather than wrap it with a
+     * vanilla pattern for transformers that mutate a {@code net.minecraft.client.model.geom.builders.MeshDefinition} rather than wrap it with a
      * uniform scale - {@code DonkeyModel.DONKEY_TRANSFORMER} is the only example in vanilla
      * 26.1: it appends taller ear bones and adds {@code left_chest} / {@code right_chest}
      * to the base AbstractEquineModel mesh before the per-renderer scale is applied.
@@ -399,7 +399,7 @@ public final class GeometryParser {
      * around the entity's feet anchor at {@code y=24.016 pixels} (= {@code 1.501 blocks * 16
      * px/block}, the LER chain's {@code translate(0, -1.501, 0)}) and multiplies the bone's
      * {@code PartPose.scale} field by F. Both halves land here together; the kit's
-     * {@link EntityGeometryKit#buildTriangles} consumes the
+     * {@code EntityGeometryKit#buildTriangles} consumes the
      * {@code scale} field to multiply local cube vertices by F at the pivot translate, which
      * is algebraically equivalent to vanilla's per-vertex {@code poseStack.scale(F)} call
      * sitting AFTER the pivot translate and BEFORE the cube render.
@@ -2522,8 +2522,7 @@ public final class GeometryParser {
     /**
      * Parent lookup data: the bone's pivot, scale, and accumulated rotation in
      * world-flattened form. The rotation matrix carries the entire parent-chain composition
-     * (Z * Y * X applied right-to-left, matching {@link
-     * net.minecraft.client.model.geom.PartPose}'s convention) so child bones can rotate
+     * (Z * Y * X applied right-to-left, matching {@code net.minecraft.client.model.geom.PartPose}'s convention) so child bones can rotate
      * their local pivots into the parent's frame before adding the parent's translation.
      * Legacy literal-stack walkers never set a non-identity rotation on a bone with
      * children, so {@code rotMatrix} stays identity and the math collapses to the legacy
@@ -2579,8 +2578,7 @@ public final class GeometryParser {
     /**
      * Builds a column-vector rotation matrix from Euler angles in degrees, applied as
      * {@code R = Rz(roll) * Ry(yaw) * Rx(pitch)} - the same Z * Y * X order vanilla Java's
-     * {@code Matrix4f.rotateZYX} uses for {@link
-     * net.minecraft.client.model.geom.PartPose#offsetAndRotation PartPose.offsetAndRotation}.
+     * {@code Matrix4f.rotateZYX} uses for {@code PartPose.offsetAndRotation}.
      * Input array is {@code [pitch_deg, yaw_deg, roll_deg]}. Routes through
      * {@link Quaternionf#rotationZYX} so the result is bit-identical to vanilla's
      * quaternion-derived rotation matrix.

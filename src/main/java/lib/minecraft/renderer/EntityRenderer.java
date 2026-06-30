@@ -462,8 +462,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
     /**
      * Unions the screen-space bounds of the base entity model with each non-empty entity-model
-     * overlay. Vanilla's family-fit pre-pass walks every {@link
-     * net.minecraft.client.renderer.entity.layers.RenderLayer}'s {@code EntityModel}-typed field
+     * overlay. Vanilla's family-fit pre-pass walks every {@code net.minecraft.client.renderer.entity.layers.RenderLayer}'s {@code EntityModel}-typed field
      * through the same pose stack as the primary model and expands the bounds. Mirrors
      * {@code EntityFrameRenderer.walkLayerExtents} in the vanilla-reference-harness.
      * <p>

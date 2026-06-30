@@ -70,7 +70,7 @@ public class EntityGeometryKit {
      * live in (after {@link Vector3f#transformNormal(Vector3f, Matrix4f)} and the kit's
      * matching Y-flip on normals).
      * <p>
-     * Used by {@link #computeViewAlignedShade} to pick front-vs-back PER_FACE_LIGHTING shade
+     * Used to pick front-vs-back PER_FACE_LIGHTING shade
      * for plane no-cull cubes. {@code dot(VIEW_DIRECTION_KIT, n_kit) < 0} means the polygon's
      * outward normal points TOWARD the camera (front-facing per vanilla's
      * {@code gl_FrontFacing}); {@code >= 0} means it points AWAY (back-facing).
@@ -651,7 +651,7 @@ public class EntityGeometryKit {
      * Native-resolution variant taking an explicit model-space centre anchor. Used by
      * {@link EntityRenderer} so block overlays composite at the
      * same silhouette-centred frame the entity body uses (the
-     * {@link #buildTriangles(EntityModelData, PixelBuffer, Vector3f, boolean, float, float)
+     * {@link #buildTriangles(EntityModelData, PixelBuffer, Vector3f, boolean, float, float, int)
      * Vector3f overload} above).
      */
     public static @NotNull Matrix4f buildEntityFitMatrix(@NotNull Vector3f modelCentre, float ndcScale) {

@@ -217,7 +217,7 @@ public final class BlockListDiscovery {
 
     /**
      * Walks {@code Blocks.<clinit>} for every {@code BlockEntityType.BANNER} validBlocks entry
-     * and resolves the {@link net.minecraft.world.item.DyeColor} constructor argument each
+     * and resolves the {@code net.minecraft.world.item.DyeColor} constructor argument each
      * banner / wall-banner registration lambda passes to {@code (Wall)BannerBlock.<init>}. The
      * returned map keys on the lowercase block id ({@code "minecraft:red_banner"}) and values
      * are the uppercase {@code DyeColor} field name ({@code "RED"}), matching the inventory tint
@@ -246,14 +246,14 @@ public final class BlockListDiscovery {
      * Walks {@code BlockEntityType.<clinit>} and returns the ordered list of
      * {@code Blocks.<field>} names bound to the supplied BE-field's {@code validBlocks}
      * argument. Recognises the shape:
-     * <pre>
+     * <pre>{@code
      *   ldc "chest"                                  // <- start of the BE type's init block
      *   ... builder ops ...
      *   getstatic Blocks.CHEST                       // <- validBlocks[0]
      *   getstatic Blocks.COPPER_CHEST                // <- validBlocks[1]
      *   ... up to N GETSTATICs ...
      *   putstatic BlockEntityType.CHEST              // <- binds everything to the field
-     * </pre>
+     * }</pre>
      *
      * <p>The walk is bounded by the most recent {@code LDC "id"} (which starts this BE type's
      * init block) and the subsequent {@code PUTSTATIC BlockEntityType.<beField>} (which ends
@@ -728,7 +728,7 @@ public final class BlockListDiscovery {
     /**
      * Walks {@code CopperGolemOxidationLevels.<clinit>} for the
      * {@code (WeatherStateField -> texture-path)} pairs. The shape per binding is:
-     * <pre>
+     * <pre>{@code
      *   new CopperGolemOxidationLevel; dup; ...sounds...;
      *       ldc "textures/entity/copper_golem/copper_golem.png";
      *       invokestatic Identifier.withDefaultNamespace;
@@ -736,7 +736,7 @@ public final class BlockListDiscovery {
      *       invokestatic ...;
      *       invokespecial <init>;
      *       putstatic UNAFFECTED
-     * </pre>
+     * }</pre>
      * We capture the FIRST {@code LDC} string between each {@code NEW} and {@code PUTSTATIC}
      * (the body texture), strip the {@code textures/} prefix + {@code .png} suffix, and bind it
      * to the {@code PUTSTATIC} field name.

@@ -22,11 +22,10 @@ import java.util.HashMap;
  * {@code /lib/minecraft/renderer/color_maps.json} classpath resource.
  * <p>
  * The JSON is produced by the {@code generateColorMaps} Gradle task via
- * {@link ToolingColorMaps.Parser}, which reads the vanilla colormap PNGs and encodes their raw ARGB
+ * {@code ToolingColorMaps.Parser}, which reads the vanilla colormap PNGs and encodes their raw ARGB
  * pixels as Base64. This loader decodes the pixels at runtime so the renderer can sample biome
  * tint colors without needing the original PNG files.
  *
- * @see ToolingColorMaps.Parser
  * @see ColorMap
  */
 @UtilityClass

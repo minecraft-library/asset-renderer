@@ -25,7 +25,7 @@ import java.util.HashMap;
  * <p>
  * The JSON resource is a checked-in snapshot of MC 26.1's
  * {@code net.minecraft.world.effect.MobEffects} static initializer as parsed by
- * {@link ToolingPotionColors.Parser}. To refresh it on a Minecraft version bump, run the
+ * {@code ToolingPotionColors.Parser}. To refresh it on a Minecraft version bump, run the
  * {@code potionColors} Gradle task; the runtime pipeline never invokes the ASM walker directly.
  * <p>
  * Colours are stored as {@code 0x}-prefixed hex strings in the JSON because Gson cannot

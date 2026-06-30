@@ -51,7 +51,7 @@ import java.util.zip.ZipFile;
  *       from an {@code INVOKESTATIC} expression.</li>
  *   <li><b>Per-renderer layer reference scan</b> - for each registered renderer, scan every
  *       method (plus its superclass chain) for {@code GETSTATIC ModelLayers.<N>}. Each unique
- *       layer reference crosses the {@link #layerDefinitions} table to produce a Source.</li>
+ *       layer reference crosses the layer-definitions table to produce a Source.</li>
  * </ol>
  *
  * <p>Special handling:

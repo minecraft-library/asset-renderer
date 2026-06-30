@@ -37,7 +37,7 @@ import java.util.stream.IntStream;
  * <p>
  * Back-face culling uses a signed screen-space winding test after projection, which is robust
  * against camera and model rotations and does not depend on the per-triangle surface normal.
- * Individual triangles can opt out of culling by setting {@link VisibleTriangle#cullBackFaces()}
+ * Individual triangles can opt out of culling by setting {@link SurfaceTraits#cullBackFaces()}
  * to {@code false} - used for two-sided geometry such as glass panes, leaves, banners, and the
  * interior faces of beds and other non-convex blocks.
  */
@@ -175,7 +175,7 @@ public class ModelEngine {
     /**
      * As {@link #rasterize(ConcurrentList, PixelBuffer, Projection, EulerRotation)} but also
      * records a per-pixel {@link GlintMask}: each pixel whose winning fragment came from a
-     * {@link VisibleTriangle#glinted() glinted} triangle is marked, so the glint compositor can
+     * {@link SurfaceTraits#glinted() glinted} triangle is marked, so the glint compositor can
      * restrict the enchantment foil to that geometry. Pass {@code null} for the plain behaviour.
      *
      * @param triangles the triangle list
@@ -380,8 +380,8 @@ public class ModelEngine {
      * pixel (78,15) goes from (73,123,63,180) to (96,161,82,233) which lands within 1-7 channel
      * units of vanilla's (95,158,75,233). Slime delta 14.86 -> 0.09.
      * <p>
-     * Gates on {@link VisibleTriangle#translucent()} rather than {@link
-     * VisibleTriangle#cullBackFaces()} so alpha-cutout no-cull cubes (warden tendrils, mushroom
+     * Gates on {@link SurfaceTraits#translucent()} rather than {@link
+     * SurfaceTraits#cullBackFaces()} so alpha-cutout no-cull cubes (warden tendrils, mushroom
      * block-overlays whose texels are strictly alpha 0 or 255) stay in emission order. Sorting
      * those would shuffle a base/overlay coplanar pair non-deterministically because their
      * alpha-255 fragments depth-resolve on emission-order tie-break rather than a true blend.

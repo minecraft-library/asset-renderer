@@ -35,7 +35,7 @@ import java.util.function.UnaryOperator;
  *       pattern composite, armor trim palette permutation.</li>
  *   <li><b>3D held-item view</b> - the model rendered at the vanilla
  *       {@code display.thirdperson_righthand} pose (or a caller-supplied
- *       {@link #getRotation rotation}). Used by atlas tools and held-item previews.</li>
+ *       rotation). Used by atlas tools and held-item previews.</li>
  * </ul>
  *
  * <p><b>Vanilla-pattern composition.</b> Banner layers, armor trim, dye colour, and item

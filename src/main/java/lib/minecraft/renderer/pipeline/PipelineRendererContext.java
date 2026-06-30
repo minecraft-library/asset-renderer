@@ -53,7 +53,7 @@ import java.util.Optional;
  * unmodifiable indexes and serves lookups.
  * <p>
  * Biome colormaps and per-block tint targets are wired through to render time by
- * {@link ToolingColorMaps.Parser} and {@link BlockTintsLoader}; the lazy {@code textureCache} is
+ * {@code ToolingColorMaps.Parser} and {@link BlockTintsLoader}; the lazy {@code textureCache} is
  * the only mutable map on the context.
  */
 @RequiredArgsConstructor

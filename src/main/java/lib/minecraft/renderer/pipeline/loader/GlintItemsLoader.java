@@ -25,7 +25,7 @@ import java.util.HashSet;
  * <p>
  * The JSON resource is a checked-in snapshot of MC 26.1's
  * {@code net.minecraft.world.item.Items} static initializer as parsed by
- * {@link ToolingGlintItems.Parser} - the items registered with the default data component
+ * {@code ToolingGlintItems.Parser} - the items registered with the default data component
  * {@code minecraft:enchantment_glint_override = true}. To refresh it on a Minecraft version bump,
  * run the {@code glintItems} Gradle task; the runtime pipeline never invokes the ASM walker directly.
  * <p>

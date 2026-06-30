@@ -391,7 +391,7 @@ public class GlintKit {
      * alpha so the glint only shows where the item is opaque. Each opaque pixel samples the glint
      * texture through vanilla's UV transform {@code translation(-u, v) . rotateZ(theta) . scale(s)}
      * applied to the pixel-centre normalized icon coordinate, wrapping {@code GL_REPEAT}-style into
-     * the glint texture, then blends with the quadratic {@code GLINT} blend ({@link #blendGlint}).
+     * the glint texture, then blends with the quadratic {@code GLINT} blend.
      */
     private static void stampGlint(
         @NotNull PixelBuffer target,

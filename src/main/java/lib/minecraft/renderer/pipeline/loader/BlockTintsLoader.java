@@ -27,7 +27,7 @@ import java.util.Optional;
  * <p>
  * The JSON resource is a checked-in snapshot of MC 26.1's
  * {@code net.minecraft.client.color.block.BlockColors$createDefault()} as parsed by
- * {@link ToolingBlockTints.Parser}. To refresh it on a Minecraft version bump, run the
+ * {@code ToolingBlockTints.Parser}. To refresh it on a Minecraft version bump, run the
  * {@code generateBlockTints} Gradle task; the runtime pipeline never invokes the ASM walker
  * directly. Older Minecraft versions reuse the same 26.1 tint set - blocks that don't exist
  * in their era simply never match a lookup, which the renderer treats as untinted. The slight
@@ -38,7 +38,6 @@ import java.util.Optional;
  * round-trip {@code 0x80000000}-class signed integers literally. They round-trip via
  * {@link Integer#parseUnsignedInt(String, int)}.
  *
- * @see ToolingBlockTints.Parser
  * @see Block.Tint
  */
 @UtilityClass

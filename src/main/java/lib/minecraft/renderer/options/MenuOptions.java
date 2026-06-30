@@ -258,7 +258,7 @@ public class MenuOptions {
         private final int slotArgb;
 
         /**
-         * Default title-bar text ARGB when the caller does not override {@link MenuOptions#titleColor}.
+         * Default title-bar text ARGB for this theme.
          */
         private final int defaultTitleArgb;
 

@@ -9,7 +9,7 @@ import org.jetbrains.annotations.NotNull;
  * banners and shields share the same pattern registry and asset ids, only the texture atlas
  * path differs.
  * <p>
- * Banner composition is a stack of {@link BannerLayer layers}, each binding this pattern to a
+ * Banner composition is a stack of layers, each binding this pattern to a
  * {@code DyeColor}; the renderer paints a dye-coloured base and blits each pattern's grayscale
  * mask on top tinted with the layer's colour.
  *

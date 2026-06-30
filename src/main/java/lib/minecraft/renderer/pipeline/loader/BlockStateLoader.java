@@ -12,6 +12,7 @@ import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.pipeline.resolver.ModelResolver;
 import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
