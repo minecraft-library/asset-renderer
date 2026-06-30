@@ -136,7 +136,11 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
         }
 
         private @NotNull PixelBuffer renderFrame(@NotNull FluidOptions options, int tick) {
-            ModelEngine engine = new ModelEngine(this.context, options.getProjection().resolve(options.getHorizontalFacing(), options.getVerticalFacing()).camera());
+            // Resolve the projection once: the caller's rotation is composed onto the base pose, so it
+            // poses the camera directly and the rasterize call applies no separate model-spin. Default
+            // renders pass EulerRotation.NONE, leaving the byte-identical base block-icon pose.
+            var resolved = options.getProjection().resolve(options.getRotation());
+            ModelEngine engine = new ModelEngine(this.context, resolved.camera());
             Textures textures = new Textures(this.context);
             PixelBuffer still = textures.resolveTextureAtTick(stillTextureId(options.getFluid()), tick);
             PixelBuffer flow = textures.resolveTextureAtTick(flowTextureId(options.getFluid()), tick);
@@ -153,7 +157,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
 
             int ssaa = Math.max(1, options.getSupersample());
             return FinalizeStage.run(options.getOutputSize(), options.getOutputSize(), ssaa, options.isAntiAlias(), false,
-                (target, mask) -> engine.rasterize(triangles, target, options.getProjection().resolve(options.getHorizontalFacing(), options.getVerticalFacing()).flatten(), options.getRotation()),
+                (target, mask) -> engine.rasterize(triangles, target, resolved.flatten()),
                 (buffer, mask) -> buffer);
         }
 

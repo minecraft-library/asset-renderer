@@ -199,20 +199,6 @@ public class PlayerOptions {
     @lombok.Builder.Default
     private final @NotNull Projection projection = Projection.VANILLA_PLAYER;
 
-    /**
-     * Horizontal facing of the {@link #getProjection() projection}. Defaults to
-     * {@link Projection.Horizontal#RIGHT}.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Projection.Horizontal horizontalFacing = Projection.Horizontal.RIGHT;
-
-    /**
-     * Vertical facing of the {@link #getProjection() projection}. Defaults to
-     * {@link Projection.Vertical#DOWN}.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Projection.Vertical verticalFacing = Projection.Vertical.DOWN;
-
     public @NotNull PlayerOptionsBuilder mutate() {
         return this.toBuilder();
     }

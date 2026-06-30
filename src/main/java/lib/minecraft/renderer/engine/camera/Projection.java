@@ -7,21 +7,22 @@ import org.jetbrains.annotations.NotNull;
 /**
  * The graphical-projection taxonomy a caller selects per render - the consolidated front door to the
  * camera {@link Camera pose} and {@link Lens flatten}. Each constant bundles a canonical base pose
- * (pitch / yaw / roll for {@link Horizontal#RIGHT} / {@link Vertical#DOWN}) with its flatten family;
- * {@link #resolve} applies the requested facing and returns the pose-locked triple the renderers
- * consume.
+ * (pitch / yaw / roll) with its flatten family; {@link #resolve(EulerRotation)} composes the caller's
+ * rotation onto that base pose and returns the pose-locked triple the renderers consume.
  *
  * <p>The canonical members carry <b>correct textbook values</b> (true isometric, standard dimetric,
  * cabinet / cavalier / military, one / two / three point). The {@code VANILLA_*} members document the
  * <b>shipped hardcoded baseline</b> - they reproduce the current renders byte-for-byte and are the
- * defaults so existing output never changes; they short-circuit {@link #resolve} to the exact legacy
- * {@link Camera} / {@link Lens} objects and ignore facing.
+ * defaults so existing output never changes. Resolution is uniform for every member: routing the base
+ * pose through the {@link Camera#withGuiPose} {@code rotationXYZ} path reproduces the legacy cameras
+ * bit-for-bit, so an unrotated {@link #resolve()} on a {@code VANILLA_*} member yields the exact
+ * shipped {@link Camera} / {@link Lens} / lighting triple.
  *
  * <p>Three projection families map onto the pipeline as follows: <b>axonometric</b> (isometric /
  * dimetric / trimetric) = orthographic flatten + a pose; <b>perspective</b> (one / two / three point)
  * = perspective flatten + a pose (n = how many principal axes tilt off the view axis); <b>oblique</b>
- * (cavalier / cabinet / military) = a depth-shear flatten. Facing is a sign tweak on the pose's
- * yaw / pitch (and, for oblique, on the shear angle).
+ * (cavalier / cabinet / military) = a depth-shear flatten. The caller's rotation adds onto the base
+ * pose's pitch / yaw / roll, posing the camera and its lighting together.
  */
 @RequiredArgsConstructor
 public enum Projection {
@@ -126,7 +127,7 @@ public enum Projection {
     VANILLA_GUI_ITEM(EulerRotation.NONE, Lens.GUI_ITEM);
 
     /**
-     * Resolved camera pose, flatten, and lighting pose for one {@link Projection} at a chosen facing -
+     * Resolved camera pose, flatten, and lighting pose for one {@link Projection} at a chosen rotation -
      * the pose-locked triple a renderer feeds to its engine, projection, and inventory relight in
      * lock-step.
      *
@@ -136,94 +137,47 @@ public enum Projection {
      */
     public record Resolved(@NotNull Camera camera, @NotNull Lens flatten, @NotNull EulerRotation lightingPose) {}
 
-    /**
-     * Horizontal facing of a projection - which side of the subject turns toward the viewer.
-     * {@link #RIGHT} is the default, vanilla three-quarter orientation; {@link #LEFT} mirrors it about
-     * the front-facing vertical plane.
-     */
-    public enum Horizontal {
-
-        /**
-         * The subject's right-front corner faces the camera - the default.
-         */
-        RIGHT,
-
-        /**
-         * The subject's left-front corner faces the camera - the horizontal mirror of {@link #RIGHT}.
-         */
-        LEFT
-
-    }
-
-    /**
-     * Vertical facing of a projection - whether the camera looks down at the subject's top
-     * ({@link #DOWN}, the default bird's-eye view) or up at its underside ({@link #UP}).
-     */
-    public enum Vertical {
-
-        /**
-         * The camera looks down at the subject's top - the default.
-         */
-        DOWN,
-
-        /**
-         * The camera looks up at the subject's underside - the vertical mirror of {@link #DOWN}.
-         */
-        UP
-
-    }
-
     private final @NotNull EulerRotation basePose;
     private final @NotNull Lens baseFlatten;
 
     /**
-     * Resolves this projection at the given facing into the camera / flatten / lighting-pose triple.
-     * The {@code VANILLA_*} baselines short-circuit to the exact legacy objects and ignore facing, so
-     * the default render path stays byte-identical; canonical members tweak the pose (and, for oblique,
-     * the shear angle) by facing and build the camera through the parity-pinned
-     * {@link Camera#withGuiPose} {@code rotationXYZ} path.
+     * Resolves this projection at its base pose - the unrotated camera / flatten / lighting-pose
+     * triple. Equivalent to {@link #resolve(EulerRotation)} with {@link EulerRotation#NONE}, so for a
+     * {@code VANILLA_*} member it yields the exact shipped baseline.
      *
-     * @param horizontal the horizontal facing
-     * @param vertical the vertical facing
+     * @return the resolved triple at the base pose
+     */
+    public @NotNull Resolved resolve() {
+        return resolve(EulerRotation.NONE);
+    }
+
+    /**
+     * Resolves this projection into the camera / flatten / lighting-pose triple, composing the given
+     * rotation onto this constant's base pose. The rotation adds to the base pitch / yaw / roll, so it
+     * poses the camera and the lighting pose together (the flatten is rotation-independent);
+     * {@link EulerRotation#NONE} yields the base pose unchanged, keeping the default render path
+     * byte-identical. The camera is built through the parity-pinned {@link Camera#withGuiPose}
+     * {@code rotationXYZ} path, which reproduces the legacy {@code VANILLA_*} cameras bit-for-bit.
+     *
+     * @param rotation the rotation composed onto the base pose, in degrees
      * @return the resolved triple
      */
-    public @NotNull Resolved resolve(@NotNull Horizontal horizontal, @NotNull Vertical vertical) {
-        return switch (this) {
-            case VANILLA_BLOCK ->
-                new Resolved(Camera.forBlockIcon(), Lens.ISOMETRIC_BLOCK, EulerRotation.STANDARD_ISO_BLOCK);
-            case VANILLA_PLAYER ->
-                new Resolved(Camera.forPlayerIcon(), Lens.NONE, EulerRotation.STANDARD_ISO_PLAYER);
-            case VANILLA_GUI_ITEM ->
-                new Resolved(Camera.identity(), Lens.GUI_ITEM, EulerRotation.NONE);
-            default -> {
-                EulerRotation pose = facePose(this.basePose, horizontal, vertical);
-                Lens flatten = this.baseFlatten.kind() == Lens.Kind.OBLIQUE
-                    ? faceOblique(this.baseFlatten, horizontal, vertical)
-                    : this.baseFlatten;
-                yield new Resolved(Camera.withGuiPose(pose), flatten, pose);
-            }
-        };
+    public @NotNull Resolved resolve(@NotNull EulerRotation rotation) {
+        EulerRotation pose = compose(this.basePose, rotation);
+        return new Resolved(Camera.withGuiPose(pose), this.baseFlatten, pose);
     }
 
     /**
-     * Applies facing to a pose: {@link Horizontal#LEFT} reflects the yaw about the front-facing
-     * direction ({@code 360 - yaw}); {@link Vertical#UP} negates the pitch.
+     * Adds a rotation onto a base pose component-wise. {@link EulerRotation#NONE} returns the base pose
+     * unchanged - no float arithmetic, no drift - so a default render resolves to the exact base pose.
      */
-    private static @NotNull EulerRotation facePose(@NotNull EulerRotation base, @NotNull Horizontal h, @NotNull Vertical v) {
-        float pitch = v == Vertical.UP ? -base.pitch() : base.pitch();
-        float yaw = h == Horizontal.LEFT ? 360f - base.yaw() : base.yaw();
-        return new EulerRotation(pitch, yaw, base.roll());
-    }
-
-    /**
-     * Applies facing to an oblique flatten by flipping the receding-axis angle's cosine for
-     * {@link Horizontal#LEFT} and its sine for {@link Vertical#UP}, so the depth shears toward the
-     * requested quadrant.
-     */
-    private static @NotNull Lens faceOblique(@NotNull Lens base, @NotNull Horizontal h, @NotNull Vertical v) {
-        double cos = Math.cos(base.obliqueAngleRadians()) * (h == Horizontal.LEFT ? -1d : 1d);
-        double sin = Math.sin(base.obliqueAngleRadians()) * (v == Vertical.UP ? -1d : 1d);
-        return Lens.oblique(base.obliqueDepthFactor(), (float) Math.atan2(sin, cos), base.projectionScale());
+    private static @NotNull EulerRotation compose(@NotNull EulerRotation base, @NotNull EulerRotation rotation) {
+        if (rotation.pitch() == 0f && rotation.yaw() == 0f && rotation.roll() == 0f) return base;
+        return new EulerRotation(
+            base.pitch() + rotation.pitch(),
+            base.yaw() + rotation.yaw(),
+            base.roll() + rotation.roll()
+        );
     }
 
 }

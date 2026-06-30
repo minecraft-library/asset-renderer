@@ -7,6 +7,7 @@ import lib.minecraft.renderer.options.BlockOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
+import lib.minecraft.renderer.request.EulerRotation;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -14,19 +15,39 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import javax.imageio.ImageIO;
 
 /**
- * Diagnostic task that renders one block under every {@link Projection} (at the default
- * {@code RIGHT}/{@code DOWN} facing) plus the four facing combinations of {@link
- * Projection#ISOMETRIC}, to {@code cache/visual/projection-smoke/} for visual inspection.
- * Defaults to {@code minecraft:tnt} - a complete cube with distinct top/side/bottom faces that make
- * orientation and clipping issues obvious.
+ * Diagnostic task that renders one block under every {@link Projection} (at its base pose) plus a
+ * handful of sample camera rotations on {@link Projection#ISOMETRIC}, to
+ * {@code cache/visual/projection-smoke/} for visual inspection. The caller's rotation now composes
+ * onto the projection's base pose - posing the camera and its lighting together, with no separate
+ * facing enum - so the sample renders exercise that rotation-into-pose path. Defaults to
+ * {@code minecraft:tnt} - a complete cube with distinct top/side/bottom faces that make orientation
+ * and clipping issues obvious.
  * <p>
  * Usage: {@code ./gradlew :asset-renderer:projectionSmoke [-PblockId=minecraft:tnt] [-PrenderSize=512]}
  */
 @UtilityClass
 public final class TestProjectionSmoke {
+
+    /**
+     * Named sample camera rotations applied to {@link Projection#ISOMETRIC}, exercising the
+     * rotation-into-pose path now that facing is just a supplied {@link EulerRotation}.
+     */
+    private static final @NotNull Map<String, EulerRotation> SAMPLE_ROTATIONS = sampleRotations();
+
+    private static @NotNull Map<String, EulerRotation> sampleRotations() {
+        Map<String, EulerRotation> map = new LinkedHashMap<>();
+        map.put("base", EulerRotation.NONE);
+        map.put("yaw_plus_90", new EulerRotation(0f, 90f, 0f));
+        map.put("yaw_minus_90", new EulerRotation(0f, -90f, 0f));
+        map.put("pitch_plus_45", new EulerRotation(45f, 0f, 0f));
+        map.put("roll_plus_30", new EulerRotation(0f, 0f, 30f));
+        return map;
+    }
 
     /**
      * Runs the projection smoke renders.
@@ -46,18 +67,17 @@ public final class TestProjectionSmoke {
         String safe = blockId.replace(":", "_");
 
         for (Projection projection : Projection.values())
-            render(renderer, blockId, size, projection, Projection.Horizontal.RIGHT, Projection.Vertical.DOWN,
-                outputDir, safe + "__" + projection + "__RIGHT_DOWN");
+            render(renderer, blockId, size, projection, EulerRotation.NONE,
+                outputDir, safe + "__" + projection + "__base");
 
-        for (Projection.Horizontal horizontal : Projection.Horizontal.values())
-            for (Projection.Vertical vertical : Projection.Vertical.values())
-                render(renderer, blockId, size, Projection.ISOMETRIC, horizontal, vertical,
-                       outputDir, safe + "__ISOMETRIC__" + horizontal + "_" + vertical);
+        for (Map.Entry<String, EulerRotation> sample : SAMPLE_ROTATIONS.entrySet())
+            render(renderer, blockId, size, Projection.ISOMETRIC, sample.getValue(),
+                outputDir, safe + "__ISOMETRIC__" + sample.getKey());
     }
 
     private static void render(@NotNull BlockRenderer renderer, @NotNull String blockId, int size,
-                               @NotNull Projection projection, @NotNull Projection.Horizontal horizontal,
-                               @NotNull Projection.Vertical vertical, @NotNull Path outputDir, @NotNull String name) {
+                               @NotNull Projection projection, @NotNull EulerRotation rotation,
+                               @NotNull Path outputDir, @NotNull String name) {
         try {
             ImageData image = renderer.render(BlockOptions.builder()
                 .blockId(blockId)
@@ -66,8 +86,7 @@ public final class TestProjectionSmoke {
                 .supersample(2)
                 .antiAlias(true)
                 .projection(projection)
-                .horizontalFacing(horizontal)
-                .verticalFacing(vertical)
+                .rotation(rotation)
                 .build());
             File outputFile = outputDir.resolve(name + ".png").toFile();
             ImageIO.write(image.toBufferedImage(), "PNG", outputFile);

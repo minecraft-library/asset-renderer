@@ -142,7 +142,11 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // side from vanilla. The blockstate variant rotation (baked into the harness's
             // BlockStateModel quads, applied here via buildVariantRotation) supplies the real
             // per-state orientation; the camera pose stays fixed.
-            var resolved = options.getProjection().resolve(options.getHorizontalFacing(), options.getVerticalFacing());
+            // The caller's rotation is composed onto the projection's base pose, so it poses the
+            // camera AND the inventory-relight lighting together (resolved.lightingPose()); the
+            // rasterize call below applies no separate model-spin. A default render passes
+            // EulerRotation.NONE, leaving the pose at the base [30, 225, 0] iso - byte-identical.
+            var resolved = options.getProjection().resolve(options.getRotation());
             EulerRotation guiRotation = resolved.lightingPose();
             ModelEngine engine = new ModelEngine(this.context, resolved.camera());
 
@@ -267,7 +271,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             int ssaa = Math.max(1, options.getSupersample());
             ConcurrentList<VisibleTriangle> rasterTriangles = triangles;
             return FinalizeStage.run(options.getOutputSize(), options.getOutputSize(), ssaa, options.isAntiAlias(), false,
-                (target, mask) -> engine.rasterize(rasterTriangles, target, resolved.flatten(), options.getRotation()),
+                (target, mask) -> engine.rasterize(rasterTriangles, target, resolved.flatten()),
                 (buffer, mask) -> Frames.staticFrame(buffer));
         }
 

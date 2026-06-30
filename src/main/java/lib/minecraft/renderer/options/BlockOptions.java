@@ -96,20 +96,6 @@ public class BlockOptions {
     private final @NotNull Projection projection = Projection.VANILLA_BLOCK;
 
     /**
-     * Horizontal facing of the {@link #getProjection() projection}. Defaults to
-     * {@link Projection.Horizontal#RIGHT}.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Projection.Horizontal horizontalFacing = Projection.Horizontal.RIGHT;
-
-    /**
-     * Vertical facing of the {@link #getProjection() projection}. Defaults to
-     * {@link Projection.Vertical#DOWN}.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Projection.Vertical verticalFacing = Projection.Vertical.DOWN;
-
-    /**
      * Output image dimensions in pixels (square)
      */
     @lombok.Builder.Default

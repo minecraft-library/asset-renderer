@@ -29,6 +29,7 @@ import lib.minecraft.renderer.options.PlayerOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.request.ArmorPiece;
 import lib.minecraft.renderer.request.ArmorTrim;
+import lib.minecraft.renderer.request.EulerRotation;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -448,7 +449,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getHorizontalFacing(), options.getVerticalFacing()).camera());
+            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getRotation()).camera());
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
@@ -493,7 +494,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getHorizontalFacing(), options.getVerticalFacing()).camera());
+            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getRotation()).camera());
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
@@ -542,7 +543,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getHorizontalFacing(), options.getVerticalFacing()).camera());
+            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getRotation()).camera());
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
@@ -594,7 +595,10 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         // The glint mask is recorded at the raster size, then box-downsampled to the output so the
         // foil is confined to the armor (not the bare body) after the SSAA blit.
         return FinalizeStage.run(size, size, ssaa, options.isAntiAlias(), enchanted,
-            (target, mask) -> engine.rasterizeFitted(triangles, target, options.getProjection().resolve(options.getHorizontalFacing(), options.getVerticalFacing()).flatten(), options.getRotation(), PLAYER_FILL, mask),
+            // The caller's rotation is composed into the engine's camera pose at construction (above),
+            // so the fitted rasterize applies no separate model-spin - EulerRotation.NONE. Default
+            // renders leave the byte-identical base player pose.
+            (target, mask) -> engine.rasterizeFitted(triangles, target, options.getProjection().resolve(options.getRotation()).flatten(), EulerRotation.NONE, PLAYER_FILL, mask),
             (buffer, mask) -> GlintStage.forArmor(engine.textures()::tryResolveTexture, buffer, enchanted, mask));
     }
 
