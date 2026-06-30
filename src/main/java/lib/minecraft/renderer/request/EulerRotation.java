@@ -4,8 +4,6 @@ import com.google.gson.TypeAdapter;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
-import lib.minecraft.renderer.engine.ModelEngine;
-import lib.minecraft.renderer.engine.camera.Camera;
 import lombok.NoArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -15,14 +13,13 @@ import java.io.IOException;
 /**
  * An immutable Euler-angle triple carrying rotations about the X, Y, and Z axes. Values are
  * always in <b>degrees</b> to match how vanilla Minecraft authors {@code display.*}
- * transforms and how every engine method ({@link ModelEngine#rasterize} /
- * {@link Camera#withGuiPose}) already documents its inputs.
+ * transforms and how every engine method already documents its inputs.
  * <p>
  * The record is deliberately data-only: it carries the three angles and nothing else.
  * Two distinct rotation-composition orders coexist in the codebase - vanilla {@code display}
  * transforms compose as {@code Rz · Ry · Rx} while user-supplied post-rotation composes as
  * {@code Ry · Rx · Rz} - so matrix building stays at each call site where the semantics
- * are intentional. Treat this record like {@link Projection}: a labelled bundle of
+ * are intentional. Treat this record as a labelled bundle of
  * floats plus a small set of named constants, no behaviour.
  * <p>
  * Rotation directions follow the right-hand rule:
@@ -52,7 +49,7 @@ public record EulerRotation(float pitch, float yaw, float roll) {
     /**
      * Vanilla Minecraft's standard block inventory-icon pose: {@code [30, 225, 0]} pitch/yaw/roll.
      * Matches the {@code display.gui} transform baked into the root {@code block/block.json}
-     * model and is the default camera used by {@link Camera#forBlockIcon} when a block
+     * model and is the default camera used for block icons when a block
      * model does not override its own GUI pose.
      */
     public static final @NotNull EulerRotation STANDARD_ISO_BLOCK = new EulerRotation(30f, 225f, 0f);

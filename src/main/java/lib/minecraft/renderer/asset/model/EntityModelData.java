@@ -6,7 +6,6 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentLinkedMap;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
 import lib.minecraft.renderer.face.BlockFace;
 import lib.minecraft.renderer.request.EulerRotation;
 import lib.minecraft.renderer.tensor.Vector2f;
@@ -24,14 +23,12 @@ import java.util.Objects;
  * ({@code ToolingEntityModels} bytecode walk of the vanilla client jar). Lists each entity's
  * bones and their cube geometry without trying to express every vanilla feature.
  * <p>
- * Used by {@link EntityGeometryKit}'s triangle builders to turn an entity id into a list of cubes
+ * Used by the entity geometry kit's triangle builders to turn an entity id into a list of cubes
  * that can be fed to the rasterizer.
  * <p>
  * The canonical coordinate convention is vanilla Java's native frame: Y-down, right-handed, with
  * every position field - {@link Bone#getPivot() bone pivot}, {@link Cube#getOrigin() cube origin},
  * {@link Cube#getPivot() cube pivot} - stored in absolute entity-root space.
- *
- * @see EntityGeometryKit
  */
 @Getter
 @NoArgsConstructor

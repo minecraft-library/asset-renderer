@@ -1,7 +1,5 @@
 package lib.minecraft.renderer.face;
 
-import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
-import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -31,9 +29,8 @@ import java.util.Map;
  *     {@code cube.uv} overrides used when parsing entity geometry.</li>
  * <li>The four vertex indices into the canonical 8-corner box (see the layout diagram on
  *     {@link #corners}).</li>
- * <li>The outward unit {@link #normal} - used by the entity ENTITY_IN_UI lighting model
- *     ({@link Lighting#entityInUi}) which dots
- *     this direction against two fixed inventory diffuse light vectors.</li>
+ * <li>The outward unit {@link #normal} - used by the entity ENTITY_IN_UI lighting model, which
+ *     dots this direction against two fixed inventory diffuse light vectors.</li>
  * <li>A {@link Layout} carrying the per-face axis-and-atlas-coefficient data
  *     {@link #defaultUv} needs to project a cube's UV strip into a pixel rectangle without a
  *     per-face {@code switch}.</li>
@@ -59,8 +56,8 @@ import java.util.Map;
  * <b>Lighting:</b> entity rendering uses vanilla's {@code Lighting.Entry.ENTITY_IN_UI}, which is
  * a dual-directional Lambertian shader (two normalized light vectors, summed with ambient and
  * clamped) rather than a per-face constant. This enum therefore deliberately does <b>not</b>
- * carry a {@code lighting} scalar - shading is computed per-vertex from the surface normal in
- * {@link Lighting#entityInUi}, baked into each
+ * carry a {@code lighting} scalar - shading is computed per-vertex from the surface normal by the
+ * entity-in-UI lighting model, baked into each
  * triangle's {@code VisibleTriangle#shading} field at kit time, and the rasterizer applies it
  * directly without a second per-face lookup. Compare {@link BlockFace#lighting} which carries the
  * {@code Lighting.ITEMS_3D} per-face approximation suitable for block inventory icons.
@@ -160,9 +157,8 @@ public enum EntityFace {
      * the polygon ctor's TR-first walk). {@link #UP} alone uses {@code [2, 1, 0, 3]} because
      * vanilla's {@code ModelPart.Cube} ctor passes UP's v args in inverted order ({@code f3 = v},
      * {@code f5 = v + d}), making UP's atlas v walk backward relative to every other face. The
-     * permutation lives here as data so both the renderer's
-     * {@link EntityGeometryKit#resolvePolygonUv resolvePolygonUv} and
-     * the tooling-side bytecode-to-block-model converter can share one source of truth.
+     * permutation lives here as data so both the renderer's UV resolution and the
+     * tooling-side bytecode-to-block-model converter can share one source of truth.
      */
     private final int @NotNull [] polygonVertexSlots;
 
@@ -238,7 +234,7 @@ public enum EntityFace {
      * because vertical extent on the strip is always expressed in terms of {@code sz} (top row)
      * or the face's own height.
      * <p>
-     * Used by entity cube rendering (via {@link EntityGeometryKit}) where one skin image
+     * Used by entity cube rendering where one skin image
      * supplies every face of a body part. Callers
      * compose {@link Vector4f#toUvCorners(float, float, int, boolean)} with the texture
      * dimensions on the result to obtain normalized per-vertex corners.

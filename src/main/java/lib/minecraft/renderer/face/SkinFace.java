@@ -1,7 +1,6 @@
 package lib.minecraft.renderer.face;
 
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.AccessLevel;
@@ -179,7 +178,7 @@ public enum SkinFace {
 
     /**
      * Returns the four local-space vertices for the given face on this body part's box, in the
-     * TL, TR, BR, BL CCW order used by {@link BlockGeometryKit}.
+     * TL, TR, BR, BL CCW order the block geometry kit expects.
      *
      * @param face the cube face direction
      * @return the four face corner positions in local model space
@@ -282,7 +281,7 @@ public enum SkinFace {
 
     /**
      * Crops all six faces of this body part out of the skin image into a {@link SixFaces} ready
-     * to feed {@link BlockGeometryKit#buildBoxTriangles(Vector3f, Vector3f, SixFaces, int)}.
+     * to feed the block geometry kit's box-triangle builder.
      *
      * @param skin the source skin image
      * @param overlayLayer whether to crop the overlay layer instead of the base layer

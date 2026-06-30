@@ -5,7 +5,6 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.model.ModelData;
-import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.options.BlockOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lombok.AllArgsConstructor;
@@ -22,8 +21,8 @@ import java.util.Optional;
  * A fully-parsed block definition backed by its vanilla model JSON and blockstate variants.
  * <p>
  * Every field is populated once during {@code Pipeline} bootstrap and stored verbatim; no
- * lazy or computed fields live on this DTO. Lookup happens through the active
- * {@link RendererContext}.
+ * lazy or computed fields live on this DTO. Lookup happens through the active renderer
+ * context.
  */
 @Getter
 @AllArgsConstructor
@@ -80,7 +79,7 @@ public final class Block {
     /**
      * Where this block's registration originated. Used by atlas tile classification to label the
      * source path (block-model file, blockstate-only fallback, or block-entity geometry override)
-     * without forcing consumers to type-check the {@link RendererContext} implementation.
+     * without forcing consumers to type-check the renderer-context implementation.
      */
     private final @NotNull Source source;
 
@@ -96,7 +95,7 @@ public final class Block {
 
     /**
      * The provenance of a {@link Block}'s registration. Drives atlas tile classification and any
-     * future caller that needs to know how the block reached the {@link RendererContext}.
+     * future caller that needs to know how the block reached the renderer context.
      */
     public enum Source {
 
