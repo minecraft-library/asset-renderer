@@ -7,7 +7,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.RendererDebug;
-import lib.minecraft.renderer.engine.camera.Camera;
+import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
@@ -79,7 +79,7 @@ public class EntityGeometryKit {
      * * R_X(pitch) * R_Y(yaw) * R_X(180°)} is vanilla's iso transform chain (the trailing
      * {@code R_X(180°)} folds in vanilla's {@code LivingEntityRenderer.submit}'s
      * {@code rotateY(180°) + scale(-1,-1,1)} as a single equivalent X-axis rotation - see
-     * {@link Camera#forEntityIcon} for the full
+     * {@link Projection#VANILLA_ENTITY} for the full
      * derivation). For the standard {@code [210°, 45°, 0°]} iso pose this evaluates to
      * approximately {@code (0.6124, -0.5, 0.6124)}; the X and Z components are
      * {@code cos(30°) * sin(45°) = √6/4 ≈ 0.6124} (45° yaw splits horizontal direction

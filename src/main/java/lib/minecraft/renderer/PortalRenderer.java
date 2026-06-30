@@ -9,7 +9,7 @@ import dev.simplified.image.pixel.PixelBufferPool;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.engine.camera.Camera;
+import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.FinalizeStage;
 import lib.minecraft.renderer.engine.compose.Frames;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
@@ -476,7 +476,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
 
     /**
      * Full 3D isometric portal renderer. Builds geometry via {@link BlockGeometryKit} and rasterizes
-     * through {@link Camera#forBlockIcon}'s standard {@code [30, 225, 0]} pose by default. {@code END_GATEWAY}
+     * through {@link Projection#VANILLA_BLOCK}'s standard {@code [30, 225, 0]} pose by default. {@code END_GATEWAY}
      * renders as a unit cube with the baked face on all 6 sides; {@code END_PORTAL} renders as a
      * slab from {@code y = 0.375} to {@code y = 0.75} matching vanilla's
      * {@code TheEndPortalRenderer.BOTTOM} / {@code .TOP}.

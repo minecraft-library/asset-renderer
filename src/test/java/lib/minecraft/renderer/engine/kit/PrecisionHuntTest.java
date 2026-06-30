@@ -79,7 +79,7 @@ class PrecisionHuntTest {
     // --- Hypothesis C: Iso compose chain order ---
 
     @Test
-    @DisplayName("[HYP_C] vanilla harness iso chain vs our CAMERA_ENTITY")
+    @DisplayName("[HYP_C] vanilla harness iso chain vs our entityIsoChain")
     void hypC_isoChainCompare() {
         // Vanilla harness chain (per EntityFrameRenderer):
         //   pose.translate(tx, ty, 0)
@@ -101,7 +101,7 @@ class PrecisionHuntTest {
             .multiply(Quaternionf.rotationXYZ(pitch, yaw, 0f).toMatrix4f());
 
         // Build via OUR kit's separate camera/projection split:
-        // Step 1: CAMERA_ENTITY = S(1,-1,1) * S(1,1,-1) * R_X(pitch) * R_Y(yaw) * S(1,1,-1)
+        // Step 1: entityIsoChain() = S(1,-1,1) * S(1,1,-1) * R_X(pitch) * R_Y(yaw) * S(1,1,-1)
         // Step 2: kit does (transformed.x * modelScale - cx) * scale, FLIP_Y on Y, etc.
         // For a fair comparison, fuse our equivalent here:
         Matrix4f cameraEntity = Matrix4f.createScale(1f, -1f, 1f)
@@ -214,7 +214,7 @@ class PrecisionHuntTest {
     // --- Hypothesis E: Camera.entityIsoChain() vs vanilla effectiveRotation float coords ---
 
     @Test
-    @DisplayName("[HYP_E] our static CAMERA_ENTITY matrix has bit-identical rot block to vanilla's quat")
+    @DisplayName("[HYP_E] our entityIsoChain matrix has bit-identical rot block to vanilla's quat")
     void hypE_cameraEntityRotationBlock() {
         float pitch = (float) Math.toRadians(210);
         float yaw = (float) Math.toRadians(45);

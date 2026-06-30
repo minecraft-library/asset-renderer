@@ -12,6 +12,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.FinalizeStage;
 import lib.minecraft.renderer.engine.compose.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.GlintStage;
@@ -54,7 +55,7 @@ import java.util.Optional;
  * <li><b>2D</b> composites the front-facing (south) crop of each visible body part, layering
  * base skin, overlay, armor, and trim as scaled sprites on a flat canvas.</li>
  * <li><b>3D</b> builds cubes for each visible body part and rasterizes through
- * {@link ModelEngine} with a {@link Camera#forPlayerIcon} pose, with armor as slightly inflated overlapping geometry.</li>
+ * {@link ModelEngine} with a {@link Projection#VANILLA_PLAYER} pose, with armor as slightly inflated overlapping geometry.</li>
  * </ul>
  * Skin resolution is shared via the outer class, with URL-fetched skins cached for the
  * renderer's lifetime.

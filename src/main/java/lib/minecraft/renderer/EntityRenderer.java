@@ -13,6 +13,7 @@ import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.RendererDebug;
 import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.Lens;
+import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.FinalizeStage;
 import lib.minecraft.renderer.engine.compose.Frames;
 import lib.minecraft.renderer.engine.compose.GeometryLayer;
@@ -155,7 +156,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // load-bearing (depth tie-break, translucent sort, emissive depth-skip), so the slot order
         // reproduces the historic base -> overlays -> block-overlays -> armor sequence exactly.
         // Callers can splice their own layers via EntityOptions.layerDecorator.
-        ModelEngine engine = new ModelEngine(this.context, Camera.forEntityIcon());
+        // The entity goes through the projection front door: VANILLA_ENTITY resolves to the det=-1
+        // entityIsoChain camera (chirality) + the iso flatten. The model rotation `effective` stays a
+        // separate model-spin passed to rasterize below - the chirality chain is fixed, so VANILLA_ENTITY
+        // does not compose the rotation into the camera (resolve's CameraChain.ENTITY_ISO branch).
+        Projection.Resolved entityProjection = Projection.VANILLA_ENTITY.resolve();
+        ModelEngine engine = new ModelEngine(this.context, entityProjection.camera());
         SceneContext scene = new SceneContext(
             texture.get(), modelAnchor, fit.ndcScale(), modelScale, engine.textures(), this.context);
         LayerStack<GeometryLayer> stack = new LayerStack<>();
@@ -201,7 +207,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // the (glinted) armor rather than the whole entity silhouette.
         int ssaa = Math.max(1, options.getSupersample());
         return FinalizeStage.run(fit.canvasW(), fit.canvasH(), ssaa, options.isAntiAlias(), enchanted,
-            (target, mask) -> engine.rasterize(triangles, target, Lens.ISOMETRIC_BLOCK, effective, mask),
+            (target, mask) -> engine.rasterize(triangles, target, entityProjection.flatten(), effective, mask),
             (buffer, mask) -> GlintStage.forArmor(engine.textures()::tryResolveTexture, buffer, enchanted, mask));
     }
 
@@ -609,7 +615,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // Shared iso prefix (flipY -> scaleZneg -> isoRotation -> scaleZneg) lives on Camera so the
         // entity camera and this bounds/anchor transform stay a single source of truth. The trailing
         // modelRotation + outer flipY stay here: this transform is applied to bounds-probe points the
-        // kit FLIP_Y never touches, so it bakes that flip in (unlike Camera.forEntityIcon()).
+        // kit FLIP_Y never touches, so it bakes that flip in (unlike Projection.VANILLA_ENTITY's camera).
         Matrix4f m = Camera.entityIsoChain();
         if (!userIdentity)
             m = m.rotate(Quaternionf.rotationXYZ(userRotation.pitchRadians(), userRotation.yawRadians(), userRotation.rollRadians()));

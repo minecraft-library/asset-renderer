@@ -268,7 +268,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         @NotNull PixelBuffer buffer,
         @NotNull ItemOptions options
     ) {
-        ModelEngine engine = new ModelEngine(context, Camera.withGuiPose(SHIELD_GUI_ROTATION));
+        ModelEngine engine = new ModelEngine(context, Camera.fromPose(SHIELD_GUI_ROTATION));
         PixelBuffer texture = engine.textures().resolveTexture(SHIELD_NOPATTERN_TEXTURE_ID);
         ConcurrentList<VisibleTriangle> triangles = ShieldKit.buildShield3D(texture);
         triangles = ShieldKit.relightShield(triangles, SHIELD_GUI_ROTATION);

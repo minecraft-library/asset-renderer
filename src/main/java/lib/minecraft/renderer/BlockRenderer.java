@@ -15,7 +15,7 @@ import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.engine.camera.Camera;
+import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.FinalizeStage;
 import lib.minecraft.renderer.engine.compose.Frames;
 import lib.minecraft.renderer.engine.compose.GeometryLayer;
@@ -49,7 +49,7 @@ import java.util.Optional;
  * {@link Renderer Renderer&lt;BlockOptions&gt;}:
  * <ul>
  * <li>{@link Isometric3D} uses a {@link ModelEngine} fixed to the standard
- * {@code [30, 225, 0]} block-icon pose by default (via {@link Camera#forBlockIcon}). The
+ * {@code [30, 225, 0]} block-icon pose by default (via {@link Projection#VANILLA_BLOCK}). The
  * vanilla-reference harness renders every block at this uniform iso pose and ignores each
  * model's authored {@code display.gui} (stairs/slabs/fence gates ship {@code [30, 135, 0]}),
  * so per-state orientation comes from the baked blockstate variant rotation, not the camera.</li>

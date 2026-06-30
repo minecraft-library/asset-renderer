@@ -2,16 +2,20 @@
  * The camera subsystem: a baked {@code display.*} pose applied after the caller's model transform
  * during rasterization.
  *
- * <p>{@link lib.minecraft.renderer.engine.camera.Camera Camera} is a value type wrapping the pose
- * matrix a {@link lib.minecraft.renderer.engine.ModelEngine ModelEngine} composes with every render.
- * Factories pick the named vanilla pose - {@code forBlockIcon()} ({@code [30, 225, 0]}),
- * {@code forPlayerIcon()} ({@code [30, 45, 0]}), {@code forEntityIcon()} (the {@code [210, 45, 0]}
- * harness iso chain with its LER chirality), and {@code withGuiPose(rotation)} for model-authored
- * overrides. The shared {@code entityIsoChain()} builder is the single source of truth for the
- * entity iso prefix, reused by {@link lib.minecraft.renderer.EntityRenderer EntityRenderer}'s
- * bounds / anchor projection.
+ * <p>{@link lib.minecraft.renderer.engine.camera.Camera Camera} is the value type wrapping the pose
+ * matrix a {@link lib.minecraft.renderer.engine.ModelEngine ModelEngine} composes with every render,
+ * plus the primitives that build one: {@code fromPose(rotation)} (a {@code display.*} GUI pose via
+ * vanilla's {@code rotationXYZ}), {@code entityIsoChain()} (the {@code [210, 45, 0]} harness iso chain
+ * with its det=-1 LER chirality, reused by {@link lib.minecraft.renderer.EntityRenderer EntityRenderer}'s
+ * bounds / anchor projection), and {@code identity()}.
+ *
+ * <p>{@link lib.minecraft.renderer.engine.camera.Projection Projection} is the catalog that assembles
+ * those primitives into named poses: the {@code VANILLA_BLOCK} / {@code VANILLA_PLAYER} /
+ * {@code VANILLA_GUI_ITEM} / {@code VANILLA_ENTITY} baselines plus the textbook axonometric /
+ * perspective / oblique families, each resolving to a {@code (Camera, Lens, lightingPose)} triple.
  *
  * @see lib.minecraft.renderer.engine.camera.Camera
+ * @see lib.minecraft.renderer.engine.camera.Projection
  * @see lib.minecraft.renderer.engine.ModelEngine
  */
 package lib.minecraft.renderer.engine.camera;

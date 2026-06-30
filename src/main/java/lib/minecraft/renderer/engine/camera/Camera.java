@@ -11,20 +11,17 @@ import org.jetbrains.annotations.NotNull;
  * {@link ModelEngine} composes with every render: column-vector form, applied right-to-left to a
  * model vertex.
  *
- * <p>Factories pick which named vanilla {@code display.*} pose ends up in the matrix; callers reach
- * for a factory rather than the constructor:
+ * <p>{@code Camera} is the value type plus the primitives the {@link Projection} catalog assembles -
+ * the named vanilla poses ({@code VANILLA_BLOCK} / {@code VANILLA_PLAYER} / {@code VANILLA_ENTITY}) live
+ * on {@link Projection}, not here. Callers reach for a factory rather than the constructor:
  * <ul>
- *   <li><b>{@link #forBlockIcon()}</b> - the stock {@code [30, 225, 0]} pitch / yaw / roll from the
- *       root {@code block/block.json} model's {@code display.gui}. The default three-quarter
- *       block-icon view (block atlases, skulls, busts, full-body skin renders).</li>
- *   <li><b>{@link #forPlayerIcon()}</b> - the block pose with the yaw flipped 180&deg; so a
- *       humanoid's front faces the camera ({@code [30, 45, 0]}). Carries no LER chirality flips -
- *       those belong to the entity-kit pipeline, not the hard-coded player cubes.</li>
- *   <li><b>{@link #forEntityIcon()}</b> - vanilla's {@code EntityFrameRenderer.ISO_ROTATION}
- *       ({@code [210, 45, 0]}) plus the LER chirality and reflection scales the vanilla-reference
- *       harness applies. Required for entity parity against the harness PNGs.</li>
- *   <li><b>{@link #withGuiPose(EulerRotation)}</b> - a caller-supplied pose, for models that
- *       override the default {@code display.gui} (stairs author {@code [30, 135, 0]}).</li>
+ *   <li><b>{@link #fromPose(EulerRotation)}</b> - the goto builder: a {@code display.*} GUI pose from
+ *       the supplied Euler angles via vanilla's {@code rotationXYZ}. Backs every {@link Projection}
+ *       GUI-pose member and any caller that needs an ad-hoc display pose (item shield, bed parity).</li>
+ *   <li><b>{@link #entityIsoChain()}</b> - the vanilla entity-preview iso chain with its det=-1 LER
+ *       chirality, shared by {@link Projection#VANILLA_ENTITY} and the entity renderer's bounds / anchor
+ *       projection. Parity-locked - see the method javadoc.</li>
+ *   <li><b>{@link #identity()}</b> - no pre-rotation; geometry viewed straight down {@code -Z}.</li>
  * </ul>
  *
  * @param matrix the pose composed into every rasterization, in column-vector form
@@ -32,21 +29,33 @@ import org.jetbrains.annotations.NotNull;
 public record Camera(@NotNull Matrix4f matrix) {
 
     /**
-     * Vanilla's standard block {@code display.gui} rotation {@code [30, 225, 0]} composed into a
-     * single matrix. Matches {@code Quaternionf.rotationXYZ(toRadians(30), toRadians(225), 0)}.
+     * Returns a camera whose pose is a vanilla {@code display.*} GUI pose built from the supplied
+     * Euler-angle rotation - the goto builder for every {@link Projection} GUI-pose member and for
+     * callers that supply an ad-hoc pose (the item shield's {@code [15, -25, -5]}, a block model's
+     * {@code display.gui} override such as stairs' {@code [30, 135, 0]}).
+     *
+     * @param rotation the Euler-angle pose (in degrees) baked into the camera transform
+     * @return a camera with the requested pose
      */
-    private static final @NotNull Matrix4f CAMERA = buildGuiDisplayTransform(EulerRotation.STANDARD_ISO_BLOCK);
+    public static @NotNull Camera fromPose(@NotNull EulerRotation rotation) {
+        return new Camera(buildGuiDisplayTransform(rotation));
+    }
 
     /**
-     * Vanilla's block {@code display.gui} rotation with the yaw flipped 180&deg; so a humanoid's
-     * front faces the camera ({@code [30, 45, 0]}, {@link EulerRotation#STANDARD_ISO_PLAYER}).
+     * Returns the identity camera - geometry is viewed directly down the negative Z axis with no
+     * pre-rotation.
+     *
+     * @return the identity camera
      */
-    private static final @NotNull Matrix4f CAMERA_PLAYER = buildGuiDisplayTransform(EulerRotation.STANDARD_ISO_PLAYER);
+    public static @NotNull Camera identity() {
+        return new Camera(Matrix4f.IDENTITY);
+    }
 
     /**
-     * Vanilla's full entity-preview transform chain expressed as the column-vector matrix our
-     * column-form rasterizer consumes, AFTER accounting for the kit's pre-applied {@code FLIP_Y} on
-     * positions. Identical to {@link #entityIsoChain()}.
+     * Builds the vanilla entity-preview iso chain - the full entity-preview transform expressed as the
+     * column-vector matrix our column-form rasterizer consumes, AFTER accounting for the kit's
+     * pre-applied {@code FLIP_Y} on positions. Shared by {@link Projection#VANILLA_ENTITY} and the
+     * entity renderer's bounds / anchor projection so both stay a single source of truth.
      * <p>
      * The harness applies (col form, applied to a Y-down model vertex right-to-left):
      * <pre>
@@ -64,67 +73,8 @@ public record Camera(@NotNull Matrix4f matrix) {
      * harness's odd-reflection-count chirality. The simpler {@code Quaternionf.rotationXYZ(210&deg;,
      * 45&deg;, 0&deg;)} alone (det=+1) is INSUFFICIENT - it produces the iso rotation but omits the
      * LER chirality and reflection components, which Round 2 confirmed regresses every entity ~6x.
-     */
-    private static final @NotNull Matrix4f CAMERA_ENTITY = entityIsoChain();
-
-    /**
-     * Returns the standard block inventory-icon pose ({@code [30, 225, 0]} pitch/yaw/roll), the
-     * block-icon camera baked into the root {@code block/block.json} model's {@code display.gui}.
-     *
-     * @return the standard block-icon camera
-     */
-    public static @NotNull Camera forBlockIcon() {
-        return new Camera(CAMERA);
-    }
-
-    /**
-     * Returns the front-facing humanoid GUI pose ({@link EulerRotation#STANDARD_ISO_PLAYER},
-     * {@code [30, 45, 0]}). Shares the block-icon three-quarter framing but turns the model's front
-     * toward the camera, where {@link #forBlockIcon()} would show a humanoid's back. Unlike
-     * {@link #forEntityIcon()} it carries no LER chirality flips.
-     *
-     * @return the front-facing player camera
-     */
-    public static @NotNull Camera forPlayerIcon() {
-        return new Camera(CAMERA_PLAYER);
-    }
-
-    /**
-     * Returns the standard entity inventory-preview pose ({@code [210, 45, 0]} pitch/yaw/roll),
-     * matching {@code EntityFrameRenderer.ISO_ROTATION} in the vanilla-reference-harness, so entity
-     * output aligns with the harness ground-truth PNGs.
-     *
-     * @return the standard entity-preview camera
-     */
-    public static @NotNull Camera forEntityIcon() {
-        return new Camera(CAMERA_ENTITY);
-    }
-
-    /**
-     * Returns a camera whose pose is a vanilla {@code display.*} GUI pose built from the supplied
-     * Euler-angle rotation. Use when a block or item model overrides the default {@code [30, 225, 0]}
-     * (e.g. stairs author {@code display.gui} as {@code [30, 135, 0]}).
-     *
-     * @param rotation the Euler-angle pose (in degrees) baked into the camera transform
-     * @return a camera with the requested pose
-     */
-    public static @NotNull Camera withGuiPose(@NotNull EulerRotation rotation) {
-        return new Camera(buildGuiDisplayTransform(rotation));
-    }
-
-    /**
-     * Returns the identity camera - geometry is viewed directly down the negative Z axis with no
-     * pre-rotation.
-     *
-     * @return the identity camera
-     */
-    public static @NotNull Camera identity() {
-        return new Camera(Matrix4f.IDENTITY);
-    }
-
-    /**
-     * Builds the vanilla entity-preview iso chain shared by {@link #forEntityIcon()} and the entity
-     * renderer's bounds/anchor projection. Column-vector application order is rightmost-first:
+     * <p>
+     * Column-vector application order is rightmost-first:
      * {@code scale(1,1,-1) * isoQuat * scale(1,1,-1) * scale(1,-1,1)}. Each fluent op matches JOML's
      * in-place translate/scale/rotate bit-for-bit with default {@code joml.useMathFma=false}.
      *

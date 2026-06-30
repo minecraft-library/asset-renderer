@@ -6,6 +6,7 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.Lens;
+import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.GlintMask;
 import lib.minecraft.renderer.engine.raster.RasterMath;
@@ -87,7 +88,7 @@ public class ModelEngine {
      * <p>Overridable via {@code -Dasset.snap.grid=N} for empirical sweeps (e.g. confirming the block
      * pipeline shares the entity-tuned optimum). {@code N <= 0} disables the snap entirely
      * ({@link #snapToCoverageGrid} returns the vertex unchanged); the default {@code 400} is the
-     * tuned value above. Both the entity and block ({@link Camera#forBlockIcon()})
+     * tuned value above. Both the entity and block ({@link Projection#VANILLA_BLOCK})
      * pipelines read this single constant.
      */
     private static final float SUBPIXEL_PRECISION = Float.parseFloat(System.getProperty("asset.snap.grid", "400"));
@@ -101,7 +102,7 @@ public class ModelEngine {
      * Constructs a model engine whose camera transform is the identity matrix - geometry is
      * viewed directly down the negative Z axis with no pre-rotation. Callers that want a
      * preset pose (e.g. the standard block inventory icon) should pass a {@link Camera} factory
-     * (e.g. {@link Camera#forBlockIcon()}) instead of composing the pose into their
+     * (e.g. {@link Camera#fromPose}) instead of composing the pose into their
      * {@code modelTransform}.
      *
      * @param context the renderer context
@@ -112,8 +113,9 @@ public class ModelEngine {
 
     /**
      * Constructs a model engine with a preset {@link Camera} pose, applied after the caller's
-     * model transform during rasterization. Pass a named pose (e.g. {@link Camera#forBlockIcon()}
-     * with the vanilla {@code [30, 225, 0]} block-icon camera) so the engine reflects the model's
+     * model transform during rasterization. Pass a named pose (e.g.
+     * {@link Projection#VANILLA_BLOCK} resolved to its camera, the vanilla {@code [30, 225, 0]}
+     * block-icon pose) so the engine reflects the model's
      * authored orientation without the caller composing it into a {@code modelTransform}.
      *
      * @param context the renderer context

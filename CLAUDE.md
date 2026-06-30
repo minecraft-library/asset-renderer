@@ -66,7 +66,7 @@ The factory NAME orders the quaternion product; application order to `v` is REVE
 
 Row-form equivalents (this codebase's `v_row × M`; `Matrix4f.createRotationX(θ)` produces a visual `+θ` X-rotation):
 - **Bone rotations** (`rotationZYX`, X-first): `createRotationX(pitch).multiply(createRotationY(yaw)).multiply(createRotationZ(roll))` - locked in `EntityGeometryKitJava.pivotCenteredRotation`.
-- **GUI display poses** (`rotationXYZ`, Z-first): `createRotationZ(roll).multiply(createRotationY(yaw)).multiply(createRotationX(pitch))` - used by `Camera`'s `display.*` pose builder (`forBlockIcon` / `withGuiPose`).
+- **GUI display poses** (`rotationXYZ`, Z-first): `createRotationZ(roll).multiply(createRotationY(yaw)).multiply(createRotationX(pitch))` - used by `Camera.fromPose` (the `display.*` pose builder, assembled into named poses by `Projection`'s `VANILLA_*` members).
 
 ### Foundation invariants (locked by unit test)
 `EntityGeometryKitTest` pins seven invariants on a single-bone single-cube fixture. The load-bearing one is **emit-order cross product ⋅ stored normal > 0**: triangles must be wound so their geometric normal agrees with the stored normal, camera- and projection-independent. Catches: removing/adding kit `FLIP_Y` without updating winding-reversal; changing UV-permutation arrays without UP↔DOWN face swap; breaking the atlas layout coefficients in `EntityFace.defaultUv`.
