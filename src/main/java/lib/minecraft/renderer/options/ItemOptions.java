@@ -6,6 +6,9 @@ import dev.simplified.image.Background;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.Renderer;
 import lib.minecraft.renderer.asset.rule.ItemContext;
+import lib.minecraft.renderer.engine.camera.GraphicalProjection;
+import lib.minecraft.renderer.engine.camera.HorizontalFacing;
+import lib.minecraft.renderer.engine.camera.VerticalFacing;
 import lib.minecraft.renderer.engine.compose.ImageLayer;
 import lib.minecraft.renderer.engine.compose.LayerSlot;
 import lib.minecraft.renderer.engine.compose.LayerStack;
@@ -181,6 +184,27 @@ public class ItemOptions {
      */
     @lombok.Builder.Default
     private final @NotNull UnaryOperator<LayerStack<ImageLayer>> layerDecorator = UnaryOperator.identity();
+
+        /**
+     * Graphical projection for the 3D render. Defaults to {@link GraphicalProjection#VANILLA_GUI_ITEM} -
+     * byte-identical to the shipped render; selecting another re-poses the camera and flatten together.
+     */
+    @lombok.Builder.Default
+    private final @NotNull GraphicalProjection projection = GraphicalProjection.VANILLA_GUI_ITEM;
+
+    /**
+     * Horizontal facing of the {@link #getProjection() projection}. Defaults to
+     * {@link HorizontalFacing#RIGHT}.
+     */
+    @lombok.Builder.Default
+    private final @NotNull HorizontalFacing horizontalFacing = HorizontalFacing.RIGHT;
+
+    /**
+     * Vertical facing of the {@link #getProjection() projection}. Defaults to
+     * {@link VerticalFacing#DOWN}.
+     */
+    @lombok.Builder.Default
+    private final @NotNull VerticalFacing verticalFacing = VerticalFacing.DOWN;
 
     public @NotNull ItemOptionsBuilder mutate() {
         return this.toBuilder();

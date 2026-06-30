@@ -10,7 +10,6 @@ import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Camera;
-import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.AnimationStage;
 import lib.minecraft.renderer.engine.compose.FinalizeStage;
 import lib.minecraft.renderer.engine.compose.GeometryLayer;
@@ -116,7 +115,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
 
     /**
      * Full 3D isometric fluid cube renderer. Builds triangles via {@link FluidGeometryKit}, then
-     * rasterizes through {@link Camera#forBlockIcon}'s {@code [30, 225, 0]} pose.
+     * rasterizes through {@link Camera#forBlockIcon}'s {@code [30, 225, 0]} pose by default.
      * Animation is driven by {@link FluidOptions#getFrameCount()} - single-frame renders return
      * a static image, multi-frame renders return an animated image with per-frame delay of
      * {@code ticksPerFrame * 50ms}.
@@ -137,7 +136,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
         }
 
         private @NotNull PixelBuffer renderFrame(@NotNull FluidOptions options, int tick) {
-            ModelEngine engine = new ModelEngine(this.context, Camera.forBlockIcon());
+            ModelEngine engine = new ModelEngine(this.context, options.getProjection().resolve(options.getHorizontalFacing(), options.getVerticalFacing()).camera());
             Textures textures = new Textures(this.context);
             PixelBuffer still = textures.resolveTextureAtTick(stillTextureId(options.getFluid()), tick);
             PixelBuffer flow = textures.resolveTextureAtTick(flowTextureId(options.getFluid()), tick);
@@ -154,7 +153,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
 
             int ssaa = Math.max(1, options.getSupersample());
             return FinalizeStage.run(options.getOutputSize(), options.getOutputSize(), ssaa, options.isAntiAlias(), false,
-                (target, mask) -> engine.rasterize(triangles, target, Projection.ISOMETRIC_BLOCK, options.getRotation()),
+                (target, mask) -> engine.rasterize(triangles, target, options.getProjection().resolve(options.getHorizontalFacing(), options.getVerticalFacing()).flatten(), options.getRotation()),
                 (buffer, mask) -> buffer);
         }
 

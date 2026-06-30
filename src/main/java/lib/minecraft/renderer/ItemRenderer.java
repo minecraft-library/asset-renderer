@@ -177,7 +177,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * folds {@code block/block.json}'s {@code 0.625} {@code display.gui.scale} into
      * {@link Projection#ISOMETRIC_BLOCK}.
      */
-    private static final @NotNull Projection SHIELD_PERSPECTIVE = new Projection(0f, 0f, 0f, SHIELD_GUI_DISPLAY_SCALE);
+    private static final @NotNull Projection SHIELD_PERSPECTIVE = Projection.orthographic(SHIELD_GUI_DISPLAY_SCALE);
 
     /**
      * Returns {@code true} when the item id is a banner or shield, which get composited through
@@ -550,7 +550,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             }
 
             Matrix4f displayTransform = resolveDisplayTransform(item, DISPLAY_SLOT_HELD_3D);
-            engine.rasterize(triangles, buffer, Projection.GUI_ITEM, displayTransform);
+            engine.rasterize(triangles, buffer, options.getProjection().resolve(options.getHorizontalFacing(), options.getVerticalFacing()).flatten(), displayTransform);
 
             return finalize2DItem(engine.textures(), buffer, item, options);
         }

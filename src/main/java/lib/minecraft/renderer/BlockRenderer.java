@@ -16,7 +16,6 @@ import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Camera;
-import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.FinalizeStage;
 import lib.minecraft.renderer.engine.compose.Frames;
 import lib.minecraft.renderer.engine.compose.GeometryLayer;
@@ -50,7 +49,7 @@ import java.util.Optional;
  * {@link Renderer Renderer&lt;BlockOptions&gt;}:
  * <ul>
  * <li>{@link Isometric3D} uses a {@link ModelEngine} fixed to the standard
- * {@code [30, 225, 0]} block-icon pose (via {@link Camera#forBlockIcon}). The
+ * {@code [30, 225, 0]} block-icon pose by default (via {@link Camera#forBlockIcon}). The
  * vanilla-reference harness renders every block at this uniform iso pose and ignores each
  * model's authored {@code display.gui} (stairs/slabs/fence gates ship {@code [30, 135, 0]}),
  * so per-state orientation comes from the baked blockstate variant rotation, not the camera.</li>
@@ -143,8 +142,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // side from vanilla. The blockstate variant rotation (baked into the harness's
             // BlockStateModel quads, applied here via buildVariantRotation) supplies the real
             // per-state orientation; the camera pose stays fixed.
-            EulerRotation guiRotation = EulerRotation.STANDARD_ISO_BLOCK;
-            ModelEngine engine = new ModelEngine(this.context, Camera.forBlockIcon());
+            var resolved = options.getProjection().resolve(options.getHorizontalFacing(), options.getVerticalFacing());
+            EulerRotation guiRotation = resolved.lightingPose();
+            ModelEngine engine = new ModelEngine(this.context, resolved.camera());
 
             // Block-entity mappings may supply a per-entry tint that overrides the block's
             // biome / constant tint. Used for banners: vanilla resolves DyeColor via
@@ -267,7 +267,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             int ssaa = Math.max(1, options.getSupersample());
             ConcurrentList<VisibleTriangle> rasterTriangles = triangles;
             return FinalizeStage.run(options.getOutputSize(), options.getOutputSize(), ssaa, options.isAntiAlias(), false,
-                (target, mask) -> engine.rasterize(rasterTriangles, target, Projection.ISOMETRIC_BLOCK, options.getRotation()),
+                (target, mask) -> engine.rasterize(rasterTriangles, target, resolved.flatten(), options.getRotation()),
                 (buffer, mask) -> Frames.staticFrame(buffer));
         }
 

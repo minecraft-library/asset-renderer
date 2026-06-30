@@ -10,7 +10,6 @@ import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Camera;
-import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.FinalizeStage;
 import lib.minecraft.renderer.engine.compose.Frames;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
@@ -477,7 +476,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
 
     /**
      * Full 3D isometric portal renderer. Builds geometry via {@link BlockGeometryKit} and rasterizes
-     * through {@link Camera#forBlockIcon}'s standard {@code [30, 225, 0]} pose. {@code END_GATEWAY}
+     * through {@link Camera#forBlockIcon}'s standard {@code [30, 225, 0]} pose by default. {@code END_GATEWAY}
      * renders as a unit cube with the baked face on all 6 sides; {@code END_PORTAL} renders as a
      * slab from {@code y = 0.375} to {@code y = 0.75} matching vanilla's
      * {@code TheEndPortalRenderer.BOTTOM} / {@code .TOP}.
@@ -507,7 +506,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
         }
 
         private @NotNull PixelBuffer renderFrame(@NotNull PortalOptions options, int tick) {
-            ModelEngine engine = new ModelEngine(this.context, Camera.forBlockIcon());
+            ModelEngine engine = new ModelEngine(this.context, options.getProjection().resolve(options.getHorizontalFacing(), options.getVerticalFacing()).camera());
             Textures textures = new Textures(this.context);
             PixelBuffer endSky = textures.resolveTexture(END_SKY_TEXTURE_ID);
             PixelBuffer endPortalNoise = textures.resolveTexture(END_PORTAL_NOISE_TEXTURE_ID);
@@ -533,7 +532,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
                 (target, ignoredMask) -> {
                     try (PixelBufferPool.Lease maskLease = PixelBufferPool.acquire(target.width(), target.height())) {
                         PixelBuffer shadingMask = maskLease.buffer();
-                        engine.rasterize(triangles, shadingMask, Projection.ISOMETRIC_BLOCK, options.getRotation());
+                        engine.rasterize(triangles, shadingMask, options.getProjection().resolve(options.getHorizontalFacing(), options.getVerticalFacing()).flatten(), options.getRotation());
                         composeShaderMask(target, shadingMask, shaderCanvas, target.width());
                     }
                 },

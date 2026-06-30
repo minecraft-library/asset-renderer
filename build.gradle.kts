@@ -239,6 +239,16 @@ tasks {
         args = if (blockId != null) listOf(blockId, renderSize, ssaa) else listOf()
     }
 
+    register<JavaExec>("projectionSmoke") {
+        description = "Renders a block under every GraphicalProjection + facing to cache/visual/projection-smoke/. -PblockId=minecraft:tnt -PrenderSize=512"
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestProjectionSmoke")
+        classpath = sourceSets["test"].runtimeClasspath
+        val blockId = (project.findProperty("blockId") as String?) ?: "minecraft:tnt"
+        val renderSize = (project.findProperty("renderSize") as String?) ?: "512"
+        args = listOf(blockId, renderSize)
+    }
+
     register<JavaExec>("itemRender2D") {
         description = "Renders items to cache/visual/item-render-2d/ for visual inspection. -PitemId=minecraft:diamond_sword -PrenderSize=256"
         group = "visual"
