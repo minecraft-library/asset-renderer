@@ -2,9 +2,7 @@ package lib.minecraft.renderer.options;
 
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.Renderer;
-import lib.minecraft.renderer.engine.camera.HorizontalFacing;
 import lib.minecraft.renderer.engine.camera.Projection;
-import lib.minecraft.renderer.engine.camera.VerticalFacing;
 import lib.minecraft.renderer.request.EulerRotation;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -133,17 +131,17 @@ public class PortalOptions {
 
     /**
      * Horizontal facing of the {@link #getProjection() projection}. Defaults to
-     * {@link HorizontalFacing#RIGHT}.
+     * {@link Projection.Horizontal#RIGHT}.
      */
     @lombok.Builder.Default
-    private final @NotNull HorizontalFacing horizontalFacing = HorizontalFacing.RIGHT;
+    private final @NotNull Projection.Horizontal horizontalFacing = Projection.Horizontal.RIGHT;
 
     /**
      * Vertical facing of the {@link #getProjection() projection}. Defaults to
-     * {@link VerticalFacing#DOWN}.
+     * {@link Projection.Vertical#DOWN}.
      */
     @lombok.Builder.Default
-    private final @NotNull VerticalFacing verticalFacing = VerticalFacing.DOWN;
+    private final @NotNull Projection.Vertical verticalFacing = Projection.Vertical.DOWN;
 
     public @NotNull PortalOptionsBuilder mutate() {
         return this.toBuilder();

@@ -2,9 +2,7 @@ package lib.minecraft.renderer.visual;
 
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.BlockRenderer;
-import lib.minecraft.renderer.engine.camera.HorizontalFacing;
 import lib.minecraft.renderer.engine.camera.Projection;
-import lib.minecraft.renderer.engine.camera.VerticalFacing;
 import lib.minecraft.renderer.options.BlockOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
@@ -48,18 +46,18 @@ public final class TestProjectionSmoke {
         String safe = blockId.replace(":", "_");
 
         for (Projection projection : Projection.values())
-            render(renderer, blockId, size, projection, HorizontalFacing.RIGHT, VerticalFacing.DOWN,
+            render(renderer, blockId, size, projection, Projection.Horizontal.RIGHT, Projection.Vertical.DOWN,
                 outputDir, safe + "__" + projection + "__RIGHT_DOWN");
 
-        for (HorizontalFacing horizontal : HorizontalFacing.values())
-            for (VerticalFacing vertical : VerticalFacing.values())
+        for (Projection.Horizontal horizontal : Projection.Horizontal.values())
+            for (Projection.Vertical vertical : Projection.Vertical.values())
                 render(renderer, blockId, size, Projection.ISOMETRIC, horizontal, vertical,
                        outputDir, safe + "__ISOMETRIC__" + horizontal + "_" + vertical);
     }
 
     private static void render(@NotNull BlockRenderer renderer, @NotNull String blockId, int size,
-                               @NotNull Projection projection, @NotNull HorizontalFacing horizontal,
-                               @NotNull VerticalFacing vertical, @NotNull Path outputDir, @NotNull String name) {
+                               @NotNull Projection projection, @NotNull Projection.Horizontal horizontal,
+                               @NotNull Projection.Vertical vertical, @NotNull Path outputDir, @NotNull String name) {
         try {
             ImageData image = renderer.render(BlockOptions.builder()
                 .blockId(blockId)
