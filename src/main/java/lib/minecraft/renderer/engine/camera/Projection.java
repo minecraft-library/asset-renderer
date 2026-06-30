@@ -106,22 +106,24 @@ public enum Projection {
     /**
      * Shipped block, fluid, and portal baseline.
      * <p>
-     * Vanilla's {@code [30, 225, 0]} {@code display.gui} pose from the root {@code block/block.json}
-     * model ({@link EulerRotation#STANDARD_ISO_BLOCK}) - technically a dimetric, not true isometric -
-     * at scale {@code 0.625}. The default three-quarter block-icon view (block atlases, skulls, busts,
-     * full-body skin renders); reproduces the block / fluid / portal renders byte-for-byte.
+     * Vanilla's {@code [30, 225, 0]} {@code display.gui} pose baked into the root
+     * {@code block/block.json} model - technically a dimetric, not true isometric - at scale
+     * {@code 0.625}. The default three-quarter block-icon view (block atlases, skulls, busts,
+     * full-body skin renders) used whenever a block model does not override its own GUI pose;
+     * reproduces the block / fluid / portal renders byte-for-byte.
      */
-    VANILLA_BLOCK(EulerRotation.STANDARD_ISO_BLOCK, Lens.ISOMETRIC_BLOCK),
+    VANILLA_BLOCK(new EulerRotation(30f, 225f, 0f), Lens.ISOMETRIC_BLOCK),
 
     /**
      * Shipped player baseline.
      * <p>
-     * The block pose with the yaw flipped 180&deg; so a humanoid's front faces the camera
-     * ({@code [30, 45, 0]}, {@link EulerRotation#STANDARD_ISO_PLAYER}) at the conservative scale - a
-     * det=+1 GUI pose carrying none of {@link #VANILLA_ENTITY}'s LER chirality. Reproduces the player
-     * renders byte-for-byte; the default for the player renderer.
+     * The {@link #VANILLA_BLOCK} pose with the yaw flipped 180&deg; ({@code [30, 45, 0]}) so a
+     * humanoid model's front (its {@code +Z} {@code SOUTH} face) turns toward the camera - the
+     * block-icon pose presents the model's {@code -Z} side, which on a humanoid is its back. A det=+1
+     * GUI pose at the conservative scale, carrying none of {@link #VANILLA_ENTITY}'s LER chirality.
+     * Reproduces the player renders byte-for-byte; the default for the player renderer.
      */
-    VANILLA_PLAYER(EulerRotation.STANDARD_ISO_PLAYER, Lens.NONE),
+    VANILLA_PLAYER(new EulerRotation(30f, 45f, 0f), Lens.NONE),
 
     /**
      * Shipped 3D held-item baseline.
@@ -135,16 +137,18 @@ public enum Projection {
     /**
      * Shipped entity-preview baseline.
      * <p>
-     * Vanilla's {@code EntityFrameRenderer.ISO_ROTATION} ({@code [210, 45, 0]},
-     * {@link EulerRotation#STANDARD_ISO_ENTITY}) built as the {@link Camera#entityIsoChain} chirality
-     * chain - a det=-1 transform carrying the LER chirality + reflection the vanilla-reference harness
-     * applies, so entity output aligns with the harness ground-truth PNGs. Distinct from
-     * {@link #VANILLA_BLOCK} / {@link #VANILLA_PLAYER}, which are det=+1 GUI display poses: this is the
-     * reflected entity chain ({@code resolve}'s {@link CameraChain#ENTITY_ISO} branch), and the
-     * caller's rotation stays a separate model-spin rather than composing into the camera. The default
+     * Vanilla's {@code EntityFrameRenderer.ISO_ROTATION = rotationXYZ(210°, 45°, 0°)}, itself derived
+     * from the empirical 24-step yaw + 576-frame pitch/roll sweep that locked vanilla's entity-preview
+     * pipeline camera. Built as the {@link Camera#entityIsoChain} chirality chain - a det=-1 transform
+     * carrying the LER chirality + reflection the vanilla-reference harness applies, so entity output
+     * aligns with the harness ground-truth PNGs. NOT equivalent to {@link #VANILLA_BLOCK} /
+     * {@link #VANILLA_PLAYER}, which are det=+1 GUI display poses: this pose differs from the block one
+     * by a yaw mirror + transpose-like permutation, so entity rendering must use it rather than
+     * borrowing the block-icon pose. The caller's rotation stays a separate model-spin rather than
+     * composing into the camera ({@code resolve}'s {@link CameraChain#ENTITY_ISO} branch). The default
      * for the entity renderer.
      */
-    VANILLA_ENTITY(EulerRotation.STANDARD_ISO_ENTITY, Lens.ISOMETRIC_BLOCK, CameraChain.ENTITY_ISO);
+    VANILLA_ENTITY(new EulerRotation(210f, 45f, 0f), Lens.ISOMETRIC_BLOCK, CameraChain.ENTITY_ISO);
 
     /**
      * Resolved camera pose, flatten, and lighting pose for one {@link Projection} at a chosen rotation -
@@ -194,6 +198,19 @@ public enum Projection {
     }
 
     /**
+     * This projection's unrotated base pose - the {@code (pitch, yaw, roll)} the camera and lighting
+     * sit at before the caller's rotation. The canonical home for the vanilla iso angles (block
+     * {@code [30, 225, 0]}, player {@code [30, 45, 0]}, entity {@code [210, 45, 0]}); callers that need
+     * the raw rotation - the entity pipeline's {@link Camera#entityIsoChain} and its bounds/anchor
+     * inverse - pull it from here rather than carrying their own copy.
+     *
+     * @return the base pose in degrees
+     */
+    public @NotNull EulerRotation basePose() {
+        return this.basePose;
+    }
+
+    /**
      * Resolves this projection at its base pose - the unrotated camera / flatten / lighting-pose
      * triple. Equivalent to {@link #resolve(EulerRotation)} with {@link EulerRotation#NONE}, so for a
      * {@code VANILLA_*} member it yields the exact shipped baseline.
@@ -222,7 +239,7 @@ public enum Projection {
      */
     public @NotNull Resolved resolve(@NotNull EulerRotation rotation) {
         if (this.cameraChain == CameraChain.ENTITY_ISO)
-            return new Resolved(new Camera(Camera.entityIsoChain()), this.baseFlatten, this.basePose);
+            return new Resolved(new Camera(Camera.entityIsoChain(this.basePose)), this.baseFlatten, this.basePose);
         EulerRotation pose = compose(this.basePose, rotation);
         return new Resolved(Camera.fromPose(pose), this.baseFlatten, pose);
     }

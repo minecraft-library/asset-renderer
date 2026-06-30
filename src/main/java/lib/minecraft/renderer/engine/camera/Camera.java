@@ -18,9 +18,9 @@ import org.jetbrains.annotations.NotNull;
  *   <li><b>{@link #fromPose(EulerRotation)}</b> - the goto builder: a {@code display.*} GUI pose from
  *       the supplied Euler angles via vanilla's {@code rotationXYZ}. Backs every {@link Projection}
  *       GUI-pose member and any caller that needs an ad-hoc display pose (item shield, bed parity).</li>
- *   <li><b>{@link #entityIsoChain()}</b> - the vanilla entity-preview iso chain with its det=-1 LER
- *       chirality, shared by {@link Projection#VANILLA_ENTITY} and the entity renderer's bounds / anchor
- *       projection. Parity-locked - see the method javadoc.</li>
+ *   <li><b>{@link #entityIsoChain(EulerRotation)}</b> - the vanilla entity-preview iso chain with its
+ *       det=-1 LER chirality, shared by {@link Projection#VANILLA_ENTITY} and the entity renderer's
+ *       bounds / anchor projection. Parity-locked - see the method javadoc.</li>
  *   <li><b>{@link #identity()}</b> - no pre-rotation; geometry viewed straight down {@code -Z}.</li>
  * </ul>
  *
@@ -78,14 +78,15 @@ public record Camera(@NotNull Matrix4f matrix) {
      * {@code scale(1,1,-1) * isoQuat * scale(1,1,-1) * scale(1,-1,1)}. Each fluent op matches JOML's
      * in-place translate/scale/rotate bit-for-bit with default {@code joml.useMathFma=false}.
      *
+     * @param isoPose the entity iso pose driving the central rotation - vanilla's {@code [210, 45, 0]},
+     *     supplied by {@link Projection#VANILLA_ENTITY} (its canonical home)
      * @return the entity iso chain matrix
      */
-    public static @NotNull Matrix4f entityIsoChain() {
-        EulerRotation iso = EulerRotation.STANDARD_ISO_ENTITY;
+    public static @NotNull Matrix4f entityIsoChain(@NotNull EulerRotation isoPose) {
         return Matrix4f.IDENTITY
             .scale(1f, -1f, 1f)
             .scale(1f, 1f, -1f)
-            .rotate(Quaternionf.rotationXYZ(iso.pitchRadians(), iso.yawRadians(), 0f))
+            .rotate(Quaternionf.rotationXYZ(isoPose.pitchRadians(), isoPose.yawRadians(), isoPose.rollRadians()))
             .scale(1f, 1f, -1f);
     }
 

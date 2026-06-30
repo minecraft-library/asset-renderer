@@ -30,7 +30,7 @@ import java.io.IOException;
  * </ul>
  * <p>
  * The diagram below illustrates each positive rotation arc on the renderer's standard
- * {@link #STANDARD_ISO_BLOCK} pose. Arcs are drawn for visual clarity rather than 3D-projection
+ * {@code [30, 225, 0]} block-icon pose. Arcs are drawn for visual clarity rather than 3D-projection
  * accuracy; the arc's plane is screen-perpendicular to its rotation axis.
  * <p>
  * <img src="doc-files/euler_reference.svg" alt="Euler rotation reference diagram" width="535"/>
@@ -45,34 +45,6 @@ public record EulerRotation(float pitch, float yaw, float roll) {
      * The identity rotation - all three Euler angles set to zero degrees.
      */
     public static final @NotNull EulerRotation NONE = new EulerRotation(0f, 0f, 0f);
-
-    /**
-     * Vanilla Minecraft's standard block inventory-icon pose: {@code [30, 225, 0]} pitch/yaw/roll.
-     * Matches the {@code display.gui} transform baked into the root {@code block/block.json}
-     * model and is the default camera used for block icons when a block
-     * model does not override its own GUI pose.
-     */
-    public static final @NotNull EulerRotation STANDARD_ISO_BLOCK = new EulerRotation(30f, 225f, 0f);
-
-    /**
-     * Vanilla Minecraft's standard entity inventory-preview pose: {@code [210, 45, 0]}
-     * pitch/yaw/roll. Matches {@code vanilla-reference-harness}'s
-     * {@code EntityFrameRenderer.ISO_ROTATION = new Quaternionf().rotationXYZ(210°, 45°, 0°)},
-     * which is itself derived from the empirical 24-step yaw + 576-frame pitch/roll sweep that
-     * locked vanilla's entity-preview pipeline camera. NOT equivalent to
-     * {@link #STANDARD_ISO_BLOCK} - they differ by a yaw mirror + transpose-like permutation, so
-     * entity rendering must use this constant rather than borrowing the block-icon pose.
-     */
-    public static final @NotNull EulerRotation STANDARD_ISO_ENTITY = new EulerRotation(210f, 45f, 0f);
-
-    /**
-     * The front-facing humanoid GUI pose: {@code [30, 45, 0]} pitch/yaw/roll. Shares the
-     * {@link #STANDARD_ISO_BLOCK block-icon} pose's pitch and roll but flips the yaw by 180&deg; so
-     * a player model's front (the {@code +Z} {@code SOUTH} face) turns toward the camera. The
-     * block-icon pose presents the model's {@code -Z} side, which on a humanoid is its back, so a
-     * player render needs this pose rather than borrowing {@link #STANDARD_ISO_BLOCK}.
-     */
-    public static final @NotNull EulerRotation STANDARD_ISO_PLAYER = new EulerRotation(30f, 45f, 0f);
 
     /**
      * The rotation about the ({@code X}-axis angle), in radians.

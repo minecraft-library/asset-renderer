@@ -573,7 +573,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * {@code rotationXYZ(x, y, z) ^ -1 = rotationZYX(-z, -y, -x)}.
      */
     private static @NotNull Matrix4f composeIsoInverse(@NotNull EulerRotation userRotation) {
-        EulerRotation iso = EulerRotation.STANDARD_ISO_ENTITY;
+        EulerRotation iso = Projection.VANILLA_ENTITY.basePose();
         boolean userIdentity = userRotation.pitch() == 0f && userRotation.yaw() == 0f && userRotation.roll() == 0f;
         // Forward = flipY * scaleZneg * isoRotation * scaleZneg * modelRotation * flipY (col-vec).
         // Inverse reverses the factor order and inverts each. flipY and scaleZneg are diagonal
@@ -616,7 +616,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // entity camera and this bounds/anchor transform stay a single source of truth. The trailing
         // modelRotation + outer flipY stay here: this transform is applied to bounds-probe points the
         // kit FLIP_Y never touches, so it bakes that flip in (unlike Projection.VANILLA_ENTITY's camera).
-        Matrix4f m = Camera.entityIsoChain();
+        Matrix4f m = Camera.entityIsoChain(Projection.VANILLA_ENTITY.basePose());
         if (!userIdentity)
             m = m.rotate(Quaternionf.rotationXYZ(userRotation.pitchRadians(), userRotation.yawRadians(), userRotation.rollRadians()));
         return m.scale(1f, -1f, 1f);

@@ -90,7 +90,7 @@ public class EntityGeometryKit {
     private static final @NotNull Vector3f VIEW_DIRECTION_KIT = computeKitFrameViewDirection();
 
     private static @NotNull Vector3f computeKitFrameViewDirection() {
-        EulerRotation iso = EulerRotation.STANDARD_ISO_ENTITY;
+        EulerRotation iso = Projection.VANILLA_ENTITY.basePose();
         // Column-vector chain `diag(1,-1,1) * R_X(-180°) * R_Y(-yaw) * R_X(-pitch) *
         // scale(1,1,-1)` implements `Yflip * M_view^T * v` where M_view = scale(1,1,-1) *
         // R_X(pitch) * R_Y(yaw) * R_X(180°) is vanilla's iso transform. Each rotation transposes

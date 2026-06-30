@@ -5,7 +5,7 @@
  * <p>{@link lib.minecraft.renderer.engine.camera.Camera Camera} is the value type wrapping the pose
  * matrix a {@link lib.minecraft.renderer.engine.ModelEngine ModelEngine} composes with every render,
  * plus the primitives that build one: {@code fromPose(rotation)} (a {@code display.*} GUI pose via
- * vanilla's {@code rotationXYZ}), {@code entityIsoChain()} (the {@code [210, 45, 0]} harness iso chain
+ * vanilla's {@code rotationXYZ}), {@code entityIsoChain(pose)} (the {@code [210, 45, 0]} harness iso chain
  * with its det=-1 LER chirality, reused by {@link lib.minecraft.renderer.EntityRenderer EntityRenderer}'s
  * bounds / anchor projection), and {@code identity()}.
  *

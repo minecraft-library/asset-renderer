@@ -49,8 +49,8 @@ The sibling [vanilla-reference-harness] drives the actual MC client to render ev
 2. **Vanilla reference** - drives real MC client via the harness; output at `cache/asset-renderer/vanilla/26.1/references/{blocks,entities}/`. **Ground truth.**
 
 ### Iso pose (locked invariants)
-- Entities: `EulerRotation.STANDARD_ISO_ENTITY = (210°, 45°, 0°)` matching harness's `EntityFrameRenderer.ISO_ROTATION = rotationXYZ(210°, 45°, 0°)`.
-- Blocks: `EulerRotation.STANDARD_ISO_BLOCK = (30°, 225°, 0°)` - distinct from entity iso on purpose.
+- Entities: `Projection.VANILLA_ENTITY.basePose()` = `(210°, 45°, 0°)` matching harness's `EntityFrameRenderer.ISO_ROTATION = rotationXYZ(210°, 45°, 0°)`. (`Projection` is the sole owner of these poses; `EulerRotation.STANDARD_*` is gone.)
+- Blocks: `Projection.VANILLA_BLOCK.basePose()` = `(30°, 225°, 0°)` - distinct from entity iso on purpose.
 - Entity iso transform chain has `det=-1` (chirality fix); 5 coupled invariants pinned together: iso constant, engine camera chain, kit emission winding, plane-cube culling, canvas-sizing helpers. The foundation test's "cross OPPOSES stored normal" invariant guards against accidental re-flipping.
 - DO NOT touch `composeIsoTransform` / `Camera.entityIsoChain` (the shared entity iso prefix). Rotation-order swap is math-proven equivalent and an empirical retry regressed piglin 10.27 -> 184.34.
 

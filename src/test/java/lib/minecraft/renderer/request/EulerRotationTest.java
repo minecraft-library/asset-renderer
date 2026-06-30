@@ -16,13 +16,6 @@ class EulerRotationTest {
     }
 
     @Test
-    @DisplayName("standard pose constants carry the documented angles")
-    void standardConstants() {
-        assertThat(EulerRotation.STANDARD_ISO_BLOCK, equalTo(new EulerRotation(30f, 225f, 0f)));
-        assertThat(EulerRotation.STANDARD_ISO_ENTITY, equalTo(new EulerRotation(210f, 45f, 0f)));
-    }
-
-    @Test
     @DisplayName("per-axis radian accessors convert from degrees")
     void radianAccessors() {
         EulerRotation r = new EulerRotation(90f, 180f, 270f);
