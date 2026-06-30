@@ -5,7 +5,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.asset.Biome;
+import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
@@ -99,7 +99,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
      * Lava is never tinted - it returns {@link ColorMath#WHITE}. Water consults, in priority
      * order: the caller-supplied {@link FluidOptions#getWaterTintArgbOverride()}, then the
      * biome's water tint via {@link Textures#sampleBiomeTint} using
-     * {@link Biome.TintTarget#WATER} (which falls back to the engine-level default when the
+     * {@link Block.TintTarget#WATER} (which falls back to the engine-level default when the
      * biome carries no {@code water_color} override).
      *
      * @param context the renderer context
@@ -111,7 +111,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             return ColorMath.WHITE;
         if (options.getWaterTintArgbOverride() != null)
             return options.getWaterTintArgbOverride();
-        return new Textures(context).sampleBiomeTint(Biome.TintTarget.WATER, options.getBiome());
+        return new Textures(context).sampleBiomeTint(Block.TintTarget.WATER, options.getBiome());
     }
 
     /**

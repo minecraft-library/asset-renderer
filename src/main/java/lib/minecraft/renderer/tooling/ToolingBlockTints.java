@@ -7,7 +7,6 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
-import lib.minecraft.renderer.asset.Biome;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.exception.ToolingException;
@@ -137,7 +136,7 @@ public final class ToolingBlockTints {
      *
      * @see BlockTintsLoader
      * @see Block.Tint
-     * @see Biome.TintTarget
+     * @see Block.TintTarget
      */
     @UtilityClass
     static class Parser {
@@ -160,29 +159,29 @@ public final class ToolingBlockTints {
 
         /**
          * Maps the short name of a {@code BlockTintSources.X()} factory method to the corresponding
-         * {@link Biome.TintTarget}. Sources whose tint depends on dynamic per-block state - water,
+         * {@link Block.TintTarget}. Sources whose tint depends on dynamic per-block state - water,
          * waterParticles, redstone - are not in the map and are silently dropped because the atlas
          * renderer cannot resolve them at static-render time. {@code stem} is also state-dependent
          * but is special-cased in {@link #emitTints} to its {@code age=0} default-state colour
          * rather than dropped.
          */
-        private static final @NotNull ConcurrentMap<String, Biome.TintTarget> SUPPORTED_SOURCES = buildSupportedSources();
+        private static final @NotNull ConcurrentMap<String, Block.TintTarget> SUPPORTED_SOURCES = buildSupportedSources();
 
         /**
          * Builds the {@link #SUPPORTED_SOURCES} policy table.
          */
-        private static @NotNull ConcurrentMap<String, Biome.TintTarget> buildSupportedSources() {
-            ConcurrentMap<String, Biome.TintTarget> map = Concurrent.newMap();
+        private static @NotNull ConcurrentMap<String, Block.TintTarget> buildSupportedSources() {
+            ConcurrentMap<String, Block.TintTarget> map = Concurrent.newMap();
             // GRASS colormap sources - the BlockTintSources helper distinguishes several grass
             // variants (grass, grassBlock with its top-face-only sampling, sugarCane's biome
             // modifier, doubleTallGrass for large_fern / tall_grass), all of which sample the grass
             // colormap at render time. For atlas rendering they collapse to the same target.
-            map.put("grass", Biome.TintTarget.GRASS);
-            map.put("grassBlock", Biome.TintTarget.GRASS);
-            map.put("sugarCane", Biome.TintTarget.GRASS);
-            map.put("doubleTallGrass", Biome.TintTarget.GRASS);
-            map.put("foliage", Biome.TintTarget.FOLIAGE);
-            map.put("dryFoliage", Biome.TintTarget.DRY_FOLIAGE);
+            map.put("grass", Block.TintTarget.GRASS);
+            map.put("grassBlock", Block.TintTarget.GRASS);
+            map.put("sugarCane", Block.TintTarget.GRASS);
+            map.put("doubleTallGrass", Block.TintTarget.GRASS);
+            map.put("foliage", Block.TintTarget.FOLIAGE);
+            map.put("dryFoliage", Block.TintTarget.DRY_FOLIAGE);
             return map;
         }
 
@@ -307,20 +306,20 @@ public final class ToolingBlockTints {
             int constant,
             @NotNull ConcurrentList<String> blocks
         ) {
-            Biome.TintTarget target;
+            Block.TintTarget target;
             Optional<Integer> constantColor = Optional.empty();
 
             if (sourceMethod.equals("constant")) {
-                target = Biome.TintTarget.CONSTANT;
+                target = Block.TintTarget.CONSTANT;
                 // The renderer produces GUI block icons, which use vanilla's no-context "in hand"
                 // colour ({@code BlockTintSource.color(state)} = the first {@code constant(...)} arg).
                 constantColor = Optional.of(constant);
             } else if (sourceMethod.equals(STEM_SOURCE)) {
                 // stem() is age-dependent; the default-state (age=0) render is pure green.
-                target = Biome.TintTarget.CONSTANT;
+                target = Block.TintTarget.CONSTANT;
                 constantColor = Optional.of(STEM_DEFAULT_COLOR);
             } else {
-                Biome.TintTarget mapped = SUPPORTED_SOURCES.get(sourceMethod);
+                Block.TintTarget mapped = SUPPORTED_SOURCES.get(sourceMethod);
                 if (mapped == null) return;
                 target = mapped;
             }

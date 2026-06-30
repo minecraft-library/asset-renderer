@@ -121,15 +121,55 @@ public final class Block {
     }
 
     /**
+     * Identifies which biome colormap drives a block face's tint, or flags that the tint comes
+     * from a hardcoded constant on the block DTO.
+     */
+    public enum TintTarget {
+
+        /**
+         * The face is not biome-tinted.
+         */
+        NONE,
+
+        /**
+         * Sample the grass colormap. Applies to grass blocks, tall grass, ferns, etc.
+         */
+        GRASS,
+
+        /**
+         * Sample the foliage colormap. Applies to most leaves.
+         */
+        FOLIAGE,
+
+        /**
+         * Sample the dry-foliage colormap. Applies to pale oak and a handful of other biomes.
+         */
+        DRY_FOLIAGE,
+
+        /**
+         * Use the biome's water colour override when present, or the engine-level default
+         * {@code 0xFF3F76E4} otherwise. Vanilla water has no colormap; biomes either carry an
+         * explicit {@code water_color} value or inherit the default.
+         */
+        WATER,
+
+        /**
+         * Use the block's {@code tintConstant} field directly. Applies to redstone wire, stems, etc.
+         */
+        CONSTANT
+
+    }
+
+    /**
      * The biome tint binding for a block, selecting which colormap (or hardcoded constant) the
      * renderer samples for tinted faces.
      *
-     * @param target the tint source - {@link Biome.TintTarget#NONE NONE} for untinted blocks,
-     *     {@link Biome.TintTarget#CONSTANT CONSTANT} for a hardcoded ARGB value, or a colormap
-     *     target like {@link Biome.TintTarget#GRASS GRASS} / {@link Biome.TintTarget#FOLIAGE FOLIAGE}
+     * @param target the tint source - {@link TintTarget#NONE NONE} for untinted blocks,
+     *     {@link TintTarget#CONSTANT CONSTANT} for a hardcoded ARGB value, or a colormap
+     *     target like {@link TintTarget#GRASS GRASS} / {@link TintTarget#FOLIAGE FOLIAGE}
      * @param constant the hardcoded ARGB value when target is {@code CONSTANT}
      */
-    public record Tint(@NotNull Biome.TintTarget target, @NotNull Optional<Integer> constant) {}
+    public record Tint(@NotNull TintTarget target, @NotNull Optional<Integer> constant) {}
 
     /**
      * A single blockstate variant entry, specifying which model to use and what whole-block

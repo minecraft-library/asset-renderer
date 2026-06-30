@@ -3,7 +3,6 @@ package lib.minecraft.renderer.pipeline.loader;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import lib.minecraft.renderer.asset.Biome;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockTag;
 import lib.minecraft.renderer.asset.ResourceId;
@@ -173,7 +172,7 @@ public class BlockIndexLoader {
      * model entirely (the template block.json is usually empty - just a {@code particle} texture
      * - and the real geometry is hardcoded in a {@code BlockEntityRenderer}). The texture map
      * rebinds to the entity texture under the {@code "#entity"} face reference, the
-     * {@link Block.Tint} resets to {@link Biome.TintTarget#NONE} (per-entry tints are applied
+     * {@link Block.Tint} resets to {@link Block.TintTarget#NONE} (per-entry tints are applied
      * via {@link Block.Entity#tintArgb()} at render time), and the block is tagged
      * {@link Block.Source#TILE_ENTITY}. <b>Additive entries</b> (e.g. the bell body) leave the
      * primary block.json model in place and only attach the entity for the renderer to merge
@@ -214,7 +213,7 @@ public class BlockIndexLoader {
             HashMap<String, String> textures = new HashMap<>(modelToUse.getTextures());
             flattenElementFaces(modelToUse, textures);
 
-            Block.Tint tint = tints.getOrDefault(blockId, new Block.Tint(Biome.TintTarget.NONE, Optional.empty()));
+            Block.Tint tint = tints.getOrDefault(blockId, new Block.Tint(Block.TintTarget.NONE, Optional.empty()));
             ConcurrentMap<String, Block.Variant> variants = mergeBlockEntityVariants(variantMap.getOrDefault(blockId, Concurrent.newMap()), beVariants.get(blockId));
             Optional<Block.Multipart> multipart = Optional.ofNullable(multipartMap.get(blockId));
             ConcurrentList<String> tags = reverseTagIndex.getOrDefault(blockId, Concurrent.newList());
@@ -225,7 +224,7 @@ public class BlockIndexLoader {
                 modelToUse = entity.model();
                 textures = new HashMap<>();
                 textures.put("#entity", entity.textureId());
-                tint = new Block.Tint(Biome.TintTarget.NONE, Optional.empty());
+                tint = new Block.Tint(Block.TintTarget.NONE, Optional.empty());
                 source = Block.Source.TILE_ENTITY;
             }
 
@@ -288,7 +287,7 @@ public class BlockIndexLoader {
                 variants,
                 multipart,
                 tags,
-                new Block.Tint(Biome.TintTarget.NONE, Optional.empty()),
+                new Block.Tint(Block.TintTarget.NONE, Optional.empty()),
                 Optional.of(be),
                 Block.Source.TILE_ENTITY,
                 defaultKeyFor(result, blockId)
@@ -364,7 +363,7 @@ public class BlockIndexLoader {
             HashMap<String, String> textures = new HashMap<>(modelToUse.getTextures());
             flattenElementFaces(modelToUse, textures);
 
-            Block.Tint tint = tints.getOrDefault(blockId, new Block.Tint(Biome.TintTarget.NONE, Optional.empty()));
+            Block.Tint tint = tints.getOrDefault(blockId, new Block.Tint(Block.TintTarget.NONE, Optional.empty()));
             ConcurrentMap<String, Block.Variant> variants = variantMap.getOrDefault(blockId, Concurrent.newMap());
             Optional<Block.Multipart> multipart = Optional.ofNullable(multipartMap.get(blockId));
             ConcurrentList<String> tags = reverseTagIndex.getOrDefault(blockId, Concurrent.newList());

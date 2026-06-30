@@ -90,17 +90,17 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
     /**
      * Resolves the ARGB tint applied to a block's faces based on its
-     * {@link Biome.TintTarget}. Returns opaque white for {@code NONE}, the block's hardcoded
+     * {@link Block.TintTarget}. Returns opaque white for {@code NONE}, the block's hardcoded
      * constant for {@code CONSTANT}, or a colormap sample for {@code GRASS} / {@code FOLIAGE} /
      * {@code DRY_FOLIAGE}.
      */
     static int resolveBlockTint(@NotNull RendererContext context, @NotNull Block block, @NotNull BlockOptions options) {
-        Biome.TintTarget target = block.getTint().target();
+        Block.TintTarget target = block.getTint().target();
 
-        if (target == Biome.TintTarget.NONE)
+        if (target == Block.TintTarget.NONE)
             return ColorMath.WHITE;
 
-        if (target == Biome.TintTarget.CONSTANT)
+        if (target == Block.TintTarget.CONSTANT)
             return block.getTint().constant().orElse(ColorMath.WHITE);
 
         return new Textures(context).sampleBiomeTint(target, options.getBiome());

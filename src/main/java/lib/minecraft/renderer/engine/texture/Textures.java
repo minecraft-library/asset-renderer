@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.engine.texture;
 
 import lib.minecraft.renderer.asset.Biome;
+import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
@@ -150,8 +151,8 @@ public class Textures {
      * <p>
      * Priority order:
      * <ol>
-     * <li>{@link Biome.TintTarget#NONE} returns opaque white - no tint applied.</li>
-     * <li>{@link Biome.TintTarget#CONSTANT} defers to the block DTO's {@code tintConstant} and
+     * <li>{@link Block.TintTarget#NONE} returns opaque white - no tint applied.</li>
+     * <li>{@link Block.TintTarget#CONSTANT} defers to the block DTO's {@code tintConstant} and
      * should not be routed through this method.</li>
      * <li>The biome's matching hardcoded override (badlands, cherry grove, etc.).</li>
      * <li>A sample from the corresponding {@link ColorMap} at {@code (temperature, downfall)}.</li>
@@ -162,8 +163,8 @@ public class Textures {
      * @param biome the biome context
      * @return the sampled ARGB colour
      */
-    public int sampleBiomeTint(@NotNull Biome.TintTarget target, @NotNull Biome biome) {
-        if (target == Biome.TintTarget.NONE || target == Biome.TintTarget.CONSTANT)
+    public int sampleBiomeTint(@NotNull Block.TintTarget target, @NotNull Biome biome) {
+        if (target == Block.TintTarget.NONE || target == Block.TintTarget.CONSTANT)
             return ColorMath.WHITE;
 
         // Pack-supplied colour overrides win over both biome-hardcoded overrides and the colormap
@@ -175,7 +176,7 @@ public class Textures {
         if (packKey != null) {
             Optional<Integer> packOverride = this.context.findColorOverride(packKey);
             if (packOverride.isPresent()) {
-                if (target == Biome.TintTarget.WATER) return packOverride.get();
+                if (target == Block.TintTarget.WATER) return packOverride.get();
                 return applyModifier(packOverride.get(), biome.grassColorModifier(), target);
             }
         }
@@ -183,7 +184,7 @@ public class Textures {
         // Water has no colormap in vanilla - the tint is either the per-biome override or the
         // engine-level default. Skip the colormap path entirely and skip grassColorModifier
         // (water is unaffected by the dark-forest / swamp modifiers that only apply to grass).
-        if (target == Biome.TintTarget.WATER)
+        if (target == Block.TintTarget.WATER)
             return biome.waterColorOverride().orElse(DEFAULT_WATER_ARGB);
 
         Optional<Integer> override = switch (target) {
@@ -275,7 +276,7 @@ public class Textures {
      * {@code water.<biome>}, where {@code <biome>} is the biome's local name (everything after
      * the {@code minecraft:} namespace prefix).
      */
-    private static String packOverrideKeyFor(@NotNull Biome.TintTarget target, @NotNull Biome biome) {
+    private static String packOverrideKeyFor(@NotNull Block.TintTarget target, @NotNull Biome biome) {
         String prefix = switch (target) {
             case GRASS -> "grass.";
             case FOLIAGE -> "foliage.";
@@ -289,11 +290,11 @@ public class Textures {
         return prefix + (colon >= 0 ? id.substring(colon + 1) : id);
     }
 
-    private int applyModifier(int argb, @NotNull Biome.GrassColorModifier modifier, @NotNull Biome.TintTarget target) {
+    private int applyModifier(int argb, @NotNull Biome.GrassColorModifier modifier, @NotNull Block.TintTarget target) {
         // Vanilla only runs the grass colour modifier on the grass tint - foliage and dry foliage
         // pass through untouched. See {@code Biome.getGrassColor} vs {@code Biome.getFoliageColor}
         // in the MC 26.1 client source: only the former invokes {@code grassColorModifier.modifyColor}.
-        if (target != Biome.TintTarget.GRASS) return argb;
+        if (target != Block.TintTarget.GRASS) return argb;
 
         return switch (modifier) {
             case NONE -> argb;

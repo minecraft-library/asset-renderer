@@ -8,7 +8,6 @@ import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
-import lib.minecraft.renderer.asset.Biome;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.tooling.ToolingBlockTints;
@@ -71,7 +70,7 @@ public class BlockTintsLoader {
             for (JsonElement element : entries) {
                 JsonObject entry = element.getAsJsonObject();
                 String blockId = entry.get("block").getAsString();
-                Biome.TintTarget target = Biome.TintTarget.valueOf(entry.get("target").getAsString());
+                Block.TintTarget target = Block.TintTarget.valueOf(entry.get("target").getAsString());
                 Optional<Integer> constant = entry.has("constant")
                     ? Optional.of(Integer.parseUnsignedInt(entry.get("constant").getAsString().substring(2), 16))
                     : Optional.empty();

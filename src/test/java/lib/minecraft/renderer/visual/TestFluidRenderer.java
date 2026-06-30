@@ -32,7 +32,7 @@ import java.util.Optional;
  * <li>Sloped corner-height and flow-direction renders (will look flat-topped until
  * {@link FluidGeometryKit#buildFluidCube} is expanded).</li>
  * <li>Biome-tint variants and the explicit ARGB override (biome variants will all look
- * identical until {@link Biome.TintTarget#WATER} is wired; the override path works today).</li>
+ * identical until {@link Block.TintTarget#WATER} is wired; the override path works today).</li>
  * </ul>
  * Usage: {@code ./gradlew :asset-renderer:fluidRenderer}.
  */
@@ -113,7 +113,7 @@ public final class TestFluidRenderer {
             .flowAngleRadians(Optional.of((float) Math.toRadians(45)))
             .build());
 
-        // Biome tint. Until Biome.TintTarget.WATER ships these will all render at the vanilla
+        // Biome tint. Until Block.TintTarget.WATER ships these will all render at the vanilla
         // default water colour; only the override variant differs.
         render(renderer, imageFactory, "water_plains", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)

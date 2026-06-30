@@ -21,7 +21,7 @@ import lib.minecraft.renderer.asset.BannerPattern;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockTag;
 import lib.minecraft.renderer.asset.ColorMap;
-import lib.minecraft.renderer.asset.LayerTint;
+import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Texture;
 import lib.minecraft.renderer.asset.TexturePack;
 import lib.minecraft.renderer.asset.model.ModelData;

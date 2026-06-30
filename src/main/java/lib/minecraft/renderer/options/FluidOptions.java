@@ -63,7 +63,7 @@ public class FluidOptions {
     private final @NotNull Optional<Float> flowAngleRadians = Optional.empty();
 
     /**
-     * Biome used for tinting water. Ignored for lava. Routed through {@code Biome.TintTarget.WATER}.
+     * Biome used for tinting water. Ignored for lava. Routed through {@code Block.TintTarget.WATER}.
      */
     @lombok.Builder.Default
     private final @NotNull Biome biome = Biome.Vanilla.PLAINS;
