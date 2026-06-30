@@ -12,7 +12,6 @@ import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.model.EntityModelData.Bone;
 import lib.minecraft.renderer.asset.model.EntityModelData.Cube;
 import lib.minecraft.renderer.asset.model.EntityModelData;
-import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
 import lib.minecraft.renderer.exception.ToolingException;
 import lib.minecraft.renderer.face.BlockFace;
 import lib.minecraft.renderer.face.EntityFace;
