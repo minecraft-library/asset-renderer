@@ -2,7 +2,7 @@ package lib.minecraft.renderer.options;
 
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.Renderer;
-import lib.minecraft.renderer.geometry.EulerRotation;
+import lib.minecraft.renderer.request.EulerRotation;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;

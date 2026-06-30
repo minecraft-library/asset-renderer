@@ -1,7 +1,7 @@
 /**
  * The rasterizer's data types and 2D coverage math - the pipeline-specific pieces that flow into
  * {@link lib.minecraft.renderer.engine.ModelEngine ModelEngine}, as opposed to the general
- * geometric primitives in {@link lib.minecraft.renderer.geometry geometry}.
+ * geometric primitives in {@link lib.minecraft.renderer.face face}.
  * <ul>
  *   <li>{@link lib.minecraft.renderer.engine.raster.VisibleTriangle VisibleTriangle} - the single
  *       draw-list record every {@link lib.minecraft.renderer.engine.kit kit} emits and the engine

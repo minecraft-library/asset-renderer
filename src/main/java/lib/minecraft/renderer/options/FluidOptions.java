@@ -6,7 +6,7 @@ import lib.minecraft.renderer.appearance.Biome;
 import lib.minecraft.renderer.engine.compose.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.LayerSlot;
 import lib.minecraft.renderer.engine.compose.LayerStack;
-import lib.minecraft.renderer.geometry.EulerRotation;
+import lib.minecraft.renderer.request.EulerRotation;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;

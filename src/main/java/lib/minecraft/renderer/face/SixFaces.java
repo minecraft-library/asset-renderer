@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.geometry;
+package lib.minecraft.renderer.face;
 
 import dev.simplified.image.pixel.PixelBuffer;
 import org.jetbrains.annotations.NotNull;

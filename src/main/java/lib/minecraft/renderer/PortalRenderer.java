@@ -16,7 +16,7 @@ import lib.minecraft.renderer.engine.compose.Frames;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
-import lib.minecraft.renderer.geometry.SixFaces;
+import lib.minecraft.renderer.face.SixFaces;
 import lib.minecraft.renderer.options.PortalOptions;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.RequiredArgsConstructor;

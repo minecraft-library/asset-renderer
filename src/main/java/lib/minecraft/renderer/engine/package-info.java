@@ -34,9 +34,10 @@
  *       ({@code RasterMath}), and the glint coverage mask.</li>
  * </ul>
  * Camera-to-screen projection ({@link lib.minecraft.renderer.engine.camera.Projection Projection})
- * sits with {@code Camera} in the camera subpackage; the general geometric primitives
- * (face enums, {@code Box}, {@code EulerRotation}) stay in
- * {@link lib.minecraft.renderer.geometry geometry}; frame-building lives with the post stages in
+ * sits with {@code Camera} in the camera subpackage; the general geometric primitives split across
+ * {@link lib.minecraft.renderer.face face} (face enums), {@link lib.minecraft.renderer.tensor tensor}
+ * ({@code Box}), and {@link lib.minecraft.renderer.request request} ({@code EulerRotation});
+ * frame-building lives with the post stages in
  * {@link lib.minecraft.renderer.engine.compose compose}.
  *
  * <p><b>Resource-provider port.</b>

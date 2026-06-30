@@ -1,6 +1,7 @@
-package lib.minecraft.renderer.geometry;
+package lib.minecraft.renderer.face;
 
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
+import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tensor.Vector4f;
 import lombok.Getter;

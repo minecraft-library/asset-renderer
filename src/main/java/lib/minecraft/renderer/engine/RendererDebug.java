@@ -2,7 +2,7 @@ package lib.minecraft.renderer.engine;
 
 import dev.simplified.image.pixel.BlendMode;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
-import lib.minecraft.renderer.geometry.Box;
+import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.experimental.UtilityClass;

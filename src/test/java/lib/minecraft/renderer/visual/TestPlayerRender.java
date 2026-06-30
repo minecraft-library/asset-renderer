@@ -4,6 +4,7 @@ import api.simplified.mojang.exception.MojangApiException;
 import api.simplified.mojang.response.MojangProfile;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.codec.gif.GifImageWriter;
 import dev.simplified.image.codec.gif.GifWriteOptions;
@@ -12,17 +13,15 @@ import lib.minecraft.renderer.appearance.ArmorMaterial;
 import lib.minecraft.renderer.appearance.ArmorPiece;
 import lib.minecraft.renderer.appearance.ArmorTrim;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.options.PlayerOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.util.PackDownloader;
-import dev.simplified.image.Background;
+import lib.minecraft.renderer.request.EulerRotation;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
-import javax.imageio.ImageIO;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
@@ -40,6 +39,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import javax.imageio.ImageIO;
 
 /**
  * Visual sweep of every {@link PlayerRenderer} option, written as labelled contact sheets to

@@ -1,7 +1,8 @@
-package lib.minecraft.renderer.geometry;
+package lib.minecraft.renderer.face;
 
 import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
 import lib.minecraft.renderer.engine.light.Lighting;
+import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tensor.Vector4f;

@@ -11,7 +11,7 @@ import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.engine.texture.Textures;
-import lib.minecraft.renderer.geometry.BlockFace;
+import lib.minecraft.renderer.face.BlockFace;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.util.Models;
 import lombok.experimental.UtilityClass;

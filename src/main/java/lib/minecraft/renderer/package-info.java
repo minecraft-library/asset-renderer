@@ -50,7 +50,7 @@
  * <p><b>Where the real work lives.</b> This package is intentionally a thin dispatch surface:
  * <ul>
  *   <li>Geometry building - {@link lib.minecraft.renderer.engine.kit kit} (per-asset-type kits) and
- *       {@link lib.minecraft.renderer.geometry geometry} (primitive math).</li>
+ *       {@link lib.minecraft.renderer.face face} (face-unwrap enums).</li>
  *   <li>Rasterization - {@link lib.minecraft.renderer.engine engine} (the
  *       {@link lib.minecraft.renderer.engine.ModelEngine ModelEngine} triangle rasterizer and
  *       its {@link lib.minecraft.renderer.engine.camera.Camera Camera} pose value).</li>

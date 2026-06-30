@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.engine.light;
 
 import lib.minecraft.renderer.engine.camera.Camera;
-import lib.minecraft.renderer.geometry.BlockFace;
+import lib.minecraft.renderer.face.BlockFace;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector3f;

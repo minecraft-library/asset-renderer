@@ -56,6 +56,9 @@
  *       {@code (x, y, z, w)} record. JOML algorithm port (~110 lines, no JOML dep) used for
  *       the iso rotation matrix in the entity pipeline and the cube-pivot rotation in
  *       {@link lib.minecraft.renderer.engine.kit.EntityGeometryKit EntityGeometryKit}.</li>
+ *   <li>{@link lib.minecraft.renderer.tensor.Box Box} - immutable axis-aligned bounding box, a
+ *       {@code (Vector3f min, Vector3f max)} pair carrying point-list AABB fitting and box
+ *       arithmetic. Drives screen-bounds fitting and canvas sizing.</li>
  * </ul>
  *
  * <p><b>SIMD dispatch.</b>

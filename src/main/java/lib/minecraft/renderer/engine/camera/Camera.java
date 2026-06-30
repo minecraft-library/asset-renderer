@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.engine.camera;
 
 import lib.minecraft.renderer.engine.ModelEngine;
-import lib.minecraft.renderer.geometry.EulerRotation;
+import lib.minecraft.renderer.request.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
 import org.jetbrains.annotations.NotNull;

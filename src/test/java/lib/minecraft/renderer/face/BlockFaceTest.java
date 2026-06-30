@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.geometry;
+package lib.minecraft.renderer.face;
 
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.junit.jupiter.api.DisplayName;

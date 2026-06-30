@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.geometry;
+package lib.minecraft.renderer.tensor;
 
 import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
