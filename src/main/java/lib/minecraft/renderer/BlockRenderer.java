@@ -17,6 +17,7 @@ import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Camera;
+import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.FinalizeStage;
 import lib.minecraft.renderer.engine.compose.Frames;
 import lib.minecraft.renderer.engine.compose.GeometryLayer;
@@ -26,7 +27,6 @@ import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.geometry.EulerRotation;
-import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.SurfaceTraits;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.options.BlockOptions;
@@ -267,7 +267,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             int ssaa = Math.max(1, options.getSupersample());
             ConcurrentList<VisibleTriangle> rasterTriangles = triangles;
             return FinalizeStage.run(options.getOutputSize(), options.getOutputSize(), ssaa, options.isAntiAlias(), false,
-                (target, mask) -> engine.rasterize(rasterTriangles, target, PerspectiveParams.ISOMETRIC_BLOCK, options.getRotation()),
+                (target, mask) -> engine.rasterize(rasterTriangles, target, Projection.ISOMETRIC_BLOCK, options.getRotation()),
                 (buffer, mask) -> Frames.staticFrame(buffer));
         }
 

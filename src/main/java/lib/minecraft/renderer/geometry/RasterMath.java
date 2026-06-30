@@ -2,18 +2,17 @@ package lib.minecraft.renderer.geometry;
 
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.tensor.Vector2f;
-import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Static helpers for the camera-to-screen projection and the 2D rasterization math shared by the
- * drawing helpers and the engine layer - the orthographic / perspective projection of a model-space
- * point ({@link #projectPerspective}) plus the primitive triangle and barycentric coverage math the
- * rasterizer walks per pixel.
+ * Static helpers for the 2D triangle rasterization math shared by the drawing helpers and the
+ * engine layer - sub-pixel sample quantization, barycentric coordinates, and the Pineda edge
+ * functions / top-left fill rule the rasterizer walks per pixel. (Camera-to-screen projection lives
+ * on the {@code engine.camera.Projection} record.)
  */
 @UtilityClass
-public class ProjectionMath {
+public class RasterMath {
 
     /**
      * Sub-pixel precision for the fixed-point coverage test. {@code 256} matches GPU 8-bit
@@ -35,49 +34,6 @@ public class ProjectionMath {
      */
     public static long quantizeSample(float coord) {
         return Math.round((double) coord * FIXED_POINT_PRECISION);
-    }
-
-    // --- camera projection ---
-
-    /**
-     * Projects a model-space point onto 2D screen coordinates using a pure orthographic camera.
-     *
-     * @param point the 3D point to project
-     * @param scale the uniform screen-space scale factor
-     * @param offsetX the horizontal screen offset to apply after scaling
-     * @param offsetY the vertical screen offset to apply after scaling
-     * @return the projected 2D point
-     */
-    public static @NotNull Vector2f projectOrtho(@NotNull Vector3f point, float scale, float offsetX, float offsetY) {
-        return new Vector2f(point.x() * scale + offsetX, -point.y() * scale + offsetY);
-    }
-
-    /**
-     * Projects a model-space point onto 2D screen coordinates using a blend of orthographic and
-     * perspective projection. When {@code params.amount() == 0} this is equivalent to
-     * {@link #projectOrtho(Vector3f, float, float, float) projectOrtho}.
-     *
-     * @param point the 3D point to project
-     * @param scale the uniform screen-space scale factor
-     * @param offsetX the horizontal screen offset to apply after scaling
-     * @param offsetY the vertical screen offset to apply after scaling
-     * @param params the perspective parameters
-     * @return the projected 2D point
-     */
-    public static @NotNull Vector2f projectPerspective(
-        @NotNull Vector3f point,
-        float scale,
-        float offsetX,
-        float offsetY,
-        @NotNull PerspectiveParams params
-    ) {
-        if (params.amount() <= 0f)
-            return projectOrtho(point, scale, offsetX, offsetY);
-
-        float denom = params.cameraDistance() - point.z();
-        float perspectiveFactor = denom == 0f ? 1f : (params.focalLength() / denom);
-        float blended = 1f + (perspectiveFactor - 1f) * params.amount();
-        return new Vector2f(point.x() * scale * blended + offsetX, -point.y() * scale * blended + offsetY);
     }
 
     /**
@@ -163,11 +119,11 @@ public class ProjectionMath {
      * Coefficients are pre-sign-normalized: if the triangle's signed area is negative the
      * factory negates all A/B/C and denom so the {@code >= 0} inside test works regardless
      * of winding. The {@code topLeftXX} flags pre-evaluate
-     * {@link ProjectionMath#isTopOrLeftEdge isTopOrLeftEdge} on the quantized integer
+     * {@link RasterMath#isTopOrLeftEdge isTopOrLeftEdge} on the quantized integer
      * endpoints; the per-pixel test reads the boolean directly.
      * <p>
      * The {@code stepXij} / {@code stepYij} fields are {@code A_ij * P} and {@code B_ij * P}
-     * respectively, where {@code P =} {@link ProjectionMath#FIXED_POINT_PRECISION}. The
+     * respectively, where {@code P =} {@link RasterMath#FIXED_POINT_PRECISION}. The
      * rasterizer uses them to walk edge values incrementally across the inner loop -
      * Pineda's classic optimization: hoist edge evaluation to the bbox top-left then advance
      * by {@code stepX} per pixel in X and {@code stepY} per pixel in Y. Inner-loop coverage
@@ -212,7 +168,7 @@ public class ProjectionMath {
 
         /**
          * Builds the coefficient set from three screen-space vertices. Quantizes each vertex
-         * to {@link ProjectionMath#FIXED_POINT_PRECISION 1/256} once, computes the 3 edge
+         * to {@link RasterMath#FIXED_POINT_PRECISION 1/256} once, computes the 3 edge
          * coefficients, the determinant, the per-pixel step values, and the top-left
          * classification per edge. If the determinant is negative the entire coefficient set
          * is sign-flipped so downstream tests stay {@code >= 0}.

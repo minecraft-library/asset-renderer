@@ -11,6 +11,7 @@ import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Camera;
+import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.FinalizeStage;
 import lib.minecraft.renderer.engine.compose.Frames;
 import lib.minecraft.renderer.engine.compose.GeometryLayer;
@@ -24,7 +25,6 @@ import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.geometry.Box;
 import lib.minecraft.renderer.geometry.EulerRotation;
-import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.SurfaceTraits;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.options.EntityOptions;
@@ -201,7 +201,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // the (glinted) armor rather than the whole entity silhouette.
         int ssaa = Math.max(1, options.getSupersample());
         return FinalizeStage.run(fit.canvasW(), fit.canvasH(), ssaa, options.isAntiAlias(), enchanted,
-            (target, mask) -> engine.rasterize(triangles, target, PerspectiveParams.ISOMETRIC_BLOCK, effective, mask),
+            (target, mask) -> engine.rasterize(triangles, target, Projection.ISOMETRIC_BLOCK, effective, mask),
             (buffer, mask) -> GlintStage.forArmor(engine.textures()::tryResolveTexture, buffer, enchanted, mask));
     }
 
@@ -306,7 +306,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // the post-pose-stack normal against ENTITY_IN_UI lights per pixel - continuous, not
             // bucketed. Sampling mooshroom mushroom red showed our 0.67-0.90 block-cardinal range
             // vs vanilla's 0.45-0.71 Lambertian range.
-            float shading = Lighting.computeEntityInUiLighting(transformedNormal);
+            float shading = Lighting.entityInUi(transformedNormal);
             // Force back-face culling, matching vanilla's block render types (all bind GL culling)
             // exactly as {@link BlockRenderer#relightForItems3d} does for plain block models. The
             // {@code red_mushroom} cross model emits its two zero-thickness planes as paired
@@ -404,7 +404,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         float extentX = Math.max(0f, screenBounds.maxX() - screenBounds.minX());
         float extentY = Math.max(0f, screenBounds.maxY() - screenBounds.minY());
         int padding = Math.max(0, options.getPadding());
-        float projectionScale = PerspectiveParams.ISOMETRIC_BLOCK.projectionScale();
+        float projectionScale = Projection.ISOMETRIC_BLOCK.projectionScale();
 
         if (options.getFitMode() == EntityOptions.FitMode.OUTPUT_SIZE) {
             int outputSize = Math.max(1, options.getOutputSize());

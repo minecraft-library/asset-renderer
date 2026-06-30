@@ -10,13 +10,13 @@ import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Camera;
+import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.AnimationStage;
 import lib.minecraft.renderer.engine.compose.FinalizeStage;
 import lib.minecraft.renderer.engine.compose.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.LayerStack;
 import lib.minecraft.renderer.engine.kit.FluidGeometryKit;
 import lib.minecraft.renderer.engine.texture.Textures;
-import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.options.FluidOptions;
 import lombok.RequiredArgsConstructor;
@@ -154,7 +154,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
 
             int ssaa = Math.max(1, options.getSupersample());
             return FinalizeStage.run(options.getOutputSize(), options.getOutputSize(), ssaa, options.isAntiAlias(), false,
-                (target, mask) -> engine.rasterize(triangles, target, PerspectiveParams.ISOMETRIC_BLOCK, options.getRotation()),
+                (target, mask) -> engine.rasterize(triangles, target, Projection.ISOMETRIC_BLOCK, options.getRotation()),
                 (buffer, mask) -> buffer);
         }
 

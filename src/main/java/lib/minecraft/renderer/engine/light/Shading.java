@@ -14,7 +14,7 @@ import org.jetbrains.annotations.NotNull;
 /**
  * Applies a {@link Lighting} shade scalar to sampled texels and re-shades block-icon geometry for
  * vanilla's {@code Lighting.ITEMS_3D} GUI path. The shade scalar is baked into each
- * {@link VisibleTriangle} at kit-build time; {@link #applyShading} multiplies it into the rasterized
+ * {@link VisibleTriangle} at kit-build time; {@link #apply} multiplies it into the rasterized
  * texel with vanilla's round-half-up GLSL quantization.
  *
  * @see Lighting
@@ -29,7 +29,7 @@ public class Shading {
      * darkening - so {@link #relightForItems3d} renders these full-bright instead of applying the
      * {@code Lighting.ITEMS_3D} Lambertian. Block kits bake this scalar at quad-emit time.
      */
-    public static final float SHADE_DISABLED = -1f;
+    public static final float DISABLED = -1f;
 
     // --- shading ---
 
@@ -40,7 +40,7 @@ public class Shading {
      * @param factor the shading factor in {@code [0, 1]}
      * @return the shaded ARGB pixel
      */
-    public static int applyShading(int argb, float factor) {
+    public static int apply(int argb, float factor) {
         // Vanilla GLSL quantizes via `floor(min(1, v) * 255 + 0.5)` (round-half-up); truncating
         // here biases every shaded channel ~0.5 LSB low and leaves a single-LSB precision floor
         // across un-tinted entities (goat / husk / zombie / skeleton family etc).
@@ -70,7 +70,7 @@ public class Shading {
      * which renormalises out for direction vectors); the gui rotation is a pure rotation.
      * So the per-vertex normal handed to the fragment shader is
      * {@code S(1,-1,1) × R_{gui} × n_model}, and that's what
-     * {@link Lighting#computeBlockItems3dLighting} expects.
+     * {@link Lighting#blockItems3d} expects.
      * <p>
      * When {@code forceCullBackFaces} is set (plain block models, see the caller) every emitted
      * triangle is marked {@code cullBackFaces=true} regardless of its built-in flag, matching
@@ -104,12 +104,12 @@ public class Shading {
         for (VisibleTriangle t : triangles) {
             boolean cull = forceCullBackFaces || t.traits().cullBackFaces();
             // A {@code "shade": false} model element (coral fans, cross/crop plants, ladder,
-            // vine, tripwire, redstone dust, torches) carries {@link #SHADE_DISABLED}.
+            // vine, tripwire, redstone dust, torches) carries {@link #DISABLED}.
             // Vanilla's {@code getShade(direction, shade=false)} returns 1.0 - the face skips the
             // directional darkening entirely - so render it full-bright instead of applying the
             // {@code Lighting.ITEMS_3D} Lambertian. (The cull / two-sided handling is unchanged;
             // only the shade factor differs.)
-            if (t.shading() == SHADE_DISABLED) {
+            if (t.shading() == DISABLED) {
                 out.add(new VisibleTriangle(
                     t.position0(), t.position1(), t.position2(),
                     t.uv0(), t.uv1(), t.uv2(),
@@ -172,7 +172,7 @@ public class Shading {
             // empirical 0.647 within precision. Without this step every block shows the
             // visible-LEFT face's texels rounded ~1 LSB high.
             Vector3f packedNormal = packAsSnormByte(renderNormal);
-            float shading = Lighting.computeBlockItems3dLighting(packedNormal);
+            float shading = Lighting.blockItems3d(packedNormal);
             out.add(new VisibleTriangle(
                 t.position0(), t.position1(), t.position2(),
                 t.uv0(), t.uv1(), t.uv2(),

@@ -108,7 +108,7 @@ public class Lighting {
      * sweep override) to a derived kit-frame light direction, then re-normalises.
      * <p>
      * The lighting GLSL formula and the raw {@code INVENTORY_DIFFUSE_LIGHT} directions are
-     * bit-matched to vanilla, and {@link #computeEntityInUiLighting} reproduces the ideal Lambertian
+     * bit-matched to vanilla, and {@link #entityInUi} reproduces the ideal Lambertian
      * shade exactly. But vanilla rasterises on the GPU and we on the CPU, so the per-face shade still
      * drifts ~0.003 from the harness - invisible on dark textures, but {@code +/-1} channel across
      * near-white entities (goat 0.63, copper_golem, husk, illager family, pig). A fleet sweep
@@ -152,14 +152,14 @@ public class Lighting {
      * <p>
      * Used by block + fluid kits to bake a per-triangle shading scalar at geometry-build time;
      * the rasterizer then applies the result to the sampled texel. Entity rendering uses
-     * {@link #computeEntityInUiLighting} instead so the output matches vanilla's
+     * {@link #entityInUi} instead so the output matches vanilla's
      * {@code Lighting.ENTITY_IN_UI} dual-light shader rather than the four-cardinal-bucket
      * approximation.
      *
      * @param normal the world-space surface normal (should be normalized)
      * @return the shade factor for the face that best matches the normal
      */
-    public static float computeInventoryLighting(@NotNull Vector3f normal) {
+    public static float inventory(@NotNull Vector3f normal) {
         return BlockFace.fromNormal(normal).lighting();
     }
 
@@ -212,7 +212,7 @@ public class Lighting {
      * @param normal the world-space surface normal (should be normalized)
      * @return the shade factor in {@code [0.4, 1.0]} - never below ambient, never above unity
      */
-    public static float computeEntityInUiLighting(@NotNull Vector3f normal) {
+    public static float entityInUi(@NotNull Vector3f normal) {
         float dot0 = Math.max(0f, ENTITY_IN_UI_LIGHT_0.dot(normal));
         float dot1 = Math.max(0f, ENTITY_IN_UI_LIGHT_1.dot(normal));
         return Math.min(1f, (dot0 + dot1) * MINECRAFT_LIGHT_POWER + MINECRAFT_AMBIENT_LIGHT);
@@ -236,7 +236,7 @@ public class Lighting {
      * @param normal the render-frame surface normal (should be normalized)
      * @return the shade factor in {@code [0.4, 1.0]} - never below ambient, never above unity
      */
-    public static float computeBlockItems3dLighting(@NotNull Vector3f normal) {
+    public static float blockItems3d(@NotNull Vector3f normal) {
         float dot0 = Math.max(0f, BLOCK_ITEMS_3D_LIGHT_0.dot(normal));
         float dot1 = Math.max(0f, BLOCK_ITEMS_3D_LIGHT_1.dot(normal));
         return Math.min(1f, (dot0 + dot1) * MINECRAFT_LIGHT_POWER + MINECRAFT_AMBIENT_LIGHT);
@@ -281,14 +281,14 @@ public class Lighting {
      * Computes the dual-directional Lambertian shade factor for a render-frame surface normal
      * under vanilla's {@code Lighting.Entry#ITEMS_FLAT} entry, with the same
      * {@code light.glsl#minecraft_mix_light_separate} formula as
-     * {@link #computeBlockItems3dLighting}. The {@code normal} must already be in render frame -
+     * {@link #blockItems3d}. The {@code normal} must already be in render frame -
      * transformed through the item's {@code display.gui} pose and the GUI PoseStack's
      * {@code scale(W, -H, W)} Y-flip.
      *
      * @param normal the render-frame surface normal (should be normalized)
      * @return the shade factor in {@code [0.4, 1.0]}
      */
-    public static float computeItemsFlatLighting(@NotNull Vector3f normal) {
+    public static float itemsFlat(@NotNull Vector3f normal) {
         float dot0 = Math.max(0f, ITEMS_FLAT_LIGHT_0.dot(normal));
         float dot1 = Math.max(0f, ITEMS_FLAT_LIGHT_1.dot(normal));
         return Math.min(1f, (dot0 + dot1) * MINECRAFT_LIGHT_POWER + MINECRAFT_AMBIENT_LIGHT);

@@ -10,11 +10,11 @@ import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Camera;
+import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.FinalizeStage;
 import lib.minecraft.renderer.engine.compose.Frames;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.engine.texture.Textures;
-import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.SixFaces;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.options.PortalOptions;
@@ -533,7 +533,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
                 (target, ignoredMask) -> {
                     try (PixelBufferPool.Lease maskLease = PixelBufferPool.acquire(target.width(), target.height())) {
                         PixelBuffer shadingMask = maskLease.buffer();
-                        engine.rasterize(triangles, shadingMask, PerspectiveParams.ISOMETRIC_BLOCK, options.getRotation());
+                        engine.rasterize(triangles, shadingMask, Projection.ISOMETRIC_BLOCK, options.getRotation());
                         composeShaderMask(target, shadingMask, shaderCanvas, target.width());
                     }
                 },

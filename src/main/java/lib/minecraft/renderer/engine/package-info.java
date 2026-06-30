@@ -30,9 +30,10 @@
  *   <li>{@link lib.minecraft.renderer.engine.texture.Textures texture} - the pack-aware texture
  *       resolution service each engine holds (and vends via {@code textures()}).</li>
  * </ul>
- * Projection math lives with the primitives in
- * {@link lib.minecraft.renderer.geometry.ProjectionMath geometry}; frame-building lives with the
- * post stages in {@link lib.minecraft.renderer.engine.compose compose}.
+ * Camera-to-screen projection ({@link lib.minecraft.renderer.engine.camera.Projection Projection})
+ * sits with {@code Camera} in the camera subpackage; the 2D coverage math stays in
+ * {@link lib.minecraft.renderer.geometry.RasterMath geometry}; frame-building lives with the post
+ * stages in {@link lib.minecraft.renderer.engine.compose compose}.
  *
  * <p><b>Resource-provider port.</b>
  * {@link lib.minecraft.renderer.engine.RendererContext RendererContext} is the read-only view of
@@ -62,6 +63,6 @@
  *
  * @see lib.minecraft.renderer.engine.ModelEngine
  * @see lib.minecraft.renderer.engine.RendererContext
- * @see lib.minecraft.renderer.geometry.ProjectionMath
+ * @see lib.minecraft.renderer.geometry.RasterMath
  */
 package lib.minecraft.renderer.engine;

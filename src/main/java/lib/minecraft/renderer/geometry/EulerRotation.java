@@ -22,7 +22,7 @@ import java.io.IOException;
  * Two distinct rotation-composition orders coexist in the codebase - vanilla {@code display}
  * transforms compose as {@code Rz · Ry · Rx} while user-supplied post-rotation composes as
  * {@code Ry · Rx · Rz} - so matrix building stays at each call site where the semantics
- * are intentional. Treat this record like {@link PerspectiveParams}: a labelled bundle of
+ * are intentional. Treat this record like {@link Projection}: a labelled bundle of
  * floats plus a small set of named constants, no behaviour.
  * <p>
  * Rotation directions follow the right-hand rule:

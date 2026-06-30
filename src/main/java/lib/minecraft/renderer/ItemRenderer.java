@@ -15,6 +15,7 @@ import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Camera;
+import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.GlintStage;
 import lib.minecraft.renderer.engine.compose.ImageLayer;
 import lib.minecraft.renderer.engine.compose.ImageLayerContext;
@@ -28,7 +29,6 @@ import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.geometry.EulerRotation;
-import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.SixFaces;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.options.ItemOptions;
@@ -175,9 +175,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * Pure-orthographic projection for the GUI shield render. The projection scale is the shield
      * item model's {@code display.gui} scale ({@code 0.65}), mirroring how the block-icon path
      * folds {@code block/block.json}'s {@code 0.625} {@code display.gui.scale} into
-     * {@link PerspectiveParams#ISOMETRIC_BLOCK}.
+     * {@link Projection#ISOMETRIC_BLOCK}.
      */
-    private static final @NotNull PerspectiveParams SHIELD_PERSPECTIVE = new PerspectiveParams(0f, 0f, 0f, SHIELD_GUI_DISPLAY_SCALE);
+    private static final @NotNull Projection SHIELD_PERSPECTIVE = new Projection(0f, 0f, 0f, SHIELD_GUI_DISPLAY_SCALE);
 
     /**
      * Returns {@code true} when the item id is a banner or shield, which get composited through
@@ -550,7 +550,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             }
 
             Matrix4f displayTransform = resolveDisplayTransform(item, DISPLAY_SLOT_HELD_3D);
-            engine.rasterize(triangles, buffer, PerspectiveParams.GUI_ITEM, displayTransform);
+            engine.rasterize(triangles, buffer, Projection.GUI_ITEM, displayTransform);
 
             return finalize2DItem(engine.textures(), buffer, item, options);
         }

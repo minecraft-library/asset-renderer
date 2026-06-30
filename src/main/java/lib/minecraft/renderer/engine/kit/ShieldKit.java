@@ -77,7 +77,7 @@ public class ShieldKit {
      * The normal is transformed through the same render frame the block-icon relight uses -
      * {@code scale(1, -1, 1) * R(display.gui)}, i.e. the {@code display.gui} pose plus the GUI
      * framebuffer's {@code scale(W, -H, W)} Y-flip - only the light directions differ
-     * ({@link Lighting#computeItemsFlatLighting} vs the {@code ITEMS_3D} variant). Measured
+     * ({@link Lighting#itemsFlat} vs the {@code ITEMS_3D} variant). Measured
      * against the vanilla reference the front plate matches to ~0.004 and the {@code +X} edge to
      * ~0.002.
      *
@@ -98,7 +98,7 @@ public class ShieldKit {
             Vector3f rendered = t.normal().transformNormal(normalTransform).normalize();
             // Match vanilla's signed-byte SNORM normal round-trip (see Shading.packAsSnormByte).
             Vector3f packed = new Vector3f(snorm(rendered.x()), snorm(rendered.y()), snorm(rendered.z()));
-            float shading = Lighting.computeItemsFlatLighting(packed);
+            float shading = Lighting.itemsFlat(packed);
             out.add(new VisibleTriangle(
                 t.position0(), t.position1(), t.position2(),
                 t.uv0(), t.uv1(), t.uv2(),
@@ -159,7 +159,7 @@ public class ShieldKit {
             Vector3f normal = face.normal();
             // Baked here for the rasterizer's contract; relightForItems3d recomputes it from the
             // ITEMS_3D lights, so the value only needs to be a valid placeholder.
-            float shading = Lighting.computeInventoryLighting(normal);
+            float shading = Lighting.inventory(normal);
             out.add(new VisibleTriangle(
                 corners[0], corners[1], corners[2],
                 uv[0], uv[1], uv[2],

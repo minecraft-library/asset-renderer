@@ -568,15 +568,15 @@ public class BlockGeometryKit {
         boolean glinted
     ) {
         // Bake the inventory shade factor into each triangle so the rasterizer can apply shading
-        // directly without a per-triangle face lookup. {@link Lighting#computeInventoryLighting}
+        // directly without a per-triangle face lookup. {@link Lighting#inventory}
         // resolves the dominant cardinal of the (post-element-rotation) face normal and returns
         // the matching {@code Lighting.ITEMS_3D} approximation - cardinal-aligned faces produce
         // exactly the per-face values from {@link BlockFace#lighting} (1.0/0.5/0.6/0.8), and faces
         // rotated by {@code element.rotation} resolve to the closest cardinal's shade.
         // {@code directionalLight == false} (a face of a {@code "shade": false} element) instead
-        // carries {@link Shading#SHADE_DISABLED} so the relight pass renders it full-bright, matching
+        // carries {@link Shading#DISABLED} so the relight pass renders it full-bright, matching
         // vanilla's in-world {@code getShade(dir, false) == 1.0}.
-        float shading = directionalLight ? Lighting.computeInventoryLighting(normal) : Shading.SHADE_DISABLED;
+        float shading = directionalLight ? Lighting.inventory(normal) : Shading.DISABLED;
         SurfaceTraits traits = new SurfaceTraits(cullBackFaces, false, translucent, glinted);
         out.add(new VisibleTriangle(topLeft, bottomLeft, bottomRight, uvTL, uvBL, uvBR, texture, tintArgb, normal, shading, traits, null));
         out.add(new VisibleTriangle(topLeft, bottomRight, topRight, uvTL, uvBR, uvTR, texture, tintArgb, normal, shading, traits, null));

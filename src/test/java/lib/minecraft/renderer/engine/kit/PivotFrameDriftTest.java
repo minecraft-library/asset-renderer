@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.lessThan;
  * elsewhere. Candidates to investigate:
  * <ul>
  *   <li>The iso transform's {@code S(-1,-1,1) * R_y * R_x} composition order at render time
- *   <li>{@code ProjectionMath.projectPerspective}'s {@code float blended = 1f + (perspectiveFactor - 1f) * params.amount()} arithmetic
+ *   <li>{@code Projection.project}'s {@code float blended = 1f + (perspectiveFactor - 1f) * params.amount()} arithmetic
  *   <li>SIMD vs scalar matrix-vector path divergence at hot-path projection
  *   <li>{@code Vector3f.normalize} on triangle normals affecting back-face culling boundary classification
  *   <li>Accumulation of per-bone matrix-matrix multiplies in {@code buildChainTransforms}

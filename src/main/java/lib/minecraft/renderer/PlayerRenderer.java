@@ -16,6 +16,7 @@ import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Camera;
+import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.FinalizeStage;
 import lib.minecraft.renderer.engine.compose.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.GlintStage;
@@ -25,7 +26,6 @@ import lib.minecraft.renderer.engine.kit.ArmorKit;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.geometry.BlockFace;
-import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.SixFaces;
 import lib.minecraft.renderer.geometry.SkinFace;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
@@ -596,7 +596,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         // The glint mask is recorded at the raster size, then box-downsampled to the output so the
         // foil is confined to the armor (not the bare body) after the SSAA blit.
         return FinalizeStage.run(size, size, ssaa, options.isAntiAlias(), enchanted,
-            (target, mask) -> engine.rasterizeFitted(triangles, target, PerspectiveParams.NONE, options.getRotation(), PLAYER_FILL, mask),
+            (target, mask) -> engine.rasterizeFitted(triangles, target, Projection.NONE, options.getRotation(), PLAYER_FILL, mask),
             (buffer, mask) -> GlintStage.forArmor(engine.textures()::tryResolveTexture, buffer, enchanted, mask));
     }
 

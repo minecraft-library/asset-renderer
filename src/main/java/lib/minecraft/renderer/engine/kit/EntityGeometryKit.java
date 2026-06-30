@@ -1062,12 +1062,12 @@ public class EntityGeometryKit {
         boolean cubeCullBackFaces
     ) {
         if (cubeCullBackFaces)
-            return Lighting.computeEntityInUiLighting(normal);
+            return Lighting.entityInUi(normal);
 
         Vector3f cameraFacing = VIEW_DIRECTION_KIT.dot(normal) < 0f
             ? normal
             : new Vector3f(-normal.x(), -normal.y(), -normal.z());
-        return Lighting.computeEntityInUiLighting(cameraFacing);
+        return Lighting.entityInUi(cameraFacing);
     }
 
     /**

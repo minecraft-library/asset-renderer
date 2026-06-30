@@ -1,18 +1,20 @@
-package lib.minecraft.renderer.geometry;
+package lib.minecraft.renderer.engine.camera;
 
+import lib.minecraft.renderer.tensor.Vector2f;
+import lib.minecraft.renderer.tensor.Vector3f;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Describes how strongly to blend an orthographic projection with a perspective projection and
- * how much of the output framebuffer the projected geometry should fill.
+ * The camera's projection - how strongly an orthographic projection blends with a perspective one,
+ * and how much of the output framebuffer the projected geometry fills. The intrinsics half of the
+ * camera, paired with {@link Camera}'s pose.
  * <p>
- * A value of {@code amount = 0} produces a pure orthographic projection (used by the isometric
- * engine). Larger values pull vertices towards the camera, approximating a pinhole projection.
+ * A value of {@code amount = 0} produces a pure orthographic projection (the isometric presets).
+ * Larger values pull vertices towards the camera, approximating a pinhole projection.
  * {@link #projectionScale()} is the multiplier applied to model-space coordinates during
- * projection - it controls how much of the output tile the projected geometry covers and
- * supplies the safety margin for rotated or multi-element geometry that would otherwise clip
- * the framebuffer edges. The blend math lives in {@link ProjectionMath} and is shared by every
- * engine that wants a hint of depth without the complexity of a full 3D perspective setup.
+ * projection - it controls how much of the output tile the projected geometry covers and supplies
+ * the safety margin for rotated or multi-element geometry that would otherwise clip the framebuffer
+ * edges. {@link #project} carries the blend math.
  *
  * @param amount the blend factor in {@code [0, 1]} - 0 is pure ortho, 1 is full perspective
  * @param cameraDistance the virtual camera distance in model units
@@ -22,7 +24,7 @@ import org.jetbrains.annotations.NotNull;
  *     geometry, {@link #ISOMETRIC_BLOCK} derives its scale from the rotated unit-cube
  *     bounding box plus a small padding margin
  */
-public record PerspectiveParams(float amount, float cameraDistance, float focalLength, float projectionScale) {
+public record Projection(float amount, float cameraDistance, float focalLength, float projectionScale) {
 
     /**
      * Vanilla's {@code display.gui.scale} for the root {@code block/block.json} model. Every
@@ -66,14 +68,14 @@ public record PerspectiveParams(float amount, float cameraDistance, float focalL
      * and any caller that renders articulated models which extend beyond the unit cube after
      * animation.
      */
-    public static final @NotNull PerspectiveParams NONE = new PerspectiveParams(
+    public static final @NotNull Projection NONE = new Projection(
         0f, 0f, 0f, CONSERVATIVE_PROJECTION_SCALE
     );
 
     /**
      * A moderate perspective suitable for GUI item icons.
      */
-    public static final @NotNull PerspectiveParams GUI_ITEM = new PerspectiveParams(
+    public static final @NotNull Projection GUI_ITEM = new Projection(
         GUI_ITEM_PERSPECTIVE_AMOUNT,
         GUI_ITEM_CAMERA_DISTANCE,
         GUI_ITEM_FOCAL_LENGTH,
@@ -89,8 +91,29 @@ public record PerspectiveParams(float amount, float cameraDistance, float focalL
      * own {@code display.gui} overrides which {@code engineForBlockIcon} honours, so they
      * fit at vanilla's footprint too rather than relying on a generic padding margin.
      */
-    public static final @NotNull PerspectiveParams ISOMETRIC_BLOCK = new PerspectiveParams(
+    public static final @NotNull Projection ISOMETRIC_BLOCK = new Projection(
         0f, 0f, 0f, BLOCK_GUI_DISPLAY_SCALE
     );
+
+    /**
+     * Projects a model-space point onto 2D screen coordinates under this projection. With
+     * {@code amount == 0} this is a pure orthographic projection; larger values blend in
+     * perspective foreshortening toward {@link #cameraDistance()} / {@link #focalLength()}.
+     *
+     * @param point the 3D point to project
+     * @param scale the uniform screen-space scale factor
+     * @param offsetX the horizontal screen offset to apply after scaling
+     * @param offsetY the vertical screen offset to apply after scaling
+     * @return the projected 2D point
+     */
+    public @NotNull Vector2f project(@NotNull Vector3f point, float scale, float offsetX, float offsetY) {
+        if (this.amount <= 0f)
+            return new Vector2f(point.x() * scale + offsetX, -point.y() * scale + offsetY);
+
+        float denom = this.cameraDistance - point.z();
+        float perspectiveFactor = denom == 0f ? 1f : (this.focalLength / denom);
+        float blended = 1f + (perspectiveFactor - 1f) * this.amount;
+        return new Vector2f(point.x() * scale * blended + offsetX, -point.y() * scale * blended + offsetY);
+    }
 
 }

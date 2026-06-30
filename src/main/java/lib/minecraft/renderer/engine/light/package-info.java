@@ -10,7 +10,7 @@
  *
  * <p>{@link lib.minecraft.renderer.engine.light.Shading Shading} applies that scalar to the
  * rasterized texel (round-half-up to match vanilla GLSL) and re-shades block-icon geometry for the
- * {@code Lighting.ITEMS_3D} GUI path ({@code relightForItems3d}). It owns the {@code SHADE_DISABLED}
+ * {@code Lighting.ITEMS_3D} GUI path ({@code relightForItems3d}). It owns the {@code DISABLED}
  * sentinel for {@code "shade": false} elements.
  *
  * @see lib.minecraft.renderer.engine.light.Lighting

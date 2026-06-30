@@ -5,11 +5,11 @@ import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.camera.Camera;
+import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.geometry.EulerRotation;
-import lib.minecraft.renderer.geometry.PerspectiveParams;
-import lib.minecraft.renderer.geometry.ProjectionMath;
+import lib.minecraft.renderer.geometry.RasterMath;
 import lib.minecraft.renderer.geometry.SurfaceTraits;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.pipeline.util.RendererDebug;
@@ -78,7 +78,7 @@ public class ModelEngine {
      * <p><b>Not a standard GPU sub-pixel precision</b> (real hardware uses {@code 1/16} or
      * {@code 1/256}). The {@code 1/400} value is INCOMMENSURATE with both our rasterizer's
      * {@code 1/256} fixed-point edge functions (see
-     * {@link ProjectionMath ProjectionMath}) and with
+     * {@link RasterMath RasterMath}) and with
      * texture grid sizes ({@code 1/16}, {@code 1/32}, {@code 1/64} for typical entity
      * textures), so quantized vertex positions almost never land at sample points that
      * produce exact-half barycentrics or exact-integer texel-coordinate interpolations -
@@ -144,7 +144,7 @@ public class ModelEngine {
     public void rasterize(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
-        @NotNull PerspectiveParams perspective
+        @NotNull Projection perspective
     ) {
         rasterize(triangles, buffer, perspective, EulerRotation.NONE);
     }
@@ -156,7 +156,7 @@ public class ModelEngine {
      * Rotations are applied in yaw-pitch-roll order (yaw first around the Y axis, then pitch
      * around the X axis, then roll around the Z axis) and the combined rotation is then
      * composed with the engine's camera transform. Supplying {@link EulerRotation#NONE} is
-     * equivalent to calling {@link #rasterize(ConcurrentList, PixelBuffer, PerspectiveParams)}.
+     * equivalent to calling {@link #rasterize(ConcurrentList, PixelBuffer, Projection)}.
      *
      * @param triangles the triangle list
      * @param buffer the destination buffer
@@ -166,14 +166,14 @@ public class ModelEngine {
     public void rasterize(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
-        @NotNull PerspectiveParams perspective,
+        @NotNull Projection perspective,
         @NotNull EulerRotation rotation
     ) {
         rasterize(triangles, buffer, perspective, rotation, null);
     }
 
     /**
-     * As {@link #rasterize(ConcurrentList, PixelBuffer, PerspectiveParams, EulerRotation)} but also
+     * As {@link #rasterize(ConcurrentList, PixelBuffer, Projection, EulerRotation)} but also
      * records a per-pixel {@link GlintMask}: each pixel whose winning fragment came from a
      * {@link VisibleTriangle#glinted() glinted} triangle is marked, so the glint compositor can
      * restrict the enchantment foil to that geometry. Pass {@code null} for the plain behaviour.
@@ -187,7 +187,7 @@ public class ModelEngine {
     public void rasterize(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
-        @NotNull PerspectiveParams perspective,
+        @NotNull Projection perspective,
         @NotNull EulerRotation rotation,
         @Nullable GlintMask glintMask
     ) {
@@ -210,7 +210,7 @@ public class ModelEngine {
     public void rasterize(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
-        @NotNull PerspectiveParams perspective,
+        @NotNull Projection perspective,
         @NotNull Matrix4f modelTransform
     ) {
         // Column-vector chain: modelTransform applies first to a vertex, then the camera.
@@ -240,7 +240,7 @@ public class ModelEngine {
     public void rasterizeFitted(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
-        @NotNull PerspectiveParams perspective,
+        @NotNull Projection perspective,
         @NotNull EulerRotation rotation,
         float fill
     ) {
@@ -248,9 +248,9 @@ public class ModelEngine {
     }
 
     /**
-     * As {@link #rasterizeFitted(ConcurrentList, PixelBuffer, PerspectiveParams, EulerRotation, float)}
+     * As {@link #rasterizeFitted(ConcurrentList, PixelBuffer, Projection, EulerRotation, float)}
      * but also records a per-pixel {@link GlintMask} (see
-     * {@link #rasterize(ConcurrentList, PixelBuffer, PerspectiveParams, EulerRotation, GlintMask)}).
+     * {@link #rasterize(ConcurrentList, PixelBuffer, Projection, EulerRotation, GlintMask)}).
      * The mask is sized to {@code buffer}; downsample it to the final canvas when rendering at a
      * supersampled resolution. Pass {@code null} for the plain behaviour.
      *
@@ -264,7 +264,7 @@ public class ModelEngine {
     public void rasterizeFitted(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
-        @NotNull PerspectiveParams perspective,
+        @NotNull Projection perspective,
         @NotNull EulerRotation rotation,
         float fill,
         @Nullable GlintMask glintMask
@@ -306,7 +306,7 @@ public class ModelEngine {
     private void rasterizeInternal(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
-        @NotNull PerspectiveParams perspective,
+        @NotNull Projection perspective,
         @NotNull Matrix4f transform,
         @Nullable GlintMask glintMask
     ) {
@@ -478,13 +478,13 @@ public class ModelEngine {
         final int[] bounds = new int[4];
 
         for (Projected t : prepared) {
-            ProjectionMath.triangleBoundsInto(t.s0, t.s1, t.s2, width, height, bounds);
+            RasterMath.triangleBoundsInto(t.s0, t.s1, t.s2, width, height, bounds);
             int pyStart = Math.max(bounds[1], tileStart);
             int pyEnd = Math.min(bounds[3], tileEnd - 1);
             if (pyStart > pyEnd) continue;
 
             // The kit baked the lighting term per-vanilla-render-path at geometry-build time
-            // (Lighting.computeInventoryLighting for blocks/fluids, computeEntityInUiLighting
+            // (Lighting.inventory for blocks/fluids, entityInUi
             // for entities); the rasterizer just multiplies it in.
             float shading = t.source.shading();
             // Hoist the surface traits once per triangle; the per-pixel loop below reads
@@ -496,10 +496,10 @@ public class ModelEngine {
             // pixel coverage test drops to 3 add + sign check + at-most-3 top-left checks; no
             // re-quantization of the sample point. Bit-identical to per-pixel recompute -
             // integer addition is exact.
-            ProjectionMath.EdgeCoefficients ec = t.edges;
+            RasterMath.EdgeCoefficients ec = t.edges;
             final boolean degenerate = ec.denom() == 0L;
-            long sxStart = ProjectionMath.quantizeSample(bounds[0] + 0.5f);
-            long syStart = ProjectionMath.quantizeSample(pyStart + 0.5f);
+            long sxStart = RasterMath.quantizeSample(bounds[0] + 0.5f);
+            long syStart = RasterMath.quantizeSample(pyStart + 0.5f);
             long row12 = ec.a12() * sxStart + ec.b12() * syStart + ec.c12();
             long row20 = ec.a20() * sxStart + ec.b20() * syStart + ec.c20();
             long row01 = ec.a01() * sxStart + ec.b01() * syStart + ec.c01();
@@ -511,7 +511,7 @@ public class ModelEngine {
                 long e01 = row01;
                 for (int px = bounds[0]; px <= bounds[2]; px++,
                         e12 += ec.stepX12(), e20 += ec.stepX20(), e01 += ec.stepX01()) {
-                    ProjectionMath.barycentricInto(t.s0, t.s1, t.s2, px + 0.5f, py + 0.5f, bary);
+                    RasterMath.barycentricInto(t.s0, t.s1, t.s2, px + 0.5f, py + 0.5f, bary);
                     boolean inside = !degenerate
                         && e12 >= 0L && e20 >= 0L && e01 >= 0L
                         && (e12 != 0L || ec.topLeft12())
@@ -547,7 +547,7 @@ public class ModelEngine {
 
                     int afterShade = tr.emissive()
                         ? afterTint
-                        : Shading.applyShading(afterTint, shading);
+                        : Shading.apply(afterTint, shading);
                     BlendMode blendMode = selectBlendMode(tr.emissive());
 
                     int outArgb = ColorMath.blend(afterShade, buffer.getPixel(px, py), blendMode);
@@ -690,7 +690,7 @@ public class ModelEngine {
      * {@code RenderPipelines.EYES} which composes with {@code BlendFunction.TRANSLUCENT}
      * ({@code glBlendFunc(SRC_ALPHA, ONE_MINUS_SRC_ALPHA)}) - not additive. The emissive
      * differentiator is the {@code EMISSIVE} + {@code NO_CARDINAL_LIGHTING} shader define
-     * (the caller skips {@code applyShading} for emissive triangles) plus the strict-LT depth
+     * (the caller skips {@code apply} for emissive triangles) plus the strict-LT depth
      * test in {@link #depthFails} - the actual color composition is the same alpha-blend as
      * any other entity layer. Earlier revisions used {@link BlendMode#ADD} for emissive on the
      * assumption that {@code RenderType.eyes} was additive; sampling the rendered eye pixels
@@ -721,7 +721,7 @@ public class ModelEngine {
         float scale,
         float offsetX,
         float offsetY,
-        @NotNull PerspectiveParams perspective
+        @NotNull Projection perspective
     ) {
         // Per-vertex hot path: fires 4x per triangle (3 positions + 1 normal) on every rasterize
         // call, so it dominates Pass 1 cost on high-triangle models. Vector3f.transform /
@@ -732,14 +732,14 @@ public class ModelEngine {
         Vector3f p2 = triangle.position2().transform(transform);
         Vector3f normal = triangle.normal().transformNormal(transform).normalize();
 
-        Vector2f s0 = snapToCoverageGrid(ProjectionMath.projectPerspective(p0, scale, offsetX, offsetY, perspective));
-        Vector2f s1 = snapToCoverageGrid(ProjectionMath.projectPerspective(p1, scale, offsetX, offsetY, perspective));
-        Vector2f s2 = snapToCoverageGrid(ProjectionMath.projectPerspective(p2, scale, offsetX, offsetY, perspective));
+        Vector2f s0 = snapToCoverageGrid(perspective.project(p0, scale, offsetX, offsetY));
+        Vector2f s1 = snapToCoverageGrid(perspective.project(p1, scale, offsetX, offsetY));
+        Vector2f s2 = snapToCoverageGrid(perspective.project(p2, scale, offsetX, offsetY));
 
         RendererDebug.pixelTriangle(triangle, s0, s1, s2, p0, p1, p2);
 
         if (triangle.traits().cullBackFaces() && isBackFacing(s0, s1, s2)) return null;
-        ProjectionMath.EdgeCoefficients edges = ProjectionMath.EdgeCoefficients.of(s0, s1, s2);
+        RasterMath.EdgeCoefficients edges = RasterMath.EdgeCoefficients.of(s0, s1, s2);
         return new Projected(triangle, p0, p1, p2, s0, s1, s2, normal, edges);
     }
 
@@ -775,7 +775,7 @@ public class ModelEngine {
     /**
      * A per-frame triangle view that caches the model-space transformed vertices, their screen
      * projections, the transformed normal, and the precomputed
-     * {@link ProjectionMath.EdgeCoefficients edge coefficients} for fast per-pixel coverage
+     * {@link RasterMath.EdgeCoefficients edge coefficients} for fast per-pixel coverage
      * testing. Not part of the public API - exists so the rasterization loop does not have to
      * recompute the transform or projection for every pixel and so the inside test reads
      * pre-quantized coefficients instead of re-quantizing 4 points each call.
@@ -789,7 +789,7 @@ public class ModelEngine {
         @NotNull Vector2f s1,
         @NotNull Vector2f s2,
         @NotNull Vector3f normal,
-        @NotNull ProjectionMath.EdgeCoefficients edges
+        @NotNull RasterMath.EdgeCoefficients edges
     ) {}
 
 }

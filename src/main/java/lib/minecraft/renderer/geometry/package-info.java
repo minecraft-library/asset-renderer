@@ -1,9 +1,9 @@
 /**
- * Geometric primitives and math used by every kit and engine in the module, including the
- * camera-to-screen projection ({@code ProjectionMath.projectPerspective}). Lighting and shading
- * ({@code applyShading}) live under {@link lib.minecraft.renderer.engine.light the engine.light
- * package}; this package stays free of engine state so kit code, tooling, and tests can reuse the
- * math without dragging in {@code RendererContext}.
+ * Geometric primitives and the 2D triangle-rasterization math used by every kit and engine in the
+ * module. Camera-to-screen projection lives on {@code engine.camera.Projection}; lighting and
+ * shading live under {@link lib.minecraft.renderer.engine.light the engine.light package}. This
+ * package stays free of engine state so kit code, tooling, and tests can reuse the math without
+ * dragging in {@code RendererContext}.
  *
  * <p><b>Face enums.</b> Three distinct enums cover the three contexts in which a Minecraft
  * asset cube is unwrapped. Each one carries the per-face data the corresponding kit needs
@@ -28,7 +28,7 @@
  *
  * <p><b>Primitive math.</b>
  * <ul>
- *   <li>{@link lib.minecraft.renderer.geometry.ProjectionMath ProjectionMath} - 2D rasterization math:
+ *   <li>{@link lib.minecraft.renderer.geometry.RasterMath RasterMath} - 2D rasterization math:
  *       barycentric coordinates, signed triangle areas, the {@code 1/256} fixed-point sub-pixel
  *       sample grid, and the {@code EdgeCoefficients} record that drives Pineda incremental
  *       edge functions in the {@link lib.minecraft.renderer.engine.ModelEngine ModelEngine}
@@ -41,9 +41,6 @@
  *       rotation. Internal use converts to a
  *       {@link lib.minecraft.renderer.tensor.Quaternionf Quaternionf} or chained rotation
  *       matrices.</li>
- *   <li>{@link lib.minecraft.renderer.geometry.PerspectiveParams PerspectiveParams} - perspective vs orthographic
- *       blend (vanilla item icons are orthographic, blocks use a slight perspective tilt).
- *       Passed to every {@code rasterize} call.</li>
  * </ul>
  *
  * <p><b>Triangle record.</b>
@@ -55,7 +52,7 @@
  * {@code debugTag} for per-pixel trace dumps.
  *
  * @see lib.minecraft.renderer.geometry.VisibleTriangle
- * @see lib.minecraft.renderer.geometry.ProjectionMath
+ * @see lib.minecraft.renderer.geometry.RasterMath
  * @see lib.minecraft.renderer.engine.light.Lighting
  */
 package lib.minecraft.renderer.geometry;
