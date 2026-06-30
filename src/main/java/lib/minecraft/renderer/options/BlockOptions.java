@@ -5,8 +5,8 @@ import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.Renderer;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.engine.camera.GraphicalProjection;
 import lib.minecraft.renderer.engine.camera.HorizontalFacing;
+import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.camera.VerticalFacing;
 import lib.minecraft.renderer.engine.compose.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.LayerSlot;
@@ -90,12 +90,12 @@ public class BlockOptions {
 
     /**
      * Graphical projection for the 3D isometric render. Defaults to
-     * {@link GraphicalProjection#VANILLA_BLOCK} - vanilla's iso block pose, byte-identical to the
+     * {@link Projection#VANILLA_BLOCK} - vanilla's iso block pose, byte-identical to the
      * shipped render. Selecting another projection (isometric, dimetric, cabinet, ...) re-poses the
      * camera and flatten together.
      */
     @lombok.Builder.Default
-    private final @NotNull GraphicalProjection projection = GraphicalProjection.VANILLA_BLOCK;
+    private final @NotNull Projection projection = Projection.VANILLA_BLOCK;
 
     /**
      * Horizontal facing of the {@link #getProjection() projection}. Defaults to

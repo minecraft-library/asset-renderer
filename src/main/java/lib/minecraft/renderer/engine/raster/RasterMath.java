@@ -9,7 +9,7 @@ import org.jetbrains.annotations.NotNull;
  * Static helpers for the 2D triangle rasterization math shared by the drawing helpers and the
  * engine layer - sub-pixel sample quantization, barycentric coordinates, and the Pineda edge
  * functions / top-left fill rule the rasterizer walks per pixel. (Camera-to-screen projection lives
- * on the {@code engine.camera.Projection} record.)
+ * on the {@code engine.camera.Lens} record.)
  */
 @UtilityClass
 public class RasterMath {

@@ -17,7 +17,7 @@ import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.camera.Camera;
-import lib.minecraft.renderer.engine.camera.Projection;
+import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
@@ -151,7 +151,7 @@ public final class TestBedParity {
         // Rasterize with standard isometric engine
         ModelEngine engine = new ModelEngine(context, Camera.forBlockIcon());
         PixelBuffer buffer = PixelBuffer.create(size, size);
-        engine.rasterize(centered, buffer, Projection.NONE);
+        engine.rasterize(centered, buffer, Lens.NONE);
         ImageIO.write(buffer.toBufferedImage(), "PNG", out.toFile());
         System.out.println("  Wrote " + out);
     }
@@ -197,7 +197,7 @@ public final class TestBedParity {
 
         ModelEngine engine = new ModelEngine(context, Camera.forBlockIcon());
         PixelBuffer buffer = PixelBuffer.create(size, size);
-        engine.rasterize(rotated, buffer, Projection.NONE);
+        engine.rasterize(rotated, buffer, Lens.NONE);
         ImageIO.write(buffer.toBufferedImage(), "PNG", out.toFile());
         System.out.println("  Wrote " + out);
     }

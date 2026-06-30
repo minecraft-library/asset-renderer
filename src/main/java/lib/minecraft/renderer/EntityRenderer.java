@@ -12,7 +12,7 @@ import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.RendererDebug;
 import lib.minecraft.renderer.engine.camera.Camera;
-import lib.minecraft.renderer.engine.camera.Projection;
+import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.compose.FinalizeStage;
 import lib.minecraft.renderer.engine.compose.Frames;
 import lib.minecraft.renderer.engine.compose.GeometryLayer;
@@ -201,7 +201,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // the (glinted) armor rather than the whole entity silhouette.
         int ssaa = Math.max(1, options.getSupersample());
         return FinalizeStage.run(fit.canvasW(), fit.canvasH(), ssaa, options.isAntiAlias(), enchanted,
-            (target, mask) -> engine.rasterize(triangles, target, Projection.ISOMETRIC_BLOCK, effective, mask),
+            (target, mask) -> engine.rasterize(triangles, target, Lens.ISOMETRIC_BLOCK, effective, mask),
             (buffer, mask) -> GlintStage.forArmor(engine.textures()::tryResolveTexture, buffer, enchanted, mask));
     }
 
@@ -404,7 +404,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         float extentX = Math.max(0f, screenBounds.maxX() - screenBounds.minX());
         float extentY = Math.max(0f, screenBounds.maxY() - screenBounds.minY());
         int padding = Math.max(0, options.getPadding());
-        float projectionScale = Projection.ISOMETRIC_BLOCK.projectionScale();
+        float projectionScale = Lens.ISOMETRIC_BLOCK.projectionScale();
 
         if (options.getFitMode() == EntityOptions.FitMode.OUTPUT_SIZE) {
             int outputSize = Math.max(1, options.getOutputSize());

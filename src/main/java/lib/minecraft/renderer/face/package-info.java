@@ -3,7 +3,7 @@
  * small face-keyed holder that {@code request}, {@code asset}, {@code tooling}, and the renderers all
  * bind. This package stays free of engine state (no {@code RendererContext}, no rasterizer
  * dependency) so kit code, tooling, and tests reuse it freely. The engine-specific pieces live
- * elsewhere: camera-to-screen projection on {@code engine.camera.Projection}, the draw-list IR and 2D
+ * elsewhere: camera-to-screen projection on {@code engine.camera.Lens}, the draw-list IR and 2D
  * coverage math under {@code engine.raster}, lighting / shading under {@code engine.light}. The
  * sibling value types moved out: {@code Box} lives in {@code tensor}, {@code EulerRotation} in
  * {@code request}.

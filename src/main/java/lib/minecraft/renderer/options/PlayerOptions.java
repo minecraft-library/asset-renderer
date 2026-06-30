@@ -3,8 +3,8 @@ package lib.minecraft.renderer.options;
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.Renderer;
-import lib.minecraft.renderer.engine.camera.GraphicalProjection;
 import lib.minecraft.renderer.engine.camera.HorizontalFacing;
+import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.camera.VerticalFacing;
 import lib.minecraft.renderer.engine.compose.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.ImageLayer;
@@ -195,11 +195,11 @@ public class PlayerOptions {
     private final @NotNull UnaryOperator<LayerStack<GeometryLayer>> geometryLayerDecorator = UnaryOperator.identity();
 
         /**
-     * Graphical projection for the 3D render. Defaults to {@link GraphicalProjection#VANILLA_PLAYER} -
+     * Graphical projection for the 3D render. Defaults to {@link Projection#VANILLA_PLAYER} -
      * byte-identical to the shipped render; selecting another re-poses the camera and flatten together.
      */
     @lombok.Builder.Default
-    private final @NotNull GraphicalProjection projection = GraphicalProjection.VANILLA_PLAYER;
+    private final @NotNull Projection projection = Projection.VANILLA_PLAYER;
 
     /**
      * Horizontal facing of the {@link #getProjection() projection}. Defaults to

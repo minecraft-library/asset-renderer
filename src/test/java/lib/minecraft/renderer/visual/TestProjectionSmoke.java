@@ -2,8 +2,8 @@ package lib.minecraft.renderer.visual;
 
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.BlockRenderer;
-import lib.minecraft.renderer.engine.camera.GraphicalProjection;
 import lib.minecraft.renderer.engine.camera.HorizontalFacing;
+import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.camera.VerticalFacing;
 import lib.minecraft.renderer.options.BlockOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
@@ -19,9 +19,9 @@ import java.nio.file.Path;
 import javax.imageio.ImageIO;
 
 /**
- * Diagnostic task that renders one block under every {@link GraphicalProjection} (at the default
+ * Diagnostic task that renders one block under every {@link Projection} (at the default
  * {@code RIGHT}/{@code DOWN} facing) plus the four facing combinations of {@link
- * GraphicalProjection#ISOMETRIC}, to {@code cache/visual/projection-smoke/} for visual inspection.
+ * Projection#ISOMETRIC}, to {@code cache/visual/projection-smoke/} for visual inspection.
  * Defaults to {@code minecraft:tnt} - a complete cube with distinct top/side/bottom faces that make
  * orientation and clipping issues obvious.
  * <p>
@@ -47,18 +47,18 @@ public final class TestProjectionSmoke {
         Files.createDirectories(outputDir);
         String safe = blockId.replace(":", "_");
 
-        for (GraphicalProjection projection : GraphicalProjection.values())
+        for (Projection projection : Projection.values())
             render(renderer, blockId, size, projection, HorizontalFacing.RIGHT, VerticalFacing.DOWN,
                 outputDir, safe + "__" + projection + "__RIGHT_DOWN");
 
         for (HorizontalFacing horizontal : HorizontalFacing.values())
             for (VerticalFacing vertical : VerticalFacing.values())
-                render(renderer, blockId, size, GraphicalProjection.ISOMETRIC, horizontal, vertical,
-                    outputDir, safe + "__ISOMETRIC__" + horizontal + "_" + vertical);
+                render(renderer, blockId, size, Projection.ISOMETRIC, horizontal, vertical,
+                       outputDir, safe + "__ISOMETRIC__" + horizontal + "_" + vertical);
     }
 
     private static void render(@NotNull BlockRenderer renderer, @NotNull String blockId, int size,
-                               @NotNull GraphicalProjection projection, @NotNull HorizontalFacing horizontal,
+                               @NotNull Projection projection, @NotNull HorizontalFacing horizontal,
                                @NotNull VerticalFacing vertical, @NotNull Path outputDir, @NotNull String name) {
         try {
             ImageData image = renderer.render(BlockOptions.builder()

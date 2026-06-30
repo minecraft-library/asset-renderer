@@ -5,7 +5,7 @@ import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.camera.Camera;
-import lib.minecraft.renderer.engine.camera.Projection;
+import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.GlintMask;
 import lib.minecraft.renderer.engine.raster.RasterMath;
@@ -144,7 +144,7 @@ public class ModelEngine {
     public void rasterize(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
-        @NotNull Projection perspective
+        @NotNull Lens perspective
     ) {
         rasterize(triangles, buffer, perspective, EulerRotation.NONE);
     }
@@ -156,7 +156,7 @@ public class ModelEngine {
      * Rotations are applied in yaw-pitch-roll order (yaw first around the Y axis, then pitch
      * around the X axis, then roll around the Z axis) and the combined rotation is then
      * composed with the engine's camera transform. Supplying {@link EulerRotation#NONE} is
-     * equivalent to calling {@link #rasterize(ConcurrentList, PixelBuffer, Projection)}.
+     * equivalent to calling {@link #rasterize(ConcurrentList, PixelBuffer, Lens)}.
      *
      * @param triangles the triangle list
      * @param buffer the destination buffer
@@ -166,14 +166,14 @@ public class ModelEngine {
     public void rasterize(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
-        @NotNull Projection perspective,
+        @NotNull Lens perspective,
         @NotNull EulerRotation rotation
     ) {
         rasterize(triangles, buffer, perspective, rotation, null);
     }
 
     /**
-     * As {@link #rasterize(ConcurrentList, PixelBuffer, Projection, EulerRotation)} but also
+     * As {@link #rasterize(ConcurrentList, PixelBuffer, Lens, EulerRotation)} but also
      * records a per-pixel {@link GlintMask}: each pixel whose winning fragment came from a
      * {@link SurfaceTraits#glinted() glinted} triangle is marked, so the glint compositor can
      * restrict the enchantment foil to that geometry. Pass {@code null} for the plain behaviour.
@@ -187,7 +187,7 @@ public class ModelEngine {
     public void rasterize(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
-        @NotNull Projection perspective,
+        @NotNull Lens perspective,
         @NotNull EulerRotation rotation,
         @Nullable GlintMask glintMask
     ) {
@@ -210,7 +210,7 @@ public class ModelEngine {
     public void rasterize(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
-        @NotNull Projection perspective,
+        @NotNull Lens perspective,
         @NotNull Matrix4f modelTransform
     ) {
         // Column-vector chain: modelTransform applies first to a vertex, then the camera.
@@ -240,7 +240,7 @@ public class ModelEngine {
     public void rasterizeFitted(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
-        @NotNull Projection perspective,
+        @NotNull Lens perspective,
         @NotNull EulerRotation rotation,
         float fill
     ) {
@@ -248,9 +248,9 @@ public class ModelEngine {
     }
 
     /**
-     * As {@link #rasterizeFitted(ConcurrentList, PixelBuffer, Projection, EulerRotation, float)}
+     * As {@link #rasterizeFitted(ConcurrentList, PixelBuffer, Lens, EulerRotation, float)}
      * but also records a per-pixel {@link GlintMask} (see
-     * {@link #rasterize(ConcurrentList, PixelBuffer, Projection, EulerRotation, GlintMask)}).
+     * {@link #rasterize(ConcurrentList, PixelBuffer, Lens, EulerRotation, GlintMask)}).
      * The mask is sized to {@code buffer}; downsample it to the final canvas when rendering at a
      * supersampled resolution. Pass {@code null} for the plain behaviour.
      *
@@ -264,7 +264,7 @@ public class ModelEngine {
     public void rasterizeFitted(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
-        @NotNull Projection perspective,
+        @NotNull Lens perspective,
         @NotNull EulerRotation rotation,
         float fill,
         @Nullable GlintMask glintMask
@@ -306,7 +306,7 @@ public class ModelEngine {
     private void rasterizeInternal(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
-        @NotNull Projection perspective,
+        @NotNull Lens perspective,
         @NotNull Matrix4f transform,
         @Nullable GlintMask glintMask
     ) {
@@ -721,7 +721,7 @@ public class ModelEngine {
         float scale,
         float offsetX,
         float offsetY,
-        @NotNull Projection perspective
+        @NotNull Lens perspective
     ) {
         // Per-vertex hot path: fires 4x per triangle (3 positions + 1 normal) on every rasterize
         // call, so it dominates Pass 1 cost on high-triangle models. Vector3f.transform /

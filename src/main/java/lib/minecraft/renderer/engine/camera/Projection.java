@@ -1,202 +1,168 @@
 package lib.minecraft.renderer.engine.camera;
 
-import lib.minecraft.renderer.tensor.Vector2f;
-import lib.minecraft.renderer.tensor.Vector3f;
+import lib.minecraft.renderer.request.EulerRotation;
+import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * The camera's projection - the 3D-to-2D flatten that turns a camera-space point into screen
- * coordinates, plus how much of the output framebuffer the projected geometry fills. The intrinsics
- * half of the camera, paired with {@link Camera}'s pose and selected through
- * {@link GraphicalProjection}.
- * <p>
- * Three flatten families are supported, discriminated by {@link #kind()}:
- * <ul>
- * <li><b>{@link Kind#ORTHOGRAPHIC}</b> - parallel projection, depth discarded. Backs the axonometric
- *     views (isometric / dimetric / trimetric) and the vanilla iso block preset.</li>
- * <li><b>{@link Kind#PERSPECTIVE}</b> - a pinhole projection blended with orthographic by
- *     {@link #amount()}; vertices foreshorten toward {@link #cameraDistance()} / {@link #focalLength()}.
- *     Backs the central-perspective views (one / two / three point) and GUI item icons.</li>
- * <li><b>{@link Kind#OBLIQUE}</b> - a parallel projection that shears the depth axis by
- *     {@link #obliqueDepthFactor()} at {@link #obliqueAngleRadians()}. Backs cavalier / cabinet /
- *     military.</li>
- * </ul>
- * {@link #projectionScale()} is the multiplier applied to model-space coordinates relative to the
- * output tile's smaller dimension; it controls how much of the tile the geometry covers and supplies
- * the safety margin for rotated or multi-element geometry that would otherwise clip the framebuffer.
- * Reach for the {@link #orthographic}, {@link #perspective}, {@link #oblique} factories rather than the
- * canonical constructor. {@link #project} carries the per-family flatten math.
+ * The graphical-projection taxonomy a caller selects per render - the consolidated front door to the
+ * camera {@link Camera pose} and {@link Lens flatten}. Each constant bundles a canonical base
+ * pose (pitch / yaw / roll for {@link HorizontalFacing#RIGHT} / {@link VerticalFacing#DOWN}) with its
+ * flatten family; {@link #resolve} applies the requested facing and returns the pose-locked triple
+ * the renderers consume.
  *
- * @param kind the flatten family selecting which arm of {@link #project} runs
- * @param amount the orthographic-to-perspective blend in {@code [0, 1]} for {@link Kind#PERSPECTIVE} -
- *     0 is pure ortho, 1 full perspective; unused by the other families
- * @param cameraDistance the virtual camera distance in model units for {@link Kind#PERSPECTIVE}
- * @param focalLength the focal length in model units for {@link Kind#PERSPECTIVE}
- * @param obliqueDepthFactor the depth foreshortening for {@link Kind#OBLIQUE} - cavalier 1.0, cabinet 0.5
- * @param obliqueAngleRadians the signed receding-axis angle for {@link Kind#OBLIQUE}, in radians
- * @param projectionScale the multiplier applied to model-space coordinates relative to the output
- *     tile's smaller dimension - {@code 0.4} leaves ~30% margin per side for rotated geometry,
- *     {@link #ISOMETRIC_BLOCK} uses vanilla's {@code 0.625} {@code display.gui.scale}
+ * <p>The canonical members carry <b>correct textbook values</b> (true isometric, standard dimetric,
+ * cabinet / cavalier / military, one / two / three point). The {@code VANILLA_*} members document the
+ * <b>shipped hardcoded baseline</b> - they reproduce the current renders byte-for-byte and are the
+ * defaults so existing output never changes; they short-circuit {@link #resolve} to the exact legacy
+ * {@link Camera} / {@link Lens} objects and ignore facing.
+ *
+ * <p>Three projection families map onto the pipeline as follows: <b>axonometric</b> (isometric /
+ * dimetric / trimetric) = orthographic flatten + a pose; <b>perspective</b> (one / two / three point)
+ * = perspective flatten + a pose (n = how many principal axes tilt off the view axis); <b>oblique</b>
+ * (cavalier / cabinet / military) = a depth-shear flatten. Facing is a sign tweak on the pose's
+ * yaw / pitch (and, for oblique, on the shear angle).
  */
-public record Projection(
-    @NotNull Kind kind,
-    float amount,
-    float cameraDistance,
-    float focalLength,
-    float obliqueDepthFactor,
-    float obliqueAngleRadians,
-    float projectionScale
-) {
+@RequiredArgsConstructor
+public enum Projection {
 
     /**
-     * The 3D-to-2D flatten family of a {@link Projection}, selecting which arm of {@link #project}
-     * runs.
+     * One-point central perspective - the view axis lies on one principal axis, so a single
+     * vanishing point. Pose {@code (0, 180, 0)}, perspective flatten.
      */
-    public enum Kind {
-
-        /**
-         * Parallel projection - depth discarded, x/y scaled uniformly. Backs the axonometric views.
-         */
-        ORTHOGRAPHIC,
-
-        /**
-         * Pinhole projection blended with orthographic by {@link #amount()}. Backs central perspective.
-         */
-        PERSPECTIVE,
-
-        /**
-         * Parallel projection with the depth axis sheared by {@link #obliqueDepthFactor()} at
-         * {@link #obliqueAngleRadians()}. Backs cavalier / cabinet / military.
-         */
-        OBLIQUE
-
-    }
+    ONE_POINT(new EulerRotation(0f, 180f, 0f), Lens.perspective(0.6f, 8f, 8f, 0.45f)),
 
     /**
-     * Vanilla's {@code display.gui.scale} for the root {@code block/block.json} model. Every block
-     * inherits this unless its own model overrides the gui display transform. With the standard
-     * {@code [30, 225, 0]} iso rotation it produces a cube silhouette of {@code 0.625 · √2 ≈ 0.884}
-     * wide × {@code 0.625 · (cos30° + √2·sin30°) ≈ 0.983} tall relative to the inventory slot,
-     * pixel-identical to the vanilla-reference-harness PNGs at the chosen render size.
+     * Two-point central perspective - yawed off-axis with pitch 0, so two horizontal vanishing
+     * points and parallel verticals. Pose {@code (0, 215, 0)}, perspective flatten.
      */
-    private static final float BLOCK_GUI_DISPLAY_SCALE = 0.625f;
+    TWO_POINT(new EulerRotation(0f, 215f, 0f), Lens.perspective(0.6f, 8f, 8f, 0.45f)),
 
     /**
-     * Conservative scale margin used by the presets that cannot assume a tight unit-cube silhouette.
-     * Leaves ~30% of the tile empty per side so rotated, articulated, or limb-bearing geometry
-     * (players, entities, held items) never clips the framebuffer.
+     * Three-point central perspective - yawed and pitched off-axis, so three vanishing points
+     * including the vertical. Pose {@code (30, 215, 0)}, perspective flatten.
      */
-    private static final float CONSERVATIVE_PROJECTION_SCALE = 0.4f;
+    THREE_POINT(new EulerRotation(30f, 215f, 0f), Lens.perspective(0.6f, 8f, 8f, 0.45f)),
 
     /**
-     * Perspective blend factor baked into {@link #GUI_ITEM} - a moderate ortho/perspective mix that
-     * gives held item icons a faint 3D feel without the extreme foreshortening of a full pinhole.
+     * True isometric axonometric - pitch {@code atan(1/√2) = 35.264°}, equal foreshortening on all
+     * three axes (ISO 5456-3). Orthographic flatten.
      */
-    private static final float GUI_ITEM_PERSPECTIVE_AMOUNT = 0.3f;
+    ISOMETRIC(new EulerRotation(35.264f, 225f, 0f), Lens.orthographic(0.45f)),
 
     /**
-     * Virtual camera distance (in model units) for {@link #GUI_ITEM}. Matched to the focal length so
-     * the blend stays centred around the model origin.
+     * Dimetric axonometric - the 2:1 pixel-art convention, pitch {@code atan(0.5) = 26.565°}, two
+     * axes equally foreshortened. Orthographic flatten.
      */
-    private static final float GUI_ITEM_CAMERA_DISTANCE = 8f;
+    DIMETRIC(new EulerRotation(26.565f, 225f, 0f), Lens.orthographic(0.5f)),
 
     /**
-     * Focal length (in model units) for {@link #GUI_ITEM}. See {@link #GUI_ITEM_CAMERA_DISTANCE}.
+     * Trimetric axonometric - all three axes foreshortened differently (ISO 5456-3 asymmetric
+     * example). Pose {@code (20, 250, 0)}, orthographic flatten.
      */
-    private static final float GUI_ITEM_FOCAL_LENGTH = 8f;
+    TRIMETRIC(new EulerRotation(20f, 250f, 0f), Lens.orthographic(0.5f)),
 
     /**
-     * Creates an orthographic (parallel) projection with the given screen-fill scale. Depth is
-     * discarded; x/y scale uniformly.
+     * Cavalier oblique - front face true-shape, receding axis at 45° drawn to full depth (no
+     * foreshortening). Oblique flatten {@code L = 1.0}.
+     */
+    CAVALIER(new EulerRotation(0f, 180f, 0f), Lens.oblique(1.0f, (float) Math.toRadians(-45), 0.5f)),
+
+    /**
+     * Cabinet oblique - front face true-shape, receding axis at 45° with depth halved for a natural
+     * look (the de-facto cabinet standard). Oblique flatten {@code L = 0.5}.
+     */
+    CABINET(new EulerRotation(0f, 180f, 0f), Lens.oblique(0.5f, (float) Math.toRadians(-45), 0.5f)),
+
+    /**
+     * Military (planometric) oblique - the top plan shown true-shape rotated 45°, verticals drawn to
+     * true length (ISO 5456-3). Pose {@code (90, 225, 0)} plan, oblique flatten {@code L = 1.0}.
+     * The least-standard mapping; verify visually.
+     */
+    MILITARY(new EulerRotation(90f, 225f, 0f), Lens.oblique(1.0f, (float) Math.toRadians(-45), 0.5f)),
+
+    /**
+     * Shipped baseline for block / fluid / portal renders - vanilla's {@code [30, 225, 0]}
+     * {@code display.gui} pose (technically a dimetric, not true isometric) at scale 0.625.
+     * Reproduces the block / fluid / portal renders byte-for-byte; the default.
+     */
+    VANILLA_BLOCK(EulerRotation.STANDARD_ISO_BLOCK, Lens.ISOMETRIC_BLOCK),
+
+    /**
+     * Shipped baseline for player renders - the front-facing {@code [30, 45, 0]} humanoid pose at the
+     * conservative scale. Reproduces the player renders byte-for-byte; the default.
+     */
+    VANILLA_PLAYER(EulerRotation.STANDARD_ISO_PLAYER, Lens.NONE),
+
+    /**
+     * Shipped baseline for 3D held-item icons - the moderate {@code GUI_ITEM} perspective; the item
+     * pose lives in the model's own {@code display} matrix. Reproduces the item renders byte-for-byte;
+     * the default.
+     */
+    VANILLA_GUI_ITEM(EulerRotation.NONE, Lens.GUI_ITEM);
+
+    /**
+     * Resolved camera pose, flatten, and lighting pose for one {@link Projection} at a chosen
+     * facing - the pose-locked triple a renderer feeds to its engine, projection, and inventory
+     * relight in lock-step.
      *
-     * @param projectionScale the model-to-tile screen-fill multiplier
-     * @return the orthographic projection
+     * @param camera the baked camera pose
+     * @param flatten the 3D-to-2D projection
+     * @param lightingPose the Euler pose the inventory relight must mirror to track the camera
      */
-    public static @NotNull Projection orthographic(float projectionScale) {
-        return new Projection(Kind.ORTHOGRAPHIC, 0f, 0f, 0f, 0f, 0f, projectionScale);
-    }
+    public record Resolved(@NotNull Camera camera, @NotNull Lens flatten, @NotNull EulerRotation lightingPose) {}
+
+    private final @NotNull EulerRotation basePose;
+    private final @NotNull Lens baseFlatten;
 
     /**
-     * Creates a perspective projection blending orthographic with a pinhole foreshortening.
+     * Resolves this projection at the given facing into the camera / flatten / lighting-pose triple.
+     * The {@code VANILLA_*} baselines short-circuit to the exact legacy objects and ignore facing, so
+     * the default render path stays byte-identical; canonical members tweak the pose (and, for
+     * oblique, the shear angle) by facing and build the camera through the parity-pinned
+     * {@link Camera#withGuiPose} {@code rotationXYZ} path.
      *
-     * @param amount the ortho-to-perspective blend in {@code [0, 1]}
-     * @param cameraDistance the virtual camera distance in model units
-     * @param focalLength the focal length in model units
-     * @param projectionScale the model-to-tile screen-fill multiplier
-     * @return the perspective projection
+     * @param horizontal the horizontal facing
+     * @param vertical the vertical facing
+     * @return the resolved triple
      */
-    public static @NotNull Projection perspective(float amount, float cameraDistance, float focalLength, float projectionScale) {
-        return new Projection(Kind.PERSPECTIVE, amount, cameraDistance, focalLength, 0f, 0f, projectionScale);
-    }
-
-    /**
-     * Creates an oblique projection - a parallel projection that shears the depth axis.
-     *
-     * @param depthFactor the depth foreshortening (cavalier 1.0, cabinet 0.5)
-     * @param angleRadians the signed receding-axis angle in radians
-     * @param projectionScale the model-to-tile screen-fill multiplier
-     * @return the oblique projection
-     */
-    public static @NotNull Projection oblique(float depthFactor, float angleRadians, float projectionScale) {
-        return new Projection(Kind.OBLIQUE, 0f, 0f, 0f, depthFactor, angleRadians, projectionScale);
-    }
-
-    /**
-     * A pure orthographic projection with no perspective blend and the conservative scale - leaves
-     * generous margin for rotated or limb-bearing geometry. Used by {@code PlayerRenderer} and any
-     * caller that renders articulated models which extend beyond the unit cube after animation.
-     */
-    public static final @NotNull Projection NONE = orthographic(CONSERVATIVE_PROJECTION_SCALE);
-
-    /**
-     * A moderate perspective suitable for GUI item icons.
-     */
-    public static final @NotNull Projection GUI_ITEM = perspective(
-        GUI_ITEM_PERSPECTIVE_AMOUNT, GUI_ITEM_CAMERA_DISTANCE, GUI_ITEM_FOCAL_LENGTH, CONSERVATIVE_PROJECTION_SCALE
-    );
-
-    /**
-     * A pure orthographic projection tuned for isometric block renders. Scale is vanilla's own
-     * {@link #BLOCK_GUI_DISPLAY_SCALE 0.625} {@code display.gui.scale} literal so the projected
-     * silhouette of a unit cube at the iso pose matches the vanilla-reference harness PNGs
-     * byte-for-byte ({@code 0.625 · √2 ≈ 0.884} wide × {@code 0.625 · 1.5731 ≈ 0.983} tall in
-     * unit-slot coordinates). Stairs / slabs / fence gates carry their own {@code display.gui}
-     * overrides which the block-icon camera honours, so they fit at vanilla's footprint too.
-     */
-    public static final @NotNull Projection ISOMETRIC_BLOCK = orthographic(BLOCK_GUI_DISPLAY_SCALE);
-
-    /**
-     * Projects a model-space point onto 2D screen coordinates under this projection's
-     * {@link #kind() flatten family}. {@link Kind#ORTHOGRAPHIC} discards depth; {@link Kind#PERSPECTIVE}
-     * blends in pinhole foreshortening toward {@link #cameraDistance()} / {@link #focalLength()};
-     * {@link Kind#OBLIQUE} shears the depth axis by {@link #obliqueDepthFactor()} at
-     * {@link #obliqueAngleRadians()}.
-     *
-     * @param point the 3D point to project
-     * @param scale the uniform screen-space scale factor
-     * @param offsetX the horizontal screen offset to apply after scaling
-     * @param offsetY the vertical screen offset to apply after scaling
-     * @return the projected 2D point
-     */
-    public @NotNull Vector2f project(@NotNull Vector3f point, float scale, float offsetX, float offsetY) {
-        return switch (this.kind) {
-            case ORTHOGRAPHIC -> new Vector2f(point.x() * scale + offsetX, -point.y() * scale + offsetY);
-            case PERSPECTIVE -> {
-                float denom = this.cameraDistance - point.z();
-                float perspectiveFactor = denom == 0f ? 1f : (this.focalLength / denom);
-                float blended = 1f + (perspectiveFactor - 1f) * this.amount;
-                yield new Vector2f(point.x() * scale * blended + offsetX, -point.y() * scale * blended + offsetY);
-            }
-            case OBLIQUE -> {
-                float shearX = (float) Math.cos(this.obliqueAngleRadians) * this.obliqueDepthFactor;
-                float shearY = (float) Math.sin(this.obliqueAngleRadians) * this.obliqueDepthFactor;
-                float z = point.z();
-                yield new Vector2f(
-                    (point.x() + z * shearX) * scale + offsetX,
-                    -(point.y() + z * shearY) * scale + offsetY
-                );
+    public @NotNull Resolved resolve(@NotNull HorizontalFacing horizontal, @NotNull VerticalFacing vertical) {
+        return switch (this) {
+            case VANILLA_BLOCK ->
+                new Resolved(Camera.forBlockIcon(), Lens.ISOMETRIC_BLOCK, EulerRotation.STANDARD_ISO_BLOCK);
+            case VANILLA_PLAYER ->
+                new Resolved(Camera.forPlayerIcon(), Lens.NONE, EulerRotation.STANDARD_ISO_PLAYER);
+            case VANILLA_GUI_ITEM ->
+                new Resolved(Camera.identity(), Lens.GUI_ITEM, EulerRotation.NONE);
+            default -> {
+                EulerRotation pose = facePose(this.basePose, horizontal, vertical);
+                Lens flatten = this.baseFlatten.kind() == Lens.Kind.OBLIQUE
+                    ? faceOblique(this.baseFlatten, horizontal, vertical)
+                    : this.baseFlatten;
+                yield new Resolved(Camera.withGuiPose(pose), flatten, pose);
             }
         };
+    }
+
+    /**
+     * Applies facing to a pose: {@link HorizontalFacing#LEFT} reflects the yaw about the front-facing
+     * direction ({@code 360 - yaw}); {@link VerticalFacing#UP} negates the pitch.
+     */
+    private static @NotNull EulerRotation facePose(@NotNull EulerRotation base, @NotNull HorizontalFacing h, @NotNull VerticalFacing v) {
+        float pitch = v == VerticalFacing.UP ? -base.pitch() : base.pitch();
+        float yaw = h == HorizontalFacing.LEFT ? 360f - base.yaw() : base.yaw();
+        return new EulerRotation(pitch, yaw, base.roll());
+    }
+
+    /**
+     * Applies facing to an oblique flatten by flipping the receding-axis angle's cosine for
+     * {@link HorizontalFacing#LEFT} and its sine for {@link VerticalFacing#UP}, so the depth shears
+     * toward the requested quadrant.
+     */
+    private static @NotNull Lens faceOblique(@NotNull Lens base, @NotNull HorizontalFacing h, @NotNull VerticalFacing v) {
+        double cos = Math.cos(base.obliqueAngleRadians()) * (h == HorizontalFacing.LEFT ? -1d : 1d);
+        double sin = Math.sin(base.obliqueAngleRadians()) * (v == VerticalFacing.UP ? -1d : 1d);
+        return Lens.oblique(base.obliqueDepthFactor(), (float) Math.atan2(sin, cos), base.projectionScale());
     }
 
 }

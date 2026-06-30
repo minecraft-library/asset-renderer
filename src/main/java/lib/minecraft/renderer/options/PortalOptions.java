@@ -2,8 +2,8 @@ package lib.minecraft.renderer.options;
 
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.Renderer;
-import lib.minecraft.renderer.engine.camera.GraphicalProjection;
 import lib.minecraft.renderer.engine.camera.HorizontalFacing;
+import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.camera.VerticalFacing;
 import lib.minecraft.renderer.request.EulerRotation;
 import lombok.AccessLevel;
@@ -125,11 +125,11 @@ public class PortalOptions {
     private final @NotNull Background background = Background.TRANSPARENT;
 
         /**
-     * Graphical projection for the 3D render. Defaults to {@link GraphicalProjection#VANILLA_BLOCK} -
+     * Graphical projection for the 3D render. Defaults to {@link Projection#VANILLA_BLOCK} -
      * byte-identical to the shipped render; selecting another re-poses the camera and flatten together.
      */
     @lombok.Builder.Default
-    private final @NotNull GraphicalProjection projection = GraphicalProjection.VANILLA_BLOCK;
+    private final @NotNull Projection projection = Projection.VANILLA_BLOCK;
 
     /**
      * Horizontal facing of the {@link #getProjection() projection}. Defaults to

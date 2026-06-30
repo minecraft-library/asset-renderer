@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.engine.camera;
 
 /**
- * The horizontal facing of a {@link GraphicalProjection} - which side of the subject turns toward the
+ * The horizontal facing of a {@link Projection} - which side of the subject turns toward the
  * viewer. {@link #RIGHT} is the default and reproduces the vanilla three-quarter orientation;
  * {@link #LEFT} mirrors it about the front-facing vertical plane (yaw reflected about the
  * camera-facing direction).

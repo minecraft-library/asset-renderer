@@ -33,7 +33,7 @@
  *       ({@code VisibleTriangle} / {@code SurfaceTraits}), the 2D coverage math
  *       ({@code RasterMath}), and the glint coverage mask.</li>
  * </ul>
- * Camera-to-screen projection ({@link lib.minecraft.renderer.engine.camera.Projection Projection})
+ * Camera-to-screen projection ({@link lib.minecraft.renderer.engine.camera.Lens Lens})
  * sits with {@code Camera} in the camera subpackage; the general geometric primitives split across
  * {@link lib.minecraft.renderer.face face} (face enums), {@link lib.minecraft.renderer.tensor tensor}
  * ({@code Box}), and {@link lib.minecraft.renderer.request request} ({@code EulerRotation});

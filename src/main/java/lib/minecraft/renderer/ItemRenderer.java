@@ -15,7 +15,7 @@ import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Camera;
-import lib.minecraft.renderer.engine.camera.Projection;
+import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.compose.GlintStage;
 import lib.minecraft.renderer.engine.compose.ImageLayer;
 import lib.minecraft.renderer.engine.compose.ImageLayerContext;
@@ -175,9 +175,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * Pure-orthographic projection for the GUI shield render. The projection scale is the shield
      * item model's {@code display.gui} scale ({@code 0.65}), mirroring how the block-icon path
      * folds {@code block/block.json}'s {@code 0.625} {@code display.gui.scale} into
-     * {@link Projection#ISOMETRIC_BLOCK}.
+     * {@link Lens#ISOMETRIC_BLOCK}.
      */
-    private static final @NotNull Projection SHIELD_PERSPECTIVE = Projection.orthographic(SHIELD_GUI_DISPLAY_SCALE);
+    private static final @NotNull Lens SHIELD_PERSPECTIVE = Lens.orthographic(SHIELD_GUI_DISPLAY_SCALE);
 
     /**
      * Returns {@code true} when the item id is a banner or shield, which get composited through
