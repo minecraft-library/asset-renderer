@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.asset;
 
 import dev.simplified.collection.ConcurrentList;
-import lib.minecraft.renderer.pipeline.pack.PackMeta;
+import lib.minecraft.renderer.asset.rule.PackMeta;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;

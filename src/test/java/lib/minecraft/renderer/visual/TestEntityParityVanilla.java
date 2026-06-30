@@ -14,7 +14,6 @@ import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
-import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -27,6 +26,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import javax.imageio.ImageIO;
 
 /**
  * Per-entity parity report comparing the Java pipeline output (via {@link EntityRenderer} +
@@ -205,11 +205,11 @@ public final class TestEntityParityVanilla {
                 .fitMode(EntityOptions.FitMode.FAMILY_BOUNDS)
                 .build();
             ImageData java;
-            lib.minecraft.renderer.pipeline.util.RendererDebug.beginPerEntityBoundsDump(entityId);
+            lib.minecraft.renderer.engine.RendererDebug.beginPerEntityBoundsDump(entityId);
             try {
                 java = javaRenderer.render(options);
             } finally {
-                lib.minecraft.renderer.pipeline.util.RendererDebug.endPerEntityBoundsDump(entityId);
+                lib.minecraft.renderer.engine.RendererDebug.endPerEntityBoundsDump(entityId);
             }
             BufferedImage javaImg = java.toBufferedImage();
             int jw = javaImg.getWidth();

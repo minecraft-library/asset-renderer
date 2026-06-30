@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline.pack;
+package lib.minecraft.renderer.asset.rule;
 
 /**
  * The pack-format predicate carried by a single {@code overlays.entries[].formats} entry. Vanilla

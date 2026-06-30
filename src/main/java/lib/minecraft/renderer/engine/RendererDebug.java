@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline.util;
+package lib.minecraft.renderer.engine;
 
 import dev.simplified.image.pixel.BlendMode;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;

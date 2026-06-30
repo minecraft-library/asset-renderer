@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline.pack;
+package lib.minecraft.renderer.asset.rule;
 
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;

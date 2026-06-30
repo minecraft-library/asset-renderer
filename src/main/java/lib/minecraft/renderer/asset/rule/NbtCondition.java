@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.pipeline.pack;
+package lib.minecraft.renderer.asset.rule;
 
 import org.jetbrains.annotations.NotNull;
 

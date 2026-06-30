@@ -13,10 +13,10 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.Texture;
 import lib.minecraft.renderer.asset.TexturePack;
-import lib.minecraft.renderer.pipeline.pack.CitMatcher;
-import lib.minecraft.renderer.pipeline.pack.CtmResolution;
-import lib.minecraft.renderer.pipeline.pack.CtmRule;
-import lib.minecraft.renderer.pipeline.pack.ItemContext;
+import lib.minecraft.renderer.asset.rule.CitMatcher;
+import lib.minecraft.renderer.asset.rule.CtmResolution;
+import lib.minecraft.renderer.asset.rule.CtmRule;
+import lib.minecraft.renderer.asset.rule.ItemContext;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;

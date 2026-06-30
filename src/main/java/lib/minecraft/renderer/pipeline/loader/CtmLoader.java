@@ -2,10 +2,10 @@ package lib.minecraft.renderer.pipeline.loader;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.asset.rule.CtmMethod;
+import lib.minecraft.renderer.asset.rule.CtmRule;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
-import lib.minecraft.renderer.pipeline.pack.CtmMethod;
-import lib.minecraft.renderer.pipeline.pack.CtmRule;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
