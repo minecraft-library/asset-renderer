@@ -10,7 +10,7 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.appearance.Biome;
+import lib.minecraft.renderer.asset.Biome;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.engine.ModelEngine;

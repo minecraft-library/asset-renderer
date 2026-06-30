@@ -2,7 +2,7 @@ package lib.minecraft.renderer.options;
 
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.Renderer;
-import lib.minecraft.renderer.appearance.Biome;
+import lib.minecraft.renderer.asset.Biome;
 import lib.minecraft.renderer.engine.compose.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.LayerSlot;
 import lib.minecraft.renderer.engine.compose.LayerStack;

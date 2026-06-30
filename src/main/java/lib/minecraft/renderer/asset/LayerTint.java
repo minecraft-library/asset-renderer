@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.appearance;
+package lib.minecraft.renderer.asset;
 
 /**
  * A single per-layer tint rule from an MC 26.1 item definition's {@code model.tints[]} array, where

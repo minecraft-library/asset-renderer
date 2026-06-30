@@ -1,6 +1,6 @@
 package lib.minecraft.renderer.engine.texture;
 
-import lib.minecraft.renderer.appearance.Biome;
+import lib.minecraft.renderer.asset.Biome;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;

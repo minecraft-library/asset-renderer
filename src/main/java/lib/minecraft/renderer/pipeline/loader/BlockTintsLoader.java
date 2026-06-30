@@ -8,7 +8,7 @@ import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
-import lib.minecraft.renderer.appearance.Biome;
+import lib.minecraft.renderer.asset.Biome;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.tooling.ToolingBlockTints;

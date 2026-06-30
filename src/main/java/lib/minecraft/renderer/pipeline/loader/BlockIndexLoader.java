@@ -3,7 +3,7 @@ package lib.minecraft.renderer.pipeline.loader;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import lib.minecraft.renderer.appearance.Biome;
+import lib.minecraft.renderer.asset.Biome;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockTag;
 import lib.minecraft.renderer.asset.ResourceId;

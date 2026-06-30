@@ -1,7 +1,6 @@
 package lib.minecraft.renderer.asset;
 
 import dev.simplified.collection.ConcurrentMap;
-import lib.minecraft.renderer.appearance.LayerTint;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;

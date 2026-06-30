@@ -3,10 +3,10 @@ package lib.minecraft.renderer.engine.kit;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.appearance.BannerLayer;
-import lib.minecraft.renderer.appearance.DyeColor;
 import lib.minecraft.renderer.asset.BannerPattern;
+import lib.minecraft.renderer.asset.DyeColor;
 import lib.minecraft.renderer.engine.texture.Textures;
+import lib.minecraft.renderer.request.BannerLayer;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 

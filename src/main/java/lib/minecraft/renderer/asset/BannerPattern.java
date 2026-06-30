@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.asset;
 
-import lib.minecraft.renderer.appearance.DyeColor;
 import org.jetbrains.annotations.NotNull;
 
 /**

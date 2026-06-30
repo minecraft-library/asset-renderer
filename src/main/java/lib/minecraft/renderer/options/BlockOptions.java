@@ -3,7 +3,7 @@ package lib.minecraft.renderer.options;
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.Renderer;
-import lib.minecraft.renderer.appearance.Biome;
+import lib.minecraft.renderer.asset.Biome;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.compose.GeometryLayer;

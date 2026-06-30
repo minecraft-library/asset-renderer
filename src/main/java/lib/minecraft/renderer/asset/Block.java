@@ -4,7 +4,6 @@ import com.google.gson.JsonObject;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.ColorMath;
-import lib.minecraft.renderer.appearance.Biome;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.options.BlockOptions;

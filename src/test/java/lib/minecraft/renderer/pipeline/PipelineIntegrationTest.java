@@ -1,7 +1,7 @@
 package lib.minecraft.renderer.pipeline;
 
 
-import lib.minecraft.renderer.appearance.Biome;
+import lib.minecraft.renderer.asset.Biome;
 import lib.minecraft.renderer.asset.Texture;
 import lib.minecraft.renderer.asset.model.ModelData;
 import org.junit.jupiter.api.BeforeAll;

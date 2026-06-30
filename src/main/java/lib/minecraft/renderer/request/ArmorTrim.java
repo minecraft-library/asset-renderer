@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.appearance;
+package lib.minecraft.renderer.request;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

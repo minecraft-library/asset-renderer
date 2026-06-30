@@ -5,7 +5,7 @@ import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
 import dev.simplified.image.codec.gif.GifWriteOptions;
 import lib.minecraft.renderer.FluidRenderer;
-import lib.minecraft.renderer.appearance.Biome;
+import lib.minecraft.renderer.asset.Biome;
 import lib.minecraft.renderer.engine.kit.FluidGeometryKit;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.options.FluidOptions;

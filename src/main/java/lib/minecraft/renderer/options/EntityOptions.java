@@ -2,10 +2,10 @@ package lib.minecraft.renderer.options;
 
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.Renderer;
-import lib.minecraft.renderer.appearance.ArmorPiece;
 import lib.minecraft.renderer.engine.compose.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.LayerSlot;
 import lib.minecraft.renderer.engine.compose.LayerStack;
+import lib.minecraft.renderer.request.ArmorPiece;
 import lib.minecraft.renderer.request.EulerRotation;
 import lombok.AccessLevel;
 import lombok.Builder;

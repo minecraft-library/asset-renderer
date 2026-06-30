@@ -8,7 +8,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
-import lib.minecraft.renderer.appearance.LayerTint;
+import lib.minecraft.renderer.asset.LayerTint;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.resolver.ModelResolver;
