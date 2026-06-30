@@ -11,6 +11,7 @@ import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.geometry.Box;
 import lib.minecraft.renderer.geometry.EntityFace;
 import lib.minecraft.renderer.geometry.EulerRotation;
+import lib.minecraft.renderer.geometry.SurfaceTraits;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.pipeline.util.RendererDebug;
 import lib.minecraft.renderer.tensor.Matrix4f;
@@ -331,16 +332,14 @@ public class EntityGeometryKit {
                         effUv[0], effUv[1], effUv[2],
                         texture, tintArgb,
                         normal, shading,
-                        cubeCullBackFaces, emissive, cubeIsTranslucent,
-                        false, debugTag
+                        new SurfaceTraits(cubeCullBackFaces, emissive, cubeIsTranslucent, false), debugTag
                     ));
                     triangles.add(new VisibleTriangle(
                         corners[0], corners[2], corners[3],
                         effUv[0], effUv[2], effUv[3],
                         texture, tintArgb,
                         normal, shading,
-                        cubeCullBackFaces, emissive, cubeIsTranslucent,
-                        false, debugTag
+                        new SurfaceTraits(cubeCullBackFaces, emissive, cubeIsTranslucent, false), debugTag
                     ));
                 }
             }

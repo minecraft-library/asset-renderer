@@ -22,6 +22,7 @@ import lib.minecraft.renderer.engine.TextureEngine;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
+import lib.minecraft.renderer.geometry.SurfaceTraits;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.kit.BlockGeometryKit;
 import lib.minecraft.renderer.compose.GeometryLayer;
@@ -321,7 +322,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     tri.uv0(), tri.uv1(), tri.uv2(),
                     tri.texture(), tri.tintArgb(),
                     tri.normal().transformNormal(rotation),
-                    tri.shading(), tri.cullBackFaces(), tri.emissive()
+                    tri.shading(), new SurfaceTraits(tri.traits().cullBackFaces(), tri.traits().emissive(), false, false)
                 ));
             }
 
@@ -477,7 +478,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                             new Vector3f(t.position1().x() + dx, t.position1().y() + dy, t.position1().z() + dz),
                             new Vector3f(t.position2().x() + dx, t.position2().y() + dy, t.position2().z() + dz),
                             t.uv0(), t.uv1(), t.uv2(),
-                            t.texture(), t.tintArgb(), t.normal(), t.shading(), t.cullBackFaces(), t.emissive()
+                            t.texture(), t.tintArgb(), t.normal(), t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), t.traits().emissive(), false, false)
                         ));
                     }
                     partTriangles = shifted;
@@ -651,7 +652,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     new Vector3f((t.position1().x() - cx) * scale, (t.position1().y() - cy) * scale, (t.position1().z() - cz) * scale),
                     new Vector3f((t.position2().x() - cx) * scale, (t.position2().y() - cy) * scale, (t.position2().z() - cz) * scale),
                     t.uv0(), t.uv1(), t.uv2(),
-                    t.texture(), t.tintArgb(), t.normal(), t.shading(), t.cullBackFaces(), t.emissive()
+                    t.texture(), t.tintArgb(), t.normal(), t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), t.traits().emissive(), false, false)
                 ));
             }
             return result;

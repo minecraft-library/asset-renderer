@@ -17,6 +17,7 @@ import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.engine.IsometricEngine;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
+import lib.minecraft.renderer.geometry.SurfaceTraits;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.kit.BlockGeometryKit;
 import lib.minecraft.renderer.options.BlockOptions;
@@ -137,7 +138,7 @@ public final class TestBedParity {
                 t.texture(), t.tintArgb(),
                 Vector3f.normalize(
                     Vector3f.transformNormal(t.normal(), rotY)),
-                t.shading(), t.cullBackFaces(), t.emissive()
+                t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), t.traits().emissive(), false, false)
             ));
         }
 
@@ -189,7 +190,7 @@ public final class TestBedParity {
                 t.texture(), t.tintArgb(),
                 Vector3f.normalize(
                     Vector3f.transformNormal(t.normal(), rotY)),
-                t.shading(), t.cullBackFaces(), t.emissive()
+                t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), t.traits().emissive(), false, false)
             ));
         }
 
@@ -284,7 +285,7 @@ public final class TestBedParity {
                 scaleV(t.position1(), cx, cy, cz, scale),
                 scaleV(t.position2(), cx, cy, cz, scale),
                 t.uv0(), t.uv1(), t.uv2(),
-                t.texture(), t.tintArgb(), t.normal(), t.shading(), t.cullBackFaces(), t.emissive()
+                t.texture(), t.tintArgb(), t.normal(), t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), t.traits().emissive(), false, false)
             ));
         }
         return out;

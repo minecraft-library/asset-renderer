@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.compose;
 
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.geometry.SurfaceTraits;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import org.jetbrains.annotations.NotNull;
 

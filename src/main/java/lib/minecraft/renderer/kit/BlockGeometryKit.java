@@ -12,6 +12,7 @@ import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.geometry.BlockFace;
 import lib.minecraft.renderer.geometry.Box;
 import lib.minecraft.renderer.geometry.SixFaces;
+import lib.minecraft.renderer.geometry.SurfaceTraits;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector2f;
@@ -101,6 +102,29 @@ public class BlockGeometryKit {
         @NotNull SixFaces faces,
         int tintArgb
     ) {
+        return buildBoxTriangles(min, max, faces, tintArgb, false);
+    }
+
+    /**
+     * Builds a list of 12 triangles describing a box, marking every face as glinted when
+     * {@code glinted} is set so the rasterizer's foil mask covers the whole box. Used by
+     * {@code ArmorKit} to build worn-armor cubes that receive the enchantment glint, baking the flag
+     * at construction instead of rewriting the triangles afterward.
+     *
+     * @param min the minimum corner in model space
+     * @param max the maximum corner in model space
+     * @param faces the six face textures, keyed by {@link BlockFace} direction
+     * @param tintArgb the ARGB tint applied to every face
+     * @param glinted whether every face is worn-armor geometry receiving the enchantment foil
+     * @return the 12-triangle list
+     */
+    public static @NotNull ConcurrentList<VisibleTriangle> buildBoxTriangles(
+        @NotNull Vector3f min,
+        @NotNull Vector3f max,
+        @NotNull SixFaces faces,
+        int tintArgb,
+        boolean glinted
+    ) {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
         Box box = Box.of(min, max);
 
@@ -110,7 +134,8 @@ public class BlockGeometryKit {
                 triangles,
                 corners[0], corners[1], corners[2], corners[3],
                 faces.byFace(face), tintArgb,
-                face.normal()
+                face.normal(),
+                glinted
             );
         }
 
@@ -346,7 +371,8 @@ public class BlockGeometryKit {
                     faceNormal,
                     !twoSided,
                     translucent,
-                    element.isShade()
+                    element.isShade(),
+                    false
                 );
             }
         }
@@ -489,12 +515,13 @@ public class BlockGeometryKit {
         @NotNull Vector3f topRight,
         @NotNull PixelBuffer texture,
         int tintArgb,
-        @NotNull Vector3f normal
+        @NotNull Vector3f normal,
+        boolean glinted
     ) {
         addQuad(out,
             topLeft, bottomLeft, bottomRight, topRight,
             new Vector2f(0f, 0f), new Vector2f(0f, 1f), new Vector2f(1f, 1f), new Vector2f(1f, 0f),
-            texture, tintArgb, normal);
+            texture, tintArgb, normal, glinted);
     }
 
     /**
@@ -514,9 +541,10 @@ public class BlockGeometryKit {
         @NotNull Vector2f uvTR,
         @NotNull PixelBuffer texture,
         int tintArgb,
-        @NotNull Vector3f normal
+        @NotNull Vector3f normal,
+        boolean glinted
     ) {
-        addQuad(out, topLeft, bottomLeft, bottomRight, topRight, uvTL, uvBL, uvBR, uvTR, texture, tintArgb, normal, true);
+        addQuad(out, topLeft, bottomLeft, bottomRight, topRight, uvTL, uvBL, uvBR, uvTR, texture, tintArgb, normal, true, glinted);
     }
 
     private static void addQuad(
@@ -532,9 +560,10 @@ public class BlockGeometryKit {
         @NotNull PixelBuffer texture,
         int tintArgb,
         @NotNull Vector3f normal,
-        boolean cullBackFaces
+        boolean cullBackFaces,
+        boolean glinted
     ) {
-        addQuad(out, topLeft, bottomLeft, bottomRight, topRight, uvTL, uvBL, uvBR, uvTR, texture, tintArgb, normal, cullBackFaces, false, true);
+        addQuad(out, topLeft, bottomLeft, bottomRight, topRight, uvTL, uvBL, uvBR, uvTR, texture, tintArgb, normal, cullBackFaces, false, true, glinted);
     }
 
     private static void addQuad(
@@ -552,7 +581,8 @@ public class BlockGeometryKit {
         @NotNull Vector3f normal,
         boolean cullBackFaces,
         boolean translucent,
-        boolean directionalLight
+        boolean directionalLight,
+        boolean glinted
     ) {
         // Bake the inventory shade factor into each triangle so the rasterizer can apply shading
         // directly without a per-triangle face lookup. {@link RenderEngine#computeInventoryLighting}
@@ -564,8 +594,9 @@ public class BlockGeometryKit {
         // carries {@link #SHADE_DISABLED} so the relight pass renders it full-bright, matching
         // vanilla's in-world {@code getShade(dir, false) == 1.0}.
         float shading = directionalLight ? RenderEngine.computeInventoryLighting(normal) : SHADE_DISABLED;
-        out.add(new VisibleTriangle(topLeft, bottomLeft, bottomRight, uvTL, uvBL, uvBR, texture, tintArgb, normal, shading, cullBackFaces, false, translucent, false, null));
-        out.add(new VisibleTriangle(topLeft, bottomRight, topRight, uvTL, uvBR, uvTR, texture, tintArgb, normal, shading, cullBackFaces, false, translucent, false, null));
+        SurfaceTraits traits = new SurfaceTraits(cullBackFaces, false, translucent, glinted);
+        out.add(new VisibleTriangle(topLeft, bottomLeft, bottomRight, uvTL, uvBL, uvBR, texture, tintArgb, normal, shading, traits, null));
+        out.add(new VisibleTriangle(topLeft, bottomRight, topRight, uvTL, uvBR, uvTR, texture, tintArgb, normal, shading, traits, null));
     }
 
     /**

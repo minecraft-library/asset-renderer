@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.RenderEngine;
+import lib.minecraft.renderer.geometry.SurfaceTraits;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.options.FluidOptions;
 import lib.minecraft.renderer.tensor.Vector2f;
@@ -115,8 +116,8 @@ public class FluidGeometryKit {
         Vector3f normal1 = triangleNormal(nw, sw, se);
         Vector3f normal2 = triangleNormal(nw, se, ne);
 
-        out.add(new VisibleTriangle(nw, sw, se, uvNW, uvSW, uvSE, texture, argbTint, normal1, RenderEngine.computeInventoryLighting(normal1), true, false));
-        out.add(new VisibleTriangle(nw, se, ne, uvNW, uvSE, uvNE, texture, argbTint, normal2, RenderEngine.computeInventoryLighting(normal2), true, false));
+        out.add(new VisibleTriangle(nw, sw, se, uvNW, uvSW, uvSE, texture, argbTint, normal1, RenderEngine.computeInventoryLighting(normal1), SurfaceTraits.OPAQUE_BODY));
+        out.add(new VisibleTriangle(nw, se, ne, uvNW, uvSE, uvNE, texture, argbTint, normal2, RenderEngine.computeInventoryLighting(normal2), SurfaceTraits.OPAQUE_BODY));
     }
 
     /**
@@ -160,8 +161,8 @@ public class FluidGeometryKit {
         @NotNull PixelBuffer texture, int argbTint, @NotNull Vector3f normal
     ) {
         float shading = RenderEngine.computeInventoryLighting(normal);
-        out.add(new VisibleTriangle(pTL, pBL, pBR, uvTL, uvBL, uvBR, texture, argbTint, normal, shading, true, false));
-        out.add(new VisibleTriangle(pTL, pBR, pTR, uvTL, uvBR, uvTR, texture, argbTint, normal, shading, true, false));
+        out.add(new VisibleTriangle(pTL, pBL, pBR, uvTL, uvBL, uvBR, texture, argbTint, normal, shading, SurfaceTraits.OPAQUE_BODY));
+        out.add(new VisibleTriangle(pTL, pBR, pTR, uvTL, uvBR, uvTR, texture, argbTint, normal, shading, SurfaceTraits.OPAQUE_BODY));
     }
 
     /**

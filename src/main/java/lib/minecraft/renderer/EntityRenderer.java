@@ -16,6 +16,7 @@ import lib.minecraft.renderer.engine.TextureEngine;
 import lib.minecraft.renderer.geometry.Box;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
+import lib.minecraft.renderer.geometry.SurfaceTraits;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.kit.ArmorKit;
 import lib.minecraft.renderer.kit.BlockGeometryKit;
@@ -321,7 +322,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 tri.uv0(), tri.uv1(), tri.uv2(),
                 tri.texture(), tri.tintArgb(),
                 transformedNormal,
-                shading, true, tri.emissive()
+                shading, new SurfaceTraits(true, tri.traits().emissive(), false, false)
             ));
         }
         return out;

@@ -472,7 +472,7 @@ public interface RenderEngine {
             ));
         ConcurrentList<VisibleTriangle> out = Concurrent.newList();
         for (VisibleTriangle t : triangles) {
-            boolean cull = forceCullBackFaces || t.cullBackFaces();
+            boolean cull = forceCullBackFaces || t.traits().cullBackFaces();
             // A {@code "shade": false} model element (coral fans, cross/crop plants, ladder,
             // vine, tripwire, redstone dust, torches) carries {@link BlockGeometryKit#SHADE_DISABLED}.
             // Vanilla's {@code getShade(direction, shade=false)} returns 1.0 - the face skips the
@@ -484,7 +484,7 @@ public interface RenderEngine {
                     t.position0(), t.position1(), t.position2(),
                     t.uv0(), t.uv1(), t.uv2(),
                     t.texture(), t.tintArgb(), t.normal(),
-                    1.0f, cull, t.emissive(), t.translucent(), t.glinted(), t.debugTag()
+                    1.0f, t.traits().withCullBackFaces(cull), t.debugTag()
                 ));
                 continue;
             }
@@ -547,7 +547,7 @@ public interface RenderEngine {
                 t.position0(), t.position1(), t.position2(),
                 t.uv0(), t.uv1(), t.uv2(),
                 t.texture(), t.tintArgb(), t.normal(),
-                shading, cull, t.emissive(), t.translucent(), t.glinted(), t.debugTag()
+                shading, t.traits().withCullBackFaces(cull), t.debugTag()
             ));
         }
         return out;

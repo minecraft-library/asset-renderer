@@ -9,6 +9,7 @@ import lib.minecraft.renderer.geometry.BlockFace;
 import lib.minecraft.renderer.geometry.Box;
 import lib.minecraft.renderer.geometry.EntityFace;
 import lib.minecraft.renderer.geometry.EulerRotation;
+import lib.minecraft.renderer.geometry.SurfaceTraits;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
@@ -101,7 +102,7 @@ public class ShieldKit {
                 t.position0(), t.position1(), t.position2(),
                 t.uv0(), t.uv1(), t.uv2(),
                 t.texture(), t.tintArgb(), t.normal(), shading,
-                t.cullBackFaces(), t.emissive()
+                new SurfaceTraits(t.traits().cullBackFaces(), t.traits().emissive(), false, false)
             ));
         }
         return out;
@@ -161,12 +162,12 @@ public class ShieldKit {
             out.add(new VisibleTriangle(
                 corners[0], corners[1], corners[2],
                 uv[0], uv[1], uv[2],
-                texture, ColorMath.WHITE, normal, shading, true, false
+                texture, ColorMath.WHITE, normal, shading, SurfaceTraits.OPAQUE_BODY
             ));
             out.add(new VisibleTriangle(
                 corners[0], corners[2], corners[3],
                 uv[0], uv[2], uv[3],
-                texture, ColorMath.WHITE, normal, shading, true, false
+                texture, ColorMath.WHITE, normal, shading, SurfaceTraits.OPAQUE_BODY
             ));
         }
     }

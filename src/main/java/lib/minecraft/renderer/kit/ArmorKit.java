@@ -303,14 +303,10 @@ public class ArmorKit {
     ) {
         Vector3f inflatedMin = new Vector3f(min.x() - inflate, min.y() - inflate, min.z() - inflate);
         Vector3f inflatedMax = new Vector3f(max.x() + inflate, max.y() + inflate, max.z() + inflate);
-        // Flag every armor / trim triangle as glinted so the rasterizer's per-pixel glint mask
-        // restricts the enchantment foil to the armor, not the whole body silhouette.
-        ConcurrentList<VisibleTriangle> built = BlockGeometryKit.buildBoxTriangles(
-            inflatedMin, inflatedMax, part.cropAll(texture, false), ColorMath.WHITE);
-        ConcurrentList<VisibleTriangle> glinted = Concurrent.newList();
-        for (VisibleTriangle triangle : built)
-            glinted.add(triangle.withGlinted(true));
-        return glinted;
+        // Build every armor / trim triangle already flagged glinted so the rasterizer's per-pixel
+        // glint mask restricts the enchantment foil to the armor, not the whole body silhouette.
+        return BlockGeometryKit.buildBoxTriangles(
+            inflatedMin, inflatedMax, part.cropAll(texture, false), ColorMath.WHITE, true);
     }
 
     /**

@@ -7,6 +7,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.geometry.PerspectiveParams;
 import lib.minecraft.renderer.geometry.ProjectionMath;
+import lib.minecraft.renderer.geometry.SurfaceTraits;
 import lib.minecraft.renderer.geometry.VisibleTriangle;
 import lib.minecraft.renderer.pipeline.util.RendererDebug;
 import lib.minecraft.renderer.tensor.Matrix4f;
@@ -380,12 +381,12 @@ public class ModelEngine extends TextureEngine {
         int total = prepared.size();
         int translucentCount = 0;
         for (Projected p : prepared)
-            if (p.source().translucent()) translucentCount++;
+            if (p.source().traits().translucent()) translucentCount++;
         if (translucentCount == 0) return prepared;
         List<Projected> opaque = new ArrayList<>(total - translucentCount);
         List<Projected> translucent = new ArrayList<>(translucentCount);
         for (Projected p : prepared) {
-            if (p.source().translucent()) translucent.add(p);
+            if (p.source().traits().translucent()) translucent.add(p);
             else opaque.add(p);
         }
         // Smaller depth value = farther in our convention; we want farthest first so closer
@@ -470,6 +471,9 @@ public class ModelEngine extends TextureEngine {
             // (RenderEngine.computeInventoryLighting for blocks/fluids, computeEntityInUiLighting
             // for entities); the rasterizer just multiplies it in.
             float shading = t.source.shading();
+            // Hoist the surface traits once per triangle; the per-pixel loop below reads
+            // emissive/glinted off this local so the deref stays out of the hot path.
+            SurfaceTraits tr = t.source.traits();
 
             // Pineda incremental edge functions. Hoist the edge value computation to the
             // bbox top-left, then walk by stepX per pixel in X and stepY per pixel in Y. Per-
@@ -504,7 +508,7 @@ public class ModelEngine extends TextureEngine {
 
                     float depthVal = bary[0] * t.p0.z() + bary[1] * t.p1.z() + bary[2] * t.p2.z();
                     int idx = (py - tileStart) * width + px;
-                    if (depthFails(depthVal, depth[idx], t.source.emissive())) {
+                    if (depthFails(depthVal, depth[idx], tr.emissive())) {
                         RendererDebug.pixelSkipDepth(px, py, depthVal, t.source.debugTag(), depth[idx]);
                         continue;
                     }
@@ -525,17 +529,17 @@ public class ModelEngine extends TextureEngine {
                         ? ColorMath.blend(t.source.tintArgb(), rawTexel, BlendMode.MULTIPLY)
                         : rawTexel;
 
-                    int afterShade = t.source.emissive()
+                    int afterShade = tr.emissive()
                         ? afterTint
                         : RenderEngine.applyShading(afterTint, shading);
-                    BlendMode blendMode = selectBlendMode(t.source.emissive());
+                    BlendMode blendMode = selectBlendMode(tr.emissive());
 
                     int outArgb = ColorMath.blend(afterShade, buffer.getPixel(px, py), blendMode);
                     buffer.setPixel(px, py, outArgb);
                     // Mark the glint mask wherever a glinted (armor) fragment wins the pixel, so the
                     // foil compositor restricts the enchantment glint to the armor. Uses absolute
                     // (px, py); the depth `idx` below is per-tile and must not be reused here.
-                    if (glintMask != null && t.source.glinted()) glintMask.mark(px, py);
+                    if (glintMask != null && tr.glinted()) glintMask.mark(px, py);
 
                     RendererDebug.pixelWrite(px, py, depthVal, t.source.debugTag(),
                         u, v, tx, ty,
@@ -559,7 +563,7 @@ public class ModelEngine extends TextureEngine {
                     // {@link #sortTrianglesForRender} additionally sorts partial-alpha-no-cull
                     // triangles back-to-front so the closer face writes LAST, matching vanilla's
                     // translucent draw order.
-                    if (!t.source.emissive())
+                    if (!tr.emissive())
                         depth[idx] = depthVal;
                 }
             }
@@ -718,7 +722,7 @@ public class ModelEngine extends TextureEngine {
 
         RendererDebug.pixelTriangle(triangle, s0, s1, s2, p0, p1, p2);
 
-        if (triangle.cullBackFaces() && isBackFacing(s0, s1, s2)) return null;
+        if (triangle.traits().cullBackFaces() && isBackFacing(s0, s1, s2)) return null;
         ProjectionMath.EdgeCoefficients edges = ProjectionMath.EdgeCoefficients.of(s0, s1, s2);
         return new Projected(triangle, p0, p1, p2, s0, s1, s2, normal, edges);
     }
