@@ -239,8 +239,9 @@ public enum Projection {
     }
 
     /**
-     * Builds the vanilla entity-preview iso chain - the full entity-preview transform expressed as the
-     * column-vector matrix our column-form rasterizer consumes, AFTER accounting for the kit's
+     * Builds the vanilla entity iso chain - the fixed camera for the entity inventory-preview angle
+     * (the harness's {@code ISO_ROTATION}). It is the full entity-preview transform expressed as the
+     * column-vector matrix our column-form rasterizer consumes, after accounting for the kit's
      * pre-applied {@code FLIP_Y} on positions. Assembled for {@link #VANILLA_ENTITY} by the
      * {@link Assembly#ENTITY_ISO} strategy, and reached by the entity renderer's bounds / anchor
      * projection through {@link #resolve()} so both stay a single source of truth.
