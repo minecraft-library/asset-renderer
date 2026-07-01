@@ -46,7 +46,7 @@ public enum Projection {
      * The view axis lies on one principal axis, producing a single vanishing point. Pose
      * {@code (0, 180, 0)}, perspective lens.
      */
-    ONE_POINT(new EulerRotation(0f, 180f, 0f), Lens.perspective(0.6f, 8f, 8f, 0.45f), Assembly.DISPLAY_POSE),
+    ONE_POINT(new EulerRotation(0f, 180f, 0f), Lens.perspective(0.6f, 8f, 8f, 0.45f)),
 
     /**
      * Two-point central perspective.
@@ -54,7 +54,7 @@ public enum Projection {
      * Yawed off the view axis with zero pitch, producing two horizontal vanishing points and parallel
      * verticals. Pose {@code (0, 215, 0)}, perspective lens.
      */
-    TWO_POINT(new EulerRotation(0f, 215f, 0f), Lens.perspective(0.6f, 8f, 8f, 0.45f), Assembly.DISPLAY_POSE),
+    TWO_POINT(new EulerRotation(0f, 215f, 0f), Lens.perspective(0.6f, 8f, 8f, 0.45f)),
 
     /**
      * Three-point central perspective.
@@ -62,7 +62,7 @@ public enum Projection {
      * Yawed and pitched off the view axis, producing three vanishing points including the vertical.
      * Pose {@code (30, 215, 0)}, perspective lens.
      */
-    THREE_POINT(new EulerRotation(30f, 215f, 0f), Lens.perspective(0.6f, 8f, 8f, 0.45f), Assembly.DISPLAY_POSE),
+    THREE_POINT(new EulerRotation(30f, 215f, 0f), Lens.perspective(0.6f, 8f, 8f, 0.45f)),
 
     /**
      * Isometric axonometric projection.
@@ -70,7 +70,7 @@ public enum Projection {
      * Pitch {@code atan(1/√2) = 35.264°} gives equal foreshortening on all three axes (ISO 5456-3).
      * Orthographic lens.
      */
-    ISOMETRIC(new EulerRotation(35.264f, 225f, 0f), Lens.orthographic(0.45f), Assembly.DISPLAY_POSE),
+    ISOMETRIC(new EulerRotation(35.264f, 225f, 0f), Lens.orthographic(0.45f)),
 
     /**
      * Dimetric axonometric projection.
@@ -78,7 +78,7 @@ public enum Projection {
      * The 2:1 pixel-art convention - pitch {@code atan(0.5) = 26.565°} foreshortens two axes equally.
      * Orthographic lens.
      */
-    DIMETRIC(new EulerRotation(26.565f, 225f, 0f), Lens.orthographic(0.5f), Assembly.DISPLAY_POSE),
+    DIMETRIC(new EulerRotation(26.565f, 225f, 0f), Lens.orthographic(0.5f)),
 
     /**
      * Trimetric axonometric projection.
@@ -86,7 +86,7 @@ public enum Projection {
      * All three axes foreshortened differently (ISO 5456-3 asymmetric example). Pose
      * {@code (20, 250, 0)}, orthographic lens.
      */
-    TRIMETRIC(new EulerRotation(20f, 250f, 0f), Lens.orthographic(0.5f), Assembly.DISPLAY_POSE),
+    TRIMETRIC(new EulerRotation(20f, 250f, 0f), Lens.orthographic(0.5f)),
 
     /**
      * Cavalier oblique projection.
@@ -94,7 +94,7 @@ public enum Projection {
      * The front face is true-shape and the receding axis is drawn at 45° to full depth, with no
      * foreshortening. Oblique lens {@code L = 1.0}.
      */
-    CAVALIER(new EulerRotation(0f, 180f, 0f), Lens.oblique(1.0f, (float) Math.toRadians(-45), 0.5f), Assembly.DISPLAY_POSE),
+    CAVALIER(new EulerRotation(0f, 180f, 0f), Lens.oblique(1.0f, (float) Math.toRadians(-45), 0.5f)),
 
     /**
      * Cabinet oblique projection.
@@ -102,7 +102,7 @@ public enum Projection {
      * The front face is true-shape and the receding axis is drawn at 45° with depth halved for a
      * natural look - the de-facto cabinet standard. Oblique lens {@code L = 0.5}.
      */
-    CABINET(new EulerRotation(0f, 180f, 0f), Lens.oblique(0.5f, (float) Math.toRadians(-45), 0.5f), Assembly.DISPLAY_POSE),
+    CABINET(new EulerRotation(0f, 180f, 0f), Lens.oblique(0.5f, (float) Math.toRadians(-45), 0.5f)),
 
     /**
      * Military (planometric) oblique projection.
@@ -111,7 +111,7 @@ public enum Projection {
      * Pose {@code (90, 225, 0)} plan, oblique lens {@code L = 1.0}. The least-standard mapping;
      * verify visually.
      */
-    MILITARY(new EulerRotation(90f, 225f, 0f), Lens.oblique(1.0f, (float) Math.toRadians(-45), 0.5f), Assembly.DISPLAY_POSE),
+    MILITARY(new EulerRotation(90f, 225f, 0f), Lens.oblique(1.0f, (float) Math.toRadians(-45), 0.5f)),
 
     /**
      * Shipped block, fluid, and portal baseline.
@@ -122,7 +122,7 @@ public enum Projection {
      * full-body skin renders) used whenever a block model does not override its own GUI pose;
      * reproduces the block / fluid / portal renders byte-for-byte.
      */
-    VANILLA_BLOCK(new EulerRotation(30f, 225f, 0f), Lens.ISOMETRIC_BLOCK, Assembly.DISPLAY_POSE),
+    VANILLA_BLOCK(new EulerRotation(30f, 225f, 0f), Lens.ISOMETRIC_BLOCK),
 
     /**
      * Shipped player baseline.
@@ -133,7 +133,7 @@ public enum Projection {
      * GUI pose at the conservative scale, carrying none of {@link #VANILLA_ENTITY}'s LER chirality.
      * Reproduces the player renders byte-for-byte; the default for the player renderer.
      */
-    VANILLA_PLAYER(new EulerRotation(30f, 45f, 0f), Lens.NONE, Assembly.DISPLAY_POSE),
+    VANILLA_PLAYER(new EulerRotation(30f, 45f, 0f), Lens.NONE),
 
     /**
      * Shipped 3D held-item baseline.
@@ -142,7 +142,7 @@ public enum Projection {
      * {@code display} matrix. Reproduces the held-item renders byte-for-byte; the default for the item
      * renderer.
      */
-    VANILLA_GUI_ITEM(EulerRotation.NONE, Lens.GUI_ITEM, Assembly.DISPLAY_POSE),
+    VANILLA_GUI_ITEM(EulerRotation.NONE, Lens.GUI_ITEM),
 
     /**
      * Shipped entity baseline.
@@ -181,6 +181,10 @@ public enum Projection {
      */
     @Getter(AccessLevel.NONE)
     private final @NotNull Assembly assembly;
+
+    Projection(@NotNull EulerRotation basePose, @NotNull Lens lens) {
+        this(basePose, lens, Assembly.DISPLAY_POSE);
+    }
 
     /**
      * Resolves this projection at its base pose into the unrotated {@link Camera} (pose + lens +
