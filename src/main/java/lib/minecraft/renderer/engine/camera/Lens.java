@@ -179,6 +179,24 @@ public record Lens(
      * @param offsetY the vertical screen offset to apply after scaling
      * @return the projected 2D point
      */
+    /**
+     * The per-vertex screen scale factor this lens applies at camera-space depth {@code z} - the value
+     * a projected coordinate is multiplied by before the offset. For {@link Kind#PERSPECTIVE} this is
+     * the foreshortening blend, so its reciprocal is the clip-space {@code w} a rasterizer needs for
+     * perspective-correct attribute interpolation; for the parallel families ({@link Kind#ORTHOGRAPHIC}
+     * / {@link Kind#OBLIQUE}) it is a flat {@code 1}, meaning screen-linear interpolation is already
+     * correct. Mirrors the {@code blended} factor {@link #project} applies.
+     *
+     * @param z the camera-space depth of the vertex
+     * @return the screen scale factor at that depth ({@code 1} for parallel projections)
+     */
+    public float depthScale(float z) {
+        if (this.kind != Kind.PERSPECTIVE) return 1f;
+        float denom = this.cameraDistance - z;
+        float perspectiveFactor = denom == 0f ? 1f : (this.focalLength / denom);
+        return 1f + (perspectiveFactor - 1f) * this.amount;
+    }
+
     public @NotNull Vector2f project(@NotNull Vector3f point, float scale, float offsetX, float offsetY) {
         return switch (this.kind) {
             case ORTHOGRAPHIC -> new Vector2f(point.x() * scale + offsetX, -point.y() * scale + offsetY);

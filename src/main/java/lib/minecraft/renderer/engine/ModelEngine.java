@@ -254,7 +254,7 @@ public class ModelEngine {
         Matrix4f modelRotation = buildModelRotation(rotation);
         // Column-vector chain: modelRotation applies first to a vertex, then placement, then the camera pose.
         Matrix4f transform = cameraSide(modelRotation);
-        rasterizeInternal(triangles, buffer, transform, glintMask);
+        rasterizeInternal(triangles, buffer, transform, glintMask, null);
     }
 
     /**
@@ -273,7 +273,7 @@ public class ModelEngine {
     ) {
         // Column-vector chain: modelTransform applies first to a vertex, then placement, then the camera pose.
         Matrix4f transform = cameraSide(modelTransform);
-        rasterizeInternal(triangles, buffer, transform, null);
+        rasterizeInternal(triangles, buffer, transform, null, null);
     }
 
     /**
@@ -324,6 +324,13 @@ public class ModelEngine {
         @Nullable GlintMask glintMask
     ) {
         if (triangles.isEmpty()) return;
+        // Perspective needs the auto-fit applied as a 2D screen operation (a 3D scale(fit) bake would
+        // rescale the model-space depth its foreshortening reads); orthographic and oblique lenses are
+        // linear in the flatten, so the legacy 3D-fit path below stays byte-identical for them.
+        if (this.lens.kind() == Lens.Kind.PERSPECTIVE) {
+            rasterizeFittedPerspective(triangles, buffer, rotation, fill, glintMask);
+            return;
+        }
         Matrix4f modelRotation = buildModelRotation(rotation);
         Matrix4f orient = cameraSide(modelRotation);
 
@@ -354,7 +361,48 @@ public class ModelEngine {
 
         // vertex -> centre at origin -> uniform fit scale -> model rotation -> placement -> (camera pose).
         Matrix4f modelTransform = modelRotation.scale(fit, fit, fit).translate(-centreX, -centreY, -centreZ);
-        rasterizeInternal(triangles, buffer, cameraSide(modelTransform), glintMask);
+        rasterizeInternal(triangles, buffer, cameraSide(modelTransform), glintMask, null);
+    }
+
+    /**
+     * The perspective arm of {@link #rasterizeFitted}: measures the silhouette's bounds in
+     * <b>projected screen space</b> (through the perspective {@link Lens#project}, so the near/far
+     * foreshortening is already baked in), then fills the canvas with a post-projection 2D
+     * {@link Fit2D} rather than a 3D {@code scale(fit)} bake. The geometry keeps its native model-space
+     * depth, so the perspective is undistorted; the fit only re-centres and scales the flattened
+     * silhouette. For an orthographic lens this would be byte-identical to the 3D-fit path (the flatten
+     * is linear), but that path is left to own the ortho case so its depth values stay bit-for-bit.
+     *
+     * @param triangles the triangle list, in fixed model-space units
+     * @param buffer the destination buffer
+     * @param rotation the Euler-angle model rotation applied before the camera pose
+     * @param fill the fraction in {@code (0, 1]} of the smaller canvas dimension the silhouette spans
+     * @param glintMask the glint mask to populate, or {@code null} to skip mask recording
+     */
+    private void rasterizeFittedPerspective(
+        @NotNull ConcurrentList<VisibleTriangle> triangles,
+        @NotNull PixelBuffer buffer,
+        @NotNull EulerRotation rotation,
+        float fill,
+        @Nullable GlintMask glintMask
+    ) {
+        Matrix4f orient = cameraSide(buildModelRotation(rotation));
+        float baseScale = Math.min(buffer.width(), buffer.height()) * this.lens.projectionScale();
+
+        float minPx = Float.MAX_VALUE, minPy = Float.MAX_VALUE;
+        float maxPx = -Float.MAX_VALUE, maxPy = -Float.MAX_VALUE;
+        for (VisibleTriangle tri : triangles)
+            for (Vector3f v : new Vector3f[]{ tri.position0(), tri.position1(), tri.position2() }) {
+                Vector2f s = this.lens.project(v.transform(orient), baseScale, 0f, 0f);
+                minPx = Math.min(minPx, s.x()); maxPx = Math.max(maxPx, s.x());
+                minPy = Math.min(minPy, s.y()); maxPy = Math.max(maxPy, s.y());
+            }
+
+        float halfProjX = Math.max((maxPx - minPx) * 0.5f, 1e-6f);
+        float halfProjY = Math.max((maxPy - minPy) * 0.5f, 1e-6f);
+        float fit = Math.min(fill * buffer.width() * 0.5f / halfProjX, fill * buffer.height() * 0.5f / halfProjY);
+        Fit2D fit2D = new Fit2D((minPx + maxPx) * 0.5f, (minPy + maxPy) * 0.5f, fit);
+        rasterizeInternal(triangles, buffer, orient, glintMask, fit2D);
     }
 
     /**
@@ -373,7 +421,8 @@ public class ModelEngine {
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
         @NotNull Matrix4f transform,
-        @Nullable GlintMask glintMask
+        @Nullable GlintMask glintMask,
+        @Nullable Fit2D fit
     ) {
         int width = buffer.width();
         int height = buffer.height();
@@ -389,7 +438,7 @@ public class ModelEngine {
         // DEPTH_EPSILON tie-break deterministically picks the first-drawn of any coplanar pair
         // (see the comment on the depth test below).
         List<Projected> rawPrepared = triangles.parallelStream()
-            .map(triangle -> projectTriangle(triangle, transform, scale, offsetX, offsetY, this.lens))
+            .map(triangle -> projectTriangle(triangle, transform, scale, offsetX, offsetY, this.lens, fit))
             .filter(Objects::nonNull)
             .toList();
         List<Projected> prepared = sortNoCullBackToFront(rawPrepared);
@@ -611,8 +660,19 @@ public class ModelEngine {
                         continue;
                     }
 
-                    float u = bary[0] * t.source.uv0().x() + bary[1] * t.source.uv1().x() + bary[2] * t.source.uv2().x();
-                    float v = bary[0] * t.source.uv0().y() + bary[1] * t.source.uv1().y() + bary[2] * t.source.uv2().y();
+                    float u, v;
+                    if (t.perspectiveCorrect) {
+                        // Perspective-correct: the screen-linear barycentric weights are re-weighted by
+                        // each vertex's inverse clip-w, then normalized, so uv tracks the surface instead
+                        // of the screen (fixes the affine texture "swim" a perspective lens would show).
+                        float w0 = bary[0] * t.iw0, w1 = bary[1] * t.iw1, w2 = bary[2] * t.iw2;
+                        float invW = w0 + w1 + w2;
+                        u = (w0 * t.source.uv0().x() + w1 * t.source.uv1().x() + w2 * t.source.uv2().x()) / invW;
+                        v = (w0 * t.source.uv0().y() + w1 * t.source.uv1().y() + w2 * t.source.uv2().y()) / invW;
+                    } else {
+                        u = bary[0] * t.source.uv0().x() + bary[1] * t.source.uv1().x() + bary[2] * t.source.uv2().x();
+                        v = bary[0] * t.source.uv0().y() + bary[1] * t.source.uv1().y() + bary[2] * t.source.uv2().y();
+                    }
 
                     PixelBuffer texture = t.source.texture();
                     int tx = Math.clamp((int) (u * texture.width()), 0, texture.width() - 1);
@@ -804,6 +864,7 @@ public class ModelEngine {
      * @param offsetX the screen-space X centre offset (half canvas width)
      * @param offsetY the screen-space Y centre offset (half canvas height)
      * @param perspective the lens performing the 3D-to-2D flatten
+     * @param fit the post-projection 2D auto-fit, or {@code null} for the plain projection
      * @return the projected cache, or {@code null} if the triangle is culled as back-facing
      */
     private static @Nullable Projected projectTriangle(
@@ -812,7 +873,8 @@ public class ModelEngine {
         float scale,
         float offsetX,
         float offsetY,
-        @NotNull Lens perspective
+        @NotNull Lens perspective,
+        @Nullable Fit2D fit
     ) {
         // Per-vertex hot path: fires 4x per triangle (3 positions + 1 normal) on every rasterize
         // call, so it dominates Pass 1 cost on high-triangle models. Vector3f.transform /
@@ -823,16 +885,60 @@ public class ModelEngine {
         Vector3f p2 = triangle.position2().transform(transform);
         Vector3f normal = triangle.normal().transformNormal(transform).normalize();
 
-        Vector2f s0 = snapToCoverageGrid(perspective.project(p0, scale, offsetX, offsetY));
-        Vector2f s1 = snapToCoverageGrid(perspective.project(p1, scale, offsetX, offsetY));
-        Vector2f s2 = snapToCoverageGrid(perspective.project(p2, scale, offsetX, offsetY));
+        Vector2f s0 = snapToCoverageGrid(project2D(perspective, p0, scale, offsetX, offsetY, fit));
+        Vector2f s1 = snapToCoverageGrid(project2D(perspective, p1, scale, offsetX, offsetY, fit));
+        Vector2f s2 = snapToCoverageGrid(project2D(perspective, p2, scale, offsetX, offsetY, fit));
 
         RendererDebug.pixelTriangle(triangle, s0, s1, s2, p0, p1, p2);
 
         if (triangle.traits().cullBackFaces() && isBackFacing(s0, s1, s2)) return null;
         RasterMath.EdgeCoefficients edges = RasterMath.EdgeCoefficients.of(s0, s1, s2);
-        return new Projected(triangle, p0, p1, p2, s0, s1, s2, normal, edges);
+        // Per-vertex inverse clip-w for perspective-correct interpolation. depthScale is a flat 1 for
+        // parallel projections, where the perspectiveCorrect flag is false and the rasterizer keeps the
+        // byte-identical screen-linear path.
+        boolean perspectiveCorrect = perspective.kind() == Lens.Kind.PERSPECTIVE;
+        return new Projected(triangle, p0, p1, p2, s0, s1, s2, normal, edges,
+            perspective.depthScale(p0.z()), perspective.depthScale(p1.z()), perspective.depthScale(p2.z()),
+            perspectiveCorrect);
     }
+
+    /**
+     * Flattens a camera-space point to screen space, then applies the optional post-projection 2D
+     * {@link Fit2D auto-fit}. With no fit this is exactly {@code lens.project(p, scale, offsetX,
+     * offsetY)}. With a fit, the point is projected around the screen origin, re-centred on the fit's
+     * measured bounds centre, uniformly scaled to fill the canvas, and offset to the canvas centre -
+     * a <b>2D</b> operation, so it never rescales the model-space depth the perspective foreshortening
+     * reads (unlike a 3D {@code scale(fit)} bake, which distorts perspective).
+     *
+     * @param lens the lens performing the 3D-to-2D flatten
+     * @param p the camera-space point
+     * @param scale the projection scale
+     * @param offsetX the screen-space X centre offset
+     * @param offsetY the screen-space Y centre offset
+     * @param fit the post-projection 2D auto-fit, or {@code null} for the plain projection
+     * @return the screen-space point
+     */
+    private static @NotNull Vector2f project2D(
+        @NotNull Lens lens, @NotNull Vector3f p, float scale, float offsetX, float offsetY, @Nullable Fit2D fit
+    ) {
+        if (fit == null) return lens.project(p, scale, offsetX, offsetY);
+        Vector2f raw = lens.project(p, scale, 0f, 0f);
+        return new Vector2f(
+            (raw.x() - fit.centreX()) * fit.scale() + offsetX,
+            (raw.y() - fit.centreY()) * fit.scale() + offsetY
+        );
+    }
+
+    /**
+     * A post-projection 2D auto-fit - the centre of the projected silhouette's screen-space bounds and
+     * the uniform scale that fills the canvas. Applied after the lens flatten so the fit is a pure 2D
+     * screen operation that leaves perspective foreshortening (which reads model-space depth) intact.
+     *
+     * @param centreX the projected bounds centre X, in screen pixels at zero offset
+     * @param centreY the projected bounds centre Y, in screen pixels at zero offset
+     * @param scale the uniform fill scale applied about the centre
+     */
+    private record Fit2D(float centreX, float centreY, float scale) {}
 
     /**
      * Computes a signed triangle area in screen space. The camera transform is a pure rotation
@@ -889,6 +995,10 @@ public class ModelEngine {
      * @param s2 the third vertex projected and coverage-snapped to screen space
      * @param normal the camera-space transformed, normalized surface normal
      * @param edges the precomputed fixed-point edge coefficients for the incremental coverage walk
+     * @param iw0 the first vertex's inverse clip-{@code w} ({@link Lens#depthScale}), for perspective-correct interpolation
+     * @param iw1 the second vertex's inverse clip-{@code w}
+     * @param iw2 the third vertex's inverse clip-{@code w}
+     * @param perspectiveCorrect whether attributes must be interpolated perspective-correctly (a perspective lens); parallel projections interpolate screen-linearly
      */
     private record Projected(
         @NotNull VisibleTriangle source,
@@ -899,7 +1009,11 @@ public class ModelEngine {
         @NotNull Vector2f s1,
         @NotNull Vector2f s2,
         @NotNull Vector3f normal,
-        @NotNull RasterMath.EdgeCoefficients edges
+        @NotNull RasterMath.EdgeCoefficients edges,
+        float iw0,
+        float iw1,
+        float iw2,
+        boolean perspectiveCorrect
     ) {}
 
 }
