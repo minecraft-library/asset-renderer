@@ -147,7 +147,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // EulerRotation.NONE, leaving the pose at the base [30, 225, 0] iso - byte-identical.
             var resolved = options.getProjection().resolve(options.getRotation());
             EulerRotation guiRotation = resolved.lightingPose();
-            ModelEngine engine = new ModelEngine(this.context, resolved.camera());
+            ModelEngine engine = new ModelEngine(this.context, resolved);
 
             // Block-entity mappings may supply a per-entry tint that overrides the block's
             // biome / constant tint. Used for banners: vanilla resolves DyeColor via

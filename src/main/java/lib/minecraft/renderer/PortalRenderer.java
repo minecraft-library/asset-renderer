@@ -510,7 +510,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             // poses the camera directly and the rasterize call applies no separate model-spin. Default
             // renders pass EulerRotation.NONE, leaving the byte-identical base block-icon pose.
             var resolved = options.getProjection().resolve(options.getRotation());
-            ModelEngine engine = new ModelEngine(this.context, resolved.camera());
+            ModelEngine engine = new ModelEngine(this.context, resolved);
             Textures textures = new Textures(this.context);
             PixelBuffer endSky = textures.resolveTexture(END_SKY_TEXTURE_ID);
             PixelBuffer endPortalNoise = textures.resolveTexture(END_PORTAL_NOISE_TEXTURE_ID);

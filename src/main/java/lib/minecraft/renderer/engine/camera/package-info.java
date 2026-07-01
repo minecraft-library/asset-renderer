@@ -11,8 +11,9 @@
  * <p>{@link lib.minecraft.renderer.engine.camera.Projection Projection} is the catalog that assembles
  * those primitives into named cameras: the {@code VANILLA_BLOCK} / {@code VANILLA_PLAYER} /
  * {@code VANILLA_GUI_ITEM} / {@code VANILLA_ENTITY} baselines plus the textbook axonometric /
- * perspective / oblique families, each resolving to a {@code (Camera, lightingPose)} pair (the lens
- * rides inside the camera). It also owns the entity chirality chain (the {@code [210, 45, 0]} harness
+ * perspective / oblique families, each resolving to a single
+ * {@link lib.minecraft.renderer.engine.camera.Camera Camera} (pose + lens + lighting pose). It also
+ * owns the entity chirality chain (the {@code [210, 45, 0]} harness
  * iso chain with its det=-1 LER chirality, reused by
  * {@link lib.minecraft.renderer.EntityRenderer EntityRenderer}'s bounds / anchor projection).
  *

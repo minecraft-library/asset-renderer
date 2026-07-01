@@ -11,6 +11,7 @@ import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.RendererDebug;
+import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.FinalizeStage;
@@ -159,8 +160,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // entityIsoChain camera (chirality) + the iso lens flatten. The model rotation `effective` stays a
         // separate model-spin passed to rasterize below - the chirality chain is fixed, so VANILLA_ENTITY
         // does not compose the rotation into the camera (the Assembly.ENTITY_ISO strategy).
-        Projection.Resolved entityProjection = Projection.VANILLA_ENTITY.resolve();
-        ModelEngine engine = new ModelEngine(this.context, entityProjection.camera());
+        Camera entityCamera = Projection.VANILLA_ENTITY.resolve();
+        ModelEngine engine = new ModelEngine(this.context, entityCamera);
         SceneContext scene = new SceneContext(
             texture.get(), modelAnchor, fit.ndcScale(), modelScale, engine.textures(), this.context);
         LayerStack<GeometryLayer> stack = new LayerStack<>();
@@ -616,7 +617,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // source of truth. The trailing modelRotation + outer flipY stay here: this transform is applied
         // to bounds-probe points the kit FLIP_Y never touches, so it bakes that flip in (unlike the
         // Projection.VANILLA_ENTITY camera).
-        Matrix4f m = Projection.VANILLA_ENTITY.resolve().camera().pose();
+        Matrix4f m = Projection.VANILLA_ENTITY.resolve().pose();
         if (!userIdentity)
             m = m.rotate(Quaternionf.rotationXYZ(userRotation.pitchRadians(), userRotation.yawRadians(), userRotation.rollRadians()));
         return m.scale(1f, -1f, 1f);

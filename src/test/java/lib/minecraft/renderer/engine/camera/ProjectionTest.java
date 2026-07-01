@@ -30,16 +30,16 @@ class ProjectionTest {
     @Test
     @DisplayName("resolve() bundles each member's lens into the camera")
     void resolveBundlesLens() {
-        assertThat(Projection.VANILLA_BLOCK.resolve().camera().lens(), equalTo(Lens.ISOMETRIC_BLOCK));
-        assertThat(Projection.VANILLA_PLAYER.resolve().camera().lens(), equalTo(Lens.NONE));
-        assertThat(Projection.VANILLA_GUI_ITEM.resolve().camera().lens(), equalTo(Lens.GUI_ITEM));
-        assertThat(Projection.VANILLA_ENTITY.resolve().camera().lens(), equalTo(Lens.ISOMETRIC_BLOCK));
+        assertThat(Projection.VANILLA_BLOCK.resolve().lens(), equalTo(Lens.ISOMETRIC_BLOCK));
+        assertThat(Projection.VANILLA_PLAYER.resolve().lens(), equalTo(Lens.NONE));
+        assertThat(Projection.VANILLA_GUI_ITEM.resolve().lens(), equalTo(Lens.GUI_ITEM));
+        assertThat(Projection.VANILLA_ENTITY.resolve().lens(), equalTo(Lens.ISOMETRIC_BLOCK));
     }
 
     @Test
     @DisplayName("withLens keeps the pose and swaps the lens")
     void withLensSwapsLens() {
-        Camera block = Projection.VANILLA_BLOCK.resolve().camera();
+        Camera block = Projection.VANILLA_BLOCK.resolve();
         Camera relensed = block.withLens(Lens.NONE);
         assertThat("pose preserved", relensed.pose(), equalTo(block.pose()));
         assertThat("lens swapped", relensed.lens(), equalTo(Lens.NONE));

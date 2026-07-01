@@ -22,7 +22,7 @@ import org.jetbrains.annotations.NotNull;
  * cabinet / cavalier / military, one / two / three point). The {@code VANILLA_*} members document the
  * <b>shipped hardcoded baseline</b> - they reproduce the current renders byte-for-byte and are the
  * defaults so existing output never changes. Each member carries a {@link Assembly} strategy that
- * assembles its {@link Resolved} triple: {@link Assembly#DISPLAY_POSE} routes the base pose through
+ * assembles its {@link Camera}: {@link Assembly#DISPLAY_POSE} routes the base pose through
  * {@link Camera#fromPose} ({@code rotationXYZ}) - reproducing the legacy block / player cameras
  * bit-for-bit - and {@link Assembly#ENTITY_ISO} builds the {@link #entityIsoChain} chirality chain
  * for {@link #VANILLA_ENTITY}. An unrotated {@link #resolve()} on a {@code VANILLA_*} member yields the
@@ -161,16 +161,6 @@ public enum Projection {
     VANILLA_ENTITY(new EulerRotation(210f, 45f, 0f), Lens.ISOMETRIC_BLOCK, Assembly.ENTITY_ISO);
 
     /**
-     * Resolved camera (pose + lens) and lighting pose for one {@link Projection} at a chosen rotation -
-     * the pose-locked pair a renderer feeds to its engine and inventory relight in lock-step. The lens
-     * rides inside the {@link Camera}, so the engine holds the whole view + projection.
-     *
-     * @param camera the baked camera - pose and lens
-     * @param lightingPose the Euler pose the inventory relight must mirror to track the camera
-     */
-    public record Resolved(@NotNull Camera camera, @NotNull EulerRotation lightingPose) {}
-
-    /**
      * This projection's unrotated base pose - the {@code (pitch, yaw, roll)} the camera and lighting
      * sit at before the caller's rotation, in degrees. The canonical home for the vanilla iso angles
      * (block {@code [30, 225, 0]}, player {@code [30, 45, 0]}, entity {@code [210, 45, 0]}); callers
@@ -180,47 +170,47 @@ public enum Projection {
 
     /**
      * This projection's flatten family - the 3D-to-2D {@link Lens} paired with the pose. Rotation-
-     * independent; the {@link Assembly} strategy passes it straight through to
-     * {@link Resolved#lens()}.
+     * independent; the {@link Assembly} strategy passes it straight through into the resolved
+     * {@link Camera#lens()}.
      */
     private final @NotNull Lens lens;
 
     /**
-     * The strategy that assembles this projection's {@link Resolved} triple: {@link Assembly#DISPLAY_POSE}
+     * The strategy that assembles this projection's {@link Camera}: {@link Assembly#DISPLAY_POSE}
      * for the det=+1 display-pose members, {@link Assembly#ENTITY_ISO} for the entity chirality chain.
      */
     @Getter(AccessLevel.NONE)
     private final @NotNull Assembly assembly;
 
     /**
-     * Resolves this projection at its base pose - the unrotated camera / lens / lighting-pose
-     * triple. Equivalent to {@link #resolve(EulerRotation)} with {@link EulerRotation#NONE}, so for a
-     * {@code VANILLA_*} member it yields the exact shipped baseline.
+     * Resolves this projection at its base pose into the unrotated {@link Camera} (pose + lens +
+     * lighting pose). Equivalent to {@link #resolve(EulerRotation)} with {@link EulerRotation#NONE}, so
+     * for a {@code VANILLA_*} member it yields the exact shipped baseline camera.
      *
-     * @return the resolved triple at the base pose
+     * @return the camera at the base pose
      */
-    public @NotNull Resolved resolve() {
+    public @NotNull Camera resolve() {
         return resolve(EulerRotation.NONE);
     }
 
     /**
-     * Resolves this projection into the camera / lens / lighting-pose triple by delegating to this
-     * constant's {@link Assembly} strategy. For a {@link Assembly#DISPLAY_POSE} member the rotation
-     * adds to the base pitch / yaw / roll, so it poses the camera and the lighting pose together (the
-     * lens is rotation-independent) through the parity-pinned {@link Camera#fromPose}
-     * {@code rotationXYZ} path, which reproduces the legacy {@code VANILLA_*} cameras bit-for-bit;
-     * {@link EulerRotation#NONE} yields the base pose unchanged, keeping the default render path
-     * byte-identical.
+     * Resolves this projection into a {@link Camera} (pose + lens + lighting pose) by delegating to this
+     * constant's {@link Assembly} strategy. For a {@link Assembly#DISPLAY_POSE} member the rotation adds
+     * to the base pitch / yaw / roll, so it poses the camera and its lighting together (the lens is
+     * rotation-independent) through the parity-pinned {@link Camera#fromPose} {@code rotationXYZ} path,
+     * which reproduces the legacy {@code VANILLA_*} cameras bit-for-bit; {@link EulerRotation#NONE}
+     * yields the base pose unchanged, keeping the default render path byte-identical.
      *
      * <p>{@link #VANILLA_ENTITY} ({@link Assembly#ENTITY_ISO}) is the exception: its det=-1
-     * {@link #entityIsoChain} is fixed, so the {@code rotation} is ignored here and the entity renderer
-     * applies it (plus its {@code setupRotations} addends) as a separate model-spin at rasterize time.
+     * {@link #entityIsoChain} pose is fixed, so the {@code rotation} is ignored here and the entity
+     * renderer applies it (plus its {@code setupRotations} addends) as a separate model-spin at
+     * rasterize time.
      *
      * @param rotation the rotation composed onto the base pose, in degrees (ignored for
      *     {@link #VANILLA_ENTITY})
-     * @return the resolved triple
+     * @return the resolved camera
      */
-    public @NotNull Resolved resolve(@NotNull EulerRotation rotation) {
+    public @NotNull Camera resolve(@NotNull EulerRotation rotation) {
         return this.assembly.resolve(this.basePose, this.lens, rotation);
     }
 
@@ -280,7 +270,7 @@ public enum Projection {
 
     /**
      * How a {@link Projection} assembles its base pose and the caller's rotation into a
-     * {@link Resolved} triple. Each constant overrides {@link #resolve} with its own assembly, so
+     * {@link Camera}. Each constant overrides {@link #resolve} with its own assembly, so
      * {@link Projection#resolve(EulerRotation)} dispatches polymorphically instead of branching on a
      * tag.
      */
@@ -294,9 +284,8 @@ public enum Projection {
          */
         DISPLAY_POSE {
             @Override
-            @NotNull Resolved resolve(@NotNull EulerRotation basePose, @NotNull Lens lens, @NotNull EulerRotation rotation) {
-                EulerRotation pose = compose(basePose, rotation);
-                return new Resolved(Camera.fromPose(pose, lens), pose);
+            @NotNull Camera resolve(@NotNull EulerRotation basePose, @NotNull Lens lens, @NotNull EulerRotation rotation) {
+                return Camera.fromPose(compose(basePose, rotation), lens);
             }
         },
 
@@ -309,22 +298,22 @@ public enum Projection {
          */
         ENTITY_ISO {
             @Override
-            @NotNull Resolved resolve(@NotNull EulerRotation basePose, @NotNull Lens lens, @NotNull EulerRotation rotation) {
-                return new Resolved(new Camera(entityIsoChain(basePose), lens), basePose);
+            @NotNull Camera resolve(@NotNull EulerRotation basePose, @NotNull Lens lens, @NotNull EulerRotation rotation) {
+                return new Camera(entityIsoChain(basePose), lens, basePose);
             }
         };
 
         /**
-         * Assembles the resolved triple for a projection carrying the given base pose and lens,
-         * under the caller's rotation.
+         * Assembles the resolved {@link Camera} (pose + lens + lighting pose) for a projection carrying
+         * the given base pose and lens, under the caller's rotation.
          *
          * @param basePose the projection's unrotated base pose
          * @param lens the projection's lens
          * @param rotation the caller's rotation (composed into the pose by {@link #DISPLAY_POSE}, ignored
          *     by {@link #ENTITY_ISO})
-         * @return the resolved triple
+         * @return the resolved camera
          */
-        abstract @NotNull Resolved resolve(@NotNull EulerRotation basePose, @NotNull Lens lens, @NotNull EulerRotation rotation);
+        abstract @NotNull Camera resolve(@NotNull EulerRotation basePose, @NotNull Lens lens, @NotNull EulerRotation rotation);
 
     }
 

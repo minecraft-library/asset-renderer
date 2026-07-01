@@ -450,7 +450,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getRotation()).camera());
+            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getRotation()));
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
@@ -495,7 +495,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getRotation()).camera());
+            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getRotation()));
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
@@ -544,7 +544,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getRotation()).camera());
+            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getRotation()));
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
