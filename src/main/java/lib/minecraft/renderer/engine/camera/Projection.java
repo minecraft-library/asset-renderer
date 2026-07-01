@@ -101,13 +101,14 @@ public enum Projection {
     CABINET(new EulerRotation(0f, 180f, 0f), Lens.oblique(0.5f, (float) Math.toRadians(-45), 0.5f)),
 
     /**
-     * Military (planometric) oblique projection.
+     * Military oblique projection.
      * <p>
-     * The top plan is shown true-shape rotated 45° with verticals drawn to true length (ISO 5456-3).
-     * Pose {@code (90, 225, 0)} plan, oblique lens {@code L = 1.0}. The least-standard mapping;
-     * verify visually.
+     * A three-quarter {@code (0, 225, 0)} pose - front face toward the camera with the top and one
+     * side visible - with the receding depth axis sheared <b>vertically</b> ({@code -90°}, unlike
+     * cavalier / cabinet's {@code -45°} diagonal recede) so the receding edges stay upright rather than
+     * slanting diagonally. Oblique lens {@code L = 1.0} (no depth foreshortening).
      */
-    MILITARY(new EulerRotation(90f, 225f, 0f), Lens.oblique(1.0f, (float) Math.toRadians(-45), 0.5f)),
+    MILITARY(new EulerRotation(0f, 225f, 0f), Lens.oblique(1.0f, (float) Math.toRadians(-90), 0.5f)),
 
     /**
      * High-angle perspective portrait - a close, gently downward three-quarter head / bust framing.

@@ -324,85 +324,99 @@ public class ModelEngine {
         @Nullable GlintMask glintMask
     ) {
         if (triangles.isEmpty()) return;
-        // Perspective needs the auto-fit applied as a 2D screen operation (a 3D scale(fit) bake would
-        // rescale the model-space depth its foreshortening reads); orthographic and oblique lenses are
-        // linear in the flatten, so the legacy 3D-fit path below stays byte-identical for them.
-        if (this.lens.kind() == Lens.Kind.PERSPECTIVE) {
-            rasterizeFittedPerspective(triangles, buffer, rotation, fill, glintMask);
-            return;
-        }
-        Matrix4f modelRotation = buildModelRotation(rotation);
-        Matrix4f orient = cameraSide(modelRotation);
-
-        float minMx = Float.MAX_VALUE, minMy = Float.MAX_VALUE, minMz = Float.MAX_VALUE;
-        float maxMx = -Float.MAX_VALUE, maxMy = -Float.MAX_VALUE, maxMz = -Float.MAX_VALUE;
-        float minPx = Float.MAX_VALUE, minPy = Float.MAX_VALUE;
-        float maxPx = -Float.MAX_VALUE, maxPy = -Float.MAX_VALUE;
-        for (VisibleTriangle tri : triangles)
-            for (Vector3f v : new Vector3f[]{ tri.position0(), tri.position1(), tri.position2() }) {
-                minMx = Math.min(minMx, v.x()); maxMx = Math.max(maxMx, v.x());
-                minMy = Math.min(minMy, v.y()); maxMy = Math.max(maxMy, v.y());
-                minMz = Math.min(minMz, v.z()); maxMz = Math.max(maxMz, v.z());
-                Vector3f p = v.transform(orient);
-                minPx = Math.min(minPx, p.x()); maxPx = Math.max(maxPx, p.x());
-                minPy = Math.min(minPy, p.y()); maxPy = Math.max(maxPy, p.y());
-            }
-
-        float centreX = (minMx + maxMx) * 0.5f;
-        float centreY = (minMy + maxMy) * 0.5f;
-        float centreZ = (minMz + maxMz) * 0.5f;
-        float halfProjX = Math.max((maxPx - minPx) * 0.5f, 1e-6f);
-        float halfProjY = Math.max((maxPy - minPy) * 0.5f, 1e-6f);
-
-        float baseScale = Math.min(buffer.width(), buffer.height()) * this.lens.projectionScale();
-        float fitX = fill * buffer.width() * 0.5f / (halfProjX * baseScale);
-        float fitY = fill * buffer.height() * 0.5f / (halfProjY * baseScale);
-        float fit = Math.min(fitX, fitY);
-
-        // vertex -> centre at origin -> uniform fit scale -> model rotation -> placement -> (camera pose).
-        Matrix4f modelTransform = modelRotation.scale(fit, fit, fit).translate(-centreX, -centreY, -centreZ);
-        rasterizeInternal(triangles, buffer, cameraSide(modelTransform), glintMask, null);
+        FitPlan plan = prepareFit(triangles, buffer, rotation, fill);
+        rasterizeInternal(triangles, buffer, plan.transform(), glintMask, plan.fit());
     }
 
     /**
-     * The perspective arm of {@link #rasterizeFitted}: measures the silhouette's bounds in
-     * <b>projected screen space</b> (through the perspective {@link Lens#project}, so the near/far
-     * foreshortening is already baked in), then fills the canvas with a post-projection 2D
-     * {@link Fit2D} rather than a 3D {@code scale(fit)} bake. The geometry keeps its native model-space
-     * depth, so the perspective is undistorted; the fit only re-centres and scales the flattened
-     * silhouette. For an orthographic lens this would be byte-identical to the 3D-fit path (the flatten
-     * is linear), but that path is left to own the ortho case so its depth values stay bit-for-bit.
+     * Measures the triangle silhouette and produces the lens-derived {@link FitPlan} that fills the
+     * canvas: the composed model-to-screen transform plus an optional post-projection 2D
+     * {@link Fit2D auto-fit}. This is the single place the auto-fit forks on lens family. The split is
+     * whether the flatten is a pure uniform scale of x/y (so raw model-rotated bounds are proportional
+     * to the screen silhouette) or not:
+     * <ul>
+     * <li><b>{@link Lens.Kind#PERSPECTIVE} / {@link Lens.Kind#OBLIQUE}</b> - the flatten is <b>not</b> a
+     *     pure scale (perspective foreshortens toward the camera; oblique shears the depth axis into
+     *     x/y), so the silhouette must be measured in <b>projected screen space</b> through
+     *     {@link Lens#project} and filled with a post-projection 2D {@link Fit2D}. Measuring raw
+     *     pre-projection bounds would miss the foreshortening / shear and let the drawn geometry
+     *     overflow the canvas. The plain {@code orient} transform is kept so the fit never rescales the
+     *     model-space depth a perspective lens reads. Perspective vertices interpolate
+     *     perspective-correctly and oblique vertices screen-linearly - both driven by the
+     *     {@code perspectiveCorrect} flag {@link #projectTriangle} sets from the lens kind.</li>
+     * <li><b>{@link Lens.Kind#ORTHOGRAPHIC}</b> - the flatten is a pure uniform scale, so raw
+     *     post-rotation bounds are proportional to the screen silhouette and the fit bakes a 3D
+     *     {@code scale(fit).translate(-centre)} into the model transform ({@code null} 2D fit). Keeping
+     *     the fit in 3D leaves the depth in the fitted frame, so the fixed {@link #DEPTH_EPSILON}
+     *     emissive slack in {@link #depthFails} - which is <b>not</b> scale-invariant - stays
+     *     bit-for-bit, the screen-linear no-divide interpolation path is preserved, and the shipped
+     *     {@link Projection#VANILLA_ISO} render stays byte-identical. A 2D fit would match on screen but
+     *     silently shift those emissive-overlay depth tie-breaks.</li>
+     * </ul>
      *
-     * @param triangles the triangle list, in fixed model-space units
+     * @param triangles the triangle list, in fixed model-space units (non-empty)
      * @param buffer the destination buffer
      * @param rotation the Euler-angle model rotation applied before the camera pose
      * @param fill the fraction in {@code (0, 1]} of the smaller canvas dimension the silhouette spans
-     * @param glintMask the glint mask to populate, or {@code null} to skip mask recording
+     * @return the composed model-to-screen transform and the optional post-projection 2D auto-fit
      */
-    private void rasterizeFittedPerspective(
+    private @NotNull FitPlan prepareFit(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
         @NotNull EulerRotation rotation,
-        float fill,
-        @Nullable GlintMask glintMask
+        float fill
     ) {
-        Matrix4f orient = cameraSide(buildModelRotation(rotation));
+        Matrix4f modelRotation = buildModelRotation(rotation);
+        Matrix4f orient = cameraSide(modelRotation);
         float baseScale = Math.min(buffer.width(), buffer.height()) * this.lens.projectionScale();
 
-        float minPx = Float.MAX_VALUE, minPy = Float.MAX_VALUE;
-        float maxPx = -Float.MAX_VALUE, maxPy = -Float.MAX_VALUE;
-        for (VisibleTriangle tri : triangles)
-            for (Vector3f v : new Vector3f[]{ tri.position0(), tri.position1(), tri.position2() }) {
-                Vector2f s = this.lens.project(v.transform(orient), baseScale, 0f, 0f);
-                minPx = Math.min(minPx, s.x()); maxPx = Math.max(maxPx, s.x());
-                minPy = Math.min(minPy, s.y()); maxPy = Math.max(maxPy, s.y());
-            }
+        return switch (this.lens.kind()) {
+            case PERSPECTIVE, OBLIQUE -> {
+                float minPx = Float.MAX_VALUE, minPy = Float.MAX_VALUE;
+                float maxPx = -Float.MAX_VALUE, maxPy = -Float.MAX_VALUE;
+                for (VisibleTriangle tri : triangles)
+                    for (Vector3f v : new Vector3f[]{ tri.position0(), tri.position1(), tri.position2() }) {
+                        Vector2f s = this.lens.project(v.transform(orient), baseScale, 0f, 0f);
+                        minPx = Math.min(minPx, s.x()); maxPx = Math.max(maxPx, s.x());
+                        minPy = Math.min(minPy, s.y()); maxPy = Math.max(maxPy, s.y());
+                    }
 
-        float halfProjX = Math.max((maxPx - minPx) * 0.5f, 1e-6f);
-        float halfProjY = Math.max((maxPy - minPy) * 0.5f, 1e-6f);
-        float fit = Math.min(fill * buffer.width() * 0.5f / halfProjX, fill * buffer.height() * 0.5f / halfProjY);
-        Fit2D fit2D = new Fit2D((minPx + maxPx) * 0.5f, (minPy + maxPy) * 0.5f, fit);
-        rasterizeInternal(triangles, buffer, orient, glintMask, fit2D);
+                float halfProjX = Math.max((maxPx - minPx) * 0.5f, 1e-6f);
+                float halfProjY = Math.max((maxPy - minPy) * 0.5f, 1e-6f);
+                float fit = Math.min(fill * buffer.width() * 0.5f / halfProjX, fill * buffer.height() * 0.5f / halfProjY);
+                // 2D post-projection fit; transform stays the plain orient so model-space depth is intact.
+                yield new FitPlan(orient, new Fit2D((minPx + maxPx) * 0.5f, (minPy + maxPy) * 0.5f, fit));
+            }
+            case ORTHOGRAPHIC -> {
+                float minMx = Float.MAX_VALUE, minMy = Float.MAX_VALUE, minMz = Float.MAX_VALUE;
+                float maxMx = -Float.MAX_VALUE, maxMy = -Float.MAX_VALUE, maxMz = -Float.MAX_VALUE;
+                float minPx = Float.MAX_VALUE, minPy = Float.MAX_VALUE;
+                float maxPx = -Float.MAX_VALUE, maxPy = -Float.MAX_VALUE;
+                for (VisibleTriangle tri : triangles)
+                    for (Vector3f v : new Vector3f[]{ tri.position0(), tri.position1(), tri.position2() }) {
+                        minMx = Math.min(minMx, v.x()); maxMx = Math.max(maxMx, v.x());
+                        minMy = Math.min(minMy, v.y()); maxMy = Math.max(maxMy, v.y());
+                        minMz = Math.min(minMz, v.z()); maxMz = Math.max(maxMz, v.z());
+                        Vector3f p = v.transform(orient);
+                        minPx = Math.min(minPx, p.x()); maxPx = Math.max(maxPx, p.x());
+                        minPy = Math.min(minPy, p.y()); maxPy = Math.max(maxPy, p.y());
+                    }
+
+                float centreX = (minMx + maxMx) * 0.5f;
+                float centreY = (minMy + maxMy) * 0.5f;
+                float centreZ = (minMz + maxMz) * 0.5f;
+                float halfProjX = Math.max((maxPx - minPx) * 0.5f, 1e-6f);
+                float halfProjY = Math.max((maxPy - minPy) * 0.5f, 1e-6f);
+
+                float fitX = fill * buffer.width() * 0.5f / (halfProjX * baseScale);
+                float fitY = fill * buffer.height() * 0.5f / (halfProjY * baseScale);
+                float fit = Math.min(fitX, fitY);
+
+                // 3D fit: vertex -> centre at origin -> uniform fit scale -> model rotation -> placement -> (camera pose).
+                Matrix4f modelTransform = modelRotation.scale(fit, fit, fit).translate(-centreX, -centreY, -centreZ);
+                yield new FitPlan(cameraSide(modelTransform), null);
+            }
+        };
     }
 
     /**
@@ -939,6 +953,21 @@ public class ModelEngine {
      * @param scale the uniform fill scale applied about the centre
      */
     private record Fit2D(float centreX, float centreY, float scale) {}
+
+    /**
+     * The lens-derived auto-fit result from {@link #prepareFit}: the composed model-to-screen
+     * {@code transform} to rasterize through, and the optional post-projection 2D {@link Fit2D}. A
+     * parallel lens (orthographic / oblique) bakes the fit into {@code transform} and leaves
+     * {@code fit} {@code null}; a perspective lens keeps the plain orient transform and carries the fit
+     * in {@code fit}. Encapsulates the one place the fit forks on lens family so the shared
+     * {@link #rasterizeInternal} core stays lens-agnostic.
+     *
+     * @param transform the composed model-to-screen pose (from {@link #cameraSide}); for a parallel
+     *     lens this already bakes the 3D {@code scale(fit).translate(-centre)}
+     * @param fit the post-projection 2D auto-fit for a perspective lens, or {@code null} when the fit
+     *     is baked into {@code transform}
+     */
+    private record FitPlan(@NotNull Matrix4f transform, @Nullable Fit2D fit) {}
 
     /**
      * Computes a signed triangle area in screen space. The camera transform is a pure rotation
