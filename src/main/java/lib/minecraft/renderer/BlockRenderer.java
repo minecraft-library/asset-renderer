@@ -28,7 +28,6 @@ import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.options.BlockOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
-import lib.minecraft.renderer.request.Biome;
 import lib.minecraft.renderer.request.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
@@ -271,7 +270,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             int ssaa = Math.max(1, options.getSupersample());
             ConcurrentList<VisibleTriangle> rasterTriangles = triangles;
             return FinalizeStage.run(options.getOutputSize(), options.getOutputSize(), ssaa, options.isAntiAlias(), false,
-                (target, mask) -> engine.rasterize(rasterTriangles, target, resolved.flatten()),
+                (target, mask) -> engine.rasterize(rasterTriangles, target, resolved.lens()),
                 (buffer, mask) -> Frames.staticFrame(buffer));
         }
 

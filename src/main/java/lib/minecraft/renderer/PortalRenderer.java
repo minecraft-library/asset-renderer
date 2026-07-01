@@ -536,7 +536,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
                 (target, ignoredMask) -> {
                     try (PixelBufferPool.Lease maskLease = PixelBufferPool.acquire(target.width(), target.height())) {
                         PixelBuffer shadingMask = maskLease.buffer();
-                        engine.rasterize(triangles, shadingMask, resolved.flatten());
+                        engine.rasterize(triangles, shadingMask, resolved.lens());
                         composeShaderMask(target, shadingMask, shaderCanvas, target.width());
                     }
                 },

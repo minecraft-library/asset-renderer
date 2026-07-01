@@ -11,7 +11,7 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * The graphical-projection taxonomy a caller selects per render - the consolidated front door to the
- * camera {@link Camera pose} and {@link Lens flatten}. Each constant bundles a canonical base pose
+ * camera {@link Camera pose} and {@link Lens lens}. Each constant bundles a canonical base pose
  * (pitch / yaw / roll) with its flatten family; {@link #resolve(EulerRotation)} composes the caller's
  * rotation onto that base pose and returns the pose-locked triple the renderers consume. The named
  * vanilla cameras live here as the {@code VANILLA_*} members, and this catalog assembles them from
@@ -44,7 +44,7 @@ public enum Projection {
      * One-point central perspective.
      * <p>
      * The view axis lies on one principal axis, producing a single vanishing point. Pose
-     * {@code (0, 180, 0)}, perspective flatten.
+     * {@code (0, 180, 0)}, perspective lens.
      */
     ONE_POINT(new EulerRotation(0f, 180f, 0f), Lens.perspective(0.6f, 8f, 8f, 0.45f), CameraChain.GUI_POSE),
 
@@ -52,7 +52,7 @@ public enum Projection {
      * Two-point central perspective.
      * <p>
      * Yawed off the view axis with zero pitch, producing two horizontal vanishing points and parallel
-     * verticals. Pose {@code (0, 215, 0)}, perspective flatten.
+     * verticals. Pose {@code (0, 215, 0)}, perspective lens.
      */
     TWO_POINT(new EulerRotation(0f, 215f, 0f), Lens.perspective(0.6f, 8f, 8f, 0.45f), CameraChain.GUI_POSE),
 
@@ -60,7 +60,7 @@ public enum Projection {
      * Three-point central perspective.
      * <p>
      * Yawed and pitched off the view axis, producing three vanishing points including the vertical.
-     * Pose {@code (30, 215, 0)}, perspective flatten.
+     * Pose {@code (30, 215, 0)}, perspective lens.
      */
     THREE_POINT(new EulerRotation(30f, 215f, 0f), Lens.perspective(0.6f, 8f, 8f, 0.45f), CameraChain.GUI_POSE),
 
@@ -68,7 +68,7 @@ public enum Projection {
      * Isometric axonometric projection.
      * <p>
      * Pitch {@code atan(1/√2) = 35.264°} gives equal foreshortening on all three axes (ISO 5456-3).
-     * Orthographic flatten.
+     * Orthographic lens.
      */
     ISOMETRIC(new EulerRotation(35.264f, 225f, 0f), Lens.orthographic(0.45f), CameraChain.GUI_POSE),
 
@@ -76,7 +76,7 @@ public enum Projection {
      * Dimetric axonometric projection.
      * <p>
      * The 2:1 pixel-art convention - pitch {@code atan(0.5) = 26.565°} foreshortens two axes equally.
-     * Orthographic flatten.
+     * Orthographic lens.
      */
     DIMETRIC(new EulerRotation(26.565f, 225f, 0f), Lens.orthographic(0.5f), CameraChain.GUI_POSE),
 
@@ -84,7 +84,7 @@ public enum Projection {
      * Trimetric axonometric projection.
      * <p>
      * All three axes foreshortened differently (ISO 5456-3 asymmetric example). Pose
-     * {@code (20, 250, 0)}, orthographic flatten.
+     * {@code (20, 250, 0)}, orthographic lens.
      */
     TRIMETRIC(new EulerRotation(20f, 250f, 0f), Lens.orthographic(0.5f), CameraChain.GUI_POSE),
 
@@ -92,7 +92,7 @@ public enum Projection {
      * Cavalier oblique projection.
      * <p>
      * The front face is true-shape and the receding axis is drawn at 45° to full depth, with no
-     * foreshortening. Oblique flatten {@code L = 1.0}.
+     * foreshortening. Oblique lens {@code L = 1.0}.
      */
     CAVALIER(new EulerRotation(0f, 180f, 0f), Lens.oblique(1.0f, (float) Math.toRadians(-45), 0.5f), CameraChain.GUI_POSE),
 
@@ -100,7 +100,7 @@ public enum Projection {
      * Cabinet oblique projection.
      * <p>
      * The front face is true-shape and the receding axis is drawn at 45° with depth halved for a
-     * natural look - the de-facto cabinet standard. Oblique flatten {@code L = 0.5}.
+     * natural look - the de-facto cabinet standard. Oblique lens {@code L = 0.5}.
      */
     CABINET(new EulerRotation(0f, 180f, 0f), Lens.oblique(0.5f, (float) Math.toRadians(-45), 0.5f), CameraChain.GUI_POSE),
 
@@ -108,7 +108,7 @@ public enum Projection {
      * Military (planometric) oblique projection.
      * <p>
      * The top plan is shown true-shape rotated 45° with verticals drawn to true length (ISO 5456-3).
-     * Pose {@code (90, 225, 0)} plan, oblique flatten {@code L = 1.0}. The least-standard mapping;
+     * Pose {@code (90, 225, 0)} plan, oblique lens {@code L = 1.0}. The least-standard mapping;
      * verify visually.
      */
     MILITARY(new EulerRotation(90f, 225f, 0f), Lens.oblique(1.0f, (float) Math.toRadians(-45), 0.5f), CameraChain.GUI_POSE),
@@ -161,15 +161,15 @@ public enum Projection {
     VANILLA_ENTITY(new EulerRotation(210f, 45f, 0f), Lens.ISOMETRIC_BLOCK, CameraChain.ENTITY_ISO);
 
     /**
-     * Resolved camera pose, flatten, and lighting pose for one {@link Projection} at a chosen rotation -
+     * Resolved camera pose, lens, and lighting pose for one {@link Projection} at a chosen rotation -
      * the pose-locked triple a renderer feeds to its engine, projection, and inventory relight in
      * lock-step.
      *
      * @param camera the baked camera pose
-     * @param flatten the 3D-to-2D projection
+     * @param lens the 3D-to-2D projection
      * @param lightingPose the Euler pose the inventory relight must mirror to track the camera
      */
-    public record Resolved(@NotNull Camera camera, @NotNull Lens flatten, @NotNull EulerRotation lightingPose) {}
+    public record Resolved(@NotNull Camera camera, @NotNull Lens lens, @NotNull EulerRotation lightingPose) {}
 
     /**
      * This projection's unrotated base pose - the {@code (pitch, yaw, roll)} the camera and lighting
@@ -182,9 +182,9 @@ public enum Projection {
     /**
      * This projection's flatten family - the 3D-to-2D {@link Lens} paired with the pose. Rotation-
      * independent; the {@link CameraChain} strategy passes it straight through to
-     * {@link Resolved#flatten()}.
+     * {@link Resolved#lens()}.
      */
-    private final @NotNull Lens baseFlatten;
+    private final @NotNull Lens lens;
 
     /**
      * The strategy that assembles this projection's {@link Resolved} triple: {@link CameraChain#GUI_POSE}
@@ -194,7 +194,7 @@ public enum Projection {
     private final @NotNull CameraChain cameraChain;
 
     /**
-     * Resolves this projection at its base pose - the unrotated camera / flatten / lighting-pose
+     * Resolves this projection at its base pose - the unrotated camera / lens / lighting-pose
      * triple. Equivalent to {@link #resolve(EulerRotation)} with {@link EulerRotation#NONE}, so for a
      * {@code VANILLA_*} member it yields the exact shipped baseline.
      *
@@ -205,10 +205,10 @@ public enum Projection {
     }
 
     /**
-     * Resolves this projection into the camera / flatten / lighting-pose triple by delegating to this
+     * Resolves this projection into the camera / lens / lighting-pose triple by delegating to this
      * constant's {@link CameraChain} strategy. For a {@link CameraChain#GUI_POSE} member the rotation
      * adds to the base pitch / yaw / roll, so it poses the camera and the lighting pose together (the
-     * flatten is rotation-independent) through the parity-pinned {@link Camera#fromPose}
+     * lens is rotation-independent) through the parity-pinned {@link Camera#fromPose}
      * {@code rotationXYZ} path, which reproduces the legacy {@code VANILLA_*} cameras bit-for-bit;
      * {@link EulerRotation#NONE} yields the base pose unchanged, keeping the default render path
      * byte-identical.
@@ -222,7 +222,7 @@ public enum Projection {
      * @return the resolved triple
      */
     public @NotNull Resolved resolve(@NotNull EulerRotation rotation) {
-        return this.cameraChain.resolve(this.basePose, this.baseFlatten, rotation);
+        return this.cameraChain.resolve(this.basePose, this.lens, rotation);
     }
 
     /**
@@ -293,9 +293,9 @@ public enum Projection {
          */
         GUI_POSE {
             @Override
-            @NotNull Resolved resolve(@NotNull EulerRotation basePose, @NotNull Lens flatten, @NotNull EulerRotation rotation) {
+            @NotNull Resolved resolve(@NotNull EulerRotation basePose, @NotNull Lens lens, @NotNull EulerRotation rotation) {
                 EulerRotation pose = compose(basePose, rotation);
-                return new Resolved(Camera.fromPose(pose), flatten, pose);
+                return new Resolved(Camera.fromPose(pose), lens, pose);
             }
         },
 
@@ -308,22 +308,22 @@ public enum Projection {
          */
         ENTITY_ISO {
             @Override
-            @NotNull Resolved resolve(@NotNull EulerRotation basePose, @NotNull Lens flatten, @NotNull EulerRotation rotation) {
-                return new Resolved(new Camera(entityIsoChain(basePose)), flatten, basePose);
+            @NotNull Resolved resolve(@NotNull EulerRotation basePose, @NotNull Lens lens, @NotNull EulerRotation rotation) {
+                return new Resolved(new Camera(entityIsoChain(basePose)), lens, basePose);
             }
         };
 
         /**
-         * Assembles the resolved triple for a projection carrying the given base pose and flatten,
+         * Assembles the resolved triple for a projection carrying the given base pose and lens,
          * under the caller's rotation.
          *
          * @param basePose the projection's unrotated base pose
-         * @param flatten the projection's flatten
+         * @param lens the projection's lens
          * @param rotation the caller's rotation (composed into the pose by {@link #GUI_POSE}, ignored
          *     by {@link #ENTITY_ISO})
          * @return the resolved triple
          */
-        abstract @NotNull Resolved resolve(@NotNull EulerRotation basePose, @NotNull Lens flatten, @NotNull EulerRotation rotation);
+        abstract @NotNull Resolved resolve(@NotNull EulerRotation basePose, @NotNull Lens lens, @NotNull EulerRotation rotation);
 
     }
 

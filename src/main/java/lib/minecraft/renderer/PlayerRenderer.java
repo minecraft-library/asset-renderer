@@ -599,7 +599,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             // The caller's rotation is composed into the engine's camera pose at construction (above),
             // so the fitted rasterize applies no separate model-spin - EulerRotation.NONE. Default
             // renders leave the byte-identical base player pose.
-            (target, mask) -> engine.rasterizeFitted(triangles, target, options.getProjection().resolve(options.getRotation()).flatten(), EulerRotation.NONE, PLAYER_FILL, mask),
+            (target, mask) -> engine.rasterizeFitted(triangles, target, options.getProjection().resolve(options.getRotation()).lens(), EulerRotation.NONE, PLAYER_FILL, mask),
             (buffer, mask) -> GlintStage.forArmor(engine.textures()::tryResolveTexture, buffer, enchanted, mask));
     }
 

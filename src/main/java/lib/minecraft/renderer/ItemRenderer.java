@@ -551,9 +551,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
             Matrix4f displayTransform = resolveDisplayTransform(item, DISPLAY_SLOT_HELD_3D);
             // The held-item pose lives entirely in the model's display transform; the camera is the
-            // identity ModelEngine above, so only the projection's flatten is consumed - the
-            // rotation-independent base flatten via the no-arg resolve().
-            engine.rasterize(triangles, buffer, options.getProjection().resolve().flatten(), displayTransform);
+            // identity ModelEngine above, so only the projection's lens is consumed - the
+            // rotation-independent base lens via the no-arg resolve().
+            engine.rasterize(triangles, buffer, options.getProjection().resolve().lens(), displayTransform);
 
             return finalize2DItem(engine.textures(), buffer, item, options);
         }

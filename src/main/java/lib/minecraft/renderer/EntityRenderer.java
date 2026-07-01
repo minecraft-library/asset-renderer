@@ -156,7 +156,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // reproduces the historic base -> overlays -> block-overlays -> armor sequence exactly.
         // Callers can splice their own layers via EntityOptions.layerDecorator.
         // The entity goes through the projection front door: VANILLA_ENTITY resolves to the det=-1
-        // entityIsoChain camera (chirality) + the iso flatten. The model rotation `effective` stays a
+        // entityIsoChain camera (chirality) + the iso lens flatten. The model rotation `effective` stays a
         // separate model-spin passed to rasterize below - the chirality chain is fixed, so VANILLA_ENTITY
         // does not compose the rotation into the camera (the CameraChain.ENTITY_ISO strategy).
         Projection.Resolved entityProjection = Projection.VANILLA_ENTITY.resolve();
@@ -206,7 +206,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // the (glinted) armor rather than the whole entity silhouette.
         int ssaa = Math.max(1, options.getSupersample());
         return FinalizeStage.run(fit.canvasW(), fit.canvasH(), ssaa, options.isAntiAlias(), enchanted,
-            (target, mask) -> engine.rasterize(triangles, target, entityProjection.flatten(), effective, mask),
+            (target, mask) -> engine.rasterize(triangles, target, entityProjection.lens(), effective, mask),
             (buffer, mask) -> GlintStage.forArmor(engine.textures()::tryResolveTexture, buffer, enchanted, mask));
     }
 
