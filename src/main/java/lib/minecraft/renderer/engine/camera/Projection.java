@@ -135,27 +135,29 @@ public enum Projection {
     /**
      * Shipped 3D held-item baseline.
      * <p>
-     * The moderate {@code GUI_ITEM} perspective; the item pose lives in the model's own
-     * {@code display} matrix. Reproduces the held-item renders byte-for-byte; the default for the item
-     * renderer.
+     * The moderate {@code GUI_ITEM} perspective. The base pose is the facing-neutral {@code [0, 180, 0]}
+     * head-on angle (presenting the model's {@code -Z} side, consistent with the block-icon family so a
+     * subject's renderer facing presents its front); the item renderer ignores it, using
+     * {@link Camera#identity} with only this projection's {@link Lens} since the held-item pose lives in
+     * the model's own {@code display} matrix. Reproduces the held-item renders byte-for-byte; the default
+     * for the item renderer.
      */
-    VANILLA_GUI_ITEM(EulerRotation.NONE, Lens.GUI_ITEM),
+    VANILLA_GUI_ITEM(new EulerRotation(0f, 180f, 0f), Lens.GUI_ITEM),
 
     /**
-     * Shipped entity baseline.
-     * <p>
-     * Vanilla's {@code EntityFrameRenderer.ISO_ROTATION = rotationXYZ(210°, 45°, 0°)}, itself derived
-     * from the empirical 24-step yaw + 576-frame pitch/roll sweep that locked vanilla's entity-preview
-     * pipeline camera. Resolves to the plain {@code rotationXYZ(210°, 45°, 0°)} iso display pose (det=+1),
-     * the same GUI-display-pose family as {@link #VANILLA_BLOCK} / {@link #VANILLA_PLAYER}. The entity's
-     * model-to-world facing + chirality (vanilla {@code LivingEntityRenderer.submit}'s
-     * {@code rotateY(180°) × scale(-1,-1,1) = flip180}) is applied separately by the entity renderer as a
-     * {@code Placement}; it composes onto this pose as {@code flip180 × R(iso) = rotationXYZ(30°, 45°, 0°)}
-     * to match the harness ground-truth PNGs. Because the facing lives on the placement, this constant is
-     * a plain camera and an entity is a normal projection subject. The caller's rotation stays a separate
-     * model-spin. The default for the entity renderer.
+     * Shipped entity baseline - a <b>facing-neutral</b> {@code rotationXYZ(30°, 225°, 0°)} iso display
+     * pose (det=+1), the same block-icon angle as {@link #VANILLA_BLOCK} / {@link #VANILLA_PLAYER}. The
+     * humanoid facing is NOT baked here: the entity renderer applies its facing + Y-down flip
+     * ({@code R_Y(180) × flip180 = R_Z(180) = diag(-1,-1,1)}, {@code ENTITY_FACING}) as a
+     * model-to-world {@code Placement}, so {@code R(30,225,0) × ENTITY_FACING = R(30,45,0) × flip180}
+     * reproduces the harness ground truth (with {@code flip180 = } vanilla
+     * {@code LivingEntityRenderer.submit}'s {@code rotateY(180°) × scale(-1,-1,1)}) while <b>any</b>
+     * projection swapped in keeps the entity upright AND facing - exactly like the player's facing. The
+     * harness {@code [210, 45, 0]} lives on only as the entity kit's lighting angle
+     * ({@code EntityGeometryKit.ENTITY_ISO_LIGHTING}), decoupled from this camera pose. The caller's
+     * rotation stays a separate model-spin. The default for the entity renderer.
      */
-    VANILLA_ENTITY(new EulerRotation(210f, 45f, 0f), Lens.ISOMETRIC_BLOCK);
+    VANILLA_ENTITY(new EulerRotation(30f, 225f, 0f), Lens.ISOMETRIC_BLOCK);
 
     /**
      * This projection's unrotated base pose - the {@code (pitch, yaw, roll)} the camera and lighting

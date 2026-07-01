@@ -66,17 +66,18 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     private final @NotNull Map<String, EntityModelLoader.EntityDefinition> javaEntities;
 
     /**
-     * The entity's model-to-world facing / chirality - vanilla {@code LivingEntityRenderer.submit}'s
-     * {@code rotateY(180) * scale(-1,-1,1) = diag(1,-1,-1)}. Applied as the entity {@link Placement}, and
-     * pre-composed onto {@link Projection#VANILLA_ENTITY}'s iso pose to form the camera:
-     * {@code flip180 * R(210,45,0)} collapses to {@code rotationXYZ(30,45,0)}, the block/player
-     * display-pose family. Projection-independent, so swapping the camera renders the entity under any
-     * projection.
+     * The entity's model-to-world facing - the humanoid {@code R_Y(180)} yaw flip (same as the player's,
+     * turning the {@code +Z} front to the camera) composed with vanilla
+     * {@code LivingEntityRenderer.submit}'s {@code rotateY(180) * scale(-1,-1,1) = flip180} (the Y-down
+     * to Y-up flip + chirality): {@code R_Y(180) * flip180 = R_Z(180) = diag(-1,-1,1)}. Applied as the
+     * entity {@link Placement} so {@link Projection#VANILLA_ENTITY} stays a facing-neutral {@code [30,225,0]}
+     * pose like block/player: {@code R(30,225,0) * ENTITY_FACING = R(30,45,0) * flip180} reproduces the
+     * shipped orientation, and any projection swapped in keeps the entity upright AND facing.
      */
-    private static final @NotNull Matrix4f ENTITY_FLIP = Matrix4f.IDENTITY.scale(1f, -1f, -1f);
+    private static final @NotNull Matrix4f ENTITY_FACING = Matrix4f.IDENTITY.scale(-1f, -1f, 1f);
 
-    /** The entity's model-to-world {@link Placement} - {@link #ENTITY_FLIP} as a placement. */
-    private static final @NotNull Placement ENTITY_PLACEMENT = new Placement(ENTITY_FLIP);
+    /** The entity's model-to-world {@link Placement} - {@link #ENTITY_FACING} as a placement. */
+    private static final @NotNull Placement ENTITY_PLACEMENT = new Placement(ENTITY_FACING);
 
     @Override
     public @NotNull ImageData render(@NotNull EntityOptions options) {
@@ -170,15 +171,14 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // load-bearing (depth tie-break, translucent sort, emissive depth-skip), so the slot order
         // reproduces the historic base -> overlays -> block-overlays -> armor sequence exactly.
         // Callers can splice their own layers via EntityOptions.layerDecorator.
-        // The entity is a normal projection subject: its camera is the caller's projection (default
-        // VANILLA_ENTITY's iso pose, rotationXYZ(210,45,0)) with the model->world facing (ENTITY_FLIP)
-        // pre-composed - for the default, flip180 x R(iso) collapses to rotationXYZ(30,45,0), the
-        // block/player display-pose family - and that same facing is applied as the ENTITY_PLACEMENT.
-        // Because the placement is projection-independent, selecting another projection re-poses the
-        // entity under it; the canvas-fit / anchor below track the same projection.
-        Camera baseCamera = options.getProjection().resolve();
-        Camera entityCamera = new Camera(
-            ENTITY_FLIP.multiply(baseCamera.pose()), baseCamera.lens(), baseCamera.lightingPose());
+        // The entity is a normal projection subject: the camera is the caller's projection display pose
+        // DIRECTLY (default VANILLA_ENTITY = the facing-neutral rotationXYZ(30,225,0)), and its model->world
+        // facing (humanoid R_Y(180)) + Y-down flip + chirality is the single ENTITY_FACING Placement.
+        // render = pose · ENTITY_FACING · model_Ydown lands the entity upright AND facing under ANY
+        // projection (exactly like the player's R_Y(180) facing, plus the Y-down flip). For the default,
+        // R(30,225,0) · ENTITY_FACING = R(30,45,0) · flip180 reproduces the harness byte-for-byte; the
+        // canvas-fit / anchor track the same projection.
+        Camera entityCamera = options.getProjection().resolve();
         ModelEngine engine = new ModelEngine(this.context, entityCamera, ENTITY_PLACEMENT);
         SceneContext scene = new SceneContext(
             texture.get(), modelAnchor, fit.ndcScale(), modelScale, engine.textures(), this.context);
@@ -586,50 +586,46 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
     /**
      * Inverse of {@link #composeIsoTransform}, for the same {@code projection}. The forward is
-     * {@code ENTITY_FLIP * R(basePose) * modelRotation * ENTITY_FLIP}; the inverse reverses the chain
-     * with each factor inverted. {@code ENTITY_FLIP} is self-inverse; the two rotations invert via
-     * {@code rotationXYZ(x, y, z) ^ -1 = rotationZYX(-z, -y, -x)}. Expressed in the equivalent
-     * {@code flipY / scaleZneg} diagonals ({@code flipY * scaleZneg = ENTITY_FLIP}) built on the fluent
-     * path (bit-identical to vanilla's PoseStack; {@code createX().multiply(...)} drifts 1-4 ULPs).
+     * {@code projection.pose() * modelRotation * ENTITY_FACING}; the inverse reverses it to
+     * {@code ENTITY_FACING * modelRotation^-1 * projection.pose()^-1}. {@code ENTITY_FACING = diag(-1,-1,1)}
+     * is self-inverse; the two rotations invert via {@code rotationXYZ(x, y, z) ^ -1 = rotationZYX(-z, -y, -x)}.
+     * Built on the fluent path (bit-identical to vanilla's PoseStack; {@code createX().multiply(...)} drifts 1-4 ULPs).
      */
     private static @NotNull Matrix4f composeIsoInverse(@NotNull Projection projection, @NotNull EulerRotation userRotation) {
         EulerRotation iso = projection.basePose();
         boolean userIdentity = userRotation.pitch() == 0f && userRotation.yaw() == 0f && userRotation.roll() == 0f;
-        Matrix4f m = Matrix4f.IDENTITY.scale(1f, -1f, 1f); // flipY
+        Matrix4f m = Matrix4f.IDENTITY.scale(-1f, -1f, 1f); // ENTITY_FACING
         if (!userIdentity)
             m = m.rotate(Quaternionf.rotationZYX(
                 -userRotation.rollRadians(), -userRotation.yawRadians(), -userRotation.pitchRadians()));
-        return m
-            .scale(1f, 1f, -1f) // scaleZneg
-            .rotate(Quaternionf.rotationZYX(0f, -iso.yawRadians(), -iso.pitchRadians())) // isoRotationInverse
-            .scale(1f, 1f, -1f) // scaleZneg
-            .scale(1f, -1f, 1f); // flipY
+        return m.rotate(Quaternionf.rotationZYX(-iso.rollRadians(), -iso.yawRadians(), -iso.pitchRadians()));
     }
 
     /**
      * Builds the orientation-only transform that maps a Y-down model vertex to its pre-projection screen
      * position - the same camera + placement the {@link ModelEngine} applies, so the canvas-fit and
      * anchor bounds track the render. In column-vector form the composite is
-     * {@code cameraPose * modelRotation * ENTITY_FLIP}, applied to a bounds-probe vertex right-to-left:
+     * {@code cameraPose * modelRotation * ENTITY_FACING}, applied to a bounds-probe vertex right-to-left:
      * <ul>
-     * <li>{@code ENTITY_FLIP = diag(1,-1,-1)} - the entity's model-to-world facing / chirality (the
+     * <li>{@code ENTITY_FACING = diag(-1,-1,1)} - the entity's model-to-world facing + Y-down flip (the
      *     {@link Placement} the rasterizer applies to the kit output; applied here directly since
      *     bounds-probe points bypass the kit).</li>
      * <li>{@code modelRotation} - the caller's rotation as a {@link Quaternionf#rotationXYZ} quaternion;
      *     identity for {@link EulerRotation#NONE}.</li>
-     * <li>{@code cameraPose = ENTITY_FLIP * projection.pose()} - the entity's world-to-screen pose; for
-     *     the default {@link Projection#VANILLA_ENTITY} this is {@code ENTITY_FLIP * rotationXYZ(210,45,0)
-     *     = rotationXYZ(30,45,0)}.</li>
+     * <li>{@code cameraPose = projection.pose()} - the entity's world-to-screen pose directly; for the
+     *     default {@link Projection#VANILLA_ENTITY} this is the facing-neutral {@code rotationXYZ(30,225,0)}.
+     *     Composed with the trailing {@code ENTITY_FACING} it is {@code R(30,225,0) · diag(-1,-1,1) =
+     *     rotationXYZ(210,-45,0)}, the entity's byte-identical orientation.</li>
      * </ul>
      * Centering / NDC scaling are translation + uniform scale the canvas-fit math handles separately, so
      * they aren't included here.
      */
     private static @NotNull Matrix4f composeIsoTransform(@NotNull Projection projection, @NotNull EulerRotation userRotation) {
         boolean userIdentity = userRotation.pitch() == 0f && userRotation.yaw() == 0f && userRotation.roll() == 0f;
-        Matrix4f m = ENTITY_FLIP.multiply(projection.resolve().pose());
+        Matrix4f m = projection.resolve().pose();
         if (!userIdentity)
             m = m.rotate(Quaternionf.rotationXYZ(userRotation.pitchRadians(), userRotation.yawRadians(), userRotation.rollRadians()));
-        return m.scale(1f, -1f, -1f);
+        return m.scale(-1f, -1f, 1f);
     }
 
     /**

@@ -13,13 +13,15 @@ class ProjectionTest {
     @Test
     @DisplayName("VANILLA_* base poses carry the documented vanilla angles")
     void vanillaBasePoses() {
-        // Projection is the sole home of the vanilla iso angles (moved off EulerRotation).
-        // VANILLA_PLAYER is facing-NEUTRAL (the block-icon [30,225,0] angle); the player renderer
-        // applies its R_Y(180) facing as a Placement, so [30,225,0]·R_Y(180) = the shipped [30,45,0].
+        // Projection is the sole home of the vanilla iso angles (moved off EulerRotation). All three
+        // VANILLA_* iso members share the facing-NEUTRAL block-icon [30,225,0] angle; each renderer applies
+        // its own facing as a Placement (block IDENTITY; player R_Y(180); entity R_Y(180)·flip180 =
+        // diag(-1,-1,1)), so every projection presents the subject's front. The harness [210,45,0] lives on
+        // only as the entity kit's lighting angle (EntityGeometryKit.ENTITY_ISO_LIGHTING).
         assertThat(Projection.VANILLA_BLOCK.basePose(), equalTo(new EulerRotation(30f, 225f, 0f)));
         assertThat(Projection.VANILLA_PLAYER.basePose(), equalTo(new EulerRotation(30f, 225f, 0f)));
-        assertThat(Projection.VANILLA_ENTITY.basePose(), equalTo(new EulerRotation(210f, 45f, 0f)));
-        assertThat(Projection.VANILLA_GUI_ITEM.basePose(), equalTo(EulerRotation.NONE));
+        assertThat(Projection.VANILLA_ENTITY.basePose(), equalTo(new EulerRotation(30f, 225f, 0f)));
+        assertThat(Projection.VANILLA_GUI_ITEM.basePose(), equalTo(new EulerRotation(0f, 180f, 0f)));
     }
 
     @Test

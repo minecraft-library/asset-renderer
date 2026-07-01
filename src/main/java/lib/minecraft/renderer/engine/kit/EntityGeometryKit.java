@@ -87,10 +87,20 @@ public class EntityGeometryKit {
      * component is {@code -sin(30°) = -0.5} (30° pitch contribution, negated by the trailing
      * Y-flip compensation).
      */
+    /**
+     * The vanilla entity-preview iso <b>lighting</b> angle {@code [210, 45, 0]} - the harness's
+     * {@code ISO_ROTATION} - used to derive the per-face plane-cube view direction below. This is
+     * distinct from {@link Projection#VANILLA_ENTITY}'s camera pose ({@code [30, 45, 0]}, the display
+     * pose): the entity's Y-down-to-Y-up flip + facing live on the renderer's {@code ENTITY_FLIP}
+     * {@code Placement}, so the camera pose is a plain display pose while the lighting frame stays on the
+     * harness iso angle. Pinned here so it does not track {@code VANILLA_ENTITY.basePose()}.
+     */
+    private static final @NotNull EulerRotation ENTITY_ISO_LIGHTING = new EulerRotation(210f, 45f, 0f);
+
     private static final @NotNull Vector3f VIEW_DIRECTION_KIT = computeKitFrameViewDirection();
 
     private static @NotNull Vector3f computeKitFrameViewDirection() {
-        EulerRotation iso = Projection.VANILLA_ENTITY.basePose();
+        EulerRotation iso = ENTITY_ISO_LIGHTING;
         // Column-vector chain `diag(1,-1,1) * R_X(-180°) * R_Y(-yaw) * R_X(-pitch) *
         // scale(1,1,-1)` implements `Yflip * M_view^T * v` where M_view = scale(1,1,-1) *
         // R_X(pitch) * R_Y(yaw) * R_X(180°) is vanilla's iso transform. Each rotation transposes
