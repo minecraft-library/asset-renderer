@@ -6,6 +6,7 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.Lens;
+import lib.minecraft.renderer.engine.camera.Placement;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.GlintMask;
@@ -96,24 +97,62 @@ public class ModelEngine {
 
     private final @NotNull Matrix4f pose;
 
+    /**
+     * The subject's model-to-world {@link Placement} matrix, composed between the camera pose and the
+     * caller's model transform, or {@code null} for the identity no-op ({@link Placement#IDENTITY}) so
+     * the transform chain stays byte-identical to the pre-Placement pipeline.
+     */
+    private final @Nullable Matrix4f placement;
+
     private final @NotNull Lens lens;
 
     private final @NotNull Textures textures;
 
     /**
-     * Constructs a model engine with a preset {@link Camera} - its pose (applied after the caller's
-     * model transform during rasterization) and its lens (the 3D-to-2D flatten). Pass a resolved
-     * camera (e.g. {@link Projection#VANILLA_BLOCK} resolved to its camera, the vanilla
-     * {@code [30, 225, 0]} block-icon pose with the iso block lens) so the engine holds the whole
+     * Constructs a model engine with a preset {@link Camera} and the identity {@link Placement} - its
+     * pose (applied after the caller's model transform during rasterization) and its lens (the 3D-to-2D
+     * flatten). Pass a resolved camera (e.g. {@link Projection#VANILLA_BLOCK} resolved to its camera, the
+     * vanilla {@code [30, 225, 0]} block-icon pose with the iso block lens) so the engine holds the whole
      * view + projection and callers don't thread the lens through every {@code rasterize} call.
      *
      * @param context the renderer context
      * @param camera the camera (pose + lens) composed with every rasterization
      */
     public ModelEngine(@NotNull RendererContext context, @NotNull Camera camera) {
+        this(context, camera, Placement.IDENTITY);
+    }
+
+    /**
+     * Constructs a model engine with a preset {@link Camera} and a subject {@link Placement}. The
+     * placement is the model-to-world half of the pipeline (the subject's facing / chirality / anchor);
+     * the camera is the world-to-screen half. Rasterization composes {@code pose x placement x
+     * modelTransform}. {@link Placement#IDENTITY} makes this identical to the two-arg constructor and
+     * byte-identical to the pre-Placement transform chain.
+     *
+     * @param context the renderer context
+     * @param camera the camera (pose + lens) composed with every rasterization
+     * @param placement the subject's model-to-world placement
+     */
+    public ModelEngine(@NotNull RendererContext context, @NotNull Camera camera, @NotNull Placement placement) {
         this.textures = new Textures(context);
         this.pose = camera.pose();
+        this.placement = placement.isIdentity() ? null : placement.modelToWorld();
         this.lens = camera.lens();
+    }
+
+    /**
+     * Composes the camera-side transform: the camera {@link #pose} times this engine's model-to-world
+     * {@link #placement} times the caller's {@code modelTransform}. When the placement is the identity
+     * no-op ({@link #placement} {@code null}) this is exactly {@code pose x modelTransform} -
+     * byte-identical to the pre-Placement chain.
+     *
+     * @param modelTransform the caller's model-space transform (model spin / fit), applied first to a vertex
+     * @return the composed model-to-screen pose
+     */
+    private @NotNull Matrix4f cameraSide(@NotNull Matrix4f modelTransform) {
+        return this.placement == null
+            ? this.pose.multiply(modelTransform)
+            : this.pose.multiply(this.placement).multiply(modelTransform);
     }
 
     /**
@@ -179,8 +218,8 @@ public class ModelEngine {
         @Nullable GlintMask glintMask
     ) {
         Matrix4f modelRotation = buildModelRotation(rotation);
-        // Column-vector chain: modelRotation applies first to a vertex, then the camera pose.
-        Matrix4f transform = this.pose.multiply(modelRotation);
+        // Column-vector chain: modelRotation applies first to a vertex, then placement, then the camera pose.
+        Matrix4f transform = cameraSide(modelRotation);
         rasterizeInternal(triangles, buffer, transform, glintMask);
     }
 
@@ -198,8 +237,8 @@ public class ModelEngine {
         @NotNull PixelBuffer buffer,
         @NotNull Matrix4f modelTransform
     ) {
-        // Column-vector chain: modelTransform applies first to a vertex, then the camera pose.
-        Matrix4f transform = this.pose.multiply(modelTransform);
+        // Column-vector chain: modelTransform applies first to a vertex, then placement, then the camera pose.
+        Matrix4f transform = cameraSide(modelTransform);
         rasterizeInternal(triangles, buffer, transform, null);
     }
 
@@ -252,7 +291,7 @@ public class ModelEngine {
     ) {
         if (triangles.isEmpty()) return;
         Matrix4f modelRotation = buildModelRotation(rotation);
-        Matrix4f orient = this.pose.multiply(modelRotation);
+        Matrix4f orient = cameraSide(modelRotation);
 
         float minMx = Float.MAX_VALUE, minMy = Float.MAX_VALUE, minMz = Float.MAX_VALUE;
         float maxMx = -Float.MAX_VALUE, maxMy = -Float.MAX_VALUE, maxMz = -Float.MAX_VALUE;
@@ -279,9 +318,9 @@ public class ModelEngine {
         float fitY = fill * buffer.height() * 0.5f / (halfProjY * baseScale);
         float fit = Math.min(fitX, fitY);
 
-        // vertex -> centre at origin -> uniform fit scale -> model rotation -> (camera pose).
+        // vertex -> centre at origin -> uniform fit scale -> model rotation -> placement -> (camera pose).
         Matrix4f modelTransform = modelRotation.scale(fit, fit, fit).translate(-centreX, -centreY, -centreZ);
-        rasterizeInternal(triangles, buffer, this.pose.multiply(modelTransform), glintMask);
+        rasterizeInternal(triangles, buffer, cameraSide(modelTransform), glintMask);
     }
 
     private void rasterizeInternal(
