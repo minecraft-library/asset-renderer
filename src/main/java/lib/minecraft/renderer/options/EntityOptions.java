@@ -2,6 +2,7 @@ package lib.minecraft.renderer.options;
 
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.Renderer;
+import lib.minecraft.renderer.engine.camera.Facing;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.LayerSlot;
@@ -146,6 +147,17 @@ public class EntityOptions {
      */
     @lombok.Builder.Default
     private final @NotNull Projection projection = Projection.VANILLA_ISO;
+
+    /**
+     * View-facing reflection applied to the {@link #getProjection() projection}. Defaults to
+     * {@link Facing#DEFAULT} (no reflection); {@link Facing#MIRRORED} mirrors the view horizontally and
+     * {@link Facing#FLIPPED} flips it vertically. Reflects the <b>camera / view</b>, not the entity's
+     * model-spin: an entity with a built-in yaw addend (e.g. shulker) mirrors about the camera axis, and a
+     * facing combined with a non-zero {@link #getRotation() rotation} reflects the camera but not that spin
+     * (so mirror-then-spin differs from spin-then-mirror).
+     */
+    @lombok.Builder.Default
+    private final @NotNull Facing facing = Facing.DEFAULT;
 
     /**
      * Supersample scale factor. The entity is rasterized at {@code (canvas dims) * supersample}

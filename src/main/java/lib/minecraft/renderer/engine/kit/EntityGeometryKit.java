@@ -7,6 +7,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.RendererDebug;
+import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
@@ -427,6 +428,10 @@ public class EntityGeometryKit {
      * @param screenTransform model-to-screen transform to apply BEFORE bounds accumulation;
      *     callers compose iso rotation + any chirality / flips here so the result lives in
      *     screen space (X = horizontal, Y = vertical, Z = depth - ignored)
+     * @param lens the projection lens; an oblique lens flattens each probe point through
+     *     {@link Lens#project} so the measured extent includes its depth-shear, while orthographic and
+     *     perspective keep the raw rotated point (ortho is byte-identical to the legacy path; perspective
+     *     is measured ortho-style because its foreshortening is scale-dependent, see {@link #projectAndAccumulate})
      * @param modelScale per-entity scale applied to every cube vertex before the screen
      *     transform; pass 1 when no per-renderer scale is in effect
      * @param texture the entity texture used for per-face alpha-tight clipping; pass
@@ -437,6 +442,7 @@ public class EntityGeometryKit {
     public static @NotNull Box computeScreenBounds(
         @NotNull EntityModelData model,
         @NotNull Matrix4f screenTransform,
+        @NotNull Lens lens,
         float modelScale,
         PixelBuffer texture
     ) {
@@ -472,7 +478,7 @@ public class EntityGeometryKit {
                     float[] ys = { cubeBounds.minY(), cubeBounds.maxY() };
                     float[] zs = { cubeBounds.minZ(), cubeBounds.maxZ() };
                     for (float x : xs) for (float y : ys) for (float z : zs)
-                        projectAndAccumulate(new Vector3f(x, y, z), cubeTransform, modelScale, screenTransform, acc);
+                        projectAndAccumulate(new Vector3f(x, y, z), cubeTransform, modelScale, screenTransform, lens, acc);
                     cubeIndex++;
                     continue;
                 }
@@ -492,7 +498,7 @@ public class EntityGeometryKit {
                     // the 4 cube corners regardless of pairing.
                     Vector2f[] uvs = resolvePolygonUv(face, cube, size, texW, texH);
                     String dumpLabel = RendererDebug.boundsFaceLabel(boneName, cubeIndex, face.direction(), origin, size, inflate, cube.isMirror());
-                    contributeFaceAlphaTight(corners3d, uvs, cubeTransform, modelScale, screenTransform, texture, acc, dumpLabel);
+                    contributeFaceAlphaTight(corners3d, uvs, cubeTransform, modelScale, screenTransform, lens, texture, acc, dumpLabel);
                 }
                 cubeIndex++;
             }
@@ -517,6 +523,7 @@ public class EntityGeometryKit {
      * @param cubeTransform cube-space transform applied before scaling
      * @param modelScale per-render vertex pre-scale
      * @param screenTransform model-to-screen transform applied last
+     * @param lens the projection lens forwarded to {@link #projectAndAccumulate} for the oblique flatten
      * @param texture the entity texture used for alpha sampling
      * @param acc accumulator collecting the contributed corners
      * @param dumpLabel optional debug label for {@link RendererDebug} tracing, or {@code null}
@@ -524,7 +531,7 @@ public class EntityGeometryKit {
     private static void contributeFaceAlphaTight(
         @NotNull Vector3f[] corners3d, @NotNull Vector2f[] uvs,
         @NotNull Matrix4f cubeTransform, float modelScale, @NotNull Matrix4f screenTransform,
-        @NotNull PixelBuffer texture, @NotNull BoundsAccumulator acc,
+        @NotNull Lens lens, @NotNull PixelBuffer texture, @NotNull BoundsAccumulator acc,
         @Nullable String dumpLabel
     ) {
         float uMin = Float.POSITIVE_INFINITY, uMax = Float.NEGATIVE_INFINITY;
@@ -553,7 +560,7 @@ public class EntityGeometryKit {
             else if (atUMin && atVMax) tl3 = corners3d[i];
         }
         if (bl3 == null || br3 == null || tr3 == null || tl3 == null) {
-            for (Vector3f c : corners3d) projectAndAccumulate(c, cubeTransform, modelScale, screenTransform, acc);
+            for (Vector3f c : corners3d) projectAndAccumulate(c, cubeTransform, modelScale, screenTransform, lens, acc);
             RendererDebug.boundsNonAxisUvFallback(dumpLabel);
             return;
         }
@@ -561,7 +568,7 @@ public class EntityGeometryKit {
         int W = texture.width();
         int H = texture.height();
         if (W <= 0 || H <= 0) {
-            for (Vector3f c : corners3d) projectAndAccumulate(c, cubeTransform, modelScale, screenTransform, acc);
+            for (Vector3f c : corners3d) projectAndAccumulate(c, cubeTransform, modelScale, screenTransform, lens, acc);
             RendererDebug.boundsNoTextureFallback(dumpLabel);
             return;
         }
@@ -601,10 +608,10 @@ public class EntityGeometryKit {
         float opaqueVMin = Math.max(vMin, (float) firstOpaquePy / H);
         float opaqueVMax = Math.min(vMax, (float) (lastOpaquePy + 1) / H);
 
-        Vector3f bl = contributeBilinear(opaqueUMin, opaqueVMin, uMin, uMax, vMin, vMax, bl3, br3, tr3, tl3, cubeTransform, modelScale, screenTransform, acc);
-        Vector3f br = contributeBilinear(opaqueUMax, opaqueVMin, uMin, uMax, vMin, vMax, bl3, br3, tr3, tl3, cubeTransform, modelScale, screenTransform, acc);
-        Vector3f tr = contributeBilinear(opaqueUMax, opaqueVMax, uMin, uMax, vMin, vMax, bl3, br3, tr3, tl3, cubeTransform, modelScale, screenTransform, acc);
-        Vector3f tl = contributeBilinear(opaqueUMin, opaqueVMax, uMin, uMax, vMin, vMax, bl3, br3, tr3, tl3, cubeTransform, modelScale, screenTransform, acc);
+        Vector3f bl = contributeBilinear(opaqueUMin, opaqueVMin, uMin, uMax, vMin, vMax, bl3, br3, tr3, tl3, cubeTransform, modelScale, screenTransform, lens, acc);
+        Vector3f br = contributeBilinear(opaqueUMax, opaqueVMin, uMin, uMax, vMin, vMax, bl3, br3, tr3, tl3, cubeTransform, modelScale, screenTransform, lens, acc);
+        Vector3f tr = contributeBilinear(opaqueUMax, opaqueVMax, uMin, uMax, vMin, vMax, bl3, br3, tr3, tl3, cubeTransform, modelScale, screenTransform, lens, acc);
+        Vector3f tl = contributeBilinear(opaqueUMin, opaqueVMax, uMin, uMax, vMin, vMax, bl3, br3, tr3, tl3, cubeTransform, modelScale, screenTransform, lens, acc);
 
         RendererDebug.boundsFaceContribution(
             dumpLabel,
@@ -632,6 +639,7 @@ public class EntityGeometryKit {
      * @param cubeTransform cube-space transform applied before scaling
      * @param modelScale per-render vertex pre-scale
      * @param screenTransform model-to-screen transform applied last
+     * @param lens the projection lens forwarded to {@link #projectAndAccumulate} for the oblique flatten
      * @param acc accumulator collecting the projected point
      * @return the projected screen-space point that was accumulated
      */
@@ -639,7 +647,7 @@ public class EntityGeometryKit {
         float u, float v, float uMin, float uMax, float vMin, float vMax,
         @NotNull Vector3f bl3, @NotNull Vector3f br3, @NotNull Vector3f tr3, @NotNull Vector3f tl3,
         @NotNull Matrix4f cubeTransform, float modelScale, @NotNull Matrix4f screenTransform,
-        @NotNull BoundsAccumulator acc
+        @NotNull Lens lens, @NotNull BoundsAccumulator acc
     ) {
         float sBar = (u - uMin) / (uMax - uMin);
         float tBar = (v - vMin) / (vMax - vMin);
@@ -650,7 +658,7 @@ public class EntityGeometryKit {
         float px = w00 * bl3.x() + w10 * br3.x() + w11 * tr3.x() + w01 * tl3.x();
         float py = w00 * bl3.y() + w10 * br3.y() + w11 * tr3.y() + w01 * tl3.y();
         float pz = w00 * bl3.z() + w10 * br3.z() + w11 * tr3.z() + w01 * tl3.z();
-        return projectAndAccumulate(new Vector3f(px, py, pz), cubeTransform, modelScale, screenTransform, acc);
+        return projectAndAccumulate(new Vector3f(px, py, pz), cubeTransform, modelScale, screenTransform, lens, acc);
     }
 
     /**
@@ -662,16 +670,35 @@ public class EntityGeometryKit {
      * @param cubeTransform cube-space transform (bone chain + cube bind + cube rotation)
      * @param modelScale per-render vertex pre-scale
      * @param screenTransform model-to-screen transform applied last
+     * @param lens the projection lens; an {@link Lens.Kind#OBLIQUE} lens flattens the point through
+     *     {@link Lens#project} (its depth-shear is scale-proportional), otherwise the raw rotated point
+     *     is accumulated (orthographic parity path; perspective foreshortening is scale-dependent and
+     *     would blow up on the un-fitted model, so it too uses the raw extent)
      * @param acc accumulator collecting the projected point
      * @return the projected screen-space point that was accumulated
      */
     private static @NotNull Vector3f projectAndAccumulate(
         @NotNull Vector3f p, @NotNull Matrix4f cubeTransform, float modelScale,
-        @NotNull Matrix4f screenTransform, @NotNull BoundsAccumulator acc
+        @NotNull Matrix4f screenTransform, @NotNull Lens lens, @NotNull BoundsAccumulator acc
     ) {
         Vector3f cubeSpace = p.transform(cubeTransform);
         Vector3f scaled = new Vector3f(cubeSpace.x() * modelScale, cubeSpace.y() * modelScale, cubeSpace.z() * modelScale);
         Vector3f screen = scaled.transform(screenTransform);
+        // OBLIQUE's depth-shear moves the projected silhouette off the raw rotated bounds and is
+        // scale-proportional (x + z*shear scales with the model), so it must be measured through the lens
+        // at any scale (scale 1 keeps it in the same model-ish units the raw path uses; z stays the
+        // camera-space depth for the anchor un-shear). ORTHOGRAPHIC keeps the raw rotated point
+        // (byte-identical parity path). PERSPECTIVE also keeps the raw point: its foreshortening is
+        // scale-DEPENDENT and blows up (denom = cameraDistance - z flips sign) when measured on the
+        // un-fitted model; at the fitted scale it is mild and ~1 at centre, so the raw ortho-style extent
+        // plus the corrected projectionScale fits it (exact perspective fit is deferred - see the entity
+        // fit-unify follow-up).
+        if (lens.kind() == Lens.Kind.OBLIQUE) {
+            Vector2f flat = lens.project(screen, 1f, 0f, 0f);
+            Vector3f lensScreen = new Vector3f(flat.x(), flat.y(), screen.z());
+            acc.add(lensScreen);
+            return lensScreen;
+        }
         acc.add(screen);
         return screen;
     }

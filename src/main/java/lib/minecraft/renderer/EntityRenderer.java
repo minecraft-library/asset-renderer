@@ -12,6 +12,7 @@ import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.RendererDebug;
 import lib.minecraft.renderer.engine.camera.Camera;
+import lib.minecraft.renderer.engine.camera.Facing;
 import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.Placement;
 import lib.minecraft.renderer.engine.camera.Projection;
@@ -174,7 +175,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // For squid that's a {@code (0, +11.2, 0)} pixel pre-translate; pufferfish gets
         // {@code (0, -1.28, 0)}; shulker has zero translate but a 180° yaw addend folded
         // into {@code effective} above.
-        Vector3f modelAnchor = computeCentreAnchor(options.getProjection(), scope, options.getEntityId().get(), definition, effective, modelScale, texture.get());
+        Vector3f modelAnchor = computeCentreAnchor(options.getProjection(), options.getFacing(), scope, options.getEntityId().get(), definition, effective, modelScale, texture.get());
 
         EntityGeometryKit.BuildResult buildResult = EntityGeometryKit.buildTriangles(
             model, texture.get(), modelAnchor, false, fit.ndcScale(), modelScale, definition.baseTintArgb());
@@ -197,7 +198,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // projection (exactly like the player's R_Y(180) facing, plus the Y-down flip). For the default,
         // R(30,225,0) · ENTITY_FACING = R(30,45,0) · flip180 reproduces the harness byte-for-byte; the
         // canvas-fit / anchor track the same projection.
-        Camera entityCamera = options.getProjection().resolve();
+        Camera entityCamera = options.getProjection().resolve(EulerRotation.NONE, options.getFacing());
         ModelEngine engine = new ModelEngine(this.context, entityCamera, ENTITY_PLACEMENT);
         SceneContext scene = new SceneContext(
             texture.get(), modelAnchor, fit.ndcScale(), modelScale, engine.textures(), this.context);
@@ -403,12 +404,13 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull String entityId,
         @NotNull EntityModelLoader.EntityDefinition definition,
         @NotNull Matrix4f transform,
+        @NotNull Lens lens,
         float modelScale,
         @NotNull PixelBuffer texture
     ) {
         return switch (scope) {
-            case ENTITY_UNION -> computeUnionScreenBounds(definition, transform, modelScale, texture);
-            case FAMILY_UNION -> computeFamilyUnionScreenBounds(entityId, definition, transform, modelScale, texture);
+            case ENTITY_UNION -> computeUnionScreenBounds(definition, transform, lens, modelScale, texture);
+            case FAMILY_UNION -> computeFamilyUnionScreenBounds(entityId, definition, transform, lens, modelScale, texture);
         };
     }
 
@@ -441,13 +443,14 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         float modelScale,
         @NotNull PixelBuffer texture
     ) {
-        Matrix4f transform = composeIsoTransform(options.getProjection(), userRotation);
-        Box screenBounds = computeScreenBoundsFor(scope, entityId, definition, transform, modelScale, texture);
+        Lens lens = options.getProjection().resolve(EulerRotation.NONE, options.getFacing()).lens();
+        Matrix4f transform = composeIsoTransform(options.getProjection(), userRotation, options.getFacing());
+        Box screenBounds = computeScreenBoundsFor(scope, entityId, definition, transform, lens, modelScale, texture);
         RendererDebug.fitBounds(entityId, screenBounds);
         float extentX = Math.max(0f, screenBounds.maxX() - screenBounds.minX());
         float extentY = Math.max(0f, screenBounds.maxY() - screenBounds.minY());
         int padding = Math.max(0, options.getPadding());
-        float projectionScale = Lens.ISOMETRIC_BLOCK.projectionScale();
+        float projectionScale = lens.projectionScale();
 
         if (options.getFitMode() == EntityOptions.FitMode.OUTPUT_SIZE) {
             int outputSize = Math.max(1, options.getOutputSize());
@@ -488,6 +491,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     private @NotNull Vector3f computeCentreAnchor(
         @NotNull Projection projection,
+        @NotNull Facing facing,
         @NotNull BoundsScope scope,
         @NotNull String entityId,
         @NotNull EntityModelLoader.EntityDefinition definition,
@@ -495,13 +499,19 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         float modelScale,
         @NotNull PixelBuffer texture
     ) {
-        Matrix4f isoTransform = composeIsoTransform(projection, userRotation);
-        Box screenBounds = computeScreenBoundsFor(scope, entityId, definition, isoTransform, modelScale, texture);
+        Lens lens = projection.resolve(EulerRotation.NONE, facing).lens();
+        Matrix4f isoTransform = composeIsoTransform(projection, userRotation, facing);
+        Box screenBounds = computeScreenBoundsFor(scope, entityId, definition, isoTransform, lens, modelScale, texture);
         float sxMid = (screenBounds.minX() + screenBounds.maxX()) * 0.5f;
         float syMid = (screenBounds.minY() + screenBounds.maxY()) * 0.5f;
         float szMid = (screenBounds.minZ() + screenBounds.maxZ()) * 0.5f;
-        Matrix4f isoInverse = composeIsoInverse(projection, userRotation);
-        return new Vector3f(sxMid, syMid, szMid).transform(isoInverse);
+        // A non-parallel lens measured the bounds through lens.project (shear / foreshortening); un-project
+        // the silhouette midpoint back to camera space at the bounds' mean depth before the rotation inverse
+        // so the anchor still lands on the true silhouette centre. Orthographic returns the raw midpoint
+        // unchanged (byte-identical).
+        Vector3f camMid = unprojectMidpoint(lens, sxMid, syMid, szMid);
+        Matrix4f isoInverse = composeIsoInverse(projection, userRotation, facing);
+        return camMid.transform(isoInverse);
     }
 
     /**
@@ -521,10 +531,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     private static @NotNull Box computeUnionScreenBounds(
         @NotNull EntityModelLoader.EntityDefinition definition,
         @NotNull Matrix4f transform,
+        @NotNull Lens lens,
         float modelScale,
         @NotNull PixelBuffer texture
     ) {
-        Box bounds = EntityGeometryKit.computeScreenBounds(definition.model(), transform, modelScale, texture);
+        Box bounds = EntityGeometryKit.computeScreenBounds(definition.model(), transform, lens, modelScale, texture);
         RendererDebug.baseBounds(bounds);
         for (EntityModelLoader.OverlayLayer overlay : definition.overlays()) {
             if (overlay.model().getBones().isEmpty()) continue;
@@ -532,7 +543,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // render but don't contribute to bounds, mirroring the vanilla harness's
             // NO_RENDER_LAYER_SUFFIXES treatment of those layer classes.
             if (overlay.skipBounds()) continue;
-            Box overlayBounds = EntityGeometryKit.computeScreenBounds(overlay.model(), transform, modelScale, texture);
+            Box overlayBounds = EntityGeometryKit.computeScreenBounds(overlay.model(), transform, lens, modelScale, texture);
             RendererDebug.overlayBounds(overlay.textureRef().orElse("<unset>"), overlayBounds);
             bounds = unionBoxes(bounds, overlayBounds);
         }
@@ -563,10 +574,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull String entityId,
         @NotNull EntityModelLoader.EntityDefinition definition,
         @NotNull Matrix4f transform,
+        @NotNull Lens lens,
         float modelScale,
         @NotNull PixelBuffer texture
     ) {
-        Box bounds = computeUnionScreenBounds(definition, transform, modelScale, texture);
+        Box bounds = computeUnionScreenBounds(definition, transform, lens, modelScale, texture);
         List<String> members = EntityModelLoader.loadFamilies().getOrDefault(entityId, List.of(entityId));
         if (members.size() <= 1) return bounds;
         for (String memberId : members) {
@@ -576,7 +588,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             Optional<PixelBuffer> memberTexture = resolveFamilyMemberTexture(memberDef);
             if (memberTexture.isEmpty()) continue;
             float memberScale = memberDef.rendererScale();
-            Box memberBounds = computeUnionScreenBounds(memberDef, transform, memberScale, memberTexture.get());
+            Box memberBounds = computeUnionScreenBounds(memberDef, transform, lens, memberScale, memberTexture.get());
             bounds = unionBoxes(bounds, memberBounds);
         }
         return bounds;
@@ -613,10 +625,13 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * {@code cameraPose * modelRotation * ENTITY_FACING}; the inverse reverses it to
      * {@code ENTITY_FACING * modelRotation^-1 * cameraPose^-1}. {@code ENTITY_FACING = diag(-1,-1,1)} is
      * self-inverse; the two rotations invert via {@code rotationXYZ(x, y, z) ^ -1 = rotationZYX(-z, -y, -x)}.
-     * Built on the fluent path (bit-identical to vanilla's PoseStack; {@code createX().multiply(...)} drifts 1-4 ULPs).
+     * The base pose is taken through {@code facing.apply(basePose())} - the same reflected Euler
+     * {@code resolve(NONE, facing)} bakes - so the inverse matches the {@link #composeIsoTransform forward}
+     * under any {@link Facing}. Built on the fluent path (bit-identical to vanilla's PoseStack;
+     * {@code createX().multiply(...)} drifts 1-4 ULPs).
      */
-    private static @NotNull Matrix4f composeIsoInverse(@NotNull Projection projection, @NotNull EulerRotation userRotation) {
-        EulerRotation iso = projection.basePose();
+    private static @NotNull Matrix4f composeIsoInverse(@NotNull Projection projection, @NotNull EulerRotation userRotation, @NotNull Facing facing) {
+        EulerRotation iso = facing.apply(projection.basePose());
         boolean userIdentity = userRotation.pitch() == 0f && userRotation.yaw() == 0f && userRotation.roll() == 0f;
         Matrix4f m = Matrix4f.IDENTITY.scale(-1f, -1f, 1f); // ENTITY_FACING
         if (!userIdentity)
@@ -636,21 +651,51 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      *     bounds-probe points bypass the kit).</li>
      * <li>{@code modelRotation} - the caller's rotation as a {@link Quaternionf#rotationXYZ} quaternion;
      *     identity for {@link EulerRotation#NONE}.</li>
-     * <li>{@code cameraPose = projection.resolve().pose()} - the entity's world-to-screen pose directly;
-     *     for the default {@link Projection#VANILLA_ISO} this is the facing-neutral
-     *     {@code rotationXYZ(30,225,0)}. Composed with the trailing {@code ENTITY_FACING} it is
-     *     {@code R(30,225,0) · diag(-1,-1,1) = rotationXYZ(210,-45,0)}, the entity's byte-identical
+     * <li>{@code cameraPose = projection.resolve(NONE, facing).pose()} - the entity's world-to-screen
+     *     pose with the view {@link Facing} reflection applied (yaw mirror / pitch flip; {@code DEFAULT} is
+     *     a no-op). For the default {@link Projection#VANILLA_ISO} + {@code DEFAULT} this is the
+     *     facing-neutral {@code rotationXYZ(30,225,0)}. Composed with the trailing {@code ENTITY_FACING} it
+     *     is {@code R(30,225,0) · diag(-1,-1,1) = rotationXYZ(210,-45,0)}, the entity's byte-identical
      *     orientation.</li>
      * </ul>
+     * The same facing must feed {@link #composeIsoInverse} so the anchor inverse tracks the reflected pose.
      * Centering / NDC scaling are translation + uniform scale the canvas-fit math handles separately, so
      * they aren't included here.
      */
-    private static @NotNull Matrix4f composeIsoTransform(@NotNull Projection projection, @NotNull EulerRotation userRotation) {
+    private static @NotNull Matrix4f composeIsoTransform(@NotNull Projection projection, @NotNull EulerRotation userRotation, @NotNull Facing facing) {
         boolean userIdentity = userRotation.pitch() == 0f && userRotation.yaw() == 0f && userRotation.roll() == 0f;
-        Matrix4f m = projection.resolve().pose();
+        Matrix4f m = projection.resolve(EulerRotation.NONE, facing).pose();
         if (!userIdentity)
             m = m.rotate(Quaternionf.rotationXYZ(userRotation.pitchRadians(), userRotation.yawRadians(), userRotation.rollRadians()));
         return m.scale(-1f, -1f, 1f);
+    }
+
+    /**
+     * Un-projects a screen-space silhouette-bounds midpoint back to camera space for the anchor, inverting
+     * whatever flatten {@link EntityGeometryKit#computeScreenBounds} applied for {@code lens} at the mean
+     * depth {@code z}:
+     * <ul>
+     * <li>{@link Lens.Kind#ORTHOGRAPHIC} / {@link Lens.Kind#PERSPECTIVE} - the bounds were the raw rotated
+     *     point (perspective is measured ortho-style, see {@link EntityGeometryKit#computeScreenBounds}), so
+     *     this is the identity (byte-identical to the legacy anchor for ortho).</li>
+     * <li>{@link Lens.Kind#OBLIQUE} - exact inverse of the depth shear at {@code z}.</li>
+     * </ul>
+     *
+     * @param lens the projection lens the bounds were measured through
+     * @param sx the screen-space bounds midpoint x
+     * @param sy the screen-space bounds midpoint y
+     * @param z the camera-space mean depth of the bounds
+     * @return the camera-space point whose lens flatten is {@code (sx, sy)} at depth {@code z}
+     */
+    private static @NotNull Vector3f unprojectMidpoint(@NotNull Lens lens, float sx, float sy, float z) {
+        return switch (lens.kind()) {
+            case ORTHOGRAPHIC, PERSPECTIVE -> new Vector3f(sx, sy, z);
+            case OBLIQUE -> {
+                float shearX = (float) Math.cos(lens.obliqueAngleRadians()) * lens.obliqueDepthFactor();
+                float shearY = (float) Math.sin(lens.obliqueAngleRadians()) * lens.obliqueDepthFactor();
+                yield new Vector3f(sx - z * shearX, -sy - z * shearY, z);
+            }
+        };
     }
 
     /**

@@ -3,6 +3,7 @@ package lib.minecraft.renderer.visual;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.EntityRenderer;
+import lib.minecraft.renderer.engine.camera.Facing;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.options.EntityOptions;
@@ -105,6 +106,41 @@ public final class TestEntityProjections {
         }
 
         writeGrid(safe, entityId, cells, 5, size);
+
+        // Facing sweep: a compact projection x facing grid so the mirror / flip toggles are eyeballable
+        // across an ortho (VANILLA_ISO), a perspective (PORTRAIT), and both oblique shears
+        // (CAVALIER diagonal, MILITARY vertical). Each row is one projection; the four columns are
+        // DEFAULT / MIRRORED (M-) / FLIPPED (-F) / MIRRORED_FLIPPED (MF).
+        Projection[] facingProjections = {Projection.VANILLA_ISO, Projection.PORTRAIT, Projection.CAVALIER, Projection.MILITARY};
+        Facing[] facings = {Facing.DEFAULT, Facing.MIRRORED, Facing.FLIPPED, Facing.MIRRORED_FLIPPED};
+        List<Cell> facingCells = new ArrayList<>();
+        for (Projection projection : facingProjections)
+            for (Facing facing : facings) {
+                String label = projection.name().toLowerCase() + " "
+                    + (facing.mirrored() ? "M" : "-") + (facing.flipped() ? "F" : "-");
+                BufferedImage img;
+                try {
+                    EntityOptions options = EntityOptions.builder()
+                        .entityId(Optional.of(entityId))
+                        .outputSize(size)
+                        .supersample(2)
+                        .antiAlias(true)
+                        .projection(projection)
+                        .facing(facing)
+                        .build();
+                    img = renderer.render(options).toBufferedImage();
+                    ImageIO.write(img, "PNG", cellDir.resolve("facing_" + safe(label) + ".png").toFile());
+                } catch (Exception ex) {
+                    System.err.printf("  facing %-20s FAILED: %s%n", label, ex.getMessage());
+                    img = failureCell(size, ex);
+                }
+                facingCells.add(new Cell(label, img));
+            }
+        writeGrid(safe + "_facing", entityId, facingCells, 4, size);
+    }
+
+    private static @NotNull String safe(@NotNull String label) {
+        return label.replaceAll("[^A-Za-z0-9._-]+", "_");
     }
 
     /** Lays out the pre-rendered cells in a labelled grid over a checkerboard and writes the sheet PNG. */

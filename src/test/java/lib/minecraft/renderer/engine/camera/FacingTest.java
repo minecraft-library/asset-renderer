@@ -96,4 +96,28 @@ class FacingTest {
         assertEquals(Facing.MIRRORED_FLIPPED, Facing.MIRRORED.withFlipped(true));
     }
 
+    @Test
+    @DisplayName("MIRRORED / FLIPPED are involutions on a pose (apply twice = identity)")
+    void poseInvolution() {
+        EulerRotation base = new EulerRotation(15f, 205f, 30f);
+        assertEquals(base, Facing.MIRRORED.apply(Facing.MIRRORED.apply(base)));
+        assertEquals(base, Facing.FLIPPED.apply(Facing.FLIPPED.apply(base)));
+        assertEquals(base, Facing.MIRRORED_FLIPPED.apply(Facing.MIRRORED_FLIPPED.apply(base)));
+    }
+
+    @Test
+    @DisplayName("resolve(NONE, facing) equals fromPose(facing.apply(base), facing.apply(lens)) - the entity render/bounds contract")
+    void resolveAppliesFacingToBasePoseAndLens() {
+        Projection p = Projection.CAVALIER;   // oblique, so the lens shear reflection is exercised too
+        for (Facing f : new Facing[]{Facing.DEFAULT, Facing.MIRRORED, Facing.FLIPPED, Facing.MIRRORED_FLIPPED}) {
+            Camera resolved = p.resolve(EulerRotation.NONE, f);
+            Camera expected = Camera.fromPose(f.apply(p.basePose()), f.apply(p.lens()));
+            for (int col = 1; col <= 4; col++)
+                for (int row = 1; row <= 4; row++)
+                    assertEquals(expected.pose().get(col, row), resolved.pose().get(col, row), EPS,
+                        f + " pose(" + col + "," + row + ")");
+            assertEquals(expected.lens(), resolved.lens(), f + " lens");
+        }
+    }
+
 }
