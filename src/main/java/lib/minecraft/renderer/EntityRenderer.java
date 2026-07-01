@@ -157,20 +157,25 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // load-bearing (depth tie-break, translucent sort, emissive depth-skip), so the slot order
         // reproduces the historic base -> overlays -> block-overlays -> armor sequence exactly.
         // Callers can splice their own layers via EntityOptions.layerDecorator.
-        // The entity renders through the model->world Placement + world->screen Camera seam. The fused
-        // VANILLA_ENTITY pose (det=-1) factors into a det=+1 camera and the model->world chirality
-        // reflection: the fused chain ends in a scale(1,1,-1), so pulling that out as the Placement
-        // leaves a det=+1 camera pose. `cleanPose x reflection` recomposes the fused pose bit-for-bit
-        // (negating the z-column twice is exact in IEEE), and the ModelEngine applies
-        // `pose x placement x modelSpin`, so this is byte-identical to the pre-split
-        // `fusedPose x modelSpin`. The model rotation `effective` stays the separate model-spin passed to
-        // rasterize below. This is the structural pivot before the kit de-flip; VANILLA_ENTITY, the
-        // bounds/anchor iso transform, and the kit FLIP_Y are all still fused (Phase 2b un-fuses them).
+        // Phase 2b (measure-first): the camera is now the PURE iso rotation R(iso) - a clean det=+1
+        // projection pose - and the model->world chirality (the R_X(180) facing flip + the odd
+        // reflection) moves into the Placement. Because the fused chain applies the flip on the CAMERA
+        // side (left of R(iso)) while a model->world placement applies it on the MODEL side (right of
+        // R(iso)), crossing R(iso) needs a conjugation R(iso)^-1 x flip x R(iso). That reintroduces
+        // R(iso) x R(iso)^-1, which is only float-approximately identity - so `camera x placement`
+        // recomposes the fused pose up to ULP/snap noise, NOT bit-for-bit. This is the isolated
+        // conjugation drift (the cost of a clean projection camera), measured before the kit de-flip:
+        // the kit FLIP_Y and bounds/anchor transform stay fused, and the yaw-only model spin still lets
+        // FLIP_Y commute, so the parity pose is otherwise unchanged.
+        EulerRotation iso = Projection.VANILLA_ENTITY.basePose();
         Camera fusedCamera = Projection.VANILLA_ENTITY.resolve();
-        Matrix4f reflectZ = Matrix4f.IDENTITY.scale(1f, 1f, -1f);
-        Camera entityCamera = new Camera(
-            fusedCamera.pose().multiply(reflectZ), fusedCamera.lens(), fusedCamera.lightingPose());
-        ModelEngine engine = new ModelEngine(this.context, entityCamera, new Placement(reflectZ));
+        Matrix4f rIso = Quaternionf.rotationXYZ(iso.pitchRadians(), iso.yawRadians(), iso.rollRadians()).toMatrix4f();
+        Matrix4f rIsoInverse = Quaternionf.rotationZYX(-iso.rollRadians(), -iso.yawRadians(), -iso.pitchRadians()).toMatrix4f();
+        Matrix4f flip180 = Matrix4f.IDENTITY.scale(1f, -1f, -1f); // R_X(180) = the A*B facing flip
+        Matrix4f reflectZ = Matrix4f.IDENTITY.scale(1f, 1f, -1f); // the odd chirality reflection
+        Matrix4f placementMatrix = rIsoInverse.multiply(flip180).multiply(rIso).multiply(reflectZ);
+        Camera entityCamera = Camera.fromPose(iso, fusedCamera.lens()); // pose = R(iso), clean det=+1
+        ModelEngine engine = new ModelEngine(this.context, entityCamera, new Placement(placementMatrix));
         SceneContext scene = new SceneContext(
             texture.get(), modelAnchor, fit.ndcScale(), modelScale, engine.textures(), this.context);
         LayerStack<GeometryLayer> stack = new LayerStack<>();
