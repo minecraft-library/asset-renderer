@@ -154,7 +154,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // For squid that's a {@code (0, +11.2, 0)} pixel pre-translate; pufferfish gets
         // {@code (0, -1.28, 0)}; shulker has zero translate but a 180° yaw addend folded
         // into {@code effective} above.
-        Vector3f modelAnchor = computeCentreAnchor(scope, options.getEntityId().get(), definition, effective, modelScale, texture.get());
+        Vector3f modelAnchor = computeCentreAnchor(options.getProjection(), scope, options.getEntityId().get(), definition, effective, modelScale, texture.get());
 
         EntityGeometryKit.BuildResult buildResult = EntityGeometryKit.buildTriangles(
             model, texture.get(), modelAnchor, false, fit.ndcScale(), modelScale, definition.baseTintArgb());
@@ -170,12 +170,13 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // load-bearing (depth tie-break, translucent sort, emissive depth-skip), so the slot order
         // reproduces the historic base -> overlays -> block-overlays -> armor sequence exactly.
         // Callers can splice their own layers via EntityOptions.layerDecorator.
-        // The entity is a normal projection subject: its camera is VANILLA_ENTITY's iso display pose
-        // (rotationXYZ(210,45,0)) with the model->world facing (ENTITY_FLIP) pre-composed - flip180 x
-        // R(iso) collapses to rotationXYZ(30,45,0), the block/player display-pose family - and that same
-        // facing is applied as the ENTITY_PLACEMENT. Because the placement is projection-independent,
-        // swapping VANILLA_ENTITY for another projection here re-poses the entity under it.
-        Camera baseCamera = Projection.VANILLA_ENTITY.resolve();
+        // The entity is a normal projection subject: its camera is the caller's projection (default
+        // VANILLA_ENTITY's iso pose, rotationXYZ(210,45,0)) with the model->world facing (ENTITY_FLIP)
+        // pre-composed - for the default, flip180 x R(iso) collapses to rotationXYZ(30,45,0), the
+        // block/player display-pose family - and that same facing is applied as the ENTITY_PLACEMENT.
+        // Because the placement is projection-independent, selecting another projection re-poses the
+        // entity under it; the canvas-fit / anchor below track the same projection.
+        Camera baseCamera = options.getProjection().resolve();
         Camera entityCamera = new Camera(
             ENTITY_FLIP.multiply(baseCamera.pose()), baseCamera.lens(), baseCamera.lightingPose());
         ModelEngine engine = new ModelEngine(this.context, entityCamera, ENTITY_PLACEMENT);
@@ -421,7 +422,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         float modelScale,
         @NotNull PixelBuffer texture
     ) {
-        Matrix4f transform = composeIsoTransform(userRotation);
+        Matrix4f transform = composeIsoTransform(options.getProjection(), userRotation);
         Box screenBounds = computeScreenBoundsFor(scope, entityId, definition, transform, modelScale, texture);
         RendererDebug.fitBounds(entityId, screenBounds);
         float extentX = Math.max(0f, screenBounds.maxX() - screenBounds.minX());
@@ -467,6 +468,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * right/bottom edge.
      */
     private @NotNull Vector3f computeCentreAnchor(
+        @NotNull Projection projection,
         @NotNull BoundsScope scope,
         @NotNull String entityId,
         @NotNull EntityModelLoader.EntityDefinition definition,
@@ -474,12 +476,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         float modelScale,
         @NotNull PixelBuffer texture
     ) {
-        Matrix4f isoTransform = composeIsoTransform(userRotation);
+        Matrix4f isoTransform = composeIsoTransform(projection, userRotation);
         Box screenBounds = computeScreenBoundsFor(scope, entityId, definition, isoTransform, modelScale, texture);
         float sxMid = (screenBounds.minX() + screenBounds.maxX()) * 0.5f;
         float syMid = (screenBounds.minY() + screenBounds.maxY()) * 0.5f;
         float szMid = (screenBounds.minZ() + screenBounds.maxZ()) * 0.5f;
-        Matrix4f isoInverse = composeIsoInverse(userRotation);
+        Matrix4f isoInverse = composeIsoInverse(projection, userRotation);
         return new Vector3f(sxMid, syMid, szMid).transform(isoInverse);
     }
 
@@ -583,19 +585,16 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * Inverse of {@link #composeIsoTransform}. The forward composite is
-     * {@code flipY * modelRotation * scale(1,1,-1) * isoRotation * scale(1,1,-1) * scale(1,-1,1)}
-     * in column-vector form; the inverse reverses the chain with each factor inverted. Diagonal
-     * scales and {@code flipY} are self-inverse. The two rotation factors invert via
-     * {@code rotationXYZ(x, y, z) ^ -1 = rotationZYX(-z, -y, -x)}.
+     * Inverse of {@link #composeIsoTransform}, for the same {@code projection}. The forward is
+     * {@code ENTITY_FLIP * R(basePose) * modelRotation * ENTITY_FLIP}; the inverse reverses the chain
+     * with each factor inverted. {@code ENTITY_FLIP} is self-inverse; the two rotations invert via
+     * {@code rotationXYZ(x, y, z) ^ -1 = rotationZYX(-z, -y, -x)}. Expressed in the equivalent
+     * {@code flipY / scaleZneg} diagonals ({@code flipY * scaleZneg = ENTITY_FLIP}) built on the fluent
+     * path (bit-identical to vanilla's PoseStack; {@code createX().multiply(...)} drifts 1-4 ULPs).
      */
-    private static @NotNull Matrix4f composeIsoInverse(@NotNull EulerRotation userRotation) {
-        EulerRotation iso = Projection.VANILLA_ENTITY.basePose();
+    private static @NotNull Matrix4f composeIsoInverse(@NotNull Projection projection, @NotNull EulerRotation userRotation) {
+        EulerRotation iso = projection.basePose();
         boolean userIdentity = userRotation.pitch() == 0f && userRotation.yaw() == 0f && userRotation.roll() == 0f;
-        // Forward = flipY * scaleZneg * isoRotation * scaleZneg * modelRotation * flipY (col-vec).
-        // Inverse reverses the factor order and inverts each. flipY and scaleZneg are diagonal
-        // self-inverses; the two rotations invert via their Quaternionf conjugate. Built with the
-        // fluent path (bit-identical to vanilla's PoseStack; createX().multiply(...) drifts 1-4 ULPs).
         Matrix4f m = Matrix4f.IDENTITY.scale(1f, -1f, 1f); // flipY
         if (!userIdentity)
             m = m.rotate(Quaternionf.rotationZYX(
@@ -618,15 +617,16 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      *     bounds-probe points bypass the kit).</li>
      * <li>{@code modelRotation} - the caller's rotation as a {@link Quaternionf#rotationXYZ} quaternion;
      *     identity for {@link EulerRotation#NONE}.</li>
-     * <li>{@code cameraPose = ENTITY_FLIP * rotationXYZ(210, 45, 0)} - the entity's world-to-screen
-     *     display pose (= {@code rotationXYZ(30, 45, 0)}), the {@link Projection#VANILLA_ENTITY} camera.</li>
+     * <li>{@code cameraPose = ENTITY_FLIP * projection.pose()} - the entity's world-to-screen pose; for
+     *     the default {@link Projection#VANILLA_ENTITY} this is {@code ENTITY_FLIP * rotationXYZ(210,45,0)
+     *     = rotationXYZ(30,45,0)}.</li>
      * </ul>
      * Centering / NDC scaling are translation + uniform scale the canvas-fit math handles separately, so
      * they aren't included here.
      */
-    private static @NotNull Matrix4f composeIsoTransform(@NotNull EulerRotation userRotation) {
+    private static @NotNull Matrix4f composeIsoTransform(@NotNull Projection projection, @NotNull EulerRotation userRotation) {
         boolean userIdentity = userRotation.pitch() == 0f && userRotation.yaw() == 0f && userRotation.roll() == 0f;
-        Matrix4f m = ENTITY_FLIP.multiply(Projection.VANILLA_ENTITY.resolve().pose());
+        Matrix4f m = ENTITY_FLIP.multiply(projection.resolve().pose());
         if (!userIdentity)
             m = m.rotate(Quaternionf.rotationXYZ(userRotation.pitchRadians(), userRotation.yawRadians(), userRotation.rollRadians()));
         return m.scale(1f, -1f, -1f);

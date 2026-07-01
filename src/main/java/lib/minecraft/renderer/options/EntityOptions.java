@@ -2,6 +2,7 @@ package lib.minecraft.renderer.options;
 
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.Renderer;
+import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.LayerSlot;
 import lib.minecraft.renderer.engine.compose.LayerStack;
@@ -131,6 +132,15 @@ public class EntityOptions {
      */
     @lombok.Builder.Default
     private final @NotNull EulerRotation rotation = EulerRotation.NONE;
+
+    /**
+     * Graphical projection for the render. Defaults to {@link Projection#VANILLA_ENTITY} - the vanilla
+     * iso preview pose, byte-identical to the shipped render. The entity's model-to-world facing /
+     * chirality is applied separately, so selecting another projection re-poses the camera while keeping
+     * the entity upright and facing; the canvas-fit and centring track the chosen projection.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Projection projection = Projection.VANILLA_ENTITY;
 
     /**
      * Supersample scale factor. The entity is rasterized at {@code (canvas dims) * supersample}
