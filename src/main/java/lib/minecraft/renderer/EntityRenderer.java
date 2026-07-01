@@ -13,6 +13,7 @@ import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.RendererDebug;
 import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.Lens;
+import lib.minecraft.renderer.engine.camera.Placement;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.FinalizeStage;
 import lib.minecraft.renderer.engine.compose.Frames;
@@ -156,12 +157,20 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // load-bearing (depth tie-break, translucent sort, emissive depth-skip), so the slot order
         // reproduces the historic base -> overlays -> block-overlays -> armor sequence exactly.
         // Callers can splice their own layers via EntityOptions.layerDecorator.
-        // The entity goes through the projection front door: VANILLA_ENTITY resolves to the det=-1
-        // entityIsoChain camera (chirality) + the iso lens flatten. The model rotation `effective` stays a
-        // separate model-spin passed to rasterize below - the chirality chain is fixed, so VANILLA_ENTITY
-        // does not compose the rotation into the camera (the Assembly.ENTITY_ISO strategy).
-        Camera entityCamera = Projection.VANILLA_ENTITY.resolve();
-        ModelEngine engine = new ModelEngine(this.context, entityCamera);
+        // The entity renders through the model->world Placement + world->screen Camera seam. The fused
+        // VANILLA_ENTITY pose (det=-1) factors into a det=+1 camera and the model->world chirality
+        // reflection: the fused chain ends in a scale(1,1,-1), so pulling that out as the Placement
+        // leaves a det=+1 camera pose. `cleanPose x reflection` recomposes the fused pose bit-for-bit
+        // (negating the z-column twice is exact in IEEE), and the ModelEngine applies
+        // `pose x placement x modelSpin`, so this is byte-identical to the pre-split
+        // `fusedPose x modelSpin`. The model rotation `effective` stays the separate model-spin passed to
+        // rasterize below. This is the structural pivot before the kit de-flip; VANILLA_ENTITY, the
+        // bounds/anchor iso transform, and the kit FLIP_Y are all still fused (Phase 2b un-fuses them).
+        Camera fusedCamera = Projection.VANILLA_ENTITY.resolve();
+        Matrix4f reflectZ = Matrix4f.IDENTITY.scale(1f, 1f, -1f);
+        Camera entityCamera = new Camera(
+            fusedCamera.pose().multiply(reflectZ), fusedCamera.lens(), fusedCamera.lightingPose());
+        ModelEngine engine = new ModelEngine(this.context, entityCamera, new Placement(reflectZ));
         SceneContext scene = new SceneContext(
             texture.get(), modelAnchor, fit.ndcScale(), modelScale, engine.textures(), this.context);
         LayerStack<GeometryLayer> stack = new LayerStack<>();
