@@ -145,7 +145,7 @@ public enum Projection {
     VANILLA_GUI_ITEM(EulerRotation.NONE, Lens.GUI_ITEM, CameraChain.GUI_POSE),
 
     /**
-     * Shipped entity-preview baseline.
+     * Shipped entity baseline.
      * <p>
      * Vanilla's {@code EntityFrameRenderer.ISO_ROTATION = rotationXYZ(210°, 45°, 0°)}, itself derived
      * from the empirical 24-step yaw + 576-frame pitch/roll sweep that locked vanilla's entity-preview
@@ -172,60 +172,10 @@ public enum Projection {
     public record Resolved(@NotNull Camera camera, @NotNull Lens flatten, @NotNull EulerRotation lightingPose) {}
 
     /**
-     * How a {@link Projection} assembles its base pose and the caller's rotation into a
-     * {@link Resolved} triple. Each constant overrides {@link #resolve} with its own assembly, so
-     * {@link Projection#resolve(EulerRotation)} dispatches polymorphically instead of branching on a
-     * tag.
-     */
-    private enum CameraChain {
-
-        /**
-         * A {@code display.*} GUI pose: {@link Camera#fromPose} builds the {@code rotationXYZ(pose)}
-         * matrix and the caller's rotation composes into that pose, so camera and lighting move
-         * together. Used by every member except the entity preview.
-         */
-        GUI_POSE {
-            @Override
-            @NotNull Resolved resolve(@NotNull EulerRotation basePose, @NotNull Lens flatten, @NotNull EulerRotation rotation) {
-                EulerRotation pose = compose(basePose, rotation);
-                return new Resolved(Camera.fromPose(pose), flatten, pose);
-            }
-        },
-
-        /**
-         * The vanilla entity-preview iso chain ({@link Projection#entityIsoChain}) - a det=-1,
-         * odd-reflection chirality transform matching the harness. The chain is fixed; the caller
-         * applies its rotation (plus the per-entity {@code setupRotations} addends) as a separate
-         * model-spin at rasterize time, so the {@code rotation} is ignored here and the base pose
-         * doubles as the lighting pose.
-         */
-        ENTITY_ISO {
-            @Override
-            @NotNull Resolved resolve(@NotNull EulerRotation basePose, @NotNull Lens flatten, @NotNull EulerRotation rotation) {
-                return new Resolved(new Camera(entityIsoChain(basePose)), flatten, basePose);
-            }
-        };
-
-        /**
-         * Assembles the resolved triple for a projection carrying the given base pose and flatten,
-         * under the caller's rotation.
-         *
-         * @param basePose the projection's unrotated base pose
-         * @param flatten the projection's flatten
-         * @param rotation the caller's rotation (composed into the pose by {@link #GUI_POSE}, ignored
-         *     by {@link #ENTITY_ISO})
-         * @return the resolved triple
-         */
-        abstract @NotNull Resolved resolve(@NotNull EulerRotation basePose, @NotNull Lens flatten, @NotNull EulerRotation rotation);
-
-    }
-
-    /**
      * This projection's unrotated base pose - the {@code (pitch, yaw, roll)} the camera and lighting
      * sit at before the caller's rotation, in degrees. The canonical home for the vanilla iso angles
      * (block {@code [30, 225, 0]}, player {@code [30, 45, 0]}, entity {@code [210, 45, 0]}); callers
-     * that need the raw rotation - the entity pipeline's bounds/anchor inverse - pull it from here
-     * (via the generated {@code basePose()} accessor) rather than carrying their own copy.
+     * that need the raw rotation - the entity pipeline's bounds/anchor inverse - pull it from here.
      */
     private final @NotNull EulerRotation basePose;
 
@@ -239,7 +189,6 @@ public enum Projection {
     /**
      * The strategy that assembles this projection's {@link Resolved} triple: {@link CameraChain#GUI_POSE}
      * for the det=+1 display-pose members, {@link CameraChain#ENTITY_ISO} for the entity chirality chain.
-     * Package-internal only, so no accessor is generated.
      */
     @Getter(AccessLevel.NONE)
     private final @NotNull CameraChain cameraChain;
@@ -327,6 +276,55 @@ public enum Projection {
             .scale(1f, 1f, -1f)
             .rotate(Quaternionf.rotationXYZ(isoPose.pitchRadians(), isoPose.yawRadians(), isoPose.rollRadians()))
             .scale(1f, 1f, -1f);
+    }
+
+    /**
+     * How a {@link Projection} assembles its base pose and the caller's rotation into a
+     * {@link Resolved} triple. Each constant overrides {@link #resolve} with its own assembly, so
+     * {@link Projection#resolve(EulerRotation)} dispatches polymorphically instead of branching on a
+     * tag.
+     */
+    private enum CameraChain {
+
+        /**
+         * A {@code display.*} GUI pose: {@link Camera#fromPose} builds the {@code rotationXYZ(pose)}
+         * matrix and the caller's rotation composes into that pose, so camera and lighting move
+         * together. Used by every member except the entity preview.
+         */
+        GUI_POSE {
+            @Override
+            @NotNull Resolved resolve(@NotNull EulerRotation basePose, @NotNull Lens flatten, @NotNull EulerRotation rotation) {
+                EulerRotation pose = compose(basePose, rotation);
+                return new Resolved(Camera.fromPose(pose), flatten, pose);
+            }
+        },
+
+        /**
+         * The vanilla entity-preview iso chain ({@link Projection#entityIsoChain}) - a det=-1,
+         * odd-reflection chirality transform matching the harness. The chain is fixed; the caller
+         * applies its rotation (plus the per-entity {@code setupRotations} addends) as a separate
+         * model-spin at rasterize time, so the {@code rotation} is ignored here and the base pose
+         * doubles as the lighting pose.
+         */
+        ENTITY_ISO {
+            @Override
+            @NotNull Resolved resolve(@NotNull EulerRotation basePose, @NotNull Lens flatten, @NotNull EulerRotation rotation) {
+                return new Resolved(new Camera(entityIsoChain(basePose)), flatten, basePose);
+            }
+        };
+
+        /**
+         * Assembles the resolved triple for a projection carrying the given base pose and flatten,
+         * under the caller's rotation.
+         *
+         * @param basePose the projection's unrotated base pose
+         * @param flatten the projection's flatten
+         * @param rotation the caller's rotation (composed into the pose by {@link #GUI_POSE}, ignored
+         *     by {@link #ENTITY_ISO})
+         * @return the resolved triple
+         */
+        abstract @NotNull Resolved resolve(@NotNull EulerRotation basePose, @NotNull Lens flatten, @NotNull EulerRotation rotation);
+
     }
 
 }
