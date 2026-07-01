@@ -167,16 +167,21 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // conjugation drift (the cost of a clean projection camera), measured before the kit de-flip:
         // the kit FLIP_Y and bounds/anchor transform stay fused, and the yaw-only model spin still lets
         // FLIP_Y commute, so the parity pose is otherwise unchanged.
+        // Projection-INDEPENDENT entity placement (model->world) + a display-pose camera (world->screen).
+        // The entity's model->world facing/chirality is flip180 = diag(1,-1,-1) = vanilla
+        // LivingEntityRenderer.submit's rotateY(180) * scale(-1,-1,1) - fixed, camera-independent. The
+        // entity's world->screen pose is flip180 * R(iso): since flip180 = R_X(180) and R(iso) =
+        // rotationXYZ(210,45,0), the product collapses to rotationXYZ(30,45,0) - the same GUI display-pose
+        // family as blocks/players. Lighting stays on the iso [210,45,0] pose (pose and lighting
+        // legitimately diverge for the entity preview). Byte-identical to the fused chain; because the
+        // placement no longer depends on the camera, swapping the camera pose renders the entity under any
+        // projection.
         EulerRotation iso = Projection.VANILLA_ENTITY.basePose();
         Camera fusedCamera = Projection.VANILLA_ENTITY.resolve();
         Matrix4f rIso = Quaternionf.rotationXYZ(iso.pitchRadians(), iso.yawRadians(), iso.rollRadians()).toMatrix4f();
-        Matrix4f rIsoInverse = Quaternionf.rotationZYX(-iso.rollRadians(), -iso.yawRadians(), -iso.pitchRadians()).toMatrix4f();
-        Matrix4f flip180 = Matrix4f.IDENTITY.scale(1f, -1f, -1f); // R_X(180) = the A*B facing flip
-        Matrix4f reflectZ = Matrix4f.IDENTITY.scale(1f, 1f, -1f); // the odd chirality reflection
-        Matrix4f flipY = Matrix4f.IDENTITY.scale(1f, -1f, 1f); // Y-down->Y-up, relocated off the kit
-        Matrix4f placementMatrix = rIsoInverse.multiply(flip180).multiply(rIso).multiply(reflectZ).multiply(flipY);
-        Camera entityCamera = Camera.fromPose(iso, fusedCamera.lens()); // pose = R(iso), clean det=+1
-        ModelEngine engine = new ModelEngine(this.context, entityCamera, new Placement(placementMatrix));
+        Matrix4f flip180 = Matrix4f.IDENTITY.scale(1f, -1f, -1f);
+        Camera entityCamera = new Camera(flip180.multiply(rIso), fusedCamera.lens(), iso);
+        ModelEngine engine = new ModelEngine(this.context, entityCamera, new Placement(flip180));
         SceneContext scene = new SceneContext(
             texture.get(), modelAnchor, fit.ndcScale(), modelScale, engine.textures(), this.context);
         LayerStack<GeometryLayer> stack = new LayerStack<>();
