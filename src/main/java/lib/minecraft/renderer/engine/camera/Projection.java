@@ -1,9 +1,6 @@
 package lib.minecraft.renderer.engine.camera;
 
 import lib.minecraft.renderer.request.EulerRotation;
-import lib.minecraft.renderer.tensor.Matrix4f;
-import lib.minecraft.renderer.tensor.Quaternionf;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Accessors;
@@ -15,25 +12,24 @@ import org.jetbrains.annotations.NotNull;
  * (pitch / yaw / roll) with its flatten family; {@link #resolve(EulerRotation)} composes the caller's
  * rotation onto that base pose and returns the pose-locked triple the renderers consume. The named
  * vanilla cameras live here as the {@code VANILLA_*} members, and this catalog assembles them from
- * {@link Camera}'s primitives ({@link Camera#fromPose} / {@link Camera#identity}) plus its own
- * {@link #entityIsoChain} for the entity chirality - so {@code Camera} stays a dependency-free value type.
+ * {@link Camera}'s primitives ({@link Camera#fromPose} / {@link Camera#identity}) - so {@code Camera}
+ * stays a dependency-free value type.
  *
  * <p>The canonical members carry <b>correct textbook values</b> (true isometric, standard dimetric,
  * cabinet / cavalier / military, one / two / three point). The {@code VANILLA_*} members document the
  * <b>shipped hardcoded baseline</b> - they reproduce the current renders byte-for-byte and are the
- * defaults so existing output never changes. Each member carries a {@link Assembly} strategy that
- * assembles its {@link Camera}: {@link Assembly#DISPLAY_POSE} routes the base pose through
- * {@link Camera#fromPose} ({@code rotationXYZ}) - reproducing the legacy block / player cameras
- * bit-for-bit - and {@link Assembly#ENTITY_ISO} builds the {@link #entityIsoChain} chirality chain
- * for {@link #VANILLA_ENTITY}. An unrotated {@link #resolve()} on a {@code VANILLA_*} member yields the
- * exact shipped {@link Camera} (pose + {@link Lens}) and lighting pair.
+ * defaults so existing output never changes. Every member resolves the same way: its base pose routes
+ * through {@link Camera#fromPose} ({@code rotationXYZ}), reproducing the legacy block / player / entity
+ * cameras bit-for-bit. An unrotated {@link #resolve()} on a {@code VANILLA_*} member yields the exact
+ * shipped {@link Camera} (pose + {@link Lens}) and lighting pair.
  *
  * <p>Three projection families map onto the pipeline as follows: <b>axonometric</b> (isometric /
  * dimetric / trimetric) = orthographic flatten + a pose; <b>perspective</b> (one / two / three point)
  * = perspective flatten + a pose (n = how many principal axes tilt off the view axis); <b>oblique</b>
  * (cavalier / cabinet / military) = a depth-shear flatten. The caller's rotation adds onto the base
- * pose's pitch / yaw / roll, posing the camera and its lighting together - except {@link #VANILLA_ENTITY},
- * whose det=-1 chirality chain is fixed and whose rotation stays a separate model-spin.
+ * pose's pitch / yaw / roll, posing the camera and its lighting together. {@link #VANILLA_ENTITY} is a
+ * plain iso display pose like the rest; the entity's model-to-world facing / chirality is applied
+ * separately by the entity renderer as a {@code Placement} + model-spin.
  */
 @Getter
 @Accessors(fluent = true)
@@ -149,16 +145,16 @@ public enum Projection {
      * <p>
      * Vanilla's {@code EntityFrameRenderer.ISO_ROTATION = rotationXYZ(210°, 45°, 0°)}, itself derived
      * from the empirical 24-step yaw + 576-frame pitch/roll sweep that locked vanilla's entity-preview
-     * pipeline camera. Built as the {@link #entityIsoChain} chirality chain - a det=-1 transform
-     * carrying the LER chirality + reflection the vanilla-reference harness applies, so entity output
-     * aligns with the harness ground-truth PNGs. NOT equivalent to {@link #VANILLA_BLOCK} /
-     * {@link #VANILLA_PLAYER}, which are det=+1 GUI display poses: this pose differs from the block one
-     * by a yaw mirror + transpose-like permutation, so entity rendering must use it rather than
-     * borrowing the block-icon pose. The caller's rotation stays a separate model-spin rather than
-     * composing into the camera (the {@link Assembly#ENTITY_ISO} strategy). The default for the
-     * entity renderer.
+     * pipeline camera. Resolves to the plain {@code rotationXYZ(210°, 45°, 0°)} iso display pose (det=+1),
+     * the same GUI-display-pose family as {@link #VANILLA_BLOCK} / {@link #VANILLA_PLAYER}. The entity's
+     * model-to-world facing + chirality (vanilla {@code LivingEntityRenderer.submit}'s
+     * {@code rotateY(180°) × scale(-1,-1,1) = flip180}) is applied separately by the entity renderer as a
+     * {@code Placement}; it composes onto this pose as {@code flip180 × R(iso) = rotationXYZ(30°, 45°, 0°)}
+     * to match the harness ground-truth PNGs. Because the facing lives on the placement, this constant is
+     * a plain camera and an entity is a normal projection subject. The caller's rotation stays a separate
+     * model-spin. The default for the entity renderer.
      */
-    VANILLA_ENTITY(new EulerRotation(210f, 45f, 0f), Lens.ISOMETRIC_BLOCK, Assembly.ENTITY_ISO);
+    VANILLA_ENTITY(new EulerRotation(210f, 45f, 0f), Lens.ISOMETRIC_BLOCK);
 
     /**
      * This projection's unrotated base pose - the {@code (pitch, yaw, roll)} the camera and lighting
@@ -170,21 +166,9 @@ public enum Projection {
 
     /**
      * This projection's flatten family - the 3D-to-2D {@link Lens} paired with the pose. Rotation-
-     * independent; the {@link Assembly} strategy passes it straight through into the resolved
-     * {@link Camera#lens()}.
+     * independent; passed straight through into the resolved {@link Camera#lens()}.
      */
     private final @NotNull Lens lens;
-
-    /**
-     * The strategy that assembles this projection's {@link Camera}: {@link Assembly#DISPLAY_POSE}
-     * for the det=+1 display-pose members, {@link Assembly#ENTITY_ISO} for the entity chirality chain.
-     */
-    @Getter(AccessLevel.NONE)
-    private final @NotNull Assembly assembly;
-
-    Projection(@NotNull EulerRotation basePose, @NotNull Lens lens) {
-        this(basePose, lens, Assembly.DISPLAY_POSE);
-    }
 
     /**
      * Resolves this projection at its base pose into the unrotated {@link Camera} (pose + lens +
@@ -198,24 +182,22 @@ public enum Projection {
     }
 
     /**
-     * Resolves this projection into a {@link Camera} (pose + lens + lighting pose) by delegating to this
-     * constant's {@link Assembly} strategy. For a {@link Assembly#DISPLAY_POSE} member the rotation adds
-     * to the base pitch / yaw / roll, so it poses the camera and its lighting together (the lens is
+     * Resolves this projection into a {@link Camera} (pose + lens + lighting pose). The rotation adds to
+     * the base pitch / yaw / roll, so it poses the camera and its lighting together (the lens is
      * rotation-independent) through the parity-pinned {@link Camera#fromPose} {@code rotationXYZ} path,
-     * which reproduces the legacy {@code VANILLA_*} cameras bit-for-bit; {@link EulerRotation#NONE}
-     * yields the base pose unchanged, keeping the default render path byte-identical.
+     * which reproduces the legacy {@code VANILLA_*} cameras bit-for-bit; {@link EulerRotation#NONE} yields
+     * the base pose unchanged, keeping the default render path byte-identical.
      *
-     * <p>{@link #VANILLA_ENTITY} ({@link Assembly#ENTITY_ISO}) is the exception: its det=-1
-     * {@link #entityIsoChain} pose is fixed, so the {@code rotation} is ignored here and the entity
-     * renderer applies it (plus its {@code setupRotations} addends) as a separate model-spin at
-     * rasterize time.
+     * <p>{@link #VANILLA_ENTITY} resolves to the plain {@code rotationXYZ(210, 45, 0)} iso pose like any
+     * other display-pose member; the entity's model-to-world facing / chirality is applied separately by
+     * the entity renderer as a {@code Placement} (with the caller's rotation + {@code setupRotations}
+     * addends as a model-spin), so the entity is a normal projection subject.
      *
-     * @param rotation the rotation composed onto the base pose, in degrees (ignored for
-     *     {@link #VANILLA_ENTITY})
+     * @param rotation the rotation composed onto the base pose, in degrees
      * @return the resolved camera
      */
     public @NotNull Camera resolve(@NotNull EulerRotation rotation) {
-        return this.assembly.resolve(this.basePose, this.lens, rotation);
+        return Camera.fromPose(compose(this.basePose, rotation), this.lens);
     }
 
     /**
@@ -229,96 +211,6 @@ public enum Projection {
             base.yaw() + rotation.yaw(),
             base.roll() + rotation.roll()
         );
-    }
-
-    /**
-     * Builds the vanilla entity iso chain - the fixed camera for the entity inventory-preview angle
-     * (the harness's {@code ISO_ROTATION}). It is the full entity-preview transform expressed as the
-     * column-vector matrix our column-form rasterizer consumes, after accounting for the kit's
-     * pre-applied {@code FLIP_Y} on positions. Assembled for {@link #VANILLA_ENTITY} by the
-     * {@link Assembly#ENTITY_ISO} strategy, and reached by the entity renderer's bounds / anchor
-     * projection through {@link #resolve()} so both stay a single source of truth.
-     * <p>
-     * The harness applies (col form, applied to a Y-down model vertex right-to-left):
-     * <pre>
-     * scale(1,1,-1) outer chirality
-     *   &times; R_X(210&deg;)   iso pitch
-     *   &times; R_Y(45&deg;)    iso yaw
-     *   &times; R_X(180&deg;)   LER chirality (scale(-1,-1,1)) + setupRotations (rotateY(180&deg;))
-     * </pre>
-     * Our pipeline applies kit {@code FLIP_Y = diag(1,-1,1)} to positions before the engine sees
-     * them. The trailing {@code scale(1,-1,1)} absorbs the kit's flip into the camera matrix (and
-     * simplifies {@code scale(1,-1,1) &times; R_X(180&deg;) = diag(1,1,-1)} so two outer
-     * {@code scale(1,1,-1)} factors remain).
-     * <p>
-     * The two outer {@code scale(1,1,-1)} factors give a det=-1 transform total - matching the
-     * harness's odd-reflection-count chirality. The simpler {@code Quaternionf.rotationXYZ(210&deg;,
-     * 45&deg;, 0&deg;)} alone (det=+1) is INSUFFICIENT - it produces the iso rotation but omits the
-     * LER chirality and reflection components, which Round 2 confirmed regresses every entity ~6x.
-     * <p>
-     * Column-vector application order is rightmost-first:
-     * {@code scale(1,1,-1) * isoQuat * scale(1,1,-1) * scale(1,-1,1)}. Each fluent op matches JOML's
-     * in-place translate/scale/rotate bit-for-bit with default {@code joml.useMathFma=false}.
-     *
-     * @param isoPose the entity iso pose driving the central rotation - {@link #VANILLA_ENTITY}'s base
-     *     pose, vanilla's {@code [210, 45, 0]}
-     * @return the entity iso chain matrix
-     */
-    private static @NotNull Matrix4f entityIsoChain(@NotNull EulerRotation isoPose) {
-        return Matrix4f.IDENTITY
-            .scale(1f, -1f, 1f)
-            .scale(1f, 1f, -1f)
-            .rotate(Quaternionf.rotationXYZ(isoPose.pitchRadians(), isoPose.yawRadians(), isoPose.rollRadians()))
-            .scale(1f, 1f, -1f);
-    }
-
-    /**
-     * How a {@link Projection} assembles its base pose and the caller's rotation into a
-     * {@link Camera}. Each constant overrides {@link #resolve} with its own assembly, so
-     * {@link Projection#resolve(EulerRotation)} dispatches polymorphically instead of branching on a
-     * tag.
-     */
-    private enum Assembly {
-
-        /**
-         * The default assembly - a rotation display pose. {@link Camera#fromPose} builds the
-         * {@code rotationXYZ(pose)} matrix (det=+1) and the caller's rotation composes into it, so
-         * camera and lighting move together. Backs every member except the entity preview: blocks,
-         * players, held items, and the textbook axonometric / perspective / oblique projections.
-         */
-        DISPLAY_POSE {
-            @Override
-            @NotNull Camera resolve(@NotNull EulerRotation basePose, @NotNull Lens lens, @NotNull EulerRotation rotation) {
-                return Camera.fromPose(compose(basePose, rotation), lens);
-            }
-        },
-
-        /**
-         * The vanilla entity-preview iso chain ({@link Projection#entityIsoChain}) - a det=-1,
-         * odd-reflection chirality transform matching the harness. The chain is fixed; the caller
-         * applies its rotation (plus the per-entity {@code setupRotations} addends) as a separate
-         * model-spin at rasterize time, so the {@code rotation} is ignored here and the base pose
-         * doubles as the lighting pose.
-         */
-        ENTITY_ISO {
-            @Override
-            @NotNull Camera resolve(@NotNull EulerRotation basePose, @NotNull Lens lens, @NotNull EulerRotation rotation) {
-                return new Camera(entityIsoChain(basePose), lens, basePose);
-            }
-        };
-
-        /**
-         * Assembles the resolved {@link Camera} (pose + lens + lighting pose) for a projection carrying
-         * the given base pose and lens, under the caller's rotation.
-         *
-         * @param basePose the projection's unrotated base pose
-         * @param lens the projection's lens
-         * @param rotation the caller's rotation (composed into the pose by {@link #DISPLAY_POSE}, ignored
-         *     by {@link #ENTITY_ISO})
-         * @return the resolved camera
-         */
-        abstract @NotNull Camera resolve(@NotNull EulerRotation basePose, @NotNull Lens lens, @NotNull EulerRotation rotation);
-
     }
 
 }

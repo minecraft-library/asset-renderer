@@ -65,6 +65,19 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     private final @NotNull Map<String, EntityModelLoader.EntityDefinition> javaEntities;
 
+    /**
+     * The entity's model-to-world facing / chirality - vanilla {@code LivingEntityRenderer.submit}'s
+     * {@code rotateY(180) * scale(-1,-1,1) = diag(1,-1,-1)}. Applied as the entity {@link Placement}, and
+     * pre-composed onto {@link Projection#VANILLA_ENTITY}'s iso pose to form the camera:
+     * {@code flip180 * R(210,45,0)} collapses to {@code rotationXYZ(30,45,0)}, the block/player
+     * display-pose family. Projection-independent, so swapping the camera renders the entity under any
+     * projection.
+     */
+    private static final @NotNull Matrix4f ENTITY_FLIP = Matrix4f.IDENTITY.scale(1f, -1f, -1f);
+
+    /** The entity's model-to-world {@link Placement} - {@link #ENTITY_FLIP} as a placement. */
+    private static final @NotNull Placement ENTITY_PLACEMENT = new Placement(ENTITY_FLIP);
+
     @Override
     public @NotNull ImageData render(@NotNull EntityOptions options) {
         return options.getBackground().composite(renderEntity(options));
@@ -157,31 +170,15 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // load-bearing (depth tie-break, translucent sort, emissive depth-skip), so the slot order
         // reproduces the historic base -> overlays -> block-overlays -> armor sequence exactly.
         // Callers can splice their own layers via EntityOptions.layerDecorator.
-        // Phase 2b (measure-first): the camera is now the PURE iso rotation R(iso) - a clean det=+1
-        // projection pose - and the model->world chirality (the R_X(180) facing flip + the odd
-        // reflection) moves into the Placement. Because the fused chain applies the flip on the CAMERA
-        // side (left of R(iso)) while a model->world placement applies it on the MODEL side (right of
-        // R(iso)), crossing R(iso) needs a conjugation R(iso)^-1 x flip x R(iso). That reintroduces
-        // R(iso) x R(iso)^-1, which is only float-approximately identity - so `camera x placement`
-        // recomposes the fused pose up to ULP/snap noise, NOT bit-for-bit. This is the isolated
-        // conjugation drift (the cost of a clean projection camera), measured before the kit de-flip:
-        // the kit FLIP_Y and bounds/anchor transform stay fused, and the yaw-only model spin still lets
-        // FLIP_Y commute, so the parity pose is otherwise unchanged.
-        // Projection-INDEPENDENT entity placement (model->world) + a display-pose camera (world->screen).
-        // The entity's model->world facing/chirality is flip180 = diag(1,-1,-1) = vanilla
-        // LivingEntityRenderer.submit's rotateY(180) * scale(-1,-1,1) - fixed, camera-independent. The
-        // entity's world->screen pose is flip180 * R(iso): since flip180 = R_X(180) and R(iso) =
-        // rotationXYZ(210,45,0), the product collapses to rotationXYZ(30,45,0) - the same GUI display-pose
-        // family as blocks/players. Lighting stays on the iso [210,45,0] pose (pose and lighting
-        // legitimately diverge for the entity preview). Byte-identical to the fused chain; because the
-        // placement no longer depends on the camera, swapping the camera pose renders the entity under any
-        // projection.
-        EulerRotation iso = Projection.VANILLA_ENTITY.basePose();
-        Camera fusedCamera = Projection.VANILLA_ENTITY.resolve();
-        Matrix4f rIso = Quaternionf.rotationXYZ(iso.pitchRadians(), iso.yawRadians(), iso.rollRadians()).toMatrix4f();
-        Matrix4f flip180 = Matrix4f.IDENTITY.scale(1f, -1f, -1f);
-        Camera entityCamera = new Camera(flip180.multiply(rIso), fusedCamera.lens(), iso);
-        ModelEngine engine = new ModelEngine(this.context, entityCamera, new Placement(flip180));
+        // The entity is a normal projection subject: its camera is VANILLA_ENTITY's iso display pose
+        // (rotationXYZ(210,45,0)) with the model->world facing (ENTITY_FLIP) pre-composed - flip180 x
+        // R(iso) collapses to rotationXYZ(30,45,0), the block/player display-pose family - and that same
+        // facing is applied as the ENTITY_PLACEMENT. Because the placement is projection-independent,
+        // swapping VANILLA_ENTITY for another projection here re-poses the entity under it.
+        Camera baseCamera = Projection.VANILLA_ENTITY.resolve();
+        Camera entityCamera = new Camera(
+            ENTITY_FLIP.multiply(baseCamera.pose()), baseCamera.lens(), baseCamera.lightingPose());
+        ModelEngine engine = new ModelEngine(this.context, entityCamera, ENTITY_PLACEMENT);
         SceneContext scene = new SceneContext(
             texture.get(), modelAnchor, fit.ndcScale(), modelScale, engine.textures(), this.context);
         LayerStack<GeometryLayer> stack = new LayerStack<>();
@@ -611,36 +608,28 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * Builds the orientation-only transform that maps a Y-down model vertex to its pre-projection
-     * screen position - matching what the rasterizer applies internally for entity rendering. In
-     * column-vector form the composite is
-     * {@code flipY * scale(1,1,-1) * isoRotation * scale(1,1,-1) * modelRotation * flipY}, and a
-     * vertex sees the rightmost factor first. Listed in application order:
+     * Builds the orientation-only transform that maps a Y-down model vertex to its pre-projection screen
+     * position - the same camera + placement the {@link ModelEngine} applies, so the canvas-fit and
+     * anchor bounds track the render. In column-vector form the composite is
+     * {@code cameraPose * modelRotation * ENTITY_FLIP}, applied to a bounds-probe vertex right-to-left:
      * <ul>
-     * <li>{@code flipY = scale(1,-1,1)} - kit Y-down-to-Y-up flip applied to the model vertex.</li>
-     * <li>{@code modelRotation} - per-render user rotation as a single
-     *     {@link Quaternionf#rotationXYZ} quaternion. Identity when the user pose is
-     *     {@link EulerRotation#NONE}.</li>
-     * <li>{@code scale(1,1,-1)} - first half of the kit's Z-axis chirality compensation.</li>
-     * <li>{@code isoRotation} - {@code Quaternionf.rotationXYZ(210°, 45°, 0°)} rotation matrix
-     *     (bit-identical to vanilla harness's iso pose).</li>
-     * <li>{@code scale(1,1,-1)} - second half of Z-axis chirality compensation.</li>
-     * <li>{@code flipY = scale(1,-1,1)} - vanilla's outer Y flip into clip space.</li>
+     * <li>{@code ENTITY_FLIP = diag(1,-1,-1)} - the entity's model-to-world facing / chirality (the
+     *     {@link Placement} the rasterizer applies to the kit output; applied here directly since
+     *     bounds-probe points bypass the kit).</li>
+     * <li>{@code modelRotation} - the caller's rotation as a {@link Quaternionf#rotationXYZ} quaternion;
+     *     identity for {@link EulerRotation#NONE}.</li>
+     * <li>{@code cameraPose = ENTITY_FLIP * rotationXYZ(210, 45, 0)} - the entity's world-to-screen
+     *     display pose (= {@code rotationXYZ(30, 45, 0)}), the {@link Projection#VANILLA_ENTITY} camera.</li>
      * </ul>
-     * Centering / NDC scaling are translation + uniform scale that the canvas-fit math handles
-     * separately, so they aren't included here.
+     * Centering / NDC scaling are translation + uniform scale the canvas-fit math handles separately, so
+     * they aren't included here.
      */
     private static @NotNull Matrix4f composeIsoTransform(@NotNull EulerRotation userRotation) {
         boolean userIdentity = userRotation.pitch() == 0f && userRotation.yaw() == 0f && userRotation.roll() == 0f;
-        // Shared iso prefix (flipY -> scaleZneg -> isoRotation -> scaleZneg) lives on Projection (the
-        // VANILLA_ENTITY camera) so the entity camera and this bounds/anchor transform stay a single
-        // source of truth. The trailing modelRotation + outer flipY stay here: this transform is applied
-        // to bounds-probe points the kit FLIP_Y never touches, so it bakes that flip in (unlike the
-        // Projection.VANILLA_ENTITY camera).
-        Matrix4f m = Projection.VANILLA_ENTITY.resolve().pose();
+        Matrix4f m = ENTITY_FLIP.multiply(Projection.VANILLA_ENTITY.resolve().pose());
         if (!userIdentity)
             m = m.rotate(Quaternionf.rotationXYZ(userRotation.pitchRadians(), userRotation.yawRadians(), userRotation.rollRadians()));
-        return m.scale(1f, -1f, 1f);
+        return m.scale(1f, -1f, -1f);
     }
 
     /**

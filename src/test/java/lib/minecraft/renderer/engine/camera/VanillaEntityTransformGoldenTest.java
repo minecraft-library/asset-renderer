@@ -23,22 +23,22 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
- * Characterization golden (Phase 0 of {@code notes/placement-camera-split.md}) that pins the CURRENT
- * fused entity model→screen transform - the {@link Projection#VANILLA_ENTITY} camera pose and its
- * composition with the single-cube kit fixture - so the Placement/Camera separation can prove Phase 1
- * (the no-op seam) is bit-identical and quantify Phase 2's intended alignment shift.
+ * Characterization golden (from the Placement/Camera split, {@code notes/placement-camera-split.md})
+ * that pins the entity model→screen transform - the {@link Projection#VANILLA_ENTITY} camera pose and
+ * its composition with the single-cube kit fixture - so accidental drift in the iso pose or the kit
+ * fixture trips these assertions.
  *
- * <p>The values baked below are the <b>current</b> fused-chain output, captured once via
- * {@link #writeSnapshot}. They are a measurement baseline, NOT a permanent contract: Phase 2 (genuine
- * vanilla alignment) is expected to shift them, at which point this golden is re-baselined with the
- * delta documented. Until then, an accidental change to the iso chain trips these assertions.
+ * <p>The values baked below are captured once via {@link #writeSnapshot}. Now that the split has landed,
+ * {@code VANILLA_ENTITY} resolves to the plain {@code rotationXYZ(210, 45, 0)} iso display pose (det=+1);
+ * the entity's model-to-world facing / chirality lives on the {@code ENTITY_FLIP} {@code Placement} in
+ * {@code EntityRenderer}, not the camera. A deliberate change to that pose or the kit fixture re-baselines
+ * these values (regenerate via {@link #writeSnapshot}).
  *
- * <p>The load-bearing structural assertion is {@link #pose_isDet_negative}: today's camera is det=−1
- * (the chirality fused onto the iso rotation). Phase 2 moves that reflection into an {@code EntityPlacement}
- * and this pose becomes det=+1 - so this test is the conscious tripwire for that flip.
+ * <p>The load-bearing structural assertion is {@link #pose_isDet_positive}: the camera is a plain det=+1
+ * rotation. A det≤0 would mean chirality leaked back onto the camera (regressing the split).
  */
 class VanillaEntityTransformGoldenTest {
 
@@ -49,11 +49,11 @@ class VanillaEntityTransformGoldenTest {
     private static final float EPS = 1e-6f;
 
     @Test
-    @DisplayName("VANILLA_ENTITY camera pose is det=-1 (chirality fused onto the iso rotation)")
-    void pose_isDet_negative() {
+    @DisplayName("VANILLA_ENTITY camera pose is det=+1 (a plain iso display pose; chirality is on the Placement)")
+    void pose_isDet_positive() {
         Matrix4f pose = Projection.VANILLA_ENTITY.resolve().pose();
-        assertThat("current fused entity camera must be det=-1; a det>=0 means the chirality "
-            + "left the camera (expected only after Phase 2's Placement split)", det3(pose), lessThan(0f));
+        assertThat("VANILLA_ENTITY resolves to rotationXYZ(210,45,0), a det=+1 display pose; the entity "
+            + "chirality lives on the ENTITY_FLIP Placement in EntityRenderer, not the camera", det3(pose), greaterThan(0f));
     }
 
     @Test
@@ -81,22 +81,22 @@ class VanillaEntityTransformGoldenTest {
 
     /** {@link Projection#VANILLA_ENTITY} pose in get(col,row) order: [c1r1,c1r2,c1r3,c1r4, c2r1,...]. */
     private static final float[] GOLDEN_POSE = {
-        0.7071067f, 0.35355347f, -0.6123724f, 0.0f,
-        0.0f, 0.8660253f, 0.5000001f, 0.0f,
-        -0.7071068f, 0.35355344f, -0.61237234f, -0.0f,
+        0.7071067f, -0.35355347f, 0.6123724f, 0.0f,
+        0.0f, -0.8660253f, -0.5000001f, 0.0f,
+        0.7071068f, 0.35355344f, -0.61237234f, 0.0f,
         0.0f, 0.0f, 0.0f, 1.0f,
     };
 
     /** Flattened (x,y,z) of the 8 fixture-cube corners transformed by the pose. */
     private static final float[] GOLDEN_CORNERS = {
-        2.9802322E-8f, -0.70790946f, 0.32613504f,
-        -0.63639605f, -0.38971138f, -0.225f,
-        2.9802322E-8f, 0.07151328f, 0.7761351f,
-        -0.63639605f, 0.38971138f, 0.22500008f,
-        0.63639605f, -0.38971138f, -0.22500008f,
-        -2.9802322E-8f, -0.07151328f, -0.7761351f,
-        0.63639605f, 0.38971138f, 0.225f,
-        -2.9802322E-8f, 0.70790946f, -0.32613504f,
+        -0.63639605f, 0.38971138f, 0.225f,
+        2.9802322E-8f, 0.70790946f, -0.32613504f,
+        -0.63639605f, -0.38971138f, -0.22500008f,
+        2.9802322E-8f, -0.07151328f, -0.7761351f,
+        -2.9802322E-8f, 0.07151328f, 0.7761351f,
+        0.63639605f, 0.38971138f, 0.22500008f,
+        -2.9802322E-8f, -0.70790946f, 0.32613504f,
+        0.63639605f, -0.38971138f, -0.225f,
     };
 
     /**
