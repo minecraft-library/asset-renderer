@@ -57,6 +57,19 @@ public record Camera(@NotNull Matrix4f pose, @NotNull Lens lens) {
     }
 
     /**
+     * Returns a copy of this camera with the same pose but a different lens. Lets a caller reuse a
+     * projection's resolved camera pose under a different flatten - e.g. a 2-block bed icon that wants
+     * the {@link Projection#VANILLA_BLOCK} pose but a more conservative lens for margin - without
+     * rebuilding the pose or reaching for the raw constructor.
+     *
+     * @param lens the replacement lens
+     * @return a camera with this pose and the given lens
+     */
+    public @NotNull Camera withLens(@NotNull Lens lens) {
+        return new Camera(this.pose, lens);
+    }
+
+    /**
      * Builds the matrix equivalent of vanilla's {@code Quaternionf.rotationXYZ(x, y, z)} for a
      * {@code display.*} transform's Euler angles in degrees. Bit-identical to vanilla's
      * {@code new Matrix4f().rotation(new Quaternionf().rotationXYZ(...))} by routing through the same
