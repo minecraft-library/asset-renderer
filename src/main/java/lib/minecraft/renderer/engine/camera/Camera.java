@@ -7,45 +7,53 @@ import lib.minecraft.renderer.tensor.Quaternionf;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * A baked camera pose, applied after the caller's model transform during rasterization. The value a
- * {@link ModelEngine} composes with every render: column-vector form, applied right-to-left to a
- * model vertex.
+ * A camera - the {@link #pose} (extrinsics) paired with its {@link Lens lens} (intrinsics), the
+ * complete view + projection a {@link ModelEngine} renders through. The pose is a baked column-vector
+ * matrix applied after the caller's model transform (right-to-left to a model vertex); the lens is the
+ * 3D-to-2D flatten applied per vertex after that.
  *
- * <p>{@code Camera} is a dependency-free value type plus two GUI-pose primitives; the named vanilla
- * poses and the entity chirality chain live on {@link Projection}, which assembles them. Callers reach
- * for a factory rather than the constructor:
+ * <p>The named vanilla cameras live on {@link Projection}, which assembles them from these primitives.
+ * Callers reach for a factory rather than the constructor:
  * <ul>
- *   <li><b>{@link #fromPose(EulerRotation)}</b> - the goto builder: a {@code display.*} GUI pose from
- *       the supplied Euler angles via vanilla's {@code rotationXYZ}. Backs every {@link Projection}
- *       GUI-pose member and any caller that needs an ad-hoc display pose (item shield, bed parity).</li>
- *   <li><b>{@link #identity()}</b> - no pre-rotation; geometry viewed straight down {@code -Z}.</li>
+ *   <li><b>{@link #fromPose(EulerRotation, Lens)}</b> - a {@code display.*} GUI pose from the supplied
+ *       Euler angles (via vanilla's {@code rotationXYZ}) paired with a lens. Backs every
+ *       {@link Projection} display-pose member and any caller that needs an ad-hoc pose (the item
+ *       shield's {@code [15, -25, -5]}, a block model's {@code display.gui} override).</li>
+ *   <li><b>{@link #identity(Lens)}</b> - no pre-rotation; geometry viewed straight down {@code -Z}.
+ *       Used by the held-item path, whose pose lives in the model's own display matrix, so only the
+ *       lens comes from the projection.</li>
  * </ul>
  *
- * @param matrix the pose composed into every rasterization, in column-vector form
+ * @param pose the camera pose composed into every rasterization, in column-vector form
+ * @param lens the 3D-to-2D flatten applied after the pose
  */
-public record Camera(@NotNull Matrix4f matrix) {
+public record Camera(@NotNull Matrix4f pose, @NotNull Lens lens) {
 
     /**
      * Returns a camera whose pose is a vanilla {@code display.*} GUI pose built from the supplied
-     * Euler-angle rotation - the goto builder for every {@link Projection} GUI-pose member and for
-     * callers that supply an ad-hoc pose (the item shield's {@code [15, -25, -5]}, a block model's
-     * {@code display.gui} override such as stairs' {@code [30, 135, 0]}).
+     * Euler-angle rotation, paired with the given lens. The pose routes through vanilla's
+     * {@code rotationXYZ}; use it for every {@link Projection} display-pose member and for ad-hoc poses
+     * (the item shield's {@code [15, -25, -5]}, a block model's {@code display.gui} override such as
+     * stairs' {@code [30, 135, 0]}).
      *
      * @param rotation the Euler-angle pose (in degrees) baked into the camera transform
-     * @return a camera with the requested pose
+     * @param lens the flatten paired with the pose
+     * @return a camera with the requested pose and lens
      */
-    public static @NotNull Camera fromPose(@NotNull EulerRotation rotation) {
-        return new Camera(buildGuiDisplayTransform(rotation));
+    public static @NotNull Camera fromPose(@NotNull EulerRotation rotation, @NotNull Lens lens) {
+        return new Camera(buildGuiDisplayTransform(rotation), lens);
     }
 
     /**
-     * Returns the identity camera - geometry is viewed directly down the negative Z axis with no
-     * pre-rotation.
+     * Returns a camera with no pre-rotation - geometry is viewed directly down the negative Z axis -
+     * paired with the given lens. Used by the held-item path, whose pose lives entirely in the model's
+     * own {@code display} matrix, so only the lens is taken from the projection.
      *
-     * @return the identity camera
+     * @param lens the flatten paired with the identity pose
+     * @return an identity-pose camera with the requested lens
      */
-    public static @NotNull Camera identity() {
-        return new Camera(Matrix4f.IDENTITY);
+    public static @NotNull Camera identity(@NotNull Lens lens) {
+        return new Camera(Matrix4f.IDENTITY, lens);
     }
 
     /**

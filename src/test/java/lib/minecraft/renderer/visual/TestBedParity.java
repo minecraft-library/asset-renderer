@@ -16,6 +16,7 @@ import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.engine.ModelEngine;
+import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
@@ -149,9 +150,9 @@ public final class TestBedParity {
         ConcurrentList<VisibleTriangle> centered = recenterAndFit(rotated, 1.4f);
 
         // Rasterize with standard isometric engine
-        ModelEngine engine = new ModelEngine(context, Projection.VANILLA_BLOCK.resolve().camera());
+        ModelEngine engine = new ModelEngine(context, new Camera(Projection.VANILLA_BLOCK.resolve().camera().pose(), Lens.NONE));
         PixelBuffer buffer = PixelBuffer.create(size, size);
-        engine.rasterize(centered, buffer, Lens.NONE);
+        engine.rasterize(centered, buffer);
         ImageIO.write(buffer.toBufferedImage(), "PNG", out.toFile());
         System.out.println("  Wrote " + out);
     }
@@ -195,9 +196,9 @@ public final class TestBedParity {
             ));
         }
 
-        ModelEngine engine = new ModelEngine(context, Projection.VANILLA_BLOCK.resolve().camera());
+        ModelEngine engine = new ModelEngine(context, new Camera(Projection.VANILLA_BLOCK.resolve().camera().pose(), Lens.NONE));
         PixelBuffer buffer = PixelBuffer.create(size, size);
-        engine.rasterize(rotated, buffer, Lens.NONE);
+        engine.rasterize(rotated, buffer);
         ImageIO.write(buffer.toBufferedImage(), "PNG", out.toFile());
         System.out.println("  Wrote " + out);
     }

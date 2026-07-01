@@ -26,7 +26,7 @@ import org.jetbrains.annotations.NotNull;
  * {@link Camera#fromPose} ({@code rotationXYZ}) - reproducing the legacy block / player cameras
  * bit-for-bit - and {@link Assembly#ENTITY_ISO} builds the {@link #entityIsoChain} chirality chain
  * for {@link #VANILLA_ENTITY}. An unrotated {@link #resolve()} on a {@code VANILLA_*} member yields the
- * exact shipped {@link Camera} / {@link Lens} / lighting triple.
+ * exact shipped {@link Camera} (pose + {@link Lens}) and lighting pair.
  *
  * <p>Three projection families map onto the pipeline as follows: <b>axonometric</b> (isometric /
  * dimetric / trimetric) = orthographic flatten + a pose; <b>perspective</b> (one / two / three point)
@@ -161,15 +161,14 @@ public enum Projection {
     VANILLA_ENTITY(new EulerRotation(210f, 45f, 0f), Lens.ISOMETRIC_BLOCK, Assembly.ENTITY_ISO);
 
     /**
-     * Resolved camera pose, lens, and lighting pose for one {@link Projection} at a chosen rotation -
-     * the pose-locked triple a renderer feeds to its engine, projection, and inventory relight in
-     * lock-step.
+     * Resolved camera (pose + lens) and lighting pose for one {@link Projection} at a chosen rotation -
+     * the pose-locked pair a renderer feeds to its engine and inventory relight in lock-step. The lens
+     * rides inside the {@link Camera}, so the engine holds the whole view + projection.
      *
-     * @param camera the baked camera pose
-     * @param lens the 3D-to-2D projection
+     * @param camera the baked camera - pose and lens
      * @param lightingPose the Euler pose the inventory relight must mirror to track the camera
      */
-    public record Resolved(@NotNull Camera camera, @NotNull Lens lens, @NotNull EulerRotation lightingPose) {}
+    public record Resolved(@NotNull Camera camera, @NotNull EulerRotation lightingPose) {}
 
     /**
      * This projection's unrotated base pose - the {@code (pitch, yaw, roll)} the camera and lighting
@@ -297,7 +296,7 @@ public enum Projection {
             @Override
             @NotNull Resolved resolve(@NotNull EulerRotation basePose, @NotNull Lens lens, @NotNull EulerRotation rotation) {
                 EulerRotation pose = compose(basePose, rotation);
-                return new Resolved(Camera.fromPose(pose), lens, pose);
+                return new Resolved(Camera.fromPose(pose, lens), pose);
             }
         },
 
@@ -311,7 +310,7 @@ public enum Projection {
         ENTITY_ISO {
             @Override
             @NotNull Resolved resolve(@NotNull EulerRotation basePose, @NotNull Lens lens, @NotNull EulerRotation rotation) {
-                return new Resolved(new Camera(entityIsoChain(basePose)), lens, basePose);
+                return new Resolved(new Camera(entityIsoChain(basePose), lens), basePose);
             }
         };
 

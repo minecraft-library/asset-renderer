@@ -270,7 +270,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             int ssaa = Math.max(1, options.getSupersample());
             ConcurrentList<VisibleTriangle> rasterTriangles = triangles;
             return FinalizeStage.run(options.getOutputSize(), options.getOutputSize(), ssaa, options.isAntiAlias(), false,
-                (target, mask) -> engine.rasterize(rasterTriangles, target, resolved.lens()),
+                (target, mask) -> engine.rasterize(rasterTriangles, target),
                 (buffer, mask) -> Frames.staticFrame(buffer));
         }
 

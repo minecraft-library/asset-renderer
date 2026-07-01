@@ -94,36 +94,26 @@ public class ModelEngine {
     private static final float SUBPIXEL_PRECISION = Float.parseFloat(System.getProperty("asset.snap.grid", "400"));
     private static final float SUBPIXEL_INV = SUBPIXEL_PRECISION > 0f ? 1f / SUBPIXEL_PRECISION : 0f;
 
-    private final @NotNull Matrix4f camera;
+    private final @NotNull Matrix4f pose;
+
+    private final @NotNull Lens lens;
 
     private final @NotNull Textures textures;
 
     /**
-     * Constructs a model engine whose camera transform is the identity matrix - geometry is
-     * viewed directly down the negative Z axis with no pre-rotation. Callers that want a
-     * preset pose (e.g. the standard block inventory icon) should pass a {@link Camera} factory
-     * (e.g. {@link Camera#fromPose}) instead of composing the pose into their
-     * {@code modelTransform}.
+     * Constructs a model engine with a preset {@link Camera} - its pose (applied after the caller's
+     * model transform during rasterization) and its lens (the 3D-to-2D flatten). Pass a resolved
+     * camera (e.g. {@link Projection#VANILLA_BLOCK} resolved to its camera, the vanilla
+     * {@code [30, 225, 0]} block-icon pose with the iso block lens) so the engine holds the whole
+     * view + projection and callers don't thread the lens through every {@code rasterize} call.
      *
      * @param context the renderer context
-     */
-    public ModelEngine(@NotNull RendererContext context) {
-        this(context, Camera.identity());
-    }
-
-    /**
-     * Constructs a model engine with a preset {@link Camera} pose, applied after the caller's
-     * model transform during rasterization. Pass a named pose (e.g.
-     * {@link Projection#VANILLA_BLOCK} resolved to its camera, the vanilla {@code [30, 225, 0]}
-     * block-icon pose) so the engine reflects the model's
-     * authored orientation without the caller composing it into a {@code modelTransform}.
-     *
-     * @param context the renderer context
-     * @param camera the camera pose composed with every rasterization
+     * @param camera the camera (pose + lens) composed with every rasterization
      */
     public ModelEngine(@NotNull RendererContext context, @NotNull Camera camera) {
         this.textures = new Textures(context);
-        this.camera = camera.matrix();
+        this.pose = camera.pose();
+        this.lens = camera.lens();
     }
 
     /**
@@ -137,87 +127,80 @@ public class ModelEngine {
     }
 
     /**
-     * Rasterizes a triangle list onto the given buffer with no additional model rotation.
+     * Rasterizes a triangle list onto the given buffer with no additional model rotation, through the
+     * engine's camera (pose + lens).
      *
      * @param triangles the triangle list
      * @param buffer the destination buffer
-     * @param perspective the perspective blend parameters
      */
     public void rasterize(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
-        @NotNull PixelBuffer buffer,
-        @NotNull Lens perspective
+        @NotNull PixelBuffer buffer
     ) {
-        rasterize(triangles, buffer, perspective, EulerRotation.NONE);
+        rasterize(triangles, buffer, EulerRotation.NONE);
     }
 
     /**
      * Rasterizes a triangle list onto the given buffer after applying an Euler-angle rotation
-     * to the model before the camera transform.
+     * to the model before the camera pose.
      * <p>
      * Rotations are applied in yaw-pitch-roll order (yaw first around the Y axis, then pitch
      * around the X axis, then roll around the Z axis) and the combined rotation is then
-     * composed with the engine's camera transform. Supplying {@link EulerRotation#NONE} is
-     * equivalent to calling {@link #rasterize(ConcurrentList, PixelBuffer, Lens)}.
+     * composed with the engine's camera pose. Supplying {@link EulerRotation#NONE} is
+     * equivalent to calling {@link #rasterize(ConcurrentList, PixelBuffer)}.
      *
      * @param triangles the triangle list
      * @param buffer the destination buffer
-     * @param perspective the perspective blend parameters
-     * @param rotation the Euler-angle rotation applied to the model before the camera transform
+     * @param rotation the Euler-angle rotation applied to the model before the camera pose
      */
     public void rasterize(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
-        @NotNull Lens perspective,
         @NotNull EulerRotation rotation
     ) {
-        rasterize(triangles, buffer, perspective, rotation, null);
+        rasterize(triangles, buffer, rotation, null);
     }
 
     /**
-     * As {@link #rasterize(ConcurrentList, PixelBuffer, Lens, EulerRotation)} but also
+     * As {@link #rasterize(ConcurrentList, PixelBuffer, EulerRotation)} but also
      * records a per-pixel {@link GlintMask}: each pixel whose winning fragment came from a
      * {@link SurfaceTraits#glinted() glinted} triangle is marked, so the glint compositor can
      * restrict the enchantment foil to that geometry. Pass {@code null} for the plain behaviour.
      *
      * @param triangles the triangle list
      * @param buffer the destination buffer
-     * @param perspective the perspective blend parameters
-     * @param rotation the Euler-angle rotation applied to the model before the camera transform
+     * @param rotation the Euler-angle rotation applied to the model before the camera pose
      * @param glintMask the glint mask to populate, or {@code null} to skip mask recording
      */
     public void rasterize(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
-        @NotNull Lens perspective,
         @NotNull EulerRotation rotation,
         @Nullable GlintMask glintMask
     ) {
         Matrix4f modelRotation = buildModelRotation(rotation);
-        // Column-vector chain: modelRotation applies first to a vertex, then the camera.
-        Matrix4f transform = this.camera.multiply(modelRotation);
-        rasterizeInternal(triangles, buffer, perspective, transform, glintMask);
+        // Column-vector chain: modelRotation applies first to a vertex, then the camera pose.
+        Matrix4f transform = this.pose.multiply(modelRotation);
+        rasterizeInternal(triangles, buffer, transform, glintMask);
     }
 
     /**
      * Rasterizes a triangle list after pre-multiplying an arbitrary model transform with the
-     * engine's camera. Used for item display transforms (e.g. {@code thirdperson_righthand}) and
+     * engine's camera pose. Used for item display transforms (e.g. {@code thirdperson_righthand}) and
      * any other caller that needs more than a pitch-yaw-roll Euler rotation.
      *
      * @param triangles the triangle list
      * @param buffer the destination buffer
-     * @param perspective the perspective blend parameters
-     * @param modelTransform the model-space transform applied before the camera transform
+     * @param modelTransform the model-space transform applied before the camera pose
      */
     public void rasterize(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
-        @NotNull Lens perspective,
         @NotNull Matrix4f modelTransform
     ) {
-        // Column-vector chain: modelTransform applies first to a vertex, then the camera.
-        Matrix4f transform = this.camera.multiply(modelTransform);
-        rasterizeInternal(triangles, buffer, perspective, transform, null);
+        // Column-vector chain: modelTransform applies first to a vertex, then the camera pose.
+        Matrix4f transform = this.pose.multiply(modelTransform);
+        rasterizeInternal(triangles, buffer, transform, null);
     }
 
     /**
@@ -228,52 +211,48 @@ public class ModelEngine {
      * scales it to the frame, so renderers with fixed model-space geometry (e.g. the player's
      * hard-coded body cubes) fill the canvas regardless of the model's native extent.
      * <p>
-     * The silhouette is measured by projecting every vertex through {@code camera x rotation}
+     * The silhouette is measured by projecting every vertex through {@code pose x rotation}
      * (orthographic), which accounts for the iso foreshortening and any caller rotation. The
      * geometry is translated so its model-space bounds centre projects to the canvas centre, then
      * uniformly scaled so the tighter projected axis spans {@code fill} of the smaller canvas side.
      *
      * @param triangles the triangle list, in fixed model-space units
      * @param buffer the destination buffer
-     * @param perspective the perspective blend parameters (orthographic recommended)
-     * @param rotation the Euler-angle model rotation applied before the camera
+     * @param rotation the Euler-angle model rotation applied before the camera pose
      * @param fill the fraction in {@code (0, 1]} of the smaller canvas dimension the silhouette spans
      */
     public void rasterizeFitted(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
-        @NotNull Lens perspective,
         @NotNull EulerRotation rotation,
         float fill
     ) {
-        rasterizeFitted(triangles, buffer, perspective, rotation, fill, null);
+        rasterizeFitted(triangles, buffer, rotation, fill, null);
     }
 
     /**
-     * As {@link #rasterizeFitted(ConcurrentList, PixelBuffer, Lens, EulerRotation, float)}
+     * As {@link #rasterizeFitted(ConcurrentList, PixelBuffer, EulerRotation, float)}
      * but also records a per-pixel {@link GlintMask} (see
-     * {@link #rasterize(ConcurrentList, PixelBuffer, Lens, EulerRotation, GlintMask)}).
+     * {@link #rasterize(ConcurrentList, PixelBuffer, EulerRotation, GlintMask)}).
      * The mask is sized to {@code buffer}; downsample it to the final canvas when rendering at a
      * supersampled resolution. Pass {@code null} for the plain behaviour.
      *
      * @param triangles the triangle list, in fixed model-space units
      * @param buffer the destination buffer
-     * @param perspective the perspective blend parameters (orthographic recommended)
-     * @param rotation the Euler-angle model rotation applied before the camera
+     * @param rotation the Euler-angle model rotation applied before the camera pose
      * @param fill the fraction in {@code (0, 1]} of the smaller canvas dimension the silhouette spans
      * @param glintMask the glint mask to populate, or {@code null} to skip mask recording
      */
     public void rasterizeFitted(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
-        @NotNull Lens perspective,
         @NotNull EulerRotation rotation,
         float fill,
         @Nullable GlintMask glintMask
     ) {
         if (triangles.isEmpty()) return;
         Matrix4f modelRotation = buildModelRotation(rotation);
-        Matrix4f orient = this.camera.multiply(modelRotation);
+        Matrix4f orient = this.pose.multiply(modelRotation);
 
         float minMx = Float.MAX_VALUE, minMy = Float.MAX_VALUE, minMz = Float.MAX_VALUE;
         float maxMx = -Float.MAX_VALUE, maxMy = -Float.MAX_VALUE, maxMz = -Float.MAX_VALUE;
@@ -295,26 +274,25 @@ public class ModelEngine {
         float halfProjX = Math.max((maxPx - minPx) * 0.5f, 1e-6f);
         float halfProjY = Math.max((maxPy - minPy) * 0.5f, 1e-6f);
 
-        float baseScale = Math.min(buffer.width(), buffer.height()) * perspective.projectionScale();
+        float baseScale = Math.min(buffer.width(), buffer.height()) * this.lens.projectionScale();
         float fitX = fill * buffer.width() * 0.5f / (halfProjX * baseScale);
         float fitY = fill * buffer.height() * 0.5f / (halfProjY * baseScale);
         float fit = Math.min(fitX, fitY);
 
-        // vertex -> centre at origin -> uniform fit scale -> model rotation -> (camera).
+        // vertex -> centre at origin -> uniform fit scale -> model rotation -> (camera pose).
         Matrix4f modelTransform = modelRotation.scale(fit, fit, fit).translate(-centreX, -centreY, -centreZ);
-        rasterizeInternal(triangles, buffer, perspective, this.camera.multiply(modelTransform), glintMask);
+        rasterizeInternal(triangles, buffer, this.pose.multiply(modelTransform), glintMask);
     }
 
     private void rasterizeInternal(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
-        @NotNull Lens perspective,
         @NotNull Matrix4f transform,
         @Nullable GlintMask glintMask
     ) {
         int width = buffer.width();
         int height = buffer.height();
-        float scale = Math.min(width, height) * perspective.projectionScale();
+        float scale = Math.min(width, height) * this.lens.projectionScale();
         float offsetX = width * 0.5f;
         float offsetY = height * 0.5f;
 
@@ -326,7 +304,7 @@ public class ModelEngine {
         // DEPTH_EPSILON tie-break deterministically picks the first-drawn of any coplanar pair
         // (see the comment on the depth test below).
         List<Projected> rawPrepared = triangles.parallelStream()
-            .map(triangle -> projectTriangle(triangle, transform, scale, offsetX, offsetY, perspective))
+            .map(triangle -> projectTriangle(triangle, transform, scale, offsetX, offsetY, this.lens))
             .filter(Objects::nonNull)
             .toList();
         List<Projected> prepared = sortNoCullBackToFront(rawPrepared);

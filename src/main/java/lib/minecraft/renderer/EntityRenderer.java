@@ -206,7 +206,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // the (glinted) armor rather than the whole entity silhouette.
         int ssaa = Math.max(1, options.getSupersample());
         return FinalizeStage.run(fit.canvasW(), fit.canvasH(), ssaa, options.isAntiAlias(), enchanted,
-            (target, mask) -> engine.rasterize(triangles, target, entityProjection.lens(), effective, mask),
+            (target, mask) -> engine.rasterize(triangles, target, effective, mask),
             (buffer, mask) -> GlintStage.forArmor(engine.textures()::tryResolveTexture, buffer, enchanted, mask));
     }
 
@@ -616,7 +616,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // source of truth. The trailing modelRotation + outer flipY stay here: this transform is applied
         // to bounds-probe points the kit FLIP_Y never touches, so it bakes that flip in (unlike the
         // Projection.VANILLA_ENTITY camera).
-        Matrix4f m = Projection.VANILLA_ENTITY.resolve().camera().matrix();
+        Matrix4f m = Projection.VANILLA_ENTITY.resolve().camera().pose();
         if (!userIdentity)
             m = m.rotate(Quaternionf.rotationXYZ(userRotation.pitchRadians(), userRotation.yawRadians(), userRotation.rollRadians()));
         return m.scale(1f, -1f, 1f);

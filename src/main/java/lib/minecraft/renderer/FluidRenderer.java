@@ -157,7 +157,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
 
             int ssaa = Math.max(1, options.getSupersample());
             return FinalizeStage.run(options.getOutputSize(), options.getOutputSize(), ssaa, options.isAntiAlias(), false,
-                (target, mask) -> engine.rasterize(triangles, target, resolved.lens()),
+                (target, mask) -> engine.rasterize(triangles, target),
                 (buffer, mask) -> buffer);
         }
 

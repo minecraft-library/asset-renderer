@@ -268,14 +268,14 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         @NotNull PixelBuffer buffer,
         @NotNull ItemOptions options
     ) {
-        ModelEngine engine = new ModelEngine(context, Camera.fromPose(SHIELD_GUI_ROTATION));
+        ModelEngine engine = new ModelEngine(context, Camera.fromPose(SHIELD_GUI_ROTATION, SHIELD_PERSPECTIVE));
         PixelBuffer texture = engine.textures().resolveTexture(SHIELD_NOPATTERN_TEXTURE_ID);
         ConcurrentList<VisibleTriangle> triangles = ShieldKit.buildShield3D(texture);
         triangles = ShieldKit.relightShield(triangles, SHIELD_GUI_ROTATION);
 
         Matrix4f modelTransform = Matrix4f.IDENTITY.translate(
             SHIELD_ALIGN_OFFSET.x(), SHIELD_ALIGN_OFFSET.y(), SHIELD_ALIGN_OFFSET.z());
-        engine.rasterize(triangles, buffer, SHIELD_PERSPECTIVE, modelTransform);
+        engine.rasterize(triangles, buffer, modelTransform);
     }
 
     /**
@@ -521,7 +521,10 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         public @NotNull ImageData render(@NotNull ItemOptions options) {
             Item item = requireItem(this.context, options.getItemId());
 
-            ModelEngine engine = new ModelEngine(this.context);
+            // Identity-pose camera carrying only the projection's lens: the held-item pose lives
+            // entirely in the model's display transform (applied as the modelTransform below), so the
+            // camera pose stays identity and only the rotation-independent lens comes from resolve().
+            ModelEngine engine = new ModelEngine(this.context, Camera.identity(options.getProjection().resolve().camera().lens()));
             PixelBuffer buffer = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
             int tint = options.getTintColor().orElse(ColorMath.WHITE);
 
@@ -550,10 +553,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             }
 
             Matrix4f displayTransform = resolveDisplayTransform(item, DISPLAY_SLOT_HELD_3D);
-            // The held-item pose lives entirely in the model's display transform; the camera is the
-            // identity ModelEngine above, so only the projection's lens is consumed - the
-            // rotation-independent base lens via the no-arg resolve().
-            engine.rasterize(triangles, buffer, options.getProjection().resolve().lens(), displayTransform);
+            engine.rasterize(triangles, buffer, displayTransform);
 
             return finalize2DItem(engine.textures(), buffer, item, options);
         }
