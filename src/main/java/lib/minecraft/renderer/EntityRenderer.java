@@ -11,7 +11,6 @@ import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.RendererDebug;
-import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.FinalizeStage;
@@ -159,7 +158,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // The entity goes through the projection front door: VANILLA_ENTITY resolves to the det=-1
         // entityIsoChain camera (chirality) + the iso flatten. The model rotation `effective` stays a
         // separate model-spin passed to rasterize below - the chirality chain is fixed, so VANILLA_ENTITY
-        // does not compose the rotation into the camera (resolve's CameraChain.ENTITY_ISO branch).
+        // does not compose the rotation into the camera (the CameraChain.ENTITY_ISO strategy).
         Projection.Resolved entityProjection = Projection.VANILLA_ENTITY.resolve();
         ModelEngine engine = new ModelEngine(this.context, entityProjection.camera());
         SceneContext scene = new SceneContext(
@@ -612,11 +611,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     private static @NotNull Matrix4f composeIsoTransform(@NotNull EulerRotation userRotation) {
         boolean userIdentity = userRotation.pitch() == 0f && userRotation.yaw() == 0f && userRotation.roll() == 0f;
-        // Shared iso prefix (flipY -> scaleZneg -> isoRotation -> scaleZneg) lives on Camera so the
-        // entity camera and this bounds/anchor transform stay a single source of truth. The trailing
-        // modelRotation + outer flipY stay here: this transform is applied to bounds-probe points the
-        // kit FLIP_Y never touches, so it bakes that flip in (unlike Projection.VANILLA_ENTITY's camera).
-        Matrix4f m = Camera.entityIsoChain(Projection.VANILLA_ENTITY.basePose());
+        // Shared iso prefix (flipY -> scaleZneg -> isoRotation -> scaleZneg) lives on Projection (the
+        // VANILLA_ENTITY camera) so the entity camera and this bounds/anchor transform stay a single
+        // source of truth. The trailing modelRotation + outer flipY stay here: this transform is applied
+        // to bounds-probe points the kit FLIP_Y never touches, so it bakes that flip in (unlike the
+        // Projection.VANILLA_ENTITY camera).
+        Matrix4f m = Projection.VANILLA_ENTITY.resolve().camera().matrix();
         if (!userIdentity)
             m = m.rotate(Quaternionf.rotationXYZ(userRotation.pitchRadians(), userRotation.yawRadians(), userRotation.rollRadians()));
         return m.scale(1f, -1f, 1f);

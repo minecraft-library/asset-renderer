@@ -1,6 +1,12 @@
 package lib.minecraft.renderer.engine.camera;
 
 import lib.minecraft.renderer.request.EulerRotation;
+import lib.minecraft.renderer.tensor.Matrix4f;
+import lib.minecraft.renderer.tensor.Quaternionf;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.experimental.Accessors;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -8,17 +14,18 @@ import org.jetbrains.annotations.NotNull;
  * camera {@link Camera pose} and {@link Lens flatten}. Each constant bundles a canonical base pose
  * (pitch / yaw / roll) with its flatten family; {@link #resolve(EulerRotation)} composes the caller's
  * rotation onto that base pose and returns the pose-locked triple the renderers consume. The named
- * vanilla cameras live here as the {@code VANILLA_*} members - {@link Camera} itself is now just the
- * value type plus the {@link Camera#fromPose} / {@link Camera#entityIsoChain} / {@link Camera#identity}
- * primitives this catalog assembles.
+ * vanilla cameras live here as the {@code VANILLA_*} members, and this catalog assembles them from
+ * {@link Camera}'s primitives ({@link Camera#fromPose} / {@link Camera#identity}) plus its own
+ * {@link #entityIsoChain} for the entity chirality - so {@code Camera} stays a dependency-free value type.
  *
  * <p>The canonical members carry <b>correct textbook values</b> (true isometric, standard dimetric,
  * cabinet / cavalier / military, one / two / three point). The {@code VANILLA_*} members document the
  * <b>shipped hardcoded baseline</b> - they reproduce the current renders byte-for-byte and are the
- * defaults so existing output never changes. Resolution routes the base pose through
- * {@link Camera#fromPose} ({@code rotationXYZ}) for the GUI-pose members - reproducing the legacy block
- * / player cameras bit-for-bit - and through the {@link Camera#entityIsoChain} chirality chain for
- * {@link #VANILLA_ENTITY}. An unrotated {@link #resolve()} on a {@code VANILLA_*} member yields the
+ * defaults so existing output never changes. Each member carries a {@link CameraChain} strategy that
+ * assembles its {@link Resolved} triple: {@link CameraChain#GUI_POSE} routes the base pose through
+ * {@link Camera#fromPose} ({@code rotationXYZ}) - reproducing the legacy block / player cameras
+ * bit-for-bit - and {@link CameraChain#ENTITY_ISO} builds the {@link #entityIsoChain} chirality chain
+ * for {@link #VANILLA_ENTITY}. An unrotated {@link #resolve()} on a {@code VANILLA_*} member yields the
  * exact shipped {@link Camera} / {@link Lens} / lighting triple.
  *
  * <p>Three projection families map onto the pipeline as follows: <b>axonometric</b> (isometric /
@@ -28,6 +35,9 @@ import org.jetbrains.annotations.NotNull;
  * pose's pitch / yaw / roll, posing the camera and its lighting together - except {@link #VANILLA_ENTITY},
  * whose det=-1 chirality chain is fixed and whose rotation stays a separate model-spin.
  */
+@Getter
+@Accessors(fluent = true)
+@RequiredArgsConstructor
 public enum Projection {
 
     /**
@@ -36,7 +46,7 @@ public enum Projection {
      * The view axis lies on one principal axis, producing a single vanishing point. Pose
      * {@code (0, 180, 0)}, perspective flatten.
      */
-    ONE_POINT(new EulerRotation(0f, 180f, 0f), Lens.perspective(0.6f, 8f, 8f, 0.45f)),
+    ONE_POINT(new EulerRotation(0f, 180f, 0f), Lens.perspective(0.6f, 8f, 8f, 0.45f), CameraChain.GUI_POSE),
 
     /**
      * Two-point central perspective.
@@ -44,7 +54,7 @@ public enum Projection {
      * Yawed off the view axis with zero pitch, producing two horizontal vanishing points and parallel
      * verticals. Pose {@code (0, 215, 0)}, perspective flatten.
      */
-    TWO_POINT(new EulerRotation(0f, 215f, 0f), Lens.perspective(0.6f, 8f, 8f, 0.45f)),
+    TWO_POINT(new EulerRotation(0f, 215f, 0f), Lens.perspective(0.6f, 8f, 8f, 0.45f), CameraChain.GUI_POSE),
 
     /**
      * Three-point central perspective.
@@ -52,7 +62,7 @@ public enum Projection {
      * Yawed and pitched off the view axis, producing three vanishing points including the vertical.
      * Pose {@code (30, 215, 0)}, perspective flatten.
      */
-    THREE_POINT(new EulerRotation(30f, 215f, 0f), Lens.perspective(0.6f, 8f, 8f, 0.45f)),
+    THREE_POINT(new EulerRotation(30f, 215f, 0f), Lens.perspective(0.6f, 8f, 8f, 0.45f), CameraChain.GUI_POSE),
 
     /**
      * Isometric axonometric projection.
@@ -60,7 +70,7 @@ public enum Projection {
      * Pitch {@code atan(1/√2) = 35.264°} gives equal foreshortening on all three axes (ISO 5456-3).
      * Orthographic flatten.
      */
-    ISOMETRIC(new EulerRotation(35.264f, 225f, 0f), Lens.orthographic(0.45f)),
+    ISOMETRIC(new EulerRotation(35.264f, 225f, 0f), Lens.orthographic(0.45f), CameraChain.GUI_POSE),
 
     /**
      * Dimetric axonometric projection.
@@ -68,7 +78,7 @@ public enum Projection {
      * The 2:1 pixel-art convention - pitch {@code atan(0.5) = 26.565°} foreshortens two axes equally.
      * Orthographic flatten.
      */
-    DIMETRIC(new EulerRotation(26.565f, 225f, 0f), Lens.orthographic(0.5f)),
+    DIMETRIC(new EulerRotation(26.565f, 225f, 0f), Lens.orthographic(0.5f), CameraChain.GUI_POSE),
 
     /**
      * Trimetric axonometric projection.
@@ -76,7 +86,7 @@ public enum Projection {
      * All three axes foreshortened differently (ISO 5456-3 asymmetric example). Pose
      * {@code (20, 250, 0)}, orthographic flatten.
      */
-    TRIMETRIC(new EulerRotation(20f, 250f, 0f), Lens.orthographic(0.5f)),
+    TRIMETRIC(new EulerRotation(20f, 250f, 0f), Lens.orthographic(0.5f), CameraChain.GUI_POSE),
 
     /**
      * Cavalier oblique projection.
@@ -84,7 +94,7 @@ public enum Projection {
      * The front face is true-shape and the receding axis is drawn at 45° to full depth, with no
      * foreshortening. Oblique flatten {@code L = 1.0}.
      */
-    CAVALIER(new EulerRotation(0f, 180f, 0f), Lens.oblique(1.0f, (float) Math.toRadians(-45), 0.5f)),
+    CAVALIER(new EulerRotation(0f, 180f, 0f), Lens.oblique(1.0f, (float) Math.toRadians(-45), 0.5f), CameraChain.GUI_POSE),
 
     /**
      * Cabinet oblique projection.
@@ -92,7 +102,7 @@ public enum Projection {
      * The front face is true-shape and the receding axis is drawn at 45° with depth halved for a
      * natural look - the de-facto cabinet standard. Oblique flatten {@code L = 0.5}.
      */
-    CABINET(new EulerRotation(0f, 180f, 0f), Lens.oblique(0.5f, (float) Math.toRadians(-45), 0.5f)),
+    CABINET(new EulerRotation(0f, 180f, 0f), Lens.oblique(0.5f, (float) Math.toRadians(-45), 0.5f), CameraChain.GUI_POSE),
 
     /**
      * Military (planometric) oblique projection.
@@ -101,7 +111,7 @@ public enum Projection {
      * Pose {@code (90, 225, 0)} plan, oblique flatten {@code L = 1.0}. The least-standard mapping;
      * verify visually.
      */
-    MILITARY(new EulerRotation(90f, 225f, 0f), Lens.oblique(1.0f, (float) Math.toRadians(-45), 0.5f)),
+    MILITARY(new EulerRotation(90f, 225f, 0f), Lens.oblique(1.0f, (float) Math.toRadians(-45), 0.5f), CameraChain.GUI_POSE),
 
     /**
      * Shipped block, fluid, and portal baseline.
@@ -112,7 +122,7 @@ public enum Projection {
      * full-body skin renders) used whenever a block model does not override its own GUI pose;
      * reproduces the block / fluid / portal renders byte-for-byte.
      */
-    VANILLA_BLOCK(new EulerRotation(30f, 225f, 0f), Lens.ISOMETRIC_BLOCK),
+    VANILLA_BLOCK(new EulerRotation(30f, 225f, 0f), Lens.ISOMETRIC_BLOCK, CameraChain.GUI_POSE),
 
     /**
      * Shipped player baseline.
@@ -123,7 +133,7 @@ public enum Projection {
      * GUI pose at the conservative scale, carrying none of {@link #VANILLA_ENTITY}'s LER chirality.
      * Reproduces the player renders byte-for-byte; the default for the player renderer.
      */
-    VANILLA_PLAYER(new EulerRotation(30f, 45f, 0f), Lens.NONE),
+    VANILLA_PLAYER(new EulerRotation(30f, 45f, 0f), Lens.NONE, CameraChain.GUI_POSE),
 
     /**
      * Shipped 3D held-item baseline.
@@ -132,21 +142,21 @@ public enum Projection {
      * {@code display} matrix. Reproduces the held-item renders byte-for-byte; the default for the item
      * renderer.
      */
-    VANILLA_GUI_ITEM(EulerRotation.NONE, Lens.GUI_ITEM),
+    VANILLA_GUI_ITEM(EulerRotation.NONE, Lens.GUI_ITEM, CameraChain.GUI_POSE),
 
     /**
      * Shipped entity-preview baseline.
      * <p>
      * Vanilla's {@code EntityFrameRenderer.ISO_ROTATION = rotationXYZ(210°, 45°, 0°)}, itself derived
      * from the empirical 24-step yaw + 576-frame pitch/roll sweep that locked vanilla's entity-preview
-     * pipeline camera. Built as the {@link Camera#entityIsoChain} chirality chain - a det=-1 transform
+     * pipeline camera. Built as the {@link #entityIsoChain} chirality chain - a det=-1 transform
      * carrying the LER chirality + reflection the vanilla-reference harness applies, so entity output
      * aligns with the harness ground-truth PNGs. NOT equivalent to {@link #VANILLA_BLOCK} /
      * {@link #VANILLA_PLAYER}, which are det=+1 GUI display poses: this pose differs from the block one
      * by a yaw mirror + transpose-like permutation, so entity rendering must use it rather than
      * borrowing the block-icon pose. The caller's rotation stays a separate model-spin rather than
-     * composing into the camera ({@code resolve}'s {@link CameraChain#ENTITY_ISO} branch). The default
-     * for the entity renderer.
+     * composing into the camera (the {@link CameraChain#ENTITY_ISO} strategy). The default for the
+     * entity renderer.
      */
     VANILLA_ENTITY(new EulerRotation(210f, 45f, 0f), Lens.ISOMETRIC_BLOCK, CameraChain.ENTITY_ISO);
 
@@ -162,53 +172,77 @@ public enum Projection {
     public record Resolved(@NotNull Camera camera, @NotNull Lens flatten, @NotNull EulerRotation lightingPose) {}
 
     /**
-     * How a {@link Projection} turns its base pose into a {@link Camera}.
+     * How a {@link Projection} assembles its base pose and the caller's rotation into a
+     * {@link Resolved} triple. Each constant overrides {@link #resolve} with its own assembly, so
+     * {@link Projection#resolve(EulerRotation)} dispatches polymorphically instead of branching on a
+     * tag.
      */
     private enum CameraChain {
 
         /**
          * A {@code display.*} GUI pose: {@link Camera#fromPose} builds the {@code rotationXYZ(pose)}
-         * matrix and the caller's rotation composes into that pose. Used by every member except the
-         * entity preview.
+         * matrix and the caller's rotation composes into that pose, so camera and lighting move
+         * together. Used by every member except the entity preview.
          */
-        GUI_POSE,
+        GUI_POSE {
+            @Override
+            @NotNull Resolved resolve(@NotNull EulerRotation basePose, @NotNull Lens flatten, @NotNull EulerRotation rotation) {
+                EulerRotation pose = compose(basePose, rotation);
+                return new Resolved(Camera.fromPose(pose), flatten, pose);
+            }
+        },
 
         /**
-         * The vanilla entity-preview iso chain ({@link Camera#entityIsoChain}) - a det=-1,
+         * The vanilla entity-preview iso chain ({@link Projection#entityIsoChain}) - a det=-1,
          * odd-reflection chirality transform matching the harness. The chain is fixed; the caller
          * applies its rotation (plus the per-entity {@code setupRotations} addends) as a separate
-         * model-spin at rasterize time, so the rotation is NOT composed into this camera.
+         * model-spin at rasterize time, so the {@code rotation} is ignored here and the base pose
+         * doubles as the lighting pose.
          */
-        ENTITY_ISO
+        ENTITY_ISO {
+            @Override
+            @NotNull Resolved resolve(@NotNull EulerRotation basePose, @NotNull Lens flatten, @NotNull EulerRotation rotation) {
+                return new Resolved(new Camera(entityIsoChain(basePose)), flatten, basePose);
+            }
+        };
 
-    }
+        /**
+         * Assembles the resolved triple for a projection carrying the given base pose and flatten,
+         * under the caller's rotation.
+         *
+         * @param basePose the projection's unrotated base pose
+         * @param flatten the projection's flatten
+         * @param rotation the caller's rotation (composed into the pose by {@link #GUI_POSE}, ignored
+         *     by {@link #ENTITY_ISO})
+         * @return the resolved triple
+         */
+        abstract @NotNull Resolved resolve(@NotNull EulerRotation basePose, @NotNull Lens flatten, @NotNull EulerRotation rotation);
 
-    private final @NotNull EulerRotation basePose;
-    private final @NotNull Lens baseFlatten;
-    private final @NotNull CameraChain cameraChain;
-
-    Projection(@NotNull EulerRotation basePose, @NotNull Lens baseFlatten) {
-        this(basePose, baseFlatten, CameraChain.GUI_POSE);
-    }
-
-    Projection(@NotNull EulerRotation basePose, @NotNull Lens baseFlatten, @NotNull CameraChain cameraChain) {
-        this.basePose = basePose;
-        this.baseFlatten = baseFlatten;
-        this.cameraChain = cameraChain;
     }
 
     /**
      * This projection's unrotated base pose - the {@code (pitch, yaw, roll)} the camera and lighting
-     * sit at before the caller's rotation. The canonical home for the vanilla iso angles (block
-     * {@code [30, 225, 0]}, player {@code [30, 45, 0]}, entity {@code [210, 45, 0]}); callers that need
-     * the raw rotation - the entity pipeline's {@link Camera#entityIsoChain} and its bounds/anchor
-     * inverse - pull it from here rather than carrying their own copy.
-     *
-     * @return the base pose in degrees
+     * sit at before the caller's rotation, in degrees. The canonical home for the vanilla iso angles
+     * (block {@code [30, 225, 0]}, player {@code [30, 45, 0]}, entity {@code [210, 45, 0]}); callers
+     * that need the raw rotation - the entity pipeline's bounds/anchor inverse - pull it from here
+     * (via the generated {@code basePose()} accessor) rather than carrying their own copy.
      */
-    public @NotNull EulerRotation basePose() {
-        return this.basePose;
-    }
+    private final @NotNull EulerRotation basePose;
+
+    /**
+     * This projection's flatten family - the 3D-to-2D {@link Lens} paired with the pose. Rotation-
+     * independent; the {@link CameraChain} strategy passes it straight through to
+     * {@link Resolved#flatten()}.
+     */
+    private final @NotNull Lens baseFlatten;
+
+    /**
+     * The strategy that assembles this projection's {@link Resolved} triple: {@link CameraChain#GUI_POSE}
+     * for the det=+1 display-pose members, {@link CameraChain#ENTITY_ISO} for the entity chirality chain.
+     * Package-internal only, so no accessor is generated.
+     */
+    @Getter(AccessLevel.NONE)
+    private final @NotNull CameraChain cameraChain;
 
     /**
      * Resolves this projection at its base pose - the unrotated camera / flatten / lighting-pose
@@ -222,26 +256,24 @@ public enum Projection {
     }
 
     /**
-     * Resolves this projection into the camera / flatten / lighting-pose triple, composing the given
-     * rotation onto this constant's base pose. For a GUI-pose member the rotation adds to the base
-     * pitch / yaw / roll, so it poses the camera and the lighting pose together (the flatten is
-     * rotation-independent) through the parity-pinned {@link Camera#fromPose} {@code rotationXYZ} path,
-     * which reproduces the legacy {@code VANILLA_*} cameras bit-for-bit; {@link EulerRotation#NONE}
-     * yields the base pose unchanged, keeping the default render path byte-identical.
+     * Resolves this projection into the camera / flatten / lighting-pose triple by delegating to this
+     * constant's {@link CameraChain} strategy. For a {@link CameraChain#GUI_POSE} member the rotation
+     * adds to the base pitch / yaw / roll, so it poses the camera and the lighting pose together (the
+     * flatten is rotation-independent) through the parity-pinned {@link Camera#fromPose}
+     * {@code rotationXYZ} path, which reproduces the legacy {@code VANILLA_*} cameras bit-for-bit;
+     * {@link EulerRotation#NONE} yields the base pose unchanged, keeping the default render path
+     * byte-identical.
      *
-     * <p>{@link #VANILLA_ENTITY} is the exception: its det=-1 {@link Camera#entityIsoChain} is fixed,
-     * so the {@code rotation} is ignored here and the entity renderer applies it (plus its
-     * {@code setupRotations} addends) as a separate model-spin at rasterize time.
+     * <p>{@link #VANILLA_ENTITY} ({@link CameraChain#ENTITY_ISO}) is the exception: its det=-1
+     * {@link #entityIsoChain} is fixed, so the {@code rotation} is ignored here and the entity renderer
+     * applies it (plus its {@code setupRotations} addends) as a separate model-spin at rasterize time.
      *
      * @param rotation the rotation composed onto the base pose, in degrees (ignored for
      *     {@link #VANILLA_ENTITY})
      * @return the resolved triple
      */
     public @NotNull Resolved resolve(@NotNull EulerRotation rotation) {
-        if (this.cameraChain == CameraChain.ENTITY_ISO)
-            return new Resolved(new Camera(Camera.entityIsoChain(this.basePose)), this.baseFlatten, this.basePose);
-        EulerRotation pose = compose(this.basePose, rotation);
-        return new Resolved(Camera.fromPose(pose), this.baseFlatten, pose);
+        return this.cameraChain.resolve(this.basePose, this.baseFlatten, rotation);
     }
 
     /**
@@ -255,6 +287,46 @@ public enum Projection {
             base.yaw() + rotation.yaw(),
             base.roll() + rotation.roll()
         );
+    }
+
+    /**
+     * Builds the vanilla entity-preview iso chain - the full entity-preview transform expressed as the
+     * column-vector matrix our column-form rasterizer consumes, AFTER accounting for the kit's
+     * pre-applied {@code FLIP_Y} on positions. Assembled for {@link #VANILLA_ENTITY} by the
+     * {@link CameraChain#ENTITY_ISO} strategy, and reached by the entity renderer's bounds / anchor
+     * projection through {@link #resolve()} so both stay a single source of truth.
+     * <p>
+     * The harness applies (col form, applied to a Y-down model vertex right-to-left):
+     * <pre>
+     * scale(1,1,-1) outer chirality
+     *   &times; R_X(210&deg;)   iso pitch
+     *   &times; R_Y(45&deg;)    iso yaw
+     *   &times; R_X(180&deg;)   LER chirality (scale(-1,-1,1)) + setupRotations (rotateY(180&deg;))
+     * </pre>
+     * Our pipeline applies kit {@code FLIP_Y = diag(1,-1,1)} to positions before the engine sees
+     * them. The trailing {@code scale(1,-1,1)} absorbs the kit's flip into the camera matrix (and
+     * simplifies {@code scale(1,-1,1) &times; R_X(180&deg;) = diag(1,1,-1)} so two outer
+     * {@code scale(1,1,-1)} factors remain).
+     * <p>
+     * The two outer {@code scale(1,1,-1)} factors give a det=-1 transform total - matching the
+     * harness's odd-reflection-count chirality. The simpler {@code Quaternionf.rotationXYZ(210&deg;,
+     * 45&deg;, 0&deg;)} alone (det=+1) is INSUFFICIENT - it produces the iso rotation but omits the
+     * LER chirality and reflection components, which Round 2 confirmed regresses every entity ~6x.
+     * <p>
+     * Column-vector application order is rightmost-first:
+     * {@code scale(1,1,-1) * isoQuat * scale(1,1,-1) * scale(1,-1,1)}. Each fluent op matches JOML's
+     * in-place translate/scale/rotate bit-for-bit with default {@code joml.useMathFma=false}.
+     *
+     * @param isoPose the entity iso pose driving the central rotation - {@link #VANILLA_ENTITY}'s base
+     *     pose, vanilla's {@code [210, 45, 0]}
+     * @return the entity iso chain matrix
+     */
+    private static @NotNull Matrix4f entityIsoChain(@NotNull EulerRotation isoPose) {
+        return Matrix4f.IDENTITY
+            .scale(1f, -1f, 1f)
+            .scale(1f, 1f, -1f)
+            .rotate(Quaternionf.rotationXYZ(isoPose.pitchRadians(), isoPose.yawRadians(), isoPose.rollRadians()))
+            .scale(1f, 1f, -1f);
     }
 
 }

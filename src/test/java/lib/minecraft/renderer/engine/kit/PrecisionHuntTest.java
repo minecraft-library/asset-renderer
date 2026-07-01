@@ -211,7 +211,7 @@ class PrecisionHuntTest {
             ulpsBetween(nxA, outC.x()), ulpsBetween(nyA, outC.y()), ulpsBetween(nzA, outC.z()));
     }
 
-    // --- Hypothesis E: Camera.entityIsoChain(pose) vs vanilla effectiveRotation float coords ---
+    // --- Hypothesis E: Projection.entityIsoChain(pose) vs vanilla effectiveRotation float coords ---
 
     @Test
     @DisplayName("[HYP_E] our entityIsoChain matrix has bit-identical rot block to vanilla's quat")

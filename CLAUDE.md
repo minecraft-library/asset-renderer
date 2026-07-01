@@ -52,7 +52,7 @@ The sibling [vanilla-reference-harness] drives the actual MC client to render ev
 - Entities: `Projection.VANILLA_ENTITY.basePose()` = `(210°, 45°, 0°)` matching harness's `EntityFrameRenderer.ISO_ROTATION = rotationXYZ(210°, 45°, 0°)`. (`Projection` is the sole owner of these poses; `EulerRotation.STANDARD_*` is gone.)
 - Blocks: `Projection.VANILLA_BLOCK.basePose()` = `(30°, 225°, 0°)` - distinct from entity iso on purpose.
 - Entity iso transform chain has `det=-1` (chirality fix); 5 coupled invariants pinned together: iso constant, engine camera chain, kit emission winding, plane-cube culling, canvas-sizing helpers. The foundation test's "cross OPPOSES stored normal" invariant guards against accidental re-flipping.
-- DO NOT touch `composeIsoTransform` / `Camera.entityIsoChain` (the shared entity iso prefix). Rotation-order swap is math-proven equivalent and an empirical retry regressed piglin 10.27 -> 184.34.
+- DO NOT touch `composeIsoTransform` / `Projection.entityIsoChain` (the shared entity iso prefix). Rotation-order swap is math-proven equivalent and an empirical retry regressed piglin 10.27 -> 184.34.
 
 ### JOML factory conventions (load-bearing)
 JOML's `Quaternionf` has two Tait-Bryan factories with OPPOSITE application order. Vanilla uses both:
