@@ -9,6 +9,7 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.codec.gif.GifImageWriter;
 import dev.simplified.image.codec.gif.GifWriteOptions;
 import lib.minecraft.renderer.PlayerRenderer;
+import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.options.PlayerOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
@@ -48,7 +49,8 @@ import javax.imageio.ImageIO;
  * separate effort and out of scope (see {@code notes/player-parity.md}).
  *
  * <p>Each sheet is a grid of labelled cells over a checkerboard (so transparent renders stay
- * visible). The sweep covers the scope x dimension grid, the overlay / cape / supersample+FXAA /
+ * visible). The sweep covers the scope x dimension grid, the player head in 3D under every
+ * {@link lib.minecraft.renderer.engine.camera.Projection}, the overlay / cape / supersample+FXAA /
  * rotation / background toggles, every armor material on every slot (2D and 3D), dyed leather, a
  * representative trim set, a vanilla-vs-pack armor comparison (with {@code -Ppack}), and a live
  * {@code account} sheet that renders a real player's skin + cape from their Mojang profile. The
@@ -106,6 +108,7 @@ public final class TestPlayerRender {
 
         Map<String, List<Cell>> sheets = new LinkedHashMap<>();
         sheets.put("core-matrix", coreMatrix(size));
+        sheets.put("projections", projections(size));
         sheets.put("toggles", toggles(size));
         sheets.put("armor-3d", armorMaterials(size, PlayerOptions.Dimension.THREE_D));
         sheets.put("armor-2d", armorMaterials(size, PlayerOptions.Dimension.TWO_D));
@@ -149,6 +152,21 @@ public final class TestPlayerRender {
         for (PlayerOptions.Type type : PlayerOptions.Type.values())
             for (PlayerOptions.Dimension dim : PlayerOptions.Dimension.values())
                 cells.add(new Cell(type + " " + dim, base(size).type(type).dimension(dim).build()));
+        return cells;
+    }
+
+    /**
+     * The player head (SKULL) rendered in 3D under every {@link Projection} - one cell per catalog
+     * entry, so each camera pose + lens resolves and rasterizes. A functional check that the whole
+     * projection taxonomy is wired end to end; the head is the smallest scope that still shows top /
+     * front / side faces, making pose and clipping issues obvious.
+     */
+    private static @NotNull List<Cell> projections(int size) {
+        List<Cell> cells = new ArrayList<>();
+        for (Projection projection : Projection.values())
+            cells.add(new Cell(projection.name().toLowerCase(),
+                base(size).type(PlayerOptions.Type.SKULL).dimension(PlayerOptions.Dimension.THREE_D)
+                    .projection(projection).build()));
         return cells;
     }
 

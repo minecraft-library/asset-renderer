@@ -313,6 +313,19 @@ tasks {
         }
     }
 
+    register<JavaExec>("entityProjections") {
+        description = "Renders one entity under every Projection as a labelled contact sheet to cache/visual/entity-projections/. -PentityId=minecraft:zombie -PrenderSize=256"
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestEntityProjections")
+        classpath = sourceSets["test"].runtimeClasspath
+        val entityId = project.findProperty("entityId") as String?
+        val renderSize = (project.findProperty("renderSize") as String?) ?: "256"
+        args = buildList {
+            add(entityId ?: "")
+            add(renderSize)
+        }
+    }
+
     register<JavaExec>("entityParityVanilla") {
         description = "Per-entity parity report comparing Java pipeline vs vanilla-reference-harness ground truth (mean ARGB delta + per-entity vanilla/java/diff PNGs). Output -> cache/visual/entity-parity-vanilla/<entity>/. Run :asset-renderer:renderVanillaReferences first if the cache is missing. -PentityId=minecraft:zombie"
         group = "visual"
