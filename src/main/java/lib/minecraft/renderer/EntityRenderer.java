@@ -70,7 +70,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * turning the {@code +Z} front to the camera) composed with vanilla
      * {@code LivingEntityRenderer.submit}'s {@code rotateY(180) * scale(-1,-1,1) = flip180} (the Y-down
      * to Y-up flip + chirality): {@code R_Y(180) * flip180 = R_Z(180) = diag(-1,-1,1)}. Applied as the
-     * entity {@link Placement} so {@link Projection#VANILLA_ENTITY} stays a facing-neutral {@code [30,225,0]}
+     * entity {@link Placement} so {@link Projection#VANILLA_ISO} stays a facing-neutral {@code [30,225,0]}
      * pose like block/player: {@code R(30,225,0) * ENTITY_FACING = R(30,45,0) * flip180} reproduces the
      * shipped orientation, and any projection swapped in keeps the entity upright AND facing.
      */
@@ -172,7 +172,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // reproduces the historic base -> overlays -> block-overlays -> armor sequence exactly.
         // Callers can splice their own layers via EntityOptions.layerDecorator.
         // The entity is a normal projection subject: the camera is the caller's projection display pose
-        // DIRECTLY (default VANILLA_ENTITY = the facing-neutral rotationXYZ(30,225,0)), and its model->world
+        // DIRECTLY (default VANILLA_ISO = the facing-neutral rotationXYZ(30,225,0)), and its model->world
         // facing (humanoid R_Y(180)) + Y-down flip + chirality is the single ENTITY_FACING Placement.
         // render = pose · ENTITY_FACING · model_Ydown lands the entity upright AND facing under ANY
         // projection (exactly like the player's R_Y(180) facing, plus the Y-down flip). For the default,
@@ -613,7 +613,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * <li>{@code modelRotation} - the caller's rotation as a {@link Quaternionf#rotationXYZ} quaternion;
      *     identity for {@link EulerRotation#NONE}.</li>
      * <li>{@code cameraPose = projection.pose()} - the entity's world-to-screen pose directly; for the
-     *     default {@link Projection#VANILLA_ENTITY} this is the facing-neutral {@code rotationXYZ(30,225,0)}.
+     *     default {@link Projection#VANILLA_ISO} this is the facing-neutral {@code rotationXYZ(30,225,0)}.
      *     Composed with the trailing {@code ENTITY_FACING} it is {@code R(30,225,0) · diag(-1,-1,1) =
      *     rotationXYZ(210,-45,0)}, the entity's byte-identical orientation.</li>
      * </ul>

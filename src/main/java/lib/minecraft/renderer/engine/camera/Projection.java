@@ -27,9 +27,9 @@ import org.jetbrains.annotations.NotNull;
  * dimetric / trimetric) = orthographic flatten + a pose; <b>perspective</b> (one / two / three point)
  * = perspective flatten + a pose (n = how many principal axes tilt off the view axis); <b>oblique</b>
  * (cavalier / cabinet / military) = a depth-shear flatten. The caller's rotation adds onto the base
- * pose's pitch / yaw / roll, posing the camera and its lighting together. {@link #VANILLA_ENTITY} is a
- * plain iso display pose like the rest; the entity's model-to-world facing / chirality is applied
- * separately by the entity renderer as a {@code Placement} + model-spin.
+ * pose's pitch / yaw / roll, posing the camera and its lighting together. {@link #VANILLA_ISO} is a
+ * plain facing-neutral iso display pose shared by blocks, players, and entities; each renderer applies
+ * its subject's facing separately as a model-to-world {@code Placement}.
  */
 @Getter
 @Accessors(fluent = true)
@@ -110,54 +110,48 @@ public enum Projection {
     MILITARY(new EulerRotation(90f, 225f, 0f), Lens.oblique(1.0f, (float) Math.toRadians(-45), 0.5f)),
 
     /**
-     * Shipped block, fluid, and portal baseline.
+     * The shipped vanilla iso baseline for blocks, fluids, portals, players, and entities - vanilla's
+     * {@code [30, 225, 0]} {@code display.gui} pose baked into the root {@code block/block.json} model
+     * (technically a dimetric, not true isometric) at scale {@code 0.625} ({@link Lens#ISOMETRIC_BLOCK}).
+     * The default three-quarter block-icon view (block atlases, skulls, busts, full-body skin renders,
+     * entity previews) used whenever a model does not override its own GUI pose; reproduces the block /
+     * fluid / portal / player / entity renders byte-for-byte.
      * <p>
-     * Vanilla's {@code [30, 225, 0]} {@code display.gui} pose baked into the root
-     * {@code block/block.json} model - technically a dimetric, not true isometric - at scale
-     * {@code 0.625}. The default three-quarter block-icon view (block atlases, skulls, busts,
-     * full-body skin renders) used whenever a block model does not override its own GUI pose;
-     * reproduces the block / fluid / portal renders byte-for-byte.
+     * This pose is <b>facing-neutral</b>: it presents the model's {@code -Z} side, which for a block is its
+     * canonical icon face but for a humanoid is its back (a humanoid's front is its {@code +Z}
+     * {@code SOUTH} face). Each renderer turns its subject to face the camera with its own model-to-world
+     * {@code Placement}:
+     * <ul>
+     *   <li><b>block / fluid / portal</b> - identity; the authored orientation <b>is</b> the icon.</li>
+     *   <li><b>player</b> - {@code R_Y(180)}, so {@code [30,225,0] · R_Y(180) = [30,45,0]}, the shipped
+     *       player pose.</li>
+     *   <li><b>entity</b> - {@code R_Y(180) × flip180 = R_Z(180) = diag(-1,-1,1)}, the humanoid yaw flip
+     *       plus the Y-down-to-Y-up flip, so {@code R(30,225,0) × diag(-1,-1,1) = R(30,45,0) × flip180}
+     *       reproduces the harness ground truth, where {@code flip180 = } vanilla
+     *       {@code LivingEntityRenderer.submit}'s {@code rotateY(180°) × scale(-1,-1,1)}.</li>
+     * </ul>
+     * Keeping the facing on the renderer lets any projection present the subject's front. The three iso
+     * subjects collapse onto this single {@link Lens#ISOMETRIC_BLOCK} constant because the player's lens is
+     * irrelevant - its {@code rasterizeFitted} path cancels the projection scale.
+     * <p>
+     * The entity's harness lighting angle {@code [210, 45, 0]} lives on only as
+     * {@code EntityGeometryKit.ENTITY_ISO_LIGHTING} (the plane-cube lighting frame), decoupled from this
+     * camera pose. The caller's rotation composes onto this pose (blocks / players) or stays a separate
+     * model-spin (entities). The default for the block, fluid, portal, player, and entity renderers.
      */
-    VANILLA_BLOCK(new EulerRotation(30f, 225f, 0f), Lens.ISOMETRIC_BLOCK),
-
-    /**
-     * Shipped player baseline - a <b>facing-neutral</b> iso pose ({@code [30, 225, 0]}, the same
-     * block-icon angle as {@link #VANILLA_BLOCK}) with the player's {@code Lens.NONE} flatten. The
-     * humanoid facing is NOT baked here: the player renderer applies its {@code R_Y(180)} facing as a
-     * model-to-world {@code Placement} (like the entity's {@code ENTITY_FLIP}), which turns the model's
-     * {@code +Z} {@code SOUTH} front toward the camera - {@code [30, 225, 0] · R_Y(180) = [30, 45, 0]},
-     * the shipped player pose. Keeping the facing on the renderer lets any projection present the
-     * player's front rather than its back. Reproduces the player renders byte-for-byte; the default for
-     * the player renderer.
-     */
-    VANILLA_PLAYER(new EulerRotation(30f, 225f, 0f), Lens.NONE),
+    VANILLA_ISO(new EulerRotation(30f, 225f, 0f), Lens.ISOMETRIC_BLOCK),
 
     /**
      * Shipped 3D held-item baseline.
      * <p>
      * The moderate {@code GUI_ITEM} perspective. The base pose is the facing-neutral {@code [0, 180, 0]}
-     * head-on angle (presenting the model's {@code -Z} side, consistent with the block-icon family so a
+     * head-on angle (presenting the model's {@code -Z} side, consistent with {@link #VANILLA_ISO} so a
      * subject's renderer facing presents its front); the item renderer ignores it, using
      * {@link Camera#identity} with only this projection's {@link Lens} since the held-item pose lives in
      * the model's own {@code display} matrix. Reproduces the held-item renders byte-for-byte; the default
      * for the item renderer.
      */
-    VANILLA_GUI_ITEM(new EulerRotation(0f, 180f, 0f), Lens.GUI_ITEM),
-
-    /**
-     * Shipped entity baseline - a <b>facing-neutral</b> {@code rotationXYZ(30°, 225°, 0°)} iso display
-     * pose (det=+1), the same block-icon angle as {@link #VANILLA_BLOCK} / {@link #VANILLA_PLAYER}. The
-     * humanoid facing is NOT baked here: the entity renderer applies its facing + Y-down flip
-     * ({@code R_Y(180) × flip180 = R_Z(180) = diag(-1,-1,1)}, {@code ENTITY_FACING}) as a
-     * model-to-world {@code Placement}, so {@code R(30,225,0) × ENTITY_FACING = R(30,45,0) × flip180}
-     * reproduces the harness ground truth (with {@code flip180 = } vanilla
-     * {@code LivingEntityRenderer.submit}'s {@code rotateY(180°) × scale(-1,-1,1)}) while <b>any</b>
-     * projection swapped in keeps the entity upright AND facing - exactly like the player's facing. The
-     * harness {@code [210, 45, 0]} lives on only as the entity kit's lighting angle
-     * ({@code EntityGeometryKit.ENTITY_ISO_LIGHTING}), decoupled from this camera pose. The caller's
-     * rotation stays a separate model-spin. The default for the entity renderer.
-     */
-    VANILLA_ENTITY(new EulerRotation(30f, 225f, 0f), Lens.ISOMETRIC_BLOCK);
+    VANILLA_GUI_ITEM(new EulerRotation(0f, 180f, 0f), Lens.GUI_ITEM);
 
     /**
      * This projection's unrotated base pose - the {@code (pitch, yaw, roll)} the camera and lighting
@@ -191,10 +185,10 @@ public enum Projection {
      * which reproduces the legacy {@code VANILLA_*} cameras bit-for-bit; {@link EulerRotation#NONE} yields
      * the base pose unchanged, keeping the default render path byte-identical.
      *
-     * <p>{@link #VANILLA_ENTITY} resolves to the plain {@code rotationXYZ(210, 45, 0)} iso pose like any
-     * other display-pose member; the entity's model-to-world facing / chirality is applied separately by
-     * the entity renderer as a {@code Placement} (with the caller's rotation + {@code setupRotations}
-     * addends as a model-spin), so the entity is a normal projection subject.
+     * <p>{@link #VANILLA_ISO} resolves to the plain {@code rotationXYZ(30, 225, 0)} iso pose like any
+     * other display-pose member; each renderer's model-to-world facing / chirality is applied separately
+     * as a {@code Placement} (for the entity, with the caller's rotation + {@code setupRotations} addends
+     * as a model-spin), so blocks, players, and entities are all normal projection subjects.
      *
      * @param rotation the rotation composed onto the base pose, in degrees
      * @return the resolved camera

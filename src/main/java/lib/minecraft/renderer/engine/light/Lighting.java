@@ -72,7 +72,7 @@ public class Lighting {
      * Verified to give identical shade on all six cardinal-axis normals (cod-style entities). For
      * rotated bones the dot agrees per-vertex with vanilla's post-iso fragment shader, removing
      * the per-quadrant signed-luma signature that lingered after A1. Pairs with
-     * {@link Projection#VANILLA_ENTITY}'s camera chain.
+     * {@link Projection#VANILLA_ISO}'s camera chain.
      * <p>
      * The previous value {@code normalize(0.2, 1, 1)} was a naive Y-flip of vanilla's source
      * (matched +Y and -Y axes exactly but diverged 0.04 / 0.07 / 0.13 / 0.17 on &plusmn;X / &plusmn;Z). A

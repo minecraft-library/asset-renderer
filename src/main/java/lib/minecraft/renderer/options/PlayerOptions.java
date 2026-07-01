@@ -193,11 +193,11 @@ public class PlayerOptions {
     private final @NotNull UnaryOperator<LayerStack<GeometryLayer>> geometryLayerDecorator = UnaryOperator.identity();
 
         /**
-     * Graphical projection for the 3D render. Defaults to {@link Projection#VANILLA_PLAYER} -
+     * Graphical projection for the 3D render. Defaults to {@link Projection#VANILLA_ISO} -
      * byte-identical to the shipped render; selecting another re-poses the camera and flatten together.
      */
     @lombok.Builder.Default
-    private final @NotNull Projection projection = Projection.VANILLA_PLAYER;
+    private final @NotNull Projection projection = Projection.VANILLA_ISO;
 
     public @NotNull PlayerOptionsBuilder mutate() {
         return this.toBuilder();

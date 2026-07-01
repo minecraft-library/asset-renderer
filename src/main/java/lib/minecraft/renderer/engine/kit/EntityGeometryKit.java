@@ -79,7 +79,7 @@ public class EntityGeometryKit {
      * * R_X(pitch) * R_Y(yaw) * R_X(180°)} is vanilla's iso transform chain (the trailing
      * {@code R_X(180°)} folds in vanilla's {@code LivingEntityRenderer.submit}'s
      * {@code rotateY(180°) + scale(-1,-1,1)} as a single equivalent X-axis rotation - see
-     * {@link Projection#VANILLA_ENTITY} for the full
+     * {@link Projection#VANILLA_ISO} for the full
      * derivation). For the standard {@code [210°, 45°, 0°]} iso pose this evaluates to
      * approximately {@code (0.6124, -0.5, 0.6124)}; the X and Z components are
      * {@code cos(30°) * sin(45°) = √6/4 ≈ 0.6124} (45° yaw splits horizontal direction
@@ -90,10 +90,10 @@ public class EntityGeometryKit {
     /**
      * The vanilla entity-preview iso <b>lighting</b> angle {@code [210, 45, 0]} - the harness's
      * {@code ISO_ROTATION} - used to derive the per-face plane-cube view direction below. This is
-     * distinct from {@link Projection#VANILLA_ENTITY}'s camera pose ({@code [30, 45, 0]}, the display
+     * distinct from {@link Projection#VANILLA_ISO}'s camera pose ({@code [30, 45, 0]}, the display
      * pose): the entity's Y-down-to-Y-up flip + facing live on the renderer's {@code ENTITY_FLIP}
      * {@code Placement}, so the camera pose is a plain display pose while the lighting frame stays on the
-     * harness iso angle. Pinned here so it does not track {@code VANILLA_ENTITY.basePose()}.
+     * harness iso angle. Pinned here so it does not track {@code VANILLA_ISO.basePose()}.
      */
     private static final @NotNull EulerRotation ENTITY_ISO_LIGHTING = new EulerRotation(210f, 45f, 0f);
 

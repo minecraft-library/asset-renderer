@@ -123,11 +123,11 @@ public class PortalOptions {
     private final @NotNull Background background = Background.TRANSPARENT;
 
         /**
-     * Graphical projection for the 3D render. Defaults to {@link Projection#VANILLA_BLOCK} -
+     * Graphical projection for the 3D render. Defaults to {@link Projection#VANILLA_ISO} -
      * byte-identical to the shipped render; selecting another re-poses the camera and flatten together.
      */
     @lombok.Builder.Default
-    private final @NotNull Projection projection = Projection.VANILLA_BLOCK;
+    private final @NotNull Projection projection = Projection.VANILLA_ISO;
 
     public @NotNull PortalOptionsBuilder mutate() {
         return this.toBuilder();

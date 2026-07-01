@@ -88,12 +88,12 @@ public class BlockOptions {
 
     /**
      * Graphical projection for the 3D isometric render. Defaults to
-     * {@link Projection#VANILLA_BLOCK} - vanilla's iso block pose, byte-identical to the
+     * {@link Projection#VANILLA_ISO} - vanilla's iso block pose, byte-identical to the
      * shipped render. Selecting another projection (isometric, dimetric, cabinet, ...) re-poses the
      * camera and flatten together.
      */
     @lombok.Builder.Default
-    private final @NotNull Projection projection = Projection.VANILLA_BLOCK;
+    private final @NotNull Projection projection = Projection.VANILLA_ISO;
 
     /**
      * Output image dimensions in pixels (square)

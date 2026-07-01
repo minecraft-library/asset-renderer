@@ -89,7 +89,7 @@ public class ModelEngine {
      * <p>Overridable via {@code -Dasset.snap.grid=N} for empirical sweeps (e.g. confirming the block
      * pipeline shares the entity-tuned optimum). {@code N <= 0} disables the snap entirely
      * ({@link #snapToCoverageGrid} returns the vertex unchanged); the default {@code 400} is the
-     * tuned value above. Both the entity and block ({@link Projection#VANILLA_BLOCK})
+     * tuned value above. Both the entity and block ({@link Projection#VANILLA_ISO})
      * pipelines read this single constant.
      */
     private static final float SUBPIXEL_PRECISION = Float.parseFloat(System.getProperty("asset.snap.grid", "400"));
@@ -111,7 +111,7 @@ public class ModelEngine {
     /**
      * Constructs a model engine with a preset {@link Camera} and the identity {@link Placement} - its
      * pose (applied after the caller's model transform during rasterization) and its lens (the 3D-to-2D
-     * flatten). Pass a resolved camera (e.g. {@link Projection#VANILLA_BLOCK} resolved to its camera, the
+     * flatten). Pass a resolved camera (e.g. {@link Projection#VANILLA_ISO} resolved to its camera, the
      * vanilla {@code [30, 225, 0]} block-icon pose with the iso block lens) so the engine holds the whole
      * view + projection and callers don't thread the lens through every {@code rasterize} call.
      *

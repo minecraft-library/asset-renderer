@@ -68,7 +68,7 @@ public record Camera(@NotNull Matrix4f pose, @NotNull Lens lens, @NotNull EulerR
     /**
      * Returns a copy of this camera with the same pose and lighting pose but a different lens. Lets a
      * caller reuse a projection's resolved camera under a different flatten - e.g. a 2-block bed icon
-     * that wants the {@link Projection#VANILLA_BLOCK} pose but a more conservative lens for margin -
+     * that wants the {@link Projection#VANILLA_ISO} pose but a more conservative lens for margin -
      * without rebuilding the pose or reaching for the raw constructor.
      *
      * @param lens the replacement lens

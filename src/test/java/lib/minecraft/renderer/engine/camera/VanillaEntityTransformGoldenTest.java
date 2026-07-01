@@ -27,12 +27,12 @@ import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Characterization golden (from the Placement/Camera split, {@code notes/placement-camera-split.md})
- * that pins the entity model→screen transform - the {@link Projection#VANILLA_ENTITY} camera pose and
+ * that pins the entity model→screen transform - the {@link Projection#VANILLA_ISO} camera pose and
  * its composition with the single-cube kit fixture - so accidental drift in the iso pose or the kit
  * fixture trips these assertions.
  *
  * <p>The values baked below are captured once via {@link #writeSnapshot}. Now that the split has landed,
- * {@code VANILLA_ENTITY} resolves to the plain {@code rotationXYZ(210, 45, 0)} iso display pose (det=+1);
+ * {@code VANILLA_ISO} resolves to the plain {@code rotationXYZ(30, 225, 0)} iso display pose (det=+1);
  * the entity's model-to-world facing / chirality lives on the {@code ENTITY_FLIP} {@code Placement} in
  * {@code EntityRenderer}, not the camera. A deliberate change to that pose or the kit fixture re-baselines
  * these values (regenerate via {@link #writeSnapshot}).
@@ -49,17 +49,17 @@ class VanillaEntityTransformGoldenTest {
     private static final float EPS = 1e-6f;
 
     @Test
-    @DisplayName("VANILLA_ENTITY camera pose is det=+1 (a plain iso display pose; chirality is on the Placement)")
+    @DisplayName("VANILLA_ISO camera pose is det=+1 (a plain iso display pose; chirality is on the Placement)")
     void pose_isDet_positive() {
-        Matrix4f pose = Projection.VANILLA_ENTITY.resolve().pose();
-        assertThat("VANILLA_ENTITY resolves to rotationXYZ(210,45,0), a det=+1 display pose; the entity "
+        Matrix4f pose = Projection.VANILLA_ISO.resolve().pose();
+        assertThat("VANILLA_ISO resolves to rotationXYZ(30,225,0), a det=+1 display pose; the entity "
             + "chirality lives on the ENTITY_FLIP Placement in EntityRenderer, not the camera", det3(pose), greaterThan(0f));
     }
 
     @Test
-    @DisplayName("golden: VANILLA_ENTITY pose 16 floats match the captured fused-chain baseline")
+    @DisplayName("golden: VANILLA_ISO pose 16 floats match the captured display-pose baseline")
     void pose_matchesGolden() {
-        Matrix4f pose = Projection.VANILLA_ENTITY.resolve().pose();
+        Matrix4f pose = Projection.VANILLA_ISO.resolve().pose();
         assertMatrix(GOLDEN_POSE, pose);
     }
 
@@ -67,7 +67,7 @@ class VanillaEntityTransformGoldenTest {
     @DisplayName("golden: single-cube fixture corners, kit-built then camera-posed, match the baseline")
     void fixtureCorners_matchGolden() {
         if (GOLDEN_CORNERS.length == 0) return; // placeholder not yet captured - skip until baked
-        Matrix4f pose = Projection.VANILLA_ENTITY.resolve().pose();
+        Matrix4f pose = Projection.VANILLA_ISO.resolve().pose();
         float[] actual = fixtureCornerSample(pose);
         for (int i = 0; i < GOLDEN_CORNERS.length; i++)
             assertThat("corner sample [" + i + "]", (double) actual[i],
@@ -75,11 +75,11 @@ class VanillaEntityTransformGoldenTest {
     }
 
     // ------------------------------------------------------------------------------------------
-    // Golden values - captured from the current fused chain. Re-baseline (with delta documented)
+    // Golden values - captured from the current display pose. Re-baseline (with delta documented)
     // only as a conscious Phase 2 step. Regenerate via writeSnapshot() below.
     // ------------------------------------------------------------------------------------------
 
-    /** {@link Projection#VANILLA_ENTITY} pose in get(col,row) order: [c1r1,c1r2,c1r3,c1r4, c2r1,...]. */
+    /** {@link Projection#VANILLA_ISO} pose in get(col,row) order: [c1r1,c1r2,c1r3,c1r4, c2r1,...]. */
     private static final float[] GOLDEN_POSE = {
         -0.70710695f, -0.3535533f, 0.61237234f, 0.0f,
         -1.4901161E-8f, 0.86602545f, 0.49999997f, 0.0f,
@@ -100,14 +100,14 @@ class VanillaEntityTransformGoldenTest {
     };
 
     /**
-     * Regeneration harness: writes the current fused-chain snapshot to {@code build/golden/} in
+     * Regeneration harness: writes the current display-pose snapshot to {@code build/golden/} in
      * copy-paste-ready Java-array form. Not an assertion - run once to (re-)capture the golden, paste
      * the arrays above. Kept in the suite so the golden is reproducible from source, not folklore.
      */
     @Test
-    @DisplayName("capture: write current fused-chain snapshot to build/golden/ (regeneration aid)")
+    @DisplayName("capture: write current display-pose snapshot to build/golden/ (regeneration aid)")
     void writeSnapshot() {
-        Matrix4f pose = Projection.VANILLA_ENTITY.resolve().pose();
+        Matrix4f pose = Projection.VANILLA_ISO.resolve().pose();
         StringBuilder sb = new StringBuilder();
         sb.append("// GOLDEN_POSE\n");
         for (int col = 1; col <= 4; col++) {

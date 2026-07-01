@@ -57,7 +57,7 @@ import java.util.Optional;
  * <li><b>2D</b> composites the front-facing (south) crop of each visible body part, layering
  * base skin, overlay, armor, and trim as scaled sprites on a flat canvas.</li>
  * <li><b>3D</b> builds cubes for each visible body part and rasterizes through
- * {@link ModelEngine} with a {@link Projection#VANILLA_PLAYER} pose, with armor as slightly inflated overlapping geometry.</li>
+ * {@link ModelEngine} with a {@link Projection#VANILLA_ISO} pose, with armor as slightly inflated overlapping geometry.</li>
  * </ul>
  * Skin resolution is shared via the outer class, with URL-fetched skins cached for the
  * renderer's lifetime.
@@ -67,7 +67,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     /**
      * The player's model-to-world facing - a {@code R_Y(180) = diag(-1,1,-1)} yaw flip that turns the
      * humanoid model's {@code +Z} {@code SOUTH} front toward the camera. Applied as a {@link Placement}
-     * so the projection stays facing-neutral (see {@link Projection#VANILLA_PLAYER}): for any projection
+     * so the projection stays facing-neutral (see {@link Projection#VANILLA_ISO}): for any projection
      * {@code P}, {@code P.pose() · PLAYER_FACING} presents the front, so the default
      * {@code [30,225,0] · R_Y(180) = [30,45,0]} reproduces the shipped player pose. Byte-identical because
      * the body's block-cardinal face shading is baked per direction (pose-independent) and the total
@@ -124,10 +124,13 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     private static final float OVERLAY_INFLATE = 0.01f;
 
     /**
-     * Fraction of the canvas's smaller dimension the 3D silhouette spans after auto-fit. Leaves a
-     * thin margin so rotated poses and outset overlays / armor stay inside the frame.
+     * Fraction of the canvas's smaller dimension the 3D silhouette spans after auto-fit. {@code 1.0}
+     * fills the canvas to match the entity renderer's {@code OUTPUT_SIZE} fit (which fills the whole
+     * canvas at {@code padding = 0}), so a player and an entity render at the same footprint on the same
+     * canvas; outset overlays / armor that extend past the body may touch the frame edge, as they do for
+     * entities.
      */
-    private static final float PLAYER_FILL = 0.9f;
+    private static final float PLAYER_FILL = 1.0f;
 
     private final @NotNull RendererContext context;
     private final @NotNull ImageFactory imageFactory = new ImageFactory();

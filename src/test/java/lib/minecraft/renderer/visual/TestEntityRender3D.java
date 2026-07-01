@@ -42,14 +42,14 @@ public final class TestEntityRender3D {
      *
      * @param args {@code args[0]} is an optional render size; {@code args[1]} an optional single entity id
      *     (blank to render all); {@code args[2]} an optional {@link Projection} name (default
-     *     {@code VANILLA_ENTITY})
+     *     {@code VANILLA_ISO})
      * @throws IOException if the output directory cannot be created or a render cannot be written
      */
     public static void main(String @NotNull [] args) throws IOException {
         int size = args.length > 0 ? Integer.parseInt(args[0]) : DEFAULT_SIZE;
         Optional<String> singleEntityId = args.length > 1 && !args[1].isBlank() ? Optional.of(args[1]) : Optional.empty();
         Projection projection = args.length > 2 && !args[2].isBlank()
-            ? Projection.valueOf(args[2].toUpperCase()) : Projection.VANILLA_ENTITY;
+            ? Projection.valueOf(args[2].toUpperCase()) : Projection.VANILLA_ISO;
 
         Files.createDirectories(OUTPUT_DIR);
 

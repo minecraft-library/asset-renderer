@@ -48,11 +48,11 @@ The sibling [vanilla-reference-harness] drives the actual MC client to render ev
 1. **Java** (vanilla model classes via ASM bytecode walk) - `entity_models.json` + `entity_geometry.json` from the `entityModels` task, consumed at runtime by `EntityRenderer` via `pipeline/loader/EntityModelLoader`.
 2. **Vanilla reference** - drives real MC client via the harness; output at `cache/asset-renderer/vanilla/26.1/references/{blocks,entities}/`. **Ground truth.**
 
-### Iso pose (locked invariants)
-- Entities: `Projection.VANILLA_ENTITY.basePose()` = `(210°, 45°, 0°)` matching harness's `EntityFrameRenderer.ISO_ROTATION = rotationXYZ(210°, 45°, 0°)`. (`Projection` is the sole owner of these poses; `EulerRotation.STANDARD_*` is gone.)
-- Blocks: `Projection.VANILLA_BLOCK.basePose()` = `(30°, 225°, 0°)` - distinct from entity iso on purpose.
-- Entity iso transform chain has `det=-1` (chirality fix); 5 coupled invariants pinned together: iso constant, engine camera chain, kit emission winding, plane-cube culling, canvas-sizing helpers. The foundation test's "cross OPPOSES stored normal" invariant guards against accidental re-flipping.
-- DO NOT touch `composeIsoTransform` / `Projection.entityIsoChain` (the shared entity iso prefix). Rotation-order swap is math-proven equivalent and an empirical retry regressed piglin 10.27 -> 184.34.
+### Iso pose (VANILLA_ISO + renderer-owned facing)
+- All iso subjects (block, fluid, portal, player, entity) share `Projection.VANILLA_ISO` = `(30°, 225°, 0°)` + `Lens.ISOMETRIC_BLOCK` (vanilla's `display.gui` pose/scale, technically a dimetric). It is **facing-neutral** - presents the model's `-Z` side. (`Projection` is the sole owner of these poses; `EulerRotation.STANDARD_*` is gone.)
+- **Facing is per-renderer**, applied as a model-to-world `Placement` (see `engine.camera.Placement`, composed by `ModelEngine` as `pose · placement · modelSpin`): block/fluid/portal = `IDENTITY`; player = `R_Y(180)`; entity = `R_Y(180)·flip180 = R_Z(180) = diag(-1,-1,1)` (which also un-flips its Y-down model). The camera is a plain **det=+1** display pose; the entity's `composeIsoTransform`/`composeIsoInverse` mirror `pose · spin · ENTITY_FACING` for the bounds/anchor. This is what lets any projection be swapped in and still present the subject's front, upright.
+- The entity's harness angle `(210°, 45°, 0°)` (`EntityFrameRenderer.ISO_ROTATION`) survives only as `EntityGeometryKit.ENTITY_ISO_LIGHTING` - the plane-cube lighting frame - decoupled from the camera pose. The old fused `det=-1` `entityIsoChain` / `ENTITY_ISO` assembly are **deleted**; the kit is de-flipped (emits Y-up geometry, det=+1 internally).
+- Byte-identity is pinned by `VanillaEntityTransformGoldenTest` (the `VANILLA_ISO` pose 16 floats + kit-fixture corners) and `EntityGeometryKitTest` - whose winding invariant is now **"emit-order cross AGREES with the stored normal"** (the kit is det=+1 internally; the chirality reflection re-enters via the `Placement`, so screen-space cull winding is unchanged). Run both before/after any kit or camera change; the entity parity sweep must hold too.
 
 ### JOML factory conventions (load-bearing)
 JOML's `Quaternionf` has two Tait-Bryan factories with OPPOSITE application order. Vanilla uses both:
