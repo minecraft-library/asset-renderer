@@ -22,12 +22,15 @@ import java.util.concurrent.TimeUnit;
  * <li>{@code piston} - multipart head + body, most triangles</li>
  * </ul>
  * Exercises the full block-render hot path: triangle transform, tiled rasterization, SIMD math,
- * and the trig LUT.
+ * and the trig LUT. Every subject renders at {@code 256} px with {@code 2x} supersampling and FXAA
+ * enabled, so downsample and anti-alias cost are included in each timing. Contrast with
+ * {@link ModelRasterizeMicroBenchmark}, which strips SSAA/FXAA to isolate the rasterizer.
  */
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 public class BlockIsometricBenchmark extends AbstractRendererBenchmark {
 
+    /** Block id under test - one JMH sub-benchmark per model shape in the class-doc spread. */
     @Param({
         "minecraft:stone",
         "minecraft:oak_fence",
@@ -38,7 +41,10 @@ public class BlockIsometricBenchmark extends AbstractRendererBenchmark {
     })
     public String blockId;
 
+    /** Block renderer bound to the trial's pipeline context. */
     private BlockRenderer renderer;
+
+    /** Render options for the current {@link #blockId}, rebuilt once per trial. */
     private BlockOptions options;
 
     @Override

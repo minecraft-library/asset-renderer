@@ -63,6 +63,13 @@ public class BlockModelLoader {
 
     /**
      * Loads block-entity geometry and wiring from {@code block_models.json}.
+     * <p>
+     * The catalog is keyed by block-entity-model id; entries live under a {@code "models"}
+     * envelope object when present, otherwise the root object is the model map directly. Each model
+     * entry supplies the shared {@code "model"} geometry, optional sub-model {@code "parts"}, and a
+     * {@code "blocks"} array binding that geometry to concrete block ids with their entity textures.
+     * The {@code "//"} comment key and non-object / model-less entries are skipped. Blocks flagged
+     * with a {@code "variant"} route to {@link LoadResult#variants()} instead of the primary map.
      *
      * @return the primary models keyed by block id plus any per-variant state-conditional models
      * @throws PipelineException if the resource is missing or cannot be parsed
@@ -102,10 +109,11 @@ public class BlockModelLoader {
 
                 ModelData modelData = parseBlockModelData(modelJson, textureId);
 
-                // A block listed under a blockstate {@code variant} contributes a state-conditional
+                // A block listed under a blockstate "variant" contributes a state-conditional
                 // model, not the block's primary geometry: register it as a geometry-bearing
-                // {@link Block.Variant} for the runtime variant path. The ceiling hanging sign's
-                // straight-chain mesh is bound here under {@code attached=true}.
+                // Block.Variant for the runtime variant path (rotation/uvlock unused here, so
+                // 0/0/false). The ceiling hanging sign's straight-chain mesh is bound here under
+                // the "attached=true" variant key.
                 if (block.has("variant")) {
                     variantModels.computeIfAbsent(blockId, k -> new HashMap<>())
                         .put(block.get("variant").getAsString(), new Block.Variant(modelId, modelData, 0, 0, false));
@@ -168,8 +176,11 @@ public class BlockModelLoader {
     }
 
     /**
-     * Reads a JSON resource off the classpath, throwing {@link PipelineException} on
-     * missing resource, empty payload, or parse failure.
+     * Reads a JSON resource off the classpath as a {@link JsonObject}.
+     *
+     * @param path the absolute classpath resource path
+     * @return the parsed root object
+     * @throws PipelineException if the resource is missing, empty, or fails to parse
      */
     private static @NotNull JsonObject readJson(@NotNull String path) {
         try (InputStream stream = BlockModelLoader.class.getResourceAsStream(path)) {
@@ -186,7 +197,11 @@ public class BlockModelLoader {
     }
 
     /**
-     * Returns {@code true} when any element of {@code model} escapes the {@code 0..16} block bbox.
+     * Returns {@code true} when any element of {@code model} escapes the {@code 0..16} block bbox
+     * (with a {@code 0.1} tolerance each side), marking it a multi-block model.
+     *
+     * @param model the block-entity model to bounds-check
+     * @return whether any element extends beyond a single block
      */
     private static boolean extentsExceedBlock(@NotNull ModelData model) {
         for (ModelElement me : model.getElements()) {
@@ -200,8 +215,11 @@ public class BlockModelLoader {
 
     /**
      * Returns {@code true} when a part, after its offset is applied, escapes the {@code 0..16}
-     * block bbox. Checked separately from the primary model so multi-block detection stays
-     * accurate after the loader stopped eagerly merging parts.
+     * block bbox (with a {@code 0.1} tolerance each side). Checked separately from the primary
+     * model so multi-block detection stays accurate after the loader stopped eagerly merging parts.
+     *
+     * @param part the sub-model part to bounds-check, offset included
+     * @return whether the offset part extends beyond a single block
      */
     private static boolean partExceedsBlock(@NotNull Block.Entity.Part part) {
         float[] offset = part.offset();
@@ -215,8 +233,14 @@ public class BlockModelLoader {
     }
 
     /**
-     * Parses a block model JSON object (with elements array) into a {@link ModelData},
-     * including the texture variable binding so {@code #entity} resolves at render time.
+     * Parses a block model JSON object (with an {@code "elements"} array) into a {@link ModelData},
+     * binding the single {@code entity} texture variable to {@code textureId} so face references of
+     * {@code #entity} resolve at render time. Only the {@code "elements"} array is carried over; the
+     * texture map is rebuilt to hold just the {@code entity} binding.
+     *
+     * @param json the block model JSON object, optionally carrying an {@code "elements"} array
+     * @param textureId the entity texture id to bind under the {@code entity} variable
+     * @return the parsed model data with its {@code entity} texture bound
      */
     private static @NotNull ModelData parseBlockModelData(@NotNull JsonObject json, @NotNull String textureId) {
         JsonObject modelJson = new JsonObject();
@@ -232,13 +256,17 @@ public class BlockModelLoader {
     }
 
     /**
-     * Resolves an overrides JSON {@code tint} string to an ARGB int. Values are interpreted as:
+     * Resolves a {@code block_models.json} block entry's {@code "tint"} string to an ARGB int
+     * (used for banner colours). Values are interpreted as:
      * <ul>
      * <li>{@link DyeColor.Vanilla} enum names (case-sensitive, e.g. {@code "RED"}, {@code "LIGHT_BLUE"})
      *     - preferred, carries the canonical {@code textureDiffuseColor} value from vanilla</li>
      * <li>Hex colour string ({@code #RRGGBB}, {@code #AARRGGBB}, or {@code 0x}-prefixed) for
-     *     custom colours outside the sixteen vanilla dyes</li>
+     *     custom colours outside the sixteen vanilla dyes; a 6-digit value is forced fully opaque</li>
      * </ul>
+     *
+     * @param value the dye enum name or hex colour string
+     * @return the resolved ARGB colour
      */
     private static int resolveTint(@NotNull String value) {
         @Nullable DyeColor dye = DyeColor.ofName(value);

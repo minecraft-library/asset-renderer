@@ -7,22 +7,26 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * Reproduces vanilla's exact shade computation for entity faces using JOML, to
- * cross-check what shade vanilla's GPU produces for a face. The witch (21, 200)
- * pixel ratio test (0.566) implies vanilla picks a face with shade ~0.566 at that
- * pixel; we want to identify which face that is.
+ * Reproduces vanilla's exact shade computation for entity faces using JOML, to cross-check what
+ * shade vanilla's GPU produces for a given face. The witch {@code (21, 200)} pixel-ratio observation
+ * (0.566) implies vanilla picks a face with shade ~0.566 at that pixel; this suite identifies which
+ * face that is.
  *
- * <p>Method: take each cardinal face normal, run it through vanilla's full pose
- * chain (per {@code EntityFrameRenderer.render} + {@code LivingEntityRenderer.submit}),
- * compute the dual-directional Lambertian shade per vanilla's
- * {@code Lighting.Entry.ENTITY_IN_UI}. The face whose shade matches the observed
- * pixel ratio is the one vanilla picked at this pixel.
+ * <p>Method: take each cardinal face normal, run it through vanilla's full pose chain (per
+ * {@code EntityFrameRenderer.render} + {@code LivingEntityRenderer.submit}), compute the
+ * dual-directional Lambertian shade per vanilla's {@code Lighting.Entry.ENTITY_IN_UI}. The face whose
+ * shade matches the observed pixel ratio is the one vanilla picked at this pixel.
+ *
+ * <p><b>Report-only.</b> Every test here is a diagnostic probe that prints {@code [VANILLA_*]} traces
+ * and asserts nothing - the value is the printed shade / world-position table, not a pass / fail gate.
+ * Uses {@code org.joml} directly (not this codebase's tensors) since it is measuring what vanilla does,
+ * not our parity with it.
  */
 class VanillaShadeReproductionTest {
 
-    /** Vanilla {@code INVENTORY_DIFFUSE_LIGHT_0 = normalize(0.2, -1, 1)}. */
+    /** Vanilla {@code INVENTORY_DIFFUSE_LIGHT_0 = normalize(0.2, -1, 1)} - the primary UI diffuse light. */
     private static final Vector3f LIGHT_0 = new Vector3f(0.2f, -1f, 1f).normalize();
-    /** Vanilla {@code INVENTORY_DIFFUSE_LIGHT_1 = normalize(-0.2, -1, 0)}. */
+    /** Vanilla {@code INVENTORY_DIFFUSE_LIGHT_1 = normalize(-0.2, -1, 0)} - the secondary UI diffuse light. */
     private static final Vector3f LIGHT_1 = new Vector3f(-0.2f, -1f, 0f).normalize();
 
     @Test
@@ -76,6 +80,8 @@ class VanillaShadeReproductionTest {
             Vector3f n = new Vector3f(faces[i]);
             normalChain.transformDirection(n);
             n.normalize();
+            // Vanilla ENTITY_IN_UI shade: clamp each light's Lambertian term at 0, sum, then
+            // ambient-blend as min(1, (L0.n + L1.n) * 0.6 + 0.4).
             float dot0 = Math.max(0f, n.dot(LIGHT_0));
             float dot1 = Math.max(0f, n.dot(LIGHT_1));
             float shade = Math.min(1f, (dot0 + dot1) * 0.6f + 0.4f);
@@ -84,6 +90,10 @@ class VanillaShadeReproductionTest {
         }
     }
 
+    /**
+     * Probes where the witch hat cube lands after its two-level parent chain, to sanity-check the
+     * {@code MeshTransformer.scaling(0.9375)}-driven pivots the kit must reproduce. Report-only.
+     */
     @Test
     @DisplayName("[VANILLA_HAT_POS] witch hat cube origin world position via vanilla parent chain")
     void witchHatWorldPosition() {

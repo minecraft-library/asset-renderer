@@ -143,8 +143,9 @@ public record Lens(
 
     /**
      * A pure orthographic projection with no perspective blend and the conservative scale - leaves
-     * generous margin for rotated or limb-bearing geometry. Used by {@code PlayerRenderer} and any
-     * caller that renders articulated models which extend beyond the unit cube after animation.
+     * generous margin for rotated or limb-bearing geometry that extends beyond the unit cube after
+     * animation. The neutral flatten for any caller that wants parallel projection without an
+     * axonometric preset's tighter fill.
      */
     public static final @NotNull Lens NONE = orthographic(CONSERVATIVE_PROJECTION_SCALE);
 

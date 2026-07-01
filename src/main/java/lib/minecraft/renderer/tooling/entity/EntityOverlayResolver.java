@@ -30,24 +30,41 @@ import java.util.Locale;
  * {@code EnderEyesLayer}, {@code PhantomEyesLayer}, {@code BreezeEyesLayer}) are detected
  * via the {@code <clinit>} bytecode - any layer whose static initializer pre-builds a
  * {@code RenderType} via an {@code RenderTypes.*eyes*(Identifier)} static factory call and
- * stores it in a {@code static final} field. Detection runs on the bytecode shape rather
- * than class hierarchy because not every eye layer extends {@code EyesLayer} -
- * {@code BreezeEyesLayer} extends {@code RenderLayer} directly but uses the same factory
- * shape ({@code RenderTypes.breezeEyes(...)}).
+ * (in vanilla) stores it in a {@code static final} field. Detection runs on the bytecode
+ * shape rather than class hierarchy - the matcher only requires the {@code LDC} + eyes-named
+ * {@code RenderTypes.*eyes*(Identifier)} {@code INVOKESTATIC} pair, not the {@code PUTSTATIC} -
+ * because not every eye layer extends {@code EyesLayer}: {@code BreezeEyesLayer} extends
+ * {@code RenderLayer} directly but uses the same factory shape
+ * ({@code RenderTypes.breezeEyes(...)}). See {@link #findEyesOverlayBinding}.
+ *
+ * <p>The same-geometry emissive fallback at the tail of {@link #resolve} additionally handles
+ * two inline (no {@code addLayer(new EyesLayer(...))}) shapes: the
+ * {@code EnderDragonRenderer}-style static {@code RenderType} field bound in the renderer's own
+ * {@code <clinit>}, and the {@code CopperGolemRenderer}-style
+ * {@code new LivingEntityEmissiveLayer(this, provider::eyeTextureLocationFor, ...)} whose
+ * zero-state texture is resolved by {@link #findLivingEntityEmissiveTexture}.
  *
  * <p>Layer types deliberately not handled (deferred to later increments):
  * <ul>
- *   <li>{@code LivingEntityEmissiveLayer} (creaking, copper_golem) - texture comes from a
- *       {@code Function<S, Identifier>} passed via constructor lambda; needs walking the
- *       parent renderer's {@code addLayer(new LivingEntityEmissiveLayer(this, X::y, ...))}
- *       call site to bind the lambda's return value to a static path.</li>
- *   <li>{@code CreeperPowerLayer}, {@code SheepWoolUndercoatLayer}, {@code CopperGolemFlowerLayer}
- *       - have their own {@code LayerDefinition} requiring a separate geometry walk into
+ *   <li>{@code LivingEntityEmissiveLayer} for {@code creaking} / {@code warden} - unlike
+ *       copper_golem (handled above), these bake a DISTINCT model layer
+ *       ({@code WARDEN_BIOLUMINESCENT}, {@code CREAKING_EYES}) rather than reusing the base
+ *       renderer's {@code ModelLayers}, so the shared-model-layer gate in
+ *       {@link #findLivingEntityEmissiveTexture} rejects them; their separate-geometry
+ *       overlays await the layer-class path.</li>
+ *   <li>{@code CreeperPowerLayer}, {@code CopperGolemFlowerLayer} - have their own
+ *       {@code LayerDefinition} requiring a separate geometry walk into
  *       {@code LayerDefinitions.createRoots} (kit work for a future increment).</li>
  *   <li>{@code HumanoidArmorLayer}, {@code SimpleEquipmentLayer}, {@code BeeStingerLayer},
  *       *ClothingLayer, *EquipmentLayer - driven by runtime player equipment, not part of the
- *       static-pose render contract.</li>
+ *       static-pose render contract. (The {@code SkeletonClothingLayer} family is the exception:
+ *       it resolves via {@link #findParameterizedOverlayBinding} because its clothes texture is
+ *       a hardcoded ctor arg rather than runtime equipment.)</li>
  * </ul>
+ *
+ * <p>{@code SheepWoolUndercoatLayer} IS walked via the generic composite-overlay path but is
+ * then suppressed at zero render state by {@link #POLICY_SUPPRESS} (a default white sheep draws
+ * no undercoat).
  */
 @UtilityClass
 public final class EntityOverlayResolver {
@@ -138,9 +155,8 @@ public final class EntityOverlayResolver {
      * @param modelLayerField the {@code ModelLayers.X} field name when the overlay's geometry comes
      *     from a separate {@code LayerDefinition} factory (e.g. {@code "SLIME_OUTER"},
      *     {@code "SHEEP_WOOL"}, {@code "SHEEP_WOOL_UNDERCOAT"}). {@code null} for eye overlays
-     *     whose UVs reuse the base entity's geometry. {@link
-     *     lib.minecraft.renderer.tooling.ToolingEntityModels} resolves this against
-     *     {@link EntityLayerDefinitionResolver}'s layer-definition map to get an actual
+     *     whose UVs reuse the base entity's geometry. {@link ToolingEntityModels} resolves this
+     *     against {@link EntityLayerDefinitionResolver}'s layer-definition map to get an actual
      *     factory target, parses it as an extra geometry, and assigns a deduped geometry id
      * @param tintArgb the multiplicative ARGB tint vanilla applies to this overlay's sampled
      *     texels, extracted from the layer's submit-method bytecode by tracing the
@@ -149,6 +165,18 @@ public final class EntityOverlayResolver {
      *     either doesn't tint (eye overlays use {@code RenderType.eyes} which ignores vertex
      *     color) or when extraction couldn't statically resolve a literal (e.g., the color
      *     comes from a runtime calculation we can't pre-compute)
+     * @param inflate the per-cube {@code CubeDeformation} outward inflate baked into the
+     *     overlay's geometry when vanilla renders it against a separately-deformed
+     *     {@code LayerDefinition} (e.g. {@code 0.5} for {@code LlamaDecorLayer}, {@code 0.008}
+     *     for {@code TropicalFishPatternLayer}'s {@code FISH_PATTERN_DEFORMATION}). {@code 0}
+     *     when the overlay carries no extra deformation; {@link EntityRuntimeJsonWriter} then
+     *     substitutes the {@code 0.001} same-geometry depth-fail clearance for base-geometry
+     *     overlays
+     * @param skipBounds {@code true} to exclude this overlay from the entity's projected
+     *     bounds walk, matching the vanilla harness's {@code NO_RENDER_LAYER_SUFFIXES} skip list
+     *     (e.g. {@code LlamaDecorLayer}); {@code false} for overlays that contribute to the
+     *     silhouette. Emitted as the {@code skip_bounds} JSON property by
+     *     {@link EntityRuntimeJsonWriter}
      */
     public record Result(
         @NotNull String layerClass,
@@ -159,6 +187,18 @@ public final class EntityOverlayResolver {
         float inflate,
         boolean skipBounds
     ) {
+        /**
+         * Constructs a {@code Result} with no extra deformation and no bounds skip - the common
+         * case for eye and same-geometry composite overlays (defaults {@code inflate} to
+         * {@code 0} and {@code skipBounds} to {@code false}).
+         *
+         * @param layerClass JVM internal name of the source layer subclass
+         * @param texturePath the raw texture path
+         * @param emissive whether the render type is an emissive additive-blend variant
+         * @param modelLayerField the {@code ModelLayers.X} field name for separate-geometry
+         *     overlays, or {@code null} for same-geometry overlays
+         * @param tintArgb the multiplicative ARGB tint, or {@code 0xFFFFFFFF} for no tint
+         */
         public Result(
             @NotNull String layerClass,
             @NotNull String texturePath,
@@ -617,8 +657,10 @@ public final class EntityOverlayResolver {
      * instruction or {@code null} when no state-method invocation precedes the call.
      *
      * <p>Resilient to the {@code isBaby ? 1 : 0} ternary that wraps {@code packedOverlay}: the
-     * loop skips over branch / int-literal nodes until it finds the first {@code INVOKEVIRTUAL}
-     * returning {@code int} (descriptor ends in {@code )I}). That's the color expression.
+     * loop skips over branch / int-literal nodes until it finds the first parameterless
+     * {@code INVOKEVIRTUAL} returning {@code int} (descriptor exactly {@code ()I}). That's the
+     * color expression; the parameterless filter excludes getter-style calls on non-state
+     * classes (e.g. {@code LivingEntityRenderer.getOverlayCoords}).
      */
     private static @Nullable AbstractInsnNode findPrecedingStateColorCall(@NotNull AbstractInsnNode call) {
         for (AbstractInsnNode prev = call.getPrevious(); prev != null; prev = prev.getPrevious()) {
@@ -883,6 +925,22 @@ public final class EntityOverlayResolver {
         return null;
     }
 
+    /**
+     * Detects an emissive eye overlay by its {@code <clinit>} bytecode shape rather than class
+     * hierarchy (not every eye layer extends {@code EyesLayer} - {@code BreezeEyesLayer} extends
+     * {@code RenderLayer} directly). Walks {@code cn.<clinit>} for the pattern:
+     * <pre>{@code
+     *   LDC "textures/entity/.../X_eyes.png"     // texture literal (contains "eyes")
+     *   ...
+     *   INVOKESTATIC RenderTypes.*eyes*(Identifier)RenderType   // factory name contains "eyes"
+     * }</pre>
+     * and returns the last-seen texture literal paired with the matched factory name. The factory
+     * name lets the caller discriminate fully-emissive {@code RenderTypes.eyes} from shaded
+     * {@code RenderTypes.breezeEyes} (see {@link #factoryHasNoCardinalLighting}). Works unchanged
+     * on both a {@code RenderLayer} subclass's {@code <clinit>} and a renderer's own
+     * {@code <clinit>} (the inline {@code EnderDragonRenderer} style). Returns {@code null} when
+     * the class has no {@code <clinit>} or the pattern doesn't match.
+     */
     private static @Nullable EyesOverlayBinding findEyesOverlayBinding(@NotNull ClassNode cn) {
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
         if (clinit == null) return null;

@@ -182,11 +182,20 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
     private final @NotNull Isometric3D isometric3D;
     private final @NotNull PortalFace2D portalFace2D;
 
+    /**
+     * Constructs a portal renderer over the given context, wiring up the two sub-renderers.
+     *
+     * @param context renderer context for texture resolution and engine setup
+     */
     public PortalRenderer(@NotNull RendererContext context) {
         this.isometric3D = new Isometric3D(context);
         this.portalFace2D = new PortalFace2D(context);
     }
 
+    /**
+     * Dispatches on {@link PortalOptions#getType()} to the 3D isometric or flat 2D sub-renderer, then
+     * composites the result over the caller's background.
+     */
     @Override
     public @NotNull ImageData render(@NotNull PortalOptions options) {
         ImageData rendered = switch (options.getType()) {
@@ -486,6 +495,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
 
         private final @NotNull RendererContext context;
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull PortalOptions options) {
             if (options.getFrameCount() <= 1)
@@ -505,6 +515,16 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             return Frames.wrapFrames(frames, FRAME_DELAY_MS);
         }
 
+        /**
+         * Renders one 3D isometric portal frame at the given game tick: resolves the projection, bakes
+         * the parallax shader once at raster resolution as a screen-space canvas, rasterizes the cube /
+         * slab with a white sampler to capture per-face shading, then composes shader &times; shading into
+         * the output.
+         *
+         * @param options the render options
+         * @param tick the vanilla game tick driving the shader's {@code GameTime}
+         * @return the finished frame buffer
+         */
         private @NotNull PixelBuffer renderFrame(@NotNull PortalOptions options, int tick) {
             // Resolve the projection once: the caller's rotation is composed onto the base pose, so it
             // poses the camera directly and the rasterize call applies no separate model-spin. Default
@@ -602,6 +622,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
 
         private final @NotNull RendererContext context;
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull PortalOptions options) {
             if (options.getFrameCount() <= 1)
@@ -621,6 +642,14 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             return Frames.wrapFrames(frames, FRAME_DELAY_MS);
         }
 
+        /**
+         * Renders one flat portal-face frame at the given game tick: bakes the parallax sprite at the
+         * output size and applies the optional tint override.
+         *
+         * @param options the render options
+         * @param tick the vanilla game tick driving the shader's {@code GameTime}
+         * @return the baked (and optionally tinted) frame buffer
+         */
         private @NotNull PixelBuffer renderFrame(@NotNull PortalOptions options, int tick) {
             RasterEngine engine = new RasterEngine(this.context);
             PixelBuffer endSky = engine.textures().resolveTexture(END_SKY_TEXTURE_ID);

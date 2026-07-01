@@ -22,8 +22,12 @@
  * <p><b>Composed subsystems.</b> Rather than an inheritance tower, each engine <em>composes</em>
  * single-responsibility subsystems, each with its own subpackage:
  * <ul>
- *   <li>{@link lib.minecraft.renderer.engine.camera.Camera camera} - the baked {@code display.*}
- *       pose value a {@code ModelEngine} applies after the caller's model transform.</li>
+ *   <li>{@link lib.minecraft.renderer.engine.camera.Camera camera} - the complete view + projection
+ *       (baked {@code display.*} pose, {@code Lens}, and the lighting-pose Euler) a
+ *       {@code ModelEngine} renders through; the pose is applied after the caller's model transform
+ *       and the model-to-world {@link lib.minecraft.renderer.engine.camera.Placement Placement}. The
+ *       named vanilla cameras are assembled by
+ *       {@link lib.minecraft.renderer.engine.camera.Projection Projection}.</li>
  *   <li>{@link lib.minecraft.renderer.engine.light.Lighting light} - the vanilla-parity inventory
  *       lighting ({@code Lighting}) and shade application / block-icon relighting
  *       ({@code Shading}).</li>

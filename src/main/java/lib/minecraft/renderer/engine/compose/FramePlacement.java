@@ -17,6 +17,7 @@ import org.jetbrains.annotations.NotNull;
  */
 public record FramePlacement(int x, int y, @NotNull ImageData source) implements FrameLayer {
 
+    /** {@inheritDoc} */
     @Override
     public void contribute(@NotNull ConcurrentList<FramePlacement> sink) {
         sink.add(this);

@@ -7,6 +7,12 @@ import org.junit.jupiter.api.Test;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Verifies {@link Box}'s AABB factories and extent accessor: the direct min/max copies
+ * ({@link Box#of(Vector3f, Vector3f)}, {@link Box#of(float[], float[])}), the tight-enclosing
+ * point-cloud factories ({@link Box#of(float[][])}, {@link Box#of(Vector3f[])}) that reduce a set
+ * of points to their bounding box, and {@link Box#maxExtent()} returning the largest per-axis span.
+ */
 @DisplayName("Box factories + extent")
 class BoxTest {
 

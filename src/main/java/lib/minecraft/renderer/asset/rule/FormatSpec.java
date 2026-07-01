@@ -2,10 +2,14 @@ package lib.minecraft.renderer.asset.rule;
 
 /**
  * The pack-format predicate carried by a single {@code overlays.entries[].formats} entry. Vanilla
- * supports three encodings - a bare integer ({@code 46}), a length-2 integer array
+ * supports three JSON encodings - a bare integer ({@code 46}), a length-2 integer array
  * ({@code [40, 50]}), and an inclusive-range object ({@code {min_inclusive, max_inclusive}}) -
- * each implemented as a record below. The {@link #matches(int)} contract collapses all three into
- * a single predicate so callers don't pattern-match.
+ * modelled here by two records: {@link IntSpec} for the bare integer, {@link RangeSpec} for both
+ * range forms (the parser folds the array and object encodings into the same record). The
+ * {@link #matches(int)} contract collapses every case into a single predicate so callers never
+ * pattern-match on the concrete type.
+ *
+ * @see PackMeta
  */
 public sealed interface FormatSpec {
 

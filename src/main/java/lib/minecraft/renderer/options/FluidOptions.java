@@ -31,7 +31,8 @@ import java.util.function.UnaryOperator;
 public class FluidOptions {
 
     /**
-     * The fluid to render - drives texture selection and tintability.
+     * The fluid to render - drives texture selection and tintability. Defaults to
+     * {@link Fluid#WATER}.
      */
     @lombok.Builder.Default
     private final @NotNull Fluid fluid = Fluid.WATER;
@@ -64,7 +65,8 @@ public class FluidOptions {
     private final @NotNull Optional<Float> flowAngleRadians = Optional.empty();
 
     /**
-     * Biome used for tinting water. Ignored for lava. Routed through {@code Block.TintTarget.WATER}.
+     * Biome used for tinting water, routed through {@code Block.TintTarget.WATER}. Ignored for
+     * lava. Defaults to {@link Biome.Vanilla#PLAINS}.
      */
     @lombok.Builder.Default
     private final @NotNull Biome biome = Biome.Vanilla.PLAINS;
@@ -78,19 +80,21 @@ public class FluidOptions {
     private final @Nullable Integer waterTintArgbOverride;
 
     /**
-     * Model rotation applied before the camera transform, in degrees.
+     * User-override model rotation applied before the camera transform, in degrees. Defaults to
+     * {@link EulerRotation#NONE}.
      */
     @lombok.Builder.Default
     private final @NotNull EulerRotation rotation = EulerRotation.NONE;
 
     /**
-     * Output image dimensions in pixels (square).
+     * Output image dimensions in pixels (square), defaulting to {@link Renderer#DEFAULT_OUTPUT_SIZE}.
      */
     @lombok.Builder.Default
     private final int outputSize = Renderer.DEFAULT_OUTPUT_SIZE;
 
     /**
-     * Whether to apply FXAA post-processing. No-op on the 2D face path.
+     * Whether to apply FXAA post-processing. On by default (unlike the other 3D renderers).
+     * No-op on the 2D face path.
      */
     @lombok.Builder.Default
     private final boolean antiAlias = true;
@@ -137,17 +141,29 @@ public class FluidOptions {
     @lombok.Builder.Default
     private final @NotNull UnaryOperator<LayerStack<GeometryLayer>> layerDecorator = UnaryOperator.identity();
 
-        /**
+    /**
      * Graphical projection for the 3D render. Defaults to {@link Projection#VANILLA_ISO} -
-     * byte-identical to the shipped render; selecting another re-poses the camera and flatten together.
+     * byte-identical to the shipped render; selecting another re-poses the camera and its
+     * orthographic flatten together. Only consulted by the {@link Type#ISOMETRIC_3D} path.
      */
     @lombok.Builder.Default
     private final @NotNull Projection projection = Projection.VANILLA_ISO;
 
+    /**
+     * Opens a builder seeded from this instance's current values, for deriving a variant with a
+     * few fields changed.
+     *
+     * @return a builder pre-populated from this instance
+     */
     public @NotNull FluidOptionsBuilder mutate() {
         return this.toBuilder();
     }
 
+    /**
+     * Builds an instance with every field at its default value.
+     *
+     * @return the default options
+     */
     public static @NotNull FluidOptions defaults() {
         return builder().build();
     }
@@ -161,11 +177,13 @@ public class FluidOptions {
         /** The fluid cube geometry. */
         CUBE;
 
+        /** {@inheritDoc} */
         @Override
         public int order() {
             return ordinal();
         }
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull String id() {
             return name();

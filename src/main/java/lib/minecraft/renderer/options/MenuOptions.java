@@ -18,22 +18,22 @@ import org.jetbrains.annotations.NotNull;
 import java.util.function.UnaryOperator;
 
 /**
- * Configures a single {@link MenuRenderer MenuRenderer} invocation.
+ * Configures a single {@link MenuRenderer} invocation.
  *
  * <p>Supports vanilla menu types ({@link Type#PLAYER}, {@link Type#CHEST},
- * {@link Type#VANILLA_CRAFTING}, {@link Type#VANILLA_ANVIL}) plus two caller-driven layouts:
+ * {@link Type#VANILLA_CRAFTING}, {@link Type#VANILLA_ANVIL}), Hypixel SkyBlock menu types
+ * ({@link Type#SKYBLOCK_CRAFTING}, {@link Type#SKYBLOCK_ANVIL}), plus two caller-driven layouts:
  * <ul>
  *   <li><b>{@link Type#CUSTOM}</b> - a {@code rows x columns} grid with arbitrary dimensions,
  *       the generic theme chrome, and per-slot item icons drawn through
- *       {@link ItemRenderer ItemRenderer}.</li>
+ *       {@link ItemRenderer}.</li>
  *   <li><b>{@link Type#SLOT}</b> - a single inventory slot, useful for previewing one item in
  *       the menu chrome.</li>
  * </ul>
  *
- * <p><b>Slot population.</b> {@link #getSlots slots} maps zero-based slot indices to
- * {@link ItemOptions ItemOptions}, which the renderer dispatches
- * to {@link ItemRenderer ItemRenderer} per slot. Empty slots stay
- * transparent.
+ * <p><b>Slot population.</b> {@link #getSlots() slots} maps zero-based slot indices to
+ * {@link MenuSlotContent} (item id + {@link ItemOptions} + stack count), which the renderer
+ * dispatches to {@link ItemRenderer} per slot. Unmapped slots stay transparent.
  *
  * @see lib.minecraft.renderer.MenuRenderer
  */
@@ -42,31 +42,33 @@ import java.util.function.UnaryOperator;
 public class MenuOptions {
 
     /**
-     * Menu layout type
+     * Menu layout type - selects the chrome and slot geometry.
      */
     @lombok.Builder.Default
     private final @NotNull Type type = Type.CHEST;
 
     /**
-     * Number of slot rows
+     * Number of slot rows - honoured by {@link Type#CHEST} and {@link Type#CUSTOM}; other types
+     * use their own fixed grids.
      */
     @lombok.Builder.Default
     private final int rows = 3;
 
     /**
-     * Number of slot columns
+     * Number of slot columns - honoured by {@link Type#CUSTOM}; other types use their own fixed
+     * grids.
      */
     @lombok.Builder.Default
     private final int columns = 9;
 
     /**
-     * Slot index to content mapping
+     * Zero-based slot index to content mapping; unmapped slots render transparent.
      */
     @lombok.Builder.Default
     private final @NotNull ConcurrentMap<Integer, MenuSlotContent> slots = Concurrent.newMap();
 
     /**
-     * Menu title text rendered in the header
+     * Menu title text rendered in the header; empty suppresses the title bar text.
      */
     @lombok.Builder.Default
     private final @NotNull String title = "";
@@ -88,7 +90,7 @@ public class MenuOptions {
     private final int xpCost = 0;
 
     /**
-     * Visual theme applied to the menu chrome
+     * Visual theme applied to the menu chrome (chrome fill, slot fill, default title colour).
      */
     @lombok.Builder.Default
     private final @NotNull Theme theme = Theme.VANILLA;
@@ -115,10 +117,21 @@ public class MenuOptions {
     @lombok.Builder.Default
     private final @NotNull UnaryOperator<ConcurrentList<FrameLayer>> layerDecorator = UnaryOperator.identity();
 
+    /**
+     * A builder pre-populated with this instance's field values, for deriving a variant.
+     *
+     * @return the seeded builder
+     */
     public @NotNull MenuOptionsBuilder mutate() {
         return this.toBuilder();
     }
 
+    /**
+     * The default menu options - an empty single {@linkplain Type#CHEST chest} (3 rows x 9 columns)
+     * on the {@linkplain Theme#VANILLA vanilla} theme at 30 fps.
+     *
+     * @return the default options
+     */
     public static @NotNull MenuOptions defaults() {
         return builder().build();
     }

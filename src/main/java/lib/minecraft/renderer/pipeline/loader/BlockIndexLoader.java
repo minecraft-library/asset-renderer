@@ -106,7 +106,11 @@ public class BlockIndexLoader {
     }
 
     /**
-     * Returns {@code true} when an id is an intentionally-invisible vanilla block.
+     * Returns {@code true} when an id is an intentionally-invisible vanilla block. Compares the
+     * id's local name (namespace stripped) against {@link #INVISIBLE_BLOCK_NAMES}.
+     *
+     * @param blockId the namespaced or stripped block id
+     * @return whether the block is one of the intentionally-invisible vanilla ids
      */
     private static boolean isInvisible(@NotNull String blockId) {
         return INVISIBLE_BLOCK_NAMES.contains(ResourceId.localName(blockId));
@@ -446,6 +450,9 @@ public class BlockIndexLoader {
      * {@code block/cross} have elements but reference unresolved {@code #var} faces, so they flatten
      * to nothing and are rejected here - the same structural signal the renderer uses to keep them
      * out of the atlas, with no hardcoded id list.
+     *
+     * @param model the candidate resolved model, or {@code null} when the model id did not load
+     * @return whether the model would produce a non-blank atlas tile
      */
     private static boolean isUsableResolvedModel(@Nullable ModelData model) {
         if (model == null) return false;
@@ -466,6 +473,9 @@ public class BlockIndexLoader {
      * multi-element models (chests, doors, pistons) would otherwise trample each other writing
      * contradictory bindings into the same direction key. A later pipeline phase will walk all
      * elements and pick a representative face per direction for multi-element blocks.
+     *
+     * @param model the block model whose first element's faces are flattened
+     * @param textures the direction-to-texture map to write resolved bindings into, mutated in place
      */
     private static void flattenElementFaces(@NotNull ModelData model, @NotNull Map<String, String> textures) {
         if (model.getElements().isEmpty()) return;

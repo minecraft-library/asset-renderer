@@ -92,11 +92,13 @@ class PortalRendererParallelismTest {
             actualCrc32, is(expectedCrc32));
     }
 
+    /** Extracts the first frame's full ARGB pixel array - the 2D portal face bake is single-frame. */
     private static int[] firstFramePixels(ImageData image) {
         PixelBuffer buffer = image.getFrames().getFirst().pixels();
         return buffer.getPixels(0, 0, buffer.width(), buffer.height(), null, 0, 0);
     }
 
+    /** CRC32 over the little-endian ARGB int pixels - the byte-exact pin compared against the expected constant. */
     private static long crc32(int[] pixels) {
         ByteBuffer bb = ByteBuffer.allocate(pixels.length * Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         for (int p : pixels) bb.putInt(p);

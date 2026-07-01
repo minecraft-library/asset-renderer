@@ -41,8 +41,39 @@ import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Fast unit tests for the {@link AsmKit} bytecode primitives. Every fixture is an in-memory
- * {@link ClassNode} / {@link MethodNode} - no real jar load happens.
+ * Fast unit tests for the {@link AsmKit} bytecode primitives - the shared toolkit the ASM
+ * bytecode-walkers (block defaults, entity models, tints, glint) lean on. Pins:
+ *
+ * <ul>
+ *   <li><b>Literal readers</b> - {@code readIntLiteral} / {@code readFloatLiteral} / {@code
+ *       readLongLiteral} / {@code readDoubleLiteral} / {@code readStringLiteral} / {@code
+ *       readTypeLiteral} / {@code readAnyLiteral} decode {@code ICONST}/{@code BIPUSH}/{@code
+ *       SIPUSH}/{@code LDC} constant opcodes and reject the wrong type with {@code null}.
+ *   <li><b>Opcode / access predicates</b> - {@code isInvoke*} (name-only, descriptor, and the
+ *       typed static/virtual/special/interface variants), {@code isGetStatic}/{@code isPutStatic}/
+ *       {@code isGetField}/{@code isPutField}, {@code isLambdaInvokeDynamic}, {@code isPseudoNode}.
+ *   <li><b>Instruction-stream walks</b> - {@code previousReal}/{@code nextReal} (pseudo-node skip),
+ *       {@code findPreceding} (passthrough-gated back-walk), {@code findFollowingPutStatic},
+ *       {@code containsInvoke}/{@code containsFieldOp}.
+ *   <li><b>Class-hierarchy walks</b> - {@code loadClass}/{@code requireClass}, {@code findMethod}/
+ *       {@code findField} and their {@code *InHierarchy} + {@code require*} throwing variants,
+ *       {@code walkSuperChain}/{@code walkConstructorChain}, {@code extendsClass}.
+ *   <li><b>Descriptor utilities</b> - {@code descriptorReturns}, {@code argSlotCount} (wide types
+ *       count as 2), {@code argTypes}/{@code returnType}, {@code internalNameOfRef}, {@code
+ *       extractGenericTypeParameter}.
+ *   <li><b>Higher-level resolvers</b> - {@code detectIntForLoop} (procedural-loop unrolling),
+ *       the lambda-metafactory helpers ({@code extractLambdaHandle}/{@code resolveLambdaTargetClass}/
+ *       {@code walkLambdaBody}), the {@code StringConcatFactory} recipe helpers, and
+ *       {@code findEnumDefaultName}.
+ *   <li><b>Stateful accumulators</b> - {@link AsmKit.LiteralStack} (bounded LIFO with oldest-evict
+ *       overflow + diagnostic pops) and {@link AsmKit.SlotTracker} (local-variable slot map).
+ *   <li><b>Diagnostics + constants</b> - the {@code diag*} formatters and the {@code CLINIT}/
+ *       {@code INIT}/{@code OBJECT_INTERNAL}/{@link VanillaSourceClasses} name constants.
+ * </ul>
+ *
+ * <p>Every fixture is an in-memory {@link ClassNode} / {@link MethodNode} built by hand, or a
+ * synthetic jar assembled with {@link ClassWriter} into a {@link TempDir} - no real Minecraft jar
+ * load happens, so these stay in the fast (non-{@code @Tag("slow")}) suite.
  */
 @DisplayName("AsmKit bytecode primitives")
 class AsmKitTest {
@@ -211,6 +242,14 @@ class AsmKitTest {
 
     }
 
+    /**
+     * {@link AsmKit.LiteralStack} is a bounded operand-stack model: {@code push}/{@code pop}/
+     * {@code peek} are LIFO (mirroring the JVM operand stack the walkers replay), but overflow
+     * beyond capacity evicts the <b>oldest</b> entry to bound memory across long {@code <clinit>}
+     * walks - matching the old {@code ConcurrentList.removeFirst} behaviour the walkers were ported
+     * from. The typed {@code popXxx} accessors return {@code null} without popping when the top has
+     * the wrong runtime type.
+     */
     @Nested
     @DisplayName("LiteralStack")
     class LiteralStackTests {
@@ -1004,11 +1043,32 @@ class AsmKitTest {
     class DetectIntForLoop {
 
         /**
-         * Builds the canonical test-at-top {@code for (int i = init; i < bound; i += step)} pattern.
-         * Returns the first instruction (the {@code ICONST/BIPUSH init}).
+         * Builds the canonical test-at-top {@code for (int i = init; i < bound; i += step)} pattern
+         * javac emits, appending it to {@code list}:
+         *
+         * <pre>{@code
+         *   <init>            // ICONST_N when init in -1..5, else BIPUSH
+         *   ISTORE <slot>
+         * test_label:
+         *   ILOAD <slot>
+         *   <bound>           // ICONST_N when bound in -1..5, else BIPUSH
+         *   IF_ICMPGE exit
+         *   <bodyInsns...>
+         *   IINC <slot>, step
+         *   GOTO test_label
+         * exit:
+         * }</pre>
+         *
+         * @param list the instruction list to append to
+         * @param slot the JVM local slot holding the iterator
+         * @param init the initial iterator value
+         * @param bound the exclusive upper bound ({@code IF_ICMPGE} comparand)
+         * @param step the {@code IINC} increment
+         * @param bodyInsns the loop-body instructions inserted between the test and the {@code IINC}
+         * @return the {@code init} node (the anchor {@code detectIntForLoop} is fed as {@code
+         *     candidateInit})
          */
         private static AbstractInsnNode buildLoop(InsnList list, int slot, int init, int bound, int step, AbstractInsnNode... bodyInsns) {
-            // init; istore <slot>; test_label: iload <slot>; <bound>; if_icmpge exit; <body>; iinc slot,step; goto test_label; exit:
             AbstractInsnNode initNode = init >= -1 && init <= 5 ? new InsnNode(Opcodes.ICONST_0 + init) : new IntInsnNode(Opcodes.BIPUSH, init);
             list.add(initNode);
             list.add(new VarInsnNode(Opcodes.ISTORE, slot));
@@ -1254,6 +1314,15 @@ class AsmKitTest {
             assertThat(AsmKit.resolveStringConcatRecipe(indy), is(nullValue()));
         }
 
+        /**
+         * The recipe literals here embed the invisible dynamic-placeholder char {@code \u0001}
+         * ({@link AsmKit#STRING_CONCAT_DYNAMIC_PLACEHOLDER}), which is what
+         * {@code StringConcatFactory} substitutes at each dynamic argument. The three cases pin
+         * suffix ({@code tentacle\u0001}), prefix ({@code \u0001_tentacle}), and
+         * multi-occurrence ({@code seg\u0001_\u0001} - both placeholders take the value)
+         * substitution. The placeholders do not show in a plain source read - byte-level, each
+         * string carries one or more {@code 0x01} bytes.
+         */
         @Test
         @DisplayName("applyStringConcatRecipeWithInt substitutes the dynamic placeholder")
         void applySubstitutesPlaceholder() {
@@ -1659,7 +1728,21 @@ class AsmKitTest {
             Type.getMethodType("()Ljava/lang/Object;"));
     }
 
+    /**
+     * Field spec for the synthetic-class builders.
+     *
+     * @param name the field name
+     * @param desc the field type descriptor (e.g. {@code "I"}, {@code "LFoo;"})
+     */
     private record FieldDef(String name, String desc) {}
+
+    /**
+     * Method spec for the synthetic-class builders. A {@code "<init>"} name gets a
+     * super-constructor call emitted; every other method gets a bare {@code RETURN} body.
+     *
+     * @param name the method name
+     * @param desc the method descriptor (e.g. {@code "()V"})
+     */
     private record MethodDef(String name, String desc) {}
 
     private static byte[] writeClass(String internalName, String superName, List<FieldDef> fields, List<MethodDef> methods) {

@@ -40,6 +40,11 @@ import org.jetbrains.annotations.Nullable;
  * Only entries with {@code model.type == "minecraft:model"} and a {@code model.model} reference
  * starting with {@code "minecraft:block/"} are included. Non-block items (sprites, special
  * renderers) are skipped.
+ * <p>
+ * The second entry point, {@link #loadTints(ConcurrentList)}, reads the same item definition files
+ * for their {@code model.tints[]} array - the per-layer {@link LayerTint} rules (dye / potion /
+ * firework / constant colours) the renderer multiplies into each {@code layerN} sprite. Both
+ * scans merge across asset roots in priority order (lowest first, highest last).
  *
  * @see ModelResolver
  * @see PipelineRendererContext
@@ -103,6 +108,20 @@ public class ItemDefinitionLoader {
             .collect(Concurrent.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
+    /**
+     * Parses one item definition file into an {@code itemId -> blockModelId} entry, or {@code null}
+     * when the file is not a block item ({@code model.type != "minecraft:model"}, no
+     * {@code model.model} reference, or a reference that does not start with
+     * {@link VanillaSourcePaths#MODEL_BLOCK_ID_PREFIX}). The item id is derived from the path
+     * relative to {@code itemsDir} with the {@code .json} suffix stripped and the
+     * {@code minecraft:} namespace prepended. Malformed JSON is skipped (logged) so a bad entry in
+     * one pack falls back to a lower-priority pack's version.
+     *
+     * @param p the item definition file
+     * @param itemsDir the {@code items/} directory the id is relativised against
+     * @return the item-to-block-model entry, or {@code null} for non-block or malformed entries
+     * @throws PipelineException when the file cannot be read
+     */
     private static @Nullable Map.Entry<String, String> parseItemDef(@NotNull Path p, @NotNull Path itemsDir) {
         String relative = itemsDir.relativize(p).toString().replace('\\', '/');
         if (!relative.endsWith(".json")) return null;
@@ -149,6 +168,12 @@ public class ItemDefinitionLoader {
         return Concurrent.adoptMap(merged).toUnmodifiable();
     }
 
+    /**
+     * Scans one asset root's {@code assets/minecraft/items/} subtree and returns the item-id ->
+     * per-layer {@link LayerTint} list map for every tinted item it carries. Same two-phase
+     * serial-walk / parallel-parse strategy as {@link #scanRoot(Path)}. Returns an empty map when
+     * the items subtree is absent.
+     */
     private static @NotNull ConcurrentMap<String, List<LayerTint>> scanRootTints(@NotNull Path packRoot) {
         Path itemsDir = packRoot.resolve(VanillaSourcePaths.ITEMS_DIR);
         if (!Files.isDirectory(itemsDir)) return Concurrent.newMap();
@@ -169,6 +194,19 @@ public class ItemDefinitionLoader {
             .collect(Concurrent.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
+    /**
+     * Parses one item definition file into an {@code itemId -> }per-layer-{@link LayerTint} entry,
+     * or {@code null} when the item carries no resolvable {@code tints} array. Descends the
+     * {@code select} / {@code condition} / {@code range_dispatch} wrappers via
+     * {@link #descendToTintedModel(JsonObject)} to the default (no-component) model, then maps each
+     * {@code tints[]} object through {@link #parseTint(JsonObject)}. Malformed JSON is skipped
+     * (logged) so a bad entry falls back to a lower-priority pack.
+     *
+     * @param p the item definition file
+     * @param itemsDir the {@code items/} directory the id is relativised against
+     * @return the item-to-tint-list entry, or {@code null} when the item declares no tints
+     * @throws PipelineException when the file cannot be read
+     */
     private static @Nullable Map.Entry<String, List<LayerTint>> parseItemTints(@NotNull Path p, @NotNull Path itemsDir) {
         String relative = itemsDir.relativize(p).toString().replace('\\', '/');
         if (!relative.endsWith(".json")) return null;
@@ -219,6 +257,10 @@ public class ItemDefinitionLoader {
         return current;
     }
 
+    /**
+     * Returns {@code object[key]} as a {@link JsonObject}, or {@code null} when the key is absent or
+     * not an object.
+     */
     private static @Nullable JsonObject childObject(@NotNull JsonObject object, @NotNull String key) {
         return object.has(key) && object.get(key).isJsonObject() ? object.getAsJsonObject(key) : null;
     }

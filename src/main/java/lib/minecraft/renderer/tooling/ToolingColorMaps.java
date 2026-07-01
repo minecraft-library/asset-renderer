@@ -26,13 +26,13 @@ import java.util.Optional;
 import javax.imageio.ImageIO;
 
 /**
- * Entry point invoked by the {@code generateColorMaps} Gradle task.
+ * Entry point invoked by the {@code colorMaps} Gradle task.
  * <p>
- * Downloads (or reuses the cached) MC client jar, extracts the vanilla assets, reads the three
- * biome colormap PNGs via {@link Parser}, and writes the pixel data to
- * {@code src/main/resources/lib/minecraft/renderer/color_maps.json}. The runtime pipeline reads the JSON via
- * {@link ColorMapLoader} so the PNG reading step
- * only runs during development when a new Minecraft version ships.
+ * Downloads (or reuses the cached) MC 26.1 client jar, extracts the vanilla assets, reads the
+ * three biome colormap PNGs via {@link Parser}, and writes the base64-encoded pixel data to
+ * {@code src/main/resources/lib/minecraft/renderer/color_maps.json}. The runtime pipeline reads the
+ * JSON via {@link ColorMapLoader} so the PNG-decoding step only runs during development when a new
+ * Minecraft version ships.
  */
 @UtilityClass
 public final class ToolingColorMaps {
@@ -104,14 +104,15 @@ public final class ToolingColorMaps {
      * <p>
      * Each colormap is a 256x256 indexed lookup table sampled at {@code (temperature, downfall)}.
      * The parser stores the raw ARGB pixels as a packed big-endian byte array on the entity so the
-     * downstream {@code Textures.sampleBiomeTint} path
-     * can round-trip via {@link ByteBuffer#asIntBuffer()}. The output is consumed by the
-     * {@code generateColorMaps} Gradle task, which serialises the pixel data as Base64 into the
-     * bundled {@code /lib/minecraft/renderer/color_maps.json} resource for runtime use by
+     * downstream biome-tint sampling path can round-trip the bytes back to {@code int} pixels via
+     * {@link ByteBuffer#asIntBuffer()}. The output is consumed by the {@code colorMaps} Gradle task,
+     * which serialises the pixel data as Base64 into the bundled
+     * {@code /lib/minecraft/renderer/color_maps.json} resource for runtime use by
      * {@link ColorMapLoader}.
      * <p>
-     * The parser is intentionally tolerant: if a colormap file is missing the corresponding entry
-     * is skipped rather than throwing, since legitimate user packs may ship a partial colormap set.
+     * The parser is intentionally tolerant of <b>missing</b> files: an absent colormap PNG skips
+     * its entry rather than throwing, since legitimate packs may ship a partial colormap set. A
+     * file that is present but <b>fails to decode</b> still aborts the run - see {@link #parseOne}.
      *
      * @see ColorMapLoader
      * @see ColorMap
@@ -158,6 +159,17 @@ public final class ToolingColorMaps {
          * Loads a single colormap PNG into a {@link ColorMap} entity, or returns empty when the file
          * is absent. Decoding errors abort the pipeline because a corrupt colormap means downstream
          * tint sampling would silently produce wrong colors.
+         * <p>
+         * The ARGB pixels are read row-major and packed into a big-endian {@link ByteBuffer} (four
+         * bytes per pixel) so the byte array round-trips back to {@code int} pixels at runtime. The
+         * entity id is composed as {@code packId:type} (lowercased type name).
+         *
+         * @param colormapDir the pack's {@code textures/colormap} directory
+         * @param filename the basename of the PNG to load (e.g. {@code "grass.png"})
+         * @param packId the pack id to compose the colormap id against
+         * @param type the colormap kind
+         * @return the loaded colormap, or empty when the file is absent
+         * @throws ToolingException if the file exists but cannot be read or decoded
          */
         private static @NotNull Optional<ColorMap> parseOne(
             @NotNull Path colormapDir,

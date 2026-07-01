@@ -282,6 +282,13 @@ public final class EntityRegistryDiscovery {
      * Walks {@code EntityRenderers.<clinit>} and returns a map from EntityType field name to
      * the resolved renderer class plus any {@code ModelLayers.X} / {@code <Renderer>$Type.X}
      * references seen in the lambda body.
+     *
+     * <p>Each registration compiles to {@code GETSTATIC EntityType.X} immediately followed by
+     * an {@code INVOKEDYNAMIC create():EntityRendererProvider}. The walk carries that
+     * {@code GETSTATIC}'s field name forward in {@code pendingEntityField} and pairs it with the
+     * next {@code INVOKEDYNAMIC} it sees, resolving the renderer via
+     * {@link #resolveLambdaRenderer}; unresolvable lambdas log an INFO trace and leave the
+     * entity unmapped (it later surfaces in {@code mobsWithoutRenderer}).
      */
     private static @NotNull Map<String, RendererRegistration> collectRendererRegistrations(
         @NotNull EntityToolingContext context
@@ -326,7 +333,20 @@ public final class EntityRegistryDiscovery {
      * Resolves an {@code INVOKEDYNAMIC} built via {@link LambdaMetafactory#metafactory} to the
      * internal name of the renderer class the lambda produces, plus any {@code ModelLayers.X}
      * field references and {@code <Renderer>$Type.X} enum-constant references seen in the
-     * lambda body.
+     * lambda body. Two implementation-method shapes are handled:
+     *
+     * <ul>
+     *   <li><b>{@link Opcodes#H_NEWINVOKESPECIAL} constructor reference.</b> A bare
+     *       {@code XRenderer::new}; the handle's owner IS the renderer class, so it is returned
+     *       directly with empty layer / type-arg sets (no synthetic body to walk).</li>
+     *   <li><b>{@link Opcodes#H_INVOKESTATIC} synthetic lambda.</b> A {@code ctx -> new XRenderer(ctx, ...)}
+     *       compiled into a private static method on {@code ownerClass}. The body is walked for
+     *       its first {@code NEW} (the renderer class) plus every {@code GETSTATIC ModelLayers.X}
+     *       and {@code GETSTATIC <...$Type>.X} it references. Only lambdas owned by
+     *       {@code ownerClass} are followed.</li>
+     * </ul>
+     *
+     * <p>Returns {@code null} when the handle can't be extracted or its tag is neither shape.
      */
     private static @Nullable LambdaResolution resolveLambdaRenderer(
         @NotNull InvokeDynamicInsnNode indy,

@@ -6,8 +6,9 @@ import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * A 256x256 biome colormap, stored as a raw ARGB byte array (1 MiB uncompressed worst case, but
- * pack-sourced PNGs are typically a few KiB on disk so the serialized form stays small).
+ * A 256x256 biome colormap, stored as a raw ARGB byte array (256 KiB uncompressed - 65536 pixels
+ * at 4 bytes each - though pack-sourced PNGs are typically a few KiB on disk so the serialized form
+ * stays small).
  */
 @Getter
 @AllArgsConstructor
@@ -25,32 +26,34 @@ public final class ColorMap {
     private final @NotNull String packId;
 
     /**
-     * Which biome colormap this row represents.
+     * Which biome colormap this instance represents.
      */
     private final @NotNull Type type;
 
     /**
-     * The raw 256x256 colormap pixels as a flat ARGB byte array.
+     * The raw 256x256 colormap pixels as a flat ARGB byte array, 4 bytes per pixel in row-major order.
      */
     private final byte @NotNull [] pixels;
 
     /**
-     * Identifies which biome colormap a row represents.
+     * Identifies which biome colormap a {@link ColorMap} holds.
      */
     public enum Type {
 
         /**
-         * The grass colormap at {@code assets/minecraft/textures/colormap/grass.png}.
+         * The grass colormap at {@code assets/minecraft/textures/colormap/grass.png}, sampled for
+         * grass blocks, tall grass, ferns, and other grass-tinted foliage.
          */
         GRASS,
 
         /**
-         * The foliage colormap.
+         * The foliage colormap at {@code assets/minecraft/textures/colormap/foliage.png}, sampled
+         * for most leaves.
          */
         FOLIAGE,
 
         /**
-         * The dry foliage colormap.
+         * The dry-foliage colormap, sampled for pale-oak foliage and a handful of dry biomes.
          */
         DRY_FOLIAGE
 

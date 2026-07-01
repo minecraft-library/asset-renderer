@@ -41,7 +41,8 @@ import java.util.zip.ZipFile;
  * enchanted_golden_apple, experience_bottle, nether_star, debug_stick, end_crystal): they render
  * with the enchantment foil sheen regardless of whether a specific stack carries enchantments.
  * <p>
- * The output file format mirrors {@link ToolingPotionColors}'s shape: a top-level {@code items}
+ * The output file shares the general shape of the other bundled snapshots (a {@code "//"} header
+ * comment plus {@code source_version}, followed by a single array): here a top-level {@code items}
  * array of namespaced id strings, sorted so the checked-in JSON diffs stay reviewable.
  */
 @UtilityClass
@@ -124,7 +125,17 @@ public final class ToolingGlintItems {
     @UtilityClass
     static class Parser {
 
+        /**
+         * Name of the {@code DataComponents} static field whose {@code true} value marks an item as
+         * always glinted.
+         */
         private static final @NotNull String ENCHANTMENT_GLINT_OVERRIDE_FIELD = "ENCHANTMENT_GLINT_OVERRIDE";
+
+        /**
+         * Descriptor ({@code Litem/Item;}) of the static {@code Item} fields whose
+         * {@code PUTSTATIC} terminates one registration and commits the pending {@code (id, glint)}
+         * pair.
+         */
         private static final @NotNull String ITEM_FIELD_DESCRIPTOR = "L" + VanillaSourceClasses.ITEM + ";";
 
         /**

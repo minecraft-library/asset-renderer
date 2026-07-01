@@ -67,14 +67,35 @@ import java.util.Optional;
  */
 public final class ItemRenderer implements Renderer<ItemOptions> {
 
+    /**
+     * The flat 2D GUI icon sub-renderer.
+     */
     private final @NotNull Gui2D gui2D;
+
+    /**
+     * The held 3D item sub-renderer.
+     */
     private final @NotNull Held3D held3D;
 
+    /**
+     * Constructs a new {@code ItemRenderer} bound to the given renderer context, eagerly building
+     * both sub-renderers so each {@link #render} call is a plain dispatch.
+     *
+     * @param context the renderer context supplying pack / model / texture lookups
+     */
     public ItemRenderer(@NotNull RendererContext context) {
         this.gui2D = new Gui2D(context);
         this.held3D = new Held3D(context);
     }
 
+    /**
+     * Dispatches to the {@link Gui2D} or {@link Held3D} sub-renderer keyed by
+     * {@link ItemOptions#getType()}, then composites the result over the options'
+     * {@link ItemOptions#getBackground() background}.
+     *
+     * @param options the item render options
+     * @return the rendered icon, composited over the requested background
+     */
     @Override
     public @NotNull ImageData render(@NotNull ItemOptions options) {
         ImageData rendered = switch (options.getType()) {
@@ -105,22 +126,26 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     }
 
     /**
-     * Model-space minimum-X bound for the flat-sprite item Z-axis slab.
+     * Model-space minimum bound (block units) for the wide, square face of the flat-sprite item
+     * slab. Reused for both the X and Y minimum corners so the sprite is a {@code 0.9}-block
+     * square.
      */
     private static final float FLAT_ITEM_SLAB_MIN_X = -0.45f;
 
     /**
-     * Model-space maximum-X bound for the flat-sprite item Z-axis slab.
+     * Model-space maximum bound (block units) for the wide, square face of the flat-sprite item
+     * slab. Reused for both the X and Y maximum corners so the sprite is a {@code 0.9}-block
+     * square.
      */
     private static final float FLAT_ITEM_SLAB_MAX_X = 0.45f;
 
     /**
-     * Model-space minimum-Z bound - the thin side of the flat sprite slab.
+     * Model-space minimum-Z bound (block units) - the thin depth of the flat-sprite slab.
      */
     private static final float FLAT_ITEM_SLAB_MIN_Z = -0.02f;
 
     /**
-     * Model-space maximum-Z bound - the thin side of the flat sprite slab.
+     * Model-space maximum-Z bound (block units) - the thin depth of the flat-sprite slab.
      */
     private static final float FLAT_ITEM_SLAB_MAX_Z = 0.02f;
 
@@ -441,8 +466,12 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     @RequiredArgsConstructor
     public static final class Gui2D implements Renderer<ItemOptions> {
 
+        /**
+         * The renderer context supplying pack / model / texture lookups.
+         */
         private final @NotNull RendererContext context;
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull ItemOptions options) {
             Item item = requireItem(this.context, options.getItemId());
@@ -504,9 +533,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * {@code thirdperson_righthand} display transform.
      * <p>
      * Banner and shield items route through {@link ItemRenderer#buildBannerOrShield3D} so the
-     * HELD_3D view shows the composited pattern stack - banners get the real flag geometry from
-     * the {@code minecraft:banner} block-entity model when it is registered, and shields fall
-     * back to a thin slab using the composited shield texture.
+     * HELD_3D view shows the composited pattern stack: both fall back to a thin textured slab whose
+     * six faces carry the freshly composited banner / shield texture, mirroring the flat-sprite
+     * fallback used for other item kinds.
      * <p>
      * Flat-sprite items composite their (tinted) layer stack into a native-size
      * {@link PixelBuffer} via {@link ItemRenderer#composeTintedLayers} and feed the result into the
@@ -515,8 +544,12 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     @RequiredArgsConstructor
     public static final class Held3D implements Renderer<ItemOptions> {
 
+        /**
+         * The renderer context supplying pack / model / texture lookups.
+         */
         private final @NotNull RendererContext context;
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull ItemOptions options) {
             Item item = requireItem(this.context, options.getItemId());

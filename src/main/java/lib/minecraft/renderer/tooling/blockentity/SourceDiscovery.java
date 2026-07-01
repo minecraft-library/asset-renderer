@@ -70,11 +70,12 @@ import java.util.zip.ZipFile;
  *       {@link #PARAM_INT_SUFFIX} maps (class, boolean) &rarr; suffix ({@code "wall_"} or
  *       {@code ""}) so the Parser can split each into two Sources with concrete
  *       {@code paramIntValues} that drive its bytecode branch evaluator.</li>
- *   <li><b>Y-axis heuristic</b> - each Source's final method is inspected for {@code addBox}
- *       Y-origin literals. If any yMin &lt; 0 the method is Y-DOWN (the standard ModelPart
- *       convention); otherwise (and if at least one pivot y &ge; 8) it's Y-UP (chest / bell /
- *       decorated_pot's raw block-space authoring). The Parser Y-flips UP sources into the
- *       canonical DOWN form before emission.</li>
+ *   <li><b>Y-axis heuristic</b> - each Source's final method is inspected for its
+ *       {@code PartPose.offset} pivot Y literals. When the largest pivot y falls in the
+ *       {@code [8, 16)} half-block band (raw block-space authoring above the floor - chest at
+ *       {@code (0, 9, 1)}, bell at {@code (8, 12, 8)}) the method is {@link YAxis#UP};
+ *       otherwise it's {@link YAxis#DOWN} (the standard ModelPart convention). The Parser
+ *       Y-flips {@code UP} sources into the canonical {@code DOWN} form before emission.</li>
  * </ul>
  */
 @UtilityClass
@@ -181,6 +182,16 @@ public final class SourceDiscovery {
      * optional texture dimension overrides extracted from a {@code LayerDefinition.create(mesh,
      * W, H)} wrapper (for {@code PiglinHeadModel.createHeadModel} et al. where the target is a
      * {@code MeshDefinition} factory).
+     *
+     * @param targetClass the factory method's owning class, JVM internal name
+     * @param targetMethod the factory method name (a {@code createXLayer} / {@code createXMesh})
+     * @param targetDesc the factory method descriptor, used to resolve overloads
+     * @param paramIntValue the compile-time {@code ICONST_0}/{@code ICONST_1} pushed before the
+     *     call for the banner {@code (Z)} split, or {@code null} when the method takes no int flag
+     * @param texWidth the texture width recovered from a {@code LayerDefinition.create(mesh, W, H)}
+     *     wrapper, or {@code null} when the factory bakes its own dimensions
+     * @param texHeight the texture height recovered from a {@code LayerDefinition.create(mesh, W, H)}
+     *     wrapper, or {@code null} when the factory bakes its own dimensions
      */
     private record LayerTarget(
         @NotNull String targetClass,
@@ -190,6 +201,15 @@ public final class SourceDiscovery {
         @Nullable Integer texWidth,
         @Nullable Integer texHeight
     ) {
+        /**
+         * Convenience constructor for targets with no texture-dimension override (the common
+         * case where the factory returns a {@code LayerDefinition} directly).
+         *
+         * @param targetClass the factory method's owning class, JVM internal name
+         * @param targetMethod the factory method name
+         * @param targetDesc the factory method descriptor
+         * @param paramIntValue the compile-time int flag pushed before the call, or {@code null}
+         */
         LayerTarget(@NotNull String targetClass, @NotNull String targetMethod, @NotNull String targetDesc, @Nullable Integer paramIntValue) {
             this(targetClass, targetMethod, targetDesc, paramIntValue, null, null);
         }
@@ -203,8 +223,9 @@ public final class SourceDiscovery {
      *
      * @param zip the cached deobfuscated Minecraft client jar
      * @param diag the diagnostic sink shared across discovery passes
-     * @return the discovered sources in emission order (registry iteration order, with a final
-     *     deterministic sort by entity id so repeated runs produce byte-identical output)
+     * @return the discovered sources in emission order - {@code BlockEntityRenderers.<clinit>}
+     *     registration order, preserved via the insertion-ordered {@link LinkedHashMap} /
+     *     {@link LinkedHashSet} state so repeated runs produce byte-identical output
      */
     public static @NotNull ConcurrentList<Source> discover(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
         // Step 1 - registry walk
@@ -822,13 +843,14 @@ public final class SourceDiscovery {
     // ------------------------------------------------------------------------------------------
 
     /**
-     * Infers the Y-axis convention for the target method by scanning its {@code addBox}
-     * Y-origin literals. If any cube's yMin &lt; 0 the method uses the standard ModelPart
-     * Y-down convention; otherwise, if at least one pivot y &ge; 8 (indicating raw block-space
-     * authoring above the floor), the method is Y-up; otherwise default Y-down.
+     * Loads {@code classInternal}, resolves {@code methodName} on it, and delegates the Y-axis
+     * decision to {@link #inferYAxisFromMethod}. Returns {@link YAxis#DOWN} (the safe default
+     * requiring no pre-flip) when the class is unloadable or the method is absent.
      *
-     * <p>{@link AsmKit#findMethodInHierarchy} is used so abstract-class layer methods still
-     * resolve.
+     * @param zip the cached deobfuscated client jar
+     * @param classInternal the model class's JVM internal name
+     * @param methodName the layer factory method whose pivots decide the convention
+     * @return the inferred Y-axis convention, defaulting to {@link YAxis#DOWN}
      */
     private static @NotNull YAxis inferYAxis(@NotNull ZipFile zip, @NotNull String classInternal, @NotNull String methodName) {
         ClassNode cn = AsmKit.loadClass(zip, classInternal);

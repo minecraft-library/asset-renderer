@@ -21,12 +21,13 @@ import org.jetbrains.annotations.NotNull;
 public final class BlockTag {
 
     /**
-     * The block's namespaced identifier (e.g. {@code minecraft:stairs}).
+     * The tag's namespaced identifier (e.g. {@code minecraft:stairs}).
      */
     private final @NotNull ResourceId id;
 
     /**
-     * Fully resolved block IDs that belong to this tag.
+     * The flattened namespaced block ids belonging to this tag, with all {@code #tag} inheritance
+     * already resolved.
      */
     private final @NotNull ConcurrentList<String> values;
 

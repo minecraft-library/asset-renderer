@@ -33,7 +33,7 @@ import java.util.Optional;
 import java.util.zip.ZipFile;
 
 /**
- * Entry point invoked by the {@code generateVanillaTints} Gradle task.
+ * Entry point invoked by the {@code blockTints} Gradle task (group {@code tooling}).
  * <p>
  * Downloads (or reuses the cached) MC 26.1 client jar, runs
  * {@link Parser} over its {@code BlockColors} class, and writes the resulting tint
@@ -86,9 +86,15 @@ public final class ToolingBlockTints {
     }
 
     /**
-     * Serialises the parsed tint list into the bundled JSON format. The header comment notes
-     * the source jar version so a future contributor can tell at a glance how stale the snapshot
-     * is.
+     * Serialises the parsed tint map into the bundled JSON format. Emits a {@code //} header
+     * comment and a {@code source_version} field noting the source jar version so a future
+     * contributor can tell at a glance how stale the snapshot is, then a {@code tints} array of
+     * {@code {block, target, constant?}} objects with constants formatted as {@code 0x}-prefixed
+     * uppercase hex.
+     *
+     * @param tints the parsed block-id to tint-binding map
+     * @param mcVersion the source client-jar version, stored under {@code source_version}
+     * @return the pretty-printed JSON document, trailing platform line separator included
      */
     private static @NotNull String buildJson(@NotNull ConcurrentMap<String, Block.Tint> tints, @NotNull String mcVersion) {
         JsonObject root = new JsonObject();
@@ -119,7 +125,7 @@ public final class ToolingBlockTints {
      * pass, which would require multiple bytecode-shape variants and per-version mapping plumbing
      * that the project explicitly does not pursue. The runtime pipeline reads
      * {@code /lib/minecraft/renderer/block_tints.json} from the classpath instead; this parser is invoked only
-     * by the {@code generateVanillaTints} Gradle task to refresh that resource on a version bump.
+     * by the {@code blockTints} Gradle task to refresh that resource on a version bump.
      * <p>
      * Parsing approach: load the class through ASM's tree model, walk
      * {@code createDefault()}'s {@link InsnList} tracking three pieces of pending state:
@@ -141,9 +147,17 @@ public final class ToolingBlockTints {
     @UtilityClass
     static class Parser {
 
+        /** Name of the {@code BlockColors} factory method whose bytecode holds every default tint registration. */
         private static final @NotNull String CREATE_DEFAULT_METHOD_NAME = "createDefault";
+        /** Name of the {@code BlockColors.register(List, Block[])} call that closes each pending registration. */
         private static final @NotNull String REGISTER_METHOD_NAME = "register";
+        /** Internal (slash-separated) name of {@code java.util.List}, owner of the {@code List.of} source-list factories. */
         private static final @NotNull String LIST_INTERNAL_NAME = "java/util/List";
+        /**
+         * Descriptor of the single-argument {@code List.of(Object)} overload - the marker for a
+         * single-source registration. Any other {@code List.of} arity is a multi-source list and
+         * gets skipped.
+         */
         private static final @NotNull String LIST_OF_SINGLE_DESCRIPTOR = "(Ljava/lang/Object;)Ljava/util/List;";
 
         /** {@code BlockTintSources.stem()} factory name (melon_stem / pumpkin_stem). */
@@ -297,8 +311,13 @@ public final class ToolingBlockTints {
 
         /**
          * Emits one {@link Block.Tint} per block for the current pending registration, after
-         * verifying the source method is one the renderer knows how to sample. Unsupported sources
-         * (water, waterParticles, redstone, stem) are silently dropped.
+         * resolving the source method to a {@link Block.TintTarget}. {@code constant} maps to
+         * {@link Block.TintTarget#CONSTANT} carrying the parsed in-hand colour; {@code stem} is
+         * special-cased to {@code CONSTANT} at its {@code age=0} default-state green
+         * ({@link #STEM_DEFAULT_COLOR}); everything else is looked up in {@link #SUPPORTED_SOURCES}.
+         * Sources the renderer cannot sample at static-render time (water, waterParticles,
+         * redstone - absent from the map) resolve to {@code null} and cause the block to be
+         * silently dropped.
          */
         private static void emitTints(
             @NotNull ConcurrentMap<String, Block.Tint> tints,
@@ -331,8 +350,11 @@ public final class ToolingBlockTints {
 
         /**
          * Derives a namespaced block id from the {@code Blocks.X} static field name.
-         * Convention is straight {@code toLowerCase()}: {@code Blocks.GRASS_BLOCK} - &gt;
+         * Convention is straight {@code toLowerCase()}: {@code Blocks.GRASS_BLOCK} &rarr;
          * {@code minecraft:grass_block}.
+         *
+         * @param fieldName the {@code Blocks.X} static-field name from the {@code GETSTATIC} node
+         * @return the {@code minecraft:}-namespaced block id
          */
         private static @NotNull String blockIdFromField(@NotNull String fieldName) {
             return "minecraft:" + fieldName.toLowerCase();

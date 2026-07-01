@@ -29,6 +29,8 @@ public class PackDownloader {
      * @param destination the target file path on disk
      * @param force when true, re-download even if the destination already exists
      * @return the destination path
+     * @throws PipelineException if creating the parent directories, opening the stream, or copying
+     *     the download fails
      */
     public static @NotNull Path download(@NotNull URL url, @NotNull Path destination, boolean force) {
         if (Files.isRegularFile(destination) && !force) return destination;
@@ -54,6 +56,7 @@ public class PackDownloader {
      * @param destination the target file path on disk
      * @param force when true, re-download even if the destination already exists
      * @return the destination path
+     * @throws PipelineException if the URL string is malformed or the download fails
      */
     public static @NotNull Path download(@NotNull String url, @NotNull Path destination, boolean force) {
         try {

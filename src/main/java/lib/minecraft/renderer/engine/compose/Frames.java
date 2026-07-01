@@ -28,6 +28,7 @@ public class Frames {
      * @param frames the ordered frame list
      * @param frameDelayMs the per-frame display duration in milliseconds
      * @return the wrapped image data
+     * @throws RenderException if {@code frames} is empty
      */
     public static @NotNull ImageData wrapFrames(@NotNull ConcurrentList<PixelBuffer> frames, int frameDelayMs) {
         if (frames.isEmpty())

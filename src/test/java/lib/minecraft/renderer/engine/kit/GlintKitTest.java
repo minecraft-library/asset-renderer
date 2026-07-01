@@ -12,8 +12,13 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
- * Verifies {@link GlintKit} constants against the MC 26.1 deobfuscated client source and checks
- * that the item/armor preset split matches vanilla's texture routing.
+ * Verifies {@link GlintKit} constants against the MC 26.1 deobfuscated client source (loop periods,
+ * per-type scales, rotation, texture ids) and pins the {@link GlintKit.GlintOptions} preset split -
+ * {@link GlintKit.GlintOptions#itemDefault item}, {@link GlintKit.GlintOptions#armorDefault armor},
+ * and {@link GlintKit.GlintOptions#entityItemDefault entity-held} each route to vanilla's texture
+ * and scale. Also pins {@link GlintKit#applyGlint} output: a 2-second frame count that tracks
+ * {@code framesPerSecond}, preserved canvas dimensions, and the foil being masked to the base
+ * image's opaque pixels.
  */
 class GlintKitTest {
 
@@ -111,6 +116,7 @@ class GlintKitTest {
         assertThat(ColorMath.alpha(first.getPixel(15, 0)), is(0x00));
     }
 
+    /** Builds a {@code width}-by-{@code height} buffer filled with a single ARGB value. */
     private static PixelBuffer solidBuffer(int width, int height, int argb) {
         int[] pixels = new int[width * height];
         Arrays.fill(pixels, argb);

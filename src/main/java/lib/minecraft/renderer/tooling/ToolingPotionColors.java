@@ -40,9 +40,11 @@ import java.util.zip.ZipFile;
  * only people who run it are developers bumping the bundled potion colour snapshot when a new
  * Minecraft version ships.
  * <p>
- * The output file format mirrors {@link ToolingBlockTints}'s shape: a top-level {@code effects}
- * array of {@code {effect, color}} objects, with colours stored as {@code 0x}-prefixed
- * uppercase hex strings.
+ * The output file shares the general shape of the other bundled snapshots (a {@code "//"} header
+ * comment plus {@code source_version}, followed by a single array of objects): here a top-level
+ * {@code effects} array of {@code {effect, color}} objects, with the fully-opaque ARGB colour
+ * stored as a {@code 0x}-prefixed uppercase 8-digit hex string. Entries are sorted by effect id so
+ * diffs stay reviewable on version bumps.
  */
 @UtilityClass
 public final class ToolingPotionColors {
@@ -83,8 +85,11 @@ public final class ToolingPotionColors {
     }
 
     /**
-     * Serialises the parsed colour map into the bundled JSON format. Entries are sorted by
-     * effect id so diffs stay reviewable on version bumps.
+     * Serialises the parsed colour map into the bundled JSON format. Entries are sorted by effect
+     * id (via {@link TreeMap}) so the checked-in JSON has stable ordering across version bumps.
+     * Each colour is forced fully opaque ({@code | 0xFF000000}) before being written as a
+     * {@code 0x}-prefixed uppercase 8-digit hex string, matching what {@link PotionColorLoader}
+     * expects at runtime.
      */
     private static @NotNull String buildJson(@NotNull ConcurrentMap<String, Integer> colors, @NotNull String mcVersion) {
         JsonObject root = new JsonObject();
@@ -129,7 +134,16 @@ public final class ToolingPotionColors {
     @UtilityClass
     static class Parser {
 
+        /**
+         * Descriptor of the {@code MobEffect} constructor whose trailing int argument is the ARGB
+         * colour - {@code (MobEffectCategory, int)void}.
+         */
         private static final @NotNull String MOB_EFFECT_INIT_DESCRIPTOR = "(Lnet/minecraft/world/effect/MobEffectCategory;I)V";
+
+        /**
+         * Name of the {@code MobEffects.register} helper whose call site terminates one effect
+         * registration and emits the pending {@code (effectId, colour)} pair.
+         */
         private static final @NotNull String REGISTER_METHOD_NAME = "register";
 
         /**

@@ -109,6 +109,15 @@ public class ShieldKit {
         return out;
     }
 
+    /**
+     * Quantizes a normal component onto vanilla's signed-byte SNORM grid, matching the
+     * {@code clamp * 127 -> (byte) -> / 127} round-trip vanilla's vertex format applies before the
+     * lighting dot product. Mirrors {@code Shading.packAsSnormByte} so the shield's re-shade sees
+     * the same truncated normal the vanilla GPU does.
+     *
+     * @param component the raw normal component in {@code [-1, 1]}
+     * @return the SNORM-quantized component
+     */
     private static float snorm(float component) {
         return ((int) (Math.clamp(component, -1f, 1f) * 127f)) / 127f;
     }

@@ -18,8 +18,11 @@ import org.jetbrains.annotations.Nullable;
  * @param uv2 the third vertex UV coordinate
  * @param texture the texture this triangle samples from
  * @param tintArgb the ARGB tint applied to each sampled pixel, or {@code 0xFFFFFFFF} for no tint
- * @param normal the surface normal, used for inventory lighting
- * @param shading the precomputed shading factor in {@code [0, 1]}
+ * @param normal the model-space surface normal; transformed with the triangle to drive per-face
+ *     relighting (block-icon and item-3D passes light by this normal, snapped to the nearest
+ *     cardinal for block quads)
+ * @param shading the precomputed shading factor in {@code [0, 1]} baked at quad-emit time, or a
+ *     disabled sentinel for full-bright faces; multiplies the sampled RGB before compositing
  * @param traits the surface traits (back-face culling, emissive, translucent, glinted) the rasterizer
  *     reads to drive culling, blend mode, translucent sorting, and the glint mask
  * @param debugTag opaque identifier (typically {@code "bone:face"} or {@code "block:face"}) carried

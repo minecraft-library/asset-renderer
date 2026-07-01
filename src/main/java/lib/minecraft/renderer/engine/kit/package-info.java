@@ -25,6 +25,11 @@
  *   <li>{@link lib.minecraft.renderer.engine.kit.FluidGeometryKit FluidGeometryKit} - vanilla fluid cube (1x1x1 with
  *       optional sloped top, flow-rotated side UVs). Fluid geometry is entirely algorithmic in
  *       vanilla - there is no {@code block/water.json} element list to walk.</li>
+ *   <li>{@link lib.minecraft.renderer.engine.kit.ShieldKit ShieldKit} - the {@code minecraft:shield} item's 3D
+ *       model (plate + handle) built from the vanilla {@code ShieldModel}. Bakes the model's
+ *       {@code scale(1, -1, -1)} special transform into axis-aligned box bounds so the geometry
+ *       lands in the same Y-up block-model frame the other geometry kits emit, with per-face UVs
+ *       from the entity-cube atlas unwrap.</li>
  * </ul>
  *
  * <p><b>Texture composition kits.</b> Build or transform the texture that a renderer will then

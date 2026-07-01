@@ -31,6 +31,13 @@ final class SimdSupport {
      */
     static final boolean ENABLED = detect() && !"false".equalsIgnoreCase(System.getProperty("asset.entity.simd", "true"));
 
+    /**
+     * Probes for the incubator Vector API via a non-initializing {@link Class#forName}. Returns
+     * {@code false} on any throwable ({@link NoClassDefFoundError} on a JVM lacking the module,
+     * or any other resolution failure) rather than propagating.
+     *
+     * @return {@code true} when {@code jdk.incubator.vector.FloatVector} resolves on this JVM
+     */
     private static boolean detect() {
         try {
             Class.forName("jdk.incubator.vector.FloatVector", false, SimdSupport.class.getClassLoader());

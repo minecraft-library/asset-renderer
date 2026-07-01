@@ -198,6 +198,12 @@ public class ArmorKit {
     // Entity armor (maps bone names to humanoid SkinFace parts).
     // ---------------------------------------------------------------------------------------
 
+    /**
+     * Maps a vanilla humanoid bone name to the {@link SkinFace} body part it drives for entity
+     * armor. Accepts both the snake_case ({@code right_arm}) and camelCase ({@code rightArm})
+     * spellings that appear across vanilla model classes so either bytecode-derived naming
+     * resolves. Bones absent from this map are non-humanoid and carry no armor.
+     */
     private static final @NotNull Map<String, SkinFace> HUMANOID_BONE_MAP = Map.ofEntries(
         Map.entry("head", SkinFace.HEAD),
         Map.entry("body", SkinFace.TORSO),
@@ -213,10 +219,10 @@ public class ArmorKit {
 
     /**
      * Builds armor triangles for an entity by mapping its bone bounding boxes to humanoid
-     * armor slots. Only bones whose names match the standard humanoid naming convention
-     * ({@code head}, {@code body}, {@code right_arm}, {@code left_arm}, {@code right_leg},
-     * {@code left_leg}) are considered; entities with non-humanoid bone names are silently
-     * skipped.
+     * armor slots via {@link #HUMANOID_BONE_MAP} (the standard {@code head} / {@code body} /
+     * {@code right_arm} / {@code left_arm} / {@code right_leg} / {@code left_leg} names, in either
+     * snake_case or camelCase spelling). Bones with no humanoid mapping are silently skipped, so a
+     * non-humanoid entity simply yields no armor.
      *
      * @param boneBounds map of bone name to {@code [min, max]} in normalized model space
      * @param helmet equipped helmet, or empty
@@ -348,7 +354,16 @@ public class ArmorKit {
     }
 
     /**
-     * Resolves and permutes a 3D entity trim texture.
+     * Resolves and permutes a 3D entity-armor trim texture. Unlike {@link TrimKit}'s item-slot
+     * path, this pulls the trim from the {@code trims/entity/{layer}} atlas ({@code humanoid} or
+     * {@code humanoid_leggings}) and runs the same {@link TrimKit#permute paletted permutation}
+     * against the shared {@code trim_palette} key and the material's colour strip.
+     *
+     * @param engine the texture engine for pack-aware texture resolution
+     * @param layer the entity trim layer ({@code humanoid} or {@code humanoid_leggings})
+     * @param pattern the trim pattern supplying the grayscale base texture key
+     * @param color the trim material supplying the colour palette key
+     * @return the permuted trim overlay, or empty when any of the three source textures is missing
      */
     static @NotNull Optional<PixelBuffer> resolveTrimTexture(
         @NotNull Textures engine,

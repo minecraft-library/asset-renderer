@@ -2,6 +2,7 @@ package lib.minecraft.renderer.asset.rule;
 
 import org.jetbrains.annotations.NotNull;
 
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -41,22 +42,27 @@ public sealed interface NbtCondition {
     }
 
     /**
-     * Plain string equality.
+     * Plain case-sensitive string equality against a fixed value.
+     *
+     * @param value the exact string the NBT value must equal
      */
     record Exact(@NotNull String value) implements NbtCondition {
+        /** {@inheritDoc} */
         @Override public boolean test(@NotNull String value) {
             return this.value.equals(value);
         }
     }
 
     /**
-     * Glob pattern matching the Optifine/MCPatcher shell-style syntax: {@code *} matches zero or
-     * more characters and {@code ?} matches a single character.
+     * Glob matching in the Optifine/MCPatcher shell-style syntax: {@code *} matches zero or more
+     * characters and {@code ?} matches a single character; every other character is literal. The
+     * glob is compiled to an anchored regex per {@link #globToRegex} on each {@code test}.
      *
      * @param pattern the glob pattern
-     * @param ignoreCase whether the match is case-insensitive
+     * @param ignoreCase whether the match is case-insensitive (the {@code ipattern:} prefix)
      */
     record Glob(@NotNull String pattern, boolean ignoreCase) implements NbtCondition {
+        /** {@inheritDoc} */
         @Override public boolean test(@NotNull String value) {
             String regex = globToRegex(this.pattern);
             Pattern compiled = this.ignoreCase
@@ -65,6 +71,15 @@ public sealed interface NbtCondition {
             return compiled.matcher(value).matches();
         }
 
+        /**
+         * Translates a shell-style glob into an anchored Java regex: {@code *} becomes {@code .*},
+         * {@code ?} becomes {@code .}, every other regex metacharacter is backslash-escaped to its
+         * literal, and the whole expression is wrapped in {@code ^...$} so {@code test} requires a
+         * full-string match.
+         *
+         * @param glob the glob pattern
+         * @return the equivalent anchored regex source
+         */
         private static @NotNull String globToRegex(@NotNull String glob) {
             StringBuilder sb = new StringBuilder(glob.length() + 2);
             sb.append('^');
@@ -83,9 +98,14 @@ public sealed interface NbtCondition {
     }
 
     /**
-     * Java regular expression matching.
+     * Java regular-expression matching, requiring a full-string match via
+     * {@link Matcher#matches()}. Case-insensitivity is baked into the compiled pattern at parse
+     * time (the {@code iregex:} prefix).
+     *
+     * @param pattern the compiled regex the NBT value must fully match
      */
     record Regex(@NotNull Pattern pattern) implements NbtCondition {
+        /** {@inheritDoc} */
         @Override public boolean test(@NotNull String value) {
             return this.pattern.matcher(value).matches();
         }

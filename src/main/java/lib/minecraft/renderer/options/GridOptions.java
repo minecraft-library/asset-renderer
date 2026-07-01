@@ -31,7 +31,7 @@ import java.util.function.UnaryOperator;
 public class GridOptions {
 
     /**
-     * Tile images to place on the grid
+     * Tile images to place on the grid, each carrying its own cell coordinate. Empty by default
      */
     @lombok.Builder.Default
     private final @NotNull ConcurrentList<GridTile> tiles = Concurrent.newList();
@@ -55,13 +55,14 @@ public class GridOptions {
     private final int rows = 1;
 
     /**
-     * Pixel gap between adjacent cells
+     * Pixel gap between adjacent cells; {@code 0} (default) abuts cells with no separation
      */
     @lombok.Builder.Default
     private final int separation = 0;
 
     /**
-     * Background fill for empty areas (solid colour or checkerboard).
+     * Background fill for empty grid areas (solid colour or checkerboard), defaulting to
+     * {@link Background#TRANSPARENT}
      */
     @lombok.Builder.Default
     private final @NotNull Background background = Background.TRANSPARENT;
@@ -74,10 +75,21 @@ public class GridOptions {
     @lombok.Builder.Default
     private final @NotNull UnaryOperator<ConcurrentList<FrameLayer>> layerDecorator = UnaryOperator.identity();
 
+    /**
+     * Opens a builder seeded from this instance's current values, for deriving a variant with a
+     * few fields changed.
+     *
+     * @return a builder pre-populated from this instance
+     */
     public @NotNull GridOptionsBuilder mutate() {
         return this.toBuilder();
     }
 
+    /**
+     * Builds an instance with every field at its default value.
+     *
+     * @return the default options
+     */
     public static @NotNull GridOptions defaults() {
         return builder().build();
     }
@@ -85,9 +97,9 @@ public class GridOptions {
     /**
      * A single tile to place on the grid at a specific cell coordinate.
      *
-     * @param col the column index, zero-based
-     * @param row the row index, zero-based
-     * @param image the tile image data
+     * @param col zero-based column index of the target cell
+     * @param row zero-based row index of the target cell
+     * @param image the tile image data (static or animated)
      */
     public record GridTile(int col, int row, @NotNull ImageData image) {}
 

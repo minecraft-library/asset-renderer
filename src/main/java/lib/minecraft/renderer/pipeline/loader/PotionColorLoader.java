@@ -25,7 +25,7 @@ import java.util.HashMap;
  * <p>
  * The JSON resource is a checked-in snapshot of MC 26.1's
  * {@code net.minecraft.world.effect.MobEffects} static initializer as parsed by
- * {@code ToolingPotionColors.Parser}. To refresh it on a Minecraft version bump, run the
+ * {@link ToolingPotionColors} {@code .Parser}. To refresh it on a Minecraft version bump, run the
  * {@code potionColors} Gradle task; the runtime pipeline never invokes the ASM walker directly.
  * <p>
  * Colours are stored as {@code 0x}-prefixed hex strings in the JSON because Gson cannot
@@ -35,7 +35,14 @@ import java.util.HashMap;
 @UtilityClass
 public class PotionColorLoader {
 
+    /**
+     * Classpath location of the bundled effect colour snapshot.
+     */
     private static final @NotNull String RESOURCE_PATH = "/lib/minecraft/renderer/potion_colors.json";
+
+    /**
+     * Shared Gson configured with the project defaults, used to parse the colour table.
+     */
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**
@@ -57,10 +64,14 @@ public class PotionColorLoader {
     }
 
     /**
-     * Parses a {@code potion_colors.json}-shaped string into the colour map. Exposed for tests.
+     * Parses a {@code potion_colors.json}-shaped string into the colour map. Each entry's
+     * {@code color} is a {@code 0x}-prefixed hex string decoded via
+     * {@link Integer#parseUnsignedInt(String, int)}. A missing {@code effects} array yields an
+     * empty map. Exposed for tests.
      *
      * @param json the JSON text to parse
-     * @return a map of effect id to ARGB colour
+     * @return a map of namespaced effect id to ARGB colour
+     * @throws PipelineException if the JSON is malformed or a colour fails to parse
      */
     static @NotNull ConcurrentMap<String, Integer> parse(@NotNull String json) {
         HashMap<String, Integer> colors = new HashMap<>();
@@ -82,6 +93,13 @@ public class PotionColorLoader {
         return Concurrent.adoptMap(colors).toUnmodifiable();
     }
 
+    /**
+     * Strips a leading {@code 0x} or {@code 0X} prefix from a hex string, leaving already-bare
+     * strings untouched so {@link Integer#parseUnsignedInt(String, int)} can consume the digits.
+     *
+     * @param hex the colour string, with or without a {@code 0x} prefix
+     * @return the prefix-free hex digits
+     */
     private static @NotNull String stripHexPrefix(@NotNull String hex) {
         return hex.startsWith("0x") || hex.startsWith("0X") ? hex.substring(2) : hex;
     }

@@ -47,6 +47,15 @@ public record BannerPattern(
         return pathForAtlas("entity/shield");
     }
 
+    /**
+     * Builds a namespaced texture id by inserting an atlas sub-path between this pattern's
+     * {@link #assetId} namespace and name - {@code namespace:name} becomes
+     * {@code namespace:<atlasPath>/name}. An {@code assetId} with no {@code :} defaults to the
+     * {@code minecraft} namespace.
+     *
+     * @param atlasPath the atlas sub-path to splice in (e.g. {@code entity/banner})
+     * @return the namespaced texture id under the given atlas path
+     */
     private @NotNull String pathForAtlas(@NotNull String atlasPath) {
         // assetId is like "minecraft:creeper" - split namespace:name, prepend atlas path.
         int colon = this.assetId.indexOf(':');

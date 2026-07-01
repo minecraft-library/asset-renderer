@@ -49,19 +49,20 @@ import java.util.function.UnaryOperator;
 public class BlockOptions {
 
     /**
-     * Namespaced block id to render, e.g. {@code "minecraft:stone"}
+     * Namespaced block id to render, e.g. {@code "minecraft:stone"}. Empty string by default,
+     * which resolves to no block
      */
     @lombok.Builder.Default
     private final @NotNull String blockId = "";
 
     /**
-     * Render type - isometric 3D or flat 2D face
+     * Render type - isometric 3D icon or a single flat 2D face
      */
     @lombok.Builder.Default
     private final @NotNull Type type = Type.ISOMETRIC_3D;
 
     /**
-     * Block face to render in {@link Type#BLOCK_FACE_2D} mode
+     * Block face to blit in {@link Type#BLOCK_FACE_2D} mode; ignored in {@link Type#ISOMETRIC_3D}
      */
     @lombok.Builder.Default
     private final @NotNull BlockFace face = BlockFace.NORTH;
@@ -75,28 +76,30 @@ public class BlockOptions {
     private final @NotNull String variant = "";
 
     /**
-     * Biome used for tinting grass, foliage and water textures
+     * Biome used for tinting grass, foliage and water textures, defaulting to
+     * {@link Biome.Vanilla#PLAINS}
      */
     @lombok.Builder.Default
     private final @NotNull Biome biome = Biome.Vanilla.PLAINS;
 
     /**
-     * Model rotation applied before the camera transform, in degrees
+     * User-override model rotation applied before the camera transform, in degrees. Composes on
+     * top of any blockstate {@link #variant} rotation. Defaults to {@link EulerRotation#NONE}
      */
     @lombok.Builder.Default
     private final @NotNull EulerRotation rotation = EulerRotation.NONE;
 
     /**
-     * Graphical projection for the 3D isometric render. Defaults to
-     * {@link Projection#VANILLA_ISO} - vanilla's iso block pose, byte-identical to the
-     * shipped render. Selecting another projection (isometric, dimetric, cabinet, ...) re-poses the
-     * camera and flatten together.
+     * Graphical projection for the 3D isometric render. Defaults to {@link Projection#VANILLA_ISO} -
+     * vanilla's iso block pose, byte-identical to the shipped render. Selecting another projection
+     * (true isometric, dimetric, cabinet, ...) re-poses the camera and its orthographic flatten
+     * together. Only consulted by the {@link Type#ISOMETRIC_3D} path
      */
     @lombok.Builder.Default
     private final @NotNull Projection projection = Projection.VANILLA_ISO;
 
     /**
-     * Output image dimensions in pixels (square)
+     * Output image dimensions in pixels (square), defaulting to {@link Renderer#DEFAULT_OUTPUT_SIZE}
      */
     @lombok.Builder.Default
     private final int outputSize = Renderer.DEFAULT_OUTPUT_SIZE;
@@ -148,10 +151,21 @@ public class BlockOptions {
     @lombok.Builder.Default
     private final @NotNull UnaryOperator<LayerStack<GeometryLayer>> layerDecorator = UnaryOperator.identity();
 
+    /**
+     * Opens a builder seeded from this instance's current values, for deriving a variant with a
+     * few fields changed.
+     *
+     * @return a builder pre-populated from this instance
+     */
     public @NotNull BlockOptionsBuilder mutate() {
         return this.toBuilder();
     }
 
+    /**
+     * Builds an instance with every field at its default value.
+     *
+     * @return the default options
+     */
     public static @NotNull BlockOptions defaults() {
         return builder().build();
     }
@@ -169,11 +183,13 @@ public class BlockOptions {
         /** Merged block-entity part geometry (bed foot onto head, decorated-pot sides onto base). */
         PARTS;
 
+        /** {@inheritDoc} */
         @Override
         public int order() {
             return ordinal();
         }
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull String id() {
             return name();
@@ -181,17 +197,17 @@ public class BlockOptions {
     }
 
     /**
-     * The supported render types for {@code BlockRenderer}.
+     * The supported render types for {@link BlockRenderer}.
      */
     public enum Type {
 
         /**
-         * Full 3D isometric block, six faces.
+         * Full 3D isometric block icon, all six faces, at the vanilla {@code display.gui} pose.
          */
         ISOMETRIC_3D,
 
         /**
-         * A single 2D block face.
+         * A single flat 2D block face, selected by {@link #getFace() face}.
          */
         BLOCK_FACE_2D
 

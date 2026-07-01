@@ -18,8 +18,17 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
+/**
+ * Pins {@link BlockGeometryKit#buildFromElements} triangle generation from resolved
+ * {@link ModelElement} boxes: 12 triangles (2 per face) for a full cube with tint and texture
+ * threaded through, per-direction skipping of absent or unresolvable faces, 0-16 &rarr; 0-1 UV
+ * normalization, and the vanilla 0-16 &rarr; engine {@code [-0.5, +0.5]} bounds mapping. Face
+ * fixtures set private {@link ModelFace} / {@link ModelElement} fields by reflection since those
+ * types are parser-populated and expose no test constructor.
+ */
 class BlockGeometryKitTest {
 
+    /** ARGB tint threaded through every build so assertions can confirm it lands on each triangle. */
     private static final int TINT_ARGB = 0xFFAABBCC;
 
     @Test
@@ -77,7 +86,8 @@ class BlockGeometryKitTest {
 
         assertThat(triangles.size(), equalTo(2));
         VisibleTriangle firstHalf = triangles.getFirst();
-        // Triangle 0 samples (TL, BL, BR): uv0 is TL, uv2 is BR.
+        // The authored 0-16 rect [0, 0, 8, 8] normalizes to [0, 0, 0.5, 0.5] in 0-1 UV space.
+        // Triangle 0 samples (TL, BL, BR): uv0 is TL (0, 0), uv2 is BR (0.5, 0.5).
         assertThat(firstHalf.uv0().x(), equalTo(0f));
         assertThat(firstHalf.uv0().y(), equalTo(0f));
         assertThat(firstHalf.uv2().x(), equalTo(0.5f));
@@ -125,14 +135,21 @@ class BlockGeometryKitTest {
 
     // --- fixtures ---
 
+    /** A single opaque-white texel, sufficient since these tests assert geometry, not sampling. */
     private static PixelBuffer texture1x1() {
         return PixelBuffer.of(new int[]{ 0xFFFFFFFF }, 1, 1);
     }
 
+    /** Builds a {@link ModelFace} bound to the given texture key with no explicit UV or rotation. */
     private static ModelFace face(String texture) {
         return face(texture, null, 0);
     }
 
+    /**
+     * Builds a {@link ModelFace} with an optional 0-16 UV rectangle and face rotation, setting the
+     * parser-populated private fields by reflection. A {@code null} uv leaves the face to derive
+     * its default UV from element bounds; a {@code 0} rotation is left unset.
+     */
     private static ModelFace face(String texture, float[] uv, int rotation) {
         try {
             ModelFace face = new ModelFace();
@@ -147,6 +164,10 @@ class BlockGeometryKitTest {
         }
     }
 
+    /**
+     * Builds a {@link ModelElement} with the given 0-16 {@code from}/{@code to} bounds, set by
+     * reflection. Faces are added by the caller afterward.
+     */
     private static ModelElement element(float[] from, float[] to) {
         try {
             ModelElement element = new ModelElement();
@@ -158,12 +179,14 @@ class BlockGeometryKitTest {
         }
     }
 
+    /** Wraps a single element in the {@link ConcurrentList} the kit's build API expects. */
     private static ConcurrentList<ModelElement> one(ModelElement element) {
         ConcurrentList<ModelElement> list = Concurrent.newList();
         list.add(element);
         return list;
     }
 
+    /** Sets a private declared field by reflection, used to populate parser-only model fields. */
     private static void setField(Object target, String name, Object value) throws ReflectiveOperationException {
         Field field = target.getClass().getDeclaredField(name);
         field.setAccessible(true);

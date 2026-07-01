@@ -6,6 +6,14 @@ import org.junit.jupiter.api.Test;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Verifies {@link EulerRotation}'s data-only contract: the {@link EulerRotation#NONE} identity
+ * constant, that {@code pitch}/{@code yaw}/{@code roll} are exposed verbatim in degrees, and that
+ * the per-axis radian accessors ({@link EulerRotation#pitchRadians()},
+ * {@link EulerRotation#yawRadians()}, {@link EulerRotation#rollRadians()}) apply the
+ * degrees-to-radians conversion. The record carries no rotation-composition behaviour, so there is
+ * nothing else to pin here.
+ */
 @DisplayName("EulerRotation degrees + radian conversion")
 class EulerRotationTest {
 

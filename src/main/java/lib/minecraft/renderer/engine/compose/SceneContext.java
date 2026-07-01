@@ -16,7 +16,8 @@ import org.jetbrains.annotations.NotNull;
  * @param baseTexture resolved base entity/model texture the layers sample from
  * @param modelAnchor model-space point the rasterizer maps to canvas centre
  * @param ndcScale normalized-device scale from the auto-fit window
- * @param modelScale per-entity render scale (vanilla renderer-scale combined with state-scale)
+ * @param modelScale per-subject render scale (for entities, the vanilla renderer-scale combined with
+ *        state-scale)
  * @param textures texture-resolution service the layers sample overlay / armor textures through
  * @param context renderer context for overlay-texture and block lookups
  */

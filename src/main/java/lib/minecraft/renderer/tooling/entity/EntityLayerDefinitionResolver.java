@@ -35,9 +35,14 @@ import java.util.Map;
  *       {@code (class, method, descriptor)} target via {@code Builder.put(X, factoryCall)}.
  *       Mirrors {@code SourceDiscovery.walkLayerDefinitions} for block entities; written here
  *       independently so the entity pipeline doesn't reach into block-entity internals.</li>
- *   <li><b>Mesh-wrapper unwrap</b> (TODO): some factories like
- *       {@code SkullModel.createMobHeadLayer} are thin {@code LayerDefinition.create(mesh, W, H)}
- *       wrappers around a {@code MeshDefinition} factory. Block entities handle this via
+ *   <li><b>Mesh-wrapper unwrap</b> (partial): when the {@code createRoots} entry itself pairs a
+ *       {@code MeshDefinition} factory with an inline {@code LayerDefinition.create(mesh, W, H)},
+ *       {@link #loadLayerDefinitions} captures the mesh factory as the target and carries {@code W}
+ *       / {@code H} as {@link Result#texWidthOverride()} / {@link Result#texHeightOverride()}. What
+ *       is <b>not</b> handled (TODO) is a resolved factory <i>method</i> whose own body is a thin
+ *       {@code LayerDefinition.create(someMesh(), W, H)} wrapper - e.g.
+ *       {@code SkullModel.createMobHeadLayer} - which would need a recursion into the factory body
+ *       to follow the inner {@code MeshDefinition}. Block entities handle that via
  *       {@code SourceDiscovery.unwrapMeshWrapper}; for entities the pattern is rare and deferred
  *       until parity surfaces an example.</li>
  * </ol>
@@ -76,6 +81,15 @@ public final class EntityLayerDefinitionResolver {
      * @param texHeightOverride matching texture height override; {@code null} otherwise
      * @param sourceLayerField the {@code ModelLayers.X} field name that resolved to this target,
      *     for diagnostic / debugging output
+     * @param defaultInflate cube inflate captured from an inline {@code new CubeDeformation(F)}
+     *     passed to the factory call, or {@code 0f} when the factory takes no deformation; ridden
+     *     through the synthetic {@code Source} to the parser as its {@code defaultInflate}
+     * @param defaultFloatParam call-site {@code float} literal for a single-{@code float} factory
+     *     ({@code createBodyLayer(F)}, e.g. donkey's {@code 0.87f}) that the parser substitutes
+     *     for {@code paramFloatValues[0]}; {@code null} for other arities
+     * @param appliedMeshTransformerScale composed scale from every
+     *     {@code .apply(MeshTransformer.scaling(F))} chained onto the factory result; the identity
+     *     {@code 1f} when no transformer applies
      */
     public record Result(
         @NotNull String targetClass,
@@ -90,9 +104,12 @@ public final class EntityLayerDefinitionResolver {
     ) {
 
         /**
-         * Returns a copy with {@code appliedMeshTransformerScale} multiplied by {@code factor}.
+         * Returns a copy with {@link #appliedMeshTransformerScale()} multiplied by {@code factor}.
          * Used by the resolver when a chain of {@code .apply(MeshTransformer)} calls follows the
          * factory invocation - each one composes by multiplication with the prior captures.
+         *
+         * @param factor the scale to fold into the running product
+         * @return a copy of this {@code Result} with the composed scale
          */
         public Result composeAppliedScale(float factor) {
             return new Result(targetClass, targetMethod, targetDesc, texWidthOverride,
@@ -113,6 +130,11 @@ public final class EntityLayerDefinitionResolver {
      * <p>Returns the input {@code Result} unchanged when the target method has any other
      * instruction (cube builder, addOrReplaceChild, LayerDefinition.create wrapper, etc.) -
      * those are real factories that produce their own geometry.
+     *
+     * @param classNodes the ClassNode cache (shared with sibling resolver walks)
+     * @param res the resolved factory target to test for a no-op delegate
+     * @return {@code res} rewritten to point at the delegate target, or {@code res} unchanged
+     *     when its factory is not a pure delegate
      */
     public static @NotNull Result unaliasDelegate(
         @NotNull ClassNodeCache classNodes,
@@ -175,7 +197,7 @@ public final class EntityLayerDefinitionResolver {
      * @param additionalLayerFields extra {@code ModelLayers.X} field names harvested from lambda
      *     bodies that the constructor walk would otherwise miss
      * @param layerDefinitions the precomputed {@code (ModelLayers.X field name -&gt; Result)}
-     *     map from {@link #loadLayerDefinitions(ClassNodeCache, Diagnostics)} )}
+     *     map from {@link #loadLayerDefinitions(ClassNodeCache, Diagnostics)}
      * @param diagnostics the diagnostic sink shared with sibling discovery walks
      * @return the primary layer's resolution, or {@code null} when unresolvable
      */
@@ -211,6 +233,10 @@ public final class EntityLayerDefinitionResolver {
      * {@code GETSTATIC ModelLayers.X} reference. The result preserves first-seen order so the
      * fallback "first field" heuristic remains deterministic, but the entity-id-match preference
      * can promote any matching field regardless of order.
+     *
+     * @param classNodes the ClassNode cache (shared with sibling resolver walks)
+     * @param rendererInternalName the renderer's JVM internal name
+     * @return the {@code ModelLayers.X} field names in first-seen order (may be empty)
      */
     private static @NotNull java.util.LinkedHashSet<String> collectModelLayerFields(
         @NotNull ClassNodeCache classNodes,
@@ -228,7 +254,11 @@ public final class EntityLayerDefinitionResolver {
 
     /**
      * Picks the primary layer field from the candidate set per the heuristic documented on
-     * {@link #resolvePrimary}. Public for testing.
+     * {@link #resolvePrimary}. Package-private for testing.
+     *
+     * @param candidates the {@code ModelLayers.X} field names in first-seen order
+     * @param entityId the namespaced entity id; drives the entity-id-match preference
+     * @return the chosen primary layer field name
      */
     @NotNull
     static String pickPrimaryLayerField(@NotNull java.util.LinkedHashSet<String> candidates, @NotNull String entityId) {
@@ -251,6 +281,9 @@ public final class EntityLayerDefinitionResolver {
 
     /**
      * {@code true} when the field name ends in a known variant suffix that disqualifies it as "primary".
+     *
+     * @param fieldName the {@code ModelLayers.X} field name to test
+     * @return whether the name carries a {@code _BABY} / {@code _ARMOR} / {@code _SADDLE} / etc suffix
      */
     private static boolean isVariantSuffixed(@NotNull String fieldName) {
         return fieldName.endsWith("_BABY")
@@ -390,8 +423,9 @@ public final class EntityLayerDefinitionResolver {
             //       {@code spiderBodyLayer.apply(MeshTransformer.scaling(0.7F))} for
             //       {@code ModelLayers.CAVE_SPIDER}; the bytecode is {@code aload spiderBodyLayer;
             //       ldc 0.7f; invokestatic scaling; invokevirtual apply}, no astore. Capture
-            //       into {@link #pendingAppliedMTScale} too so the apply handler at line ~471
-            //       finds a non-null value when consumed inline.</li>
+            //       into {@link #pendingAppliedMTScale} too so the downstream
+            //       {@code invokevirtual LayerDefinition.apply} handler finds a non-null value
+            //       when consumed inline.</li>
             // </ul>
             // The ASTORE handler clears {@code pendingScalingMTFloat} on store; the apply
             // handler clears {@code pendingAppliedMTScale} on direct consumption; if both
@@ -546,6 +580,10 @@ public final class EntityLayerDefinitionResolver {
      * {@link lib.minecraft.renderer.tooling.parser.GeometryParser}; kept separate so the
      * resolver doesn't reach into parser internals.
      *
+     * @param owner JVM internal name of the class declaring the {@code MeshTransformer} field
+     * @param name the field name to resolve
+     * @param cache the per-field resolution cache spanning the whole {@code createRoots} walk
+     * @param classNodes the ClassNode cache (shared with sibling resolver walks)
      * @return F when the field's initialiser is a literal {@code MeshTransformer.scaling(F)},
      *     {@code null} for unhandled patterns
      */

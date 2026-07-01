@@ -14,8 +14,20 @@ import org.jetbrains.annotations.NotNull;
  */
 public final class GlintMask {
 
+    /**
+     * Flat row-major coverage buffer indexed as {@code y * width + x}; {@code 1} marks a glinted
+     * pixel, {@code 0} leaves it bare.
+     */
     private final byte @NotNull [] data;
+
+    /**
+     * Mask width in pixels.
+     */
     private final int width;
+
+    /**
+     * Mask height in pixels.
+     */
     private final int height;
 
     /**
@@ -31,14 +43,14 @@ public final class GlintMask {
     }
 
     /**
-     * The mask width in pixels.
+     * Mask width in pixels.
      */
     public int width() {
         return this.width;
     }
 
     /**
-     * The mask height in pixels.
+     * Mask height in pixels.
      */
     public int height() {
         return this.height;
@@ -94,6 +106,16 @@ public final class GlintMask {
         return out;
     }
 
+    /**
+     * Whether any pixel in the half-open box {@code [x0, x1) x [y0, y1)} of this mask is marked -
+     * the "any subpixel marked wins" predicate {@link #downsample} evaluates per output pixel.
+     *
+     * @param x0 inclusive left bound
+     * @param y0 inclusive top bound
+     * @param x1 exclusive right bound
+     * @param y1 exclusive bottom bound
+     * @return {@code true} when at least one pixel in the box is marked
+     */
     private boolean anyMarked(int x0, int y0, int x1, int y1) {
         for (int y = y0; y < y1; y++)
             for (int x = x0; x < x1; x++)

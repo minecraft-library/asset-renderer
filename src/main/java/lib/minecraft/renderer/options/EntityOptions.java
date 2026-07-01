@@ -18,9 +18,10 @@ import java.util.function.UnaryOperator;
 
 /**
  * Configures a single {@code EntityRenderer} invocation for mob entities. The entity is resolved
- * by {@code entityId} through the active {@code RendererContext} and rendered as an isometric 3D
- * icon via its {@code EntityModelData} bone/cube tree. The {@link #getRotation() rotation} field
- * is the user-override layer applied on top of the engine's baked iso pose.
+ * by {@link #getEntityId() entityId} through the active {@code RendererContext} and rendered as a
+ * 3D icon via its {@code EntityModelData} bone/cube tree, posed by {@link #getProjection()
+ * projection} (default {@link Projection#VANILLA_ISO}). The {@link #getRotation() rotation} field
+ * is the user-override layer applied on top of the projection's baked pose.
  *
  * <p>The {@link #getFitMode() fitMode} field selects how the output canvas is sized:
  * {@link FitMode#OUTPUT_SIZE} (default) renders into a fixed {@code outputSize x outputSize}
@@ -40,13 +41,15 @@ import java.util.function.UnaryOperator;
 public class EntityOptions {
 
     /**
-     * Entity id for lookup, e.g. {@code "minecraft:zombie"}.
+     * Namespaced entity id for lookup, e.g. {@code "minecraft:zombie"}. Empty (default) resolves
+     * to no entity.
      */
     @lombok.Builder.Default
     private final @NotNull Optional<String> entityId = Optional.empty();
 
     /**
-     * Optional texture id override, resolvable through the active pack stack.
+     * Optional texture id override, resolvable through the active pack stack. Empty (default)
+     * uses the entity's own default texture.
      */
     @lombok.Builder.Default
     private final @NotNull Optional<String> textureId = Optional.empty();
@@ -128,7 +131,8 @@ public class EntityOptions {
     private final int maxCanvasSize = Integer.getInteger("refharness.maxCanvasSize", 1024);
 
     /**
-     * Model rotation applied before the camera transform, in degrees.
+     * User-override model rotation applied on top of the projection pose, before the camera
+     * transform, in degrees. Defaults to {@link EulerRotation#NONE}.
      */
     @lombok.Builder.Default
     private final @NotNull EulerRotation rotation = EulerRotation.NONE;
@@ -136,8 +140,9 @@ public class EntityOptions {
     /**
      * Graphical projection for the render. Defaults to {@link Projection#VANILLA_ISO} - the vanilla
      * iso preview pose, byte-identical to the shipped render. The entity's model-to-world facing /
-     * chirality is applied separately, so selecting another projection re-poses the camera while keeping
-     * the entity upright and facing; the canvas-fit and centring track the chosen projection.
+     * chirality is applied separately (as a {@code Placement}), so selecting another projection
+     * re-poses the camera while keeping the entity upright and facing; the canvas-fit and centring
+     * track the chosen projection.
      */
     @lombok.Builder.Default
     private final @NotNull Projection projection = Projection.VANILLA_ISO;
@@ -177,10 +182,21 @@ public class EntityOptions {
     @lombok.Builder.Default
     private final @NotNull UnaryOperator<LayerStack<GeometryLayer>> layerDecorator = UnaryOperator.identity();
 
+    /**
+     * Opens a builder seeded from this instance's current values, for deriving a variant with a
+     * few fields changed.
+     *
+     * @return a builder pre-populated from this instance
+     */
     public @NotNull EntityOptionsBuilder mutate() {
         return this.toBuilder();
     }
 
+    /**
+     * Builds an instance with every field at its default value.
+     *
+     * @return the default options
+     */
     public static @NotNull EntityOptions defaults() {
         return builder().build();
     }
@@ -200,11 +216,13 @@ public class EntityOptions {
         /** Worn-armor geometry receiving the enchantment foil. */
         ARMOR;
 
+        /** {@inheritDoc} */
         @Override
         public int order() {
             return ordinal();
         }
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull String id() {
             return name();
@@ -220,30 +238,32 @@ public class EntityOptions {
         /**
          * Canvas is {@code outputSize x outputSize}. The entity's union silhouette (base
          * model plus non-{@code skipBounds} overlays) is scaled to fit, leaving
-         * {@code padding} pixels of clear space inside the canvas on each side. Family
-         * siblings are not considered. No upper cap on canvas dimensions - the caller is
-         * in control. Use for one-off renders (web API call, webpage icon, catalog tile)
-         * where output dimensions are dictated by the consumer.
+         * {@link EntityOptions#getPadding() padding} pixels of clear space inside the canvas on
+         * each side. Family siblings are not considered. No upper cap on canvas dimensions - the
+         * caller is in control. Use for one-off renders (web API call, webpage icon, catalog
+         * tile) where output dimensions are dictated by the consumer.
          */
         OUTPUT_SIZE,
 
         /**
          * Canvas is sized to this entity's union silhouette at native
-         * {@code PIXELS_PER_BLOCK / 16} ratio (mirroring the vanilla-reference-harness's
-         * per-entity bounds), then expanded by {@code padding} pixels on each side. The
-         * longer axis is uniformly capped at {@code MAX_CANVAS_SIZE} post-padding so large
-         * entities (ender_dragon) stay manageable. {@code outputSize} is ignored. Use for
-         * native-resolution single-entity renders.
+         * {@link EntityOptions#getPixelsPerBlock() pixelsPerBlock}{@code / 16} ratio (mirroring
+         * the vanilla-reference-harness's per-entity bounds), then expanded by
+         * {@link EntityOptions#getPadding() padding} pixels on each side. The longer axis is
+         * uniformly capped at {@link EntityOptions#getMaxCanvasSize() maxCanvasSize} post-padding
+         * so large entities (ender_dragon) stay manageable. {@link EntityOptions#getOutputSize()
+         * outputSize} is ignored. Use for native-resolution single-entity renders.
          */
         UNION_BOUNDS,
 
         /**
          * Canvas is sized to the union across this entity AND every family member from
          * {@code EntityModelLoader.loadFamilies()} (e.g. cow + cow_cold + cow_warm +
-         * mooshroom all share cow's family canvas). Same native ratio + {@code padding}
-         * expansion + {@code MAX_CANVAS_SIZE} cap as {@link #UNION_BOUNDS}. Required by
-         * {@code TestEntityParityVanilla} since the harness sizes by family-union too;
-         * keep {@code padding = 0} to preserve byte-equal output against the harness PNGs.
+         * mooshroom all share cow's family canvas). Same native ratio +
+         * {@link EntityOptions#getPadding() padding} expansion +
+         * {@link EntityOptions#getMaxCanvasSize() maxCanvasSize} cap as {@link #UNION_BOUNDS}.
+         * Required by {@code TestEntityParityVanilla} since the harness sizes by family-union
+         * too; keep {@code padding = 0} to preserve byte-equal output against the harness PNGs.
          */
         FAMILY_BOUNDS
 

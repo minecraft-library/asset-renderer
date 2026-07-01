@@ -45,24 +45,44 @@ import org.jetbrains.annotations.NotNull;
  */
 public final class FluidRenderer implements Renderer<FluidOptions> {
 
+    /** Namespaced still-frame texture id for water (source-face / top texture). */
     static final @NotNull String WATER_STILL_TEXTURE_ID = "minecraft:block/water_still";
+    /** Namespaced flow-frame texture id for water (side / sloped-top texture). */
     static final @NotNull String WATER_FLOW_TEXTURE_ID = "minecraft:block/water_flow";
+    /** Namespaced still-frame texture id for lava (source-face / top texture). */
     static final @NotNull String LAVA_STILL_TEXTURE_ID = "minecraft:block/lava_still";
+    /** Namespaced flow-frame texture id for lava (side / sloped-top texture). */
     static final @NotNull String LAVA_FLOW_TEXTURE_ID = "minecraft:block/lava_flow";
 
     /**
-     * One vanilla tick is 50 ms - used to convert {@code ticksPerFrame} into a GIF delay.
+     * Duration of one vanilla tick in milliseconds - used to convert {@code ticksPerFrame} into a
+     * per-frame animation delay.
      */
     private static final int MILLIS_PER_TICK = 50;
 
+    /** Sub-renderer for the full 3D isometric cube path ({@link FluidOptions.Type#ISOMETRIC_3D}). */
     private final @NotNull Isometric3D isometric3D;
+    /** Sub-renderer for the flat still-face path ({@link FluidOptions.Type#FLUID_FACE_2D}). */
     private final @NotNull FluidFace2D fluidFace2D;
 
+    /**
+     * Constructs a new {@code FluidRenderer} bound to the given context, eagerly creating both
+     * sub-renderers so a caller can dispatch either render type without re-instantiation.
+     *
+     * @param context the render context supplying texture and biome-tint lookups
+     */
     public FluidRenderer(@NotNull RendererContext context) {
         this.isometric3D = new Isometric3D(context);
         this.fluidFace2D = new FluidFace2D(context);
     }
 
+    /**
+     * Renders the fluid, dispatching to the isometric cube or flat-face sub-renderer per
+     * {@link FluidOptions#getType()}, then composites the result over the options background.
+     *
+     * @param options the fluid options
+     * @return the rendered image composited over {@link FluidOptions#getBackground()}
+     */
     @Override
     public @NotNull ImageData render(@NotNull FluidOptions options) {
         ImageData rendered = switch (options.getType()) {
@@ -125,6 +145,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
 
         private final @NotNull RendererContext context;
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull FluidOptions options) {
             // renderFrame constructs its own engine, textures, triangle list, and output buffer per
@@ -135,6 +156,11 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
                 tick -> renderFrame(options, tick));
         }
 
+        /**
+         * Bakes a single animation frame: resolves the projection, samples the still and flow
+         * textures at {@code tick}, builds the tinted fluid cube through {@link FluidGeometryKit},
+         * and rasterizes it into a fresh buffer.
+         */
         private @NotNull PixelBuffer renderFrame(@NotNull FluidOptions options, int tick) {
             // Resolve the projection once: the caller's rotation is composed onto the base pose, so it
             // poses the camera directly and the rasterize call applies no separate model-spin. Default
@@ -173,6 +199,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
 
         private final @NotNull RendererContext context;
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull FluidOptions options) {
             // Each tick constructs its own RasterEngine + output buffer, so frames bake in parallel.
@@ -181,6 +208,10 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
                 tick -> renderFrame(options, tick));
         }
 
+        /**
+         * Bakes a single animation frame: samples the still texture at {@code tick}, multiplies it
+         * by the fluid tint, and blits it scaled to fill the output buffer.
+         */
         private @NotNull PixelBuffer renderFrame(@NotNull FluidOptions options, int tick) {
             RasterEngine engine = new RasterEngine(this.context);
             PixelBuffer buffer = engine.createBuffer(options.getOutputSize(), options.getOutputSize());

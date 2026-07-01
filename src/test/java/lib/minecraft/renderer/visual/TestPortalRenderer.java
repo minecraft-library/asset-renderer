@@ -21,14 +21,16 @@ import java.util.Locale;
 
 /**
  * Diagnostic task that exercises every {@link PortalRenderer} code path and dumps the output to
- * {@code cache/visual/portal-renderer/} for visual inspection. Static renders dump as PNG,
- * animated renders as lossless WebP - GIF's 256-colour palette dithers a continuous-tone parallax
- * field into visible diagonal streak artefacts, so WebP's full RGB output is the correct choice
- * for the end-portal shader output. Covers the full matrix of {@link PortalOptions.Portal}
- * (end_portal / end_gateway) {@code ×} {@link PortalOptions.Type} (3D / 2D) {@code ×}
+ * {@code cache/visual/portal-renderer/} for visual inspection. This is a <b>functional / visual</b>
+ * tool ("does it render") - there is no parity gate. Static renders dump as PNG, animated renders
+ * as lossless WebP - GIF's 256-colour palette dithers a continuous-tone parallax field into visible
+ * diagonal streak artefacts, so WebP's full RGB output is the correct choice for the end-portal
+ * shader output. Covers the full matrix of {@link PortalOptions.Portal} (end_portal / end_gateway)
+ * {@code x} {@link PortalOptions.Type} ({@link PortalOptions.Type#ISOMETRIC_3D} / 2D) {@code x}
  * (static / animated) - 8 outputs.
  * <p>
- * Usage: {@code ./gradlew :asset-renderer:portalRenderer}.
+ * Usage: {@code ./gradlew :asset-renderer:portalRenderer}. Takes no {@code -P} flags; sizes are
+ * fixed at {@link #STATIC_SIZE} / {@link #ANIMATED_SIZE}.
  */
 @UtilityClass
 public final class TestPortalRenderer {

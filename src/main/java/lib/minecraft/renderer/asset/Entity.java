@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.asset;
 
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
@@ -10,9 +11,9 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Optional;
 
 /**
- * A fully-parsed entity definition - geometry and vanilla texture reference - for use by
- * the entity renderer's {@code ENTITY_3D} mode. Player skins are never stored on this DTO; they
- * are supplied at render time through the {@code EntityOptions.skinBytes}/{@code skinUrl}/
+ * A fully-parsed entity definition - base geometry, vanilla texture reference, and overlay
+ * layers - consumed by {@link EntityRenderer}. Player skins are never stored on this DTO; they
+ * are supplied at render time through the {@code PlayerOptions.skinBytes}/{@code skinUrl}/
  * {@code skinTextureId} fields.
  */
 @Getter
@@ -56,11 +57,13 @@ public final class Entity {
      * @param textureRef the vanilla {@code textures/entity/} sub-path (without {@code .png}),
      *     resolved through the active pack stack as {@code minecraft:entity/<ref>}, or empty when the
      *     overlay reuses the base texture
-     * @param emissive when {@code true} the overlay renders full-bright + additive (vanilla
-     *     Java's {@code RenderType.eyes} pattern - spider eyes, ender dragon eyes) instead of
-     *     the default shaded src-over. Tagged through every triangle the overlay produces; the
-     *     rasterizer keys off the per-triangle flag to pick blend mode and skip the ambient
-     *     shading pass
+     * @param emissive when {@code true} the overlay renders full-bright (vanilla Java's
+     *     {@code RenderType.eyes} pattern - spider eyes, ender dragon eyes) instead of the default
+     *     shaded body pass. Tagged through every triangle the overlay produces; the rasterizer keys
+     *     off the per-triangle flag to skip the ambient shading pass and skip the depth write.
+     *     The blend stays src-over ({@code BlendMode.NORMAL}) - vanilla's eye pass is translucent,
+     *     not additive - so an emissive overlay layers its texel over the lit body rather than
+     *     summing into it
      */
     public record Layer(
         @NotNull EntityModelData model,

@@ -41,9 +41,9 @@ public class Shading {
      * @return the shaded ARGB pixel
      */
     public static int apply(int argb, float factor) {
-        // Vanilla GLSL quantizes via `floor(min(1, v) * 255 + 0.5)` (round-half-up); truncating
-        // here biases every shaded channel ~0.5 LSB low and leaves a single-LSB precision floor
-        // across un-tinted entities (goat / husk / zombie / skeleton family etc).
+        // Vanilla GLSL quantizes via `floor(min(1, v) * 255 + 0.5)` (round-half-up), so match it with
+        // Math.round. A plain (int) truncation would bias every shaded channel ~0.5 LSB low and leave
+        // a single-LSB precision floor across un-tinted entities (goat / husk / zombie / skeleton etc).
         int a = (argb >>> 24) & 0xFF;
         int r = Math.round(((argb >>> 16) & 0xFF) * factor);
         int g = Math.round(((argb >>> 8) & 0xFF) * factor);
@@ -103,12 +103,9 @@ public class Shading {
         ConcurrentList<VisibleTriangle> out = Concurrent.newList();
         for (VisibleTriangle t : triangles) {
             boolean cull = forceCullBackFaces || t.traits().cullBackFaces();
-            // A {@code "shade": false} model element (coral fans, cross/crop plants, ladder,
-            // vine, tripwire, redstone dust, torches) carries {@link #DISABLED}.
-            // Vanilla's {@code getShade(direction, shade=false)} returns 1.0 - the face skips the
-            // directional darkening entirely - so render it full-bright instead of applying the
-            // {@code Lighting.ITEMS_3D} Lambertian. (The cull / two-sided handling is unchanged;
-            // only the shade factor differs.)
+            // DISABLED marks a "shade": false element (see the field doc): vanilla's
+            // getShade(direction, false) returns 1.0, so render it full-bright rather than applying
+            // the ITEMS_3D Lambertian. Cull / two-sided handling is unchanged; only the shade differs.
             if (t.shading() == DISABLED) {
                 out.add(new VisibleTriangle(
                     t.position0(), t.position1(), t.position2(),

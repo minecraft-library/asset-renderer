@@ -51,16 +51,25 @@ public class IsInsideTriangleBenchmark {
     /** Deterministic RNG seed so trial-to-trial sample distributions stay reproducible. */
     private static final long SEED = 0x1234_5678_9ABC_DEF0L;
 
+    /** Precomputed edge coefficients for the 16x16 small triangle. */
     private RasterMath.EdgeCoefficients smallEc;
+
+    /** Shuffled sample x/y coordinates over the small triangle's bbox. */
     private float[] smallPx, smallPy;
 
+    /** Precomputed edge coefficients for the 64x64 medium triangle. */
     private RasterMath.EdgeCoefficients medEc;
+
+    /** Shuffled sample x/y coordinates over the medium triangle's bbox. */
     private float[] medPx, medPy;
 
+    /** Precomputed edge coefficients for the 100x2 sliver triangle. */
     private RasterMath.EdgeCoefficients sliverEc;
+
+    /** Shuffled sample x/y coordinates over the sliver triangle's bbox. */
     private float[] sliverPx, sliverPy;
 
-    /** Sequential raster-scan samples over the medium triangle's bbox. */
+    /** Sequential raster-scan sample x/y coordinates over the medium triangle's bbox. */
     private float[] medScanPx, medScanPy;
 
     @Setup(Level.Trial)
@@ -137,8 +146,26 @@ public class IsInsideTriangleBenchmark {
         }
     }
 
+    /**
+     * Parallel x/y coordinate arrays for one fixture's sample set.
+     *
+     * @param xs sample x coordinates
+     * @param ys sample y coordinates
+     */
     private record Sample(float[] xs, float[] ys) {}
 
+    /**
+     * Generates {@code count} uniformly-random sample points inside the given bbox, seeded so the
+     * distribution is reproducible across trials.
+     *
+     * @param count number of sample points to generate
+     * @param x0 bbox min x
+     * @param y0 bbox min y
+     * @param x1 bbox max x
+     * @param y1 bbox max y
+     * @param seed RNG seed pinning the distribution
+     * @return the generated x/y sample arrays
+     */
     private static Sample shuffledSamples(int count, float x0, float y0, float x1, float y1, long seed) {
         Random rng = new Random(seed);
         float[] xs = new float[count];

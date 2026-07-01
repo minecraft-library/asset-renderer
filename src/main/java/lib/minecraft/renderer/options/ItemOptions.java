@@ -54,7 +54,8 @@ import java.util.function.UnaryOperator;
 public class ItemOptions {
 
     /**
-     * Namespaced item id to render, e.g. {@code "minecraft:diamond_sword"}
+     * Namespaced item id to render, e.g. {@code "minecraft:diamond_sword"}. Empty (default)
+     * resolves to no item
      */
     @lombok.Builder.Default
     private final @NotNull String itemId = "";
@@ -66,7 +67,8 @@ public class ItemOptions {
     private final @NotNull Type type = Type.GUI_2D;
 
     /**
-     * When true, compose an animated enchantment glint on top of the rendered item.
+     * When {@code true}, compose an enchantment glint on top of the rendered item. Superseded by
+     * {@link #glintOverride} when that is present. Animated unless {@link #animateGlint} is off.
      */
     @lombok.Builder.Default
     private final boolean enchanted = false;
@@ -81,7 +83,8 @@ public class ItemOptions {
     private final @NotNull Optional<Boolean> glintOverride = Optional.empty();
 
     /**
-     * Optional ARGB tint applied to colour-overlay items (leather armour, spawn eggs).
+     * Optional ARGB tint applied to colour-overlay items (leather armour, spawn eggs). Empty
+     * (default) uses the item's intrinsic tint.
      */
     @lombok.Builder.Default
     private final @NotNull Optional<Integer> tintColor = Optional.empty();
@@ -104,19 +107,21 @@ public class ItemOptions {
     private final @NotNull Optional<ArmorTrim.Color> trimColor = Optional.empty();
 
     /**
-     * Override colour for leather armour pieces.
+     * ARGB override colour for the leather-armour tint layer. Empty (default) uses vanilla's
+     * default leather colour.
      */
     @lombok.Builder.Default
     private final @NotNull Optional<Integer> leatherColor = Optional.empty();
 
     /**
-     * Override colour for potion contents.
+     * ARGB override colour for potion contents (the liquid overlay). Empty (default) uses the
+     * effect's registered colour.
      */
     @lombok.Builder.Default
     private final @NotNull Optional<Integer> potionColor = Optional.empty();
 
     /**
-     * Override colour for firework stars.
+     * ARGB override colour for firework stars. Empty (default) uses the star's own colour.
      */
     @lombok.Builder.Default
     private final @NotNull Optional<Integer> fireworkColor = Optional.empty();
@@ -136,7 +141,8 @@ public class ItemOptions {
     private final @NotNull ConcurrentList<BannerLayer> bannerLayers = Concurrent.newList();
 
     /**
-     * Target frame rate for animated output; drives glint scroll speed and loop period.
+     * Target frame rate for animated output in frames per second; drives glint scroll speed and
+     * loop period
      */
     @lombok.Builder.Default
     private final int framesPerSecond = 30;
@@ -150,19 +156,21 @@ public class ItemOptions {
     private final boolean animateGlint = true;
 
     /**
-     * Whether to render the vanilla-style durability bar when the item has taken damage.
+     * Whether to render the vanilla-style durability bar when the item has taken damage. On by
+     * default; damage level is read from {@link #context}
      */
     @lombok.Builder.Default
     private final boolean showDamageBar = true;
 
     /**
-     * Output image dimensions in pixels (square)
+     * Output image dimensions in pixels (square), defaulting to {@link Renderer#DEFAULT_OUTPUT_SIZE}
      */
     @lombok.Builder.Default
     private final int outputSize = Renderer.DEFAULT_OUTPUT_SIZE;
 
     /**
-     * The render-time item context used by CIT matching, the damage bar, and stack count overlay.
+     * Render-time item context used by CIT matching, the damage bar, and the stack-count overlay.
+     * Defaults to {@link ItemContext#EMPTY}
      */
     @lombok.Builder.Default
     private final @NotNull ItemContext context = ItemContext.EMPTY;
@@ -183,17 +191,31 @@ public class ItemOptions {
     @lombok.Builder.Default
     private final @NotNull UnaryOperator<LayerStack<ImageLayer>> layerDecorator = UnaryOperator.identity();
 
-        /**
-     * Graphical projection for the 3D render. Defaults to {@link Projection#VANILLA_GUI_ITEM} -
-     * byte-identical to the shipped render; selecting another re-poses the camera and flatten together.
+    /**
+     * Graphical projection for the {@link Type#HELD_3D} render. Defaults to
+     * {@link Projection#VANILLA_GUI_ITEM} - byte-identical to the shipped render. The held-item
+     * pose itself comes from the model's {@code thirdperson_righthand} display transform; this
+     * projection supplies the camera lens (orthographic flatten). Selecting another re-poses the
+     * lens; not consulted by the {@link Type#GUI_2D} path.
      */
     @lombok.Builder.Default
     private final @NotNull Projection projection = Projection.VANILLA_GUI_ITEM;
 
+    /**
+     * Opens a builder seeded from this instance's current values, for deriving a variant with a
+     * few fields changed.
+     *
+     * @return a builder pre-populated from this instance
+     */
     public @NotNull ItemOptionsBuilder mutate() {
         return this.toBuilder();
     }
 
+    /**
+     * Builds an instance with every field at its default value.
+     *
+     * @return the default options
+     */
     public static @NotNull ItemOptions defaults() {
         return builder().build();
     }
@@ -213,11 +235,13 @@ public class ItemOptions {
         /** Stack-count badge. */
         STACK_COUNT;
 
+        /** {@inheritDoc} */
         @Override
         public int order() {
             return ordinal();
         }
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull String id() {
             return name();
@@ -225,17 +249,18 @@ public class ItemOptions {
     }
 
     /**
-     * The supported render types for {@code ItemRenderer}.
+     * The supported render types for {@link ItemRenderer}.
      */
     public enum Type {
 
         /**
-         * 3D view as the item appears when held in a player's hand.
+         * 3D view as the item appears when held in a player's hand, at the vanilla
+         * {@code display.thirdperson_righthand} pose.
          */
         HELD_3D,
 
         /**
-         * 2D flat GUI icon.
+         * 2D flat GUI inventory icon.
          */
         GUI_2D
 

@@ -9,6 +9,11 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
+/**
+ * Pins {@link ItemStackKit#drawDamageBar} pixel output on a 16x16 GUI buffer: the no-op guards
+ * (zero damage, non-damageable item) and the two-row bar at 50% damage - an opaque-black
+ * background row plus a partial coloured foreground row from the HSV durability sweep.
+ */
 class ItemStackKitTest {
 
     @Test
@@ -38,6 +43,7 @@ class ItemStackKitTest {
     @Test
     @DisplayName("drawDamageBar at 50% damage fills background and partial foreground")
     void halfDamagePaintsExpectedPixels() {
+        // 16-wide buffer -> GUI scale 1, so logical bar rows 13/14 land on pixel rows 13/14.
         PixelBuffer buffer = PixelBuffer.create(16, 16);
         ItemStackKit.drawDamageBar(buffer, 50, 100);
 
@@ -51,7 +57,10 @@ class ItemStackKitTest {
         }
         assertThat("background row contains black pixels", foundBackgroundBlack, equalTo(true));
 
-        // Foreground row at y=14 should have at least one coloured pixel (not transparent, not black).
+        // Foreground row at y=14 is the HSV-swept durability colour (hue 60 at 50% remaining, a
+        // yellow-green) painted over the left ~half of the bar. At least one pixel must be opaque
+        // and non-black, distinguishing the coloured fill from both the transparent canvas and the
+        // black background row.
         int coloredPixels = 0;
         for (int x = 2; x < 14; x++) {
             int pixel = buffer.getPixel(x, 14);

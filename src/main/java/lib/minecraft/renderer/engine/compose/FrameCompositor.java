@@ -62,8 +62,9 @@ public class FrameCompositor {
      * Composites the given placements onto a canvas of the specified size.
      * <p>
      * If every placement is static, returns a {@link StaticImageData} with a single-frame composite.
-     * Otherwise returns an {@link AnimatedImageData} whose frame count is chosen so every animated
-     * placement completes at least one full loop (or the cap, whichever is smaller).
+     * Otherwise returns an {@link AnimatedImageData} whose duration is the LCM of the animated layers'
+     * loop periods (capped at {@link #MAX_LOOP_MS}), so every animated placement completes a whole
+     * number of loops, sampled at {@code framesPerSecond}.
      *
      * @param layers the placements to composite, in back-to-front order
      * @param canvasW the canvas width in pixels
@@ -92,6 +93,17 @@ public class FrameCompositor {
         return builder.build();
     }
 
+    /**
+     * Renders one output frame at {@code timeMs}: fills the background, then blits each placement
+     * (sampled at that playback time) at its destination origin, in back-to-front list order.
+     *
+     * @param layers the placements to composite, in back-to-front order
+     * @param canvasW the canvas width in pixels
+     * @param canvasH the canvas height in pixels
+     * @param background the canvas background fill applied before blitting any layer
+     * @param timeMs the playback offset each animated layer is sampled at
+     * @return the composited frame
+     */
     private static @NotNull PixelBuffer renderFrame(@NotNull ConcurrentList<FramePlacement> layers, int canvasW, int canvasH, @NotNull Background background, long timeMs) {
         PixelBuffer buffer = PixelBuffer.create(canvasW, canvasH);
         background.fill(buffer);
@@ -105,9 +117,13 @@ public class FrameCompositor {
     }
 
     /**
-     * Returns the pixel buffer of the layer at the specified playback time. Static layers always
-     * return their single frame; animated layers delegate to the built-in
-     * {@link AnimatedImageData#getFrameAtTime(long, boolean) frame-at-time resolver}.
+     * Returns the pixel buffer of the layer at the specified playback time. Static layers (and empty
+     * animated ones) always return their single frame; non-empty animated layers delegate to the
+     * built-in {@link AnimatedImageData#getFrameAtTime(long, boolean) frame-at-time resolver}.
+     *
+     * @param source the layer's image data, static or animated
+     * @param timeMs the playback offset to sample at
+     * @return the layer's pixel buffer at {@code timeMs}
      */
     private static @NotNull PixelBuffer sampleLayerAtTime(@NotNull ImageData source, long timeMs) {
         if (source instanceof AnimatedImageData animated && !animated.getFrames().isEmpty())
@@ -116,6 +132,15 @@ public class FrameCompositor {
         return source.toPixelBuffer();
     }
 
+    /**
+     * Computes the merged loop duration as the LCM of every animated layer's total duration, so
+     * every animated layer completes a whole number of loops within it. Static layers and layers
+     * with a non-positive duration are skipped. Clamped to {@link #MAX_LOOP_MS} to bound the frame
+     * count; returns {@code 1} when no layer is animated.
+     *
+     * @param layers the placements to inspect
+     * @return the merged loop duration in milliseconds, capped at {@link #MAX_LOOP_MS}
+     */
     private static long computeMergedLoopMs(@NotNull ConcurrentList<FramePlacement> layers) {
         long merged = 0;
 
@@ -130,11 +155,26 @@ public class FrameCompositor {
         return merged == 0 ? 1 : merged;
     }
 
+    /**
+     * Least common multiple of {@code a} and {@code b}, computed as {@code |a / gcd(a, b) * b|} to
+     * divide before multiplying and limit overflow. Returns {@code 0} when either input is {@code 0}.
+     *
+     * @param a the first value
+     * @param b the second value
+     * @return the least common multiple
+     */
     private static long lcm(long a, long b) {
         if (a == 0 || b == 0) return 0;
         return Math.abs(a / gcd(a, b) * b);
     }
 
+    /**
+     * Greatest common divisor of {@code a} and {@code b} by the iterative Euclidean algorithm.
+     *
+     * @param a the first value
+     * @param b the second value
+     * @return the greatest common divisor
+     */
     private static long gcd(long a, long b) {
         while (b != 0) {
             long t = b;

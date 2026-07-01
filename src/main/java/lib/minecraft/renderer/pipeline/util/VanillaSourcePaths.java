@@ -16,17 +16,19 @@ import org.jetbrains.annotations.NotNull;
 public class VanillaSourcePaths {
 
     /**
-     * Default Minecraft resource namespace prefix for unqualified ids (e.g. {@code "stone"} → {@code "minecraft:stone"}).
+     * Default Minecraft resource namespace prefix for unqualified ids ({@code "stone"} &rarr;
+     * {@code "minecraft:stone"}).
      */
     public static final @NotNull String MINECRAFT_NAMESPACE = "minecraft:";
 
     /**
-     * Common jar subtree root every asset loader descends into.
+     * Common jar subtree root every asset loader descends into, and the extraction prefix filter
+     * for the asset subtree (models, blockstates, textures).
      */
     public static final @NotNull String VANILLA_ASSET_ROOT = "assets/minecraft/";
 
     /**
-     * Jar extraction filter for the data subtree (tags, recipes, world-gen).
+     * Extraction prefix filter for the data subtree (tags, recipes, world-gen).
      */
     public static final @NotNull String VANILLA_DATA_ROOT = "data/minecraft/";
 
@@ -66,7 +68,8 @@ public class VanillaSourcePaths {
     public static final @NotNull String TEXTURES_DIR = VANILLA_ASSET_ROOT + "textures";
 
     /**
-     * Texture path prefix used when converting {@code assets/minecraft/textures/X.png} → {@code minecraft:X}.
+     * Texture path prefix used when converting {@code assets/minecraft/textures/X.png} &rarr;
+     * {@code minecraft:X}.
      */
     public static final @NotNull String TEXTURES_PREFIX = VANILLA_ASSET_ROOT + "textures/";
 

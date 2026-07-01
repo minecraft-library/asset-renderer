@@ -23,7 +23,6 @@ import java.util.ArrayList;
  * list. Single canonical parser shared by the vanilla pack (extracted out of the client jar) and
  * every user-supplied texture pack.
  *
- * @see FormatSpec
  * @param packFormat the pack's declared resource pack format. Reads {@code pack.pack_format}
  *     first then falls back to the legacy {@code pack.format} alias; defaults to {@code 0} when
  *     neither key is present (which means the pack declares no overlay format and any
@@ -33,6 +32,7 @@ import java.util.ArrayList;
  *     or carries a structured text component the pipeline does not interpret
  * @param overlays the optional overlay entries declared under {@code overlays.entries}, in
  *     declaration order; loaders walk these later-wins
+ * @see FormatSpec
  */
 public record PackMeta(
     int packFormat,
@@ -43,10 +43,9 @@ public record PackMeta(
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**
-     * The empty mcmeta carrying no format, no description, and no overlays. Used as the default
-     * for {@link TexturePack TexturePack}'s no-args
-     * constructor and as a safe stub for in-memory test contexts that synthesise a pack without
-     * a real {@code pack.mcmeta} on disk.
+     * The empty mcmeta, carrying no format, no description, and no overlays. Serves as the default
+     * for {@link TexturePack}'s no-args constructor and as a safe stub for in-memory test contexts
+     * that synthesise a pack without a real {@code pack.mcmeta} on disk.
      */
     public static final @NotNull PackMeta EMPTY = new PackMeta(0, "", Concurrent.newList());
 

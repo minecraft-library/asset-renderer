@@ -32,11 +32,14 @@ import java.util.Map;
  * (cow_cold / cow_warm / pig_cold / etc.), each carrying {@code variant_of} pointing back at
  * its base entity.
  *
- * <p>Internally the writer is a single sequential method: build the factory-key -> geometry
- * id dedupe map, write {@code entity_geometry.json}, walk each entity record emitting a row
- * (including overlay rows, block-overlay rows, base tint, hidden bones), emit variant rows
- * for data-driven variants, then write {@code entity_models.json} with the families table
- * from {@link #deriveFamilies}.
+ * <p>Internally the writer is a single sequential method ({@link #writeAll}): build the
+ * {@code factoryKey -> geometryId} dedupe map, write {@code entity_geometry.json}, walk each
+ * entity record emitting a row (including overlay rows, block-overlay rows, base tint, hidden
+ * bones), emit variant rows for data-driven variants, then write {@code entity_models.json}
+ * with the families table from {@link #deriveFamilies}.
+ *
+ * <p>The emitted field names are the runtime schema contract read back by
+ * {@code EntityModelLoader}; see {@link #writeAll} for the per-row field list.
  */
 @UtilityClass
 public final class EntityRuntimeJsonWriter {
@@ -71,8 +74,48 @@ public final class EntityRuntimeJsonWriter {
     private static final @NotNull String DEFAULT_VARIANT_ID = "temperate";
 
     /**
-     * Emits both runtime JSON files. Returns the number of variant rows written (in addition
+     * Emits both runtime JSON files and returns the number of variant rows written (in addition
      * to base-entity rows) for the caller's summary line.
+     *
+     * <p>Each entity row in {@code entity_models.json} carries the schema fields read back by
+     * {@code EntityModelLoader}:
+     * <ul>
+     *   <li><b>{@code geometry_ref}</b> - the deduped {@code geometry.X} key into
+     *       {@code entity_geometry.json}.</li>
+     *   <li><b>{@code texture_ref}</b> - the primary texture path (prefix-stripped); for
+     *       variant-driven base entities without a hardcoded texture, the canonical default
+     *       variant's texture is substituted.</li>
+     *   <li><b>{@code armor_type}</b> - inferred from the render layers.</li>
+     *   <li><b>{@code renderer_scale}</b> - the {@code scale} override product when it differs
+     *       from {@code 1.0} (wither {@code 2.0}, slime {@code 0.999}).</li>
+     *   <li><b>{@code overlays}</b> - eye / composite overlay rows (each with its own
+     *       {@code geometry_ref}, {@code texture_ref}, and optional {@code emissive} /
+     *       {@code tint_color} / {@code inflate} / {@code skip_bounds}).</li>
+     *   <li><b>{@code block_overlays}</b> - block-model overlays (mooshroom mushrooms, iron-golem
+     *       flower, enderman carried block).</li>
+     *   <li><b>{@code setup_yaw_addend}</b> - non-zero only for {@code ShulkerRenderer}.</li>
+     *   <li><b>{@code base_tint}</b> - per-entity multiplicative tint (non-default only for
+     *       {@code TropicalFishRenderer}).</li>
+     *   <li><b>{@code hidden_bones}</b> - constructor-static bone-visibility hides.</li>
+     *   <li><b>{@code variant_of}</b> - present only on data-driven variant rows, pointing back
+     *       at the base entity id.</li>
+     * </ul>
+     *
+     * @param context the tooling context (jar + diagnostics + ClassNode cache)
+     * @param records discovered entity id -&gt; session-walk record
+     * @param entityToResolution entity id -&gt; resolved layer-definition (factory class/method,
+     *     inflate, MeshTransformer scale)
+     * @param geometries entity id -&gt; per-geometry bone/cube JSON, deduped by factory key
+     * @param variants variant stem -&gt; ordered data-driven variant list
+     * @param diagnostics the diagnostic sink for summary lines
+     * @param overlaysByEntity entity id -&gt; eye / composite overlay descriptors
+     * @param overlayFieldToResolution overlay {@code ModelLayers} field -&gt; resolved
+     *     layer-definition for composite overlays that carry their own geometry
+     * @param dataVariantDefaults variant stem -&gt; canonical default variant id (from
+     *     {@code <X>Variants.DEFAULT})
+     * @param blockOverlaysByEntity entity id -&gt; block-model overlay descriptors
+     * @return the number of variant rows emitted (base-entity rows excluded)
+     * @throws IOException when either output file cannot be written
      */
     public static int writeAll(
         @NotNull EntityToolingContext context,

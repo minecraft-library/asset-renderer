@@ -26,9 +26,9 @@ import java.util.Optional;
  * id to {@link Block.Tint}.
  * <p>
  * The JSON resource is a checked-in snapshot of MC 26.1's
- * {@code net.minecraft.client.color.block.BlockColors$createDefault()} as parsed by
- * {@code ToolingBlockTints.Parser}. To refresh it on a Minecraft version bump, run the
- * {@code generateBlockTints} Gradle task; the runtime pipeline never invokes the ASM walker
+ * {@code net.minecraft.client.color.block.BlockColors.createDefault()} as parsed by
+ * {@link ToolingBlockTints} {@code .Parser}. To refresh it on a Minecraft version bump, run the
+ * {@code blockTints} Gradle task; the runtime pipeline never invokes the ASM walker
  * directly. Older Minecraft versions reuse the same 26.1 tint set - blocks that don't exist
  * in their era simply never match a lookup, which the renderer treats as untinted. The slight
  * inaccuracy for old-version-only blocks is an accepted tradeoff against the brittleness of
@@ -43,14 +43,26 @@ import java.util.Optional;
 @UtilityClass
 public class BlockTintsLoader {
 
+    /**
+     * Classpath location of the bundled tint snapshot.
+     */
     private static final @NotNull String RESOURCE_PATH = "/lib/minecraft/renderer/block_tints.json";
+
+    /**
+     * Shared Gson configured with the project defaults, used to parse the tint table.
+     */
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**
      * Loads the bundled vanilla tint table into a map of block id to {@link Block.Tint}.
+     * <p>
+     * Each JSON entry supplies a {@code block} id, a {@link Block.TintTarget} {@code target}, and
+     * an optional {@code constant} colour parsed from its {@code 0x}-prefixed hex string via
+     * {@link Integer#parseUnsignedInt(String, int)}. Iteration order mirrors the on-disk JSON.
      *
-     * @return a map keyed by namespaced block id
-     * @throws PipelineException if the resource is missing or cannot be parsed
+     * @return a map keyed by namespaced block id, wrapped unmodifiable
+     * @throws PipelineException if the resource is missing, has no {@code tints} array, or cannot
+     *     be parsed
      */
     public static @NotNull ConcurrentMap<String, Block.Tint> load() {
         // Linked map so the runtime lookup table mirrors the JSON's deterministic on-disk order.

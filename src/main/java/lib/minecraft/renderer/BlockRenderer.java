@@ -61,14 +61,29 @@ import java.util.Optional;
  */
 public final class BlockRenderer implements Renderer<BlockOptions> {
 
+    /** Sub-renderer for the full 3D isometric tile path ({@link BlockOptions.Type#ISOMETRIC_3D}). */
     private final @NotNull Isometric3D isometric3D;
+    /** Sub-renderer for the flat single-face path ({@link BlockOptions.Type#BLOCK_FACE_2D}). */
     private final @NotNull BlockFace2D blockFace2D;
 
+    /**
+     * Constructs a new {@code BlockRenderer} bound to the given context, eagerly creating both
+     * sub-renderers so a caller can dispatch either render type without re-instantiation.
+     *
+     * @param context the render context supplying the block index and texture lookups
+     */
     public BlockRenderer(@NotNull RendererContext context) {
         this.isometric3D = new Isometric3D(context);
         this.blockFace2D = new BlockFace2D(context);
     }
 
+    /**
+     * Renders the block, dispatching to the isometric or single-face sub-renderer per
+     * {@link BlockOptions#getType()}, then composites the result over the options background.
+     *
+     * @param options the block options
+     * @return the rendered image composited over {@link BlockOptions#getBackground()}
+     */
     @Override
     public @NotNull ImageData render(@NotNull BlockOptions options) {
         ImageData rendered = switch (options.getType()) {
@@ -118,16 +133,21 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
     }
 
     /**
-     * Full 3D isometric block tile renderer. Multi-element blocks (chests, doors, pistons) are
-     * rendered using their full element list via {@link BlockGeometryKit#buildFromElements}; single-
-     * element blocks use the fast unit-cube path. Biome tint is applied per face via the shared
-     * {@link BlockRenderer#resolveBlockTint(RendererContext, Block, BlockOptions)} helper.
+     * Full 3D isometric block tile renderer. Every block - single- or multi-element (chests, doors,
+     * pistons) - is built from its resolved model's full element list via
+     * {@link BlockGeometryKit#buildFromElements}. Geometry is assembled through a
+     * {@link GeometryLayer} stack (primary model, then additive / merged block-entity parts), then
+     * recentered / re-lit and rasterized through {@link Projection#VANILLA_ISO}. Biome tint is
+     * applied per face via the shared
+     * {@link BlockRenderer#resolveBlockTint(RendererContext, Block, BlockOptions)} helper (faces
+     * with {@code tintindex >= 0} only).
      */
     @RequiredArgsConstructor
     public static final class Isometric3D implements Renderer<BlockOptions> {
 
         private final @NotNull RendererContext context;
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull BlockOptions options) {
             Block block = requireBlock(this.context, options.getBlockId());
@@ -314,7 +334,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
         /**
          * Applies a rotation matrix to all triangles in a list, transforming vertex positions
-         * and surface normals.
+         * and surface normals. Preserves each triangle's {@code cullBackFaces} and {@code emissive}
+         * traits while resetting {@code translucent} / {@code glinted} to {@code false} - block
+         * geometry carries neither.
          */
         private static @NotNull ConcurrentList<VisibleTriangle> applyRotation(@NotNull ConcurrentList<VisibleTriangle> triangles, @NotNull Matrix4f rotation) {
             ConcurrentList<VisibleTriangle> rotated = Concurrent.newList();
@@ -675,6 +697,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
 
         private final @NotNull RendererContext context;
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull BlockOptions options) {
             Block block = requireBlock(this.context, options.getBlockId());

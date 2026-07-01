@@ -79,15 +79,23 @@ public final class InventoryTransformDecomposer {
     // the conduit-style static Transformation field). Wiring only, never transform data.
     // --------------------------------------------------------------------------------------
 
+    /**
+     * The sole hand-curated policy table: renderer internal name to factory entry - a factory
+     * method name, or {@code FIELD:<name>} for the conduit-style static {@code Transformation}
+     * field. Wiring only, never transform data; everything downstream is bytecode-driven.
+     */
     private static final @NotNull Map<String, String> RENDERER_ENTRY_METHODS = buildRendererEntryMethods();
 
     /**
-     * Shared Gson carrying the renderer's registered type adapters, for parsing display transforms.
+     * Shared Gson carrying the renderer's registered type adapters, used to parse item / model
+     * JSON when resolving {@code display.gui} rolls.
      */
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**
      * Builds the {@link #RENDERER_ENTRY_METHODS} table mapping renderer internal name to factory entry.
+     *
+     * @return an insertion-ordered map of renderer internal name to factory entry
      */
     private static @NotNull Map<String, String> buildRendererEntryMethods() {
         Map<String, String> m = new LinkedHashMap<>();
@@ -108,19 +116,34 @@ public final class InventoryTransformDecomposer {
     // Constants: JVM internal names / descriptors for the bytecode shapes we recognise.
     // --------------------------------------------------------------------------------------
 
+    /** {@code org.joml.Matrix4f} internal name - owner of the call-chain mutators. */
     private static final @NotNull String MATRIX4F = "org/joml/Matrix4f";
+    /** {@code org.joml.Vector3f} internal name - translation / scale literals. */
     private static final @NotNull String VECTOR3F = "org/joml/Vector3f";
+    /** {@code org.joml.Vector3fc} internal name - component-ctor translation / scale type. */
     private static final @NotNull String VECTOR3FC = "org/joml/Vector3fc";
+    /** {@code org.joml.Quaternionf} internal name - {@code Axis.rotationDegrees} return type. */
     private static final @NotNull String QUATERNIONF = "org/joml/Quaternionf";
+    /** {@code org.joml.Quaternionfc} internal name - component-ctor rotation type. */
     private static final @NotNull String QUATERNIONFC = "org/joml/Quaternionfc";
+    /** {@code com.mojang.math.Axis} internal name - source of the {@code XP/YP/ZP} rotation factories. */
     private static final @NotNull String AXIS = "com/mojang/math/Axis";
+    /** {@code com.mojang.math.Transformation} internal name - the reduction's finalising constructor. */
     private static final @NotNull String TRANSFORMATION = "com/mojang/math/Transformation";
+    /** {@code Transformation} field descriptor, used to pick the {@code Transformation}-returning overload. */
     private static final @NotNull String TRANSFORMATION_DESC = "L" + TRANSFORMATION + ";";
+    /** Descriptor of the single-argument {@code Transformation(Matrix4fc)} constructor (ctor A). */
     private static final @NotNull String TRANSFORMATION_CTOR_MATRIX = "(Lorg/joml/Matrix4fc;)V";
+    /**
+     * Descriptor of the four-argument {@code Transformation(Vector3fc, Quaternionfc, Vector3fc,
+     * Quaternionfc)} constructor (ctor B): translation, left rotation, scale, right rotation.
+     */
     private static final @NotNull String TRANSFORMATION_CTOR_COMPONENTS =
         "(L" + VECTOR3FC + ";L" + QUATERNIONFC + ";L" + VECTOR3FC + ";L" + QUATERNIONFC + ";)V";
 
+    /** Absolute tolerance for near-unity / near-angle comparisons; also the z-fight-fudge snap band. */
     private static final float UNIT_EPS = 1e-3f;
+    /** Maximum static-callee inline nesting; deeper walks poison rather than recurse. */
     private static final int MAX_INLINE_DEPTH = 2;
 
     // --------------------------------------------------------------------------------------
@@ -233,6 +256,11 @@ public final class InventoryTransformDecomposer {
     /**
      * Resolves the {@code display.gui} roll of {@code modelId}'s item icon, or {@code null} when
      * the chain bottoms out without a {@code display.gui} (flat sprites) or any link is missing.
+     *
+     * @param zip cached client jar
+     * @param gson JSON parser
+     * @param modelId the item / model id to resolve
+     * @return the resolved roll, or {@code null} when unresolved
      */
     private static @Nullable Float resolveDisplayGuiRoll(@NotNull ZipFile zip, @NotNull Gson gson, @NotNull String modelId) {
         JsonObject itemDef = readJson(zip, gson, ITEMS_PREFIX + stripNamespace(modelId) + ".json");
@@ -248,6 +276,9 @@ public final class InventoryTransformDecomposer {
      * yields its {@code base}, a {@code minecraft:model} yields its {@code model}. Other component
      * types (the {@code copper_golem_pose} cases never reach here at reference pose) return
      * {@code null}.
+     *
+     * @param component the item-model component object, or {@code null}
+     * @return the referenced model id, or {@code null} when the component does not draw a model
      */
     private static @Nullable String resolveModelRef(@Nullable JsonObject component) {
         if (component == null) return null;
@@ -262,8 +293,14 @@ public final class InventoryTransformDecomposer {
     }
 
     /**
-     * Walks {@code modelRef} and its {@code parent} chain, returning the first
-     * {@code display.gui.rotation} roll (the third component) or {@code null} when none is present.
+     * Walks {@code modelRef} and its {@code parent} chain (bounded by
+     * {@link #MAX_MODEL_PARENT_DEPTH}), returning the first {@code display.gui.rotation} roll
+     * (the third component) or {@code null} when none is present.
+     *
+     * @param zip cached client jar
+     * @param gson JSON parser
+     * @param modelRef the model id to start the parent walk from
+     * @return the first {@code display.gui} roll found, or {@code null}
      */
     private static @Nullable Float readDisplayGuiRoll(@NotNull ZipFile zip, @NotNull Gson gson, @NotNull String modelRef) {
         String path = stripNamespace(modelRef);
@@ -284,7 +321,12 @@ public final class InventoryTransformDecomposer {
 
     /**
      * Reads and parses a jar JSON entry as a {@link JsonObject}, or {@code null} when the entry is
-     * absent or not a JSON object.
+     * absent, unreadable, or not a JSON object.
+     *
+     * @param zip cached client jar
+     * @param gson JSON parser
+     * @param entryPath the jar entry path to read
+     * @return the parsed object, or {@code null}
      */
     private static @Nullable JsonObject readJson(@NotNull ZipFile zip, @NotNull Gson gson, @NotNull String entryPath) {
         ZipEntry entry = zip.getEntry(entryPath);
@@ -299,6 +341,9 @@ public final class InventoryTransformDecomposer {
 
     /**
      * Strips a {@code minecraft:} (or any) namespace prefix from a resource id.
+     *
+     * @param id the possibly-namespaced resource id
+     * @return the id with any {@code namespace:} prefix removed
      */
     private static @NotNull String stripNamespace(@NotNull String id) {
         int colon = id.indexOf(':');
@@ -308,6 +353,10 @@ public final class InventoryTransformDecomposer {
     /**
      * Returns the object-valued member {@code key} of {@code obj}, or {@code null} when {@code obj}
      * is {@code null}, the member is absent, or the member is not an object.
+     *
+     * @param obj the parent object, or {@code null}
+     * @param key the member name
+     * @return the object-valued member, or {@code null}
      */
     private static @Nullable JsonObject optObject(@Nullable JsonObject obj, @NotNull String key) {
         if (obj == null) return null;
@@ -318,6 +367,10 @@ public final class InventoryTransformDecomposer {
     /**
      * Returns the string-valued member {@code key} of {@code obj}, or {@code null} when absent or
      * not a primitive.
+     *
+     * @param obj the parent object
+     * @param key the member name
+     * @return the member's string value, or {@code null}
      */
     private static @Nullable String optString(@NotNull JsonObject obj, @NotNull String key) {
         JsonElement el = obj.get(key);
@@ -382,6 +435,11 @@ public final class InventoryTransformDecomposer {
      * Picks the factory method by name, preferring the one whose return type is
      * {@code Transformation}. Needed because some renderers overload {@code bodyTransformation}
      * / {@code baseTransformation} with non-Transformation return types.
+     *
+     * @param cn the renderer class node
+     * @param name the factory method name
+     * @return the {@code Transformation}-returning overload if present, else the first method of
+     *     that name, or {@code null} when none matches
      */
     private static @Nullable MethodNode findFactoryMethod(@NotNull ClassNode cn, @NotNull String name) {
         MethodNode best = null;
@@ -396,6 +454,13 @@ public final class InventoryTransformDecomposer {
     /**
      * Walks the static-initializer of {@code cn} for the {@code PUTSTATIC} assigning
      * {@code fieldName}, then decomposes the expression producing the value.
+     *
+     * @param zip cached client jar
+     * @param cn the class declaring the static field
+     * @param fieldName the static {@code Transformation} field to decompose
+     * @param diag diagnostics sink
+     * @return the decomposed tuple, or {@code null} when there is no {@code <clinit>} or the
+     *     value cannot be reduced
      */
     private static float @Nullable [] decomposeField(
         @NotNull ZipFile zip,
@@ -422,6 +487,16 @@ public final class InventoryTransformDecomposer {
 
     /**
      * Walks a factory method's bytecode and decomposes the returned {@code Transformation}.
+     * Seeds any float parameter slot with the yaw sentinel, and (when supplied) the
+     * sign-attachment parameter with a known enum constant so the wall-mount branch resolves.
+     *
+     * @param zip cached client jar
+     * @param cn renderer class node
+     * @param method the factory method to walk
+     * @param diag diagnostics sink
+     * @param attachmentConst sign-attachment enum constant to bind (e.g. {@code GROUND} /
+     *     {@code WALL}), or {@code null} to leave the attachment parameter unbound
+     * @return the decomposed tuple, or {@code null} when the walk cannot reduce the method
      */
     private static float @Nullable [] decomposeMethod(
         @NotNull ZipFile zip,
@@ -433,8 +508,9 @@ public final class InventoryTransformDecomposer {
         Walker walker = new Walker(zip, cn, diag, 0);
         walker.isStaticInit = AsmKit.CLINIT.equals(method.name);
         // Seed any float parameter slots with YAW sentinels. Our factory methods take at
-        // most one float parameter (the yaw angle); this covers both (I), (F), (Attachment, F),
-        // and (F, Attachment) descriptors without a per-shape policy.
+        // most one float parameter (the yaw angle); this covers the (F), (Attachment, F), and
+        // (F, Attachment) descriptors without a per-shape policy. An int-yaw (I) factory instead
+        // materialises YAW at the RotationSegment.convertToDegrees(I)F call site, not the slot.
         if (!walker.isStaticInit) {
             bindYawSlotsFromDescriptor(method.desc, walker);
             // Bind a known sign-attachment parameter so the wall-mount {@code if (att == WALL)}
@@ -450,10 +526,13 @@ public final class InventoryTransformDecomposer {
     }
 
     /**
-     * Binds slot locations for any {@code F} / {@code I} parameter in {@code methodDesc} to a
-     * {@link Value#ofYaw()} sentinel. All non-float parameters are left unbound (the walker
-     * treats a missing slot as {@code OTHER}), which matches how our 16 baselines degrade
-     * attachment / direction args to opaque references.
+     * Binds every {@code float} parameter slot in {@code methodDesc} to a {@link Value#ofYaw()}
+     * sentinel - our factory methods carry at most one, the yaw angle. All non-float parameters
+     * are left unbound (the walker treats a missing slot as {@code OTHER}), which matches how our
+     * 16 baselines degrade attachment / direction args to opaque references.
+     *
+     * @param methodDesc the factory method descriptor
+     * @param walker the walker whose locals are seeded
      */
     private static void bindYawSlotsFromDescriptor(@NotNull String methodDesc, @NotNull Walker walker) {
         Type[] args = Type.getArgumentTypes(methodDesc);
@@ -469,6 +548,10 @@ public final class InventoryTransformDecomposer {
      * walker can resolve {@code if (attachment == Attachment.WALL)} ({@code IF_ACMP*}) branches
      * to the right path. Object parameters whose type does not end with
      * {@link #SIGN_ATTACHMENT_SUFFIX} are left unbound.
+     *
+     * @param methodDesc the factory method descriptor
+     * @param walker the walker whose locals are seeded
+     * @param attachmentConst the attachment enum constant field name to bind (e.g. {@code WALL})
      */
     private static void bindAttachmentSlotsFromDescriptor(@NotNull String methodDesc, @NotNull Walker walker, @NotNull String attachmentConst) {
         Type[] args = Type.getArgumentTypes(methodDesc);
@@ -485,9 +568,56 @@ public final class InventoryTransformDecomposer {
     // --------------------------------------------------------------------------------------
 
     /**
-     * Tag for the kinds of values our symbolic JVM stack tracks.
+     * Kind tag for the symbolic values the {@link Walker}'s JVM stack tracks.
      */
-    private enum ValueKind { FLOAT, YAW, VECTOR, QUATERNION, MATRIX, NULL, CLASS_REF, ENUM_CONST, OTHER }
+    private enum ValueKind {
+
+        /**
+         * Concrete float literal (or a literal folded from float arithmetic).
+         */
+        FLOAT,
+
+        /**
+         * Symbolic yaw input, evaluated to {@code 0} at reference pose.
+         */
+        YAW,
+
+        /**
+         * {@code Vector3f} literal - a translation or scale component triple.
+         */
+        VECTOR,
+
+        /**
+         * Single-axis {@link Quat} rotation recovered from {@code Axis.rotationDegrees}.
+         */
+        QUATERNION,
+
+        /**
+         * Live {@link TransformState} standing in for a {@code Matrix4f} / {@code Transformation}.
+         */
+        MATRIX,
+
+        /**
+         * {@code ACONST_NULL} - a null translation / rotation argument to the component ctor.
+         */
+        NULL,
+
+        /**
+         * {@code LDC} of a class literal ({@code Type} constant).
+         */
+        CLASS_REF,
+
+        /**
+         * Sign-attachment enum constant field name (e.g. {@code WALL} / {@code GROUND}), fuelling
+         * {@code IF_ACMP*} branch dispatch.
+         */
+        ENUM_CONST,
+
+        /**
+         * Opaque reference the walker cannot model; poisons any reduction that needs its value.
+         */
+        OTHER
+    }
 
     /**
      * Internal-name suffix shared by both sign-attachment enums ({@code PlainSignBlock$Attachment},
@@ -518,33 +648,82 @@ public final class InventoryTransformDecomposer {
      * prevents reduction, triggering a diag.warn.
      */
     private static final class Value {
+
+        /**
+         * Discriminator selecting which of the payload fields (if any) is populated.
+         */
         final @NotNull ValueKind kind;
-        final float floatVal;       // FLOAT / YAW (YAW is treated as 0 for reduction)
-        final @Nullable Vector3f vec;  // VECTOR
-        final @Nullable Quat quat;  // QUATERNION
-        final @Nullable TransformState matrix; // MATRIX (current transform state)
-        final @Nullable String enumConst; // ENUM_CONST (attachment constant field name)
+
+        /**
+         * Scalar payload for {@link ValueKind#FLOAT} / {@link ValueKind#YAW} - {@code YAW} always
+         * holds {@code 0}, the reference-pose value used for reduction.
+         */
+        final float floatVal;
+
+        /**
+         * Payload for {@link ValueKind#VECTOR} - a translation or scale component triple.
+         */
+        final @Nullable Vector3f vec;
+
+        /**
+         * Payload for {@link ValueKind#QUATERNION} (a resolved rotation) or an axis-marker stub
+         * (angle {@code NaN}) parked on an {@link ValueKind#OTHER} value between a {@code GETSTATIC
+         * Axis.*} push and the {@code rotationDegrees} call that folds it into a real rotation.
+         */
+        final @Nullable Quat quat;
+
+        /**
+         * Payload for {@link ValueKind#MATRIX} - the current accumulated transform state.
+         */
+        final @Nullable TransformState matrix;
+
+        /**
+         * Payload for {@link ValueKind#ENUM_CONST} - the sign-attachment constant's field name.
+         */
+        final @Nullable String enumConst;
 
         private Value(@NotNull ValueKind kind, float floatVal, @Nullable Vector3f vec, @Nullable Quat quat, @Nullable TransformState matrix, @Nullable String enumConst) {
             this.kind = kind; this.floatVal = floatVal; this.vec = vec; this.quat = quat; this.matrix = matrix; this.enumConst = enumConst;
         }
 
+        /** Wraps a float literal. */
         static @NotNull Value ofFloat(float f) { return new Value(ValueKind.FLOAT, f, null, null, null, null); }
+        /** Produces the symbolic yaw sentinel (reduces to {@code 0}). */
         static @NotNull Value ofYaw() { return new Value(ValueKind.YAW, 0f, null, null, null, null); }
+        /** Wraps a {@code Vector3f} literal. */
         static @NotNull Value ofVec(@NotNull Vector3f v) { return new Value(ValueKind.VECTOR, 0f, v, null, null, null); }
+        /** Wraps a resolved single-axis rotation. */
         static @NotNull Value ofQuat(@NotNull Quat q) { return new Value(ValueKind.QUATERNION, 0f, null, q, null, null); }
+        /** Wraps a live {@link TransformState}. */
         static @NotNull Value ofMatrix(@NotNull TransformState m) { return new Value(ValueKind.MATRIX, 0f, null, null, m, null); }
+        /** Produces a {@code null} reference value. */
         static @NotNull Value ofNull() { return new Value(ValueKind.NULL, 0f, null, null, null, null); }
+        /** Produces a class-literal reference value. */
         static @NotNull Value ofClassRef() { return new Value(ValueKind.CLASS_REF, 0f, null, null, null, null); }
+        /** Wraps a sign-attachment enum constant by field name. */
         static @NotNull Value ofEnumConst(@NotNull String name) { return new Value(ValueKind.ENUM_CONST, 0f, null, null, null, name); }
+        /** Produces an opaque, unmodellable reference value. */
         static @NotNull Value ofOther() { return new Value(ValueKind.OTHER, 0f, null, null, null, null); }
     }
 
     /**
-     * Axis-angle rotation (degrees). axis in {@code 'X', 'Y', 'Z'}.
+     * Single-axis rotation in degrees, as recovered from an {@code Axis.rotationDegrees} call
+     * or folded from a sign-flipping {@code scale}.
+     *
+     * @param axis rotation axis - {@code 'X'}, {@code 'Y'}, {@code 'Z'}, or {@code 'I'} for identity
+     * @param angleDeg rotation angle in degrees
      */
     private record Quat(char axis, float angleDeg) {
+
+        /**
+         * Zero-rotation sentinel, tagged with the {@code 'I'} axis marker.
+         */
         static final Quat IDENTITY = new Quat('I', 0f);
+
+        /**
+         * {@code true} when this rotation is a no-op - either the {@code 'I'} identity axis or a
+         * zero angle around a real axis.
+         */
         boolean isIdentity() { return axis == 'I' || angleDeg == 0f; }
     }
 
@@ -555,12 +734,37 @@ public final class InventoryTransformDecomposer {
      * scale with wrong structure, etc.) sets {@link #poisoned} and suppresses reduction.
      */
     private static final class TransformState {
+
+        /**
+         * Outer translation in block-space (the {@code T} of the tracked {@code T * R * S}).
+         */
         float tx, ty, tz;
+
+        /**
+         * Rotations in post-multiplication (right-to-left composition) order.
+         */
         @NotNull ConcurrentList<Quat> rotations = Concurrent.newList();
+
+        /**
+         * Inner per-axis scale factors (the {@code S} of the tracked {@code T * R * S}).
+         */
         float sx = 1f, sy = 1f, sz = 1f;
+
+        /**
+         * {@code true} once an unrepresentable operation has been seen; suppresses reduction.
+         */
         boolean poisoned;
+
+        /**
+         * First poison cause, surfaced in the {@code canonicalise} skip diagnostic.
+         */
         @Nullable String poisonReason;
 
+        /**
+         * Marks the state unrepresentable, recording {@code reason} the first time only.
+         *
+         * @param reason human-readable cause of the poison
+         */
         void poison(@NotNull String reason) {
             if (!this.poisoned) {
                 this.poisoned = true;
@@ -569,7 +773,10 @@ public final class InventoryTransformDecomposer {
         }
 
         /**
-         * Sets translation to {@code v}, resetting everything else. Matrix4f.translation() semantics.
+         * Sets translation to {@code v}, resetting rotations and scale to identity -
+         * {@code Matrix4f.translation()} semantics (it overwrites the matrix, it does not compose).
+         *
+         * @param v the new translation
          */
         void setTranslation(@NotNull Vector3f v) {
             this.tx = v.x(); this.ty = v.y(); this.tz = v.z();
@@ -578,7 +785,10 @@ public final class InventoryTransformDecomposer {
         }
 
         /**
-         * Right-multiplies by {@code T(v)}.
+         * Right-multiplies the tracked matrix by {@code T(v)}, folding it into the outer
+         * translation when the rotation list is all-identity (otherwise poisons).
+         *
+         * @param v the translation to post-multiply
          */
         void postTranslate(@NotNull Vector3f v) {
             // M' = M * T(v). Decomposed: if M = T * R * S, then M' = T * R * S * T(v).
@@ -604,6 +814,9 @@ public final class InventoryTransformDecomposer {
          * (the shulker-style z-fight fudge snaps to unity for translation folding), else
          * {@code s} itself. This keeps the mathematical composition consistent with
          * {@link #canonicalise}'s later "drop near-unity uniform scale" rule.
+         *
+         * @param s the scale factor to fold
+         * @return {@code signum(s)} when {@code |s|} is near unity, otherwise {@code s}
          */
         private static float foldScaleFactor(float s) {
             if (Math.abs(Math.abs(s) - 1f) < UNIT_EPS) return Math.signum(s);
@@ -611,7 +824,10 @@ public final class InventoryTransformDecomposer {
         }
 
         /**
-         * Right-multiplies by {@code R(q)}.
+         * Right-multiplies the tracked matrix by {@code R(q)}, appending {@code q} to the
+         * rotation list (identities are kept to preserve ordering).
+         *
+         * @param q the rotation to post-multiply
          */
         void postRotate(@NotNull Quat q) {
             if (q.isIdentity()) {
@@ -622,14 +838,23 @@ public final class InventoryTransformDecomposer {
         }
 
         /**
-         * Right-multiplies by {@code S(v)}.
+         * Right-multiplies the tracked matrix by {@code S(v)}, accumulating into the per-axis scale.
+         *
+         * @param v the per-axis scale factors to post-multiply
          */
         void postScale(@NotNull Vector3f v) {
             this.sx *= v.x(); this.sy *= v.y(); this.sz *= v.z();
         }
 
         /**
-         * Right-multiplies by {@code T(c) * R(q) * T(-c)}.
+         * Right-multiplies the tracked matrix by {@code T(c) * R(q) * T(-c)} - a rotation about
+         * the point {@code c}. Block-centred ({@code c = (0.5, 0.5, 0.5)}) 180-degree flips are
+         * dropped as yaw-equivalent; anything else non-identity poisons.
+         *
+         * @param q the rotation to apply about {@code c}
+         * @param cx rotation-centre x
+         * @param cy rotation-centre y
+         * @param cz rotation-centre z
          */
         void postRotateAround(@NotNull Quat q, float cx, float cy, float cz) {
             // This equals translate(c) * rotate(q) * translate(-c) fed into the right side.
@@ -649,6 +874,9 @@ public final class InventoryTransformDecomposer {
      * {@code true} when the quaternion is yaw-equivalent at reference pose: either identity,
      * or a Y-axis rotation of a multiple of 180 degrees (flipping the block-face around the
      * camera is already handled by {@code inventoryYRotation}).
+     *
+     * @param q the rotation to test
+     * @return {@code true} when {@code q} is identity or a Y-axis multiple-of-180 rotation
      */
     private static boolean isYawEquivalent(@NotNull Quat q) {
         if (q.isIdentity()) return true;
@@ -661,6 +889,9 @@ public final class InventoryTransformDecomposer {
      * {@code true} when the quaternion represents identity or a 180-degree rotation around
      * any axis (X/Y/Z). Used by {@link TransformState#postRotateAround} to drop block-centred
      * 180° rotateAround calls, which the baseline handles via {@code inventoryYRotation}.
+     *
+     * @param q the rotation to test
+     * @return {@code true} when {@code q} is identity or a multiple-of-180 rotation about X, Y, or Z
      */
     private static boolean is180Rotation(@NotNull Quat q) {
         if (q.isIdentity()) return true;
@@ -671,6 +902,10 @@ public final class InventoryTransformDecomposer {
 
     /**
      * {@code true} when {@code a} is within {@link #UNIT_EPS} of {@code target}.
+     *
+     * @param a the value to test
+     * @param target the reference value
+     * @return {@code true} when {@code |a - target| < UNIT_EPS}
      */
     private static boolean nearUnit(float a, float target) {
         return Math.abs(a - target) < UNIT_EPS;
@@ -692,31 +927,82 @@ public final class InventoryTransformDecomposer {
      * Anything else degrades to a {@link #poisoned} state and produces {@code null} output.
      */
     private static final class Walker {
-        final @NotNull ZipFile zip;
-        final @NotNull ClassNode owner;
-        final @NotNull Diagnostics diag;
-        final int depth;
-        final @NotNull ConcurrentList<Value> stack = Concurrent.newList();
-        final @NotNull AsmKit.SlotTracker<Value> locals = new AsmKit.SlotTracker<>();
-        @Nullable TransformState finalTransform;
+
         /**
-         * Value captured at the stop-PUTSTATIC event (for static field resolution).
+         * Cached client jar, for loading inlined callee classes and static fields.
+         */
+        final @NotNull ZipFile zip;
+
+        /**
+         * Class whose method is being walked; scopes own-static-field and inline-callee lookups.
+         */
+        final @NotNull ClassNode owner;
+
+        /**
+         * Diagnostics sink for poison warnings.
+         */
+        final @NotNull Diagnostics diag;
+
+        /**
+         * Inline nesting depth; walks past {@link #MAX_INLINE_DEPTH} poison immediately.
+         */
+        final int depth;
+
+        /**
+         * Symbolic operand stack (LIFO tail).
+         */
+        final @NotNull ConcurrentList<Value> stack = Concurrent.newList();
+
+        /**
+         * Local-variable slot bindings, pre-seeded with yaw / attachment sentinels.
+         */
+        final @NotNull AsmKit.SlotTracker<Value> locals = new AsmKit.SlotTracker<>();
+
+        /**
+         * Decomposed transform, set when a {@code Transformation.<init>} or captured static
+         * field is reached; {@code null} until then.
+         */
+        @Nullable TransformState finalTransform;
+
+        /**
+         * Value captured at the stop-{@code PUTSTATIC} event (for static field resolution).
          */
         @Nullable Value stoppedFieldValue;
-        boolean poisoned;
+
         /**
-         * {@code true} when walking a static initializer (FLOAD 0 is then a local, not yaw).
+         * {@code true} once an unhandled shape has been seen; halts the walk.
+         */
+        boolean poisoned;
+
+        /**
+         * {@code true} when walking a static initializer ({@code FLOAD 0} is then a local, not yaw).
          */
         boolean isStaticInit;
 
+        /**
+         * Constructs a walker over {@code owner}'s bytecode at inline {@code depth}.
+         *
+         * @param zip cached client jar
+         * @param owner class whose method is walked
+         * @param diag diagnostics sink
+         * @param depth inline nesting depth (0 for the top-level method)
+         */
         Walker(@NotNull ZipFile zip, @NotNull ClassNode owner, @NotNull Diagnostics diag, int depth) {
             this.zip = zip; this.owner = owner; this.diag = diag; this.depth = depth;
         }
 
+        /** Pushes {@code v} onto the operand stack. */
         void push(@NotNull Value v) { this.stack.add(v); }
+        /** Pops the top operand, or {@code null} when the stack is empty. */
         @Nullable Value pop() { return this.stack.isEmpty() ? null : this.stack.removeLast(); }
+        /** Peeks the top operand without removing it, or {@code null} when the stack is empty. */
         @Nullable Value peek() { return this.stack.isEmpty() ? null : this.stack.getLast(); }
 
+        /**
+         * Halts the walk and emits a warn diagnostic, recording only the first cause.
+         *
+         * @param reason human-readable cause of the poison
+         */
         void poison(@NotNull String reason) {
             if (this.poisoned) return;
             this.poisoned = true;
@@ -724,9 +1010,15 @@ public final class InventoryTransformDecomposer {
         }
 
         /**
-         * Walks an instruction list. When {@code stopPutstaticField} is non-null, finalises
-         * when a matching {@code PUTSTATIC} is seen (for static-field decomposition).
-         * Otherwise finalises on {@code Transformation.<init>} or {@code ARETURN}.
+         * Walks an instruction list linearly, mutating the current {@link TransformState} as
+         * Matrix4f mutators fire. When {@code stopPutstaticField} is non-null, finalises when a
+         * matching {@code PUTSTATIC} is seen (for static-field decomposition); otherwise finalises
+         * on {@code Transformation.<init>}, and returns without a transform on {@code ARETURN} /
+         * {@code RETURN}.
+         *
+         * @param instructions the method (or {@code <clinit>}) instruction list
+         * @param stopPutstaticField field name to stop on for static-field decomposition, or
+         *     {@code null} to finalise on the {@code Transformation} constructor
          */
         void walk(@NotNull InsnList instructions, @Nullable String stopPutstaticField) {
             if (this.depth > MAX_INLINE_DEPTH) {
@@ -861,8 +1153,12 @@ public final class InventoryTransformDecomposer {
         }
 
         /**
-         * Handles FLOAD/ALOAD/FSTORE/ASTORE. Float parameter slots are pre-bound to a YAW
-         * sentinel by {@link #bindYawSlotsFromDescriptor}; anything else falls back to OTHER.
+         * Handles {@code FLOAD} / {@code ALOAD} / {@code FSTORE} / {@code ASTORE} / {@code ILOAD}
+         * / {@code ISTORE}. Loads read the {@link #locals} binding (float parameter slots are
+         * pre-bound to a YAW sentinel by {@link InventoryTransformDecomposer#bindYawSlotsFromDescriptor});
+         * an unbound slot - and any {@code ILOAD} - falls back to {@code OTHER}.
+         *
+         * @param vi the var instruction
          */
         private void handleVarInsn(@NotNull VarInsnNode vi) {
             int op = vi.getOpcode();
@@ -887,7 +1183,14 @@ public final class InventoryTransformDecomposer {
         }
 
         /**
-         * Handles FNEG / FADD / FSUB / FMUL / FDIV.
+         * Folds the stackless arithmetic / conversion opcodes ({@code FNEG}, {@code FADD},
+         * {@code FSUB}, {@code FMUL}) and passes {@code I2F} / {@code F2I} / {@code F2D} /
+         * {@code D2F} conversions through unchanged. {@code YAW} operands evaluate to {@code 0}.
+         *
+         * @param op the {@link InsnNode} opcode
+         * @return {@code true} when {@code op} was one of the recognised arithmetic / conversion
+         *     opcodes (handled, possibly by poisoning), {@code false} to let the caller keep
+         *     matching the node against other shapes
          */
         private boolean handleInsn(int op) {
             if (op == Opcodes.FNEG) {
@@ -924,7 +1227,12 @@ public final class InventoryTransformDecomposer {
         }
 
         /**
-         * FLOAT -> value, YAW -> 0. Everything else -> NaN (poisons caller).
+         * Reads a value as a float scalar: {@link ValueKind#FLOAT} yields its literal,
+         * {@link ValueKind#YAW} yields {@code 0} (reference pose), and every other kind yields
+         * {@code NaN} - the sentinel every caller tests to poison on a non-scalar operand.
+         *
+         * @param v the symbolic value to read
+         * @return the scalar, or {@code NaN} when {@code v} is not a scalar kind
          */
         private static float valueAsFloat(@NotNull Value v) {
             if (v.kind == ValueKind.FLOAT) return v.floatVal;
@@ -933,9 +1241,20 @@ public final class InventoryTransformDecomposer {
         }
 
         /**
-         * Resolves a {@code GETSTATIC} reference. For Vector3f/Matrix4f statics declared on the
-         * owning class, walks {@code <clinit>} once to populate their values; for
-         * {@code Axis.XP/YP/ZP} returns an axis marker; for unknowns returns {@code OTHER}.
+         * Resolves a {@code GETSTATIC} reference to a symbolic value.
+         *
+         * <ul>
+         *   <li>{@code Axis.XP/YP/ZP} - an axis-marker stub (an {@code OTHER} value carrying a
+         *       {@code NaN}-angle {@link Quat}) that the following {@code rotationDegrees} call
+         *       folds into a real rotation.</li>
+         *   <li>A sign-attachment enum constant ({@code *SignBlock$Attachment.WALL/GROUND}) -
+         *       an {@link ValueKind#ENUM_CONST} value for {@code IF_ACMP*} branch dispatch.</li>
+         *   <li>A static declared on the owning class - resolved by walking {@code <clinit>}.</li>
+         *   <li>Anything else - {@link ValueKind#OTHER}.</li>
+         * </ul>
+         *
+         * @param fi the {@code GETSTATIC} field instruction
+         * @return the resolved symbolic value (never {@code null}; unknowns yield {@code OTHER})
          */
         private @NotNull Value resolveStaticField(@NotNull FieldInsnNode fi) {
             if (fi.owner.equals(AXIS)) {
@@ -964,6 +1283,10 @@ public final class InventoryTransformDecomposer {
          * {@code fieldName}, returning the symbolic value held. Handles simple cases (a
          * {@code new Vector3f(f, f, f)} assignment or a {@code new Transformation(...)}
          * assignment); returns {@code null} for anything more complex.
+         *
+         * @param fieldName the own-class static field to resolve
+         * @return the symbolic value assigned to {@code fieldName}, or {@code null} when there is
+         *     no {@code <clinit>}, the sub-walk poisons, or the value is not captured
          */
         private @Nullable Value resolveOwnStaticField(@NotNull String fieldName) {
             MethodNode clinit = AsmKit.findMethod(this.owner, AsmKit.CLINIT);
@@ -977,9 +1300,15 @@ public final class InventoryTransformDecomposer {
         }
 
         /**
-         * Dispatches INVOKE* instructions. The matrix/vector/axis/transformation owners are
-         * recognised; unknown INVOKESTATICs to the owning class inline up to MAX_INLINE_DEPTH
-         * so sign-renderer helper chains resolve.
+         * Dispatches {@code INVOKE*} instructions. Recognised owners - {@code Matrix4f} (ctor +
+         * mutators), {@code Vector3f} ctor, {@code Axis.rotationDegrees}, {@code Transformation}
+         * ctors A / B, and the yaw producers ({@code Direction.toYRot} /
+         * {@code RotationSegment.convertToDegrees} / {@code Direction.getRotation}) - drive the
+         * reduction; own-class {@code INVOKESTATIC}s inline up to {@link #MAX_INLINE_DEPTH} so
+         * sign-renderer helper chains resolve; cross-class blockentity static calls poison;
+         * everything else passes through via {@link #passThroughUnknown}.
+         *
+         * @param mi the call instruction
          */
         private void handleMethodInsn(@NotNull MethodInsnNode mi) {
             int op = mi.getOpcode();
@@ -1114,7 +1443,17 @@ public final class InventoryTransformDecomposer {
         }
 
         /**
-         * Handles {@code Matrix4f.translation / translate / rotate / rotateAround / scale} calls.
+         * Applies a {@code Matrix4f} mutator to the matrix on the stack, mapping it onto the
+         * corresponding {@link TransformState} op: {@code translation} &rarr;
+         * {@link TransformState#setTranslation}, {@code translate} &rarr;
+         * {@link TransformState#postTranslate}, {@code rotate} &rarr;
+         * {@link TransformState#postRotate}, {@code rotateAround} &rarr;
+         * {@link TransformState#postRotateAround}, {@code scale} &rarr;
+         * {@link TransformState#postScale}. Any other name, or an unrecognised descriptor,
+         * poisons the walk.
+         *
+         * @param name the mutator method name
+         * @param desc the mutator descriptor (disambiguates overloads)
          */
         private void handleMatrix4fInvoke(@NotNull String name, @NotNull String desc) {
             switch (name) {
@@ -1182,9 +1521,15 @@ public final class InventoryTransformDecomposer {
         }
 
         /**
-         * Inlines a same-class static callee whose return type is {@code Transformation} or a
-         * {@link TransformState}-producing helper. Arguments are simply popped; the callee runs
-         * with slot 0 bound to the symbolic yaw the caller passed (we always pass {@code YAW}).
+         * Inlines a same-class static callee (typically a sign-renderer {@code Transformation}
+         * helper) by running it in a sub-{@link Walker} one inline level deeper. Each caller
+         * argument is popped and seeded into the callee's local slot of the same index, so a
+         * caller-pushed {@code YAW} reaches the callee as {@code YAW}. The callee's result -
+         * either its {@code finalTransform}, or a {@code Matrix4f}-typed stack top - is pushed as
+         * a {@code MATRIX} value; a callee that should have produced a {@code Transformation} but
+         * did not poisons the walk.
+         *
+         * @param mi the {@code INVOKESTATIC} instruction targeting the callee
          */
         private void inlineStaticCallee(@NotNull MethodInsnNode mi) {
             if (this.depth + 1 > MAX_INLINE_DEPTH) { poison("inline depth > " + MAX_INLINE_DEPTH); return; }
@@ -1199,8 +1544,9 @@ public final class InventoryTransformDecomposer {
             if (callee == null) { poison("inline callee '" + mi.name + mi.desc + "' not found"); return; }
 
             Walker sub = new Walker(this.zip, this.owner, this.diag, this.depth + 1);
-            // Seed callee slots: for each argument of type F, bind YAW if it matches the
-            // caller-pushed YAW, else bind the literal float. Aref args pass through.
+            // Seed callee slots: bind each caller-popped value into the matching local slot
+            // (advancing by the JVM type width so category-2 types stay aligned). A YAW arg
+            // reaches the callee as YAW; a null pop degrades to OTHER.
             int slot = 0;
             for (int k = 0; k < argTypes.length; k++) {
                 Type t = argTypes[k];
@@ -1233,8 +1579,11 @@ public final class InventoryTransformDecomposer {
         }
 
         /**
-         * Drops argument values per {@code mi.desc} and pushes a placeholder for a non-void
-         * return type. Used for "don't care" library calls.
+         * Drops argument values (plus the implicit {@code this} for non-static calls) per
+         * {@code mi.desc} and pushes an {@code OTHER} placeholder for a non-void return type.
+         * Keeps the walker from aborting on innocuous "don't care" library calls.
+         *
+         * @param mi the call instruction to consume
          */
         private void passThroughUnknown(@NotNull MethodInsnNode mi) {
             Type[] argTypes = Type.getArgumentTypes(mi.desc);
@@ -1245,10 +1594,17 @@ public final class InventoryTransformDecomposer {
         }
 
         /**
-         * Composes a four-argument {@code Transformation} ctor B into a {@link TransformState}.
-         * Supports {@code null} for left/right rotations, yaw-equivalent Y rotations (treated
-         * as identity at reference pose), and literal or static-field Vector3f translation /
-         * scale.
+         * Composes the four arguments of the {@code Transformation(Vector3fc, Quaternionfc,
+         * Vector3fc, Quaternionfc)} constructor (ctor B) into a {@link TransformState}. Supports
+         * {@code null} for the translation / rotations, drops yaw-equivalent rotations (identity
+         * at reference pose), and applies the scale as a post-multiply.
+         *
+         * @param trans translation - a {@code Vector3f} literal or {@code null} (zero)
+         * @param leftRot left rotation - a {@code Quaternionf} or {@code null}
+         * @param scale scale - a {@code Vector3f} literal or {@code null} (unit)
+         * @param rightRot right rotation - a {@code Quaternionf} or {@code null}
+         * @return the composed state, or {@code null} when any argument is an unsupported shape
+         *     (the walker is poisoned in that case)
          */
         private @Nullable TransformState composeCtorB(
             @NotNull Value trans, @NotNull Value leftRot, @NotNull Value scale, @NotNull Value rightRot
@@ -1290,8 +1646,14 @@ public final class InventoryTransformDecomposer {
 
     /**
      * Reduces a {@link TransformState} to a {@code [tx, ty, tz, pitch, yaw, roll, uniform?]}
-     * tuple. Applies the fold rules documented in the class javadoc. Returns {@code null}
-     * when the state cannot be reduced to a single-axis rotation.
+     * tuple (translation scaled to mcpixel-space, angles in degrees, trailing uniform-scale slot
+     * emitted only when the scale is not near unity). Applies the fold rules documented in the
+     * class javadoc.
+     *
+     * @param state the accumulated transform state to reduce
+     * @param diag diagnostics sink for the skip / unfoldable warnings
+     * @return the canonical tuple, or {@code null} when the state is poisoned or cannot reduce to
+     *     a single-axis rotation with uniform scale
      */
     private static float @Nullable [] canonicalise(@NotNull TransformState state, @NotNull Diagnostics diag) {
         if (state.poisoned) {

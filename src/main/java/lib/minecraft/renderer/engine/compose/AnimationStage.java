@@ -11,15 +11,17 @@ import java.util.stream.IntStream;
 /**
  * Shared frame-orchestration stage for renderers that bake a tick-driven animation strip.
  * <p>
- * Collapses the duplicated "single frame -> static image, else frame-parallel bake -> animated image"
- * tail. A frame count of {@code 1} (or less) renders one frame at {@code startTick} and returns a
- * static image; a higher count renders each frame in parallel at {@code startTick + f*ticksPerFrame},
- * preserving encounter order, and wraps the strip with the given per-frame delay.
+ * Collapses the duplicated "single frame &rarr; static image, else frame-parallel bake &rarr;
+ * animated image" tail. A frame count of {@code 1} (or less) renders one frame at {@code startTick}
+ * and returns a static image; a higher count renders each frame in parallel at
+ * {@code startTick + f*ticksPerFrame}, preserving encounter order, and wraps the strip with the given
+ * per-frame delay. It sits at the terminal end of the pipeline, downstream of {@link FinalizeStage}
+ * and {@link GlintStage}: each frame it bakes is itself a full finalise (and optional glint) pass.
  */
 public final class AnimationStage {
 
     /**
-     * Renders one frame at the given absolute tick.
+     * Callback that renders one animation frame at a given absolute game tick.
      */
     @FunctionalInterface
     public interface FrameRenderer {

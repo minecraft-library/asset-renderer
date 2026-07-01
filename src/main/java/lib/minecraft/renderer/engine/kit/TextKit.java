@@ -271,12 +271,12 @@ public class TextKit {
     }
 
     /**
-     * Returns the shadow color for a segment as packed ARGB. Uses the
-     * {@link ChatColor#backgroundRgb()} when available, otherwise darkens the given color
-     * to 25% brightness.
+     * Returns the shadow color for a segment as packed ARGB. When the segment carries an explicit
+     * {@link ChatColor} its {@link ChatColor#backgroundRgb() backgroundRgb} is used; a colorless
+     * segment falls back to {@link #darken(int) darkening} {@code fallbackArgb} to 25% brightness.
      *
      * @param segment the segment
-     * @param fallbackArgb the primary color to darken if no ChatColor background is available
+     * @param fallbackArgb the primary color to darken when the segment has no explicit ChatColor
      * @return the shadow ARGB color
      */
     public static int shadowColor(@NotNull ColorSegment segment, int fallbackArgb) {

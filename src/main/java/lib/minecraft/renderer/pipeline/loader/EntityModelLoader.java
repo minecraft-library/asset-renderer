@@ -171,9 +171,17 @@ public class EntityModelLoader {
      *     they co-register under the renderer's shared auto-fit transform
      * @param textureRef the bundled texture sub-path (without {@code .png}), or empty when the
      *     overlay should reuse the base entity's texture
-     * @param emissive when {@code true} the overlay renders full-bright + additive (vanilla
-     *     Java's {@code RenderType.eyes} pattern) instead of shaded src-over. Tagged onto every
+     * @param emissive when {@code true} the overlay renders full-bright (unlit), mirroring vanilla
+     *     Java's {@code RenderType.eyes} pattern, instead of shaded src-over. Tagged onto every
      *     triangle the overlay produces; the rasterizer keys off the per-triangle flag
+     * @param tintArgb per-overlay multiplicative ARGB tint, mirroring vanilla's
+     *     {@code coloredCutoutModelRender(..., color, ...)} colour argument (sheep wool colour,
+     *     tropical-fish pattern colour). Defaults to {@code 0xFFFFFFFF} (white = no-op MULTIPLY)
+     * @param skipBounds when {@code true} the overlay still renders but is excluded from the
+     *     canvas-sizing bounds union - set for {@code skip_bounds=true} state-rendered decor layers
+     *     the harness also skips (llama carpet), and for same-geometry overlays carrying only the
+     *     auto-emitted {@value #DEPTH_CLEARANCE_INFLATE} depth-clearance inflate whose silhouette
+     *     the base mesh already covers
      */
     public record OverlayLayer(
         @NotNull EntityModelData model,
@@ -476,6 +484,10 @@ public class EntityModelLoader {
         return readGeometriesJsonResource(GEOMETRY_RESOURCE_PATH, /*required*/ false);
     }
 
+    /**
+     * Lazily-computed {@code entityId -> familyMembers} result of {@link #loadFamilies()}, cached
+     * for the JVM lifetime (the underlying JSON never changes at runtime).
+     */
     private static volatile Map<String, List<String>> FAMILIES_CACHE;
 
     /**
@@ -541,6 +553,18 @@ public class EntityModelLoader {
         }
     }
 
+    /**
+     * Parses the {@code geometries} table from the JSON resource at {@code path} into
+     * {@code geometryRef -> }{@link EntityModelData}. Comment keys (those starting with {@code //})
+     * are skipped so hand-annotated fixtures survive the parse. Returns an empty map when the
+     * resource is absent and {@code required} is {@code false}.
+     *
+     * @param path the classpath resource path to read
+     * @param required when {@code true} a missing resource throws instead of returning empty
+     * @return the parsed geometry table, empty when the optional resource is absent
+     * @throws PipelineException when {@code required} and the resource is missing, or when the JSON
+     *     is present but unparseable
+     */
     private static @NotNull Map<String, EntityModelData> readGeometriesJsonResource(@NotNull String path, boolean required) {
         try (InputStream stream = EntityModelLoader.class.getResourceAsStream(path)) {
             if (stream == null) {

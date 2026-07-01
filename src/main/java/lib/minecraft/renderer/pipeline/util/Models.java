@@ -2,6 +2,7 @@ package lib.minecraft.renderer.pipeline.util;
 
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.engine.texture.Textures;
@@ -12,8 +13,7 @@ import java.util.Map;
 
 /**
  * Model-content helper shared by the pipeline index loaders: testing whether a parsed model would
- * render nothing. Namespaced model-id parsing now lives on
- * {@link lib.minecraft.renderer.asset.ResourceId}.
+ * render nothing. Namespaced model-id parsing now lives on {@link ResourceId}.
  */
 @UtilityClass
 public class Models {

@@ -134,12 +134,22 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
     private final @NotNull RendererContext context;
     private final @NotNull ImageFactory imageFactory = new ImageFactory();
+
+    /**
+     * URL-fetched skin and cape textures cached for the renderer's lifetime, keyed by URL (capes use a
+     * {@code "cape:"} prefix so they never collide with a skin sharing the same URL).
+     */
     private final @NotNull ConcurrentMap<String, PixelBuffer> skinCache = Concurrent.newMap();
 
     private final @NotNull Skull skull;
     private final @NotNull Bust bust;
     private final @NotNull Full full;
 
+    /**
+     * Constructs a player renderer over the given context, wiring up the three per-type sub-renderers.
+     *
+     * @param context renderer context for texture resolution and engine setup
+     */
     public PlayerRenderer(@NotNull RendererContext context) {
         this.context = context;
         this.skull = new Skull(this);
@@ -147,6 +157,10 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         this.full = new Full(this);
     }
 
+    /**
+     * Dispatches on {@link PlayerOptions#getType()} to the matching sub-renderer, then composites the
+     * result over the caller's background.
+     */
     @Override
     public @NotNull ImageData render(@NotNull PlayerOptions options) {
         ImageData rendered = switch (options.getType()) {
@@ -161,6 +175,18 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     // Shared helpers.
     // ---------------------------------------------------------------------------------------
 
+    /**
+     * Resolves the player skin by priority: explicit
+     * {@link PlayerOptions#getSkinBytes() skin bytes} &gt; {@link PlayerOptions#getSkinUrl() skin URL}
+     * (fetched via {@link #fetchTexture} and cached for the renderer's lifetime) &gt;
+     * {@link PlayerOptions#getSkinTextureId() skin texture id} (resolved against the pack stack) &gt;
+     * the default {@code minecraft:entity/steve} skin.
+     *
+     * @param parent the owning renderer, for its image factory / skin cache / context
+     * @param options the render options
+     * @return the resolved skin buffer
+     * @throws RenderException if the default Steve skin is requested but not registered
+     */
     static @NotNull PixelBuffer resolveSkin(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
         if (options.getSkinBytes().isPresent())
             return parent.imageFactory.fromByteArray(options.getSkinBytes().get()).toPixelBuffer();
@@ -279,6 +305,17 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         );
     }
 
+    /**
+     * Crops a {@code w x h} rectangle from {@code source} at {@code (x, y)}, reading transparent
+     * (zero) for any pixel that falls outside the source bounds.
+     *
+     * @param source the source texture
+     * @param x left edge of the crop, in source pixels
+     * @param y top edge of the crop, in source pixels
+     * @param w crop width in pixels
+     * @param h crop height in pixels
+     * @return a freshly allocated {@code w x h} buffer holding the cropped region
+     */
     private static @NotNull PixelBuffer cropRect(@NotNull PixelBuffer source, int x, int y, int w, int h) {
         int[] pixels = new int[w * h];
         for (int dy = 0; dy < h; dy++)
@@ -324,7 +361,13 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     // ---------------------------------------------------------------------------------------
 
     /**
-     * The body parts and their 2D layout data for each {@link PlayerOptions.Type}.
+     * A body part plus its 2D layout rectangle, in canvas pixels, for a given {@link PlayerOptions.Type}.
+     *
+     * @param part the skin face to crop and blit
+     * @param x left edge of the destination rectangle
+     * @param y top edge of the destination rectangle
+     * @param w destination width in pixels
+     * @param h destination height in pixels
      */
     private record BodyPart2D(@NotNull SkinFace part, int x, int y, int w, int h) {}
 
@@ -458,6 +501,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private final @NotNull PlayerRenderer parent;
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull PlayerOptions options) {
             if (options.getDimension() == PlayerOptions.Dimension.TWO_D)
@@ -503,6 +547,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private final @NotNull PlayerRenderer parent;
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull PlayerOptions options) {
             if (options.getDimension() == PlayerOptions.Dimension.TWO_D)
@@ -552,6 +597,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private final @NotNull PlayerRenderer parent;
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull PlayerOptions options) {
             if (options.getDimension() == PlayerOptions.Dimension.TWO_D)

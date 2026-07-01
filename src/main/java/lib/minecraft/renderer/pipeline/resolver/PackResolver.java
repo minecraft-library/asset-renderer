@@ -4,6 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.asset.TexturePack;
 import lib.minecraft.renderer.asset.rule.PackMeta;
+import lib.minecraft.renderer.exception.PipelineException;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -12,10 +13,13 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 
 /**
- * Parses a pack's {@code pack.mcmeta} via {@link PackMeta} and produces a {@link TexturePack}
- * whose {@link TexturePack#getAssetRoots()} carries the base pack root plus every overlay subtree
- * whose declared {@code formats} range matches the pack's own declared {@code pack_format}.
- * Overlays are appended in declaration order so loaders apply them with later-wins semantics.
+ * Resolver that parses a pack's {@code pack.mcmeta} via {@link PackMeta} and produces a
+ * {@link TexturePack} whose {@link TexturePack#getAssetRoots()} carries the base pack root plus
+ * every overlay subtree whose declared {@code formats} range matches the pack's own declared
+ * {@code pack_format} and that exists on disk.
+ * <p>
+ * The base root is added first and matching overlays are appended in {@code pack.mcmeta}
+ * declaration order, so downstream loaders apply them with later-wins semantics.
  *
  * @see TexturePack
  * @see PackMeta
@@ -37,6 +41,8 @@ public class PackResolver {
      * @param packId the pack identifier
      * @param priority the pack priority across packs
      * @return the resolved pack with base + matching overlays
+     * @throws PipelineException if {@code packRoot} is not a directory, or {@code pack.mcmeta} is
+     *     missing or malformed
      */
     public static @NotNull TexturePack resolve(
         @NotNull Path packRoot,
@@ -44,8 +50,7 @@ public class PackResolver {
         int priority
     ) {
         if (!Files.isDirectory(packRoot))
-            throw new lib.minecraft.renderer.exception.PipelineException(
-                "Pack root '%s' does not exist or is not a directory", packRoot);
+            throw new PipelineException("Pack root '%s' does not exist or is not a directory", packRoot);
 
         PackMeta meta = PackMeta.parse(packRoot.resolve("pack.mcmeta"), packId);
 

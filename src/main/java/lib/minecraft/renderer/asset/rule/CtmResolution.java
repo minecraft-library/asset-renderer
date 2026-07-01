@@ -7,13 +7,15 @@ import java.util.Optional;
 /**
  * The outcome of a {@link CtmMatcher} lookup for a block face.
  * <p>
- * When a context-free rule method (FIXED/RANDOM/REPEAT) applies, {@code textureId} holds the
- * replacement base texture and {@code overlayTextureId} is empty. When an overlay method applies,
- * {@code textureId} holds the original base texture unchanged and {@code overlayTextureId} holds
- * the overlay tile to composite on top.
+ * For every non-overlay method (the context-free {@link CtmMethod#FIXED FIXED} /
+ * {@link CtmMethod#RANDOM RANDOM} / {@link CtmMethod#REPEAT REPEAT} plus the neighbor-based
+ * CTM-family methods) {@code textureId} holds the replacement tile the renderer should sample and
+ * {@code overlayTextureId} is empty. For the {@link CtmMethod#OVERLAY OVERLAY} /
+ * {@link CtmMethod#OVERLAY_FIXED OVERLAY_FIXED} methods {@code textureId} holds the original base
+ * texture unchanged and {@code overlayTextureId} holds the tile to composite on top.
  *
- * @param textureId the replacement or original base texture id
- * @param overlayTextureId the optional overlay texture id
+ * @param textureId the replacement tile, or the original base texture for overlay methods
+ * @param overlayTextureId the overlay tile to composite, present only for overlay methods
  */
 public record CtmResolution(
     @NotNull String textureId,

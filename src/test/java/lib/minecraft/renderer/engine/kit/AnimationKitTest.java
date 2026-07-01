@@ -11,6 +11,15 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Pins {@link AnimationKit#sampleFrame} playback of a vanilla {@code .mcmeta} animation over a
+ * vertically-stacked strip: single-frame passthrough, per-tick frame selection, modulo-cycle
+ * looping (including negative ticks), {@link AnimationData#getFrametime() frametime} frame holds,
+ * linear {@link AnimationData#isInterpolate() interpolation}, and explicit
+ * {@link AnimationData.FrameEntry} durations. Also pins {@link AnimationKit#extractFrame} row
+ * cropping. Each frame is authored as a distinctive solid colour so the sampled pixel identifies
+ * which strip row was selected.
+ */
 class AnimationKitTest {
 
     @Test
@@ -32,7 +41,8 @@ class AnimationKitTest {
     @Test
     @DisplayName("4-frame vertical strip returns the correct frame for each tick")
     void fourFrameStrip_samplesByTick() {
-        // 1-wide, 4-tall strip where each row has a distinctive color
+        // 1-wide, 4-tall strip where each row is a distinctive color. With no width/height
+        // override the frame height falls back to the strip width (1), so height 4 / 1 = 4 frames.
         int[] pixels = { 0xFF000001, 0xFF000002, 0xFF000003, 0xFF000004 };
         PixelBuffer strip = PixelBuffer.of(pixels, 1, 4);
         AnimationData animation = animation(1, false, null);
@@ -85,14 +95,15 @@ class AnimationKitTest {
     @Test
     @DisplayName("interpolation blends linearly between adjacent frames")
     void interpolation_blendsLinearly() {
-        // Two single-pixel frames: pure black then pure white
+        // Two single-pixel frames: pure black then pure white, held 4 ticks each with interpolate on.
         int[] pixels = { 0xFF000000, 0xFFFFFFFF };
         PixelBuffer strip = PixelBuffer.of(pixels, 1, 2);
         AnimationData animation = animation(4, true, null);
 
-        // Tick 0 sits at the very start of frame 0 -> 0% progress -> near-black
+        // The blend alpha is the tick's progress into frame 0's 4-tick duration, toward frame 1.
+        // Tick 0 sits at the very start of frame 0 -> 0% progress -> near-black.
         PixelBuffer t0 = AnimationKit.sampleFrame(strip, animation, 0);
-        // Tick 2 sits halfway through frame 0 -> 50% progress -> near-gray
+        // Tick 2 sits halfway through frame 0 -> 50% progress -> near-gray (blend of black + white).
         PixelBuffer t2 = AnimationKit.sampleFrame(strip, animation, 2);
 
         int gray0 = t0.getPixel(0, 0) & 0xFF;
@@ -141,6 +152,11 @@ class AnimationKitTest {
 
     // --- fixtures ---
 
+    /**
+     * Builds {@link AnimationData} with the given frametime, interpolation flag, and optional
+     * explicit frame list ({@code null} yields an empty list so playback walks the strip in order).
+     * Width and height are left at {@code -1} so the frame dimensions are inferred from the strip.
+     */
     private static AnimationData animation(int frametime, boolean interpolate, ConcurrentList<AnimationData.FrameEntry> frames) {
         return new AnimationData(frametime, interpolate, frames != null ? frames : Concurrent.newList(), -1, -1);
     }

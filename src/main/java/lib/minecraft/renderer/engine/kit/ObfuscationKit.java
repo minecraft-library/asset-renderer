@@ -12,20 +12,24 @@ import java.util.Random;
  * fixed visible glyph pool on each client tick. For animated output we reproduce the effect by
  * seeding the random stream on the frame index so a given frame is fully deterministic and
  * reproducible across runs.
+ * <p>
+ * Substitution preserves length and whitespace: each non-whitespace character is replaced by one
+ * pooled glyph and whitespace passes through untouched, so word boundaries and overall run width
+ * survive the scramble.
  */
 @UtilityClass
 public class ObfuscationKit {
 
     /**
-     * Default glyph pool used when a caller does not provide its own. 64 printable ASCII characters
-     * approximating vanilla's sampled glyph pool.
+     * Default glyph pool used when a caller does not provide its own. 66 printable ASCII characters
+     * (A-Z, a-z, 0-9, and {@code !@#$}) approximating vanilla's sampled glyph pool.
      */
     public static final @NotNull String DEFAULT_POOL =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$";
 
     /**
-     * Substitutes every character in {@code text} with a deterministic pick from the default glyph
-     * pool seeded on {@code frameSeed}. Whitespace is preserved so word boundaries survive.
+     * Substitutes every non-whitespace character in {@code text} with a deterministic pick from
+     * the {@link #DEFAULT_POOL default glyph pool}, seeded on {@code frameSeed}.
      *
      * @param text the source text
      * @param frameSeed the frame-index seed
@@ -36,8 +40,9 @@ public class ObfuscationKit {
     }
 
     /**
-     * Substitutes every character in {@code text} with a deterministic pick from a caller-provided
-     * glyph pool.
+     * Substitutes every non-whitespace character in {@code text} with a deterministic pick from a
+     * caller-provided glyph pool. Whitespace passes through unchanged, and {@code text} is returned
+     * as-is when either it or {@code pool} is empty.
      *
      * @param text the source text
      * @param frameSeed the frame-index seed

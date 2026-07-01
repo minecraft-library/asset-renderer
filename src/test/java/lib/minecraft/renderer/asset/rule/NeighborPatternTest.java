@@ -7,6 +7,16 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
+/**
+ * Verifies {@link NeighborPattern} - the 8-bit face-neighbor bitmask (N/NE/E/SE/S/SW/W/NW) that
+ * CTM tile selection folds into a tile index.
+ * <p>
+ * Pins the bit semantics: {@link NeighborPattern#EMPTY} carries no bits (and vacuously
+ * {@link NeighborPattern#has has(0)}), {@link NeighborPattern#has} requires <b>every</b> bit of the
+ * queried mask to be set (subset test, not intersection), {@link NeighborPattern#with} ORs bits in
+ * without clearing existing ones, and {@link NeighborPattern#cardinals} sets only the four cardinal
+ * bits and never a diagonal.
+ */
 @DisplayName("NeighborPattern bitmask")
 class NeighborPatternTest {
 

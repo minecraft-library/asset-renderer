@@ -34,11 +34,15 @@ public record CtmRule(
 
     /**
      * Tests whether this rule applies to a given face of a block whose base texture is known.
+     * <p>
+     * The face gate passes when the rule targets {@link Face#ALL} or lists the concrete
+     * {@code face} directly. The subject gate then passes when the block id is in
+     * {@link #matchedBlocks()} or the base texture id is in {@link #matchedTiles()}.
      *
      * @param blockId the block id, e.g. {@code "minecraft:stone_bricks"}
      * @param baseTextureId the base texture id, e.g. {@code "minecraft:block/stone_bricks"}
-     * @param face the face being rendered
-     * @return true if the rule accepts this block+texture+face combination
+     * @param face the concrete face being rendered
+     * @return true when the rule accepts this block+texture+face combination
      */
     public boolean appliesTo(@NotNull String blockId, @NotNull String baseTextureId, @NotNull Face face) {
         if (!this.faces.contains(Face.ALL) && !this.faces.contains(face)) return false;
@@ -47,11 +51,51 @@ public record CtmRule(
     }
 
     /**
-     * The six cardinal block faces plus two aliases ({@code ALL}, {@code SIDES}) supported by the
-     * Optifine CTM grammar.
+     * The six cardinal block faces plus two aliases ({@link #ALL}, {@link #SIDES}) supported by the
+     * Optifine CTM grammar. {@link #appliesTo} expands only {@link #ALL}; {@link #SIDES} is
+     * retained for parse fidelity but is not yet unfolded into the four side faces.
      */
     public enum Face {
-        DOWN, UP, NORTH, SOUTH, WEST, EAST, SIDES, ALL
+
+        /**
+         * The bottom face.
+         */
+        DOWN,
+
+        /**
+         * The top face.
+         */
+        UP,
+
+        /**
+         * The north face.
+         */
+        NORTH,
+
+        /**
+         * The south face.
+         */
+        SOUTH,
+
+        /**
+         * The west face.
+         */
+        WEST,
+
+        /**
+         * The east face.
+         */
+        EAST,
+
+        /**
+         * Alias for the four horizontal side faces (north / south / west / east).
+         */
+        SIDES,
+
+        /**
+         * Alias matching every block face.
+         */
+        ALL
     }
 
 }

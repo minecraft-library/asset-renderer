@@ -30,12 +30,16 @@ public class PackAcquirer {
     private static final @NotNull Pattern UNSAFE_ID_CHARS = Pattern.compile("[^A-Za-z0-9._-]+");
 
     /**
-     * Resolves a pack source to a usable extracted pack root.
+     * Resolves a pack source to a usable extracted pack root. A directory source is returned as-is;
+     * a zip source extracts into {@code <cacheRoot>/packs/<sanitised-id>/}, reusing an existing
+     * extraction unless the source zip is newer (see {@link #needsReextract}).
      *
      * @param source the pack source; either a directory or a zip file
      * @param cacheRoot the renderer's cache root (zip extraction targets
      *     {@code <cacheRoot>/packs/<sanitised-id>/})
      * @return the extracted pack root path
+     * @throws PipelineException if the source is neither a directory nor a regular file, the
+     *     extraction directory cannot be created, or extraction fails (including a zip-slip entry)
      */
     public static @NotNull Path materialize(@NotNull File source, @NotNull Path cacheRoot) {
         if (source.isDirectory()) return source.toPath();
@@ -90,7 +94,9 @@ public class PackAcquirer {
     /**
      * Streams every entry from a pack zip into the destination directory, mirroring the same
      * loop {@code Pipeline.extractClientJar} uses for the client jar. Directory entries are
-     * skipped; regular entries are extracted via {@link Files#copy} with REPLACE_EXISTING.
+     * skipped; each regular entry has its parent directories created and is written via
+     * {@link Files#copy} with {@link StandardCopyOption#REPLACE_EXISTING}. Any entry whose
+     * normalised target escapes {@code destination} is rejected as a zip-slip attack.
      */
     private static void extractZip(@NotNull File source, @NotNull Path destination, @NotNull String packId) {
         try (ZipFile zip = new ZipFile(source)) {

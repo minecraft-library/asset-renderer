@@ -29,12 +29,14 @@ import java.util.Optional;
 import javax.imageio.ImageIO;
 
 /**
- * Renders one entity under every {@link Projection} - one cell per catalog entry - and writes a
- * labelled contact sheet plus per-projection PNGs to {@code cache/visual/entity-projections/} for
- * eyeballing. The entity mirror of the player {@code projections} sheet (see {@code TestPlayerRender}):
- * a functional check that the entity is a first-class projection subject now that its model-to-world
- * facing lives on a {@code Placement} and its camera comes from the selected projection. Each cell fits
- * its own canvas ({@link EntityOptions.FitMode#OUTPUT_SIZE}) so the whole taxonomy reads at a glance.
+ * Renders one entity under every {@link Projection} in the catalog (perspective / axonometric /
+ * oblique) - one cell per enum entry - and writes a labelled contact sheet ({@code <entity>.png})
+ * plus per-projection cell PNGs ({@code <entity>/<projection>.png}) to
+ * {@code cache/visual/entity-projections/} for eyeballing. The entity mirror of the player
+ * {@code projections} sheet (see {@code TestPlayerRender}): a functional check that the entity is a
+ * first-class projection subject now that its model-to-world facing lives on a {@code Placement} and
+ * its camera comes from the selected projection. Each cell fits its own canvas
+ * ({@link EntityOptions.FitMode#OUTPUT_SIZE}) so the whole taxonomy reads at a glance.
  *
  * <p>Usage: {@code ./gradlew :asset-renderer:entityProjections [-PentityId=minecraft:zombie] [-PrenderSize=256]}.
  */

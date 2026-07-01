@@ -24,15 +24,25 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Slow parity test: runs {@link TintDiscovery} against the cached 26.1 client jar and
- * compares the result set against {@code baseline/tinted_model_ids.json}.
+ * Slow parity test pinning {@link TintDiscovery#discover} against the cached 26.1 client jar,
+ * compared to the {@code baseline/tinted_model_ids.json} set of entity ids that carry a
+ * {@code tintindex=0} marker.
+ *
+ * <p>The wire-up mirrors the real tooling: {@link SourceDiscovery} produces the source list,
+ * {@link BlockListDiscovery} supplies the atlas membership filter, and a {@link #rendererFor}
+ * map reconstructs the {@code entityId -> renderer internal name} binding that
+ * {@code TintDiscovery} scans for {@code DyeColor} / {@code BannerPattern} tint-accessor calls.
+ * The expected outcome is that only the {@code Flag}-family banner sub-models surface as tinted.
  */
 @DisplayName("TintDiscovery parity")
 @Tag("slow")
 class TintDiscoveryParityTest {
 
+    /** The cached deobfuscated 26.1 client jar discovery walks. */
     private static final Path JAR = Path.of("cache/asset-renderer/vanilla/26.1/client.jar");
+    /** The hand-curated ground-truth set of tinted entity ids discovery is diffed against. */
     private static final Path BASELINE = Path.of("src/test/resources/lib/minecraft/renderer/baseline/tinted_model_ids.json");
+    /** Project-standard Gson, used to parse the baseline JSON array. */
     private static final Gson GSON = GsonSettings.defaults().create();
 
     @Test
@@ -58,6 +68,14 @@ class TintDiscoveryParityTest {
         }
     }
 
+    /**
+     * Reconstructs the {@code entityId -> renderer internal name} binding that production feeds
+     * {@link TintDiscovery#discover} from {@link SourceDiscovery}'s registry walk. Multi-source
+     * renderers (chest, banner family, shulker box, bell, copper golem statue, the four skull
+     * variants) are mapped explicitly since their entity ids don't match their model classEntry;
+     * everything else falls back to the source's own classEntry (minus the {@code .class} suffix),
+     * which for single-model block entities is also the renderer scanned for tint-accessor calls.
+     */
     private static String rendererFor(Source s) {
         return switch (s.entityId()) {
             case "minecraft:chest" -> "net/minecraft/client/renderer/blockentity/ChestRenderer";

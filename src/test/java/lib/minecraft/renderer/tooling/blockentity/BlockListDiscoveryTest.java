@@ -26,18 +26,27 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
- * Fast mutation tests for {@link BlockListDiscovery}. Each nested test class builds synthetic
- * client-jar bytecode via {@link ClassWriter} targeting one shared primitive or per-family
- * adapter. The mutation discipline is consistent with {@link SourceDiscoveryTest}: every test
- * builds a baseline, asserts the expected output, then mutates the input and asserts the
- * output changes - proving the walker is driven by the bytecode rather than a hardcoded table.
+ * Fast mutation tests for {@link BlockListDiscovery}. Each nested test class hand-assembles a
+ * synthetic client jar - one or more classes whose {@code <clinit>} (or lambda) bytecode is emitted
+ * via {@link ClassWriter} to reproduce the exact shape a real walker anchors on - then feeds it
+ * through one shared primitive walker or per-family adapter and asserts the extracted table.
  *
- * <p>Helpers at the bottom of the file construct the skeleton classes shared across tests;
- * each nested class typically rebuilds only the bytecode it needs to exercise.
+ * <p>The mutation discipline mirrors {@link SourceDiscoveryTest}: every walker is pinned by a
+ * baseline case (build the canonical shape, assert the expected output) plus at least one mutation
+ * case (perturb an LDC or reorder the GETSTATICs, assert the output tracks the change). A hardcoded
+ * lookup table would pass the baseline but fail the mutation - so these prove the output is
+ * genuinely bytecode-derived.
+ *
+ * <p>Nested classes group by target: the {@code Shared primitive} block covers the low-level
+ * {@code validBlocks} / {@code walkXxx} extractors that every family reuses; the
+ * {@code Per-family adapter} block covers whole {@link BlockListDiscovery#discover} families
+ * (bell, decorated pot). The {@code Shared bytecode builders} at the bottom synthesize the skeleton
+ * classes; each test rebuilds only the bytecode it needs.
  */
 @DisplayName("BlockListDiscovery (bytecode-driven)")
 class BlockListDiscoveryTest {
 
+    /** Per-test scratch directory into which {@link #writeJar} materializes each synthetic jar. */
     @TempDir Path tempDir;
 
     // ------------------------------------------------------------------------------------------
@@ -264,6 +273,11 @@ class BlockListDiscoveryTest {
             }
         }
 
+        /**
+         * Pins the PLAYER follow chain: a {@code getDefaultTexture} call (no LDC) forces the walker
+         * to resolve the index from {@code getDefaultSkin}'s {@code aaload}, then read the
+         * {@code DEFAULT_SKINS} entry at that index out of the {@code <clinit>} - here index 2.
+         */
         @Test
         @DisplayName("PLAYER entry chases DefaultPlayerSkin.getDefaultSkin + <clinit>")
         void playerFollow() throws IOException {
@@ -295,6 +309,11 @@ class BlockListDiscoveryTest {
     @DisplayName("discover() on synthetic jar")
     class DiscoverTests {
 
+        /**
+         * Pins that a jar with a valid-but-empty {@code BlockEntityType.<clinit>} yields a mapping
+         * per family whose {@code blocks} list is empty - no family fabricates a block binding when
+         * its BE type has no valid blocks.
+         */
         @Test
         @DisplayName("empty dispatch returns empty map when no BE types exist")
         void emptyDispatch() throws IOException {
@@ -348,6 +367,12 @@ class BlockListDiscoveryTest {
     @DisplayName("Decorated pot adapter")
     class DecoratedPotTests {
 
+        /**
+         * Pins the pot / sides split: {@code minecraft:decorated_pot} carries the base texture plus a
+         * single {@code decorated_pot_sides} {@link BlockListDiscovery.PartRef} at offset
+         * {@code (0,0,0)} with the side texture, while the {@code decorated_pot_sides} entity id is a
+         * blocks-empty, parts-null sub-model referenced only through that part.
+         */
         @Test
         @DisplayName("emits pot + sides with (0,0,0) offset and base/side textures")
         void potSplit() throws IOException {
@@ -386,39 +411,85 @@ class BlockListDiscoveryTest {
     // ------------------------------------------------------------------------------------------
 
     /**
-     * @param name the enum constant field name (e.g. {@code "WHITE"})
-     * @param serializedName the string LDC that becomes the map value
+     * One standard-Java-enum {@code <clinit>} constant fixture (two LDCs: NAME then serialized name).
+     *
+     * @param name the enum constant field name (e.g. {@code "WHITE"}), emitted as the first LDC and
+     *     the closing PUTSTATIC field
+     * @param serializedName the second LDC that the walker binds as the map value
      */
     private record EnumEntry(String name, String serializedName) {}
 
     /**
+     * One {@code ChestSpecialRenderer.<clinit>} variant fixture.
+     *
      * @param field the chest-variant field name (e.g. {@code "REGULAR"})
      * @param ldc the string LDC bound to the variant
-     * @param shape either {@code "createDefaultTextures"} or {@code "withDefaultNamespace"}
+     * @param shape either {@code "createDefaultTextures"} (MultiblockChestResources) or
+     *     {@code "withDefaultNamespace"} (single Identifier, as ENDER_CHEST uses)
      */
     private record ChestVariant(String field, String ldc, String shape) {}
 
+    /**
+     * One {@code CopperGolemOxidationLevels.<clinit>} entry fixture.
+     *
+     * @param field the weather-state field name (e.g. {@code "UNAFFECTED"})
+     * @param fullTexturePath the raw {@code textures/....png} body-texture LDC, before the walker
+     *     strips its {@code textures/} prefix and {@code .png} suffix
+     */
     private record OxidationEntry(String field, String fullTexturePath) {}
 
     /**
-     * @param type the SkullBlock$Types field (e.g. {@code "SKELETON"})
-     * @param texture the textures/... path LDC (null for PLAYER when usePlayerFollow is true)
+     * One {@code SkullBlockRenderer.lambda$static$0} skin-map entry fixture.
+     *
+     * @param type the {@code SkullBlock$Types} field (e.g. {@code "SKELETON"})
+     * @param texture the {@code textures/...} path LDC, or {@code null} for PLAYER when
+     *     {@code usePlayerFollow} is true
      * @param usePlayerFollow when true, emit {@code INVOKESTATIC DefaultPlayerSkin.getDefaultTexture}
-     *     instead of an LDC
+     *     instead of an LDC - forcing the walker to chase the player-skin follow chain
      */
     private record SkullSkin(String type, String texture, boolean usePlayerFollow) {}
 
     /**
-     * Minimal BlockEntityType class builder. The lambda receives a
-     * {@link BlockEntityTypeClinitBuilder} that emits ldc/getstaticBlocks/putstaticBeType
-     * instructions into the class's {@code <clinit>}.
+     * Fluent emitter for {@code BlockEntityType.<clinit>} instructions. The lambda passed to
+     * {@link #buildBlockEntityTypeClass} receives one of these and calls
+     * {@code ldc}/{@code getstaticBlocks}/{@code putstaticBeType} to reproduce the
+     * {@code LDC id ... GETSTATIC Blocks.X ... PUTSTATIC BlockEntityType.Y} shape the
+     * {@link BlockListDiscovery#validBlocks} walker anchors on.
      */
     private interface BlockEntityTypeClinitBuilder {
+        /**
+         * Emits an {@code LDC id} - the anchor that starts a BE type's init block.
+         *
+         * @param id the block-entity string id (e.g. {@code "chest"})
+         */
         void ldc(String id);
+
+        /**
+         * Emits a {@code GETSTATIC Blocks.field} - one entry of the current BE type's valid-blocks list.
+         *
+         * @param field the {@code Blocks} field name (e.g. {@code "CHEST"})
+         */
         void getstaticBlocks(String field);
+
+        /**
+         * Emits a {@code PUTSTATIC BlockEntityType.field} - the anchor that closes the init block and
+         * binds the preceding GETSTATICs to that BE type field.
+         *
+         * @param field the {@code BlockEntityType} field name (e.g. {@code "CHEST"})
+         */
         void putstaticBeType(String field);
     }
 
+    /**
+     * Builds a synthetic {@code BlockEntityType} class whose {@code <clinit>} contains exactly the
+     * instructions the {@code body} lambda emits via {@link BlockEntityTypeClinitBuilder}. Each
+     * distinct {@code putstaticBeType} field is also declared on the class so the emitted PUTSTATICs
+     * verify. The instruction stream is only walked, never executed, so pushed values are POP'd off
+     * immediately to keep the stack balanced.
+     *
+     * @param body callback that emits the {@code <clinit>} body
+     * @return the class bytes
+     */
     private static byte[] buildBlockEntityTypeClass(@NotNull Consumer<BlockEntityTypeClinitBuilder> body) {
         ClassWriter cw = new ClassWriter(0);
         cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC, "net/minecraft/world/level/block/entity/BlockEntityType", null, "java/lang/Object", null);
@@ -515,6 +586,16 @@ class BlockListDiscoveryTest {
         return cw.toByteArray();
     }
 
+    /**
+     * Builds a synthetic {@code ChestSpecialRenderer} whose {@code <clinit>} emits, per variant, an
+     * {@code LDC ldc} followed by either {@code INVOKESTATIC createDefaultTextures} (the
+     * MultiblockChestResources shape) or {@code INVOKESTATIC Identifier.withDefaultNamespace} (the
+     * single-Identifier shape), then {@code PUTSTATIC field}. Exercises both texture-base shapes the
+     * {@link BlockListDiscovery#walkChestSpecialRendererVariants} walker must recognise.
+     *
+     * @param variants the variants to emit, in order
+     * @return the class bytes
+     */
     private static byte[] buildChestSpecialRenderer(@NotNull List<ChestVariant> variants) {
         String cls = "net/minecraft/client/renderer/special/ChestSpecialRenderer";
         ClassWriter cw = new ClassWriter(0);
@@ -546,6 +627,15 @@ class BlockListDiscoveryTest {
         return cw.toByteArray();
     }
 
+    /**
+     * Builds a synthetic {@code CopperGolemOxidationLevels} whose {@code <clinit>} emits, per entry,
+     * {@code NEW CopperGolemOxidationLevel; LDC fullTexturePath; PUTSTATIC field}. The walker
+     * captures the first {@code textures/....png} LDC after each NEW as the body texture, so the
+     * fixture's single LDC per entry is what surfaces in the map (stripped of prefix/suffix).
+     *
+     * @param entries the oxidation-level entries to emit, in order
+     * @return the class bytes
+     */
     private static byte[] buildCopperGolemOxidationLevels(@NotNull List<OxidationEntry> entries) {
         String cls = "net/minecraft/world/entity/animal/golem/CopperGolemOxidationLevels";
         String itemCls = "net/minecraft/world/entity/animal/golem/CopperGolemOxidationLevel";
@@ -571,6 +661,17 @@ class BlockListDiscoveryTest {
         return cw.toByteArray();
     }
 
+    /**
+     * Builds a synthetic {@code SkullBlockRenderer} carrying the {@code lambda$static$0(HashMap)}
+     * skin-map populator. Per skin it emits {@code ALOAD 0; GETSTATIC SkullBlock$Types.type}, then
+     * either {@code LDC texture; INVOKESTATIC Identifier.withDefaultNamespace} or (when
+     * {@code usePlayerFollow}) {@code INVOKESTATIC DefaultPlayerSkin.getDefaultTexture}, closed by
+     * {@code INVOKEVIRTUAL HashMap.put; POP} - the exact shape {@link BlockListDiscovery#walkSkullSkinMap}
+     * anchors on.
+     *
+     * @param skins the skin entries to emit, in order
+     * @return the class bytes
+     */
     private static byte[] buildSkullBlockRenderer(@NotNull List<SkullSkin> skins) {
         String cls = "net/minecraft/client/renderer/blockentity/SkullBlockRenderer";
         String typesCls = "net/minecraft/world/level/block/SkullBlock$Types";
@@ -651,6 +752,14 @@ class BlockListDiscoveryTest {
         return cw.toByteArray();
     }
 
+    /**
+     * Builds a synthetic {@code BellRenderer} whose {@code <clinit>} emits
+     * {@code LDC ldcString; PUTSTATIC BELL_TEXTURE} - the single texture LDC the bell adapter's
+     * {@code resolveBellTexture} reads to texture the {@code bell_body} overlay.
+     *
+     * @param ldcString the bell-body texture base LDC (e.g. {@code "bell/bell_body"})
+     * @return the class bytes
+     */
     private static byte[] buildBellRenderer(@NotNull String ldcString) {
         String cls = "net/minecraft/client/renderer/blockentity/BellRenderer";
         ClassWriter cw = new ClassWriter(0);
@@ -675,6 +784,14 @@ class BlockListDiscoveryTest {
     // Skeleton / plumbing
     // ------------------------------------------------------------------------------------------
 
+    /**
+     * Builds a bare class with no {@code <clinit>} - a placeholder so a class the walker resolves by
+     * name (e.g. {@code Blocks}, {@code SkullBlock$Types}) exists in the jar without contributing any
+     * instructions.
+     *
+     * @param internalName the class's JVM internal name
+     * @return the class bytes
+     */
     private static byte[] emptyClass(@NotNull String internalName) {
         ClassWriter cw = new ClassWriter(0);
         cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC, internalName, null, "java/lang/Object", null);
@@ -682,6 +799,13 @@ class BlockListDiscoveryTest {
         return cw.toByteArray();
     }
 
+    /**
+     * Builds a class with an empty (return-only) {@code <clinit>} - exercises the walker's handling
+     * of a BE type whose init block contains no valid-blocks anchors.
+     *
+     * @param internalName the class's JVM internal name
+     * @return the class bytes
+     */
     private static byte[] emptyClassWithClinit(@NotNull String internalName) {
         ClassWriter cw = new ClassWriter(0);
         cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC, internalName, null, "java/lang/Object", null);
@@ -694,6 +818,15 @@ class BlockListDiscoveryTest {
         return cw.toByteArray();
     }
 
+    /**
+     * Writes the supplied {@code (internalName -> classBytes)} entries into a fresh jar under
+     * {@link #tempDir}, appending {@code .class} to each internal name. The nanosecond-suffixed file
+     * name keeps concurrent / repeated calls from colliding within a single test class instance.
+     *
+     * @param classes the classes to bundle, keyed by JVM internal name
+     * @return the path to the written jar
+     * @throws IOException if writing the jar fails
+     */
     private Path writeJar(@NotNull Map<String, byte[]> classes) throws IOException {
         Path jar = tempDir.resolve("synthetic-" + System.nanoTime() + ".jar");
         try (ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(jar))) {

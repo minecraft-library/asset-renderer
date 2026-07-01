@@ -13,6 +13,27 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
+/**
+ * Verifies {@link CtmMatcher} - the CTM (Connected Textures) rule resolver that maps a
+ * {@link CtmRule} plus block/face context (and optionally a {@link NeighborPattern}) to a
+ * {@link CtmResolution}.
+ * <p>
+ * Coverage spans both entry points and every {@link CtmMethod}:
+ * <ul>
+ * <li><b>Context-free methods</b> via {@link CtmMatcher#resolve} - FIXED/RANDOM return
+ *     {@code tiles[0]} (RANDOM deterministically per block id), OVERLAY_FIXED splits base texture
+ *     and overlay, UNSUPPORTED and pattern-less neighbor methods fall back to {@code tiles[0]}, and
+ *     an empty tile list yields an empty resolution.</li>
+ * <li><b>{@link CtmMethod#parse} classification</b> - each supported string maps to its enum value
+ *     (including the {@code +} / {@code _} spelling aliases), unknown strings fall to UNSUPPORTED,
+ *     and {@link CtmMethod#isNeighborBased} flags exactly the seven neighbor methods.</li>
+ * <li><b>Neighbor tile selection</b> via {@link CtmMatcher#resolveWithPattern} - the per-method
+ *     index tables (HORIZONTAL W/E, VERTICAL N/S, TOP N, CTM_COMPACT's five buckets, the H/V and
+ *     V/H axis-priority combos) and the full CTM path: {@link CtmMatcher#validateCtmPattern} masking
+ *     orphan diagonals, the 47 distinct validated patterns folding to 47 distinct tile indices, and
+ *     short-tile-list clamping.</li>
+ * </ul>
+ */
 class CtmMatcherTest {
 
     @Test
@@ -224,6 +245,11 @@ class CtmMatcherTest {
         assertThat(validatedFull & NeighborPattern.NE, is(NeighborPattern.NE));
     }
 
+    /**
+     * Pins the canonical CTM tile count: of the 256 raw 8-bit neighbor masks, orphan-diagonal
+     * validation collapses them to exactly 47 distinct connectivity classes (the classic Optifine
+     * 47-tile atlas), and each class must map to its own tile index in {@code [0, 46]}.
+     */
     @Test
     @DisplayName("CTM: 47 distinct validated patterns produce 47 distinct tile indices")
     void ctmTileTableHas47DistinctIndices() {
@@ -287,6 +313,16 @@ class CtmMatcherTest {
         assertThat(resolution.get().textureId(), equalTo("fixed_tile"));
     }
 
+    /**
+     * Resolves {@code rule} against a fixed stone block/face under the given neighbor pattern and
+     * asserts the selected tile id. General over all neighbor-based methods despite its name (used
+     * by the HORIZONTAL, VERTICAL, TOP, CTM_COMPACT, and H/V-combo cases); the failure message
+     * carries the raw pattern bits so a mismatch names the offending mask.
+     *
+     * @param rule the neighbor-based rule under test
+     * @param pattern the neighbor connectivity to resolve
+     * @param expectedTile the tile id the layout should select for this pattern
+     */
     private static void assertHorizontal(@NotNull CtmRule rule, @NotNull NeighborPattern pattern, @NotNull String expectedTile) {
         Optional<CtmResolution> resolution = CtmMatcher.resolveWithPattern(
             rule, "minecraft:stone", "minecraft:block/stone", pattern
@@ -295,6 +331,13 @@ class CtmMatcherTest {
         assertThat("pattern bits=" + pattern.bits(), resolution.get().textureId(), equalTo(expectedTile));
     }
 
+    /**
+     * Builds a full 47-tile {@link CtmMethod#CTM} rule (tiles {@code ctm/tile_0}..{@code ctm/tile_46}),
+     * enough that every distinct validated pattern addresses a unique tile without triggering the
+     * short-list clamp.
+     *
+     * @return the 47-tile CTM rule
+     */
     private static @NotNull CtmRule ctmRule47() {
         ConcurrentList<String> tiles = Concurrent.newList();
         for (int i = 0; i < 47; i++) tiles.add("ctm/tile_" + i);
@@ -308,6 +351,15 @@ class CtmMatcherTest {
         );
     }
 
+    /**
+     * Builds a rule for {@code method} whose {@code tiles} are the given ids and whose matched
+     * blocks cover the fixtures the tests resolve against (stone, stone_bricks, cobblestone,
+     * glass), for every face ({@link CtmRule.Face#ALL}).
+     *
+     * @param method the CTM method under test
+     * @param tileIds the output tile ids in method-specific index order
+     * @return the assembled rule
+     */
     private static @NotNull CtmRule rule(@NotNull CtmMethod method, @NotNull String @NotNull ... tileIds) {
         ConcurrentList<String> tiles = Concurrent.newList(tileIds);
 

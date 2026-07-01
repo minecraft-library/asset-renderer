@@ -29,11 +29,29 @@ public class ModelTransform {
         new float[]{ 1f, 1f, 1f }
     );
 
+    /**
+     * The Euler-angle rotation in degrees, applied about X, Y, Z in that order.
+     */
     @JsonAdapter(EulerRotation.Adapter.class)
     private @NotNull EulerRotation rotation = EulerRotation.NONE;
+
+    /**
+     * The translation offset as {@code [x, y, z]}, applied before {@link #rotation}.
+     */
     private float @NotNull [] translation = { 0f, 0f, 0f };
+
+    /**
+     * The per-axis scale factors as {@code [x, y, z]}, applied after {@link #rotation}.
+     */
     private float @NotNull [] scale = { 1f, 1f, 1f };
 
+    /**
+     * Constructs a new {@code ModelTransform} from its rotation, translation, and scale.
+     *
+     * @param rotation the Euler-angle rotation in degrees, applied about X, Y, Z in that order
+     * @param translation the translation offset as {@code [x, y, z]}
+     * @param scale the per-axis scale factors as {@code [x, y, z]}
+     */
     public ModelTransform(@NotNull EulerRotation rotation, float @NotNull [] translation, float @NotNull [] scale) {
         this.rotation = rotation;
         this.translation = translation;
@@ -41,20 +59,38 @@ public class ModelTransform {
     }
 
     /**
-     * The Euler-angle rotation in degrees, applied about X/Y/Z in that order.
+     * The Euler-angle rotation in degrees, applied about X, Y, Z in that order.
      */
     public @NotNull EulerRotation getRotation() { return this.rotation; }
 
+    /**
+     * The X component of the translation offset.
+     */
     public float getTranslationX() { return this.translation[0]; }
 
+    /**
+     * The Y component of the translation offset.
+     */
     public float getTranslationY() { return this.translation[1]; }
 
+    /**
+     * The Z component of the translation offset.
+     */
     public float getTranslationZ() { return this.translation[2]; }
 
+    /**
+     * The X-axis scale factor.
+     */
     public float getScaleX() { return this.scale[0]; }
 
+    /**
+     * The Y-axis scale factor.
+     */
     public float getScaleY() { return this.scale[1]; }
 
+    /**
+     * The Z-axis scale factor.
+     */
     public float getScaleZ() { return this.scale[2]; }
 
     @Override

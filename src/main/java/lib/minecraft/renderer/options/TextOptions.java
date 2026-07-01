@@ -17,6 +17,12 @@ import java.util.function.UnaryOperator;
  * Configures a single {@code TextRenderer} invocation. Renders styled text in either the
  * Minecraft tooltip aesthetic ({@link Style#LORE}) or as plain transparent-background chat
  * text ({@link Style#CHAT}).
+ *
+ * <p>Padding, background, and border only apply to {@link Style#LORE}; {@link Style#CHAT} draws the
+ * glyph rows alone. When any {@link #getLines() line} carries obfuscated text the renderer emits an
+ * animated image of {@link #getFrameCount() frameCount} frames at {@link #getFramesPerSecond() fps}.
+ *
+ * @see lib.minecraft.renderer.TextRenderer
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
@@ -50,13 +56,14 @@ public class TextOptions {
     public static final int VANILLA_TICK_FPS = 20;
 
     /**
-     * Rendering style - tooltip or plain chat text
+     * Rendering style - {@link Style#LORE} tooltip chrome or plain {@link Style#CHAT} text.
      */
     @lombok.Builder.Default
     private final @NotNull Style style = Style.LORE;
 
     /**
-     * Styled text segments to render
+     * Styled text segments to render; each {@link LineSegment} is drawn as its own line (the
+     * renderer does not itself re-wrap segments).
      */
     @lombok.Builder.Default
     private final @NotNull ConcurrentList<LineSegment> lines = Concurrent.newList();
@@ -84,7 +91,9 @@ public class TextOptions {
     private final int borderAlpha = VANILLA_TOOLTIP_BORDER_ALPHA;
 
     /**
-     * Maximum characters per line before wrapping
+     * Advisory maximum characters per line, defaulting to {@link #VANILLA_WRAP_WIDTH_CHARS}. Exposed
+     * for callers that pre-wrap their {@link #lines} to vanilla tooltip width; the renderer does not
+     * wrap on its own.
      */
     @lombok.Builder.Default
     private final int wrapWidth = VANILLA_WRAP_WIDTH_CHARS;
@@ -109,10 +118,22 @@ public class TextOptions {
     @lombok.Builder.Default
     private final @NotNull UnaryOperator<LayerStack<ImageLayer>> layerDecorator = UnaryOperator.identity();
 
+    /**
+     * A builder pre-populated with this instance's field values, for deriving a variant.
+     *
+     * @return the seeded builder
+     */
     public @NotNull TextOptionsBuilder mutate() {
         return this.toBuilder();
     }
 
+    /**
+     * The default text options - an empty {@linkplain Style#LORE lore} tooltip with vanilla-matched
+     * padding, background/border alphas, and wrap width, ready to have {@linkplain #getLines() lines}
+     * appended.
+     *
+     * @return the default options
+     */
     public static @NotNull TextOptions defaults() {
         return builder().build();
     }

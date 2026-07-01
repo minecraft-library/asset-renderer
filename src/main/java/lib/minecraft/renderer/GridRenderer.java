@@ -35,10 +35,12 @@ import org.jetbrains.annotations.NotNull;
 public final class GridRenderer implements Renderer<GridOptions> {
 
     /**
-     * Default animated-grid output frame rate when promoting a mixed static/animated composite.
+     * Default animated-grid output frame rate (frames per second) when promoting a mixed
+     * static / animated composite through {@link FrameCompositor#merge}.
      */
     private static final int DEFAULT_FRAME_FPS = 30;
 
+    /** {@inheritDoc} */
     @Override
     public @NotNull ImageData render(@NotNull GridOptions options) {
         int cellSize = options.getCellSize();

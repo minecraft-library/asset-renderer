@@ -38,8 +38,25 @@ import java.util.Optional;
 import javax.imageio.ImageIO;
 
 /**
- * Comparison test: renders beds using both the mc-assets block model JSON (ground truth)
- * and our entity model pipeline, side by side at 1024x1024.
+ * Side-by-side visual comparison of the block-entity subjects (bed, chest) rendered two ways: the
+ * {@code minecraft:red_bed} / {@code minecraft:chest} block-entity path through the production
+ * {@link BlockRenderer} against a from-scratch render built directly off the mc-assets hand-curated
+ * block-model JSON (treated as ground truth). Both are rasterized with the same iso engine so the
+ * comparison isolates model-geometry / UV differences, not projection differences.
+ *
+ * <p>The mc-assets path parses each JSON's {@code elements} into {@link ModelElement}s, resolves the
+ * entity texture, builds triangles via {@link BlockGeometryKit#buildFromElements}, applies a
+ * subject-specific Y rotation (bed = 90 degrees to point the pillow top-right; chest = identity),
+ * recentres / rescales the bed (it spans two blocks), then rasterizes through {@link ModelEngine}
+ * under {@link Projection#VANILLA_ISO} with {@link Lens#NONE}. No entity pipeline is involved on that
+ * side - it is a pure block-model render.
+ *
+ * <p>Four PNGs land under {@code cache/visual/bed-parity/}: {@code pipeline_red_bed.png},
+ * {@code mc_assets_red_bed.png}, {@code pipeline_chest.png}, {@code mc_assets_chest.png}. Unlike the
+ * other parity tools here there is no diff/metric pass - the eye does the comparison across the
+ * pipeline-vs-mc_assets pairs.
+ *
+ * <p>Usage: {@code ./gradlew :asset-renderer:bedParity [-PrenderSize=1024]}.
  */
 @UtilityClass
 public final class TestBedParity {
@@ -50,9 +67,9 @@ public final class TestBedParity {
     );
 
     /**
-     * Runs the comparison.
+     * Runs the comparison matrix (pipeline vs mc-assets, for both red_bed and chest).
      *
-     * @param args {@code args[0]} is an optional edge length in pixels (defaults to 1024)
+     * @param args {@code args[0]} is an optional square edge length in pixels (defaults to 1024)
      * @throws IOException if the output directory cannot be created or a render cannot be written
      */
     public static void main(String @NotNull [] args) throws IOException {

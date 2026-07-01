@@ -33,10 +33,16 @@ import static org.hamcrest.Matchers.is;
 @DisplayName("Structural empty-model filter parity")
 class TemplateFilterParityTest {
 
+    /** Shared cache root with {@code PipelineIntegrationTest} so both slow tests reuse one extracted jar. */
     private static final File CACHE_ROOT = new File("cache/it");
+
+    /** Full 26.1 pipeline result feeding both the block and item index loaders. */
     private static Pipeline.Result result;
+
+    /** Block-entity model + variant maps the index loaders consume alongside {@link #result}. */
     private static BlockModelLoader.LoadResult be;
 
+    /** Runs the real 26.1 pipeline and loads the block-entity models once for both filter tests. */
     @BeforeAll
     static void setup() {
         result = Pipeline.run(PipelineOptions.builder().version("26.1").cacheRoot(CACHE_ROOT).build());

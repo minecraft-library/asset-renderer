@@ -155,9 +155,11 @@ public enum Projection {
 
     /**
      * This projection's unrotated base pose - the {@code (pitch, yaw, roll)} the camera and lighting
-     * sit at before the caller's rotation, in degrees. The canonical home for the vanilla iso angles
-     * (block {@code [30, 225, 0]}, player {@code [30, 45, 0]}, entity {@code [210, 45, 0]}); callers
-     * that need the raw rotation - the entity pipeline's bounds/anchor inverse - pull it from here.
+     * sit at before the caller's rotation, in degrees. For {@link #VANILLA_ISO} this is the single
+     * facing-neutral {@code [30, 225, 0]} iso angle; the shipped player {@code [30, 45, 0]} and entity
+     * {@code [210, 45, 0]} orientations are what that base pose becomes <b>after</b> each renderer's
+     * model-to-world {@code Placement} composes onto it, not distinct base poses stored here. Callers
+     * that need the raw rotation - the entity pipeline's bounds / anchor inverse - pull it from here.
      */
     private final @NotNull EulerRotation basePose;
 

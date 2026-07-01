@@ -24,11 +24,18 @@ import java.util.stream.Stream;
  * {@code .properties} files and parses each into a {@link CtmRule}.
  * <p>
  * Both {@code assets/minecraft/optifine/ctm/**} and {@code assets/minecraft/mcpatcher/ctm/**}
- * are scanned, and the combined rule list is sorted by descending weight.
+ * are scanned, and the combined rule list is sorted by descending weight. A rule is discarded when
+ * it declares no {@code tiles}, {@code matchBlocks}, or {@code matchTiles}. Only the context-free
+ * subset of the CTM grammar is retained (see {@link CtmRule}).
+ *
+ * @see CtmRule
  */
 @UtilityClass
 public class CtmLoader {
 
+    /**
+     * The Optifine and MCPatcher CTM subtrees scanned by {@link #load(Path)}, in that order.
+     */
     private static final @NotNull String[] CTM_ROOTS = {
         VanillaSourcePaths.OPTIFINE_CTM_DIR,
         VanillaSourcePaths.MCPATCHER_CTM_DIR
@@ -77,6 +84,18 @@ public class CtmLoader {
         return Concurrent.adoptList(rules);
     }
 
+    /**
+     * Parses one CTM {@code .properties} file into a {@link CtmRule}. Returns empty when the file
+     * declares neither {@code tiles}, {@code matchBlocks}, nor {@code matchTiles}. The
+     * {@code method} defaults to {@code fixed}; block ids are namespaced to {@code minecraft:} when
+     * unqualified while tile ids are kept verbatim. Malformed {@code weights} tokens and unknown
+     * {@code faces} names are dropped silently; an empty {@code faces} set falls back to
+     * {@link CtmRule.Face#ALL}.
+     *
+     * @param file the CTM property file to parse
+     * @return the parsed rule, or empty when the file matches nothing
+     * @throws PipelineException if the file cannot be read
+     */
     private static @NotNull Optional<CtmRule> parseFile(@NotNull Path file) {
         Properties props = new Properties();
         try (var reader = Files.newBufferedReader(file)) {
@@ -143,6 +162,14 @@ public class CtmLoader {
         ));
     }
 
+    /**
+     * Parses a base-10 integer, falling back to {@code fallback} for null, blank, or non-numeric
+     * input.
+     *
+     * @param value the string to parse, or null
+     * @param fallback the value returned when parsing fails
+     * @return the parsed integer, or {@code fallback}
+     */
     private static int parseIntOrDefault(String value, int fallback) {
         if (value == null || value.isBlank()) return fallback;
         try {

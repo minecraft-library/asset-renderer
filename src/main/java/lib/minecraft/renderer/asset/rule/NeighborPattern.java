@@ -5,8 +5,9 @@ import org.jetbrains.annotations.NotNull;
 /**
  * An 8-bit bitmask describing which of a face's surrounding neighbors connect for CTM purposes.
  * <p>
- * Face-local axes are oriented so that {@code UP} points "up the face" and {@code RIGHT} points
- * "right along the face" when viewed head-on. The eight cardinal + diagonal positions are:
+ * Face-local axes are oriented so that {@link #N} points "up the face" and {@link #E} points
+ * "right along the face" when the face is viewed head-on. The eight cardinal + diagonal positions
+ * are:
  *
  * <pre>{@code
  *    NW   N   NE
@@ -16,9 +17,10 @@ import org.jetbrains.annotations.NotNull;
  *    SW   S   SE
  * }</pre>
  *
- * A bit being set means "this neighbor matches" by whatever predicate the caller used to build
- * the pattern (block id, base texture id, etc.). The matcher itself is agnostic to the predicate;
- * it only consumes the pattern.
+ * The bit values walk clockwise from {@link #N}: N=0x01, NE=0x02, E=0x04, SE=0x08, S=0x10,
+ * SW=0x20, W=0x40, NW=0x80. A bit being set means "this neighbor matches" by whatever predicate
+ * the caller used to build the pattern (block id, base texture id, etc.). The matcher itself is
+ * agnostic to the predicate; it only consumes the pattern.
  * <p>
  * Per-method tile selection then folds the 256 possible patterns into the rule's tile list. The
  * full 47-tile {@code CTM} layout, the reduced 5-tile {@code CTM_COMPACT}, and the smaller

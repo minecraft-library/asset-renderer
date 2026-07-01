@@ -14,16 +14,41 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 /**
- * Configures a single {@code LayoutRenderer} invocation. Uses a custom (non-Lombok) builder so
- * the {@code child(Renderer, Options)} method can erase the options type parameter cleanly.
+ * Configures a single {@link LayoutRenderer} invocation.
+ *
+ * <p>Uses a hand-written (non-Lombok) builder so the {@link Builder#child(Renderer, Object)
+ * child(Renderer, Options)} overload can erase the child's options type parameter cleanly -
+ * each child is captured as a {@link Supplier} of {@link ImageData} whose render is deferred until
+ * the layout renderer walks the tree.
+ *
+ * @see lib.minecraft.renderer.LayoutRenderer
  */
 @Getter
 public class LayoutOptions {
 
+    /**
+     * Layout strategy positioning the children on the output canvas.
+     */
     private final @NotNull Layout layout;
+
+    /**
+     * Deferred child renders, one supplier per appended child, in append order.
+     */
     private final @NotNull ConcurrentList<Supplier<ImageData>> children;
+
+    /**
+     * Target output frame rate used when any child is animated.
+     */
     private final int framesPerSecond;
+
+    /**
+     * Canvas background fill applied before blitting any child.
+     */
     private final @NotNull Background background;
+
+    /**
+     * Transform applied to the default child {@link FrameLayer} stack before it runs.
+     */
     private final @NotNull UnaryOperator<ConcurrentList<FrameLayer>> layerDecorator;
 
     private LayoutOptions(
@@ -41,14 +66,19 @@ public class LayoutOptions {
     }
 
     /**
-     * A new builder.
+     * A new builder seeded with the defaults.
+     *
+     * @return the builder
      */
     public static @NotNull Builder builder() {
         return new Builder();
     }
 
     /**
-     * The default layout options (a row of nothing at 30 fps).
+     * The default layout options - an empty {@linkplain Layout#row() row} (8px padding, centered)
+     * at 30 fps over a {@linkplain Background#TRANSPARENT transparent} background.
+     *
+     * @return the default options
      */
     public static @NotNull LayoutOptions defaults() {
         return builder().build();

@@ -19,9 +19,25 @@ import java.util.List;
  */
 public final class LayerStack<L> {
 
+    /**
+     * One stored layer and its sort keys.
+     *
+     * @param <L> the layer type
+     * @param key the primary render-order key (a {@link LayerSlot#order() slot order}, offset by
+     *        {@code -0.5} / {@code +0.5} for before / after insertions)
+     * @param seq the monotonic insertion sequence, breaking ties among equal keys
+     * @param layer the stored layer
+     */
     private record Entry<L>(double key, int seq, @NotNull L layer) {}
 
+    /**
+     * Backing entries in insertion order; render order is derived on demand by {@link #ordered()}.
+     */
     private final @NotNull List<Entry<L>> entries = new ArrayList<>();
+
+    /**
+     * Monotonic counter stamped onto each entry to preserve insertion order as a tie-breaker.
+     */
     private int seq;
 
     /**

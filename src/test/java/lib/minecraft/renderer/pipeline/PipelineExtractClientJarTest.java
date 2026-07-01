@@ -26,6 +26,13 @@ import static org.hamcrest.Matchers.is;
  * a root mcmeta (the modern Mojang client-jar shape, verified across 1.21.4 and 26.1
  * during the 999.8 backlog investigation).
  * <p>
+ * The synthesis reads {@code version.json} (captured in memory during ZIP iteration, never
+ * written to disk) and derives the pack format from its {@code pack_version} object. Format
+ * resolution prefers the modern {@code resource_major} key, falls back to the legacy flat
+ * {@code resource} key (paired with {@code data} in 1.21.4-era jars), and bails silently when
+ * neither key is present, {@code version.json} is absent, or its JSON is malformed. Synthesis
+ * only runs when the jar shipped no root {@code pack.mcmeta} - a real mcmeta always wins.
+ * <p>
  * These tests construct synthetic ZIPs in-process - no Minecraft assets are touched and
  * the {@code @Tag("slow")} integration path is untouched.
  */
@@ -230,11 +237,20 @@ class PipelineExtractClientJarTest {
         assertThat(Files.exists(packRoot.resolve("pack.mcmeta")), is(false));
     }
 
+    /** Callback that populates the entries of the synthetic client jar under construction. */
     @FunctionalInterface
     private interface ZipBuilder {
         void build(ZipOutputStream zip) throws IOException;
     }
 
+    /**
+     * Builds an in-memory ZIP from {@code builder} and writes it to {@code jarPath}, standing in for
+     * a real client jar without touching any Minecraft assets.
+     *
+     * @param jarPath destination path for the synthetic jar
+     * @param builder callback that adds the jar entries
+     * @throws IOException if writing the jar bytes fails
+     */
     private static void writeZip(@org.jetbrains.annotations.NotNull Path jarPath, ZipBuilder builder) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (ZipOutputStream zip = new ZipOutputStream(bytes)) {
@@ -243,12 +259,20 @@ class PipelineExtractClientJarTest {
         Files.write(jarPath, bytes.toByteArray());
     }
 
+    /**
+     * Serialises a {@link JsonObject} populated by {@code builder} to a compact JSON string for use
+     * as a jar entry body (a {@code version.json} or {@code pack.mcmeta} fixture).
+     *
+     * @param builder callback that populates the object
+     * @return the serialised JSON
+     */
     private static String json(JsonBuilder builder) {
         JsonObject obj = new JsonObject();
         builder.build(obj);
         return GSON.toJson(obj);
     }
 
+    /** Callback that populates the {@link JsonObject} backing a fixture JSON document. */
     @FunctionalInterface
     private interface JsonBuilder {
         void build(JsonObject obj);

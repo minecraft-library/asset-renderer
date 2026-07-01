@@ -9,6 +9,21 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
+/**
+ * Verifies {@link BlockFace} - the six cardinal block-model faces and their metadata.
+ * <p>
+ * Covers name lookup ({@link BlockFace#fromName} is case-insensitive and null-safe, unknown names
+ * return {@code null}), each face's lowercase {@link BlockFace#direction} JSON key, the pre-baked
+ * inventory {@link BlockFace#lighting} shade factors matching the vanilla {@code Lighting.ITEMS_3D}
+ * bake (UP 1.0, DOWN 0.5, N/S 0.6, E/W 0.8 - E/W deliberately brighter than N/S), and the outward
+ * unit {@link BlockFace#normal}s.
+ * <p>
+ * The {@link BlockFace#fromNormal} cases pin the closest-cardinal resolver: it depends only on
+ * component-magnitude ordering (so an un-normalized normal resolves the same face), ties break in
+ * {@code Y > Z > X} order - load-bearing for exact 45-degree faces such as sculk tendrils where
+ * {@code |x| == |z|} must snap to the Z cardinal - and a degenerate zero normal falls back to
+ * {@link BlockFace#UP}.
+ */
 @DisplayName("BlockFace lookup, normals, and cardinal resolution")
 class BlockFaceTest {
 

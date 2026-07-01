@@ -19,6 +19,8 @@ import org.jetbrains.annotations.Nullable;
  * vanilla's {@code rendertype_end_portal.fsh}. Scene-aware concerns (camera facing, fog, translucent
  * blending) are deliberately out of scope; the renderer stays scene-agnostic so the atlas can bake
  * a deterministic tile.
+ *
+ * @see lib.minecraft.renderer.PortalRenderer
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
@@ -122,17 +124,31 @@ public class PortalOptions {
     @lombok.Builder.Default
     private final @NotNull Background background = Background.TRANSPARENT;
 
-        /**
-     * Graphical projection for the 3D render. Defaults to {@link Projection#VANILLA_ISO} -
-     * byte-identical to the shipped render; selecting another re-poses the camera and flatten together.
+    /**
+     * Graphical projection for the isometric 3D render. Defaults to {@link Projection#VANILLA_ISO}
+     * - byte-identical to the shipped render; selecting another re-poses the camera and its lens
+     * together. No-op on the 2D face path.
      */
     @lombok.Builder.Default
     private final @NotNull Projection projection = Projection.VANILLA_ISO;
 
+    /**
+     * A builder pre-populated with this instance's field values, for deriving a variant.
+     *
+     * @return the seeded builder
+     */
     public @NotNull PortalOptionsBuilder mutate() {
         return this.toBuilder();
     }
 
+    /**
+     * The default portal options - a static isometric 3D {@linkplain Portal#END_PORTAL end portal}
+     * at {@link Renderer#DEFAULT_OUTPUT_SIZE} pixels with 2x supersampling and FXAA, under the
+     * {@linkplain Projection#VANILLA_ISO vanilla isometric} projection over a
+     * {@linkplain Background#TRANSPARENT transparent} background.
+     *
+     * @return the default options
+     */
     public static @NotNull PortalOptions defaults() {
         return builder().build();
     }
@@ -160,9 +176,9 @@ public class PortalOptions {
     public enum Type {
 
         /**
-         * Full 3D isometric portal geometry - unit cube for {@link Portal#END_GATEWAY}, thin
-         * top-face slab at {@code y = 12/16} for {@link Portal#END_PORTAL} matching vanilla's
-         * {@code TheEndPortalRenderer.TOP} offset.
+         * Full 3D isometric portal geometry - a unit cube for {@link Portal#END_GATEWAY}, or a thin
+         * slab spanning {@code y = 6/16..12/16} for {@link Portal#END_PORTAL} whose top face sits at
+         * {@code 12/16}, matching vanilla's {@code TheEndPortalRenderer.TOP} offset.
          */
         ISOMETRIC_3D,
 

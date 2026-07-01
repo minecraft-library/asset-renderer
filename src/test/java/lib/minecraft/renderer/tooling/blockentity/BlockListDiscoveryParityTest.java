@@ -19,23 +19,38 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Slow parity test: walks the real 26.1 client jar through {@link BlockListDiscovery#discover}
- * and compares each entity-id's {@code blocks} list against {@code baseline/block_list.json}.
- * Confirms the bytecode-driven discovery produces the same output as the captured ground truth.
+ * Slow parity test that walks the real 26.1 client jar through {@link BlockListDiscovery#discover}
+ * and compares each entity-id's {@code blocks} list ({@code blockId} + {@code textureId}, in order)
+ * against the captured {@code baseline/block_list.json}. Confirms the bytecode-driven discovery
+ * that replaced the hardcoded {@code BlockListCatalog} reproduces the same block bindings as the
+ * ground-truth snapshot.
  *
- * <p>Divergences are expected in the PR that replaces {@code BlockListCatalog} - when the
- * baseline was authored against a pre-26.1 jar, new block variants may appear in discovery but
- * not in the baseline. Such drift is surfaced by this test so the baseline can be updated
- * deliberately.
+ * <p>Scope is deliberately narrow: it diffs only the {@code blocks} list (key set, per-entry
+ * {@code blockId}, per-entry {@code textureId}), not the {@code parts} sub-model references or the
+ * {@code variant} slot. Those are exercised structurally by {@link BlockListDiscoveryTest}.
+ *
+ * <p>When the baseline was authored against a different client jar, new block variants may appear
+ * in discovery but not in the baseline; that drift surfaces here as a key-set or count mismatch so
+ * the baseline can be regenerated deliberately rather than silently.
  */
 @DisplayName("BlockListDiscovery parity")
 @Tag("slow")
 class BlockListDiscoveryParityTest {
 
+    /** Cached deobfuscated 26.1 client jar - the live input the discovery walk runs against. */
     private static final Path JAR = Path.of("cache/asset-renderer/vanilla/26.1/client.jar");
+
+    /** Captured ground-truth snapshot of the entity-id to blocks bindings. */
     private static final Path BASELINE = Path.of("src/test/resources/lib/minecraft/renderer/baseline/block_list.json");
+
+    /** Shared Gson configured with the project's default settings. */
     private static final Gson GSON = GsonSettings.defaults().create();
 
+    /**
+     * Asserts the live discovery key set matches the baseline exactly, then walks each entity's
+     * {@code blocks} list index-by-index, pinning both {@code blockId} and {@code textureId} against
+     * the baseline entry at the same position (order is load-bearing).
+     */
     @Test
     @DisplayName("BlockListDiscovery matches baseline/block_list.json")
     void parity() throws IOException {

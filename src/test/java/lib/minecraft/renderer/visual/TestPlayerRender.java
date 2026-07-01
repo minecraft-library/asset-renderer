@@ -91,7 +91,8 @@ public final class TestPlayerRender {
      *
      * @param args optional {@code key=value} tokens: {@code size=NNN} (or a bare integer) sets the
      *     per-cell render size; {@code sheets=a,b,c} restricts which sheets render; {@code pack} (or
-     *     {@code pack=<url>}) enables the vanilla-vs-pack armor sheet
+     *     {@code pack=<url>}) enables the vanilla-vs-pack armor sheet; {@code account=<username>}
+     *     overrides the live-account username (defaults to {@link #ACCOUNT_USERNAME})
      * @throws IOException if an output directory or file cannot be written
      */
     public static void main(String @NotNull [] args) throws IOException {
@@ -591,7 +592,14 @@ public final class TestPlayerRender {
             }
     }
 
-    /** A single labelled grid cell - either a deferred {@link PlayerOptions} or a rendered image. */
+    /**
+     * A single labelled grid cell - either a deferred {@link PlayerOptions} (rendered later during
+     * sheet assembly) or an already-rendered image.
+     *
+     * @param label caption drawn beneath the cell and used to derive its PNG filename
+     * @param options render request to execute, or {@code null} when the cell holds a pre-rendered image
+     * @param image pre-rendered image, or {@code null} when the cell defers to {@code options}
+     */
     private record Cell(@NotNull String label, PlayerOptions options, BufferedImage image) {
         Cell(@NotNull String label, @NotNull PlayerOptions options) {
             this(label, options, null);

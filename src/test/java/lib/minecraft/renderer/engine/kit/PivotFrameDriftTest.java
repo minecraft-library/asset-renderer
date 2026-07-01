@@ -43,6 +43,12 @@ class PivotFrameDriftTest {
     /** Cube-local vertex (one corner of a cube authored at origin -2,-2,-2 size 4,4,4). */
     private static final Vector3f CUBE_CORNER = new Vector3f(-2f, -2f, -2f);
 
+    /**
+     * The regression sentinel: a single-level illager-arm pivot chain, ours vs vanilla, for one leaf
+     * vertex. Documented finding is ~64 ULPs of Z drift even without hierarchy; the assertion allows up
+     * to 256 ULPs per axis so a future tensor / {@code Quaternionf} refactor that materially worsens the
+     * drift trips here, while ordinary sub-texel noise passes.
+     */
     @Test
     @DisplayName("single-level pivot chain: ours vs vanilla output for one vertex")
     void singleLevelDrift_quantifyOutputBits() {
@@ -139,6 +145,13 @@ class PivotFrameDriftTest {
         }
     }
 
+    /**
+     * Pins the structural difference between the two chains: {@code T(+p)·R·T(-p)} bakes
+     * {@code p - R·p} into its translation column while vanilla's {@code T(+p)·R} bakes plain {@code p},
+     * yet the rotational 3×3 block is <b>bit-identical</b> between them. So the only place the chains can
+     * disagree is that translation column - which is exactly why the leaf-vertex drift stays in the
+     * low-ULP range once the vertex is pivot-shifted to compensate.
+     */
     @Test
     @DisplayName("our matrix's translation column is built from p - R*p; vanilla's is just p")
     void chainTranslationColumnComposition() {
@@ -217,6 +230,14 @@ class PivotFrameDriftTest {
 
     // --- helpers ---
 
+    /**
+     * Distance between two floats in units-in-the-last-place, exploiting IEEE-754's monotonic bit
+     * ordering for like-signed values. Opposite-sign inputs return {@link Integer#MAX_VALUE}.
+     *
+     * @param a first value
+     * @param b second value
+     * @return ULP distance, or {@link Integer#MAX_VALUE} when the signs differ
+     */
     private static int ulpsBetween(float a, float b) {
         if (a == b) return 0;
         int ia = Float.floatToRawIntBits(a);

@@ -12,6 +12,15 @@ import java.util.Optional;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
+/**
+ * Verifies {@link CitMatcher#match} - the CIT (Custom Item Texture) rule predicate that decides
+ * whether a {@link CitRule} applies to an {@link ItemContext}.
+ * <p>
+ * Every condition on a rule is ANDed, so these tests pin each gate in isolation: the
+ * {@link ItemContext#EMPTY} short-circuit, item-id membership, inclusive {@link IntRange} damage
+ * bounds, {@code ipattern:} glob matching on {@code display.Name} via {@link NbtCondition}, and
+ * required-enchantment presence.
+ */
 class CitMatcherTest {
 
     @Test
@@ -141,6 +150,13 @@ class CitMatcherTest {
         assertThat(CitMatcher.match(rule, withoutEnch), is(false));
     }
 
+    /**
+     * Builds a minimal rule matching on item id alone - no damage / stack / NBT / enchantment
+     * conditions - so a single gate can be exercised without noise from the others.
+     *
+     * @param itemId the sole item id the rule accepts
+     * @return the item-id-only rule
+     */
     private static @NotNull CitRule simpleRule(@NotNull String itemId) {
         ConcurrentList<String> items = Concurrent.newList();
         items.add(itemId);

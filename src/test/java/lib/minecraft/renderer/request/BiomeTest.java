@@ -9,8 +9,12 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
- * Sanity checks on {@link Biome} - verifies every vanilla entry has plausible metadata, the
- * custom factory produces the expected record shape, and the lookup helpers behave.
+ * Sanity checks on {@link Biome}. Sweeps {@link Biome.Vanilla} for plausible metadata (every entry
+ * has a {@code minecraft:}-namespaced id, temperature in {@code [-1, 2]}, downfall in {@code [0, 1]})
+ * and spot-checks a few known entries: PLAINS' temperate values, BADLANDS' hardcoded grass/foliage
+ * overrides, and the SWAMP / DARK_FOREST {@link Biome.GrassColorModifier}s. Also covers the
+ * {@link Biome#of(String, float, float)} shorthand and {@link Biome#builder(String)} custom
+ * factories, plus the {@link Biome.Vanilla#byId(String)} id round-trip and its empty miss.
  */
 class BiomeTest {
 

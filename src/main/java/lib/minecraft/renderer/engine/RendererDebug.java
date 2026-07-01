@@ -156,9 +156,11 @@ public final class RendererDebug {
     }
 
     /**
-     * Logs a single {@code [PX]\tTRI} per-triangle projection trace line. Fires unconditionally
-     * when the pixel-dump rectangle is configured so offline tooling can join the per-pixel
-     * fragment trace to the projecting triangle.
+     * Logs a single {@code [PX]\tTRI} per-triangle projection trace line - the projected screen
+     * corners, world corners, and UVs - so offline tooling can join the per-pixel fragment trace to
+     * its projecting triangle. Fires whenever the pixel-dump rectangle is configured and the source
+     * triangle carries a {@code debugTag} (untagged triangles are skipped); unlike the {@code pixel*}
+     * fragment lines it does not gate on the rect bounds, since a triangle spans many pixels.
      */
     public static void pixelTriangle(@NotNull VisibleTriangle source,
                                       @NotNull Vector2f s0, @NotNull Vector2f s1, @NotNull Vector2f s2,
@@ -236,6 +238,8 @@ public final class RendererDebug {
      * polygon. Returns {@code null} when the per-polygon bounds dump is disabled on this thread
      * so callers can hand the label straight to subsequent {@code bounds*} calls without
      * branching: the receiving methods short-circuit on a {@code null} label.
+     *
+     * @return the per-face label prefix, or {@code null} when the bounds dump is off on this thread
      */
     public static @Nullable String boundsFaceLabel(@NotNull String boneName, int cubeIndex,
                                                     @NotNull Object faceDirection,

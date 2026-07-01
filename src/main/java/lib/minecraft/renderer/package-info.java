@@ -65,10 +65,10 @@
  * </ul>
  *
  * <p><b>Common defaults.</b> {@link lib.minecraft.renderer.Renderer#DEFAULT_OUTPUT_SIZE Renderer#DEFAULT_OUTPUT_SIZE} is the
- * shared square-pixel default for single-entity renders. Every entity-scoped options record
- * ({@code BlockOptions}, {@code EntityOptions}, {@code ItemOptions}, {@code PlayerOptions})
- * picks it up so a caller building with all defaults gets a consistent tile dimension across
- * renderers.
+ * shared square-pixel default for single-subject renders. Every subject-scoped options record
+ * ({@code BlockOptions}, {@code EntityOptions}, {@code ItemOptions}, {@code PlayerOptions},
+ * {@code FluidOptions}, {@code PortalOptions}) picks it up so a caller building with all defaults
+ * gets a consistent tile dimension across renderers.
  *
  * @see lib.minecraft.renderer.Renderer
  * @see lib.minecraft.renderer.options

@@ -8,11 +8,18 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * Bit-comparison between our tensor math and {@code org.joml} (vanilla's actual matrix
- * backend). Vanilla's {@code PoseStack.Pose.pose} is an {@code org.joml.Matrix4f}; every
- * vertex transform vanilla performs is JOML arithmetic. If our equivalent operations
- * differ from JOML at the bit level, the difference accumulates through the chain and
- * shows up as snap-rescued vertex drift.
+ * Bit-comparison between this codebase's {@link Matrix4f} / {@link Quaternionf} tensor math and
+ * {@code org.joml} (vanilla's actual matrix backend). Vanilla's {@code PoseStack.Pose.pose} is an
+ * {@code org.joml.Matrix4f}; every vertex transform vanilla performs is JOML arithmetic. If our
+ * equivalent operations differ from JOML at the bit level, the difference accumulates through the
+ * chain and shows up as snap-rescued vertex drift.
+ *
+ * <p>The two load-bearing scenarios are the fluent-op ones - {@code JOML_FLUENT_FULL} (matrix bit
+ * compare) and {@code JOML_FLUENT_VERT} (vertex transform) in {@link #fluentOpsMatchJomlBitIdentical} -
+ * which pin our ported fluent {@code translate/scale/rotate} ops to <b>0-ULP</b> parity with a JOML
+ * PoseStack chain. The remaining tests are report-only probes ({@code System.out} traces, no hard
+ * assertions) that quantify where legacy {@code .multiply} composition diverged from JOML before the
+ * fluent ops landed.
  *
  * <p><b>Test method:</b> build the same matrix chain via JOML and our tensor classes side
  * by side, transform the same vertex, ULP-compare the results. Reports as {@code [JOML_*]}
@@ -190,6 +197,14 @@ class JomlSideBySideTest {
             ulpsBetween(vanillaOut.z, oursOut.z()));
     }
 
+    /**
+     * The load-bearing bit-parity test: an eight-step pose chain (translate / scale / rotate,
+     * including a {@code rotationXYZ} quaternion and a {@code rotationY(π)} facing flip) built via our
+     * fluent {@code Matrix4f} ops must equal the JOML PoseStack-equivalent chain at <b>0 ULPs</b> both
+     * for the matrix ({@code JOML_FLUENT_FULL}) and the transformed vertex ({@code JOML_FLUENT_VERT}).
+     * The trailing {@code System.out} traces reproduce JOML's {@code mulPositionGeneric} FMA sequence
+     * so any residual ULP can be walked back to the exact fused-multiply-add step.
+     */
     @Test
     @DisplayName("[JOML_FLUENT] Matrix4f fluent translate/scale/rotate matches JOML PoseStack bit-for-bit")
     void fluentOpsMatchJomlBitIdentical() {
@@ -328,6 +343,11 @@ class JomlSideBySideTest {
 
     // --- helpers ---
 
+    /**
+     * Entry-by-entry ULP compare of a JOML matrix against ours, printing the worst-drifting cell.
+     * JOML's zero-indexed {@code m(col, row)} accessor maps to our one-indexed {@code get(col+1, row+1)}
+     * - both are column-major, so no transpose is involved.
+     */
     private static void compareMatrices(String label, org.joml.Matrix4fc vanilla, Matrix4f ours) {
         int maxUlps = 0;
         int worstCol = 0, worstRow = 0;
@@ -348,6 +368,15 @@ class JomlSideBySideTest {
         if (details.length() > 0) System.out.print(details);
     }
 
+    /**
+     * Distance between two floats in units-in-the-last-place. Exploits IEEE-754's monotonic
+     * ordering of the raw bit patterns for like-signed values; opposite-sign inputs (including
+     * {@code +0.0} vs {@code -0.0}) are treated as maximally distant.
+     *
+     * @param a first value
+     * @param b second value
+     * @return ULP distance, or {@link Integer#MAX_VALUE} when the signs differ
+     */
     private static int ulpsBetween(float a, float b) {
         if (a == b) return 0;
         int ia = Float.floatToRawIntBits(a);

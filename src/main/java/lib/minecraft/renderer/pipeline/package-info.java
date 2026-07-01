@@ -22,14 +22,15 @@
  * <ul>
  *   <li>{@link lib.minecraft.renderer.pipeline.loader loader} - one loader per asset family
  *       (JSON / NBT / PNG), each with its own pack-stack merge precedence.</li>
- *   <li>{@link lib.minecraft.renderer.asset.rule pack} - immutable parsed-rule records and
+ *   <li>{@link lib.minecraft.renderer.asset.rule rule} - immutable parsed-rule records and
  *       matchers for OptiFine features (CIT / CTM / colormap), plus {@code PackMeta} and the value
  *       types they consume.</li>
  *   <li>{@link lib.minecraft.renderer.pipeline.resolver resolver} - cross-loader resolvers: model
- *       parent inheritance, block-entity overlays, and pack-stack precedence.</li>
- *   <li>{@link lib.minecraft.renderer.pipeline.util util} - SPI impls and shared utilities (pack
- *       acquire / download, per-pixel diagnostics, and the {@code VanillaSourcePaths} jar-prefix
- *       constants every loader keys off).</li>
+ *       parent inheritance ({@code ModelResolver}) and pack-stack overlay precedence
+ *       ({@code PackResolver}).</li>
+ *   <li>{@link lib.minecraft.renderer.pipeline.util util} - shared utilities: pack acquire /
+ *       download ({@code PackAcquirer} / {@code PackDownloader}), the {@code Models} blank-model
+ *       template test, and the {@code VanillaSourcePaths} jar-prefix constants every loader keys off.</li>
  * </ul>
  *
  * <p><b>Gson.</b> {@link lib.minecraft.renderer.pipeline.PipelineGsonContributor

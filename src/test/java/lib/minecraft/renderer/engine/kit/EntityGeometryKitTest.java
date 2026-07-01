@@ -30,14 +30,24 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 /**
  * Foundation invariants for {@link EntityGeometryKit} verified against a clean single-bone,
  * single-cube fixture - no bone hierarchy, no rotations, no overrides. Locks down the kit's
- * Y-flip + winding-reversal + UV-swap + UV-permutation contract so future refactors can detect
- * drift before propagating to entities.
+ * Y-flip + winding + UV-swap + UV-permutation contract so future refactors can detect drift
+ * before it propagates to entities.
  *
- * <p>Round 5 of {@code JAVA_PIPELINE_RESEARCH.md} identified five coupled invariants that must
- * change together: position Y-flip, normal Y-flip, UV face swap (UP/DOWN), UV permutation per
- * face direction, and triangle winding reversal. This test exercises each on the simplest
- * possible input so a defect in one shows as a focused assertion failure rather than a
- * downstream entity-render regression.
+ * <p>Seven invariants are pinned; the load-bearing one is {@link #winding_geometricNormalAgreesWithStored}:
+ * <b>emit-order cross product ⋅ stored normal &gt; 0</b> - each triangle is wound so its geometric
+ * normal agrees with the stored normal, camera- and projection-independent. Since the Placement /
+ * Camera split moved the kit Y-flip onto the model-to-world {@code Placement}, the kit is now
+ * <b>de-flipped (det=+1 internally)</b>: it emits positions and normals in the model's native Y-up
+ * frame, and the chirality reflection re-enters at render time via the {@code Placement} + camera -
+ * so screen-space cull winding is unchanged.
+ *
+ * <p>Round 5 of {@code JAVA_PIPELINE_RESEARCH.md} identified the coupled invariants that must
+ * change together: position frame, normal frame, UV face swap (UP/DOWN), UV permutation per face
+ * direction, and triangle winding. This test exercises each on the simplest possible input so a
+ * defect in one shows as a focused assertion failure rather than a downstream entity-render
+ * regression. Guarding against: removing / adding a kit {@code FLIP_Y} without updating the
+ * winding-reversal, changing UV-permutation arrays without the UP↔DOWN face swap, and breaking the
+ * atlas-layout coefficients in {@link EntityFace#defaultUv}.
  */
 class EntityGeometryKitTest {
 
@@ -51,6 +61,11 @@ class EntityGeometryKitTest {
         assertThat(result.triangles().size(), equalTo(12));
     }
 
+    /**
+     * Pins the auto-fit envelope: every emitted vertex Y lands inside the fit bounds. The kit scales
+     * the model's longest axis to {@code [-0.45, +0.45]} ({@code ENTITY_MODEL_FIT_EXTENT / extent}),
+     * so no de-flip / fit-scale regression can push geometry off-canvas.
+     */
     @Test
     @DisplayName("Y-flip applied: every vertex lands within auto-fit bounds")
     void positionYFlip_keepsVerticesInBounds() {
@@ -62,6 +77,12 @@ class EntityGeometryKitTest {
                     both(greaterThanOrEqualTo(-0.46f)).and(lessThanOrEqualTo(0.46f)));
     }
 
+    /**
+     * Pins outward-facing normals: each triangle's stored normal, dotted with the vector from the
+     * cube center to the triangle centroid, is positive. Guards the de-flipped kit's normal frame -
+     * a sign flip on the normal Y-axis (or a stale {@code FLIP_Y}) would invert this on the top /
+     * bottom faces.
+     */
     @Test
     @DisplayName("post-flip stored normals point outward relative to cube center")
     void normals_pointOutwardPostFlip() {
@@ -77,13 +98,22 @@ class EntityGeometryKitTest {
         }
     }
 
+    /**
+     * The load-bearing foundation invariant: for every emitted triangle, the emit-order cross product
+     * {@code (p1 - p0) × (p2 - p0)} dotted with the stored normal is {@code > 0} - the geometric normal
+     * <b>agrees</b> with the stored normal. Camera- and projection-independent.
+     *
+     * <p>This is the AGREES (not opposes) direction because the kit is de-flipped: the Placement /
+     * Camera split moved the Y-flip off the kit onto the model-to-world {@code Placement}, so the kit is
+     * det=+1 internally and no in-kit reflection reverses emit order relative to the stored normal.
+     */
     @Test
     @DisplayName("emit-order geometric normal agrees with stored normal (kit de-flipped, det=+1 internally)")
     void winding_geometricNormalAgreesWithStored() {
         // Since the Placement/Camera split moved the kit Y-flip onto the model->world Placement, the
         // kit emits positions AND stored normals in the model's native Y-up frame (det=+1 internally).
-        // The kit emits triangles in NATURAL CCW order {@code (0, 1, 2)} and {@code (0, 2, 3)}; with no
-        // in-kit reflection their emit-order cross product now AGREES with the stored (un-flipped) face
+        // The kit emits triangles in NATURAL CCW order (0, 1, 2) and (0, 2, 3); with no in-kit
+        // reflection their emit-order cross product now AGREES with the stored (un-flipped) face
         // normal. The screen-space winding the rasterizer culls on is unchanged - the reflection re-enters
         // via the Placement + camera at render time (verified: entity parity byte-identical across the
         // baseline set) - so this flip is kit-internal only.
@@ -121,6 +151,11 @@ class EntityGeometryKitTest {
             assertThat("face " + face + " triangle count", faceCount.get(face), equalTo(2));
     }
 
+    /**
+     * Pins the atlas footprint: no UV escapes the cube's box-unwrap strip. A 2×2×2 cube at
+     * {@code texOffs(0, 0)} on a 64×64 texture occupies exactly {@code u[0, 8/64], v[0, 4/64]}. Catches
+     * a broken {@link EntityFace#defaultUv} coefficient that would sample outside the authored region.
+     */
     @Test
     @DisplayName("UV mapping covers only the cube's UV strip atlas region")
     void uvLayout_coversStripRegion() {
@@ -137,6 +172,13 @@ class EntityGeometryKitTest {
             }
     }
 
+    /**
+     * Pins the UP↔DOWN UV swap: the two triangles carrying the {@code (0, +1, 0)} UP normal sample
+     * from the DOWN strip slot ({@code u[4/64, 6/64]}), not the TOP slot. The Placement Y-flip lands the
+     * original UP cube vertices at the visual screen-bottom, so the kit compensates by swapping which
+     * strip slot those triangles read - a coupled invariant that must move in lockstep with any
+     * winding / normal-frame change.
+     */
     @Test
     @DisplayName("UP-cube-face triangles sample from the DOWN strip slot (Y-flip swap compensation)")
     void uvSwap_upFaceLandsInDownSlot() {
@@ -164,6 +206,13 @@ class EntityGeometryKitTest {
 
     // --- fixtures ---
 
+    /**
+     * Builds the canonical fixture: one {@code body} bone (no rotation, unit scale, no parent) holding
+     * one axis-aligned cube spanning {@code [-HALF, +HALF]} per axis, at atlas origin {@code (0, 0)} on
+     * a solid-white 64×64 texture. No hierarchy, no overrides - the simplest input that still exercises
+     * all six cardinal faces, so a defect surfaces as a focused assertion rather than a downstream
+     * entity regression.
+     */
     private static EntityGeometryKit.BuildResult buildSingleCube() {
         ConcurrentMap<String, EntityModelData.FaceUv> faceUv = Concurrent.newMap();
         EntityModelData.Cube cube = new EntityModelData.Cube(
@@ -195,12 +244,14 @@ class EntityGeometryKitTest {
         return EntityGeometryKit.buildTriangles(model, solidTexture(64, 64));
     }
 
+    /** Opaque-white {@code w×h} texture ({@code 0xFFFFFFFF} everywhere) so UV sampling never drops texels. */
     private static PixelBuffer solidTexture(int w, int h) {
         int[] pixels = new int[w * h];
         for (int i = 0; i < pixels.length; i++) pixels[i] = 0xFFFFFFFF;
         return PixelBuffer.of(pixels, w, h);
     }
 
+    /** Drains the build result's triangle stream into a random-access list for repeated iteration. */
     private static List<VisibleTriangle> collect(EntityGeometryKit.BuildResult result) {
         List<VisibleTriangle> out = new ArrayList<>();
         for (VisibleTriangle tri : result.triangles()) out.add(tri);

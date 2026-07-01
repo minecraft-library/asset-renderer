@@ -8,6 +8,17 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+/**
+ * Verifies {@link IntRange} - the inclusive integer range used by CIT/CTM rules for damage, stack
+ * size, and enchantment-level filters.
+ * <p>
+ * Covers the {@link IntRange#of} single-value factory, the all-integers {@link IntRange#ANY}
+ * sentinel, inclusive-both-ends {@link IntRange#contains containment}, and every
+ * {@link IntRange#parse} form: single value, closed {@code "5-10"} range, open-max {@code "5-"}
+ * range, surrounding whitespace, the leading-dash-is-a-sign edge case ({@code "-10"} is the value
+ * -10, {@code "-5-10"} is a negative closed range), and the {@link NumberFormatException} on
+ * non-numeric input.
+ */
 @DisplayName("IntRange parsing + containment")
 class IntRangeTest {
 

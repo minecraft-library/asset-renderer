@@ -9,16 +9,24 @@
  * {@code rotationXYZ}) and {@code identity(lens)}.
  *
  * <p>{@link lib.minecraft.renderer.engine.camera.Projection Projection} is the catalog that assembles
- * those primitives into named cameras: the {@code VANILLA_ISO} / {@code VANILLA_ISO} /
- * {@code VANILLA_GUI_ITEM} / {@code VANILLA_ISO} baselines plus the textbook axonometric /
- * perspective / oblique families, each resolving to a single
- * {@link lib.minecraft.renderer.engine.camera.Camera Camera} (pose + lens + lighting pose). It also
- * owns the entity chirality chain (the {@code [210, 45, 0]} harness
- * iso chain with its det=-1 LER chirality, reused by
- * {@link lib.minecraft.renderer.EntityRenderer EntityRenderer}'s bounds / anchor projection).
+ * those primitives into named cameras: the {@code VANILLA_ISO} / {@code VANILLA_GUI_ITEM} shipped
+ * baselines plus the textbook axonometric / perspective / oblique families, each resolving to a single
+ * {@link lib.minecraft.renderer.engine.camera.Camera Camera} (pose + lens + lighting pose).
+ * {@link lib.minecraft.renderer.engine.camera.Projection#VANILLA_ISO VANILLA_ISO} is the facing-neutral
+ * {@code [30, 225, 0]} iso display pose shared by blocks, players, and entities; each renderer turns its
+ * subject to face the camera with its own model-to-world
+ * {@link lib.minecraft.renderer.engine.camera.Placement Placement} rather than baking the facing into
+ * the pose.
+ *
+ * <p>{@link lib.minecraft.renderer.engine.camera.Placement Placement} is the model-to-world half of the
+ * pipeline - the per-subject facing / chirality / anchor that seats geometry in the world frame the
+ * camera then views. {@link lib.minecraft.renderer.engine.ModelEngine ModelEngine} composes the three as
+ * {@code pose x placement x modelTransform}.
  *
  * @see lib.minecraft.renderer.engine.camera.Camera
+ * @see lib.minecraft.renderer.engine.camera.Lens
  * @see lib.minecraft.renderer.engine.camera.Projection
+ * @see lib.minecraft.renderer.engine.camera.Placement
  * @see lib.minecraft.renderer.engine.ModelEngine
  */
 package lib.minecraft.renderer.engine.camera;

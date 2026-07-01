@@ -43,12 +43,19 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Renders mob entities as isometric 3D icons from the Java-derived entity pipeline
+ * Renders mob entities as 3D icons from the Java-derived entity pipeline
  * ({@code entity_models.json} + {@code entity_geometry.json}, produced by
  * {@code ToolingEntityModels} from the vanilla client jar) via {@link EntityGeometryKit}'s
  * Y-down engine path. Texture resolution flows through the vanilla pack via
  * {@link RendererContext#resolveTexture}; missing textures surface as missing entities rather
  * than being papered over with cache fallbacks.
+ *
+ * <p>The entity is a plain projection subject: the camera is the caller's
+ * {@link EntityOptions#getProjection() projection} display pose directly (default
+ * {@link Projection#VANILLA_ISO}, the facing-neutral {@code rotationXYZ(30, 225, 0)}), and the entity's
+ * model-to-world facing - the humanoid yaw flip plus the Y-down-to-Y-up flip and chirality - is the
+ * single {@link #ENTITY_PLACEMENT} {@link Placement}. That split lets any projection be swapped in and
+ * still present the subject's front, upright.
  */
 @RequiredArgsConstructor
 public final class EntityRenderer implements Renderer<EntityOptions> {
@@ -69,21 +76,33 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * The entity's model-to-world facing - the humanoid {@code R_Y(180)} yaw flip (same as the player's,
      * turning the {@code +Z} front to the camera) composed with vanilla
      * {@code LivingEntityRenderer.submit}'s {@code rotateY(180) * scale(-1,-1,1) = flip180} (the Y-down
-     * to Y-up flip + chirality): {@code R_Y(180) * flip180 = R_Z(180) = diag(-1,-1,1)}. Applied as the
-     * entity {@link Placement} so {@link Projection#VANILLA_ISO} stays a facing-neutral {@code [30,225,0]}
-     * pose like block/player: {@code R(30,225,0) * ENTITY_FACING = R(30,45,0) * flip180} reproduces the
-     * shipped orientation, and any projection swapped in keeps the entity upright AND facing.
+     * to Y-up flip + chirality): {@code R_Y(180) * flip180 = R_Z(180) = diag(-1,-1,1)}, which is exactly
+     * the {@code scale(-1,-1,1)} built here. Applied as the entity {@link Placement} so
+     * {@link Projection#VANILLA_ISO} stays a facing-neutral {@code [30,225,0]} pose like block/player:
+     * {@code R(30,225,0) * ENTITY_FACING = R(30,45,0) * flip180} reproduces the shipped orientation, and
+     * any projection swapped in keeps the entity upright AND facing.
      */
     private static final @NotNull Matrix4f ENTITY_FACING = Matrix4f.IDENTITY.scale(-1f, -1f, 1f);
 
     /** The entity's model-to-world {@link Placement} - {@link #ENTITY_FACING} as a placement. */
     private static final @NotNull Placement ENTITY_PLACEMENT = new Placement(ENTITY_FACING);
 
+    /**
+     * Renders the entity and composites it over the caller's background. Returns an empty frame
+     * (composited over the background) when the entity id is absent, unknown, has no texture, or
+     * carries no bones.
+     */
     @Override
     public @NotNull ImageData render(@NotNull EntityOptions options) {
         return options.getBackground().composite(renderEntity(options));
     }
 
+    /**
+     * Resolves the entity definition, texture, and bounds; sizes the canvas; assembles the base body
+     * plus its overlay / block-overlay / armor {@link GeometryLayer geometry layers}; then rasterizes
+     * every layer in one shared depth pass through {@link ModelEngine}. Returns an empty frame at any
+     * step that cannot produce geometry (absent / unknown id, missing texture, no bones).
+     */
     private @NotNull ImageData renderEntity(@NotNull EntityOptions options) {
         if (options.getEntityId().isEmpty())
             return Frames.emptyFrame();
@@ -332,7 +351,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // vs vanilla's 0.45-0.71 Lambertian range.
             float shading = Lighting.entityInUi(transformedNormal);
             // Force back-face culling, matching vanilla's block render types (all bind GL culling)
-            // exactly as {@link BlockRenderer#relightForItems3d} does for plain block models. The
+            // exactly as Shading.relightForItems3d does for plain block models. The
             // {@code red_mushroom} cross model emits its two zero-thickness planes as paired
             // north+south / west+east quads with opposite winding so vanilla's cull keeps exactly the
             // camera-facing one. {@link BlockGeometryKit} marks those quads two-sided
@@ -573,6 +592,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         return this.context.resolveTexture("minecraft:entity/" + definition.textureRef().get());
     }
 
+    /**
+     * Returns the axis-aligned union of two boxes - the smallest {@link Box} containing both.
+     */
     private static @NotNull Box unionBoxes(@NotNull Box a, @NotNull Box b) {
         return new Box(
             Math.min(a.minX(), b.minX()),
@@ -585,10 +607,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * Inverse of {@link #composeIsoTransform}, for the same {@code projection}. The forward is
-     * {@code projection.pose() * modelRotation * ENTITY_FACING}; the inverse reverses it to
-     * {@code ENTITY_FACING * modelRotation^-1 * projection.pose()^-1}. {@code ENTITY_FACING = diag(-1,-1,1)}
-     * is self-inverse; the two rotations invert via {@code rotationXYZ(x, y, z) ^ -1 = rotationZYX(-z, -y, -x)}.
+     * Inverse of {@link #composeIsoTransform}, for the same {@code projection} - maps a screen-space
+     * bounds point back to model space so {@link #computeCentreAnchor} can recover the model-space anchor
+     * whose iso image is the silhouette midpoint. The forward is
+     * {@code cameraPose * modelRotation * ENTITY_FACING}; the inverse reverses it to
+     * {@code ENTITY_FACING * modelRotation^-1 * cameraPose^-1}. {@code ENTITY_FACING = diag(-1,-1,1)} is
+     * self-inverse; the two rotations invert via {@code rotationXYZ(x, y, z) ^ -1 = rotationZYX(-z, -y, -x)}.
      * Built on the fluent path (bit-identical to vanilla's PoseStack; {@code createX().multiply(...)} drifts 1-4 ULPs).
      */
     private static @NotNull Matrix4f composeIsoInverse(@NotNull Projection projection, @NotNull EulerRotation userRotation) {
@@ -612,10 +636,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      *     bounds-probe points bypass the kit).</li>
      * <li>{@code modelRotation} - the caller's rotation as a {@link Quaternionf#rotationXYZ} quaternion;
      *     identity for {@link EulerRotation#NONE}.</li>
-     * <li>{@code cameraPose = projection.pose()} - the entity's world-to-screen pose directly; for the
-     *     default {@link Projection#VANILLA_ISO} this is the facing-neutral {@code rotationXYZ(30,225,0)}.
-     *     Composed with the trailing {@code ENTITY_FACING} it is {@code R(30,225,0) · diag(-1,-1,1) =
-     *     rotationXYZ(210,-45,0)}, the entity's byte-identical orientation.</li>
+     * <li>{@code cameraPose = projection.resolve().pose()} - the entity's world-to-screen pose directly;
+     *     for the default {@link Projection#VANILLA_ISO} this is the facing-neutral
+     *     {@code rotationXYZ(30,225,0)}. Composed with the trailing {@code ENTITY_FACING} it is
+     *     {@code R(30,225,0) · diag(-1,-1,1) = rotationXYZ(210,-45,0)}, the entity's byte-identical
+     *     orientation.</li>
      * </ul>
      * Centering / NDC scaling are translation + uniform scale the canvas-fit math handles separately, so
      * they aren't included here.

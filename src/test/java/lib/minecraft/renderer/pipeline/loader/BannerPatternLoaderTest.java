@@ -15,9 +15,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies {@link BannerPatternLoader} against a {@link TempDir}-staged banner pattern
- * directory. Covers the vanilla JSON shape, the id-from-path convention, and the empty
- * directory fallback.
+ * Verifies {@link BannerPatternLoader} against a {@link TempDir}-staged
+ * {@code data/minecraft/banner_pattern} directory. Covers the vanilla JSON shape
+ * ({@code asset_id} + {@code translation_key}), the id-derived-from-relative-path convention, the
+ * {@code assetId}-derived {@code entity/banner/*} and {@code entity/shield/*} texture ids, the
+ * missing-directory empty-map fallback, and the skip-on-missing-{@code asset_id} behaviour.
  */
 class BannerPatternLoaderTest {
 

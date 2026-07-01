@@ -56,6 +56,7 @@ class VanillaEntityTransformGoldenTest {
             + "chirality lives on the ENTITY_FLIP Placement in EntityRenderer, not the camera", det3(pose), greaterThan(0f));
     }
 
+    /** Pins all 16 floats of the {@code VANILLA_ISO} pose to the captured baseline within {@link #EPS}. */
     @Test
     @DisplayName("golden: VANILLA_ISO pose 16 floats match the captured display-pose baseline")
     void pose_matchesGolden() {
@@ -63,6 +64,11 @@ class VanillaEntityTransformGoldenTest {
         assertMatrix(GOLDEN_POSE, pose);
     }
 
+    /**
+     * Pins the composed transform: the single-cube kit fixture built then posed by {@code VANILLA_ISO}
+     * must land its 8 corners on the baseline. Catches drift in either the kit fixture or the pose that
+     * the pose-only {@link #pose_matchesGolden} check alone would miss.
+     */
     @Test
     @DisplayName("golden: single-cube fixture corners, kit-built then camera-posed, match the baseline")
     void fixtureCorners_matchGolden() {
@@ -136,7 +142,9 @@ class VanillaEntityTransformGoldenTest {
     /**
      * Builds the single-cube kit fixture (identical to {@code EntityGeometryKitTest}), collects its
      * unique corner positions in a deterministic order, and transforms each by {@code pose}. This is
-     * the kit-FLIP_Y ⊕ camera composition the Phase 1 no-op seam must preserve bit-for-bit.
+     * the de-flipped-kit ⊕ camera composition the Placement / Camera split's no-op seam must preserve
+     * bit-for-bit - the kit emits Y-up (det=+1) geometry and the camera is a plain det=+1 display pose,
+     * so this sample fixes the two together as a golden.
      */
     private static float[] fixtureCornerSample(Matrix4f pose) {
         List<VisibleTriangle> tris = collect(buildSingleCube());
@@ -192,12 +200,18 @@ class VanillaEntityTransformGoldenTest {
         return Float.toString(v);
     }
 
+    /** Drains the build result's triangle stream into a random-access list. */
     private static List<VisibleTriangle> collect(EntityGeometryKit.BuildResult result) {
         List<VisibleTriangle> out = new ArrayList<>();
         for (VisibleTriangle tri : result.triangles()) out.add(tri);
         return out;
     }
 
+    /**
+     * Builds the same single-bone single-cube fixture as {@code EntityGeometryKitTest}: one
+     * {@code body} bone holding one {@code [-HALF, +HALF]} cube at atlas origin on a solid-white 64×64
+     * texture. Kept identical so both suites pin the same geometry.
+     */
     private static EntityGeometryKit.BuildResult buildSingleCube() {
         ConcurrentMap<String, EntityModelData.FaceUv> faceUv = Concurrent.newMap();
         EntityModelData.Cube cube = new EntityModelData.Cube(

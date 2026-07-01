@@ -163,9 +163,8 @@ public class BlockGeometryKit {
      * the {@code rescale} flag is set, the perpendicular axes are scaled by {@code 1/cos(angle)}
      * to preserve the element's axis-aligned footprint (used by cross-shaped plants).
      *
-     * @param elements the fully-resolved element list from an
-     *     {@link ModelData} or
-     *     {@link ModelData}
+     * @param elements the fully-resolved element list from a parent-walked, deep-merged
+     *     {@link ModelData} (block and item models share the same shape)
      * @param faceTextures a map keyed by the exact {@link ModelFace#getTexture()} string
      *     (including any leading {@code #}) to a pre-loaded {@link PixelBuffer}. The caller is
      *     responsible for dereferencing {@code #var} chains against the model's texture
@@ -530,6 +529,11 @@ public class BlockGeometryKit {
         addQuad(out, topLeft, bottomLeft, bottomRight, topRight, uvTL, uvBL, uvBR, uvTR, texture, tintArgb, normal, true, glinted);
     }
 
+    /**
+     * Adds a quad with explicit UV corners and an explicit back-face cull flag, defaulting to
+     * opaque ({@code translucent == false}) and directional ({@code directionalLight == true})
+     * shading. Delegates to the terminal overload.
+     */
     private static void addQuad(
         @NotNull ConcurrentList<VisibleTriangle> out,
         @NotNull Vector3f topLeft,
@@ -549,6 +553,25 @@ public class BlockGeometryKit {
         addQuad(out, topLeft, bottomLeft, bottomRight, topRight, uvTL, uvBL, uvBR, uvTR, texture, tintArgb, normal, cullBackFaces, false, true, glinted);
     }
 
+    /**
+     * Terminal quad emitter: splits a CCW quad into its two triangles and appends them to
+     * {@code out}, baking the inventory shade factor and {@link SurfaceTraits surface traits} into
+     * each so the rasterizer needs no per-triangle face lookup.
+     * <p>
+     * {@link Lighting#inventory} resolves the dominant cardinal of the (post-element-rotation) face
+     * normal and returns the matching vanilla {@code Lighting.ITEMS_3D} approximation -
+     * cardinal-aligned faces reproduce the per-face values on {@link BlockFace#lighting}
+     * ({@code 1.0}/{@code 0.5}/{@code 0.6}/{@code 0.8}), and faces tipped by {@code element.rotation}
+     * resolve to the closest cardinal's shade. When {@code directionalLight} is {@code false} (a face
+     * of a {@code "shade": false} element) the shade is instead {@link Shading#DISABLED}, so the
+     * relight pass renders it full-bright to match vanilla's in-world {@code getShade(dir, false) == 1.0}.
+     *
+     * @param cullBackFaces whether the rasterizer culls the away-facing side of these triangles
+     * @param translucent whether the face samples partial-alpha texels and must sort back-to-front
+     * @param directionalLight whether the face receives {@code ITEMS_3D} shading, or full-bright when
+     *     {@code false} (a {@code "shade": false} element)
+     * @param glinted whether the face is worn-armor geometry receiving the enchantment foil
+     */
     private static void addQuad(
         @NotNull ConcurrentList<VisibleTriangle> out,
         @NotNull Vector3f topLeft,
@@ -567,15 +590,8 @@ public class BlockGeometryKit {
         boolean directionalLight,
         boolean glinted
     ) {
-        // Bake the inventory shade factor into each triangle so the rasterizer can apply shading
-        // directly without a per-triangle face lookup. {@link Lighting#inventory}
-        // resolves the dominant cardinal of the (post-element-rotation) face normal and returns
-        // the matching {@code Lighting.ITEMS_3D} approximation - cardinal-aligned faces produce
-        // exactly the per-face values from {@link BlockFace#lighting} (1.0/0.5/0.6/0.8), and faces
-        // rotated by {@code element.rotation} resolve to the closest cardinal's shade.
-        // {@code directionalLight == false} (a face of a {@code "shade": false} element) instead
-        // carries {@link Shading#DISABLED} so the relight pass renders it full-bright, matching
-        // vanilla's in-world {@code getShade(dir, false) == 1.0}.
+        // Shade baked per triangle (see the javadoc): inventory cardinal shade, or full-bright
+        // DISABLED for a "shade": false element.
         float shading = directionalLight ? Lighting.inventory(normal) : Shading.DISABLED;
         SurfaceTraits traits = new SurfaceTraits(cullBackFaces, false, translucent, glinted);
         out.add(new VisibleTriangle(topLeft, bottomLeft, bottomRight, uvTL, uvBL, uvBR, texture, tintArgb, normal, shading, traits, null));

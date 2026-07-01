@@ -14,7 +14,7 @@
  * truth instead of branching on direction:
  * <ul>
  *   <li>{@link lib.minecraft.renderer.face.BlockFace BlockFace} - block-model UV unwrap with the
- *       vanilla {@code AmbientOcclusionFace} lighting scalar baked in. Used by
+ *       vanilla {@code Lighting.ITEMS_3D} per-face shade scalar baked in. Used by
  *       {@link lib.minecraft.renderer.engine.kit.BlockGeometryKit BlockGeometryKit}.</li>
  *   <li>{@link lib.minecraft.renderer.face.EntityFace EntityFace} - entity-cube UV unwrap (strip
  *       layout, per-face polygon vertex slot permutation). Used by

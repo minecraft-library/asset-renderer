@@ -47,6 +47,9 @@ import javax.imageio.ImageIO;
 @UtilityClass
 public class TexturePackLoader {
 
+    /**
+     * Shared Gson configured with the project defaults, used to parse {@code .png.mcmeta} sidecars.
+     */
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**
@@ -98,6 +101,19 @@ public class TexturePackLoader {
             .collect(Concurrent.toMap(Texture::getId, Function.identity()));
     }
 
+    /**
+     * Builds a {@link Texture} row for one PNG file. The id is the path relative to
+     * {@code texturesRoot} (backslashes normalised, {@code .png} suffix dropped) prefixed with
+     * {@code minecraft:}. Width and height come from the PNG header via {@link ImageIO}, falling
+     * back to {@code 0} when the image cannot be decoded to dimensions, and any adjacent
+     * {@code .png.mcmeta} sidecar is parsed into the animation field.
+     *
+     * @param file the PNG file to catalogue
+     * @param texturesRoot the textures subtree the id is relativized against
+     * @param packId the id of the pack that owns this row
+     * @return the catalogued texture row
+     * @throws PipelineException if the PNG cannot be read
+     */
     private static @NotNull Texture buildTexture(@NotNull Path file, @NotNull Path texturesRoot, @NotNull String packId) {
         String relative = texturesRoot.relativize(file).toString().replace('\\', '/');
         String withoutExtension = relative.endsWith(".png") ? relative.substring(0, relative.length() - 4) : relative;
@@ -133,10 +149,14 @@ public class TexturePackLoader {
      * a heterogeneous list of bare integers ({@code [0, 1, 2]}) and explicit frame objects
      * ({@code [{"index":0,"time":5}]}) - Gson cannot deserialize both forms into the same
      * {@link AnimationData.FrameEntry} record without a custom type adapter.
+     * <p>
+     * Absent fields take vanilla defaults: {@code frametime} 1, {@code interpolate} false, an empty
+     * frame list, and {@code width}/{@code height} of {@code -1} (inherit from the texture).
      *
      * @param mcmetaFile the sidecar path; need not exist
      * @return the parsed animation block, or empty when the sidecar is missing or has no
      *     {@code animation} object
+     * @throws PipelineException if the sidecar exists but cannot be read or is malformed
      */
     private static @NotNull Optional<AnimationData> parseMcMeta(@NotNull Path mcmetaFile) {
         if (!Files.isRegularFile(mcmetaFile)) return Optional.empty();
@@ -162,8 +182,12 @@ public class TexturePackLoader {
     /**
      * Normalises the vanilla {@code frames} array into a list of {@link AnimationData.FrameEntry}
      * records. Bare-integer entries become frames with the default ({@code -1}) duration marker
-     * which {@link AnimationKit AnimationKit} resolves against the
-     * animation-level {@code frametime}; explicit objects are read directly.
+     * which {@link AnimationKit} resolves against the animation-level {@code frametime}; explicit
+     * objects are read directly, defaulting {@code index} to {@code 0} and {@code time} to
+     * {@code -1} when absent.
+     *
+     * @param elements the raw {@code frames} JSON array
+     * @return the normalised frame entries
      */
     private static @NotNull ConcurrentList<AnimationData.FrameEntry> parseFrames(@NotNull JsonArray elements) {
         java.util.ArrayList<AnimationData.FrameEntry> frames = new java.util.ArrayList<>(elements.size());

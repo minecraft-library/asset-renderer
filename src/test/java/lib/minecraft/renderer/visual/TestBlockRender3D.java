@@ -18,11 +18,18 @@ import java.nio.file.Path;
 import javax.imageio.ImageIO;
 
 /**
- * Diagnostic task that renders a single block to a PNG file for visual inspection. Defaults to
- * {@code minecraft:tnt} at 512px with 2x supersampling - the TNT block has text and distinct
- * top/side/bottom faces that make orientation issues immediately obvious.
+ * Diagnostic task that renders blocks to PNG files for visual inspection. For each block spec it
+ * writes the isometric 3D render ({@link BlockOptions.Type#ISOMETRIC_3D}) plus one flat 2D render
+ * per {@link BlockFace} ({@link BlockOptions.Type#BLOCK_FACE_2D}) so orientation and per-face UV
+ * issues can be compared side by side. All output lands under {@code cache/visual/block-render-3d/}.
  * <p>
- * Usage: {@code ./gradlew :asset-renderer:blockRender3D [-PblockId=minecraft:tnt] [-PrenderSize=512]}
+ * With no {@code -PblockId} the task renders {@link #BLOCK_TEST_2} (a mix of non-full-cube shapes)
+ * at 512px with 2x supersampling. The TNT block ({@link #BLOCK_TEST_1}) has text and distinct
+ * top / side / bottom faces that make orientation issues immediately obvious.
+ * <p>
+ * Usage: {@code ./gradlew :asset-renderer:blockRender3D [-PblockId=minecraft:tnt] [-PrenderSize=512] [-Pssaa=2]}.
+ * Note the Gradle wiring only forwards {@code -PrenderSize} / {@code -Pssaa} when {@code -PblockId}
+ * is also supplied; without a block id the task runs the default list at the built-in defaults.
  */
 @UtilityClass
 public final class TestBlockRender3D {
@@ -46,11 +53,12 @@ public final class TestBlockRender3D {
     };
 
     /**
-     * Runs the block renders.
+     * Runs the block renders - one isometric 3D PNG plus six per-face 2D PNGs per block.
      *
      * @param args {@code args[0]} is an optional semicolon-separated list of block specs (id
-     *     plus optional {@code [variant=foo]} suffix); {@code args[1]} is an optional render
-     *     size (defaults to 512); {@code args[2]} is an optional supersample factor (defaults to 2)
+     *     plus optional {@code [state=foo,...]} suffix parsed as the render variant); {@code args[1]}
+     *     is an optional render size (defaults to 512); {@code args[2]} is an optional supersample
+     *     factor (defaults to 2)
      * @throws IOException if the output directory cannot be created or a render cannot be written
      */
     public static void main(String @NotNull [] args) throws IOException {

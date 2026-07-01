@@ -6,6 +6,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentLinkedMap;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
 import lib.minecraft.renderer.face.BlockFace;
 import lib.minecraft.renderer.request.EulerRotation;
 import lib.minecraft.renderer.tensor.Vector2f;
@@ -36,12 +37,14 @@ import java.util.Objects;
 public class EntityModelData {
 
     /**
-     * Texture size in pixels, typically {@code 64} or {@code 128}.
+     * The texture atlas width in pixels that cube UVs are resolved against, typically {@code 64}
+     * or {@code 128}.
      */
     private int textureWidth = 64;
 
     /**
-     * Texture size in pixels.
+     * The texture atlas height in pixels that cube UVs are resolved against, typically {@code 64}
+     * or {@code 128}.
      */
     private int textureHeight = 64;
 
@@ -146,7 +149,7 @@ public class EntityModelData {
          * resolution (cube UV regions stay tied to the authored {@code size} value), matching
          * vanilla's per-vertex scale semantics.
          *
-         * @see lib.minecraft.renderer.engine.kit.EntityGeometryKit
+         * @see EntityGeometryKit
          */
         private float scale = 1f;
 

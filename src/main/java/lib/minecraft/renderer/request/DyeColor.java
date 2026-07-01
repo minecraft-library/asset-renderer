@@ -111,6 +111,7 @@ public sealed interface DyeColor {
      */
     record Custom(int argb) implements DyeColor {
 
+        /** {@inheritDoc} */
         @Override
         public boolean equals(Object o) {
             if (o == null || getClass() != o.getClass()) return false;
@@ -118,6 +119,7 @@ public sealed interface DyeColor {
             return this.argb == custom.argb;
         }
 
+        /** {@inheritDoc} */
         @Override
         public int hashCode() {
             return Objects.hashCode(this.argb);

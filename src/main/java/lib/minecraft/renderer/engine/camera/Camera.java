@@ -14,11 +14,12 @@ import org.jetbrains.annotations.NotNull;
  * 3D-to-2D flatten applied per vertex after that.
  *
  * <p>A camera carries two orientations. The {@code pose} matrix maps geometry to screen; the
- * {@code lightingPose} Euler orients the inventory light. For a display pose they coincide - the
- * lighting mirrors the pose - so {@link #fromPose} sets both from one Euler. For the entity iso chain
- * they DIVERGE: the pose is a det=-1 chirality chain (not a plain rotation) while the lighting uses the
- * base {@code [210, 45, 0]} Euler, which is why the two are stored separately rather than one derived
- * from the other.
+ * {@code lightingPose} Euler orients the inventory light. Both factories build a display pose, where the
+ * lighting mirrors the pose from one Euler - {@link #fromPose} sets both from that Euler,
+ * {@link #identity} pairs an identity pose with {@link EulerRotation#NONE}. The two are kept as separate
+ * fields (rather than deriving the Euler back out of the pose matrix) because a lighting frame is an
+ * Euler orientation, not a baked matrix, and callers - the inventory relight - want it in that form
+ * without decomposing the pose.
  *
  * <p>The named vanilla cameras live on {@link Projection}, which assembles them from these primitives.
  * Callers reach for a factory rather than the constructor:

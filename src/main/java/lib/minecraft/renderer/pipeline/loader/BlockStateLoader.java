@@ -182,6 +182,18 @@ public class BlockStateLoader {
         }
     }
 
+    /**
+     * Parses one blockstate JSON file into a {@link Parsed} record. The block id is the file name
+     * with its {@code .json} suffix stripped and the {@link VanillaSourcePaths#MINECRAFT_NAMESPACE}
+     * prefix prepended. A {@code "variants"} object yields the variant branch, a {@code "multipart"}
+     * array the multipart branch; each is returned only when non-empty. Files that are neither, that
+     * parse to a blank object, or that fail to read / parse resolve to {@code null} and are dropped
+     * by the caller.
+     *
+     * @param file the blockstate JSON file
+     * @param blockModels the parsed model set used to bake each variant's resolved {@link ModelData}
+     * @return the parsed variant or multipart data, or {@code null} when the file yields neither
+     */
     private static @Nullable Parsed parseBlockstateFile(@NotNull Path file, @NotNull ConcurrentMap<String, ModelData> blockModels) {
         String fileName = file.getFileName().toString();
         String blockName = fileName.substring(0, fileName.length() - 5);
@@ -205,8 +217,26 @@ public class BlockStateLoader {
         return null;
     }
 
+    /**
+     * One parsed blockstate file, carrying exactly one of {@code variants} or {@code multipart}
+     * (the other is {@code null}) so the merge pass can route it to the matching per-id map.
+     *
+     * @param blockId the namespaced block id derived from the file name
+     * @param variants the parsed variant map, or {@code null} when the file is multipart
+     * @param multipart the parsed multipart block, or {@code null} when the file is variant-based
+     */
     private record Parsed(@NotNull String blockId, @Nullable ConcurrentMap<String, Block.Variant> variants, @Nullable Block.Multipart multipart) {}
 
+    /**
+     * Parses a {@code "variants"} object into a {@code variantKey -> }{@link Block.Variant} map.
+     * Each value is a single variant object or a weighted-random array of them; the array's first
+     * entry is taken (random selection is unsupported). Values that are neither object nor array are
+     * skipped.
+     *
+     * @param variants the blockstate {@code "variants"} object
+     * @param blockModels the parsed model set used to bake each variant's resolved {@link ModelData}
+     * @return the variant map keyed by property-combination string, unmodifiable
+     */
     private static @NotNull ConcurrentMap<String, Block.Variant> parseVariants(@NotNull JsonObject variants, @NotNull ConcurrentMap<String, ModelData> blockModels) {
         HashMap<String, Block.Variant> result = new HashMap<>();
 
@@ -230,6 +260,17 @@ public class BlockStateLoader {
         return Concurrent.adoptMap(result).toUnmodifiable();
     }
 
+    /**
+     * Parses a {@code "multipart"} array into a {@link Block.Multipart}. Each element carries an
+     * optional {@code "when"} condition object (retained verbatim for runtime property matching) and
+     * an {@code "apply"} value - a single variant object or a weighted-random array of them, the
+     * first entry taken. Non-object elements and entries with no {@code "apply"} or an empty
+     * {@code "apply"} array are skipped.
+     *
+     * @param parts the blockstate {@code "multipart"} array
+     * @param blockModels the parsed model set used to bake each part's resolved {@link ModelData}
+     * @return the assembled multipart block
+     */
     private static @NotNull Block.Multipart parseMultipart(@NotNull JsonArray parts, @NotNull ConcurrentMap<String, ModelData> blockModels) {
         ArrayList<Block.Multipart.Part> result = new ArrayList<>();
 
@@ -260,6 +301,17 @@ public class BlockStateLoader {
         return new Block.Multipart(Concurrent.adoptList(result).toUnmodifiable());
     }
 
+    /**
+     * Parses a single {@code "apply"} object (shared by the variant and multipart branches) into a
+     * {@link Block.Variant}. Reads the {@code "model"} id (defaulting to blank when absent), the
+     * {@code "x"} / {@code "y"} rotation in degrees (default {@code 0}), and the {@code "uvlock"}
+     * flag (default {@code false}), then bakes in the resolved {@link ModelData} via
+     * {@link #resolveVariantModel}.
+     *
+     * @param obj the {@code "apply"} JSON object
+     * @param blockModels the parsed model set used to resolve the model id to {@link ModelData}
+     * @return the parsed variant with its geometry baked in
+     */
     private static @NotNull Block.Variant parseApply(@NotNull JsonObject obj, @NotNull ConcurrentMap<String, ModelData> blockModels) {
         String modelId = obj.has("model") ? obj.get("model").getAsString() : "";
         int x = obj.has("x") ? obj.get("x").getAsInt() : 0;
@@ -276,7 +328,17 @@ public class BlockStateLoader {
     @RequiredArgsConstructor
     public static final class LoadResult {
 
+        /**
+         * Block id to its {@code variantKey -> }{@link Block.Variant} map, from every
+         * {@code "variants"}-format blockstate file. A block appears in at most one of this and
+         * {@link #multiparts}.
+         */
         private final @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> variants;
+
+        /**
+         * Block id to its composite {@link Block.Multipart}, from every {@code "multipart"}-format
+         * blockstate file. A block appears in at most one of this and {@link #variants}.
+         */
         private final @NotNull ConcurrentMap<String, Block.Multipart> multiparts;
 
         /**

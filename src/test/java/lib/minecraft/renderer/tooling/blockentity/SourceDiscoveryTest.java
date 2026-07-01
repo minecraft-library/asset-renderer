@@ -30,24 +30,29 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Fast mutation tests for {@link SourceDiscovery}. Each test builds a <i>synthetic</i> client
- * jar via {@link ClassWriter} (no real classes from {@code client.jar}), runs discovery
- * against it, then mutates the synthetic input and re-runs to prove the output follows the
- * bytecode - not a hardcoded table.
+ * Fast mutation tests for {@link SourceDiscovery#discover}. Each test builds a <i>synthetic</i>
+ * client jar via {@link ClassWriter} (no real classes from {@code client.jar}), runs discovery
+ * against it, then mutates the synthetic input and re-runs to prove the emitted {@link Source}
+ * records follow the bytecode shape rather than a hardcoded table. This pins the four discovery
+ * stages - registry walk, entity-id walk, {@code LayerDefinitions.createRoots} walk, per-renderer
+ * layer scan - plus the {@link YAxis} pivot heuristic and the primary-method allow-list filter,
+ * without paying for the slow real-jar parity run.
  *
- * <p>The fixtures are deliberately minimal:
+ * <p>The fixtures are deliberately minimal - each mirrors exactly the one bytecode shape a
+ * discovery stage keys off:
  * <ul>
  *     <li>{@code BlockEntityRenderers.<clinit>} with one or two
- *         {@code register(BlockEntityType.X, Renderer::new)} pairs.</li>
- *     <li>{@code BlockEntityType} with one or two {@code PUTSTATIC} bound to
- *         {@code LDC "id"} literals.</li>
+ *         {@code GETSTATIC BlockEntityType.X; INVOKEDYNAMIC Renderer::new} pairs (the registry
+ *         walk's ({@code BE-type}, renderer) binding).</li>
+ *     <li>{@code BlockEntityType} with one or two {@code LDC "id"; PUTSTATIC field} pairs (the
+ *         entity-id walk's field &rarr; id binding).</li>
  *     <li>{@code LayerDefinitions.createRoots} with one or two
- *         {@code put(ModelLayers.X, Model.createY())} pairs.</li>
- *     <li>A minimal {@code Renderer} class that references {@code ModelLayers.X} in its
- *         constructor.</li>
+ *         {@code Builder.put(ModelLayers.X, Model.createY())} pairs (the layer-definitions table).</li>
+ *     <li>A minimal {@code Renderer} class whose {@code <init>(Context)} references
+ *         {@code ModelLayers.X} (the per-renderer layer-reference scan target).</li>
  *     <li>A minimal {@code Model} class with a {@code createY} method containing a single
- *         {@code CubeListBuilder.addBox(...)} so the Y-axis heuristic has something to
- *         inspect.</li>
+ *         {@code CubeListBuilder.addBox(...)} - and optionally a {@code PartPose.offset} pivot -
+ *         so the Y-axis heuristic has something to inspect.</li>
  * </ul>
  */
 @DisplayName("SourceDiscovery (bytecode-driven)")
@@ -56,18 +61,28 @@ class SourceDiscoveryTest {
     @TempDir Path tempDir;
 
     /**
-     * {@code true} when the synthetic fixture should include a particular register call.
-     * Two-shape enum exists so tests can mutate the jar by dropping an enum entry.
+     * A named bundle of the coordinated identifiers one synthetic renderer needs across all four
+     * fixture classes - the BE-type field, renderer + model internal names, layer factory method,
+     * and {@code ModelLayers} field. Tests pass an array of these to {@link #buildSyntheticJar}
+     * and mutate the jar by dropping an enumerant (drops a register call) or overriding one
+     * fixture class through {@link Mutations}. Two shapes ({@code A}, {@code B}) suffice to
+     * exercise single- and two-renderer cases and their emission order.
      */
     private enum TestRenderer {
         A("foo", "test/RendererA", "test/ModelA", "createBodyLayer", "FOO_LAYER"),
         B("bar", "test/RendererB", "test/ModelB", "createShellLayer", "BAR_LAYER");
 
+        /** The {@code BlockEntityType} field name, entity id upper-cased ({@code "foo"} &rarr; {@code "FOO"}). */
         final String beField;
+        /** The renderer class's JVM internal name (registered in {@code BlockEntityRenderers.<clinit>}). */
         final String rendererInternal;
+        /** The model class's JVM internal name (owns the layer factory method). */
         final String modelInternal;
+        /** The layer factory method name, one of {@code SourceDiscovery}'s primary names. */
         final String modelMethod;
+        /** The {@code ModelLayers} static field name the renderer's {@code <init>} references. */
         final String layerField;
+        /** The lower-cased entity id ({@code "foo"}), namespaced to {@code minecraft:foo} on emission. */
         final String entityId;
 
         TestRenderer(String beField, String rendererInternal, String modelInternal, String modelMethod, String layerField) {
@@ -98,6 +113,7 @@ class SourceDiscoveryTest {
         java.util.function.Function<TestRenderer, byte[]> model;
     }
 
+    /** Writes {@code bytes} into {@code zos} under the {@code internalName + ".class"} zip entry. */
     private static void writeClass(ZipOutputStream zos, String internalName, byte[] bytes) throws IOException {
         zos.putNextEntry(new ZipEntry(internalName + ".class"));
         zos.write(bytes);
@@ -130,6 +146,11 @@ class SourceDiscoveryTest {
         return jar;
     }
 
+    /**
+     * Builds a bare {@code public} class with no fields, methods, or {@code <clinit>} - used to
+     * stub a class whose mere presence (not content) is exercised, e.g. the missing-registry test
+     * that ships {@code BlockEntityType} but omits {@code BlockEntityRenderers}.
+     */
     private static byte[] emptyClass(String internalName) {
         ClassWriter cw = new ClassWriter(0);
         cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC, internalName, null, "java/lang/Object", null);
@@ -137,6 +158,10 @@ class SourceDiscoveryTest {
         return cw.toByteArray();
     }
 
+    /**
+     * Builds a stub {@code EntityModelSet} whose {@code bakeLayer} returns null. Referenced by the
+     * signatures the synthetic bytecode emits so class verification stays satisfied.
+     */
     private static byte[] entityModelSetClass() {
         ClassWriter cw = new ClassWriter(0);
         cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC, "net/minecraft/client/model/geom/EntityModelSet", null, "java/lang/Object", null);
@@ -151,6 +176,11 @@ class SourceDiscoveryTest {
         return cw.toByteArray();
     }
 
+    /**
+     * Builds a stub {@code CubeListBuilder} exposing {@code create()} and {@code addBox(FFFFFF)}
+     * so the model bytecode's {@code INVOKESTATIC create} / {@code INVOKEVIRTUAL addBox} calls
+     * resolve against real signatures.
+     */
     private static byte[] cubeListBuilderClass() {
         ClassWriter cw = new ClassWriter(0);
         cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC, "net/minecraft/client/model/geom/builders/CubeListBuilder", null, "java/lang/Object", null);
@@ -299,23 +329,28 @@ class SourceDiscoveryTest {
         return cw.toByteArray();
     }
 
-    /** Builds a synthetic model whose {@code createYZ} method emits a single cube. */
+    /**
+     * Builds a synthetic model whose {@code r.modelMethod} emits a single 8x8x8 cube at the
+     * origin with no pivot - the default fixture, exercising the {@link YAxis#DOWN} fall-through.
+     */
     private static byte[] modelClass(TestRenderer r) {
         return modelClassWithCube(r, 0f, 0f, 0f, 8f, 8f, 8f);
     }
 
     /**
-     * Builds a synthetic model whose {@code createYZ} method emits a single cube at the given
-     * origin + size. Used by Y-axis heuristic tests that care about the cube's Y origin.
+     * Builds a synthetic model whose {@code r.modelMethod} emits a single cube at the given
+     * origin + size, with no {@code PartPose.offset} pivot. The Y-axis heuristic ignores cube
+     * coordinates entirely (it only reads pivots), so this always yields {@link YAxis#DOWN}.
      */
     private static byte[] modelClassWithCube(TestRenderer r, float x, float y, float z, float w, float h, float d) {
         return modelClassWithCubeAndPivot(r, x, y, z, w, h, d, 0f);
     }
 
     /**
-     * Builds a synthetic model whose {@code createYZ} method emits one cube plus one
-     * {@code PartPose.offset(0, pivotY, 0)} call. Lets Y-axis tests exercise the
-     * pivot-height heuristic.
+     * Builds a synthetic model whose {@code r.modelMethod} emits one cube plus, when
+     * {@code pivotY != 0}, one {@code PartPose.offset(0, pivotY, 0)} call. The {@code pivotY} is
+     * the sole input to the Y-axis heuristic - {@code [8, 16)} yields {@link YAxis#UP}, anything
+     * else {@link YAxis#DOWN}.
      */
     private static byte[] modelClassWithCubeAndPivot(TestRenderer r, float x, float y, float z, float w, float h, float d, float pivotY) {
         ClassWriter cw = new ClassWriter(0);
@@ -346,6 +381,11 @@ class SourceDiscoveryTest {
         return cw.toByteArray();
     }
 
+    /**
+     * Builds the synthetic jar for {@code renderers} under {@code m}, opens it, and runs
+     * {@link SourceDiscovery#discover} with a fresh {@link Diagnostics}. The diagnostics are
+     * discarded here - tests that assert on them build their jar inline instead.
+     */
     private @NotNull ConcurrentList<Source> run(TestRenderer[] renderers, Mutations m) throws IOException {
         Path jar = buildSyntheticJar(renderers, m);
         try (ZipFile zf = new ZipFile(jar.toFile())) {
@@ -399,6 +439,12 @@ class SourceDiscoveryTest {
         assertThat("renamed ldc surfaces in Source.entityId", out.get(0).entityId(), equalTo("minecraft:renamed_id"));
     }
 
+    /**
+     * Pins that {@link SourceDiscovery#inferYAxisFromMethod} keys off {@code PartPose.offset}
+     * pivots only, never cube coordinates: a lone {@code addBox} with no {@code offset} call
+     * leaves {@code maxPivotY} at negative infinity, which falls below the {@code [8, 16)} band
+     * and defaults to {@link YAxis#DOWN}.
+     */
     @Test
     @DisplayName("negative cube Y does not force DOWN - pivot controls the axis")
     void yAxisDownFromCubeOnly() throws IOException {
@@ -409,6 +455,11 @@ class SourceDiscoveryTest {
         assertThat("default model yAxis", out.get(0).yAxis(), equalTo(YAxis.DOWN));
     }
 
+    /**
+     * Pins the lower half of the {@code [8, 16)} band: a pivot at {@code y=12} (chest / bell
+     * block-space authoring) flips {@link YAxis#UP} so the parser pre-flips it into canonical
+     * Y-down form.
+     */
     @Test
     @DisplayName("pivot y>=8 within block bounds flips yAxis to UP")
     void yAxisUpFromPivotInBlockBounds() throws IOException {
@@ -427,6 +478,12 @@ class SourceDiscoveryTest {
         }
     }
 
+    /**
+     * Pins the upper edge of the {@code [8, 16)} band: a pivot at {@code y=24} (mob-root
+     * convention, e.g. {@code ShulkerModel.createShellMesh}) sits above the half-open band and
+     * stays {@link YAxis#DOWN} - the band is deliberately half-open so mob-authored roots aren't
+     * mistaken for block-space authoring.
+     */
     @Test
     @DisplayName("pivot y>=16 (mob-authored) stays DOWN")
     void yAxisDownFromTallPivot() throws IOException {
@@ -525,6 +582,12 @@ class SourceDiscoveryTest {
         assertThat("unresolvable BE type id -> no Source", out, empty());
     }
 
+    /**
+     * Pins the {@code PRIMARY_METHOD_NAMES} allow-list filter: a layer whose factory method is
+     * not a recognised primary name ({@code createFancyLayer}) is dropped, and the fallback
+     * renderer-method scan also finds no primary, so discovery emits nothing. This is the guard
+     * that keeps decorative sub-layers (eyes, wind, alt poses) out of the Source set.
+     */
     @Test
     @DisplayName("renderer with no matching primary method name emits nothing")
     void rendererWithoutPrimaryMethodName() throws IOException {
@@ -575,6 +638,12 @@ class SourceDiscoveryTest {
         assertThat("non-primary method name -> source filtered out", out, empty());
     }
 
+    /**
+     * End-to-end (through {@link SourceDiscovery#discover}) checks of the Y-axis heuristic, as
+     * opposed to unit-level exercises of {@code inferYAxisFromMethod} in isolation. Pins the
+     * default-fixture case where a model with no {@code PartPose.offset} call resolves to
+     * {@link YAxis#DOWN}.
+     */
     @Nested
     @DisplayName("Y-axis heuristic direct checks")
     class YAxisHeuristicTests {
@@ -592,9 +661,9 @@ class SourceDiscoveryTest {
     // ------------------------------------------------------------------------------------------
 
     /**
-     * Writes the shared skeleton of classes (BE type, ModelLayers, BlockEntityRenderers,
-     * LayerDefinitions, and the support classes) - every test needs these. Renderer + model
-     * classes are left to the test.
+     * Writes the four shared skeleton classes ({@code BlockEntityType}, {@code ModelLayers},
+     * {@code BlockEntityRenderers}, {@code LayerDefinitions}) that every discovery run needs.
+     * The per-test renderer + model classes are left for the caller to write.
      */
     private void writeSkeleton(ZipOutputStream zos, TestRenderer[] renderers) throws IOException {
         writeClass(zos, "net/minecraft/world/level/block/entity/BlockEntityType", defaultBlockEntityType(renderers));
@@ -603,6 +672,11 @@ class SourceDiscoveryTest {
         writeClass(zos, "net/minecraft/client/model/geom/LayerDefinitions", defaultLayerDefinitions(renderers));
     }
 
+    /**
+     * Writes the shared skeleton but substitutes {@code layerDefsBytes} for the default
+     * {@code LayerDefinitions} class - lets a test reroute {@code createRoots}' factory target
+     * while keeping the other three skeleton classes stock.
+     */
     private void writeSkeletonWithLayerDefinitionsReplacement(ZipOutputStream zos, TestRenderer[] renderers, byte[] layerDefsBytes) throws IOException {
         writeClass(zos, "net/minecraft/world/level/block/entity/BlockEntityType", defaultBlockEntityType(renderers));
         writeClass(zos, "net/minecraft/client/model/geom/ModelLayers", defaultModelLayers(renderers));
@@ -639,6 +713,11 @@ class SourceDiscoveryTest {
         return cw.toByteArray();
     }
 
+    /**
+     * Pins that both registered entity ids surface (membership, not position). The
+     * {@code containsInAnyOrder} matcher is order-agnostic - strict positional order is asserted
+     * separately by {@link #twoRegisters()}, which checks {@code get(0)}/{@code get(1)} directly.
+     */
     @Test
     @DisplayName("two renderers share entity-id registration order (bytecode order)")
     void entityOrderMatchesRegistryOrder() throws IOException {

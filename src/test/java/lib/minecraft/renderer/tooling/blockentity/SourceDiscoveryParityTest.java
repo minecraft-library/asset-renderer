@@ -27,18 +27,32 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
- * Slow parity test: runs {@link SourceDiscovery} against the cached 26.1 client jar and
- * compares the (filtered) result against the hand-curated
- * {@code baseline/sources.json} fixture. The filter applies the block-list catalog's entity
- * id set since those are the entities that ship in the atlas - enchanting_table and lectern
- * both discover a BookModel source but neither appears in the baseline.
+ * Slow parity test pinning {@link SourceDiscovery#discover} against the cached 26.1 client jar,
+ * compared field-by-field to the hand-curated {@code baseline/sources.json} fixture. This is the
+ * end-to-end counterpart to the fast synthetic-bytecode mutation tests - it proves the discovery
+ * walk emits exactly the real vanilla source set, not just that it follows bytecode shape.
+ *
+ * <p>The discovered set is filtered down to the {@link BlockListDiscovery} catalog's entity id
+ * set, since those are the entities that actually ship in the atlas: {@code enchanting_table} and
+ * {@code lectern} both discover a {@code BookModel} source through their renderers, but neither
+ * appears in the baseline, so the block-list membership check drops them.
+ *
+ * <p>Each side is keyed by the composite {@code entityId|methodName|paramIntValues} so banner
+ * variants (which share the {@code minecraft:banner} / {@code minecraft:wall_banner} ids but split
+ * on the standing/wall {@code paramInt}) resolve to distinct entries. The test asserts every
+ * per-field value ({@code classEntry}, {@code methodName}, {@code yAxis}, {@code inventoryYRotation},
+ * the nullable {@code texWidthOverride} / {@code texHeightOverride}), then closes with a
+ * size-equality and a key-set-equality check so neither side has extra or missing entries.
  */
 @DisplayName("SourceDiscovery parity")
 @Tag("slow")
 class SourceDiscoveryParityTest {
 
+    /** The cached deobfuscated 26.1 client jar discovery walks. */
     private static final Path JAR = Path.of("cache/asset-renderer/vanilla/26.1/client.jar");
+    /** The hand-curated ground-truth source list discovery is diffed against. */
     private static final Path BASELINE = Path.of("src/test/resources/lib/minecraft/renderer/baseline/sources.json");
+    /** Project-standard Gson, used to parse the baseline JSON array. */
     private static final Gson GSON = GsonSettings.defaults().create();
 
     @Test
@@ -82,11 +96,22 @@ class SourceDiscoveryParityTest {
         }
     }
 
+    /**
+     * Builds the {@code entityId|methodName|paramIntValues} composite key from a baseline JSON
+     * entry. Must stay format-aligned with the {@link Source} overload below - the paramInt
+     * component is stringified with no interior spaces so a baseline {@code [1]} and a
+     * discovered {@code new int[]{1}} produce byte-identical keys.
+     */
     private static String sourceKey(JsonObject o) {
         String pi = o.get("paramIntValues").isJsonNull() ? "null" : o.get("paramIntValues").toString();
         return o.get("entityId").getAsString() + "|" + o.get("methodName").getAsString() + "|" + pi;
     }
 
+    /**
+     * Builds the {@code entityId|methodName|paramIntValues} composite key from a discovered
+     * {@link Source}, format-matched to the {@link JsonObject} overload above (spaces stripped
+     * from {@link Arrays#toString} so {@code [1, 0]} collapses to {@code [1,0]}).
+     */
     private static String sourceKey(Source s) {
         String pi = s.paramIntValues() == null ? "null" : Arrays.toString(s.paramIntValues()).replace(" ", "");
         return s.entityId() + "|" + s.methodName() + "|" + pi;

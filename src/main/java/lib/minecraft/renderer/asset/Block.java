@@ -153,7 +153,8 @@ public final class Block {
         WATER,
 
         /**
-         * Use the block's {@code tintConstant} field directly. Applies to redstone wire, stems, etc.
+         * Use the {@link Tint#constant() constant} ARGB carried on the block's {@link Tint}
+         * directly. Applies to redstone wire, stems, etc.
          */
         CONSTANT
 
@@ -166,7 +167,8 @@ public final class Block {
      * @param target the tint source - {@link TintTarget#NONE NONE} for untinted blocks,
      *     {@link TintTarget#CONSTANT CONSTANT} for a hardcoded ARGB value, or a colormap
      *     target like {@link TintTarget#GRASS GRASS} / {@link TintTarget#FOLIAGE FOLIAGE}
-     * @param constant the hardcoded ARGB value when target is {@code CONSTANT}
+     * @param constant the hardcoded ARGB value, present only when {@code target} is
+     *     {@link TintTarget#CONSTANT CONSTANT} and empty otherwise
      */
     public record Tint(@NotNull TintTarget target, @NotNull Optional<Integer> constant) {}
 
@@ -192,7 +194,9 @@ public final class Block {
     public record Variant(@NotNull String modelId, @NotNull ModelData model, int x, int y, boolean uvlock) {
 
         /**
-         * Returns {@code true} when this variant applies rotation to the model.
+         * Reports whether this variant applies a whole-model rotation.
+         *
+         * @return {@code true} when either {@code x} or {@code y} is non-zero
          */
         public boolean hasRotation() {
             return this.x != 0 || this.y != 0;
@@ -281,6 +285,12 @@ public final class Block {
             float @NotNull [] offset
         ) {
 
+            /**
+             * {@inheritDoc}
+             *
+             * <p>Overrides the record's generated {@code equals} so the {@code offset} float array
+             * compares by element ({@link Arrays#equals}) rather than by reference identity.
+             */
             @Override
             public boolean equals(Object o) {
                 if (o == null || getClass() != o.getClass()) return false;
@@ -291,6 +301,12 @@ public final class Block {
                     && Arrays.equals(this.offset, part.offset);
             }
 
+            /**
+             * {@inheritDoc}
+             *
+             * <p>Overrides the record's generated {@code hashCode} so the {@code offset} float array
+             * hashes by content ({@link Arrays#hashCode}), staying consistent with {@link #equals}.
+             */
             @Override
             public int hashCode() {
                 return Objects.hash(this.modelId, this.model, this.texture, Arrays.hashCode(this.offset));

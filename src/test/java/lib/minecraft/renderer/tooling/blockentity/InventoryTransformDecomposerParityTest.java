@@ -71,6 +71,14 @@ class InventoryTransformDecomposerParityTest {
         return m;
     }
 
+    /**
+     * Asserts the bytecode-extracted tuple for every policy entity matches
+     * {@code baseline/inventory_transforms.json} within {@code 1e-3}. The 15 non-dragon entities
+     * are checked against their exact baseline array; {@code minecraft:skull_dragon_head} is
+     * checked against the shared skull shape {@code [8, 0, 8, 180, 0, 0]} instead, because its
+     * baseline {@code tz = 1.25} is a geometry-derived recentring the decomposer does not (and
+     * should not) reproduce. All 16 must produce a tuple.
+     */
     @Test
     @DisplayName("decomposer output matches baseline/inventory_transforms.json for 15/16 entities")
     void parity() throws IOException {
@@ -104,6 +112,10 @@ class InventoryTransformDecomposerParityTest {
         }
     }
 
+    /**
+     * Asserts {@code decomposeAll} emits exactly the ids it was asked to resolve - no more, no
+     * fewer - so the decomposer never invents entity ids the caller did not request.
+     */
     @Test
     @DisplayName("decomposer output has no spurious entries beyond policy coverage")
     void noSpuriousEntries() throws IOException {
@@ -115,6 +127,14 @@ class InventoryTransformDecomposerParityTest {
         }
     }
 
+    /**
+     * Asserts {@code actual} and {@code expected} have equal length and every element agrees
+     * within {@code 1e-3}, tagging failures with the entity {@code id} and both values.
+     *
+     * @param id the entity id under test, for the failure message
+     * @param actual the decomposer output tuple
+     * @param expected the baseline tuple
+     */
     private static void assertTuple(@NotNull String id, float @NotNull [] actual, float @NotNull [] expected) {
         assertThat("tuple length for " + id, actual.length, equalTo(expected.length));
         for (int i = 0; i < expected.length; i++) {

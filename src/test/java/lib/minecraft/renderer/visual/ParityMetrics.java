@@ -29,7 +29,9 @@ import java.awt.image.BufferedImage;
 public final class ParityMetrics {
 
     /**
-     * Computes per-pixel ARGB statistics between two same-size images. Mean delta uses
+     * Computes per-pixel ARGB statistics over the two images' overlapping
+     * {@code (min(w), min(h))} region - callers pad both sides onto a common canvas first (see
+     * {@link #padToCanvas}), so in practice this is the full union canvas. Mean delta uses
      * <b>over-white compositing</b>: each pixel is first composited onto a fully-opaque white
      * background ({@code C_out = C_src * A_src/255 + 255 * (1 - A_src/255)}), then the absolute
      * RGB difference is taken. This matches what a viewer perceives looking at the rendered PNG

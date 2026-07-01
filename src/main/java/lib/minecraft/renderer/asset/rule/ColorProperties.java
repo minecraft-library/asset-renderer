@@ -25,7 +25,8 @@ import java.util.Properties;
 public record ColorProperties(@NotNull ConcurrentMap<String, Integer> overrides) {
 
     /**
-     * The empty color properties containing no overrides.
+     * The empty color properties, carrying no overrides. Represents a pack that ships no
+     * {@code color.properties} file.
      */
     public static final @NotNull ColorProperties EMPTY = new ColorProperties(Concurrent.newMap());
 
@@ -67,12 +68,21 @@ public record ColorProperties(@NotNull ConcurrentMap<String, Integer> overrides)
      * Returns the colour override for a property key, if present.
      *
      * @param key the property key
-     * @return the ARGB colour, or empty if no override exists
+     * @return the ARGB colour, or empty when no override exists
      */
     public @NotNull Optional<Integer> get(@NotNull String key) {
         return Optional.ofNullable(this.overrides.get(key));
     }
 
+    /**
+     * Parses a hex colour value, accepting the {@code 0x}, {@code #}, and bare-hex forms, and
+     * forces the alpha channel to fully opaque ({@code 0xFF}) - {@code color.properties} values
+     * carry only RGB. Returns {@code null} for blank or unparseable values so the caller can skip
+     * the key rather than fail the whole file.
+     *
+     * @param value the raw property value
+     * @return the opaque ARGB colour, or {@code null} when the value is blank or malformed
+     */
     private static Integer parseColor(String value) {
         if (value == null || value.isBlank()) return null;
         String trimmed = value.trim();

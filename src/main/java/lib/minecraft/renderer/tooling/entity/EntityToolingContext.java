@@ -33,10 +33,19 @@ import java.util.zip.ZipFile;
 @RequiredArgsConstructor
 public final class EntityToolingContext implements AutoCloseable {
 
+    /** Path to the deobfuscated client jar this context reads classes and assets from. */
     private final @NotNull Path clientJar;
+
+    /** Pipeline options for the current {@link ToolingEntityModels} run. */
     private final @NotNull PipelineOptions options;
+
+    /** Open handle to {@link #clientJar}, used for asset-entry existence checks and class reads. */
     private final @NotNull ZipFile zip;
+
+    /** Shared, {@link #zip}-backed cache so repeated reads of the same renderer / model / layer class avoid re-parsing the jar entry. */
     private final @NotNull ClassNodeCache classNodes;
+
+    /** Diagnostics sink threaded through every resolver pass for warnings and info-level provenance logging. */
     private final @NotNull Diagnostics diagnostics;
 
     /**
@@ -58,6 +67,12 @@ public final class EntityToolingContext implements AutoCloseable {
         }
     }
 
+    /**
+     * Closes the underlying client-jar {@link ZipFile} handle. The {@link ClassNodeCache}
+     * holds no OS resources of its own, so releasing the zip is sufficient.
+     *
+     * @throws IOException if the jar handle cannot be closed
+     */
     @Override
     public void close() throws IOException {
         this.zip.close();

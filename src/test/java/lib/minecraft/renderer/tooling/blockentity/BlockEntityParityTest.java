@@ -17,12 +17,17 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Slow end-to-end parity test. The full pipeline is exercised via the committed
- * {@code src/main/resources/lib/minecraft/renderer/block_models.json} file rather than re-running the
- * tooling in-process (which needs disk I/O and would interfere with the BlockModelsGoldenTest
- * fixture). Here we only confirm the committed file is internally consistent - every entity
- * id in the catalog has a matching {@code entities} entry with geometry and the expected
- * metadata fields.
+ * Slow full-pipeline consistency check for the committed {@code block_models.json}. Rather than
+ * re-running the {@code blockModels} tooling in-process (which needs disk I/O and would clash with
+ * the {@code JsonResourceShaTest} golden-reference guard), it reads the committed
+ * {@code src/main/resources/lib/minecraft/renderer/block_models.json} directly and confirms it is
+ * internally consistent against a live {@link BlockListDiscovery#discover} walk of the 26.1 client
+ * jar: every discovered block-entity-model id must have a matching {@code models} entry carrying
+ * geometry ({@code model.elements}, non-empty) and the {@code y_axis} / {@code tinted} metadata
+ * fields.
+ *
+ * <p>Read against the committed file, not a fresh render, so a stale {@code block_models.json}
+ * (out of sync with a bumped client jar) surfaces here as a missing-id or empty-elements failure.
  */
 @DisplayName("block_models.json full-pipeline parity")
 @Tag("slow")
@@ -31,6 +36,13 @@ class BlockEntityParityTest {
     private static final Path OUTPUT = Path.of("src/main/resources/lib/minecraft/renderer/block_models.json");
     private static final Gson GSON = GsonSettings.defaults().create();
 
+    /**
+     * Asserts every id discovered from the client jar is present in {@code block_models.json} under
+     * {@code models}, and that each carries {@code y_axis}, {@code tinted}, and a {@code model} with
+     * a non-empty {@code elements} array. The block-entity families we parse (the 19 wired into
+     * {@link BlockListDiscovery}'s dispatch) always ship a model, so {@code model} is required
+     * unconditionally.
+     */
     @Test
     @DisplayName("every catalog entity id has a block_models.json entry with elements")
     void allEntitiesPresent() throws IOException {

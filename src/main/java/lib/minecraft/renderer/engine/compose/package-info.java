@@ -20,12 +20,14 @@
  * {@link lib.minecraft.renderer.engine.compose.FramePlacement FramePlacement} position possibly-animated
  * sub-renders, merged by {@link lib.minecraft.renderer.engine.compose.FrameCompositor FrameCompositor}.
  *
- * <p><b>Stages.</b> The terminal pipeline is an explicit hardcoded sequence:
- * {@link lib.minecraft.renderer.engine.compose.FinalizeStage FinalizeStage} (supersample, FXAA, downscale)
- * &rarr; {@link lib.minecraft.renderer.engine.compose.GlintStage GlintStage} (enchantment foil) &rarr;
- * {@link lib.minecraft.renderer.engine.compose.AnimationStage AnimationStage} (frame orchestration).
- * {@link lib.minecraft.renderer.engine.compose.Frames Frames} wraps the resulting buffers into the final
- * {@code ImageData}.
+ * <p><b>Stages.</b> The terminal pipeline is an explicit hardcoded composition of three shared stages.
+ * {@link lib.minecraft.renderer.engine.compose.FinalizeStage FinalizeStage} rasterizes and
+ * post-processes one buffer (supersample, FXAA, downscale), then hands it to a finalizer callback that
+ * typically runs {@link lib.minecraft.renderer.engine.compose.GlintStage GlintStage} (enchantment foil).
+ * {@link lib.minecraft.renderer.engine.compose.AnimationStage AnimationStage} sits outermost, invoking
+ * that finalise-then-glint tail once per animation frame and baking the strip.
+ * {@link lib.minecraft.renderer.engine.compose.Frames Frames} wraps the resulting buffer(s) into the
+ * final {@code ImageData}.
  *
  * @see lib.minecraft.renderer.engine.compose.LayerStack
  * @see lib.minecraft.renderer.engine.compose.Frames

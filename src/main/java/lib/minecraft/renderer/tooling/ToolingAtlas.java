@@ -18,14 +18,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * Entry point invoked by the {@code generateAtlas} Gradle JavaExec task.
+ * Entry point invoked by the {@code atlas} Gradle JavaExec task.
  * <p>
  * The main is a thin I/O wrapper: it bootstraps the asset pipeline (downloading the Minecraft
  * client jar if it is not already cached), wraps the result in a {@link PipelineRendererContext},
- * delegates the actual rendering to {@link AtlasRenderer#renderAtlas(AtlasOptions)}, and writes
- * the produced PNG and sidecar JSON to the output directory passed as the first program
- * argument. All rendering, tile iteration, and progress reporting lives on the renderer; this
- * class only handles file I/O and command-line argument parsing.
+ * delegates the actual rendering to {@link AtlasRenderer#renderAtlas(AtlasOptions)}, and writes the
+ * produced atlas image plus its {@code atlas.json} sidecar to the output directory passed as the
+ * first program argument (defaulting to {@code build/atlas}). Static atlases are written as
+ * {@code atlas.png}; an animated atlas is written as lossless multithreaded {@code atlas.webp}. All
+ * rendering, tile iteration, and progress reporting lives on the renderer; this class only handles
+ * file I/O and command-line argument parsing.
  */
 @UtilityClass
 public final class ToolingAtlas {

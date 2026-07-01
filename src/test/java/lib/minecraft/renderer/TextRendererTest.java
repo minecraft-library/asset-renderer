@@ -19,12 +19,20 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Smoke tests for {@link TextRenderer} covering the vanilla tooltip gradient border and the
- * background/border alpha defaults ({@code 240}/{@code 80}).
+ * Smoke tests for {@link TextRenderer}'s {@code LORE}-style tooltip chrome. Covers the vanilla
+ * background/border alpha defaults ({@code 240}/{@code 80}) on {@link TextOptions#defaults()}, and
+ * pins the rendered tooltip's fill and gradient-border pixels against vanilla's exact colours by
+ * sampling known output coordinates - background fill {@code 0xF0100010}, gradient top
+ * {@code 0x505000FF}, gradient bottom {@code 0x5028007F}, and the interpolated left edge between
+ * them.
+ * <p>
+ * {@link MinecraftFontsExtension} supplies the loaded Minecraft font atlas so the renderer can lay
+ * out glyphs and size the tooltip canvas.
  */
 @ExtendWith(MinecraftFontsExtension.class)
 class TextRendererTest {
 
+    /** Builds single-line {@code LORE}-style options ("Test") - the shared fixture for the chrome-pixel assertions. */
     private static TextOptions singleLineLore() {
         ConcurrentList<LineSegment> lines = Concurrent.newList();
         lines.add(LineSegment.builder()

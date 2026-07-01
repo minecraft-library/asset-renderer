@@ -65,8 +65,12 @@ public final class TextRenderer implements Renderer<TextOptions> {
      */
     private static final int LORE_GAP_MCPX = 2;
 
+    /**
+     * Default glyph colour for text segments that carry no explicit colour - vanilla lore grey.
+     */
     private static final int DEFAULT_COLOR_ARGB = ChatColor.Legacy.GRAY.rgb();
 
+    /** {@inheritDoc} */
     @Override
     public @NotNull ImageData render(@NotNull TextOptions options) {
         if (options.getLines().isEmpty())
@@ -97,6 +101,19 @@ public final class TextRenderer implements Renderer<TextOptions> {
         return Frames.wrapFrames(frames, delayMs);
     }
 
+    /**
+     * Draws one frame at the given mcPixel canvas dimensions. Composes an ordered
+     * {@link LayerStack} of the tooltip background + gradient border (LORE style only) and the
+     * glyph rows, then applies the caller's {@link TextOptions#getLayerDecorator() layer decorator}
+     * before flattening onto a single buffer. The {@code frameSeed} drives the per-frame
+     * obfuscation substitution so each animation frame shows a fresh scramble.
+     *
+     * @param options the text render options
+     * @param canvasWMcPx the canvas width in mcPixels
+     * @param canvasHMcPx the canvas height in mcPixels
+     * @param frameSeed the obfuscation seed for this frame
+     * @return a single-element list holding the drawn frame buffer
+     */
     private static @NotNull ConcurrentList<PixelBuffer> drawSingleFrame(
         @NotNull TextOptions options,
         int canvasWMcPx,
@@ -200,10 +217,18 @@ public final class TextRenderer implements Renderer<TextOptions> {
         return ColorMath.pack(a, r, g, b);
     }
 
+    /**
+     * Linearly interpolates a single 8-bit colour channel. Returns {@code from} at {@code t == 0}
+     * and {@code to} at {@code t == steps}.
+     */
     private static int lerp(int from, int to, int t, int steps) {
         return from + ((to - from) * t) / steps;
     }
 
+    /**
+     * Returns whether any segment across any line is obfuscated ({@code §k}), which promotes the
+     * render to an animated multi-frame output.
+     */
     private static boolean hasObfuscation(@NotNull ConcurrentList<LineSegment> lines) {
         for (LineSegment line : lines) {
             for (ColorSegment segment : line.getSegments())
@@ -212,6 +237,10 @@ public final class TextRenderer implements Renderer<TextOptions> {
         return false;
     }
 
+    /**
+     * Measures the widest line in mcPixels, clamped to a minimum of 16 mcPixels so short strings
+     * still produce a non-degenerate canvas.
+     */
     private static int measureWidthMcPixels(@NotNull TextOptions options) {
         int max = 0;
         for (LineSegment line : options.getLines())
@@ -219,6 +248,10 @@ public final class TextRenderer implements Renderer<TextOptions> {
         return Math.max(16, max);
     }
 
+    /**
+     * Builds a single-frame list holding one flat-filled buffer. Used for the empty-input
+     * degenerate case (a 1x1 transparent frame).
+     */
     private static @NotNull ConcurrentList<PixelBuffer> singleFrame(int w, int h, int fill) {
         PixelBuffer buffer = PixelBuffer.create(w, h);
         buffer.fill(fill);

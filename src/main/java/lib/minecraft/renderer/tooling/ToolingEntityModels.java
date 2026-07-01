@@ -6,6 +6,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.EntityRenderer;
+import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.tooling.blockentity.Source;
@@ -59,11 +60,11 @@ import java.util.Set;
  *       ({@link EntityLayerDefinitionResolver}). Walks the {@code LayerDefinition}-returning
  *       factory; procedural-loop entity bodies (squid / blaze / ghast / silverfish / endermite
  *       / slime families) are folded by the shared
- *       {@link lib.minecraft.renderer.tooling.parser.GeometryParser} at parse time.</li>
+ *       {@link GeometryParser} at parse time.</li>
  *   <li><b>Overlay resolution + emission</b>
  *       ({@link EntityOverlayResolver}, {@link EntityBlockOverlayResolver},
  *       {@link EntityRuntimeJsonWriter}). Resolves overlay rows and emits the runtime JSON
- *       {@link EntityRenderer EntityRenderer} consumes (cross-entity family clustering folded
+ *       {@link EntityRenderer} consumes (cross-entity family clustering folded
  *       into {@code EntityRuntimeJsonWriter}).</li>
  * </ol>
  *
@@ -75,8 +76,8 @@ import java.util.Set;
  * the diagnostics' {@code mobs_without_renderer_list}.
  *
  * @see ToolingBlockModels
- * @see lib.minecraft.renderer.EntityRenderer
- * @see lib.minecraft.renderer.engine.kit.EntityGeometryKit
+ * @see EntityRenderer
+ * @see EntityGeometryKit
  */
 @UtilityClass
 public final class ToolingEntityModels {

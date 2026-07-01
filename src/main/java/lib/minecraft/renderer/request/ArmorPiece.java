@@ -10,8 +10,10 @@ import java.util.Optional;
  * an enchantment glint.
  *
  * @param material the armor material that selects the base texture atlas
- * @param trimColor the trim colour palette for paletted permutation, or empty for no trim
- * @param trimPattern the trim pattern shape for 3D entity rendering, or empty for no trim
+ * @param trimColor the trim colour palette that recolours the grayscale trim pattern, or empty for
+ *     no trim; must be present together with {@code trimPattern} for a trim to render
+ * @param trimPattern the trim pattern shape overlaid on the armor, or empty for no trim; must be
+ *     present together with {@code trimColor} for a trim to render
  * @param dyeColor the ARGB leather dye applied to the {@link ArmorMaterial#LEATHER} base layer, or
  *     empty for vanilla's default leather tint; ignored for non-leather materials
  * @param enchanted whether the piece carries the enchantment glint overlay

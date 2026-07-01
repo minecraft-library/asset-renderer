@@ -28,7 +28,15 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * Unit coverage for {@link EntityVariantResolver#resolveEnumDefault}, the enum-DEFAULT
  * variant walker folded into {@link EntityVariantResolver} from the deleted
- * {@code EntityVariantDefaultResolver}. Every fixture is a synthetic in-memory jar.
+ * {@code EntityVariantDefaultResolver}. Every fixture is a synthetic in-memory jar built with ASM
+ * ({@link org.objectweb.asm.ClassWriter}) and read back through a {@link ClassNodeCache}.
+ * <p>
+ * The resolver walks a three-hop bytecode chain, and each fixture severs one hop to pin the
+ * corresponding bail-out to {@code null}: the renderer's {@code getTextureLocation(state)} method
+ * must exist, its body must {@code GETFIELD state.variant} of some enum type, and that enum must
+ * carry a {@code static final DEFAULT} field assigned in its {@code <clinit>}. The happy path
+ * asserts the resolved {@link EntityVariantResolver.EnumDefault} names the variant enum and
+ * lowercases the DEFAULT constant (e.g. {@code LUCY -> "lucy"}).
  */
 @DisplayName("EntityVariantResolver.resolveEnumDefault")
 class EntityVariantResolverTest {
@@ -196,6 +204,12 @@ class EntityVariantResolverTest {
         return cw.toByteArray();
     }
 
+    /**
+     * Writes each {@code name -> bytecode} pair as a {@code name.class} zip entry into a fresh
+     * {@code fixture.jar} under {@code dir} and returns it opened as a {@link ZipFile} - the input
+     * shape {@link ClassNodeCache} expects. Entries are written in insertion order (via
+     * {@link LinkedHashMap}) so the jar layout is deterministic across runs.
+     */
     private static ZipFile makeJar(Path dir, Map<String, byte[]> classes) throws IOException {
         Path jar = dir.resolve("fixture.jar");
         try (ZipOutputStream out = new ZipOutputStream(Files.newOutputStream(jar))) {

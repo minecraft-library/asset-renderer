@@ -11,17 +11,40 @@ import org.jetbrains.annotations.NotNull;
  * Draws the vanilla-style durability bar and stack count overlay on top of a GUI item icon.
  * <p>
  * Both helpers operate on a {@link PixelBuffer} sized at a multiple of 16 pixels. Coordinates
- * and sizes are specified in the 16x16 logical space and scaled up to the buffer pixel size
- * automatically, so a 256x256 buffer renders a 13*16=208 pixel wide bar, matching vanilla's
- * GUI scale 16.
+ * and sizes are specified in the 16x16 logical GUI space and scaled up to the buffer pixel size
+ * automatically (the scale factor being {@code buffer.width() / 16}), so a 256x256 buffer renders
+ * a 13x16 = 208 pixel wide bar background, matching a vanilla GUI scale of 16.
  */
 @UtilityClass
 public class ItemStackKit {
 
+    /**
+     * Edge length of the logical GUI icon in GUI pixels. Every coordinate and size below is
+     * authored against this 16x16 grid, then multiplied by {@code buffer.width() / 16} to land in
+     * actual buffer pixels.
+     */
     private static final int LOGICAL_CANVAS = 16;
+
+    /**
+     * Left edge of the durability bar, in logical GUI pixels from the icon origin.
+     */
     private static final int BAR_X = 2;
+
+    /**
+     * Top row of the durability bar background, in logical GUI pixels from the icon origin. The
+     * coloured foreground row sits one pixel below this.
+     */
     private static final int BAR_Y = 13;
+
+    /**
+     * Width of the black background row of the durability bar, in logical GUI pixels.
+     */
     private static final int BAR_BG_WIDTH = 13;
+
+    /**
+     * Width of the coloured foreground row of the durability bar at full durability, in logical
+     * GUI pixels. Inset one pixel narrower than the background so the black border frames it.
+     */
     private static final int BAR_FG_WIDTH = 12;
 
     /**

@@ -17,10 +17,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * Diagnostic task that renders items to PNG files for visual inspection. Defaults to a mix of
- * normal items and trim variants to verify sprite layering and paletted permutation.
+ * Diagnostic task that renders items as flat 2D GUI sprites ({@link ItemOptions.Type#GUI_2D}) to PNG
+ * files under {@code cache/visual/item-render-2d/} for visual inspection. With no {@code -PitemId}
+ * it renders {@link #ITEM_TEST_1} - a mix of plain items and armor-trim variants that exercises
+ * sprite layering and paletted trim permutation.
  * <p>
- * Usage: {@code ./gradlew :asset-renderer:itemRender2D [-PitemId=minecraft:diamond_sword] [-PrenderSize=256]}
+ * Usage: {@code ./gradlew :asset-renderer:itemRender2D [-PitemId=minecraft:diamond_sword] [-PrenderSize=256]}.
  */
 @UtilityClass
 public final class TestItemRender2D {

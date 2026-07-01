@@ -90,9 +90,15 @@ public final class TintDiscovery {
 
     /**
      * Returns {@code true} when {@code rendererInternalName}'s bytecode (including superclass
-     * chain) calls any of the tint-accessor APIs. Uses
-     * {@link AsmKit#isInvoke} primitives so the match is
-     * case-sensitive and exact - no partial-name heuristics.
+     * chain, stopping at {@code java/lang/Object}) calls any of the tint-accessor APIs. Uses
+     * the exact-match {@link AsmKit#isInvokeVirtual} / {@link AsmKit#isInvokeStatic} primitives
+     * plus a {@link AsmKit#descriptorReturns} check for the {@code BannerPatternLayers} return
+     * type, so the match is case-sensitive and exact - no partial-name heuristics.
+     *
+     * @param zip the cached client jar
+     * @param rendererInternalName the renderer class's JVM internal name
+     * @param diag diagnostics sink - a class missing from the jar surfaces as a warn
+     * @return whether the renderer (or any superclass) invokes a tint-accessor API
      */
     static boolean isRendererTintBearing(@NotNull ZipFile zip, @NotNull String rendererInternalName, @NotNull Diagnostics diag) {
         String current = rendererInternalName;

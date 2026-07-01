@@ -26,9 +26,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies {@link BannerKit#composite2D} against in-memory fixture textures. The kit is the
- * single call-site that drives banner / shield rendering, so we stub the context and assert on
- * output pixels directly.
+ * Verifies {@link BannerKit#composite2D} banner / shield compositing against in-memory fixture
+ * textures, plus {@link BannerKit.Variant#textureFor} path building. A {@link StubContext} serves
+ * fixture textures by id so the tests assert on output pixels directly: base-dye fill with no
+ * layers, a single dye-tinted pattern mask blitted over the base, and the
+ * {@link BannerKit.Variant#SHIELD_ITEM} variant pulling the {@code entity/shield/} atlas rather
+ * than {@code entity/banner/}.
  */
 class BannerKitTest {
 
@@ -75,7 +78,9 @@ class BannerKitTest {
         PixelBuffer canvas = BannerKit.composite2D(engine, DyeColor.Vanilla.WHITE, layers,
             BannerKit.Variant.BANNER_ITEM);
 
-        // Pixel (0, 0) got the blue layer blitted on top; the other three kept the white base.
+        // Pixel (0, 0) is the one opaque mask texel, so the blue layer blitted over it; assert it
+        // stayed opaque (the exact tint blend is BlendMode.NORMAL's business). The other three
+        // texels were transparent in the mask, so they kept the untouched white base.
         assertThat((canvas.getPixel(0, 0) >>> 24) & 0xFF, is(0xFF));
         assertThat(canvas.getPixel(1, 0), is(equalTo(DyeColor.Vanilla.WHITE.argb())));
         assertThat(canvas.getPixel(0, 1), is(equalTo(DyeColor.Vanilla.WHITE.argb())));
@@ -124,13 +129,18 @@ class BannerKitTest {
         );
     }
 
+    /** Builds a {@code w}-by-{@code h} buffer filled with a single ARGB value. */
     private static PixelBuffer solid(int w, int h, int argb) {
         int[] pixels = new int[w * h];
         for (int i = 0; i < pixels.length; i++) pixels[i] = argb;
         return PixelBuffer.of(pixels, w, h);
     }
 
-    /** A lightweight RendererContext stub backed by an in-memory texture map. */
+    /**
+     * A lightweight {@link RendererContext} stub backed by an in-memory texture map. Only
+     * {@link #resolveTexture} is wired (to the fixture map); every other lookup returns empty, which
+     * is all {@link BannerKit#composite2D} needs.
+     */
     private static final class StubContext implements RendererContext {
 
         private final @NotNull Map<String, PixelBuffer> textures;

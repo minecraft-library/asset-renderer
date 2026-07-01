@@ -36,7 +36,7 @@ import javax.imageio.ImageIO;
  * baseline; the Java pipeline aims to match it.
  *
  * <p>Both sides render at a fixed {@code 512x512} canvas (the harness's
- * {@link lib.minecraft.refharness.HarnessConfig#IMAGE_SIZE} default). When dimensions diverge
+ * {@code HarnessConfig.IMAGE_SIZE} / {@code refharness.size} default). When dimensions diverge
  * (shouldn't happen at fixed canvas, but defensive), both PNGs are pasted onto a common
  * {@code (max(vw,jw), max(vh,jh))} canvas with transparent margins before the per-pixel diff so
  * the comparison still makes sense visually; the dimension mismatch surfaces in the TSV report.

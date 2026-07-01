@@ -36,10 +36,19 @@ import static org.hamcrest.Matchers.*;
 @DisplayName("Pipeline end-to-end integration")
 class PipelineIntegrationTest {
 
+    /** Stable, non-temporary cache root so the extracted client jar survives across sessions. */
     private static final File CACHE_ROOT = new File("cache/it");
+
+    /** Full pipeline result shared across every test in the class, built once in {@link #downloadAndExtract()}. */
     private static Pipeline.Result result;
+
+    /** Extracted pack root ({@code cache/it/.../vanilla}) that the on-disk assertions probe. */
     private static Path packRoot;
 
+    /**
+     * Runs the full 26.1 pipeline once for the class - downloads and extracts the client jar (or
+     * reuses the cached copy) and publishes the shared {@link #result} / {@link #packRoot}.
+     */
     @BeforeAll
     static void downloadAndExtract() {
         PipelineOptions options = PipelineOptions.builder()

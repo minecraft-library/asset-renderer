@@ -7,7 +7,9 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * Constants for the Minecraft armor trim system: which armor slot the trim applies to, which
- * colour palette recolours the pattern, and which pattern shape is used for 3D entity rendering.
+ * colour palette recolours the pattern, and which pattern shape is overlaid on the armor. A trim
+ * is a {@link Pattern} texture recoloured by a {@link Color} palette (see the {@code TrimKit}
+ * paletted-permutation step) and composited over the base {@link ArmorMaterial} layer.
  */
 @UtilityClass
 public final class ArmorTrim {
@@ -25,13 +27,19 @@ public final class ArmorTrim {
     @RequiredArgsConstructor
     public enum Slot {
 
+        /** Leggings - armor layer 2, painted first so layer-1 pieces composite over it. */
         LEGGINGS("leggings"),
+        /** Helmet - armor layer 1. */
         HELMET("helmet"),
+        /** Chestplate - armor layer 1, painted over the leggings waist on the torso. */
         CHESTPLATE("chestplate"),
+        /** Boots - armor layer 1, painted over the leggings on the lower legs. */
         BOOTS("boots");
 
         /**
-         * The texture key used in trim pattern paths ({@code trims/items/{key}_trim}).
+         * The vanilla slot name ({@code leggings} / {@code helmet} / {@code chestplate} /
+         * {@code boots}), matching the item-trim path stem {@code trims/items/{key}_trim}. The 3D
+         * and 2D compositors key off the enum constant itself rather than this string.
          */
         private final @NotNull String key;
 
@@ -71,9 +79,10 @@ public final class ArmorTrim {
     }
 
     /**
-     * The trim pattern shape used for 3D entity armor rendering. Each pattern maps to a
-     * grayscale texture at {@code trims/entity/humanoid/{key}.png} (layer 1) and
-     * {@code trims/entity/humanoid_leggings/{key}.png} (layer 2).
+     * The trim pattern shape overlaid on armor (both 2D compositing and 3D entity rendering). Each
+     * pattern maps to a grayscale texture at {@code trims/entity/humanoid/{key}.png} (layer 1) and
+     * {@code trims/entity/humanoid_leggings/{key}.png} (layer 2), recoloured through a {@link Color}
+     * palette before compositing.
      */
     @Getter
     @RequiredArgsConstructor

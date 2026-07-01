@@ -88,12 +88,14 @@ class FluidRendererParallelismTest {
             firstCrc.size(), is(5));
     }
 
+    /** Reduces an animation to one CRC32 per frame, in frame order - the comparison key for the two runs. */
     private static List<Long> frameCrcs(ImageData image) {
         return image.getFrames().stream()
             .map(frame -> crc32(frame.pixels()))
             .toList();
     }
 
+    /** CRC32 over the buffer's little-endian ARGB int pixels - a compact byte-exact fingerprint of one frame. */
     private static long crc32(PixelBuffer buffer) {
         int[] pixels = buffer.getPixels(0, 0, buffer.width(), buffer.height(), null, 0, 0);
         ByteBuffer bb = ByteBuffer.allocate(pixels.length * Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN);

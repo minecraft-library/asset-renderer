@@ -13,10 +13,14 @@ import org.jetbrains.annotations.NotNull;
  * authored in world orientation (blocks via their blockstate variant rotation, the player via its
  * pre-rotation).
  *
- * <p>{@link ModelEngine} composes it between the camera pose and the caller's model spin
- * ({@code pose x placement x modelSpin}). {@link #IDENTITY} is the no-op placement - byte-identical to
- * the pre-Placement pipeline - and is what every subject uses until the entity chirality/facing is
- * migrated off the fused camera + kit onto an entity placement.
+ * <p>{@link ModelEngine} composes it between the camera pose and the caller's model transform
+ * ({@code pose x placement x modelTransform}). {@link #IDENTITY} is the no-op placement -
+ * byte-identical to the pre-Placement pipeline - used by subjects already authored in world orientation
+ * (blocks, fluids, portals via their variant rotation; the player via its pre-rotation). The entity is
+ * the one subject with a non-identity placement: {@code EntityRenderer}'s
+ * {@code diag(-1, -1, 1)} humanoid-facing + Y-down-to-Y-up flip + chirality, which lets
+ * {@link Projection#VANILLA_ISO} stay a facing-neutral pose while any projection still presents the
+ * entity's front, upright.
  *
  * @param modelToWorld the model-to-world matrix, in column-vector form
  */

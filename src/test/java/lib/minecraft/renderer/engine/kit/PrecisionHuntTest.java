@@ -17,9 +17,18 @@ import org.junit.jupiter.api.Test;
  * they print {@code [HYP_X]} prefixed lines so the test report acts as a precision spec sheet.
  * The aim is to identify which transform step (chain multiply, iso compose order, normalize,
  * SIMD vs scalar) introduces the pixel-class divergence that snap quantizes away.
+ *
+ * <p>Hypotheses probed: <b>B</b> per-bone {@code Matrix4f.multiply} accumulation (1-vs-N build),
+ * <b>C</b> iso compose-chain order, <b>D</b> {@code Vector3f.normalize} LSB amplification near a
+ * cardinal axis, <b>E</b> {@code R_X·R_Y} vs {@code Quaternionf.rotationXYZ} rotation-block parity,
+ * <b>F</b> the kit's per-axis {@code (v·modelScale - center)·scale} vs a fused matrix multiply. The
+ * {@code HYP_C} / {@code HYP_E} comments reconstruct the retired {@code entityIsoChain} composition
+ * inline for the comparison - that fused chain no longer exists as a method (it moved onto the
+ * {@code Placement} + camera in the split), so treat those references as historical.
  */
 class PrecisionHuntTest {
 
+    /** Cube-local vertex (one corner of a cube authored at origin -2,-2,-2 size 4,4,4). */
     private static final Vector3f CUBE_CORNER = new Vector3f(-2f, -2f, -2f);
 
     // --- Hypothesis B: per-bone Matrix4f.multiply accumulation ---
@@ -247,6 +256,7 @@ class PrecisionHuntTest {
 
     // --- Helpers ---
 
+    /** Prints a per-axis absolute-delta + ULP-distance line comparing our vertex output against vanilla's. */
     private static void report(String label, Vector3f ours, Vector3f vanilla) {
         int ux = ulpsBetween(ours.x(), vanilla.x());
         int uy = ulpsBetween(ours.y(), vanilla.y());
@@ -258,6 +268,14 @@ class PrecisionHuntTest {
             label, fmt(ours), fmt(vanilla), dx, dy, dz, ux, uy, uz);
     }
 
+    /**
+     * Distance between two floats in units-in-the-last-place, exploiting IEEE-754's monotonic bit
+     * ordering for like-signed values. Opposite-sign inputs return {@link Integer#MAX_VALUE}.
+     *
+     * @param a first value
+     * @param b second value
+     * @return ULP distance, or {@link Integer#MAX_VALUE} when the signs differ
+     */
     private static int ulpsBetween(float a, float b) {
         if (a == b) return 0;
         int ia = Float.floatToRawIntBits(a);

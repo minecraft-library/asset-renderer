@@ -163,9 +163,10 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
     /**
      * Vanilla biomes with baked temperature, downfall, and colour overrides.
      * <p>
-     * Values derived from the Minecraft 26.1 deobfuscated client source. Subject to verification
-     * before production use - any caller that needs exact vanilla parity should cross-check against
-     * the client's biome JSON files.
+     * Temperature and downfall are taken from the Minecraft 26.1 deobfuscated client source; the
+     * water / foliage colour overrides are extracted from the {@code effects.*_color} fields of the
+     * 26.1 biome JSON (via {@code slowTest}, see the per-section comments in the constant table).
+     * Grass overrides are the hardcoded badlands / cherry-grove values from the same source.
      */
     @Getter
     @Accessors(fluent = true)
@@ -279,10 +280,29 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
 
         // --- convenience overloads so the table stays readable ---
 
+        /**
+         * Table overload for a biome with no colour overrides - all four override slots default to
+         * empty.
+         *
+         * @param id the biome identifier
+         * @param temperature the biome temperature
+         * @param downfall the biome downfall
+         * @param grassColorModifier the post-sample grass colour modifier
+         */
         Vanilla(@NotNull String id, float temperature, float downfall, @NotNull GrassColorModifier grassColorModifier) {
             this(id, temperature, downfall, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), grassColorModifier);
         }
 
+        /**
+         * Table overload for a biome that overrides only its water colour (grass, foliage, and
+         * dry-foliage default to empty).
+         *
+         * @param id the biome identifier
+         * @param temperature the biome temperature
+         * @param downfall the biome downfall
+         * @param waterColorOverride the water colour override
+         * @param grassColorModifier the post-sample grass colour modifier
+         */
         Vanilla(
             @NotNull String id, float temperature, float downfall,
             @NotNull Optional<Integer> waterColorOverride,
@@ -291,6 +311,18 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
             this(id, temperature, downfall, Optional.empty(), Optional.empty(), Optional.empty(), waterColorOverride, grassColorModifier);
         }
 
+        /**
+         * Table overload for a biome with grass / foliage / dry-foliage overrides but no water
+         * override (which defaults to empty).
+         *
+         * @param id the biome identifier
+         * @param temperature the biome temperature
+         * @param downfall the biome downfall
+         * @param grassColorOverride the grass colour override
+         * @param foliageColorOverride the foliage colour override
+         * @param dryFoliageColorOverride the dry-foliage colour override
+         * @param grassColorModifier the post-sample grass colour modifier
+         */
         Vanilla(
             @NotNull String id, float temperature, float downfall,
             @NotNull Optional<Integer> grassColorOverride,
@@ -352,45 +384,100 @@ public sealed interface Biome permits Biome.Vanilla, Biome.Custom {
         private @NotNull Optional<Integer> waterColorOverride = Optional.empty();
         private @NotNull GrassColorModifier grassColorModifier = GrassColorModifier.NONE;
 
+        /**
+         * Starts a builder for a custom biome with the given identifier. Temperature and downfall
+         * default to {@code 0.5}, all colour overrides to empty, and the grass colour modifier to
+         * {@link GrassColorModifier#NONE}.
+         *
+         * @param id the biome identifier
+         */
         Builder(@NotNull String id) {
             this.id = id;
         }
 
+        /**
+         * Sets the biome temperature.
+         *
+         * @param temperature the temperature
+         * @return this builder
+         */
         public @NotNull Builder temperature(float temperature) {
             this.temperature = temperature;
             return this;
         }
 
+        /**
+         * Sets the biome downfall (humidity).
+         *
+         * @param downfall the downfall
+         * @return this builder
+         */
         public @NotNull Builder downfall(float downfall) {
             this.downfall = downfall;
             return this;
         }
 
+        /**
+         * Sets the hardcoded grass colour override, bypassing the colormap lookup.
+         *
+         * @param argb the ARGB grass colour
+         * @return this builder
+         */
         public @NotNull Builder grassColorOverride(int argb) {
             this.grassColorOverride = Optional.of(argb);
             return this;
         }
 
+        /**
+         * Sets the hardcoded foliage colour override, bypassing the colormap lookup.
+         *
+         * @param argb the ARGB foliage colour
+         * @return this builder
+         */
         public @NotNull Builder foliageColorOverride(int argb) {
             this.foliageColorOverride = Optional.of(argb);
             return this;
         }
 
+        /**
+         * Sets the hardcoded dry-foliage colour override, bypassing the colormap lookup.
+         *
+         * @param argb the ARGB dry-foliage colour
+         * @return this builder
+         */
         public @NotNull Builder dryFoliageColorOverride(int argb) {
             this.dryFoliageColorOverride = Optional.of(argb);
             return this;
         }
 
+        /**
+         * Sets the water colour override. Water has no colormap in vanilla, so this is the sole
+         * source of a non-default water tint.
+         *
+         * @param argb the ARGB water colour
+         * @return this builder
+         */
         public @NotNull Builder waterColorOverride(int argb) {
             this.waterColorOverride = Optional.of(argb);
             return this;
         }
 
+        /**
+         * Sets the post-sample grass colour modifier applied after the colormap lookup.
+         *
+         * @param modifier the grass colour modifier
+         * @return this builder
+         */
         public @NotNull Builder grassColorModifier(@NotNull GrassColorModifier modifier) {
             this.grassColorModifier = modifier;
             return this;
         }
 
+        /**
+         * Builds the {@link Custom} biome from the accumulated state.
+         *
+         * @return a new {@link Custom} biome
+         */
         public @NotNull Biome build() {
             return new Custom(this.id, this.temperature, this.downfall, this.grassColorOverride, this.foliageColorOverride, this.dryFoliageColorOverride, this.waterColorOverride, this.grassColorModifier);
         }

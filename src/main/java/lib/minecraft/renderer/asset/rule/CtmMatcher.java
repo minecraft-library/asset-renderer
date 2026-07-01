@@ -86,8 +86,11 @@ public class CtmMatcher {
             case TOP -> topTileIndex(pattern);
             case HORIZONTAL_VERTICAL -> horizontalVerticalTileIndex(pattern);
             case VERTICAL_HORIZONTAL -> verticalHorizontalTileIndex(pattern);
+            // Unreachable: the isNeighborBased() guard above admits only the cases listed here.
             default -> 0;
         };
+        // Guard against packs shipping fewer tiles than the layout addresses - fall back to the
+        // last available tile rather than throwing.
         int clamped = Math.min(index, rule.tiles().size() - 1);
         return Optional.of(new CtmResolution(rule.tiles().get(clamped), Optional.empty()));
     }
@@ -234,6 +237,12 @@ public class CtmMatcher {
         return h == 0 ? 0 : 3 + h;
     }
 
+    /**
+     * Deterministic weighted pick for {@link CtmMethod#RANDOM}. Seeds a cumulative-weight cursor
+     * from {@code floorMod(blockId.hashCode(), totalWeight)} - stable per block id so the same
+     * block always resolves to the same tile - then walks the tiles accumulating weights until the
+     * seed falls into a tile's slice. Tiles beyond the {@code weights} list default to weight 1.
+     */
     private static @NotNull String pickRandom(@NotNull CtmRule rule, @NotNull String blockId) {
         int tileCount = rule.tiles().size();
         int seed = Math.floorMod(blockId.hashCode(), Math.max(1, totalWeight(rule, tileCount)));
@@ -246,6 +255,10 @@ public class CtmMatcher {
         return rule.tiles().get(tileCount - 1);
     }
 
+    /**
+     * Sums the per-tile weights, defaulting any tile past the end of the {@code weights} list to 1
+     * and flooring the total at 1 so {@link #pickRandom}'s modulo never divides by zero.
+     */
     private static int totalWeight(@NotNull CtmRule rule, int tileCount) {
         int total = 0;
         for (int i = 0; i < tileCount; i++)

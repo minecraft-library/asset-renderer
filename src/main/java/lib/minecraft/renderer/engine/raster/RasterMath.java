@@ -37,26 +37,33 @@ public class RasterMath {
     }
 
     /**
-     * Computes the barycentric denominator for a triangle. Used by the rasterizer to reject
-     * degenerate triangles (denominator near zero) and to divide out the barycentric numerators.
+     * Computes the barycentric denominator (twice the signed triangle area) for a triangle. Used
+     * by {@link #barycentricInto} to reject degenerate triangles ({@code denom == 0}) and to
+     * divide out the barycentric numerators.
      *
      * @param a the first vertex in 2D
      * @param b the second vertex in 2D
      * @param c the third vertex in 2D
-     * @return the denominator value
+     * @return the denominator value; sign encodes winding, magnitude is twice the triangle area
      */
     public static float barycentricDenominator(@NotNull Vector2f a, @NotNull Vector2f b, @NotNull Vector2f c) {
         return (b.y() - c.y()) * (a.x() - c.x()) + (c.x() - b.x()) * (a.y() - c.y());
     }
 
     /**
-     * Computes the barycentric (u, v, w) coordinates of a 2D point relative to a triangle.
+     * Computes the barycentric {@code (u, v, w)} coordinates of a 2D point relative to a triangle,
+     * where {@code u/v/w} weight vertices {@code a/b/c} respectively and sum to {@code 1}. Used to
+     * interpolate per-vertex attributes (UVs, depth) across the triangle's face.
+     * <p>
+     * Allocates a fresh array; hot pixel loops should call
+     * {@link #barycentricInto(Vector2f, Vector2f, Vector2f, float, float, float[])} with a reused
+     * scratch buffer instead.
      *
      * @param a the first vertex
      * @param b the second vertex
      * @param c the third vertex
      * @param point the query point
-     * @return a three-element float array {@code [u, v, w]}
+     * @return a three-element float array {@code [u, v, w]}; all zeros for a degenerate triangle
      */
     public static float @NotNull [] barycentric(
         @NotNull Vector2f a,

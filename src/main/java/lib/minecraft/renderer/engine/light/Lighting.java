@@ -11,10 +11,16 @@ import org.jetbrains.annotations.NotNull;
 /**
  * Vanilla-parity inventory lighting: the pre-rotated diffuse light directions and the
  * {@code light.glsl#minecraft_mix_light_separate} dual-light Lambertian that bakes a per-face or
- * per-vertex shade scalar at kit-build time. Four entries reproduce vanilla's
+ * per-vertex shade scalar at kit-build time. Three dual-light entries reproduce vanilla's
  * {@code Lighting.Entry} setups - {@code ITEMS_3D} (block-in-inventory icon), {@code ENTITY_IN_UI}
- * (mob portraits), {@code ITEMS_FLAT} (3D special-model items), and the four-cardinal-bucket
- * block/fluid approximation via {@link BlockFace}.
+ * (mob portraits), and {@code ITEMS_FLAT} (3D special-model items) - alongside the four-cardinal-bucket
+ * block / fluid approximation via {@link BlockFace} (a pre-baked scalar lookup rather than a real
+ * vanilla {@code Lighting.Entry}).
+ * <p>
+ * Each entry pairs two pre-rotated diffuse light directions (public {@code Vector3f} constants) with
+ * a shade method ({@link #blockItems3d}, {@link #entityInUi}, {@link #itemsFlat}); the cardinal
+ * approximation is {@link #inventory}. All shade methods share {@link #MINECRAFT_LIGHT_POWER} /
+ * {@link #MINECRAFT_AMBIENT_LIGHT} and clamp to {@code [0.4, 1.0]}.
  *
  * @see Shading
  */

@@ -14,10 +14,14 @@ import java.nio.file.Path;
 import javax.imageio.ImageIO;
 
 /**
- * Diagnostic task that renders {@link ItemStackKit#drawStackCount} over a solid background at
- * representative icon sizes, so changes to the stack-count layout can be pixel-diffed.
+ * Diagnostic task that renders {@link ItemStackKit#drawStackCount} over a solid grey background at
+ * representative icon {@link #SIZES sizes} x stack {@link #COUNTS counts} (20 renders per label), so
+ * changes to the stack-count badge layout can be pixel-diffed before/after a refactor. This is a
+ * <b>functional / visual</b> tool - the diff mode compares two label directories rather than
+ * against a fixed ground truth.
  * <p>
- * Invocation modes:
+ * Invocation modes (the Gradle {@code -Plabel} / {@code -Pdiff} flags are forwarded verbatim as the
+ * first program argument):
  * <ul>
  *   <li>{@code stackCountBadge -Plabel=before} - renders every combination to
  *       {@code cache/visual/stack-count-badge/before/}.</li>
@@ -26,6 +30,7 @@ import javax.imageio.ImageIO;
  *   <li>{@code stackCountBadge -Pdiff=before,after} - pixel-diffs every filename in
  *       {@code before/} against its twin in {@code after/} and prints a per-file delta summary.</li>
  * </ul>
+ * With no flag the render lands under the {@code default/} label directory.
  */
 @UtilityClass
 public final class TestStackCountBadge {
@@ -33,10 +38,10 @@ public final class TestStackCountBadge {
     /** Root output directory for all labelled renders + diff runs. */
     private static final Path OUTPUT_DIR = Path.of("cache/visual/stack-count-badge");
 
-    /** Icon sizes covered by a single render pass; one directory entry per size + count pair. */
+    /** Icon edge lengths (pixels) covered by a render pass; the outer loop over each size x count pair. */
     private static final int[] SIZES = { 16, 32, 64, 128, 256 };
 
-    /** Stack counts covered by a single render pass; one directory entry per size + count pair. */
+    /** Stack counts covered by a render pass; the inner loop over each size x count pair. */
     private static final int[] COUNTS = { 2, 5, 64, 99 };
 
     /** Mid-light grey backdrop: white main stands out against grey, dark grey shadow stays visible. */
@@ -67,7 +72,13 @@ public final class TestStackCountBadge {
         runRender(labelDir);
     }
 
-    /** Renders every (size, count) pair under {@code labelDir}. */
+    /**
+     * Renders every {@link #SIZES size} x {@link #COUNTS count} pair under {@code labelDir}, one
+     * PNG named {@code s<size>_c<count>.png} per pair.
+     *
+     * @param labelDir directory the label's PNGs are written into
+     * @throws IOException if a PNG cannot be written
+     */
     private static void runRender(@NotNull Path labelDir) throws IOException {
         for (int size : SIZES) {
             for (int count : COUNTS) {
@@ -86,7 +97,13 @@ public final class TestStackCountBadge {
 
     /**
      * Pixel-diffs every {@code (size, count)} file in {@code labelA}'s directory against its twin
-     * in {@code labelB}'s, printing per-file and summary delta counts.
+     * in {@code labelB}'s, printing per-file and summary delta counts. Per file it reports the
+     * differing-pixel count, total pixels, the max per-channel delta, and the differing-pixel
+     * percentage; the summary line adds the identical-file count and an overall percentage.
+     *
+     * @param labelA first label directory (the {@code before} side)
+     * @param labelB second label directory (the {@code after} side)
+     * @throws IOException if a PNG cannot be read
      */
     private static void runDiff(@NotNull String labelA, @NotNull String labelB) throws IOException {
         Path dirA = OUTPUT_DIR.resolve(labelA);

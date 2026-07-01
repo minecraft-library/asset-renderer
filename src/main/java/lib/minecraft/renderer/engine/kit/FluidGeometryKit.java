@@ -18,30 +18,42 @@ import java.util.Optional;
  * Builds the triangle list for a single fluid cube.
  * <p>
  * Vanilla fluid rendering is entirely algorithmic - there is no {@code block/water.json} element
- * list to walk. The geometry is a 1x1x1 cube with optionally sloped top (four independent corner
+ * list to walk. The geometry is a 1x1x1 cube centred at the origin in the engine's
+ * {@code [-0.5, +0.5]} unit-cube space, with an optionally sloped top (four independent corner
  * heights), flow-direction-rotated UVs on the side faces, and the still texture on top and bottom.
  * This kit sits between the renderer's texture lookup and the triangle rasterizer so
  * {@code FluidRenderer.Isometric3D} stays a thin dispatch layer.
  * <p>
  * The top face is emitted as a non-planar quad split along the NW-SE diagonal with a per-triangle
- * normal computed from the cross product of its edges. Side faces are planar quads with two
- * top-corner Y values taken from {@link FluidOptions.CornerHeights}; the V coordinate at each top
- * corner is set to {@code 1 - heightFraction} so a partial-height fluid appears to fill up from
- * the bottom of the texture rather than squishing it. When a flow direction is supplied the side
- * faces sample the flow texture with UVs rotated around {@code (0.5, 0.5)} by the flow angle; when
- * absent they fall back to the still texture.
+ * normal computed from the cross product of its edges, so a sloped surface shades correctly. Side
+ * faces are planar quads whose two top corners take their Y from {@link FluidOptions.CornerHeights};
+ * the V coordinate at each top corner is set to {@code 1 - heightFraction} so a partial-height
+ * fluid appears to fill up from the bottom of the texture rather than squishing the sprite. When a
+ * flow direction is supplied the side faces sample the flow texture with UVs rotated around
+ * {@code (0.5, 0.5)} by the flow angle; when absent they fall back to the still texture. Every face
+ * is shaded with the flat {@link Lighting#inventory inventory} scalar and marked
+ * {@link SurfaceTraits#OPAQUE_BODY}.
  */
 @UtilityClass
 public class FluidGeometryKit {
 
+    /**
+     * Half the edge length of the unit cube - the {@code +/-0.5} extent of every vertex about the
+     * origin in the engine's normalised block space.
+     */
     private static final float CUBE_HALF = 0.5f;
+
+    /**
+     * Centre of the {@code [0, 1]} UV square, used as the pivot when flow-rotating side-face UVs.
+     */
     private static final float UV_CENTRE = 0.5f;
 
     /**
-     * Builds the fluid cube triangle list.
+     * Builds the fluid cube triangle list - non-planar top, flat bottom, and four side faces.
      *
-     * @param top the four top-face corner heights in block space {@code [0, 1]}
-     * @param still the current-frame still texture
+     * @param top the four top-face corner heights in block space {@code [0, 1]}; each is shifted
+     *     to {@code [-0.5, +0.5]} to place the vertex about the origin
+     * @param still the current-frame still texture (top, bottom, and non-flowing side faces)
      * @param flow the current-frame flow texture - consulted only when {@code flowAngleRadians}
      *     is present
      * @param flowAngleRadians the flow direction in radians; when present, side faces use
@@ -121,10 +133,12 @@ public class FluidGeometryKit {
     }
 
     /**
-     * Emits a side face with two potentially different top-corner heights. UV V coords at the top
-     * corners follow {@code 1 - heightFraction} so the sprite fills up from the bottom as the
-     * fluid gets taller. When {@code flowAngleRadians} is present the UV corners are rotated
-     * around {@code (0.5, 0.5)} by the given angle.
+     * Emits a single side face, whose two top corners may sit at different heights (a sloped
+     * fluid surface). The top-corner V coordinates are set to {@code 1 - height} so the sprite
+     * fills up from the bottom edge as the fluid gets taller, rather than the whole sprite being
+     * squished into the shorter face. When {@code flowAngleRadians} is present all four UV corners
+     * are rotated around the sprite centre {@code (0.5, 0.5)} by the flow angle before the quad is
+     * emitted.
      */
     private static void addSide(
         @NotNull ConcurrentList<VisibleTriangle> out,
@@ -150,9 +164,10 @@ public class FluidGeometryKit {
     }
 
     /**
-     * Emits a planar quad as two triangles with a shared surface normal. Winding matches
-     * {@link BlockGeometryKit}'s {@code addQuad} convention (TL, BL, BR, TR viewed from the positive
-     * normal direction).
+     * Emits a planar quad as two triangles ({@code TL-BL-BR} and {@code TL-BR-TR}) sharing one
+     * surface normal and one flat {@link Lighting#inventory inventory} shading scalar. Vertex order
+     * matches {@link BlockGeometryKit}'s {@code addQuad} convention - top-left, bottom-left,
+     * bottom-right, top-right viewed from the positive-normal side.
      */
     private static void addFlatQuad(
         @NotNull ConcurrentList<VisibleTriangle> out,
@@ -166,7 +181,14 @@ public class FluidGeometryKit {
     }
 
     /**
-     * Rotates a UV coordinate around the given centre by the given angle in radians.
+     * Rotates a UV coordinate about the centre {@code (cx, cy)} by {@code radians} using a
+     * standard 2D rotation of the offset vector.
+     *
+     * @param uv the UV coordinate to rotate
+     * @param cx the pivot X (sprite centre)
+     * @param cy the pivot Y (sprite centre)
+     * @param radians the rotation angle
+     * @return the rotated UV coordinate
      */
     private static @NotNull Vector2f rotateUvAround(@NotNull Vector2f uv, float cx, float cy, float radians) {
         float dx = uv.x() - cx;
@@ -177,9 +199,10 @@ public class FluidGeometryKit {
     }
 
     /**
-     * Computes the unit normal of a triangle from three vertices using the right-hand rule
-     * (cross product of edges AB and AC). Assumes CCW winding when viewed from the positive
-     * normal direction.
+     * Computes the unit normal of a triangle from three vertices using the right-hand rule -
+     * the normalized cross product of edges {@code AB} and {@code AC}. The result points out of
+     * the front face when {@code a}, {@code b}, {@code c} are wound counter-clockwise as viewed
+     * from the positive-normal side.
      */
     private static @NotNull Vector3f triangleNormal(@NotNull Vector3f a, @NotNull Vector3f b, @NotNull Vector3f c) {
         Vector3f ab = b.subtract(a);

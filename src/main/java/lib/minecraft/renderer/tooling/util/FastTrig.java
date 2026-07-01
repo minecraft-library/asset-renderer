@@ -9,22 +9,23 @@ import lombok.experimental.UtilityClass;
  * vanilla's runtime would produce.
  * <p>
  * Vanilla's implementation:
- * <pre>
+ * <pre>{@code
  *   private static final float[] SIN = new float[65536];
  *   static {
- *       for (int i = 0; i &lt; 65536; i++)
+ *       for (int i = 0; i < 65536; i++)
  *           SIN[i] = (float) Math.sin((double) i / 10430.378350470453);  // i / (65536 / 2pi)
  *   }
  *   public static float sin(double d) {
- *       return SIN[(int) (long) (d * 10430.378350470453) &amp; 65535];
+ *       return SIN[(int) (long) (d * 10430.378350470453) & 65535];
  *   }
  *   public static float cos(double d) {
- *       return SIN[(int) (long) (d * 10430.378350470453 + 16384.0) &amp; 65535];
+ *       return SIN[(int) (long) (d * 10430.378350470453 + 16384.0) & 65535];
  *   }
- * </pre>
+ * }</pre>
  * Every operation matches the bytecode: index math in {@code double}, conversion to
- * {@code long} via Java's narrowing convention, mask with {@code 0xFFFF}, narrow to
- * {@code int}, array load.
+ * {@code long} via Java's narrowing convention, mask with {@code 0xFFFF} (65535), narrow to
+ * {@code int}, array load. The {@code cos} offset {@code 16384.0} is a quarter rotation
+ * ({@code 65536 / 4}), the table's phase shift from sine to cosine.
  * <p>
  * Why this matters: {@code Math.cos / Math.sin} are libm calls accurate to roughly machine
  * epsilon. The 65536-entry table samples sin at multiples of {@code 2pi/65536 ~= 9.587e-5 rad}
@@ -38,7 +39,9 @@ import lombok.experimental.UtilityClass;
 public class FastTrig {
 
     /**
-     * Vanilla's {@code 65536 / (2 * PI)} constant - the index-per-radian scale factor.
+     * Vanilla's {@code 65536 / (2 * PI)} constant - the index-per-radian scale factor. Held as
+     * the exact {@code double} literal vanilla hardcodes (not recomputed) so the multiply that
+     * feeds the table index is bit-identical.
      */
     private static final double MTH_PI_RATIO = 10430.378350470453;
 

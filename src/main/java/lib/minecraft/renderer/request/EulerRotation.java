@@ -15,12 +15,13 @@ import java.io.IOException;
  * always in <b>degrees</b> to match how vanilla Minecraft authors {@code display.*}
  * transforms and how every engine method already documents its inputs.
  * <p>
- * The record is deliberately data-only: it carries the three angles and nothing else.
- * Two distinct rotation-composition orders coexist in the codebase - vanilla {@code display}
- * transforms compose as {@code Rz · Ry · Rx} while user-supplied post-rotation composes as
- * {@code Ry · Rx · Rz} - so matrix building stays at each call site where the semantics
- * are intentional. Treat this record as a labelled bundle of
- * floats plus a small set of named constants, no behaviour.
+ * The record is deliberately data-only: it carries the three angles and nothing else. Distinct
+ * rotation-composition orders coexist in the codebase, so matrix building stays at each call site
+ * where the semantics are intentional rather than being baked in here. For example, vanilla
+ * {@code display.*} GUI poses build via JOML's {@code rotationXYZ(pitch, yaw, roll)} - which applies
+ * roll first, then yaw, then pitch to a vector - while other sites chain per-axis matrices in their
+ * own order. Treat this record as a labelled bundle of floats plus a small set of named constants,
+ * no behaviour.
  * <p>
  * Rotation directions follow the right-hand rule:
  * <ul>
@@ -47,26 +48,38 @@ public record EulerRotation(float pitch, float yaw, float roll) {
     public static final @NotNull EulerRotation NONE = new EulerRotation(0f, 0f, 0f);
 
     /**
-     * The rotation about the ({@code X}-axis angle), in radians.
+     * Converts the {@link #pitch} (X-axis) angle to radians.
+     *
+     * @return the pitch in radians
      */
     public float pitchRadians() {
         return toRadians(this.pitch);
     }
 
     /**
-     * The rotation about the ({@code Y}-axis angle), in radians.
+     * Converts the {@link #yaw} (Y-axis) angle to radians.
+     *
+     * @return the yaw in radians
      */
     public float yawRadians() {
         return toRadians(this.yaw);
     }
 
     /**
-     * The rotation about the ({@code Z}-axis angle), in radians.
+     * Converts the {@link #roll} (Z-axis) angle to radians.
+     *
+     * @return the roll in radians
      */
     public float rollRadians() {
         return toRadians(this.roll);
     }
 
+    /**
+     * Converts an angle from degrees to radians, narrowed back to {@code float}.
+     *
+     * @param value the angle in degrees
+     * @return the angle in radians
+     */
     private static float toRadians(float value) {
         return (float) Math.toRadians(value);
     }
@@ -80,6 +93,7 @@ public record EulerRotation(float pitch, float yaw, float roll) {
     @NoArgsConstructor
     public static final class Adapter extends TypeAdapter<EulerRotation> {
 
+        /** {@inheritDoc} */
         @Override
         public void write(@NotNull JsonWriter out, @Nullable EulerRotation value) throws IOException {
             if (value == null) {
@@ -94,6 +108,7 @@ public record EulerRotation(float pitch, float yaw, float roll) {
             out.endArray();
         }
 
+        /** {@inheritDoc} */
         @Override
         public @Nullable EulerRotation read(@NotNull JsonReader in) throws IOException {
             if (in.peek() == JsonToken.NULL) {

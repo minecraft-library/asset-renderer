@@ -17,10 +17,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies the per-power resolution path under both a vanilla-only context (no override map) and
- * an override-bearing context (every {@code redstone.0..15} key remapped). The two assertions
- * together pin the wiring: if {@link RendererContext#findColorOverride(String)} is broken, the
- * override row equals the vanilla row and the second batch of asserts fails.
+ * Verifies {@link RedstoneKit#resolve} per-power tint resolution under both a vanilla-only context
+ * (no override map, so every power returns the bundled {@link RedstoneKit#VANILLA} entry) and an
+ * override-bearing context (every {@code redstone.0..15} key remapped to a synthetic gradient). The
+ * two paths together pin the wiring: if {@link RendererContext#findColorOverride(String)} is broken,
+ * the override row would equal the vanilla row and the second batch of asserts fails. Also pins the
+ * out-of-range guard ({@code power} &lt; 0 or &ge; 16 throws) and the 16-entry table length.
  */
 class RedstoneKitTest {
 
@@ -76,8 +78,9 @@ class RedstoneKitTest {
     }
 
     /**
-     * Minimal {@link RendererContext} stub that returns no textures, no colormaps, and no entities,
-     * but honours the supplied {@code findColorOverride} map.
+     * Minimal {@link RendererContext} stub whose every asset lookup (packs, textures, colormaps,
+     * blocks, items, entities) returns empty, but whose {@code findColorOverride} honours the
+     * supplied override map - the one method {@link RedstoneKit#resolve} consults.
      */
     static @NotNull RendererContext stubContext(@NotNull Map<String, Integer> overrides) {
         return new RendererContext() {

@@ -85,13 +85,26 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         "minecraft:end_portal", "minecraft:end_gateway"
     );
 
+    /** Shared render context supplying block / item indices and texture / pack lookups. */
     private final @NotNull RendererContext context;
+    /** Cached renderer for plain block tiles (isometric 3D pass). */
     private final @NotNull BlockRenderer blockRenderer;
+    /** Cached renderer for item tiles (GUI 2D pass). */
     private final @NotNull ItemRenderer itemRenderer;
+    /** Cached renderer for the {@link #FLUID_BLOCK_IDS} tiles (water, lava). */
     private final @NotNull FluidRenderer fluidRenderer;
+    /** Cached renderer for the {@link #PORTAL_BLOCK_IDS} tiles (end_portal, end_gateway). */
     private final @NotNull PortalRenderer portalRenderer;
+    /** Cached grid compositor that lays the rendered tiles out into the final atlas image. */
     private final @NotNull GridRenderer gridRenderer;
 
+    /**
+     * Constructs a new {@code AtlasRenderer} bound to the given context, eagerly instantiating the
+     * per-source sub-renderers (block, item, fluid, portal) and the grid compositor so a batch run
+     * reuses one set across every tile.
+     *
+     * @param context the render context supplying block / item indices and texture lookups
+     */
     public AtlasRenderer(@NotNull RendererContext context) {
         this.context = context;
         this.blockRenderer = new BlockRenderer(context);
@@ -117,9 +130,15 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     /**
      * Renders the atlas and returns the full result: the composed image, the per-tile metadata
      * list, and a pre-serialised sidecar JSON string.
+     * <p>
+     * When {@link AtlasOptions#isAnimated()} is unset, the four block-pass sub-renderers are
+     * re-created against a {@link StaticTextureContext} so every animated texture flattens to its
+     * frame 0 and the whole atlas stays a single static frame. A block or item pass is skipped
+     * entirely when {@link AtlasOptions#getSource()} pins the source to the other kind.
      *
      * @param options the atlas options
      * @return the atlas result
+     * @throws RenderException when the render produces zero tiles (nothing to compose)
      */
     public @NotNull AtlasResult renderAtlas(@NotNull AtlasOptions options) {
         BlockRenderer blocks = this.blockRenderer;
@@ -286,15 +305,14 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
      */
     private @NotNull ConcurrentList<TileSpec> renderItems(@NotNull AtlasOptions options, @NotNull ItemRenderer renderer) {
         // Tile-entity items (beds, chests, banners, shulkers, signs, skulls, conduit,
-        // decorated_pot, copper golem statues) render through the block pass as
-        // {@link TileSpec.Source#TILE_ENTITY} tiles - their vanilla item models have
-        // neither elements nor layer0 and would produce blank icons if we rendered them
-        // here. Skip so the atlas emits exactly one tile per TE id.
-        // <p>
+        // decorated_pot, copper golem statues) already render through the block pass as
+        // TileSpec.Source.TILE_ENTITY tiles - their vanilla item models have neither elements
+        // nor layer0 and would produce blank icons if rendered here. Skip them (the filter below
+        // drops non-additive block-entity ids) so the atlas emits exactly one tile per TE id.
+        //
         // Additive entries (bell-overlay attached to bell_floor / bell_wall / bell_between_walls)
-        // keep their item tile because the underlying {@code item/<id>.json} carries a real
-        // {@code layer0} icon - the entity overlay only enriches the block-tile render, not
-        // the inventory icon.
+        // keep their item tile because the underlying item/<id>.json carries a real layer0 icon -
+        // the entity overlay only enriches the block-tile render, not the inventory icon.
         AtomicInteger completed = new AtomicInteger();
         List<TileSpec> orderedTiles = this.context.knownItemIds().parallelStream()
             .filter(itemId -> options.getFilter().map(f -> f.test(itemId)).orElse(true))
@@ -408,8 +426,13 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     }
 
     /**
-     * A single rendered tile carrying the entity id, {@link Kind} tag, the registration
+     * A single rendered tile carrying the subject id, {@link Kind} tag, the registration
      * {@link Source} tag, and the rendered image data ready for grid composition.
+     *
+     * @param id the namespaced block or item id this tile was rendered from
+     * @param kind whether the tile is a block or an item
+     * @param source the pipeline path that produced the tile
+     * @param image the rendered tile image ready for grid composition
      */
     public record TileSpec(@NotNull String id, @NotNull Kind kind, @NotNull Source source, @NotNull ImageData image) {
 
@@ -501,6 +524,10 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     /**
      * The full output of an atlas render: the composed grid image, the per-tile metadata list,
      * and a pre-serialised sidecar JSON string ready to write alongside the PNG.
+     *
+     * @param image the composed atlas grid image
+     * @param tiles the per-tile metadata, in the same order the tiles were laid into the grid
+     * @param sidecarJson the pre-serialised sidecar JSON describing every tile's grid coordinates
      */
     public record AtlasResult(
         @NotNull ImageData image,
@@ -511,16 +538,30 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
     /**
      * A context wrapper that flattens animated textures to their first frame. Delegates
      * every method to the wrapped context except {@link #resolveTexture} (which extracts
-     * frame 0 from animation strips) and {@link #findAnimation} (which returns empty so
-     * downstream renderers treat every texture as static).
+     * frame 0 from animation strips) and {@link #findAnimation} (inherited default returns empty
+     * for this wrapper, so downstream renderers treat every texture as static).
+     *
+     * @param delegate the wrapped context every non-overridden method forwards to
      */
     private record StaticTextureContext(@NotNull RendererContext delegate) implements RendererContext {
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull Optional<TexturePack> findPack(@NotNull String id) {
             return this.delegate.findPack(id);
         }
 
+        /**
+         * Resolves a texture, flattening animation strips to frame 0.
+         * <p>
+         * When the delegate reports an {@link AnimationData} for the id, the strip is sampled at
+         * frame 0 via {@link AnimationKit#sampleFrame}; otherwise the raw (already-static) strip is
+         * returned unchanged.
+         *
+         * @param textureId the namespaced texture id to resolve
+         * @return the frame-0 buffer for animated textures, or the raw buffer for static ones,
+         *         empty when the delegate cannot resolve the id
+         */
         @Override
         public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
             Optional<PixelBuffer> strip = this.delegate.resolveTexture(textureId);
@@ -534,36 +575,43 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
             ).or(() -> strip);
         }
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull Optional<ColorMap> findColorMap(ColorMap.@NotNull Type type) {
             return this.delegate.findColorMap(type);
         }
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull Optional<Block> findBlock(@NotNull String id) {
             return this.delegate.findBlock(id);
         }
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull Optional<Item> findItem(@NotNull String id) {
             return this.delegate.findItem(id);
         }
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull Optional<Entity> findEntity(@NotNull String id) {
             return this.delegate.findEntity(id);
         }
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull ConcurrentList<String> knownBlockIds() {
             return this.delegate.knownBlockIds();
         }
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull ConcurrentList<String> knownItemIds() {
             return this.delegate.knownItemIds();
         }
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull Optional<Block.Entity> findBlockEntityEntry(@NotNull String blockId) {
             return this.delegate.findBlockEntityEntry(blockId);

@@ -26,11 +26,17 @@ import java.util.stream.Stream;
  * <p>
  * The two supported layouts - {@code assets/minecraft/optifine/cit/**} and
  * {@code assets/minecraft/mcpatcher/cit/**} - share the same grammar, so rules from both paths
- * are merged into a single result list and sorted by descending weight.
+ * are merged into a single result list and sorted by descending weight. Only {@code type=item}
+ * rules are kept; a rule is discarded when it names no output {@code texture} or matches no items.
+ *
+ * @see CitRule
  */
 @UtilityClass
 public class CitLoader {
 
+    /**
+     * The Optifine and MCPatcher CIT subtrees scanned by {@link #load(Path)}, in that order.
+     */
     private static final @NotNull String[] CIT_ROOTS = {
         VanillaSourcePaths.OPTIFINE_CIT_DIR,
         VanillaSourcePaths.MCPATCHER_CIT_DIR
@@ -63,6 +69,18 @@ public class CitLoader {
         return Concurrent.adoptList(rules);
     }
 
+    /**
+     * Parses one CIT {@code .properties} file into a {@link CitRule}. Returns empty when the file
+     * is not a {@code type=item} rule, names no {@code texture}, or matches no items. Item and
+     * enchantment ids are namespaced to {@code minecraft:} when unqualified. Enchantment levels
+     * come from the {@code enchantmentLevels} property as space-separated {@code id=range} tokens;
+     * per-key ranges default to {@link IntRange#ANY} when the range fails to parse. Any property
+     * prefixed {@code nbt.} becomes an {@link NbtCondition} keyed by the path after the prefix.
+     *
+     * @param file the CIT property file to parse
+     * @return the parsed rule, or empty when the file does not describe a usable item rule
+     * @throws PipelineException if the file cannot be read
+     */
     private static @NotNull Optional<CitRule> parseFile(@NotNull Path file) {
         Properties props = new Properties();
         try (var reader = Files.newBufferedReader(file)) {
@@ -125,6 +143,15 @@ public class CitLoader {
         ));
     }
 
+    /**
+     * Normalises a raw {@code texture} property value into a namespaced texture id. An already
+     * namespaced value is returned unchanged; an {@code assets/minecraft/textures/} path is
+     * stripped to {@code minecraft:<path>} with any {@code .png} suffix removed; anything else is
+     * prefixed with {@code minecraft:}.
+     *
+     * @param texture the raw texture property value
+     * @return the namespaced texture id
+     */
     private static @NotNull String normalizeTextureId(@NotNull String texture) {
         if (texture.contains(":")) return texture;
         if (texture.startsWith(VanillaSourcePaths.TEXTURES_PREFIX)) {
@@ -135,6 +162,13 @@ public class CitLoader {
         return VanillaSourcePaths.MINECRAFT_NAMESPACE + texture;
     }
 
+    /**
+     * Parses a numeric-range expression into an {@link IntRange}, tolerating a null or blank input
+     * (empty result) and a malformed expression (empty result rather than propagating).
+     *
+     * @param expression the range expression, or null
+     * @return the parsed range, or empty when absent or unparseable
+     */
     private static @NotNull Optional<IntRange> parseRange(String expression) {
         if (expression == null || expression.isBlank()) return Optional.empty();
         try {
@@ -144,6 +178,14 @@ public class CitLoader {
         }
     }
 
+    /**
+     * Parses a base-10 integer, falling back to {@code fallback} for null, blank, or non-numeric
+     * input.
+     *
+     * @param value the string to parse, or null
+     * @param fallback the value returned when parsing fails
+     * @return the parsed integer, or {@code fallback}
+     */
     private static int parseIntOrDefault(String value, int fallback) {
         if (value == null || value.isBlank()) return fallback;
         try {

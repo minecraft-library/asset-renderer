@@ -50,9 +50,20 @@ class PipelineRendererContextTest {
     @TempDir
     static Path packRoot;
 
+    /** Context under test, wrapping the synthetic {@link #result} via {@link PipelineRendererContext#of}. */
     private static PipelineRendererContext context;
+
+    /** Hand-assembled pipeline result the context is built from; also probed directly by pass-through tests. */
     private static Pipeline.Result result;
 
+    /**
+     * Stages a minimal on-disk pack (fixture PNG + animation sidecar + grass colormap) in the temp
+     * directory, scans it with the real {@link TexturePackLoader} / {@link ColorMapLoader}, synthesises
+     * the remaining {@link Pipeline.Result} maps by hand, and wraps the whole thing in the
+     * {@link PipelineRendererContext} under test.
+     *
+     * @throws IOException if writing the fixture PNGs or sidecar fails
+     */
     @BeforeAll
     static void buildFixture() throws IOException {
         // Lay out a minimal vanilla-style texture pack in the temp directory.

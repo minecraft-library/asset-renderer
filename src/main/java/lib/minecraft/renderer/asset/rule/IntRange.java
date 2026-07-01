@@ -29,15 +29,24 @@ public record IntRange(int min, int max) {
     /**
      * Parses an Optifine-style range expression into an {@link IntRange}.
      * <p>
-     * Accepts: a single integer ({@code "5"}), a dash range ({@code "5-10"}), or an open range
-     * ({@code "5-"} or {@code "-10"}).
+     * Accepts:
+     * <ul>
+     * <li>a single integer ({@code "5"}, or {@code "-5"} for a negative value)</li>
+     * <li>a closed dash range ({@code "5-10"})</li>
+     * <li>an open-max range ({@code "5-"} &rarr; min 5, max {@link Integer#MAX_VALUE})</li>
+     * </ul>
+     * The dash search skips a leading {@code '-'} so it reads as a sign, not a separator - hence
+     * {@code "-5"} parses as the single value -5, not an open-min range. An empty left side (open
+     * min) therefore only arises from an internal separator whose left operand is blank.
      *
      * @param expression the raw expression
      * @return the parsed range
-     * @throws NumberFormatException if the expression cannot be parsed
+     * @throws NumberFormatException if a numeric operand cannot be parsed
      */
     public static @NotNull IntRange parse(@NotNull String expression) {
         String trimmed = expression.trim();
+        // Start the dash scan past a leading '-' so a negative single value isn't mistaken for a
+        // separator (e.g. "-5" is the value -5, not an open range).
         int dash = trimmed.indexOf('-', trimmed.startsWith("-") ? 1 : 0);
         if (dash < 0) {
             int value = Integer.parseInt(trimmed);

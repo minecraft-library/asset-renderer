@@ -24,10 +24,16 @@ import java.util.TreeSet;
 
 /**
  * Renders every entity from the Java-derived pipeline ({@code entity_models.json} /
- * {@code entity_geometry.json}) through {@link EntityRenderer}'s Y-down engine path. Output
- * lands in {@code cache/visual/entity-render-3d/} for visual inspection.
+ * {@code entity_geometry.json}, produced by the {@code entityModels} tooling task) through
+ * {@link EntityRenderer} and writes one PNG per entity to {@code cache/visual/entity-render-3d/}
+ * for visual inspection. Entities load via {@link EntityModelLoader#load()}; a single id or the
+ * whole (alphabetically sorted) set can be rendered.
  * <p>
- * Usage: {@code ./gradlew :asset-renderer:entityRender3D [-PrenderSize=512] [-PentityId=minecraft:zombie]}.
+ * Each render uses the selected {@link Projection} (default {@link Projection#VANILLA_ISO}) with
+ * the entity's facing applied as a model-to-world placement, so any projection in the catalog
+ * presents the subject's front upright.
+ * <p>
+ * Usage: {@code ./gradlew :asset-renderer:entityRender3D [-PrenderSize=512] [-PentityId=minecraft:zombie] [-Pprojection=ISOMETRIC]}.
  */
 @UtilityClass
 public final class TestEntityRender3D {

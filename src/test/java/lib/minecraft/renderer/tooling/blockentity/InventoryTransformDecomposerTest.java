@@ -25,15 +25,25 @@ import static org.hamcrest.Matchers.*;
 /**
  * Fast mutation tests for {@link InventoryTransformDecomposer}. Each test builds a synthetic
  * renderer class via {@link ClassWriter} with a known factory method shape, runs the
- * decomposer, optionally mutates one bytecode detail and re-runs, asserting the output
- * changed in the expected direction. Proves the decomposer follows the bytecode rather than
- * relying on any hardcoded entity-id to tuple table.
+ * decomposer, optionally mutates one bytecode detail and re-runs, asserting the output changed
+ * in the expected direction. Proves the decomposer canonicalises each recognised bytecode shape
+ * into the {@code [tx, ty, tz, pitchDeg, yawDeg, rollDeg, uniformScale?]} tuple by following the
+ * bytecode alone, never a hardcoded entity-id to tuple table.
+ *
+ * <p>Coverage spans the three shapes the decomposer recognises - the {@code Matrix4f} mutator
+ * call-chain (tests 1-6, 9-13), the four-argument component constructor
+ * {@code Transformation(Vector3fc, Quaternionfc, Vector3fc, Quaternionfc)} (tests 7-8), and a
+ * static {@code Transformation} field built in {@code <clinit>} (test 14) - plus the symbolic
+ * yaw folding (tests 9-11), the poison / warn failure paths (tests 12-13), and a smoke test of
+ * the {@code decomposeAll} pipeline (test 15).
  *
  * <p>All synthetic classes use a {@code test/} package so nothing collides with the real
- * renderer names, and the {@link InventoryTransformDecomposer#RENDERER_ENTRY_METHODS} policy
- * is bypassed by calling the test-only {@code decompose} overload that takes an explicit
- * entry-method descriptor. The policy table itself is exercised only by
- * {@link InventoryTransformDecomposerParityTest} against the real client jar.
+ * renderer names, and the decomposer's hand-curated {@code RENDERER_ENTRY_METHODS} policy table
+ * is bypassed by calling the public test-only entry points
+ * {@link InventoryTransformDecomposer#decomposeMethod} (explicit method name + descriptor) and
+ * {@link InventoryTransformDecomposer#decomposeField} (static-field name). The policy table
+ * itself is exercised only by {@link InventoryTransformDecomposerParityTest} against the real
+ * client jar.
  */
 @DisplayName("InventoryTransformDecomposer (bytecode-driven)")
 class InventoryTransformDecomposerTest {
@@ -60,8 +70,8 @@ class InventoryTransformDecomposerTest {
     // --------------------------------------------------------------------------------------
 
     /**
-     * Functional interface: visit the method body of the factory to emit the test's specific
-     * Matrix4f chain / ctor B call. Always ends with ARETURN.
+     * Emitter for a synthetic factory method body - visits {@code mv} to write the test's specific
+     * {@code Matrix4f} chain or component-ctor call, always ending with {@code ARETURN}.
      */
     private interface BodyWriter {
         void write(@NotNull MethodVisitor mv);
@@ -69,19 +79,41 @@ class InventoryTransformDecomposerTest {
 
     /** Default factory name used by the synthetic renderers. */
     private static final String FACTORY_METHOD = "createModelTransform";
-    /** Descriptor: {@code float -> Transformation}, so the walker sees yaw at slot 0. */
+    /**
+     * Descriptor {@code (F) -> Transformation}, so {@code bindYawSlotsFromDescriptor} seeds the
+     * single float parameter (yaw) into local slot 0 as the {@code YAW} sentinel.
+     */
     private static final String FACTORY_DESC_FLOAT = "(F)Lcom/mojang/math/Transformation;";
-    /** Descriptor: {@code () -> Transformation} for the no-arg static field flavour. */
+    /** Descriptor {@code () -> Transformation} for the no-arg static field flavour. */
     private static final String FACTORY_DESC_NOARG = "()Lcom/mojang/math/Transformation;";
 
+    /**
+     * Builds a single-class synthetic jar whose factory method body is emitted by {@code body},
+     * with no extra helper classes.
+     *
+     * @param factoryName the static factory method name to emit
+     * @param factoryDesc the factory method descriptor
+     * @param body the visitor emitting the factory body (must end with {@code ARETURN})
+     * @return the path of the freshly written jar under {@link #tempDir}
+     * @throws IOException if the jar cannot be written
+     */
     private Path buildRendererJar(String factoryName, String factoryDesc, BodyWriter body) throws IOException {
         return buildRendererJar(factoryName, factoryDesc, body, null);
     }
 
     /**
-     * Builds a synthetic jar containing the renderer class plus any extra helper classes the
-     * test needs (e.g. a Vector3f class exposing static fields whose &lt;clinit&gt; we want
-     * the decomposer to follow).
+     * Builds a synthetic jar containing the {@code test/SyntheticRenderer} class plus any extra
+     * helper classes the test needs (e.g. a class exposing static {@code Vector3f} fields whose
+     * {@code <clinit>} the decomposer follows). The renderer class holds a single public-static
+     * factory method of the given name / descriptor, whose body is emitted by {@code body}.
+     *
+     * @param factoryName the static factory method name to emit
+     * @param factoryDesc the factory method descriptor
+     * @param body the visitor emitting the factory body (must end with {@code ARETURN})
+     * @param extras {@code internalName -> class bytes} for extra classes to add to the jar, or
+     *     {@code null}
+     * @return the path of the freshly written jar under {@link #tempDir}
+     * @throws IOException if the jar cannot be written
      */
     private Path buildRendererJar(
         @NotNull String factoryName,
@@ -115,6 +147,17 @@ class InventoryTransformDecomposerTest {
         return jar;
     }
 
+    /**
+     * Opens {@code jar} and runs the test-only {@link InventoryTransformDecomposer#decomposeMethod}
+     * entry against {@code test/SyntheticRenderer}, bypassing the policy table.
+     *
+     * @param jar the synthetic jar to read
+     * @param factoryName the factory method name to walk
+     * @param factoryDesc the factory method descriptor
+     * @param diag diagnostics sink
+     * @return the decomposed tuple, or {@code null} when the walk cannot reduce the method
+     * @throws IOException if the jar cannot be read
+     */
     private float @Nullable [] runDecomposer(@NotNull Path jar, @NotNull String factoryName, @NotNull String factoryDesc, @NotNull Diagnostics diag) throws IOException {
         try (ZipFile zip = new ZipFile(jar.toFile())) {
             return InventoryTransformDecomposer.decomposeMethod(zip, "test/SyntheticRenderer", factoryName, factoryDesc, diag);
@@ -191,10 +234,13 @@ class InventoryTransformDecomposerTest {
             "(L" + QUATERNIONFC + ";FFF)L" + MATRIX4F + ";", false);
     }
 
-    /** Emits {@code new Transformation(m); areturn}. Stack: Matrix4f -> (). */
+    /**
+     * Emits {@code return new Transformation(m)} - the single-arg {@code Transformation(Matrix4fc)}
+     * ctor (ctor A) that finalises the walk. Consumes the {@code Matrix4f} on TOS.
+     */
     private static void emitTransformationFromMatrix(@NotNull MethodVisitor mv) {
-        // Stack is: Matrix4f. We need: NEW Transformation ; DUP_X1 ; SWAP ; INVOKESPECIAL ; ARETURN
-        // Simpler: store the matrix in a local, then NEW+DUP+ALOAD+INVOKESPECIAL.
+        // TOS is the Matrix4f. Rather than juggle it in place (NEW ; DUP_X1 ; SWAP ; INVOKESPECIAL -
+        // and the walker rejects DUP_X1), stash it in a local, then NEW+DUP+ALOAD+INVOKESPECIAL.
         mv.visitVarInsn(Opcodes.ASTORE, 5);
         mv.visitTypeInsn(Opcodes.NEW, TRANSFORMATION);
         mv.visitInsn(Opcodes.DUP);
@@ -275,6 +321,12 @@ class InventoryTransformDecomposerTest {
         assertTuple(out, new float[]{ 0f, 9f, 0f, 90f, 0f, 0f });
     }
 
+    /**
+     * Pins the sign-flip fold: {@code scale(1, -1, -1)} (negate Y and Z) is not a scale but a
+     * 180-degree rotation about X, so it must surface in the pitch slot with unit scale. The
+     * mutation to {@code scale(1, 1, 1)} proves the fold is conditioned on the sign pattern, not
+     * merely on seeing a {@code scale} call.
+     */
     @Test
     @DisplayName("4. translation + scale(1, -1, -1) folds to Rx(180); mutation scale(1,1,1) -> no rotation")
     void scaleOneNegOneNegOneFoldsToRx180() throws IOException {
@@ -321,6 +373,13 @@ class InventoryTransformDecomposerTest {
         assertThat("uniform scale", (double) out[6], closeTo(0.6666667, 1e-5));
     }
 
+    /**
+     * Pins the z-fight-fudge drop: a near-unity uniform scale ({@code 0.9995}, within
+     * {@code UNIT_EPS} of 1.0) is snapped to unity and dropped, so the output is a 6-tuple with no
+     * uniform-scale slot. The trailing {@code translate(0, -1, 0)} composes past the
+     * {@code scale(1, -1, -1)} sign flip, folding to {@code ty = 24} (feet-anchor after the Y
+     * negation) with {@code Rx(180)} in pitch.
+     */
     @Test
     @DisplayName("6. near-unity uniform scale (0.9995) is dropped as unity")
     void nearUnityScaleDropped() throws IOException {
@@ -506,6 +565,11 @@ class InventoryTransformDecomposerTest {
     // Failure paths
     // --------------------------------------------------------------------------------------
 
+    /**
+     * Pins the poison-on-opaque-value path: a translation component that is not a resolvable
+     * float literal (here the result of an opaque {@code Object.hashCode()} call) must set the
+     * walker's {@code OTHER} kind, poison the reduction, return {@code null}, and emit a warn.
+     */
     @Test
     @DisplayName("12. non-literal vector component (unresolved slot via ASTORE/ALOAD) returns null + warn")
     void nonLiteralComponentWarns() throws IOException {
@@ -530,6 +594,11 @@ class InventoryTransformDecomposerTest {
         assertThat("warn diagnostic emitted", diag.strictFailingCount(), greaterThan(0));
     }
 
+    /**
+     * Pins the poison-on-unknown-mutator path: a {@code Matrix4f} method the walker does not
+     * model ({@code mulLocal}) must poison the reduction rather than silently ignore it, so an
+     * unrecognised chain never yields a plausible-but-wrong tuple.
+     */
     @Test
     @DisplayName("13. unrecognised Matrix4f method call returns null + warn")
     void unknownMethodWarns() throws IOException {
@@ -601,11 +670,19 @@ class InventoryTransformDecomposerTest {
     // real renderer internal names so the policy map is exercised (hence the qualified names).
     // --------------------------------------------------------------------------------------
 
+    /**
+     * Smoke test of the {@code decomposeAll} pipeline against the real policy table. The mapped
+     * renderer ({@code ConduitRenderer}) IS in {@code RENDERER_ENTRY_METHODS}, so the policy
+     * lookup succeeds; the class-load then fails (empty jar) and {@code decomposeAll} skips the
+     * entity with a warn rather than throwing, leaving an empty result map. Verifies the loop is
+     * resilient to a policy-known renderer whose class is absent - it never invents ids or aborts
+     * the whole sweep.
+     */
     @Test
     @DisplayName("15. decomposeAll: unknown renderer is skipped without error; known renderer is walked")
     void decomposeAllUnknownRendererSkipped() throws IOException {
-        // Empty jar - no renderer classes at all. decomposeAll should return an empty map
-        // and emit a warn per missing class.
+        // Empty jar - the ConduitRenderer class is absent even though its policy entry exists.
+        // decomposeAll should return an empty map and emit a warn for the missing class.
         Path jar = tempDir.resolve("empty-" + System.nanoTime() + ".jar");
         try (ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(jar))) {
             // one placeholder entry so the zip is valid
@@ -626,12 +703,27 @@ class InventoryTransformDecomposerTest {
     // Assertion helpers
     // --------------------------------------------------------------------------------------
 
+    /**
+     * Asserts {@code actual} is within {@code 1e-4} of {@code expected}, tagging the failure with
+     * {@code name} plus both values.
+     *
+     * @param name the label prefixing the assertion message
+     * @param actual the observed value
+     * @param expected the expected value
+     */
     private static void assertFloat(@NotNull String name, float actual, float expected) {
         assertThat(name + " (expected " + expected + ", got " + actual + ")",
             (double) actual,
             allOf(greaterThan((double) expected - 1e-4), lessThan((double) expected + 1e-4)));
     }
 
+    /**
+     * Asserts {@code actual} is non-null, has exactly {@code expected.length} elements, and each
+     * element matches within {@code 1e-4}.
+     *
+     * @param actual the decomposer output tuple
+     * @param expected the expected tuple (its length is the required output length)
+     */
     private static void assertTuple(float @Nullable [] actual, float @NotNull [] expected) {
         assertThat("tuple not null", actual, notNullValue());
         assertThat("tuple length", actual.length, equalTo(expected.length));
@@ -639,6 +731,14 @@ class InventoryTransformDecomposerTest {
             assertFloat("tuple[" + i + "]", actual[i], expected[i]);
     }
 
+    /**
+     * Like {@link #assertTuple} but length-tolerant: asserts only that {@code actual} is at least
+     * as long as {@code expected} and matches on the shared prefix. Used where the output carries
+     * a trailing uniform-scale slot the caller checks separately with {@code closeTo}.
+     *
+     * @param actual the decomposer output tuple
+     * @param expected the expected leading elements
+     */
     private static void assertTuplePrefix(float @Nullable [] actual, float @NotNull [] expected) {
         assertThat("tuple not null", actual, notNullValue());
         assertThat("tuple length at least expected", actual.length, not(lessThan(expected.length)));

@@ -24,10 +24,9 @@ import java.util.function.Supplier;
  *       ({@link LayoutOptions.Layout.Row}, {@link LayoutOptions.Layout.Column}, {@link LayoutOptions.Layout.Grid}, {@link LayoutOptions.Layout.Stack},
  *       {@link LayoutOptions.Layout.Custom}). Measurement uses each child's first frame to decide canvas
  *       dimensions and per-child {@code (x, y)} positions.</li>
- *   <li><b>Composite</b> via {@link FrameCompositor#merge FrameCompositor.merge}. If every child is
- *       static, the merger short-circuits to a single-frame composite; if any child is
- *       animated, the merger picks a merged loop period and samples each child per output
- *       frame.</li>
+ *   <li><b>Composite</b> via {@link FrameCompositor#composite FrameCompositor.composite}. If every
+ *       child is static, the compositor short-circuits to a single-frame composite; if any child is
+ *       animated, it picks a merged loop period and samples each child per output frame.</li>
  * </ol>
  *
  * @see LayoutOptions
@@ -36,6 +35,7 @@ import java.util.function.Supplier;
  */
 public final class LayoutRenderer implements Renderer<LayoutOptions> {
 
+    /** {@inheritDoc} */
     @Override
     public @NotNull ImageData render(@NotNull LayoutOptions options) {
         ConcurrentList<ImageData> resolved = resolveChildren(options.getChildren());
@@ -51,6 +51,10 @@ public final class LayoutRenderer implements Renderer<LayoutOptions> {
             canvas[0], canvas[1], options.getFramesPerSecond(), options.getBackground());
     }
 
+    /**
+     * Invokes every child supplier exactly once, materialising the concrete images the layout and
+     * composite steps then re-use.
+     */
     private static @NotNull ConcurrentList<ImageData> resolveChildren(@NotNull ConcurrentList<Supplier<ImageData>> children) {
         ConcurrentList<ImageData> resolved = Concurrent.newList();
         for (Supplier<ImageData> supplier : children)
@@ -58,6 +62,10 @@ public final class LayoutRenderer implements Renderer<LayoutOptions> {
         return resolved;
     }
 
+    /**
+     * Measures each child's first-frame dimensions, returning a flat {@code [w0, h0, w1, h1, ...]}
+     * array indexed as {@code sizes[i*2]} = width, {@code sizes[i*2 + 1]} = height.
+     */
     private static int @NotNull [] measure(@NotNull ConcurrentList<ImageData> children) {
         int[] dims = new int[children.size() * 2];
         for (int i = 0; i < children.size(); i++) {
@@ -68,6 +76,20 @@ public final class LayoutRenderer implements Renderer<LayoutOptions> {
         return dims;
     }
 
+    /**
+     * Computes each child's top-left {@code (x, y)} position for the selected layout strategy.
+     * <p>
+     * {@link LayoutOptions.Layout.Row} / {@link LayoutOptions.Layout.Column} flow children along one
+     * axis and cross-align on the other; {@link LayoutOptions.Layout.Grid} fills a fixed column
+     * count with uniform max-sized cells; {@link LayoutOptions.Layout.Stack} overlaps every child at
+     * the same padded origin; {@link LayoutOptions.Layout.Custom} honours explicit per-child
+     * positions (padded), defaulting extras to the padded origin.
+     *
+     * @param layout the layout strategy driving placement
+     * @param children the resolved child images (used only for the count)
+     * @param sizes the flat {@code [w0, h0, ...]} dimensions from {@link #measure}
+     * @return a {@code [count][2]} array of {@code (x, y)} top-left positions
+     */
     private static int @NonNull [][] layoutChildren(
         @NotNull LayoutOptions.Layout layout,
         @NotNull ConcurrentList<ImageData> children,
@@ -149,6 +171,10 @@ public final class LayoutRenderer implements Renderer<LayoutOptions> {
         return positions;
     }
 
+    /**
+     * Distributes the given cross-axis {@code slack} for an alignment: none for {@code START}, half
+     * for {@code CENTER}, all for {@code END}.
+     */
     private static int alignOffset(int slack, @NotNull LayoutOptions.Layout.Alignment alignment) {
         return switch (alignment) {
             case START -> 0;
@@ -157,6 +183,15 @@ public final class LayoutRenderer implements Renderer<LayoutOptions> {
         };
     }
 
+    /**
+     * Computes the canvas size as the bounding box of every placed child plus a trailing
+     * {@code padding} margin, clamped to a minimum of {@code 1x1} pixels.
+     *
+     * @param positions the per-child {@code (x, y)} top-left positions
+     * @param sizes the flat {@code [w0, h0, ...]} dimensions from {@link #measure}
+     * @param padding the trailing margin added to the right and bottom extents
+     * @return a two-element {@code [width, height]} canvas size
+     */
     private static int @NotNull [] computeCanvas(int @NonNull [][] positions, int @NotNull [] sizes, int padding) {
         int maxX = 0;
         int maxY = 0;

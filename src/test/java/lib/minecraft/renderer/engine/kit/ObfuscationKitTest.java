@@ -6,6 +6,12 @@ import org.junit.jupiter.api.Test;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
+/**
+ * Pins {@link ObfuscationKit#substitute} glyph scrambling for the {@code §k} obfuscated-text
+ * effect: seed-determinism (same seed &rarr; same output, different seeds &rarr; different output),
+ * whitespace passthrough, empty-string passthrough, and length preservation - the invariants that
+ * let a deterministic per-frame scramble stand in for vanilla's per-tick glyph shuffle.
+ */
 class ObfuscationKitTest {
 
     @Test

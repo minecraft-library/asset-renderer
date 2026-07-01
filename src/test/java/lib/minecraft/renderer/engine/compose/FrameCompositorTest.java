@@ -15,8 +15,23 @@ import org.junit.jupiter.api.Test;
 import java.util.Arrays;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
+/**
+ * Coverage for {@link FrameCompositor#merge}'s static-versus-animated result-type dispatch.
+ * Verifies the two branches of the merger:
+ * <ul>
+ * <li><b>All-static fast path</b> - when every {@link FramePlacement} wraps a
+ *     {@link StaticImageData}, the result collapses to a single-frame {@code StaticImageData}.</li>
+ * <li><b>Animated promotion</b> - a single animated placement promotes the whole composite to
+ *     a multi-frame {@link AnimatedImageData}, whose loop is sampled at the requested frame
+ *     rate.</li>
+ * </ul>
+ * The merged loop math (LCM of animated layer periods, delay-per-frame) is exercised indirectly
+ * via the promoted frame count rather than pinned here.
+ */
 class FrameCompositorTest {
 
     @Test
@@ -42,12 +57,18 @@ class FrameCompositorTest {
         assertThat(((AnimatedImageData) result).getFrames().size(), greaterThan(1));
     }
 
+    /** Builds a {@code w}x{@code h} buffer filled with a single ARGB colour. */
     private static @NotNull PixelBuffer solidImage(int w, int h, int argb) {
         int[] pixels = new int[w * h];
         Arrays.fill(pixels, argb);
         return PixelBuffer.of(pixels, w, h);
     }
 
+    /**
+     * Builds an animated fixture of {@code frameCount} solid frames, each held for {@code delayMs}.
+     * Frame {@code i} is opaque with blue ramped by {@code i * 0x40} so successive frames differ,
+     * guaranteeing the source registers as genuinely multi-frame.
+     */
     private static @NotNull AnimatedImageData animated(int w, int h, int frameCount, int delayMs) {
         AnimatedImageData.Builder builder = AnimatedImageData.builder();
         for (int i = 0; i < frameCount; i++)

@@ -30,25 +30,36 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Builds rasterizer-ready triangles from a Java-derived {@link EntityModelData} in vanilla's
- * native {@code ModelPart}-style coordinate frame. Consumes geometry produced by
- * {@link ToolingEntityModels} (entity_geometry.json) which ships in this frame natively
- * (no parse-time conversion).
+ * Load-bearing bone/cube {@literal ->} triangle assembler. Builds rasterizer-ready triangles
+ * from a Java-derived {@link EntityModelData} in vanilla's native {@code ModelPart}-style
+ * coordinate frame. Consumes geometry produced by {@link ToolingEntityModels}
+ * (entity_geometry.json) which ships in this frame natively (no parse-time conversion).
  * <p>
- * Convention:
+ * Authoring convention (input):
  * <ul>
  * <li><b>Y-down, right-handed</b> - matches vanilla Java's {@code PartPose} / {@code ModelPart}
  * authoring (positive Y points toward the entity's feet from its root).</li>
- * <li>{@link EntityModelData.Cube#getOrigin() Cube origins} are the min corner in absolute
- * entity-root space (Y-down).</li>
+ * <li>{@link EntityModelData.Cube#getOrigin() Cube origins} are the min corner in
+ * <b>bone-local</b> space (relative to the owning bone's pivot, Y-down) - the literal
+ * {@code addBox(x, y, z, w, h, d)} args from {@code createBodyLayer}.</li>
  * <li>{@link EntityModelData.Bone#getPivot() Bone pivots} are in absolute entity-root space.</li>
- * <li>Bone transforms are pure rotations about pivots; translation-only bones contribute
+ * <li>Bone transforms are pure pivot-centred rotations; translation-only bones contribute
  * identity.</li>
  * </ul>
- * The model is auto-centered and uniformly scaled to fit within {@code [-0.5, +0.5]} on the
- * longest axis. Output triangles undergo a single Y-axis flip at the boundary so the shared
- * isometric rasterizer (which expects screen-Y-up) renders them correctly without needing a
- * separate camera setup.
+ * <b>Chirality / de-flip:</b> the kit is <b>det=+1 internally</b> and emits geometry in the
+ * model's native <b>Y-up</b> frame (the Y-down input is un-flipped during the fit chain). The
+ * old fused Y-flip on positions (the {@code diag(1,-1,1)} boundary flip) has moved onto the
+ * renderer's model-to-world {@code Placement} (see {@link EntityRenderer}), so the same
+ * geometry now renders under any projection while still presenting the subject's front, upright.
+ * The winding invariant is <b>emit-order cross product AGREES with the stored normal</b>
+ * (camera- and projection-independent); the chirality reflection re-enters via the
+ * {@code Placement}, so screen-space cull winding is unchanged. These invariants are pinned by
+ * {@code EntityGeometryKitTest}.
+ * <p>
+ * <b>Fit:</b> the model is auto-centred and uniformly scaled to fit within the longest-axis
+ * extent scaled by {@link #ENTITY_MODEL_FIT_EXTENT} (auto-fit overload), or centred on a
+ * caller-supplied anchor at a caller-supplied NDC scale (native-resolution overload used by
+ * {@link EntityRenderer}).
  */
 @UtilityClass
 public class EntityGeometryKit {
@@ -64,40 +75,48 @@ public class EntityGeometryKit {
     private static final float MIN_MODEL_EXTENT = 0.001f;
 
     /**
-     * Standard GL view direction in vanilla's screen frame: camera at origin looking toward
-     * {@code -Z}. Pre-rotated through the inverse iso pose chain plus our kit's Y-flip on
-     * positions ({@code diag(1,-1,1)}) to land in the same coordinate frame our face normals
-     * live in (after {@link Vector3f#transformNormal(Vector3f, Matrix4f)} and the kit's
-     * matching Y-flip on normals).
-     * <p>
-     * Used to pick front-vs-back PER_FACE_LIGHTING shade
-     * for plane no-cull cubes. {@code dot(VIEW_DIRECTION_KIT, n_kit) < 0} means the polygon's
-     * outward normal points TOWARD the camera (front-facing per vanilla's
-     * {@code gl_FrontFacing}); {@code >= 0} means it points AWAY (back-facing).
-     * <p>
-     * Derived as {@code diag(1,-1,1) * M_view^T * (0, 0, -1)} where {@code M_view = scale(1,1,-1)
-     * * R_X(pitch) * R_Y(yaw) * R_X(180°)} is vanilla's iso transform chain (the trailing
-     * {@code R_X(180°)} folds in vanilla's {@code LivingEntityRenderer.submit}'s
-     * {@code rotateY(180°) + scale(-1,-1,1)} as a single equivalent X-axis rotation - see
-     * {@link Projection#VANILLA_ISO} for the full
-     * derivation). For the standard {@code [210°, 45°, 0°]} iso pose this evaluates to
-     * approximately {@code (0.6124, -0.5, 0.6124)}; the X and Z components are
-     * {@code cos(30°) * sin(45°) = √6/4 ≈ 0.6124} (45° yaw splits horizontal direction
-     * symmetrically into X and Z, modulated by {@code cos(30°)} from the pitch tilt), the Y
-     * component is {@code -sin(30°) = -0.5} (30° pitch contribution, negated by the trailing
-     * Y-flip compensation).
-     */
-    /**
      * The vanilla entity-preview iso <b>lighting</b> angle {@code [210, 45, 0]} - the harness's
      * {@code ISO_ROTATION} - used to derive the per-face plane-cube view direction below. This is
      * distinct from {@link Projection#VANILLA_ISO}'s camera pose ({@code [30, 45, 0]}, the display
-     * pose): the entity's Y-down-to-Y-up flip + facing live on the renderer's {@code ENTITY_FLIP}
+     * pose): the entity's Y-down-to-Y-up flip + facing live on the renderer's {@code ENTITY_FACING}
      * {@code Placement}, so the camera pose is a plain display pose while the lighting frame stays on the
      * harness iso angle. Pinned here so it does not track {@code VANILLA_ISO.basePose()}.
      */
     private static final @NotNull EulerRotation ENTITY_ISO_LIGHTING = new EulerRotation(210f, 45f, 0f);
 
+    /**
+     * Standard GL view direction expressed in the kit's Y-flipped shading frame: camera at origin
+     * looking toward {@code -Z}, pre-rotated through the inverse iso pose chain plus the kit's
+     * legacy Y-flip on positions ({@code diag(1,-1,1)}) so it lives in the same frame the
+     * per-face <b>shading</b> normal does (a Y-flipped copy of the stored Y-up normal - see the
+     * shading-normal derivation in {@link #buildTriangles(EntityModelData, PixelBuffer, EntityBuildParams)}).
+     * <p>
+     * Used by {@link #computeFaceShading} to pick front-vs-back {@code PER_FACE_LIGHTING} shade
+     * for no-cull cubes. {@code dot(VIEW_DIRECTION_KIT, n) < 0} means the polygon's outward normal
+     * points TOWARD the camera (front-facing per vanilla's {@code gl_FrontFacing}); {@code >= 0}
+     * means it points AWAY (back-facing).
+     * <p>
+     * Derived as {@code diag(1,-1,1) * M_view^T * (0, 0, -1)} where {@code M_view = scale(1,1,-1)
+     * * R_X(pitch) * R_Y(yaw) * R_X(180°)} is vanilla's iso transform chain (the trailing
+     * {@code R_X(180°)} folds in vanilla's {@code LivingEntityRenderer.submit}'s
+     * {@code rotateY(180°) + scale(-1,-1,1)} as a single equivalent X-axis rotation - see
+     * {@link Projection#VANILLA_ISO} for the full derivation) evaluated at
+     * {@link #ENTITY_ISO_LIGHTING} {@code [210°, 45°, 0°]}. This evaluates to approximately
+     * {@code (0.6124, -0.5, 0.6124)}: the X and Z components are
+     * {@code cos(30°) * sin(45°) = √6/4 ≈ 0.6124} (45° yaw splits horizontal direction
+     * symmetrically into X and Z, modulated by {@code cos(30°)} from the pitch tilt); the Y
+     * component is {@code -sin(30°) = -0.5} (30° pitch contribution, negated by the trailing
+     * Y-flip compensation).
+     */
     private static final @NotNull Vector3f VIEW_DIRECTION_KIT = computeKitFrameViewDirection();
+
+    /**
+     * Computes {@link #VIEW_DIRECTION_KIT} - the standard {@code (0, 0, -1)} GL view vector
+     * rotated into the kit's shading frame - by composing the inverse iso view transform with
+     * the kit Y-flip. See {@link #VIEW_DIRECTION_KIT} for the resulting value and its meaning.
+     *
+     * @return the view direction in the kit's Y-flipped shading frame
+     */
 
     private static @NotNull Vector3f computeKitFrameViewDirection() {
         EulerRotation iso = ENTITY_ISO_LIGHTING;
@@ -339,8 +358,10 @@ public class EntityGeometryKit {
                     Vector2f[] effUv = resolvePolygonUv(face, cube, size, texW, texH);
                     float shading = computeFaceShading(shadingNormal, isPlaneCube, cubeCullBackFaces);
 
-                    // Natural CCW emission {@code (0, 1, 2)} and {@code (0, 2, 3)}. Total
-                    // pipeline chirality: kit Y-flip (det -1) × engine_camera (det -1) ×
+                    // Natural CCW emission {@code (0, 1, 2)} and {@code (0, 2, 3)}. The kit itself
+                    // is det=+1 (emit-order cross AGREES with the stored normal); the chirality
+                    // reflection re-enters downstream via the renderer's Placement Y-flip. Total
+                    // pipeline chirality: placement Y-flip (det -1) × engine_camera (det -1) ×
                     // projection's -y (det -1) = det -1. Model CCW → screen CW → rasterizer's
                     // {@code signedArea < 0} check correctly classifies these as front-facing.
                     String debugTag = boneName + ":" + face.direction();
@@ -374,6 +395,9 @@ public class EntityGeometryKit {
     /**
      * Computes the AABB of an entity model in the Java-native Y-down frame, after applying each
      * bone's ancestor anchor chain.
+     *
+     * @param model the entity model definition (Java Y-down frame)
+     * @return the model AABB in the Java Y-down frame
      */
     public static @NotNull Box computeBounds(@NotNull EntityModelData model) {
         return computeBounds(model, buildChainTransforms(model.getBones()));
@@ -487,6 +511,15 @@ public class EntityGeometryKit {
      * Skips degenerate polygons ({@code uMin==uMax} or {@code vMin==vMax}). Falls back to
      * contributing all four raw 3D corners when the polygon's UVs aren't axis-aligned (rare for
      * vanilla cube faces; an upstream invariant breakage rather than a real geometry case).
+     *
+     * @param corners3d the polygon's four world-space corners in kit corner order
+     * @param uvs the polygon's four per-vertex UVs paired with {@code corners3d}
+     * @param cubeTransform cube-space transform applied before scaling
+     * @param modelScale per-render vertex pre-scale
+     * @param screenTransform model-to-screen transform applied last
+     * @param texture the entity texture used for alpha sampling
+     * @param acc accumulator collecting the contributed corners
+     * @param dumpLabel optional debug label for {@link RendererDebug} tracing, or {@code null}
      */
     private static void contributeFaceAlphaTight(
         @NotNull Vector3f[] corners3d, @NotNull Vector2f[] uvs,
@@ -580,6 +613,28 @@ public class EntityGeometryKit {
             bl, br, tr, tl);
     }
 
+    /**
+     * Bilinearly interpolates a single opaque-sub-rect UV corner {@code (u, v)} through the
+     * polygon's four world-space corners, then projects and accumulates the result. The UV
+     * fractions {@code (sBar, tBar)} within the polygon's {@code [uMin, uMax] x [vMin, vMax]}
+     * box weight the four corners {@code bl3/br3/tr3/tl3}.
+     *
+     * @param u opaque-sub-rect corner U coordinate
+     * @param v opaque-sub-rect corner V coordinate
+     * @param uMin polygon UV box minimum U
+     * @param uMax polygon UV box maximum U
+     * @param vMin polygon UV box minimum V
+     * @param vMax polygon UV box maximum V
+     * @param bl3 polygon bottom-left world-space corner
+     * @param br3 polygon bottom-right world-space corner
+     * @param tr3 polygon top-right world-space corner
+     * @param tl3 polygon top-left world-space corner
+     * @param cubeTransform cube-space transform applied before scaling
+     * @param modelScale per-render vertex pre-scale
+     * @param screenTransform model-to-screen transform applied last
+     * @param acc accumulator collecting the projected point
+     * @return the projected screen-space point that was accumulated
+     */
     private static @NotNull Vector3f contributeBilinear(
         float u, float v, float uMin, float uMax, float vMin, float vMax,
         @NotNull Vector3f bl3, @NotNull Vector3f br3, @NotNull Vector3f tr3, @NotNull Vector3f tl3,
@@ -598,6 +653,18 @@ public class EntityGeometryKit {
         return projectAndAccumulate(new Vector3f(px, py, pz), cubeTransform, modelScale, screenTransform, acc);
     }
 
+    /**
+     * Projects a bone-local point through {@code cubeTransform} then {@code modelScale} then
+     * {@code screenTransform} and feeds the screen-space result to {@code acc}. The three-stage
+     * order mirrors the vertex path in {@link #buildTriangles(EntityModelData, PixelBuffer, EntityBuildParams)}.
+     *
+     * @param p the bone-local point to project
+     * @param cubeTransform cube-space transform (bone chain + cube bind + cube rotation)
+     * @param modelScale per-render vertex pre-scale
+     * @param screenTransform model-to-screen transform applied last
+     * @param acc accumulator collecting the projected point
+     * @return the projected screen-space point that was accumulated
+     */
     private static @NotNull Vector3f projectAndAccumulate(
         @NotNull Vector3f p, @NotNull Matrix4f cubeTransform, float modelScale,
         @NotNull Matrix4f screenTransform, @NotNull BoundsAccumulator acc
@@ -609,16 +676,32 @@ public class EntityGeometryKit {
         return screen;
     }
 
+    /**
+     * Clamps a pixel index into {@code [0, size)}.
+     *
+     * @param value the raw pixel index
+     * @param size the exclusive upper bound (texture width or height)
+     * @return the index clamped into range
+     */
     private static int clampPixel(int value, int size) {
         if (value < 0) return 0;
         if (value >= size) return size - 1;
         return value;
     }
 
+    /**
+     * Running min/max accumulator building a tight AABB from a stream of screen-space points.
+     * Collapses to a zero box when no point was ever added.
+     */
     private static final class BoundsAccumulator {
         float minX = Float.POSITIVE_INFINITY, minY = Float.POSITIVE_INFINITY, minZ = Float.POSITIVE_INFINITY;
         float maxX = Float.NEGATIVE_INFINITY, maxY = Float.NEGATIVE_INFINITY, maxZ = Float.NEGATIVE_INFINITY;
 
+        /**
+         * Widens the running bounds to include {@code p}.
+         *
+         * @param p the screen-space point to accumulate
+         */
         void add(@NotNull Vector3f p) {
             if (p.x() < minX) minX = p.x();
             if (p.x() > maxX) maxX = p.x();
@@ -628,6 +711,11 @@ public class EntityGeometryKit {
             if (p.z() > maxZ) maxZ = p.z();
         }
 
+        /**
+         * Materializes the accumulated bounds, or a zero box when nothing was accumulated.
+         *
+         * @return the tight AABB of every accumulated point
+         */
         @NotNull Box toBox() {
             if (minX == Float.POSITIVE_INFINITY)
                 return new Box(0f, 0f, 0f, 0f, 0f, 0f);
@@ -639,13 +727,16 @@ public class EntityGeometryKit {
      * Builds a Matrix4f that maps a vertex in the entity's working pixel-unit frame
      * (post-bone-chain, post-pivot-translation, pre-rasterizer) into the entity-fit space
      * shared with {@link #buildTriangles}'s output. The transform is
-     * {@code (v - center) * scale} on each axis, with the kit's permanent Y-flip on positions
-     * applied.
+     * {@code (v - center) * scale} on each axis, with the overlay-fit path's Y-flip on positions
+     * applied (vanilla Y-up {@literal ->} screen Y-down).
      *
      * <p>Used by {@link EntityRenderer} to project block-model
      * overlay triangles (mooshroom mushroom blocks, etc) into the same entity-fit frame the
      * primary entity geometry has been baked into so they render at the correct scale and
      * orientation alongside the entity body.
+     *
+     * @param bounds the model bounds whose centre and extent drive the auto-fit
+     * @return the model-to-entity-fit matrix
      */
     public static @NotNull Matrix4f buildEntityFitMatrix(@NotNull Box bounds) {
         float extent = Math.max(bounds.maxExtent(), MIN_MODEL_EXTENT);
@@ -656,6 +747,10 @@ public class EntityGeometryKit {
      * Native-resolution variant of {@link #buildEntityFitMatrix(Box)}: caller supplies the
      * model-units-to-NDC scale so block overlays composed onto an entity's frame match the same
      * scale the renderer used for the entity body (no auto-fit).
+     *
+     * @param bounds the model bounds whose centre is the fit anchor
+     * @param ndcScale the caller-supplied model-units-to-NDC scale
+     * @return the model-to-entity-fit matrix at the supplied scale
      */
     public static @NotNull Matrix4f buildEntityFitMatrix(@NotNull Box bounds, float ndcScale) {
         float cx = (bounds.minX() + bounds.maxX()) * 0.5f;
@@ -670,11 +765,17 @@ public class EntityGeometryKit {
      * same silhouette-centred frame the entity body uses (the
      * {@link #buildTriangles(EntityModelData, PixelBuffer, Vector3f, boolean, float, float, int)
      * Vector3f overload} above).
+     *
+     * @param modelCentre the model-space point that maps to the canvas centre
+     * @param ndcScale the caller-supplied model-units-to-NDC scale
+     * @return the model-to-entity-fit matrix centred on {@code modelCentre}
      */
     public static @NotNull Matrix4f buildEntityFitMatrix(@NotNull Vector3f modelCentre, float ndcScale) {
         Matrix4f translateToCentre = Matrix4f.createTranslation(-modelCentre.x(), -modelCentre.y(), -modelCentre.z());
-        // Kit's permanent Y-flip on positions matches the kitFit chain in
-        // buildTrianglesWithScale - vanilla Y-up to our Y-down screen frame.
+        // Block-overlay fit path keeps its own Y-flip (vanilla Y-up -> our Y-down screen frame)
+        // because overlay triangles are composed directly into the already-baked entity-fit
+        // screen frame, not through the primary geometry's model->world Placement (which now
+        // owns the entity body's flip). Net orientation of composited overlays matches the body.
         Matrix4f scaleAndFlip = Matrix4f.createScale(ndcScale, -ndcScale, ndcScale);
         // Translate to centre first (innermost), then scale + flip.
         return scaleAndFlip.multiply(translateToCentre);
@@ -685,6 +786,10 @@ public class EntityGeometryKit {
      * {@link #buildTriangles}). Returns identity when the bone is absent. Used by
      * {@link EntityRenderer} to anchor a block-overlay's transform
      * chain to a specific entity bone (mooshroom's third mushroom which sits on the head).
+     *
+     * @param model the entity model definition
+     * @param boneName the bone to resolve
+     * @return the bone's ancestor-anchor chain matrix, or {@link Matrix4f#IDENTITY} when absent
      */
     public static @NotNull Matrix4f resolveBoneAnchorMatrix(
         @NotNull EntityModelData model,
@@ -694,9 +799,13 @@ public class EntityGeometryKit {
     }
 
     /**
-     * Returns the bone's pivot point in the entity's working frame for callers that need to
+     * Resolves the bone's pivot point in the entity's working frame for callers that need to
      * pre-translate a block overlay relative to the bone's anchor. {@link Vector3f#ZERO} when
      * the bone is absent.
+     *
+     * @param model the entity model definition
+     * @param boneName the bone whose pivot to resolve
+     * @return the bone's pivot, or {@link Vector3f#ZERO} when the bone is absent
      */
     public static @NotNull Vector3f resolveBonePivot(
         @NotNull EntityModelData model,
@@ -706,6 +815,15 @@ public class EntityGeometryKit {
         return bone != null ? bone.getPivot() : Vector3f.ZERO;
     }
 
+    /**
+     * Computes the AABB of the model in the Java-native Y-down frame using pre-built bone chains.
+     * Walks the 8 inflated corners of every cube through its cube transform - the plain-AABB
+     * counterpart to {@link #computeScreenBounds}'s alpha-tight screen walk.
+     *
+     * @param model the entity model definition (Java Y-down frame)
+     * @param chainTransforms the pre-built per-bone ancestor-anchor chains
+     * @return the model AABB in the Java Y-down frame
+     */
     private static @NotNull Box computeBounds(
         @NotNull EntityModelData model,
         @NotNull Map<String, Matrix4f> chainTransforms
@@ -752,7 +870,11 @@ public class EntityGeometryKit {
     }
 
     /**
-     * Builds the ancestor-anchor chain matrix for every bone. See {@link EntityGeometryKit#buildChainTransforms}.
+     * Builds the ancestor-anchor chain matrix for every bone starting from identity. Thin
+     * wrapper over {@link #buildChainTransformsFrom} with {@link Matrix4f#IDENTITY} as the base.
+     *
+     * @param bones the model's bones keyed by name
+     * @return each bone's ancestor-anchor chain matrix keyed by bone name
      */
     private static @NotNull Map<String, Matrix4f> buildChainTransforms(
         @NotNull Map<String, EntityModelData.Bone> bones
@@ -767,6 +889,10 @@ public class EntityGeometryKit {
      * post-multiplies on top of {@code base}, matching vanilla's {@code PoseStack} chain
      * bit-for-bit. Eliminates the {@code kitFit.multiply(boneChain)} step at the per-cube
      * loop that drifts 1-4 ULPs versus the fluent path - see {@link Matrix4f} line 313.
+     *
+     * @param base the base matrix each bone's chain builds on (identity, or the kit-fit matrix)
+     * @param bones the model's bones keyed by name
+     * @return each bone's ancestor-anchor chain matrix keyed by bone name
      */
     private static @NotNull Map<String, Matrix4f> buildChainTransformsFrom(
         @NotNull Matrix4f base,
@@ -778,6 +904,16 @@ public class EntityGeometryKit {
         return cache;
     }
 
+    /**
+     * Resolves one bone's ancestor-anchor chain from an identity base. Thin wrapper over
+     * {@link #resolveChainFrom} with {@link Matrix4f#IDENTITY} as the root.
+     *
+     * @param name the bone whose chain to resolve
+     * @param bones the model's bones keyed by name
+     * @param cache the memoization cache of already-resolved chains
+     * @param visiting the current recursion path, guarding against parent cycles
+     * @return the bone's ancestor-anchor chain matrix
+     */
     private static @NotNull Matrix4f resolveChain(
         @NotNull String name,
         @NotNull Map<String, EntityModelData.Bone> bones,
@@ -791,7 +927,17 @@ public class EntityGeometryKit {
      * Variant of {@link #resolveChain} that builds each bone's chain matrix starting from
      * {@code root} via fluent {@link Matrix4f#translate} / {@link Matrix4f#rotate} ops. Bone-only
      * chains use {@link Matrix4f#IDENTITY} as root; kit-fit-pre-baked chains pass the kit-fit
-     * matrix so the fluent op sequence matches vanilla's PoseStack chain exactly.
+     * matrix so the fluent op sequence matches vanilla's PoseStack chain exactly. Recurses into
+     * the parent chain first, then applies this bone's pivot-centred rotation on top; memoizes
+     * into {@code cache}. Self-parenting, missing-parent, and cyclic references degrade to the
+     * bone's own rotation on {@code root}.
+     *
+     * @param name the bone whose chain to resolve
+     * @param bones the model's bones keyed by name
+     * @param cache the memoization cache of already-resolved chains
+     * @param visiting the current recursion path, guarding against parent cycles
+     * @param root the base matrix the chain builds on (identity, or the kit-fit matrix)
+     * @return the bone's ancestor-anchor chain matrix built on {@code root}
      */
     private static @NotNull Matrix4f resolveChainFrom(
         @NotNull String name,
@@ -821,6 +967,17 @@ public class EntityGeometryKit {
         return composed;
     }
 
+    /**
+     * Composes the full cube-to-working-frame transform: the bone's ancestor chain, then the
+     * bone's bind-pose rotation, then the cube's own rotation, each applied pivot-centred. When
+     * neither the cube nor the bind pose rotates, returns {@code boneChain} unchanged so
+     * rotation-free cubes carry zero extra rounding.
+     *
+     * @param cube the cube whose transform to compose
+     * @param bone the owning bone (source of pivot and bind-pose rotation)
+     * @param boneChain the bone's pre-resolved ancestor-anchor chain
+     * @return the composed cube transform in the working frame
+     */
     private static @NotNull Matrix4f composeCubeTransform(
         @NotNull EntityModelData.Cube cube,
         @NotNull EntityModelData.Bone bone,
@@ -848,6 +1005,13 @@ public class EntityGeometryKit {
         return acc;
     }
 
+    /**
+     * Tests whether a rotation is the identity (all three Euler angles exactly zero), letting
+     * callers skip quaternion construction and matrix ops for translation-only bones/cubes.
+     *
+     * @param r the rotation to test
+     * @return {@code true} when pitch, yaw, and roll are all zero
+     */
     private static boolean isZero(@NotNull EulerRotation r) {
         return r.pitch() == 0f && r.yaw() == 0f && r.roll() == 0f;
     }
@@ -867,6 +1031,10 @@ public class EntityGeometryKit {
      * <b>Sign convention:</b> Java's {@code +xRot} (pitch) tilts a bone forward, {@code +yRot}
      * (yaw) turns right, {@code +zRot} (roll) rolls right, applied directly with no negation
      * since the kit operates in vanilla Java's native Y-down frame.
+     *
+     * @param pivot the rotation anchor in bone-local coordinates
+     * @param rotation the Euler rotation to apply about {@code pivot}
+     * @return the {@code T(+pivot) * R * T(-pivot)} matrix
      */
     private static @NotNull Matrix4f pivotCenteredRotation(
         @NotNull Vector3f pivot,
@@ -888,6 +1056,11 @@ public class EntityGeometryKit {
      * this method (as part of the fluent {@code .translate(p)} call); previous absolute-frame
      * code paths pre-added the bone pivot to cube origin AND included a {@code T(-p)} un-
      * translate to cancel, doubling the rounding count for no semantic gain.
+     *
+     * @param base the chain matrix to post-multiply onto
+     * @param pivot the bone pivot in the parent frame (skipped when zero)
+     * @param rotation the bone rotation (skipped when identity)
+     * @return {@code base * T(pivot) * R}, or {@code base} unchanged when both are trivial
      */
     private static @NotNull Matrix4f applyBoneRotation(
         @NotNull Matrix4f base,
@@ -919,6 +1092,12 @@ public class EntityGeometryKit {
      * bone-local cube vertex {@code v_local} produces
      * {@code R_bone * (R_cube * (v_local - cp) + cp) + p} - matching vanilla's bone hierarchy
      * + cube pivot semantics exactly.
+     *
+     * @param base the chain matrix to post-multiply onto
+     * @param pivot the rotation anchor in bone-local coordinates
+     * @param rotation the rotation to apply about {@code pivot} (skipped when identity)
+     * @return {@code base * T(+pivot) * R * T(-pivot)}, or {@code base} unchanged when
+     *     {@code rotation} is identity
      */
     private static @NotNull Matrix4f applyCubePivotCenteredRotation(
         @NotNull Matrix4f base,
@@ -936,7 +1115,18 @@ public class EntityGeometryKit {
     }
 
     /**
-     * UV resolution. Forwards the cube's {@code mirror} flag to {@link Vector4f#toUvCorners} for the U-flip.
+     * Resolves the raw four-corner UV rectangle for one cube face in atlas-position order
+     * ({@code TL, BL, BR, TR}). Uses the cube's per-face UV override when present, otherwise
+     * derives the rectangle from the atlas layout via {@link EntityFace#defaultUv}. Forwards the
+     * cube's {@code mirror} flag to {@link Vector4f#toUvCorners} for the U-flip.
+     *
+     * @param face the geometric face being resolved
+     * @param cube the cube whose UV is being resolved
+     * @param size the cube's size vector
+     * @param texWidth the texture width
+     * @param texHeight the texture height
+     * @return the four UV corners in atlas-position order (top-left, bottom-left, bottom-right,
+     *     top-right)
      */
     private static @NotNull Vector2f @NotNull [] resolveFaceUv(
         @NotNull EntityFace face,
@@ -1112,8 +1302,16 @@ public class EntityGeometryKit {
      *     back+front faces at silhouette pixels, matching vanilla's {@code withCull(false)}
      *     pipeline setting</li>
      * </ul>
-     * Solid cubes use the legacy content-based heuristic
-     * (identical to {@link EntityGeometryKit#shouldCullBackFaces}).
+     * Solid cubes fall through to the content-based tail of this method: cull when any
+     * iso-visible face ({@code UP}/{@code NORTH}/{@code EAST}) has content, otherwise cull only
+     * when the hidden faces are also empty (so a fully-empty cube culls harmlessly).
+     *
+     * @param cube the cube whose culling flag to decide
+     * @param size the cube's size vector
+     * @param texture the entity texture used for alpha sampling
+     * @param texW the model texture width
+     * @param texH the model texture height
+     * @return {@code true} to back-face cull this cube; {@code false} to render both sides
      */
     private static boolean shouldCullBackFaces(
         @NotNull EntityModelData.Cube cube,
@@ -1151,6 +1349,13 @@ public class EntityGeometryKit {
      * glass-like) from alpha-cutout no-cull cubes (warden tendrils, mushroom block-overlays)
      * whose texels are strictly 0 or 255. The rasterizer's back-to-front sort gates on this
      * flag to avoid re-ordering opaque-cutout no-cull triangles that don't need sorted blend.
+     *
+     * @param cube the cube whose visible faces to scan
+     * @param size the cube's size vector
+     * @param texture the entity texture to sample
+     * @param texW the model texture width
+     * @param texH the model texture height
+     * @return {@code true} if any non-degenerate visible face includes a partial-alpha texel
      */
     private static boolean uvPartialAlphaPresent(
         @NotNull EntityModelData.Cube cube,
@@ -1168,6 +1373,14 @@ public class EntityGeometryKit {
         return false;
     }
 
+    /**
+     * Returns {@code true} when any texel inside the face's UV bounding box has partial alpha
+     * ({@code 0 < alpha < 255}). Per-face helper backing {@link #uvPartialAlphaPresent}.
+     *
+     * @param uv the face's four UV corners
+     * @param texture the entity texture to sample
+     * @return {@code true} if any covered texel is partially transparent
+     */
     private static boolean faceHasPartialAlpha(@NotNull Vector2f @NotNull [] uv, @NotNull PixelBuffer texture) {
         int W = texture.width();
         int H = texture.height();
@@ -1193,6 +1406,12 @@ public class EntityGeometryKit {
      * matching vanilla's {@code entityCutoutNoCull}) and translucent ({@code 0<alpha<255}
      * shells, matching vanilla's {@code entityTranslucent withCull(false)}) families - either
      * requires the back faces to render to mirror vanilla's see-through compositing.
+     *
+     * @param uv the face's four UV corners
+     * @param texture the entity texture to sample
+     * @param threshold the non-opaque fraction above which the method returns {@code true}
+     * @return {@code true} when the non-opaque texel fraction exceeds {@code threshold};
+     *     {@code false} for an empty (zero-area) UV region
      */
     private static boolean uvNonOpaqueExceeds(
         @NotNull Vector2f @NotNull [] uv,
@@ -1217,6 +1436,15 @@ public class EntityGeometryKit {
         return (float) nonOpaque / total > threshold;
     }
 
+    /**
+     * Returns {@code true} when any texel inside the face's UV bounding box is non-transparent
+     * ({@code alpha > 0}). Backs the content-based culling heuristic in
+     * {@link #shouldCullBackFaces} (a face draws nothing when its whole UV region is transparent).
+     *
+     * @param uv the face's four UV corners
+     * @param texture the entity texture to sample
+     * @return {@code true} if any covered texel is at least partially opaque
+     */
     private static boolean uvHasContent(
         @NotNull Vector2f @NotNull [] uv,
         @NotNull PixelBuffer texture

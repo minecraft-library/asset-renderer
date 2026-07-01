@@ -23,7 +23,7 @@ import java.util.Optional;
 import java.util.function.UnaryOperator;
 
 /**
- * Configures a single {@link PlayerRenderer PlayerRenderer} invocation.
+ * Configures a single {@link PlayerRenderer} invocation.
  *
  * <p>Three body scopes select what portion of the player model renders:
  * <ul>
@@ -36,16 +36,18 @@ import java.util.function.UnaryOperator;
  * <ul>
  *   <li><b>{@link Dimension#TWO_D}</b> - flat orthographic view derived from the skin atlas.</li>
  *   <li><b>{@link Dimension#THREE_D}</b> - the vanilla {@code display.gui} pose with optional
- *       armor and trim layers composited via
- *       {@link ArmorKit ArmorKit} and
- *       {@link TrimKit TrimKit}.</li>
+ *       armor and trim layers composited via {@link ArmorKit} and {@link TrimKit}.</li>
  * </ul>
  *
- * <p>Skin input is supplied at render time through one of {@link #getSkinBytes skinBytes},
- * {@link #getSkinUrl skinUrl}, or {@link #getSkinTextureId skinTextureId}; the {@code skinUrl}
- * path is resolved via the
- * {@link Pipeline#mojang() Pipeline.mojang()} proxy when the
- * URL points at a Mojang skin texture.
+ * <p>Skin input is supplied through one of three sources, tried in priority order:
+ * {@link #getSkinBytes() skinBytes} (1), {@link #getSkinUrl() skinUrl} (2), then
+ * {@link #getSkinTextureId() skinTextureId} (3); with none present the renderer falls back to the
+ * registered {@code minecraft:entity/steve} texture. The {@code skinUrl} path extracts the URL's
+ * trailing path segment (the texture hash) and streams the PNG through the
+ * {@link Pipeline#mojang() Pipeline.mojang()} proxy. Cape input mirrors this via
+ * {@link #getCapeBytes() capeBytes} / {@link #getCapeUrl() capeUrl} /
+ * {@link #getCapeTextureId() capeTextureId}, consulted only when {@link #isRenderCape() renderCape}
+ * is set.
  *
  * @see lib.minecraft.renderer.PlayerRenderer
  */
@@ -192,17 +194,31 @@ public class PlayerOptions {
     @lombok.Builder.Default
     private final @NotNull UnaryOperator<LayerStack<GeometryLayer>> geometryLayerDecorator = UnaryOperator.identity();
 
-        /**
+    /**
      * Graphical projection for the 3D render. Defaults to {@link Projection#VANILLA_ISO} -
-     * byte-identical to the shipped render; selecting another re-poses the camera and flatten together.
+     * byte-identical to the shipped render; selecting another re-poses the camera and its lens
+     * together. Only consulted by the 3D path.
      */
     @lombok.Builder.Default
     private final @NotNull Projection projection = Projection.VANILLA_ISO;
 
+    /**
+     * A builder pre-populated with this instance's field values, for deriving a variant.
+     *
+     * @return the seeded builder
+     */
     public @NotNull PlayerOptionsBuilder mutate() {
         return this.toBuilder();
     }
 
+    /**
+     * The default player options - a 3D {@linkplain Type#SKULL skull} at
+     * {@link Renderer#DEFAULT_OUTPUT_SIZE} pixels, overlay layer on, no armor or cape, under the
+     * {@linkplain Projection#VANILLA_ISO vanilla isometric} projection over a
+     * {@linkplain Background#TRANSPARENT transparent} background.
+     *
+     * @return the default options
+     */
     public static @NotNull PlayerOptions defaults() {
         return builder().build();
     }

@@ -27,14 +27,29 @@ import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Fast mutation tests for {@link TintDiscovery}. Each test builds a synthetic client jar via
- * {@link ClassWriter}, runs discovery against it, then flips the tint-accessor presence or
- * the {@code Flag} naming convention and re-runs to prove the output follows the bytecode.
+ * {@link ClassWriter}, runs {@link TintDiscovery#discover} against it, then flips the
+ * tint-accessor presence or the {@code Flag} naming convention and re-runs to prove the output
+ * follows the bytecode - never a hardcoded id list.
+ *
+ * <p>Together the four tests pin both halves of the discovery heuristic: the semantic signal
+ * (renderer bytecode invokes {@code DyeColor.getTextureDiffuseColor}, driven on / off by
+ * {@link #rendererClass}'s {@code callDyeColor} flag) and the structural selection (only the
+ * {@code Flag}-suffixed model {@link Source} of a tint-bearing renderer is tinted, its body /
+ * base sources are not), plus the missing-renderer-class warn path.
  */
 @DisplayName("TintDiscovery (bytecode-driven)")
 class TintDiscoveryTest {
 
     @TempDir Path tempDir;
 
+    /**
+     * Writes {@code bytes} into {@code zos} as the entry {@code internalName + ".class"}.
+     *
+     * @param zos the open zip output stream
+     * @param internalName the class's JVM internal name (no {@code .class} suffix)
+     * @param bytes the class file bytes
+     * @throws IOException if the entry cannot be written
+     */
     private static void writeClass(ZipOutputStream zos, String internalName, byte[] bytes) throws IOException {
         zos.putNextEntry(new ZipEntry(internalName + ".class"));
         zos.write(bytes);
@@ -98,6 +113,12 @@ class TintDiscoveryTest {
         }
     }
 
+    /**
+     * Pins the structural selection: a single tint-bearing renderer owning both a body source
+     * ({@code BodyModel}) and a flag source ({@code FlagModel}) tints only the {@code Flag}-suffixed
+     * one. This is the banner shape - a wood-brown pole/bar body plus a dye-coloured flag - so the
+     * body must stay untinted even though its renderer is tint-bearing.
+     */
     @Test
     @DisplayName("renderer owning both body and Flag sources tints only the Flag")
     void onlyFlagClassesTinted() throws IOException {
@@ -117,6 +138,12 @@ class TintDiscoveryTest {
         }
     }
 
+    /**
+     * Pins the missing-class path: when the mapped renderer class is absent from the jar,
+     * {@code isRendererTintBearing} emits exactly one warn and returns {@code false}, so discovery
+     * contributes nothing and never throws. Guards that a missing renderer degrades gracefully
+     * rather than aborting the whole sweep.
+     */
     @Test
     @DisplayName("renderer class missing from jar surfaces diag.warn + skips")
     void missingRendererClass() throws IOException {

@@ -8,9 +8,12 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
- * Unit tests for the {@link Diagnostics} severity pipeline. Exercises the error/warn/info
- * split, the strict-failing counter, and the dedupe behaviour - the three invariants that
- * gate strict-mode behaviour in {@link ToolingBlockModels#main(String[])}.
+ * Unit tests for the {@link Diagnostics} severity pipeline. Exercises the three behaviours that
+ * feed strict-mode gating in {@link ToolingBlockModels#main(String[])} (which fails when
+ * {@link Diagnostics#strictFailingCount()} is non-zero): the error/warn/info severity split
+ * (only ERROR and WARN count as strict-failing), the message-content dedupe that collapses
+ * identical repeats to a single entry, and the empty-instance baseline (no entries, zero
+ * strict-failing count).
  */
 @DisplayName("Diagnostics severity pipeline")
 class DiagnosticsTest {

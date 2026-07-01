@@ -7,9 +7,13 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
- * Verifies the sixteen vanilla dye colours match the {@code textureDiffuseColor} values shipped
- * by {@code net.minecraft.world.item.DyeColor} in MC 26.1. These values have been stable
- * across every version since 1.8.
+ * Verifies {@link DyeColor}. Pins a few of the sixteen {@link DyeColor.Vanilla} colours (WHITE, RED,
+ * BLACK) against the {@code textureDiffuseColor} values shipped by
+ * {@code net.minecraft.world.item.DyeColor} in MC 26.1 - stable across every version since 1.8 - and
+ * asserts every vanilla dye is fully opaque ({@code alpha == 0xFF}). Also covers the lookup helpers
+ * ({@link DyeColor.Vanilla#ofName(String)} hit / null miss, and {@link DyeColor#ofName(String)}
+ * delegating to it) and {@link DyeColor#of(int)} wrapping a caller RGB as an opaque
+ * {@link DyeColor.Custom}.
  */
 class DyeColorTest {
 

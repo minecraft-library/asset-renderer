@@ -27,7 +27,7 @@ import java.util.Set;
 import java.util.zip.ZipFile;
 
 /**
- * Bytecode-driven discovery of the ({@link BlockListDiscovery.EntityBlockMapping}) table that maps each
+ * Bytecode-driven discovery of the {@link EntityBlockMapping} table that maps each
  * block-entity-model id to its vanilla block variants plus any sub-model {@code parts} the
  * runtime merges at draw time. Replaces the hardcoded {@code BlockListCatalog} whose
  * {@code CANONICAL_BLOCK_LIST} table shipped literal string pairs for every block.
@@ -85,6 +85,12 @@ public final class BlockListDiscovery {
      *     via the standard variant path
      */
     public record BlockMapping(@NotNull String blockId, @NotNull String textureId, @Nullable String variant) {
+        /**
+         * Constructs a new {@code BlockMapping} for the block's default geometry (no variant).
+         *
+         * @param blockId the block id
+         * @param textureId the entity-texture id
+         */
         public BlockMapping(@NotNull String blockId, @NotNull String textureId) {
             this(blockId, textureId, null);
         }
@@ -99,16 +105,33 @@ public final class BlockListDiscovery {
      * @param texture optional override texture for the sub-model
      */
     public record PartRef(@NotNull String model, int @Nullable [] offset, @Nullable String texture) {
+        /**
+         * Constructs a new {@code PartRef} with no render offset and no texture override.
+         *
+         * @param model the sub-model entity id
+         */
         public PartRef(@NotNull String model) {
             this(model, null, null);
         }
+
+        /**
+         * Constructs a new {@code PartRef} with a render offset but no texture override.
+         *
+         * @param model the sub-model entity id
+         * @param offset the pixel-space render offset against the parent
+         */
         public PartRef(@NotNull String model, int @NotNull [] offset) {
             this(model, offset, null);
         }
     }
 
     /**
-     * Full binding for one entity-model id.
+     * Full binding for one entity-model id: the blocks that render as this model plus any
+     * secondary sub-models the runtime merges at draw time.
+     *
+     * @param blocks the ordered block list bound to this model id
+     * @param parts the sub-model references (bed foot, decorated-pot sides, banner flag), or
+     *     {@code null} when the model has no parts
      */
     public record EntityBlockMapping(@NotNull List<BlockMapping> blocks, @Nullable List<PartRef> parts) {}
 
@@ -153,6 +176,15 @@ public final class BlockListDiscovery {
      */
     @FunctionalInterface
     private interface FamilyAdapter {
+        /**
+         * Walks the client jar for this family and emits its {@code (entityId, EntityBlockMapping)}
+         * pair(s). A single BE type may fan out to several entity ids (signs split by
+         * {@code NEW} class, skulls split by type).
+         *
+         * @param zip the client jar
+         * @param diag the diagnostic sink
+         * @return the entity-id-to-mapping pairs contributed by this family
+         */
         @NotNull Map<String, EntityBlockMapping> discover(@NotNull ZipFile zip, @NotNull Diagnostics diag);
     }
 
@@ -195,11 +227,12 @@ public final class BlockListDiscovery {
 
     /**
      * Walks the client jar and returns the ordered {@code (entity-id, EntityBlockMapping)}
-     * table. The emission order is fixed by {@link #FAMILY_DISPATCH} plus the 4 empty
-     * sub-model entity ids appended at the end ({@code bed_foot}, {@code decorated_pot_sides},
-     * {@code banner_flag}, {@code wall_banner_flag}) - {@code bed_foot} and
-     * {@code decorated_pot_sides} are emitted by their respective adapters in-place, the two
-     * banner_flag entries are appended here.
+     * table by flattening every {@link #FAMILY_DISPATCH} adapter's contribution into one
+     * insertion-ordered map. Emission order is entirely fixed by the dispatch table: the
+     * primary entity ids first, then the 4 empty sub-model ids ({@code bed_foot},
+     * {@code decorated_pot_sides}, {@code banner_flag}, {@code wall_banner_flag}) - all four
+     * come from their own dispatch entries ({@code BED_FOOT}, {@code DECORATED_POT_SIDES}, and
+     * {@code BANNER_SUBMODELS}, which emits both banner-flag ids), not from this method.
      *
      * @param zip the cached deobfuscated Minecraft client jar
      * @param diag the diagnostic sink
@@ -222,11 +255,15 @@ public final class BlockListDiscovery {
      * returned map keys on the lowercase block id ({@code "minecraft:red_banner"}) and values
      * are the uppercase {@code DyeColor} field name ({@code "RED"}), matching the inventory tint
      * format the asset-renderer's loader expects.
-     * <p>
-     * Uses the canonical bytecode signal: the colored banner blocks are constructed with a
+     *
+     * <p>Uses the canonical bytecode signal: the colored banner blocks are constructed with a
      * hardcoded {@code DyeColor.<COLOR>} {@code GETSTATIC} immediately before
      * {@code invokespecial (Wall)BannerBlock.<init>(DyeColor, Properties)V} in their per-block
      * registration lambda inside {@code Blocks.<clinit>}.
+     *
+     * @param zip the cached deobfuscated Minecraft client jar
+     * @param diag the diagnostic sink
+     * @return an ordered map from banner block id to its uppercase {@code DyeColor} field name
      */
     public static @NotNull Map<String, String> bannerTintByBlockId(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
         List<String> blocks = validBlocks(zip, "BANNER");
@@ -298,6 +335,9 @@ public final class BlockListDiscovery {
      * Composes a lowercase-namespaced block id from a {@code Blocks.X} field name:
      * {@code "CHEST"} becomes {@code "minecraft:chest"}, {@code "OAK_SIGN"} becomes
      * {@code "minecraft:oak_sign"}.
+     *
+     * @param blockField the {@code Blocks.<field>} name
+     * @return the {@code minecraft:}-namespaced lowercase block id
      */
     static @NotNull String blockFieldToId(@NotNull String blockField) {
         return "minecraft:" + blockField.toLowerCase();
@@ -316,6 +356,7 @@ public final class BlockListDiscovery {
      * The second {@code LDC} in each init block is the serialized name (the first is the
      * enum constant name, also captured as the {@code PUTSTATIC} field).
      *
+     * @param zip the client jar
      * @return an insertion-ordered map from {@code "WHITE"} to {@code "white"}, etc
      */
     static @NotNull Map<String, String> walkDyeColorNames(@NotNull ZipFile zip) {
@@ -331,6 +372,7 @@ public final class BlockListDiscovery {
      * Unlike {@link #walkDyeColorNames}, there's only one {@code LDC} per init block (the
      * record's {@code name} field); the putstatic field supplies the upper-cased form.
      *
+     * @param zip the client jar
      * @return an insertion-ordered map from {@code "OAK"} to {@code "oak"}, etc
      */
     static @NotNull Map<String, String> walkWoodTypeNames(@NotNull ZipFile zip) {
@@ -342,6 +384,7 @@ public final class BlockListDiscovery {
      * map. The shape is identical to {@link #walkDyeColorNames} -
      * {@code new ...; dup; ldc "SKELETON"; iconst_0; ldc "skeleton"; ...}.
      *
+     * @param zip the client jar
      * @return an insertion-ordered map from {@code "SKELETON"} to {@code "skeleton"}, etc
      */
     static @NotNull Map<String, String> walkSkullTypesNames(@NotNull ZipFile zip) {
@@ -351,7 +394,12 @@ public final class BlockListDiscovery {
     /**
      * Shared body of {@link #walkDyeColorNames} / {@link #walkSkullTypesNames} - matches the
      * standard Java enum {@code <clinit>} shape (two {@code LDC}s per constant: NAME then
-     * serialized_name).
+     * serialized_name). The first {@code LDC} after each {@code NEW} is discarded; the second is
+     * bound to the closing {@code PUTSTATIC <enumInternal>.field}.
+     *
+     * @param zip the client jar
+     * @param enumInternal the enum class's JVM internal name
+     * @return an insertion-ordered map from field name to serialized name
      */
     private static @NotNull Map<String, String> walkEnumSerializedNames(@NotNull ZipFile zip, @NotNull String enumInternal) {
         ClassNode cn = AsmKit.loadClass(zip, enumInternal);
@@ -387,6 +435,10 @@ public final class BlockListDiscovery {
      * ONE {@code LDC} appears between each {@code NEW} and the subsequent {@code PUTSTATIC}
      * (that {@code LDC} is the serialized name; the enum name is implied by the putstatic
      * field).
+     *
+     * @param zip the client jar
+     * @param recordInternal the record class's JVM internal name
+     * @return an insertion-ordered map from field name to serialized name
      */
     private static @NotNull Map<String, String> walkRecordSingleLdcNames(@NotNull ZipFile zip, @NotNull String recordInternal) {
         ClassNode cn = AsmKit.loadClass(zip, recordInternal);
@@ -529,6 +581,11 @@ public final class BlockListDiscovery {
      * Walks {@code classInternal}'s {@code <init>} methods for the first
      * {@code GETSTATIC <enumInternal>.X}. Used to recover the enum arg from a ctor reference
      * lambda ({@code Foo::new}) whose body is just {@code super(EnumConstant, ...)}.
+     *
+     * @param zip the client jar
+     * @param classInternal the block class's JVM internal name
+     * @param enumInternal the enum class's JVM internal name to search for
+     * @return the first matching enum field name, or {@code null} when none is found
      */
     private static @Nullable String walkCtorForEnumGetstatic(@NotNull ZipFile zip, @NotNull String classInternal, @NotNull String enumInternal) {
         ClassNode cn = AsmKit.loadClass(zip, classInternal);
@@ -553,6 +610,10 @@ public final class BlockListDiscovery {
      *   <li>Helper method call ({@code registerBed}) - returns {@code null} since the helper's
      *       own lambda class is what the register sees, not the semantic Block subclass.</li>
      * </ol>
+     *
+     * @param zip the client jar
+     * @param blockField the {@code Blocks.<field>} name to resolve
+     * @return the instantiated block class's JVM internal name, or {@code null} when it can't be resolved
      */
     static @Nullable String walkBlockNewClass(@NotNull ZipFile zip, @NotNull String blockField) {
         ClassNode blocksClass = AsmKit.loadClass(zip, VanillaSourceClasses.BLOCKS);
@@ -590,6 +651,7 @@ public final class BlockListDiscovery {
      * {@code INVOKEDYNAMIC apply:()Ljava/util/function/Function;} immediately preceding it.
      * The invokedynamic's bootstrap handle names the ctor lambda.
      *
+     * @param blocksClass the loaded {@code Blocks} class node
      * @return a map from {@code Blocks.<field>} to {@code lambda$static$N} name
      */
     private static @NotNull Map<String, String> indexBlocksLambdas(@NotNull ClassNode blocksClass) {
@@ -615,6 +677,10 @@ public final class BlockListDiscovery {
      * Resolves an {@code INVOKEDYNAMIC apply} bootstrapped via {@link LambdaMetafactory}
      * to the {@code lambda$static$N} name when the handle is {@code H_INVOKESTATIC} and targets
      * the enclosing class.
+     *
+     * @param indy the invokedynamic instruction
+     * @param owner the class expected to own the lambda body
+     * @return the static-lambda method name, or {@code null} when the handle isn't an owner-local {@code H_INVOKESTATIC}
      */
     private static @Nullable String resolveIndyStaticLambda(@NotNull InvokeDynamicInsnNode indy, @NotNull ClassNode owner) {
         // R5: don't use AsmKit.resolveLambdaTargetClass here - callers need the static-lambda
@@ -630,6 +696,9 @@ public final class BlockListDiscovery {
      * Resolves an {@code INVOKEDYNAMIC apply} bootstrapped via {@link LambdaMetafactory}
      * to the ctor class ({@code Foo} in {@code Foo::new}) when the handle is
      * {@code H_NEWINVOKESPECIAL}. Returns {@code null} for other handle tags.
+     *
+     * @param indy the invokedynamic instruction
+     * @return the constructed class's JVM internal name, or {@code null} when the handle isn't {@code H_NEWINVOKESPECIAL}
      */
     private static @Nullable String resolveIndyCtorRef(@NotNull InvokeDynamicInsnNode indy) {
         Handle handle = AsmKit.extractLambdaHandle(indy);
@@ -640,6 +709,10 @@ public final class BlockListDiscovery {
 
     /**
      * Looks up a {@code lambda$static$N} method on {@code owner} by name.
+     *
+     * @param owner the class to scan
+     * @param lambdaName the lambda method name to find
+     * @return the matching method, or {@code null} when none is found
      */
     private static @Nullable MethodNode findLambda(@NotNull ClassNode owner, @NotNull String lambdaName) {
         for (MethodNode m : owner.methods)
@@ -649,6 +722,9 @@ public final class BlockListDiscovery {
 
     /**
      * Returns the internal name of the first {@code NEW} type-insn in {@code lambda}'s body.
+     *
+     * @param lambda the lambda method to scan
+     * @return the first {@code NEW} target's JVM internal name, or {@code null} when the body has no {@code NEW}
      */
     private static @Nullable String findLambdaNewClass(@NotNull MethodNode lambda) {
         for (AbstractInsnNode in = lambda.instructions.getFirst(); in != null; in = in.getNext())
@@ -658,6 +734,10 @@ public final class BlockListDiscovery {
 
     /**
      * Returns the first {@code GETSTATIC} field name on {@code enumInternal} within {@code lambda}.
+     *
+     * @param lambda the lambda method to scan
+     * @param enumInternal the enum owner's JVM internal name to match
+     * @return the first matching enum field name, or {@code null} when none is found
      */
     private static @Nullable String findFirstEnumGetstatic(@NotNull MethodNode lambda, @NotNull String enumInternal) {
         for (AbstractInsnNode in = lambda.instructions.getFirst(); in != null; in = in.getNext())
@@ -667,9 +747,18 @@ public final class BlockListDiscovery {
     }
 
     /**
-     * Returns {@code true} if {@code blockField}'s ctor lambda pushes an {@code ACONST_NULL} as
-     * its immediate argument to the constructor (before {@code ALOAD_0}). Used by the shulker
-     * adapter to distinguish the uncolored variant (null DyeColor) from the dyed ones.
+     * Returns {@code true} if any instruction in {@code blockField}'s ctor lambda body is an
+     * {@code ACONST_NULL} - the signal that the block was constructed with a {@code null}
+     * argument (e.g. the uncolored shulker box, whose ctor passes {@code null} in the DyeColor
+     * slot rather than a {@code GETSTATIC DyeColor.X}).
+     *
+     * <p>Currently unreferenced: the {@link Shulker} adapter distinguishes the uncolored
+     * variant by the absence of a captured {@code DyeColor} field instead. Kept as the direct
+     * bytecode signal in case a family needs positive {@code null}-arg detection.
+     *
+     * @param zip the client jar
+     * @param blockField the {@code Blocks.<field>} name to inspect
+     * @return {@code true} when the block's ctor lambda body contains an {@code ACONST_NULL}
      */
     static boolean walkBlockCtorHasNullArg(@NotNull ZipFile zip, @NotNull String blockField) {
         ClassNode blocksClass = AsmKit.loadClass(zip, VanillaSourceClasses.BLOCKS);
@@ -698,7 +787,8 @@ public final class BlockListDiscovery {
      *   ldc "ender" -> invokestatic Identifier.withDefaultNamespace -> putstatic ENDER_CHEST
      * </pre>
      *
-     * @return a map keyed by the field name ({@code "REGULAR"}, {@code "ENDER_CHEST"}, etc.)
+     * @param zip the client jar
+     * @return a map keyed by the field name ({@code "REGULAR"}, {@code "ENDER_CHEST"}, etc.) to its texture base-name
      */
     static @NotNull Map<String, String> walkChestSpecialRendererVariants(@NotNull ZipFile zip) {
         ClassNode cn = AsmKit.loadClass(zip, VanillaSourceClasses.CHEST_SPECIAL_RENDERER);
@@ -741,6 +831,7 @@ public final class BlockListDiscovery {
      * (the body texture), strip the {@code textures/} prefix + {@code .png} suffix, and bind it
      * to the {@code PUTSTATIC} field name.
      *
+     * @param zip the client jar
      * @return a map from {@code "UNAFFECTED"} to {@code "entity/copper_golem/copper_golem"}, etc
      */
     static @NotNull Map<String, String> walkCopperGolemOxidationLevels(@NotNull ZipFile zip) {
@@ -774,6 +865,9 @@ public final class BlockListDiscovery {
 
     /**
      * Strips a leading {@code textures/} and trailing {@code .png} from a string, returning whatever remains.
+     *
+     * @param s the raw texture path literal
+     * @return the path with the {@code textures/} prefix and {@code .png} suffix removed
      */
     private static @NotNull String stripTexturesPrefixAndPngSuffix(@NotNull String s) {
         String trimmed = s;
@@ -794,6 +888,8 @@ public final class BlockListDiscovery {
      * For PLAYER we chase the getter through
      * {@code DEFAULT_SKINS[6].body().texturePath()} - see {@link #walkPlayerSkullTexture}.
      *
+     * @param zip the client jar
+     * @param diag the diagnostic sink
      * @return a map from skull type field name ({@code "SKELETON"}) to canonical texture path
      *     ({@code "entity/skeleton/skeleton"} - no {@code textures/} prefix or {@code .png}
      *     suffix)
@@ -851,6 +947,9 @@ public final class BlockListDiscovery {
     /**
      * Locates {@code SkullBlockRenderer}'s {@code lambda$static$N(HashMap)} helper - the
      * lambda that populates the {@code SKIN_BY_TYPE} map inside {@code Util.make}.
+     *
+     * @param cn the loaded {@code SkullBlockRenderer} class node
+     * @return the matching {@code lambda$static$N(HashMap)} method, or {@code null} when none is found
      */
     private static @Nullable MethodNode findSkullStaticLambda(@NotNull ClassNode cn) {
         // The lambda signature is (Ljava/util/HashMap;)V - it populates a freshly-built HashMap
@@ -874,6 +973,8 @@ public final class BlockListDiscovery {
      * on the resulting {@code ClientAsset$ResourceTexture} is also a trivial getter - both
      * pass the LDC string through unchanged, so we don't need to walk them.
      *
+     * @param zip the client jar
+     * @param diag the diagnostic sink
      * @return the canonical texture path (e.g. {@code "entity/player/slim/steve"}), or {@code null}
      *     when the walk can't resolve
      */
@@ -899,6 +1000,9 @@ public final class BlockListDiscovery {
     /**
      * Reads {@code DefaultPlayerSkin.getDefaultSkin()} for the {@code iconst_/bipush/sipush/ldc <N>}
      * pushed right before the {@code aaload}.
+     *
+     * @param cn the loaded {@code DefaultPlayerSkin} class node
+     * @return the {@code DEFAULT_SKINS} index the default skin resolves to, or {@code null} when the {@code aaload} pattern is absent
      */
     private static @Nullable Integer readDefaultSkinIndex(@NotNull ClassNode cn) {
         MethodNode m = AsmKit.findMethod(cn, "getDefaultSkin");
@@ -921,6 +1025,10 @@ public final class BlockListDiscovery {
      * </pre>
      * We scan for each {@code aastore}'s preceding {@code LDC} and match on the preceding
      * integer literal.
+     *
+     * @param cn the loaded {@code DefaultPlayerSkin} class node
+     * @param targetIndex the {@code DEFAULT_SKINS} array index to read
+     * @return the texture-path LDC stored at that index, or {@code null} when no matching {@code aastore} is found
      */
     private static @Nullable String readDefaultSkinsEntry(@NotNull ClassNode cn, int targetIndex) {
         MethodNode clinit = AsmKit.findMethod(cn, AsmKit.CLINIT);
@@ -958,6 +1066,8 @@ public final class BlockListDiscovery {
      * defaultNamespaceApply LDC)} binding. Returns the {@code SHELL_TEXTURE} field's string arg
      * composed against the conduit MAPPER's base path.
      *
+     * @param zip the client jar
+     * @param diag the diagnostic sink
      * @return {@code "entity/conduit/base"} (or whatever the current jar has), or {@code null}
      *     when the walk can't resolve
      */
@@ -1003,6 +1113,11 @@ public final class BlockListDiscovery {
      * Walks {@code BellRenderer.<clinit>} for the {@code BELL_TEXTURE} field's string.
      * Shape: {@code GETSTATIC Sheets.BLOCK_ENTITIES_MAPPER; LDC "bell/bell_body"; INVOKEVIRTUAL defaultNamespaceApply; PUTSTATIC BELL_TEXTURE}.
      * The Sheets BLOCK_ENTITIES_MAPPER base is {@code "entity"}, so we prepend that.
+     *
+     * @param zip the client jar
+     * @param diag the diagnostic sink
+     * @return {@code "entity/bell/bell_body"} (or whatever the current jar has), or {@code null}
+     *     when the binding isn't found
      */
     static @Nullable String resolveBellTexture(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
         ClassNode cn = AsmKit.loadClass(zip, VanillaSourceClasses.BELL_RENDERER);
@@ -1048,6 +1163,15 @@ public final class BlockListDiscovery {
     private static final class Chest {
 
 
+        /**
+         * Discovers the unified {@code minecraft:chest} mapping (regular + trapped + ender +
+         * copper chests) with each block's texture id derived from its
+         * {@code ChestSpecialRenderer} variant.
+         *
+         * @param zip the client jar
+         * @param diag the diagnostic sink
+         * @return the chest mapping (no parts)
+         */
         static @NotNull EntityBlockMapping discover(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
             ConcurrentList<String> blocks = Concurrent.newList();
             blocks.addAll(validBlocks(zip, "CHEST"));
@@ -1075,7 +1199,14 @@ public final class BlockListDiscovery {
 
         /**
          * Picks the chest-variant field name ({@code REGULAR}, {@code TRAPPED}, {@code ENDER_CHEST},
-         * {@code COPPER_UNAFFECTED}, etc.) from the block's ctor lambda.
+         * {@code COPPER_UNAFFECTED}, etc.) by dispatching on the block's {@code NEW} class name
+         * (from {@link #walkBlockNewClass}); for copper chests the {@code COPPER_<weather>} suffix
+         * comes from {@code blockToWeather}. Falls back to {@code "UNKNOWN"} for unrecognised classes.
+         *
+         * @param zip the client jar
+         * @param blockField the {@code Blocks.<field>} name to classify
+         * @param blockToWeather the pre-walked copper-chest {@code block -> WeatherState} map
+         * @return the {@code ChestSpecialRenderer} variant field name
          */
         private static @NotNull String pickChestVariant(@NotNull ZipFile zip, @NotNull String blockField, @NotNull Map<String, String> blockToWeather) {
             String newClass = walkBlockNewClass(zip, blockField);
@@ -1106,6 +1237,15 @@ public final class BlockListDiscovery {
     private static final class Bed {
 
 
+        /**
+         * Discovers the {@code minecraft:bed_head} mapping: the 16 dyed beds ordered by
+         * {@code DyeColor} declaration, each textured {@code entity/bed/<color>}, plus the
+         * {@code minecraft:bed_foot} part at {@link #BED_FOOT_OFFSET}.
+         *
+         * @param zip the client jar
+         * @param diag the diagnostic sink
+         * @return the bed-head mapping with its foot part
+         */
         static @NotNull EntityBlockMapping discoverHead(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
             List<String> blocks = validBlocks(zip, "BED");
             Map<String, String> dyeColorName = walkDyeColorNames(zip);
@@ -1139,6 +1279,13 @@ public final class BlockListDiscovery {
             return new EntityBlockMapping(List.copyOf(ordered), List.of(new PartRef("minecraft:bed_foot", BED_FOOT_OFFSET)));
         }
 
+        /**
+         * Emits the empty {@code minecraft:bed_foot} mapping. The foot has no blocks of its own -
+         * it is only ever referenced as {@code bed_head}'s part - so its geometry is registered
+         * against an empty block list.
+         *
+         * @return the empty bed-foot mapping
+         */
         static @NotNull EntityBlockMapping discoverFoot() {
             return new EntityBlockMapping(List.of(), null);
         }
@@ -1155,6 +1302,17 @@ public final class BlockListDiscovery {
     private static final class Shulker {
 
 
+        /**
+         * Discovers the {@code minecraft:shulker_box} mapping: the uncolored variant first,
+         * then the 16 dyed variants ordered by {@code DyeColor} declaration. The uncolored
+         * variant is recognised by the absence of a {@code DyeColor} field in the
+         * {@link #walkBlocksToCtorEnum} result (its ctor pushes {@code ACONST_NULL}, so no enum
+         * {@code GETSTATIC} is captured).
+         *
+         * @param zip the client jar
+         * @param diag the diagnostic sink
+         * @return the shulker-box mapping (no parts)
+         */
         static @NotNull EntityBlockMapping discover(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
             List<String> blocks = validBlocks(zip, "SHULKER_BOX");
             Map<String, String> dyeColorName = walkDyeColorNames(zip);
@@ -1252,6 +1410,11 @@ public final class BlockListDiscovery {
      * Resolves a property constant's serialized name by walking {@code propsOwner.<clinit>} for the
      * {@code LDC "name"; ...; PUTSTATIC <field>} sequence (every {@code XProperty.create("name", ...)}
      * factory takes the serialized name as its first string literal).
+     *
+     * @param zip the client jar
+     * @param propsOwner the properties-holder class's JVM internal name (e.g. {@code BlockStateProperties})
+     * @param field the property field name whose serialized name is wanted
+     * @return the property's serialized name, or {@code null} when the field isn't found
      */
     private static @Nullable String resolvePropertyName(@NotNull ZipFile zip, @NotNull String propsOwner, @NotNull String field) {
         ClassNode cn = AsmKit.loadClass(zip, propsOwner);
@@ -1280,6 +1443,15 @@ public final class BlockListDiscovery {
     @UtilityClass
     private static final class Sign {
 
+        /**
+         * Discovers the {@code minecraft:sign} / {@code minecraft:wall_sign} split via
+         * {@link SignLike#discoverSplit}. No state alternates - the two sign forms are plain
+         * {@code NEW}-class splits.
+         *
+         * @param zip the client jar
+         * @param diag the diagnostic sink
+         * @return the two sign entity-id mappings
+         */
         static @NotNull Map<String, EntityBlockMapping> discover(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
             LinkedHashMap<String, String> classToEntity = new LinkedHashMap<>();
             classToEntity.put(VanillaSourceClasses.STANDING_SIGN_BLOCK, "minecraft:sign");
@@ -1302,6 +1474,17 @@ public final class BlockListDiscovery {
     @UtilityClass
     private static final class HangingSign {
 
+        /**
+         * Discovers the {@code minecraft:hanging_sign} / {@code minecraft:wall_hanging_sign}
+         * split, plus the {@code minecraft:hanging_sign_attached} state alternate (the
+         * ceiling-middle straight-chain mesh keyed on {@code attached=true}). The attached-state
+         * key is bytewalk-derived from {@link #walkHangingAttachmentVariantKeys}; a missing key
+         * warns and drops the alternate.
+         *
+         * @param zip the client jar
+         * @param diag the diagnostic sink
+         * @return the two primary hanging-sign mappings plus the attached alternate when derivable
+         */
         static @NotNull Map<String, EntityBlockMapping> discover(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
             LinkedHashMap<String, String> classToEntity = new LinkedHashMap<>();
             classToEntity.put(VanillaSourceClasses.CEILING_HANGING_SIGN_BLOCK, "minecraft:hanging_sign");
@@ -1341,6 +1524,21 @@ public final class BlockListDiscovery {
          */
         record StateAlternate(@NotNull String alternateModelId, @NotNull String sourceModelId, @NotNull String variant) {}
 
+        /**
+         * Splits a sign BE type's {@code validBlocks} into per-model mappings and appends any
+         * state alternates. Each block is classified by its {@code NEW} class into the matching
+         * primary model id, textured {@code <texturePrefix><woodType.name()>}. Each primary model
+         * is emitted immediately followed by any {@link StateAlternate} sourced from it, so an
+         * alternate mesh sits next to the model it varies.
+         *
+         * @param zip the client jar
+         * @param diag the diagnostic sink
+         * @param beField the {@code BlockEntityType} field name (e.g. {@code "SIGN"})
+         * @param texturePrefix the shared texture-path prefix (e.g. {@code "entity/signs/"})
+         * @param classToEntity ordered map from block {@code NEW} class to the primary model id
+         * @param stateAlternates the state-conditional models to append after their source models
+         * @return the per-model mappings in {@code classToEntity} order, each followed by its alternates
+         */
         static @NotNull Map<String, EntityBlockMapping> discoverSplit(
             @NotNull ZipFile zip,
             @NotNull Diagnostics diag,
@@ -1407,13 +1605,19 @@ public final class BlockListDiscovery {
     @UtilityClass
     private static final class Banner {
 
+        /** Shared base texture id for all 32 banner blocks; per-color appearance is a render-time tint. */
         private static final @NotNull String BANNER_BASE_TEXTURE = "minecraft:entity/banner/banner_base";
 
         /**
          * Emits the primary {@code banner} and {@code wall_banner} entity-ids with their
-         * colour-ordered block lists. The empty sub-model ids ({@code banner_flag},
-         * {@code wall_banner_flag}) are emitted separately by {@link #discoverSubModels}
-         * at the end of the dispatch table so they cluster with the other empty sub-models.
+         * colour-ordered block lists (each with a {@code banner_flag} / {@code wall_banner_flag}
+         * part). The empty sub-model ids ({@code banner_flag}, {@code wall_banner_flag}) are
+         * emitted separately by {@link #discoverSubModels} at the end of the dispatch table so
+         * they cluster with the other empty sub-models.
+         *
+         * @param zip the client jar
+         * @param diag the diagnostic sink
+         * @return the {@code banner} and {@code wall_banner} mappings, each with its flag part
          */
         static @NotNull Map<String, EntityBlockMapping> discoverPrimary(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
             List<String> blocks = validBlocks(zip, "BANNER");
@@ -1440,7 +1644,12 @@ public final class BlockListDiscovery {
         }
 
         /**
-         * Emits the empty {@code banner_flag} and {@code wall_banner_flag} entity-ids.
+         * Emits the empty {@code banner_flag} and {@code wall_banner_flag} entity-ids - the flag
+         * sub-models have no blocks of their own; they are only referenced as the banner parts.
+         *
+         * @param zip the client jar (unused; the sub-model ids are static)
+         * @param diag the diagnostic sink (unused)
+         * @return the two empty flag mappings
          */
         static @NotNull Map<String, EntityBlockMapping> discoverSubModels(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
             LinkedHashMap<String, EntityBlockMapping> out = new LinkedHashMap<>();
@@ -1450,8 +1659,15 @@ public final class BlockListDiscovery {
         }
 
         /**
-         * Orders banner blocks by DyeColor iteration order. Re-derives block-field -> color
-         * field lookups via {@code blockToColor}.
+         * Orders banner blocks by DyeColor iteration order. Re-derives block-field -&gt; color
+         * field lookups via {@code blockToColor} (recovering the {@code Blocks.<field>} name from
+         * each mapping's block id).
+         *
+         * @param mappings the banner mappings to order
+         * @param blockToColor the {@code block field -> DyeColor field} map
+         * @param dyeColorName the {@code DyeColor field -> serialized name} map, whose key order
+         *     dictates the output order
+         * @return the mappings re-ordered by {@code DyeColor} declaration
          */
         private static @NotNull ConcurrentList<BlockMapping> orderByDyeColor(
             @NotNull List<BlockMapping> mappings,
@@ -1479,6 +1695,18 @@ public final class BlockListDiscovery {
     @UtilityClass
     private static final class Skull {
 
+        /**
+         * Discovers the 4 skull entity-id mappings ({@code skull_head}, {@code skull_humanoid_head},
+         * {@code skull_dragon_head}, {@code skull_piglin_head}) by splitting
+         * {@code BlockEntityType.SKULL.validBlocks} on each block's {@code SkullBlock$Types} via
+         * {@link #SKULL_TYPE_TO_ENTITY_ID}, with textures from {@code SkullBlockRenderer.SKIN_BY_TYPE}.
+         * Emission order follows the first-seen entity-id order in the validBlocks walk (not the
+         * unspecified {@code Map.of} iteration order of the policy map).
+         *
+         * @param zip the client jar
+         * @param diag the diagnostic sink
+         * @return the skull entity-id mappings
+         */
         static @NotNull Map<String, EntityBlockMapping> discover(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
             List<String> blocks = validBlocks(zip, "SKULL");
             Map<String, String> typeTexture = walkSkullSkinMap(zip, diag);
@@ -1516,6 +1744,11 @@ public final class BlockListDiscovery {
          * WallSkullBlock), or (b) walking the block class's own {@code <init>()V} method for
          * a {@code GETSTATIC SkullBlock$Types.X; INVOKESPECIAL AbstractSkullBlock.<init>} pattern
          * (WitherSkullBlock, WitherWallSkullBlock, PiglinWallSkullBlock).
+         *
+         * @param zip the client jar
+         * @param blocks the skull block fields to classify
+         * @param diag the diagnostic sink
+         * @return a map from block field name to its {@code SkullBlock$Types} field name
          */
         private static @NotNull Map<String, String> walkBlocksToSkullType(@NotNull ZipFile zip, @NotNull List<String> blocks, @NotNull Diagnostics diag) {
             // Attempt 1: generic ctor-enum walk over the block's lambda body.
@@ -1533,6 +1766,16 @@ public final class BlockListDiscovery {
             return out;
         }
 
+        /**
+         * Walks {@code blockClass}'s {@code <init>} methods for the first
+         * {@code GETSTATIC SkullBlock$Types.X} - the fixed type these no-arg block ctors pass to
+         * their {@code AbstractSkullBlock} super() call (WitherSkullBlock, WitherWallSkullBlock,
+         * PiglinWallSkullBlock).
+         *
+         * @param zip the client jar
+         * @param blockClass the block class's JVM internal name
+         * @return the {@code SkullBlock$Types} field name, or {@code null} when none is found
+         */
         private static @Nullable String walkBlockCtorSuperType(@NotNull ZipFile zip, @NotNull String blockClass) {
             ClassNode cn = AsmKit.loadClass(zip, blockClass);
             if (cn == null) return null;
@@ -1556,9 +1799,21 @@ public final class BlockListDiscovery {
     @UtilityClass
     private static final class DecoratedPot {
 
+        /** Base-model texture id ({@code Sheets.DECORATED_POT_BASE}). */
         private static final @NotNull String BASE_TEXTURE = "minecraft:entity/decorated_pot/decorated_pot_base";
+
+        /** Sides-part texture id ({@code Sheets.DECORATED_POT_SIDE}). */
         private static final @NotNull String SIDE_TEXTURE = "minecraft:entity/decorated_pot/decorated_pot_side";
 
+        /**
+         * Discovers the {@code minecraft:decorated_pot} mapping: the pot block(s) textured with
+         * {@link #BASE_TEXTURE}, plus the {@code minecraft:decorated_pot_sides} part at
+         * {@link #DECORATED_POT_SIDES_OFFSET} using {@link #SIDE_TEXTURE}.
+         *
+         * @param zip the client jar
+         * @param diag the diagnostic sink
+         * @return the decorated-pot mapping with its sides part
+         */
         static @NotNull EntityBlockMapping discoverPot(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
             List<String> blocks = validBlocks(zip, "DECORATED_POT");
             ConcurrentList<BlockMapping> mappings = Concurrent.newList();
@@ -1568,6 +1823,12 @@ public final class BlockListDiscovery {
                 List.of(new PartRef("minecraft:decorated_pot_sides", DECORATED_POT_SIDES_OFFSET, SIDE_TEXTURE)));
         }
 
+        /**
+         * Emits the empty {@code minecraft:decorated_pot_sides} mapping - the sides sub-model has
+         * no blocks of its own; it is only referenced as {@code decorated_pot}'s part.
+         *
+         * @return the empty sides mapping
+         */
         static @NotNull EntityBlockMapping discoverSides() {
             return new EntityBlockMapping(List.of(), null);
         }
@@ -1580,6 +1841,15 @@ public final class BlockListDiscovery {
     @UtilityClass
     private static final class Conduit {
 
+        /**
+         * Discovers the {@code minecraft:conduit} mapping: the conduit block(s) all textured with
+         * the shell texture resolved by {@link #resolveConduitShellTexture}. Returns an empty
+         * mapping when the shell texture can't be resolved.
+         *
+         * @param zip the client jar
+         * @param diag the diagnostic sink
+         * @return the conduit mapping (no parts), or an empty mapping when the texture is unresolvable
+         */
         static @NotNull EntityBlockMapping discover(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
             List<String> blocks = validBlocks(zip, "CONDUIT");
             String shellTex = resolveConduitShellTexture(zip, diag);
@@ -1602,6 +1872,15 @@ public final class BlockListDiscovery {
     @UtilityClass
     private static final class Bell {
 
+        /**
+         * Discovers the {@code minecraft:bell_body} mapping: the single {@code minecraft:bell}
+         * block textured with the body texture from {@link #resolveBellTexture}. Returns an empty
+         * mapping when the texture can't be resolved.
+         *
+         * @param zip the client jar
+         * @param diag the diagnostic sink
+         * @return the bell-body mapping (no parts), or an empty mapping when the texture is unresolvable
+         */
         static @NotNull EntityBlockMapping discover(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
             String tex = resolveBellTexture(zip, diag);
             if (tex == null) return new EntityBlockMapping(List.of(), null);
@@ -1623,6 +1902,16 @@ public final class BlockListDiscovery {
     private static final class CopperGolem {
 
 
+        /**
+         * Discovers the {@code minecraft:copper_golem_statue} mapping: each statue block
+         * dispatched via {@code WeatheringCopper$WeatherState} to its oxidation-level texture
+         * (defaulting to {@code UNAFFECTED} when no weather state is captured). Returns an empty
+         * mapping when the BE type isn't bound in the jar.
+         *
+         * @param zip the client jar
+         * @param diag the diagnostic sink
+         * @return the copper-golem-statue mapping (no parts), or an empty mapping when the BE type is absent
+         */
         static @NotNull EntityBlockMapping discover(@NotNull ZipFile zip, @NotNull Diagnostics diag) {
             List<String> blocks = validBlocks(zip, "COPPER_GOLEM_STATUE");
             if (blocks.isEmpty()) {

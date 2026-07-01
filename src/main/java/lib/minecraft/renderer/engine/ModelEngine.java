@@ -30,18 +30,36 @@ import java.util.stream.IntStream;
 /**
  * A 3D triangle rasterizer that projects a list of {@link VisibleTriangle triangles} onto a 2D
  * {@link PixelBuffer} using a depth buffer, barycentric interpolation, and painter's-algorithm
- * ordering for back-to-front draw order.
- * <p>
- * Every renderer composing this engine can supply pitch, yaw, and roll Euler angles at render
- * time. The rotation is pre-multiplied into the engine's camera transform so the inner
- * rasterization loop stays hot and the existing triangle list can be reused across multiple
- * rotations without rebuilding the geometry.
- * <p>
- * Back-face culling uses a signed screen-space winding test after projection, which is robust
- * against camera and model rotations and does not depend on the per-triangle surface normal.
- * Individual triangles can opt out of culling by setting {@link SurfaceTraits#cullBackFaces()}
- * to {@code false} - used for two-sided geometry such as glass panes, leaves, banners, and the
- * interior faces of beds and other non-convex blocks.
+ * ordering for coplanar tie-breaks.
+ *
+ * <p>The engine owns the whole world-to-screen half of the pipeline: a {@link Camera} supplies
+ * the view {@link #pose} (the baked {@code display.*} rotation) and the {@link Lens} (the
+ * 3D-to-2D flatten), and an optional {@link Placement} supplies the subject's model-to-world
+ * facing / chirality / anchor. Every rasterize call composes {@code pose x placement x
+ * modelTransform} (column-vector, right-to-left application) so callers never thread a lens
+ * through each draw and the same triangle list can be reused across rotations without rebuilding
+ * the geometry.
+ *
+ * <p>Every renderer composing this engine can supply pitch, yaw, and roll Euler angles at render
+ * time (see {@link EulerRotation}). The rotation is pre-multiplied into the composed transform so
+ * the inner rasterization loop stays hot.
+ *
+ * <p><b>Per-pixel path.</b> Pass 1 transforms, projects, snaps to the {@code 1/400} coverage grid
+ * ({@link #snapToCoverageGrid}), and back-face culls in parallel; Pass 2 rasterizes into
+ * horizontal Y-band tiles (each owning a private depth slice) using Pineda incremental edge
+ * functions with a {@code 1/256} fixed-point sample and an OpenGL top-left fill rule
+ * (see {@link RasterMath}). Fragments are depth-tested ({@link #depthFails}, vanilla
+ * {@code GL_LEQUAL}), texture-sampled, tinted ({@link BlendMode#MULTIPLY}), shaded
+ * ({@link Shading}), and composited with the {@link #selectBlendMode selected blend mode}.
+ *
+ * <p><b>Back-face culling</b> uses a signed screen-space winding test after projection
+ * ({@link #isBackFacing}), which is robust against camera and model rotations and does not depend
+ * on the per-triangle surface normal. Individual triangles can opt out of culling by setting
+ * {@link SurfaceTraits#cullBackFaces()} to {@code false} - used for two-sided geometry such as
+ * glass panes, leaves, banners, and the interior faces of beds and other non-convex blocks.
+ * Translucent (partial-alpha shell) triangles are additionally sorted back-to-front by quad depth
+ * ({@link #sortNoCullBackToFront}), and emissive overlays skip the depth write so nested
+ * translucent layers accumulate.
  */
 public class ModelEngine {
 
@@ -93,8 +111,18 @@ public class ModelEngine {
      * pipelines read this single constant.
      */
     private static final float SUBPIXEL_PRECISION = Float.parseFloat(System.getProperty("asset.snap.grid", "400"));
+
+    /**
+     * Reciprocal of {@link #SUBPIXEL_PRECISION} (the grid cell size), precomputed so
+     * {@link #snapToCoverageGrid} multiplies rather than divides per vertex. Zero when the snap is
+     * disabled ({@code SUBPIXEL_PRECISION <= 0}).
+     */
     private static final float SUBPIXEL_INV = SUBPIXEL_PRECISION > 0f ? 1f / SUBPIXEL_PRECISION : 0f;
 
+    /**
+     * The camera view {@link Camera#pose()} - the baked {@code display.*} rotation applied to a vertex
+     * after the model transform and {@link #placement}, forming the world-to-screen half of the chain.
+     */
     private final @NotNull Matrix4f pose;
 
     /**
@@ -104,8 +132,16 @@ public class ModelEngine {
      */
     private final @Nullable Matrix4f placement;
 
+    /**
+     * The camera {@link Lens} - the 3D-to-2D flatten (scale + projection family) applied to each
+     * transformed vertex during rasterization. Held on the engine so callers never pass a lens per draw.
+     */
     private final @NotNull Lens lens;
 
+    /**
+     * The pack-aware texture-resolution service bound to this engine's context, shared with kits and
+     * layers that resolve textures against the same render.
+     */
     private final @NotNull Textures textures;
 
     /**
@@ -158,8 +194,6 @@ public class ModelEngine {
     /**
      * The pack-aware texture-resolution service bound to this engine's context, for kits and layers
      * that resolve textures while sharing the engine's render.
-     *
-     * @return the texture service
      */
     public @NotNull Textures textures() {
         return this.textures;
@@ -323,6 +357,18 @@ public class ModelEngine {
         rasterizeInternal(triangles, buffer, cameraSide(modelTransform), glintMask);
     }
 
+    /**
+     * Two-pass rasterization core shared by every {@code rasterize} entry point. Pass 1 projects and
+     * back-face culls every triangle in parallel through the already-composed model-to-screen
+     * {@code transform}, then sorts translucent triangles back-to-front; Pass 2 rasterizes the prepared
+     * list into horizontal Y-band tiles, each on its own depth slice, and composites into {@code buffer}.
+     * Serial fallback (single depth buffer) below {@link #MIN_TILED_HEIGHT}.
+     *
+     * @param triangles the triangle list
+     * @param buffer the destination buffer
+     * @param transform the composed model-to-screen pose (from {@link #cameraSide})
+     * @param glintMask the glint mask to populate, or {@code null} to skip mask recording
+     */
     private void rasterizeInternal(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
@@ -460,6 +506,14 @@ public class ModelEngine {
         return (t.p2().z() + t.p0().z()) * 0.5f;
     }
 
+    /**
+     * Squared Euclidean distance between two screen-space points, used by {@link #quadDepthKey} to pick
+     * a triangle's longest edge (the shared quad diagonal) without a square root.
+     *
+     * @param a the first screen-space point
+     * @param b the second screen-space point
+     * @return the squared distance between {@code a} and {@code b}
+     */
     private static float screenDistSq(@NotNull Vector2f a, @NotNull Vector2f b) {
         float dx = a.x() - b.x();
         float dy = a.y() - b.y();
@@ -476,6 +530,15 @@ public class ModelEngine {
      * Callers are responsible for pre-filling {@code depth} with {@link Float#NEGATIVE_INFINITY}
      * and for ensuring no two concurrent invocations share overlapping {@code [tileStart, tileEnd)}
      * ranges - that is what keeps the {@code buffer.setPixel} writes race-free across tiles.
+     *
+     * @param prepared the projected triangles in painter's (insertion) order
+     * @param buffer the destination buffer
+     * @param depth the tile-local depth slice, sized {@code width * (tileEnd - tileStart)}
+     * @param width the full image width
+     * @param height the full image height
+     * @param tileStart the inclusive first scanline row this tile owns
+     * @param tileEnd the exclusive last scanline row this tile owns
+     * @param glintMask the glint mask to mark, or {@code null} to skip mask recording
      */
     private static void rasterizeTile(
         @NotNull List<Projected> prepared,
@@ -595,7 +658,7 @@ public class ModelEngine {
                     // painter's order - they must be inserted into the bone/triangle list
                     // AFTER any opaque content meant to be visible behind them. The slime
                     // outer-shell extra_bone is appended last for exactly this reason.
-                    // {@link #sortTrianglesForRender} additionally sorts partial-alpha-no-cull
+                    // {@link #sortNoCullBackToFront} additionally sorts partial-alpha (translucent)
                     // triangles back-to-front so the closer face writes LAST, matching vanilla's
                     // translucent draw order.
                     if (!tr.emissive())
@@ -727,12 +790,21 @@ public class ModelEngine {
 
     /**
      * Transforms a triangle's vertices and normal into camera space, projects each vertex into
-     * screen space, and returns a {@link Projected} cache. Returns {@code null} when the
+     * screen space (snapping to the {@link #snapToCoverageGrid coverage grid}), precomputes the
+     * edge coefficients, and returns a {@link Projected} cache. Returns {@code null} when the
      * triangle opts into backface culling and the projected winding indicates a back face,
      * letting the caller drop it from the rasterization list.
      * <p>
      * Extracted as a static helper so Pass 1 can run as a pure parallel map: the function has
      * no shared state beyond the read-only {@code transform} and {@code perspective} inputs.
+     *
+     * @param triangle the draw-list triangle to project
+     * @param transform the composed model-to-screen pose applied to each vertex
+     * @param scale the projection scale (smaller canvas dimension times the lens projection scale)
+     * @param offsetX the screen-space X centre offset (half canvas width)
+     * @param offsetY the screen-space Y centre offset (half canvas height)
+     * @param perspective the lens performing the 3D-to-2D flatten
+     * @return the projected cache, or {@code null} if the triangle is culled as back-facing
      */
     private static @Nullable Projected projectTriangle(
         @NotNull VisibleTriangle triangle,
@@ -771,6 +843,11 @@ public class ModelEngine {
      * <p>
      * This is more robust than a camera-space normal test because it correctly handles arbitrary
      * rotations, perspective foreshortening, and non-uniform scales.
+     *
+     * @param v0 the first screen-space vertex
+     * @param v1 the second screen-space vertex
+     * @param v2 the third screen-space vertex
+     * @return {@code true} if the projected winding is back-facing (non-negative signed area)
      */
     private static boolean isBackFacing(@NotNull Vector2f v0, @NotNull Vector2f v1, @NotNull Vector2f v2) {
         float signedArea = (v1.x() - v0.x()) * (v2.y() - v0.y())
@@ -779,8 +856,12 @@ public class ModelEngine {
     }
 
     /**
-     * Builds the model-space rotation matrix from the given Euler angles (in degrees).
-     * Column-vector chain: yaw applies first to a vertex, then pitch, then roll.
+     * Builds the model-space rotation matrix from the given Euler angles (in degrees). Column-vector
+     * chain {@code roll x pitch x yaw}: yaw applies first to a vertex, then pitch, then roll. Returns
+     * {@link Matrix4f#IDENTITY} for the all-zero rotation.
+     *
+     * @param rotation the pitch / yaw / roll Euler rotation
+     * @return the composed model-space rotation matrix
      */
     private static @NotNull Matrix4f buildModelRotation(@NotNull EulerRotation rotation) {
         if (rotation.pitch() == 0f && rotation.yaw() == 0f && rotation.roll() == 0f) return Matrix4f.IDENTITY;
@@ -792,12 +873,22 @@ public class ModelEngine {
     }
 
     /**
-     * A per-frame triangle view that caches the model-space transformed vertices, their screen
+     * A per-frame triangle view that caches the camera-space transformed vertices, their screen
      * projections, the transformed normal, and the precomputed
      * {@link RasterMath.EdgeCoefficients edge coefficients} for fast per-pixel coverage
      * testing. Not part of the public API - exists so the rasterization loop does not have to
      * recompute the transform or projection for every pixel and so the inside test reads
      * pre-quantized coefficients instead of re-quantizing 4 points each call.
+     *
+     * @param source the originating draw-list triangle (texture, UVs, tint, traits, shading)
+     * @param p0 the first vertex in camera space, {@code z} carrying depth (larger = closer)
+     * @param p1 the second vertex in camera space
+     * @param p2 the third vertex in camera space
+     * @param s0 the first vertex projected and coverage-snapped to screen space
+     * @param s1 the second vertex projected and coverage-snapped to screen space
+     * @param s2 the third vertex projected and coverage-snapped to screen space
+     * @param normal the camera-space transformed, normalized surface normal
+     * @param edges the precomputed fixed-point edge coefficients for the incremental coverage walk
      */
     private record Projected(
         @NotNull VisibleTriangle source,
