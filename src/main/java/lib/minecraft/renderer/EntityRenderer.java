@@ -173,7 +173,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         Matrix4f rIsoInverse = Quaternionf.rotationZYX(-iso.rollRadians(), -iso.yawRadians(), -iso.pitchRadians()).toMatrix4f();
         Matrix4f flip180 = Matrix4f.IDENTITY.scale(1f, -1f, -1f); // R_X(180) = the A*B facing flip
         Matrix4f reflectZ = Matrix4f.IDENTITY.scale(1f, 1f, -1f); // the odd chirality reflection
-        Matrix4f placementMatrix = rIsoInverse.multiply(flip180).multiply(rIso).multiply(reflectZ);
+        Matrix4f flipY = Matrix4f.IDENTITY.scale(1f, -1f, 1f); // Y-down->Y-up, relocated off the kit
+        Matrix4f placementMatrix = rIsoInverse.multiply(flip180).multiply(rIso).multiply(reflectZ).multiply(flipY);
         Camera entityCamera = Camera.fromPose(iso, fusedCamera.lens()); // pose = R(iso), clean det=+1
         ModelEngine engine = new ModelEngine(this.context, entityCamera, new Placement(placementMatrix));
         SceneContext scene = new SceneContext(

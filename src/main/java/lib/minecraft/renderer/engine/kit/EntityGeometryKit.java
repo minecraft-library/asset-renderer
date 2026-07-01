@@ -217,10 +217,12 @@ public class EntityGeometryKit {
         // translate * rotate * translate). Eliminates the {@link Matrix4f#multiply} step at the
         // per-cube loop that drifts 1-4 ULPs vs the fluent path - see {@link Matrix4f} line
         // 313 commentary.
-        // Kit's permanent Y-flip on positions (diag(1,-1,1)) places vanilla's Y-up model frame
-        // into our Y-down screen frame; X and Z are pass-through.
+        // Kit emits positions in the model's native Y-up frame; the Y-down->screen flip
+        // (diag(1,-1,1)) has moved onto the entity's model->world Placement (EntityRenderer), so the
+        // kit-fit scale is now uniform. For the yaw-only parity pose the flip commutes past the model
+        // spin, so relocating it from here to the placement is compose-equivalent (measured).
         Matrix4f kitFit = Matrix4f.IDENTITY
-            .scale(scale, -scale, scale)
+            .scale(scale, scale, scale)
             .translate(-cx, -cy, -cz)
             .scale(modelScale);
         Map<String, Matrix4f> kitFitChainTransforms = buildChainTransformsFrom(kitFit, model.getBones());
@@ -311,16 +313,21 @@ public class EntityGeometryKit {
                         bMaxZ = Math.max(bMaxZ, nz);
                     }
 
-                    Vector3f rawNormal = face.normal().transformNormal(fullTransform).normalize();
-                    // Kit's permanent Y-flip on normals matches the Y-flip on positions so
-                    // shading consults the post-flip face direction.
-                    Vector3f normal = new Vector3f(rawNormal.x(), -rawNormal.y(), rawNormal.z());
+                    // Positions and the STORED normal are both in the model's native Y-up frame now that
+                    // the Y-flip lives on the placement (kit-internal geometry stays self-consistent).
+                    // Shading, however, keeps the pre-de-flip tuned light frame (Y-flipped) - the entity
+                    // light DIRECTIONS were empirically calibrated against it (see
+                    // project_entity_light_gpu_calibration) - so the shade is computed from a Y-flipped
+                    // copy of the normal while the stored normal stays Y-up. Lighting frame is a separate
+                    // concern from the geometry Y-flip; only the geometry moves to the placement.
+                    Vector3f normal = face.normal().transformNormal(fullTransform).normalize();
+                    Vector3f shadingNormal = new Vector3f(normal.x(), -normal.y(), normal.z());
 
                     boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
                     if (isPlaneCube && isDegeneratePlaneFace(size, face)) continue;
 
                     Vector2f[] effUv = resolvePolygonUv(face, cube, size, texW, texH);
-                    float shading = computeFaceShading(normal, isPlaneCube, cubeCullBackFaces);
+                    float shading = computeFaceShading(shadingNormal, isPlaneCube, cubeCullBackFaces);
 
                     // Natural CCW emission {@code (0, 1, 2)} and {@code (0, 2, 3)}. Total
                     // pipeline chirality: kit Y-flip (det -1) × engine_camera (det -1) ×

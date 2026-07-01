@@ -78,29 +78,29 @@ class EntityGeometryKitTest {
     }
 
     @Test
-    @DisplayName("emit-order geometric normal opposes stored normal (winding compensates for det=-1 chain)")
-    void winding_geometricNormalOpposesStored() {
-        // With the entity-iso engine_camera (det=-1) + projection (det=-1), total pipeline chirality
-        // from kit FLIP_Y (det=-1) onwards is det=-1. The kit emits triangles in NATURAL CCW order
-        // {@code (0, 1, 2)} and {@code (0, 2, 3)}; their emit-order cross product points OPPOSITE
-        // to the stored (FLIP_NORMAL_Y'd) face normal, because the FLIP_Y on positions reflects
-        // the cube but the FLIP_NORMAL_Y on normals does the same reflection - both end up flipped
-        // together. Through the det=-1 engine, model CCW becomes screen CW, signedArea < 0,
-        // front-facing per rasterizer.
+    @DisplayName("emit-order geometric normal agrees with stored normal (kit de-flipped, det=+1 internally)")
+    void winding_geometricNormalAgreesWithStored() {
+        // Since the Placement/Camera split moved the kit Y-flip onto the model->world Placement, the
+        // kit emits positions AND stored normals in the model's native Y-up frame (det=+1 internally).
+        // The kit emits triangles in NATURAL CCW order {@code (0, 1, 2)} and {@code (0, 2, 3)}; with no
+        // in-kit reflection their emit-order cross product now AGREES with the stored (un-flipped) face
+        // normal. The screen-space winding the rasterizer culls on is unchanged - the reflection re-enters
+        // via the Placement + camera at render time (verified: entity parity byte-identical across the
+        // baseline set) - so this flip is kit-internal only.
         //
-        // A failure here means either the emission winding or FLIP_NORMAL_Y has drifted away from
-        // the expected entity-iso pipeline contract.
+        // A failure here means the emission winding or the stored-normal frame has drifted away from
+        // the expected de-flipped kit contract.
         StringBuilder errors = new StringBuilder();
         for (VisibleTriangle tri : collect(buildSingleCube())) {
             Vector3f edge1 = subtract(tri.position1(), tri.position0());
             Vector3f edge2 = subtract(tri.position2(), tri.position0());
             Vector3f geomNormal = Vector3f.cross(edge1, edge2);
             float alignment = Vector3f.dot(geomNormal, tri.normal());
-            if (alignment >= 0f) {
+            if (alignment <= 0f) {
                 EntityFace face = cardinalFor(tri.normal());
                 errors.append("face ").append(face)
                     .append(": emit-order cross ").append(formatVec(geomNormal))
-                    .append(" should oppose stored normal ").append(formatVec(tri.normal()))
+                    .append(" should agree with stored normal ").append(formatVec(tri.normal()))
                     .append(" (dot=").append(alignment).append(")\n");
             }
         }
@@ -141,16 +141,17 @@ class EntityGeometryKitTest {
     @DisplayName("UP-cube-face triangles sample from the DOWN strip slot (Y-flip swap compensation)")
     void uvSwap_upFaceLandsInDownSlot() {
         // UV strip row 1: TOP at u[2/64, 4/64], BOTTOM at u[4/64, 6/64], both v[0, 2/64].
-        // FLIP_Y puts the original UP cube vertices visually at the screen-bottom; the kit
-        // compensates by sampling the DOWN strip slot for those triangles. Post-flip these
-        // triangles carry normal (0, -1, 0).
-        List<VisibleTriangle> downwardNormalTris = new ArrayList<>();
+        // The Placement Y-flip puts the original UP cube vertices visually at the screen-bottom; the kit
+        // compensates by sampling the DOWN strip slot for those triangles (UV resolution unchanged by
+        // the de-flip). Now that stored normals are un-flipped (Y-up), the UP cube face carries normal
+        // (0, +1, 0).
+        List<VisibleTriangle> upwardNormalTris = new ArrayList<>();
         for (VisibleTriangle tri : collect(buildSingleCube()))
-            if (tri.normal().y() < -0.9f) downwardNormalTris.add(tri);
+            if (tri.normal().y() > 0.9f) upwardNormalTris.add(tri);
 
-        assertThat(downwardNormalTris.size(), equalTo(2));
+        assertThat(upwardNormalTris.size(), equalTo(2));
 
-        for (VisibleTriangle tri : downwardNormalTris)
+        for (VisibleTriangle tri : upwardNormalTris)
             for (Vector2f uv : new Vector2f[]{ tri.uv0(), tri.uv1(), tri.uv2() }) {
                 assertThat("UP-face UV.u should sit in DOWN strip slot",
                     uv.x(), both(greaterThanOrEqualTo(4f / 64f - 1e-4f))
@@ -219,15 +220,15 @@ class EntityGeometryKitTest {
     }
 
     /**
-     * Maps a (mostly-)axis-aligned post-Y-flip normal back to its source EntityFace. The kit's
-     * FLIP_NORMAL_Y inverts the Y component on UP/DOWN normals; X and Z faces are unchanged.
+     * Maps a (mostly-)axis-aligned normal back to its source EntityFace. The de-flipped kit stores
+     * normals in the model's native Y-up frame, so {@code +Y} is UP and {@code -Y} is DOWN directly.
      */
     private static EntityFace cardinalFor(Vector3f normal) {
         float ax = Math.abs(normal.x());
         float ay = Math.abs(normal.y());
         float az = Math.abs(normal.z());
         if (ay > ax && ay > az)
-            return normal.y() > 0 ? EntityFace.DOWN : EntityFace.UP;
+            return normal.y() > 0 ? EntityFace.UP : EntityFace.DOWN;
         if (ax > az)
             return normal.x() > 0 ? EntityFace.EAST : EntityFace.WEST;
         return normal.z() > 0 ? EntityFace.SOUTH : EntityFace.NORTH;
