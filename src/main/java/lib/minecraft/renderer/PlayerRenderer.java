@@ -511,7 +511,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getRotation()), PLAYER_FACING);
+            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getRotation(), options.getFacing()), PLAYER_FACING);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
@@ -557,7 +557,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getRotation()), PLAYER_FACING);
+            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getRotation(), options.getFacing()), PLAYER_FACING);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
@@ -607,7 +607,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getRotation()), PLAYER_FACING);
+            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getRotation(), options.getFacing()), PLAYER_FACING);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();

@@ -111,12 +111,13 @@ public enum Projection {
     MILITARY(new EulerRotation(0f, 225f, 0f), Lens.oblique(1.0f, (float) Math.toRadians(-90), 0.5f)),
 
     /**
-     * High-angle perspective portrait - a close, gently downward three-quarter head / bust framing.
-     * Full perspective ({@code fov ~= 45}, camera {@code 2.375} subject-heights out) at a {@code 15}
-     * downward pitch and a soft {@code 25} yaw off head-on, so the camera sits slightly <b>above</b> the
-     * subject and looks down onto it (a high-angle shot) - the flattering avatar / hero head pose. Base
-     * pose {@code [15, 205, 0]} is facing-neutral; a player render's {@code R_Y(180)} facing turns it to
-     * the effective {@code [15, 25, 0]}.
+     * Perspective portrait - a close, gently downward three-quarter head / bust framing. Full
+     * perspective ({@code fov ~= 45}, camera {@code 2.375} subject-heights out) at a {@code 15} downward
+     * pitch and a soft {@code 25} yaw off head-on, so the camera sits slightly <b>above</b> the subject
+     * and looks down onto it (a high-angle shot) - the flattering avatar / hero head pose. Base pose
+     * {@code [15, 205, 0]} is facing-neutral; a player render's {@code R_Y(180)} facing turns it to the
+     * effective {@code [15, 25, 0]}. Resolve with {@link Facing#FLIPPED} for the low-angle mirrored
+     * (camera below, looking up at the underside) HERO pose.
      * <p>
      * Ported from NMSR's {@code /head} avatar camera ({@code nmsr-rs} {@code RenderRequestMode::Head}):
      * {@code CameraRotation { yaw: 25, pitch: 15 }}, {@code Perspective { fov: 45 }}, orbital distance
@@ -126,15 +127,7 @@ public enum Projection {
      * {@link #ISOMETRIC}); the {@code 19 / 8 = 2.375} distance sets the camera-distance and focal length
      * that reproduce its near / far foreshortening.
      */
-    PORTRAIT_HIGH(new EulerRotation(15f, 205f, 0f), Lens.perspective(1f, 2.375f, 2.375f, 0.45f)),
-
-    /**
-     * Low-angle perspective portrait - the negated-pitch mirror of {@link #PORTRAIT_HIGH}: the same soft
-     * three-quarter yaw and perspective flatten with the camera slightly <b>below</b> the subject,
-     * looking up (a low-angle shot), so the head cube presents its underside instead of its top. Base
-     * pose {@code [-15, 205, 0]}.
-     */
-    PORTRAIT_LOW(new EulerRotation(-15f, 205f, 0f), Lens.perspective(1f, 2.375f, 2.375f, 0.45f)),
+    PORTRAIT(new EulerRotation(15f, 205f, 0f), Lens.perspective(1f, 2.375f, 2.375f, 0.45f)),
 
     /**
      * The shipped vanilla iso baseline for blocks, fluids, portals, players, and entities - vanilla's
@@ -204,7 +197,7 @@ public enum Projection {
      * @return the camera at the base pose
      */
     public @NotNull Camera resolve() {
-        return resolve(EulerRotation.NONE);
+        return resolve(EulerRotation.NONE, Facing.DEFAULT);
     }
 
     /**
@@ -223,7 +216,23 @@ public enum Projection {
      * @return the resolved camera
      */
     public @NotNull Camera resolve(@NotNull EulerRotation rotation) {
-        return Camera.fromPose(compose(this.basePose, rotation), this.lens);
+        return resolve(rotation, Facing.DEFAULT);
+    }
+
+    /**
+     * Resolves this projection into a {@link Camera} with a view {@link Facing} reflection applied. The
+     * rotation adds to the base pose (as {@link #resolve(EulerRotation)}); the facing then reflects the
+     * composed pose - {@link Facing#mirrored()} mirrors the yaw, {@link Facing#flipped()} negates the
+     * pitch - and, for an {@linkplain Lens.Kind#OBLIQUE oblique} lens, flips the depth-shear so the
+     * mirror holds even where the yaw reflection is a no-op (a front-facing oblique). {@link Facing#DEFAULT}
+     * is a bit-for-bit no-op, so a default resolve stays byte-identical.
+     *
+     * @param rotation the rotation composed onto the base pose, in degrees
+     * @param facing the view-facing reflection applied after composition
+     * @return the resolved camera
+     */
+    public @NotNull Camera resolve(@NotNull EulerRotation rotation, @NotNull Facing facing) {
+        return Camera.fromPose(facing.apply(compose(this.basePose, rotation)), facing.apply(this.lens));
     }
 
     /**

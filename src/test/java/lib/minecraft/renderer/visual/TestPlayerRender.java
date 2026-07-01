@@ -9,6 +9,7 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.codec.gif.GifImageWriter;
 import dev.simplified.image.codec.gif.GifWriteOptions;
 import lib.minecraft.renderer.PlayerRenderer;
+import lib.minecraft.renderer.engine.camera.Facing;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.options.PlayerOptions;
@@ -110,6 +111,7 @@ public final class TestPlayerRender {
         Map<String, List<Cell>> sheets = new LinkedHashMap<>();
         sheets.put("core-matrix", coreMatrix(size));
         sheets.put("projections", projections(size));
+        sheets.put("facing", facing(size));
         sheets.put("toggles", toggles(size));
         sheets.put("armor-3d", armorMaterials(size, PlayerOptions.Dimension.THREE_D));
         sheets.put("armor-2d", armorMaterials(size, PlayerOptions.Dimension.TWO_D));
@@ -168,6 +170,24 @@ public final class TestPlayerRender {
             cells.add(new Cell(projection.name().toLowerCase(),
                 base(size).type(PlayerOptions.Type.SKULL).dimension(PlayerOptions.Dimension.THREE_D)
                     .projection(projection).build()));
+        return cells;
+    }
+
+    /**
+     * The {@link Facing} view toggles: the head under {@link Projection#PORTRAIT} for each of the four
+     * mirrored / flipped combinations, then {@link Projection#CAVALIER} default vs mirrored - the oblique
+     * case that only mirrors via the lens shear flip (its yaw-180 pose makes {@code 360 - yaw} a no-op).
+     */
+    private static @NotNull List<Cell> facing(int size) {
+        List<Cell> cells = new ArrayList<>();
+        for (Facing f : new Facing[]{Facing.DEFAULT, Facing.MIRRORED, Facing.FLIPPED, Facing.MIRRORED_FLIPPED})
+            cells.add(new Cell("portrait " + (f.mirrored() ? "M" : "-") + (f.flipped() ? "F" : "-"),
+                base(size).type(PlayerOptions.Type.SKULL).dimension(PlayerOptions.Dimension.THREE_D)
+                    .projection(Projection.PORTRAIT).facing(f).build()));
+        cells.add(new Cell("cavalier default", base(size).type(PlayerOptions.Type.SKULL)
+            .dimension(PlayerOptions.Dimension.THREE_D).projection(Projection.CAVALIER).build()));
+        cells.add(new Cell("cavalier mirrored", base(size).type(PlayerOptions.Type.SKULL)
+            .dimension(PlayerOptions.Dimension.THREE_D).projection(Projection.CAVALIER).facing(Facing.MIRRORED).build()));
         return cells;
     }
 

@@ -2,6 +2,7 @@ package lib.minecraft.renderer.options;
 
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.Renderer;
+import lib.minecraft.renderer.engine.camera.Facing;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.LayerSlot;
@@ -148,6 +149,14 @@ public class FluidOptions {
      */
     @lombok.Builder.Default
     private final @NotNull Projection projection = Projection.VANILLA_ISO;
+
+    /**
+     * View-facing reflection applied to the {@link #getProjection() projection}. Defaults to
+     * {@link Facing#DEFAULT} (no reflection); {@link Facing#MIRRORED} mirrors the view horizontally and
+     * {@link Facing#FLIPPED} flips it vertically. Only consulted by the {@link Type#ISOMETRIC_3D} path.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Facing facing = Facing.DEFAULT;
 
     /**
      * Opens a builder seeded from this instance's current values, for deriving a variant with a

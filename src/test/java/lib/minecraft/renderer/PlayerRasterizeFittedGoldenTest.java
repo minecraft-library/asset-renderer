@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.is;
  * <li><b>Orthographic arm</b> - a FULL body under {@link Projection#VANILLA_ISO} (the shipped iso
  *     player pose, {@link Lens.Kind#ORTHOGRAPHIC}), the 3D-fit {@code scale(fit).translate(-centre)}
  *     bake.</li>
- * <li><b>Perspective arm</b> - a SKULL under {@link Projection#PORTRAIT_HIGH}
+ * <li><b>Perspective arm</b> - a SKULL under {@link Projection#PORTRAIT}
  *     ({@link Lens.Kind#PERSPECTIVE}), the 2D post-projection {@code Fit2D} path.</li>
  * </ul>
  * Each case asserts render-twice determinism (parallel Pass 1 + tiled Pass 2 must be stable) then
@@ -84,12 +84,12 @@ class PlayerRasterizeFittedGoldenTest {
     }
 
     @Test
-    @DisplayName("SKULL under PORTRAIT_HIGH (perspective Fit2D arm) is deterministic and pinned")
+    @DisplayName("SKULL under PORTRAIT (perspective Fit2D arm) is deterministic and pinned")
     void perspectiveFittedArmIsPinned() {
         PlayerOptions options = PlayerOptions.builder()
             .type(PlayerOptions.Type.SKULL)
             .dimension(PlayerOptions.Dimension.THREE_D)
-            .projection(Projection.PORTRAIT_HIGH)
+            .projection(Projection.PORTRAIT)
             .skinTextureId(Optional.of(SKIN_ID))
             .outputSize(256)
             .supersample(1)

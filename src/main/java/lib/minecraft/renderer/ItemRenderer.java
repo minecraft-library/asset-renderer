@@ -557,7 +557,8 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // Identity-pose camera carrying only the projection's lens: the held-item pose lives
             // entirely in the model's display transform (applied as the modelTransform below), so the
             // camera pose stays identity and only the rotation-independent lens comes from resolve().
-            ModelEngine engine = new ModelEngine(this.context, Camera.identity(options.getProjection().resolve().lens()));
+            ModelEngine engine = new ModelEngine(this.context,
+                Camera.identity(options.getProjection().resolve(EulerRotation.NONE, options.getFacing()).lens()));
             PixelBuffer buffer = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
             int tint = options.getTintColor().orElse(ColorMath.WHITE);
 

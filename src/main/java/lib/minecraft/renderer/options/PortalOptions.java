@@ -2,6 +2,7 @@ package lib.minecraft.renderer.options;
 
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.Renderer;
+import lib.minecraft.renderer.engine.camera.Facing;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.request.EulerRotation;
 import lombok.AccessLevel;
@@ -131,6 +132,14 @@ public class PortalOptions {
      */
     @lombok.Builder.Default
     private final @NotNull Projection projection = Projection.VANILLA_ISO;
+
+    /**
+     * View-facing reflection applied to the {@link #getProjection() projection}. Defaults to
+     * {@link Facing#DEFAULT} (no reflection); {@link Facing#MIRRORED} mirrors the view horizontally and
+     * {@link Facing#FLIPPED} flips it vertically. No-op on the 2D face path.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Facing facing = Facing.DEFAULT;
 
     /**
      * A builder pre-populated with this instance's field values, for deriving a variant.

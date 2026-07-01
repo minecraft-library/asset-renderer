@@ -3,6 +3,7 @@ package lib.minecraft.renderer.options;
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.Renderer;
+import lib.minecraft.renderer.engine.camera.Facing;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.ImageLayer;
@@ -201,6 +202,14 @@ public class PlayerOptions {
      */
     @lombok.Builder.Default
     private final @NotNull Projection projection = Projection.VANILLA_ISO;
+
+    /**
+     * View-facing reflection applied to the {@link #getProjection() projection}. Defaults to
+     * {@link Facing#DEFAULT} (no reflection); {@link Facing#MIRRORED} mirrors the view horizontally and
+     * {@link Facing#FLIPPED} flips it vertically. Only consulted by the 3D path.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Facing facing = Facing.DEFAULT;
 
     /**
      * A builder pre-populated with this instance's field values, for deriving a variant.

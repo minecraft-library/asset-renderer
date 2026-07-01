@@ -6,6 +6,7 @@ import dev.simplified.image.Background;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.Renderer;
 import lib.minecraft.renderer.asset.rule.ItemContext;
+import lib.minecraft.renderer.engine.camera.Facing;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.ImageLayer;
 import lib.minecraft.renderer.engine.compose.LayerSlot;
@@ -200,6 +201,16 @@ public class ItemOptions {
      */
     @lombok.Builder.Default
     private final @NotNull Projection projection = Projection.VANILLA_GUI_ITEM;
+
+    /**
+     * View-facing reflection applied to the {@link #getProjection() projection}. Defaults to
+     * {@link Facing#DEFAULT} (no reflection). For the 3D held-item path the pose comes from the model's
+     * {@code display} transform, so only an {@linkplain lib.minecraft.renderer.engine.camera.Lens.Kind#OBLIQUE
+     * oblique} lens's depth-shear is affected - inert for the default perspective GUI item. Not consulted
+     * by the {@link Type#GUI_2D} path.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Facing facing = Facing.DEFAULT;
 
     /**
      * Opens a builder seeded from this instance's current values, for deriving a variant with a

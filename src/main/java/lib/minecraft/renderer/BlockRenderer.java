@@ -165,7 +165,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // camera AND the inventory-relight lighting together (resolved.lightingPose()); the
             // rasterize call below applies no separate model-spin. A default render passes
             // EulerRotation.NONE, leaving the pose at the base [30, 225, 0] iso - byte-identical.
-            var resolved = options.getProjection().resolve(options.getRotation());
+            var resolved = options.getProjection().resolve(options.getRotation(), options.getFacing());
             EulerRotation guiRotation = resolved.lightingPose();
             ModelEngine engine = new ModelEngine(this.context, resolved);
 
