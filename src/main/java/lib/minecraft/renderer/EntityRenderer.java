@@ -158,7 +158,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // The entity goes through the projection front door: VANILLA_ENTITY resolves to the det=-1
         // entityIsoChain camera (chirality) + the iso lens flatten. The model rotation `effective` stays a
         // separate model-spin passed to rasterize below - the chirality chain is fixed, so VANILLA_ENTITY
-        // does not compose the rotation into the camera (the CameraChain.ENTITY_ISO strategy).
+        // does not compose the rotation into the camera (the Assembly.ENTITY_ISO strategy).
         Projection.Resolved entityProjection = Projection.VANILLA_ENTITY.resolve();
         ModelEngine engine = new ModelEngine(this.context, entityProjection.camera());
         SceneContext scene = new SceneContext(

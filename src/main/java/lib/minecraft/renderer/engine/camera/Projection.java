@@ -21,10 +21,10 @@ import org.jetbrains.annotations.NotNull;
  * <p>The canonical members carry <b>correct textbook values</b> (true isometric, standard dimetric,
  * cabinet / cavalier / military, one / two / three point). The {@code VANILLA_*} members document the
  * <b>shipped hardcoded baseline</b> - they reproduce the current renders byte-for-byte and are the
- * defaults so existing output never changes. Each member carries a {@link CameraChain} strategy that
- * assembles its {@link Resolved} triple: {@link CameraChain#GUI_POSE} routes the base pose through
+ * defaults so existing output never changes. Each member carries a {@link Assembly} strategy that
+ * assembles its {@link Resolved} triple: {@link Assembly#DISPLAY_POSE} routes the base pose through
  * {@link Camera#fromPose} ({@code rotationXYZ}) - reproducing the legacy block / player cameras
- * bit-for-bit - and {@link CameraChain#ENTITY_ISO} builds the {@link #entityIsoChain} chirality chain
+ * bit-for-bit - and {@link Assembly#ENTITY_ISO} builds the {@link #entityIsoChain} chirality chain
  * for {@link #VANILLA_ENTITY}. An unrotated {@link #resolve()} on a {@code VANILLA_*} member yields the
  * exact shipped {@link Camera} / {@link Lens} / lighting triple.
  *
@@ -46,7 +46,7 @@ public enum Projection {
      * The view axis lies on one principal axis, producing a single vanishing point. Pose
      * {@code (0, 180, 0)}, perspective lens.
      */
-    ONE_POINT(new EulerRotation(0f, 180f, 0f), Lens.perspective(0.6f, 8f, 8f, 0.45f), CameraChain.GUI_POSE),
+    ONE_POINT(new EulerRotation(0f, 180f, 0f), Lens.perspective(0.6f, 8f, 8f, 0.45f), Assembly.DISPLAY_POSE),
 
     /**
      * Two-point central perspective.
@@ -54,7 +54,7 @@ public enum Projection {
      * Yawed off the view axis with zero pitch, producing two horizontal vanishing points and parallel
      * verticals. Pose {@code (0, 215, 0)}, perspective lens.
      */
-    TWO_POINT(new EulerRotation(0f, 215f, 0f), Lens.perspective(0.6f, 8f, 8f, 0.45f), CameraChain.GUI_POSE),
+    TWO_POINT(new EulerRotation(0f, 215f, 0f), Lens.perspective(0.6f, 8f, 8f, 0.45f), Assembly.DISPLAY_POSE),
 
     /**
      * Three-point central perspective.
@@ -62,7 +62,7 @@ public enum Projection {
      * Yawed and pitched off the view axis, producing three vanishing points including the vertical.
      * Pose {@code (30, 215, 0)}, perspective lens.
      */
-    THREE_POINT(new EulerRotation(30f, 215f, 0f), Lens.perspective(0.6f, 8f, 8f, 0.45f), CameraChain.GUI_POSE),
+    THREE_POINT(new EulerRotation(30f, 215f, 0f), Lens.perspective(0.6f, 8f, 8f, 0.45f), Assembly.DISPLAY_POSE),
 
     /**
      * Isometric axonometric projection.
@@ -70,7 +70,7 @@ public enum Projection {
      * Pitch {@code atan(1/√2) = 35.264°} gives equal foreshortening on all three axes (ISO 5456-3).
      * Orthographic lens.
      */
-    ISOMETRIC(new EulerRotation(35.264f, 225f, 0f), Lens.orthographic(0.45f), CameraChain.GUI_POSE),
+    ISOMETRIC(new EulerRotation(35.264f, 225f, 0f), Lens.orthographic(0.45f), Assembly.DISPLAY_POSE),
 
     /**
      * Dimetric axonometric projection.
@@ -78,7 +78,7 @@ public enum Projection {
      * The 2:1 pixel-art convention - pitch {@code atan(0.5) = 26.565°} foreshortens two axes equally.
      * Orthographic lens.
      */
-    DIMETRIC(new EulerRotation(26.565f, 225f, 0f), Lens.orthographic(0.5f), CameraChain.GUI_POSE),
+    DIMETRIC(new EulerRotation(26.565f, 225f, 0f), Lens.orthographic(0.5f), Assembly.DISPLAY_POSE),
 
     /**
      * Trimetric axonometric projection.
@@ -86,7 +86,7 @@ public enum Projection {
      * All three axes foreshortened differently (ISO 5456-3 asymmetric example). Pose
      * {@code (20, 250, 0)}, orthographic lens.
      */
-    TRIMETRIC(new EulerRotation(20f, 250f, 0f), Lens.orthographic(0.5f), CameraChain.GUI_POSE),
+    TRIMETRIC(new EulerRotation(20f, 250f, 0f), Lens.orthographic(0.5f), Assembly.DISPLAY_POSE),
 
     /**
      * Cavalier oblique projection.
@@ -94,7 +94,7 @@ public enum Projection {
      * The front face is true-shape and the receding axis is drawn at 45° to full depth, with no
      * foreshortening. Oblique lens {@code L = 1.0}.
      */
-    CAVALIER(new EulerRotation(0f, 180f, 0f), Lens.oblique(1.0f, (float) Math.toRadians(-45), 0.5f), CameraChain.GUI_POSE),
+    CAVALIER(new EulerRotation(0f, 180f, 0f), Lens.oblique(1.0f, (float) Math.toRadians(-45), 0.5f), Assembly.DISPLAY_POSE),
 
     /**
      * Cabinet oblique projection.
@@ -102,7 +102,7 @@ public enum Projection {
      * The front face is true-shape and the receding axis is drawn at 45° with depth halved for a
      * natural look - the de-facto cabinet standard. Oblique lens {@code L = 0.5}.
      */
-    CABINET(new EulerRotation(0f, 180f, 0f), Lens.oblique(0.5f, (float) Math.toRadians(-45), 0.5f), CameraChain.GUI_POSE),
+    CABINET(new EulerRotation(0f, 180f, 0f), Lens.oblique(0.5f, (float) Math.toRadians(-45), 0.5f), Assembly.DISPLAY_POSE),
 
     /**
      * Military (planometric) oblique projection.
@@ -111,7 +111,7 @@ public enum Projection {
      * Pose {@code (90, 225, 0)} plan, oblique lens {@code L = 1.0}. The least-standard mapping;
      * verify visually.
      */
-    MILITARY(new EulerRotation(90f, 225f, 0f), Lens.oblique(1.0f, (float) Math.toRadians(-45), 0.5f), CameraChain.GUI_POSE),
+    MILITARY(new EulerRotation(90f, 225f, 0f), Lens.oblique(1.0f, (float) Math.toRadians(-45), 0.5f), Assembly.DISPLAY_POSE),
 
     /**
      * Shipped block, fluid, and portal baseline.
@@ -122,7 +122,7 @@ public enum Projection {
      * full-body skin renders) used whenever a block model does not override its own GUI pose;
      * reproduces the block / fluid / portal renders byte-for-byte.
      */
-    VANILLA_BLOCK(new EulerRotation(30f, 225f, 0f), Lens.ISOMETRIC_BLOCK, CameraChain.GUI_POSE),
+    VANILLA_BLOCK(new EulerRotation(30f, 225f, 0f), Lens.ISOMETRIC_BLOCK, Assembly.DISPLAY_POSE),
 
     /**
      * Shipped player baseline.
@@ -133,7 +133,7 @@ public enum Projection {
      * GUI pose at the conservative scale, carrying none of {@link #VANILLA_ENTITY}'s LER chirality.
      * Reproduces the player renders byte-for-byte; the default for the player renderer.
      */
-    VANILLA_PLAYER(new EulerRotation(30f, 45f, 0f), Lens.NONE, CameraChain.GUI_POSE),
+    VANILLA_PLAYER(new EulerRotation(30f, 45f, 0f), Lens.NONE, Assembly.DISPLAY_POSE),
 
     /**
      * Shipped 3D held-item baseline.
@@ -142,7 +142,7 @@ public enum Projection {
      * {@code display} matrix. Reproduces the held-item renders byte-for-byte; the default for the item
      * renderer.
      */
-    VANILLA_GUI_ITEM(EulerRotation.NONE, Lens.GUI_ITEM, CameraChain.GUI_POSE),
+    VANILLA_GUI_ITEM(EulerRotation.NONE, Lens.GUI_ITEM, Assembly.DISPLAY_POSE),
 
     /**
      * Shipped entity baseline.
@@ -155,10 +155,10 @@ public enum Projection {
      * {@link #VANILLA_PLAYER}, which are det=+1 GUI display poses: this pose differs from the block one
      * by a yaw mirror + transpose-like permutation, so entity rendering must use it rather than
      * borrowing the block-icon pose. The caller's rotation stays a separate model-spin rather than
-     * composing into the camera (the {@link CameraChain#ENTITY_ISO} strategy). The default for the
+     * composing into the camera (the {@link Assembly#ENTITY_ISO} strategy). The default for the
      * entity renderer.
      */
-    VANILLA_ENTITY(new EulerRotation(210f, 45f, 0f), Lens.ISOMETRIC_BLOCK, CameraChain.ENTITY_ISO);
+    VANILLA_ENTITY(new EulerRotation(210f, 45f, 0f), Lens.ISOMETRIC_BLOCK, Assembly.ENTITY_ISO);
 
     /**
      * Resolved camera pose, lens, and lighting pose for one {@link Projection} at a chosen rotation -
@@ -181,17 +181,17 @@ public enum Projection {
 
     /**
      * This projection's flatten family - the 3D-to-2D {@link Lens} paired with the pose. Rotation-
-     * independent; the {@link CameraChain} strategy passes it straight through to
+     * independent; the {@link Assembly} strategy passes it straight through to
      * {@link Resolved#lens()}.
      */
     private final @NotNull Lens lens;
 
     /**
-     * The strategy that assembles this projection's {@link Resolved} triple: {@link CameraChain#GUI_POSE}
-     * for the det=+1 display-pose members, {@link CameraChain#ENTITY_ISO} for the entity chirality chain.
+     * The strategy that assembles this projection's {@link Resolved} triple: {@link Assembly#DISPLAY_POSE}
+     * for the det=+1 display-pose members, {@link Assembly#ENTITY_ISO} for the entity chirality chain.
      */
     @Getter(AccessLevel.NONE)
-    private final @NotNull CameraChain cameraChain;
+    private final @NotNull Assembly assembly;
 
     /**
      * Resolves this projection at its base pose - the unrotated camera / lens / lighting-pose
@@ -206,14 +206,14 @@ public enum Projection {
 
     /**
      * Resolves this projection into the camera / lens / lighting-pose triple by delegating to this
-     * constant's {@link CameraChain} strategy. For a {@link CameraChain#GUI_POSE} member the rotation
+     * constant's {@link Assembly} strategy. For a {@link Assembly#DISPLAY_POSE} member the rotation
      * adds to the base pitch / yaw / roll, so it poses the camera and the lighting pose together (the
      * lens is rotation-independent) through the parity-pinned {@link Camera#fromPose}
      * {@code rotationXYZ} path, which reproduces the legacy {@code VANILLA_*} cameras bit-for-bit;
      * {@link EulerRotation#NONE} yields the base pose unchanged, keeping the default render path
      * byte-identical.
      *
-     * <p>{@link #VANILLA_ENTITY} ({@link CameraChain#ENTITY_ISO}) is the exception: its det=-1
+     * <p>{@link #VANILLA_ENTITY} ({@link Assembly#ENTITY_ISO}) is the exception: its det=-1
      * {@link #entityIsoChain} is fixed, so the {@code rotation} is ignored here and the entity renderer
      * applies it (plus its {@code setupRotations} addends) as a separate model-spin at rasterize time.
      *
@@ -222,7 +222,7 @@ public enum Projection {
      * @return the resolved triple
      */
     public @NotNull Resolved resolve(@NotNull EulerRotation rotation) {
-        return this.cameraChain.resolve(this.basePose, this.lens, rotation);
+        return this.assembly.resolve(this.basePose, this.lens, rotation);
     }
 
     /**
@@ -242,7 +242,7 @@ public enum Projection {
      * Builds the vanilla entity-preview iso chain - the full entity-preview transform expressed as the
      * column-vector matrix our column-form rasterizer consumes, AFTER accounting for the kit's
      * pre-applied {@code FLIP_Y} on positions. Assembled for {@link #VANILLA_ENTITY} by the
-     * {@link CameraChain#ENTITY_ISO} strategy, and reached by the entity renderer's bounds / anchor
+     * {@link Assembly#ENTITY_ISO} strategy, and reached by the entity renderer's bounds / anchor
      * projection through {@link #resolve()} so both stay a single source of truth.
      * <p>
      * The harness applies (col form, applied to a Y-down model vertex right-to-left):
@@ -284,14 +284,15 @@ public enum Projection {
      * {@link Projection#resolve(EulerRotation)} dispatches polymorphically instead of branching on a
      * tag.
      */
-    private enum CameraChain {
+    private enum Assembly {
 
         /**
-         * A {@code display.*} GUI pose: {@link Camera#fromPose} builds the {@code rotationXYZ(pose)}
-         * matrix and the caller's rotation composes into that pose, so camera and lighting move
-         * together. Used by every member except the entity preview.
+         * The default assembly - a rotation display pose. {@link Camera#fromPose} builds the
+         * {@code rotationXYZ(pose)} matrix (det=+1) and the caller's rotation composes into it, so
+         * camera and lighting move together. Backs every member except the entity preview: blocks,
+         * players, held items, and the textbook axonometric / perspective / oblique projections.
          */
-        GUI_POSE {
+        DISPLAY_POSE {
             @Override
             @NotNull Resolved resolve(@NotNull EulerRotation basePose, @NotNull Lens lens, @NotNull EulerRotation rotation) {
                 EulerRotation pose = compose(basePose, rotation);
@@ -319,7 +320,7 @@ public enum Projection {
          *
          * @param basePose the projection's unrotated base pose
          * @param lens the projection's lens
-         * @param rotation the caller's rotation (composed into the pose by {@link #GUI_POSE}, ignored
+         * @param rotation the caller's rotation (composed into the pose by {@link #DISPLAY_POSE}, ignored
          *     by {@link #ENTITY_ISO})
          * @return the resolved triple
          */
