@@ -121,15 +121,16 @@ public enum Projection {
     VANILLA_BLOCK(new EulerRotation(30f, 225f, 0f), Lens.ISOMETRIC_BLOCK),
 
     /**
-     * Shipped player baseline.
-     * <p>
-     * The {@link #VANILLA_BLOCK} pose with the yaw flipped 180&deg; ({@code [30, 45, 0]}) so a
-     * humanoid model's front (its {@code +Z} {@code SOUTH} face) turns toward the camera - the
-     * block-icon pose presents the model's {@code -Z} side, which on a humanoid is its back. A det=+1
-     * GUI pose at the conservative scale, carrying none of {@link #VANILLA_ENTITY}'s LER chirality.
-     * Reproduces the player renders byte-for-byte; the default for the player renderer.
+     * Shipped player baseline - a <b>facing-neutral</b> iso pose ({@code [30, 225, 0]}, the same
+     * block-icon angle as {@link #VANILLA_BLOCK}) with the player's {@code Lens.NONE} flatten. The
+     * humanoid facing is NOT baked here: the player renderer applies its {@code R_Y(180)} facing as a
+     * model-to-world {@code Placement} (like the entity's {@code ENTITY_FLIP}), which turns the model's
+     * {@code +Z} {@code SOUTH} front toward the camera - {@code [30, 225, 0] · R_Y(180) = [30, 45, 0]},
+     * the shipped player pose. Keeping the facing on the renderer lets any projection present the
+     * player's front rather than its back. Reproduces the player renders byte-for-byte; the default for
+     * the player renderer.
      */
-    VANILLA_PLAYER(new EulerRotation(30f, 45f, 0f), Lens.NONE),
+    VANILLA_PLAYER(new EulerRotation(30f, 225f, 0f), Lens.NONE),
 
     /**
      * Shipped 3D held-item baseline.

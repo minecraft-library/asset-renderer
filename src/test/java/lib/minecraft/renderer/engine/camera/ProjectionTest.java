@@ -14,8 +14,10 @@ class ProjectionTest {
     @DisplayName("VANILLA_* base poses carry the documented vanilla angles")
     void vanillaBasePoses() {
         // Projection is the sole home of the vanilla iso angles (moved off EulerRotation).
+        // VANILLA_PLAYER is facing-NEUTRAL (the block-icon [30,225,0] angle); the player renderer
+        // applies its R_Y(180) facing as a Placement, so [30,225,0]·R_Y(180) = the shipped [30,45,0].
         assertThat(Projection.VANILLA_BLOCK.basePose(), equalTo(new EulerRotation(30f, 225f, 0f)));
-        assertThat(Projection.VANILLA_PLAYER.basePose(), equalTo(new EulerRotation(30f, 45f, 0f)));
+        assertThat(Projection.VANILLA_PLAYER.basePose(), equalTo(new EulerRotation(30f, 225f, 0f)));
         assertThat(Projection.VANILLA_ENTITY.basePose(), equalTo(new EulerRotation(210f, 45f, 0f)));
         assertThat(Projection.VANILLA_GUI_ITEM.basePose(), equalTo(EulerRotation.NONE));
     }

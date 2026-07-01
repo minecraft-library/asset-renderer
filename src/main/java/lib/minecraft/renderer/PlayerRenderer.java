@@ -12,6 +12,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.engine.camera.Placement;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.FinalizeStage;
 import lib.minecraft.renderer.engine.compose.GeometryLayer;
@@ -31,6 +32,7 @@ import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.request.ArmorPiece;
 import lib.minecraft.renderer.request.ArmorTrim;
 import lib.minecraft.renderer.request.EulerRotation;
+import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -61,6 +63,18 @@ import java.util.Optional;
  * renderer's lifetime.
  */
 public final class PlayerRenderer implements Renderer<PlayerOptions> {
+
+    /**
+     * The player's model-to-world facing - a {@code R_Y(180) = diag(-1,1,-1)} yaw flip that turns the
+     * humanoid model's {@code +Z} {@code SOUTH} front toward the camera. Applied as a {@link Placement}
+     * so the projection stays facing-neutral (see {@link Projection#VANILLA_PLAYER}): for any projection
+     * {@code P}, {@code P.pose() · PLAYER_FACING} presents the front, so the default
+     * {@code [30,225,0] · R_Y(180) = [30,45,0]} reproduces the shipped player pose. Byte-identical because
+     * the body's block-cardinal face shading is baked per direction (pose-independent) and the total
+     * transform is unchanged.
+     */
+    private static final @NotNull Placement PLAYER_FACING =
+        new Placement(Matrix4f.IDENTITY.scale(-1f, 1f, -1f));
 
     // ---------------------------------------------------------------------------------------
     // 3D body-part bounding cubes per render type.
@@ -450,7 +464,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getRotation()));
+            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getRotation()), PLAYER_FACING);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
@@ -495,7 +509,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getRotation()));
+            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getRotation()), PLAYER_FACING);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
@@ -544,7 +558,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getRotation()));
+            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getRotation()), PLAYER_FACING);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
