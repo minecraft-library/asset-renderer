@@ -110,6 +110,32 @@ public enum Projection {
     MILITARY(new EulerRotation(90f, 225f, 0f), Lens.oblique(1.0f, (float) Math.toRadians(-45), 0.5f)),
 
     /**
+     * High-angle perspective portrait - a close, gently downward three-quarter head / bust framing.
+     * Full perspective ({@code fov ~= 45}, camera {@code 2.375} subject-heights out) at a {@code 15}
+     * downward pitch and a soft {@code 25} yaw off head-on, so the camera sits slightly <b>above</b> the
+     * subject and looks down onto it (a high-angle shot) - the flattering avatar / hero head pose. Base
+     * pose {@code [15, 205, 0]} is facing-neutral; a player render's {@code R_Y(180)} facing turns it to
+     * the effective {@code [15, 25, 0]}.
+     * <p>
+     * Ported from NMSR's {@code /head} avatar camera ({@code nmsr-rs} {@code RenderRequestMode::Head}):
+     * {@code CameraRotation { yaw: 25, pitch: 15 }}, {@code Perspective { fov: 45 }}, orbital distance
+     * {@code 19} on an {@code 8}px head. NMSR's {@code minecraft_rotation_matrix} bakes the same
+     * {@code diag(-1, 1, -1)} facing flip this renderer applies, folding into {@code rotationXYZ(15, 205,
+     * 0)} (cross-checked: NMSR's iso mode {@code yaw 45 / pitch 35.26} maps the same way onto
+     * {@link #ISOMETRIC}); the {@code 19 / 8 = 2.375} distance sets the camera-distance and focal length
+     * that reproduce its near / far foreshortening.
+     */
+    PORTRAIT_HIGH(new EulerRotation(15f, 205f, 0f), Lens.perspective(1f, 2.375f, 2.375f, 0.45f)),
+
+    /**
+     * Low-angle perspective portrait - the negated-pitch mirror of {@link #PORTRAIT_HIGH}: the same soft
+     * three-quarter yaw and perspective flatten with the camera slightly <b>below</b> the subject,
+     * looking up (a low-angle shot), so the head cube presents its underside instead of its top. Base
+     * pose {@code [-15, 205, 0]}.
+     */
+    PORTRAIT_LOW(new EulerRotation(-15f, 205f, 0f), Lens.perspective(1f, 2.375f, 2.375f, 0.45f)),
+
+    /**
      * The shipped vanilla iso baseline for blocks, fluids, portals, players, and entities - vanilla's
      * {@code [30, 225, 0]} {@code display.gui} pose baked into the root {@code block/block.json} model
      * (technically a dimetric, not true isometric) at scale {@code 0.625} ({@link Lens#ISOMETRIC_BLOCK}).
