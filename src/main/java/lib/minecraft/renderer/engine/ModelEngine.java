@@ -5,6 +5,7 @@ import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.camera.Camera;
+import lib.minecraft.renderer.engine.camera.FitRequest;
 import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.Placement;
 import lib.minecraft.renderer.engine.camera.Projection;
@@ -15,6 +16,7 @@ import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.request.EulerRotation;
+import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -192,6 +194,20 @@ public class ModelEngine {
     }
 
     /**
+     * The model-to-world-to-screen orientation this engine applies to a fit-neutral triangle list for the
+     * given Euler rotation - {@code pose x placement x modelRotation}, with no fit scale or centring. A
+     * caller sizing its own canvas (the entity's native pixels-per-block fit) measures its silhouette
+     * bounds through this exact transform so the measured extent matches what {@link #rasterizeFitted}
+     * will render, then hands those bounds back via a {@link FitRequest.Mode#NATIVE_SCALE} request.
+     *
+     * @param rotation the Euler-angle model rotation applied before the camera pose
+     * @return the composed orientation transform (no fit scale / centring)
+     */
+    public @NotNull Matrix4f orient(@NotNull EulerRotation rotation) {
+        return cameraSide(buildModelRotation(rotation));
+    }
+
+    /**
      * The pack-aware texture-resolution service bound to this engine's context, for kits and layers
      * that resolve textures while sharing the engine's render.
      */
@@ -323,8 +339,33 @@ public class ModelEngine {
         float fill,
         @Nullable GlintMask glintMask
     ) {
+        rasterizeFitted(triangles, buffer, rotation, FitRequest.autoFill(fill), glintMask);
+    }
+
+    /**
+     * Rasterizes a triangle list fitted to the buffer under this engine's camera and the given model
+     * rotation, driven by a {@link FitRequest}. {@link FitRequest.Mode#AUTO_FILL} measures the
+     * silhouette and scales it to fill the canvas (the player + entity perspective / oblique path);
+     * {@link FitRequest.Mode#NATIVE_SCALE} applies the caller's explicit scale and centres on its
+     * pre-measured bounds (the entity's native-resolution orthographic path). The fit forks on lens
+     * family inside {@link #prepareFit}, so the shared {@link #rasterizeInternal} core stays
+     * lens-agnostic.
+     *
+     * @param triangles the triangle list, in fixed model-space units
+     * @param buffer the destination buffer
+     * @param rotation the Euler-angle model rotation applied before the camera pose
+     * @param request how to scale and centre the silhouette
+     * @param glintMask the glint mask to populate, or {@code null} to skip mask recording
+     */
+    public void rasterizeFitted(
+        @NotNull ConcurrentList<VisibleTriangle> triangles,
+        @NotNull PixelBuffer buffer,
+        @NotNull EulerRotation rotation,
+        @NotNull FitRequest request,
+        @Nullable GlintMask glintMask
+    ) {
         if (triangles.isEmpty()) return;
-        FitPlan plan = prepareFit(triangles, buffer, rotation, fill);
+        FitPlan plan = prepareFit(triangles, buffer, rotation, request);
         rasterizeInternal(triangles, buffer, plan.transform(), glintMask, plan.fit());
     }
 
@@ -354,22 +395,48 @@ public class ModelEngine {
      *     silently shift those emissive-overlay depth tie-breaks.</li>
      * </ul>
      *
+     * <p>A {@link FitRequest.Mode#NATIVE_SCALE} request short-circuits the measurement: the caller has
+     * already sized its canvas at a native pixels-per-block ratio and measured its (alpha-tight,
+     * possibly family-unioned) silhouette bounds through {@link #orient}, so the engine bakes the
+     * caller's explicit scale in 3D (keeping the depth frame like the orthographic auto-fill arm) and
+     * centres the caller's measured bounds midpoint in screen space via a scale-{@code 1} {@link Fit2D}.
+     * This is the entity's orthographic path; the {@link FitRequest.Mode#AUTO_FILL} arms below are the
+     * player + entity perspective / oblique paths.
+     *
      * @param triangles the triangle list, in fixed model-space units (non-empty)
      * @param buffer the destination buffer
      * @param rotation the Euler-angle model rotation applied before the camera pose
-     * @param fill the fraction in {@code (0, 1]} of the smaller canvas dimension the silhouette spans
+     * @param request how to scale and centre the silhouette (auto-fill vs caller-supplied native scale)
      * @return the composed model-to-screen transform and the optional post-projection 2D auto-fit
      */
     private @NotNull FitPlan prepareFit(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
         @NotNull EulerRotation rotation,
-        float fill
+        @NotNull FitRequest request
     ) {
         Matrix4f modelRotation = buildModelRotation(rotation);
         Matrix4f orient = cameraSide(modelRotation);
         float baseScale = Math.min(buffer.width(), buffer.height()) * this.lens.projectionScale();
 
+        if (request.mode() == FitRequest.Mode.NATIVE_SCALE) {
+            // Caller-sized canvas: bake the explicit model-units-to-NDC scale in 3D (uniform scale
+            // commutes through the rotation, so the depth frame scales with it - keeping DEPTH_EPSILON
+            // behaviour aligned with the orthographic auto-fill arm) and centre the caller's measured
+            // bounds midpoint in screen space. The bounds were measured through `orient` at the same
+            // native geometry scale, WITHOUT this fit scale; after the S(fit) bake the projected midpoint
+            // scales by `fit`, so project `fit * midpoint` to get the screen-space centre to subtract.
+            float fit = request.explicitScale();
+            Box b = Objects.requireNonNull(request.explicitBounds(), "NATIVE_SCALE requires explicitBounds");
+            float midX = (b.minX() + b.maxX()) * 0.5f;
+            float midY = (b.minY() + b.maxY()) * 0.5f;
+            float midZ = (b.minZ() + b.maxZ()) * 0.5f;
+            Vector2f centre = this.lens.project(new Vector3f(fit * midX, fit * midY, fit * midZ), baseScale, 0f, 0f);
+            Matrix4f modelTransform = modelRotation.scale(fit, fit, fit);
+            return new FitPlan(cameraSide(modelTransform), new Fit2D(centre.x(), centre.y(), 1f));
+        }
+
+        float fill = request.fill();
         return switch (this.lens.kind()) {
             case PERSPECTIVE, OBLIQUE -> {
                 float minPx = Float.MAX_VALUE, minPy = Float.MAX_VALUE;

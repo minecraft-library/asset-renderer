@@ -99,9 +99,8 @@ class EntityFacingTest {
     @DisplayName("Long entity (cod) fits uncropped under the oblique projections (+mirror) - the lens-aware fit")
     void obliqueLongEntityUncropped() {
         // cod is long on its z-axis; oblique's depth-shear (cavalier/cabinet diagonal, military vertical)
-        // blows the silhouette past the raw rotated bounds - the lens-aware bounds keep it in-canvas.
-        // (Strong-perspective PORTRAIT on long entities is a documented known-limitation deferred to the
-        // rasterizeFitted unify, so it is NOT gated here.)
+        // blows the silhouette past the raw rotated bounds - routing oblique through rasterizeFitted's
+        // 2D auto-fit keeps it in-canvas.
         for (Projection p : new Projection[]{Projection.CABINET, Projection.CAVALIER, Projection.MILITARY})
             for (Facing f : new Facing[]{Facing.DEFAULT, Facing.MIRRORED}) {
                 PixelBuffer buf = entityRenderer.render(EntityOptions.builder()
@@ -112,6 +111,24 @@ class EntityFacingTest {
                 assertThat(p + " " + f + " should render a non-empty silhouette", coverage(buf), greaterThan(0));
                 assertThat(p + " " + f + " must fit uncropped (lens-aware bounds)", borderCoverage(buf), equalTo(0));
             }
+    }
+
+    @Test
+    @DisplayName("Long entity (cod) fits uncropped under strong-perspective PORTRAIT (+mirror) - the unified Fit2D")
+    void perspectiveLongEntityUncropped() {
+        // The Option 2 win: PORTRAIT is a full pinhole (amount 1, cameraDistance 2.375). A 3D model-scale
+        // fit could not correct the foreshortening in one pass, so cod overflowed the canvas. Routing the
+        // perspective path through rasterizeFitted's 2D Fit2D measures the actual foreshortened
+        // silhouette and fills the canvas - so cod (and its mirror) now fit uncropped.
+        for (Facing f : new Facing[]{Facing.DEFAULT, Facing.MIRRORED}) {
+            PixelBuffer buf = entityRenderer.render(EntityOptions.builder()
+                .entityId(Optional.of("minecraft:cod"))
+                .outputSize(SIZE).padding(PADDING).fitMode(EntityOptions.FitMode.OUTPUT_SIZE)
+                .supersample(1).antiAlias(false)
+                .projection(Projection.PORTRAIT).facing(f).build()).getFrames().getFirst().pixels();
+            assertThat("PORTRAIT " + f + " should render a non-empty silhouette", coverage(buf), greaterThan(0));
+            assertThat("PORTRAIT " + f + " must fit uncropped (unified Fit2D)", borderCoverage(buf), equalTo(0));
+        }
     }
 
     @Test

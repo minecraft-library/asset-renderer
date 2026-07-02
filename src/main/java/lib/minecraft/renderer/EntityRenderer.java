@@ -12,7 +12,7 @@ import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.RendererDebug;
 import lib.minecraft.renderer.engine.camera.Camera;
-import lib.minecraft.renderer.engine.camera.Facing;
+import lib.minecraft.renderer.engine.camera.FitRequest;
 import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.Placement;
 import lib.minecraft.renderer.engine.camera.Projection;
@@ -154,33 +154,64 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         float modelScale = definition.rendererScale();
         Box scaledBounds = scaleBox(baseBounds, modelScale);
 
-        // Canvas sizing dispatches on EntityOptions.fitMode. OUTPUT_SIZE (default) honours
-        // the caller's outputSize + padding; UNION_BOUNDS and FAMILY_BOUNDS auto-size from
-        // the entity's own / family-unioned bounds at the harness's native PIXELS_PER_BLOCK
-        // ratio (with optional padding expansion). See EntityOptions.FitMode for the math.
-        BoundsScope scope = boundsScopeFor(options.getFitMode());
-        CanvasFit fit = computeFitFor(options, scope, options.getEntityId().get(), definition, effective, modelScale, texture.get());
+        // The entity is a normal projection subject: the camera is the caller's projection display pose
+        // DIRECTLY (default VANILLA_ISO = the facing-neutral rotationXYZ(30,225,0)), and its model->world
+        // facing (humanoid R_Y(180)) + Y-down flip + chirality is the single ENTITY_FACING Placement.
+        // render = pose · ENTITY_FACING · model_Ydown lands the entity upright AND facing under ANY
+        // projection (exactly like the player's R_Y(180) facing, plus the Y-down flip). For the default,
+        // R(30,225,0) · ENTITY_FACING = R(30,45,0) · flip180 reproduces the harness orientation.
+        Camera entityCamera = options.getProjection().resolve(EulerRotation.NONE, options.getFacing());
+        ModelEngine engine = new ModelEngine(this.context, entityCamera, ENTITY_PLACEMENT);
+        Lens lens = entityCamera.lens();
 
-        // Centre the silhouette on the canvas using the SAME bounds source that sized the
-        // canvas. The kit subtracts a model-space "anchor" point from each vertex; whatever
-        // point we pass becomes NDC origin, which the rasterizer maps to canvas-centre.
-        // Naively passing {@code scaledBounds.centre()} (the model-space AABB centre)
-        // over-pads non-brick silhouettes: cod's outer AABB extends z=[-4,11] but most cubes
-        // hug z=[0,7], so {@code iso(aabb_centre)} lands several pixels off the tight
-        // silhouette midpoint. Inverse-projecting the screen-space silhouette midpoint
-        // through the iso transform gives the model-space point whose iso image IS the
-        // silhouette midpoint. Per-entity setupRotations overrides translate the model
-        // vertex by {@code override.modelAnchorShift} (the kit subtracts modelAnchor from
-        // every vertex, so subtracting the shift from the anchor adds it to every vertex).
-        // For squid that's a {@code (0, +11.2, 0)} pixel pre-translate; pufferfish gets
-        // {@code (0, -1.28, 0)}; shulker has zero translate but a 180° yaw addend folded
-        // into {@code effective} above.
-        Vector3f modelAnchor = computeCentreAnchor(options.getProjection(), options.getFacing(), scope, options.getEntityId().get(), definition, effective, modelScale, texture.get());
+        // Fit resolution forks on the projection lens family. The kit always emits FIT-NEUTRAL geometry
+        // (only the model scale baked in); the engine's rasterizeFitted applies the fit in ONE place, so
+        // entity rendering flows through the same auto-fit pipeline the player uses.
+        //
+        // ORTHOGRAPHIC (VANILLA_ISO + axonometric): size a native pixels-per-block canvas from the
+        // entity's alpha-tight (optionally family-unioned) silhouette - measured through the EXACT render
+        // orientation ({@code engine.orient}), dispatched on FitMode (OUTPUT_SIZE honours outputSize +
+        // padding; UNION_BOUNDS / FAMILY_BOUNDS auto-size from the entity's own / family-unioned bounds).
+        // The engine bakes that explicit scale in 3D and centres the measured silhouette midpoint in
+        // screen space (NATIVE_SCALE) - so a non-brick silhouette (cod's z=[-4,11] AABB vs its z=[0,7]
+        // cube hug) stays tightly centred, without the old model-space anchor inverse. Per-entity
+        // setupRotations shifts (squid, pufferfish) ride on the model geometry.
+        //
+        // PERSPECTIVE / OBLIQUE: a 3D model-scale fit can't correct strong foreshortening / depth-shear in
+        // one pass (scaling the model changes the foreshortening), so unit-normalize the model into a
+        // well-behaved range and defer the final screen fill to rasterizeFitted's 2D auto-fit (Fit2D).
+        // This is what lets long entities (cod) fit uncropped under PORTRAIT / cavalier / cabinet / military.
+        int canvasW;
+        int canvasH;
+        Vector3f kitAnchor;
+        float kitNdcScale;
+        final FitRequest fitRequest;
+        if (lens.kind() == Lens.Kind.ORTHOGRAPHIC) {
+            BoundsScope scope = boundsScopeFor(options.getFitMode());
+            Box screenBounds = computeScreenBoundsFor(scope, options.getEntityId().get(), definition,
+                engine.orient(effective), lens, modelScale, texture.get());
+            RendererDebug.fitBounds(options.getEntityId().get(), screenBounds);
+            CanvasFit fit = computeCanvas(options, screenBounds, lens);
+            canvasW = fit.canvasW();
+            canvasH = fit.canvasH();
+            kitAnchor = Vector3f.ZERO;
+            kitNdcScale = 1f;
+            fitRequest = FitRequest.nativeScale(fit.ndcScale(), screenBounds);
+        } else {
+            int outputSize = Math.max(1, options.getOutputSize());
+            int padding = Math.max(0, options.getPadding());
+            canvasW = outputSize;
+            canvasH = outputSize;
+            EntityGeometryKit.UnitFit unit = EntityGeometryKit.unitFit(scaledBounds);
+            kitAnchor = unit.centre();
+            kitNdcScale = unit.ndcScale();
+            fitRequest = FitRequest.autoFill(Math.max(1e-3f, (outputSize - 2f * padding) / (float) outputSize));
+        }
 
         EntityGeometryKit.BuildResult buildResult = EntityGeometryKit.buildTriangles(
-            model, texture.get(), modelAnchor, false, fit.ndcScale(), modelScale, definition.baseTintArgb());
+            model, texture.get(), kitAnchor, false, kitNdcScale, modelScale, definition.baseTintArgb());
         if (buildResult.triangles().isEmpty())
-            return Frames.staticFrame(PixelBuffer.create(fit.canvasW(), fit.canvasH()));
+            return Frames.staticFrame(PixelBuffer.create(canvasW, canvasH));
 
         ConcurrentList<VisibleTriangle> triangles = buildResult.triangles();
 
@@ -190,18 +221,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // list in slot order, then rasterize together in one shared depth pass. Emission order is
         // load-bearing (depth tie-break, translucent sort, emissive depth-skip), so the slot order
         // reproduces the historic base -> overlays -> block-overlays -> armor sequence exactly.
-        // Callers can splice their own layers via EntityOptions.layerDecorator.
-        // The entity is a normal projection subject: the camera is the caller's projection display pose
-        // DIRECTLY (default VANILLA_ISO = the facing-neutral rotationXYZ(30,225,0)), and its model->world
-        // facing (humanoid R_Y(180)) + Y-down flip + chirality is the single ENTITY_FACING Placement.
-        // render = pose · ENTITY_FACING · model_Ydown lands the entity upright AND facing under ANY
-        // projection (exactly like the player's R_Y(180) facing, plus the Y-down flip). For the default,
-        // R(30,225,0) · ENTITY_FACING = R(30,45,0) · flip180 reproduces the harness byte-for-byte; the
-        // canvas-fit / anchor track the same projection.
-        Camera entityCamera = options.getProjection().resolve(EulerRotation.NONE, options.getFacing());
-        ModelEngine engine = new ModelEngine(this.context, entityCamera, ENTITY_PLACEMENT);
+        // Callers can splice their own layers via EntityOptions.layerDecorator. All layers are built
+        // fit-neutral and fitted together by the single rasterizeFitted call below.
         SceneContext scene = new SceneContext(
-            texture.get(), modelAnchor, fit.ndcScale(), modelScale, engine.textures(), this.context);
+            texture.get(), kitAnchor, kitNdcScale, modelScale, engine.textures(), this.context);
         LayerStack<GeometryLayer> stack = new LayerStack<>();
 
         // Model overlays (spider/enderman eyes, saddles, sheep wool). Each appends to the shared sink.
@@ -220,7 +243,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // Block-model overlays (mooshroom mushrooms, copper-golem flower): a block model rendered at
         // a pose-stack-applied position on top of the body. entityFit is computed once and shared.
         if (!definition.blockOverlays().isEmpty()) {
-            Matrix4f entityFit = EntityGeometryKit.buildEntityFitMatrix(modelAnchor, fit.ndcScale() * modelScale);
+            Matrix4f entityFit = EntityGeometryKit.buildEntityFitMatrix(kitAnchor, kitNdcScale * modelScale);
             for (EntityModelLoader.BlockOverlayLayer blockOverlay : definition.blockOverlays())
                 stack.append(EntityOptions.Slot.BLOCK_OVERLAY, sink ->
                     sink.addAll(buildBlockOverlayTriangles(blockOverlay, model, entityFit)));
@@ -244,8 +267,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // The glint mask is recorded at the raster size and downsampled so the foil is confined to
         // the (glinted) armor rather than the whole entity silhouette.
         int ssaa = Math.max(1, options.getSupersample());
-        return FinalizeStage.run(fit.canvasW(), fit.canvasH(), ssaa, options.isAntiAlias(), enchanted,
-            (target, mask) -> engine.rasterize(triangles, target, effective, mask),
+        return FinalizeStage.run(canvasW, canvasH, ssaa, options.isAntiAlias(), enchanted,
+            (target, mask) -> engine.rasterizeFitted(triangles, target, effective, fitRequest, mask),
             (buffer, mask) -> GlintStage.forArmor(engine.textures()::tryResolveTexture, buffer, enchanted, mask));
     }
 
@@ -415,38 +438,34 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * Dispatches canvas sizing on {@link EntityOptions#getFitMode()}.
+     * Sizes the output canvas + model-units-to-NDC scale from a pre-measured projected silhouette,
+     * dispatched on {@link EntityOptions#getFitMode()}. The caller measures the (alpha-tight, optionally
+     * family-unioned) {@code screenBounds} through the render orientation ({@link ModelEngine#orient});
+     * this is the pure sizing math the orthographic entity path feeds into a
+     * {@link FitRequest#nativeScale(float, Box) NATIVE_SCALE} fit.
      *
-     * <p>{@code UNION_BOUNDS} / {@code FAMILY_BOUNDS}: walk every cube's vertices through the
-     * iso transform (matching {@link EntityGeometryKit#computeScreenBounds the harness's
-     * per-cube measurement}), take the tight screen-space extent in entity-pixel-units, then
-     * size the canvas to {@code (extent * pixelsPerBlock / 16)} pixels per axis plus
-     * {@code 2 * padding} on each axis, then uniformly shrink so the longer side stays at or
-     * below {@link EntityOptions#getMaxCanvasSize() maxCanvasSize}. The two modes differ only in
-     * whether bounds union across the family.
+     * <p>{@code UNION_BOUNDS} / {@code FAMILY_BOUNDS}: take the tight screen-space extent in
+     * entity-pixel-units, size the canvas to {@code (extent * pixelsPerBlock / 16)} pixels per axis plus
+     * {@code 2 * padding} on each axis, then uniformly shrink so the longer side stays at or below
+     * {@link EntityOptions#getMaxCanvasSize() maxCanvasSize}.
      *
-     * <p>{@code OUTPUT_SIZE}: canvas is fixed at {@code outputSize x outputSize}. Available
-     * silhouette area is {@code outputSize - 2 * padding} on the longer axis; the entity is
-     * scaled to fit. No upper cap.
+     * <p>{@code OUTPUT_SIZE}: canvas is fixed at {@code outputSize x outputSize}. Available silhouette
+     * area is {@code outputSize - 2 * padding} on the longer axis; the entity is scaled to fit.
      *
-     * <p>Returned {@link CanvasFit#ndcScale} is computed from the inverse of the rasterizer's
-     * own projection ({@code screen_px = ndc * min(canvasW, canvasH) * projectionScale}), so
-     * applying it as the kit's model-units-to-NDC scale produces the desired pixels-per-block
-     * ratio at the rasterization step.
+     * <p>Returned {@link CanvasFit#ndcScale} is the inverse of the rasterizer's own projection
+     * ({@code screen_px = ndc * min(canvasW, canvasH) * projectionScale}), so applying it as the fit's
+     * model-units-to-NDC scale produces the desired pixels-per-block ratio at rasterization.
+     *
+     * @param options the render options (fit mode, output size, padding, pixels-per-block, cap)
+     * @param screenBounds the pre-measured projected silhouette bounds
+     * @param lens the projection lens (supplies the projection scale)
+     * @return the canvas dimensions + model-units-to-NDC scale
      */
-    private @NotNull CanvasFit computeFitFor(
+    private @NotNull CanvasFit computeCanvas(
         @NotNull EntityOptions options,
-        @NotNull BoundsScope scope,
-        @NotNull String entityId,
-        @NotNull EntityModelLoader.EntityDefinition definition,
-        @NotNull EulerRotation userRotation,
-        float modelScale,
-        @NotNull PixelBuffer texture
+        @NotNull Box screenBounds,
+        @NotNull Lens lens
     ) {
-        Lens lens = options.getProjection().resolve(EulerRotation.NONE, options.getFacing()).lens();
-        Matrix4f transform = composeIsoTransform(options.getProjection(), userRotation, options.getFacing());
-        Box screenBounds = computeScreenBoundsFor(scope, entityId, definition, transform, lens, modelScale, texture);
-        RendererDebug.fitBounds(entityId, screenBounds);
         float extentX = Math.max(0f, screenBounds.maxX() - screenBounds.minX());
         float extentY = Math.max(0f, screenBounds.maxY() - screenBounds.minY());
         int padding = Math.max(0, options.getPadding());
@@ -473,45 +492,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         int minDim = Math.min(canvasW, canvasH);
         float ndcScale = effectivePxPerEntityUnit / (minDim * projectionScale);
         return new CanvasFit(canvasW, canvasH, ndcScale);
-    }
-
-    /**
-     * Computes the model-space point that, after iso transformation, lands at the screen-space
-     * silhouette midpoint - so passing it as the kit's centre subtraction places the silhouette
-     * tightly centred on the canvas. Uses the same {@link BoundsScope} as canvas sizing so
-     * the centring source matches the sizing source (e.g. {@code OUTPUT_SIZE} centres against
-     * this entity's own silhouette, not the largest family member).
-     *
-     * <p>Without this, the kit subtracts the model-space AABB centre, which after iso projects
-     * to a point that is NOT the silhouette midpoint for non-brick-shaped entities (long fish,
-     * dragons with tails, T-pose humanoids, etc). The result was visible right/down shift in
-     * the canvas, surfaced by {@code TestEntityParityVanilla}'s coverage diff lens as
-     * vanilla-only pixels along the left/top silhouette edge and java-only pixels along the
-     * right/bottom edge.
-     */
-    private @NotNull Vector3f computeCentreAnchor(
-        @NotNull Projection projection,
-        @NotNull Facing facing,
-        @NotNull BoundsScope scope,
-        @NotNull String entityId,
-        @NotNull EntityModelLoader.EntityDefinition definition,
-        @NotNull EulerRotation userRotation,
-        float modelScale,
-        @NotNull PixelBuffer texture
-    ) {
-        Lens lens = projection.resolve(EulerRotation.NONE, facing).lens();
-        Matrix4f isoTransform = composeIsoTransform(projection, userRotation, facing);
-        Box screenBounds = computeScreenBoundsFor(scope, entityId, definition, isoTransform, lens, modelScale, texture);
-        float sxMid = (screenBounds.minX() + screenBounds.maxX()) * 0.5f;
-        float syMid = (screenBounds.minY() + screenBounds.maxY()) * 0.5f;
-        float szMid = (screenBounds.minZ() + screenBounds.maxZ()) * 0.5f;
-        // A non-parallel lens measured the bounds through lens.project (shear / foreshortening); un-project
-        // the silhouette midpoint back to camera space at the bounds' mean depth before the rotation inverse
-        // so the anchor still lands on the true silhouette centre. Orthographic returns the raw midpoint
-        // unchanged (byte-identical).
-        Vector3f camMid = unprojectMidpoint(lens, sxMid, syMid, szMid);
-        Matrix4f isoInverse = composeIsoInverse(projection, userRotation, facing);
-        return camMid.transform(isoInverse);
     }
 
     /**
@@ -616,86 +596,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             Math.max(a.maxY(), b.maxY()),
             Math.max(a.maxZ(), b.maxZ())
         );
-    }
-
-    /**
-     * Inverse of {@link #composeIsoTransform}, for the same {@code projection} - maps a screen-space
-     * bounds point back to model space so {@link #computeCentreAnchor} can recover the model-space anchor
-     * whose iso image is the silhouette midpoint. The forward is
-     * {@code cameraPose * modelRotation * ENTITY_FACING}; the inverse reverses it to
-     * {@code ENTITY_FACING * modelRotation^-1 * cameraPose^-1}. {@code ENTITY_FACING = diag(-1,-1,1)} is
-     * self-inverse; the two rotations invert via {@code rotationXYZ(x, y, z) ^ -1 = rotationZYX(-z, -y, -x)}.
-     * The base pose is taken through {@code facing.apply(basePose())} - the same reflected Euler
-     * {@code resolve(NONE, facing)} bakes - so the inverse matches the {@link #composeIsoTransform forward}
-     * under any {@link Facing}. Built on the fluent path (bit-identical to vanilla's PoseStack;
-     * {@code createX().multiply(...)} drifts 1-4 ULPs).
-     */
-    private static @NotNull Matrix4f composeIsoInverse(@NotNull Projection projection, @NotNull EulerRotation userRotation, @NotNull Facing facing) {
-        EulerRotation iso = facing.apply(projection.basePose());
-        boolean userIdentity = userRotation.pitch() == 0f && userRotation.yaw() == 0f && userRotation.roll() == 0f;
-        Matrix4f m = Matrix4f.IDENTITY.scale(-1f, -1f, 1f); // ENTITY_FACING
-        if (!userIdentity)
-            m = m.rotate(Quaternionf.rotationZYX(
-                -userRotation.rollRadians(), -userRotation.yawRadians(), -userRotation.pitchRadians()));
-        return m.rotate(Quaternionf.rotationZYX(-iso.rollRadians(), -iso.yawRadians(), -iso.pitchRadians()));
-    }
-
-    /**
-     * Builds the orientation-only transform that maps a Y-down model vertex to its pre-projection screen
-     * position - the same camera + placement the {@link ModelEngine} applies, so the canvas-fit and
-     * anchor bounds track the render. In column-vector form the composite is
-     * {@code cameraPose * modelRotation * ENTITY_FACING}, applied to a bounds-probe vertex right-to-left:
-     * <ul>
-     * <li>{@code ENTITY_FACING = diag(-1,-1,1)} - the entity's model-to-world facing + Y-down flip (the
-     *     {@link Placement} the rasterizer applies to the kit output; applied here directly since
-     *     bounds-probe points bypass the kit).</li>
-     * <li>{@code modelRotation} - the caller's rotation as a {@link Quaternionf#rotationXYZ} quaternion;
-     *     identity for {@link EulerRotation#NONE}.</li>
-     * <li>{@code cameraPose = projection.resolve(NONE, facing).pose()} - the entity's world-to-screen
-     *     pose with the view {@link Facing} reflection applied (yaw mirror / pitch flip; {@code DEFAULT} is
-     *     a no-op). For the default {@link Projection#VANILLA_ISO} + {@code DEFAULT} this is the
-     *     facing-neutral {@code rotationXYZ(30,225,0)}. Composed with the trailing {@code ENTITY_FACING} it
-     *     is {@code R(30,225,0) · diag(-1,-1,1) = rotationXYZ(210,-45,0)}, the entity's byte-identical
-     *     orientation.</li>
-     * </ul>
-     * The same facing must feed {@link #composeIsoInverse} so the anchor inverse tracks the reflected pose.
-     * Centering / NDC scaling are translation + uniform scale the canvas-fit math handles separately, so
-     * they aren't included here.
-     */
-    private static @NotNull Matrix4f composeIsoTransform(@NotNull Projection projection, @NotNull EulerRotation userRotation, @NotNull Facing facing) {
-        boolean userIdentity = userRotation.pitch() == 0f && userRotation.yaw() == 0f && userRotation.roll() == 0f;
-        Matrix4f m = projection.resolve(EulerRotation.NONE, facing).pose();
-        if (!userIdentity)
-            m = m.rotate(Quaternionf.rotationXYZ(userRotation.pitchRadians(), userRotation.yawRadians(), userRotation.rollRadians()));
-        return m.scale(-1f, -1f, 1f);
-    }
-
-    /**
-     * Un-projects a screen-space silhouette-bounds midpoint back to camera space for the anchor, inverting
-     * whatever flatten {@link EntityGeometryKit#computeScreenBounds} applied for {@code lens} at the mean
-     * depth {@code z}:
-     * <ul>
-     * <li>{@link Lens.Kind#ORTHOGRAPHIC} / {@link Lens.Kind#PERSPECTIVE} - the bounds were the raw rotated
-     *     point (perspective is measured ortho-style, see {@link EntityGeometryKit#computeScreenBounds}), so
-     *     this is the identity (byte-identical to the legacy anchor for ortho).</li>
-     * <li>{@link Lens.Kind#OBLIQUE} - exact inverse of the depth shear at {@code z}.</li>
-     * </ul>
-     *
-     * @param lens the projection lens the bounds were measured through
-     * @param sx the screen-space bounds midpoint x
-     * @param sy the screen-space bounds midpoint y
-     * @param z the camera-space mean depth of the bounds
-     * @return the camera-space point whose lens flatten is {@code (sx, sy)} at depth {@code z}
-     */
-    private static @NotNull Vector3f unprojectMidpoint(@NotNull Lens lens, float sx, float sy, float z) {
-        return switch (lens.kind()) {
-            case ORTHOGRAPHIC, PERSPECTIVE -> new Vector3f(sx, sy, z);
-            case OBLIQUE -> {
-                float shearX = (float) Math.cos(lens.obliqueAngleRadians()) * lens.obliqueDepthFactor();
-                float shearY = (float) Math.sin(lens.obliqueAngleRadians()) * lens.obliqueDepthFactor();
-                yield new Vector3f(sx - z * shearX, -sy - z * shearY, z);
-            }
-        };
     }
 
     /**

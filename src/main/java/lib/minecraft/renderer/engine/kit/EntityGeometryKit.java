@@ -751,6 +751,37 @@ public class EntityGeometryKit {
     }
 
     /**
+     * The centre anchor + model-units-to-NDC scale that normalize a model to the auto-fit unit-cube
+     * extent - the same {@code ENTITY_MODEL_FIT_EXTENT / maxExtent} scale the {@link #buildTriangles(EntityModelData, PixelBuffer)}
+     * convenience overload bakes, but returned as data so a caller can pre-scale geometry to a
+     * well-behaved unit range before a perspective / oblique {@code rasterizeFitted} pass fills the
+     * canvas in screen space.
+     *
+     * @param centre the model-space centre anchor mapped to the fit origin
+     * @param ndcScale the model-units-to-NDC scale that fits the longest axis to {@link #ENTITY_MODEL_FIT_EXTENT}
+     */
+    public record UnitFit(@NotNull Vector3f centre, float ndcScale) {}
+
+    /**
+     * Computes the {@link UnitFit} that normalizes {@code bounds} to the auto-fit unit-cube extent -
+     * the centre of the bounds and the {@code ENTITY_MODEL_FIT_EXTENT / maxExtent} scale (guarded by
+     * {@link #MIN_MODEL_EXTENT}). Used by the entity's perspective / oblique render path to bring
+     * native pixel-scale geometry into a unit range where the perspective foreshortening stays
+     * well-behaved, leaving the final screen fill to {@code rasterizeFitted}'s 2D auto-fit.
+     *
+     * @param bounds the model bounds to normalize
+     * @return the centre + scale that fit {@code bounds} to the unit-cube extent
+     */
+    public static @NotNull UnitFit unitFit(@NotNull Box bounds) {
+        float extent = Math.max(bounds.maxExtent(), MIN_MODEL_EXTENT);
+        Vector3f centre = new Vector3f(
+            (bounds.minX() + bounds.maxX()) * 0.5f,
+            (bounds.minY() + bounds.maxY()) * 0.5f,
+            (bounds.minZ() + bounds.maxZ()) * 0.5f);
+        return new UnitFit(centre, ENTITY_MODEL_FIT_EXTENT / extent);
+    }
+
+    /**
      * Builds a Matrix4f that maps a vertex in the entity's working pixel-unit frame
      * (post-bone-chain, post-pivot-translation, pre-rasterizer) into the entity-fit space
      * shared with {@link #buildTriangles}'s output. The transform is
