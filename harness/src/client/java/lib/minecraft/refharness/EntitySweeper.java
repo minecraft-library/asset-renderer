@@ -80,7 +80,12 @@ public final class EntitySweeper implements AutoCloseable {
      * zeroing) will throw at runtime.
      */
     private static final Set<Identifier> MISC_ALLOWLIST = Set.of(
-        Identifier.withDefaultNamespace("armor_stand")
+        Identifier.withDefaultNamespace("armor_stand"),
+        // iron_golem / snow_golem are MobCategory.MISC in vanilla but are LivingEntity mobs the
+        // asset-renderer emits + renders; allowlist them so the harness produces their reference
+        // PNGs (copper_golem is non-MISC and already rendered).
+        Identifier.withDefaultNamespace("iron_golem"),
+        Identifier.withDefaultNamespace("snow_golem")
     );
 
     /**
@@ -107,7 +112,12 @@ public final class EntitySweeper implements AutoCloseable {
         EntityType.PIG, Registries.PIG_VARIANT,
         EntityType.CHICKEN, Registries.CHICKEN_VARIANT,
         EntityType.FROG, Registries.FROG_VARIANT,
-        EntityType.WOLF, Registries.WOLF_VARIANT
+        EntityType.WOLF, Registries.WOLF_VARIANT,
+        // cat + zombie_nautilus also render per-variant in vanilla (data/minecraft/cat_variant/,
+        // zombie_nautilus_variant/); enumerate them so their <id>_<variant> reference PNGs exist to
+        // match the asset-renderer's per-variant entity_models.json rows.
+        EntityType.CAT, Registries.CAT_VARIANT,
+        EntityType.ZOMBIE_NAUTILUS, Registries.ZOMBIE_NAUTILUS_VARIANT
     );
 
     /**
