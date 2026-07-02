@@ -1282,6 +1282,11 @@ public final class GeometryParser {
                 } else if (state.lastFlushedBone != null) {
                     state.localSlotBone.put(varInsn.var, state.lastFlushedBone);
                     state.lastFlushedBone = null;
+                    // Storing a bone reference defers its use to a later ALOAD; drop any parent a
+                    // preceding getChild propagated so it doesn't leak onto the next inline bone
+                    // (the ALOAD re-derives nextParent from localSlotBone). No-op outside the
+                    // getChild-then-store shape, where nextParent is already null at this point.
+                    state.nextParent = null;
                 } else if (!state.pendingCubes.isEmpty()) {
                     ConcurrentList<float[]> snapshot = Concurrent.newList();
                     for (float[] c : state.pendingCubes) snapshot.add(c.clone());
@@ -1354,6 +1359,16 @@ public final class GeometryParser {
         if (methodInsn.owner.equals(VanillaSourceClasses.PART_DEFINITION) && methodInsn.name.equals("getChild")) {
             if (state.pendingPartName != null) {
                 state.lastFlushedBone = state.pendingPartName;
+                // A getChild result is the parent for whatever addOrReplaceChild is invoked on
+                // it. Propagate it to nextParent so a directly method-chained
+                // {@code getRoot().getChild("root").getChild("shell").addOrReplaceChild("corals", ...)}
+                // ({@code ZombieNautilusCoralModel.createBodyLayer}, adding corals onto the base
+                // mesh's shell) parents "corals" under "shell" - without it the flush resolves no
+                // parent and drops shell's pivot, floating the corals above the entity. The stored
+                // form ({@code nose = head.getChild("nose"); nose.addOrReplaceChild("mole", ...)},
+                // WitchModel) clears this at the following ASTORE and re-derives it at the ALOAD, so
+                // both forms resolve the same parent.
+                state.nextParent = state.pendingPartName;
                 state.pendingPartName = null;
             }
             return;

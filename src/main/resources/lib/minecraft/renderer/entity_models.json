@@ -636,7 +636,37 @@
     "minecraft:snow_golem": {
       "geometry_ref": "geometry.snowgolem",
       "texture_ref": "snow_golem/snow_golem",
-      "armor_type": "none"
+      "armor_type": "none",
+      "block_overlays": [
+        {
+          "block_id": "minecraft:carved_pumpkin",
+          "attached_bone": "head",
+          "transforms": [
+            {
+              "op": "translate",
+              "x": 0.0,
+              "y": -0.34375,
+              "z": 0.0
+            },
+            {
+              "op": "rotate_y",
+              "degrees": 180.0
+            },
+            {
+              "op": "scale",
+              "x": 0.625,
+              "y": -0.625,
+              "z": -0.625
+            },
+            {
+              "op": "translate",
+              "x": -0.5,
+              "y": -0.5,
+              "z": -0.5
+            }
+          ]
+        }
+      ]
     },
     "minecraft:spider": {
       "geometry_ref": "geometry.spider_1",
@@ -838,7 +868,7 @@
       "armor_type": "none"
     },
     "minecraft:zombie_nautilus_warm": {
-      "geometry_ref": "geometry.nautilus",
+      "geometry_ref": "geometry.zombienautiluscoral",
       "texture_ref": "nautilus/zombie_nautilus_coral",
       "armor_type": "none",
       "variant_of": "minecraft:zombie_nautilus_temperate"
@@ -867,7 +897,6 @@
     "minecraft:glow_squid": "minecraft:squid",
     "minecraft:zoglin": "minecraft:hoglin",
     "minecraft:trader_llama": "minecraft:llama",
-    "minecraft:zombie_nautilus_temperate": "minecraft:nautilus",
     "minecraft:piglin_brute": "minecraft:piglin",
     "minecraft:zombified_piglin": "minecraft:piglin",
     "minecraft:stray": "minecraft:skeleton",

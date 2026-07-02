@@ -19,9 +19,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Emits the runtime-consumable {@code entity_models.json} and {@code entity_geometry.json}.
@@ -385,6 +387,23 @@ public final class EntityRuntimeJsonWriter {
      *     family resolves
      */
     static @NotNull JsonObject deriveFamilies(@NotNull JsonObject entitiesOut, @NotNull Diagnostics diagnostics) {
+        // Variant-registry bases (the target of some {@code variant_of}, e.g. cow_temperate,
+        // zombie_nautilus_temperate) head their own variant family - the harness groups an
+        // entity's variants under a single EntityType root. Such a base must NOT be absorbed as a
+        // NON-ROOT member of another entity's shared-geometry family: zombie_nautilus_temperate
+        // shares geometry.nautilus with the live nautilus, but the harness keeps zombie_nautilus
+        // (temperate + warm) separate from nautilus. Absorbing temperate into nautilus's family
+        // splits the asset grouping ({nautilus, temperate} + {warm}) so the coral variant's larger
+        // canvas never reaches temperate, and temperate mis-sizes vs the harness's coral-union
+        // canvas. Variant-registry bases stay eligible as family ROOTS (mooshroom -> cow_temperate
+        // is unaffected); they're only barred from non-root membership.
+        Set<String> variantRoots = new LinkedHashSet<>();
+        for (Map.Entry<String, JsonElement> entry : entitiesOut.entrySet()) {
+            if (!entry.getValue().isJsonObject()) continue;
+            JsonObject row = entry.getValue().getAsJsonObject();
+            if (row.has("variant_of")) variantRoots.add(row.get("variant_of").getAsString());
+        }
+
         Map<String, List<String>> geometryToBaseEntities = new LinkedHashMap<>();
         for (Map.Entry<String, JsonElement> entry : entitiesOut.entrySet()) {
             if (!entry.getValue().isJsonObject()) continue;
@@ -407,6 +426,11 @@ public final class EntityRuntimeJsonWriter {
             }
             for (String member : members) {
                 if (member.equals(root)) continue;
+                if (variantRoots.contains(member)) {
+                    diagnostics.info("cross-entity family: variant-registry base '%s' kept out of '%s' family (heads its own variant family)",
+                        member, root);
+                    continue;
+                }
                 families.addProperty(member, root);
                 diagnostics.info("cross-entity family: %s -> %s (shared %s)", member, root, e.getKey());
             }

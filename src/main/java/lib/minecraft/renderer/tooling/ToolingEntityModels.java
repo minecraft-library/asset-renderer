@@ -239,9 +239,17 @@ public final class ToolingEntityModels {
                 if (variantStem == null) continue;
                 ConcurrentList<EntityVariantResolver.Result> vlist = variants.get(variantStem);
                 if (vlist == null) continue;
+                // Prefer the bytecode-derived ModelType -> ModelLayers pairing from the renderer's
+                // model-map construction over the {@code <MODEL>_<STEM>} naming convention. Cow's
+                // WARM -> WARM_COW matches the convention, but zombie_nautilus's WARM ->
+                // ZOMBIE_NAUTILUS_CORAL does not, so the convention alone drops the coral geometry.
+                Map<String, String> modelTypeLayers = EntityVariantResolver.modelTypeToModelLayerField(
+                    context.classNodes(), entry.getValue().rendererInternalName());
                 for (EntityVariantResolver.Result variant : vlist) {
                     if (variant.model() == null) continue;
-                    String modelLayerField = (variant.model() + "_" + variantStem).toUpperCase(java.util.Locale.ROOT);
+                    String modelLayerField = modelTypeLayers.get(variant.model().toUpperCase(java.util.Locale.ROOT));
+                    if (modelLayerField == null)
+                        modelLayerField = (variant.model() + "_" + variantStem).toUpperCase(java.util.Locale.ROOT);
                     EntityLayerDefinitionResolver.Result variantRes = layerDefs.get(modelLayerField);
                     if (variantRes == null) {
                         diagnostics.info("variant '%s_%s' references model '%s' but ModelLayers.%s not in LayerDefinitions",

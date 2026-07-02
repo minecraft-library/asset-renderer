@@ -261,6 +261,56 @@ public final class EntityVariantResolver {
     }
 
     /**
+     * Walks a renderer's model-map construction bytecode (the {@code bakeModels} static factory
+     * on variant renderers that keep a {@code Map<XVariant$ModelType, Model>}) and returns a
+     * {@code (ModelType-constant-name -> ModelLayers field name)} map for the <b>adult</b> model
+     * layers. Used to resolve a variant's {@code model} discriminator to its actual
+     * {@code ModelLayers.X} field when the vanilla naming doesn't follow the
+     * {@code <MODEL>_<STEM>} convention.
+     *
+     * <p>Cow's {@code bakeModels} pairs {@code ModelType.WARM -> ModelLayers.WARM_COW} (matches
+     * the convention), but zombie_nautilus pairs {@code ModelType.WARM ->
+     * ModelLayers.ZOMBIE_NAUTILUS_CORAL} (does not). Deriving the pairing from bytecode covers
+     * both. Each {@code AdultAndBabyModelPair} entry lists the adult layer first, then the baby
+     * layer; only the first {@code ModelLayers.X} after each {@code ModelType} GETSTATIC is
+     * captured so the baby layer ({@code WARM_COW_BABY}) is skipped.
+     *
+     * <p>Walks every method (the pattern lives in {@code bakeModels} for cow / zombie_nautilus,
+     * but scanning all methods keeps it robust to renderers that build the map inline in
+     * {@code <init>}); {@code putIfAbsent} keeps the first pairing found. Returns an empty map
+     * when the renderer has no such construction.
+     *
+     * @param classNodes the ClassNode cache (shared with sibling resolver walks)
+     * @param rendererInternalName the renderer class's JVM internal name
+     * @return {@code ModelType} constant name (uppercase, e.g. {@code "WARM"}) -&gt; adult
+     *     {@code ModelLayers} field name (e.g. {@code "ZOMBIE_NAUTILUS_CORAL"}); empty when no
+     *     model-map construction is present
+     */
+    public static @NotNull Map<String, String> modelTypeToModelLayerField(
+        @NotNull ClassNodeCache classNodes,
+        @NotNull String rendererInternalName
+    ) {
+        ClassNode cn = classNodes.load(rendererInternalName);
+        if (cn == null) return Map.of();
+        Map<String, String> out = new LinkedHashMap<>();
+        for (MethodNode method : cn.methods) {
+            String pendingModelType = null;
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                if (in.getOpcode() != Opcodes.GETSTATIC || !(in instanceof FieldInsnNode fi)) continue;
+                if (fi.owner.endsWith("$ModelType")) {
+                    pendingModelType = fi.name;
+                } else if (VanillaSourceClasses.MODEL_LAYERS.equals(fi.owner) && pendingModelType != null) {
+                    // First ModelLayers after the ModelType GETSTATIC is the adult layer; consume
+                    // the pending key so the following BABY layer (e.g. WARM_COW_BABY) is skipped.
+                    out.putIfAbsent(pendingModelType, fi.name);
+                    pendingModelType = null;
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
      * Fallback for variant tables whose holder class lacks a {@code DEFAULT} field
      * ({@code CatVariants} is the canonical case in vanilla 26.1). Walks every
      * {@code data/minecraft/<variantStem>_variant/*.json} and returns the alphabetically-first

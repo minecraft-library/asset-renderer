@@ -373,7 +373,15 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // the post-pose-stack normal against ENTITY_IN_UI lights per pixel - continuous, not
             // bucketed. Sampling mooshroom mushroom red showed our 0.67-0.90 block-cardinal range
             // vs vanilla's 0.45-0.71 Lambertian range.
-            float shading = Lighting.entityInUi(transformedNormal);
+            //
+            // Shade against a Y-flipped copy of the normal, matching EntityGeometryKit.buildTriangles'
+            // lighting frame (positions + stored normal stay Y-up; the shade uses (x, -y, z)). Without
+            // the flip, axis-aligned up/down faces shade against the wrong light hemisphere - the
+            // snow-golem carved_pumpkin top rendered at the 0.4 ambient floor instead of ~1.0.
+            // Mushroom-cross overlays are unaffected: their plane normals are horizontal (y ~= 0), so
+            // the flip is a no-op and mooshroom parity is unchanged.
+            Vector3f shadingNormal = new Vector3f(transformedNormal.x(), -transformedNormal.y(), transformedNormal.z());
+            float shading = Lighting.entityInUi(shadingNormal);
             // Force back-face culling, matching vanilla's block render types (all bind GL culling)
             // exactly as Shading.relightForItems3d does for plain block models. The
             // {@code red_mushroom} cross model emits its two zero-thickness planes as paired
