@@ -809,13 +809,16 @@ public class EntityGeometryKit {
      */
     public static @NotNull Matrix4f buildEntityFitMatrix(@NotNull Vector3f modelCentre, float ndcScale) {
         Matrix4f translateToCentre = Matrix4f.createTranslation(-modelCentre.x(), -modelCentre.y(), -modelCentre.z());
-        // Block-overlay fit path keeps its own Y-flip (vanilla Y-up -> our Y-down screen frame)
-        // because overlay triangles are composed directly into the already-baked entity-fit
-        // screen frame, not through the primary geometry's model->world Placement (which now
-        // owns the entity body's flip). Net orientation of composited overlays matches the body.
-        Matrix4f scaleAndFlip = Matrix4f.createScale(ndcScale, -ndcScale, ndcScale);
-        // Translate to centre first (innermost), then scale + flip.
-        return scaleAndFlip.multiply(translateToCentre);
+        // NO Y-flip: block-overlay triangles are appended to the entity's shared triangle list and
+        // rasterized through the SAME model-to-world Placement (ENTITY_FACING = diag(-1,-1,1)) as the
+        // base body, which owns the single entity Y-flip. When the kit still baked its own diag(1,-1,1)
+        // on base positions this matrix flipped Y to match that baked frame; the kit de-flip moved that
+        // flip onto the Placement, so a -Y here now flips the overlay TWICE (its own -Y + the Placement)
+        // and sinks it into / inverts it relative to the body (mooshroom mushrooms, copper/iron golem
+        // flower). A plain uniform scale keeps the overlay in the same fit-neutral frame as the base.
+        Matrix4f scale = Matrix4f.createScale(ndcScale, ndcScale, ndcScale);
+        // Translate to centre first (innermost), then scale.
+        return scale.multiply(translateToCentre);
     }
 
     /**
