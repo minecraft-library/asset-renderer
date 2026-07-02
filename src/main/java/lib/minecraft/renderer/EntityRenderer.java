@@ -189,7 +189,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (lens.kind() == Lens.Kind.ORTHOGRAPHIC) {
             BoundsScope scope = boundsScopeFor(options.getFitMode());
             Box screenBounds = computeScreenBoundsFor(scope, options.getEntityId().get(), definition,
-                engine.orient(effective), lens, modelScale, texture.get());
+                engine.orient(effective), modelScale, texture.get());
             RendererDebug.fitBounds(options.getEntityId().get(), screenBounds);
             CanvasFit fit = computeCanvas(options, screenBounds, lens);
             canvasW = fit.canvasW();
@@ -427,13 +427,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull String entityId,
         @NotNull EntityModelLoader.EntityDefinition definition,
         @NotNull Matrix4f transform,
-        @NotNull Lens lens,
         float modelScale,
         @NotNull PixelBuffer texture
     ) {
         return switch (scope) {
-            case ENTITY_UNION -> computeUnionScreenBounds(definition, transform, lens, modelScale, texture);
-            case FAMILY_UNION -> computeFamilyUnionScreenBounds(entityId, definition, transform, lens, modelScale, texture);
+            case ENTITY_UNION -> computeUnionScreenBounds(definition, transform, modelScale, texture);
+            case FAMILY_UNION -> computeFamilyUnionScreenBounds(entityId, definition, transform, modelScale, texture);
         };
     }
 
@@ -511,11 +510,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     private static @NotNull Box computeUnionScreenBounds(
         @NotNull EntityModelLoader.EntityDefinition definition,
         @NotNull Matrix4f transform,
-        @NotNull Lens lens,
         float modelScale,
         @NotNull PixelBuffer texture
     ) {
-        Box bounds = EntityGeometryKit.computeScreenBounds(definition.model(), transform, lens, modelScale, texture);
+        Box bounds = EntityGeometryKit.computeScreenBounds(definition.model(), transform, modelScale, texture);
         RendererDebug.baseBounds(bounds);
         for (EntityModelLoader.OverlayLayer overlay : definition.overlays()) {
             if (overlay.model().getBones().isEmpty()) continue;
@@ -523,7 +521,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // render but don't contribute to bounds, mirroring the vanilla harness's
             // NO_RENDER_LAYER_SUFFIXES treatment of those layer classes.
             if (overlay.skipBounds()) continue;
-            Box overlayBounds = EntityGeometryKit.computeScreenBounds(overlay.model(), transform, lens, modelScale, texture);
+            Box overlayBounds = EntityGeometryKit.computeScreenBounds(overlay.model(), transform, modelScale, texture);
             RendererDebug.overlayBounds(overlay.textureRef().orElse("<unset>"), overlayBounds);
             bounds = unionBoxes(bounds, overlayBounds);
         }
@@ -554,11 +552,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull String entityId,
         @NotNull EntityModelLoader.EntityDefinition definition,
         @NotNull Matrix4f transform,
-        @NotNull Lens lens,
         float modelScale,
         @NotNull PixelBuffer texture
     ) {
-        Box bounds = computeUnionScreenBounds(definition, transform, lens, modelScale, texture);
+        Box bounds = computeUnionScreenBounds(definition, transform, modelScale, texture);
         List<String> members = EntityModelLoader.loadFamilies().getOrDefault(entityId, List.of(entityId));
         if (members.size() <= 1) return bounds;
         for (String memberId : members) {
@@ -568,7 +565,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             Optional<PixelBuffer> memberTexture = resolveFamilyMemberTexture(memberDef);
             if (memberTexture.isEmpty()) continue;
             float memberScale = memberDef.rendererScale();
-            Box memberBounds = computeUnionScreenBounds(memberDef, transform, lens, memberScale, memberTexture.get());
+            Box memberBounds = computeUnionScreenBounds(memberDef, transform, memberScale, memberTexture.get());
             bounds = unionBoxes(bounds, memberBounds);
         }
         return bounds;
