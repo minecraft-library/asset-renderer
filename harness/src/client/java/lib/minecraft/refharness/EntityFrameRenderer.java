@@ -1367,6 +1367,14 @@ public final class EntityFrameRenderer implements AutoCloseable {
             modelsField.setAccessible(true);
             Object pair = ((Map<?, ?>) modelsField.get(renderer)).get(modelKey);
             if (pair == null) return null;
+            // Two model-map shapes exist. Cow / pig / chicken key on an
+            // {@code AdultAndBabyModelPair} (getModel(boolean) picks adult vs baby); zombie_nautilus
+            // keys directly on the {@code NautilusModel} value ({@code Map<ModelType, NautilusModel>}).
+            // Without this direct-model branch the pair-only path fails for zombie_nautilus and the
+            // caller falls back to the DEFAULT NautilusModel - which has none of the WARM variant's
+            // coral bones - so the bounds pre-pass sizes the canvas to the bare shell and the coral
+            // (the ZombieNautilusCoralModel's corals sub-tree) is cropped in the reference PNG.
+            if (pair instanceof Model<?> directModel) return directModel;
             Method getModel = findMethodByName(pair.getClass(), "getModel", 1);
             if (getModel == null) return null;
             getModel.setAccessible(true);
