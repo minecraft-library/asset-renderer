@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -30,6 +31,7 @@ import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.Projection;
 import net.minecraft.client.renderer.ProjectionMatrixBuffer;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.SubmitNodeStorage;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.client.renderer.entity.EntityRenderer;
@@ -467,6 +469,7 @@ public final class EntityFrameRenderer implements AutoCloseable {
         // covered by this pass and need separate per-layer handling.
         if (renderer instanceof LivingEntityRenderer<?, ?, ?> ler) {
             walkLayerExtents(ler, state, ps, texture, expand);
+            walkBlockOverlayExtents(ler, state, ps, expand);
         }
         return bounds;
     }
@@ -518,6 +521,264 @@ public final class EntityFrameRenderer implements AutoCloseable {
                 walkVisibleExtents(layerModel.root(), ps, texture, expand);
             }
         }
+    }
+
+    /**
+     * Includes block-model layers (mooshroom mushrooms, snow-golem carved_pumpkin) in the bounds.
+     * {@link #walkLayerExtents} only covers {@code EntityModel}-typed layer fields, so block layers
+     * - which render a vanilla block model rather than an {@code EntityModel} - were skipped, and
+     * the family-fit canvas cropped the overlay. The Java pipeline measures these block overlays
+     * alpha-tight (opaque texels only) and grows its canvas to fit them; matching that here keeps
+     * the reference PNG's canvas identical and uncropped.
+     *
+     * <p>Faithful capture: for each active layer with no {@code EntityModel} field (the block /
+     * item layers - equipment/held-item layers are already filtered by
+     * {@link #isLayerActiveForState}), invoke the layer's {@code submit} through a {@link Proxy}
+     * {@link SubmitNodeCollector} that intercepts {@code submitBlockModel} and no-ops everything
+     * else. Vanilla applies the exact head-bone + layer pose and the block's own transformation to
+     * the pose stack before the {@code submitBlockModel} call, so the captured pose is the full
+     * transform; empty blocks (iron-golem flower / enderman carried block at zero state) early-return
+     * from {@code submit} and capture nothing. Each captured {@link BakedQuad} is then walked
+     * alpha-tight against its sprite via {@link #contributeBlockQuadExtents}.
+     */
+    private static void walkBlockOverlayExtents(
+        LivingEntityRenderer<?, ?, ?> renderer,
+        EntityRenderState state,
+        PoseStack ps,
+        Consumer<? super org.joml.Vector3fc> expand
+    ) {
+        net.fabricmc.fabric.api.client.renderer.v1.sprite.SpriteFinder finder = blockAtlasSpriteFinder();
+        if (finder == null) return;
+        for (RenderLayer<?, ?> layer : layersOf(renderer)) {
+            if (!isLayerActiveForState(layer, state)) continue;
+            if (!findLayerModels(layer, state).isEmpty()) continue; // EntityModel layer - handled by walkLayerExtents
+            captureBlockSubmits(layer, state, ps, finder, expand);
+        }
+    }
+
+    /**
+     * Invokes {@code layer.submit(...)} with a proxy {@link SubmitNodeCollector} that intercepts each
+     * {@code submitBlockModel(poseStack, ..., Mesh, ...)} call and contributes that block model's
+     * alpha-tight extents inline (returning harmless defaults for every other collector method). The
+     * Fabric renderer API reroutes the block geometry into a {@code Mesh} argument rather than the
+     * vanilla {@code BlockStateModelPart} list, so the geometry is read from the mesh's
+     * {@link net.fabricmc.fabric.api.client.renderer.v1.mesh.QuadView QuadView}s (converted to
+     * {@link BakedQuad} via the block-atlas {@code SpriteFinder}); the captured pose already includes
+     * the head-bone / layer pose and the block's own transformation. Empty blocks (iron-golem flower /
+     * enderman carried block at zero state) early-return from {@code submit} and contribute nothing.
+     */
+    private static void captureBlockSubmits(
+        RenderLayer<?, ?> layer, EntityRenderState state, PoseStack ps,
+        net.fabricmc.fabric.api.client.renderer.v1.sprite.SpriteFinder finder,
+        Consumer<? super org.joml.Vector3fc> expand
+    ) {
+        Method submit = findLayerSubmit(layer, state);
+        if (submit == null) return;
+        java.lang.reflect.InvocationHandler handler = (proxy, method, args) -> {
+            if (method.getName().equals("submitBlockModel") && args != null) {
+                PoseStack pose = null;
+                net.fabricmc.fabric.api.client.renderer.v1.mesh.MeshView mesh = null;
+                for (Object a : args) {
+                    if (a instanceof PoseStack p) pose = p;
+                    else if (a instanceof net.fabricmc.fabric.api.client.renderer.v1.mesh.MeshView m) mesh = m;
+                }
+                if (pose != null && mesh != null) {
+                    org.joml.Matrix4fc snap = new org.joml.Matrix4f(pose.last().pose());
+                    mesh.forEach(quad -> {
+                        net.minecraft.client.renderer.texture.TextureAtlasSprite sprite = finder.find(quad);
+                        if (sprite != null)
+                            contributeBlockQuadExtents(quad.toBakedQuad(sprite), snap, expand);
+                    });
+                }
+            }
+            if (method.getName().equals("order")) return proxy; // OrderedSubmitNodeCollector fluent no-op
+            Class<?> ret = method.getReturnType();
+            if (ret == boolean.class) return false;
+            if (ret == int.class) return 0;
+            if (ret == long.class) return 0L;
+            if (ret == float.class) return 0f;
+            if (ret == double.class) return 0d;
+            if (ret == void.class || !ret.isPrimitive()) return null;
+            return (byte) 0;
+        };
+        SubmitNodeCollector collector = (SubmitNodeCollector) Proxy.newProxyInstance(
+            SubmitNodeCollector.class.getClassLoader(),
+            new Class<?>[]{ SubmitNodeCollector.class },
+            handler);
+        try {
+            submit.setAccessible(true);
+            // submit(PoseStack, SubmitNodeCollector, int packedLight, S state, float, float)
+            submit.invoke(layer, ps, collector, FULL_BRIGHT_LIGHT, state, 0.0f, 0.0f);
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
+        }
+    }
+
+    private static final Field MODEL_MANAGER_ATLAS_MANAGER;
+    static {
+        Field f = null;
+        try {
+            f = net.minecraft.client.resources.model.ModelManager.class.getDeclaredField("atlasManager");
+            f.setAccessible(true);
+        } catch (NoSuchFieldException ignored) {
+        }
+        MODEL_MANAGER_ATLAS_MANAGER = f;
+    }
+
+    /**
+     * Resolves the {@code SpriteFinder} for the block atlas (Fabric interface-injected on
+     * {@link net.minecraft.client.renderer.texture.TextureAtlas}), used to recover each mesh quad's
+     * sprite for alpha sampling. Returns {@code null} when the atlas manager can't be reached.
+     */
+    private static net.fabricmc.fabric.api.client.renderer.v1.sprite.SpriteFinder blockAtlasSpriteFinder() {
+        if (MODEL_MANAGER_ATLAS_MANAGER == null) return null;
+        try {
+            Object am = MODEL_MANAGER_ATLAS_MANAGER.get(Minecraft.getInstance().getModelManager());
+            if (!(am instanceof net.minecraft.client.resources.model.sprite.AtlasManager atlasManager)) return null;
+            // The atlas is keyed by its config id, not its texture path, so look it up by matching
+            // location() == LOCATION_BLOCKS rather than getAtlasOrThrow(LOCATION_BLOCKS).
+            net.minecraft.client.renderer.texture.TextureAtlas[] blockAtlas = { null };
+            atlasManager.forEach((id, atlas) -> {
+                if (net.minecraft.client.renderer.texture.TextureAtlas.LOCATION_BLOCKS.equals(atlas.location()))
+                    blockAtlas[0] = atlas;
+            });
+            if (blockAtlas[0] == null) return null;
+            return ((net.fabricmc.fabric.api.client.renderer.v1.sprite.FabricTextureAtlas) (Object) blockAtlas[0]).spriteFinder();
+        } catch (IllegalAccessException | RuntimeException ex) {
+            return null;
+        }
+    }
+
+    /**
+     * Finds a layer's typed {@code submit(PoseStack, SubmitNodeCollector, int, S, float, float)}
+     * override - the one whose 4th parameter is compatible with {@code state} (the
+     * {@code EntityRenderState} bridge overload never carries block geometry). Returns {@code null}
+     * when no matching override exists.
+     */
+    private static Method findLayerSubmit(RenderLayer<?, ?> layer, EntityRenderState state) {
+        for (Class<?> c = layer.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+            for (Method m : c.getDeclaredMethods()) {
+                if (!m.getName().equals("submit") || m.getParameterCount() != 6) continue;
+                Class<?>[] p = m.getParameterTypes();
+                if (p[0] != PoseStack.class || p[1] != SubmitNodeCollector.class || p[2] != int.class) continue;
+                if (p[4] != float.class || p[5] != float.class) continue;
+                if (!p[3].isInstance(state)) continue;
+                if (p[3] == EntityRenderState.class) continue; // skip the bridge overload
+                return m;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Alpha-tight extent contribution for one block {@link BakedQuad}. Unpacks the quad's four
+     * atlas UVs, converts them to sprite-local pixel space, walks the opaque sub-rectangle via
+     * {@link net.minecraft.client.renderer.texture.SpriteContents#isTransparent}, bilinearly maps
+     * the opaque corners back through the quad's four transformed vertices, and feeds them to
+     * {@code expand}. Fully-transparent quads contribute nothing.
+     */
+    private static void contributeBlockQuadExtents(
+        net.minecraft.client.resources.model.geometry.BakedQuad quad,
+        org.joml.Matrix4fc pose,
+        Consumer<? super org.joml.Vector3fc> expand
+    ) {
+        net.minecraft.client.renderer.texture.TextureAtlasSprite sprite = quad.materialInfo().sprite();
+        if (sprite == null) return;
+        net.minecraft.client.renderer.texture.SpriteContents contents = sprite.contents();
+        int W = contents.width();
+        int H = contents.height();
+        if (W <= 0 || H <= 0) return;
+
+        // Transform the four vertices through the captured pose (block space -> entity-local screen).
+        Vector3f[] pos = new Vector3f[4];
+        float[] su = new float[4];
+        float[] sv = new float[4];
+        // The mesh quad's packed UVs are ATLAS coordinates. Convert to sprite-local [0, 1] by the
+        // sprite's atlas bounds. The two packed components are atlas (horizontal, vertical) but the
+        // renderer's u()/v() axes are transposed relative to the sprite's U/V, so assign each packed
+        // component to its axis by which atlas range ([u0,u1] vs [v0,v1]) it falls in - those ranges
+        // are disjoint for a stitched sprite. Fully-degenerate sprites (du/dv == 0) contribute nothing.
+        float u0 = sprite.getU0(), u1 = sprite.getU1(), v0 = sprite.getV0(), v1 = sprite.getV1();
+        float du = u1 - u0, dv = v1 - v0;
+        if (du == 0f || dv == 0f) return;
+        float uLo = Math.min(u0, u1), uHi = Math.max(u0, u1), vLo = Math.min(v0, v1), vHi = Math.max(v0, v1);
+        for (int i = 0; i < 4; i++) {
+            org.joml.Vector3fc p = quad.position(i);
+            pos[i] = pose.transformPosition(p.x(), p.y(), p.z(), new Vector3f());
+            long packed = quad.packedUV(i);
+            float a = Float.intBitsToFloat((int) (packed & 0xFFFFFFFFL));
+            float b = Float.intBitsToFloat((int) (packed >>> 32));
+            boolean aIsU = a >= uLo - 1e-4f && a <= uHi + 1e-4f && !(a >= vLo - 1e-4f && a <= vHi + 1e-4f);
+            float atlasU = aIsU ? a : b;
+            float atlasV = aIsU ? b : a;
+            su[i] = (atlasU - u0) / du;
+            sv[i] = (atlasV - v0) / dv;
+        }
+
+        float uMin = Math.min(Math.min(su[0], su[1]), Math.min(su[2], su[3]));
+        float uMax = Math.max(Math.max(su[0], su[1]), Math.max(su[2], su[3]));
+        float vMin = Math.min(Math.min(sv[0], sv[1]), Math.min(sv[2], sv[3]));
+        float vMax = Math.max(Math.max(sv[0], sv[1]), Math.max(sv[2], sv[3]));
+        if (uMin == uMax || vMin == vMax) return;
+
+        // Classify the four vertices into the sprite-UV rect corners (BL/BR/TR/TL).
+        Vector3f bl = null, br = null, tr = null, tl = null;
+        float eps = 1e-4f;
+        for (int i = 0; i < 4; i++) {
+            boolean atUMin = Math.abs(su[i] - uMin) < eps, atUMax = Math.abs(su[i] - uMax) < eps;
+            boolean atVMin = Math.abs(sv[i] - vMin) < eps, atVMax = Math.abs(sv[i] - vMax) < eps;
+            if (atUMin && atVMin) bl = pos[i];
+            else if (atUMax && atVMin) br = pos[i];
+            else if (atUMax && atVMax) tr = pos[i];
+            else if (atUMin && atVMax) tl = pos[i];
+        }
+        if (bl == null || br == null || tr == null || tl == null) {
+            for (Vector3f p : pos) expand.accept(p);
+            return;
+        }
+
+        // Same texel-overlap bounds as contributePolygonExtents / contributeFaceAlphaTight.
+        int pxMin = clampPixel((int) Math.floor(uMin * W), W);
+        int pxMax = clampPixel((int) Math.ceil(uMax * W) - 1, W);
+        int pyMin = clampPixel((int) Math.floor(vMin * H), H);
+        int pyMax = clampPixel((int) Math.ceil(vMax * H) - 1, H);
+        int firstPx = Integer.MAX_VALUE, lastPx = Integer.MIN_VALUE, firstPy = Integer.MAX_VALUE, lastPy = Integer.MIN_VALUE;
+        for (int py = pyMin; py <= pyMax; py++) {
+            for (int px = pxMin; px <= pxMax; px++) {
+                if (contents.isTransparent(0, px, py)) continue;
+                if (px < firstPx) firstPx = px;
+                if (px > lastPx) lastPx = px;
+                if (py < firstPy) firstPy = py;
+                if (py > lastPy) lastPy = py;
+            }
+        }
+        if (firstPx == Integer.MAX_VALUE) return; // fully transparent
+
+        float oUMin = Math.max(uMin, (float) firstPx / W);
+        float oUMax = Math.min(uMax, (float) (lastPx + 1) / W);
+        float oVMin = Math.max(vMin, (float) firstPy / H);
+        float oVMax = Math.min(vMax, (float) (lastPy + 1) / H);
+        expand.accept(bilinearCorner(oUMin, oVMin, uMin, uMax, vMin, vMax, bl, br, tr, tl));
+        expand.accept(bilinearCorner(oUMax, oVMin, uMin, uMax, vMin, vMax, bl, br, tr, tl));
+        expand.accept(bilinearCorner(oUMax, oVMax, uMin, uMax, vMin, vMax, bl, br, tr, tl));
+        expand.accept(bilinearCorner(oUMin, oVMax, uMin, uMax, vMin, vMax, bl, br, tr, tl));
+    }
+
+    /**
+     * Bilinearly interpolates the four transformed quad corners at sprite-UV fraction
+     * {@code (u, v)} within {@code [uMin, uMax] x [vMin, vMax]}. The corners are already in
+     * entity-local screen space, so no further transform is applied.
+     */
+    private static Vector3f bilinearCorner(
+        float u, float v, float uMin, float uMax, float vMin, float vMax,
+        Vector3f bl, Vector3f br, Vector3f tr, Vector3f tl
+    ) {
+        float s = (u - uMin) / (uMax - uMin);
+        float t = (v - vMin) / (vMax - vMin);
+        float w00 = (1 - s) * (1 - t), w10 = s * (1 - t), w11 = s * t, w01 = (1 - s) * t;
+        return new Vector3f(
+            w00 * bl.x() + w10 * br.x() + w11 * tr.x() + w01 * tl.x(),
+            w00 * bl.y() + w10 * br.y() + w11 * tr.y() + w01 * tl.y(),
+            w00 * bl.z() + w10 * br.z() + w11 * tr.z() + w01 * tl.z());
     }
 
     /**
