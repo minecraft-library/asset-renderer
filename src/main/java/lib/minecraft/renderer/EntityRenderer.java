@@ -507,15 +507,14 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * through the same pose stack as the primary model and expands the bounds. Mirrors
      * {@code EntityFrameRenderer.walkLayerExtents} in the vanilla-reference-harness.
      * <p>
-     * Block-model overlays (mooshroom mushrooms, copper-golem flower, iron-golem flower) are
-     * deliberately NOT included - vanilla's family-fit reflection only matches {@code Model<?>}
-     * fields, so block-rendering RenderLayer subclasses don't contribute either. If they did,
-     * mooshroom's mushrooms would extend the canvas; matching vanilla means accepting the
-     * mushrooms render slightly past the canvas edge (same as vanilla). Empirically: including
-     * block overlays at unit-cube {@code [-0.5, 0.5]^3} bounds expanded mooshroom canvas
-     * 442x482 -> 505x726 vs vanilla's 442x482; reverting matches vanilla's canvas exactly.
+     * Block-model overlays (mooshroom mushrooms, snow-golem carved_pumpkin, iron/copper-golem
+     * flower) ARE included, measured alpha-tight: the overlay extends the canvas exactly as far as
+     * its opaque texels reach, not its full authored quad extent. The mushroom-cross block texture
+     * is mostly transparent, so a whole-quad AABB would over-size the canvas; walking the opaque
+     * sub-rectangle per face keeps it tight to what renders. The vanilla harness measures the same
+     * block-model layers in its family-fit pre-pass, so both canvases fit the overlay uncropped.
      */
-    private static @NotNull Box computeUnionScreenBounds(
+    private @NotNull Box computeUnionScreenBounds(
         @NotNull EntityModelLoader.EntityDefinition definition,
         @NotNull Matrix4f transform,
         float modelScale,
@@ -532,6 +531,18 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             Box overlayBounds = EntityGeometryKit.computeScreenBounds(overlay.model(), transform, modelScale, texture);
             RendererDebug.overlayBounds(overlay.textureRef().orElse("<unset>"), overlayBounds);
             bounds = unionBoxes(bounds, overlayBounds);
+        }
+        // Block-model overlays: build the same fit-neutral geometry the render produces (entity fit
+        // = buildEntityFitMatrix(ZERO, modelScale), so the positions live in the entity-pixel frame
+        // the body bounds use), then union its alpha-tight silhouette measured through the render
+        // orientation.
+        if (!definition.blockOverlays().isEmpty()) {
+            Matrix4f fitNeutral = EntityGeometryKit.buildEntityFitMatrix(Vector3f.ZERO, modelScale);
+            for (EntityModelLoader.BlockOverlayLayer blockOverlay : definition.blockOverlays()) {
+                ConcurrentList<VisibleTriangle> tris = buildBlockOverlayTriangles(blockOverlay, definition.model(), fitNeutral);
+                Box boBounds = EntityGeometryKit.computeBlockOverlayScreenBounds(tris, transform);
+                bounds = unionBoxes(bounds, boBounds);
+            }
         }
         return bounds;
     }

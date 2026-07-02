@@ -505,6 +505,51 @@ public class EntityGeometryKit {
     }
 
     /**
+     * Measures the alpha-tight screen-space bounds of a pre-built block-overlay triangle list
+     * (mooshroom mushrooms, snow-golem carved_pumpkin), so block overlays extend the entity's
+     * canvas exactly as far as their <b>opaque texels</b> reach - not their full authored quad
+     * extent. The mushroom-cross block texture is mostly transparent, so a naive whole-quad AABB
+     * would over-size the canvas by the transparent margin; walking the opaque sub-rectangle per
+     * face keeps the canvas tight to what actually renders, matching the vanilla harness's
+     * {@code contributePolygonExtents}.
+     *
+     * <p>The {@code overlayTris} come from
+     * {@link EntityRenderer#buildBlockOverlayTriangles} built with a <b>fit-neutral</b> entity fit
+     * ({@code buildEntityFitMatrix(ZERO, modelScale)}) - the same geometry the render produces
+     * before the canvas fit - so their positions are already in the entity-pixel frame the body
+     * bounds live in; only {@code screenTransform} (the render orientation) is applied here.
+     * {@link BlockGeometryKit} emits each face as the consecutive triangle pair
+     * {@code (TL,BL,BR) + (TL,BR,TR)}; this walks those pairs, reconstructs each face's four
+     * UV-rect corners, and delegates to {@link #contributeFaceAlphaTight} with an identity cube
+     * transform and unit model scale (both already baked into the positions).
+     *
+     * @param overlayTris the fit-neutral block-overlay triangles, in emission (paired) order
+     * @param screenTransform the render orientation ({@code ModelEngine.orient}) applied before
+     *     bounds accumulation - the same transform the body bounds use
+     * @return the alpha-tight screen-space bounds of the overlay, or a zero box when empty / all
+     *     transparent
+     */
+    public static @NotNull Box computeBlockOverlayScreenBounds(
+        @NotNull java.util.List<VisibleTriangle> overlayTris,
+        @NotNull Matrix4f screenTransform
+    ) {
+        BoundsAccumulator acc = new BoundsAccumulator();
+        for (int i = 0; i + 1 < overlayTris.size(); i += 2) {
+            VisibleTriangle t0 = overlayTris.get(i);
+            VisibleTriangle t1 = overlayTris.get(i + 1);
+            if (t0.texture() == null) continue;
+            // Reconstruct the face quad from the (TL,BL,BR) + (TL,BR,TR) pair. The 3D corners are
+            // already in the fit-neutral entity-pixel frame; contributeFaceAlphaTight classifies
+            // corner<->UV roles by UV value, so the array order only needs to pair each corner
+            // with its own UV.
+            Vector3f[] corners = { t0.position0(), t0.position1(), t0.position2(), t1.position2() };
+            Vector2f[] uvs = { t0.uv0(), t0.uv1(), t0.uv2(), t1.uv2() };
+            contributeFaceAlphaTight(corners, uvs, Matrix4f.IDENTITY, 1f, screenTransform, t0.texture(), acc, null);
+        }
+        return acc.toBox();
+    }
+
+    /**
      * Per-face alpha-tight bounds contribution mirroring
      * {@code EntityFrameRenderer.contributePolygonExtents}. Walks every texel inside the face's
      * UV bounding box on {@code texture}, accumulates the opaque sub-rectangle, bilinearly
