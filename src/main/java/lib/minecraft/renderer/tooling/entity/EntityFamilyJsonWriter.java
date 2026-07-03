@@ -169,8 +169,9 @@ public final class EntityFamilyJsonWriter {
         if (babyTexture == null && family.has("texture_ref"))
             babyTexture = family.get("texture_ref").getAsString() + "_baby";
         if (babyTexture != null) baby.addProperty("texture_ref", babyTexture);
+        // Only the "baby" option carries a body (the baked baby mesh + texture); the default "adult"
+        // inherits the family top-level geometry_ref/texture_ref, so it needs no option entry.
         JsonObject options = new JsonObject();
-        options.add("adult", new JsonObject());
         options.add("baby", baby);
         JsonObject ageAxis = new JsonObject();
         ageAxis.addProperty("default", "adult");
@@ -298,12 +299,15 @@ public final class EntityFamilyJsonWriter {
             }
         }
 
-        JsonObject stateOptions = new JsonObject();
-        stateOptions.add("wild", new JsonObject());
-        for (String key : stateKeys) if (!key.equals("wild")) stateOptions.add(key, new JsonObject());
+        // The state axis is a pure selector enumeration - every option body would be empty (the real
+        // per-state textures live in each variant option's textures map, enriched above), so list the
+        // valid states under "values" instead of an all-empty "options" map.
+        JsonArray stateValues = new JsonArray();
+        stateValues.add("wild");
+        for (String key : stateKeys) if (!key.equals("wild")) stateValues.add(key);
         JsonObject stateAxis = new JsonObject();
         stateAxis.addProperty("default", "wild");
-        stateAxis.add("options", stateOptions);
+        stateAxis.add("values", stateValues);
         axes.add("state", stateAxis);
         diagnostics.info("state axis: '%s' -> %s", familyId, stateKeys);
     }

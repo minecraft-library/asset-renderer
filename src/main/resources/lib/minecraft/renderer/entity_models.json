@@ -14,7 +14,6 @@
         "age": {
           "default": "adult",
           "options": {
-            "adult": {},
             "baby": {
               "geometry_ref": "geometry.babyarmadillo",
               "texture_ref": "armadillo/armadillo_baby"
@@ -39,7 +38,6 @@
         "age": {
           "default": "adult",
           "options": {
-            "adult": {},
             "baby": {
               "geometry_ref": "geometry.babyaxolotl",
               "texture_ref": "axolotl/axolotl_lucy_baby"
@@ -61,7 +59,6 @@
         "age": {
           "default": "adult",
           "options": {
-            "adult": {},
             "baby": {
               "geometry_ref": "geometry.babybee",
               "texture_ref": "bee/bee_baby"
@@ -111,7 +108,6 @@
         "age": {
           "default": "adult",
           "options": {
-            "adult": {},
             "baby": {
               "geometry_ref": "geometry.babycamel",
               "texture_ref": "camel/camel_baby"
@@ -205,7 +201,6 @@
         "age": {
           "default": "adult",
           "options": {
-            "adult": {},
             "baby": {
               "geometry_ref": "geometry.babyfeline"
             }
@@ -271,7 +266,6 @@
         "age": {
           "default": "adult",
           "options": {
-            "adult": {},
             "baby": {
               "geometry_ref": "geometry.babychicken"
             }
@@ -330,7 +324,6 @@
         "age": {
           "default": "adult",
           "options": {
-            "adult": {},
             "baby": {
               "geometry_ref": "geometry.babycow"
             }
@@ -356,7 +349,6 @@
         "age": {
           "default": "adult",
           "options": {
-            "adult": {},
             "baby": {
               "geometry_ref": "geometry.babydolphin",
               "texture_ref": "dolphin/dolphin_baby"
@@ -388,7 +380,6 @@
         "age": {
           "default": "adult",
           "options": {
-            "adult": {},
             "baby": {
               "geometry_ref": "geometry.babydrowned",
               "texture_ref": "zombie/drowned_baby"
@@ -449,7 +440,6 @@
         "age": {
           "default": "adult",
           "options": {
-            "adult": {},
             "baby": {
               "geometry_ref": "geometry.babyfox",
               "texture_ref": "fox/fox_baby"
@@ -514,7 +504,6 @@
         "age": {
           "default": "adult",
           "options": {
-            "adult": {},
             "baby": {
               "geometry_ref": "geometry.babygoat",
               "texture_ref": "goat/goat_baby"
@@ -536,7 +525,6 @@
         "age": {
           "default": "adult",
           "options": {
-            "adult": {},
             "baby": {
               "geometry_ref": "geometry.babyhoglin",
               "texture_ref": "hoglin/hoglin_baby"
@@ -553,7 +541,6 @@
         "age": {
           "default": "adult",
           "options": {
-            "adult": {},
             "baby": {
               "geometry_ref": "geometry.babyhorse",
               "texture_ref": "horse/horse_white_baby"
@@ -570,7 +557,6 @@
         "age": {
           "default": "adult",
           "options": {
-            "adult": {},
             "baby": {
               "geometry_ref": "geometry.babyzombie",
               "texture_ref": "zombie/husk_baby"
@@ -706,7 +692,6 @@
         "age": {
           "default": "adult",
           "options": {
-            "adult": {},
             "baby": {
               "geometry_ref": "geometry.babycow",
               "texture_ref": "cow/mooshroom_red_baby"
@@ -737,7 +722,6 @@
         "age": {
           "default": "adult",
           "options": {
-            "adult": {},
             "baby": {
               "geometry_ref": "geometry.babyfeline",
               "texture_ref": "cat/ocelot_baby"
@@ -754,7 +738,6 @@
         "age": {
           "default": "adult",
           "options": {
-            "adult": {},
             "baby": {
               "geometry_ref": "geometry.babypanda",
               "texture_ref": "panda/panda_baby"
@@ -818,7 +801,6 @@
         "age": {
           "default": "adult",
           "options": {
-            "adult": {},
             "baby": {
               "geometry_ref": "geometry.babypig"
             }
@@ -853,7 +835,6 @@
         "age": {
           "default": "adult",
           "options": {
-            "adult": {},
             "baby": {
               "geometry_ref": "geometry.babypolarbear",
               "texture_ref": "bear/polarbear_baby"
@@ -875,7 +856,6 @@
         "age": {
           "default": "adult",
           "options": {
-            "adult": {},
             "baby": {
               "geometry_ref": "geometry.babyrabbit",
               "texture_ref": "rabbit/rabbit_brown_baby"
@@ -909,7 +889,6 @@
         "age": {
           "default": "adult",
           "options": {
-            "adult": {},
             "baby": {
               "geometry_ref": "geometry.babysheep",
               "texture_ref": "sheep/sheep_baby"
@@ -959,7 +938,6 @@
         "age": {
           "default": "adult",
           "options": {
-            "adult": {},
             "baby": {
               "geometry_ref": "geometry.snifflet",
               "texture_ref": "sniffer/sniffer_baby"
@@ -1041,7 +1019,6 @@
         "age": {
           "default": "adult",
           "options": {
-            "adult": {},
             "baby": {
               "geometry_ref": "geometry.babystrider",
               "texture_ref": "strider/strider_baby"
@@ -1095,7 +1072,6 @@
         "age": {
           "default": "adult",
           "options": {
-            "adult": {},
             "baby": {
               "geometry_ref": "geometry.babyturtle",
               "texture_ref": "turtle/turtle_baby"
@@ -1124,7 +1100,6 @@
         "age": {
           "default": "adult",
           "options": {
-            "adult": {},
             "baby": {
               "geometry_ref": "geometry.babyvillager",
               "texture_ref": "villager/villager_baby"
@@ -1252,16 +1227,15 @@
         },
         "state": {
           "default": "wild",
-          "options": {
-            "wild": {},
-            "angry": {},
-            "tame": {}
-          }
+          "values": [
+            "wild",
+            "angry",
+            "tame"
+          ]
         },
         "age": {
           "default": "adult",
           "options": {
-            "adult": {},
             "baby": {
               "geometry_ref": "geometry.babywolf"
             }
@@ -1291,7 +1265,6 @@
         "age": {
           "default": "adult",
           "options": {
-            "adult": {},
             "baby": {
               "geometry_ref": "geometry.babyhoglin",
               "texture_ref": "hoglin/zoglin_baby"
@@ -1308,7 +1281,6 @@
         "age": {
           "default": "adult",
           "options": {
-            "adult": {},
             "baby": {
               "geometry_ref": "geometry.babyzombie",
               "texture_ref": "zombie/zombie_baby"
@@ -1360,7 +1332,6 @@
         "age": {
           "default": "adult",
           "options": {
-            "adult": {},
             "baby": {
               "geometry_ref": "geometry.babyzombievillager",
               "texture_ref": "zombie_villager/zombie_villager_baby"

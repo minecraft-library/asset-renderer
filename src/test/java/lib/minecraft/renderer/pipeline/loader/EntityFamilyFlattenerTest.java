@@ -100,7 +100,7 @@ class EntityFamilyFlattenerTest {
         axes.add("variant", variant);
         JsonObject age = new JsonObject();
         JsonObject ageOptions = new JsonObject();
-        ageOptions.add("adult", new JsonObject());
+        // Normalized shape: only the "baby" option carries a body; no empty "adult" entry.
         JsonObject babyOpt = new JsonObject();
         babyOpt.addProperty("geometry_ref", "geometry.babywolf");
         ageOptions.add("baby", babyOpt);
