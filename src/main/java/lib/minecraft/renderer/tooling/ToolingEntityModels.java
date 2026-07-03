@@ -378,6 +378,12 @@ public final class ToolingEntityModels {
             System.out.println("Wrote " + EntityRuntimeJsonWriter.MODELS_OUTPUT.toAbsolutePath() + " (+ " + variantRowsEmitted + " variant rows)");
             System.out.println("Wrote " + EntityRuntimeJsonWriter.GEOMETRY_OUTPUT.toAbsolutePath());
 
+            // Concurrent normalized family form (entity_models2.json), grouped from the flat file
+            // just written. Built side-by-side with the reader-flattener so the round-trip can be
+            // diffed against this known-good output while the new schema is iterated.
+            EntityFamilyJsonWriter.writeAll(diagnostics);
+            System.out.println("Wrote " + EntityFamilyJsonWriter.OUTPUT.toAbsolutePath());
+
             System.out.printf(
                 "Coverage: %d / %d mapped; texture %d hard / %d variant / %d unresolved; geometry %d%n",
                 records.size(), registry.totalMobsDiscovered(), withPrimaryTexture, variantDriven, unresolvedTexture, geometries.size()

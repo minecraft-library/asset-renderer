@@ -54,6 +54,21 @@ public class EntityModelLoader {
     private static final @NotNull String MODELS_RESOURCE_PATH = "/lib/minecraft/renderer/entity_models.json";
 
     /**
+     * Normalized family-form metadata file; produced by {@code EntityFamilyJsonWriter} and
+     * flattened back to the {@link #MODELS_RESOURCE_PATH} shape by {@link EntityFamilyFlattener}
+     * when {@link #useV2()} selects it.
+     */
+    private static final @NotNull String MODELS2_RESOURCE_PATH = "/lib/minecraft/renderer/entity_models2.json";
+
+    /**
+     * System property selecting the entity-model source: {@code v1} (default) reads the flat
+     * {@link #MODELS_RESOURCE_PATH} directly; {@code v2} reads {@link #MODELS2_RESOURCE_PATH} and
+     * flattens it through {@link EntityFamilyFlattener}. Forwarded to every fork via the global
+     * {@code asset.*} forwarder in {@code build.gradle.kts}.
+     */
+    private static final @NotNull String MODELS_SOURCE_PROPERTY = "asset.entity.models";
+
+    /**
      * Per-geometry bone tree file; bones in Java-native Y-down absolute entity-root frame.
      */
     private static final @NotNull String GEOMETRY_RESOURCE_PATH = "/lib/minecraft/renderer/entity_geometry.json";
@@ -497,19 +512,27 @@ public class EntityModelLoader {
      * up at geometry.cow -> family mapping mooshroom -> cow).
      */
     private static @NotNull Map<String, String> loadFamiliesTable() {
+        if (useV2()) return familiesToMap(loadV2Flat().families());
         try (InputStream stream = EntityModelLoader.class.getResourceAsStream(MODELS_RESOURCE_PATH)) {
             if (stream == null) return Map.of();
             String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
             JsonObject root = GSON.fromJson(json, JsonObject.class);
             if (root == null || !root.has("families")) return Map.of();
-            JsonObject families = root.getAsJsonObject("families");
-            Map<String, String> out = new LinkedHashMap<>();
-            for (Map.Entry<String, JsonElement> e : families.entrySet())
-                if (e.getValue().isJsonPrimitive()) out.put(e.getKey(), e.getValue().getAsString());
-            return out;
+            return familiesToMap(root.getAsJsonObject("families"));
         } catch (IOException | JsonSyntaxException ex) {
             throw new PipelineException(ex, "Failed to load family table from '%s'", MODELS_RESOURCE_PATH);
         }
+    }
+
+    /**
+     * Folds a cross-entity {@code families} JSON object (derivative id -&gt; family root) into a
+     * string map, skipping non-primitive entries.
+     */
+    private static @NotNull Map<String, String> familiesToMap(@NotNull JsonObject families) {
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonElement> e : families.entrySet())
+            if (e.getValue().isJsonPrimitive()) out.put(e.getKey(), e.getValue().getAsString());
+        return out;
     }
 
     /**
@@ -588,9 +611,12 @@ public class EntityModelLoader {
     }
 
     /**
-     * Reads {@link #MODELS_RESOURCE_PATH}. Returns an empty {@link JsonObject} when absent.
+     * Reads the flat {@code entities} block. Sourced from {@link #MODELS_RESOURCE_PATH} directly
+     * under {@code v1}, or flattened from {@link #MODELS2_RESOURCE_PATH} under {@code v2}. Returns
+     * an empty {@link JsonObject} when the {@code v1} resource is absent.
      */
     private static @NotNull JsonObject loadEntitiesBlock() {
+        if (useV2()) return loadV2Flat().entities();
         try (InputStream stream = EntityModelLoader.class.getResourceAsStream(MODELS_RESOURCE_PATH)) {
             if (stream == null) return new JsonObject();
             String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
@@ -599,6 +625,34 @@ public class EntityModelLoader {
             return root.getAsJsonObject("entities");
         } catch (IOException | JsonSyntaxException ex) {
             throw new PipelineException(ex, "Failed to load Java entity models resource '%s'", MODELS_RESOURCE_PATH);
+        }
+    }
+
+    /**
+     * Returns {@code true} when the {@value #MODELS_SOURCE_PROPERTY} system property selects the
+     * normalized family form ({@code v2}); {@code false} (the default) keeps the flat {@code v1}
+     * source.
+     */
+    private static boolean useV2() {
+        return "v2".equalsIgnoreCase(System.getProperty(MODELS_SOURCE_PROPERTY, "v1"));
+    }
+
+    /**
+     * Reads {@link #MODELS2_RESOURCE_PATH} and flattens it back to the flat runtime shape via
+     * {@link EntityFamilyFlattener}. Throws when the opt-in {@code v2} resource is missing rather
+     * than silently yielding no entities.
+     */
+    private static EntityFamilyFlattener.@NotNull Flat loadV2Flat() {
+        try (InputStream stream = EntityModelLoader.class.getResourceAsStream(MODELS2_RESOURCE_PATH)) {
+            if (stream == null)
+                throw new PipelineException("Entity models v2 resource '%s' not found on the classpath (run ./gradlew entityModels)", MODELS2_RESOURCE_PATH);
+            String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+            JsonObject root = GSON.fromJson(json, JsonObject.class);
+            if (root == null || !root.has("families"))
+                return new EntityFamilyFlattener.Flat(new JsonObject(), new JsonObject());
+            return EntityFamilyFlattener.flattenV2(root.getAsJsonObject("families"));
+        } catch (IOException | JsonSyntaxException ex) {
+            throw new PipelineException(ex, "Failed to load entity models v2 resource '%s'", MODELS2_RESOURCE_PATH);
         }
     }
 
