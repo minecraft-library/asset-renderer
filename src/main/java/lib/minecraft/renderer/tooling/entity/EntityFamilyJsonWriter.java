@@ -167,7 +167,12 @@ public final class EntityFamilyJsonWriter {
         baby.addProperty("geometry_ref", babyGeometry);
         // Non-variant entities (sheep/fox) carry a single baby texture here; variant families
         // (cow/pig) instead hold per-variant baby textures under each option's textures.baby.
+        // Fallback to vanilla's <adult>_baby naming when the renderer's isBaby branch surfaced none
+        // (enum-variant entities like axolotl/rabbit read their texture from the variant enum, not
+        // an isBaby branch, but still ship <default>_baby textures).
         String babyTexture = babyTextureByEntity == null ? null : babyTextureByEntity.get(familyId);
+        if (babyTexture == null && family.has("texture_ref"))
+            babyTexture = family.get("texture_ref").getAsString() + "_baby";
         if (babyTexture != null) baby.addProperty("texture_ref", babyTexture);
         JsonObject options = new JsonObject();
         options.add("adult", new JsonObject());

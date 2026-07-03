@@ -41,7 +41,8 @@
           "options": {
             "adult": {},
             "baby": {
-              "geometry_ref": "geometry.babyaxolotl"
+              "geometry_ref": "geometry.babyaxolotl",
+              "texture_ref": "axolotl/axolotl_lucy_baby"
             }
           }
         }
@@ -876,7 +877,8 @@
           "options": {
             "adult": {},
             "baby": {
-              "geometry_ref": "geometry.babyrabbit"
+              "geometry_ref": "geometry.babyrabbit",
+              "texture_ref": "rabbit/rabbit_brown_baby"
             }
           }
         }
@@ -959,7 +961,8 @@
           "options": {
             "adult": {},
             "baby": {
-              "geometry_ref": "geometry.snifflet"
+              "geometry_ref": "geometry.snifflet",
+              "texture_ref": "sniffer/sniffer_baby"
             }
           }
         }

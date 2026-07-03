@@ -73,6 +73,8 @@ class EntityModelSourceEquivalenceTest {
         assertThat(v2.get("minecraft:pig_temperate").stateTextures().get("baby"), is("pig/pig_temperate_baby"));
         assertThat("a non-variant entity sources its baby texture from the isBaby binding",
             v2.get("minecraft:sheep").stateTextures().get("baby"), is("sheep/sheep_baby"));
+        assertThat("an enum-variant entity falls back to the <adult>_baby naming convention",
+            v2.get("minecraft:axolotl").stateTextures().get("baby"), is("axolotl/axolotl_lucy_baby"));
         assertThat("the baby variant differs from the base texture",
             v2.get("minecraft:cow_warm").stateTextures().get("baby"), is("cow/cow_warm_baby"));
         assertThat("cow has a baby mesh", v2.get("minecraft:cow_temperate").babyModel().isPresent(), is(true));

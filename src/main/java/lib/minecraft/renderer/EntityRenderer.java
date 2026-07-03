@@ -190,7 +190,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (lens.kind() == Lens.Kind.ORTHOGRAPHIC) {
             BoundsScope scope = boundsScopeFor(options.getFitMode());
             EntityModelLoader.EntityDefinition boundsDefinition = definition;
-            if (baby) boundsDefinition = boundsDefinition.withModel(model);
+            if (baby) boundsDefinition = boundsDefinition.withModel(model).withoutOverlays();
             if (carriedHidden(options)) boundsDefinition = boundsDefinition.withoutBlockOverlays();
             Box screenBounds = computeScreenBoundsFor(scope, options.getEntityId().get(), boundsDefinition,
                 engine.orient(effective), modelScale, texture.get());
@@ -232,6 +232,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         LayerStack<GeometryLayer> stack = new LayerStack<>();
 
         // Model overlays (spider/enderman eyes, saddles, sheep wool). Each appends to the shared sink.
+        // Skipped for baby: overlays carry adult geometry that renders adult-sized around the baby
+        // body (villager profession layer inside the baby, sheep wool, ...).
+        if (!baby)
         for (EntityModelLoader.OverlayLayer overlay : definition.overlays())
             stack.append(EntityOptions.Slot.MODEL_OVERLAY, sink -> {
                 if (overlay.model().getBones().isEmpty()) return;
@@ -248,7 +251,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // on top of the base body only when a collar colour is supplied. v2-only - collarTexture is
         // empty under v1. The collar texture is transparent except the neck band, so the tinted band
         // wins the coplanar depth tie (last-drawn LEQUAL) over the body beneath it.
-        if (options.getCollarColor().isPresent() && definition.collarTexture().isPresent()) {
+        if (!baby && options.getCollarColor().isPresent() && definition.collarTexture().isPresent()) {
             int collarTint = options.getCollarColor().get().argb();
             String collarRef = definition.collarTexture().get();
             stack.append(EntityOptions.Slot.MODEL_OVERLAY, sink -> {
@@ -262,8 +265,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
         // Block-model overlays (mooshroom mushrooms, copper-golem flower): a block model rendered at
         // a pose-stack-applied position on top of the body. entityFit is computed once and shared.
-        // Suppressed when the carried option drops them (sheared snow golem).
-        if (!carriedHidden(options) && !definition.blockOverlays().isEmpty()) {
+        // Suppressed when the carried option drops them (sheared snow golem) or for a baby (adult
+        // block positions - mooshroom mushrooms float off the smaller baby body).
+        if (!baby && !carriedHidden(options) && !definition.blockOverlays().isEmpty()) {
             Matrix4f entityFit = EntityGeometryKit.buildEntityFitMatrix(kitAnchor, kitNdcScale * modelScale);
             for (EntityModelLoader.BlockOverlayLayer blockOverlay : definition.blockOverlays())
                 stack.append(EntityOptions.Slot.BLOCK_OVERLAY, sink ->

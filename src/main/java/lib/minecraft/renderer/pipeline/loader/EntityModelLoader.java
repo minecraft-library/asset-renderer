@@ -151,6 +151,18 @@ public class EntityModelLoader {
         }
 
         /**
+         * Returns a copy with no model {@link #overlays} (and no {@link #blockOverlays}), for the
+         * baby render - overlays carry adult geometry that would render adult-sized around the baby
+         * body (villager profession layer, sheep wool, mooshroom mushrooms).
+         *
+         * @return an otherwise-identical definition with empty overlay lists
+         */
+        public @NotNull EntityDefinition withoutOverlays() {
+            return new EntityDefinition(this.model, this.textureRef, List.of(), List.of(),
+                this.baseTintArgb, this.setupYawAddend, this.rendererScale, this.stateTextures, this.collarTexture, this.babyModel);
+        }
+
+        /**
          * Returns the mesh for the requested age: {@link #babyModel} when {@code baby} is selected
          * and present, else the adult {@link #model}.
          *
