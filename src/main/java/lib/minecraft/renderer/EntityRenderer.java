@@ -116,7 +116,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (texture.isEmpty())
             return Frames.emptyFrame();
 
-        boolean baby = options.getAge().filter("baby"::equals).isPresent();
+        boolean baby = options.getAge().filter("baby"::equals).isPresent() && definition.babyModel().isPresent();
         EntityModelData model = definition.modelForAge(baby);
         if (model.getBones().isEmpty())
             return Frames.emptyFrame();
@@ -309,6 +309,15 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     ) {
         if (options.getTextureId().isPresent())
             return this.context.resolveTexture(options.getTextureId().get());
+
+        // Baby: the baby mesh has its own UV layout, so it must bind the matching <variant>_baby
+        // texture (carried in stateTextures under "baby"). Only when the baby mesh is actually used.
+        boolean baby = options.getAge().filter("baby"::equals).isPresent() && definition.babyModel().isPresent();
+        if (baby) {
+            String babyTexture = definition.stateTextures().get("baby");
+            if (babyTexture != null)
+                return this.context.resolveTexture("minecraft:entity/" + babyTexture);
+        }
 
         Optional<String> stateTexture = selectStateTexture(definition, options);
         if (stateTexture.isPresent())

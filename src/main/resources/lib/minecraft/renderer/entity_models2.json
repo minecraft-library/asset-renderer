@@ -132,57 +132,68 @@
           "options": {
             "black": {
               "textures": {
-                "wild": "cat/cat_black"
+                "wild": "cat/cat_black",
+                "baby": "cat/cat_black_baby"
               }
             },
             "all_black": {
               "textures": {
-                "wild": "cat/cat_all_black"
+                "wild": "cat/cat_all_black",
+                "baby": "cat/cat_all_black_baby"
               }
             },
             "british_shorthair": {
               "textures": {
-                "wild": "cat/cat_british_shorthair"
+                "wild": "cat/cat_british_shorthair",
+                "baby": "cat/cat_british_shorthair_baby"
               }
             },
             "calico": {
               "textures": {
-                "wild": "cat/cat_calico"
+                "wild": "cat/cat_calico",
+                "baby": "cat/cat_calico_baby"
               }
             },
             "jellie": {
               "textures": {
-                "wild": "cat/cat_jellie"
+                "wild": "cat/cat_jellie",
+                "baby": "cat/cat_jellie_baby"
               }
             },
             "persian": {
               "textures": {
-                "wild": "cat/cat_persian"
+                "wild": "cat/cat_persian",
+                "baby": "cat/cat_persian_baby"
               }
             },
             "ragdoll": {
               "textures": {
-                "wild": "cat/cat_ragdoll"
+                "wild": "cat/cat_ragdoll",
+                "baby": "cat/cat_ragdoll_baby"
               }
             },
             "red": {
               "textures": {
-                "wild": "cat/cat_red"
+                "wild": "cat/cat_red",
+                "baby": "cat/cat_red_baby"
               }
             },
             "siamese": {
               "textures": {
-                "wild": "cat/cat_siamese"
+                "wild": "cat/cat_siamese",
+                "baby": "cat/cat_siamese_baby"
               }
             },
             "tabby": {
               "textures": {
-                "wild": "cat/cat_tabby"
+                "wild": "cat/cat_tabby",
+                "baby": "cat/cat_tabby_baby"
               }
             },
             "white": {
               "textures": {
-                "wild": "cat/cat_white"
+                "wild": "cat/cat_white",
+                "baby": "cat/cat_white_baby"
               }
             }
           }
@@ -234,18 +245,21 @@
           "options": {
             "temperate": {
               "textures": {
-                "wild": "chicken/chicken_temperate"
+                "wild": "chicken/chicken_temperate",
+                "baby": "chicken/chicken_temperate_baby"
               }
             },
             "cold": {
               "textures": {
-                "wild": "chicken/chicken_cold"
+                "wild": "chicken/chicken_cold",
+                "baby": "chicken/chicken_cold_baby"
               },
               "geometry_ref": "geometry.coldchicken"
             },
             "warm": {
               "textures": {
-                "wild": "chicken/chicken_warm"
+                "wild": "chicken/chicken_warm",
+                "baby": "chicken/chicken_warm_baby"
               }
             }
           }
@@ -289,18 +303,21 @@
           "options": {
             "temperate": {
               "textures": {
-                "wild": "cow/cow_temperate"
+                "wild": "cow/cow_temperate",
+                "baby": "cow/cow_temperate_baby"
               }
             },
             "cold": {
               "textures": {
-                "wild": "cow/cow_cold"
+                "wild": "cow/cow_cold",
+                "baby": "cow/cow_cold_baby"
               },
               "geometry_ref": "geometry.coldcow"
             },
             "warm": {
               "textures": {
-                "wild": "cow/cow_warm"
+                "wild": "cow/cow_warm",
+                "baby": "cow/cow_warm_baby"
               },
               "geometry_ref": "geometry.warmcow"
             }
@@ -765,18 +782,21 @@
           "options": {
             "temperate": {
               "textures": {
-                "wild": "pig/pig_temperate"
+                "wild": "pig/pig_temperate",
+                "baby": "pig/pig_temperate_baby"
               }
             },
             "cold": {
               "textures": {
-                "wild": "pig/pig_cold"
+                "wild": "pig/pig_cold",
+                "baby": "pig/pig_cold_baby"
               },
               "geometry_ref": "geometry.coldpig"
             },
             "warm": {
               "textures": {
-                "wild": "pig/pig_warm"
+                "wild": "pig/pig_warm",
+                "baby": "pig/pig_warm_baby"
               }
             }
           }
@@ -1139,63 +1159,72 @@
               "textures": {
                 "wild": "wolf/wolf",
                 "angry": "wolf/wolf_angry",
-                "tame": "wolf/wolf_tame"
+                "tame": "wolf/wolf_tame",
+                "baby": "wolf/wolf_baby"
               }
             },
             "ashen": {
               "textures": {
                 "wild": "wolf/wolf_ashen",
                 "angry": "wolf/wolf_ashen_angry",
-                "tame": "wolf/wolf_ashen_tame"
+                "tame": "wolf/wolf_ashen_tame",
+                "baby": "wolf/wolf_ashen_baby"
               }
             },
             "black": {
               "textures": {
                 "wild": "wolf/wolf_black",
                 "angry": "wolf/wolf_black_angry",
-                "tame": "wolf/wolf_black_tame"
+                "tame": "wolf/wolf_black_tame",
+                "baby": "wolf/wolf_black_baby"
               }
             },
             "chestnut": {
               "textures": {
                 "wild": "wolf/wolf_chestnut",
                 "angry": "wolf/wolf_chestnut_angry",
-                "tame": "wolf/wolf_chestnut_tame"
+                "tame": "wolf/wolf_chestnut_tame",
+                "baby": "wolf/wolf_chestnut_baby"
               }
             },
             "rusty": {
               "textures": {
                 "wild": "wolf/wolf_rusty",
                 "angry": "wolf/wolf_rusty_angry",
-                "tame": "wolf/wolf_rusty_tame"
+                "tame": "wolf/wolf_rusty_tame",
+                "baby": "wolf/wolf_rusty_baby"
               }
             },
             "snowy": {
               "textures": {
                 "wild": "wolf/wolf_snowy",
                 "angry": "wolf/wolf_snowy_angry",
-                "tame": "wolf/wolf_snowy_tame"
+                "tame": "wolf/wolf_snowy_tame",
+                "baby": "wolf/wolf_snowy_baby"
               }
             },
             "spotted": {
               "textures": {
                 "wild": "wolf/wolf_spotted",
                 "angry": "wolf/wolf_spotted_angry",
-                "tame": "wolf/wolf_spotted_tame"
+                "tame": "wolf/wolf_spotted_tame",
+                "baby": "wolf/wolf_spotted_baby"
               }
             },
             "striped": {
               "textures": {
                 "wild": "wolf/wolf_striped",
                 "angry": "wolf/wolf_striped_angry",
-                "tame": "wolf/wolf_striped_tame"
+                "tame": "wolf/wolf_striped_tame",
+                "baby": "wolf/wolf_striped_baby"
               }
             },
             "woods": {
               "textures": {
                 "wild": "wolf/wolf_woods",
                 "angry": "wolf/wolf_woods_angry",
-                "tame": "wolf/wolf_woods_tame"
+                "tame": "wolf/wolf_woods_tame",
+                "baby": "wolf/wolf_woods_baby"
               }
             }
           }

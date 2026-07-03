@@ -247,6 +247,7 @@ public final class EntityFamilyJsonWriter {
         JsonObject axes = new JsonObject();
         axes.add("variant", axis);
         enrichStateAxis(familyId, options, axes, variants, diagnostics);
+        enrichBabyTextures(familyId, options, variants);
 
         attachFamilyOf(familyId, crossFamilies, family);
         family.add("axes", axes);
@@ -297,6 +298,32 @@ public final class EntityFamilyJsonWriter {
         stateAxis.add("options", stateOptions);
         axes.add("state", stateAxis);
         diagnostics.info("state axis: '%s' -> %s", familyId, stateKeys);
+    }
+
+    /**
+     * Adds each variant option's per-variant baby texture (from the variant table's
+     * {@code baby_asset_id} / {@code baby_assets}) into the option's {@code textures} map under the
+     * {@code baby} key, so the {@code age=baby} render binds the matching {@code <variant>_baby}
+     * texture (the baby mesh has its own UV layout / resolution and does not map onto the adult
+     * texture). Reuses the state-texture side-channel; the flattener still reads only
+     * {@code textures.wild}, so the round-trip is unchanged.
+     */
+    private static void enrichBabyTextures(
+        @NotNull String familyId,
+        @NotNull JsonObject options,
+        @Nullable ConcurrentMap<String, ConcurrentList<EntityVariantResolver.Result>> variants
+    ) {
+        if (variants == null) return;
+        String stem = familyId.startsWith("minecraft:") ? familyId.substring("minecraft:".length()) : familyId;
+        ConcurrentList<EntityVariantResolver.Result> variantList = variants.get(stem);
+        if (variantList == null) return;
+        for (EntityVariantResolver.Result variant : variantList) {
+            if (!options.has(variant.variantId())) continue;
+            String babyTexture = variant.primaryBabyTexturePath();
+            if (babyTexture == null) continue;
+            JsonObject textures = options.getAsJsonObject(variant.variantId()).getAsJsonObject("textures");
+            if (!textures.has("baby")) textures.addProperty("baby", EntityTextureResolver.stripPrefix(babyTexture));
+        }
     }
 
     /**

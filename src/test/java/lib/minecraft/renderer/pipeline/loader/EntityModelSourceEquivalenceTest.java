@@ -12,9 +12,9 @@ import java.util.function.Supplier;
 import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -50,7 +50,7 @@ class EntityModelSourceEquivalenceTest {
         assertThat("v1 has no state textures", v1.get("minecraft:wolf_pale").stateTextures().isEmpty(), is(true));
 
         EntityDefinition paleV2 = v2.get("minecraft:wolf_pale");
-        assertThat(paleV2.stateTextures().keySet(), containsInAnyOrder("wild", "tame", "angry"));
+        assertThat(paleV2.stateTextures().keySet(), hasItems("wild", "tame", "angry"));
         assertThat(paleV2.stateTextures().get("wild"), is("wolf/wolf"));
         assertThat(paleV2.stateTextures().get("tame"), is("wolf/wolf_tame"));
         assertThat(paleV2.stateTextures().get("angry"), is("wolf/wolf_angry"));
@@ -60,8 +60,20 @@ class EntityModelSourceEquivalenceTest {
         EntityDefinition ashenV2 = v2.get("minecraft:wolf_ashen");
         assertThat(ashenV2.stateTextures().get("tame"), is("wolf/wolf_ashen_tame"));
 
-        assertThat("a single-asset variant carries no state textures",
-            v2.get("minecraft:cow_temperate").stateTextures().isEmpty(), is(true));
+        assertThat("a single-asset variant has no tame/angry behavioural states",
+            v2.get("minecraft:cow_temperate").stateTextures().containsKey("tame"), is(false));
+    }
+
+    @Test
+    @DisplayName("v2 carries the per-variant baby texture so the baby mesh binds <variant>_baby")
+    void v2CarriesBabyTextures() {
+        ConcurrentMap<String, EntityDefinition> v2 = withSource("v2", EntityModelLoader::load);
+
+        assertThat(v2.get("minecraft:cow_temperate").stateTextures().get("baby"), is("cow/cow_temperate_baby"));
+        assertThat(v2.get("minecraft:pig_temperate").stateTextures().get("baby"), is("pig/pig_temperate_baby"));
+        assertThat("the baby variant differs from the base texture",
+            v2.get("minecraft:cow_warm").stateTextures().get("baby"), is("cow/cow_warm_baby"));
+        assertThat("cow has a baby mesh", v2.get("minecraft:cow_temperate").babyModel().isPresent(), is(true));
     }
 
     @Test
