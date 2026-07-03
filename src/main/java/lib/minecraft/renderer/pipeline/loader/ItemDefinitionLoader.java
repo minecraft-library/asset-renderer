@@ -23,7 +23,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Stream;
 import org.jetbrains.annotations.Nullable;
 
@@ -104,7 +104,7 @@ public class ItemDefinitionLoader {
 
         return files.parallelStream()
             .map(p -> parseItemDef(p, itemsDir))
-            .filter(Objects::nonNull)
+            .flatMap(Optional::stream)
             .collect(Concurrent.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
@@ -119,28 +119,28 @@ public class ItemDefinitionLoader {
      *
      * @param p the item definition file
      * @param itemsDir the {@code items/} directory the id is relativised against
-     * @return the item-to-block-model entry, or {@code null} for non-block or malformed entries
+     * @return the item-to-block-model entry, or empty for non-block or malformed entries
      * @throws PipelineException when the file cannot be read
      */
-    private static @Nullable Map.Entry<String, String> parseItemDef(@NotNull Path p, @NotNull Path itemsDir) {
+    private static @NotNull Optional<Map.Entry<String, String>> parseItemDef(@NotNull Path p, @NotNull Path itemsDir) {
         String relative = itemsDir.relativize(p).toString().replace('\\', '/');
-        if (!relative.endsWith(".json")) return null;
+        if (!relative.endsWith(".json")) return Optional.empty();
         String itemId = VanillaSourcePaths.MINECRAFT_NAMESPACE + relative.substring(0, relative.length() - ".json".length());
 
         try {
             String content = Files.readString(p);
             JsonObject json = GSON.fromJson(content, JsonObject.class);
-            if (json == null || !json.has("model")) return null;
+            if (json == null || !json.has("model")) return Optional.empty();
 
             JsonObject model = json.getAsJsonObject("model");
-            if (model == null) return null;
-            if (!model.has("type") || !model.has("model")) return null;
-            if (!"minecraft:model".equals(model.get("type").getAsString())) return null;
+            if (model == null) return Optional.empty();
+            if (!model.has("type") || !model.has("model")) return Optional.empty();
+            if (!"minecraft:model".equals(model.get("type").getAsString())) return Optional.empty();
 
             String modelRef = model.get("model").getAsString();
             return modelRef.startsWith(VanillaSourcePaths.MODEL_BLOCK_ID_PREFIX)
-                ? Map.entry(itemId, modelRef)
-                : null;
+                ? Optional.of(Map.entry(itemId, modelRef))
+                : Optional.empty();
         } catch (IOException ex) {
             throw new PipelineException(ex, "Failed to read item definition '%s'", p);
         } catch (JsonSyntaxException ex) {
@@ -148,7 +148,7 @@ public class ItemDefinitionLoader {
             // (e.g. Hypixel+ player_head.json with 255+ levels of conditional nesting). Skip the
             // entry so the merge falls back to a lower-priority pack's version of this id.
             System.err.printf("Skipping malformed item definition '%s': %s%n", p, ex.getMessage());
-            return null;
+            return Optional.empty();
         }
     }
 
@@ -190,7 +190,7 @@ public class ItemDefinitionLoader {
 
         return files.parallelStream()
             .map(p -> parseItemTints(p, itemsDir))
-            .filter(Objects::nonNull)
+            .flatMap(Optional::stream)
             .collect(Concurrent.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
@@ -204,31 +204,31 @@ public class ItemDefinitionLoader {
      *
      * @param p the item definition file
      * @param itemsDir the {@code items/} directory the id is relativised against
-     * @return the item-to-tint-list entry, or {@code null} when the item declares no tints
+     * @return the item-to-tint-list entry, or empty when the item declares no tints
      * @throws PipelineException when the file cannot be read
      */
-    private static @Nullable Map.Entry<String, List<LayerTint>> parseItemTints(@NotNull Path p, @NotNull Path itemsDir) {
+    private static @NotNull Optional<Map.Entry<String, List<LayerTint>>> parseItemTints(@NotNull Path p, @NotNull Path itemsDir) {
         String relative = itemsDir.relativize(p).toString().replace('\\', '/');
-        if (!relative.endsWith(".json")) return null;
+        if (!relative.endsWith(".json")) return Optional.empty();
         String itemId = VanillaSourcePaths.MINECRAFT_NAMESPACE + relative.substring(0, relative.length() - ".json".length());
 
         try {
             JsonObject json = GSON.fromJson(Files.readString(p), JsonObject.class);
-            if (json == null || !json.has("model") || !json.get("model").isJsonObject()) return null;
+            if (json == null || !json.has("model") || !json.get("model").isJsonObject()) return Optional.empty();
 
             JsonObject model = descendToTintedModel(json.getAsJsonObject("model"));
-            if (model == null || !model.has("tints") || !model.get("tints").isJsonArray()) return null;
+            if (model == null || !model.has("tints") || !model.get("tints").isJsonArray()) return Optional.empty();
 
             List<LayerTint> tints = new ArrayList<>();
             for (JsonElement element : model.getAsJsonArray("tints")) {
                 if (element.isJsonObject()) tints.add(parseTint(element.getAsJsonObject()));
             }
-            return tints.isEmpty() ? null : Map.entry(itemId, List.copyOf(tints));
+            return tints.isEmpty() ? Optional.empty() : Optional.of(Map.entry(itemId, List.copyOf(tints)));
         } catch (IOException ex) {
             throw new PipelineException(ex, "Failed to read item definition '%s'", p);
         } catch (JsonSyntaxException ex) {
             System.err.printf("Skipping malformed item definition '%s': %s%n", p, ex.getMessage());
-            return null;
+            return Optional.empty();
         }
     }
 

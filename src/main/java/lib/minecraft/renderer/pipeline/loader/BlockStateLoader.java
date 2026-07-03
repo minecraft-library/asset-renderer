@@ -29,7 +29,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 /**
@@ -168,7 +168,7 @@ public class BlockStateLoader {
 
         List<Parsed> parsedAll = files.parallelStream()
             .map(file -> parseBlockstateFile(file, blockModels))
-            .filter(Objects::nonNull)
+            .flatMap(Optional::stream)
             .toList();
 
         for (Parsed p : parsedAll) {
@@ -192,9 +192,9 @@ public class BlockStateLoader {
      *
      * @param file the blockstate JSON file
      * @param blockModels the parsed model set used to bake each variant's resolved {@link ModelData}
-     * @return the parsed variant or multipart data, or {@code null} when the file yields neither
+     * @return the parsed variant or multipart data, or empty when the file yields neither
      */
-    private static @Nullable Parsed parseBlockstateFile(@NotNull Path file, @NotNull ConcurrentMap<String, ModelData> blockModels) {
+    private static @NotNull Optional<Parsed> parseBlockstateFile(@NotNull Path file, @NotNull ConcurrentMap<String, ModelData> blockModels) {
         String fileName = file.getFileName().toString();
         String blockName = fileName.substring(0, fileName.length() - 5);
         String blockId = VanillaSourcePaths.MINECRAFT_NAMESPACE + blockName;
@@ -202,19 +202,19 @@ public class BlockStateLoader {
         try {
             String json = Files.readString(file);
             JsonObject root = GSON.fromJson(json, JsonObject.class);
-            if (root == null) return null;
+            if (root == null) return Optional.empty();
 
             if (root.has("variants")) {
                 ConcurrentMap<String, Block.Variant> parsed = parseVariants(root.getAsJsonObject("variants"), blockModels);
-                return parsed.isEmpty() ? null : new Parsed(blockId, parsed, null);
+                return parsed.isEmpty() ? Optional.empty() : Optional.of(new Parsed(blockId, parsed, null));
             } else if (root.has("multipart")) {
                 Block.Multipart parsed = parseMultipart(root.getAsJsonArray("multipart"), blockModels);
-                return parsed.parts().isEmpty() ? null : new Parsed(blockId, null, parsed);
+                return parsed.parts().isEmpty() ? Optional.empty() : Optional.of(new Parsed(blockId, null, parsed));
             }
         } catch (IOException | JsonSyntaxException ex) {
             // Skip malformed blockstate files
         }
-        return null;
+        return Optional.empty();
     }
 
     /**

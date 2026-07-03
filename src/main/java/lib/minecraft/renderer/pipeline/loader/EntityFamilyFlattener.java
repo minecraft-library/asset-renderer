@@ -50,6 +50,17 @@ public final class EntityFamilyFlattener {
         @NotNull Map<String, String> collarTextures,
         @NotNull Map<String, String> babyGeometry
     ) {
+
+        /**
+         * The canonical empty flat form - no entities, families, or option side-channels. Returned
+         * for a legitimately-absent models resource (missing classpath entry, or no {@code families}
+         * key), as distinct from a malformed resource, which throws.
+         *
+         * @return an empty flat form
+         */
+        public static @NotNull Flat empty() {
+            return new Flat(new JsonObject(), new JsonObject(), Map.of(), Map.of(), Map.of());
+        }
     }
 
     /**

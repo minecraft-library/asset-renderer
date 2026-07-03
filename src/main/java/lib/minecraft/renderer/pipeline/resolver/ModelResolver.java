@@ -14,7 +14,6 @@ import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -22,7 +21,6 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -151,31 +149,31 @@ public class ModelResolver {
 
         return files.parallelStream()
             .map(p -> parseModelFile(p, directory, idPrefix))
-            .filter(Objects::nonNull)
+            .flatMap(Optional::stream)
             .collect(Concurrent.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     /**
      * Parses a single model file into a raw JSON entry keyed by resolved model id (the path
      * relative to {@code directory}, sans {@code .json}, under {@code idPrefix}, with {@code \}
-     * normalised to {@code /}). Returns {@code null} for non-JSON, empty-parse, or malformed input
-     * so the caller can filter the entry out; an I/O read failure is fatal.
+     * normalised to {@code /}). Empty for non-JSON, empty-parse, or malformed input so the caller
+     * can drop the entry; an I/O read failure is fatal.
      */
-    private static @Nullable Map.Entry<String, JsonObject> parseModelFile(@NotNull Path p, @NotNull Path directory, @NotNull String idPrefix) {
+    private static @NotNull Optional<Map.Entry<String, JsonObject>> parseModelFile(@NotNull Path p, @NotNull Path directory, @NotNull String idPrefix) {
         String relative = directory.relativize(p).toString().replace('\\', '/');
-        if (!relative.endsWith(".json")) return null;
+        if (!relative.endsWith(".json")) return Optional.empty();
         String id = idPrefix + relative.substring(0, relative.length() - ".json".length());
         try {
             String content = Files.readString(p);
             JsonObject json = GSON.fromJson(content, JsonObject.class);
-            return json == null ? null : Map.entry(id, json);
+            return json == null ? Optional.empty() : Optional.of(Map.entry(id, json));
         } catch (IOException ex) {
             throw new PipelineException(ex, "Failed to read model '%s'", p);
         } catch (JsonSyntaxException ex) {
             // Resource packs occasionally ship malformed or pathologically-nested model JSON. Skip
             // so the merge falls back to a lower-priority pack's version.
             System.err.printf("Skipping malformed model '%s': %s%n", p, ex.getMessage());
-            return null;
+            return Optional.empty();
         }
     }
 

@@ -643,11 +643,11 @@ public class EntityModelLoader {
     private static EntityFamilyFlattener.@NotNull Flat loadFlat() {
         try (InputStream stream = EntityModelLoader.class.getResourceAsStream(MODELS_RESOURCE_PATH)) {
             if (stream == null)
-                return new EntityFamilyFlattener.Flat(new JsonObject(), new JsonObject(), Map.of(), Map.of(), Map.of());
+                return EntityFamilyFlattener.Flat.empty();
             String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
             JsonObject root = GSON.fromJson(json, JsonObject.class);
             if (root == null || !root.has("families"))
-                return new EntityFamilyFlattener.Flat(new JsonObject(), new JsonObject(), Map.of(), Map.of(), Map.of());
+                return EntityFamilyFlattener.Flat.empty();
             return EntityFamilyFlattener.flatten(root.getAsJsonObject("families"));
         } catch (IOException | JsonSyntaxException ex) {
             throw new PipelineException(ex, "Failed to load entity models resource '%s'", MODELS_RESOURCE_PATH);
