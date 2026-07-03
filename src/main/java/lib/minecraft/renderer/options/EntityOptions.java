@@ -61,7 +61,7 @@ public class EntityOptions {
      * {@code "tame"} / {@code "angry"}; the default {@code "wild"} is equivalent to empty). Swaps
      * the base texture to the matching state entry when the resolved entity carries one, else the
      * default texture is used. Lower precedence than {@link #getTextureId() textureId}. Only
-     * consulted under the {@code v2} model source.
+     * consulted under the family form.
      */
     @lombok.Builder.Default
     private final @NotNull Optional<String> state = Optional.empty();
@@ -79,7 +79,7 @@ public class EntityOptions {
      * Optional dyed-collar colour for collar-bearing entities (wolf, cat). When present and the
      * resolved entity carries a collar texture, a collar overlay is drawn on the body geometry
      * tinted by this colour's {@link DyeColor#argb() ARGB}; empty (default) draws no collar. Only
-     * consulted under the {@code v2} model source.
+     * consulted under the family form.
      */
     @lombok.Builder.Default
     private final @NotNull Optional<DyeColor> collarColor = Optional.empty();
@@ -87,7 +87,7 @@ public class EntityOptions {
     /**
      * Optional age selector. {@code "baby"} renders the entity's distinct baby mesh when it has
      * one; empty (default, equivalent to {@code "adult"}) renders the adult mesh. Only consulted
-     * under the {@code v2} model source, and only affects entities with a dedicated baby model.
+     * under the family form, and only affects entities with a dedicated baby model.
      */
     @lombok.Builder.Default
     private final @NotNull Optional<String> age = Optional.empty();

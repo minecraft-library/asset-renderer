@@ -4,7 +4,6 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
@@ -24,30 +23,29 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Emits {@code entity_models2.json}, the normalized family form of {@code entity_models.json}.
+ * Emits {@code entity_models.json} in the normalized family form.
  *
- * <p>Runs as a post-pass over the flat file {@link EntityRuntimeJsonWriter} has just written:
- * it reads that known-good output back and re-groups it into one entry per base entity. The
- * flat {@code <id>_<variant>} rows collapse into a single family carrying a {@code variant}
- * axis, and the cross-entity {@code families} table collapses into per-family {@code family_of}
- * links. No field value is ever reparsed - every carried value ({@code texture_ref},
- * {@code overlays}, {@code base_tint}, {@code renderer_scale}, ...) is copied as a verbatim
- * {@code JsonElement} deep-copy, so only the grouping structure changes.
+ * <p>Groups the flat entity tables {@link EntityRuntimeJsonWriter} builds in-memory into one entry
+ * per base entity: the flat {@code <id>_<variant>} rows collapse into a single family carrying a
+ * {@code variant} axis, and the cross-entity {@code families} table collapses into per-family
+ * {@code family_of} links. No field value is ever reparsed - every carried value
+ * ({@code texture_ref}, {@code overlays}, {@code base_tint}, {@code renderer_scale}, ...) is copied
+ * as a verbatim {@code JsonElement} deep-copy, so only the grouping structure changes.
  *
- * <p>The transform is the inverse of {@code EntityFamilyFlattener.flattenV2}; the pair is pinned
- * by {@code EntityModelsV2RoundTripTest} (flatten of this output equals the flat input). See
- * {@code notes/entity-family-schema.md} for the schema contract and {@code notes/sample_model.json}
- * for the wolf worked example.
+ * <p>Its transform is the inverse of {@link EntityFamilyFlattener#flatten}, which expands the family
+ * form back into per-entity rows at load. See {@code notes/entity-family-schema.md} for the schema
+ * contract and {@code notes/sample_model.json} for the wolf worked example.
  */
 @UtilityClass
 public final class EntityFamilyJsonWriter {
 
     /**
-     * Normalized family-form output path, written alongside {@code entity_models.json} during
-     * the {@code entityModels} tooling run. Not yet read at runtime (see Phase 4 of the plan).
+     * The canonical runtime metadata path. Holds the normalized family form (one entry per base
+     * entity with axes + layers); flattened back to per-entity rows at load by
+     * {@code EntityFamilyFlattener}.
      */
     public static final @NotNull Path OUTPUT =
-        Path.of("src/main/resources/lib/minecraft/renderer/entity_models2.json");
+        Path.of("src/main/resources/lib/minecraft/renderer/entity_models.json");
 
     /**
      * Shared pretty-printing Gson, matching {@link EntityRuntimeJsonWriter}'s settings so both
@@ -57,52 +55,49 @@ public final class EntityFamilyJsonWriter {
         GsonSettings.defaults().mutate().isPrettyPrint().isHtmlEscaping(false).build().create();
 
     /**
-     * Reads the flat {@code entity_models.json} that {@link EntityRuntimeJsonWriter} has already
-     * written, groups it into the family form, and writes {@code entity_models2.json}.
+     * Groups the flat entity tables that {@link EntityRuntimeJsonWriter} built in-memory into the
+     * normalized family form and writes {@code entity_models.json}.
      *
      * @param diagnostics the diagnostic sink for the summary line
+     * @param flatEntities the flat {@code entities} object (id -&gt; row) from {@code WriteResult}
+     * @param flatFamilies the cross-entity {@code families} table from {@code WriteResult}
      * @param variants variant stem -&gt; resolved variant list, used to enrich variant families with
-     *     forward-looking option axes (e.g. wolf {@code wild}/{@code tame}/{@code angry} state
-     *     textures) that the flat v1 file discards
+     *     option axes (e.g. wolf {@code wild}/{@code tame}/{@code angry} state textures) + per-variant
+     *     baby textures the flat rows discard
      * @param collarByEntity base entity id -&gt; dyed-collar texture, used to add the option-gated
      *     collar {@code layer} to matching families
      * @param babyGeometryByEntity base entity id -&gt; deduped baby geometry id, used to add the
      *     {@code age} axis to matching families
      * @param babyTextureByEntity base entity id -&gt; baby texture from the renderer's isBaby branch
      *     (non-variant entities like sheep/fox), added as {@code age.baby.texture_ref}
-     * @throws IOException when the flat input cannot be read or the family output cannot be written
+     * @throws IOException when the family output cannot be written
      */
     public static void writeAll(
         @NotNull Diagnostics diagnostics,
+        @NotNull JsonObject flatEntities,
+        @NotNull JsonObject flatFamilies,
         @NotNull ConcurrentMap<String, ConcurrentList<EntityVariantResolver.Result>> variants,
         @NotNull Map<String, String> collarByEntity,
         @NotNull Map<String, String> babyGeometryByEntity,
         @NotNull Map<String, String> babyTextureByEntity
     ) throws IOException {
-        String text = Files.readString(EntityRuntimeJsonWriter.MODELS_OUTPUT);
-        JsonObject root = JsonParser.parseString(text).getAsJsonObject();
-        JsonObject entities = root.getAsJsonObject("entities");
-        JsonObject crossFamilies = root.has("families") ? root.getAsJsonObject("families") : new JsonObject();
-
-        JsonObject families = group(entities, crossFamilies, variants, collarByEntity, babyGeometryByEntity, babyTextureByEntity, diagnostics);
+        JsonObject families = group(flatEntities, flatFamilies, variants, collarByEntity, babyGeometryByEntity, babyTextureByEntity, diagnostics);
 
         JsonObject out = new JsonObject();
-        out.addProperty("//", "Generated by ToolingEntityModels (EntityFamilyJsonWriter). Normalized family form of entity_models.json: one entry per base entity, id-encoded colour variants folded into a variant axis, cross-entity groupings as family_of. Flattened back to the runtime shape by EntityFamilyFlattener.");
+        out.addProperty("//", "Generated by ToolingEntityModels. Normalized family form: one entry per base entity with axes (id-encoded colour variants; option-encoded state/age) + layers (collar), cross-entity groupings as family_of. Flattened to per-entity rows at load by EntityFamilyFlattener.");
         out.add("families", families);
 
         Files.createDirectories(OUTPUT.getParent());
         Files.writeString(OUTPUT, PRETTY_GSON.toJson(out) + System.lineSeparator());
-        diagnostics.info("entity_models2.json: %d families", families.size());
+        diagnostics.info("entity_models.json: %d families", families.size());
     }
 
     /**
-     * Groups a flat {@code entities} object into the family form. Package-private so
-     * {@code EntityModelsV2RoundTripTest} can drive it on fixtures without touching the filesystem.
+     * Groups a flat {@code entities} object into the family form. Package-private for testing.
      *
      * <p>Each flat row is either a variant child (has {@code variant_of} - consumed under its
      * base), a variant base (targeted by some {@code variant_of} - heads a {@code variant} axis),
-     * or a plain entity (its own single-row family). Family order follows the flat file's head
-     * order.
+     * or a plain entity (its own single-row family). Family order follows the flat head order.
      *
      * @param entities the flat {@code entities} object (id -&gt; row)
      * @param crossFamilies the flat {@code families} table (derivative id -&gt; family root)

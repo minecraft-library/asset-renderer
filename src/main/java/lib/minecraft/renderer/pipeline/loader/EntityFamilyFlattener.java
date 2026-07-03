@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Flattens the normalized {@code entity_models2.json} family form back into the flat
+ * Flattens the normalized {@code entity_models.json} family form back into the flat
  * {@code entities} + {@code families} shape {@link EntityModelLoader} consumes.
  *
  * <p>This is the exact inverse of {@code EntityFamilyJsonWriter.group}: each id-encoded
@@ -16,17 +16,15 @@ import java.util.Map;
  * the default option carrying the family's overlays / tints / hidden-bones and no
  * {@code variant_of}, the rest pointing back at it), and each per-family {@code family_of} link
  * re-collects into the cross-entity {@code families} table. Carried values are copied as verbatim
- * {@code JsonElement} deep-copies, so no number or string is ever reformatted.
- *
- * <p>The round-trip {@code flattenV2(group(x)) == x} against the committed
- * {@code entity_models.json} is pinned by {@code EntityModelsV2RoundTripTest}; keep the copied
- * field list here in step with the writer's.
+ * {@code JsonElement} deep-copies, so no number or string is ever reformatted. Keep the copied
+ * field list here in step with {@code EntityFamilyJsonWriter}'s; {@code EntityFamilyFlattenerTest}
+ * pins the expansion.
  */
 public final class EntityFamilyFlattener {
 
     /**
      * Optional base fields carried verbatim between a flat row and its family entry. Must match
-     * {@code EntityFamilyJsonWriter}'s copied-field list; the round-trip golden catches drift.
+     * {@code EntityFamilyJsonWriter}'s copied-field list.
      */
     private static final @NotNull List<String> CARRIED_FIELDS =
         List.of("renderer_scale", "setup_yaw_addend", "base_tint", "hidden_bones", "overlays", "block_overlays");
@@ -37,8 +35,8 @@ public final class EntityFamilyFlattener {
     /**
      * The reconstructed flat form: the {@code entities} object (one row per {@code minecraft:<id>}
      * / {@code minecraft:<id>_<variant>}), the cross-entity {@code families} table, and the
-     * option-axis {@code stateTextures} side-channel (kept out of {@code entities} so the flat
-     * shape stays round-trip-identical to the v1 file).
+     * option-axis side-channels (state textures, collar textures, baby geometry) kept out of
+     * {@code entities} so the flat rows stay minimal.
      *
      * @param entities the flat per-entity rows keyed by namespaced id
      * @param families the cross-entity grouping table (derivative id -&gt; family root)
@@ -57,11 +55,11 @@ public final class EntityFamilyFlattener {
     /**
      * Flattens the family form into the runtime flat shape.
      *
-     * @param familyForm the {@code families} object of {@code entity_models2.json} (family id -&gt;
+     * @param familyForm the {@code families} object of {@code entity_models.json} (family id -&gt;
      *     family entry)
      * @return the reconstructed flat {@code entities} + {@code families} + option side-channels
      */
-    public static @NotNull Flat flattenV2(@NotNull JsonObject familyForm) {
+    public static @NotNull Flat flatten(@NotNull JsonObject familyForm) {
         JsonObject entities = new JsonObject();
         JsonObject crossFamilies = new JsonObject();
         Map<String, Map<String, String>> stateTextures = new LinkedHashMap<>();
@@ -184,7 +182,7 @@ public final class EntityFamilyFlattener {
      * Records a variant option's per-state textures into the side-channel when the option carries
      * more than the default {@code wild} entry (i.e. a genuine multi-state family like wolf). The
      * {@code entities} row above keeps only {@code wild} as {@code texture_ref}, so the round-trip
-     * to the flat v1 file is unaffected.
+     * to the flat rows is unaffected.
      */
     private static void collectStateTextures(@NotNull String rowId, @NotNull JsonObject optionObj, @NotNull Map<String, Map<String, String>> stateTextures) {
         if (!optionObj.has("textures")) return;

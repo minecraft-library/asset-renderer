@@ -49,24 +49,11 @@ import java.util.Optional;
 public class EntityModelLoader {
 
     /**
-     * Per-entity metadata file; produced by {@code ToolingEntityModels}.
+     * Per-entity metadata file, in the normalized family form (one entry per base entity with axes
+     * + layers); flattened to per-entity rows at load by {@link EntityFamilyFlattener}. Produced by
+     * {@code ToolingEntityModels}.
      */
     private static final @NotNull String MODELS_RESOURCE_PATH = "/lib/minecraft/renderer/entity_models.json";
-
-    /**
-     * Normalized family-form metadata file; produced by {@code EntityFamilyJsonWriter} and
-     * flattened back to the {@link #MODELS_RESOURCE_PATH} shape by {@link EntityFamilyFlattener}
-     * when {@link #useV2()} selects it.
-     */
-    private static final @NotNull String MODELS2_RESOURCE_PATH = "/lib/minecraft/renderer/entity_models2.json";
-
-    /**
-     * System property selecting the entity-model source: {@code v1} (default) reads the flat
-     * {@link #MODELS_RESOURCE_PATH} directly; {@code v2} reads {@link #MODELS2_RESOURCE_PATH} and
-     * flattens it through {@link EntityFamilyFlattener}. Forwarded to every fork via the global
-     * {@code asset.*} forwarder in {@code build.gradle.kts}.
-     */
-    private static final @NotNull String MODELS_SOURCE_PROPERTY = "asset.entity.models";
 
     /**
      * Per-geometry bone tree file; bones in Java-native Y-down absolute entity-root frame.
@@ -115,15 +102,15 @@ public class EntityModelLoader {
      * @param rendererScale per-entity render-time scale extracted by
      *     {@code EntityRendererScaleResolver}; defaults to {@code 1f} (identity)
      * @param stateTextures alternate base textures keyed by behavioural state (wolf
-     *     {@code wild}/{@code tame}/{@code angry}), populated only under the {@code v2} model
-     *     source for multi-state variant families. Empty for every other entity; the {@code wild}
+     *     {@code wild}/{@code tame}/{@code angry}), populated for multi-state variant families.
+     *     Empty for every other entity; the {@code wild}
      *     entry (when present) equals {@link #textureRef}. Consulted by the renderer when
      *     {@code EntityOptions.state} selects a non-default state, else {@link #textureRef} is used
      * @param collarTexture dyed-collar texture drawn on the body geometry and tinted at render by
-     *     {@code EntityOptions.collarColor} (wolf, cat). Present only under the {@code v2} source
+     *     {@code EntityOptions.collarColor} (wolf, cat). Present only in the family form
      *     for collar-bearing entities; empty otherwise
      * @param babyModel the distinct baked baby mesh, used in place of {@link #model} when
-     *     {@code EntityOptions.age} selects {@code baby}. Present only under the {@code v2} source
+     *     {@code EntityOptions.age} selects {@code baby}. Present only in the family form
      *     for ageable entities with a dedicated {@code Baby<X>Model}; empty otherwise
      */
     public record EntityDefinition(
@@ -443,10 +430,11 @@ public class EntityModelLoader {
         Map<String, EntityModelData> geometries = loadGeometries();
         if (geometries.isEmpty()) return Concurrent.newMap();
 
-        JsonObject entities = loadEntitiesBlock();
-        Map<String, Map<String, String>> stateTextures = loadStateTextures();
-        Map<String, String> collarTextures = loadCollarTextures();
-        Map<String, String> babyGeometryRefs = loadBabyGeometry();
+        EntityFamilyFlattener.Flat flat = loadFlat();
+        JsonObject entities = flat.entities();
+        Map<String, Map<String, String>> stateTextures = flat.stateTextures();
+        Map<String, String> collarTextures = flat.collarTextures();
+        Map<String, String> babyGeometryRefs = flat.babyGeometry();
         HashMap<String, EntityDefinition> definitions = new HashMap<>();
         for (Map.Entry<String, JsonElement> entry : entities.entrySet()) {
             String entityId = entry.getKey();
@@ -573,25 +561,6 @@ public class EntityModelLoader {
     private static volatile Map<String, List<String>> FAMILIES_CACHE;
 
     /**
-     * Loads the top-level {@code families} table from entity_models.json. Cross-entity family
-     * groupings are emitted there by ToolingEntityModels.deriveCrossEntityFamilies based on
-     * shared geometry_ref (mooshroom and cow both bake CowModel.createBodyLayer -> both end
-     * up at geometry.cow -> family mapping mooshroom -> cow).
-     */
-    private static @NotNull Map<String, String> loadFamiliesTable() {
-        if (useV2()) return familiesToMap(loadV2Flat().families());
-        try (InputStream stream = EntityModelLoader.class.getResourceAsStream(MODELS_RESOURCE_PATH)) {
-            if (stream == null) return Map.of();
-            String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
-            JsonObject root = GSON.fromJson(json, JsonObject.class);
-            if (root == null || !root.has("families")) return Map.of();
-            return familiesToMap(root.getAsJsonObject("families"));
-        } catch (IOException | JsonSyntaxException ex) {
-            throw new PipelineException(ex, "Failed to load family table from '%s'", MODELS_RESOURCE_PATH);
-        }
-    }
-
-    /**
      * Folds a cross-entity {@code families} JSON object (derivative id -&gt; family root) into a
      * string map, skipping non-primitive entries.
      */
@@ -616,8 +585,9 @@ public class EntityModelLoader {
         if (cached != null) return cached;
         synchronized (EntityModelLoader.class) {
             if (FAMILIES_CACHE != null) return FAMILIES_CACHE;
-            JsonObject entities = loadEntitiesBlock();
-            Map<String, String> familiesTable = loadFamiliesTable();
+            EntityFamilyFlattener.Flat flat = loadFlat();
+            JsonObject entities = flat.entities();
+            Map<String, String> familiesTable = familiesToMap(flat.families());
             // Two-pass: first pass assigns each entity to its family root via variant_of /
             // families table; second pass inverts the map to family -> [members] so any member
             // looking up by its own id sees the whole family.
@@ -678,73 +648,22 @@ public class EntityModelLoader {
     }
 
     /**
-     * Reads the flat {@code entities} block. Sourced from {@link #MODELS_RESOURCE_PATH} directly
-     * under {@code v1}, or flattened from {@link #MODELS2_RESOURCE_PATH} under {@code v2}. Returns
-     * an empty {@link JsonObject} when the {@code v1} resource is absent.
+     * Reads the family-form {@link #MODELS_RESOURCE_PATH} and flattens it via
+     * {@link EntityFamilyFlattener} into the runtime tables (flat entities + cross-entity families +
+     * the option side-channels: state textures, collar textures, baby geometry). Returns an empty
+     * {@link EntityFamilyFlattener.Flat} when the resource is absent.
      */
-    private static @NotNull JsonObject loadEntitiesBlock() {
-        if (useV2()) return loadV2Flat().entities();
+    private static EntityFamilyFlattener.@NotNull Flat loadFlat() {
         try (InputStream stream = EntityModelLoader.class.getResourceAsStream(MODELS_RESOURCE_PATH)) {
-            if (stream == null) return new JsonObject();
-            String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
-            JsonObject root = GSON.fromJson(json, JsonObject.class);
-            if (root == null || !root.has("entities")) return new JsonObject();
-            return root.getAsJsonObject("entities");
-        } catch (IOException | JsonSyntaxException ex) {
-            throw new PipelineException(ex, "Failed to load Java entity models resource '%s'", MODELS_RESOURCE_PATH);
-        }
-    }
-
-    /**
-     * Returns {@code true} when the {@value #MODELS_SOURCE_PROPERTY} system property selects the
-     * normalized family form ({@code v2}); {@code false} (the default) keeps the flat {@code v1}
-     * source.
-     */
-    private static boolean useV2() {
-        return "v2".equalsIgnoreCase(System.getProperty(MODELS_SOURCE_PROPERTY, "v1"));
-    }
-
-    /**
-     * Returns the per-row behavioural-state textures from the family form under {@code v2}, or an
-     * empty map under {@code v1} (the flat source carries no state axis). Keyed by namespaced
-     * entity/variant id.
-     */
-    private static @NotNull Map<String, Map<String, String>> loadStateTextures() {
-        return useV2() ? loadV2Flat().stateTextures() : Map.of();
-    }
-
-    /**
-     * Returns the per-row dyed-collar textures from the family form under {@code v2}, or an empty
-     * map under {@code v1}. Keyed by namespaced entity/variant id.
-     */
-    private static @NotNull Map<String, String> loadCollarTextures() {
-        return useV2() ? loadV2Flat().collarTextures() : Map.of();
-    }
-
-    /**
-     * Returns the per-row baby geometry ids (from the {@code age} axis) under {@code v2}, or an
-     * empty map under {@code v1}. Keyed by namespaced entity/variant id.
-     */
-    private static @NotNull Map<String, String> loadBabyGeometry() {
-        return useV2() ? loadV2Flat().babyGeometry() : Map.of();
-    }
-
-    /**
-     * Reads {@link #MODELS2_RESOURCE_PATH} and flattens it back to the flat runtime shape via
-     * {@link EntityFamilyFlattener}. Throws when the opt-in {@code v2} resource is missing rather
-     * than silently yielding no entities.
-     */
-    private static EntityFamilyFlattener.@NotNull Flat loadV2Flat() {
-        try (InputStream stream = EntityModelLoader.class.getResourceAsStream(MODELS2_RESOURCE_PATH)) {
             if (stream == null)
-                throw new PipelineException("Entity models v2 resource '%s' not found on the classpath (run ./gradlew entityModels)", MODELS2_RESOURCE_PATH);
+                return new EntityFamilyFlattener.Flat(new JsonObject(), new JsonObject(), Map.of(), Map.of(), Map.of());
             String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
             JsonObject root = GSON.fromJson(json, JsonObject.class);
             if (root == null || !root.has("families"))
                 return new EntityFamilyFlattener.Flat(new JsonObject(), new JsonObject(), Map.of(), Map.of(), Map.of());
-            return EntityFamilyFlattener.flattenV2(root.getAsJsonObject("families"));
+            return EntityFamilyFlattener.flatten(root.getAsJsonObject("families"));
         } catch (IOException | JsonSyntaxException ex) {
-            throw new PipelineException(ex, "Failed to load entity models v2 resource '%s'", MODELS2_RESOURCE_PATH);
+            throw new PipelineException(ex, "Failed to load entity models resource '%s'", MODELS_RESOURCE_PATH);
         }
     }
 

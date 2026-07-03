@@ -420,8 +420,8 @@ public final class ToolingEntityModels {
                 overlaysByEntity, overlayFieldToResolution, dataVariantDefaults,
                 blockOverlaysByEntity
             );
-            System.out.println("Wrote " + EntityRuntimeJsonWriter.MODELS_OUTPUT.toAbsolutePath() + " (+ " + writeResult.variantRows() + " variant rows)");
-            System.out.println("Wrote " + EntityRuntimeJsonWriter.GEOMETRY_OUTPUT.toAbsolutePath());
+            System.out.println("Wrote " + EntityRuntimeJsonWriter.GEOMETRY_OUTPUT.toAbsolutePath()
+                + " (flat form: " + writeResult.variantRows() + " variant rows, grouped into the family form below)");
 
             // Map each entity to its deduped baby geometry id, dropping any whose baby resolved to
             // the same geometry as its adult (a transform-only baby the parser can't distinguish yet).
@@ -433,10 +433,9 @@ public final class ToolingEntityModels {
                 if (babyGeom != null && !babyGeom.equals(adultGeom)) babyGeometryByEntity.put(baby.getKey(), babyGeom);
             }
 
-            // Concurrent normalized family form (entity_models2.json), grouped from the flat file
-            // just written. Built side-by-side with the reader-flattener so the round-trip can be
-            // diffed against this known-good output while the new schema is iterated.
-            EntityFamilyJsonWriter.writeAll(diagnostics, variants, collarByEntity, babyGeometryByEntity, babyTextureByEntity);
+            // Group the in-memory flat tables into the canonical family-form entity_models.json.
+            EntityFamilyJsonWriter.writeAll(diagnostics, writeResult.flatEntities(), writeResult.flatFamilies(),
+                variants, collarByEntity, babyGeometryByEntity, babyTextureByEntity);
             System.out.println("Wrote " + EntityFamilyJsonWriter.OUTPUT.toAbsolutePath());
 
             System.out.printf(
