@@ -116,7 +116,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (texture.isEmpty())
             return Frames.emptyFrame();
 
-        EntityModelData model = definition.model();
+        boolean baby = options.getAge().filter("baby"::equals).isPresent();
+        EntityModelData model = definition.modelForAge(baby);
         if (model.getBones().isEmpty())
             return Frames.emptyFrame();
 
@@ -188,8 +189,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         final FitRequest fitRequest;
         if (lens.kind() == Lens.Kind.ORTHOGRAPHIC) {
             BoundsScope scope = boundsScopeFor(options.getFitMode());
-            EntityModelLoader.EntityDefinition boundsDefinition =
-                carriedHidden(options) ? definition.withoutBlockOverlays() : definition;
+            EntityModelLoader.EntityDefinition boundsDefinition = definition;
+            if (baby) boundsDefinition = boundsDefinition.withModel(model);
+            if (carriedHidden(options)) boundsDefinition = boundsDefinition.withoutBlockOverlays();
             Box screenBounds = computeScreenBoundsFor(scope, options.getEntityId().get(), boundsDefinition,
                 engine.orient(effective), modelScale, texture.get());
             RendererDebug.fitBounds(options.getEntityId().get(), screenBounds);

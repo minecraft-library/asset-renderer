@@ -344,6 +344,41 @@ public final class ToolingEntityModels {
             System.out.println("Composite overlay layers: " + overlayFieldToResolution.size()
                 + " (" + overlayFieldToResolution.keySet() + ")");
 
+            // Baby geometry (added LAST so its geometry ids only ever take collision suffixes and
+            // never shift an existing adult/variant/overlay id - NautilusModel bakes both the adult
+            // createBodyLayer and the baby createBabyBodyLayer, which derive the same geometry stem).
+            // In 26.1 almost every ageable mob has a dedicated Baby<X>Model registered under
+            // ModelLayers.<X>_BABY (COW_BABY -> BabyCowModel); resolving the renderer's _BABY field
+            // through the same layerDefs -> Source path variants use bakes a distinct, self-contained
+            // baby geometry the age axis points at (no runtime young-scale).
+            Map<String, EntityLayerDefinitionResolver.Result> babyResolutionByEntity = new LinkedHashMap<>();
+            for (Map.Entry<String, EntitySessionWalk.Result> entry : records.entrySet()) {
+                String entityId = entry.getKey();
+                String babyField = EntityLayerDefinitionResolver.findBabyLayerField(
+                    context.classNodes(), entry.getValue().rendererInternalName());
+                if (babyField == null) continue;
+                EntityLayerDefinitionResolver.Result babyRes = layerDefs.get(babyField);
+                if (babyRes == null) continue;
+                babyRes = EntityLayerDefinitionResolver.unaliasDelegate(context.classNodes(), babyRes);
+                // Skip babies baked from the SAME model class as the adult (nautilus:
+                // NautilusModel#createBabyBodyLayer vs #createBodyLayer). Their geometry ids derive
+                // the same class-based stem and the collision suffix would shift the adult's id,
+                // perturbing the byte-stable flat file. Dedicated Baby<X>Model classes are unaffected.
+                EntityLayerDefinitionResolver.Result adultRes = entityToResolution.get(entityId);
+                if (adultRes != null && adultRes.targetClass().equals(babyRes.targetClass())) continue;
+                String babyId = entityId + "#baby";
+                if (entityToResolution.containsKey(babyId)) continue;
+                entityToResolution.put(babyId, babyRes);
+                babyResolutionByEntity.put(entityId, babyRes);
+                float[] babyParams = new float[8];
+                if (babyRes.defaultFloatParam() != null) babyParams[0] = babyRes.defaultFloatParam();
+                sources.add(new Source(
+                    babyRes.targetClass() + ".class", babyRes.targetMethod(), babyId, YAxis.DOWN, 0f,
+                    babyRes.texWidthOverride(), babyRes.texHeightOverride(), null, babyParams, 0f,
+                    babyRes.appliedMeshTransformerScale(), null));
+            }
+            System.out.println("Resolved baby geometry for " + babyResolutionByEntity.size() + " entities");
+
             ConcurrentMap<String, JsonObject> geometries = GeometryParser.parse(clientJar, sources, diagnostics);
             System.out.println("Parsed geometry for " + geometries.size() + " entities + overlays");
 
@@ -373,18 +408,28 @@ public final class ToolingEntityModels {
             // when multiple entities share a createBodyLayer); entity_models.json carries
             // per-entity rows pointing into the geometry table plus optional variant rows
             // emitted from the data-driven variant tables loaded during binding.
-            int variantRowsEmitted = EntityRuntimeJsonWriter.writeAll(
+            EntityRuntimeJsonWriter.WriteResult writeResult = EntityRuntimeJsonWriter.writeAll(
                 context, records, entityToResolution, geometries, variants, diagnostics,
                 overlaysByEntity, overlayFieldToResolution, dataVariantDefaults,
                 blockOverlaysByEntity
             );
-            System.out.println("Wrote " + EntityRuntimeJsonWriter.MODELS_OUTPUT.toAbsolutePath() + " (+ " + variantRowsEmitted + " variant rows)");
+            System.out.println("Wrote " + EntityRuntimeJsonWriter.MODELS_OUTPUT.toAbsolutePath() + " (+ " + writeResult.variantRows() + " variant rows)");
             System.out.println("Wrote " + EntityRuntimeJsonWriter.GEOMETRY_OUTPUT.toAbsolutePath());
+
+            // Map each entity to its deduped baby geometry id, dropping any whose baby resolved to
+            // the same geometry as its adult (a transform-only baby the parser can't distinguish yet).
+            Map<String, String> babyGeometryByEntity = new LinkedHashMap<>();
+            for (Map.Entry<String, EntityLayerDefinitionResolver.Result> baby : babyResolutionByEntity.entrySet()) {
+                String babyGeom = writeResult.factoryKeyToGeometryId().get(EntityRuntimeJsonWriter.factoryKey(baby.getValue()));
+                EntityLayerDefinitionResolver.Result adult = entityToResolution.get(baby.getKey());
+                String adultGeom = adult == null ? null : writeResult.factoryKeyToGeometryId().get(EntityRuntimeJsonWriter.factoryKey(adult));
+                if (babyGeom != null && !babyGeom.equals(adultGeom)) babyGeometryByEntity.put(baby.getKey(), babyGeom);
+            }
 
             // Concurrent normalized family form (entity_models2.json), grouped from the flat file
             // just written. Built side-by-side with the reader-flattener so the round-trip can be
             // diffed against this known-good output while the new schema is iterated.
-            EntityFamilyJsonWriter.writeAll(diagnostics, variants, collarByEntity);
+            EntityFamilyJsonWriter.writeAll(diagnostics, variants, collarByEntity, babyGeometryByEntity);
             System.out.println("Wrote " + EntityFamilyJsonWriter.OUTPUT.toAbsolutePath());
 
             System.out.printf(

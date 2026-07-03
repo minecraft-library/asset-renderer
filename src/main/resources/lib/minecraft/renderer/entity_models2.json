@@ -9,7 +9,18 @@
     "minecraft:armadillo": {
       "geometry_ref": "geometry.adultarmadillo",
       "armor_type": "none",
-      "texture_ref": "armadillo/armadillo"
+      "texture_ref": "armadillo/armadillo",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "options": {
+            "adult": {},
+            "baby": {
+              "geometry_ref": "geometry.babyarmadillo"
+            }
+          }
+        }
+      }
     },
     "minecraft:armor_stand": {
       "geometry_ref": "geometry.armorstand",
@@ -22,7 +33,18 @@
     "minecraft:axolotl": {
       "geometry_ref": "geometry.adultaxolotl",
       "armor_type": "none",
-      "texture_ref": "axolotl/axolotl_lucy"
+      "texture_ref": "axolotl/axolotl_lucy",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "options": {
+            "adult": {},
+            "baby": {
+              "geometry_ref": "geometry.babyaxolotl"
+            }
+          }
+        }
+      }
     },
     "minecraft:bat": {
       "geometry_ref": "geometry.bat",
@@ -32,7 +54,18 @@
     "minecraft:bee": {
       "geometry_ref": "geometry.adultbee",
       "armor_type": "none",
-      "texture_ref": "bee/bee"
+      "texture_ref": "bee/bee",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "options": {
+            "adult": {},
+            "baby": {
+              "geometry_ref": "geometry.babybee"
+            }
+          }
+        }
+      }
     },
     "minecraft:blaze": {
       "geometry_ref": "geometry.blaze",
@@ -70,7 +103,18 @@
     "minecraft:camel": {
       "geometry_ref": "geometry.adultcamel",
       "armor_type": "none",
-      "texture_ref": "camel/camel"
+      "texture_ref": "camel/camel",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "options": {
+            "adult": {},
+            "baby": {
+              "geometry_ref": "geometry.babycamel"
+            }
+          }
+        }
+      }
     },
     "minecraft:camel_husk": {
       "geometry_ref": "geometry.adultcamel",
@@ -142,6 +186,15 @@
               }
             }
           }
+        },
+        "age": {
+          "default": "adult",
+          "options": {
+            "adult": {},
+            "baby": {
+              "geometry_ref": "geometry.babyfeline"
+            }
+          }
         }
       },
       "layers": [
@@ -196,6 +249,15 @@
               }
             }
           }
+        },
+        "age": {
+          "default": "adult",
+          "options": {
+            "adult": {},
+            "baby": {
+              "geometry_ref": "geometry.babychicken"
+            }
+          }
         }
       }
     },
@@ -243,6 +305,15 @@
               "geometry_ref": "geometry.warmcow"
             }
           }
+        },
+        "age": {
+          "default": "adult",
+          "options": {
+            "adult": {},
+            "baby": {
+              "geometry_ref": "geometry.babycow"
+            }
+          }
         }
       }
     },
@@ -259,7 +330,18 @@
     "minecraft:dolphin": {
       "geometry_ref": "geometry.dolphin",
       "armor_type": "none",
-      "texture_ref": "dolphin/dolphin"
+      "texture_ref": "dolphin/dolphin",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "options": {
+            "adult": {},
+            "baby": {
+              "geometry_ref": "geometry.babydolphin"
+            }
+          }
+        }
+      }
     },
     "minecraft:donkey": {
       "geometry_ref": "geometry.donkey",
@@ -279,7 +361,18 @@
           "geometry_ref": "geometry.drowned_1",
           "texture_ref": "zombie/drowned_outer_layer"
         }
-      ]
+      ],
+      "axes": {
+        "age": {
+          "default": "adult",
+          "options": {
+            "adult": {},
+            "baby": {
+              "geometry_ref": "geometry.babydrowned"
+            }
+          }
+        }
+      }
     },
     "minecraft:elder_guardian": {
       "geometry_ref": "geometry.guardian_1",
@@ -328,7 +421,18 @@
     "minecraft:fox": {
       "geometry_ref": "geometry.adultfox",
       "armor_type": "none",
-      "texture_ref": "fox/fox"
+      "texture_ref": "fox/fox",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "options": {
+            "adult": {},
+            "baby": {
+              "geometry_ref": "geometry.babyfox"
+            }
+          }
+        }
+      }
     },
     "minecraft:frog": {
       "geometry_ref": "geometry.frog",
@@ -381,7 +485,18 @@
     "minecraft:goat": {
       "geometry_ref": "geometry.goat",
       "armor_type": "none",
-      "texture_ref": "goat/goat"
+      "texture_ref": "goat/goat",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "options": {
+            "adult": {},
+            "baby": {
+              "geometry_ref": "geometry.babygoat"
+            }
+          }
+        }
+      }
     },
     "minecraft:guardian": {
       "geometry_ref": "geometry.guardian",
@@ -391,17 +506,50 @@
     "minecraft:hoglin": {
       "geometry_ref": "geometry.hoglin",
       "armor_type": "none",
-      "texture_ref": "hoglin/hoglin"
+      "texture_ref": "hoglin/hoglin",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "options": {
+            "adult": {},
+            "baby": {
+              "geometry_ref": "geometry.babyhoglin"
+            }
+          }
+        }
+      }
     },
     "minecraft:horse": {
       "geometry_ref": "geometry.abstractequine",
       "armor_type": "none",
-      "texture_ref": "horse/horse_white"
+      "texture_ref": "horse/horse_white",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "options": {
+            "adult": {},
+            "baby": {
+              "geometry_ref": "geometry.babyhorse"
+            }
+          }
+        }
+      }
     },
     "minecraft:husk": {
       "geometry_ref": "geometry.humanoid_2",
       "armor_type": "humanoid",
-      "texture_ref": "zombie/husk"
+      "texture_ref": "zombie/husk",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "options": {
+            "adult": {},
+            "baby": {
+              "geometry_ref": "geometry.babyzombie"
+            }
+          }
+        }
+      }
     },
     "minecraft:illusioner": {
       "geometry_ref": "geometry.illager",
@@ -525,7 +673,18 @@
           ]
         }
       ],
-      "family_of": "minecraft:cow_temperate"
+      "family_of": "minecraft:cow_temperate",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "options": {
+            "adult": {},
+            "baby": {
+              "geometry_ref": "geometry.babycow"
+            }
+          }
+        }
+      }
     },
     "minecraft:mule": {
       "geometry_ref": "geometry.donkey_1",
@@ -544,12 +703,34 @@
     "minecraft:ocelot": {
       "geometry_ref": "geometry.adultfeline_1",
       "armor_type": "none",
-      "texture_ref": "cat/ocelot"
+      "texture_ref": "cat/ocelot",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "options": {
+            "adult": {},
+            "baby": {
+              "geometry_ref": "geometry.babyfeline"
+            }
+          }
+        }
+      }
     },
     "minecraft:panda": {
       "geometry_ref": "geometry.panda",
       "armor_type": "none",
-      "texture_ref": "panda/panda"
+      "texture_ref": "panda/panda",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "options": {
+            "adult": {},
+            "baby": {
+              "geometry_ref": "geometry.babypanda"
+            }
+          }
+        }
+      }
     },
     "minecraft:parched": {
       "geometry_ref": "geometry.skeleton_1",
@@ -599,6 +780,15 @@
               }
             }
           }
+        },
+        "age": {
+          "default": "adult",
+          "options": {
+            "adult": {},
+            "baby": {
+              "geometry_ref": "geometry.babypig"
+            }
+          }
         }
       }
     },
@@ -624,7 +814,18 @@
     "minecraft:polar_bear": {
       "geometry_ref": "geometry.polarbear",
       "armor_type": "none",
-      "texture_ref": "bear/polarbear"
+      "texture_ref": "bear/polarbear",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "options": {
+            "adult": {},
+            "baby": {
+              "geometry_ref": "geometry.babypolarbear"
+            }
+          }
+        }
+      }
     },
     "minecraft:pufferfish": {
       "geometry_ref": "geometry.pufferfishbig",
@@ -634,7 +835,18 @@
     "minecraft:rabbit": {
       "geometry_ref": "geometry.adultrabbit",
       "armor_type": "none",
-      "texture_ref": "rabbit/rabbit_brown"
+      "texture_ref": "rabbit/rabbit_brown",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "options": {
+            "adult": {},
+            "baby": {
+              "geometry_ref": "geometry.babyrabbit"
+            }
+          }
+        }
+      }
     },
     "minecraft:ravager": {
       "geometry_ref": "geometry.ravager",
@@ -656,7 +868,18 @@
           "texture_ref": "sheep/sheep_wool",
           "tint_color": "0xFFE6E6E6"
         }
-      ]
+      ],
+      "axes": {
+        "age": {
+          "default": "adult",
+          "options": {
+            "adult": {},
+            "baby": {
+              "geometry_ref": "geometry.babysheep"
+            }
+          }
+        }
+      }
     },
     "minecraft:shulker": {
       "geometry_ref": "geometry.shulker",
@@ -694,7 +917,18 @@
     "minecraft:sniffer": {
       "geometry_ref": "geometry.sniffer",
       "armor_type": "none",
-      "texture_ref": "sniffer/sniffer"
+      "texture_ref": "sniffer/sniffer",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "options": {
+            "adult": {},
+            "baby": {
+              "geometry_ref": "geometry.snifflet"
+            }
+          }
+        }
+      }
     },
     "minecraft:snow_golem": {
       "geometry_ref": "geometry.snowgolem",
@@ -764,7 +998,18 @@
     "minecraft:strider": {
       "geometry_ref": "geometry.adultstrider",
       "armor_type": "none",
-      "texture_ref": "strider/strider"
+      "texture_ref": "strider/strider",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "options": {
+            "adult": {},
+            "baby": {
+              "geometry_ref": "geometry.babystrider"
+            }
+          }
+        }
+      }
     },
     "minecraft:tadpole": {
       "geometry_ref": "geometry.tadpole",
@@ -806,7 +1051,18 @@
     "minecraft:turtle": {
       "geometry_ref": "geometry.adultturtle",
       "armor_type": "none",
-      "texture_ref": "turtle/turtle"
+      "texture_ref": "turtle/turtle",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "options": {
+            "adult": {},
+            "baby": {
+              "geometry_ref": "geometry.babyturtle"
+            }
+          }
+        }
+      }
     },
     "minecraft:vex": {
       "geometry_ref": "geometry.vex",
@@ -823,7 +1079,18 @@
           "texture_ref": "villager/type/plains",
           "inflate": 0.001
         }
-      ]
+      ],
+      "axes": {
+        "age": {
+          "default": "adult",
+          "options": {
+            "adult": {},
+            "baby": {
+              "geometry_ref": "geometry.babyvillager"
+            }
+          }
+        }
+      }
     },
     "minecraft:vindicator": {
       "geometry_ref": "geometry.illager",
@@ -940,6 +1207,15 @@
             "angry": {},
             "tame": {}
           }
+        },
+        "age": {
+          "default": "adult",
+          "options": {
+            "adult": {},
+            "baby": {
+              "geometry_ref": "geometry.babywolf"
+            }
+          }
         }
       },
       "layers": [
@@ -960,12 +1236,34 @@
       "geometry_ref": "geometry.hoglin",
       "armor_type": "none",
       "texture_ref": "hoglin/zoglin",
-      "family_of": "minecraft:hoglin"
+      "family_of": "minecraft:hoglin",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "options": {
+            "adult": {},
+            "baby": {
+              "geometry_ref": "geometry.babyhoglin"
+            }
+          }
+        }
+      }
     },
     "minecraft:zombie": {
       "geometry_ref": "geometry.humanoid_4",
       "armor_type": "humanoid",
-      "texture_ref": "zombie/zombie"
+      "texture_ref": "zombie/zombie",
+      "axes": {
+        "age": {
+          "default": "adult",
+          "options": {
+            "adult": {},
+            "baby": {
+              "geometry_ref": "geometry.babyzombie"
+            }
+          }
+        }
+      }
     },
     "minecraft:zombie_horse": {
       "geometry_ref": "geometry.abstractequine_1",
@@ -1005,7 +1303,18 @@
           "texture_ref": "zombie_villager/type/plains",
           "inflate": 0.001
         }
-      ]
+      ],
+      "axes": {
+        "age": {
+          "default": "adult",
+          "options": {
+            "adult": {},
+            "baby": {
+              "geometry_ref": "geometry.babyzombievillager"
+            }
+          }
+        }
+      }
     },
     "minecraft:zombified_piglin": {
       "geometry_ref": "geometry.adultpiglin",

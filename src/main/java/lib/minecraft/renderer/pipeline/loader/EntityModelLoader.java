@@ -122,6 +122,9 @@ public class EntityModelLoader {
      * @param collarTexture dyed-collar texture drawn on the body geometry and tinted at render by
      *     {@code EntityOptions.collarColor} (wolf, cat). Present only under the {@code v2} source
      *     for collar-bearing entities; empty otherwise
+     * @param babyModel the distinct baked baby mesh, used in place of {@link #model} when
+     *     {@code EntityOptions.age} selects {@code baby}. Present only under the {@code v2} source
+     *     for ageable entities with a dedicated {@code Baby<X>Model}; empty otherwise
      */
     public record EntityDefinition(
         @NotNull EntityModelData model,
@@ -132,7 +135,8 @@ public class EntityModelLoader {
         float setupYawAddend,
         float rendererScale,
         @NotNull Map<String, String> stateTextures,
-        @NotNull Optional<String> collarTexture
+        @NotNull Optional<String> collarTexture,
+        @NotNull Optional<EntityModelData> babyModel
     ) {
         /**
          * Returns a copy with no {@link #blockOverlays() block overlays}, for the {@code carried}
@@ -143,7 +147,30 @@ public class EntityModelLoader {
          */
         public @NotNull EntityDefinition withoutBlockOverlays() {
             return new EntityDefinition(this.model, this.textureRef, this.overlays, List.of(),
-                this.baseTintArgb, this.setupYawAddend, this.rendererScale, this.stateTextures, this.collarTexture);
+                this.baseTintArgb, this.setupYawAddend, this.rendererScale, this.stateTextures, this.collarTexture, this.babyModel);
+        }
+
+        /**
+         * Returns the mesh for the requested age: {@link #babyModel} when {@code baby} is selected
+         * and present, else the adult {@link #model}.
+         *
+         * @param baby whether the baby mesh is requested
+         * @return the baby mesh when {@code baby} and available, else the adult mesh
+         */
+        public @NotNull EntityModelData modelForAge(boolean baby) {
+            return baby && this.babyModel.isPresent() ? this.babyModel.get() : this.model;
+        }
+
+        /**
+         * Returns a copy with a different primary {@link #model} (e.g. the baby mesh), for feeding
+         * the age-swapped geometry through the shared bounds pass.
+         *
+         * @param replacement the mesh to use as the primary model
+         * @return an otherwise-identical definition with {@code replacement} as its model
+         */
+        public @NotNull EntityDefinition withModel(@NotNull EntityModelData replacement) {
+            return new EntityDefinition(replacement, this.textureRef, this.overlays, this.blockOverlays,
+                this.baseTintArgb, this.setupYawAddend, this.rendererScale, this.stateTextures, this.collarTexture, this.babyModel);
         }
     }
 
@@ -407,6 +434,7 @@ public class EntityModelLoader {
         JsonObject entities = loadEntitiesBlock();
         Map<String, Map<String, String>> stateTextures = loadStateTextures();
         Map<String, String> collarTextures = loadCollarTextures();
+        Map<String, String> babyGeometryRefs = loadBabyGeometry();
         HashMap<String, EntityDefinition> definitions = new HashMap<>();
         for (Map.Entry<String, JsonElement> entry : entities.entrySet()) {
             String entityId = entry.getKey();
@@ -468,8 +496,10 @@ public class EntityModelLoader {
                 ? entityJson.get("renderer_scale").getAsFloat()
                 : 1f;
 
+            String babyRef = babyGeometryRefs.get(entityId);
+            Optional<EntityModelData> babyModel = babyRef == null ? Optional.empty() : Optional.ofNullable(geometries.get(babyRef));
             definitions.put(entityId, new EntityDefinition(baseModel, textureRef, overlays, blockOverlays, baseTint, setupYawAddend, rendererScale,
-                stateTextures.getOrDefault(entityId, Map.of()), Optional.ofNullable(collarTextures.get(entityId))));
+                stateTextures.getOrDefault(entityId, Map.of()), Optional.ofNullable(collarTextures.get(entityId)), babyModel));
         }
         return Concurrent.adoptMap(definitions);
     }
@@ -680,6 +710,14 @@ public class EntityModelLoader {
     }
 
     /**
+     * Returns the per-row baby geometry ids (from the {@code age} axis) under {@code v2}, or an
+     * empty map under {@code v1}. Keyed by namespaced entity/variant id.
+     */
+    private static @NotNull Map<String, String> loadBabyGeometry() {
+        return useV2() ? loadV2Flat().babyGeometry() : Map.of();
+    }
+
+    /**
      * Reads {@link #MODELS2_RESOURCE_PATH} and flattens it back to the flat runtime shape via
      * {@link EntityFamilyFlattener}. Throws when the opt-in {@code v2} resource is missing rather
      * than silently yielding no entities.
@@ -691,7 +729,7 @@ public class EntityModelLoader {
             String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
             JsonObject root = GSON.fromJson(json, JsonObject.class);
             if (root == null || !root.has("families"))
-                return new EntityFamilyFlattener.Flat(new JsonObject(), new JsonObject(), Map.of(), Map.of());
+                return new EntityFamilyFlattener.Flat(new JsonObject(), new JsonObject(), Map.of(), Map.of(), Map.of());
             return EntityFamilyFlattener.flattenV2(root.getAsJsonObject("families"));
         } catch (IOException | JsonSyntaxException ex) {
             throw new PipelineException(ex, "Failed to load entity models v2 resource '%s'", MODELS2_RESOURCE_PATH);

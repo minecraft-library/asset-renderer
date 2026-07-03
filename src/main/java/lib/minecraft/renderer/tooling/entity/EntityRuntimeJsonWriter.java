@@ -47,6 +47,33 @@ import java.util.Set;
 public final class EntityRuntimeJsonWriter {
 
     /**
+     * Outcome of {@link #writeAll}: the number of emitted variant rows plus the
+     * {@code factoryKey -> geometry id} dedupe map, so callers (baby-geometry enumeration) can
+     * resolve the geometry id a given {@link EntityLayerDefinitionResolver.Result} baked to.
+     *
+     * @param variantRows the number of data-driven variant rows emitted (base rows excluded)
+     * @param factoryKeyToGeometryId the {@code targetClass#targetMethod#...} key -&gt; deduped
+     *     {@code geometry.X} id map used across the geometry + models emission
+     */
+    public record WriteResult(int variantRows, @NotNull Map<String, String> factoryKeyToGeometryId) {}
+
+    /**
+     * Builds the deduplication key for a resolved layer factory - the same key the geometry table
+     * is deduped on ({@code targetClass#targetMethod} plus inflate / float-param / MeshTransformer
+     * scale discriminators). Public so the baby-geometry enumeration can look a resolution's geometry
+     * id up in {@link WriteResult#factoryKeyToGeometryId}.
+     *
+     * @param res the resolved layer factory
+     * @return the dedupe key
+     */
+    public static @NotNull String factoryKey(@NotNull EntityLayerDefinitionResolver.Result res) {
+        return res.targetClass() + "#" + res.targetMethod()
+            + (res.defaultInflate() != 0f ? "#inflate=" + res.defaultInflate() : "")
+            + (res.defaultFloatParam() != null ? "#fparam=" + res.defaultFloatParam() : "")
+            + (res.appliedMeshTransformerScale() != 1f ? "#appliedMT=" + res.appliedMeshTransformerScale() : "");
+    }
+
+    /**
      * Runtime-consumable per-entity metadata path. Same shape as the legacy
      * {@code entity_models.json} but populated by the Java pipeline; loaded by
      * {@code EntityModelLoader} when {@code PipelineOptions.entityModelSource = JAVA}.
@@ -108,10 +135,10 @@ public final class EntityRuntimeJsonWriter {
      * @param dataVariantDefaults variant stem -&gt; canonical default variant id (from
      *     {@code <X>Variants.DEFAULT})
      * @param blockOverlaysByEntity entity id -&gt; block-model overlay descriptors
-     * @return the number of variant rows emitted (base-entity rows excluded)
+     * @return the emitted variant-row count plus the factory-key -&gt; geometry-id dedupe map
      * @throws IOException when either output file cannot be written
      */
-    public static int writeAll(
+    public static WriteResult writeAll(
         @NotNull EntityToolingContext context,
         @NotNull Map<String, EntitySessionWalk.Result> records,
         @NotNull ConcurrentMap<String, EntityLayerDefinitionResolver.Result> entityToResolution,
@@ -334,7 +361,7 @@ public final class EntityRuntimeJsonWriter {
             MODELS_OUTPUT,
             PRETTY_GSON.toJson(modelsRoot) + System.lineSeparator()
         );
-        return variantRows;
+        return new WriteResult(variantRows, factoryKeyToGeometryId);
     }
 
     /**

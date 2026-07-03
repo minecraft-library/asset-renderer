@@ -85,6 +85,14 @@ public class EntityOptions {
     private final @NotNull Optional<DyeColor> collarColor = Optional.empty();
 
     /**
+     * Optional age selector. {@code "baby"} renders the entity's distinct baby mesh when it has
+     * one; empty (default, equivalent to {@code "adult"}) renders the adult mesh. Only consulted
+     * under the {@code v2} model source, and only affects entities with a dedicated baby model.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Optional<String> age = Optional.empty();
+
+    /**
      * Helmet armor piece to render on humanoid entities.
      */
     @lombok.Builder.Default

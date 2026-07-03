@@ -229,6 +229,33 @@ public final class EntityLayerDefinitionResolver {
     }
 
     /**
+     * Finds the entity's baby {@code ModelLayers} field by scanning every method of the renderer
+     * class for the first {@code GETSTATIC ModelLayers.X_BABY} reference (the baby layer is baked
+     * in {@code bakeModels} / the constructor as {@code context.bakeLayer(ModelLayers.X_BABY)}).
+     * In 26.1 almost every ageable mob has a dedicated {@code Baby<X>Model} whose baby layer is
+     * registered under this field, so resolving it through {@code layerDefs} yields a distinct,
+     * self-contained baby geometry (no runtime young-scale needed).
+     *
+     * @param classNodes the ClassNode cache (shared with sibling resolver walks)
+     * @param rendererInternalName the renderer's JVM internal name
+     * @return the {@code X_BABY} field name, or {@code null} when the renderer references none
+     */
+    public static @Nullable String findBabyLayerField(
+        @NotNull ClassNodeCache classNodes,
+        @NotNull String rendererInternalName
+    ) {
+        ClassNode cn = classNodes.load(rendererInternalName);
+        if (cn == null) return null;
+        for (MethodNode method : cn.methods)
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
+                if (AsmKit.isGetStatic(in, VanillaSourceClasses.MODEL_LAYERS)) {
+                    String name = ((FieldInsnNode) in).name;
+                    if (name.endsWith("_BABY")) return name;
+                }
+        return null;
+    }
+
+    /**
      * Walks the renderer's constructor chain (including parent constructors) for every
      * {@code GETSTATIC ModelLayers.X} reference. The result preserves first-seen order so the
      * fallback "first field" heuristic remains deterministic, but the entity-id-match preference
