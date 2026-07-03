@@ -3,6 +3,7 @@ package lib.minecraft.renderer.visual;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.EntityRenderer;
+import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.options.EntityOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
@@ -23,10 +24,16 @@ import java.util.TreeSet;
 
 /**
  * Renders every entity from the Java-derived pipeline ({@code entity_models.json} /
- * {@code entity_geometry.json}) through {@link EntityRenderer}'s Y-down engine path. Output
- * lands in {@code cache/visual/entity-render-3d/} for visual inspection.
+ * {@code entity_geometry.json}, produced by the {@code entityModels} tooling task) through
+ * {@link EntityRenderer} and writes one PNG per entity to {@code cache/visual/entity-render-3d/}
+ * for visual inspection. Entities load via {@link EntityModelLoader#load()}; a single id or the
+ * whole (alphabetically sorted) set can be rendered.
  * <p>
- * Usage: {@code ./gradlew :asset-renderer:entityRender3D [-PrenderSize=512] [-PentityId=minecraft:zombie]}.
+ * Each render uses the selected {@link Projection} (default {@link Projection#VANILLA_ISO}) with
+ * the entity's facing applied as a model-to-world placement, so any projection in the catalog
+ * presents the subject's front upright.
+ * <p>
+ * Usage: {@code ./gradlew :asset-renderer:entityRender3D [-PrenderSize=512] [-PentityId=minecraft:zombie] [-Pprojection=ISOMETRIC]}.
  */
 @UtilityClass
 public final class TestEntityRender3D {
@@ -40,11 +47,15 @@ public final class TestEntityRender3D {
      * Runs the Java-pipeline entity sweep.
      *
      * @param args {@code args[0]} is an optional render size; {@code args[1]} an optional single entity id
+     *     (blank to render all); {@code args[2]} an optional {@link Projection} name (default
+     *     {@code VANILLA_ISO})
      * @throws IOException if the output directory cannot be created or a render cannot be written
      */
     public static void main(String @NotNull [] args) throws IOException {
         int size = args.length > 0 ? Integer.parseInt(args[0]) : DEFAULT_SIZE;
-        Optional<String> singleEntityId = args.length > 1 ? Optional.of(args[1]) : Optional.empty();
+        Optional<String> singleEntityId = args.length > 1 && !args[1].isBlank() ? Optional.of(args[1]) : Optional.empty();
+        Projection projection = args.length > 2 && !args[2].isBlank()
+            ? Projection.valueOf(args[2].toUpperCase()) : Projection.VANILLA_ISO;
 
         Files.createDirectories(OUTPUT_DIR);
 
@@ -85,6 +96,7 @@ public final class TestEntityRender3D {
                 .outputSize(size)
                 .supersample(2)
                 .antiAlias(true)
+                .projection(projection)
                 .build();
 
             long perT0 = System.nanoTime();

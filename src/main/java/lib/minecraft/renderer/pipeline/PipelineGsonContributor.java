@@ -20,6 +20,12 @@ import java.util.ServiceLoader;
  */
 public class PipelineGsonContributor implements GsonContributor {
 
+    /**
+     * Registers the tensor {@link Vector2f}, {@link Vector3f}, and {@link Vector4f} type adapters on
+     * the given builder so asset JSON deserialises into the renderer's vector types.
+     *
+     * @param builder the Gson settings builder to contribute to
+     */
     @Override
     public void contribute(@NotNull GsonSettings.Builder builder) {
         builder

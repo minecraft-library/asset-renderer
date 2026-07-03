@@ -6,9 +6,9 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentLinkedMap;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import lib.minecraft.renderer.geometry.BlockFace;
-import lib.minecraft.renderer.geometry.EulerRotation;
-import lib.minecraft.renderer.kit.EntityGeometryKit;
+import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
+import lib.minecraft.renderer.face.BlockFace;
+import lib.minecraft.renderer.request.EulerRotation;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.AllArgsConstructor;
@@ -24,14 +24,12 @@ import java.util.Objects;
  * ({@code ToolingEntityModels} bytecode walk of the vanilla client jar). Lists each entity's
  * bones and their cube geometry without trying to express every vanilla feature.
  * <p>
- * Used by {@link EntityGeometryKit}'s triangle builders to turn an entity id into a list of cubes
+ * Used by the entity geometry kit's triangle builders to turn an entity id into a list of cubes
  * that can be fed to the rasterizer.
  * <p>
  * The canonical coordinate convention is vanilla Java's native frame: Y-down, right-handed, with
  * every position field - {@link Bone#getPivot() bone pivot}, {@link Cube#getOrigin() cube origin},
  * {@link Cube#getPivot() cube pivot} - stored in absolute entity-root space.
- *
- * @see EntityGeometryKit
  */
 @Getter
 @NoArgsConstructor
@@ -39,12 +37,14 @@ import java.util.Objects;
 public class EntityModelData {
 
     /**
-     * Texture size in pixels, typically {@code 64} or {@code 128}.
+     * The texture atlas width in pixels that cube UVs are resolved against, typically {@code 64}
+     * or {@code 128}.
      */
     private int textureWidth = 64;
 
     /**
-     * Texture size in pixels.
+     * The texture atlas height in pixels that cube UVs are resolved against, typically {@code 64}
+     * or {@code 128}.
      */
     private int textureHeight = 64;
 
@@ -149,7 +149,7 @@ public class EntityModelData {
          * resolution (cube UV regions stay tied to the authored {@code size} value), matching
          * vanilla's per-vertex scale semantics.
          *
-         * @see lib.minecraft.renderer.kit.EntityGeometryKit
+         * @see EntityGeometryKit
          */
         private float scale = 1f;
 

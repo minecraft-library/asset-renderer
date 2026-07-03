@@ -3,15 +3,14 @@ package lib.minecraft.renderer.pipeline.loader;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import lib.minecraft.renderer.appearance.Biome;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockTag;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
-import lib.minecraft.renderer.engine.TextureEngine;
-import lib.minecraft.renderer.geometry.BlockFace;
+import lib.minecraft.renderer.engine.texture.Textures;
+import lib.minecraft.renderer.face.BlockFace;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.util.Models;
 import lombok.experimental.UtilityClass;
@@ -107,7 +106,11 @@ public class BlockIndexLoader {
     }
 
     /**
-     * Returns {@code true} when an id is an intentionally-invisible vanilla block.
+     * Returns {@code true} when an id is an intentionally-invisible vanilla block. Compares the
+     * id's local name (namespace stripped) against {@link #INVISIBLE_BLOCK_NAMES}.
+     *
+     * @param blockId the namespaced or stripped block id
+     * @return whether the block is one of the intentionally-invisible vanilla ids
      */
     private static boolean isInvisible(@NotNull String blockId) {
         return INVISIBLE_BLOCK_NAMES.contains(ResourceId.localName(blockId));
@@ -173,7 +176,7 @@ public class BlockIndexLoader {
      * model entirely (the template block.json is usually empty - just a {@code particle} texture
      * - and the real geometry is hardcoded in a {@code BlockEntityRenderer}). The texture map
      * rebinds to the entity texture under the {@code "#entity"} face reference, the
-     * {@link Block.Tint} resets to {@link Biome.TintTarget#NONE} (per-entry tints are applied
+     * {@link Block.Tint} resets to {@link Block.TintTarget#NONE} (per-entry tints are applied
      * via {@link Block.Entity#tintArgb()} at render time), and the block is tagged
      * {@link Block.Source#TILE_ENTITY}. <b>Additive entries</b> (e.g. the bell body) leave the
      * primary block.json model in place and only attach the entity for the renderer to merge
@@ -214,7 +217,7 @@ public class BlockIndexLoader {
             HashMap<String, String> textures = new HashMap<>(modelToUse.getTextures());
             flattenElementFaces(modelToUse, textures);
 
-            Block.Tint tint = tints.getOrDefault(blockId, new Block.Tint(Biome.TintTarget.NONE, Optional.empty()));
+            Block.Tint tint = tints.getOrDefault(blockId, new Block.Tint(Block.TintTarget.NONE, Optional.empty()));
             ConcurrentMap<String, Block.Variant> variants = mergeBlockEntityVariants(variantMap.getOrDefault(blockId, Concurrent.newMap()), beVariants.get(blockId));
             Optional<Block.Multipart> multipart = Optional.ofNullable(multipartMap.get(blockId));
             ConcurrentList<String> tags = reverseTagIndex.getOrDefault(blockId, Concurrent.newList());
@@ -225,7 +228,7 @@ public class BlockIndexLoader {
                 modelToUse = entity.model();
                 textures = new HashMap<>();
                 textures.put("#entity", entity.textureId());
-                tint = new Block.Tint(Biome.TintTarget.NONE, Optional.empty());
+                tint = new Block.Tint(Block.TintTarget.NONE, Optional.empty());
                 source = Block.Source.TILE_ENTITY;
             }
 
@@ -288,7 +291,7 @@ public class BlockIndexLoader {
                 variants,
                 multipart,
                 tags,
-                new Block.Tint(Biome.TintTarget.NONE, Optional.empty()),
+                new Block.Tint(Block.TintTarget.NONE, Optional.empty()),
                 Optional.of(be),
                 Block.Source.TILE_ENTITY,
                 defaultKeyFor(result, blockId)
@@ -364,7 +367,7 @@ public class BlockIndexLoader {
             HashMap<String, String> textures = new HashMap<>(modelToUse.getTextures());
             flattenElementFaces(modelToUse, textures);
 
-            Block.Tint tint = tints.getOrDefault(blockId, new Block.Tint(Biome.TintTarget.NONE, Optional.empty()));
+            Block.Tint tint = tints.getOrDefault(blockId, new Block.Tint(Block.TintTarget.NONE, Optional.empty()));
             ConcurrentMap<String, Block.Variant> variants = variantMap.getOrDefault(blockId, Concurrent.newMap());
             Optional<Block.Multipart> multipart = Optional.ofNullable(multipartMap.get(blockId));
             ConcurrentList<String> tags = reverseTagIndex.getOrDefault(blockId, Concurrent.newList());
@@ -447,6 +450,9 @@ public class BlockIndexLoader {
      * {@code block/cross} have elements but reference unresolved {@code #var} faces, so they flatten
      * to nothing and are rejected here - the same structural signal the renderer uses to keep them
      * out of the atlas, with no hardcoded id list.
+     *
+     * @param model the candidate resolved model, or {@code null} when the model id did not load
+     * @return whether the model would produce a non-blank atlas tile
      */
     private static boolean isUsableResolvedModel(@Nullable ModelData model) {
         if (model == null) return false;
@@ -467,6 +473,9 @@ public class BlockIndexLoader {
      * multi-element models (chests, doors, pistons) would otherwise trample each other writing
      * contradictory bindings into the same direction key. A later pipeline phase will walk all
      * elements and pick a representative face per direction for multi-element blocks.
+     *
+     * @param model the block model whose first element's faces are flattened
+     * @param textures the direction-to-texture map to write resolved bindings into, mutated in place
      */
     private static void flattenElementFaces(@NotNull ModelData model, @NotNull Map<String, String> textures) {
         if (model.getElements().isEmpty()) return;
@@ -477,7 +486,7 @@ public class BlockIndexLoader {
             if (face == null) continue;
             String textureRef = face.getTexture();
             if (textureRef.isBlank()) continue;
-            String resolved = TextureEngine.resolveTextureReference(textureRef, model.getTextures());
+            String resolved = Textures.resolveTextureReference(textureRef, model.getTextures());
             if (resolved.startsWith("#")) continue;
             textures.put(blockFace.direction(), resolved);
         }

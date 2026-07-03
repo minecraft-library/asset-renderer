@@ -13,6 +13,7 @@ import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
@@ -30,9 +31,16 @@ import java.util.Map;
 /**
  * Bytecode-driven discovery of block-model overlays attached to entity renderers via
  * {@code addLayer(new XLayer(...))} where {@code XLayer} renders a vanilla block model on top
- * of the entity body (mooshroom mushrooms via {@code MushroomCowMushroomLayer}, iron golem
- * poppy via {@code IronGolemFlowerLayer}, enderman carried block via {@code CarriedBlockLayer},
- * generic via {@code BlockDecorationLayer}).
+ * of the entity body - conceptually the family that includes mooshroom mushrooms, iron golem
+ * poppy, and enderman carried block. Recognition is <b>structural, not an allowlist</b>: a layer
+ * qualifies when its {@code submit} reads a {@code BlockModelRenderState}-typed field and the
+ * block id resolves either from a matching {@code $Variant} enum on the RenderState
+ * (mooshroom's {@code MushroomCowMushroomLayer}) or from a literal {@code Blocks.X} bound in the
+ * renderer's {@code extractRenderState} for an always-present decoration (snow-golem's
+ * {@code SnowGolemHeadLayer} carved_pumpkin) - see {@link #detectKnownLayer}. Conditional
+ * decorations (iron-golem poppy, enderman carried block) fail the presence gate and are skipped.
+ * The walker stays generic (no layer-class allowlist) so future block-overlay layers of either
+ * shape auto-classify without a code change.
  *
  * <p>Walks the renderer constructor for {@code addLayer(new RecognisedLayer(this[, args]))}
  * dispatches, then walks the matched layer's {@code submit} method for each
@@ -45,15 +53,18 @@ import java.util.Map;
  *   <li>{@code pose.scale(F, F, F)} - emitted as {@link OpKind#SCALE}.</li>
  *   <li>{@code pose.mulPose(Axis.YP.rotationDegrees(F))} - emitted as {@link OpKind#ROTATE_Y}.
  *       Other axes / quaternion paths are skipped (vanilla block-overlay layers all use Y).</li>
- *   <li>{@code parent.getX().translateAndRotate(pose)} - flagged on the descriptor as
- *       {@code attachedBone="X"}; the pose-stack equivalent of the bone's pivot translate +
- *       rotation is reconstructed at render time.</li>
+ *   <li>{@code parent.getHead().translateAndRotate(pose)} - flagged on the descriptor as
+ *       {@code attachedBone="head"} (the {@code get} prefix stripped and the first letter
+ *       lower-cased); the pose-stack equivalent of the bone's pivot translate + rotation is
+ *       reconstructed at render time.</li>
  * </ul>
  *
- * <p>Block id determination is deferred for the per-layer renderstate-driven path (mooshroom's
- * {@code variant.getBlockState()}); this resolver hardcodes the canonical default per layer
- * (RED for mooshroom -> {@code minecraft:red_mushroom}, etc) until a future pass walks the
- * variant enum's getBlockState path.
+ * <p>Block id determination resolves the <b>canonical default</b> per layer, not the live
+ * per-render variant. {@link #resolveDefaultBlockId} walks the variant enum's {@code <clinit>}
+ * for its {@code DEFAULT} constant and the {@code Blocks.X} field that constant binds (RED for
+ * mooshroom -&gt; {@code minecraft:red_mushroom}). The runtime per-state path (mooshroom's
+ * {@code variant.getBlockState()} choosing brown vs red) is out of scope - the default is what the
+ * static iso render presents.
  */
 @UtilityClass
 public final class EntityBlockOverlayResolver {
@@ -73,6 +84,13 @@ public final class EntityBlockOverlayResolver {
      */
     private static final @NotNull String MODEL_PART = "net/minecraft/client/model/geom/ModelPart";
 
+    /**
+     * JVM internal name of {@code BlockModelResolver} - the renderer's {@code extractRenderState}
+     * calls {@code update(BlockModelRenderState, BlockState, BlockDisplayContext)} on it to bind a
+     * block model to the overlay's render state (snow-golem carved_pumpkin, iron-golem poppy).
+     */
+    private static final @NotNull String BLOCK_MODEL_RESOLVER = "net/minecraft/client/renderer/block/BlockModelResolver";
+
     /** Descriptor for the BlockModelRenderState type that a block-overlay layer's submit reads from a state field. */
     private static final @NotNull String BLOCK_MODEL_RENDER_STATE_DESC =
         "L" + VanillaSourceClasses.BLOCK_MODEL_RENDER_STATE + ";";
@@ -87,6 +105,8 @@ public final class EntityBlockOverlayResolver {
      * @param rendererInternalName the renderer class JVM internal name (e.g
      *     {@code net/minecraft/client/renderer/entity/MushroomCowRenderer})
      * @param diagnostics the diagnostic sink for parse-failure WARN messages
+     * @return the block-overlay descriptors for the renderer, one per recognised layer's
+     *     {@code pushPose}/{@code popPose} pair; empty when no recognised layers attach
      */
     public static @NotNull ConcurrentList<Result> resolve(
         @NotNull ClassNodeCache classNodes,
@@ -106,7 +126,7 @@ public final class EntityBlockOverlayResolver {
         for (AbstractInsnNode node = init.instructions.getFirst(); node != null; node = node.getNext()) {
             if (!(node instanceof TypeInsnNode typeInsn) || typeInsn.getOpcode() != Opcodes.NEW) continue;
             String layerInternalName = typeInsn.desc;
-            KnownLayer layerInfo = detectKnownLayer(classNodes, layerInternalName);
+            KnownLayer layerInfo = detectKnownLayer(classNodes, layerInternalName, renderer);
             if (layerInfo == null) continue;
 
             String defaultBlockId = resolveDefaultBlockId(classNodes, layerInfo, entityId, diagnostics);
@@ -137,31 +157,57 @@ public final class EntityBlockOverlayResolver {
     }
 
     /**
-     * Detects whether {@code layerInternalName} is a block-rendering overlay layer. A layer
-     * qualifies when its typed-state {@code submit} overload reads a
-     * {@code BlockModelRenderState}-typed field from the entity's RenderState class, AND the
-     * state class declares an enum-typed field whose descriptor ends with {@code $Variant;}.
-     * The variant class drives the {@code resolveDefaultBlockId} walk for the canonical
-     * default-state block id.
+     * Detects whether {@code layerInternalName} is a block-rendering overlay layer and resolves
+     * how its canonical default-state block id is determined. A layer qualifies when its
+     * typed-state {@code submit} overload reads a {@code BlockModelRenderState}-typed field from
+     * the entity's RenderState class. Two block-id sources are recognised:
      *
-     * <p>Vanilla MushroomCowMushroomLayer is the only current match: its submit reads
-     * {@code state.mushroomModel:BlockModelRenderState}, and MushroomCowRenderState declares
-     * {@code variant:MushroomCow$Variant}. The walker is generic so any future
-     * variant-driven block-overlay layer (e.g., a hypothetical
-     * {@code FrogTongueLayer} reading a state.tongue:BlockModelRenderState + state.variant:Frog$Variant)
-     * auto-classifies without an allowlist change.
+     * <ul>
+     *   <li><b>Variant-driven</b> - the state class also declares an enum-typed field whose
+     *       descriptor ends with {@code $Variant;}. The variant class's {@code DEFAULT} constant
+     *       resolves the block id (see {@link #resolveDefaultBlockId}). Vanilla
+     *       MushroomCowMushroomLayer is the match: submit reads
+     *       {@code state.mushroomModel:BlockModelRenderState}, MushroomCowRenderState declares
+     *       {@code variant:MushroomCow$Variant}. Returned as {@code KnownLayer(variantClass, null)}.</li>
+     *   <li><b>Fixed literal block</b> - the state has no {@code $Variant} field, and the renderer's
+     *       {@code extractRenderState} binds a literal {@code Blocks.X.defaultBlockState()} into the
+     *       same {@code BlockModelRenderState} field the layer reads (see
+     *       {@link #resolveLiteralBlockId}). Vanilla SnowGolemHeadLayer is the match: submit reads
+     *       {@code state.headBlock}, and {@code SnowGolemRenderer.extractRenderState} binds
+     *       {@code Blocks.CARVED_PUMPKIN} whenever {@code SnowGolem.hasPumpkin()} (default true).
+     *       Returned as {@code KnownLayer(null, "minecraft:carved_pumpkin")}.</li>
+     * </ul>
+     *
+     * <p>The fixed-literal path is gated so only always-present decorations emit: iron-golem's
+     * flower ({@code Blocks.POPPY} but gated on {@code offerFlowerTick > 0}, default off) and
+     * enderman's carried block (a runtime block, not a {@code Blocks.X} literal) both fail the
+     * {@link #resolveLiteralBlockId} presence gate and are skipped. Detection stays structural
+     * (no layer-class allowlist).
+     *
+     * @param classNodes the ClassNode cache (shared with sibling resolver walks)
+     * @param layerInternalName the candidate layer class's JVM internal name
+     * @param renderer the entity renderer whose {@code extractRenderState} sources the literal
+     *     block id for the fixed-block path
+     * @return the {@link KnownLayer} carrying the resolved variant class or literal block id, or
+     *     {@code null} when the class is not a recognised (or always-present) block-overlay layer
      */
-    private static @Nullable KnownLayer detectKnownLayer(@NotNull ClassNodeCache classNodes, @NotNull String layerInternalName) {
+    private static @Nullable KnownLayer detectKnownLayer(
+        @NotNull ClassNodeCache classNodes,
+        @NotNull String layerInternalName,
+        @NotNull ClassNode renderer
+    ) {
         ClassNode layerCn = classNodes.load(layerInternalName);
         if (layerCn == null) return null;
         MethodNode submit = findSubmitMethod(layerCn);
         if (submit == null) return null;
         String stateClass = null;
+        String blockFieldName = null;
         for (AbstractInsnNode in = submit.instructions.getFirst(); in != null; in = in.getNext()) {
             if (in.getOpcode() != Opcodes.GETFIELD) continue;
             if (!(in instanceof FieldInsnNode fi)) continue;
             if (BLOCK_MODEL_RENDER_STATE_DESC.equals(fi.desc)) {
                 stateClass = fi.owner;
+                blockFieldName = fi.name;
                 break;
             }
         }
@@ -174,7 +220,107 @@ public final class EntityBlockOverlayResolver {
             String variantClass = field.desc.substring(1, field.desc.length() - 1);
             return new KnownLayer(variantClass, null);
         }
+        String literalBlockId = resolveLiteralBlockId(classNodes, renderer, blockFieldName);
+        if (literalBlockId == null) return null;
+        return new KnownLayer(null, literalBlockId);
+    }
+
+    /**
+     * Resolves the canonical block id for a fixed-block overlay layer by walking the renderer's
+     * {@code extractRenderState} for a {@code BlockModelResolver.update(<blockField>,
+     * Blocks.X.defaultBlockState(), ctx)} call that binds a literal {@code Blocks.X} into the same
+     * {@code BlockModelRenderState} field {@code blockFieldName} the layer reads, then applies a
+     * presence gate so only decorations present at the default render state emit.
+     *
+     * <p><b>Presence gate.</b> Vanilla gates always-on cosmetic parts on a boolean "presence
+     * flag" method on the entity ({@code SnowGolem.hasPumpkin()}, default true), whereas transient
+     * decorations gate on a timer / counter ({@code IronGolem.offerFlowerTick > 0}, default 0).
+     * Requiring an entity-typed boolean predicate ({@code ()Z} INVOKEVIRTUAL whose owner is the
+     * {@code extractRenderState} entity parameter) emits snow-golem's pumpkin while excluding
+     * iron-golem's flower; enderman's carried block is already excluded because its block comes
+     * from a runtime {@code getCarriedBlock()} rather than a {@code Blocks.X} literal.
+     *
+     * @param classNodes the ClassNode cache (shared with sibling resolver walks)
+     * @param renderer the entity renderer whose {@code extractRenderState} is walked
+     * @param blockFieldName the {@code BlockModelRenderState} field name the layer's submit reads
+     * @return the {@code minecraft:<block>} id, or {@code null} when no literal-block update binds
+     *     {@code blockFieldName} or the presence gate fails
+     */
+    private static @Nullable String resolveLiteralBlockId(
+        @NotNull ClassNodeCache classNodes,
+        @NotNull ClassNode renderer,
+        @Nullable String blockFieldName
+    ) {
+        if (blockFieldName == null) return null;
+        for (MethodNode method : renderer.methods) {
+            if (!"extractRenderState".equals(method.name)) continue;
+            String blocksField = findLiteralBlockUpdate(method, blockFieldName);
+            if (blocksField == null) continue;
+            if (!hasEntityBooleanGuard(method)) continue;
+            return "minecraft:" + blocksField.toLowerCase(Locale.ROOT);
+        }
         return null;
+    }
+
+    /**
+     * Scans {@code method} for a {@code BlockModelResolver.update(...)} call whose arguments pair
+     * a {@code GETSTATIC Blocks.X} block state with a {@code GETFIELD <blockFieldName>} target,
+     * and returns the {@code Blocks.X} field name. Walks backward from each {@code update} call to
+     * the previous {@code update} (or method start), so per-statement args don't bleed across
+     * calls. Returns {@code null} when no update binds {@code blockFieldName} to a literal block.
+     *
+     * @param method the {@code extractRenderState} method to scan
+     * @param blockFieldName the {@code BlockModelRenderState} field the update must target
+     * @return the bound {@code Blocks.X} field name, or {@code null} when none matches
+     */
+    private static @Nullable String findLiteralBlockUpdate(@NotNull MethodNode method, @NotNull String blockFieldName) {
+        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (in.getOpcode() != Opcodes.INVOKEVIRTUAL) continue;
+            if (!(in instanceof MethodInsnNode mi)) continue;
+            if (!BLOCK_MODEL_RESOLVER.equals(mi.owner) || !"update".equals(mi.name)) continue;
+            String blocksField = null;
+            boolean matchedTargetField = false;
+            for (AbstractInsnNode back = in.getPrevious(); back != null; back = back.getPrevious()) {
+                if (back.getOpcode() == Opcodes.INVOKEVIRTUAL
+                    && back instanceof MethodInsnNode prevUpdate
+                    && BLOCK_MODEL_RESOLVER.equals(prevUpdate.owner)
+                    && "update".equals(prevUpdate.name))
+                    break;
+                if (back.getOpcode() == Opcodes.GETSTATIC
+                    && back instanceof FieldInsnNode gs
+                    && VanillaSourceClasses.BLOCKS.equals(gs.owner))
+                    blocksField = gs.name;
+                if (back.getOpcode() == Opcodes.GETFIELD
+                    && back instanceof FieldInsnNode gf
+                    && blockFieldName.equals(gf.name)
+                    && BLOCK_MODEL_RENDER_STATE_DESC.equals(gf.desc))
+                    matchedTargetField = true;
+            }
+            if (blocksField != null && matchedTargetField) return blocksField;
+        }
+        return null;
+    }
+
+    /**
+     * Returns {@code true} when {@code method} calls a parameterless boolean method
+     * ({@code ()Z} descriptor) on its first (entity) parameter type - the "presence flag"
+     * shape ({@code SnowGolem.hasPumpkin()}) that gates always-on block decorations. The bridge
+     * {@code extractRenderState(LivingEntity/Entity, ...)} overloads never reach here because they
+     * don't contain the literal-block update the caller matches first.
+     *
+     * @param method the typed {@code extractRenderState} method (first arg = entity class)
+     * @return whether a {@code ()Z} INVOKEVIRTUAL on the entity type is present
+     */
+    private static boolean hasEntityBooleanGuard(@NotNull MethodNode method) {
+        Type[] args = Type.getArgumentTypes(method.desc);
+        if (args.length == 0 || args[0].getSort() != Type.OBJECT) return false;
+        String entityClass = args[0].getInternalName();
+        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (in.getOpcode() != Opcodes.INVOKEVIRTUAL) continue;
+            if (!(in instanceof MethodInsnNode mi)) continue;
+            if (entityClass.equals(mi.owner) && mi.desc != null && mi.desc.endsWith(")Z")) return true;
+        }
+        return false;
     }
 
     /**
@@ -184,6 +330,10 @@ public final class EntityBlockOverlayResolver {
      * just delegates and contains no pose-stack literals. The typed overload's descriptor
      * contains the entity-specific state class name (which never equals
      * {@code EntityRenderState}); pick that one.
+     *
+     * @param layerClass the {@code RenderLayer} subclass to search
+     * @return the typed-state {@code submit} override, or {@code null} when the class declares only
+     *     the {@code EntityRenderState} overload
      */
     private static @Nullable MethodNode findSubmitMethod(@NotNull ClassNode layerClass) {
         for (MethodNode method : layerClass.methods) {
@@ -199,6 +349,11 @@ public final class EntityBlockOverlayResolver {
      * collecting the recognised pose-stack ops issued in each. Each pair becomes one
      * {@link Result}. Ops are stored in bytecode order; consumer (the renderer)
      * applies them in the order vanilla's PoseStack would.
+     *
+     * @param submit the layer's typed-state {@code submit} method to walk
+     * @param blockId the canonical block id stamped onto every extracted {@link Result}
+     * @return one {@link Result} per {@code pushPose}/{@code popPose} pair that emitted at least
+     *     one recognised op
      */
     private static @NotNull List<Result> extractPoseBlocks(
         @NotNull MethodNode submit,
@@ -288,6 +443,10 @@ public final class EntityBlockOverlayResolver {
      * {@code GETSTATIC com/mojang/math/Axis.<X>} field load that determined the axis. Returns
      * the field name ({@code YP} / {@code YN} / {@code XP} / etc) or {@code null} if the axis
      * couldn't be resolved.
+     *
+     * @param call the {@code Axis.rotationDegrees} invocation to walk backward from
+     * @return the {@code Axis.<X>} field name, or {@code null} when no matching {@code GETSTATIC}
+     *     precedes the call before a non-float-literal instruction
      */
     private static @Nullable String findPrecedingAxisField(@NotNull MethodInsnNode call) {
         // Walk backward past any FCONST / LDC float literals (the angle push) until we hit
@@ -305,11 +464,16 @@ public final class EntityBlockOverlayResolver {
      * with the {@code get} prefix stripped (e.g. {@code getHead} -> {@code head}). Heuristic:
      * the most recent {@code INVOKEVIRTUAL} on the parent renderer's model class that returns
      * a {@code ModelPart} instance is the bone accessor.
+     *
+     * @param call the {@code ModelPart.translateAndRotate} invocation to walk backward from
+     * @return the lower-cased bone name, or {@code null} when no {@code get*()->ModelPart} accessor
+     *     precedes the call
      */
     private static @Nullable String findPrecedingBoneAccessor(@NotNull MethodInsnNode call) {
-        // Pseudo-nodes only; any other real instruction terminates. (Match the original
-        // walker's "first INVOKEVIRTUAL get*->ModelPart wins" semantics by returning null
-        // on the predicate's no-match path so findPreceding aborts on any other real op.)
+        // Walk backward over real instructions (AsmKit.previousReal skips pseudo-nodes) and
+        // stop at the first INVOKEVIRTUAL get*()->ModelPart accessor. No early abort on other
+        // real ops: unlike findPrecedingAxisField, the bone accessor may sit several real
+        // instructions before the translateAndRotate call, so this scans until the first match.
         for (AbstractInsnNode node = AsmKit.previousReal(call); node != null; node = AsmKit.previousReal(node)) {
             if (node instanceof MethodInsnNode methodCall
                 && methodCall.getOpcode() == Opcodes.INVOKEVIRTUAL
@@ -330,6 +494,13 @@ public final class EntityBlockOverlayResolver {
      * the {@code minecraft:<lowercase_block_field>} id (e.g. {@code Blocks.RED_MUSHROOM} ->
      * {@code minecraft:red_mushroom}). Falls back to {@code layerInfo.defaultBlockId} when
      * present and the variant walk fails / is absent.
+     *
+     * @param classNodes the ClassNode cache (shared with sibling resolver walks)
+     * @param layerInfo the recognised layer's metadata (variant class and/or literal fallback)
+     * @param entityId the entity id being resolved (used in diagnostics)
+     * @param diagnostics the diagnostic sink for missing-class WARN messages
+     * @return the canonical {@code minecraft:<block>} id, or {@code null} only when neither the
+     *     variant walk nor the literal fallback yields one
      */
     private static @Nullable String resolveDefaultBlockId(
         @NotNull ClassNodeCache classNodes,
@@ -388,18 +559,36 @@ public final class EntityBlockOverlayResolver {
      * Metadata for one recognised block-decoration layer: the variant enum class whose DEFAULT
      * backs the canonical block id, and an optional literal fallback for layers without a
      * variant enum (iron-golem poppy etc). Both fields nullable - at least one must be set.
+     *
+     * @param variantClass JVM internal name of the {@code $Variant} enum whose {@code DEFAULT}
+     *     constant resolves the canonical block id, or {@code null} for a literal-only layer
+     * @param defaultBlockId literal {@code minecraft:<block>} fallback used when there is no
+     *     variant class or the variant walk fails, or {@code null} when only a variant class is set
      */
     private record KnownLayer(@Nullable String variantClass, @Nullable String defaultBlockId) {}
 
     /**
-     * One pose-stack op recognised by the walker. {@code a/b/c} fields hold per-kind data.
+     * One pose-stack op recognised by the walker. The {@code a}/{@code b}/{@code c} components
+     * hold per-{@link OpKind} data.
+     *
+     * @param kind the op kind, selecting how {@code a}/{@code b}/{@code c} are interpreted
+     * @param a first component - {@code x} for {@code TRANSLATE}/{@code SCALE}, degrees for {@code ROTATE_Y}
+     * @param b second component - {@code y} for {@code TRANSLATE}/{@code SCALE}, unused ({@code 0}) for {@code ROTATE_Y}
+     * @param c third component - {@code z} for {@code TRANSLATE}/{@code SCALE}, unused ({@code 0}) for {@code ROTATE_Y}
      */
     public record TransformOpRecord(@NotNull OpKind kind, float a, float b, float c) {}
 
     /**
      * Recognised pose-stack op kinds. {@code ROTATE_Y} stores degrees in {@code a}; the others use all three components.
      */
-    public enum OpKind { TRANSLATE, ROTATE_Y, SCALE }
+    public enum OpKind {
+        /** {@code PoseStack.translate(x, y, z)} - components are {@code (x, y, z)}. */
+        TRANSLATE,
+        /** {@code PoseStack.mulPose(Axis.YP.rotationDegrees(a))} - degrees in {@code a} ({@code YN} sign folded in). */
+        ROTATE_Y,
+        /** {@code PoseStack.scale(x, y, z)} - components are {@code (x, y, z)}. */
+        SCALE
+    }
 
     /**
      * Wire-format-friendly representation of one block overlay row. Carries the block id, an
@@ -408,6 +597,11 @@ public final class EntityBlockOverlayResolver {
      * {@link ToolingEntityModels} which serialises into the
      * {@code block_overlays} JSON array consumed by {@link
      * lib.minecraft.renderer.pipeline.loader.EntityModelLoader.BlockOverlayLayer}.
+     *
+     * @param blockId the canonical {@code minecraft:<block>} id whose model composites onto the entity
+     * @param attachedBone the parent bone whose bind pose pre-applies to the overlay, or
+     *     {@code null} when the overlay attaches at the entity root
+     * @param ops the ordered pose-stack ops between one {@code pushPose}/{@code popPose} pair
      */
     public record Result(
         @NotNull String blockId,
@@ -420,6 +614,9 @@ public final class EntityBlockOverlayResolver {
      * {@link lib.minecraft.renderer.pipeline.loader.EntityModelLoader#loadBlockOverlays}. Each
      * descriptor becomes one {@code block_overlays[]} row; descriptors are emitted in the
      * order the resolver returned them (mirrors the bytecode pushPose/popPose order).
+     *
+     * @param descriptors the resolved block-overlay descriptors, in resolver order
+     * @return the {@code block_overlays} JSON array, one object per descriptor
      */
     public static @NotNull JsonArray toJson(@NotNull ConcurrentList<Result> descriptors) {
         JsonArray rows = new JsonArray();
@@ -442,6 +639,14 @@ public final class EntityBlockOverlayResolver {
         return rows;
     }
 
+    /**
+     * Builds the {@code {"op":"translate", ...}} JSON for a translate op.
+     *
+     * @param x translation along X
+     * @param y translation along Y
+     * @param z translation along Z
+     * @return the translate op object
+     */
     private static @NotNull JsonObject translateJson(float x, float y, float z) {
         JsonObject op = new JsonObject();
         op.addProperty("op", "translate");
@@ -451,6 +656,12 @@ public final class EntityBlockOverlayResolver {
         return op;
     }
 
+    /**
+     * Builds the {@code {"op":"rotate_y","degrees":...}} JSON for a Y-rotation op.
+     *
+     * @param degrees the Y rotation in degrees ({@code YN} sign already folded in)
+     * @return the rotate_y op object
+     */
     private static @NotNull JsonObject rotateYJson(float degrees) {
         JsonObject op = new JsonObject();
         op.addProperty("op", "rotate_y");
@@ -458,6 +669,14 @@ public final class EntityBlockOverlayResolver {
         return op;
     }
 
+    /**
+     * Builds the {@code {"op":"scale", ...}} JSON for a scale op.
+     *
+     * @param x scale along X
+     * @param y scale along Y
+     * @param z scale along Z
+     * @return the scale op object
+     */
     private static @NotNull JsonObject scaleJson(float x, float y, float z) {
         JsonObject op = new JsonObject();
         op.addProperty("op", "scale");

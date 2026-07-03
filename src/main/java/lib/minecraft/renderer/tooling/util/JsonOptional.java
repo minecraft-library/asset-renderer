@@ -22,8 +22,13 @@ import org.jetbrains.annotations.Nullable;
 public final class JsonOptional {
 
     /**
-     * Returns the string under {@code key}, or {@code def} when the key is absent or not
-     * a JSON primitive convertible to a string.
+     * Returns the string under {@code key}, or {@code def} when {@code obj} is {@code null},
+     * the key is absent, or the value is not a JSON primitive convertible to a string.
+     *
+     * @param obj the object to read from, or {@code null}
+     * @param key the member name to look up
+     * @param def the fallback returned on absent / mismatched key
+     * @return the resolved string, or {@code def}
      */
     public static @NotNull String optString(@Nullable JsonObject obj, @NotNull String key, @NotNull String def) {
         if (obj == null || !obj.has(key)) return def;
@@ -32,8 +37,13 @@ public final class JsonOptional {
     }
 
     /**
-     * Returns the int under {@code key}, or {@code def} when the key is absent or not a
-     * JSON primitive convertible to an int.
+     * Returns the int under {@code key}, or {@code def} when {@code obj} is {@code null}, the
+     * key is absent, or the value is not a JSON primitive convertible to an int.
+     *
+     * @param obj the object to read from, or {@code null}
+     * @param key the member name to look up
+     * @param def the fallback returned on absent / mismatched key
+     * @return the resolved int, or {@code def}
      */
     public static int optInt(@Nullable JsonObject obj, @NotNull String key, int def) {
         if (obj == null || !obj.has(key)) return def;
@@ -42,8 +52,13 @@ public final class JsonOptional {
     }
 
     /**
-     * Returns the float under {@code key}, or {@code def} when the key is absent or not a
-     * JSON primitive convertible to a float.
+     * Returns the float under {@code key}, or {@code def} when {@code obj} is {@code null}, the
+     * key is absent, or the value is not a JSON primitive convertible to a float.
+     *
+     * @param obj the object to read from, or {@code null}
+     * @param key the member name to look up
+     * @param def the fallback returned on absent / mismatched key
+     * @return the resolved float, or {@code def}
      */
     public static float optFloat(@Nullable JsonObject obj, @NotNull String key, float def) {
         if (obj == null || !obj.has(key)) return def;
@@ -52,8 +67,13 @@ public final class JsonOptional {
     }
 
     /**
-     * Returns the boolean under {@code key}, or {@code def} when the key is absent or not
-     * a JSON primitive convertible to a boolean.
+     * Returns the boolean under {@code key}, or {@code def} when {@code obj} is {@code null},
+     * the key is absent, or the value is not a JSON primitive convertible to a boolean.
+     *
+     * @param obj the object to read from, or {@code null}
+     * @param key the member name to look up
+     * @param def the fallback returned on absent / mismatched key
+     * @return the resolved boolean, or {@code def}
      */
     public static boolean optBool(@Nullable JsonObject obj, @NotNull String key, boolean def) {
         if (obj == null || !obj.has(key)) return def;
@@ -62,8 +82,12 @@ public final class JsonOptional {
     }
 
     /**
-     * Returns the nested {@link JsonObject} under {@code key}, or {@code null} when the
-     * key is absent or the value is not a JSON object.
+     * Returns the nested {@link JsonObject} under {@code key}, or {@code null} when {@code obj}
+     * is {@code null}, the key is absent, or the value is not a JSON object.
+     *
+     * @param obj the object to read from, or {@code null}
+     * @param key the member name to look up
+     * @return the nested object, or {@code null}
      */
     public static @Nullable JsonObject optObject(@Nullable JsonObject obj, @NotNull String key) {
         if (obj == null || !obj.has(key)) return null;
@@ -72,8 +96,12 @@ public final class JsonOptional {
     }
 
     /**
-     * Returns the nested {@link JsonArray} under {@code key}, or {@code null} when the key
-     * is absent or the value is not a JSON array.
+     * Returns the nested {@link JsonArray} under {@code key}, or {@code null} when {@code obj}
+     * is {@code null}, the key is absent, or the value is not a JSON array.
+     *
+     * @param obj the object to read from, or {@code null}
+     * @param key the member name to look up
+     * @return the nested array, or {@code null}
      */
     public static @Nullable JsonArray optArray(@Nullable JsonObject obj, @NotNull String key) {
         if (obj == null || !obj.has(key)) return null;

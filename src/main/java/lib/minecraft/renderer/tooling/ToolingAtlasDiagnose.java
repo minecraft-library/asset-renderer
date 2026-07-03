@@ -47,8 +47,11 @@ import java.util.List;
  * fast and isolated from pipeline bootstrap cost. Rerun after regenerating the atlas to refresh
  * the diagnosis.
  * <p>
- * Usage: {@code ./gradlew :asset-renderer:diagnoseAtlas} (or pass a directory as
- * {@code args[0]}).
+ * Usage: {@code ./gradlew :asset-renderer:diagnoseAtlas} runs the flag-and-slice pass above.
+ * Passing {@code --source-filter=<source>} (wired as the {@code diagnoseAtlasTask10} Gradle
+ * task with {@code blockstate_only}) instead writes a mini-atlas of just the tiles from that
+ * registration source - see {@link #runSourceFilter}. Any positional argument that is not a
+ * {@code --}flag overrides the default {@code build/atlas} output directory.
  */
 @UtilityClass
 public final class ToolingAtlasDiagnose {
@@ -174,11 +177,15 @@ public final class ToolingAtlasDiagnose {
     }
 
     /**
-     * Scans a slice once and returns both signal values plus the opaque-pixel ratio. Runs in
-     * a single pass over the pixel buffer and short-circuits early when both signals have
-     * already been decided - a tile whose opaque count has crossed
-     * {@link #SPARSE_CONTENT_THRESHOLD} is neither {@code fullyTransparent} nor
-     * {@code sparseContent}, so further pixel reads are just for the ratio metric.
+     * Scans a slice once and returns both signal values plus the opaque-pixel ratio. Runs a
+     * single pass over the pixel buffer counting pixels whose top alpha byte is non-zero; the
+     * ratio, {@code fullyTransparent}, and {@code sparseContent} flags all derive from that one
+     * opaque count.
+     *
+     * @param image the sliced tile to scan
+     * @param width the slice width in pixels
+     * @param height the slice height in pixels
+     * @return the two flag values plus the opaque-pixel ratio
      */
     private static @NotNull ScanResult scan(@NotNull BufferedImage image, int width, int height) {
         int opaqueCount = 0;
@@ -198,6 +205,11 @@ public final class ToolingAtlasDiagnose {
 
     /**
      * Output of {@link #scan}: both flag values plus the opaque-pixel ratio.
+     *
+     * @param fullyTransparent whether every pixel in the slice has {@code alpha == 0}
+     * @param sparseContent whether the slice rendered something but fewer than
+     *     {@link #SPARSE_CONTENT_THRESHOLD} of its pixels are opaque
+     * @param opaqueRatio fraction of the slice's pixels that are opaque, in {@code [0, 1]}
      */
     private record ScanResult(
         boolean fullyTransparent,
@@ -207,6 +219,9 @@ public final class ToolingAtlasDiagnose {
 
     /**
      * Rounds a ratio to 4 decimal places so JSON output stays readable.
+     *
+     * @param value the ratio to round
+     * @return {@code value} rounded to 4 decimal places
      */
     private static double round4(double value) {
         return Math.round(value * 10_000.0) / 10_000.0;
@@ -215,6 +230,9 @@ public final class ToolingAtlasDiagnose {
     /**
      * Replaces path-reserved characters so sliced ids become Windows-safe filenames.
      * {@code "minecraft:acacia_log"} becomes {@code "minecraft_acacia_log"}.
+     *
+     * @param id the tile id, possibly containing {@code :} or {@code /}
+     * @return the id with {@code :} and {@code /} replaced by {@code _}
      */
     private static @NotNull String sanitize(@NotNull String id) {
         return id.replace(':', '_').replace('/', '_');
@@ -251,6 +269,14 @@ public final class ToolingAtlasDiagnose {
      * an {@code ids.txt} with the matching ids one per line, alphabetically sorted. Used to
      * visually verify additions from a specific registration path (e.g. the
      * {@code blockstate_only} source) without hunting through the full atlas.
+     *
+     * @param root the atlas output directory the mini-atlas subdirectory is created under
+     * @param atlasPng the full atlas image to slice tiles from
+     * @param atlasJson the atlas sidecar the tile geometry is read from
+     * @param sourceFilter the {@code source} value tiles must match; also the subdirectory name
+     * @throws ToolingException if {@code sourceFilter} would escape {@code root}, or the atlas
+     *     PNG cannot be decoded
+     * @throws IOException if any mini-atlas output cannot be written
      */
     private static void runSourceFilter(@NotNull Path root, @NotNull Path atlasPng, @NotNull Path atlasJson, @NotNull String sourceFilter) throws IOException {
         Path outDir = resolveContained(root, sourceFilter, "--source-filter");

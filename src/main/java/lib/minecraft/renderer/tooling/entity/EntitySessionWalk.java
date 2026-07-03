@@ -16,10 +16,11 @@ import java.util.zip.ZipFile;
  * {@link lib.minecraft.renderer.tooling.ToolingEntityModels#main(String[])} keeps to a
  * single loop over registry entries.
  *
- * <p>The walk sequence: texture binding ({@link EntityTextureResolver}) - variant-default
- * enum lookup ({@link EntityVariantResolver#resolveEnumDefault}) - class-bytes fallback -
- * overlay layer scan ({@link EntityBoneResolver}) - variant-stem decision - renderer
- * overrides ({@link EntityRendererOverrides}). Each step's output lands in one field on the
+ * <p>The walk sequence: texture binding ({@link EntityTextureResolver#resolve}) - variant-default
+ * enum lookup ({@link EntityVariantResolver#resolveEnumDefault}) - class-bytes fallback
+ * ({@link EntityTextureResolver#findBaseTextureFallback}) - overlay layer scan
+ * ({@link EntityBoneResolver#scanOverlayLayers}) - variant-stem decision - renderer overrides
+ * ({@link EntityRendererOverrides#resolve}). Each step's output lands in one field on the
  * returned {@link Result}.
  *
  * <p>Stateless per-walk: one instance binds the context + registry entry + variant tables,
@@ -35,8 +36,16 @@ public final class EntitySessionWalk {
      */
     private static final @NotNull String MINECRAFT_NAMESPACE = "minecraft:";
 
+    /** Shared tooling context (open jar / class-node cache / diagnostics) every resolver pass reads from. */
     private final @NotNull EntityToolingContext context;
+
+    /** The single registry entry (entity id / field name / renderer / lambda type-args) this walk resolves. */
     private final @NotNull EntityRegistryDiscovery.Result.Entry registryEntry;
+
+    /**
+     * Pre-built variant tables keyed by namespace-less entity id; consulted as a fallback signal that a
+     * state-field-driven renderer is variant-driven when its texture binding is otherwise unresolved.
+     */
     private final @NotNull ConcurrentMap<String, ConcurrentList<EntityVariantResolver.Result>> variantTables;
 
     /**
@@ -68,6 +77,14 @@ public final class EntitySessionWalk {
 
     /**
      * Runs the per-entity resolver fan-out and returns the folded {@link Result}.
+     *
+     * <p>Texture binding is resolved once, then refined through three ordered fallbacks: an
+     * enum-default variant path (existence-gated against the jar), a class-bytes base-texture
+     * fallback when the primary path is still {@code null}, and a state-field-driven variant
+     * detection keyed off the presence of a variant table. The overlay-layer scan, variant-stem
+     * decision, and renderer-override extraction then complete the entity's fields.
+     *
+     * @return the folded per-entity {@link Result}
      */
     public @NotNull Result walk() {
         ZipFile zip = this.context.zip();

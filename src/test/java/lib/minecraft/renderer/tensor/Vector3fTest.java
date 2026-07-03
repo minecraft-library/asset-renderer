@@ -8,6 +8,14 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+/**
+ * Verifies {@link Vector3f}'s arithmetic and geometry: component-wise add/subtract/multiply/divide/
+ * negate, index-based {@link Vector3f#get(int)} access (with the out-of-range guard), length and
+ * length-squared, dot and right-hand-rule cross products, {@link Vector3f#normalize()} including its
+ * degenerate-vector guard below {@link Vector3f#NORMALIZE_EPSILON}, and {@link Vector3f#lerp} endpoint
+ * and midpoint interpolation. These exercise the scalar contract; the transparent Vector-API
+ * dispatch on {@code transform}/{@code transformNormal} is out of scope here.
+ */
 @DisplayName("Vector3f arithmetic + geometry")
 class Vector3fTest {
 
@@ -60,7 +68,8 @@ class Vector3fTest {
     void normalize() {
         assertThat(new Vector3f(0, 3, 0).normalize(), equalTo(new Vector3f(0, 1, 0)));
         assertThat(Vector3f.ZERO.normalize(), is(Vector3f.ZERO));
-        // Below NORMALIZE_EPSILON the vector is treated as degenerate -> ZERO.
+        // Length 1e-9 < NORMALIZE_EPSILON (1e-8): treated as degenerate, so normalize() short-
+        // circuits to ZERO rather than dividing by a near-zero magnitude.
         assertThat(new Vector3f(1e-9f, 0, 0).normalize(), is(Vector3f.ZERO));
     }
 

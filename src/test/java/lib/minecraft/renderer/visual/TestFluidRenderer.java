@@ -5,13 +5,14 @@ import dev.simplified.image.ImageFactory;
 import dev.simplified.image.ImageFormat;
 import dev.simplified.image.codec.gif.GifWriteOptions;
 import lib.minecraft.renderer.FluidRenderer;
-import lib.minecraft.renderer.appearance.Biome;
+import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.engine.kit.FluidGeometryKit;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.kit.FluidGeometryKit;
 import lib.minecraft.renderer.options.FluidOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
+import lib.minecraft.renderer.request.Biome;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -23,18 +24,24 @@ import java.util.Optional;
 
 /**
  * Diagnostic task that exercises every {@link FluidRenderer} code path and dumps the output to
- * {@code cache/visual/fluid-renderer/} for visual inspection. Static renders dump as PNG, animated
- * renders as GIF. Covers:
+ * {@code cache/visual/fluid-renderer/} for visual inspection. This is a <b>functional / visual</b>
+ * tool ("does it render") - there is no parity gate. Static renders dump as PNG, animated renders
+ * as a transparent-palette GIF. Covers 13 outputs:
  * <ul>
- * <li>Source-block renders for both water and lava in both render types.</li>
- * <li>Animated renders that sample the {@code water_still} / {@code lava_still} strips across
- * their full frame cycle.</li>
- * <li>Sloped corner-height and flow-direction renders (will look flat-topped until
- * {@link FluidGeometryKit#buildFluidCube} is expanded).</li>
- * <li>Biome-tint variants and the explicit ARGB override (biome variants will all look
- * identical until {@link Biome.TintTarget#WATER} is wired; the override path works today).</li>
+ * <li>Source-block iso renders and 2D face blits for both water and lava
+ * ({@link FluidOptions.Type#ISOMETRIC_3D} and {@link FluidOptions.Type#FLUID_FACE_2D}).</li>
+ * <li>Animated renders that walk the {@code water_still} (32 frames, 2 ticks each) and
+ * {@code lava_still} (20 frames, 3 ticks each) strips exactly once at native cadence.</li>
+ * <li>A sloped corner-height + flow-direction render (will look flat-topped until
+ * {@link FluidGeometryKit#buildFluidCube} grows sloped-top support; kept in the matrix so the
+ * fix lights it up without a driver change).</li>
+ * <li>Biome-tint variants (plains / swamp / cherry_grove / warm_ocean) and the explicit ARGB
+ * override. The biome variants all render at the vanilla default water colour until
+ * {@link Block.TintTarget#WATER} is wired; the override path works today.</li>
  * </ul>
- * Usage: {@code ./gradlew :asset-renderer:fluidRenderer}.
+ * <p>
+ * Usage: {@code ./gradlew :asset-renderer:fluidRenderer}. Takes no {@code -P} flags; sizes are
+ * fixed at {@link #STATIC_SIZE} / {@link #ANIMATED_SIZE}.
  */
 @UtilityClass
 public final class TestFluidRenderer {
@@ -113,7 +120,7 @@ public final class TestFluidRenderer {
             .flowAngleRadians(Optional.of((float) Math.toRadians(45)))
             .build());
 
-        // Biome tint. Until Biome.TintTarget.WATER ships these will all render at the vanilla
+        // Biome tint. Until Block.TintTarget.WATER ships these will all render at the vanilla
         // default water colour; only the override variant differs.
         render(renderer, imageFactory, "water_plains", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)

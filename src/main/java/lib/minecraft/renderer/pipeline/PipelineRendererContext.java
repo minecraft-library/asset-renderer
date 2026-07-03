@@ -15,18 +15,18 @@ import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.Texture;
 import lib.minecraft.renderer.asset.TexturePack;
+import lib.minecraft.renderer.asset.rule.CitMatcher;
+import lib.minecraft.renderer.asset.rule.CitRule;
+import lib.minecraft.renderer.asset.rule.CtmMatcher;
+import lib.minecraft.renderer.asset.rule.CtmResolution;
+import lib.minecraft.renderer.asset.rule.CtmRule;
+import lib.minecraft.renderer.asset.rule.ItemContext;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.pipeline.loader.BlockIndexLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockTintsLoader;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.pipeline.loader.ItemIndexLoader;
-import lib.minecraft.renderer.pipeline.pack.CitMatcher;
-import lib.minecraft.renderer.pipeline.pack.CitRule;
-import lib.minecraft.renderer.pipeline.pack.CtmMatcher;
-import lib.minecraft.renderer.pipeline.pack.CtmResolution;
-import lib.minecraft.renderer.pipeline.pack.CtmRule;
-import lib.minecraft.renderer.pipeline.pack.ItemContext;
 import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lib.minecraft.renderer.tooling.ToolingColorMaps;
 import lombok.RequiredArgsConstructor;
@@ -53,7 +53,7 @@ import java.util.Optional;
  * unmodifiable indexes and serves lookups.
  * <p>
  * Biome colormaps and per-block tint targets are wired through to render time by
- * {@link ToolingColorMaps.Parser} and {@link BlockTintsLoader}; the lazy {@code textureCache} is
+ * {@code ToolingColorMaps.Parser} and {@link BlockTintsLoader}; the lazy {@code textureCache} is
  * the only mutable map on the context.
  */
 @RequiredArgsConstructor
@@ -74,6 +74,12 @@ public final class PipelineRendererContext implements RendererContext {
     private final @NotNull ConcurrentList<CtmRule> ctmRules;
 
     private final @NotNull ImageFactory imageFactory = new ImageFactory();
+
+    /**
+     * Per-context memoisation cache of decoded {@link PixelBuffer}s keyed by normalised texture id,
+     * populated lazily on the first {@link #resolveTexture(String)} for each texture. The only
+     * mutable state on the context.
+     */
     private final @NotNull ConcurrentMap<String, PixelBuffer> textureCache = Concurrent.newMap();
 
     /**
@@ -139,11 +145,20 @@ public final class PipelineRendererContext implements RendererContext {
             .toUnmodifiable();
     }
 
+    /** {@inheritDoc} */
     @Override
     public @NotNull Optional<TexturePack> findPack(@NotNull String id) {
         return Optional.ofNullable(this.packs.get(id));
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Bare texture ids are namespaced to {@code minecraft:} first. Returns the memoised buffer on a
+     * cache hit; otherwise reads the owning pack's asset roots in ascending order (last existing
+     * candidate wins), decodes it once, and caches it. Empty when the id is unknown, its owning pack
+     * is not registered, or the file is absent from every root.
+     */
     @Override
     public @NotNull Optional<PixelBuffer> resolveTexture(@NotNull String textureId) {
         String normalized = textureId.contains(":") ? textureId : VanillaSourcePaths.MINECRAFT_NAMESPACE + textureId;
@@ -173,26 +188,36 @@ public final class PipelineRendererContext implements RendererContext {
         return Optional.of(buffer);
     }
 
+    /** {@inheritDoc} */
     @Override
     public @NotNull Optional<ColorMap> findColorMap(@NotNull ColorMap.Type type) {
         return this.colorMaps.getOptional(type);
     }
 
+    /** {@inheritDoc} */
     @Override
     public @NotNull Optional<Block> findBlock(@NotNull String id) {
         return this.blockIndex.getOptional(id);
     }
 
+    /** {@inheritDoc} */
     @Override
     public @NotNull Optional<Item> findItem(@NotNull String id) {
         return this.itemIndex.getOptional(id);
     }
 
+    /** {@inheritDoc} */
     @Override
     public @NotNull Optional<Entity> findEntity(@NotNull String id) {
         return this.entityIndex.getOptional(id);
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Bare texture ids are namespaced to {@code minecraft:} first, then the texture's parsed
+     * {@code .mcmeta} animation sidecar is forwarded.
+     */
     @Override
     public @NotNull Optional<AnimationData> findAnimation(@NotNull String textureId) {
         String normalized = textureId.contains(":") ? textureId : VanillaSourcePaths.MINECRAFT_NAMESPACE + textureId;
@@ -200,6 +225,12 @@ public final class PipelineRendererContext implements RendererContext {
         return texture == null ? Optional.empty() : texture.getAnimation();
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Sorted by {@link #primaryTag(String) primary tag} (most-specific tag, or material prefix
+     * fallback) then id, both case-insensitive, so semantically related blocks cluster in atlas output.
+     */
     @Override
     public @NotNull ConcurrentList<String> knownBlockIds() {
         ArrayList<String> ids = new ArrayList<>(this.blockIndex.keySet());
@@ -212,6 +243,11 @@ public final class PipelineRendererContext implements RendererContext {
         return Concurrent.adoptList(ids);
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Sorted by {@link #idPrefix(String) material prefix} then id, both case-insensitive.
+     */
     @Override
     public @NotNull ConcurrentList<String> knownItemIds() {
         ArrayList<String> ids = new ArrayList<>(this.itemIndex.keySet());
@@ -222,31 +258,42 @@ public final class PipelineRendererContext implements RendererContext {
         return Concurrent.adoptList(ids);
     }
 
+    /** {@inheritDoc} */
     @Override
     public @NotNull Optional<Integer> findPotionEffectColor(@NotNull String effectId) {
         return this.potionEffectColors.getOptional(effectId);
     }
 
+    /** {@inheritDoc} */
     @Override
     public @NotNull Optional<BannerPattern> findBannerPattern(@NotNull String patternId) {
         return this.bannerPatterns.getOptional(patternId);
     }
 
+    /** {@inheritDoc} */
     @Override
     public @NotNull ConcurrentList<BannerPattern> knownBannerPatterns() {
         return Concurrent.adoptList(new ArrayList<>(this.bannerPatterns.values()));
     }
 
+    /** {@inheritDoc} */
     @Override
     public @NotNull Optional<Block.Entity> findBlockEntityEntry(@NotNull String blockId) {
         return this.blockEntities.getOptional(blockId);
     }
 
+    /** {@inheritDoc} */
     @Override
     public @NotNull Optional<Integer> findColorOverride(@NotNull String key) {
         return this.colorOverrides.getOptional(key);
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Walks the weight-sorted CIT rule list and returns the first rule whose
+     * {@link CitMatcher} predicate accepts the context.
+     */
     @Override
     public @NotNull Optional<String> resolveItemTextureOverride(@NotNull ItemContext context) {
         for (CitRule rule : this.citRules) {
@@ -257,6 +304,12 @@ public final class PipelineRendererContext implements RendererContext {
         return Optional.empty();
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Walks the weight-sorted CTM rule list and returns the first matching rule's resolution
+     * (skipping rules that match on {@code appliesTo} but produce no {@link CtmResolution}).
+     */
     @Override
     public @NotNull Optional<CtmResolution> resolveCtm(
         @NotNull String blockId,

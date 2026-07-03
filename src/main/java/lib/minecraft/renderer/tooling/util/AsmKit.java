@@ -31,17 +31,26 @@ import java.util.zip.ZipFile;
  * ({@code ToolingBlockTints}, {@code ToolingPotionColors}, {@code ToolingBlockModels},
  * plus the {@code blockentity} and {@code entity} sub-package resolvers).
  *
- * <p>The kit owns four families of primitives:
+ * <p>The kit owns these families of primitives:
  * <ul>
  *   <li><b>Class / member loading</b> - jar entry to {@link ClassNode}, name and descriptor
  *       method / field lookups (including superclass-chain variants), throwing {@code require*}
  *       variants for callers that want a tooling-canonical "obfuscated or unsupported version"
- *       error instead of a null return.</li>
+ *       error instead of a null return, plus {@link #findEnumDefaultName findEnumDefaultName}
+ *       for the {@code GETSTATIC value; PUTSTATIC DEFAULT} enum-default idiom. Cache-backed
+ *       overloads route through {@link ClassNodeCache} to share parses across resolver passes.</li>
+ *   <li><b>Class-hierarchy walks</b> - {@link #walkConstructorChain walkConstructorChain},
+ *       {@link #walkSuperChain walkSuperChain}, and {@link #extendsClass extendsClass}, each
+ *       stopping before {@link #OBJECT_INTERNAL java/lang/Object}, with plain-{@link ZipFile}
+ *       and {@link ClassNodeCache} variants.</li>
  *   <li><b>Literal decoding</b> - turn {@code ICONST_*} / {@code BIPUSH} / {@code SIPUSH} /
  *       {@code LDC} bytecode literal pushes back into boxed {@link Integer} / {@link Long} /
- *       {@link Float} / {@link Double} / {@link String} / {@link Type} values; plus a
- *       {@link LiteralStack} retention class for parsers that need to remember the last N
- *       pushes across intervening instructions.</li>
+ *       {@link Float} / {@link Double} / {@link String} / {@link Type} values, plus the
+ *       type-dispatching {@link #readAnyLiteral readAnyLiteral}.</li>
+ *   <li><b>Descriptor utilities</b> - {@link #descriptorReturns descriptorReturns},
+ *       {@link #argSlotCount argSlotCount}, {@link #argTypes argTypes},
+ *       {@link #returnType returnType}, and {@link #internalNameOfRef internalNameOfRef}
+ *       for reading method / field descriptors without allocating intermediate strings.</li>
  *   <li><b>Instruction predicates</b> - {@code isInvokeStatic} / {@code isInvokeVirtual} /
  *       {@code isInvokeSpecial} / {@code isInvokeInterface} (with optional descriptor match),
  *       {@code isGetStatic} / {@code isPutStatic} / {@code isGetField} / {@code isPutField}
@@ -49,14 +58,37 @@ import java.util.zip.ZipFile;
  *       {@code isLambdaInvokeDynamic}, and the {@link #isPseudoNode(AbstractInsnNode)
  *       isPseudoNode} / {@link #previousReal(AbstractInsnNode) previousReal} /
  *       {@link #nextReal(AbstractInsnNode) nextReal} skip helpers.</li>
- *   <li><b>Traversal walkers</b> - {@link #walkConstructorChain walkConstructorChain},
- *       {@link #walkSuperChain walkSuperChain}, {@link #extendsClass extendsClass},
- *       {@link #findPreceding findPreceding}, {@link #findFollowingPutStatic
- *       findFollowingPutStatic}, {@link #containsInvoke(MethodNode, int, String, String)
- *       containsInvoke}, {@link #containsFieldOp containsFieldOp}, plus the lambda
- *       metafactory helpers {@link #extractLambdaHandle extractLambdaHandle},
+ *   <li><b>Method-body traversal</b> - {@link #findPreceding findPreceding},
+ *       {@link #findFollowingPutStatic findFollowingPutStatic},
+ *       {@link #containsInvoke(MethodNode, int, String, String) containsInvoke}, and
+ *       {@link #containsFieldOp containsFieldOp}.</li>
+ *   <li><b>Static array initializer readers</b> - {@link #readStaticIntArray1D
+ *       readStaticIntArray1D} / {@link #readStaticIntArray2D readStaticIntArray2D} /
+ *       {@link #readStaticFloatArray1D readStaticFloatArray1D} recover a
+ *       {@code static final} primitive array's contents from its {@code <clinit>} initializer
+ *       shape.</li>
+ *   <li><b>Integer for-loop detection</b> - {@link #detectIntForLoop detectIntForLoop} matches
+ *       the canonical javac {@code for (int i = INIT; i < BOUND; i += STEP)} scaffold into an
+ *       {@link IntForLoop} record, with {@link #evaluateIntComparison evaluateIntComparison} for
+ *       static branch resolution.</li>
+ *   <li><b>Lambda metafactory helpers</b> - {@link #extractLambdaHandle extractLambdaHandle},
  *       {@link #resolveLambdaTargetClass resolveLambdaTargetClass}, and
- *       {@link #walkLambdaBody walkLambdaBody}.</li>
+ *       {@link #walkLambdaBody walkLambdaBody} recover the target class of a {@code javac}
+ *       lambda call site.</li>
+ *   <li><b>String-concatenation helpers</b> - {@link #resolveStringConcatRecipe
+ *       resolveStringConcatRecipe} / {@link #applyStringConcatRecipeWithInt
+ *       applyStringConcatRecipeWithInt} / {@link #findStringConcatRecipeIn findStringConcatRecipeIn}
+ *       decode {@code makeConcatWithConstants} indy recipes for procedural-loop part naming.</li>
+ *   <li><b>Generic-signature parsing</b> - {@link #extractGenericTypeParameter
+ *       extractGenericTypeParameter} pulls the single concrete type parameter out of an
+ *       {@code Outer<LInner;>} field signature.</li>
+ *   <li><b>Diagnostic formatters</b> - {@code diagMissingClass} / {@code diagMissingMethod} /
+ *       {@code diagMissingField} / {@code diagUnexpectedPattern} emit canonical {@code WARN}
+ *       entries to a {@link Diagnostics} sink so degraded-parse warnings share one phrasing.</li>
+ *   <li><b>Retention / state classes</b> - {@link LiteralStack} accumulates recent literal
+ *       pushes so a builder-dispatch instruction can pop them in LIFO order, and
+ *       {@link SlotTracker} models the {@code ASTORE n} / {@code ALOAD n} local-variable dance
+ *       for parsers that must remember a slot's value across intervening instructions.</li>
  * </ul>
  *
  * <p>None of the helpers here know about the vanilla semantic patterns the callers are
@@ -76,8 +108,11 @@ public final class AsmKit {
 
     /**
      * The {@code java.lang.Object} JVM internal name. Used as the canonical stop sentinel for
-     * superclass-chain walks ({@link #walkSuperChain}, {@link #walkConstructorChain},
-     * {@link #extendsClass}, {@link #findMethodInHierarchy}, {@link #findFieldInHierarchy}).
+     * the superclass-chain walks that never want to visit {@code Object}:
+     * {@link #walkSuperChain}, {@link #walkConstructorChain} (via {@code walkSuperChain}), and
+     * {@link #extendsClass}. The {@code *InHierarchy} lookups
+     * ({@link #findMethodInHierarchy}, {@link #findFieldInHierarchy}) instead walk to a
+     * {@code null} superName and do not special-case this name.
      */
     public static final @NotNull String OBJECT_INTERNAL = "java/lang/Object";
 
@@ -211,9 +246,15 @@ public final class AsmKit {
 
     /**
      * Looks up a method by (class, name, descriptor), walking the superclass chain as the
-     * JVM would for {@code invokestatic} / {@code invokevirtual} resolution. Returns
-     * {@code null} when the method isn't found anywhere in the hierarchy or when any link
-     * of the chain can't be loaded from the jar.
+     * JVM would for {@code invokestatic} / {@code invokevirtual} resolution. The walk follows
+     * {@code superName} until it hits {@code null} (top of the hierarchy) - unlike
+     * {@link #walkSuperChain} it does not stop early at {@link #OBJECT_INTERNAL}, so a jar that
+     * actually contains {@code Object} would have it searched. Returns {@code null} when the
+     * method isn't found anywhere in the hierarchy or when any link of the chain can't be
+     * loaded.
+     *
+     * <p>Reads each class inline rather than via {@link #loadClass}, so an {@link IOException}
+     * mid-walk resolves to a {@code null} return rather than a {@link ToolingException} throw.
      *
      * @param zip the jar to read from
      * @param startInternalName the class to begin the walk at (that class and all its ancestors are searched)
@@ -337,8 +378,12 @@ public final class AsmKit {
 
     /**
      * Looks up a field by (class, name), walking the superclass chain as the JVM would for
-     * field resolution. Returns {@code null} when the field isn't found anywhere in the
-     * hierarchy or when any link of the chain can't be loaded from the jar.
+     * field resolution. The walk follows {@code superName} until it hits {@code null}; like
+     * {@link #findMethodInHierarchy} (and unlike {@link #walkSuperChain}) it does not stop
+     * early at {@link #OBJECT_INTERNAL}. Loads each link via {@link #loadClass}, so a jar-read
+     * failure surfaces as a {@link ToolingException} rather than a {@code null} return. Returns
+     * {@code null} when the field isn't found anywhere in the hierarchy or when a link is
+     * missing from the jar.
      *
      * @param zip the jar to read from
      * @param startInternalName the class to begin the walk at
@@ -1311,13 +1356,20 @@ public final class AsmKit {
     }
 
     /**
+     * A {@code NEWARRAY} instruction paired with the array length its preceding literal push
+     * declared.
+     *
+     * @param newArrayNode the {@code NEWARRAY} instruction node
+     * @param length the array length read from the literal immediately before {@code newArrayNode}
+     */
+    private record PrimitiveNewArray(@NotNull AbstractInsnNode newArrayNode, int length) {}
+
+    /**
      * Walks backward from {@code putstatic} for the first {@code NEWARRAY <newArrayOperand>}
      * instruction and returns it paired with the preceding length literal. Returns
      * {@code null} when no matching NEWARRAY is found, the length is missing, or the length
      * is non-literal / negative.
      */
-    private record PrimitiveNewArray(@NotNull AbstractInsnNode newArrayNode, int length) {}
-
     private static @Nullable PrimitiveNewArray findPrimitiveNewArrayBefore(@NotNull FieldInsnNode putstatic, int newArrayOperand) {
         for (AbstractInsnNode cursor = putstatic.getPrevious(); cursor != null; cursor = cursor.getPrevious()) {
             if (isPseudoNode(cursor)) continue;
@@ -1338,6 +1390,15 @@ public final class AsmKit {
      */
     @FunctionalInterface
     private interface DupStoreEntryHandler {
+
+        /**
+         * Handles one {@code (DUP; idx; value; storeOpcode)} entry.
+         *
+         * @param idx the array index this entry writes to (already bounds-checked against the
+         *     declared length)
+         * @param valueNode the instruction that pushes the value being stored
+         * @return {@code true} to continue the walk, {@code false} to abort (non-literal / malformed value)
+         */
         boolean handleEntry(int idx, @NotNull AbstractInsnNode valueNode);
     }
 

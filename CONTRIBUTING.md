@@ -255,7 +255,7 @@ lib.minecraft.renderer/
 ├── Renderer.java          # Root contract: Renderer<O> -> ImageData
 ├── <Name>Renderer.java    # One top-level renderer per subject
 ├── asset/                 # Immutable domain (Block, Item, Entity, textures, models)
-├── engine/                # IsometricEngine, RasterEngine, ModelEngine, TextureEngine
+├── engine/                # ModelEngine, RasterEngine + camera/ light/ texture/ subsystems
 ├── exception/             # RendererException + specializations
 ├── geometry/              # Projection math, boxes, faces, biome tint logic
 ├── kit/                   # Reusable drawing helpers (glint, banners, stack counts, ...)

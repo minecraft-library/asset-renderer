@@ -4,25 +4,26 @@ import api.simplified.mojang.exception.MojangApiException;
 import api.simplified.mojang.response.MojangProfile;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.codec.gif.GifImageWriter;
 import dev.simplified.image.codec.gif.GifWriteOptions;
 import lib.minecraft.renderer.PlayerRenderer;
-import lib.minecraft.renderer.appearance.ArmorMaterial;
-import lib.minecraft.renderer.appearance.ArmorPiece;
-import lib.minecraft.renderer.appearance.ArmorTrim;
+import lib.minecraft.renderer.engine.camera.Facing;
+import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.geometry.EulerRotation;
 import lib.minecraft.renderer.options.PlayerOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.util.PackDownloader;
-import dev.simplified.image.Background;
+import lib.minecraft.renderer.request.ArmorMaterial;
+import lib.minecraft.renderer.request.ArmorPiece;
+import lib.minecraft.renderer.request.ArmorTrim;
+import lib.minecraft.renderer.request.EulerRotation;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
-import javax.imageio.ImageIO;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
@@ -40,6 +41,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import javax.imageio.ImageIO;
 
 /**
  * Visual sweep of every {@link PlayerRenderer} option, written as labelled contact sheets to
@@ -48,7 +50,8 @@ import java.util.Optional;
  * separate effort and out of scope (see {@code notes/player-parity.md}).
  *
  * <p>Each sheet is a grid of labelled cells over a checkerboard (so transparent renders stay
- * visible). The sweep covers the scope x dimension grid, the overlay / cape / supersample+FXAA /
+ * visible). The sweep covers the scope x dimension grid, the player head in 3D under every
+ * {@link lib.minecraft.renderer.engine.camera.Projection}, the overlay / cape / supersample+FXAA /
  * rotation / background toggles, every armor material on every slot (2D and 3D), dyed leather, a
  * representative trim set, a vanilla-vs-pack armor comparison (with {@code -Ppack}), and a live
  * {@code account} sheet that renders a real player's skin + cape from their Mojang profile. The
@@ -89,7 +92,8 @@ public final class TestPlayerRender {
      *
      * @param args optional {@code key=value} tokens: {@code size=NNN} (or a bare integer) sets the
      *     per-cell render size; {@code sheets=a,b,c} restricts which sheets render; {@code pack} (or
-     *     {@code pack=<url>}) enables the vanilla-vs-pack armor sheet
+     *     {@code pack=<url>}) enables the vanilla-vs-pack armor sheet; {@code account=<username>}
+     *     overrides the live-account username (defaults to {@link #ACCOUNT_USERNAME})
      * @throws IOException if an output directory or file cannot be written
      */
     public static void main(String @NotNull [] args) throws IOException {
@@ -106,6 +110,8 @@ public final class TestPlayerRender {
 
         Map<String, List<Cell>> sheets = new LinkedHashMap<>();
         sheets.put("core-matrix", coreMatrix(size));
+        sheets.put("projections", projections(size));
+        sheets.put("facing", facing(size));
         sheets.put("toggles", toggles(size));
         sheets.put("armor-3d", armorMaterials(size, PlayerOptions.Dimension.THREE_D));
         sheets.put("armor-2d", armorMaterials(size, PlayerOptions.Dimension.TWO_D));
@@ -149,6 +155,39 @@ public final class TestPlayerRender {
         for (PlayerOptions.Type type : PlayerOptions.Type.values())
             for (PlayerOptions.Dimension dim : PlayerOptions.Dimension.values())
                 cells.add(new Cell(type + " " + dim, base(size).type(type).dimension(dim).build()));
+        return cells;
+    }
+
+    /**
+     * The player head (SKULL) rendered in 3D under every {@link Projection} - one cell per catalog
+     * entry, so each camera pose + lens resolves and rasterizes. A functional check that the whole
+     * projection taxonomy is wired end to end; the head is the smallest scope that still shows top /
+     * front / side faces, making pose and clipping issues obvious.
+     */
+    private static @NotNull List<Cell> projections(int size) {
+        List<Cell> cells = new ArrayList<>();
+        for (Projection projection : Projection.values())
+            cells.add(new Cell(projection.name().toLowerCase(),
+                base(size).type(PlayerOptions.Type.SKULL).dimension(PlayerOptions.Dimension.THREE_D)
+                    .projection(projection).build()));
+        return cells;
+    }
+
+    /**
+     * The {@link Facing} view toggles: the head under {@link Projection#PORTRAIT} for each of the four
+     * mirrored / flipped combinations, then {@link Projection#CAVALIER} default vs mirrored - the oblique
+     * case that only mirrors via the lens shear flip (its yaw-180 pose makes {@code 360 - yaw} a no-op).
+     */
+    private static @NotNull List<Cell> facing(int size) {
+        List<Cell> cells = new ArrayList<>();
+        for (Facing f : new Facing[]{Facing.DEFAULT, Facing.MIRRORED, Facing.FLIPPED, Facing.MIRRORED_FLIPPED})
+            cells.add(new Cell("portrait " + (f.mirrored() ? "M" : "-") + (f.flipped() ? "F" : "-"),
+                base(size).type(PlayerOptions.Type.SKULL).dimension(PlayerOptions.Dimension.THREE_D)
+                    .projection(Projection.PORTRAIT).facing(f).build()));
+        cells.add(new Cell("cavalier default", base(size).type(PlayerOptions.Type.SKULL)
+            .dimension(PlayerOptions.Dimension.THREE_D).projection(Projection.CAVALIER).build()));
+        cells.add(new Cell("cavalier mirrored", base(size).type(PlayerOptions.Type.SKULL)
+            .dimension(PlayerOptions.Dimension.THREE_D).projection(Projection.CAVALIER).facing(Facing.MIRRORED).build()));
         return cells;
     }
 
@@ -573,7 +612,14 @@ public final class TestPlayerRender {
             }
     }
 
-    /** A single labelled grid cell - either a deferred {@link PlayerOptions} or a rendered image. */
+    /**
+     * A single labelled grid cell - either a deferred {@link PlayerOptions} (rendered later during
+     * sheet assembly) or an already-rendered image.
+     *
+     * @param label caption drawn beneath the cell and used to derive its PNG filename
+     * @param options render request to execute, or {@code null} when the cell holds a pre-rendered image
+     * @param image pre-rendered image, or {@code null} when the cell defers to {@code options}
+     */
     private record Cell(@NotNull String label, PlayerOptions options, BufferedImage image) {
         Cell(@NotNull String label, @NotNull PlayerOptions options) {
             this(label, options, null);

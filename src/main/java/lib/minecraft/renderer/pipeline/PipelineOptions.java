@@ -31,7 +31,9 @@ public class PipelineOptions {
     private final @NotNull File cacheRoot = new File("cache/asset-renderer");
 
     /**
-     * Additional texture pack directories or zip files to load on top of vanilla.
+     * Additional texture pack directories or zip files to load on top of vanilla, in ascending
+     * priority order - later entries win overlay merges. Each is assigned a render priority of
+     * {@code 1..N} (vanilla is {@code 0}) and materialised through the pack acquirer during a run.
      */
     @lombok.Builder.Default
     private final @NotNull ConcurrentList<File> texturePacks = Concurrent.newList();
@@ -42,10 +44,22 @@ public class PipelineOptions {
     @lombok.Builder.Default
     private final boolean forceDownload = false;
 
+    /**
+     * Opens a pre-populated builder seeded with this instance's field values for deriving a
+     * variant configuration.
+     *
+     * @return a builder copy of these options
+     */
     public @NotNull PipelineOptionsBuilder mutate() {
         return this.toBuilder();
     }
 
+    /**
+     * Builds an options instance with every field at its default (version {@code 26.1}, cache
+     * root {@code ./cache/asset-renderer}, no extra texture packs, no forced re-download).
+     *
+     * @return the default options
+     */
     public static @NotNull PipelineOptions defaults() {
         return builder().build();
     }

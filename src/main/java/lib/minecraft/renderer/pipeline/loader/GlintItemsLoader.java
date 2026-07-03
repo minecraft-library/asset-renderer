@@ -25,7 +25,7 @@ import java.util.HashSet;
  * <p>
  * The JSON resource is a checked-in snapshot of MC 26.1's
  * {@code net.minecraft.world.item.Items} static initializer as parsed by
- * {@link ToolingGlintItems.Parser} - the items registered with the default data component
+ * {@link ToolingGlintItems} {@code .Parser} - the items registered with the default data component
  * {@code minecraft:enchantment_glint_override = true}. To refresh it on a Minecraft version bump,
  * run the {@code glintItems} Gradle task; the runtime pipeline never invokes the ASM walker directly.
  * <p>
@@ -35,7 +35,14 @@ import java.util.HashSet;
 @UtilityClass
 public class GlintItemsLoader {
 
+    /**
+     * Classpath location of the bundled always-glinted item snapshot.
+     */
     private static final @NotNull String RESOURCE_PATH = "/lib/minecraft/renderer/glint_items.json";
+
+    /**
+     * Shared Gson configured with the project defaults, used to parse the item set.
+     */
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**
@@ -57,10 +64,12 @@ public class GlintItemsLoader {
     }
 
     /**
-     * Parses a {@code glint_items.json}-shaped string into the id set. Exposed for tests.
+     * Parses a {@code glint_items.json}-shaped string into the id set. A missing {@code items}
+     * array yields an empty set. Exposed for tests.
      *
      * @param json the JSON text to parse
      * @return the set of namespaced item ids, unmodifiable
+     * @throws PipelineException if the JSON is malformed
      */
     static @NotNull ConcurrentSet<String> parse(@NotNull String json) {
         HashSet<String> ids = new HashSet<>();

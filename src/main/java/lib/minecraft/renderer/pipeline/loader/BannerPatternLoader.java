@@ -19,20 +19,27 @@ import java.util.stream.Stream;
 
 /**
  * A loader that reads vanilla banner pattern JSON files from
- * {@code data/minecraft/banner_pattern/} and produces {@link BannerPattern} entries for every
- * pattern in the registry. Banner and shield pattern rendering share the same registry since
- * 1.19.4.
+ * {@code data/minecraft/banner_pattern/} and produces one {@link BannerPattern} entry per pattern
+ * file that carries an {@code asset_id}. Banner and shield pattern rendering share the same
+ * registry since 1.19.4.
  * <p>
  * Each pattern file is a two-field JSON object:
- * <pre>
+ * <pre>{@code
  * { "asset_id": "minecraft:creeper", "translation_key": "block.minecraft.banner.creeper" }
- * </pre>
- * The loader derives the pattern id from the file path relative to the registry root, matching
- * how the vanilla registry keys patterns.
+ * }</pre>
+ * The loader derives the pattern id from the file path relative to the registry root (with the
+ * {@code minecraft:} namespace prepended), matching how the vanilla registry keys patterns. Files
+ * that fail to parse or lack an {@code asset_id} are skipped; a missing {@code translation_key}
+ * defaults to the empty string.
+ *
+ * @see BannerPattern
  */
 @UtilityClass
 public class BannerPatternLoader {
 
+    /**
+     * Shared Gson configured with the project defaults, used to parse pattern files.
+     */
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**
@@ -63,7 +70,11 @@ public class BannerPatternLoader {
     /**
      * Scans one asset root's {@code data/minecraft/banner_pattern/} subtree and merges its
      * pattern entries into the running map. Caller provides the map so multiple roots can layer
-     * later-wins without intermediate copies.
+     * later-wins without intermediate copies. No-op when the subtree is absent.
+     *
+     * @param packRoot the extracted pack root to scan
+     * @param result the running map that accumulates parsed patterns across roots
+     * @throws RuntimeException if the pattern directory cannot be walked
      */
     private static void scanRoot(@NotNull Path packRoot, @NotNull HashMap<String, BannerPattern> result) {
         Path patternDir = packRoot.resolve("data/minecraft/banner_pattern");
@@ -78,6 +89,18 @@ public class BannerPatternLoader {
         }
     }
 
+    /**
+     * Parses a single pattern file and stores the resulting {@link BannerPattern} under its
+     * derived registry id. The id is the file path relative to {@code patternDir} (with backslashes
+     * normalised, the {@code .json} suffix stripped, and the {@code minecraft:} namespace prepended).
+     * Files with no {@code asset_id} field are skipped silently; a missing {@code translation_key}
+     * yields the empty string.
+     *
+     * @param patternDir the registry root the file is relativized against for id derivation
+     * @param file the pattern JSON file to parse
+     * @param result the running map that receives the parsed entry
+     * @throws RuntimeException if the file cannot be read
+     */
     private static void parsePattern(
         @NotNull Path patternDir,
         @NotNull Path file,

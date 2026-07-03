@@ -24,12 +24,12 @@ import java.util.Optional;
 public class ModelElement {
 
     /**
-     * The minimum corner in 0-16 space {@code [x, y, z]}.
+     * The box's minimum corner in 0-16 model space, as {@code [x, y, z]}.
      */
     private float @NotNull [] from = new float[]{ 0f, 0f, 0f };
 
     /**
-     * The maximum corner in 0-16 space {@code [x, y, z]}.
+     * The box's maximum corner in 0-16 model space, as {@code [x, y, z]}.
      */
     private float @NotNull [] to = new float[]{ 16f, 16f, 16f };
 
@@ -75,10 +75,10 @@ public class ModelElement {
      * Element-level rotation applied before the face UV projection. Matches vanilla's
      * {@code elements[i].rotation} schema.
      *
-     * @param origin the rotation pivot in 0-16 space
-     * @param axis the rotation axis: {@code "x"}, {@code "y"}, or {@code "z"}
-     * @param angle the rotation angle in degrees: one of {@code -45}, {@code -22.5}, {@code 0}, {@code 22.5}, {@code 45}
-     * @param rescale whether to rescale the element to preserve its footprint after rotation
+     * @param origin the rotation pivot in 0-16 space, as {@code [x, y, z]}
+     * @param axis the rotation axis, one of {@code "x"}, {@code "y"}, or {@code "z"}
+     * @param angle the rotation angle in degrees, one of {@code -45}, {@code -22.5}, {@code 0}, {@code 22.5}, {@code 45}
+     * @param rescale whether the element is rescaled to preserve its footprint after rotation
      */
     public record ElementRotation(
         float @NotNull [] origin,

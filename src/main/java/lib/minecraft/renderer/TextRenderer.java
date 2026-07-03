@@ -5,9 +5,11 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.engine.RenderEngine;
-import lib.minecraft.renderer.kit.ObfuscationKit;
-import lib.minecraft.renderer.kit.TextKit;
+import lib.minecraft.renderer.engine.compose.Frames;
+import lib.minecraft.renderer.engine.compose.ImageLayer;
+import lib.minecraft.renderer.engine.compose.LayerStack;
+import lib.minecraft.renderer.engine.kit.ObfuscationKit;
+import lib.minecraft.renderer.engine.kit.TextKit;
 import lib.minecraft.renderer.options.TextOptions;
 import lib.minecraft.text.ChatColor;
 import lib.minecraft.text.ColorSegment;
@@ -63,12 +65,16 @@ public final class TextRenderer implements Renderer<TextOptions> {
      */
     private static final int LORE_GAP_MCPX = 2;
 
+    /**
+     * Default glyph colour for text segments that carry no explicit colour - vanilla lore grey.
+     */
     private static final int DEFAULT_COLOR_ARGB = ChatColor.Legacy.GRAY.rgb();
 
+    /** {@inheritDoc} */
     @Override
     public @NotNull ImageData render(@NotNull TextOptions options) {
         if (options.getLines().isEmpty())
-            return RenderEngine.wrapFrames(singleFrame(1, 1, ColorMath.TRANSPARENT), 0);
+            return Frames.wrapFrames(singleFrame(1, 1, ColorMath.TRANSPARENT), 0);
 
         boolean isLore = options.getStyle() == TextOptions.Style.LORE;
         boolean animated = hasObfuscation(options.getLines());
@@ -85,16 +91,29 @@ public final class TextRenderer implements Renderer<TextOptions> {
         int canvasHMcPx = linesHeightMcPx + padMcPx * 2 + loreGapMcPx;
 
         if (!animated)
-            return RenderEngine.wrapFrames(drawSingleFrame(options, canvasWMcPx, canvasHMcPx, 0L), 0);
+            return Frames.wrapFrames(drawSingleFrame(options, canvasWMcPx, canvasHMcPx, 0L), 0);
 
         ConcurrentList<PixelBuffer> frames = Concurrent.newList();
         for (int frameIndex = 0; frameIndex < options.getFrameCount(); frameIndex++)
             frames.addAll(drawSingleFrame(options, canvasWMcPx, canvasHMcPx, frameIndex));
 
         int delayMs = Math.max(1, Math.round(1000f / options.getFramesPerSecond()));
-        return RenderEngine.wrapFrames(frames, delayMs);
+        return Frames.wrapFrames(frames, delayMs);
     }
 
+    /**
+     * Draws one frame at the given mcPixel canvas dimensions. Composes an ordered
+     * {@link LayerStack} of the tooltip background + gradient border (LORE style only) and the
+     * glyph rows, then applies the caller's {@link TextOptions#getLayerDecorator() layer decorator}
+     * before flattening onto a single buffer. The {@code frameSeed} drives the per-frame
+     * obfuscation substitution so each animation frame shows a fresh scramble.
+     *
+     * @param options the text render options
+     * @param canvasWMcPx the canvas width in mcPixels
+     * @param canvasHMcPx the canvas height in mcPixels
+     * @param frameSeed the obfuscation seed for this frame
+     * @return a single-element list holding the drawn frame buffer
+     */
     private static @NotNull ConcurrentList<PixelBuffer> drawSingleFrame(
         @NotNull TextOptions options,
         int canvasWMcPx,
@@ -108,22 +127,29 @@ public final class TextRenderer implements Renderer<TextOptions> {
         int h = canvasHMcPx * MinecraftFont.MC_PIXEL_SCALE;
         PixelBuffer buffer = PixelBuffer.create(w, h);
 
+        // Compose the frame as an ordered ImageLayer stack: tooltip background + border (LORE only),
+        // then the glyph rows. Callers can splice passes via TextOptions.layerDecorator. The
+        // obfuscation animation stays the renderer's per-frame loop - the TEXT layer captures the seed.
+        LayerStack<ImageLayer> stack = new LayerStack<>();
         if (isLore) {
-            int bgAlpha = Math.clamp(options.getBackgroundAlpha(), 0, 255);
+            int bgArgb = (Math.clamp(options.getBackgroundAlpha(), 0, 255) << 24) | VANILLA_TOOLTIP_BG_RGB;
             int borderAlpha = Math.clamp(options.getBorderAlpha(), 0, 255);
-            buffer.fill((bgAlpha << 24) | VANILLA_TOOLTIP_BG_RGB);
-            drawGradientBorder(buffer, w, h, borderAlpha);
+            stack.append(TextOptions.Slot.BACKGROUND, frame -> frame.fill(bgArgb));
+            stack.append(TextOptions.Slot.BORDER, frame -> drawGradientBorder(frame, w, h, borderAlpha));
         }
+        stack.append(TextOptions.Slot.TEXT, frame -> {
+            MinecraftGraphics g = new MinecraftGraphics(frame);
+            int baselineMcPx = padMcPx + MinecraftFont.REGULAR.getFontMetrics().getAscentMcPixels();
+            for (int i = 0; i < options.getLines().size(); i++) {
+                TextKit.drawLine(g, options.getLines().get(i), padMcPx, baselineMcPx, DEFAULT_COLOR_ARGB, frameSeed);
+                baselineMcPx += LINE_HEIGHT_MCPX;
+                if (isLore && i == 0)
+                    baselineMcPx += LORE_GAP_MCPX;
+            }
+        });
 
-        MinecraftGraphics g = new MinecraftGraphics(buffer);
-        int baselineMcPx = padMcPx + MinecraftFont.REGULAR.getFontMetrics().getAscentMcPixels();
-
-        for (int i = 0; i < options.getLines().size(); i++) {
-            TextKit.drawLine(g, options.getLines().get(i), padMcPx, baselineMcPx, DEFAULT_COLOR_ARGB, frameSeed);
-            baselineMcPx += LINE_HEIGHT_MCPX;
-            if (isLore && i == 0)
-                baselineMcPx += LORE_GAP_MCPX;
-        }
+        for (ImageLayer layer : options.getLayerDecorator().apply(stack).ordered())
+            layer.apply(buffer);
 
         ConcurrentList<PixelBuffer> frames = Concurrent.newList();
         frames.add(buffer);
@@ -191,10 +217,18 @@ public final class TextRenderer implements Renderer<TextOptions> {
         return ColorMath.pack(a, r, g, b);
     }
 
+    /**
+     * Linearly interpolates a single 8-bit colour channel. Returns {@code from} at {@code t == 0}
+     * and {@code to} at {@code t == steps}.
+     */
     private static int lerp(int from, int to, int t, int steps) {
         return from + ((to - from) * t) / steps;
     }
 
+    /**
+     * Returns whether any segment across any line is obfuscated ({@code §k}), which promotes the
+     * render to an animated multi-frame output.
+     */
     private static boolean hasObfuscation(@NotNull ConcurrentList<LineSegment> lines) {
         for (LineSegment line : lines) {
             for (ColorSegment segment : line.getSegments())
@@ -203,6 +237,10 @@ public final class TextRenderer implements Renderer<TextOptions> {
         return false;
     }
 
+    /**
+     * Measures the widest line in mcPixels, clamped to a minimum of 16 mcPixels so short strings
+     * still produce a non-degenerate canvas.
+     */
     private static int measureWidthMcPixels(@NotNull TextOptions options) {
         int max = 0;
         for (LineSegment line : options.getLines())
@@ -210,6 +248,10 @@ public final class TextRenderer implements Renderer<TextOptions> {
         return Math.max(16, max);
     }
 
+    /**
+     * Builds a single-frame list holding one flat-filled buffer. Used for the empty-input
+     * degenerate case (a 1x1 transparent frame).
+     */
     private static @NotNull ConcurrentList<PixelBuffer> singleFrame(int w, int h, int fill) {
         PixelBuffer buffer = PixelBuffer.create(w, h);
         buffer.fill(fill);

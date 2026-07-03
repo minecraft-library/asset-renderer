@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.is;
 
 /**
  * Regression coverage for frame-parallel {@link FluidRenderer} animation baking. Each animation
- * tick owns its own RasterEngine / IsometricEngine / PixelBuffer so parallel execution must
+ * tick owns its own RasterEngine / ModelEngine / PixelBuffer so parallel execution must
  * produce bytes identical to the serial path. Pinning a CRC32 per frame index guards against
  * silent rasterization drift from a future refactor.
  * <p>
@@ -88,12 +88,14 @@ class FluidRendererParallelismTest {
             firstCrc.size(), is(5));
     }
 
+    /** Reduces an animation to one CRC32 per frame, in frame order - the comparison key for the two runs. */
     private static List<Long> frameCrcs(ImageData image) {
         return image.getFrames().stream()
             .map(frame -> crc32(frame.pixels()))
             .toList();
     }
 
+    /** CRC32 over the buffer's little-endian ARGB int pixels - a compact byte-exact fingerprint of one frame. */
     private static long crc32(PixelBuffer buffer) {
         int[] pixels = buffer.getPixels(0, 0, buffer.width(), buffer.height(), null, 0, 0);
         ByteBuffer bb = ByteBuffer.allocate(pixels.length * Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN);

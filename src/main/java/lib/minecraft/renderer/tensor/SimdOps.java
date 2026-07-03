@@ -18,10 +18,10 @@ import org.jetbrains.annotations.NotNull;
  * Reads {@link Matrix4f}'s column-major {@code float[16]} storage directly via
  * {@code FloatVector.fromArray(SPECIES, m.m, col*4)} - one aligned load per column, no temp
  * {@code float[4]} marshalling. Every method matches the operand order and accumulation
- * sequence of the corresponding scalar implementation - no fused multiply-add is used, and adds
- * are accumulated left-to-right against the column vectors in the same sequence the scalar code
- * writes them - so results are bit-identical under IEEE-754 round-to-nearest-even. The
- * CRC32-pinned regression tests ({@code ModelEngineParallelismTest},
+ * sequence of the corresponding scalar implementation - no fused multiply-add is used, and the
+ * column-vector mul-adds are grouped in the same right-associated order the scalar code writes
+ * them (innermost term first) - so results are bit-identical under IEEE-754
+ * round-to-nearest-even. The CRC32-pinned regression tests ({@code ModelEngineParallelismTest},
  * {@code PortalRendererParallelismTest}, {@code FluidRendererParallelismTest}) stay valid
  * whichever path runs.
  *

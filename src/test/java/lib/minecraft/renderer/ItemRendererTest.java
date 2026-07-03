@@ -16,10 +16,17 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Unit coverage for {@link ItemRenderer}'s static helpers. Full rendering is covered end-to-end
- * by the slow {@code PipelineIntegrationTest}; these tests focus on
- * the tintindex dispatch logic that drives the standard layered-sprite path for non-overlay
- * items.
+ * Unit coverage for {@link ItemRenderer#tintIndexForLayer}, the tintindex-resolution helper that
+ * drives the standard layered-sprite path for non-overlay items. The rule under test: prefer the
+ * tintindex declared on any element face whose texture reference resolves to {@code layerN}
+ * (whether the face names {@code #layerN}, the resolved texture id, or a nested {@code #var} that
+ * resolves to it); fall back to the vanilla {@code item/generated} convention (layer N has
+ * tintindex N) only when the model declares no elements. An element-bearing model with no face
+ * owning the layer reports untinted ({@code -1}).
+ * <p>
+ * Full item rendering is covered end-to-end by the slow
+ * {@code PipelineIntegrationTest} (package {@code lib.minecraft.renderer.pipeline}); these cases
+ * isolate the dispatch logic without booting the pipeline.
  */
 class ItemRendererTest {
 
@@ -94,6 +101,15 @@ class ItemRendererTest {
         assertThat(ItemRenderer.tintIndexForLayer(item, 0), is(-1));
     }
 
+    /**
+     * Builds an element-less {@link Item} carrying a single texture variable, exercising the
+     * {@code item/generated} fallback branch of {@link ItemRenderer#tintIndexForLayer} where the
+     * layer index doubles as its tintindex.
+     *
+     * @param textureKey the texture-variable name (e.g. {@code layer0})
+     * @param textureRef the resolved texture id the variable points at
+     * @return the fixture item with no model elements
+     */
     private static Item simpleItem(String textureKey, String textureRef) {
         ModelData model = new ModelData();
         model.getTextures().put(textureKey, textureRef);

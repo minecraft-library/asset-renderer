@@ -4,10 +4,11 @@
  * {@code src/main/resources/lib/minecraft/renderer/}.
  *
  * <p>The tooling layer is the one place the codebase reaches into vanilla bytecode to
- * extract data that has no resource-pack representation - block tints, potion colors, block
- * entity hardcoded models, entity render layers, biome colormaps. Each generator is a
+ * extract data that has no resource-pack representation - block tints, potion colors,
+ * always-glinted item ids, block-entity hardcoded models, per-block default states, entity
+ * models + render layers, and biome colormaps. Each generator is a
  * {@code public static void main(String[])} entry point invoked by a corresponding Gradle
- * JavaExec task:
+ * JavaExec task (all in the {@code tooling} group):
  *
  * <table>
  *   <caption>Gradle task -&gt; tooling class -&gt; output resource</caption>
@@ -23,9 +24,19 @@
  *     <td>{@code potion_colors.json}</td>
  *   </tr>
  *   <tr>
+ *     <td>{@code glintItems}</td>
+ *     <td>{@link lib.minecraft.renderer.tooling.ToolingGlintItems ToolingGlintItems}</td>
+ *     <td>{@code glint_items.json}</td>
+ *   </tr>
+ *   <tr>
  *     <td>{@code blockModels}</td>
  *     <td>{@link lib.minecraft.renderer.tooling.ToolingBlockModels ToolingBlockModels}</td>
  *     <td>{@code block_models.json}</td>
+ *   </tr>
+ *   <tr>
+ *     <td>{@code blockDefaults}</td>
+ *     <td>{@link lib.minecraft.renderer.tooling.ToolingBlockDefaults ToolingBlockDefaults}</td>
+ *     <td>{@code block_defaults.json}</td>
  *   </tr>
  *   <tr>
  *     <td>{@code entityModels}</td>
@@ -41,7 +52,7 @@
  *     <td>{@code atlas} / {@code diagnoseAtlas}</td>
  *     <td>{@link lib.minecraft.renderer.tooling.ToolingAtlas ToolingAtlas} /
  *         {@link lib.minecraft.renderer.tooling.ToolingAtlasDiagnose ToolingAtlasDiagnose}</td>
- *     <td>{@code build/atlas/} (test only)</td>
+ *     <td>{@code build/atlas/} (build artifact, not a checked-in resource)</td>
  *   </tr>
  * </table>
  *
@@ -65,7 +76,7 @@
  *       {@link lib.minecraft.renderer.tooling.blockentity.SourceDiscovery SourceDiscovery},
  *       {@link lib.minecraft.renderer.tooling.blockentity.BlockListDiscovery BlockListDiscovery},
  *       {@link lib.minecraft.renderer.tooling.blockentity.TintDiscovery TintDiscovery},
- *       {@link lib.minecraft.renderer.tooling.blockentity.InventoryTransformDecomposer *       InventoryTransformDecomposer}, and the
+ *       {@link lib.minecraft.renderer.tooling.blockentity.InventoryTransformDecomposer InventoryTransformDecomposer}, and the
  *       {@link lib.minecraft.renderer.tooling.blockentity.YAxis YAxis} convention helper round
  *       out the discovery surface.</li>
  *   <li>{@link lib.minecraft.renderer.tooling.entity entity} - the Java-derived entity-model
@@ -108,18 +119,22 @@
  *       vanilla's {@code net.minecraft.util.Mth} {@code cos / sin} 65536-entry lookup that
  *       matches the bytecode bit-for-bit; the tooling layer uses it when unrolling
  *       {@code Mth.cos / sin} call sites so the emitted geometry agrees with what
- *       {@link lib.minecraft.renderer.kit.EntityGeometryKit EntityGeometryKit} would produce
+ *       {@link lib.minecraft.renderer.engine.kit.EntityGeometryKit EntityGeometryKit} would produce
  *       at runtime.</li>
  * </ul>
  *
- * <p><b>Diagnostics.</b> Each tooling class emits a JSON dump to
- * {@code cache/asset-renderer/diagnostics/} alongside its production output. The dump
- * captures intermediate state - candidate fields, untouched constants, fallback fires -
- * that the production output collapses away. {@code cache/} is gitignored, so diagnostics
- * are local-only artifacts intended for hand-eyeballing during a version bump.
+ * <p><b>Diagnostics.</b> The two model scanners -
+ * {@link lib.minecraft.renderer.tooling.ToolingBlockModels ToolingBlockModels} and
+ * {@link lib.minecraft.renderer.tooling.ToolingEntityModels ToolingEntityModels} - emit JSON
+ * dumps to {@code cache/asset-renderer/diagnostics/} alongside their production output. The dumps
+ * capture intermediate state - candidate fields, untouched constants, fallback fires - that the
+ * production output collapses away. {@code cache/} is gitignored, so diagnostics are local-only
+ * artifacts intended for hand-eyeballing during a version bump. The simpler constant-table
+ * generators (potion colors, glint items, colormaps, atlas) print a one-line summary to stdout
+ * instead.
  *
  * @see lib.minecraft.renderer.pipeline.Pipeline
- * @see lib.minecraft.renderer.kit.EntityGeometryKit
+ * @see lib.minecraft.renderer.engine.kit.EntityGeometryKit
  * @see lib.minecraft.renderer.tooling.util.AsmKit
  */
 package lib.minecraft.renderer.tooling;

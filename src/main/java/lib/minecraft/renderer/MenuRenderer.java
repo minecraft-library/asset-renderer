@@ -8,11 +8,13 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.data.StaticImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.engine.RendererContext;
+import lib.minecraft.renderer.engine.compose.FrameCompositor;
+import lib.minecraft.renderer.engine.compose.FrameLayer;
+import lib.minecraft.renderer.engine.compose.FramePlacement;
+import lib.minecraft.renderer.engine.compose.Frames;
+import lib.minecraft.renderer.engine.kit.TextKit;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.kit.FrameMerger;
-import lib.minecraft.renderer.kit.TextKit;
 import lib.minecraft.renderer.options.BlockOptions;
 import lib.minecraft.renderer.options.ItemOptions;
 import lib.minecraft.renderer.options.MenuOptions;
@@ -56,15 +58,42 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
 
     // --- Shared geometry constants ---
 
+    /**
+     * Edge length in pixels of one square inventory slot cell.
+     */
     static final int SLOT_SIZE = 36;
+
+    /**
+     * Padding in pixels between the canvas edge and the slot grid.
+     */
     static final int INSET = 4;
+
+    /**
+     * Height in pixels of the title band above the slot grid.
+     */
     static final int TITLE_HEIGHT = 24;
+
+    /**
+     * Height in pixels reserved below the slot row for the anvil XP-cost label, added only when a
+     * cost is present.
+     */
     static final int XP_LABEL_HEIGHT = 20;
 
     // --- Shared SkyBlock chest (9x6) dimensions ---
 
+    /**
+     * Column count of the SkyBlock chest container (9 wide).
+     */
     static final int SKYBLOCK_CHEST_COLS = 9;
+
+    /**
+     * Row count of the SkyBlock chest container (6 tall).
+     */
     static final int SKYBLOCK_CHEST_ROWS = 6;
+
+    /**
+     * Total addressable slots in the SkyBlock chest container ({@code 9 * 6 = 54}).
+     */
     static final int SKYBLOCK_CHEST_SLOTS = SKYBLOCK_CHEST_COLS * SKYBLOCK_CHEST_ROWS;
 
     // --- Shared vanilla chrome palette ---
@@ -84,12 +113,37 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      */
     static final int ANVIL_TEXTBOX_BEIGE = 0xFFE5D4AC;
 
+    /**
+     * Shared renderer for the flat-grid {@code PLAYER}/{@code CHEST}/{@code CUSTOM}/{@code SLOT} types.
+     */
     private final @NotNull Generic generic;
+
+    /**
+     * Renderer for the vanilla crafting-table menu.
+     */
     private final @NotNull VanillaCrafting vanillaCrafting;
+
+    /**
+     * Renderer for the vanilla anvil menu.
+     */
     private final @NotNull VanillaAnvil vanillaAnvil;
+
+    /**
+     * Renderer for the SkyBlock crafting menu.
+     */
     private final @NotNull SkyblockCrafting skyblockCrafting;
+
+    /**
+     * Renderer for the SkyBlock "Combine Items" anvil menu.
+     */
     private final @NotNull SkyblockAnvil skyblockAnvil;
 
+    /**
+     * Constructs a new {@code MenuRenderer} bound to the given renderer context, eagerly building
+     * each sub-renderer so a {@link #render} call is a plain type dispatch.
+     *
+     * @param context the renderer context supplying pack / model / texture lookups
+     */
     public MenuRenderer(@NotNull RendererContext context) {
         this.generic = new Generic(context);
         this.vanillaCrafting = new VanillaCrafting(context);
@@ -98,6 +152,13 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         this.skyblockAnvil = new SkyblockAnvil(context);
     }
 
+    /**
+     * Validates the fill option, then dispatches to the sub-renderer keyed by
+     * {@link MenuOptions#getType()}.
+     *
+     * @param options the menu render options
+     * @return the composited menu image
+     */
     @Override
     public @NotNull ImageData render(@NotNull MenuOptions options) {
         validateFill(options);
@@ -123,7 +184,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
      */
     static boolean appendFillerLayers(
         @NotNull MenuOptions options,
-        @NotNull ConcurrentList<FrameMerger.Layer> layers,
+        @NotNull ConcurrentList<FrameLayer> layers,
         @NotNull ItemRenderer itemRenderer,
         @NotNull ConcurrentSet<Integer> claimed
     ) {
@@ -142,7 +203,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
 
         for (int chestSlot = 0; chestSlot < SKYBLOCK_CHEST_SLOTS; chestSlot++) {
             if (claimed.contains(chestSlot)) continue;
-            layers.add(new FrameMerger.Layer(
+            layers.add(new FramePlacement(
                 chestSlotX(chestSlot) + 2,
                 chestSlotY(chestSlot) + 2,
                 fillerImage
@@ -155,24 +216,26 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     /**
      * Final composite step shared by every render path. Fast-paths a single-frame static
      * composite when nothing is animated; otherwise promotes everything to animated output via
-     * {@link FrameMerger#merge}.
+     * {@link FrameCompositor#merge}.
      */
     static @NotNull ImageData composite(
         int canvasW, int canvasH,
-        @NotNull ConcurrentList<FrameMerger.Layer> layers,
+        @NotNull ConcurrentList<FrameLayer> layers,
         boolean anyAnimated,
         @NotNull MenuOptions options
     ) {
+        ConcurrentList<FramePlacement> placements = FrameCompositor.flatten(options.getLayerDecorator().apply(layers));
+
         if (!anyAnimated) {
             PixelBuffer buffer = PixelBuffer.create(canvasW, canvasH);
 
-            for (FrameMerger.Layer layer : layers)
-                buffer.blit(PixelBuffer.wrap(layer.source().toBufferedImage()), layer.x(), layer.y());
+            for (FramePlacement placement : placements)
+                buffer.blit(placement.source().toPixelBuffer(), placement.x(), placement.y());
 
-            return RenderEngine.staticFrame(buffer);
+            return Frames.staticFrame(buffer);
         }
 
-        return FrameMerger.merge(layers, canvasW, canvasH, options.getFramesPerSecond(), Background.TRANSPARENT);
+        return FrameCompositor.merge(placements, canvasW, canvasH, options.getFramesPerSecond(), Background.TRANSPARENT);
     }
 
     /**
@@ -499,9 +562,13 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         }
 
         int delayMs = Math.max(1, Math.round(1000f / options.getFramesPerSecond()));
-        return RenderEngine.wrapFrames(frames, delayMs);
+        return Frames.wrapFrames(frames, delayMs);
     }
 
+    /**
+     * Returns whether any segment of the title line is obfuscated ({@code §k}), which forces the
+     * chrome layer to be rendered as an animated multi-frame result.
+     */
     private static boolean hasTitleObfuscation(@NotNull LineSegment line) {
         for (ColorSegment segment : line.getSegments())
             if (segment.isObfuscated()) return true;
@@ -574,8 +641,12 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     @RequiredArgsConstructor
     public static final class Generic implements Renderer<MenuOptions> {
 
+        /**
+         * The renderer context, forwarded to the per-slot {@link ItemRenderer}.
+         */
         private final @NotNull RendererContext context;
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull MenuOptions options) {
             validateSlots(options);
@@ -591,8 +662,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             ImageData chromeData = renderChrome(chrome, options, INSET + 4, defaultTitleArgb);
 
             ItemRenderer itemRenderer = new ItemRenderer(this.context);
-            ConcurrentList<FrameMerger.Layer> layers = Concurrent.newList();
-            layers.add(new FrameMerger.Layer(0, 0, chromeData));
+            ConcurrentList<FrameLayer> layers = Concurrent.newList();
+            layers.add(new FramePlacement(0, 0, chromeData));
 
             boolean anyAnimated = chromeData.isAnimated();
             for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet()) {
@@ -605,12 +676,21 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
                 int row = slotIndex / cols;
                 int x = INSET + col * SLOT_SIZE;
                 int y = INSET + TITLE_HEIGHT + row * SLOT_SIZE;
-                layers.add(new FrameMerger.Layer(x, y, rendered));
+                layers.add(new FramePlacement(x, y, rendered));
             }
 
             return composite(canvasW, canvasH, layers, anyAnimated, options);
         }
 
+        /**
+         * Resolves the row count for a generic menu type: {@code PLAYER} is fixed at 4,
+         * {@code CHEST}/{@code CUSTOM} take the options' row count, and {@code SLOT} is a single
+         * row. The dedicated-renderer types are unreachable here and throw defensively.
+         *
+         * @param options the menu render options
+         * @return the row count for the generic grid
+         * @throws RenderException when called for a type owned by a dedicated sub-renderer
+         */
         private static int resolveRows(@NotNull MenuOptions options) {
             return switch (options.getType()) {
                 case PLAYER -> 4;
@@ -621,6 +701,15 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             };
         }
 
+        /**
+         * Resolves the column count for a generic menu type: {@code PLAYER}/{@code CHEST} are fixed
+         * at 9 wide, {@code CUSTOM} takes the options' column count, and {@code SLOT} is a single
+         * column. The dedicated-renderer types are unreachable here and throw defensively.
+         *
+         * @param options the menu render options
+         * @return the column count for the generic grid
+         * @throws RenderException when called for a type owned by a dedicated sub-renderer
+         */
         private static int resolveColumns(@NotNull MenuOptions options) {
             return switch (options.getType()) {
                 case PLAYER, CHEST -> 9;
@@ -642,7 +731,14 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     @RequiredArgsConstructor
     public static final class VanillaCrafting implements Renderer<MenuOptions> {
 
+        /**
+         * Canvas column count: the 3-wide input grid, a spacer/arrow column, and the output column.
+         */
         private static final int COLS = 5;
+
+        /**
+         * Canvas row count matching the 3x3 input grid height.
+         */
         private static final int ROWS = 3;
 
         /**
@@ -657,8 +753,12 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             {4, 1}
         };
 
+        /**
+         * The renderer context, forwarded to the per-slot {@link ItemRenderer}.
+         */
         private final @NotNull RendererContext context;
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull MenuOptions options) {
             validateSlots(options);
@@ -674,8 +774,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             ImageData chromeData = renderChrome(chrome, options, INSET + 4, 0xFF404040);
 
             ItemRenderer itemRenderer = new ItemRenderer(this.context);
-            ConcurrentList<FrameMerger.Layer> layers = Concurrent.newList();
-            layers.add(new FrameMerger.Layer(0, 0, chromeData));
+            ConcurrentList<FrameLayer> layers = Concurrent.newList();
+            layers.add(new FramePlacement(0, 0, chromeData));
 
             boolean anyAnimated = chromeData.isAnimated();
             for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet()) {
@@ -687,7 +787,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
 
                 int x = INSET + coord[0] * SLOT_SIZE;
                 int y = INSET + TITLE_HEIGHT + coord[1] * SLOT_SIZE;
-                layers.add(new FrameMerger.Layer(x, y, rendered));
+                layers.add(new FramePlacement(x, y, rendered));
             }
 
             return composite(canvasW, canvasH, layers, anyAnimated, options);
@@ -704,7 +804,14 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
     @RequiredArgsConstructor
     public static final class VanillaAnvil implements Renderer<MenuOptions> {
 
+        /**
+         * Canvas column count laid out as {@code [input1] [+] [input2] [arrow] [output]}.
+         */
         private static final int COLS = 5;
+
+        /**
+         * Height in pixels of the rename-textbox band between the title and the slot row.
+         */
         private static final int TEXTBOX_HEIGHT = 30;
 
         /**
@@ -715,8 +822,12 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
          */
         private static final int @NotNull [] SLOT_COLS = { 0, 2, 4 };
 
+        /**
+         * The renderer context, forwarded to the per-slot {@link ItemRenderer}.
+         */
         private final @NotNull RendererContext context;
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull MenuOptions options) {
             validateSlots(options);
@@ -750,8 +861,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             ImageData chromeData = renderChrome(chrome, options, INSET + 24, 0xFF404040);
 
             ItemRenderer itemRenderer = new ItemRenderer(this.context);
-            ConcurrentList<FrameMerger.Layer> layers = Concurrent.newList();
-            layers.add(new FrameMerger.Layer(0, 0, chromeData));
+            ConcurrentList<FrameLayer> layers = Concurrent.newList();
+            layers.add(new FramePlacement(0, 0, chromeData));
 
             boolean anyAnimated = chromeData.isAnimated();
             for (Map.Entry<Integer, MenuOptions.MenuSlotContent> entry : options.getSlots().entrySet()) {
@@ -761,7 +872,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
                 ImageData rendered = itemRenderer.render(content.options());
                 if (rendered.isAnimated()) anyAnimated = true;
                 int x = INSET + col * SLOT_SIZE;
-                layers.add(new FrameMerger.Layer(x, slotRowY, rendered));
+                layers.add(new FramePlacement(x, slotRowY, rendered));
             }
 
             return composite(canvasW, canvasH, layers, anyAnimated, options);
@@ -797,8 +908,12 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
          */
         private static final int ARROW_SLOT = 22;
 
+        /**
+         * The renderer context, forwarded to the per-slot {@link ItemRenderer}.
+         */
         private final @NotNull RendererContext context;
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull MenuOptions options) {
             validateSlots(options);
@@ -812,8 +927,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             ImageData chromeData = renderChrome(chrome, options, INSET + 4, 0xFF404040);
 
             ItemRenderer itemRenderer = new ItemRenderer(this.context);
-            ConcurrentList<FrameMerger.Layer> layers = Concurrent.newList();
-            layers.add(new FrameMerger.Layer(0, 0, chromeData));
+            ConcurrentList<FrameLayer> layers = Concurrent.newList();
+            layers.add(new FramePlacement(0, 0, chromeData));
 
             ConcurrentSet<Integer> claimed = Concurrent.newSet();
             for (int chestSlot : SLOT_MAP) claimed.add(chestSlot);
@@ -826,7 +941,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
                 MenuOptions.MenuSlotContent content = entry.getValue();
                 ImageData rendered = itemRenderer.render(content.options());
                 if (rendered.isAnimated()) anyAnimated = true;
-                layers.add(new FrameMerger.Layer(chestSlotX(chestSlot), chestSlotY(chestSlot), rendered));
+                layers.add(new FramePlacement(chestSlotX(chestSlot), chestSlotY(chestSlot), rendered));
             }
 
             anyAnimated |= appendFillerLayers(options, layers, itemRenderer, claimed);
@@ -867,8 +982,13 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             45, 46, 47, 48, 49, 50, 51, 52, 53
         };
 
+        /**
+         * The renderer context, forwarded to the per-slot {@link ItemRenderer} and the anvil
+         * decoration's {@link BlockRenderer}.
+         */
         private final @NotNull RendererContext context;
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull MenuOptions options) {
             validateSlots(options);
@@ -882,8 +1002,8 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
 
             ItemRenderer itemRenderer = new ItemRenderer(this.context);
             BlockRenderer blockRenderer = new BlockRenderer(this.context);
-            ConcurrentList<FrameMerger.Layer> layers = Concurrent.newList();
-            layers.add(new FrameMerger.Layer(0, 0, chromeData));
+            ConcurrentList<FrameLayer> layers = Concurrent.newList();
+            layers.add(new FramePlacement(0, 0, chromeData));
 
             ConcurrentSet<Integer> claimed = Concurrent.newSet();
             for (int chestSlot : SLOT_MAP) claimed.add(chestSlot);
@@ -898,7 +1018,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
                 MenuOptions.MenuSlotContent content = entry.getValue();
                 ImageData rendered = itemRenderer.render(content.options());
                 if (rendered.isAnimated()) anyAnimated = true;
-                layers.add(new FrameMerger.Layer(chestSlotX(chestSlot), chestSlotY(chestSlot), rendered));
+                layers.add(new FramePlacement(chestSlotX(chestSlot), chestSlotY(chestSlot), rendered));
             }
 
             BlockOptions decorationOptions = BlockOptions.builder()
@@ -909,7 +1029,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
                 .build();
             ImageData decoration = blockRenderer.render(decorationOptions);
             if (decoration.isAnimated()) anyAnimated = true;
-            layers.add(new FrameMerger.Layer(
+            layers.add(new FramePlacement(
                 chestSlotX(DECORATION_SLOT) + 2,
                 chestSlotY(DECORATION_SLOT) + 2,
                 decoration
@@ -923,7 +1043,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             ImageData redPane = itemRenderer.render(redPaneOptions);
             if (redPane.isAnimated()) anyAnimated = true;
             for (int chestSlot : RED_PANE_SLOTS) {
-                layers.add(new FrameMerger.Layer(
+                layers.add(new FramePlacement(
                     chestSlotX(chestSlot) + 2,
                     chestSlotY(chestSlot) + 2,
                     redPane

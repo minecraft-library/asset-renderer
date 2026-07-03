@@ -5,31 +5,34 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.appearance.DyeColor;
+import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Item;
-import lib.minecraft.renderer.appearance.LayerTint;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.asset.model.ModelTransform;
-import lib.minecraft.renderer.engine.IsometricEngine;
+import lib.minecraft.renderer.asset.rule.ItemContext;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
-import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.engine.TextureEngine;
+import lib.minecraft.renderer.engine.camera.Camera;
+import lib.minecraft.renderer.engine.camera.Lens;
+import lib.minecraft.renderer.engine.compose.GlintStage;
+import lib.minecraft.renderer.engine.compose.ImageLayer;
+import lib.minecraft.renderer.engine.compose.ImageLayerContext;
+import lib.minecraft.renderer.engine.compose.LayerStack;
+import lib.minecraft.renderer.engine.kit.BannerKit;
+import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
+import lib.minecraft.renderer.engine.kit.ItemStackKit;
+import lib.minecraft.renderer.engine.kit.ShieldKit;
+import lib.minecraft.renderer.engine.kit.TrimKit;
+import lib.minecraft.renderer.engine.light.Shading;
+import lib.minecraft.renderer.engine.raster.VisibleTriangle;
+import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.exception.RenderException;
-import lib.minecraft.renderer.geometry.EulerRotation;
-import lib.minecraft.renderer.geometry.PerspectiveParams;
-import lib.minecraft.renderer.geometry.SixFaces;
-import lib.minecraft.renderer.geometry.VisibleTriangle;
-import lib.minecraft.renderer.kit.BannerKit;
-import lib.minecraft.renderer.kit.BlockGeometryKit;
-import lib.minecraft.renderer.kit.GlintKit;
-import lib.minecraft.renderer.kit.ItemStackKit;
-import lib.minecraft.renderer.kit.ShieldKit;
-import lib.minecraft.renderer.kit.TrimKit;
+import lib.minecraft.renderer.face.SixFaces;
 import lib.minecraft.renderer.options.ItemOptions;
-import lib.minecraft.renderer.pipeline.pack.ItemContext;
+import lib.minecraft.renderer.request.DyeColor;
+import lib.minecraft.renderer.request.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -64,14 +67,35 @@ import java.util.Optional;
  */
 public final class ItemRenderer implements Renderer<ItemOptions> {
 
+    /**
+     * The flat 2D GUI icon sub-renderer.
+     */
     private final @NotNull Gui2D gui2D;
+
+    /**
+     * The held 3D item sub-renderer.
+     */
     private final @NotNull Held3D held3D;
 
+    /**
+     * Constructs a new {@code ItemRenderer} bound to the given renderer context, eagerly building
+     * both sub-renderers so each {@link #render} call is a plain dispatch.
+     *
+     * @param context the renderer context supplying pack / model / texture lookups
+     */
     public ItemRenderer(@NotNull RendererContext context) {
         this.gui2D = new Gui2D(context);
         this.held3D = new Held3D(context);
     }
 
+    /**
+     * Dispatches to the {@link Gui2D} or {@link Held3D} sub-renderer keyed by
+     * {@link ItemOptions#getType()}, then composites the result over the options'
+     * {@link ItemOptions#getBackground() background}.
+     *
+     * @param options the item render options
+     * @return the rendered icon, composited over the requested background
+     */
     @Override
     public @NotNull ImageData render(@NotNull ItemOptions options) {
         ImageData rendered = switch (options.getType()) {
@@ -91,22 +115,37 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     }
 
     /**
-     * Model-space minimum-X bound for the flat-sprite item Z-axis slab.
+     * Resolves the item glint flag and composites the animated foil onto the finished 2D buffer.
+     * Shared terminal step of the GUI and held-item paths, which derive the glint identically.
+     */
+    static @NotNull ImageData finalize2DItem(
+        @NotNull Textures engine, @NotNull PixelBuffer buffer,
+        @NotNull Item item, @NotNull ItemOptions options
+    ) {
+        return GlintStage.forItem(engine::tryResolveTexture, buffer, item, options);
+    }
+
+    /**
+     * Model-space minimum bound (block units) for the wide, square face of the flat-sprite item
+     * slab. Reused for both the X and Y minimum corners so the sprite is a {@code 0.9}-block
+     * square.
      */
     private static final float FLAT_ITEM_SLAB_MIN_X = -0.45f;
 
     /**
-     * Model-space maximum-X bound for the flat-sprite item Z-axis slab.
+     * Model-space maximum bound (block units) for the wide, square face of the flat-sprite item
+     * slab. Reused for both the X and Y maximum corners so the sprite is a {@code 0.9}-block
+     * square.
      */
     private static final float FLAT_ITEM_SLAB_MAX_X = 0.45f;
 
     /**
-     * Model-space minimum-Z bound - the thin side of the flat sprite slab.
+     * Model-space minimum-Z bound (block units) - the thin depth of the flat-sprite slab.
      */
     private static final float FLAT_ITEM_SLAB_MIN_Z = -0.02f;
 
     /**
-     * Model-space maximum-Z bound - the thin side of the flat sprite slab.
+     * Model-space maximum-Z bound (block units) - the thin depth of the flat-sprite slab.
      */
     private static final float FLAT_ITEM_SLAB_MAX_Z = 0.02f;
 
@@ -161,9 +200,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * Pure-orthographic projection for the GUI shield render. The projection scale is the shield
      * item model's {@code display.gui} scale ({@code 0.65}), mirroring how the block-icon path
      * folds {@code block/block.json}'s {@code 0.625} {@code display.gui.scale} into
-     * {@link PerspectiveParams#ISOMETRIC_BLOCK}.
+     * {@link Lens#ISOMETRIC_BLOCK}.
      */
-    private static final @NotNull PerspectiveParams SHIELD_PERSPECTIVE = new PerspectiveParams(0f, 0f, 0f, SHIELD_GUI_DISPLAY_SCALE);
+    private static final @NotNull Lens SHIELD_PERSPECTIVE = Lens.orthographic(SHIELD_GUI_DISPLAY_SCALE);
 
     /**
      * Returns {@code true} when the item id is a banner or shield, which get composited through
@@ -186,7 +225,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * @return the composited buffer
      */
     static @NotNull PixelBuffer renderBannerOrShield(
-        @NotNull TextureEngine engine,
+        @NotNull Textures engine,
         @NotNull PixelBuffer buffer,
         @NotNull String itemId,
         @NotNull ItemOptions options
@@ -208,7 +247,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * texture for all six slab faces mirrors the flat-sprite fallback already used for other item
      * kinds.
      *
-     * @param engine the model engine that also serves as the {@link TextureEngine} for pattern
+     * @param engine the model engine that also serves as the {@link Textures} for pattern
      *     resolution
      * @param itemId the item id (used to pick the banner vs. shield atlas variant)
      * @param options the render options carrying {@code baseDye} + {@code bannerLayers}
@@ -225,7 +264,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             ? BannerKit.Variant.SHIELD_BLOCK_3D
             : BannerKit.Variant.BANNER_BLOCK_3D;
 
-        PixelBuffer composite = BannerKit.composite2D(engine, baseDye, options.getBannerLayers(), variant);
+        PixelBuffer composite = BannerKit.composite2D(engine.textures(), baseDye, options.getBannerLayers(), variant);
 
         return BlockGeometryKit.buildBoxTriangles(
             new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),
@@ -241,7 +280,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * {@code Isometric3D}): {@link ShieldKit} builds the plate + handle geometry, the
      * {@code display.gui} pose drives a {@code T * R * S} model transform (translation, then the
      * {@code [15, -25, -5]} rotation, then the {@code 0.65} scale - vanilla's
-     * {@code ItemTransform.apply} order), and {@link RenderEngine#relightForItems3d} re-shades each
+     * {@code ItemTransform.apply} order), and {@link Shading#relightForItems3d} re-shades each
      * face with vanilla's {@code Lighting.ITEMS_3D} Lambertian. Rendered through an identity-camera
      * {@link ModelEngine} so the pose lives entirely in the model transform.
      *
@@ -254,14 +293,14 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         @NotNull PixelBuffer buffer,
         @NotNull ItemOptions options
     ) {
-        IsometricEngine engine = IsometricEngine.withGuiPose(context, SHIELD_GUI_ROTATION);
-        PixelBuffer texture = engine.resolveTexture(SHIELD_NOPATTERN_TEXTURE_ID);
+        ModelEngine engine = new ModelEngine(context, Camera.fromPose(SHIELD_GUI_ROTATION, SHIELD_PERSPECTIVE));
+        PixelBuffer texture = engine.textures().resolveTexture(SHIELD_NOPATTERN_TEXTURE_ID);
         ConcurrentList<VisibleTriangle> triangles = ShieldKit.buildShield3D(texture);
         triangles = ShieldKit.relightShield(triangles, SHIELD_GUI_ROTATION);
 
         Matrix4f modelTransform = Matrix4f.IDENTITY.translate(
             SHIELD_ALIGN_OFFSET.x(), SHIELD_ALIGN_OFFSET.y(), SHIELD_ALIGN_OFFSET.z());
-        engine.rasterize(triangles, buffer, SHIELD_PERSPECTIVE, modelTransform);
+        engine.rasterize(triangles, buffer, modelTransform);
     }
 
     /**
@@ -317,17 +356,17 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         @NotNull Item item,
         @NotNull ItemOptions options
     ) {
-        String layer0Ref = engine.resolveLayer0(item, options);
+        String layer0Ref = engine.textures().resolveLayer0(item, options);
         if (layer0Ref == null || layer0Ref.isBlank())
             throw new RenderException("Item '%s' has no elements and no layer0 - nothing to render in Held3D path", item.getId().id());
-        PixelBuffer base = engine.resolveTexture(layer0Ref);
+        PixelBuffer base = engine.textures().resolveTexture(layer0Ref);
         PixelBuffer composite = PixelBuffer.create(base.width(), base.height());
 
         int layerIndex = 0;
         while (true) {
             String textureRef = layerIndex == 0 ? layer0Ref : item.getTextures().get(LAYER_TEXTURE_PREFIX + layerIndex);
             if (textureRef == null || textureRef.isBlank()) break;
-            PixelBuffer layer = engine.resolveTexture(textureRef);
+            PixelBuffer layer = engine.textures().resolveTexture(textureRef);
             int color = resolveLayerTint(context, item, layerIndex, options);
             // ColorMath.tint returns a multiplied copy (alpha preserved); blit composites it
             // source-over so layer0 lands cleanly even when the composite is still empty.
@@ -365,7 +404,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 if (faceRef.equals("#" + layerKey) || faceRef.equals(layerRef))
                     return face.getTintIndex();
 
-                String resolved = TextureEngine.resolveTextureReference(faceRef, variables);
+                String resolved = Textures.resolveTextureReference(faceRef, variables);
                 if (resolved.equals(layerRef))
                     return face.getTintIndex();
             }
@@ -385,7 +424,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      */
     static void renderStandardLayers(
         @NotNull RendererContext context,
-        @NotNull RasterEngine engine,
+        @NotNull Textures engine,
         @NotNull PixelBuffer buffer,
         @NotNull Item item,
         @NotNull ItemOptions options
@@ -427,35 +466,61 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     @RequiredArgsConstructor
     public static final class Gui2D implements Renderer<ItemOptions> {
 
+        /**
+         * The renderer context supplying pack / model / texture lookups.
+         */
         private final @NotNull RendererContext context;
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull ItemOptions options) {
             Item item = requireItem(this.context, options.getItemId());
             RasterEngine engine = new RasterEngine(this.context);
             PixelBuffer buffer = engine.createBuffer(options.getOutputSize(), options.getOutputSize());
 
-            if (options.getItemId().equals(SHIELD_ITEM_ID)) {
-                renderShield3D(this.context, buffer, options);
-            } else if (isBannerOrShield(options.getItemId())) {
-                renderBannerOrShield(engine, buffer, options.getItemId(), options);
-            } else {
-                renderStandardLayers(this.context, engine, buffer, item, options);
-            }
+            // Compose the icon as an ordered ImageLayer stack (base sprite/banner/shield, then the
+            // trim, damage-bar, and stack-count decorations) so callers can splice their own passes
+            // in via ItemOptions.layerDecorator. The terminal glint is the finalisation step, not a
+            // layer, because it expands the single buffer into one or many animation frames.
+            ImageLayerContext ctx = new ImageLayerContext(this.context, engine.textures(), item, options);
+            LayerStack<ImageLayer> stack = options.getLayerDecorator().apply(buildGuiLayers(ctx));
+            for (ImageLayer layer : stack.ordered()) layer.apply(buffer);
+
+            return finalize2DItem(engine.textures(), buffer, item, options);
+        }
+
+        /**
+         * Builds the default GUI icon layer stack in vanilla pass order: a base sprite/banner/shield
+         * layer, then the conditional trim, damage-bar, and stack-count decorations. Each layer is the
+         * verbatim pass that previously ran inline in {@link #render}, capturing the render {@code ctx}.
+         */
+        private static @NotNull LayerStack<ImageLayer> buildGuiLayers(@NotNull ImageLayerContext ctx) {
+            ItemOptions options = ctx.options();
+            LayerStack<ImageLayer> stack = new LayerStack<>();
+
+            if (options.getItemId().equals(SHIELD_ITEM_ID))
+                stack.append(ItemOptions.Slot.BASE, frame -> renderShield3D(ctx.context(), frame, options));
+            else if (isBannerOrShield(options.getItemId()))
+                stack.append(ItemOptions.Slot.BASE, frame ->
+                    renderBannerOrShield(ctx.textures(), frame, options.getItemId(), options));
+            else
+                stack.append(ItemOptions.Slot.BASE, frame ->
+                    renderStandardLayers(ctx.context(), ctx.textures(), frame, ctx.item(), options));
 
             if (options.getTrimSlot().isPresent() && options.getTrimColor().isPresent())
-                TrimKit.resolve(engine, options.getTrimSlot().get().getKey(), options.getTrimColor().get().getKey())
-                    .ifPresent(trim -> buffer.blitScaled(trim, 0, 0, options.getOutputSize(), options.getOutputSize()));
+                stack.append(ItemOptions.Slot.TRIM, frame ->
+                    TrimKit.resolve(ctx.textures(), options.getTrimSlot().get().getKey(), options.getTrimColor().get().getKey())
+                        .ifPresent(trim -> frame.blitScaled(trim, 0, 0, options.getOutputSize(), options.getOutputSize())));
 
             if (options.isShowDamageBar())
-                ItemStackKit.drawDamageBar(buffer, options.getContext().damage(), item.getMaxDurability());
+                stack.append(ItemOptions.Slot.DAMAGE_BAR, frame ->
+                    ItemStackKit.drawDamageBar(frame, options.getContext().damage(), ctx.item().getMaxDurability()));
 
             if (options.getContext().stackCount() > 1)
-                ItemStackKit.drawStackCount(buffer, options.getContext().stackCount(), MinecraftFont.REGULAR);
+                stack.append(ItemOptions.Slot.STACK_COUNT, frame ->
+                    ItemStackKit.drawStackCount(frame, options.getContext().stackCount(), MinecraftFont.REGULAR));
 
-            boolean glinted = options.getGlintOverride().orElse(item.isAlwaysGlinted() || options.isEnchanted());
-            return engine.finaliseWithGlint(buffer, glinted,
-                options.isAnimateGlint(), GlintKit.GlintOptions.itemDefault(options.getFramesPerSecond()));
+            return stack;
         }
 
     }
@@ -468,9 +533,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
      * {@code thirdperson_righthand} display transform.
      * <p>
      * Banner and shield items route through {@link ItemRenderer#buildBannerOrShield3D} so the
-     * HELD_3D view shows the composited pattern stack - banners get the real flag geometry from
-     * the {@code minecraft:banner} block-entity model when it is registered, and shields fall
-     * back to a thin slab using the composited shield texture.
+     * HELD_3D view shows the composited pattern stack: both fall back to a thin textured slab whose
+     * six faces carry the freshly composited banner / shield texture, mirroring the flat-sprite
+     * fallback used for other item kinds.
      * <p>
      * Flat-sprite items composite their (tinted) layer stack into a native-size
      * {@link PixelBuffer} via {@link ItemRenderer#composeTintedLayers} and feed the result into the
@@ -479,13 +544,21 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     @RequiredArgsConstructor
     public static final class Held3D implements Renderer<ItemOptions> {
 
+        /**
+         * The renderer context supplying pack / model / texture lookups.
+         */
         private final @NotNull RendererContext context;
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull ItemOptions options) {
             Item item = requireItem(this.context, options.getItemId());
 
-            ModelEngine engine = new ModelEngine(this.context);
+            // Identity-pose camera carrying only the projection's lens: the held-item pose lives
+            // entirely in the model's display transform (applied as the modelTransform below), so the
+            // camera pose stays identity and only the rotation-independent lens comes from resolve().
+            ModelEngine engine = new ModelEngine(this.context,
+                Camera.identity(options.getProjection().resolve(EulerRotation.NONE, options.getFacing()).lens()));
             PixelBuffer buffer = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
             int tint = options.getTintColor().orElse(ColorMath.WHITE);
 
@@ -514,11 +587,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             }
 
             Matrix4f displayTransform = resolveDisplayTransform(item, DISPLAY_SLOT_HELD_3D);
-            engine.rasterize(triangles, buffer, PerspectiveParams.GUI_ITEM, displayTransform);
+            engine.rasterize(triangles, buffer, displayTransform);
 
-            boolean glinted = options.getGlintOverride().orElse(item.isAlwaysGlinted() || options.isEnchanted());
-            return engine.finaliseWithGlint(buffer, glinted,
-                options.isAnimateGlint(), GlintKit.GlintOptions.itemDefault(options.getFramesPerSecond()));
+            return finalize2DItem(engine.textures(), buffer, item, options);
         }
 
         /**
@@ -532,9 +603,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             @NotNull ModelEngine engine,
             @NotNull Item item
         ) {
-            return TextureEngine.loadElementFaceTextures(
+            return Textures.loadElementFaceTextures(
                 item.getModel().getElements(), item.getModel().getTextures(),
-                id -> Optional.of(engine.resolveTexture(id)));
+                id -> Optional.of(engine.textures().resolveTexture(id)));
         }
 
         /**

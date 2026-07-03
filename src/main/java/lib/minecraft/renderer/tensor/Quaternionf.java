@@ -22,8 +22,20 @@ import org.jetbrains.annotations.NotNull;
  */
 public record Quaternionf(float x, float y, float z, float w) {
 
+    /**
+     * {@code (float) Math.PI} - the half-turn threshold in {@link #cosFromSin}'s sign correction.
+     */
     private static final float PI_f = (float) java.lang.Math.PI;
+
+    /**
+     * {@code (float) (Math.PI / 2)} - the quarter-turn bias added to the angle before reducing it
+     * into {@code [0, 2*PI)} in {@link #cosFromSin}.
+     */
     private static final float PI_OVER_2_f = (float) (java.lang.Math.PI * 0.5);
+
+    /**
+     * {@code 2 * PI_f} - the full-turn modulus used to wrap the biased angle in {@link #cosFromSin}.
+     */
     private static final float PI_TIMES_2_f = PI_f * 2.0f;
 
     /**
@@ -102,6 +114,8 @@ public record Quaternionf(float x, float y, float z, float w) {
      * names entries {@code m_{col}{row}} so its {@code m00=R[0][0]}, {@code m01=R[1][0]} (col 0,
      * row 1) maps onto our {@code m{row}{col}} as {@code m11=R[0][0]}, {@code m21=R[1][0]} -
      * matching cells of the same matrix.
+     *
+     * @return a new column-major rotation matrix equivalent to this quaternion
      */
     public @NotNull Matrix4f toMatrix4f() {
         float w2 = w * w;
@@ -128,6 +142,11 @@ public record Quaternionf(float x, float y, float z, float w) {
      * Mirrors JOML's {@code Math.cosFromSin(sin, angle)} default branch (no FASTMATH): computes
      * {@code sqrt(1 - sin^2)} and applies the {@code [PI, 2*PI)} sign correction. Bit-identical
      * to JOML when the JOML installation runs without {@code -Djoml.fastmath}.
+     *
+     * @param sin the already-computed sine of {@code angle}
+     * @param angle the angle in radians, used only to pick the sign of the returned cosine
+     * @return {@code cos(angle)}, negative on the half-turn where the reduced angle lands in
+     *         {@code [PI, 2*PI)}
      */
     private static float cosFromSin(float sin, float angle) {
         float cos = (float) java.lang.Math.sqrt(1.0f - sin * sin);

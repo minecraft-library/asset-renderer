@@ -12,23 +12,26 @@ import org.jetbrains.annotations.NotNull;
  * which is either a {@link StaticImageData} (single frame) or an {@link AnimatedImageData}
  * (multiple frames with per-frame delay).
  * <p>
- * Implementations are stateless between calls - all input comes from the options object and the
- * ambient pack / model repositories configured on the renderer's engine.
+ * Implementations are stateless between calls - all per-render input comes from the {@code options}
+ * object, and all ambient pack / model / texture lookups come from the {@code RendererContext} the
+ * implementation is constructed with.
  *
  * @param <O> the options type accepted by this renderer
  */
 public interface Renderer<O> {
 
     /**
-     * Shared square-pixel default output size for single-entity renders. Consumed by
-     * {@code BlockOptions}, {@code EntityOptions}, {@code ItemOptions}, and {@code PlayerOptions}
-     * as the default value of their {@code outputSize} field so the entity-scoped renderers all
-     * agree on one tile dimension out of the box.
+     * Shared square-pixel default output size (in pixels) for single-subject renders. Consumed by
+     * {@code BlockOptions}, {@code EntityOptions}, {@code ItemOptions}, {@code PlayerOptions},
+     * {@code FluidOptions}, and {@code PortalOptions} as the default value of their
+     * {@code outputSize} field so the subject-scoped renderers all agree on one tile dimension out
+     * of the box.
      */
     int DEFAULT_OUTPUT_SIZE = 256;
 
     /**
-     * Renders the given options into an image.
+     * Renders the given options into an image, either a {@link StaticImageData} single frame or an
+     * {@link AnimatedImageData} multi-frame result depending on the subject and options.
      *
      * @param options the options describing what to render
      * @return the rendered image data

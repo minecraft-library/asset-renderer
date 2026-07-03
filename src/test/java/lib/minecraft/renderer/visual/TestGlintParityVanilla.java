@@ -12,21 +12,20 @@ import dev.simplified.image.pixel.DiffType;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.PlayerRenderer;
-import lib.minecraft.renderer.appearance.ArmorMaterial;
-import lib.minecraft.renderer.appearance.ArmorPiece;
 import lib.minecraft.renderer.engine.RasterEngine;
+import lib.minecraft.renderer.engine.kit.GlintKit;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.kit.GlintKit;
 import lib.minecraft.renderer.options.ItemOptions;
 import lib.minecraft.renderer.options.PlayerOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
+import lib.minecraft.renderer.request.ArmorMaterial;
+import lib.minecraft.renderer.request.ArmorPiece;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import javax.imageio.ImageIO;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
@@ -43,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
+import javax.imageio.ImageIO;
 
 /**
  * Animated enchantment-glint parity tool. The remaining item-parity outliers are all intrinsically
@@ -276,7 +276,7 @@ public final class TestGlintParityVanilla {
         }
         PixelBuffer base = PixelBuffer.wrap(new PlayerRenderer(context).render(builder.build()).toBufferedImage());
 
-        PixelBuffer glintTexture = new RasterEngine(context).resolveTexture(GlintKit.ARMOR_GLINT_TEXTURE_ID);
+        PixelBuffer glintTexture = new RasterEngine(context).textures().resolveTexture(GlintKit.ARMOR_GLINT_TEXTURE_ID);
         ConcurrentList<PixelBuffer> frames = GlintKit.applyGlintAtTimes(
             base, glintTexture, schedule, GlintKit.GlintOptions.armorDefault(30));
 
@@ -315,7 +315,7 @@ public final class TestGlintParityVanilla {
             .build();
         PixelBuffer base = PixelBuffer.wrap(renderer.render(baseOptions).toBufferedImage());
 
-        PixelBuffer glintTexture = new RasterEngine(context).resolveTexture(GlintKit.ITEM_GLINT_TEXTURE_ID);
+        PixelBuffer glintTexture = new RasterEngine(context).textures().resolveTexture(GlintKit.ITEM_GLINT_TEXTURE_ID);
         ConcurrentList<PixelBuffer> frames = GlintKit.applyGlintAtTimes(
             base, glintTexture, schedule, itemGlintOptions(spriteUv.isPresent()), spriteUv.orElse(null));
 

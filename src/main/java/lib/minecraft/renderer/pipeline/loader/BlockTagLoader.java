@@ -78,8 +78,16 @@ public class BlockTagLoader {
 
     /**
      * Scans one asset root's {@code data/minecraft/tags/block/} subtree and returns the raw
-     * value lists keyed by namespaced tag id. Walks tag files into plain HashMap / ArrayList to
-     * skip per-element write-locks - callers wrap with {@link Concurrent#adoptMap} at the end.
+     * (unresolved) value lists keyed by namespaced tag id. The tag id is the file path relative to
+     * the {@code block} tag dir with the {@code .json} suffix stripped and the
+     * {@link VanillaSourcePaths#MINECRAFT_NAMESPACE} prefix prepended (backslashes normalised to
+     * forward slashes for nested tag folders). Files missing a {@code "values"} array and malformed
+     * files are skipped silently; a missing tag dir returns an empty map. Walks tag files into plain
+     * HashMap / ArrayList to skip per-element write-locks - callers wrap with
+     * {@link Concurrent#adoptMap} at the end.
+     *
+     * @param packRoot the asset root to scan
+     * @return raw {@code "values"} lists keyed by namespaced tag id, references still {@code #}-prefixed
      */
     private static @NotNull HashMap<String, List<String>> scanRawTags(@NotNull Path packRoot) {
         Path tagsDir = packRoot.resolve("data/minecraft/tags/block");
@@ -110,6 +118,19 @@ public class BlockTagLoader {
         return raw;
     }
 
+    /**
+     * Recursively flattens one tag's raw value list into concrete block ids, appending to
+     * {@code out} in encounter order. A {@code #}-prefixed entry recurses into the referenced tag
+     * (the {@code #} is stripped before lookup); a plain entry is a block id, appended only when not
+     * already present so duplicates across referenced tags collapse. A tag id already in
+     * {@code visited} is skipped (cycle guard - vanilla data has no cycles but a re-visit would
+     * also re-append already-flattened ids); an unknown tag id resolves to nothing.
+     *
+     * @param tagId the namespaced tag id to flatten
+     * @param raw the full raw tag map from {@link #scanRawTags}, keyed by tag id
+     * @param out the accumulating concrete-block-id list, mutated in place
+     * @param visited tag ids already entered on this resolution, mutated in place
+     */
     private static void resolve(
         @NotNull String tagId,
         @NotNull HashMap<String, List<String>> raw,

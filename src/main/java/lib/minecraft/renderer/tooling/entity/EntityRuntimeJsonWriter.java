@@ -19,9 +19,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Emits the runtime-consumable {@code entity_models.json} and {@code entity_geometry.json}.
@@ -32,11 +34,14 @@ import java.util.Map;
  * (cow_cold / cow_warm / pig_cold / etc.), each carrying {@code variant_of} pointing back at
  * its base entity.
  *
- * <p>Internally the writer is a single sequential method: build the factory-key -> geometry
- * id dedupe map, write {@code entity_geometry.json}, walk each entity record emitting a row
- * (including overlay rows, block-overlay rows, base tint, hidden bones), emit variant rows
- * for data-driven variants, then write {@code entity_models.json} with the families table
- * from {@link #deriveFamilies}.
+ * <p>Internally the writer is a single sequential method ({@link #writeAll}): build the
+ * {@code factoryKey -> geometryId} dedupe map, write {@code entity_geometry.json}, walk each
+ * entity record emitting a row (including overlay rows, block-overlay rows, base tint, hidden
+ * bones), emit variant rows for data-driven variants, then write {@code entity_models.json}
+ * with the families table from {@link #deriveFamilies}.
+ *
+ * <p>The emitted field names are the runtime schema contract read back by
+ * {@code EntityModelLoader}; see {@link #writeAll} for the per-row field list.
  */
 @UtilityClass
 public final class EntityRuntimeJsonWriter {
@@ -63,16 +68,48 @@ public final class EntityRuntimeJsonWriter {
     private static final @NotNull Gson PRETTY_GSON = GsonSettings.defaults().mutate().isPrettyPrint().isHtmlEscaping(false).build().create();
 
     /**
-     * Variant id treated as the base entity (no separate {@code variant_of} row emitted) when
-     * walking data-driven variant tables. Vanilla 1.21+ uses {@code "temperate"} for cow / pig /
-     * chicken / frog as the climate-default; the base entity takes that variant's texture
-     * when no spawn-condition match overrides it.
-     */
-    private static final @NotNull String DEFAULT_VARIANT_ID = "temperate";
-
-    /**
-     * Emits both runtime JSON files. Returns the number of variant rows written (in addition
+     * Emits both runtime JSON files and returns the number of variant rows written (in addition
      * to base-entity rows) for the caller's summary line.
+     *
+     * <p>Each entity row in {@code entity_models.json} carries the schema fields read back by
+     * {@code EntityModelLoader}:
+     * <ul>
+     *   <li><b>{@code geometry_ref}</b> - the deduped {@code geometry.X} key into
+     *       {@code entity_geometry.json}.</li>
+     *   <li><b>{@code texture_ref}</b> - the primary texture path (prefix-stripped); for
+     *       variant-driven base entities without a hardcoded texture, the canonical default
+     *       variant's texture is substituted.</li>
+     *   <li><b>{@code armor_type}</b> - inferred from the render layers.</li>
+     *   <li><b>{@code renderer_scale}</b> - the {@code scale} override product when it differs
+     *       from {@code 1.0} (wither {@code 2.0}, slime {@code 0.999}).</li>
+     *   <li><b>{@code overlays}</b> - eye / composite overlay rows (each with its own
+     *       {@code geometry_ref}, {@code texture_ref}, and optional {@code emissive} /
+     *       {@code tint_color} / {@code inflate} / {@code skip_bounds}).</li>
+     *   <li><b>{@code block_overlays}</b> - block-model overlays (mooshroom mushrooms, iron-golem
+     *       flower, enderman carried block).</li>
+     *   <li><b>{@code setup_yaw_addend}</b> - non-zero only for {@code ShulkerRenderer}.</li>
+     *   <li><b>{@code base_tint}</b> - per-entity multiplicative tint (non-default only for
+     *       {@code TropicalFishRenderer}).</li>
+     *   <li><b>{@code hidden_bones}</b> - constructor-static bone-visibility hides.</li>
+     *   <li><b>{@code variant_of}</b> - present only on data-driven variant rows, pointing back
+     *       at the base entity id.</li>
+     * </ul>
+     *
+     * @param context the tooling context (jar + diagnostics + ClassNode cache)
+     * @param records discovered entity id -&gt; session-walk record
+     * @param entityToResolution entity id -&gt; resolved layer-definition (factory class/method,
+     *     inflate, MeshTransformer scale)
+     * @param geometries entity id -&gt; per-geometry bone/cube JSON, deduped by factory key
+     * @param variants variant stem -&gt; ordered data-driven variant list
+     * @param diagnostics the diagnostic sink for summary lines
+     * @param overlaysByEntity entity id -&gt; eye / composite overlay descriptors
+     * @param overlayFieldToResolution overlay {@code ModelLayers} field -&gt; resolved
+     *     layer-definition for composite overlays that carry their own geometry
+     * @param dataVariantDefaults variant stem -&gt; canonical default variant id (from
+     *     {@code <X>Variants.DEFAULT})
+     * @param blockOverlaysByEntity entity id -&gt; block-model overlay descriptors
+     * @return the number of variant rows emitted (base-entity rows excluded)
+     * @throws IOException when either output file cannot be written
      */
     public static int writeAll(
         @NotNull EntityToolingContext context,
@@ -140,22 +177,35 @@ public final class EntityRuntimeJsonWriter {
 
             JsonObject row = new JsonObject();
             row.addProperty("geometry_ref", geometryId);
-            String texture = rec.binding().primaryTexturePath();
-            // Variant-driven base entities (cow / pig / chicken / frog / cat / wolf) have no
-            // hardcoded primary texture - their renderer reads it from the variant's data-driven
-            // asset_id at runtime. Default to the temperate / first variant's texture so the
-            // base-entity row still has a sensible texture_ref the renderer can fall back on.
-            if (texture == null && rec.variantStem() != null) {
+
+            // Variant-registry entities (cow / pig / chicken / frog / wolf / cat / zombie_nautilus)
+            // have no single canonical id in vanilla: the client renders EVERY variant under its own
+            // {@code <id>_<variant>} id (cow_temperate / cow_cold / ...) and emits NO plain {@code <id>}
+            // render. Resolve the canonical DEFAULT variant id here - Holder-class DEFAULT
+            // (WolfVariants.DEFAULT etc.) wins; if absent (cat), the alphabetically-first unconditional
+            // variant from {@code data/minecraft/<stem>_variant/}. The base row is named
+            // {@code <id>_<canonicalVariant>} below so it lines up 1:1 with the harness reference PNGs
+            // (and the non-default variants roll up to it via {@code variant_of}); a null canonical
+            // (non-variant entity, or an unresolvable default) falls back to the plain id.
+            String canonicalVariant = null;
+            if (rec.variantStem() != null) {
                 ConcurrentList<EntityVariantResolver.Result> vlist = variants.get(rec.variantStem());
                 if (vlist != null && !vlist.isEmpty()) {
-                    // Holder-class DEFAULT (WolfVariants.DEFAULT etc.) wins; if absent (cat),
-                    // fall back to the alphabetically-first unconditional variant scanned from
-                    // data/minecraft/<stem>_variant/*.json.
-                    String canonical = dataVariantDefaults.get(rec.variantStem());
-                    if (canonical == null)
-                        canonical = EntityVariantResolver.findAlphaFirstUnconditionalVariantId(
+                    canonicalVariant = dataVariantDefaults.get(rec.variantStem());
+                    if (canonicalVariant == null)
+                        canonicalVariant = EntityVariantResolver.findAlphaFirstUnconditionalVariantId(
                             context, rec.variantStem(), diagnostics);
-                    EntityVariantResolver.Result defaultVariant = EntityVariantResolver.pickDefault(vlist, canonical);
+                }
+            }
+
+            String texture = rec.binding().primaryTexturePath();
+            // Variant-driven base entities have no hardcoded primary texture - their renderer reads it
+            // from the variant's data-driven asset_id at runtime. Default to the canonical variant's
+            // texture so the base row carries the right texture_ref.
+            if (texture == null && canonicalVariant != null) {
+                ConcurrentList<EntityVariantResolver.Result> vlist = variants.get(rec.variantStem());
+                if (vlist != null && !vlist.isEmpty()) {
+                    EntityVariantResolver.Result defaultVariant = EntityVariantResolver.pickDefault(vlist, canonicalVariant);
                     String def = defaultVariant.primaryTexturePath();
                     if (def != null) texture = def;
                 }
@@ -231,16 +281,21 @@ public final class EntityRuntimeJsonWriter {
                 row.add("hidden_bones", hidden);
             }
 
-            entitiesOut.add(entityId, row);
+            // Variant-registry entities emit the base row under {@code <id>_<canonicalVariant>}
+            // (matching the harness's per-variant reference naming, e.g. cow_temperate / wolf_pale),
+            // with the non-default variants rolling up to it via {@code variant_of}. There is NO plain
+            // {@code <id>} row for these - vanilla renders none. Non-variant entities keep their plain id.
+            String baseId = canonicalVariant != null ? entityId + "_" + canonicalVariant : entityId;
+            entitiesOut.add(baseId, row);
 
-            // Variant rows for data-driven variants only. Skip the default (temperate) since it
-            // IS the base entity. Skip overlay-state variants (creeper_charged, sheep_sheared)
-            // - those need RenderLayer extraction the resolver doesn't surface yet.
+            // Variant rows for data-driven variants only. Skip the canonical variant (it IS the base
+            // row above). Skip overlay-state variants (creeper_charged, sheep_sheared) - those need
+            // RenderLayer extraction the resolver doesn't surface yet.
             if (rec.variantStem() == null) continue;
             ConcurrentList<EntityVariantResolver.Result> variantList = variants.get(rec.variantStem());
             if (variantList == null) continue;
             for (EntityVariantResolver.Result variant : variantList) {
-                if (DEFAULT_VARIANT_ID.equals(variant.variantId())) continue;
+                if (variant.variantId().equals(canonicalVariant)) continue;
                 String variantPrimary = variant.primaryTexturePath();
                 if (variantPrimary == null) continue;
                 String variantEntityId = entityId + "_" + variant.variantId();
@@ -258,7 +313,7 @@ public final class EntityRuntimeJsonWriter {
                 variantRow.addProperty("geometry_ref", variantGeometryId);
                 variantRow.addProperty("texture_ref", EntityTextureResolver.stripPrefix(variantPrimary));
                 variantRow.addProperty("armor_type", row.get("armor_type").getAsString());
-                variantRow.addProperty("variant_of", entityId);
+                variantRow.addProperty("variant_of", baseId);
                 entitiesOut.add(variantEntityId, variantRow);
                 variantRows++;
             }
@@ -332,6 +387,23 @@ public final class EntityRuntimeJsonWriter {
      *     family resolves
      */
     static @NotNull JsonObject deriveFamilies(@NotNull JsonObject entitiesOut, @NotNull Diagnostics diagnostics) {
+        // Variant-registry bases (the target of some {@code variant_of}, e.g. cow_temperate,
+        // zombie_nautilus_temperate) head their own variant family - the harness groups an
+        // entity's variants under a single EntityType root. Such a base must NOT be absorbed as a
+        // NON-ROOT member of another entity's shared-geometry family: zombie_nautilus_temperate
+        // shares geometry.nautilus with the live nautilus, but the harness keeps zombie_nautilus
+        // (temperate + warm) separate from nautilus. Absorbing temperate into nautilus's family
+        // splits the asset grouping ({nautilus, temperate} + {warm}) so the coral variant's larger
+        // canvas never reaches temperate, and temperate mis-sizes vs the harness's coral-union
+        // canvas. Variant-registry bases stay eligible as family ROOTS (mooshroom -> cow_temperate
+        // is unaffected); they're only barred from non-root membership.
+        Set<String> variantRoots = new LinkedHashSet<>();
+        for (Map.Entry<String, JsonElement> entry : entitiesOut.entrySet()) {
+            if (!entry.getValue().isJsonObject()) continue;
+            JsonObject row = entry.getValue().getAsJsonObject();
+            if (row.has("variant_of")) variantRoots.add(row.get("variant_of").getAsString());
+        }
+
         Map<String, List<String>> geometryToBaseEntities = new LinkedHashMap<>();
         for (Map.Entry<String, JsonElement> entry : entitiesOut.entrySet()) {
             if (!entry.getValue().isJsonObject()) continue;
@@ -354,6 +426,11 @@ public final class EntityRuntimeJsonWriter {
             }
             for (String member : members) {
                 if (member.equals(root)) continue;
+                if (variantRoots.contains(member)) {
+                    diagnostics.info("cross-entity family: variant-registry base '%s' kept out of '%s' family (heads its own variant family)",
+                        member, root);
+                    continue;
+                }
                 families.addProperty(member, root);
                 diagnostics.info("cross-entity family: %s -> %s (shared %s)", member, root, e.getKey());
             }
@@ -372,8 +449,15 @@ public final class EntityRuntimeJsonWriter {
             if (stem.startsWith(prefix)) stem = stem.substring(prefix.length());
         }
         String targetId = VanillaSourcePaths.MINECRAFT_NAMESPACE + stem;
+        // Exact match: the geometry stem names a plain-id root (mooshroom -> cow when cow is plain).
         for (String member : members)
             if (member.equals(targetId)) return member;
+        // Variant-base fallback: variant-registry entities have no plain {@code <id>} row - their base
+        // is named {@code <id>_<canonicalVariant>} (geometry.cow's root is cow_temperate, not cow). The
+        // non-canonical variants carry {@code variant_of} and are already filtered out of {@code members},
+        // so a member starting with {@code <targetId>_} is the canonical base of that variant family.
+        for (String member : members)
+            if (member.startsWith(targetId + "_")) return member;
         return null;
     }
 

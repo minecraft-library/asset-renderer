@@ -5,21 +5,21 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import dev.simplified.image.pixel.PixelBufferPool;
-import lib.minecraft.renderer.appearance.Biome;
-import lib.minecraft.renderer.engine.IsometricEngine;
+import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
-import lib.minecraft.renderer.engine.RenderEngine;
 import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.engine.TextureEngine;
-import lib.minecraft.renderer.geometry.PerspectiveParams;
-import lib.minecraft.renderer.geometry.VisibleTriangle;
-import lib.minecraft.renderer.kit.FluidGeometryKit;
+import lib.minecraft.renderer.engine.camera.Projection;
+import lib.minecraft.renderer.engine.compose.AnimationStage;
+import lib.minecraft.renderer.engine.compose.FinalizeStage;
+import lib.minecraft.renderer.engine.compose.GeometryLayer;
+import lib.minecraft.renderer.engine.compose.LayerStack;
+import lib.minecraft.renderer.engine.kit.FluidGeometryKit;
+import lib.minecraft.renderer.engine.raster.VisibleTriangle;
+import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.options.FluidOptions;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
-
-import java.util.stream.IntStream;
 
 /**
  * Renders vanilla fluids (water, lava) as either a full 3D isometric cube or a flat top-down
@@ -28,7 +28,7 @@ import java.util.stream.IntStream;
  * Each sub-renderer is a {@code public static final} inner class implementing
  * {@link Renderer Renderer&lt;FluidOptions&gt;}:
  * <ul>
- * <li>{@link Isometric3D} uses an {@link IsometricEngine} in its {@code standard} pose - fluids
+ * <li>{@link Isometric3D} uses a {@link ModelEngine} in its block-icon pose - fluids
  * carry no {@code display.gui} transform of their own - and builds a 1x1x1 cube via
  * {@link FluidGeometryKit}. Sloped tops, flow-UV rotation, and animation are all supported
  * through the options object.</li>
@@ -45,24 +45,44 @@ import java.util.stream.IntStream;
  */
 public final class FluidRenderer implements Renderer<FluidOptions> {
 
+    /** Namespaced still-frame texture id for water (source-face / top texture). */
     static final @NotNull String WATER_STILL_TEXTURE_ID = "minecraft:block/water_still";
+    /** Namespaced flow-frame texture id for water (side / sloped-top texture). */
     static final @NotNull String WATER_FLOW_TEXTURE_ID = "minecraft:block/water_flow";
+    /** Namespaced still-frame texture id for lava (source-face / top texture). */
     static final @NotNull String LAVA_STILL_TEXTURE_ID = "minecraft:block/lava_still";
+    /** Namespaced flow-frame texture id for lava (side / sloped-top texture). */
     static final @NotNull String LAVA_FLOW_TEXTURE_ID = "minecraft:block/lava_flow";
 
     /**
-     * One vanilla tick is 50 ms - used to convert {@code ticksPerFrame} into a GIF delay.
+     * Duration of one vanilla tick in milliseconds - used to convert {@code ticksPerFrame} into a
+     * per-frame animation delay.
      */
     private static final int MILLIS_PER_TICK = 50;
 
+    /** Sub-renderer for the full 3D isometric cube path ({@link FluidOptions.Type#ISOMETRIC_3D}). */
     private final @NotNull Isometric3D isometric3D;
+    /** Sub-renderer for the flat still-face path ({@link FluidOptions.Type#FLUID_FACE_2D}). */
     private final @NotNull FluidFace2D fluidFace2D;
 
+    /**
+     * Constructs a new {@code FluidRenderer} bound to the given context, eagerly creating both
+     * sub-renderers so a caller can dispatch either render type without re-instantiation.
+     *
+     * @param context the render context supplying texture and biome-tint lookups
+     */
     public FluidRenderer(@NotNull RendererContext context) {
         this.isometric3D = new Isometric3D(context);
         this.fluidFace2D = new FluidFace2D(context);
     }
 
+    /**
+     * Renders the fluid, dispatching to the isometric cube or flat-face sub-renderer per
+     * {@link FluidOptions#getType()}, then composites the result over the options background.
+     *
+     * @param options the fluid options
+     * @return the rendered image composited over {@link FluidOptions#getBackground()}
+     */
     @Override
     public @NotNull ImageData render(@NotNull FluidOptions options) {
         ImageData rendered = switch (options.getType()) {
@@ -97,8 +117,8 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
      * <p>
      * Lava is never tinted - it returns {@link ColorMath#WHITE}. Water consults, in priority
      * order: the caller-supplied {@link FluidOptions#getWaterTintArgbOverride()}, then the
-     * biome's water tint via {@link TextureEngine#sampleBiomeTint} using
-     * {@link Biome.TintTarget#WATER} (which falls back to the engine-level default when the
+     * biome's water tint via {@link Textures#sampleBiomeTint} using
+     * {@link Block.TintTarget#WATER} (which falls back to the engine-level default when the
      * biome carries no {@code water_color} override).
      *
      * @param context the renderer context
@@ -110,12 +130,12 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             return ColorMath.WHITE;
         if (options.getWaterTintArgbOverride() != null)
             return options.getWaterTintArgbOverride();
-        return new TextureEngine(context).sampleBiomeTint(Biome.TintTarget.WATER, options.getBiome());
+        return new Textures(context).sampleBiomeTint(Block.TintTarget.WATER, options.getBiome());
     }
 
     /**
      * Full 3D isometric fluid cube renderer. Builds triangles via {@link FluidGeometryKit}, then
-     * rasterizes through {@link IsometricEngine}'s standard {@code [30, 225, 0]} pose.
+     * rasterizes through {@link Projection#VANILLA_ISO}'s {@code [30, 225, 0]} pose by default.
      * Animation is driven by {@link FluidOptions#getFrameCount()} - single-frame renders return
      * a static image, multi-frame renders return an animated image with per-frame delay of
      * {@code ticksPerFrame * 50ms}.
@@ -125,49 +145,46 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
 
         private final @NotNull RendererContext context;
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull FluidOptions options) {
-            if (options.getFrameCount() <= 1)
-                return RenderEngine.staticFrame(renderFrame(options, options.getStartTick()));
-
-            // Frame-parallel bake: renderFrame constructs its own IsometricEngine, TextureEngine,
-            // triangle list, and output PixelBuffer per invocation; context is the only shared
-            // reference and it is read-only. mapToObj().toList() preserves encounter order so
-            // the resulting ConcurrentList stays tick-ordered for GIF/WebP playback.
-            ConcurrentList<PixelBuffer> frames = Concurrent.newList();
-            frames.addAll(IntStream.range(0, options.getFrameCount()).parallel()
-                .mapToObj(f -> renderFrame(options, options.getStartTick() + f * options.getTicksPerFrame()))
-                .toList());
-            return RenderEngine.wrapFrames(frames, options.getTicksPerFrame() * MILLIS_PER_TICK);
+            // renderFrame constructs its own engine, textures, triangle list, and output buffer per
+            // invocation; context is the only shared reference and it is read-only, so the shared
+            // AnimationStage can bake every frame in parallel.
+            return AnimationStage.render(options.getFrameCount(), options.getStartTick(),
+                options.getTicksPerFrame(), options.getTicksPerFrame() * MILLIS_PER_TICK,
+                tick -> renderFrame(options, tick));
         }
 
+        /**
+         * Bakes a single animation frame: resolves the projection, samples the still and flow
+         * textures at {@code tick}, builds the tinted fluid cube through {@link FluidGeometryKit},
+         * and rasterizes it into a fresh buffer.
+         */
         private @NotNull PixelBuffer renderFrame(@NotNull FluidOptions options, int tick) {
-            IsometricEngine engine = IsometricEngine.forBlockIcon(this.context);
-            TextureEngine textures = new TextureEngine(this.context);
+            // Resolve the projection once: the caller's rotation is composed onto the base pose, so it
+            // poses the camera directly and the rasterize call applies no separate model-spin. Default
+            // renders pass EulerRotation.NONE, leaving the byte-identical base block-icon pose.
+            var resolved = options.getProjection().resolve(options.getRotation(), options.getFacing());
+            ModelEngine engine = new ModelEngine(this.context, resolved);
+            Textures textures = new Textures(this.context);
             PixelBuffer still = textures.resolveTextureAtTick(stillTextureId(options.getFluid()), tick);
             PixelBuffer flow = textures.resolveTextureAtTick(flowTextureId(options.getFluid()), tick);
             int tint = resolveFluidTint(this.context, options);
 
-            ConcurrentList<VisibleTriangle> triangles = FluidGeometryKit.buildFluidCube(
-                options.getCornerHeights(), still, flow, options.getFlowAngleRadians(), tint);
+            // Single built-in contributor (the cube), expressed as a GeometryLayer so fluid uses the
+            // same stack-driven ordering as every other renderer and callers can splice extra layers.
+            ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
+            LayerStack<GeometryLayer> stack = new LayerStack<>();
+            stack.append(FluidOptions.Slot.CUBE, sink -> sink.addAll(FluidGeometryKit.buildFluidCube(
+                options.getCornerHeights(), still, flow, options.getFlowAngleRadians(), tint)));
+            for (GeometryLayer layer : options.getLayerDecorator().apply(stack).ordered())
+                layer.contribute(triangles);
 
             int ssaa = Math.max(1, options.getSupersample());
-            if (ssaa > 1) {
-                int hiRes = options.getOutputSize() * ssaa;
-                try (PixelBufferPool.Lease lease = PixelBufferPool.acquire(hiRes, hiRes)) {
-                    PixelBuffer buffer = lease.buffer();
-                    engine.rasterize(triangles, buffer, PerspectiveParams.ISOMETRIC_BLOCK, options.getRotation());
-                    if (options.isAntiAlias()) buffer.applyFxaa();
-                    PixelBuffer output = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
-                    output.blitScaled(buffer, 0, 0, options.getOutputSize(), options.getOutputSize());
-                    return output;
-                }
-            }
-
-            PixelBuffer buffer = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
-            engine.rasterize(triangles, buffer, PerspectiveParams.ISOMETRIC_BLOCK, options.getRotation());
-            if (options.isAntiAlias()) buffer.applyFxaa();
-            return buffer;
+            return FinalizeStage.run(options.getOutputSize(), options.getOutputSize(), ssaa, options.isAntiAlias(), false,
+                (target, mask) -> engine.rasterize(triangles, target),
+                (buffer, mask) -> buffer);
         }
 
     }
@@ -182,24 +199,23 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
 
         private final @NotNull RendererContext context;
 
+        /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull FluidOptions options) {
-            if (options.getFrameCount() <= 1)
-                return RenderEngine.staticFrame(renderFrame(options, options.getStartTick()));
-
-            // Frame-parallel bake: each tick constructs its own RasterEngine + output buffer.
-            // mapToObj().toList() preserves encounter order for the animation strip.
-            ConcurrentList<PixelBuffer> frames = Concurrent.newList();
-            frames.addAll(IntStream.range(0, options.getFrameCount()).parallel()
-                .mapToObj(f -> renderFrame(options, options.getStartTick() + f * options.getTicksPerFrame()))
-                .toList());
-            return RenderEngine.wrapFrames(frames, options.getTicksPerFrame() * MILLIS_PER_TICK);
+            // Each tick constructs its own RasterEngine + output buffer, so frames bake in parallel.
+            return AnimationStage.render(options.getFrameCount(), options.getStartTick(),
+                options.getTicksPerFrame(), options.getTicksPerFrame() * MILLIS_PER_TICK,
+                tick -> renderFrame(options, tick));
         }
 
+        /**
+         * Bakes a single animation frame: samples the still texture at {@code tick}, multiplies it
+         * by the fluid tint, and blits it scaled to fill the output buffer.
+         */
         private @NotNull PixelBuffer renderFrame(@NotNull FluidOptions options, int tick) {
             RasterEngine engine = new RasterEngine(this.context);
             PixelBuffer buffer = engine.createBuffer(options.getOutputSize(), options.getOutputSize());
-            PixelBuffer still = engine.resolveTextureAtTick(stillTextureId(options.getFluid()), tick);
+            PixelBuffer still = engine.textures().resolveTextureAtTick(stillTextureId(options.getFluid()), tick);
             int tint = resolveFluidTint(this.context, options);
             PixelBuffer tinted = ColorMath.tint(still, tint);
             buffer.blitScaled(tinted, 0, 0, options.getOutputSize(), options.getOutputSize());

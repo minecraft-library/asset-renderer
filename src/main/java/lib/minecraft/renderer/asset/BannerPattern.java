@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.asset;
 
-import lib.minecraft.renderer.appearance.DyeColor;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -10,8 +9,8 @@ import org.jetbrains.annotations.NotNull;
  * banners and shields share the same pattern registry and asset ids, only the texture atlas
  * path differs.
  * <p>
- * Banner composition is a stack of {@link BannerLayer layers}, each binding this pattern to a
- * {@link DyeColor}; the renderer paints a dye-coloured base and blits each pattern's grayscale
+ * Banner composition is a stack of layers, each binding this pattern to a
+ * {@code DyeColor}; the renderer paints a dye-coloured base and blits each pattern's grayscale
  * mask on top tinted with the layer's colour.
  *
  * @param id the pattern registry id (e.g. {@code "minecraft:base"}, {@code "minecraft:creeper"})
@@ -48,6 +47,15 @@ public record BannerPattern(
         return pathForAtlas("entity/shield");
     }
 
+    /**
+     * Builds a namespaced texture id by inserting an atlas sub-path between this pattern's
+     * {@link #assetId} namespace and name - {@code namespace:name} becomes
+     * {@code namespace:<atlasPath>/name}. An {@code assetId} with no {@code :} defaults to the
+     * {@code minecraft} namespace.
+     *
+     * @param atlasPath the atlas sub-path to splice in (e.g. {@code entity/banner})
+     * @return the namespaced texture id under the given atlas path
+     */
     private @NotNull String pathForAtlas(@NotNull String atlasPath) {
         // assetId is like "minecraft:creeper" - split namespace:name, prepend atlas path.
         int colon = this.assetId.indexOf(':');

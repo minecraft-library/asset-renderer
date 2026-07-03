@@ -13,13 +13,12 @@ import lib.minecraft.renderer.asset.model.EntityModelData.Bone;
 import lib.minecraft.renderer.asset.model.EntityModelData.Cube;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.exception.ToolingException;
-import lib.minecraft.renderer.geometry.BlockFace;
-import lib.minecraft.renderer.geometry.Box;
-import lib.minecraft.renderer.geometry.EntityFace;
-import lib.minecraft.renderer.kit.EntityGeometryKit;
+import lib.minecraft.renderer.face.BlockFace;
+import lib.minecraft.renderer.face.EntityFace;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
+import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector2f;
@@ -34,10 +33,10 @@ import lib.minecraft.renderer.tooling.blockentity.YAxis;
 import lib.minecraft.renderer.tooling.entity.EntityLayerDefinitionResolver;
 import lib.minecraft.renderer.tooling.parser.GeometryParser;
 import lib.minecraft.renderer.tooling.util.AsmKit;
-import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lib.minecraft.renderer.tooling.util.FastTrig;
 import lib.minecraft.renderer.tooling.util.JsonOptional;
+import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -65,10 +64,10 @@ import java.util.zip.ZipFile;
  *
  * <p>Output composition:
  * <ul>
- *   <li><b>Geometry</b> - decomposed from each block-entity model class's
- *       {@code createBodyLayer} / {@code createSingleHeadLayer} bytecode. Y-axis normalised
- *       to the canonical Y-down convention via
- *       {@link YAxis YAxis}.</li>
+ *   <li><b>Geometry</b> - decomposed from each block-entity model class's layer factory
+ *       bytecode ({@code createBodyLayer} / {@code createSingleBodyLayer} /
+ *       {@code createHeadLayer} / {@code createFootLayer} / {@code createFlagLayer}). Y-axis
+ *       normalised to the canonical Y-down convention via {@link YAxis YAxis}.</li>
  *   <li><b>Inventory transform</b> - extracted from each renderer's static factory via
  *       {@link InventoryTransformDecomposer
  *       InventoryTransformDecomposer}.</li>
@@ -80,7 +79,7 @@ import java.util.zip.ZipFile;
  *       {@link TintDiscovery TintDiscovery}).</li>
  *   <li><b>Per-block atlas/GUI fields</b> - {@code iconRotation} (beds), {@code additive}
  *       (bells), and per-block {@code tint} (banners) pattern-matched onto block entries by
- *       {@code applyPerBlockPatternFields}; baked directly into the output JSON.</li>
+ *       {@code applyPerBlockFamilyFields}; baked directly into the output JSON.</li>
  * </ul>
  *
  * <p>The runtime pipeline reads the JSON via {@link BlockModelLoader}; the ASM walker is
@@ -113,6 +112,7 @@ public final class ToolingBlockModels {
      *
      * @param args optional {@code --lenient} flag to continue past WARN-level diagnostics
      * @throws IOException if the client jar cannot be downloaded or the JSON file cannot be written
+     * @throws ToolingException in strict mode (the default) when any parse diagnostic reaches WARN+ severity
      */
     public static void main(String @NotNull [] args) throws IOException {
         List<String> argList = Arrays.asList(args);
@@ -202,6 +202,10 @@ public final class ToolingBlockModels {
      * {@code BedRenderer.createHeadLayer}), that's the renderer. Otherwise we fall back to
      * the model class's name (the parser only uses this map for the tint + inventory-transform
      * catalog sanity checks - any model-class string would satisfy those).
+     *
+     * @param zip the open client jar (unused directly here; reserved for future registry-walk resolution)
+     * @param sources the discovered block-entity sources
+     * @return an insertion-ordered {@code entityId -> rendererInternalName} map
      */
     private static @NotNull Map<String, String> buildEntityIdToRendererMap(@NotNull ZipFile zip, @NotNull ConcurrentList<Source> sources) {
         Map<String, String> out = new LinkedHashMap<>();
@@ -221,10 +225,13 @@ public final class ToolingBlockModels {
     }
 
     /**
-     * Small mapping of per-entity-id -> renderer internal name for use by the inventory
-     * transform + tint catalog sanity checks. This is the one place in the wire-up that
-     * statically names renderers; a future PR 5 could derive it from the same registry walk
+     * Maps a single entity id to its renderer internal name for the inventory transform + tint
+     * catalog sanity checks. This is the one place in the wire-up that statically names
+     * renderers; a future PR could derive it from the same registry walk
      * {@link SourceDiscovery} already performs.
+     *
+     * @param entityId the block-entity model id (e.g. {@code minecraft:chest})
+     * @return the renderer's internal (slash-separated) class name
      */
     private static @NotNull String mapEntityIdToRenderer(@NotNull String entityId) {
         return switch (entityId) {
@@ -274,6 +281,10 @@ public final class ToolingBlockModels {
      * For all other entities the deviation stays well below threshold and no shift applies -
      * verified against bed_head, bed_foot, shulker_box, the three other skulls, decorated_pot,
      * decorated_pot_sides, conduit, and the sign / hanging-sign family.
+     *
+     * @param parsedModels the parsed entity models keyed by id (source of the cube tree)
+     * @param inventoryTransforms the decomposer's tuples, mutated in place when a shift applies
+     * @param diag the diagnostics sink for recenter-fired info entries
      */
     private static void recenterInventoryTransformsByBbox(
         @NotNull ConcurrentMap<String, JsonObject> parsedModels,
@@ -320,6 +331,10 @@ public final class ToolingBlockModels {
      * rotates around the block centre and does not shift the bbox centroid). Returns
      * {@code null} when no cubes are present. Mirrors {@link BlockModelConverter.CubeTransform#applyChain}
      * for the corresponding chain ordering.
+     *
+     * @param model the parsed entity model (walked for its bone/cube tree)
+     * @param invTransform the {@code [tx, ty, tz, pitch, yaw, roll, scale?]} inventory transform tuple
+     * @return the {@code [xMin, yMin, zMin, xMax, yMax, zMax]} bbox, or {@code null} when the model has no cubes
      */
     private static float @Nullable [] computeBboxAfterInventoryTransform(
         @NotNull JsonObject model,
@@ -399,6 +414,11 @@ public final class ToolingBlockModels {
      * Builds the {@code Rz · Ry · Rx} rotation matrix matching vanilla's
      * {@code Quaternionf.rotationZYX}. Duplicates {@link BlockModelConverter.CubeTransform#of}'s
      * matrix construction so the recenter pass does not depend on the inner class.
+     *
+     * @param rxR X-rotation in radians (applied first)
+     * @param ryR Y-rotation in radians (applied second)
+     * @param rzR Z-rotation in radians (applied last)
+     * @return the composed 3x3 {@code Rz · Ry · Rx} matrix
      */
     private static double @NotNull [] @NotNull [] rotationZYX(double rxR, double ryR, double rzR) {
         double[][] mRx = {{ 1, 0, 0 }, { 0, Math.cos(rxR), -Math.sin(rxR) }, { 0, Math.sin(rxR), Math.cos(rxR) }};
@@ -409,6 +429,10 @@ public final class ToolingBlockModels {
 
     /**
      * 3x3 matrix multiply returning {@code a · b}.
+     *
+     * @param a left 3x3 operand
+     * @param b right 3x3 operand
+     * @return the product {@code a · b}
      */
     private static double @NotNull [] @NotNull [] mat3Mul(double[][] a, double[][] b) {
         double[][] r = new double[3][3];
@@ -424,6 +448,15 @@ public final class ToolingBlockModels {
      * shape) that are not yet auto-discovered, then overwrites the auto-derivable fields
      * ({@code model} geometry from the ASM parse, {@code y_axis} + {@code inventory_transform}
      * + {@code tinted} from the current Java literals) so re-running the task is idempotent.
+     *
+     * @param blockModels the converted block-model elements keyed by entity-model id
+     * @param parsedEntityModels the raw parsed entity models (carry {@code y_axis})
+     * @param blockList the per-entity block/parts catalog from {@link BlockListDiscovery}
+     * @param inventoryTransforms the decomposed inventory transform tuples by id
+     * @param tintedModelIds the ids flagged as tinted
+     * @param bannerTintByBlockId the per-block-id dye map for banner {@code tint} fields
+     * @return the merged root JSON object
+     * @throws IOException if the existing output file cannot be read
      */
     private static @NotNull JsonObject buildMergedOutput(
         @NotNull JsonObject blockModels,
@@ -517,6 +550,9 @@ public final class ToolingBlockModels {
      * {@code null} offset and {@code null} texture emit just {@code {"model": ...}}; entries
      * with only an offset emit {@code {"model": ..., "offset": [x, y, z]}}; full entries emit
      * all three keys.
+     *
+     * @param entry the entity's block/parts catalog entry
+     * @return the {@code parts} JSON array, or {@code null} when the entry carries no parts
      */
     private static @Nullable JsonArray buildPartsArray(@NotNull BlockListDiscovery.EntityBlockMapping entry) {
         List<BlockListDiscovery.PartRef> parts = entry.parts();
@@ -553,6 +589,11 @@ public final class ToolingBlockModels {
      *       wall-banner block's {@code (Wall)BannerBlock(DyeColor, Properties)} constructor in
      *       {@code Blocks.<clinit>}).</li>
      * </ul>
+     *
+     * @param entry the entity's block/parts catalog entry
+     * @param entityId the entity-model id (drives the per-block family fields)
+     * @param bannerTintByBlockId the per-block-id dye map for banner {@code tint} fields
+     * @return the {@code blocks} JSON array, or {@code null} when the entry has no blocks
      */
     private static @Nullable JsonArray buildBlocksArray(
         @NotNull BlockListDiscovery.EntityBlockMapping entry,
@@ -583,6 +624,11 @@ public final class ToolingBlockModels {
      * lexical block-id matching; the data-derived {@code tint} field is read directly from the
      * banner-block {@code DyeColor} constructor-argument map walked by
      * {@link BlockListDiscovery#bannerTintByBlockId}.
+     *
+     * @param block the block JSON object mutated in place with the family fields
+     * @param blockId the block id (looked up in {@code bannerTintByBlockId} for the tint field)
+     * @param entityId the entity-model id whose family selects which fields apply
+     * @param bannerTintByBlockId the per-block-id dye map for banner {@code tint} fields
      */
     private static void applyPerBlockFamilyFields(
         @NotNull JsonObject block,
@@ -607,6 +653,9 @@ public final class ToolingBlockModels {
     /**
      * Extracts the model-body subobject ({@code textureWidth}, {@code textureHeight},
      * {@code elements}) from a {@link BlockModelConverter#convert converted} entry.
+     *
+     * @param converted one converted block-model entry
+     * @return the model-body subobject carrying only the texture dimensions and elements
      */
     private static @NotNull JsonObject buildModelSubobject(@NotNull JsonObject converted) {
         JsonObject model = new JsonObject();
@@ -621,6 +670,8 @@ public final class ToolingBlockModels {
 
     /**
      * Builds the human-readable header comment prepended to the generated JSON.
+     *
+     * @return the {@code "//"} header string describing the generator, layout, and golden-test guard
      */
     private static @NotNull String mergedHeader() {
         return "Generated by ToolingBlockModels (tooling/blockModels Gradle task). Unified "
@@ -632,9 +683,9 @@ public final class ToolingBlockModels {
             + "along with their entity-texture paths. Supersedes the former split between "
             + "tile_entity_models.json (generated geometry) and tile_entity_mappings.json "
             + "(hand-edited block bindings); both source files are now derived in one pass from "
-            + "the 26.1 client jar. Atlas/GUI fields (iconRotation, additive, per-block tint, "
-            + "forced inventory_y_rotation) are pattern-matched onto block entries by "
-            + "applyPerBlockPatternFields at tooling time. "
+            + "the 26.1 client jar. Per-block atlas/GUI fields (iconRotation on beds, additive on "
+            + "bells, per-block tint on banners) are pattern-matched onto block entries by "
+            + "applyPerBlockFamilyFields at tooling time. "
             + "Run the tooling/blockModels Gradle task to refresh; BlockModelsGoldenTest "
             + "guards against silent drift via a SHA-256 over the canonical JSON.";
     }
@@ -676,6 +727,12 @@ public final class ToolingBlockModels {
          * {@link InventoryTransformDecomposer#resolveEntityRenderFlips}) gates the entity-render
          * {@code scale(-1, -1, 1)} flip on each inventory-transform-less model's item
          * {@code display.gui} roll; ids absent from the map default to the flip.
+         *
+         * @param entityModels the parsed entity models keyed by entity-model id
+         * @param inventoryTransforms the decomposed {@code [tx, ty, tz, pitch, yaw, roll, scale?]} tuples by id
+         * @param entityRenderFlips the per-id entity-flip gate for inventory-transform-less models
+         * @param tintedIds the ids whose faces carry {@code tintindex: 0}
+         * @return a JSON object of block-model elements keyed by entity-model id
          */
         static @NotNull JsonObject convert(
             @NotNull ConcurrentMap<String, JsonObject> entityModels,
@@ -753,6 +810,14 @@ public final class ToolingBlockModels {
          * transform = block Rz(±30°)), the element is emitted as an axis-aligned AABB with a
          * {@code rotation} directive so the tilt is preserved at render time instead of
          * axis-aligning the rotated cube into a bigger AABB that loses the tilt.
+         *
+         * @param cube the parsed cube geometry
+         * @param transform the bone + inventory transform chain for this cube's bone
+         * @param isYUpSource whether the source model was Y-up (drives the corner yLo/yHi swap)
+         * @param texW entity texture width in pixels
+         * @param texH entity texture height in pixels
+         * @param emitTintIndex whether to emit {@code tintindex: 0} on each face
+         * @return the block-model element JSON ({@code from}/{@code to}/optional {@code rotation}/{@code faces})
          */
         private static @NotNull JsonObject buildElement(@NotNull CubeDef cube, @NotNull CubeTransform transform, boolean isYUpSource, int texW, int texH, boolean emitTintIndex) {
             float[][] entityCorners = cube.entityCorners(isYUpSource);
@@ -820,6 +885,9 @@ public final class ToolingBlockModels {
 
         /**
          * Axis-aligned rotation the renderer should apply to an element - one of x/y/z in degrees.
+         *
+         * @param axis the block axis the rotation is about, one of {@code "x"}/{@code "y"}/{@code "z"}
+         * @param angle the signed rotation angle in degrees
          */
         private record ElementRotationInfo(@NotNull String axis, float angle) {}
 
@@ -828,6 +896,13 @@ public final class ToolingBlockModels {
          * matches them to that block face's TL/BL/BR/TR corners (per
          * {@link BlockFace}'s vertex-index conventions), and emits a
          * single block face entry whose UV rectangle and rotation tag reproduce the per-vertex UVs.
+         *
+         * @param face the entity face being projected
+         * @param perVertexUvs the four per-vertex UVs in vanilla polygon-vertex order
+         * @param blockCorners the eight transformed cube corners in block space
+         * @param box the axis-aligned block bbox of {@code blockCorners}
+         * @param facesOut the faces JSON object mutated in place with the emitted face
+         * @param emitTintIndex whether to emit {@code tintindex: 0} on the face
          */
         private static void emitBlockFace(
             @NotNull EntityFace face,
@@ -898,6 +973,9 @@ public final class ToolingBlockModels {
          * Resolves the four per-corner UVs at TL/BL/BR/TR (one of D4's eight orientations of a
          * UV rectangle) into a ({@code u0, v0, u1, v1}) rectangle plus a 0/90/180/270 rotation
          * tag. Implicit u/v flips are expressed by allowing {@code u0 > u1} or {@code v0 > v1}.
+         *
+         * @param blockCornerUv the four per-corner UVs indexed by block-face corner (0=TL, 1=BL, 2=BR, 3=TR)
+         * @return the resolved rectangle plus rotation tag, or a zero rect + {@code 0} when no orientation matches
          */
         private static @NotNull UvRect resolveUvRotation(float @NotNull [] @NotNull [] blockCornerUv) {
             // For each candidate rotation R in {0, 90, 180, 270}, undo R by cyclic-shifting back
@@ -918,6 +996,10 @@ public final class ToolingBlockModels {
 
         /**
          * Returns the index (0=TL, 1=BL, 2=BR, 3=TR) of {@code blockFaceCorners} closest to {@code position}.
+         *
+         * @param position the transformed vertex to match
+         * @param blockFaceCorners the block face's four corners in TL/BL/BR/TR order
+         * @return the index of the nearest corner
          */
         private static int matchCorner(float @NotNull [] position, @NotNull Vector3f @NotNull [] blockFaceCorners) {
             int best = 0;
@@ -934,13 +1016,21 @@ public final class ToolingBlockModels {
 
         /**
          * {@code true} when two floats are within {@code 1e-4} of each other.
+         *
+         * @param a first value
+         * @param b second value
+         * @return whether {@code a} and {@code b} are within {@code 1e-4}
          */
         private static boolean approxEqual(float a, float b) {
             return Math.abs(a - b) < 1e-4f;
         }
 
         /**
-         * Multiplies two 3x3 matrices, returning {@code a * b}.
+         * Multiplies two 3x3 matrices, returning {@code a · b}.
+         *
+         * @param a left 3x3 operand
+         * @param b right 3x3 operand
+         * @return the product {@code a · b}
          */
         private static double[][] matMul3(double[][] a, double[][] b) {
             double[][] r = new double[3][3];
@@ -954,6 +1044,9 @@ public final class ToolingBlockModels {
          * Rounds {@code v} to 5 decimal places for readable JSON output. 5 places preserve
          * vanilla's {@code CubeDeformation} inflate values (e.g. {@code 0.015}) and bone-composed
          * fractional coordinates to sub-pixel accuracy.
+         *
+         * @param v the coordinate to round
+         * @return {@code v} rounded to 5 decimal places
          */
         private static float roundCoord(double v) {
             return (float) (Math.round(v * 100000.0) / 100000.0);
@@ -971,6 +1064,14 @@ public final class ToolingBlockModels {
          */
         private record CubeDef(float ox, float oy, float oz, float sw, float sh, float sd, int u, int v, float inflate) {
 
+            /**
+             * Parses one {@code bones[].cubes[]} entry into a {@code CubeDef}. The {@code inflate}
+             * key is optional (defaulting to {@code 0}); {@code origin}/{@code size}/{@code uv} are
+             * required by the parser contract.
+             *
+             * @param cube one cube JSON object from the parsed entity model
+             * @return the parsed cube geometry
+             */
             static @NotNull CubeDef of(@NotNull JsonObject cube) {
                 JsonArray originArr = cube.getAsJsonArray("origin");
                 JsonArray sizeArr = cube.getAsJsonArray("size");
@@ -993,6 +1094,9 @@ public final class ToolingBlockModels {
              * coords match (yMin in source == yMin in our cube origin), but for Y-UP source the
              * parser pre-flipped Y and the meaning of yMin/yMax is inverted - swap yLo/yHi to
              * recover vanilla's labels.
+             *
+             * @param yUpSource whether the source model was Y-up (parser pre-flipped it), requiring the yLo/yHi swap
+             * @return the eight corners as {@code [x, y, z]} triples in {@code v19..v26} order
              */
             float @NotNull [] @NotNull [] entityCorners(boolean yUpSource) {
                 float xLo = ox - inflate,      xHi = ox + sw + inflate;
@@ -1037,6 +1141,20 @@ public final class ToolingBlockModels {
             boolean entityFlip
         ) {
 
+            /**
+             * Builds the transform for one bone: reads its {@code pivot}, {@code rotation}, and
+             * {@code scale}, precomputes the {@code Rz · Ry · Rx} bone-rotation matrix (or leaves
+             * it {@code null} when all three Euler angles are zero), and carries the model-level
+             * inventory transform, inventory yaw, and entity-flip gate through unchanged.
+             *
+             * @param bone one {@code bones[]} entry from the parsed entity model
+             * @param invTransform the model's decomposed {@code [tx, ty, tz, pitch, yaw, roll, scale?]}
+             *  inventory transform, or {@code null} when the model has none (takes the entity-flip path)
+             * @param invYRot inventory yaw applied around block centre (baked +180 for the chest)
+             * @param entityFlip whether the entity-render {@code scale(-1, -1, 1)} X negation applies
+             *  on the no-inventory-transform path
+             * @return the assembled bone transform
+             */
             static @NotNull CubeTransform of(@NotNull JsonObject bone, float @Nullable [] invTransform, float invYRot, boolean entityFlip) {
                 JsonArray pivotArr = bone.getAsJsonArray("pivot");
                 float px = pivotArr != null ? pivotArr.get(0).getAsFloat() : 0f;
@@ -1067,6 +1185,9 @@ public final class ToolingBlockModels {
 
             /**
              * Applies scale + pivot + inventory transform (or Y-flip) + inventory yaw, skipping bone rotation.
+             *
+             * @param corner the entity-space corner {@code [x, y, z]}
+             * @return the transformed block-space corner
              */
             float @NotNull [] applyNoBoneRot(float @NotNull [] corner) {
                 return applyChain(corner, false);
@@ -1074,11 +1195,25 @@ public final class ToolingBlockModels {
 
             /**
              * Applies scale, bone rotation, pivot, inventory transform (or Y-flip), then inventory yaw.
+             *
+             * @param corner the entity-space corner {@code [x, y, z]}
+             * @return the transformed block-space corner
              */
             float @NotNull [] apply(float @NotNull [] corner) {
                 return applyChain(corner, true);
             }
 
+            /**
+             * Runs one entity-space corner through the full chain: uniform scale, optional bone
+             * rotation, pivot offset, then either the inventory transform (uniform inv-scale &rarr;
+             * {@code Rx(pitch)} &rarr; translate) or - when no inventory transform is present -
+             * vanilla's entity-render {@code scale(-1, -1, 1)} flip, and finally the inventory yaw
+             * about block centre {@code (8, 8, 8)}.
+             *
+             * @param corner the entity-space corner {@code [x, y, z]}
+             * @param withBoneRot whether to apply the bone rotation matrix (skipped for the runtime-rotation path)
+             * @return the transformed block-space corner
+             */
             private float @NotNull [] applyChain(float @NotNull [] corner, boolean withBoneRot) {
                 float cx = corner[0] * scale, cy = corner[1] * scale, cz = corner[2] * scale;
 
@@ -1148,6 +1283,9 @@ public final class ToolingBlockModels {
              * not (the {@code cy = -cy} reflection path is skipped here - pure reflections don't
              * cleanly conjugate into an axis-aligned rotation and fall through to the AABB path).
              * Bone rotation {@code R_bone} becomes block rotation {@code R_block = T · R_bone · T^T}.
+             *
+             * @return the axis-aligned block rotation, or {@code null} when there is no bone
+             *  rotation, no inventory transform, or the conjugated axis is diagonal / a reflection
              */
             @Nullable ElementRotationInfo computeBlockRotation() {
                 if (boneRot == null || invTransform == null) return null;
@@ -1194,6 +1332,10 @@ public final class ToolingBlockModels {
 
         /**
          * The resolved UV rectangle plus a rotation tag from per-corner UV sampling.
+         *
+         * @param bounds the {@code (u0, v0, u1, v1)} rectangle, with {@code u0 > u1} or
+         *  {@code v0 > v1} expressing an implicit axis flip
+         * @param rotation the block-face UV rotation tag, one of {@code 0}/{@code 90}/{@code 180}/{@code 270} degrees
          */
         private record UvRect(@NotNull Vector4f bounds, int rotation) {}
 

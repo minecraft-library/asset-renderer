@@ -31,20 +31,29 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 /**
- * Resolves the data-driven entity variant tables shipped under
- * {@code data/minecraft/<X>_variant/*.json} in the client jar. These were introduced in MC 1.21+
- * for cow / pig / chicken / frog / wolf / cat (climate / breed variants). Each JSON file declares
- * an {@code asset_id} (the texture {@code net.minecraft.resources.Identifier}) plus
- * optional {@code baby_asset_id} and {@code model} fields:
+ * ASM-derives per-entity variant sets from renderer bytecode plus the client jar's data-driven
+ * variant tables and variant enums.
  *
- * <pre>
+ * <p>Two vanilla variant mechanisms are resolved here:
+ *
+ * <ul>
+ *   <li><b>Data-driven tables</b> ({@link #loadAll}) - the {@code data/minecraft/<X>_variant/*.json}
+ *       files introduced in MC 1.21+ for cow / pig / chicken / frog / wolf / cat
+ *       (climate / breed variants). Each JSON file declares an {@code asset_id} (the texture
+ *       resource location, a vanilla {@code net.minecraft.resources.Identifier}) plus optional
+ *       {@code baby_asset_id} and {@code model} fields:
+ *       <pre>{@code
  * {
  *   "asset_id": "minecraft:entity/cow/cow_cold",
  *   "baby_asset_id": "minecraft:entity/cow/cow_cold_baby",
  *   "model": "cold",
  *   "spawn_conditions": [...]
  * }
- * </pre>
+ *       }</pre></li>
+ *   <li><b>Variant enums</b> ({@link #resolveEnumDefault}) - the pure-enum pattern
+ *       (axolotl / rabbit) where the renderer's {@code getTextureLocation} reads an enum-typed
+ *       {@code state.variant} field and the enum exposes a {@code DEFAULT} initialiser.</li>
+ * </ul>
  *
  * <p>The {@code asset_id} value is a resource location that maps to a real PNG via the
  * {@code textures/} prefix - {@code "minecraft:entity/cow/cow_cold"} resolves to
@@ -75,8 +84,8 @@ public final class EntityVariantResolver {
      * One variant entry parsed from a variant JSON file. Carries either a single
      * {@code asset_id} (cow / pig / chicken / frog / cat shape) or a per-key {@code assets}
      * map (wolf shape, where one variant declares {@code angry} / {@code tame} / {@code wild}
-     * sub-textures). The runtime caller picks one based on entity state; the diagnostic JSON
-     * publishes whichever set is non-empty.
+     * sub-textures). {@link EntityRuntimeJsonWriter} reads {@link #primaryTexturePath()} for the
+     * emitted {@code texture_ref}, picking whichever set is non-empty.
      *
      * @param variantId the variant's resource id (e.g. {@code "cold"}, {@code "ashen"});
      *     the file basename minus {@code .json}
@@ -95,9 +104,11 @@ public final class EntityVariantResolver {
         @Nullable String model
     ) {
         /**
-         * The default texture path - either the single {@code asset_id} (under {@code "primary"})
-         * or the {@code "wild"} entry from the {@code assets} map (vanilla wolf default), or
-         * the first entry when neither is present.
+         * Selects the default texture path - the {@code "wild"} entry from the {@code assets} map
+         * (vanilla wolf default) when present, else the single {@code asset_id} (under
+         * {@code "primary"}), else the first {@link #textures} entry.
+         *
+         * @return the default texture path, or {@code null} when {@link #textures} is empty
          */
         public @Nullable String primaryTexturePath() {
             String wild = this.textures.get("wild");
@@ -109,7 +120,10 @@ public final class EntityVariantResolver {
         }
 
         /**
-         * The matching baby texture, or {@code null} when none is declared.
+         * Selects the default baby texture path using the same {@code "wild"} &rarr;
+         * {@code "primary"} &rarr; first-entry precedence as {@link #primaryTexturePath()}.
+         *
+         * @return the matching baby texture path, or {@code null} when no baby variants are declared
          */
         public @Nullable String primaryBabyTexturePath() {
             String wild = this.babyTextures.get("wild");
@@ -211,15 +225,19 @@ public final class EntityVariantResolver {
      * {@code CatVariants}, etc.) for its {@code DEFAULT} static field initialiser and returns
      * a {@code variantStem -> defaultVariantId} map (e.g. {@code wolf -> "pale"},
      * {@code chicken -> "warm"} - the canonical defaults vanilla picks at runtime when no
-     * spawn condition matches). The pattern walked:
-     * <pre>
+     * spawn condition matches). The {@code <clinit>} pattern walked:
+     * <pre>{@code
      *   LDC "pale"; INVOKESTATIC createKey; PUTSTATIC PALE
      *   ...
      *   GETSTATIC PALE; PUTSTATIC DEFAULT
-     * </pre>
+     * }</pre>
      * The holder class lookup uses the convention {@code <CamelStem>Variants.class}; missing
      * holders or holders without a {@code DEFAULT} field don't appear in the result. Empty
      * when the jar ships no holder classes.
+     *
+     * @param context the tooling context (jar + diagnostics + ClassNode cache)
+     * @param diagnostics the diagnostic sink shared with sibling discovery walks
+     * @return variant stem -&gt; canonical default variant id
      */
     public static @NotNull ConcurrentMap<String, String> loadDataDrivenDefaults(
         @NotNull EntityToolingContext context,
@@ -243,6 +261,56 @@ public final class EntityVariantResolver {
     }
 
     /**
+     * Walks a renderer's model-map construction bytecode (the {@code bakeModels} static factory
+     * on variant renderers that keep a {@code Map<XVariant$ModelType, Model>}) and returns a
+     * {@code (ModelType-constant-name -> ModelLayers field name)} map for the <b>adult</b> model
+     * layers. Used to resolve a variant's {@code model} discriminator to its actual
+     * {@code ModelLayers.X} field when the vanilla naming doesn't follow the
+     * {@code <MODEL>_<STEM>} convention.
+     *
+     * <p>Cow's {@code bakeModels} pairs {@code ModelType.WARM -> ModelLayers.WARM_COW} (matches
+     * the convention), but zombie_nautilus pairs {@code ModelType.WARM ->
+     * ModelLayers.ZOMBIE_NAUTILUS_CORAL} (does not). Deriving the pairing from bytecode covers
+     * both. Each {@code AdultAndBabyModelPair} entry lists the adult layer first, then the baby
+     * layer; only the first {@code ModelLayers.X} after each {@code ModelType} GETSTATIC is
+     * captured so the baby layer ({@code WARM_COW_BABY}) is skipped.
+     *
+     * <p>Walks every method (the pattern lives in {@code bakeModels} for cow / zombie_nautilus,
+     * but scanning all methods keeps it robust to renderers that build the map inline in
+     * {@code <init>}); {@code putIfAbsent} keeps the first pairing found. Returns an empty map
+     * when the renderer has no such construction.
+     *
+     * @param classNodes the ClassNode cache (shared with sibling resolver walks)
+     * @param rendererInternalName the renderer class's JVM internal name
+     * @return {@code ModelType} constant name (uppercase, e.g. {@code "WARM"}) -&gt; adult
+     *     {@code ModelLayers} field name (e.g. {@code "ZOMBIE_NAUTILUS_CORAL"}); empty when no
+     *     model-map construction is present
+     */
+    public static @NotNull Map<String, String> modelTypeToModelLayerField(
+        @NotNull ClassNodeCache classNodes,
+        @NotNull String rendererInternalName
+    ) {
+        ClassNode cn = classNodes.load(rendererInternalName);
+        if (cn == null) return Map.of();
+        Map<String, String> out = new LinkedHashMap<>();
+        for (MethodNode method : cn.methods) {
+            String pendingModelType = null;
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                if (in.getOpcode() != Opcodes.GETSTATIC || !(in instanceof FieldInsnNode fi)) continue;
+                if (fi.owner.endsWith("$ModelType")) {
+                    pendingModelType = fi.name;
+                } else if (VanillaSourceClasses.MODEL_LAYERS.equals(fi.owner) && pendingModelType != null) {
+                    // First ModelLayers after the ModelType GETSTATIC is the adult layer; consume
+                    // the pending key so the following BABY layer (e.g. WARM_COW_BABY) is skipped.
+                    out.putIfAbsent(pendingModelType, fi.name);
+                    pendingModelType = null;
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
      * Fallback for variant tables whose holder class lacks a {@code DEFAULT} field
      * ({@code CatVariants} is the canonical case in vanilla 26.1). Walks every
      * {@code data/minecraft/<variantStem>_variant/*.json} and returns the alphabetically-first
@@ -255,7 +323,11 @@ public final class EntityVariantResolver {
      * out; the remaining 10 unconditional variants are ordered alphabetically and {@code black}
      * wins -&gt; cat texture resolves to {@code entity/cat/cat_black}.
      *
-     * @return the variant id (e.g., {@code "black"}) or {@code null} when no unconditional
+     * @param context the tooling context (jar + diagnostics + ClassNode cache)
+     * @param variantStem the variant directory stem (e.g. {@code "cat"}) whose
+     *     {@code data/minecraft/<stem>_variant/} directory is scanned
+     * @param diagnostics the diagnostic sink shared with sibling discovery walks
+     * @return the variant id (e.g. {@code "black"}) or {@code null} when no unconditional
      *     variant exists in the directory
      */
     public static @Nullable String findAlphaFirstUnconditionalVariantId(

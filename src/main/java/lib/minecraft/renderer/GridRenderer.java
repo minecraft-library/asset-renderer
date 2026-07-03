@@ -4,8 +4,10 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.engine.RenderEngine;
-import lib.minecraft.renderer.kit.FrameMerger;
+import lib.minecraft.renderer.engine.compose.FrameCompositor;
+import lib.minecraft.renderer.engine.compose.FrameLayer;
+import lib.minecraft.renderer.engine.compose.FramePlacement;
+import lib.minecraft.renderer.engine.compose.Frames;
 import lib.minecraft.renderer.options.GridOptions;
 import org.jetbrains.annotations.NotNull;
 
@@ -19,7 +21,7 @@ import org.jetbrains.annotations.NotNull;
  *       rectangles (separation is non-negative) make the parallel writes race-free without
  *       per-tile synchronisation.</li>
  *   <li><b>Mixed / any-animated path</b> - promotes the entire output to animated and walks
- *       every tile through {@link FrameMerger#merge FrameMerger.merge}, which computes a
+ *       every tile through {@link FrameCompositor#merge FrameCompositor.merge}, which computes a
  *       merged loop period (LCM of animated layers, capped at 10 seconds) and samples each
  *       layer per output frame.</li>
  * </ul>
@@ -28,15 +30,17 @@ import org.jetbrains.annotations.NotNull;
  * detects the mix and routes through the animated path automatically.
  *
  * @see GridOptions
- * @see FrameMerger
+ * @see FrameCompositor
  */
 public final class GridRenderer implements Renderer<GridOptions> {
 
     /**
-     * Default animated-grid output frame rate when promoting a mixed static/animated composite.
+     * Default animated-grid output frame rate (frames per second) when promoting a mixed
+     * static / animated composite through {@link FrameCompositor#merge}.
      */
     private static final int DEFAULT_FRAME_FPS = 30;
 
+    /** {@inheritDoc} */
     @Override
     public @NotNull ImageData render(@NotNull GridOptions options) {
         int cellSize = options.getCellSize();
@@ -44,37 +48,34 @@ public final class GridRenderer implements Renderer<GridOptions> {
         int canvasW = options.getColumns() * (cellSize + separation) + separation;
         int canvasH = options.getRows() * (cellSize + separation) + separation;
 
-        boolean anyAnimated = options.getTiles()
-            .stream()
-            .anyMatch(tile -> tile.image().isAnimated());
+        // Build tile placements as a FrameLayer stack so callers can splice layers via
+        // GridOptions.layerDecorator, then flatten for dispatch.
+        ConcurrentList<FrameLayer> layers = Concurrent.newList();
+        for (GridOptions.GridTile tile : options.getTiles()) {
+            int x = tile.col() * (cellSize + separation) + separation;
+            int y = tile.row() * (cellSize + separation) + separation;
+            layers.add(new FramePlacement(x, y, tile.image()));
+        }
+        ConcurrentList<FramePlacement> placements = FrameCompositor.flatten(options.getLayerDecorator().apply(layers));
+
+        boolean anyAnimated = placements.stream().anyMatch(placement -> placement.source().isAnimated());
 
         if (!anyAnimated) {
             PixelBuffer buffer = PixelBuffer.create(canvasW, canvasH);
             options.getBackground().fill(buffer);
 
-            // Tile-parallel blit. Each tile's (x, y, cellSize) destination rectangle is disjoint
-            // from every other tile's (separation is non-negative, so rectangles never overlap),
-            // which means blitScaled writes to non-aliasing int[] index ranges across threads.
-            // tile.image().toBufferedImage() allocates a fresh BufferedImage per call, so the
-            // PixelBuffer.wrap snapshot is thread-local.
-            options.getTiles().parallelStream().forEach(tile -> {
-                PixelBuffer tileBuffer = PixelBuffer.wrap(tile.image().toBufferedImage());
-                int x = tile.col() * (cellSize + separation) + separation;
-                int y = tile.row() * (cellSize + separation) + separation;
-                buffer.blitScaled(tileBuffer, x, y, cellSize, cellSize);
-            });
+            // Placement-parallel blit. Each placement's (x, y, cellSize) destination rectangle is
+            // disjoint from every other's (separation is non-negative, so rectangles never overlap),
+            // so blitScaled writes to non-aliasing int[] index ranges across threads; the source is
+            // read-only. toPixelBuffer() is the direct ImageData -> PixelBuffer conversion, avoiding
+            // the PixelBuffer -> BufferedImage -> PixelBuffer round-trip of wrap(toBufferedImage()).
+            placements.parallelStream().forEach(placement ->
+                buffer.blitScaled(placement.source().toPixelBuffer(), placement.x(), placement.y(), cellSize, cellSize));
 
-            return RenderEngine.staticFrame(buffer);
+            return Frames.staticFrame(buffer);
         }
 
-        ConcurrentList<FrameMerger.Layer> layers = Concurrent.newList();
-        for (GridOptions.GridTile tile : options.getTiles()) {
-            int x = tile.col() * (cellSize + separation) + separation;
-            int y = tile.row() * (cellSize + separation) + separation;
-            layers.add(new FrameMerger.Layer(x, y, tile.image()));
-        }
-
-        return FrameMerger.merge(layers, canvasW, canvasH, DEFAULT_FRAME_FPS, options.getBackground());
+        return FrameCompositor.merge(placements, canvasW, canvasH, DEFAULT_FRAME_FPS, options.getBackground());
     }
 
 }

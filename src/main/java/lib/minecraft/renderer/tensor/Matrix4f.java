@@ -171,13 +171,13 @@ public final class Matrix4f {
      */
     public static @NotNull Matrix4f createRotationX(float radians) {
         // Route through Quaternionf to match vanilla bit-for-bit. Vanilla's
-        // {@code PoseStack.mulPose(Axis.XP.rotation(radians))} builds a quaternion via
-        // {@code Quaternionf.rotateX(radians)} then converts to a matrix. Direct
-        // {@code Math.cos/sin} of the radians (the previous path here) drifts by 1-4 ULPs
-        // per matrix entry vs vanilla's quat-derived matrix - notably at 180-degree-class
-        // angles where {@code (float) Math.sin((float) Math.PI) ~= -8.74e-8} (not 0) while
-        // {@code Quaternionf.rotationXYZ(Math.PI, 0, 0)} yields a quat that converts to a
-        // matrix with EXACT zeros.
+        // PoseStack.mulPose(Axis.XP.rotation(radians)) builds a quaternion via
+        // Quaternionf.rotateX(radians) then converts to a matrix. Direct Math.cos/sin
+        // of the radians (the previous path here) drifts by 1-4 ULPs per matrix entry vs
+        // vanilla's quat-derived matrix - notably at 180-degree-class angles where
+        // (float) Math.sin((float) Math.PI) ~= -8.74e-8 (not 0) while
+        // Quaternionf.rotationXYZ(Math.PI, 0, 0) yields a quat that converts to a matrix
+        // with EXACT zeros.
         return Quaternionf.rotationXYZ(radians, 0f, 0f).toMatrix4f();
     }
 
@@ -281,11 +281,11 @@ public final class Matrix4f {
      */
     public @NotNull Matrix4f multiply(@NotNull Matrix4f b) {
         if (SimdSupport.ENABLED) return SimdOps.multiply(this, b);
-        // Right-associated mul-add chain matching JOML's {@code Matrix4f.mul} with
-        // {@code joml.useMathFma=false} (vanilla Minecraft's default). JOML's source uses
-        // {@code Math.fma(a, b, fma(c, d, fma(e, f, g*h)))}; with FMA off each fma collapses
-        // to {@code a*b + c}, producing the right-associated grouping
-        // {@code a[0]*b1 + (a[4]*b2 + (a[8]*b3 + a[12]*b4))}.
+        // Right-associated mul-add chain matching JOML's Matrix4f.mul with
+        // joml.useMathFma=false (vanilla Minecraft's default). JOML's source uses
+        // Math.fma(a, b, fma(c, d, fma(e, f, g*h))); with FMA off each fma collapses
+        // to a*b + c, producing the right-associated grouping
+        // a[0]*b1 + (a[4]*b2 + (a[8]*b3 + a[12]*b4)).
         float[] a = this.m;
         float[] r = new float[16];
         for (int col = 0; col < 4; col++) {
@@ -351,6 +351,9 @@ public final class Matrix4f {
 
     /**
      * Vector overload of {@link #translate(float, float, float)}.
+     *
+     * @param v the translation offset
+     * @return a new matrix representing the post-translated transform
      */
     public @NotNull Matrix4f translate(@NotNull Vector3f v) {
         return translate(v.x(), v.y(), v.z());
@@ -379,6 +382,9 @@ public final class Matrix4f {
 
     /**
      * Uniform scale overload of {@link #scale(float, float, float)}.
+     *
+     * @param uniform the scale factor applied to all three axes
+     * @return a new matrix representing the post-scaled transform
      */
     public @NotNull Matrix4f scale(float uniform) {
         return scale(uniform, uniform, uniform);

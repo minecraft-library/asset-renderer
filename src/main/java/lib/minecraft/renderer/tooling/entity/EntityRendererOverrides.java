@@ -84,7 +84,15 @@ public final class EntityRendererOverrides {
     public record Result(float setupYawAddend, @Nullable Float rendererScale) {}
 
     /**
-     * Runs both override walks against the renderer class and returns the combined result.
+     * Runs both override walks against the renderer class and folds their outputs into a
+     * single {@link Result}. Loading the renderer class once feeds both the
+     * {@code setupRotations} yaw-addend walk and the {@code scale} residue walk.
+     *
+     * @param classNodes the shared class-node cache
+     * @param rendererInternalName the renderer class internal name
+     * @param diagnostics the run diagnostics sink (scale extractions are logged at info level)
+     * @return the combined yaw-addend + scale-residue result; {@code Result(0f, null)} when the
+     *     renderer class cannot be loaded
      */
     public static @NotNull Result resolve(@NotNull ClassNodeCache classNodes, @NotNull String rendererInternalName, @NotNull Diagnostics diagnostics) {
         ClassNode cn = classNodes.load(rendererInternalName);

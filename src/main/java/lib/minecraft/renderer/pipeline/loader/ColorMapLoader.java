@@ -21,22 +21,30 @@ import java.util.HashMap;
  * A loader that reads pre-generated biome colormap data from the bundled
  * {@code /lib/minecraft/renderer/color_maps.json} classpath resource.
  * <p>
- * The JSON is produced by the {@code generateColorMaps} Gradle task via
- * {@link ToolingColorMaps.Parser}, which reads the vanilla colormap PNGs and encodes their raw ARGB
- * pixels as Base64. This loader decodes the pixels at runtime so the renderer can sample biome
- * tint colors without needing the original PNG files.
+ * The JSON is produced by the {@code colorMaps} Gradle task via {@link ToolingColorMaps}
+ * {@code .Parser}, which reads the vanilla colormap PNGs and encodes their raw ARGB pixels as
+ * Base64. This loader decodes the pixels at runtime so the renderer can sample biome tint colors
+ * without needing the original PNG files. Each row is keyed by its {@link ColorMap.Type} and given
+ * a synthetic {@code vanilla:<type>} id.
  *
- * @see ToolingColorMaps.Parser
  * @see ColorMap
  */
 @UtilityClass
 public class ColorMapLoader {
 
+    /**
+     * Classpath location of the bundled colormap snapshot.
+     */
     private static final @NotNull String RESOURCE_PATH = "/lib/minecraft/renderer/color_maps.json";
+
+    /**
+     * Shared Gson configured with the project defaults, used to parse the colormap table.
+     */
     private static final @NotNull Gson GSON = GsonSettings.defaults().create();
 
     /**
      * Loads all colormaps from the bundled JSON resource, indexed by their {@link ColorMap.Type}.
+     * Returns an empty map when the resource is absent from the classpath.
      *
      * @return the colormap entities keyed by type, wrapped unmodifiable so downstream reads bypass
      *     the read lock

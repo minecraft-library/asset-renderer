@@ -74,6 +74,15 @@ public final class Diagnostics {
         add("INFO: " + String.format(format, args), false);
     }
 
+    /**
+     * Appends an already-prefixed {@code message} to {@link #entries}, skipping it when a
+     * byte-identical line has been recorded before (via the {@link #dedupe} set). Strict-failing
+     * severities (WARN / ERROR) are additionally mirrored into {@link #strictFailingEntries} so
+     * {@link #strictFailingCount()} counts them without re-scanning for a prefix.
+     *
+     * @param message the fully-formatted line including its severity prefix
+     * @param strictFails whether this severity should fail strict mode
+     */
     private void add(@NotNull String message, boolean strictFails) {
         if (!this.dedupe.add(message)) return;
         this.entries.add(message);

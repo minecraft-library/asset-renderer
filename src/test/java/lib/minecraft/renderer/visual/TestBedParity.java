@@ -15,10 +15,12 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
-import lib.minecraft.renderer.engine.IsometricEngine;
-import lib.minecraft.renderer.geometry.PerspectiveParams;
-import lib.minecraft.renderer.geometry.VisibleTriangle;
-import lib.minecraft.renderer.kit.BlockGeometryKit;
+import lib.minecraft.renderer.engine.ModelEngine;
+import lib.minecraft.renderer.engine.camera.Lens;
+import lib.minecraft.renderer.engine.camera.Projection;
+import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
+import lib.minecraft.renderer.engine.raster.SurfaceTraits;
+import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.options.BlockOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
@@ -28,16 +30,33 @@ import lib.minecraft.renderer.tensor.Vector3f;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
-import javax.imageio.ImageIO;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Optional;
+import javax.imageio.ImageIO;
 
 /**
- * Comparison test: renders beds using both the mc-assets block model JSON (ground truth)
- * and our entity model pipeline, side by side at 1024x1024.
+ * Side-by-side visual comparison of the block-entity subjects (bed, chest) rendered two ways: the
+ * {@code minecraft:red_bed} / {@code minecraft:chest} block-entity path through the production
+ * {@link BlockRenderer} against a from-scratch render built directly off the mc-assets hand-curated
+ * block-model JSON (treated as ground truth). Both are rasterized with the same iso engine so the
+ * comparison isolates model-geometry / UV differences, not projection differences.
+ *
+ * <p>The mc-assets path parses each JSON's {@code elements} into {@link ModelElement}s, resolves the
+ * entity texture, builds triangles via {@link BlockGeometryKit#buildFromElements}, applies a
+ * subject-specific Y rotation (bed = 90 degrees to point the pillow top-right; chest = identity),
+ * recentres / rescales the bed (it spans two blocks), then rasterizes through {@link ModelEngine}
+ * under {@link Projection#VANILLA_ISO} with {@link Lens#NONE}. No entity pipeline is involved on that
+ * side - it is a pure block-model render.
+ *
+ * <p>Four PNGs land under {@code cache/visual/bed-parity/}: {@code pipeline_red_bed.png},
+ * {@code mc_assets_red_bed.png}, {@code pipeline_chest.png}, {@code mc_assets_chest.png}. Unlike the
+ * other parity tools here there is no diff/metric pass - the eye does the comparison across the
+ * pipeline-vs-mc_assets pairs.
+ *
+ * <p>Usage: {@code ./gradlew :asset-renderer:bedParity [-PrenderSize=1024]}.
  */
 @UtilityClass
 public final class TestBedParity {
@@ -48,9 +67,9 @@ public final class TestBedParity {
     );
 
     /**
-     * Runs the comparison.
+     * Runs the comparison matrix (pipeline vs mc-assets, for both red_bed and chest).
      *
-     * @param args {@code args[0]} is an optional edge length in pixels (defaults to 1024)
+     * @param args {@code args[0]} is an optional square edge length in pixels (defaults to 1024)
      * @throws IOException if the output directory cannot be created or a render cannot be written
      */
     public static void main(String @NotNull [] args) throws IOException {
@@ -137,7 +156,7 @@ public final class TestBedParity {
                 t.texture(), t.tintArgb(),
                 Vector3f.normalize(
                     Vector3f.transformNormal(t.normal(), rotY)),
-                t.shading(), t.cullBackFaces(), t.emissive()
+                t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), t.traits().emissive(), false, false)
             ));
         }
 
@@ -147,9 +166,9 @@ public final class TestBedParity {
         ConcurrentList<VisibleTriangle> centered = recenterAndFit(rotated, 1.4f);
 
         // Rasterize with standard isometric engine
-        IsometricEngine engine = IsometricEngine.forBlockIcon(context);
+        ModelEngine engine = new ModelEngine(context, Projection.VANILLA_ISO.resolve().withLens(Lens.NONE));
         PixelBuffer buffer = PixelBuffer.create(size, size);
-        engine.rasterize(centered, buffer, PerspectiveParams.NONE);
+        engine.rasterize(centered, buffer);
         ImageIO.write(buffer.toBufferedImage(), "PNG", out.toFile());
         System.out.println("  Wrote " + out);
     }
@@ -189,13 +208,13 @@ public final class TestBedParity {
                 t.texture(), t.tintArgb(),
                 Vector3f.normalize(
                     Vector3f.transformNormal(t.normal(), rotY)),
-                t.shading(), t.cullBackFaces(), t.emissive()
+                t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), t.traits().emissive(), false, false)
             ));
         }
 
-        IsometricEngine engine = IsometricEngine.forBlockIcon(context);
+        ModelEngine engine = new ModelEngine(context, Projection.VANILLA_ISO.resolve().withLens(Lens.NONE));
         PixelBuffer buffer = PixelBuffer.create(size, size);
-        engine.rasterize(rotated, buffer, PerspectiveParams.NONE);
+        engine.rasterize(rotated, buffer);
         ImageIO.write(buffer.toBufferedImage(), "PNG", out.toFile());
         System.out.println("  Wrote " + out);
     }
@@ -284,7 +303,7 @@ public final class TestBedParity {
                 scaleV(t.position1(), cx, cy, cz, scale),
                 scaleV(t.position2(), cx, cy, cz, scale),
                 t.uv0(), t.uv1(), t.uv2(),
-                t.texture(), t.tintArgb(), t.normal(), t.shading(), t.cullBackFaces(), t.emissive()
+                t.texture(), t.tintArgb(), t.normal(), t.shading(), new SurfaceTraits(t.traits().cullBackFaces(), t.traits().emissive(), false, false)
             ));
         }
         return out;

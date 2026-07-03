@@ -15,6 +15,13 @@ import static org.hamcrest.Matchers.is;
  * clustering folded into {@link EntityRuntimeJsonWriter} from the deleted
  * {@code EntityFamilyResolver}. Tests build a small {@code entities} JSON object directly so
  * the clustering logic is exercised without standing up {@link EntityRuntimeJsonWriter#writeAll}.
+ * <p>
+ * The pinned rules: entities sharing a {@code geometry_ref} cluster together only when the group
+ * has at least two members and one member's id matches the geometry stem (which becomes the
+ * canonical root the siblings map to); {@code adult}/{@code baby} geometry-name prefixes are
+ * stripped before the stem match; rows carrying {@code variant_of} (climate variants) are excluded;
+ * a group with no id-stem match is skipped with a diagnostic (the illager case); and rows missing
+ * {@code geometry_ref} or non-object entries are tolerated rather than throwing.
  */
 @DisplayName("EntityRuntimeJsonWriter.deriveFamilies")
 class EntityRuntimeJsonWriterTest {
@@ -137,12 +144,17 @@ class EntityRuntimeJsonWriterTest {
     // Fixture helpers
     // ============================================================================================
 
+    /** Adds a minimal base-entity row carrying only a {@code geometry_ref} - the sole field clustering keys on. */
     private static void addEntity(JsonObject entities, String entityId, String geometryRef) {
         JsonObject row = new JsonObject();
         row.addProperty("geometry_ref", geometryRef);
         entities.add(entityId, row);
     }
 
+    /**
+     * Adds a climate-variant row carrying both {@code geometry_ref} and {@code variant_of}; the
+     * latter marks it for exclusion from family clustering.
+     */
     private static void addVariantEntity(JsonObject entities, String entityId, String geometryRef, String variantOf) {
         JsonObject row = new JsonObject();
         row.addProperty("geometry_ref", geometryRef);

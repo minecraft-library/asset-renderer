@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.bench;
 
 import lib.minecraft.renderer.ItemRenderer;
+import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.options.ItemOptions;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -12,13 +13,20 @@ import org.openjdk.jmh.infra.Blackhole;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Held-item 3D render benchmark - exercises {@link ItemRenderer.Held3D} via the display
- * transform path. Measures the ModelEngine + SIMD math on the non-block rasterization branch.
+ * Held-item 3D render benchmark - exercises {@link ItemRenderer.Held3D}, which renders the item
+ * through {@link ModelEngine} with the model's {@code thirdperson_righthand} display transform
+ * applied. Measures the ModelEngine + SIMD math on the item (non-block) rasterization branch at
+ * {@code 256} px.
+ * <p>
+ * The item spread covers both {@code Held3D} dispatch paths: {@code diamond_sword} / {@code bow} /
+ * {@code compass} carry model element boxes (full 3D geometry), while a layer-only item such as
+ * {@code iron_chestplate} falls back to the thin textured slab path.
  */
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 public class HeldItemBenchmark extends AbstractRendererBenchmark {
 
+    /** Item id under test - one JMH sub-benchmark per item. */
     @Param({
         "minecraft:diamond_sword",
         "minecraft:iron_chestplate",
@@ -27,7 +35,10 @@ public class HeldItemBenchmark extends AbstractRendererBenchmark {
     })
     public String itemId;
 
+    /** Item renderer bound to the trial's pipeline context. */
     private ItemRenderer renderer;
+
+    /** Render options for the current {@link #itemId} in {@link ItemOptions.Type#HELD_3D} mode. */
     private ItemOptions options;
 
     @Override

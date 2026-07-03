@@ -26,8 +26,11 @@ public final class AnimationData {
     private final boolean interpolate;
 
     /**
-     * The ordered list of frame entries. Each entry is either a simple frame index or a
-     * {@link FrameEntry} with an explicit per-frame duration override.
+     * The ordered playback sequence, one {@link FrameEntry} per frame. The vanilla {@code frames}
+     * array is heterogeneous (bare strip indices mixed with explicit {@code index}/{@code time}
+     * objects); it is normalised so every entry is a {@code FrameEntry}, bare indices carrying the
+     * {@code -1} duration marker that defers to {@link #frametime}. Empty when the sidecar declares
+     * no explicit sequence and playback walks the strip in order.
      */
     private final @NotNull ConcurrentList<FrameEntry> frames;
 
@@ -42,10 +45,11 @@ public final class AnimationData {
     private final int height;
 
     /**
-     * A single entry in an animation frames list.
+     * A single entry in an animation {@link #frames} sequence.
      *
-     * @param index the frame index into the animation strip
-     * @param time the per-frame duration override in ticks, or {@code -1} to use {@code frametime}
+     * @param index the zero-based frame index into the vertically-stacked animation strip
+     * @param time the per-frame duration override in ticks, or {@code -1} to defer to the
+     *     animation-level {@link AnimationData#frametime}
      */
     public record FrameEntry(int index, int time) {}
 

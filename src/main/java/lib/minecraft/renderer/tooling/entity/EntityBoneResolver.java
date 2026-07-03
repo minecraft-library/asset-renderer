@@ -61,8 +61,9 @@ public final class EntityBoneResolver {
     private static final @NotNull String ADD_LAYER = "addLayer";
 
     /**
-     * {@code ModelPart.visible} field descriptor. Used by the hidden-bone walker to gate on
-     * the canonical write target.
+     * Descriptor of the boolean {@code ModelPart.visible} field ({@code Z}). Used by the
+     * hidden-bone walkers to gate every {@code PUTFIELD}/{@code GETFIELD} on the canonical
+     * write target, distinguishing it from any other {@code visible}-named field.
      */
     private static final @NotNull String MODEL_PART_VISIBLE_DESC = "Z";
 
@@ -194,9 +195,14 @@ public final class EntityBoneResolver {
     }
 
     /**
-     * Walks backwards from an {@code addLayer} call site looking for the most recent
-     * {@code NEW XLayer}. Bounded at 64 instructions so a long tangle of nested constructor
-     * args doesn't infinite-loop into earlier addLayer constructions.
+     * Walks backwards from an {@code addLayer} call site looking for the {@code NEW XLayer}
+     * that allocates the layer instance being added. Tracks a {@code pendingInits} balance so
+     * nested constructions in the layer's own arguments ({@code new XLayer(new Model(...))})
+     * don't return the wrong {@code NEW}: each {@code INVOKESPECIAL <init>} increments the
+     * balance and each {@code NEW} decrements it, so the {@code NEW} that drives the balance
+     * back to zero is the outermost allocation - the layer being added. Bounded at 64
+     * instructions so a long tangle of nested constructor args can't run away into earlier
+     * {@code addLayer} constructions.
      */
     private static @Nullable String findPrecedingLayerNew(@NotNull AbstractInsnNode addLayerInsn) {
         AbstractInsnNode cursor = addLayerInsn.getPrevious();
@@ -218,7 +224,20 @@ public final class EntityBoneResolver {
     }
 
     /**
-     * Scans one {@code <init>} body for the unconditional-visibility-false pattern.
+     * Scans one {@code <init>} body for the unconditional {@code this.<bone>.visible = false}
+     * pattern and records each cleared bone's model-class field name. The matched instruction
+     * triple, reading backwards from the write, is:
+     *
+     * <pre>{@code
+     *   GETFIELD  <owner>.<bone> : LModelPart;   // the bone field being hidden
+     *   ICONST_0                                  // false
+     *   PUTFIELD  ModelPart.visible : Z          // the visibility write
+     * }</pre>
+     *
+     * <p>Gated to {@code PUTFIELD} on {@code ModelPart.visible:Z} whose value is a literal
+     * {@code ICONST_0} and whose target is a {@code GETFIELD} of a field on {@code owner} -
+     * so conditional or state-gated writes ({@code collectStateGatedHidden}) and writes to
+     * bones owned by another class are excluded.
      */
     private static void collectUnconditionalHidden(@NotNull ClassNode owner, @NotNull MethodNode ctor, @NotNull LinkedHashSet<String> out) {
         for (AbstractInsnNode in = ctor.instructions.getFirst(); in != null; in = in.getNext()) {
@@ -278,8 +297,20 @@ public final class EntityBoneResolver {
      * State-equipment visibility pattern: {@code bone.visible = state.hasChest}. Bones gated
      * to a state-class boolean whose zero-state default is false render only when equipment
      * is present; at the vanilla harness's zero state the flag is false, so the bone is
-     * hidden. Currently narrow to {@code hasChest} (covers AbstractChestedHorse subclasses);
-     * generalising to other state booleans needs entity-class-default walks.
+     * hidden. The matched instruction sequence, reading backwards from the write, is:
+     *
+     * <pre>{@code
+     *   GETFIELD  <owner>.<bone>  : LModelPart;  // the bone field
+     *   ALOAD     <n>                            // the state arg (var != 0, never `this`)
+     *   GETFIELD  <StateClass>.hasChest : Z      // the equipment flag (not owned by owner)
+     *   PUTFIELD  ModelPart.visible : Z
+     * }</pre>
+     *
+     * <p>The flag's {@code GETFIELD} must NOT be owned by {@code owner} (it lives on the render
+     * state class, not the model) and the state {@code ALOAD} must not be slot 0 ({@code this})
+     * - both guards reject a model-owned {@code this.<flag>} boolean that would otherwise look
+     * identical. Currently narrow to {@code hasChest} (covers {@code AbstractChestedHorse}
+     * subclasses); generalising to other state booleans needs entity-class-default walks.
      */
     private static void collectStateGatedHidden(@NotNull ClassNode owner, @NotNull MethodNode method, @NotNull LinkedHashSet<String> out) {
         for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {

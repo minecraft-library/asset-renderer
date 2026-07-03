@@ -20,14 +20,19 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * Diagnostic task that renders a pair of Hypixel SkyBlock-style lore tooltips end to end, so
- * the gradient border, background alpha, stat rows, obfuscated footer, and codec wrapping can
- * all be eyeballed against real content.
+ * Diagnostic task that renders a pair of Hypixel SkyBlock-style lore tooltips end to end through
+ * {@link TextRenderer}, so the gradient border, background alpha, stat rows, obfuscated footer, and
+ * codec wrapping can all be eyeballed against real content. This is a <b>functional / visual</b>
+ * tool ("does it render") - there is no parity gate.
  * <p>
- * The source legacy strings below mirror the style of real tooltips and both include the line
- * {@code +5 ✦ Speed} in white so stat-roll rendering can be eyeballed in isolation.
+ * Two tooltips render: an {@link #ACCESSORY_LEGACY accessory} (static, one PNG) and a
+ * {@link #WEAPON_LEGACY weapon} whose obfuscated last line makes {@link TextRenderer} emit an
+ * animated frame sequence (GIF + lossless WebP + lossy WebP + a static first-frame WebP). Both
+ * legacy strings mirror the style of real tooltips and include the white {@code +5 ✦ Speed} line so
+ * stat-roll rendering can be eyeballed in isolation.
  * <p>
- * Usage: {@code ./gradlew :asset-renderer:loreTooltip}. Outputs land in {@code cache/visual/lore-tooltip/}.
+ * Usage: {@code ./gradlew :asset-renderer:loreTooltip}. Takes no {@code -P} flags; outputs land in
+ * {@code cache/visual/lore-tooltip/}.
  */
 @UtilityClass
 public final class TestLoreTooltip {
@@ -91,6 +96,10 @@ public final class TestLoreTooltip {
 
     /**
      * Renders a single-frame tooltip to PNG. Used for static tooltips without obfuscated text.
+     *
+     * @param slug output filename stem under {@link #OUTPUT_DIR}
+     * @param legacy ampersand-coded legacy string parsed into {@link LineSegment} tooltip lines
+     * @throws IOException if the PNG cannot be written
      */
     private static void renderStatic(@NotNull String slug, @NotNull String legacy) throws IOException {
         ConcurrentList<LineSegment> lines = LineSegment.fromLegacy(legacy, '&');
@@ -118,6 +127,10 @@ public final class TestLoreTooltip {
      * Renders an animated tooltip to GIF + lossless WebP + lossy WebP (with a motion-search
      * thread sweep) + a static first-frame WebP. Used for tooltips that carry obfuscated text
      * so the codec-level palette handling and P-frame motion encoding can be eyeballed.
+     *
+     * @param slug output filename stem under {@link #OUTPUT_DIR}
+     * @param legacy ampersand-coded legacy string parsed into {@link LineSegment} tooltip lines
+     * @throws IOException if any output file cannot be written
      */
     private static void renderAnimated(@NotNull String slug, @NotNull String legacy) throws IOException {
         ConcurrentList<LineSegment> lines = LineSegment.fromLegacy(legacy, '&');
@@ -214,7 +227,13 @@ public final class TestLoreTooltip {
         System.out.println("    webp-lossy motionSearchThreads sweep:" + mvThreadTable);
     }
 
-    /** One-frame {@link ImageData} wrapping the first frame of an animated render. */
+    /**
+     * One-frame {@link ImageData} wrapping the first frame of an animated render, so a lone frame
+     * can be re-encoded as a static WebP to isolate VP8L issues from animation-chunk wrapping.
+     *
+     * @param frame single frame presented as the whole image
+     * @param alpha whether the frame carries an alpha channel
+     */
     private record StaticFirstFrame(@NotNull ImageFrame frame, boolean alpha) implements ImageData {
         @Override public @NotNull ConcurrentList<ImageFrame> getFrames() {
             ConcurrentList<ImageFrame> list = Concurrent.newList();

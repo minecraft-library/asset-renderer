@@ -48,11 +48,16 @@ The sibling [vanilla-reference-harness] drives the actual MC client to render ev
 1. **Java** (vanilla model classes via ASM bytecode walk) - `entity_models.json` + `entity_geometry.json` from the `entityModels` task, consumed at runtime by `EntityRenderer` via `pipeline/loader/EntityModelLoader`.
 2. **Vanilla reference** - drives real MC client via the harness; output at `cache/asset-renderer/vanilla/26.1/references/{blocks,entities}/`. **Ground truth.**
 
-### Iso pose (locked invariants)
-- Entities: `EulerRotation.STANDARD_ISO_ENTITY = (210°, 45°, 0°)` matching harness's `EntityFrameRenderer.ISO_ROTATION = rotationXYZ(210°, 45°, 0°)`.
-- Blocks: `EulerRotation.STANDARD_ISO_BLOCK = (30°, 225°, 0°)` - distinct from entity iso on purpose.
-- Entity iso transform chain has `det=-1` (chirality fix); 5 coupled invariants pinned together: iso constant, engine camera chain, kit emission winding, plane-cube culling, canvas-sizing helpers. The foundation test's "cross OPPOSES stored normal" invariant guards against accidental re-flipping.
-- DO NOT touch `composeIsoTransform` / `IsometricEngine.buildEntityCameraTransform`. Rotation-order swap is math-proven equivalent and an empirical retry regressed piglin 10.27 -> 184.34.
+### Iso pose (VANILLA_ISO + renderer-owned facing)
+- All iso subjects (block, fluid, portal, player, entity) share `Projection.VANILLA_ISO` = `(30°, 225°, 0°)` + `Lens.ISOMETRIC_BLOCK` (vanilla's `display.gui` pose/scale, technically a dimetric). It is **facing-neutral** - presents the model's `-Z` side. (`Projection` is the sole owner of these poses; `EulerRotation.STANDARD_*` is gone.)
+- **Facing is per-renderer**, applied as a model-to-world `Placement` (see `engine.camera.Placement`, composed by `ModelEngine` as `pose · placement · modelSpin`): block/fluid/portal = `IDENTITY`; player = `R_Y(180)`; entity = `R_Y(180)·flip180 = R_Z(180) = diag(-1,-1,1)` (which also un-flips its Y-down model). The camera is a plain **det=+1** display pose; the entity's canvas-fit measures its silhouette through `ModelEngine.orient(spin)` (= `pose · ENTITY_FACING · spin`, the exact render orientation) and hands it to `ModelEngine.rasterizeFitted` via a `FitRequest` (see below). This is what lets any projection be swapped in and still present the subject's front, upright.
+- The entity's harness angle `(210°, 45°, 0°)` (`EntityFrameRenderer.ISO_ROTATION`) survives only as `EntityGeometryKit.ENTITY_ISO_LIGHTING` - the plane-cube lighting frame - decoupled from the camera pose. The old fused `det=-1` `entityIsoChain` / `ENTITY_ISO` assembly are **deleted**; the kit is de-flipped (emits Y-up geometry, det=+1 internally).
+- Byte-identity is pinned by `VanillaEntityTransformGoldenTest` (the `VANILLA_ISO` pose 16 floats + kit-fixture corners) and `EntityGeometryKitTest` - whose winding invariant is now **"emit-order cross AGREES with the stored normal"** (the kit is det=+1 internally; the chirality reflection re-enters via the `Placement`, so screen-space cull winding is unchanged). Run both before/after any kit or camera change; the entity parity sweep must hold too.
+
+### Canvas fit (unified: player + entity, one authority)
+`ModelEngine.rasterizeFitted` + `engine.camera.FitRequest` are the single fit path for player and entity (block/fluid/portal render a unit cube at fixed scale, no fit). The kit emits **fit-neutral** geometry; scale + centring live only in the engine's `prepareFit`, forking on the request mode and the lens kind:
+- `FitRequest.autoFill(fill)` - engine measures the triangle silhouette and fills `fill` of the canvas. **Orthographic** bakes a 3D `scale(fit)` (keeps the depth frame - `DEPTH_EPSILON` is not scale-invariant); **perspective/oblique** carry a 2D post-projection `Fit2D`. Used by the player and by the entity's perspective/oblique path (fed **unit-normalized** geometry via `EntityGeometryKit.unitFit` so foreshortening stays well-behaved). This is what fits long entities (cod) uncropped under PORTRAIT / cavalier / cabinet / military - a 3D model-scale fit could not correct strong foreshortening in one pass.
+- `FitRequest.nativeScale(ndcScale, projectedBounds)` - caller supplies its native pixels-per-block scale + a pre-measured **alpha-tight (optionally family-unioned)** silhouette box (measured through `ModelEngine.orient`); engine bakes the scale in 3D and centres the box midpoint in screen space. This is the entity's **orthographic VANILLA_ISO** path; parity is byte-stable (re-baseline was a no-op, max drift +0.004, snap-absorbed). Byte-identity of the player auto-fill arms is pinned by `PlayerRasterizeFittedGoldenTest`.
 
 ### JOML factory conventions (load-bearing)
 JOML's `Quaternionf` has two Tait-Bryan factories with OPPOSITE application order. Vanilla uses both:
@@ -66,14 +71,14 @@ The factory NAME orders the quaternion product; application order to `v` is REVE
 
 Row-form equivalents (this codebase's `v_row × M`; `Matrix4f.createRotationX(θ)` produces a visual `+θ` X-rotation):
 - **Bone rotations** (`rotationZYX`, X-first): `createRotationX(pitch).multiply(createRotationY(yaw)).multiply(createRotationZ(roll))` - locked in `EntityGeometryKitJava.pivotCenteredRotation`.
-- **GUI display poses** (`rotationXYZ`, Z-first): `createRotationZ(roll).multiply(createRotationY(yaw)).multiply(createRotationX(pitch))` - used by `IsometricEngine.buildGuiDisplayTransform`.
+- **GUI display poses** (`rotationXYZ`, Z-first): `createRotationZ(roll).multiply(createRotationY(yaw)).multiply(createRotationX(pitch))` - used by `Camera.fromPose` (the `display.*` pose builder, assembled into named poses by `Projection`'s `VANILLA_*` members).
 
 ### Foundation invariants (locked by unit test)
-`EntityGeometryKitJavaTest` pins seven invariants on a single-bone single-cube fixture. The load-bearing one is **emit-order cross product ⋅ stored normal > 0**: triangles must be wound so their geometric normal agrees with the stored normal, camera- and projection-independent. Catches: removing/adding kit `FLIP_Y` without updating winding-reversal; changing UV-permutation arrays without UP↔DOWN face swap; breaking the atlas layout coefficients in `EntityFace.defaultUv`.
+`EntityGeometryKitTest` pins seven invariants on a single-bone single-cube fixture. The load-bearing one is **emit-order cross product ⋅ stored normal > 0**: triangles must be wound so their geometric normal agrees with the stored normal, camera- and projection-independent. Catches: removing/adding kit `FLIP_Y` without updating winding-reversal; changing UV-permutation arrays without UP↔DOWN face swap; breaking the atlas layout coefficients in `EntityFace.defaultUv`.
 
 Run before/after any kit refactor:
 ```
-./gradlew test --tests "lib.minecraft.renderer.kit.EntityGeometryKitJavaTest"
+./gradlew test --tests "lib.minecraft.renderer.engine.kit.EntityGeometryKitTest"
 ```
 
 ### Parity test entry points

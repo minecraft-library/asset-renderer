@@ -5,11 +5,14 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.GridRenderer;
-import lib.minecraft.renderer.kit.FrameMerger;
+import lib.minecraft.renderer.engine.compose.FrameCompositor;
+import lib.minecraft.renderer.engine.compose.FrameLayer;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.function.UnaryOperator;
 
 /**
  * Configures a single {@link GridRenderer GridRenderer} invocation.
@@ -18,17 +21,17 @@ import org.jetbrains.annotations.NotNull;
  * uniform cell size and configurable separation between cells. Mixed static and animated
  * tile sources are handled transparently; if any tile is animated, the renderer promotes the
  * whole output to animated and synchronises tile frames via
- * {@link FrameMerger FrameMerger}.
+ * {@link FrameCompositor FrameCompositor}.
  *
  * @see lib.minecraft.renderer.GridRenderer
- * @see lib.minecraft.renderer.kit.FrameMerger
+ * @see lib.minecraft.renderer.engine.compose.FrameCompositor
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
 public class GridOptions {
 
     /**
-     * Tile images to place on the grid
+     * Tile images to place on the grid, each carrying its own cell coordinate. Empty by default
      */
     @lombok.Builder.Default
     private final @NotNull ConcurrentList<GridTile> tiles = Concurrent.newList();
@@ -52,21 +55,41 @@ public class GridOptions {
     private final int rows = 1;
 
     /**
-     * Pixel gap between adjacent cells
+     * Pixel gap between adjacent cells; {@code 0} (default) abuts cells with no separation
      */
     @lombok.Builder.Default
     private final int separation = 0;
 
     /**
-     * Background fill for empty areas (solid colour or checkerboard).
+     * Background fill for empty grid areas (solid colour or checkerboard), defaulting to
+     * {@link Background#TRANSPARENT}
      */
     @lombok.Builder.Default
     private final @NotNull Background background = Background.TRANSPARENT;
 
+    /**
+     * Transform applied to the default tile {@link FrameLayer} stack before it runs, letting callers
+     * splice custom layers (overlays, watermarks). Defaults to {@linkplain UnaryOperator#identity()
+     * identity}.
+     */
+    @lombok.Builder.Default
+    private final @NotNull UnaryOperator<ConcurrentList<FrameLayer>> layerDecorator = UnaryOperator.identity();
+
+    /**
+     * Opens a builder seeded from this instance's current values, for deriving a variant with a
+     * few fields changed.
+     *
+     * @return a builder pre-populated from this instance
+     */
     public @NotNull GridOptionsBuilder mutate() {
         return this.toBuilder();
     }
 
+    /**
+     * Builds an instance with every field at its default value.
+     *
+     * @return the default options
+     */
     public static @NotNull GridOptions defaults() {
         return builder().build();
     }
@@ -74,9 +97,9 @@ public class GridOptions {
     /**
      * A single tile to place on the grid at a specific cell coordinate.
      *
-     * @param col the column index, zero-based
-     * @param row the row index, zero-based
-     * @param image the tile image data
+     * @param col zero-based column index of the target cell
+     * @param row zero-based row index of the target cell
+     * @param image the tile image data (static or animated)
      */
     public record GridTile(int col, int row, @NotNull ImageData image) {}
 

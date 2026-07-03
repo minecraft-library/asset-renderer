@@ -6,25 +6,33 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import dev.simplified.image.pixel.PixelBufferPool;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.model.EntityModelData;
-import lib.minecraft.renderer.engine.GlintMask;
-import lib.minecraft.renderer.engine.IsometricEngine;
-import lib.minecraft.renderer.engine.RenderEngine;
+import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.engine.TextureEngine;
-import lib.minecraft.renderer.geometry.Box;
-import lib.minecraft.renderer.geometry.EulerRotation;
-import lib.minecraft.renderer.geometry.PerspectiveParams;
-import lib.minecraft.renderer.geometry.VisibleTriangle;
-import lib.minecraft.renderer.kit.ArmorKit;
-import lib.minecraft.renderer.kit.BlockGeometryKit;
-import lib.minecraft.renderer.kit.EntityGeometryKit;
-import lib.minecraft.renderer.kit.GlintKit;
+import lib.minecraft.renderer.engine.RendererDebug;
+import lib.minecraft.renderer.engine.camera.Camera;
+import lib.minecraft.renderer.engine.camera.FitRequest;
+import lib.minecraft.renderer.engine.camera.Lens;
+import lib.minecraft.renderer.engine.camera.Placement;
+import lib.minecraft.renderer.engine.camera.Projection;
+import lib.minecraft.renderer.engine.compose.FinalizeStage;
+import lib.minecraft.renderer.engine.compose.Frames;
+import lib.minecraft.renderer.engine.compose.GeometryLayer;
+import lib.minecraft.renderer.engine.compose.GlintStage;
+import lib.minecraft.renderer.engine.compose.LayerStack;
+import lib.minecraft.renderer.engine.compose.SceneContext;
+import lib.minecraft.renderer.engine.kit.ArmorKit;
+import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
+import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
+import lib.minecraft.renderer.engine.light.Lighting;
+import lib.minecraft.renderer.engine.raster.SurfaceTraits;
+import lib.minecraft.renderer.engine.raster.VisibleTriangle;
+import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.options.EntityOptions;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
-import lib.minecraft.renderer.pipeline.util.RendererDebug;
+import lib.minecraft.renderer.request.EulerRotation;
+import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -36,12 +44,19 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Renders mob entities as isometric 3D icons from the Java-derived entity pipeline
+ * Renders mob entities as 3D icons from the Java-derived entity pipeline
  * ({@code entity_models.json} + {@code entity_geometry.json}, produced by
  * {@code ToolingEntityModels} from the vanilla client jar) via {@link EntityGeometryKit}'s
  * Y-down engine path. Texture resolution flows through the vanilla pack via
  * {@link RendererContext#resolveTexture}; missing textures surface as missing entities rather
  * than being papered over with cache fallbacks.
+ *
+ * <p>The entity is a plain projection subject: the camera is the caller's
+ * {@link EntityOptions#getProjection() projection} display pose directly (default
+ * {@link Projection#VANILLA_ISO}, the facing-neutral {@code rotationXYZ(30, 225, 0)}), and the entity's
+ * model-to-world facing - the humanoid yaw flip plus the Y-down-to-Y-up flip and chirality - is the
+ * single {@link #ENTITY_PLACEMENT} {@link Placement}. That split lets any projection be swapped in and
+ * still present the subject's front, upright.
  */
 @RequiredArgsConstructor
 public final class EntityRenderer implements Renderer<EntityOptions> {
@@ -58,26 +73,52 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     private final @NotNull Map<String, EntityModelLoader.EntityDefinition> javaEntities;
 
+    /**
+     * The entity's model-to-world facing - the humanoid {@code R_Y(180)} yaw flip (same as the player's,
+     * turning the {@code +Z} front to the camera) composed with vanilla
+     * {@code LivingEntityRenderer.submit}'s {@code rotateY(180) * scale(-1,-1,1) = flip180} (the Y-down
+     * to Y-up flip + chirality): {@code R_Y(180) * flip180 = R_Z(180) = diag(-1,-1,1)}, which is exactly
+     * the {@code scale(-1,-1,1)} built here. Applied as the entity {@link Placement} so
+     * {@link Projection#VANILLA_ISO} stays a facing-neutral {@code [30,225,0]} pose like block/player:
+     * {@code R(30,225,0) * ENTITY_FACING = R(30,45,0) * flip180} reproduces the shipped orientation, and
+     * any projection swapped in keeps the entity upright AND facing.
+     */
+    private static final @NotNull Matrix4f ENTITY_FACING = Matrix4f.IDENTITY.scale(-1f, -1f, 1f);
+
+    /** The entity's model-to-world {@link Placement} - {@link #ENTITY_FACING} as a placement. */
+    private static final @NotNull Placement ENTITY_PLACEMENT = new Placement(ENTITY_FACING);
+
+    /**
+     * Renders the entity and composites it over the caller's background. Returns an empty frame
+     * (composited over the background) when the entity id is absent, unknown, has no texture, or
+     * carries no bones.
+     */
     @Override
     public @NotNull ImageData render(@NotNull EntityOptions options) {
         return options.getBackground().composite(renderEntity(options));
     }
 
+    /**
+     * Resolves the entity definition, texture, and bounds; sizes the canvas; assembles the base body
+     * plus its overlay / block-overlay / armor {@link GeometryLayer geometry layers}; then rasterizes
+     * every layer in one shared depth pass through {@link ModelEngine}. Returns an empty frame at any
+     * step that cannot produce geometry (absent / unknown id, missing texture, no bones).
+     */
     private @NotNull ImageData renderEntity(@NotNull EntityOptions options) {
         if (options.getEntityId().isEmpty())
-            return RenderEngine.staticFrame(PixelBuffer.create(1, 1));
+            return Frames.emptyFrame();
 
         EntityModelLoader.EntityDefinition definition = this.javaEntities.get(options.getEntityId().get());
         if (definition == null)
-            return RenderEngine.staticFrame(PixelBuffer.create(1, 1));
+            return Frames.emptyFrame();
 
         Optional<PixelBuffer> texture = resolveEntityTexture(definition, options);
         if (texture.isEmpty())
-            return RenderEngine.staticFrame(PixelBuffer.create(1, 1));
+            return Frames.emptyFrame();
 
         EntityModelData model = definition.model();
         if (model.getBones().isEmpty())
-            return RenderEngine.staticFrame(PixelBuffer.create(1, 1));
+            return Frames.emptyFrame();
 
         // Combined bounds across the base entity AND every overlay so the shared auto-fit
         // window contains both. Slime's outer shell (8x8x8) extends beyond the inner body
@@ -113,97 +154,122 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         float modelScale = definition.rendererScale();
         Box scaledBounds = scaleBox(baseBounds, modelScale);
 
-        // Canvas sizing dispatches on EntityOptions.fitMode. OUTPUT_SIZE (default) honours
-        // the caller's outputSize + padding; UNION_BOUNDS and FAMILY_BOUNDS auto-size from
-        // the entity's own / family-unioned bounds at the harness's native PIXELS_PER_BLOCK
-        // ratio (with optional padding expansion). See EntityOptions.FitMode for the math.
-        BoundsScope scope = boundsScopeFor(options.getFitMode());
-        CanvasFit fit = computeFitFor(options, scope, options.getEntityId().get(), definition, effective, modelScale, texture.get());
+        // The entity is a normal projection subject: the camera is the caller's projection display pose
+        // DIRECTLY (default VANILLA_ISO = the facing-neutral rotationXYZ(30,225,0)), and its model->world
+        // facing (humanoid R_Y(180)) + Y-down flip + chirality is the single ENTITY_FACING Placement.
+        // render = pose · ENTITY_FACING · model_Ydown lands the entity upright AND facing under ANY
+        // projection (exactly like the player's R_Y(180) facing, plus the Y-down flip). For the default,
+        // R(30,225,0) · ENTITY_FACING = R(30,45,0) · flip180 reproduces the harness orientation.
+        Camera entityCamera = options.getProjection().resolve(EulerRotation.NONE, options.getFacing());
+        ModelEngine engine = new ModelEngine(this.context, entityCamera, ENTITY_PLACEMENT);
+        Lens lens = entityCamera.lens();
 
-        // Centre the silhouette on the canvas using the SAME bounds source that sized the
-        // canvas. The kit subtracts a model-space "anchor" point from each vertex; whatever
-        // point we pass becomes NDC origin, which the rasterizer maps to canvas-centre.
-        // Naively passing {@code scaledBounds.centre()} (the model-space AABB centre)
-        // over-pads non-brick silhouettes: cod's outer AABB extends z=[-4,11] but most cubes
-        // hug z=[0,7], so {@code iso(aabb_centre)} lands several pixels off the tight
-        // silhouette midpoint. Inverse-projecting the screen-space silhouette midpoint
-        // through the iso transform gives the model-space point whose iso image IS the
-        // silhouette midpoint. Per-entity setupRotations overrides translate the model
-        // vertex by {@code override.modelAnchorShift} (the kit subtracts modelAnchor from
-        // every vertex, so subtracting the shift from the anchor adds it to every vertex).
-        // For squid that's a {@code (0, +11.2, 0)} pixel pre-translate; pufferfish gets
-        // {@code (0, -1.28, 0)}; shulker has zero translate but a 180° yaw addend folded
-        // into {@code effective} above.
-        Vector3f modelAnchor = computeCentreAnchor(scope, options.getEntityId().get(), definition, effective, modelScale, texture.get());
+        // Fit resolution forks on the projection lens family. The kit always emits FIT-NEUTRAL geometry
+        // (only the model scale baked in); the engine's rasterizeFitted applies the fit in ONE place, so
+        // entity rendering flows through the same auto-fit pipeline the player uses.
+        //
+        // ORTHOGRAPHIC (VANILLA_ISO + axonometric): size a native pixels-per-block canvas from the
+        // entity's alpha-tight (optionally family-unioned) silhouette - measured through the EXACT render
+        // orientation ({@code engine.orient}), dispatched on FitMode (OUTPUT_SIZE honours outputSize +
+        // padding; UNION_BOUNDS / FAMILY_BOUNDS auto-size from the entity's own / family-unioned bounds).
+        // The engine bakes that explicit scale in 3D and centres the measured silhouette midpoint in
+        // screen space (NATIVE_SCALE) - so a non-brick silhouette (cod's z=[-4,11] AABB vs its z=[0,7]
+        // cube hug) stays tightly centred, without the old model-space anchor inverse. Per-entity
+        // setupRotations shifts (squid, pufferfish) ride on the model geometry.
+        //
+        // PERSPECTIVE / OBLIQUE: a 3D model-scale fit can't correct strong foreshortening / depth-shear in
+        // one pass (scaling the model changes the foreshortening), so unit-normalize the model into a
+        // well-behaved range and defer the final screen fill to rasterizeFitted's 2D auto-fit (Fit2D).
+        // This is what lets long entities (cod) fit uncropped under PORTRAIT / cavalier / cabinet / military.
+        int canvasW;
+        int canvasH;
+        Vector3f kitAnchor;
+        float kitNdcScale;
+        final FitRequest fitRequest;
+        if (lens.kind() == Lens.Kind.ORTHOGRAPHIC) {
+            BoundsScope scope = boundsScopeFor(options.getFitMode());
+            Box screenBounds = computeScreenBoundsFor(scope, options.getEntityId().get(), definition,
+                engine.orient(effective), modelScale, texture.get());
+            RendererDebug.fitBounds(options.getEntityId().get(), screenBounds);
+            CanvasFit fit = computeCanvas(options, screenBounds, lens);
+            canvasW = fit.canvasW();
+            canvasH = fit.canvasH();
+            kitAnchor = Vector3f.ZERO;
+            kitNdcScale = 1f;
+            fitRequest = FitRequest.nativeScale(fit.ndcScale(), screenBounds);
+        } else {
+            int outputSize = Math.max(1, options.getOutputSize());
+            int padding = Math.max(0, options.getPadding());
+            canvasW = outputSize;
+            canvasH = outputSize;
+            EntityGeometryKit.UnitFit unit = EntityGeometryKit.unitFit(scaledBounds);
+            kitAnchor = unit.centre();
+            kitNdcScale = unit.ndcScale();
+            fitRequest = FitRequest.autoFill(Math.max(1e-3f, (outputSize - 2f * padding) / (float) outputSize));
+        }
 
         EntityGeometryKit.BuildResult buildResult = EntityGeometryKit.buildTriangles(
-            model, texture.get(), modelAnchor, false, fit.ndcScale(), modelScale, definition.baseTintArgb());
+            model, texture.get(), kitAnchor, false, kitNdcScale, modelScale, definition.baseTintArgb());
         if (buildResult.triangles().isEmpty())
-            return RenderEngine.staticFrame(PixelBuffer.create(fit.canvasW(), fit.canvasH()));
+            return Frames.staticFrame(PixelBuffer.create(canvasW, canvasH));
 
         ConcurrentList<VisibleTriangle> triangles = buildResult.triangles();
 
-        for (EntityModelLoader.OverlayLayer overlay : definition.overlays()) {
-            if (overlay.model().getBones().isEmpty()) continue;
-            Optional<PixelBuffer> overlayTex = overlay.textureRef().isPresent()
-                ? this.context.resolveTexture("minecraft:entity/" + overlay.textureRef().get())
-                : Optional.of(texture.get());
-            if (overlayTex.isEmpty()) continue;
-            triangles.addAll(EntityGeometryKit.buildTriangles(
-                overlay.model(), overlayTex.get(), modelAnchor, overlay.emissive(), fit.ndcScale(), modelScale, overlay.tintArgb()).triangles());
-        }
+        // The base body is built imperatively above and is always the first geometry in the sink (it
+        // also produces the bone bounds the armor layer consumes). The remaining sources - model
+        // overlays, block overlays, worn armor - are GeometryLayers that append to the SAME triangle
+        // list in slot order, then rasterize together in one shared depth pass. Emission order is
+        // load-bearing (depth tie-break, translucent sort, emissive depth-skip), so the slot order
+        // reproduces the historic base -> overlays -> block-overlays -> armor sequence exactly.
+        // Callers can splice their own layers via EntityOptions.layerDecorator. All layers are built
+        // fit-neutral and fitted together by the single rasterizeFitted call below.
+        SceneContext scene = new SceneContext(
+            texture.get(), kitAnchor, kitNdcScale, modelScale, engine.textures(), this.context);
+        LayerStack<GeometryLayer> stack = new LayerStack<>();
 
-        // Block-model overlays (mooshroom mushrooms, copper-golem flower, etc). The vanilla
-        // render layer renders a block model at a transform-stack-applied position on top of
-        // the entity body. Each row carries the block id, an optional entity bone the overlay
-        // attaches to (so head-mounted overlays follow the head's bind pose), and the ordered
-        // list of pose-stack ops the layer issues between {@code pushPose} / {@code popPose}.
-        // See {@link EntityModelLoader.BlockOverlayLayer}.
+        // Model overlays (spider/enderman eyes, saddles, sheep wool). Each appends to the shared sink.
+        for (EntityModelLoader.OverlayLayer overlay : definition.overlays())
+            stack.append(EntityOptions.Slot.MODEL_OVERLAY, sink -> {
+                if (overlay.model().getBones().isEmpty()) return;
+                Optional<PixelBuffer> overlayTex = overlay.textureRef().isPresent()
+                    ? scene.context().resolveTexture("minecraft:entity/" + overlay.textureRef().get())
+                    : Optional.of(scene.baseTexture());
+                if (overlayTex.isEmpty()) return;
+                sink.addAll(EntityGeometryKit.buildTriangles(
+                    overlay.model(), overlayTex.get(), scene.modelAnchor(), overlay.emissive(),
+                    scene.ndcScale(), scene.modelScale(), overlay.tintArgb()).triangles());
+            });
+
+        // Block-model overlays (mooshroom mushrooms, copper-golem flower): a block model rendered at
+        // a pose-stack-applied position on top of the body. entityFit is computed once and shared.
         if (!definition.blockOverlays().isEmpty()) {
-            Matrix4f entityFit = EntityGeometryKit.buildEntityFitMatrix(modelAnchor, fit.ndcScale() * modelScale);
+            Matrix4f entityFit = EntityGeometryKit.buildEntityFitMatrix(kitAnchor, kitNdcScale * modelScale);
             for (EntityModelLoader.BlockOverlayLayer blockOverlay : definition.blockOverlays())
-                triangles.addAll(buildBlockOverlayTriangles(blockOverlay, model, entityFit));
+                stack.append(EntityOptions.Slot.BLOCK_OVERLAY, sink ->
+                    sink.addAll(buildBlockOverlayTriangles(blockOverlay, model, entityFit)));
         }
 
-        IsometricEngine engine = IsometricEngine.forEntityIcon(this.context);
-        triangles.addAll(ArmorKit.buildEntityArmor3D(buildResult.boneBounds(),
-            options.getHelmet(), options.getChestplate(),
-            options.getLeggings(), options.getBoots(), engine));
+        // Worn armor (+ trim). Always appended; resolves to no triangles when no pieces are equipped.
+        stack.append(EntityOptions.Slot.ARMOR, sink ->
+            sink.addAll(ArmorKit.buildEntityArmor3D(buildResult.boneBounds(),
+                options.getHelmet(), options.getChestplate(),
+                options.getLeggings(), options.getBoots(), scene.textures())));
+
+        for (GeometryLayer layer : options.getLayerDecorator().apply(stack).ordered())
+            layer.contribute(triangles);
 
         boolean enchanted = ArmorKit.hasEnchantedArmor(
             options.getHelmet(), options.getChestplate(),
             options.getLeggings(), options.getBoots()
         );
-        GlintKit.GlintOptions glintOptions = GlintKit.GlintOptions.armorDefault(30);
 
-        // Supersample dance mirrors BlockRenderer's pattern: when ssaa > 1 rasterize into a
-        // pooled hi-res buffer, apply FXAA there (if antiAlias is set), then blitScaled-down
-        // to the final canvas. The kit's ndcScale is unchanged - the rasterizer's projection
-        // scales with the buffer dim, so the hi-res buffer naturally rasterizes at higher
-        // resolution and blitScaled handles the downsample.
+        // Rasterize + optional FXAA + supersample-downscale + masked glint via the shared tail.
+        // The glint mask is recorded at the raster size and downsampled so the foil is confined to
+        // the (glinted) armor rather than the whole entity silhouette.
         int ssaa = Math.max(1, options.getSupersample());
-        if (ssaa > 1) {
-            int hiResW = fit.canvasW() * ssaa;
-            int hiResH = fit.canvasH() * ssaa;
-            try (PixelBufferPool.Lease lease = PixelBufferPool.acquire(hiResW, hiResH)) {
-                PixelBuffer hiResBuffer = lease.buffer();
-                // Record the glint mask at the hi-res raster size, then downsample so the foil is
-                // confined to the (glinted) armor rather than the whole entity silhouette.
-                GlintMask hiMask = enchanted ? new GlintMask(hiResW, hiResH) : null;
-                engine.rasterize(triangles, hiResBuffer, PerspectiveParams.ISOMETRIC_BLOCK, effective, hiMask);
-                if (options.isAntiAlias()) hiResBuffer.applyFxaa();
-                PixelBuffer output = PixelBuffer.create(fit.canvasW(), fit.canvasH());
-                output.blitScaled(hiResBuffer, 0, 0, fit.canvasW(), fit.canvasH());
-                GlintMask mask = hiMask == null ? null : hiMask.downsample(fit.canvasW(), fit.canvasH());
-                return engine.finaliseWithGlint(output, enchanted, glintOptions, mask);
-            }
-        }
-
-        PixelBuffer buffer = PixelBuffer.create(fit.canvasW(), fit.canvasH());
-        GlintMask mask = enchanted ? new GlintMask(fit.canvasW(), fit.canvasH()) : null;
-        engine.rasterize(triangles, buffer, PerspectiveParams.ISOMETRIC_BLOCK, effective, mask);
-        if (options.isAntiAlias()) buffer.applyFxaa();
-        return engine.finaliseWithGlint(buffer, enchanted, glintOptions, mask);
+        return FinalizeStage.run(canvasW, canvasH, ssaa, options.isAntiAlias(), enchanted,
+            (target, mask) -> engine.rasterizeFitted(triangles, target, effective, fitRequest, mask),
+            (buffer, mask) -> GlintStage.forArmor(engine.textures()::tryResolveTexture, buffer, enchanted, mask));
     }
 
     /**
@@ -246,7 +312,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // texture map, exactly mirroring {@code BlockRenderer.Isometric3D.buildFromBlockElements}.
         // Faces whose ref still resolves to a {@code #} after dereference (broken bindings) skip
         // texture loading; the kit treats them as no-texture faces.
-        ConcurrentMap<String, PixelBuffer> faceTextures = TextureEngine.loadElementFaceTextures(
+        ConcurrentMap<String, PixelBuffer> faceTextures = Textures.loadElementFaceTextures(
             block.get().getModel().getElements(), block.get().getModel().getTextures(),
             this.context::resolveTexture);
         if (faceTextures.isEmpty()) return Concurrent.newList();
@@ -307,9 +373,17 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             // the post-pose-stack normal against ENTITY_IN_UI lights per pixel - continuous, not
             // bucketed. Sampling mooshroom mushroom red showed our 0.67-0.90 block-cardinal range
             // vs vanilla's 0.45-0.71 Lambertian range.
-            float shading = RenderEngine.computeEntityInUiLighting(transformedNormal);
+            //
+            // Shade against a Y-flipped copy of the normal, matching EntityGeometryKit.buildTriangles'
+            // lighting frame (positions + stored normal stay Y-up; the shade uses (x, -y, z)). Without
+            // the flip, axis-aligned up/down faces shade against the wrong light hemisphere - the
+            // snow-golem carved_pumpkin top rendered at the 0.4 ambient floor instead of ~1.0.
+            // Mushroom-cross overlays are unaffected: their plane normals are horizontal (y ~= 0), so
+            // the flip is a no-op and mooshroom parity is unchanged.
+            Vector3f shadingNormal = new Vector3f(transformedNormal.x(), -transformedNormal.y(), transformedNormal.z());
+            float shading = Lighting.entityInUi(shadingNormal);
             // Force back-face culling, matching vanilla's block render types (all bind GL culling)
-            // exactly as {@link BlockRenderer#relightForItems3d} does for plain block models. The
+            // exactly as Shading.relightForItems3d does for plain block models. The
             // {@code red_mushroom} cross model emits its two zero-thickness planes as paired
             // north+south / west+east quads with opposite winding so vanilla's cull keeps exactly the
             // camera-facing one. {@link BlockGeometryKit} marks those quads two-sided
@@ -325,7 +399,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 tri.uv0(), tri.uv1(), tri.uv2(),
                 tri.texture(), tri.tintArgb(),
                 transformedNormal,
-                shading, true, tri.emissive()
+                shading, new SurfaceTraits(true, tri.traits().emissive(), false, false)
             ));
         }
         return out;
@@ -371,41 +445,38 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * Dispatches canvas sizing on {@link EntityOptions#getFitMode()}.
+     * Sizes the output canvas + model-units-to-NDC scale from a pre-measured projected silhouette,
+     * dispatched on {@link EntityOptions#getFitMode()}. The caller measures the (alpha-tight, optionally
+     * family-unioned) {@code screenBounds} through the render orientation ({@link ModelEngine#orient});
+     * this is the pure sizing math the orthographic entity path feeds into a
+     * {@link FitRequest#nativeScale(float, Box) NATIVE_SCALE} fit.
      *
-     * <p>{@code UNION_BOUNDS} / {@code FAMILY_BOUNDS}: walk every cube's vertices through the
-     * iso transform (matching {@link EntityGeometryKit#computeScreenBounds the harness's
-     * per-cube measurement}), take the tight screen-space extent in entity-pixel-units, then
-     * size the canvas to {@code (extent * pixelsPerBlock / 16)} pixels per axis plus
-     * {@code 2 * padding} on each axis, then uniformly shrink so the longer side stays at or
-     * below {@link EntityOptions#getMaxCanvasSize() maxCanvasSize}. The two modes differ only in
-     * whether bounds union across the family.
+     * <p>{@code UNION_BOUNDS} / {@code FAMILY_BOUNDS}: take the tight screen-space extent in
+     * entity-pixel-units, size the canvas to {@code (extent * pixelsPerBlock / 16)} pixels per axis plus
+     * {@code 2 * padding} on each axis, then uniformly shrink so the longer side stays at or below
+     * {@link EntityOptions#getMaxCanvasSize() maxCanvasSize}.
      *
-     * <p>{@code OUTPUT_SIZE}: canvas is fixed at {@code outputSize x outputSize}. Available
-     * silhouette area is {@code outputSize - 2 * padding} on the longer axis; the entity is
-     * scaled to fit. No upper cap.
+     * <p>{@code OUTPUT_SIZE}: canvas is fixed at {@code outputSize x outputSize}. Available silhouette
+     * area is {@code outputSize - 2 * padding} on the longer axis; the entity is scaled to fit.
      *
-     * <p>Returned {@link CanvasFit#ndcScale} is computed from the inverse of the rasterizer's
-     * own projection ({@code screen_px = ndc * min(canvasW, canvasH) * projectionScale}), so
-     * applying it as the kit's model-units-to-NDC scale produces the desired pixels-per-block
-     * ratio at the rasterization step.
+     * <p>Returned {@link CanvasFit#ndcScale} is the inverse of the rasterizer's own projection
+     * ({@code screen_px = ndc * min(canvasW, canvasH) * projectionScale}), so applying it as the fit's
+     * model-units-to-NDC scale produces the desired pixels-per-block ratio at rasterization.
+     *
+     * @param options the render options (fit mode, output size, padding, pixels-per-block, cap)
+     * @param screenBounds the pre-measured projected silhouette bounds
+     * @param lens the projection lens (supplies the projection scale)
+     * @return the canvas dimensions + model-units-to-NDC scale
      */
-    private @NotNull CanvasFit computeFitFor(
+    private @NotNull CanvasFit computeCanvas(
         @NotNull EntityOptions options,
-        @NotNull BoundsScope scope,
-        @NotNull String entityId,
-        @NotNull EntityModelLoader.EntityDefinition definition,
-        @NotNull EulerRotation userRotation,
-        float modelScale,
-        @NotNull PixelBuffer texture
+        @NotNull Box screenBounds,
+        @NotNull Lens lens
     ) {
-        Matrix4f transform = composeIsoTransform(userRotation);
-        Box screenBounds = computeScreenBoundsFor(scope, entityId, definition, transform, modelScale, texture);
-        RendererDebug.fitBounds(entityId, screenBounds);
         float extentX = Math.max(0f, screenBounds.maxX() - screenBounds.minX());
         float extentY = Math.max(0f, screenBounds.maxY() - screenBounds.minY());
         int padding = Math.max(0, options.getPadding());
-        float projectionScale = PerspectiveParams.ISOMETRIC_BLOCK.projectionScale();
+        float projectionScale = lens.projectionScale();
 
         if (options.getFitMode() == EntityOptions.FitMode.OUTPUT_SIZE) {
             int outputSize = Math.max(1, options.getOutputSize());
@@ -431,52 +502,19 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * Computes the model-space point that, after iso transformation, lands at the screen-space
-     * silhouette midpoint - so passing it as the kit's centre subtraction places the silhouette
-     * tightly centred on the canvas. Uses the same {@link BoundsScope} as canvas sizing so
-     * the centring source matches the sizing source (e.g. {@code OUTPUT_SIZE} centres against
-     * this entity's own silhouette, not the largest family member).
-     *
-     * <p>Without this, the kit subtracts the model-space AABB centre, which after iso projects
-     * to a point that is NOT the silhouette midpoint for non-brick-shaped entities (long fish,
-     * dragons with tails, T-pose humanoids, etc). The result was visible right/down shift in
-     * the canvas, surfaced by {@code TestEntityParityVanilla}'s coverage diff lens as
-     * vanilla-only pixels along the left/top silhouette edge and java-only pixels along the
-     * right/bottom edge.
-     */
-    private @NotNull Vector3f computeCentreAnchor(
-        @NotNull BoundsScope scope,
-        @NotNull String entityId,
-        @NotNull EntityModelLoader.EntityDefinition definition,
-        @NotNull EulerRotation userRotation,
-        float modelScale,
-        @NotNull PixelBuffer texture
-    ) {
-        Matrix4f isoTransform = composeIsoTransform(userRotation);
-        Box screenBounds = computeScreenBoundsFor(scope, entityId, definition, isoTransform, modelScale, texture);
-        float sxMid = (screenBounds.minX() + screenBounds.maxX()) * 0.5f;
-        float syMid = (screenBounds.minY() + screenBounds.maxY()) * 0.5f;
-        float szMid = (screenBounds.minZ() + screenBounds.maxZ()) * 0.5f;
-        Matrix4f isoInverse = composeIsoInverse(userRotation);
-        return new Vector3f(sxMid, syMid, szMid).transform(isoInverse);
-    }
-
-    /**
      * Unions the screen-space bounds of the base entity model with each non-empty entity-model
-     * overlay. Vanilla's family-fit pre-pass walks every {@link
-     * net.minecraft.client.renderer.entity.layers.RenderLayer}'s {@code EntityModel}-typed field
+     * overlay. Vanilla's family-fit pre-pass walks every {@code net.minecraft.client.renderer.entity.layers.RenderLayer}'s {@code EntityModel}-typed field
      * through the same pose stack as the primary model and expands the bounds. Mirrors
      * {@code EntityFrameRenderer.walkLayerExtents} in the vanilla-reference-harness.
      * <p>
-     * Block-model overlays (mooshroom mushrooms, copper-golem flower, iron-golem flower) are
-     * deliberately NOT included - vanilla's family-fit reflection only matches {@code Model<?>}
-     * fields, so block-rendering RenderLayer subclasses don't contribute either. If they did,
-     * mooshroom's mushrooms would extend the canvas; matching vanilla means accepting the
-     * mushrooms render slightly past the canvas edge (same as vanilla). Empirically: including
-     * block overlays at unit-cube {@code [-0.5, 0.5]^3} bounds expanded mooshroom canvas
-     * 442x482 -> 505x726 vs vanilla's 442x482; reverting matches vanilla's canvas exactly.
+     * Block-model overlays (mooshroom mushrooms, snow-golem carved_pumpkin, iron/copper-golem
+     * flower) ARE included, measured alpha-tight: the overlay extends the canvas exactly as far as
+     * its opaque texels reach, not its full authored quad extent. The mushroom-cross block texture
+     * is mostly transparent, so a whole-quad AABB would over-size the canvas; walking the opaque
+     * sub-rectangle per face keeps it tight to what renders. The vanilla harness measures the same
+     * block-model layers in its family-fit pre-pass, so both canvases fit the overlay uncropped.
      */
-    private static @NotNull Box computeUnionScreenBounds(
+    private @NotNull Box computeUnionScreenBounds(
         @NotNull EntityModelLoader.EntityDefinition definition,
         @NotNull Matrix4f transform,
         float modelScale,
@@ -493,6 +531,18 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             Box overlayBounds = EntityGeometryKit.computeScreenBounds(overlay.model(), transform, modelScale, texture);
             RendererDebug.overlayBounds(overlay.textureRef().orElse("<unset>"), overlayBounds);
             bounds = unionBoxes(bounds, overlayBounds);
+        }
+        // Block-model overlays: build the same fit-neutral geometry the render produces (entity fit
+        // = buildEntityFitMatrix(ZERO, modelScale), so the positions live in the entity-pixel frame
+        // the body bounds use), then union its alpha-tight silhouette measured through the render
+        // orientation.
+        if (!definition.blockOverlays().isEmpty()) {
+            Matrix4f fitNeutral = EntityGeometryKit.buildEntityFitMatrix(Vector3f.ZERO, modelScale);
+            for (EntityModelLoader.BlockOverlayLayer blockOverlay : definition.blockOverlays()) {
+                ConcurrentList<VisibleTriangle> tris = buildBlockOverlayTriangles(blockOverlay, definition.model(), fitNeutral);
+                Box boBounds = EntityGeometryKit.computeBlockOverlayScreenBounds(tris, transform);
+                bounds = unionBoxes(bounds, boBounds);
+            }
         }
         return bounds;
     }
@@ -550,6 +600,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         return this.context.resolveTexture("minecraft:entity/" + definition.textureRef().get());
     }
 
+    /**
+     * Returns the axis-aligned union of two boxes - the smallest {@link Box} containing both.
+     */
     private static @NotNull Box unionBoxes(@NotNull Box a, @NotNull Box b) {
         return new Box(
             Math.min(a.minX(), b.minX()),
@@ -559,66 +612,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             Math.max(a.maxY(), b.maxY()),
             Math.max(a.maxZ(), b.maxZ())
         );
-    }
-
-    /**
-     * Inverse of {@link #composeIsoTransform}. The forward composite is
-     * {@code flipY * modelRotation * scale(1,1,-1) * isoRotation * scale(1,1,-1) * scale(1,-1,1)}
-     * in column-vector form; the inverse reverses the chain with each factor inverted. Diagonal
-     * scales and {@code flipY} are self-inverse. The two rotation factors invert via
-     * {@code rotationXYZ(x, y, z) ^ -1 = rotationZYX(-z, -y, -x)}.
-     */
-    private static @NotNull Matrix4f composeIsoInverse(@NotNull EulerRotation userRotation) {
-        EulerRotation iso = EulerRotation.STANDARD_ISO_ENTITY;
-        boolean userIdentity = userRotation.pitch() == 0f && userRotation.yaw() == 0f && userRotation.roll() == 0f;
-        // Forward = flipY * scaleZneg * isoRotation * scaleZneg * modelRotation * flipY (col-vec).
-        // Inverse reverses the factor order and inverts each. flipY and scaleZneg are diagonal
-        // self-inverses; the two rotations invert via their Quaternionf conjugate. Built with the
-        // fluent path (bit-identical to vanilla's PoseStack; createX().multiply(...) drifts 1-4 ULPs).
-        Matrix4f m = Matrix4f.IDENTITY.scale(1f, -1f, 1f); // flipY
-        if (!userIdentity)
-            m = m.rotate(Quaternionf.rotationZYX(
-                -userRotation.rollRadians(), -userRotation.yawRadians(), -userRotation.pitchRadians()));
-        return m
-            .scale(1f, 1f, -1f) // scaleZneg
-            .rotate(Quaternionf.rotationZYX(0f, -iso.yawRadians(), -iso.pitchRadians())) // isoRotationInverse
-            .scale(1f, 1f, -1f) // scaleZneg
-            .scale(1f, -1f, 1f); // flipY
-    }
-
-    /**
-     * Builds the orientation-only transform that maps a Y-down model vertex to its pre-projection
-     * screen position - matching what the rasterizer applies internally for entity rendering. In
-     * column-vector form the composite is
-     * {@code flipY * scale(1,1,-1) * isoRotation * scale(1,1,-1) * modelRotation * flipY}, and a
-     * vertex sees the rightmost factor first. Listed in application order:
-     * <ul>
-     * <li>{@code flipY = scale(1,-1,1)} - kit Y-down-to-Y-up flip applied to the model vertex.</li>
-     * <li>{@code modelRotation} - per-render user rotation as a single
-     *     {@link Quaternionf#rotationXYZ} quaternion. Identity when the user pose is
-     *     {@link EulerRotation#NONE}.</li>
-     * <li>{@code scale(1,1,-1)} - first half of the kit's Z-axis chirality compensation.</li>
-     * <li>{@code isoRotation} - {@code Quaternionf.rotationXYZ(210°, 45°, 0°)} rotation matrix
-     *     (bit-identical to vanilla harness's iso pose).</li>
-     * <li>{@code scale(1,1,-1)} - second half of Z-axis chirality compensation.</li>
-     * <li>{@code flipY = scale(1,-1,1)} - vanilla's outer Y flip into clip space.</li>
-     * </ul>
-     * Centering / NDC scaling are translation + uniform scale that the canvas-fit math handles
-     * separately, so they aren't included here.
-     */
-    private static @NotNull Matrix4f composeIsoTransform(@NotNull EulerRotation userRotation) {
-        EulerRotation iso = EulerRotation.STANDARD_ISO_ENTITY;
-        boolean userIdentity = userRotation.pitch() == 0f && userRotation.yaw() == 0f && userRotation.roll() == 0f;
-        // Vanilla PoseStack-equivalent chain via fluent ops. Application order rightmost-first
-        // under col-vec: flipY -> modelRotation -> scaleZneg -> isoRotation -> scaleZneg -> flipY.
-        Matrix4f m = Matrix4f.IDENTITY
-            .scale(1f, -1f, 1f)
-            .scale(1f, 1f, -1f)
-            .rotate(Quaternionf.rotationXYZ(iso.pitchRadians(), iso.yawRadians(), 0f))
-            .scale(1f, 1f, -1f);
-        if (!userIdentity)
-            m = m.rotate(Quaternionf.rotationXYZ(userRotation.pitchRadians(), userRotation.yawRadians(), userRotation.rollRadians()));
-        return m.scale(1f, -1f, 1f);
     }
 
     /**

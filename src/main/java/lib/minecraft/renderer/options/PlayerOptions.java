@@ -3,11 +3,17 @@ package lib.minecraft.renderer.options;
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.Renderer;
-import lib.minecraft.renderer.appearance.ArmorPiece;
-import lib.minecraft.renderer.geometry.EulerRotation;
-import lib.minecraft.renderer.kit.ArmorKit;
-import lib.minecraft.renderer.kit.TrimKit;
+import lib.minecraft.renderer.engine.camera.Facing;
+import lib.minecraft.renderer.engine.camera.Projection;
+import lib.minecraft.renderer.engine.compose.GeometryLayer;
+import lib.minecraft.renderer.engine.compose.ImageLayer;
+import lib.minecraft.renderer.engine.compose.LayerSlot;
+import lib.minecraft.renderer.engine.compose.LayerStack;
+import lib.minecraft.renderer.engine.kit.ArmorKit;
+import lib.minecraft.renderer.engine.kit.TrimKit;
 import lib.minecraft.renderer.pipeline.Pipeline;
+import lib.minecraft.renderer.request.ArmorPiece;
+import lib.minecraft.renderer.request.EulerRotation;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -15,9 +21,10 @@ import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 
 /**
- * Configures a single {@link PlayerRenderer PlayerRenderer} invocation.
+ * Configures a single {@link PlayerRenderer} invocation.
  *
  * <p>Three body scopes select what portion of the player model renders:
  * <ul>
@@ -30,16 +37,18 @@ import java.util.Optional;
  * <ul>
  *   <li><b>{@link Dimension#TWO_D}</b> - flat orthographic view derived from the skin atlas.</li>
  *   <li><b>{@link Dimension#THREE_D}</b> - the vanilla {@code display.gui} pose with optional
- *       armor and trim layers composited via
- *       {@link ArmorKit ArmorKit} and
- *       {@link TrimKit TrimKit}.</li>
+ *       armor and trim layers composited via {@link ArmorKit} and {@link TrimKit}.</li>
  * </ul>
  *
- * <p>Skin input is supplied at render time through one of {@link #getSkinBytes skinBytes},
- * {@link #getSkinUrl skinUrl}, or {@link #getSkinTextureId skinTextureId}; the {@code skinUrl}
- * path is resolved via the
- * {@link Pipeline#mojang() Pipeline.mojang()} proxy when the
- * URL points at a Mojang skin texture.
+ * <p>Skin input is supplied through one of three sources, tried in priority order:
+ * {@link #getSkinBytes() skinBytes} (1), {@link #getSkinUrl() skinUrl} (2), then
+ * {@link #getSkinTextureId() skinTextureId} (3); with none present the renderer falls back to the
+ * registered {@code minecraft:entity/steve} texture. The {@code skinUrl} path extracts the URL's
+ * trailing path segment (the texture hash) and streams the PNG through the
+ * {@link Pipeline#mojang() Pipeline.mojang()} proxy. Cape input mirrors this via
+ * {@link #getCapeBytes() capeBytes} / {@link #getCapeUrl() capeUrl} /
+ * {@link #getCapeTextureId() capeTextureId}, consulted only when {@link #isRenderCape() renderCape}
+ * is set.
  *
  * @see lib.minecraft.renderer.PlayerRenderer
  */
@@ -170,12 +179,104 @@ public class PlayerOptions {
     @lombok.Builder.Default
     private final @NotNull Background background = Background.TRANSPARENT;
 
+    /**
+     * Transform applied to the default 2D {@link ImageLayer} stack (skin, overlay, armor) before it
+     * runs, letting callers splice custom layers relative to the {@link Slot2D} slots.
+     * Defaults to {@linkplain UnaryOperator#identity() identity}. Only consulted by the 2D path.
+     */
+    @lombok.Builder.Default
+    private final @NotNull UnaryOperator<LayerStack<ImageLayer>> layerDecorator = UnaryOperator.identity();
+
+    /**
+     * Transform applied to the default 3D {@link GeometryLayer} stack (body, armor, cape) before it
+     * runs, letting callers splice custom layers relative to the {@link Slot3D} slots.
+     * Defaults to {@linkplain UnaryOperator#identity() identity}. Only consulted by the 3D path.
+     */
+    @lombok.Builder.Default
+    private final @NotNull UnaryOperator<LayerStack<GeometryLayer>> geometryLayerDecorator = UnaryOperator.identity();
+
+    /**
+     * Graphical projection for the 3D render. Defaults to {@link Projection#VANILLA_ISO} -
+     * byte-identical to the shipped render; selecting another re-poses the camera and its lens
+     * together. Only consulted by the 3D path.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Projection projection = Projection.VANILLA_ISO;
+
+    /**
+     * View-facing reflection applied to the {@link #getProjection() projection}. Defaults to
+     * {@link Facing#DEFAULT} (no reflection); {@link Facing#MIRRORED} mirrors the view horizontally and
+     * {@link Facing#FLIPPED} flips it vertically. Only consulted by the 3D path.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Facing facing = Facing.DEFAULT;
+
+    /**
+     * A builder pre-populated with this instance's field values, for deriving a variant.
+     *
+     * @return the seeded builder
+     */
     public @NotNull PlayerOptionsBuilder mutate() {
         return this.toBuilder();
     }
 
+    /**
+     * The default player options - a 3D {@linkplain Type#SKULL skull} at
+     * {@link Renderer#DEFAULT_OUTPUT_SIZE} pixels, overlay layer on, no armor or cape, under the
+     * {@linkplain Projection#VANILLA_ISO vanilla isometric} projection over a
+     * {@linkplain Background#TRANSPARENT transparent} background.
+     *
+     * @return the default options
+     */
     public static @NotNull PlayerOptions defaults() {
         return builder().build();
+    }
+
+    /**
+     * Paint-order slots for the 2D player {@code ImageLayer} stack.
+     */
+    public enum Slot2D implements LayerSlot {
+
+        /** Base skin face of every body part. */
+        SKIN,
+        /** Skin overlay (hat / jacket / sleeve) face of every body part. */
+        OVERLAY,
+        /** Worn armor + trim composited over every covered body part. */
+        ARMOR;
+
+        @Override
+        public int order() {
+            return ordinal();
+        }
+
+        @Override
+        public @NotNull String id() {
+            return name();
+        }
+    }
+
+    /**
+     * Emission-order slots for the 3D player {@code GeometryLayer} stack. Body stays one contributor
+     * because 3D triangle emission order is load-bearing.
+     */
+    public enum Slot3D implements LayerSlot {
+
+        /** All body-part skin cubes and their overlays, in fixed emission order. */
+        BODY,
+        /** Worn armor + trim. */
+        ARMOR,
+        /** Cape geometry behind the torso. */
+        CAPE;
+
+        @Override
+        public int order() {
+            return ordinal();
+        }
+
+        @Override
+        public @NotNull String id() {
+            return name();
+        }
     }
 
     /**

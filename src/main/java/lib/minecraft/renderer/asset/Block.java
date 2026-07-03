@@ -4,9 +4,7 @@ import com.google.gson.JsonObject;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.ColorMath;
-import lib.minecraft.renderer.appearance.Biome;
 import lib.minecraft.renderer.asset.model.ModelData;
-import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.options.BlockOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lombok.AllArgsConstructor;
@@ -23,8 +21,8 @@ import java.util.Optional;
  * A fully-parsed block definition backed by its vanilla model JSON and blockstate variants.
  * <p>
  * Every field is populated once during {@code Pipeline} bootstrap and stored verbatim; no
- * lazy or computed fields live on this DTO. Lookup happens through the active
- * {@link RendererContext}.
+ * lazy or computed fields live on this DTO. Lookup happens through the active renderer
+ * context.
  */
 @Getter
 @AllArgsConstructor
@@ -81,7 +79,7 @@ public final class Block {
     /**
      * Where this block's registration originated. Used by atlas tile classification to label the
      * source path (block-model file, blockstate-only fallback, or block-entity geometry override)
-     * without forcing consumers to type-check the {@link RendererContext} implementation.
+     * without forcing consumers to type-check the renderer-context implementation.
      */
     private final @NotNull Source source;
 
@@ -97,7 +95,7 @@ public final class Block {
 
     /**
      * The provenance of a {@link Block}'s registration. Drives atlas tile classification and any
-     * future caller that needs to know how the block reached the {@link RendererContext}.
+     * future caller that needs to know how the block reached the renderer context.
      */
     public enum Source {
 
@@ -122,15 +120,57 @@ public final class Block {
     }
 
     /**
+     * Identifies which biome colormap drives a block face's tint, or flags that the tint comes
+     * from a hardcoded constant on the block DTO.
+     */
+    public enum TintTarget {
+
+        /**
+         * The face is not biome-tinted.
+         */
+        NONE,
+
+        /**
+         * Sample the grass colormap. Applies to grass blocks, tall grass, ferns, etc.
+         */
+        GRASS,
+
+        /**
+         * Sample the foliage colormap. Applies to most leaves.
+         */
+        FOLIAGE,
+
+        /**
+         * Sample the dry-foliage colormap. Applies to pale oak and a handful of other biomes.
+         */
+        DRY_FOLIAGE,
+
+        /**
+         * Use the biome's water colour override when present, or the engine-level default
+         * {@code 0xFF3F76E4} otherwise. Vanilla water has no colormap; biomes either carry an
+         * explicit {@code water_color} value or inherit the default.
+         */
+        WATER,
+
+        /**
+         * Use the {@link Tint#constant() constant} ARGB carried on the block's {@link Tint}
+         * directly. Applies to redstone wire, stems, etc.
+         */
+        CONSTANT
+
+    }
+
+    /**
      * The biome tint binding for a block, selecting which colormap (or hardcoded constant) the
      * renderer samples for tinted faces.
      *
-     * @param target the tint source - {@link Biome.TintTarget#NONE NONE} for untinted blocks,
-     *     {@link Biome.TintTarget#CONSTANT CONSTANT} for a hardcoded ARGB value, or a colormap
-     *     target like {@link Biome.TintTarget#GRASS GRASS} / {@link Biome.TintTarget#FOLIAGE FOLIAGE}
-     * @param constant the hardcoded ARGB value when target is {@code CONSTANT}
+     * @param target the tint source - {@link TintTarget#NONE NONE} for untinted blocks,
+     *     {@link TintTarget#CONSTANT CONSTANT} for a hardcoded ARGB value, or a colormap
+     *     target like {@link TintTarget#GRASS GRASS} / {@link TintTarget#FOLIAGE FOLIAGE}
+     * @param constant the hardcoded ARGB value, present only when {@code target} is
+     *     {@link TintTarget#CONSTANT CONSTANT} and empty otherwise
      */
-    public record Tint(@NotNull Biome.TintTarget target, @NotNull Optional<Integer> constant) {}
+    public record Tint(@NotNull TintTarget target, @NotNull Optional<Integer> constant) {}
 
     /**
      * A single blockstate variant entry, specifying which model to use and what whole-block
@@ -154,7 +194,9 @@ public final class Block {
     public record Variant(@NotNull String modelId, @NotNull ModelData model, int x, int y, boolean uvlock) {
 
         /**
-         * Returns {@code true} when this variant applies rotation to the model.
+         * Reports whether this variant applies a whole-model rotation.
+         *
+         * @return {@code true} when either {@code x} or {@code y} is non-zero
          */
         public boolean hasRotation() {
             return this.x != 0 || this.y != 0;
@@ -243,6 +285,12 @@ public final class Block {
             float @NotNull [] offset
         ) {
 
+            /**
+             * {@inheritDoc}
+             *
+             * <p>Overrides the record's generated {@code equals} so the {@code offset} float array
+             * compares by element ({@link Arrays#equals}) rather than by reference identity.
+             */
             @Override
             public boolean equals(Object o) {
                 if (o == null || getClass() != o.getClass()) return false;
@@ -253,6 +301,12 @@ public final class Block {
                     && Arrays.equals(this.offset, part.offset);
             }
 
+            /**
+             * {@inheritDoc}
+             *
+             * <p>Overrides the record's generated {@code hashCode} so the {@code offset} float array
+             * hashes by content ({@link Arrays#hashCode}), staying consistent with {@link #equals}.
+             */
             @Override
             public int hashCode() {
                 return Objects.hash(this.modelId, this.model, this.texture, Arrays.hashCode(this.offset));

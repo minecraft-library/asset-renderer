@@ -2,10 +2,11 @@ package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.tooling.ToolingEntityModels;
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.util.ClassNodeCache;
-import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
+import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -49,9 +50,11 @@ import java.util.zip.ZipFile;
  *       {@link EntityVariantResolver}.</li>
  * </ol>
  *
- * <p>For all three patterns the walker traverses the renderer's superclass chain via
- * {@link AsmKit#findMethodInHierarchy} so subclasses that inherit {@code getTextureLocation}
- * (zombie / husk / drowned all inherit from {@code AbstractZombieRenderer}) resolve correctly.
+ * <p>For all three patterns {@link #findGetTextureLocation} traverses the renderer's superclass
+ * chain (an open-coded walk that early-outs on the first hit rather than eagerly loading every
+ * ancestor via {@link AsmKit#findMethodInHierarchy}) so subclasses that inherit
+ * {@code getTextureLocation} (zombie / husk / drowned all inherit from
+ * {@code AbstractZombieRenderer}) resolve correctly.
  *
  * <p>Texture paths are returned as the raw resource location ({@code "textures/entity/X.png"}
  * with leading {@code textures/} but without a namespace prefix) - callers prepend
@@ -61,12 +64,15 @@ import java.util.zip.ZipFile;
 public final class EntityTextureResolver {
 
     /**
-     * The factory call most renderer {@code <clinit>}s use to wrap a path String into an Identifier.
+     * Static factory ({@code Identifier.withDefaultNamespace(String)}) most renderer
+     * {@code <clinit>}s use to wrap a texture-path String into an Identifier, sitting between the
+     * {@code LDC "textures/entity/X.png"} and the {@code PUTSTATIC FIELD} in the binding triplet.
      */
     private static final @NotNull String WITH_DEFAULT_NAMESPACE = "withDefaultNamespace";
 
     /**
-     * Method name shared by every renderer that exposes a texture binding.
+     * Method name of the {@code EntityRenderer} override that exposes a texture binding, walked
+     * across the renderer's superclass chain by {@link #findGetTextureLocation}.
      */
     private static final @NotNull String GET_TEXTURE_LOCATION = "getTextureLocation";
 
@@ -92,14 +98,22 @@ public final class EntityTextureResolver {
         @Nullable String hierarchySource
     ) {
         /**
-         * {@code true} when {@link #variantSourceClass} is non-null - texture is data-driven.
+         * Reports whether the texture is data-driven ({@link #variantSourceClass} non-null),
+         * meaning the paths come from {@link EntityVariantResolver} rather than a static
+         * Identifier constant on the renderer.
+         *
+         * @return {@code true} when {@link #variantSourceClass} is non-null
          */
         public boolean isVariantDriven() {
             return this.variantSourceClass != null;
         }
 
         /**
-         * {@code true} when neither hardcoded nor variant-driven binding was extractable.
+         * Reports whether neither a hardcoded primary path nor a variant source was extracted -
+         * the binding pattern was unrecognised or unsupported.
+         *
+         * @return {@code true} when both {@link #primaryTexturePath} and
+         *     {@link #variantSourceClass} are {@code null}
          */
         public boolean isUnresolved() {
             return this.primaryTexturePath == null && this.variantSourceClass == null;
@@ -268,11 +282,14 @@ public final class EntityTextureResolver {
     }
 
     /**
-     * Walks the superclass chain looking for {@code getTextureLocation(...)} - vanilla zombie /
-     * husk / drowned all inherit it from {@code AbstractZombieRenderer}; cow inherits the
-     * variant-driven shape from itself but variants of pig/chicken inherit from base classes.
-     * Multiple overloads exist (one per render-state subtype); we want the most-derived one
-     * whose return type is {@code Identifier}, which is always the renderer's own override.
+     * Walks the renderer's superclass chain looking for the first {@code getTextureLocation(...)}
+     * override, returning it paired with its declaring-class internal name - vanilla zombie /
+     * husk / drowned all inherit it from {@code AbstractZombieRenderer}, while cow declares its
+     * own variant-driven override directly. Multiple overloads exist (one per render-state
+     * subtype); the most-derived one whose return type is {@code Identifier} - always the
+     * renderer's own (non-bridge) override - is selected. Returns {@code null} when no such
+     * override exists anywhere in the chain up to (but excluding) {@code java/lang/Object}, or
+     * when an ancestor class fails to load.
      */
     private static @Nullable ResolvedMethod findGetTextureLocation(
         @NotNull ClassNodeCache classNodes,
@@ -524,10 +541,11 @@ public final class EntityTextureResolver {
      * model layer. Returns an empty map when the class has no {@code <clinit>} or no
      * matching pattern.
      *
-     * <p>Used by the layer-resolver to add per-constant {@code ModelLayers.X} as additional
-     * candidate fields when a renderer's lambda only pushes a saddle / equipment layer
-     * (DonkeyRenderer's lambda exposes {@code DONKEY_SADDLE} but the body model lives
-     * behind {@code Type.DONKEY.model = ModelLayers.DONKEY}).
+     * <p>Used by {@link ToolingEntityModels} (feeding {@code EntityLayerDefinitionResolver}) to
+     * add per-constant {@code ModelLayers.X} as additional candidate fields when a renderer's
+     * lambda only pushes a saddle / equipment layer (DonkeyRenderer's lambda exposes
+     * {@code DONKEY_SADDLE} but the body model lives behind
+     * {@code Type.DONKEY.model = ModelLayers.DONKEY}).
      */
     public static @NotNull Map<String, String> typeConstantModelLayerMap(
         @NotNull ClassNodeCache classNodes,
@@ -716,12 +734,12 @@ public final class EntityTextureResolver {
 
     /**
      * Returns the first {@code textures/entity/...} path bound in the renderer's
-     * {@code <clinit>} whose corresponding field name does not contain {@code BABY}, or
-     * {@code null} when the map is empty or every non-BABY field is missing. Used as the
-     * last-resort fallback for renderers whose binding pattern (enum-map / chained dispatch)
-     * defeats the structural walkers but whose {@code <clinit>} does declare standard
-     * texture-field constants for the variant set. Returning the first non-BABY path keeps
-     * the base entity textured rather than null.
+     * {@code <clinit>} whose corresponding field name does not contain {@code BABY}, falling
+     * back to the map's first entry (in insertion order) when every field is BABY-named, and
+     * {@code null} only when the map is empty. Used as the last-resort fallback for renderers
+     * whose binding pattern (enum-map / chained dispatch) defeats the structural walkers but
+     * whose {@code <clinit>} does declare standard texture-field constants for the variant set.
+     * Returning a path (preferring the adult) keeps the base entity textured rather than null.
      */
     private static @Nullable String pickFirstNonBabyTexturePath(@NotNull Map<String, String> classFieldToPath) {
         if (classFieldToPath.isEmpty()) return null;
@@ -1072,12 +1090,14 @@ public final class EntityTextureResolver {
      *       initialisation pattern ({@code GETSTATIC <NAME>; PUTSTATIC DEFAULT}) and pull the
      *       constant name.</li>
      * </ol>
-     * Returns the texture path bound to that constant, or {@code null} when the variant enum
-     * has no {@code DEFAULT} field (parrot's {@code Parrot$Variant.DEFAULT = RED_BLUE} resolves
-     * to RED_BLUE; mushroom_cow's {@code MushroomCow$Variant.DEFAULT = RED} picks
-     * {@code mooshroom_red.png}). Falls through when no variant-keyed map is built in any of
-     * the renderer's lambdas (renderers that don't use the {@code Util.make(newHashMap, lambda)}
-     * pattern).
+     * Returns the texture path bound to that {@code DEFAULT} constant - keeping the base entity
+     * on vanilla's canonical default rather than whichever key the populating lambda happens to
+     * put first (mushroom_cow's {@code MushroomCow$Variant.DEFAULT = RED} picks
+     * {@code mooshroom_red.png} over the first-put BROWN; parrot's
+     * {@code Parrot$Variant.DEFAULT = RED_BLUE} resolves to RED_BLUE). Returns {@code null} when
+     * the renderer is unloadable, no variant-keyed map is built in any of its lambdas (renderers
+     * that don't use the {@code Util.make(newHashMap, lambda)} pattern), the variant enum has no
+     * {@code DEFAULT} field, or that constant has no texture path in the collected map.
      */
     private static @Nullable String findDefaultVariantLiteral(
         @NotNull ClassNodeCache classNodes,
@@ -1144,7 +1164,9 @@ public final class EntityTextureResolver {
     }
 
     /**
-     * Picks the first literal whose path stem (filename minus {@code .png}) does not end in {@code _baby}.
+     * Picks the first literal whose path stem (filename minus {@code .png}) does not end in
+     * {@code _baby}, falling back to the first literal when every one is a baby path and to
+     * {@code null} only when the list is empty.
      */
     private static @Nullable String pickFirstNonBabyLiteral(@NotNull ConcurrentList<String> literals) {
         for (String l : literals) {
@@ -1214,14 +1236,26 @@ public final class EntityTextureResolver {
     }
 
     /**
-     * Returns the hierarchy-source label or {@code null} when binding lives on the renderer itself.
+     * Computes the {@link Result#hierarchySource() hierarchySource} label - the declaring class's
+     * internal name when {@code getTextureLocation} was found on a superclass, or {@code null}
+     * when the binding lives on the renderer class itself.
+     *
+     * @param resolved the resolved method paired with its declaring class
+     * @param rendererInternal the renderer's own JVM internal name
+     * @return the declaring class name when it differs from {@code rendererInternal}, else
+     *     {@code null}
      */
     private static @Nullable String sourceLabel(@NotNull ResolvedMethod resolved, @NotNull String rendererInternal) {
         return resolved.declaringClass.equals(rendererInternal) ? null : resolved.declaringClass;
     }
 
     /**
-     * Internal record pairing a {@link MethodNode} with its declaring class's internal name.
+     * Internal record pairing a resolved {@code getTextureLocation} {@link MethodNode} with the
+     * internal name of the class that actually declares it (which may be a superclass of the
+     * renderer being resolved).
+     *
+     * @param method the resolved {@code getTextureLocation} node
+     * @param declaringClass JVM internal name of the class declaring {@code method}
      */
     private record ResolvedMethod(@NotNull MethodNode method, @NotNull String declaringClass) {}
 

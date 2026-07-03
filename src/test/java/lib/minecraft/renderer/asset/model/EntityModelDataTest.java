@@ -9,12 +9,22 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
- * Focused coverage for the {@link EntityModelData} schema - texture dimensions default to
- * {@code 64 x 64}, Gson deserialisation populates the declared fields, and equality discriminates
- * by content.
+ * Verifies the {@link EntityModelData} schema - the entity-model DTO produced by the
+ * bytecode-walk tooling and read back through Gson.
+ * <p>
+ * Focused on the texture-atlas dimensions and value semantics: the no-arg constructor defaults to a
+ * {@code 64 x 64} atlas with no bones, Gson populates {@code textureWidth}/{@code textureHeight}
+ * from JSON, a deserialise &rarr; serialise &rarr; deserialise roundtrip is stable under
+ * {@code equals}/{@code hashCode}, and equality discriminates on texture dimensions. Uses the
+ * shared {@link GsonSettings#defaults()} configuration so the test exercises the same adapter set
+ * as the runtime loader.
  */
 class EntityModelDataTest {
 
+    /**
+     * Shared serializer built from the runtime {@link GsonSettings#defaults()} so the schema is
+     * exercised under the same adapters the production loader uses.
+     */
     private static final Gson GSON = GsonSettings.defaults().create();
 
     @Test

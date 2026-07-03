@@ -53,9 +53,12 @@ public final class EntityDiagnosticsWriter {
      * @param registry the discovery result (mob counts, mobs-without-renderer list)
      * @param records the per-entity walk results
      * @param variants the loaded variant tables (per-entity-stem variant lists)
-     * @param withPrimaryTexture coverage counter
-     * @param variantDriven coverage counter
-     * @param unresolvedTexture coverage counter
+     * @param withPrimaryTexture count of entities with a resolved primary texture; emitted as
+     *     {@code texture_primary_count}
+     * @param variantDriven count of entities whose texture is variant-driven; emitted as
+     *     {@code texture_variant_driven_count}
+     * @param unresolvedTexture count of entities whose texture could not be resolved; emitted as
+     *     {@code texture_unresolved_count}
      * @param diagnostics the diagnostic sink whose entries land in the JSON's
      *     {@code diagnostics} array
      * @return the absolute path written (for the caller's {@code System.out.println} stamp)
@@ -108,6 +111,13 @@ public final class EntityDiagnosticsWriter {
         return GEOMETRY_DIAGNOSTIC_OUTPUT.toAbsolutePath();
     }
 
+    /**
+     * Assembles the discovery diagnostic document: the header comment + {@code client_version}
+     * stamp, the coverage stat block (mob counts, texture-resolution tallies), a per-entity
+     * {@code entities} object (renderer / texture / baby-texture / variant source / inherited
+     * binding / overlay layers), the {@code mobs_without_renderer_list}, the full
+     * {@code variant_tables} dump, and the trailing {@code diagnostics} log array.
+     */
     private static @NotNull JsonObject buildDiscoveryDoc(
         @NotNull PipelineOptions options,
         @NotNull EntityRegistryDiscovery.Result registry,
@@ -189,6 +199,15 @@ public final class EntityDiagnosticsWriter {
         return root;
     }
 
+    /**
+     * Assembles the geometry diagnostic document: the header comment + {@code client_version}
+     * stamp, the coverage stat block (mob totals, primary-layer / geometry coverage), a
+     * per-entity {@code entities} object (layer field + factory class/method, texture
+     * dimensions, bone/cube counts, bone-name list), running {@code total_bones} /
+     * {@code total_cubes} sums accumulated across the entity loop, and the trailing
+     * {@code diagnostics} log array. Cube counts are summed by walking each bone's
+     * {@code cubes} array in the parsed geometry JSON.
+     */
     private static @NotNull JsonObject buildGeometryDoc(
         @NotNull PipelineOptions options,
         int mobsTotal,

@@ -91,8 +91,8 @@ public record Vector3f(float x, float y, float z) {
 
     /**
      * Returns the component at the given axis index ({@code 0=x, 1=y, 2=z}). Useful when an
-     * algorithm picks an axis at runtime, e.g. an {@code EntityLayout} that maps a face's
-     * {@code widthAxis} to one of the three components.
+     * algorithm picks an axis at runtime, e.g. an {@code EntityFace.Layout} that maps a face's
+     * {@code widthAxis}/{@code heightAxis} to one of the three components.
      *
      * @param axis the axis index, must be {@code 0}, {@code 1}, or {@code 2}
      * @return the component value
@@ -120,8 +120,8 @@ public record Vector3f(float x, float y, float z) {
      * Cheaper than {@link #length()} when only magnitude comparisons are needed.
      */
     public float lengthSquared() {
-        // Right-associated mul-add matching JOML's {@code Vector3fc.lengthSquared} with
-        // {@code joml.useMathFma=false}.
+        // Right-associated mul-add matching JOML's Vector3fc.lengthSquared with
+        // joml.useMathFma=false.
         return this.x * this.x + (this.y * this.y + this.z * this.z);
     }
 
@@ -222,9 +222,9 @@ public record Vector3f(float x, float y, float z) {
      * @return the dot product
      */
     public static float dot(@NotNull Vector3f a, @NotNull Vector3f b) {
-        // Right-associated mul-add matching JOML's {@code Vector3fc.dot} with default
-        // {@code joml.useMathFma=false}: JOML's source calls {@code Math.fma} but with FMA
-        // disabled, the expression collapses to {@code x*v.x() + (y*v.y() + z*v.z())}.
+        // Right-associated mul-add matching JOML's Vector3fc.dot with default
+        // joml.useMathFma=false: JOML's source calls Math.fma but with FMA disabled,
+        // the expression collapses to a.x*b.x + (a.y*b.y + a.z*b.z).
         return a.x * b.x + (a.y * b.y + a.z * b.z);
     }
 

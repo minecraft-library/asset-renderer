@@ -44,18 +44,22 @@
  *       {@link lib.minecraft.renderer.tensor.Vector3f#transformNormal transformNormal}
  *       silently dispatch to a JDK Vector API implementation when the {@code jdk.incubator.vector}
  *       module is loaded.</li>
- *   <li>{@link lib.minecraft.renderer.tensor.Vector4f Vector4f} - homogeneous
- *       {@code (x, y, z, w)} record. Intermediate matrix-vector products and certain
- *       JSON-derived asset DTOs that ship four floats per row.</li>
+ *   <li>{@link lib.minecraft.renderer.tensor.Vector4f Vector4f} - {@code (x, y, z, w)} record
+ *       used as a UV rectangle, {@code (x, y)} the min corner and {@code (z, w)} the max, with
+ *       face-rotation-/mirror-aware corner expansion. Carries a Gson {@code TypeAdapter}.</li>
  *   <li>{@link lib.minecraft.renderer.tensor.Matrix4f Matrix4f} - immutable column-major 4x4
  *       matrix. Built once per render and reused per-vertex, so {@code Matrix4f} stays a class
  *       rather than the mutable-scratch pattern the per-vertex {@code Vector3f} hot path uses.
  *       {@link lib.minecraft.renderer.tensor.Matrix4f#multiply multiply} silently dispatches
  *       to SIMD.</li>
  *   <li>{@link lib.minecraft.renderer.tensor.Quaternionf Quaternionf} - immutable
- *       {@code (x, y, z, w)} record. JOML algorithm port (~110 lines, no JOML dep) used for
+ *       {@code (x, y, z, w)} record. Self-contained JOML algorithm port (no JOML dep) used for
  *       the iso rotation matrix in the entity pipeline and the cube-pivot rotation in
- *       {@link lib.minecraft.renderer.kit.EntityGeometryKit EntityGeometryKit}.</li>
+ *       {@link lib.minecraft.renderer.engine.kit.EntityGeometryKit EntityGeometryKit}.</li>
+ *   <li>{@link lib.minecraft.renderer.tensor.Box Box} - immutable axis-aligned bounding box
+ *       storing a min/max corner pair as six floats, with {@code of(...)} factories that fit a
+ *       tight AABB around a point list and a {@code maxExtent()} helper. Drives screen-bounds
+ *       fitting and canvas sizing.</li>
  * </ul>
  *
  * <p><b>SIMD dispatch.</b>

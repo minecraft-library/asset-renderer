@@ -22,9 +22,11 @@ import org.objectweb.asm.tree.MethodNode;
  *
  * <p>The asset's runtime kit force-no-culls plane cubes by default (cod fins, warden tendrils), so it
  * needs this per-model signal to instead cull the planes of {@code entityCutoutCull} models. In
- * bytecode the method reference surfaces as an {@code invokedynamic} whose bootstrap arguments carry
- * a method {@link Handle} named {@code entityCutoutCull}; a direct {@code INVOKESTATIC} is matched too
- * for robustness. Every method is scanned so a render type wired in a helper / factory is still caught.
+ * bytecode the {@code RenderTypes::entityCutoutCull} method reference surfaces as an
+ * {@code invokedynamic} whose bootstrap arguments carry a method {@link Handle} named
+ * {@code entityCutoutCull}; a direct method call to a member of that name (typically the
+ * {@code INVOKESTATIC} factory) is matched too for robustness. Every method of the class is scanned so
+ * a render type wired in a helper / factory is still caught.
  */
 @UtilityClass
 public final class EntityRenderTypeResolver {

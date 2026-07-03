@@ -21,13 +21,14 @@ import java.util.Optional;
 public class AtlasOptions {
 
     /**
-     * Which model kind(s) to include in the atlas
+     * Which model kind(s) to include in the atlas - blocks, items, or both
      */
     @lombok.Builder.Default
     private final @NotNull Source source = Source.BOTH;
 
     /**
-     * An optional predicate filter evaluated per model id.
+     * Optional predicate filter evaluated per model id; only ids passing the predicate are
+     * rendered. Empty (default) admits every id from the selected {@link #source}
      */
     @lombok.Builder.Default
     private final @NotNull Optional<java.util.function.Predicate<String>> filter = Optional.empty();
@@ -45,7 +46,8 @@ public class AtlasOptions {
     private final int columns = 16;
 
     /**
-     * Background fill for empty areas (solid colour or checkerboard).
+     * Background fill for empty tile areas (solid colour or checkerboard), defaulting to
+     * {@link Background#TRANSPARENT}
      */
     @lombok.Builder.Default
     private final @NotNull Background background = Background.TRANSPARENT;
@@ -67,10 +69,21 @@ public class AtlasOptions {
     @lombok.Builder.Default
     private final boolean progressLogging = true;
 
+    /**
+     * Opens a builder seeded from this instance's current values, for deriving a variant with a
+     * few fields changed.
+     *
+     * @return a builder pre-populated from this instance
+     */
     public @NotNull AtlasOptionsBuilder mutate() {
         return this.toBuilder();
     }
 
+    /**
+     * Builds an instance with every field at its default value.
+     *
+     * @return the default options
+     */
     public static @NotNull AtlasOptions defaults() {
         return builder().build();
     }
@@ -80,10 +93,13 @@ public class AtlasOptions {
      */
     public enum Source {
 
+        /** Block models only. */
         BLOCK,
 
+        /** Item models only. */
         ITEM,
 
+        /** Both block and item models. */
         BOTH
 
     }

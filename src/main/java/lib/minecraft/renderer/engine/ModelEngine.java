@@ -4,11 +4,19 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.BlendMode;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.geometry.EulerRotation;
-import lib.minecraft.renderer.geometry.PerspectiveParams;
-import lib.minecraft.renderer.geometry.ProjectionMath;
-import lib.minecraft.renderer.geometry.VisibleTriangle;
-import lib.minecraft.renderer.pipeline.util.RendererDebug;
+import lib.minecraft.renderer.engine.camera.Camera;
+import lib.minecraft.renderer.engine.camera.FitRequest;
+import lib.minecraft.renderer.engine.camera.Lens;
+import lib.minecraft.renderer.engine.camera.Placement;
+import lib.minecraft.renderer.engine.camera.Projection;
+import lib.minecraft.renderer.engine.light.Shading;
+import lib.minecraft.renderer.engine.raster.GlintMask;
+import lib.minecraft.renderer.engine.raster.RasterMath;
+import lib.minecraft.renderer.engine.raster.SurfaceTraits;
+import lib.minecraft.renderer.engine.raster.VisibleTriangle;
+import lib.minecraft.renderer.engine.texture.Textures;
+import lib.minecraft.renderer.request.EulerRotation;
+import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
@@ -24,20 +32,38 @@ import java.util.stream.IntStream;
 /**
  * A 3D triangle rasterizer that projects a list of {@link VisibleTriangle triangles} onto a 2D
  * {@link PixelBuffer} using a depth buffer, barycentric interpolation, and painter's-algorithm
- * ordering for back-to-front draw order.
- * <p>
- * Every renderer composing this engine can supply pitch, yaw, and roll Euler angles at render
- * time. The rotation is pre-multiplied into the engine's camera transform so the inner
- * rasterization loop stays hot and the existing triangle list can be reused across multiple
- * rotations without rebuilding the geometry.
- * <p>
- * Back-face culling uses a signed screen-space winding test after projection, which is robust
- * against camera and model rotations and does not depend on the per-triangle surface normal.
- * Individual triangles can opt out of culling by setting {@link VisibleTriangle#cullBackFaces()}
- * to {@code false} - used for two-sided geometry such as glass panes, leaves, banners, and the
- * interior faces of beds and other non-convex blocks.
+ * ordering for coplanar tie-breaks.
+ *
+ * <p>The engine owns the whole world-to-screen half of the pipeline: a {@link Camera} supplies
+ * the view {@link #pose} (the baked {@code display.*} rotation) and the {@link Lens} (the
+ * 3D-to-2D flatten), and an optional {@link Placement} supplies the subject's model-to-world
+ * facing / chirality / anchor. Every rasterize call composes {@code pose x placement x
+ * modelTransform} (column-vector, right-to-left application) so callers never thread a lens
+ * through each draw and the same triangle list can be reused across rotations without rebuilding
+ * the geometry.
+ *
+ * <p>Every renderer composing this engine can supply pitch, yaw, and roll Euler angles at render
+ * time (see {@link EulerRotation}). The rotation is pre-multiplied into the composed transform so
+ * the inner rasterization loop stays hot.
+ *
+ * <p><b>Per-pixel path.</b> Pass 1 transforms, projects, snaps to the {@code 1/400} coverage grid
+ * ({@link #snapToCoverageGrid}), and back-face culls in parallel; Pass 2 rasterizes into
+ * horizontal Y-band tiles (each owning a private depth slice) using Pineda incremental edge
+ * functions with a {@code 1/256} fixed-point sample and an OpenGL top-left fill rule
+ * (see {@link RasterMath}). Fragments are depth-tested ({@link #depthFails}, vanilla
+ * {@code GL_LEQUAL}), texture-sampled, tinted ({@link BlendMode#MULTIPLY}), shaded
+ * ({@link Shading}), and composited with the {@link #selectBlendMode selected blend mode}.
+ *
+ * <p><b>Back-face culling</b> uses a signed screen-space winding test after projection
+ * ({@link #isBackFacing}), which is robust against camera and model rotations and does not depend
+ * on the per-triangle surface normal. Individual triangles can opt out of culling by setting
+ * {@link SurfaceTraits#cullBackFaces()} to {@code false} - used for two-sided geometry such as
+ * glass panes, leaves, banners, and the interior faces of beds and other non-convex blocks.
+ * Translucent (partial-alpha shell) triangles are additionally sorted back-to-front by quad depth
+ * ({@link #sortNoCullBackToFront}), and emissive overlays skip the depth write so nested
+ * translucent layers accumulate.
  */
-public class ModelEngine extends TextureEngine {
+public class ModelEngine {
 
     /**
      * Per-pixel depth comparison epsilon. Absorbs floating-point noise between mathematically
@@ -74,7 +100,7 @@ public class ModelEngine extends TextureEngine {
      * <p><b>Not a standard GPU sub-pixel precision</b> (real hardware uses {@code 1/16} or
      * {@code 1/256}). The {@code 1/400} value is INCOMMENSURATE with both our rasterizer's
      * {@code 1/256} fixed-point edge functions (see
-     * {@link ProjectionMath ProjectionMath}) and with
+     * {@link RasterMath RasterMath}) and with
      * texture grid sizes ({@code 1/16}, {@code 1/32}, {@code 1/64} for typical entity
      * textures), so quantized vertex positions almost never land at sample points that
      * produce exact-half barycentrics or exact-integer texel-coordinate interpolations -
@@ -83,122 +109,187 @@ public class ModelEngine extends TextureEngine {
      * <p>Overridable via {@code -Dasset.snap.grid=N} for empirical sweeps (e.g. confirming the block
      * pipeline shares the entity-tuned optimum). {@code N <= 0} disables the snap entirely
      * ({@link #snapToCoverageGrid} returns the vertex unchanged); the default {@code 400} is the
-     * tuned value above. Both the entity ({@link ModelEngine}) and block
-     * ({@link IsometricEngine}) pipelines read this single constant.
+     * tuned value above. Both the entity and block ({@link Projection#VANILLA_ISO})
+     * pipelines read this single constant.
      */
     private static final float SUBPIXEL_PRECISION = Float.parseFloat(System.getProperty("asset.snap.grid", "400"));
+
+    /**
+     * Reciprocal of {@link #SUBPIXEL_PRECISION} (the grid cell size), precomputed so
+     * {@link #snapToCoverageGrid} multiplies rather than divides per vertex. Zero when the snap is
+     * disabled ({@code SUBPIXEL_PRECISION <= 0}).
+     */
     private static final float SUBPIXEL_INV = SUBPIXEL_PRECISION > 0f ? 1f / SUBPIXEL_PRECISION : 0f;
 
-    private final @NotNull Matrix4f camera;
+    /**
+     * The camera view {@link Camera#pose()} - the baked {@code display.*} rotation applied to a vertex
+     * after the model transform and {@link #placement}, forming the world-to-screen half of the chain.
+     */
+    private final @NotNull Matrix4f pose;
 
     /**
-     * Constructs a model engine whose camera transform is the identity matrix - geometry is
-     * viewed directly down the negative Z axis with no pre-rotation. Callers that want a
-     * preset pose (e.g. the standard block inventory icon) should use {@link IsometricEngine}
-     * instead of composing the pose into their {@code modelTransform}.
+     * The subject's model-to-world {@link Placement} matrix, composed between the camera pose and the
+     * caller's model transform, or {@code null} for the identity no-op ({@link Placement#IDENTITY}) so
+     * the transform chain stays byte-identical to the pre-Placement pipeline.
+     */
+    private final @Nullable Matrix4f placement;
+
+    /**
+     * The camera {@link Lens} - the 3D-to-2D flatten (scale + projection family) applied to each
+     * transformed vertex during rasterization. Held on the engine so callers never pass a lens per draw.
+     */
+    private final @NotNull Lens lens;
+
+    /**
+     * The pack-aware texture-resolution service bound to this engine's context, shared with kits and
+     * layers that resolve textures against the same render.
+     */
+    private final @NotNull Textures textures;
+
+    /**
+     * Constructs a model engine with a preset {@link Camera} and the identity {@link Placement} - its
+     * pose (applied after the caller's model transform during rasterization) and its lens (the 3D-to-2D
+     * flatten). Pass a resolved camera (e.g. {@link Projection#VANILLA_ISO} resolved to its camera, the
+     * vanilla {@code [30, 225, 0]} block-icon pose with the iso block lens) so the engine holds the whole
+     * view + projection and callers don't thread the lens through every {@code rasterize} call.
      *
      * @param context the renderer context
+     * @param camera the camera (pose + lens) composed with every rasterization
      */
-    public ModelEngine(@NotNull RendererContext context) {
-        this(context, Matrix4f.IDENTITY);
+    public ModelEngine(@NotNull RendererContext context, @NotNull Camera camera) {
+        this(context, camera, Placement.IDENTITY);
     }
 
     /**
-     * Constructs a model engine with a preset camera transform, applied after the caller's
-     * model transform during rasterization. Intended as the {@code super(...)} entry point for
-     * subclasses that bake a named pose (e.g. {@link IsometricEngine} with the vanilla
-     * {@code [30, 225, 0]} block-icon camera) into every render.
+     * Constructs a model engine with a preset {@link Camera} and a subject {@link Placement}. The
+     * placement is the model-to-world half of the pipeline (the subject's facing / chirality / anchor);
+     * the camera is the world-to-screen half. Rasterization composes {@code pose x placement x
+     * modelTransform}. {@link Placement#IDENTITY} makes this identical to the two-arg constructor and
+     * byte-identical to the pre-Placement transform chain.
      *
      * @param context the renderer context
-     * @param camera the camera transform matrix composed with every rasterization
+     * @param camera the camera (pose + lens) composed with every rasterization
+     * @param placement the subject's model-to-world placement
      */
-    protected ModelEngine(@NotNull RendererContext context, @NotNull Matrix4f camera) {
-        super(context);
-        this.camera = camera;
+    public ModelEngine(@NotNull RendererContext context, @NotNull Camera camera, @NotNull Placement placement) {
+        this.textures = new Textures(context);
+        this.pose = camera.pose();
+        this.placement = placement.isIdentity() ? null : placement.modelToWorld();
+        this.lens = camera.lens();
     }
 
     /**
-     * Rasterizes a triangle list onto the given buffer with no additional model rotation.
+     * Composes the camera-side transform: the camera {@link #pose} times this engine's model-to-world
+     * {@link #placement} times the caller's {@code modelTransform}. When the placement is the identity
+     * no-op ({@link #placement} {@code null}) this is exactly {@code pose x modelTransform} -
+     * byte-identical to the pre-Placement chain.
+     *
+     * @param modelTransform the caller's model-space transform (model spin / fit), applied first to a vertex
+     * @return the composed model-to-screen pose
+     */
+    private @NotNull Matrix4f cameraSide(@NotNull Matrix4f modelTransform) {
+        return this.placement == null
+            ? this.pose.multiply(modelTransform)
+            : this.pose.multiply(this.placement).multiply(modelTransform);
+    }
+
+    /**
+     * The model-to-world-to-screen orientation this engine applies to a fit-neutral triangle list for the
+     * given Euler rotation - {@code pose x placement x modelRotation}, with no fit scale or centring. A
+     * caller sizing its own canvas (the entity's native pixels-per-block fit) measures its silhouette
+     * bounds through this exact transform so the measured extent matches what {@link #rasterizeFitted}
+     * will render, then hands those bounds back via a {@link FitRequest.Mode#NATIVE_SCALE} request.
+     *
+     * @param rotation the Euler-angle model rotation applied before the camera pose
+     * @return the composed orientation transform (no fit scale / centring)
+     */
+    public @NotNull Matrix4f orient(@NotNull EulerRotation rotation) {
+        return cameraSide(buildModelRotation(rotation));
+    }
+
+    /**
+     * The pack-aware texture-resolution service bound to this engine's context, for kits and layers
+     * that resolve textures while sharing the engine's render.
+     */
+    public @NotNull Textures textures() {
+        return this.textures;
+    }
+
+    /**
+     * Rasterizes a triangle list onto the given buffer with no additional model rotation, through the
+     * engine's camera (pose + lens).
      *
      * @param triangles the triangle list
      * @param buffer the destination buffer
-     * @param perspective the perspective blend parameters
      */
     public void rasterize(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
-        @NotNull PixelBuffer buffer,
-        @NotNull PerspectiveParams perspective
+        @NotNull PixelBuffer buffer
     ) {
-        rasterize(triangles, buffer, perspective, EulerRotation.NONE);
+        rasterize(triangles, buffer, EulerRotation.NONE);
     }
 
     /**
      * Rasterizes a triangle list onto the given buffer after applying an Euler-angle rotation
-     * to the model before the camera transform.
+     * to the model before the camera pose.
      * <p>
      * Rotations are applied in yaw-pitch-roll order (yaw first around the Y axis, then pitch
      * around the X axis, then roll around the Z axis) and the combined rotation is then
-     * composed with the engine's camera transform. Supplying {@link EulerRotation#NONE} is
-     * equivalent to calling {@link #rasterize(ConcurrentList, PixelBuffer, PerspectiveParams)}.
+     * composed with the engine's camera pose. Supplying {@link EulerRotation#NONE} is
+     * equivalent to calling {@link #rasterize(ConcurrentList, PixelBuffer)}.
      *
      * @param triangles the triangle list
      * @param buffer the destination buffer
-     * @param perspective the perspective blend parameters
-     * @param rotation the Euler-angle rotation applied to the model before the camera transform
+     * @param rotation the Euler-angle rotation applied to the model before the camera pose
      */
     public void rasterize(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
-        @NotNull PerspectiveParams perspective,
         @NotNull EulerRotation rotation
     ) {
-        rasterize(triangles, buffer, perspective, rotation, null);
+        rasterize(triangles, buffer, rotation, null);
     }
 
     /**
-     * As {@link #rasterize(ConcurrentList, PixelBuffer, PerspectiveParams, EulerRotation)} but also
+     * As {@link #rasterize(ConcurrentList, PixelBuffer, EulerRotation)} but also
      * records a per-pixel {@link GlintMask}: each pixel whose winning fragment came from a
-     * {@link VisibleTriangle#glinted() glinted} triangle is marked, so the glint compositor can
+     * {@link SurfaceTraits#glinted() glinted} triangle is marked, so the glint compositor can
      * restrict the enchantment foil to that geometry. Pass {@code null} for the plain behaviour.
      *
      * @param triangles the triangle list
      * @param buffer the destination buffer
-     * @param perspective the perspective blend parameters
-     * @param rotation the Euler-angle rotation applied to the model before the camera transform
+     * @param rotation the Euler-angle rotation applied to the model before the camera pose
      * @param glintMask the glint mask to populate, or {@code null} to skip mask recording
      */
     public void rasterize(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
-        @NotNull PerspectiveParams perspective,
         @NotNull EulerRotation rotation,
         @Nullable GlintMask glintMask
     ) {
         Matrix4f modelRotation = buildModelRotation(rotation);
-        // Column-vector chain: modelRotation applies first to a vertex, then the camera.
-        Matrix4f transform = this.camera.multiply(modelRotation);
-        rasterizeInternal(triangles, buffer, perspective, transform, glintMask);
+        // Column-vector chain: modelRotation applies first to a vertex, then placement, then the camera pose.
+        Matrix4f transform = cameraSide(modelRotation);
+        rasterizeInternal(triangles, buffer, transform, glintMask, null);
     }
 
     /**
      * Rasterizes a triangle list after pre-multiplying an arbitrary model transform with the
-     * engine's camera. Used for item display transforms (e.g. {@code thirdperson_righthand}) and
+     * engine's camera pose. Used for item display transforms (e.g. {@code thirdperson_righthand}) and
      * any other caller that needs more than a pitch-yaw-roll Euler rotation.
      *
      * @param triangles the triangle list
      * @param buffer the destination buffer
-     * @param perspective the perspective blend parameters
-     * @param modelTransform the model-space transform applied before the camera transform
+     * @param modelTransform the model-space transform applied before the camera pose
      */
     public void rasterize(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
-        @NotNull PerspectiveParams perspective,
         @NotNull Matrix4f modelTransform
     ) {
-        // Column-vector chain: modelTransform applies first to a vertex, then the camera.
-        Matrix4f transform = this.camera.multiply(modelTransform);
-        rasterizeInternal(triangles, buffer, perspective, transform, null);
+        // Column-vector chain: modelTransform applies first to a vertex, then placement, then the camera pose.
+        Matrix4f transform = cameraSide(modelTransform);
+        rasterizeInternal(triangles, buffer, transform, null, null);
     }
 
     /**
@@ -209,93 +300,214 @@ public class ModelEngine extends TextureEngine {
      * scales it to the frame, so renderers with fixed model-space geometry (e.g. the player's
      * hard-coded body cubes) fill the canvas regardless of the model's native extent.
      * <p>
-     * The silhouette is measured by projecting every vertex through {@code camera x rotation}
+     * The silhouette is measured by projecting every vertex through {@code pose x rotation}
      * (orthographic), which accounts for the iso foreshortening and any caller rotation. The
      * geometry is translated so its model-space bounds centre projects to the canvas centre, then
      * uniformly scaled so the tighter projected axis spans {@code fill} of the smaller canvas side.
      *
      * @param triangles the triangle list, in fixed model-space units
      * @param buffer the destination buffer
-     * @param perspective the perspective blend parameters (orthographic recommended)
-     * @param rotation the Euler-angle model rotation applied before the camera
+     * @param rotation the Euler-angle model rotation applied before the camera pose
      * @param fill the fraction in {@code (0, 1]} of the smaller canvas dimension the silhouette spans
      */
     public void rasterizeFitted(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
-        @NotNull PerspectiveParams perspective,
         @NotNull EulerRotation rotation,
         float fill
     ) {
-        rasterizeFitted(triangles, buffer, perspective, rotation, fill, null);
+        rasterizeFitted(triangles, buffer, rotation, fill, null);
     }
 
     /**
-     * As {@link #rasterizeFitted(ConcurrentList, PixelBuffer, PerspectiveParams, EulerRotation, float)}
+     * As {@link #rasterizeFitted(ConcurrentList, PixelBuffer, EulerRotation, float)}
      * but also records a per-pixel {@link GlintMask} (see
-     * {@link #rasterize(ConcurrentList, PixelBuffer, PerspectiveParams, EulerRotation, GlintMask)}).
+     * {@link #rasterize(ConcurrentList, PixelBuffer, EulerRotation, GlintMask)}).
      * The mask is sized to {@code buffer}; downsample it to the final canvas when rendering at a
      * supersampled resolution. Pass {@code null} for the plain behaviour.
      *
      * @param triangles the triangle list, in fixed model-space units
      * @param buffer the destination buffer
-     * @param perspective the perspective blend parameters (orthographic recommended)
-     * @param rotation the Euler-angle model rotation applied before the camera
+     * @param rotation the Euler-angle model rotation applied before the camera pose
      * @param fill the fraction in {@code (0, 1]} of the smaller canvas dimension the silhouette spans
      * @param glintMask the glint mask to populate, or {@code null} to skip mask recording
      */
     public void rasterizeFitted(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
-        @NotNull PerspectiveParams perspective,
         @NotNull EulerRotation rotation,
         float fill,
         @Nullable GlintMask glintMask
     ) {
-        if (triangles.isEmpty()) return;
-        Matrix4f modelRotation = buildModelRotation(rotation);
-        Matrix4f orient = this.camera.multiply(modelRotation);
-
-        float minMx = Float.MAX_VALUE, minMy = Float.MAX_VALUE, minMz = Float.MAX_VALUE;
-        float maxMx = -Float.MAX_VALUE, maxMy = -Float.MAX_VALUE, maxMz = -Float.MAX_VALUE;
-        float minPx = Float.MAX_VALUE, minPy = Float.MAX_VALUE;
-        float maxPx = -Float.MAX_VALUE, maxPy = -Float.MAX_VALUE;
-        for (VisibleTriangle tri : triangles)
-            for (Vector3f v : new Vector3f[]{ tri.position0(), tri.position1(), tri.position2() }) {
-                minMx = Math.min(minMx, v.x()); maxMx = Math.max(maxMx, v.x());
-                minMy = Math.min(minMy, v.y()); maxMy = Math.max(maxMy, v.y());
-                minMz = Math.min(minMz, v.z()); maxMz = Math.max(maxMz, v.z());
-                Vector3f p = v.transform(orient);
-                minPx = Math.min(minPx, p.x()); maxPx = Math.max(maxPx, p.x());
-                minPy = Math.min(minPy, p.y()); maxPy = Math.max(maxPy, p.y());
-            }
-
-        float centreX = (minMx + maxMx) * 0.5f;
-        float centreY = (minMy + maxMy) * 0.5f;
-        float centreZ = (minMz + maxMz) * 0.5f;
-        float halfProjX = Math.max((maxPx - minPx) * 0.5f, 1e-6f);
-        float halfProjY = Math.max((maxPy - minPy) * 0.5f, 1e-6f);
-
-        float baseScale = Math.min(buffer.width(), buffer.height()) * perspective.projectionScale();
-        float fitX = fill * buffer.width() * 0.5f / (halfProjX * baseScale);
-        float fitY = fill * buffer.height() * 0.5f / (halfProjY * baseScale);
-        float fit = Math.min(fitX, fitY);
-
-        // vertex -> centre at origin -> uniform fit scale -> model rotation -> (camera).
-        Matrix4f modelTransform = modelRotation.scale(fit, fit, fit).translate(-centreX, -centreY, -centreZ);
-        rasterizeInternal(triangles, buffer, perspective, this.camera.multiply(modelTransform), glintMask);
+        rasterizeFitted(triangles, buffer, rotation, FitRequest.autoFill(fill), glintMask);
     }
 
+    /**
+     * Rasterizes a triangle list fitted to the buffer under this engine's camera and the given model
+     * rotation, driven by a {@link FitRequest}. {@link FitRequest.Mode#AUTO_FILL} measures the
+     * silhouette and scales it to fill the canvas (the player + entity perspective / oblique path);
+     * {@link FitRequest.Mode#NATIVE_SCALE} applies the caller's explicit scale and centres on its
+     * pre-measured bounds (the entity's native-resolution orthographic path). The fit forks on lens
+     * family inside {@link #prepareFit}, so the shared {@link #rasterizeInternal} core stays
+     * lens-agnostic.
+     *
+     * @param triangles the triangle list, in fixed model-space units
+     * @param buffer the destination buffer
+     * @param rotation the Euler-angle model rotation applied before the camera pose
+     * @param request how to scale and centre the silhouette
+     * @param glintMask the glint mask to populate, or {@code null} to skip mask recording
+     */
+    public void rasterizeFitted(
+        @NotNull ConcurrentList<VisibleTriangle> triangles,
+        @NotNull PixelBuffer buffer,
+        @NotNull EulerRotation rotation,
+        @NotNull FitRequest request,
+        @Nullable GlintMask glintMask
+    ) {
+        if (triangles.isEmpty()) return;
+        FitPlan plan = prepareFit(triangles, buffer, rotation, request);
+        rasterizeInternal(triangles, buffer, plan.transform(), glintMask, plan.fit());
+    }
+
+    /**
+     * Measures the triangle silhouette and produces the lens-derived {@link FitPlan} that fills the
+     * canvas: the composed model-to-screen transform plus an optional post-projection 2D
+     * {@link Fit2D auto-fit}. This is the single place the auto-fit forks on lens family. The split is
+     * whether the flatten is a pure uniform scale of x/y (so raw model-rotated bounds are proportional
+     * to the screen silhouette) or not:
+     * <ul>
+     * <li><b>{@link Lens.Kind#PERSPECTIVE} / {@link Lens.Kind#OBLIQUE}</b> - the flatten is <b>not</b> a
+     *     pure scale (perspective foreshortens toward the camera; oblique shears the depth axis into
+     *     x/y), so the silhouette must be measured in <b>projected screen space</b> through
+     *     {@link Lens#project} and filled with a post-projection 2D {@link Fit2D}. Measuring raw
+     *     pre-projection bounds would miss the foreshortening / shear and let the drawn geometry
+     *     overflow the canvas. The plain {@code orient} transform is kept so the fit never rescales the
+     *     model-space depth a perspective lens reads. Perspective vertices interpolate
+     *     perspective-correctly and oblique vertices screen-linearly - both driven by the
+     *     {@code perspectiveCorrect} flag {@link #projectTriangle} sets from the lens kind.</li>
+     * <li><b>{@link Lens.Kind#ORTHOGRAPHIC}</b> - the flatten is a pure uniform scale, so raw
+     *     post-rotation bounds are proportional to the screen silhouette and the fit bakes a 3D
+     *     {@code scale(fit).translate(-centre)} into the model transform ({@code null} 2D fit). Keeping
+     *     the fit in 3D leaves the depth in the fitted frame, so the fixed {@link #DEPTH_EPSILON}
+     *     emissive slack in {@link #depthFails} - which is <b>not</b> scale-invariant - stays
+     *     bit-for-bit, the screen-linear no-divide interpolation path is preserved, and the shipped
+     *     {@link Projection#VANILLA_ISO} render stays byte-identical. A 2D fit would match on screen but
+     *     silently shift those emissive-overlay depth tie-breaks.</li>
+     * </ul>
+     *
+     * <p>A {@link FitRequest.Mode#NATIVE_SCALE} request short-circuits the measurement: the caller has
+     * already sized its canvas at a native pixels-per-block ratio and measured its (alpha-tight,
+     * possibly family-unioned) silhouette bounds through {@link #orient}, so the engine bakes the
+     * caller's explicit scale in 3D (keeping the depth frame like the orthographic auto-fill arm) and
+     * centres the caller's measured bounds midpoint in screen space via a scale-{@code 1} {@link Fit2D}.
+     * This is the entity's orthographic path; the {@link FitRequest.Mode#AUTO_FILL} arms below are the
+     * player + entity perspective / oblique paths.
+     *
+     * @param triangles the triangle list, in fixed model-space units (non-empty)
+     * @param buffer the destination buffer
+     * @param rotation the Euler-angle model rotation applied before the camera pose
+     * @param request how to scale and centre the silhouette (auto-fill vs caller-supplied native scale)
+     * @return the composed model-to-screen transform and the optional post-projection 2D auto-fit
+     */
+    private @NotNull FitPlan prepareFit(
+        @NotNull ConcurrentList<VisibleTriangle> triangles,
+        @NotNull PixelBuffer buffer,
+        @NotNull EulerRotation rotation,
+        @NotNull FitRequest request
+    ) {
+        Matrix4f modelRotation = buildModelRotation(rotation);
+        Matrix4f orient = cameraSide(modelRotation);
+        float baseScale = Math.min(buffer.width(), buffer.height()) * this.lens.projectionScale();
+
+        if (request.mode() == FitRequest.Mode.NATIVE_SCALE) {
+            // Caller-sized canvas: bake the explicit model-units-to-NDC scale in 3D (uniform scale
+            // commutes through the rotation, so the depth frame scales with it - keeping DEPTH_EPSILON
+            // behaviour aligned with the orthographic auto-fill arm) and centre the caller's measured
+            // bounds midpoint in screen space. The bounds were measured through `orient` at the same
+            // native geometry scale, WITHOUT this fit scale; after the S(fit) bake the projected midpoint
+            // scales by `fit`, so project `fit * midpoint` to get the screen-space centre to subtract.
+            float fit = request.explicitScale();
+            Box b = Objects.requireNonNull(request.explicitBounds(), "NATIVE_SCALE requires explicitBounds");
+            float midX = (b.minX() + b.maxX()) * 0.5f;
+            float midY = (b.minY() + b.maxY()) * 0.5f;
+            float midZ = (b.minZ() + b.maxZ()) * 0.5f;
+            Vector2f centre = this.lens.project(new Vector3f(fit * midX, fit * midY, fit * midZ), baseScale, 0f, 0f);
+            Matrix4f modelTransform = modelRotation.scale(fit, fit, fit);
+            return new FitPlan(cameraSide(modelTransform), new Fit2D(centre.x(), centre.y(), 1f));
+        }
+
+        float fill = request.fill();
+        return switch (this.lens.kind()) {
+            case PERSPECTIVE, OBLIQUE -> {
+                float minPx = Float.MAX_VALUE, minPy = Float.MAX_VALUE;
+                float maxPx = -Float.MAX_VALUE, maxPy = -Float.MAX_VALUE;
+                for (VisibleTriangle tri : triangles)
+                    for (Vector3f v : new Vector3f[]{ tri.position0(), tri.position1(), tri.position2() }) {
+                        Vector2f s = this.lens.project(v.transform(orient), baseScale, 0f, 0f);
+                        minPx = Math.min(minPx, s.x()); maxPx = Math.max(maxPx, s.x());
+                        minPy = Math.min(minPy, s.y()); maxPy = Math.max(maxPy, s.y());
+                    }
+
+                float halfProjX = Math.max((maxPx - minPx) * 0.5f, 1e-6f);
+                float halfProjY = Math.max((maxPy - minPy) * 0.5f, 1e-6f);
+                float fit = Math.min(fill * buffer.width() * 0.5f / halfProjX, fill * buffer.height() * 0.5f / halfProjY);
+                // 2D post-projection fit; transform stays the plain orient so model-space depth is intact.
+                yield new FitPlan(orient, new Fit2D((minPx + maxPx) * 0.5f, (minPy + maxPy) * 0.5f, fit));
+            }
+            case ORTHOGRAPHIC -> {
+                float minMx = Float.MAX_VALUE, minMy = Float.MAX_VALUE, minMz = Float.MAX_VALUE;
+                float maxMx = -Float.MAX_VALUE, maxMy = -Float.MAX_VALUE, maxMz = -Float.MAX_VALUE;
+                float minPx = Float.MAX_VALUE, minPy = Float.MAX_VALUE;
+                float maxPx = -Float.MAX_VALUE, maxPy = -Float.MAX_VALUE;
+                for (VisibleTriangle tri : triangles)
+                    for (Vector3f v : new Vector3f[]{ tri.position0(), tri.position1(), tri.position2() }) {
+                        minMx = Math.min(minMx, v.x()); maxMx = Math.max(maxMx, v.x());
+                        minMy = Math.min(minMy, v.y()); maxMy = Math.max(maxMy, v.y());
+                        minMz = Math.min(minMz, v.z()); maxMz = Math.max(maxMz, v.z());
+                        Vector3f p = v.transform(orient);
+                        minPx = Math.min(minPx, p.x()); maxPx = Math.max(maxPx, p.x());
+                        minPy = Math.min(minPy, p.y()); maxPy = Math.max(maxPy, p.y());
+                    }
+
+                float centreX = (minMx + maxMx) * 0.5f;
+                float centreY = (minMy + maxMy) * 0.5f;
+                float centreZ = (minMz + maxMz) * 0.5f;
+                float halfProjX = Math.max((maxPx - minPx) * 0.5f, 1e-6f);
+                float halfProjY = Math.max((maxPy - minPy) * 0.5f, 1e-6f);
+
+                float fitX = fill * buffer.width() * 0.5f / (halfProjX * baseScale);
+                float fitY = fill * buffer.height() * 0.5f / (halfProjY * baseScale);
+                float fit = Math.min(fitX, fitY);
+
+                // 3D fit: vertex -> centre at origin -> uniform fit scale -> model rotation -> placement -> (camera pose).
+                Matrix4f modelTransform = modelRotation.scale(fit, fit, fit).translate(-centreX, -centreY, -centreZ);
+                yield new FitPlan(cameraSide(modelTransform), null);
+            }
+        };
+    }
+
+    /**
+     * Two-pass rasterization core shared by every {@code rasterize} entry point. Pass 1 projects and
+     * back-face culls every triangle in parallel through the already-composed model-to-screen
+     * {@code transform}, then sorts translucent triangles back-to-front; Pass 2 rasterizes the prepared
+     * list into horizontal Y-band tiles, each on its own depth slice, and composites into {@code buffer}.
+     * Serial fallback (single depth buffer) below {@link #MIN_TILED_HEIGHT}.
+     *
+     * @param triangles the triangle list
+     * @param buffer the destination buffer
+     * @param transform the composed model-to-screen pose (from {@link #cameraSide})
+     * @param glintMask the glint mask to populate, or {@code null} to skip mask recording
+     */
     private void rasterizeInternal(
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PixelBuffer buffer,
-        @NotNull PerspectiveParams perspective,
         @NotNull Matrix4f transform,
-        @Nullable GlintMask glintMask
+        @Nullable GlintMask glintMask,
+        @Nullable Fit2D fit
     ) {
         int width = buffer.width();
         int height = buffer.height();
-        float scale = Math.min(width, height) * perspective.projectionScale();
+        float scale = Math.min(width, height) * this.lens.projectionScale();
         float offsetX = width * 0.5f;
         float offsetY = height * 0.5f;
 
@@ -307,7 +519,7 @@ public class ModelEngine extends TextureEngine {
         // DEPTH_EPSILON tie-break deterministically picks the first-drawn of any coplanar pair
         // (see the comment on the depth test below).
         List<Projected> rawPrepared = triangles.parallelStream()
-            .map(triangle -> projectTriangle(triangle, transform, scale, offsetX, offsetY, perspective))
+            .map(triangle -> projectTriangle(triangle, transform, scale, offsetX, offsetY, this.lens, fit))
             .filter(Objects::nonNull)
             .toList();
         List<Projected> prepared = sortNoCullBackToFront(rawPrepared);
@@ -363,8 +575,8 @@ public class ModelEngine extends TextureEngine {
      * pixel (78,15) goes from (73,123,63,180) to (96,161,82,233) which lands within 1-7 channel
      * units of vanilla's (95,158,75,233). Slime delta 14.86 -> 0.09.
      * <p>
-     * Gates on {@link VisibleTriangle#translucent()} rather than {@link
-     * VisibleTriangle#cullBackFaces()} so alpha-cutout no-cull cubes (warden tendrils, mushroom
+     * Gates on {@link SurfaceTraits#translucent()} rather than {@link
+     * SurfaceTraits#cullBackFaces()} so alpha-cutout no-cull cubes (warden tendrils, mushroom
      * block-overlays whose texels are strictly alpha 0 or 255) stay in emission order. Sorting
      * those would shuffle a base/overlay coplanar pair non-deterministically because their
      * alpha-255 fragments depth-resolve on emission-order tie-break rather than a true blend.
@@ -380,12 +592,12 @@ public class ModelEngine extends TextureEngine {
         int total = prepared.size();
         int translucentCount = 0;
         for (Projected p : prepared)
-            if (p.source().translucent()) translucentCount++;
+            if (p.source().traits().translucent()) translucentCount++;
         if (translucentCount == 0) return prepared;
         List<Projected> opaque = new ArrayList<>(total - translucentCount);
         List<Projected> translucent = new ArrayList<>(translucentCount);
         for (Projected p : prepared) {
-            if (p.source().translucent()) translucent.add(p);
+            if (p.source().traits().translucent()) translucent.add(p);
             else opaque.add(p);
         }
         // Smaller depth value = farther in our convention; we want farthest first so closer
@@ -424,6 +636,14 @@ public class ModelEngine extends TextureEngine {
         return (t.p2().z() + t.p0().z()) * 0.5f;
     }
 
+    /**
+     * Squared Euclidean distance between two screen-space points, used by {@link #quadDepthKey} to pick
+     * a triangle's longest edge (the shared quad diagonal) without a square root.
+     *
+     * @param a the first screen-space point
+     * @param b the second screen-space point
+     * @return the squared distance between {@code a} and {@code b}
+     */
     private static float screenDistSq(@NotNull Vector2f a, @NotNull Vector2f b) {
         float dx = a.x() - b.x();
         float dy = a.y() - b.y();
@@ -440,6 +660,15 @@ public class ModelEngine extends TextureEngine {
      * Callers are responsible for pre-filling {@code depth} with {@link Float#NEGATIVE_INFINITY}
      * and for ensuring no two concurrent invocations share overlapping {@code [tileStart, tileEnd)}
      * ranges - that is what keeps the {@code buffer.setPixel} writes race-free across tiles.
+     *
+     * @param prepared the projected triangles in painter's (insertion) order
+     * @param buffer the destination buffer
+     * @param depth the tile-local depth slice, sized {@code width * (tileEnd - tileStart)}
+     * @param width the full image width
+     * @param height the full image height
+     * @param tileStart the inclusive first scanline row this tile owns
+     * @param tileEnd the exclusive last scanline row this tile owns
+     * @param glintMask the glint mask to mark, or {@code null} to skip mask recording
      */
     private static void rasterizeTile(
         @NotNull List<Projected> prepared,
@@ -461,25 +690,28 @@ public class ModelEngine extends TextureEngine {
         final int[] bounds = new int[4];
 
         for (Projected t : prepared) {
-            ProjectionMath.triangleBoundsInto(t.s0, t.s1, t.s2, width, height, bounds);
+            RasterMath.triangleBoundsInto(t.s0, t.s1, t.s2, width, height, bounds);
             int pyStart = Math.max(bounds[1], tileStart);
             int pyEnd = Math.min(bounds[3], tileEnd - 1);
             if (pyStart > pyEnd) continue;
 
             // The kit baked the lighting term per-vanilla-render-path at geometry-build time
-            // (RenderEngine.computeInventoryLighting for blocks/fluids, computeEntityInUiLighting
+            // (Lighting.inventory for blocks/fluids, entityInUi
             // for entities); the rasterizer just multiplies it in.
             float shading = t.source.shading();
+            // Hoist the surface traits once per triangle; the per-pixel loop below reads
+            // emissive/glinted off this local so the deref stays out of the hot path.
+            SurfaceTraits tr = t.source.traits();
 
             // Pineda incremental edge functions. Hoist the edge value computation to the
             // bbox top-left, then walk by stepX per pixel in X and stepY per pixel in Y. Per-
             // pixel coverage test drops to 3 add + sign check + at-most-3 top-left checks; no
             // re-quantization of the sample point. Bit-identical to per-pixel recompute -
             // integer addition is exact.
-            ProjectionMath.EdgeCoefficients ec = t.edges;
+            RasterMath.EdgeCoefficients ec = t.edges;
             final boolean degenerate = ec.denom() == 0L;
-            long sxStart = ProjectionMath.quantizeSample(bounds[0] + 0.5f);
-            long syStart = ProjectionMath.quantizeSample(pyStart + 0.5f);
+            long sxStart = RasterMath.quantizeSample(bounds[0] + 0.5f);
+            long syStart = RasterMath.quantizeSample(pyStart + 0.5f);
             long row12 = ec.a12() * sxStart + ec.b12() * syStart + ec.c12();
             long row20 = ec.a20() * sxStart + ec.b20() * syStart + ec.c20();
             long row01 = ec.a01() * sxStart + ec.b01() * syStart + ec.c01();
@@ -491,7 +723,7 @@ public class ModelEngine extends TextureEngine {
                 long e01 = row01;
                 for (int px = bounds[0]; px <= bounds[2]; px++,
                         e12 += ec.stepX12(), e20 += ec.stepX20(), e01 += ec.stepX01()) {
-                    ProjectionMath.barycentricInto(t.s0, t.s1, t.s2, px + 0.5f, py + 0.5f, bary);
+                    RasterMath.barycentricInto(t.s0, t.s1, t.s2, px + 0.5f, py + 0.5f, bary);
                     boolean inside = !degenerate
                         && e12 >= 0L && e20 >= 0L && e01 >= 0L
                         && (e12 != 0L || ec.topLeft12())
@@ -504,13 +736,24 @@ public class ModelEngine extends TextureEngine {
 
                     float depthVal = bary[0] * t.p0.z() + bary[1] * t.p1.z() + bary[2] * t.p2.z();
                     int idx = (py - tileStart) * width + px;
-                    if (depthFails(depthVal, depth[idx], t.source.emissive())) {
+                    if (depthFails(depthVal, depth[idx], tr.emissive())) {
                         RendererDebug.pixelSkipDepth(px, py, depthVal, t.source.debugTag(), depth[idx]);
                         continue;
                     }
 
-                    float u = bary[0] * t.source.uv0().x() + bary[1] * t.source.uv1().x() + bary[2] * t.source.uv2().x();
-                    float v = bary[0] * t.source.uv0().y() + bary[1] * t.source.uv1().y() + bary[2] * t.source.uv2().y();
+                    float u, v;
+                    if (t.perspectiveCorrect) {
+                        // Perspective-correct: the screen-linear barycentric weights are re-weighted by
+                        // each vertex's inverse clip-w, then normalized, so uv tracks the surface instead
+                        // of the screen (fixes the affine texture "swim" a perspective lens would show).
+                        float w0 = bary[0] * t.iw0, w1 = bary[1] * t.iw1, w2 = bary[2] * t.iw2;
+                        float invW = w0 + w1 + w2;
+                        u = (w0 * t.source.uv0().x() + w1 * t.source.uv1().x() + w2 * t.source.uv2().x()) / invW;
+                        v = (w0 * t.source.uv0().y() + w1 * t.source.uv1().y() + w2 * t.source.uv2().y()) / invW;
+                    } else {
+                        u = bary[0] * t.source.uv0().x() + bary[1] * t.source.uv1().x() + bary[2] * t.source.uv2().x();
+                        v = bary[0] * t.source.uv0().y() + bary[1] * t.source.uv1().y() + bary[2] * t.source.uv2().y();
+                    }
 
                     PixelBuffer texture = t.source.texture();
                     int tx = Math.clamp((int) (u * texture.width()), 0, texture.width() - 1);
@@ -525,17 +768,17 @@ public class ModelEngine extends TextureEngine {
                         ? ColorMath.blend(t.source.tintArgb(), rawTexel, BlendMode.MULTIPLY)
                         : rawTexel;
 
-                    int afterShade = t.source.emissive()
+                    int afterShade = tr.emissive()
                         ? afterTint
-                        : RenderEngine.applyShading(afterTint, shading);
-                    BlendMode blendMode = selectBlendMode(t.source.emissive());
+                        : Shading.apply(afterTint, shading);
+                    BlendMode blendMode = selectBlendMode(tr.emissive());
 
                     int outArgb = ColorMath.blend(afterShade, buffer.getPixel(px, py), blendMode);
                     buffer.setPixel(px, py, outArgb);
                     // Mark the glint mask wherever a glinted (armor) fragment wins the pixel, so the
                     // foil compositor restricts the enchantment glint to the armor. Uses absolute
                     // (px, py); the depth `idx` below is per-tile and must not be reused here.
-                    if (glintMask != null && t.source.glinted()) glintMask.mark(px, py);
+                    if (glintMask != null && tr.glinted()) glintMask.mark(px, py);
 
                     RendererDebug.pixelWrite(px, py, depthVal, t.source.debugTag(),
                         u, v, tx, ty,
@@ -556,10 +799,10 @@ public class ModelEngine extends TextureEngine {
                     // painter's order - they must be inserted into the bone/triangle list
                     // AFTER any opaque content meant to be visible behind them. The slime
                     // outer-shell extra_bone is appended last for exactly this reason.
-                    // {@link #sortTrianglesForRender} additionally sorts partial-alpha-no-cull
+                    // {@link #sortNoCullBackToFront} additionally sorts partial-alpha (translucent)
                     // triangles back-to-front so the closer face writes LAST, matching vanilla's
                     // translucent draw order.
-                    if (!t.source.emissive())
+                    if (!tr.emissive())
                         depth[idx] = depthVal;
                 }
             }
@@ -670,7 +913,7 @@ public class ModelEngine extends TextureEngine {
      * {@code RenderPipelines.EYES} which composes with {@code BlendFunction.TRANSLUCENT}
      * ({@code glBlendFunc(SRC_ALPHA, ONE_MINUS_SRC_ALPHA)}) - not additive. The emissive
      * differentiator is the {@code EMISSIVE} + {@code NO_CARDINAL_LIGHTING} shader define
-     * (the caller skips {@code applyShading} for emissive triangles) plus the strict-LT depth
+     * (the caller skips {@code apply} for emissive triangles) plus the strict-LT depth
      * test in {@link #depthFails} - the actual color composition is the same alpha-blend as
      * any other entity layer. Earlier revisions used {@link BlendMode#ADD} for emissive on the
      * assumption that {@code RenderType.eyes} was additive; sampling the rendered eye pixels
@@ -688,12 +931,22 @@ public class ModelEngine extends TextureEngine {
 
     /**
      * Transforms a triangle's vertices and normal into camera space, projects each vertex into
-     * screen space, and returns a {@link Projected} cache. Returns {@code null} when the
+     * screen space (snapping to the {@link #snapToCoverageGrid coverage grid}), precomputes the
+     * edge coefficients, and returns a {@link Projected} cache. Returns {@code null} when the
      * triangle opts into backface culling and the projected winding indicates a back face,
      * letting the caller drop it from the rasterization list.
      * <p>
      * Extracted as a static helper so Pass 1 can run as a pure parallel map: the function has
      * no shared state beyond the read-only {@code transform} and {@code perspective} inputs.
+     *
+     * @param triangle the draw-list triangle to project
+     * @param transform the composed model-to-screen pose applied to each vertex
+     * @param scale the projection scale (smaller canvas dimension times the lens projection scale)
+     * @param offsetX the screen-space X centre offset (half canvas width)
+     * @param offsetY the screen-space Y centre offset (half canvas height)
+     * @param perspective the lens performing the 3D-to-2D flatten
+     * @param fit the post-projection 2D auto-fit, or {@code null} for the plain projection
+     * @return the projected cache, or {@code null} if the triangle is culled as back-facing
      */
     private static @Nullable Projected projectTriangle(
         @NotNull VisibleTriangle triangle,
@@ -701,7 +954,8 @@ public class ModelEngine extends TextureEngine {
         float scale,
         float offsetX,
         float offsetY,
-        @NotNull PerspectiveParams perspective
+        @NotNull Lens perspective,
+        @Nullable Fit2D fit
     ) {
         // Per-vertex hot path: fires 4x per triangle (3 positions + 1 normal) on every rasterize
         // call, so it dominates Pass 1 cost on high-triangle models. Vector3f.transform /
@@ -712,16 +966,75 @@ public class ModelEngine extends TextureEngine {
         Vector3f p2 = triangle.position2().transform(transform);
         Vector3f normal = triangle.normal().transformNormal(transform).normalize();
 
-        Vector2f s0 = snapToCoverageGrid(RenderEngine.projectPerspective(p0, scale, offsetX, offsetY, perspective));
-        Vector2f s1 = snapToCoverageGrid(RenderEngine.projectPerspective(p1, scale, offsetX, offsetY, perspective));
-        Vector2f s2 = snapToCoverageGrid(RenderEngine.projectPerspective(p2, scale, offsetX, offsetY, perspective));
+        Vector2f s0 = snapToCoverageGrid(project2D(perspective, p0, scale, offsetX, offsetY, fit));
+        Vector2f s1 = snapToCoverageGrid(project2D(perspective, p1, scale, offsetX, offsetY, fit));
+        Vector2f s2 = snapToCoverageGrid(project2D(perspective, p2, scale, offsetX, offsetY, fit));
 
         RendererDebug.pixelTriangle(triangle, s0, s1, s2, p0, p1, p2);
 
-        if (triangle.cullBackFaces() && isBackFacing(s0, s1, s2)) return null;
-        ProjectionMath.EdgeCoefficients edges = ProjectionMath.EdgeCoefficients.of(s0, s1, s2);
-        return new Projected(triangle, p0, p1, p2, s0, s1, s2, normal, edges);
+        if (triangle.traits().cullBackFaces() && isBackFacing(s0, s1, s2)) return null;
+        RasterMath.EdgeCoefficients edges = RasterMath.EdgeCoefficients.of(s0, s1, s2);
+        // Per-vertex inverse clip-w for perspective-correct interpolation. depthScale is a flat 1 for
+        // parallel projections, where the perspectiveCorrect flag is false and the rasterizer keeps the
+        // byte-identical screen-linear path.
+        boolean perspectiveCorrect = perspective.kind() == Lens.Kind.PERSPECTIVE;
+        return new Projected(triangle, p0, p1, p2, s0, s1, s2, normal, edges,
+            perspective.depthScale(p0.z()), perspective.depthScale(p1.z()), perspective.depthScale(p2.z()),
+            perspectiveCorrect);
     }
+
+    /**
+     * Flattens a camera-space point to screen space, then applies the optional post-projection 2D
+     * {@link Fit2D auto-fit}. With no fit this is exactly {@code lens.project(p, scale, offsetX,
+     * offsetY)}. With a fit, the point is projected around the screen origin, re-centred on the fit's
+     * measured bounds centre, uniformly scaled to fill the canvas, and offset to the canvas centre -
+     * a <b>2D</b> operation, so it never rescales the model-space depth the perspective foreshortening
+     * reads (unlike a 3D {@code scale(fit)} bake, which distorts perspective).
+     *
+     * @param lens the lens performing the 3D-to-2D flatten
+     * @param p the camera-space point
+     * @param scale the projection scale
+     * @param offsetX the screen-space X centre offset
+     * @param offsetY the screen-space Y centre offset
+     * @param fit the post-projection 2D auto-fit, or {@code null} for the plain projection
+     * @return the screen-space point
+     */
+    private static @NotNull Vector2f project2D(
+        @NotNull Lens lens, @NotNull Vector3f p, float scale, float offsetX, float offsetY, @Nullable Fit2D fit
+    ) {
+        if (fit == null) return lens.project(p, scale, offsetX, offsetY);
+        Vector2f raw = lens.project(p, scale, 0f, 0f);
+        return new Vector2f(
+            (raw.x() - fit.centreX()) * fit.scale() + offsetX,
+            (raw.y() - fit.centreY()) * fit.scale() + offsetY
+        );
+    }
+
+    /**
+     * A post-projection 2D auto-fit - the centre of the projected silhouette's screen-space bounds and
+     * the uniform scale that fills the canvas. Applied after the lens flatten so the fit is a pure 2D
+     * screen operation that leaves perspective foreshortening (which reads model-space depth) intact.
+     *
+     * @param centreX the projected bounds centre X, in screen pixels at zero offset
+     * @param centreY the projected bounds centre Y, in screen pixels at zero offset
+     * @param scale the uniform fill scale applied about the centre
+     */
+    private record Fit2D(float centreX, float centreY, float scale) {}
+
+    /**
+     * The lens-derived auto-fit result from {@link #prepareFit}: the composed model-to-screen
+     * {@code transform} to rasterize through, and the optional post-projection 2D {@link Fit2D}. A
+     * parallel lens (orthographic / oblique) bakes the fit into {@code transform} and leaves
+     * {@code fit} {@code null}; a perspective lens keeps the plain orient transform and carries the fit
+     * in {@code fit}. Encapsulates the one place the fit forks on lens family so the shared
+     * {@link #rasterizeInternal} core stays lens-agnostic.
+     *
+     * @param transform the composed model-to-screen pose (from {@link #cameraSide}); for a parallel
+     *     lens this already bakes the 3D {@code scale(fit).translate(-centre)}
+     * @param fit the post-projection 2D auto-fit for a perspective lens, or {@code null} when the fit
+     *     is baked into {@code transform}
+     */
+    private record FitPlan(@NotNull Matrix4f transform, @Nullable Fit2D fit) {}
 
     /**
      * Computes a signed triangle area in screen space. The camera transform is a pure rotation
@@ -732,6 +1045,11 @@ public class ModelEngine extends TextureEngine {
      * <p>
      * This is more robust than a camera-space normal test because it correctly handles arbitrary
      * rotations, perspective foreshortening, and non-uniform scales.
+     *
+     * @param v0 the first screen-space vertex
+     * @param v1 the second screen-space vertex
+     * @param v2 the third screen-space vertex
+     * @return {@code true} if the projected winding is back-facing (non-negative signed area)
      */
     private static boolean isBackFacing(@NotNull Vector2f v0, @NotNull Vector2f v1, @NotNull Vector2f v2) {
         float signedArea = (v1.x() - v0.x()) * (v2.y() - v0.y())
@@ -740,8 +1058,12 @@ public class ModelEngine extends TextureEngine {
     }
 
     /**
-     * Builds the model-space rotation matrix from the given Euler angles (in degrees).
-     * Column-vector chain: yaw applies first to a vertex, then pitch, then roll.
+     * Builds the model-space rotation matrix from the given Euler angles (in degrees). Column-vector
+     * chain {@code roll x pitch x yaw}: yaw applies first to a vertex, then pitch, then roll. Returns
+     * {@link Matrix4f#IDENTITY} for the all-zero rotation.
+     *
+     * @param rotation the pitch / yaw / roll Euler rotation
+     * @return the composed model-space rotation matrix
      */
     private static @NotNull Matrix4f buildModelRotation(@NotNull EulerRotation rotation) {
         if (rotation.pitch() == 0f && rotation.yaw() == 0f && rotation.roll() == 0f) return Matrix4f.IDENTITY;
@@ -753,12 +1075,26 @@ public class ModelEngine extends TextureEngine {
     }
 
     /**
-     * A per-frame triangle view that caches the model-space transformed vertices, their screen
+     * A per-frame triangle view that caches the camera-space transformed vertices, their screen
      * projections, the transformed normal, and the precomputed
-     * {@link ProjectionMath.EdgeCoefficients edge coefficients} for fast per-pixel coverage
+     * {@link RasterMath.EdgeCoefficients edge coefficients} for fast per-pixel coverage
      * testing. Not part of the public API - exists so the rasterization loop does not have to
      * recompute the transform or projection for every pixel and so the inside test reads
      * pre-quantized coefficients instead of re-quantizing 4 points each call.
+     *
+     * @param source the originating draw-list triangle (texture, UVs, tint, traits, shading)
+     * @param p0 the first vertex in camera space, {@code z} carrying depth (larger = closer)
+     * @param p1 the second vertex in camera space
+     * @param p2 the third vertex in camera space
+     * @param s0 the first vertex projected and coverage-snapped to screen space
+     * @param s1 the second vertex projected and coverage-snapped to screen space
+     * @param s2 the third vertex projected and coverage-snapped to screen space
+     * @param normal the camera-space transformed, normalized surface normal
+     * @param edges the precomputed fixed-point edge coefficients for the incremental coverage walk
+     * @param iw0 the first vertex's inverse clip-{@code w} ({@link Lens#depthScale}), for perspective-correct interpolation
+     * @param iw1 the second vertex's inverse clip-{@code w}
+     * @param iw2 the third vertex's inverse clip-{@code w}
+     * @param perspectiveCorrect whether attributes must be interpolated perspective-correctly (a perspective lens); parallel projections interpolate screen-linearly
      */
     private record Projected(
         @NotNull VisibleTriangle source,
@@ -769,7 +1105,11 @@ public class ModelEngine extends TextureEngine {
         @NotNull Vector2f s1,
         @NotNull Vector2f s2,
         @NotNull Vector3f normal,
-        @NotNull ProjectionMath.EdgeCoefficients edges
+        @NotNull RasterMath.EdgeCoefficients edges,
+        float iw0,
+        float iw1,
+        float iw2,
+        boolean perspectiveCorrect
     ) {}
 
 }

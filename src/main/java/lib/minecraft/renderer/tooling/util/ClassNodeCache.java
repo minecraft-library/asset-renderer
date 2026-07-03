@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.tooling.util;
 
+import lib.minecraft.renderer.tooling.entity.EntityToolingContext;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.objectweb.asm.tree.ClassNode;
@@ -40,8 +41,7 @@ public final class ClassNodeCache {
 
     /**
      * Constructs a cache bound to {@code zip}. The cache holds the handle for its lifetime;
-     * the jar is closed by the owner (typically {@link lib.minecraft.renderer.tooling.entity.EntityToolingContext}),
-     * not by the cache.
+     * the jar is closed by the owner (typically {@link EntityToolingContext}), not by the cache.
      *
      * @param zip the jar to load classes from on cache miss
      */
@@ -51,8 +51,9 @@ public final class ClassNodeCache {
 
     /**
      * Returns the {@link ClassNode} for {@code internalName}, loading and caching the parse
-     * on first lookup. Returns {@code null} when the jar has no matching entry; absence is
-     * also cached so repeat lookups for missing classes do not re-touch the jar.
+     * on first lookup via {@link AsmKit#loadClass(ZipFile, String)}. Returns
+     * {@code null} when the jar has no matching entry; absence is also cached (via the
+     * {@link #MISSING} sentinel) so repeat lookups for missing classes do not re-touch the jar.
      *
      * @param internalName the class's JVM internal name (e.g. {@code net/minecraft/X})
      * @return the cached or freshly-parsed node, or {@code null} when absent from the jar

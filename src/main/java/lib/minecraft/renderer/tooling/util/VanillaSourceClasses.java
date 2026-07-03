@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.tooling.util;
 
 import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
+import lib.minecraft.renderer.tooling.entity.EntityBoneResolver;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -118,7 +119,7 @@ public final class VanillaSourceClasses {
 
     /**
      * Base class every vanilla {@code EntityModel} subclass extends; sentinel for the
-     * model-class-hierarchy walks in {@link lib.minecraft.renderer.tooling.entity.EntityBoneResolver}.
+     * model-class-hierarchy walks in {@link EntityBoneResolver}.
      */
     public static final @NotNull String ENTITY_MODEL = CLIENT_ROOT + "model/EntityModel";
 

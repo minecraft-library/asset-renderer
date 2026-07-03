@@ -21,10 +21,14 @@ import lib.minecraft.renderer.asset.BannerPattern;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.BlockTag;
 import lib.minecraft.renderer.asset.ColorMap;
-import lib.minecraft.renderer.appearance.LayerTint;
+import lib.minecraft.renderer.asset.Item.LayerTint;
 import lib.minecraft.renderer.asset.Texture;
 import lib.minecraft.renderer.asset.TexturePack;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.asset.rule.CitRule;
+import lib.minecraft.renderer.asset.rule.ColorProperties;
+import lib.minecraft.renderer.asset.rule.CtmRule;
+import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.pipeline.loader.BannerPatternLoader;
 import lib.minecraft.renderer.pipeline.loader.BlockStateLoader;
@@ -37,9 +41,6 @@ import lib.minecraft.renderer.pipeline.loader.GlintItemsLoader;
 import lib.minecraft.renderer.pipeline.loader.ItemDefinitionLoader;
 import lib.minecraft.renderer.pipeline.loader.PotionColorLoader;
 import lib.minecraft.renderer.pipeline.loader.TexturePackLoader;
-import lib.minecraft.renderer.pipeline.pack.CitRule;
-import lib.minecraft.renderer.pipeline.pack.ColorProperties;
-import lib.minecraft.renderer.pipeline.pack.CtmRule;
 import lib.minecraft.renderer.pipeline.resolver.ModelResolver;
 import lib.minecraft.renderer.pipeline.resolver.PackResolver;
 import lib.minecraft.renderer.pipeline.util.PackAcquirer;
@@ -83,6 +84,11 @@ import java.util.zip.ZipFile;
 @UtilityClass
 public class Pipeline {
 
+    /**
+     * The single JVM-wide {@link Client} of {@link MojangContract}, lazily built on first access so
+     * concurrent callers share one domain-aware rate limiter. Wraps errors through
+     * {@link MojangApiException}. Exposed to siblings via {@link #mojang()}.
+     */
     private static final @NotNull Lazy<Client<MojangContract>> MOJANG_CLIENT = Lazy.of(() ->
         Client.create(
             ClientConfig.builder(MojangContract.class, GsonSettings.defaults())
@@ -92,10 +98,16 @@ public class Pipeline {
     );
 
     /**
-     * Runs the pipeline with the given options and returns the parsed result.
+     * Runs the full extraction flow for the given options: downloads and caches the client jar,
+     * extracts the vanilla asset tree, resolves the vanilla plus user pack stack, then fans out to
+     * every domain loader (models, blockstates, textures, colormaps, tags, banner patterns, potion
+     * colours) and OptiFine rule collector (CIT, CTM, colour overrides), returning everything as a
+     * single {@link Result}.
      *
      * @param options the pipeline options
      * @return the parsed asset result
+     * @throws PipelineException if the client jar cannot be downloaded, extracted, or a pack's mcmeta
+     *     is missing or malformed
      */
     public static @NotNull Result run(@NotNull PipelineOptions options) {
         Path packRoot = packRoot(options);
@@ -185,6 +197,11 @@ public class Pipeline {
      * attribution consumes; {@code packsById} is the render-priority, id-keyed view passed
      * through to {@link Result#getPacks()}; {@code vanilla} is the bundled minimum every pipeline
      * run carries.
+     *
+     * @param vanilla the vanilla pack (priority {@code 0}), the bundled minimum
+     * @param ascending every resolved pack in ascending-priority order, driving per-pack walks
+     * @param packsById the render-priority (highest first), id-keyed view passed to {@link Result#getPacks()}
+     * @param combinedRoots the flattened asset roots of every pack in ascending-priority order
      */
     private record PackBundle(
         @NotNull TexturePack vanilla,
@@ -260,6 +277,7 @@ public class Pipeline {
      *
      * @param options the pipeline options
      * @return the path to the cached client jar
+     * @throws PipelineException if the version is absent from the Piston manifest or the download fails
      */
     public static @NotNull Path downloadJarToCache(@NotNull PipelineOptions options) {
         Path target = packRoot(options).resolve("client.jar");
@@ -284,8 +302,7 @@ public class Pipeline {
     /**
      * The lazily-initialised shared {@link MojangContract}. Single client per JVM via
      * {@link #MOJANG_CLIENT}, so concurrent callers ({@link #run}, {@link #downloadJarToCache},
-     * the player skin / cape paths in
-     * {@link PlayerRenderer PlayerRenderer}) share the same domain-aware
+     * the player skin / cape paths in {@link PlayerRenderer}) share the same domain-aware
      * rate limiter.
      *
      * @return the shared Mojang contract
@@ -336,6 +353,7 @@ public class Pipeline {
      *
      * @param jarPath the cached client jar path
      * @param packRoot the destination pack root
+     * @throws PipelineException if the jar cannot be read or an extracted entry cannot be written
      */
     public static void extractClientJar(@NotNull Path jarPath, @NotNull Path packRoot) {
         try (ZipFile zip = new ZipFile(jarPath.toFile())) {
@@ -432,6 +450,10 @@ public class Pipeline {
         Files.writeString(destination, MCMETA_GSON.toJson(mcmeta));
     }
 
+    /**
+     * The {@link Gson} used to read {@code version.json} and write the synthesised {@code pack.mcmeta}
+     * in {@link #synthesiseVanillaPackMeta}.
+     */
     private static final @NotNull Gson MCMETA_GSON = GsonSettings.defaults().create();
 
     /**
@@ -445,14 +467,23 @@ public class Pipeline {
     }
 
     /**
-     * The result of a single pipeline run.
+     * The parsed output of a single {@link #run(PipelineOptions)}: every asset family the renderer
+     * consumes, materialised into unmodifiable indexes plus the pack-root paths they were read from.
+     * Wrapped into the production {@link RendererContext} by
+     * {@link PipelineRendererContext#of(Result)}.
      */
     @Getter
     @RequiredArgsConstructor
     public static final class Result {
 
+        /**
+         * The {@code <cacheRoot>/vanilla/<version>} directory the vanilla client jar was extracted into.
+         */
         private final @NotNull Path packRoot;
 
+        /**
+         * The vanilla {@link TexturePack} (priority {@code 0}), the bundled minimum every run carries.
+         */
         private final @NotNull TexturePack vanillaPack;
 
         /**
@@ -465,13 +496,46 @@ public class Pipeline {
          */
         private final @NotNull ConcurrentMap<String, TexturePack> packs;
 
+        /**
+         * Namespaced texture id to {@link Texture} descriptor (owning pack id, on-disk relative path,
+         * optional animation), scanned across the pack stack with higher-priority packs winning.
+         */
         private final @NotNull ConcurrentMap<String, Texture> textures;
+
+        /**
+         * Biome colormap PNGs keyed by {@link ColorMap.Type} (grass, foliage, ...), loaded from the bundled snapshot.
+         */
         private final @NotNull ConcurrentMap<ColorMap.Type, ColorMap> colorMaps;
+
+        /**
+         * Namespaced block id to {@link Block.Tint} descriptor, parsed from {@code BlockColors} by the block-tints loader.
+         */
         private final @NotNull ConcurrentMap<String, Block.Tint> blockTints;
+
+        /**
+         * Model id to parsed block {@link ModelData}, resolved across the combined pack roots.
+         */
         private final @NotNull ConcurrentMap<String, ModelData> blockModels;
+
+        /**
+         * Model id to parsed item {@link ModelData}, resolved across the combined pack roots.
+         */
         private final @NotNull ConcurrentMap<String, ModelData> itemModels;
+
+        /**
+         * Block id to its blockstate variant map (variant selector key to {@link Block.Variant}),
+         * from the vanilla blockstate JSON.
+         */
         private final @NotNull ConcurrentMap<String, ConcurrentMap<String, Block.Variant>> blockVariants;
+
+        /**
+         * Block id to its {@link Block.Multipart} definition, for blocks whose blockstate JSON uses the multipart form.
+         */
         private final @NotNull ConcurrentMap<String, Block.Multipart> blockMultiparts;
+
+        /**
+         * Item id to its model id, parsed from {@code assets/minecraft/items/} definition JSON.
+         */
         private final @NotNull ConcurrentMap<String, String> itemDefinitions;
 
         /**
@@ -490,6 +554,9 @@ public class Pipeline {
          */
         private final @NotNull ConcurrentSet<String> glintItems;
 
+        /**
+         * Namespaced tag id to {@link BlockTag} membership, parsed from {@code data/minecraft/tags/block/} across the pack stack.
+         */
         private final @NotNull ConcurrentMap<String, BlockTag> blockTags;
 
         /**

@@ -2,9 +2,10 @@ package lib.minecraft.renderer.pipeline.util;
 
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import lib.minecraft.renderer.asset.ResourceId;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
-import lib.minecraft.renderer.engine.TextureEngine;
+import lib.minecraft.renderer.engine.texture.Textures;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -12,8 +13,7 @@ import java.util.Map;
 
 /**
  * Model-content helper shared by the pipeline index loaders: testing whether a parsed model would
- * render nothing. Namespaced model-id parsing now lives on
- * {@link lib.minecraft.renderer.asset.ResourceId}.
+ * render nothing. Namespaced model-id parsing now lives on {@link ResourceId}.
  */
 @UtilityClass
 public class Models {
@@ -31,7 +31,7 @@ public class Models {
      * are dropped.
      * <p>
      * Face references are dereferenced against {@code textures} via
-     * {@link TextureEngine#resolveTextureReference}; a result still starting with {@code #} is an
+     * {@link Textures#resolveTextureReference}; a result still starting with {@code #} is an
      * unresolved {@code #variable} (a parent-template placeholder) and does not count as renderable.
      * The {@code particle} binding is ignored for blocks because it never draws on a face. The
      * second check keeps degenerate-but-textured models (a block whose geometry comes from a
@@ -51,7 +51,7 @@ public class Models {
             for (ModelFace face : element.getFaces().values()) {
                 String ref = face.getTexture();
                 if (ref.isBlank()) continue;
-                if (!TextureEngine.resolveTextureReference(ref, textures).startsWith("#")) return false;
+                if (!Textures.resolveTextureReference(ref, textures).startsWith("#")) return false;
             }
         }
 

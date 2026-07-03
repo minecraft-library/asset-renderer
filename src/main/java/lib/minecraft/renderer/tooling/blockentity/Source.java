@@ -7,9 +7,12 @@ import org.jetbrains.annotations.Nullable;
  * A single block-entity model source: the class entry path + method name to parse out of the
  * client jar, the entity model id to emit the output under, the source's Y axis convention,
  * the inventory Y rotation baked into the atlas tile, optional texture dimension overrides
- * (used by the skull variants where the LayerDefinition method returns a MeshDefinition and
- * the caller supplies 64x32 vs 64x64), and optional parameter-int values for methods
- * parameterised by a boolean flag (e.g. {@code createFlagLayer(boolean isStanding)}).
+ * (used by the skull variants where the {@code LayerDefinition} method returns a
+ * {@code MeshDefinition} and the caller supplies 64x32 vs 64x64), and the parameter-substitution
+ * hooks that let the parser evaluate a branch-parameterised factory at one concrete variant:
+ * int values for boolean flags (e.g. {@code createFlagLayer(boolean isStanding)}), float values
+ * for arithmetic on {@code FLOAD} slots, a pre-seeded {@code CubeDeformation} inflate, an
+ * external {@code MeshTransformer.scaling} factor, and an enum-constant reference binding.
  *
  * @param classEntry the zip entry of the source class, e.g. {@code "net/minecraft/client/model/X.class"}
  * @param methodName the name of the method to parse
@@ -28,6 +31,18 @@ import org.jetbrains.annotations.Nullable;
  *     {@code FDIV}, {@code DADD}, {@code DSUB}, {@code DMUL}, {@code DDIV}) pop two operands
  *     and push the result, treating non-literal markers as the matching parameter's default
  *     value (or zero when the slot is out of range)
+ * @param defaultInflate the {@code CubeDeformation} inflate the parser pre-seeds into its
+ *     {@code pendingInflate} slot before walking the method, so a factory that receives its
+ *     inflate as a {@code CubeDeformation} argument (rather than constructing one inline) still
+ *     emits inflated cubes - e.g. the composite-overlay {@code DROWNED_OUTER_LAYER} enters
+ *     {@code DrownedModel.createBodyLayer(new CubeDeformation(0.25F))} past the point where the
+ *     {@code 0.25} is visible
+ * @param appliedMeshTransformerScale the {@code MeshTransformer.scaling} factor the resolver
+ *     captured from a {@code LayerDefinitions}-level {@code .apply(MeshTransformer)} chain that
+ *     doesn't appear inline in the factory body (cat / horse route the {@code F} through a
+ *     class-level static field or a {@code createRoots} local); {@code 1f} means no external
+ *     scale, and inline {@code MeshTransformer.scaling} captures fold on top of this during the
+ *     walk
  * @param refParam binds an object-reference parameter slot to a concrete enum constant so the
  *     parser can evaluate {@code if (param == Enum.CONST)} ({@code IF_ACMPEQ} / {@code IF_ACMPNE})
  *     branches - used to split {@code HangingSignRenderer.createHangingSignLayer(Attachment)}
@@ -94,7 +109,18 @@ public record Source(
     /**
      * Legacy constructor preserving the prior 8-arg shape (no float param substitution). All
      * existing legacy block-entity sources flow through this so adding the
-     * {@code paramFloatValues} field is a non-behavioural change for them.
+     * {@code paramFloatValues}, {@code defaultInflate}, and {@code appliedMeshTransformerScale}
+     * fields (defaulted to {@code null} / {@code 0f} / {@code 1f}) is a non-behavioural change
+     * for them.
+     *
+     * @param classEntry the zip entry of the source class
+     * @param methodName the name of the method to parse
+     * @param entityId the output model id
+     * @param yAxis the Y axis convention used by the source bytecode
+     * @param inventoryYRotation the GUI-facing yaw applied at render time
+     * @param texWidthOverride overrides the texture width, or {@code null} to read it from bytecode
+     * @param texHeightOverride overrides the texture height, or {@code null} to read it from bytecode
+     * @param paramIntValues int parameter values for boolean branch evaluation, or {@code null}
      */
     public Source(@NotNull String classEntry, @NotNull String methodName, @NotNull String entityId, @NotNull YAxis yAxis, float inventoryYRotation, @Nullable Integer texWidthOverride, @Nullable Integer texHeightOverride, int @Nullable [] paramIntValues) {
         this(classEntry, methodName, entityId, yAxis, inventoryYRotation, texWidthOverride, texHeightOverride, paramIntValues, null, 0f, 1f, null);

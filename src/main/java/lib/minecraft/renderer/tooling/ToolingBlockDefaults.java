@@ -38,18 +38,24 @@ import java.util.TreeMap;
 import java.util.zip.ZipFile;
 
 /**
- * Entry point invoked by the {@code blockDefaults} Gradle task.
+ * Entry point invoked by the {@code blockDefaults} Gradle task (group {@code tooling}).
  * <p>
  * Downloads (or reuses the cached) MC 26.1 client jar, runs {@link Parser} over the vanilla
- * {@code Blocks} registry and each block's constructor chain, and writes the resulting
- * default-state table to
+ * {@code Blocks} registry and each block's constructor and {@code createBlockStateDefinition}
+ * chains, and writes the resulting default-state table to
  * {@code src/main/resources/lib/minecraft/renderer/block_defaults.json}. The runtime pipeline
- * reads the JSON via {@link BlockStateLoader}, so the ASM walker is never on the production
- * classpath - the only people who run it are developers bumping the bundled snapshot when a new
- * Minecraft version ships.
+ * reads the JSON via {@link BlockStateLoader} (into {@code Block.defaultStateKey}), so the ASM
+ * walker is never on the production classpath - the only people who run it are developers bumping
+ * the bundled snapshot when a new Minecraft version ships.
  * <p>
- * The default state is derived from the {@code registerDefaultState(this.stateDefinition.any()
- * .setValue(...)...)} chain in each block's constructor.
+ * Each block's default state mirrors vanilla {@code defaultBlockState()}: every property declared
+ * by {@code createBlockStateDefinition} (up the class hierarchy) starts at its {@code any()}-default
+ * (the property's first possible value; a declared-but-unset boolean resolves to {@code false}),
+ * then explicit {@code setValue} overrides from the
+ * {@code registerDefaultState(this.stateDefinition.any().setValue(...)...)} chain are applied with
+ * the leaf class winning. The table is emitted flat (block id to a sorted {@code property=value}
+ * key); property-less blocks are absent. The header comment in the JSON records the source jar
+ * version so a future contributor can tell at a glance how stale the snapshot is.
  */
 @UtilityClass
 public final class ToolingBlockDefaults {
@@ -90,8 +96,13 @@ public final class ToolingBlockDefaults {
     }
 
     /**
-     * Serialises the parsed table into the bundled JSON format. The header comment records the
-     * source jar version so a future contributor can tell at a glance how stale the snapshot is.
+     * Serialises the parsed table into the bundled JSON format - a self-describing {@code "//"}
+     * header, the {@code source_version} of the jar it was walked from, and the flat
+     * {@code blocks} map of id to default-state key.
+     *
+     * @param defaults the parsed block id to default-state key table
+     * @param mcVersion the source jar version, recorded so a future contributor can tell how stale the snapshot is
+     * @return the pretty-printed JSON document, newline-terminated
      */
     private static @NotNull String buildJson(@NotNull Map<String, String> defaults, @NotNull String mcVersion) {
         JsonObject root = new JsonObject();
@@ -131,6 +142,7 @@ public final class ToolingBlockDefaults {
      */
     static final class Parser {
 
+        // JVM internal names, type descriptors, and method-name literals matched against ASM nodes.
         private static final @NotNull String BLOCK_INTERNAL = "net/minecraft/world/level/block/Block";
         private static final @NotNull String INTEGER_BOXED = "java/lang/Integer";
         private static final @NotNull String BOOLEAN_BOXED = "java/lang/Boolean";
@@ -149,6 +161,7 @@ public final class ToolingBlockDefaults {
         private static final @NotNull String STRING_ARG_PREFIX = "(Ljava/lang/String;";
         private static final @NotNull String RESOURCE_KEY_ARG_PREFIX = "(Lnet/minecraft/resources/ResourceKey;";
 
+        /** Lazily-parsed {@link ClassNode} cache over the single open client jar, shared across all passes. */
         private final @NotNull ClassNodeCache cache;
 
         /** {@code BlockStateProperties.FOO} field name to serialised property name. */
@@ -183,6 +196,26 @@ public final class ToolingBlockDefaults {
             }
         }
 
+        /**
+         * Builds the property-name and block-id lookup maps (passes 1-2), then walks
+         * {@code Blocks.<clinit>} pairing each {@code register(...)} call with its block class and
+         * decoding that class's default state (pass 3).
+         * <p>
+         * The registry walk is a small state machine over the {@code <clinit>} instruction stream,
+         * carrying two pieces of pending state:
+         * <ul>
+         * <li><b>{@code pendingId}</b> - the block id most recently seen, sourced either from an
+         *     {@code LDC "foo"} literal (the {@code register("foo", ...)} form) or a
+         *     {@code GETSTATIC BlockIds.FOO} mapped back to its serialised id (the 26.x
+         *     {@code register(ResourceKey, Function, Properties)} form).</li>
+         * <li><b>{@code ctorClass}</b> - the block class resolved from a {@code Foo::new}
+         *     method-reference indy that immediately follows the id source; {@code null} falls back
+         *     to walking a registration-helper's inner lambda at the {@code register} call.</li>
+         * </ul>
+         * Both reset after each {@code register} call (or when a new id supersedes the last).
+         *
+         * @return the sorted block id to default-state key table
+         */
         private @NotNull Map<String, String> run() {
             buildBspNameMap();
             buildBlockIdsMap();
@@ -349,6 +382,17 @@ public final class ToolingBlockDefaults {
             return resolved;
         }
 
+        /**
+         * Resolves a property field's serialised name by decoding its {@code <clinit>} init value,
+         * without consulting or writing the cache. Two field-init shapes are handled: a redirect
+         * {@code GETSTATIC} to another property field (recurses through the redirect), or a direct
+         * {@code XProperty.create("name", ...)} whose serialised name is the nearest preceding
+         * string literal.
+         *
+         * @param owner the field owner's JVM internal name
+         * @param field the field name
+         * @return the serialised property name, or {@code null} when the init value matches neither shape
+         */
         private @Nullable String resolvePropertyNameUncached(@NotNull String owner, @NotNull String field) {
             AbstractInsnNode value = findFieldInitValue(owner, field);
             if (value == null) return null;
@@ -491,7 +535,12 @@ public final class ToolingBlockDefaults {
             return resolved;
         }
 
-        /** A property-field reference - the {@code GETSTATIC owner.field} site of a property. */
+        /**
+         * A property-field reference - the {@code GETSTATIC owner.field} site of a property.
+         *
+         * @param owner the field owner's JVM internal name
+         * @param field the property field name
+         */
         private record FieldRef(@NotNull String owner, @NotNull String field) {}
 
         /**
@@ -887,9 +936,13 @@ public final class ToolingBlockDefaults {
         /**
          * Decodes the {@code any()}-default value from a property {@code create(...)} call, by
          * overload: {@code IntegerProperty.create(name, min, max)} -&gt; {@code min};
-         * {@code BooleanProperty.create(name)} -&gt; {@code true} (vanilla orders {@code true}
-         * before {@code false}); {@code EnumProperty.create(name, class[, ...])} -&gt; the first
+         * {@code BooleanProperty.create(name)} -&gt; {@code false} (the value
+         * {@code StateDefinition.any()} assigns to a declared-but-unset boolean, verified against
+         * the harness reference); {@code EnumProperty.create(name, class[, ...])} -&gt; the first
          * possible enum value.
+         *
+         * @param create the property {@code create(...)} invocation to decode
+         * @return the serialised {@code any()}-default value, or {@code null} when it can't be decoded
          */
         private @Nullable String defaultFromCreate(@NotNull MethodInsnNode create) {
             if (create.owner.endsWith("IntegerProperty")) {

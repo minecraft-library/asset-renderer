@@ -28,7 +28,7 @@
  *       top, flow-rotated UVs, animation) or as a flat source-face icon.</li>
  *   <li>{@link lib.minecraft.renderer.GridRenderer GridRenderer} - compose a rectangular grid of tiles, each
  *       a static PNG or animated WebP, into one output via
- *       {@link lib.minecraft.renderer.kit.FrameMerger FrameMerger}.</li>
+ *       {@link lib.minecraft.renderer.engine.compose.FrameCompositor FrameCompositor}.</li>
  *   <li>{@link lib.minecraft.renderer.ItemRenderer ItemRenderer} - vanilla item models with all the
  *       sub-systems an item icon can carry: durability bar, stack count overlay, enchantment
  *       glint, dyed leather tint, banner-pattern composite, armor-trim palette permutation.</li>
@@ -49,12 +49,11 @@
  *
  * <p><b>Where the real work lives.</b> This package is intentionally a thin dispatch surface:
  * <ul>
- *   <li>Geometry building - {@link lib.minecraft.renderer.kit kit} (per-asset-type kits) and
- *       {@link lib.minecraft.renderer.geometry geometry} (primitive math).</li>
+ *   <li>Geometry building - {@link lib.minecraft.renderer.engine.kit kit} (per-asset-type kits) and
+ *       {@link lib.minecraft.renderer.face face} (face-unwrap enums).</li>
  *   <li>Rasterization - {@link lib.minecraft.renderer.engine engine} (the
  *       {@link lib.minecraft.renderer.engine.ModelEngine ModelEngine} triangle rasterizer and
- *       its {@link lib.minecraft.renderer.engine.IsometricEngine IsometricEngine} pose
- *       subclass).</li>
+ *       its {@link lib.minecraft.renderer.engine.camera.Camera Camera} pose value).</li>
  *   <li>Linear algebra - {@link lib.minecraft.renderer.tensor tensor} (immutable
  *       {@code Matrix4f}, {@code Vector*}, {@code Quaternionf} with optional Vector API
  *       acceleration).</li>
@@ -66,10 +65,10 @@
  * </ul>
  *
  * <p><b>Common defaults.</b> {@link lib.minecraft.renderer.Renderer#DEFAULT_OUTPUT_SIZE Renderer#DEFAULT_OUTPUT_SIZE} is the
- * shared square-pixel default for single-entity renders. Every entity-scoped options record
- * ({@code BlockOptions}, {@code EntityOptions}, {@code ItemOptions}, {@code PlayerOptions})
- * picks it up so a caller building with all defaults gets a consistent tile dimension across
- * renderers.
+ * shared square-pixel default for single-subject renders. Every subject-scoped options record
+ * ({@code BlockOptions}, {@code EntityOptions}, {@code ItemOptions}, {@code PlayerOptions},
+ * {@code FluidOptions}, {@code PortalOptions}) picks it up so a caller building with all defaults
+ * gets a consistent tile dimension across renderers.
  *
  * @see lib.minecraft.renderer.Renderer
  * @see lib.minecraft.renderer.options

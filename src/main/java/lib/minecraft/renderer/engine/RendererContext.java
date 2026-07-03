@@ -13,19 +13,20 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.asset.Item;
 import lib.minecraft.renderer.asset.Texture;
 import lib.minecraft.renderer.asset.TexturePack;
-import lib.minecraft.renderer.pipeline.pack.CitMatcher;
-import lib.minecraft.renderer.pipeline.pack.CtmResolution;
-import lib.minecraft.renderer.pipeline.pack.CtmRule;
-import lib.minecraft.renderer.pipeline.pack.ItemContext;
+import lib.minecraft.renderer.asset.rule.CitMatcher;
+import lib.minecraft.renderer.asset.rule.CtmResolution;
+import lib.minecraft.renderer.asset.rule.CtmRule;
+import lib.minecraft.renderer.asset.rule.ItemContext;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
 
 /**
- * Ambient state supplied to renderers and the {@link TextureEngine}, abstracting the renderer's
- * view of active texture packs, biome colormaps, model repositories, and other lookup-side state
- * without coupling consumers to a specific implementation. Tests and in-memory callers can
- * supply lightweight stub implementations directly.
+ * The engine's resource-provider port: the read-only view of active texture packs, biome
+ * colormaps, model repositories, and other lookup-side state that every renderer and engine
+ * subsystem consumes, without coupling consumers to a specific implementation. The
+ * {@link lib.minecraft.renderer.pipeline.Pipeline pipeline} supplies the production implementation;
+ * tests and in-memory callers supply lightweight stubs directly.
  * <p>
  * Method naming follows two prefixes for {@link Optional}-returning lookups:
  * <ul>

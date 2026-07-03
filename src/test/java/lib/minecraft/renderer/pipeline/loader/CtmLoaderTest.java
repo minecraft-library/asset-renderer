@@ -2,8 +2,8 @@ package lib.minecraft.renderer.pipeline.loader;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import lib.minecraft.renderer.pipeline.pack.CtmMethod;
-import lib.minecraft.renderer.pipeline.pack.CtmRule;
+import lib.minecraft.renderer.asset.rule.CtmMethod;
+import lib.minecraft.renderer.asset.rule.CtmRule;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -17,9 +17,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Verifies that the multi-root {@code load(ConcurrentList<Path>)} overload merges rules from
- * every root and produces a globally weight-sorted list. The single-root overload is exercised
- * indirectly through this test plus the matcher tests.
+ * Verifies {@link CtmLoader} against {@link TempDir}-staged OptiFine {@code .properties} rules.
+ * <p>
+ * The multi-root {@code load(ConcurrentList<Path>)} overload must merge rules from every root and
+ * produce a globally weight-descending list; the single-root {@code load(Path)} overload must parse
+ * a {@code method=fixed} rule into {@link CtmMethod#FIXED} with its {@code tiles}. The single-root
+ * overload is otherwise exercised indirectly through this test plus the matcher tests.
  */
 class CtmLoaderTest {
 
@@ -67,6 +70,15 @@ class CtmLoaderTest {
         assertThat(rules.get(0).tiles().get(0), equalTo("pack/stone_custom"));
     }
 
+    /**
+     * Writes an OptiFine CTM {@code .properties} rule into the canonical
+     * {@code assets/minecraft/optifine/ctm} directory under {@code packRoot}, creating it if absent.
+     *
+     * @param packRoot pack root the rule is staged under
+     * @param filename properties file name (e.g. {@code "stone.properties"})
+     * @param content raw properties body
+     * @throws IOException if creating the directory or writing the file fails
+     */
     private static void writeCtmRule(Path packRoot, String filename, String content) throws IOException {
         Path ctmDir = packRoot.resolve("assets/minecraft/optifine/ctm");
         Files.createDirectories(ctmDir);

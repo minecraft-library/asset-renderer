@@ -239,6 +239,16 @@ tasks {
         args = if (blockId != null) listOf(blockId, renderSize, ssaa) else listOf()
     }
 
+    register<JavaExec>("projectionSmoke") {
+        description = "Renders a block under every GraphicalProjection + facing to cache/visual/projection-smoke/. -PblockId=minecraft:tnt -PrenderSize=512"
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestProjectionSmoke")
+        classpath = sourceSets["test"].runtimeClasspath
+        val blockId = (project.findProperty("blockId") as String?) ?: "minecraft:tnt"
+        val renderSize = (project.findProperty("renderSize") as String?) ?: "512"
+        args = listOf(blockId, renderSize)
+    }
+
     register<JavaExec>("itemRender2D") {
         description = "Renders items to cache/visual/item-render-2d/ for visual inspection. -PitemId=minecraft:diamond_sword -PrenderSize=256"
         group = "visual"
@@ -289,13 +299,31 @@ tasks {
     }
 
     register<JavaExec>("entityRender3D") {
-        description = "Renders every entity in entity_models.json via EntityRenderer (3D) to cache/visual/entity-render-3d/ for visual inspection. -PrenderSize=512 -PentityId=minecraft:zombie"
+        description = "Renders every entity in entity_models.json via EntityRenderer (3D) to cache/visual/entity-render-3d/ for visual inspection. -PrenderSize=512 -PentityId=minecraft:zombie -Pprojection=ISOMETRIC"
         group = "visual"
         mainClass.set("lib.minecraft.renderer.visual.TestEntityRender3D")
         classpath = sourceSets["test"].runtimeClasspath
         val renderSize = (project.findProperty("renderSize") as String?) ?: "512"
         val entityId = project.findProperty("entityId") as String?
-        args = if (entityId != null) listOf(renderSize, entityId) else listOf(renderSize)
+        val projection = project.findProperty("projection") as String?
+        args = buildList {
+            add(renderSize)
+            if (entityId != null || projection != null) add(entityId ?: "")
+            if (projection != null) add(projection)
+        }
+    }
+
+    register<JavaExec>("entityProjections") {
+        description = "Renders one entity under every Projection as a labelled contact sheet to cache/visual/entity-projections/. -PentityId=minecraft:zombie -PrenderSize=256"
+        group = "visual"
+        mainClass.set("lib.minecraft.renderer.visual.TestEntityProjections")
+        classpath = sourceSets["test"].runtimeClasspath
+        val entityId = project.findProperty("entityId") as String?
+        val renderSize = (project.findProperty("renderSize") as String?) ?: "256"
+        args = buildList {
+            add(entityId ?: "")
+            add(renderSize)
+        }
     }
 
     register<JavaExec>("entityParityVanilla") {

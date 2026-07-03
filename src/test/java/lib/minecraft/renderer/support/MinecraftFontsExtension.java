@@ -53,9 +53,22 @@ public final class MinecraftFontsExtension implements BeforeAllCallback {
     /** Sentinel file whose presence short-circuits a re-run of the generator. */
     private static final @NotNull String SENTINEL = "Minecraft-Regular.otf";
 
+    /** Monitor guarding the {@link #bootstrapped} double-checked-locking flow across parallel test classes. */
     private static final @NotNull Object LOCK = new Object();
+
+    /** {@code true} once the fonts are on the classpath for this JVM; short-circuits every later {@code beforeAll}. */
     private static volatile boolean bootstrapped = false;
 
+    /**
+     * Provisions the OTFs onto the test classpath exactly once per JVM, before the first annotated
+     * test class runs. Uses double-checked locking on {@link #bootstrapped} so concurrent test
+     * classes don't re-run the generator. On the first uncached call: if the classpath sentinel is
+     * already present nothing is done; otherwise the generator is invoked (unless its
+     * {@code cache/fonts} output already exists) and the OTFs are copied onto the classpath.
+     *
+     * @param context the JUnit extension context (unused; the provisioning is JVM-global)
+     * @throws Exception if the generator or the classpath copy fails
+     */
     @Override
     public void beforeAll(@NotNull ExtensionContext context) throws Exception {
         if (bootstrapped) return;
@@ -76,6 +89,13 @@ public final class MinecraftFontsExtension implements BeforeAllCallback {
         }
     }
 
+    /**
+     * Copies every {@code .otf} in {@code source} into {@link #CLASSPATH_FONTS_DIR}, overwriting any
+     * existing file, so the classloader resolves them on the next {@code getResourceAsStream}.
+     *
+     * @param source the directory holding the generator's OTF output
+     * @throws IOException if the target directory cannot be created or a source directory listing fails
+     */
     private static void copyOtfsToClasspath(@NotNull Path source) throws IOException {
         Files.createDirectories(CLASSPATH_FONTS_DIR);
         try (Stream<Path> files = Files.list(source)) {

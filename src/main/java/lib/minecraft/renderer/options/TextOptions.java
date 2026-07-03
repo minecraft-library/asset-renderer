@@ -1,17 +1,28 @@
 package lib.minecraft.renderer.options;
 
-import lib.minecraft.text.LineSegment;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.engine.compose.ImageLayer;
+import lib.minecraft.renderer.engine.compose.LayerSlot;
+import lib.minecraft.renderer.engine.compose.LayerStack;
+import lib.minecraft.text.LineSegment;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.function.UnaryOperator;
+
 /**
  * Configures a single {@code TextRenderer} invocation. Renders styled text in either the
  * Minecraft tooltip aesthetic ({@link Style#LORE}) or as plain transparent-background chat
  * text ({@link Style#CHAT}).
+ *
+ * <p>Padding, background, and border only apply to {@link Style#LORE}; {@link Style#CHAT} draws the
+ * glyph rows alone. When any {@link #getLines() line} carries obfuscated text the renderer emits an
+ * animated image of {@link #getFrameCount() frameCount} frames at {@link #getFramesPerSecond() fps}.
+ *
+ * @see lib.minecraft.renderer.TextRenderer
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
@@ -45,13 +56,14 @@ public class TextOptions {
     public static final int VANILLA_TICK_FPS = 20;
 
     /**
-     * Rendering style - tooltip or plain chat text
+     * Rendering style - {@link Style#LORE} tooltip chrome or plain {@link Style#CHAT} text.
      */
     @lombok.Builder.Default
     private final @NotNull Style style = Style.LORE;
 
     /**
-     * Styled text segments to render
+     * Styled text segments to render; each {@link LineSegment} is drawn as its own line (the
+     * renderer does not itself re-wrap segments).
      */
     @lombok.Builder.Default
     private final @NotNull ConcurrentList<LineSegment> lines = Concurrent.newList();
@@ -79,7 +91,9 @@ public class TextOptions {
     private final int borderAlpha = VANILLA_TOOLTIP_BORDER_ALPHA;
 
     /**
-     * Maximum characters per line before wrapping
+     * Advisory maximum characters per line, defaulting to {@link #VANILLA_WRAP_WIDTH_CHARS}. Exposed
+     * for callers that pre-wrap their {@link #lines} to vanilla tooltip width; the renderer does not
+     * wrap on its own.
      */
     @lombok.Builder.Default
     private final int wrapWidth = VANILLA_WRAP_WIDTH_CHARS;
@@ -96,12 +110,56 @@ public class TextOptions {
     @lombok.Builder.Default
     private final int framesPerSecond = VANILLA_TICK_FPS;
 
+    /**
+     * Transform applied to the default {@link ImageLayer} stack (background, border, text) before it
+     * runs, letting callers splice custom passes relative to the {@link Slot} slots. Defaults to
+     * {@linkplain UnaryOperator#identity() identity}.
+     */
+    @lombok.Builder.Default
+    private final @NotNull UnaryOperator<LayerStack<ImageLayer>> layerDecorator = UnaryOperator.identity();
+
+    /**
+     * A builder pre-populated with this instance's field values, for deriving a variant.
+     *
+     * @return the seeded builder
+     */
     public @NotNull TextOptionsBuilder mutate() {
         return this.toBuilder();
     }
 
+    /**
+     * The default text options - an empty {@linkplain Style#LORE lore} tooltip with vanilla-matched
+     * padding, background/border alphas, and wrap width, ready to have {@linkplain #getLines() lines}
+     * appended.
+     *
+     * @return the default options
+     */
     public static @NotNull TextOptions defaults() {
         return builder().build();
+    }
+
+    /**
+     * Paint-order slots for the text {@link ImageLayer} stack: tooltip background and border (LORE
+     * only), then the glyph rows.
+     */
+    public enum Slot implements LayerSlot {
+
+        /** Tooltip background fill (LORE only). */
+        BACKGROUND,
+        /** Tooltip gradient border (LORE only). */
+        BORDER,
+        /** Text glyph rows. */
+        TEXT;
+
+        @Override
+        public int order() {
+            return ordinal();
+        }
+
+        @Override
+        public @NotNull String id() {
+            return name();
+        }
     }
 
     /**

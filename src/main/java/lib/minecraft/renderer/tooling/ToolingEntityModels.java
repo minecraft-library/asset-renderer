@@ -6,6 +6,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.EntityRenderer;
+import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.tooling.blockentity.Source;
@@ -59,11 +60,11 @@ import java.util.Set;
  *       ({@link EntityLayerDefinitionResolver}). Walks the {@code LayerDefinition}-returning
  *       factory; procedural-loop entity bodies (squid / blaze / ghast / silverfish / endermite
  *       / slime families) are folded by the shared
- *       {@link lib.minecraft.renderer.tooling.parser.GeometryParser} at parse time.</li>
+ *       {@link GeometryParser} at parse time.</li>
  *   <li><b>Overlay resolution + emission</b>
  *       ({@link EntityOverlayResolver}, {@link EntityBlockOverlayResolver},
  *       {@link EntityRuntimeJsonWriter}). Resolves overlay rows and emits the runtime JSON
- *       {@link EntityRenderer EntityRenderer} consumes (cross-entity family clustering folded
+ *       {@link EntityRenderer} consumes (cross-entity family clustering folded
  *       into {@code EntityRuntimeJsonWriter}).</li>
  * </ol>
  *
@@ -75,8 +76,8 @@ import java.util.Set;
  * the diagnostics' {@code mobs_without_renderer_list}.
  *
  * @see ToolingBlockModels
- * @see lib.minecraft.renderer.EntityRenderer
- * @see lib.minecraft.renderer.kit.EntityGeometryKit
+ * @see EntityRenderer
+ * @see EntityGeometryKit
  */
 @UtilityClass
 public final class ToolingEntityModels {
@@ -238,9 +239,17 @@ public final class ToolingEntityModels {
                 if (variantStem == null) continue;
                 ConcurrentList<EntityVariantResolver.Result> vlist = variants.get(variantStem);
                 if (vlist == null) continue;
+                // Prefer the bytecode-derived ModelType -> ModelLayers pairing from the renderer's
+                // model-map construction over the {@code <MODEL>_<STEM>} naming convention. Cow's
+                // WARM -> WARM_COW matches the convention, but zombie_nautilus's WARM ->
+                // ZOMBIE_NAUTILUS_CORAL does not, so the convention alone drops the coral geometry.
+                Map<String, String> modelTypeLayers = EntityVariantResolver.modelTypeToModelLayerField(
+                    context.classNodes(), entry.getValue().rendererInternalName());
                 for (EntityVariantResolver.Result variant : vlist) {
                     if (variant.model() == null) continue;
-                    String modelLayerField = (variant.model() + "_" + variantStem).toUpperCase(java.util.Locale.ROOT);
+                    String modelLayerField = modelTypeLayers.get(variant.model().toUpperCase(java.util.Locale.ROOT));
+                    if (modelLayerField == null)
+                        modelLayerField = (variant.model() + "_" + variantStem).toUpperCase(java.util.Locale.ROOT);
                     EntityLayerDefinitionResolver.Result variantRes = layerDefs.get(modelLayerField);
                     if (variantRes == null) {
                         diagnostics.info("variant '%s_%s' references model '%s' but ModelLayers.%s not in LayerDefinitions",

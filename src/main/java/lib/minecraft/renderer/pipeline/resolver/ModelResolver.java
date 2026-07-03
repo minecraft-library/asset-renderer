@@ -27,16 +27,19 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 /**
- * A loader and resolver that walks a pack's {@code assets/minecraft/models/} subtree, parses
- * every JSON file into {@link ModelData} or {@link ModelData}, and eagerly merges
- * parent chains so the resulting DTOs carry everything needed for rendering without further
- * resolution at render time.
+ * Loader and resolver that walks a pack's {@code assets/minecraft/models/} subtree, parses every
+ * block and item JSON file into {@link ModelData}, and eagerly merges parent chains so the
+ * resulting DTOs carry everything needed for rendering without further resolution at render time.
  * <p>
  * Parent chain merging is deep: child textures and elements win on conflicting keys, and the
  * merged result records the original parent id in its {@code parent} field for introspection.
  * Vanilla chains are acyclic and shallow (at most 3 deep), so no cycle detection is needed.
+ * <p>
+ * When several asset roots are supplied (a base pack plus overlays or higher-priority packs), raw
+ * JSON is merged later-wins on the resolved model id <em>before</em> parent-chain inheritance runs,
+ * so a higher-priority child model can still inherit from a vanilla parent that lives only in the
+ * base pack.
  *
- * @see ModelData
  * @see ModelData
  * @see PipelineRendererContext
  */
@@ -94,8 +97,9 @@ public class ModelResolver {
     }
 
     /**
-     * Walks every asset root, scans its model subtree into a raw JSON map, then merges across
-     * roots with later-wins semantics on the resolved model id.
+     * Walks every asset root in order, scans its model subtree into a raw JSON map, then merges
+     * across roots into a single map. Roots are visited lowest-priority first so later
+     * ({@code putAll}) roots override earlier entries on a shared model id (later-wins).
      */
     private static @NotNull ConcurrentMap<String, JsonObject> mergeRawAcrossRoots(
         @NotNull ConcurrentList<Path> assetRoots,
@@ -124,6 +128,11 @@ public class ModelResolver {
         )).toUnmodifiable();
     }
 
+    /**
+     * Scans one model subtree into a raw JSON map keyed by resolved model id. Missing directories
+     * yield an empty map so a pack that omits {@code models/item} (or the whole subtree) is
+     * tolerated rather than fatal.
+     */
     private static @NotNull ConcurrentMap<String, JsonObject> scanJsonFiles(@NotNull Path directory, @NotNull String idPrefix) {
         if (!Files.isDirectory(directory)) return Concurrent.newMap();
 
@@ -146,6 +155,12 @@ public class ModelResolver {
             .collect(Concurrent.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
+    /**
+     * Parses a single model file into a raw JSON entry keyed by resolved model id (the path
+     * relative to {@code directory}, sans {@code .json}, under {@code idPrefix}, with {@code \}
+     * normalised to {@code /}). Returns {@code null} for non-JSON, empty-parse, or malformed input
+     * so the caller can filter the entry out; an I/O read failure is fatal.
+     */
     private static @Nullable Map.Entry<String, JsonObject> parseModelFile(@NotNull Path p, @NotNull Path directory, @NotNull String idPrefix) {
         String relative = directory.relativize(p).toString().replace('\\', '/');
         if (!relative.endsWith(".json")) return null;
@@ -165,11 +180,14 @@ public class ModelResolver {
     }
 
     /**
-     * Recursively merges a model's parent chain, returning a new JSON object whose textures and
-     * elements inherit from every ancestor. Cycle detection is not needed - vanilla chains are
-     * acyclic and shallow (at most 3 deep). The {@code kindPrefix} is preserved for future
-     * use in fully-qualifying ambiguous parent ids; today every parent reference already carries
-     * its kind segment ({@code block/} or {@code item/}).
+     * Recursively merges a model's parent chain, returning a JSON object whose textures and
+     * elements inherit from every ancestor. Child keys override parent keys, except {@code textures}
+     * which is deep-merged (child variables win per key). Returns {@code model} unchanged when it
+     * declares no parent or its parent lives outside this tree (e.g. {@code minecraft:builtin/generated});
+     * otherwise the result is a fresh deep copy so ancestors are never mutated. Cycle detection is
+     * not needed - vanilla chains are acyclic and shallow (at most 3 deep). The {@code kindPrefix}
+     * is preserved for future use in fully-qualifying ambiguous parent ids; today every parent
+     * reference already carries its kind segment ({@code block/} or {@code item/}).
      */
     private static @NotNull JsonObject mergeParentChain(
         @NotNull JsonObject model,
