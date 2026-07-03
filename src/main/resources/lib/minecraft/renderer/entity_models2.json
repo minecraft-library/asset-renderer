@@ -143,7 +143,20 @@
             }
           }
         }
-      }
+      },
+      "layers": [
+        {
+          "id": "collar",
+          "when": {
+            "state": "tame"
+          },
+          "overlay": {
+            "geometry_ref": "geometry.adultfeline",
+            "texture_ref": "cat/cat_collar",
+            "tint_by": "collar_color"
+          }
+        }
+      ]
     },
     "minecraft:cave_spider": {
       "geometry_ref": "geometry.spider",
@@ -928,7 +941,20 @@
             "tame": {}
           }
         }
-      }
+      },
+      "layers": [
+        {
+          "id": "collar",
+          "when": {
+            "state": "tame"
+          },
+          "overlay": {
+            "geometry_ref": "geometry.adultwolf",
+            "texture_ref": "wolf/wolf_collar",
+            "tint_by": "collar_color"
+          }
+        }
+      ]
     },
     "minecraft:zoglin": {
       "geometry_ref": "geometry.hoglin",

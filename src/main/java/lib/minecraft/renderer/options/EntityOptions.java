@@ -8,6 +8,7 @@ import lib.minecraft.renderer.engine.compose.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.LayerSlot;
 import lib.minecraft.renderer.engine.compose.LayerStack;
 import lib.minecraft.renderer.request.ArmorPiece;
+import lib.minecraft.renderer.request.DyeColor;
 import lib.minecraft.renderer.request.EulerRotation;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -73,6 +74,15 @@ public class EntityOptions {
      */
     @lombok.Builder.Default
     private final @NotNull Optional<String> carried = Optional.empty();
+
+    /**
+     * Optional dyed-collar colour for collar-bearing entities (wolf, cat). When present and the
+     * resolved entity carries a collar texture, a collar overlay is drawn on the body geometry
+     * tinted by this colour's {@link DyeColor#argb() ARGB}; empty (default) draws no collar. Only
+     * consulted under the {@code v2} model source.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Optional<DyeColor> collarColor = Optional.empty();
 
     /**
      * Helmet armor piece to render on humanoid entities.

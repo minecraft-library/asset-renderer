@@ -291,6 +291,7 @@ public final class ToolingEntityModels {
                 new LinkedHashMap<>();
             Map<String, ConcurrentList<EntityBlockOverlayResolver.Result>> blockOverlaysByEntity =
                 new LinkedHashMap<>();
+            Map<String, String> collarByEntity = new LinkedHashMap<>();
             Set<String> compositeOverlayFields = new LinkedHashSet<>();
             for (Map.Entry<String, EntitySessionWalk.Result> entry : records.entrySet()) {
                 String entityId = entry.getKey();
@@ -298,6 +299,8 @@ public final class ToolingEntityModels {
                 ConcurrentList<EntityOverlayResolver.Result> overlays =
                     EntityOverlayResolver.resolve(context.classNodes(), rec.rendererInternalName(), rec.layers(), entityId, diagnostics);
                 overlaysByEntity.put(entityId, overlays);
+                String collar = EntityOverlayResolver.resolveCollarTexture(context.classNodes(), rec.layers());
+                if (collar != null) collarByEntity.put(entityId, collar);
                 for (EntityOverlayResolver.Result desc : overlays)
                     if (desc.modelLayerField() != null) compositeOverlayFields.add(desc.modelLayerField());
 
@@ -381,7 +384,7 @@ public final class ToolingEntityModels {
             // Concurrent normalized family form (entity_models2.json), grouped from the flat file
             // just written. Built side-by-side with the reader-flattener so the round-trip can be
             // diffed against this known-good output while the new schema is iterated.
-            EntityFamilyJsonWriter.writeAll(diagnostics, variants);
+            EntityFamilyJsonWriter.writeAll(diagnostics, variants, collarByEntity);
             System.out.println("Wrote " + EntityFamilyJsonWriter.OUTPUT.toAbsolutePath());
 
             System.out.printf(

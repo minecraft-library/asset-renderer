@@ -48,7 +48,8 @@ public final class EntityFamilyFlattener {
     public record Flat(
         @NotNull JsonObject entities,
         @NotNull JsonObject families,
-        @NotNull Map<String, Map<String, String>> stateTextures
+        @NotNull Map<String, Map<String, String>> stateTextures,
+        @NotNull Map<String, String> collarTextures
     ) {
     }
 
@@ -57,25 +58,47 @@ public final class EntityFamilyFlattener {
      *
      * @param familyForm the {@code families} object of {@code entity_models2.json} (family id -&gt;
      *     family entry)
-     * @return the reconstructed flat {@code entities} + {@code families} + {@code stateTextures}
+     * @return the reconstructed flat {@code entities} + {@code families} + option side-channels
      */
     public static @NotNull Flat flattenV2(@NotNull JsonObject familyForm) {
         JsonObject entities = new JsonObject();
         JsonObject crossFamilies = new JsonObject();
         Map<String, Map<String, String>> stateTextures = new LinkedHashMap<>();
+        Map<String, String> collarTextures = new LinkedHashMap<>();
 
         for (Map.Entry<String, com.google.gson.JsonElement> entry : familyForm.entrySet()) {
             String familyId = entry.getKey();
             if (!entry.getValue().isJsonObject()) continue;
             JsonObject family = entry.getValue().getAsJsonObject();
+            String collar = collarTextureOf(family);
 
             JsonObject variantAxis = variantAxis(family);
-            if (variantAxis != null) expandVariantFamily(familyId, family, variantAxis, entities, stateTextures);
-            else entities.add(familyId, plainRow(family));
+            if (variantAxis != null) {
+                expandVariantFamily(familyId, family, variantAxis, entities, stateTextures, collar, collarTextures);
+            } else {
+                entities.add(familyId, plainRow(family));
+                if (collar != null) collarTextures.put(familyId, collar);
+            }
 
             if (family.has("family_of")) crossFamilies.addProperty(familyId, family.get("family_of").getAsString());
         }
-        return new Flat(entities, crossFamilies, stateTextures);
+        return new Flat(entities, crossFamilies, stateTextures, collarTextures);
+    }
+
+    /**
+     * Returns the dyed-collar layer's texture ref from a family's {@code layers}, or {@code null}
+     * when the family has no collar layer.
+     */
+    private static String collarTextureOf(@NotNull JsonObject family) {
+        if (!family.has("layers")) return null;
+        for (com.google.gson.JsonElement element : family.getAsJsonArray("layers")) {
+            JsonObject layer = element.getAsJsonObject();
+            if (layer.has("id") && "collar".equals(layer.get("id").getAsString()) && layer.has("overlay")) {
+                JsonObject overlay = layer.getAsJsonObject("overlay");
+                if (overlay.has("texture_ref")) return overlay.get("texture_ref").getAsString();
+            }
+        }
+        return null;
     }
 
     /**
@@ -93,7 +116,7 @@ public final class EntityFamilyFlattener {
      * row (carries the family's optional fields, no {@code variant_of}); every other option rolls
      * up to it via {@code variant_of}.
      */
-    private static void expandVariantFamily(@NotNull String familyId, @NotNull JsonObject family, @NotNull JsonObject variantAxis, @NotNull JsonObject entities, @NotNull Map<String, Map<String, String>> stateTextures) {
+    private static void expandVariantFamily(@NotNull String familyId, @NotNull JsonObject family, @NotNull JsonObject variantAxis, @NotNull JsonObject entities, @NotNull Map<String, Map<String, String>> stateTextures, String collar, @NotNull Map<String, String> collarTextures) {
         String defaultOption = variantAxis.get("default").getAsString();
         String baseId = familyId + "_" + defaultOption;
         String familyGeometry = family.get("geometry_ref").getAsString();
@@ -115,6 +138,7 @@ public final class EntityFamilyFlattener {
 
             entities.add(rowId, row);
             collectStateTextures(rowId, optionObj, stateTextures);
+            if (collar != null) collarTextures.put(rowId, collar);
         }
     }
 

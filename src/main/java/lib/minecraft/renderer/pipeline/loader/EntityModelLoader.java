@@ -119,6 +119,9 @@ public class EntityModelLoader {
      *     source for multi-state variant families. Empty for every other entity; the {@code wild}
      *     entry (when present) equals {@link #textureRef}. Consulted by the renderer when
      *     {@code EntityOptions.state} selects a non-default state, else {@link #textureRef} is used
+     * @param collarTexture dyed-collar texture drawn on the body geometry and tinted at render by
+     *     {@code EntityOptions.collarColor} (wolf, cat). Present only under the {@code v2} source
+     *     for collar-bearing entities; empty otherwise
      */
     public record EntityDefinition(
         @NotNull EntityModelData model,
@@ -128,7 +131,8 @@ public class EntityModelLoader {
         int baseTintArgb,
         float setupYawAddend,
         float rendererScale,
-        @NotNull Map<String, String> stateTextures
+        @NotNull Map<String, String> stateTextures,
+        @NotNull Optional<String> collarTexture
     ) {
         /**
          * Returns a copy with no {@link #blockOverlays() block overlays}, for the {@code carried}
@@ -139,7 +143,7 @@ public class EntityModelLoader {
          */
         public @NotNull EntityDefinition withoutBlockOverlays() {
             return new EntityDefinition(this.model, this.textureRef, this.overlays, List.of(),
-                this.baseTintArgb, this.setupYawAddend, this.rendererScale, this.stateTextures);
+                this.baseTintArgb, this.setupYawAddend, this.rendererScale, this.stateTextures, this.collarTexture);
         }
     }
 
@@ -402,6 +406,7 @@ public class EntityModelLoader {
 
         JsonObject entities = loadEntitiesBlock();
         Map<String, Map<String, String>> stateTextures = loadStateTextures();
+        Map<String, String> collarTextures = loadCollarTextures();
         HashMap<String, EntityDefinition> definitions = new HashMap<>();
         for (Map.Entry<String, JsonElement> entry : entities.entrySet()) {
             String entityId = entry.getKey();
@@ -464,7 +469,7 @@ public class EntityModelLoader {
                 : 1f;
 
             definitions.put(entityId, new EntityDefinition(baseModel, textureRef, overlays, blockOverlays, baseTint, setupYawAddend, rendererScale,
-                stateTextures.getOrDefault(entityId, Map.of())));
+                stateTextures.getOrDefault(entityId, Map.of()), Optional.ofNullable(collarTextures.get(entityId))));
         }
         return Concurrent.adoptMap(definitions);
     }
@@ -667,6 +672,14 @@ public class EntityModelLoader {
     }
 
     /**
+     * Returns the per-row dyed-collar textures from the family form under {@code v2}, or an empty
+     * map under {@code v1}. Keyed by namespaced entity/variant id.
+     */
+    private static @NotNull Map<String, String> loadCollarTextures() {
+        return useV2() ? loadV2Flat().collarTextures() : Map.of();
+    }
+
+    /**
      * Reads {@link #MODELS2_RESOURCE_PATH} and flattens it back to the flat runtime shape via
      * {@link EntityFamilyFlattener}. Throws when the opt-in {@code v2} resource is missing rather
      * than silently yielding no entities.
@@ -678,7 +691,7 @@ public class EntityModelLoader {
             String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
             JsonObject root = GSON.fromJson(json, JsonObject.class);
             if (root == null || !root.has("families"))
-                return new EntityFamilyFlattener.Flat(new JsonObject(), new JsonObject(), Map.of());
+                return new EntityFamilyFlattener.Flat(new JsonObject(), new JsonObject(), Map.of(), Map.of());
             return EntityFamilyFlattener.flattenV2(root.getAsJsonObject("families"));
         } catch (IOException | JsonSyntaxException ex) {
             throw new PipelineException(ex, "Failed to load entity models v2 resource '%s'", MODELS2_RESOURCE_PATH);

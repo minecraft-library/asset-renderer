@@ -242,6 +242,22 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     scene.ndcScale(), scene.modelScale(), overlay.tintArgb()).triangles());
             });
 
+        // Dyed collar (wolf, cat): a body-geometry cutout tinted by the collar_color option, drawn
+        // on top of the base body only when a collar colour is supplied. v2-only - collarTexture is
+        // empty under v1. The collar texture is transparent except the neck band, so the tinted band
+        // wins the coplanar depth tie (last-drawn LEQUAL) over the body beneath it.
+        if (options.getCollarColor().isPresent() && definition.collarTexture().isPresent()) {
+            int collarTint = options.getCollarColor().get().argb();
+            String collarRef = definition.collarTexture().get();
+            stack.append(EntityOptions.Slot.MODEL_OVERLAY, sink -> {
+                Optional<PixelBuffer> collarTex = scene.context().resolveTexture("minecraft:entity/" + collarRef);
+                if (collarTex.isEmpty()) return;
+                sink.addAll(EntityGeometryKit.buildTriangles(
+                    model, collarTex.get(), scene.modelAnchor(), false,
+                    scene.ndcScale(), scene.modelScale(), collarTint).triangles());
+            });
+        }
+
         // Block-model overlays (mooshroom mushrooms, copper-golem flower): a block model rendered at
         // a pose-stack-applied position on top of the body. entityFit is computed once and shared.
         // Suppressed when the carried option drops them (sheared snow golem).

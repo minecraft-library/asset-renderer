@@ -91,15 +91,20 @@ public final class TestEntityRender3D {
 
         Optional<String> state = Optional.ofNullable(System.getProperty("asset.entity.state")).filter(s -> !s.isBlank());
         Optional<String> carried = Optional.ofNullable(System.getProperty("asset.entity.carried")).filter(s -> !s.isBlank());
+        Optional<String> collarName = Optional.ofNullable(System.getProperty("asset.entity.collar")).filter(s -> !s.isBlank());
+        Optional<lib.minecraft.renderer.request.DyeColor> collarColor =
+            collarName.map(s -> lib.minecraft.renderer.request.DyeColor.ofName(s.toUpperCase(java.util.Locale.ROOT)));
 
         for (String entityId : entityIds) {
             String safeName = entityId.replace(':', '_')
                 + state.map(s -> "_" + s).orElse("")
-                + carried.map(c -> "_carried-" + c).orElse("");
+                + carried.map(c -> "_carried-" + c).orElse("")
+                + collarName.map(c -> "_collar-" + c).orElse("");
             EntityOptions options = EntityOptions.builder()
                 .entityId(Optional.of(entityId))
                 .state(state)
                 .carried(carried)
+                .collarColor(collarColor)
                 .outputSize(size)
                 .supersample(2)
                 .antiAlias(true)

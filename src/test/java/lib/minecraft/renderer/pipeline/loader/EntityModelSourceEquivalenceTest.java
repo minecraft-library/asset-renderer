@@ -65,6 +65,20 @@ class EntityModelSourceEquivalenceTest {
     }
 
     @Test
+    @DisplayName("v2 carries wolf/cat collar textures; v1 and non-collar entities have none")
+    void v2CarriesCollarTextures() {
+        ConcurrentMap<String, EntityDefinition> v1 = withSource("v1", EntityModelLoader::load);
+        ConcurrentMap<String, EntityDefinition> v2 = withSource("v2", EntityModelLoader::load);
+
+        assertThat("v1 wolf has no collar", v1.get("minecraft:wolf_pale").collarTexture().isPresent(), is(false));
+        assertThat(v2.get("minecraft:wolf_pale").collarTexture(), equalTo(Optional.of("wolf/wolf_collar")));
+        assertThat("every wolf variant shares the family collar",
+            v2.get("minecraft:wolf_ashen").collarTexture(), equalTo(Optional.of("wolf/wolf_collar")));
+        assertThat(v2.get("minecraft:cat_black").collarTexture(), equalTo(Optional.of("cat/cat_collar")));
+        assertThat("a non-collar entity has none", v2.get("minecraft:cow_temperate").collarTexture().isPresent(), is(false));
+    }
+
+    @Test
     @DisplayName("withoutBlockOverlays drops block overlays and preserves every other field")
     void withoutBlockOverlaysStripsOnlyBlockOverlays() {
         ConcurrentMap<String, EntityDefinition> defs = withSource("v1", EntityModelLoader::load);

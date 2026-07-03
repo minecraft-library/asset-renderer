@@ -225,6 +225,33 @@ public final class EntityOverlayResolver {
     }
 
     /**
+     * Resolves the dyed-collar texture for an entity whose layer set includes a
+     * {@code *CollarLayer} ({@code WolfCollarLayer}, {@code CatCollarLayer}). The collar is a
+     * base-body cutout copy tinted at runtime by the wearer's dye colour, so only the texture is
+     * needed here - the geometry is the entity's own body model and the tint is a render option.
+     * Returned prefix-stripped ({@code "wolf/wolf_collar"}); {@code null} when the entity has no
+     * collar layer or its texture cannot be extracted.
+     *
+     * @param classNodes the ClassNode cache (shared with sibling resolver walks)
+     * @param layerClasses ordered list of layer-class internal names from
+     *     {@link EntityBoneResolver#scanOverlayLayers}
+     * @return the prefix-stripped collar texture path, or {@code null} when absent
+     */
+    public static @Nullable String resolveCollarTexture(
+        @NotNull ClassNodeCache classNodes,
+        @NotNull ConcurrentList<String> layerClasses
+    ) {
+        for (String layerClass : layerClasses) {
+            if (!layerClass.endsWith("CollarLayer")) continue;
+            ClassNode cn = classNodes.load(layerClass);
+            if (cn == null) continue;
+            String texture = findCompositeOverlayTexture(classNodes, cn);
+            if (texture != null) return EntityTextureResolver.stripPrefix(texture);
+        }
+        return null;
+    }
+
+    /**
      * Resolves overlay descriptors from the layer class names produced by
      * {@link EntityBoneResolver#scanOverlayLayers}. Layer classes that don't match any known
      * overlay shape are silently dropped - they're either runtime-driven (armor / equipment /
