@@ -29,6 +29,10 @@ class EntityFamilyFlattenerTest {
         JsonObject variant = new JsonObject();
         variant.addProperty("id_encoded", true);
         variant.addProperty("default", "temperate");
+        JsonArray variantValues = new JsonArray();
+        variantValues.add("temperate");
+        variantValues.add("cold");
+        variant.add("values", variantValues);
         JsonObject options = new JsonObject();
         options.add("temperate", option("cow/cow_temperate", null));
         options.add("cold", option("cow/cow_cold", "geometry.coldcow"));
@@ -90,6 +94,9 @@ class EntityFamilyFlattenerTest {
         JsonObject variant = new JsonObject();
         variant.addProperty("id_encoded", true);
         variant.addProperty("default", "pale");
+        JsonArray variantValues = new JsonArray();
+        variantValues.add("pale");
+        variant.add("values", variantValues);
         JsonObject pale = option("wolf/wolf", null);
         pale.getAsJsonObject("textures").addProperty("tame", "wolf/wolf_tame");
         pale.getAsJsonObject("textures").addProperty("baby", "wolf/wolf_baby");
@@ -99,8 +106,13 @@ class EntityFamilyFlattenerTest {
         JsonObject axes = new JsonObject();
         axes.add("variant", variant);
         JsonObject age = new JsonObject();
+        // Uniform axis contract: "values" lists the full domain; "options" carries only the "baby"
+        // body (the default "adult" is the implicit baseline).
+        JsonArray ageValues = new JsonArray();
+        ageValues.add("adult");
+        ageValues.add("baby");
+        age.add("values", ageValues);
         JsonObject ageOptions = new JsonObject();
-        // Normalized shape: only the "baby" option carries a body; no empty "adult" entry.
         JsonObject babyOpt = new JsonObject();
         babyOpt.addProperty("geometry_ref", "geometry.babywolf");
         ageOptions.add("baby", babyOpt);

@@ -170,11 +170,16 @@ public final class EntityFamilyJsonWriter {
             babyTexture = family.get("texture_ref").getAsString() + "_baby";
         if (babyTexture != null) baby.addProperty("texture_ref", babyTexture);
         // Only the "baby" option carries a body (the baked baby mesh + texture); the default "adult"
-        // inherits the family top-level geometry_ref/texture_ref, so it needs no option entry.
+        // inherits the family top-level geometry_ref/texture_ref, so it needs no option entry - but
+        // the uniform axis contract still lists it in "values" (the full ordered domain).
         JsonObject options = new JsonObject();
         options.add("baby", baby);
+        JsonArray ageValues = new JsonArray();
+        ageValues.add("adult");
+        ageValues.add("baby");
         JsonObject ageAxis = new JsonObject();
         ageAxis.addProperty("default", "adult");
+        ageAxis.add("values", ageValues);
         ageAxis.add("options", options);
 
         JsonObject axes = family.has("axes") ? family.getAsJsonObject("axes") : new JsonObject();
@@ -252,6 +257,7 @@ public final class EntityFamilyJsonWriter {
         JsonObject axis = new JsonObject();
         axis.addProperty("id_encoded", true);
         axis.addProperty("default", optionOf(baseId, familyId, diagnostics));
+        axis.add("values", keysOf(options));
         axis.add("options", options);
         JsonObject axes = new JsonObject();
         axes.add("variant", axis);
@@ -299,15 +305,17 @@ public final class EntityFamilyJsonWriter {
             }
         }
 
-        // The state axis is a pure selector enumeration - every option body would be empty (the real
-        // per-state textures live in each variant option's textures map, enriched above), so list the
-        // valid states under "values" instead of an all-empty "options" map.
+        // The state axis is a pure selector enumeration - every option body is empty (the real
+        // per-state textures live in each variant option's textures map, enriched above). Under the
+        // uniform axis contract it still carries the full domain under "values" plus an empty
+        // "options" map (no state has a standalone body).
         JsonArray stateValues = new JsonArray();
         stateValues.add("wild");
         for (String key : stateKeys) if (!key.equals("wild")) stateValues.add(key);
         JsonObject stateAxis = new JsonObject();
         stateAxis.addProperty("default", "wild");
         stateAxis.add("values", stateValues);
+        stateAxis.add("options", new JsonObject());
         axes.add("state", stateAxis);
         diagnostics.info("state axis: '%s' -> %s", familyId, stateKeys);
     }
@@ -397,6 +405,17 @@ public final class EntityFamilyJsonWriter {
             return memberId;
         }
         return memberId.substring(expectedPrefix.length());
+    }
+
+    /**
+     * Builds an axis' {@code values} enumeration (the full ordered option domain) from an
+     * {@code options} map's key order. Used by the variant axis, where every option carries a body
+     * so the domain equals the option-key set.
+     */
+    private static @NotNull JsonArray keysOf(@NotNull JsonObject options) {
+        JsonArray values = new JsonArray();
+        for (String key : options.keySet()) values.add(key);
+        return values;
     }
 
     /**
