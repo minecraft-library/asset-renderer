@@ -90,12 +90,16 @@ public final class TestEntityRender3D {
         long t0 = System.nanoTime();
 
         Optional<String> state = Optional.ofNullable(System.getProperty("asset.entity.state")).filter(s -> !s.isBlank());
+        Optional<String> carried = Optional.ofNullable(System.getProperty("asset.entity.carried")).filter(s -> !s.isBlank());
 
         for (String entityId : entityIds) {
-            String safeName = entityId.replace(':', '_') + state.map(s -> "_" + s).orElse("");
+            String safeName = entityId.replace(':', '_')
+                + state.map(s -> "_" + s).orElse("")
+                + carried.map(c -> "_carried-" + c).orElse("");
             EntityOptions options = EntityOptions.builder()
                 .entityId(Optional.of(entityId))
                 .state(state)
+                .carried(carried)
                 .outputSize(size)
                 .supersample(2)
                 .antiAlias(true)

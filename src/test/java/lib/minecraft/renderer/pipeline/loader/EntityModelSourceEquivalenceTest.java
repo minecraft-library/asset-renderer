@@ -64,6 +64,22 @@ class EntityModelSourceEquivalenceTest {
             v2.get("minecraft:cow_temperate").stateTextures().isEmpty(), is(true));
     }
 
+    @Test
+    @DisplayName("withoutBlockOverlays drops block overlays and preserves every other field")
+    void withoutBlockOverlaysStripsOnlyBlockOverlays() {
+        ConcurrentMap<String, EntityDefinition> defs = withSource("v1", EntityModelLoader::load);
+        EntityDefinition snowGolem = defs.get("minecraft:snow_golem");
+        assertThat("snow_golem has block overlays to drop", snowGolem.blockOverlays().isEmpty(), is(false));
+
+        EntityDefinition stripped = snowGolem.withoutBlockOverlays();
+        assertThat(stripped.blockOverlays().isEmpty(), is(true));
+        assertThat(stripped.model(), is(snowGolem.model()));
+        assertThat(stripped.textureRef(), equalTo(snowGolem.textureRef()));
+        assertThat(stripped.overlays(), equalTo(snowGolem.overlays()));
+        assertThat(stripped.baseTintArgb(), equalTo(snowGolem.baseTintArgb()));
+        assertThat(stripped.stateTextures(), equalTo(snowGolem.stateTextures()));
+    }
+
     /**
      * Asserts two definitions for the same id agree on every observable field (geometry proxy,
      * texture, overlays, block overlays, tint, yaw addend, scale).

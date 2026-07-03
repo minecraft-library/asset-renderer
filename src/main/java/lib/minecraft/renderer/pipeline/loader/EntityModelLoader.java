@@ -129,7 +129,19 @@ public class EntityModelLoader {
         float setupYawAddend,
         float rendererScale,
         @NotNull Map<String, String> stateTextures
-    ) {}
+    ) {
+        /**
+         * Returns a copy with no {@link #blockOverlays() block overlays}, for the {@code carried}
+         * render toggle (a sheared snow golem, an empty-handed enderman) - dropping both the
+         * rendered geometry and its canvas-bounds contribution.
+         *
+         * @return an otherwise-identical definition with an empty block-overlay list
+         */
+        public @NotNull EntityDefinition withoutBlockOverlays() {
+            return new EntityDefinition(this.model, this.textureRef, this.overlays, List.of(),
+                this.baseTintArgb, this.setupYawAddend, this.rendererScale, this.stateTextures);
+        }
+    }
 
     /**
      * One block-model overlay attached to an entity: a vanilla block (e.g. red mushroom block)

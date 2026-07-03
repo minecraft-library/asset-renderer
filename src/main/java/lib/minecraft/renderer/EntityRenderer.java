@@ -188,7 +188,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         final FitRequest fitRequest;
         if (lens.kind() == Lens.Kind.ORTHOGRAPHIC) {
             BoundsScope scope = boundsScopeFor(options.getFitMode());
-            Box screenBounds = computeScreenBoundsFor(scope, options.getEntityId().get(), definition,
+            EntityModelLoader.EntityDefinition boundsDefinition =
+                carriedHidden(options) ? definition.withoutBlockOverlays() : definition;
+            Box screenBounds = computeScreenBoundsFor(scope, options.getEntityId().get(), boundsDefinition,
                 engine.orient(effective), modelScale, texture.get());
             RendererDebug.fitBounds(options.getEntityId().get(), screenBounds);
             CanvasFit fit = computeCanvas(options, screenBounds, lens);
@@ -242,7 +244,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
         // Block-model overlays (mooshroom mushrooms, copper-golem flower): a block model rendered at
         // a pose-stack-applied position on top of the body. entityFit is computed once and shared.
-        if (!definition.blockOverlays().isEmpty()) {
+        // Suppressed when the carried option drops them (sheared snow golem).
+        if (!carriedHidden(options) && !definition.blockOverlays().isEmpty()) {
             Matrix4f entityFit = EntityGeometryKit.buildEntityFitMatrix(kitAnchor, kitNdcScale * modelScale);
             for (EntityModelLoader.BlockOverlayLayer blockOverlay : definition.blockOverlays())
                 stack.append(EntityOptions.Slot.BLOCK_OVERLAY, sink ->
@@ -311,6 +314,14 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     ) {
         if (options.getState().isEmpty()) return Optional.empty();
         return Optional.ofNullable(definition.stateTextures().get(options.getState().get()));
+    }
+
+    /**
+     * Returns {@code true} when {@link EntityOptions#getCarried() carried} is {@code "none"},
+     * suppressing the entity's block overlays (a sheared snow golem).
+     */
+    private static boolean carriedHidden(@NotNull EntityOptions options) {
+        return options.getCarried().filter("none"::equals).isPresent();
     }
 
     /**

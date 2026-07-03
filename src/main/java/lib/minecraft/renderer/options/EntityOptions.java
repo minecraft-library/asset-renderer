@@ -66,6 +66,15 @@ public class EntityOptions {
     private final @NotNull Optional<String> state = Optional.empty();
 
     /**
+     * Optional carried-block selector for entities with attached block overlays (snow golem's
+     * carved pumpkin, mooshroom's mushrooms). Empty (default) renders the entity's authored
+     * blocks; {@code "none"} drops them (a sheared snow golem), removing both their geometry and
+     * their canvas-bounds contribution.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Optional<String> carried = Optional.empty();
+
+    /**
      * Helmet armor piece to render on humanoid entities.
      */
     @lombok.Builder.Default
