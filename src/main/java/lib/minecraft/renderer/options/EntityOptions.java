@@ -56,6 +56,16 @@ public class EntityOptions {
     private final @NotNull Optional<String> textureId = Optional.empty();
 
     /**
+     * Optional behavioural-state selector for entities that ship per-state textures (wolf
+     * {@code "tame"} / {@code "angry"}; the default {@code "wild"} is equivalent to empty). Swaps
+     * the base texture to the matching state entry when the resolved entity carries one, else the
+     * default texture is used. Lower precedence than {@link #getTextureId() textureId}. Only
+     * consulted under the {@code v2} model source.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Optional<String> state = Optional.empty();
+
+    /**
      * Helmet armor piece to render on humanoid entities.
      */
     @lombok.Builder.Default

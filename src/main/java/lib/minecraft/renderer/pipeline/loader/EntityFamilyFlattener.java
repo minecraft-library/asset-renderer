@@ -3,6 +3,7 @@ package lib.minecraft.renderer.pipeline.loader;
 import com.google.gson.JsonObject;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -35,12 +36,20 @@ public final class EntityFamilyFlattener {
 
     /**
      * The reconstructed flat form: the {@code entities} object (one row per {@code minecraft:<id>}
-     * / {@code minecraft:<id>_<variant>}) and the cross-entity {@code families} table.
+     * / {@code minecraft:<id>_<variant>}), the cross-entity {@code families} table, and the
+     * option-axis {@code stateTextures} side-channel (kept out of {@code entities} so the flat
+     * shape stays round-trip-identical to the v1 file).
      *
      * @param entities the flat per-entity rows keyed by namespaced id
      * @param families the cross-entity grouping table (derivative id -&gt; family root)
+     * @param stateTextures per-row alternate base textures keyed by behavioural state (wolf
+     *     {@code wild}/{@code tame}/{@code angry}); only multi-state variant rows appear
      */
-    public record Flat(@NotNull JsonObject entities, @NotNull JsonObject families) {
+    public record Flat(
+        @NotNull JsonObject entities,
+        @NotNull JsonObject families,
+        @NotNull Map<String, Map<String, String>> stateTextures
+    ) {
     }
 
     /**
@@ -48,11 +57,12 @@ public final class EntityFamilyFlattener {
      *
      * @param familyForm the {@code families} object of {@code entity_models2.json} (family id -&gt;
      *     family entry)
-     * @return the reconstructed flat {@code entities} + {@code families}
+     * @return the reconstructed flat {@code entities} + {@code families} + {@code stateTextures}
      */
     public static @NotNull Flat flattenV2(@NotNull JsonObject familyForm) {
         JsonObject entities = new JsonObject();
         JsonObject crossFamilies = new JsonObject();
+        Map<String, Map<String, String>> stateTextures = new LinkedHashMap<>();
 
         for (Map.Entry<String, com.google.gson.JsonElement> entry : familyForm.entrySet()) {
             String familyId = entry.getKey();
@@ -60,12 +70,12 @@ public final class EntityFamilyFlattener {
             JsonObject family = entry.getValue().getAsJsonObject();
 
             JsonObject variantAxis = variantAxis(family);
-            if (variantAxis != null) expandVariantFamily(familyId, family, variantAxis, entities);
+            if (variantAxis != null) expandVariantFamily(familyId, family, variantAxis, entities, stateTextures);
             else entities.add(familyId, plainRow(family));
 
             if (family.has("family_of")) crossFamilies.addProperty(familyId, family.get("family_of").getAsString());
         }
-        return new Flat(entities, crossFamilies);
+        return new Flat(entities, crossFamilies, stateTextures);
     }
 
     /**
@@ -83,7 +93,7 @@ public final class EntityFamilyFlattener {
      * row (carries the family's optional fields, no {@code variant_of}); every other option rolls
      * up to it via {@code variant_of}.
      */
-    private static void expandVariantFamily(@NotNull String familyId, @NotNull JsonObject family, @NotNull JsonObject variantAxis, @NotNull JsonObject entities) {
+    private static void expandVariantFamily(@NotNull String familyId, @NotNull JsonObject family, @NotNull JsonObject variantAxis, @NotNull JsonObject entities, @NotNull Map<String, Map<String, String>> stateTextures) {
         String defaultOption = variantAxis.get("default").getAsString();
         String baseId = familyId + "_" + defaultOption;
         String familyGeometry = family.get("geometry_ref").getAsString();
@@ -93,6 +103,7 @@ public final class EntityFamilyFlattener {
         for (Map.Entry<String, com.google.gson.JsonElement> entry : options.entrySet()) {
             String option = entry.getKey();
             JsonObject optionObj = entry.getValue().getAsJsonObject();
+            String rowId = familyId + "_" + option;
 
             JsonObject row = new JsonObject();
             row.addProperty("geometry_ref",
@@ -102,8 +113,25 @@ public final class EntityFamilyFlattener {
             if (option.equals(defaultOption)) copyCarriedFields(family, row);
             else row.addProperty("variant_of", baseId);
 
-            entities.add(familyId + "_" + option, row);
+            entities.add(rowId, row);
+            collectStateTextures(rowId, optionObj, stateTextures);
         }
+    }
+
+    /**
+     * Records a variant option's per-state textures into the side-channel when the option carries
+     * more than the default {@code wild} entry (i.e. a genuine multi-state family like wolf). The
+     * {@code entities} row above keeps only {@code wild} as {@code texture_ref}, so the round-trip
+     * to the flat v1 file is unaffected.
+     */
+    private static void collectStateTextures(@NotNull String rowId, @NotNull JsonObject optionObj, @NotNull Map<String, Map<String, String>> stateTextures) {
+        if (!optionObj.has("textures")) return;
+        JsonObject textures = optionObj.getAsJsonObject("textures");
+        if (textures.size() <= 1) return;
+        Map<String, String> states = new LinkedHashMap<>();
+        for (Map.Entry<String, com.google.gson.JsonElement> texture : textures.entrySet())
+            states.put(texture.getKey(), texture.getValue().getAsString());
+        stateTextures.put(rowId, states);
     }
 
     /**

@@ -114,6 +114,11 @@ public class EntityModelLoader {
      *     UV orientation unrotated against the viewer
      * @param rendererScale per-entity render-time scale extracted by
      *     {@code EntityRendererScaleResolver}; defaults to {@code 1f} (identity)
+     * @param stateTextures alternate base textures keyed by behavioural state (wolf
+     *     {@code wild}/{@code tame}/{@code angry}), populated only under the {@code v2} model
+     *     source for multi-state variant families. Empty for every other entity; the {@code wild}
+     *     entry (when present) equals {@link #textureRef}. Consulted by the renderer when
+     *     {@code EntityOptions.state} selects a non-default state, else {@link #textureRef} is used
      */
     public record EntityDefinition(
         @NotNull EntityModelData model,
@@ -122,7 +127,8 @@ public class EntityModelLoader {
         @NotNull List<BlockOverlayLayer> blockOverlays,
         int baseTintArgb,
         float setupYawAddend,
-        float rendererScale
+        float rendererScale,
+        @NotNull Map<String, String> stateTextures
     ) {}
 
     /**
@@ -383,6 +389,7 @@ public class EntityModelLoader {
         if (geometries.isEmpty()) return Concurrent.newMap();
 
         JsonObject entities = loadEntitiesBlock();
+        Map<String, Map<String, String>> stateTextures = loadStateTextures();
         HashMap<String, EntityDefinition> definitions = new HashMap<>();
         for (Map.Entry<String, JsonElement> entry : entities.entrySet()) {
             String entityId = entry.getKey();
@@ -444,7 +451,8 @@ public class EntityModelLoader {
                 ? entityJson.get("renderer_scale").getAsFloat()
                 : 1f;
 
-            definitions.put(entityId, new EntityDefinition(baseModel, textureRef, overlays, blockOverlays, baseTint, setupYawAddend, rendererScale));
+            definitions.put(entityId, new EntityDefinition(baseModel, textureRef, overlays, blockOverlays, baseTint, setupYawAddend, rendererScale,
+                stateTextures.getOrDefault(entityId, Map.of())));
         }
         return Concurrent.adoptMap(definitions);
     }
@@ -638,6 +646,15 @@ public class EntityModelLoader {
     }
 
     /**
+     * Returns the per-row behavioural-state textures from the family form under {@code v2}, or an
+     * empty map under {@code v1} (the flat source carries no state axis). Keyed by namespaced
+     * entity/variant id.
+     */
+    private static @NotNull Map<String, Map<String, String>> loadStateTextures() {
+        return useV2() ? loadV2Flat().stateTextures() : Map.of();
+    }
+
+    /**
      * Reads {@link #MODELS2_RESOURCE_PATH} and flattens it back to the flat runtime shape via
      * {@link EntityFamilyFlattener}. Throws when the opt-in {@code v2} resource is missing rather
      * than silently yielding no entities.
@@ -649,7 +666,7 @@ public class EntityModelLoader {
             String json = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
             JsonObject root = GSON.fromJson(json, JsonObject.class);
             if (root == null || !root.has("families"))
-                return new EntityFamilyFlattener.Flat(new JsonObject(), new JsonObject());
+                return new EntityFamilyFlattener.Flat(new JsonObject(), new JsonObject(), Map.of());
             return EntityFamilyFlattener.flattenV2(root.getAsJsonObject("families"));
         } catch (IOException | JsonSyntaxException ex) {
             throw new PipelineException(ex, "Failed to load entity models v2 resource '%s'", MODELS2_RESOURCE_PATH);

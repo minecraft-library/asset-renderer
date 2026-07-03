@@ -9,7 +9,10 @@ import org.junit.jupiter.api.Test;
 
 import java.util.function.Supplier;
 
+import java.util.Optional;
+
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -36,6 +39,29 @@ class EntityModelSourceEquivalenceTest {
         assertThat("v2 has the same entity ids as v1", v2.keySet(), equalTo(v1.keySet()));
 
         for (String id : v1.keySet()) assertDefinitionsEqual(id, v1.get(id), v2.get(id));
+    }
+
+    @Test
+    @DisplayName("v2 carries wolf wild/tame/angry state textures; v1 leaves them empty")
+    void v2CarriesWolfStateTextures() {
+        ConcurrentMap<String, EntityDefinition> v1 = withSource("v1", EntityModelLoader::load);
+        ConcurrentMap<String, EntityDefinition> v2 = withSource("v2", EntityModelLoader::load);
+
+        assertThat("v1 has no state textures", v1.get("minecraft:wolf_pale").stateTextures().isEmpty(), is(true));
+
+        EntityDefinition paleV2 = v2.get("minecraft:wolf_pale");
+        assertThat(paleV2.stateTextures().keySet(), containsInAnyOrder("wild", "tame", "angry"));
+        assertThat(paleV2.stateTextures().get("wild"), is("wolf/wolf"));
+        assertThat(paleV2.stateTextures().get("tame"), is("wolf/wolf_tame"));
+        assertThat(paleV2.stateTextures().get("angry"), is("wolf/wolf_angry"));
+        assertThat("wild state equals the default texture_ref",
+            Optional.of(paleV2.stateTextures().get("wild")), equalTo(paleV2.textureRef()));
+
+        EntityDefinition ashenV2 = v2.get("minecraft:wolf_ashen");
+        assertThat(ashenV2.stateTextures().get("tame"), is("wolf/wolf_ashen_tame"));
+
+        assertThat("a single-asset variant carries no state textures",
+            v2.get("minecraft:cow_temperate").stateTextures().isEmpty(), is(true));
     }
 
     /**

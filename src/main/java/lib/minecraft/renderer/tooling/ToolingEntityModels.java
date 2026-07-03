@@ -381,7 +381,7 @@ public final class ToolingEntityModels {
             // Concurrent normalized family form (entity_models2.json), grouped from the flat file
             // just written. Built side-by-side with the reader-flattener so the round-trip can be
             // diffed against this known-good output while the new schema is iterated.
-            EntityFamilyJsonWriter.writeAll(diagnostics);
+            EntityFamilyJsonWriter.writeAll(diagnostics, variants);
             System.out.println("Wrote " + EntityFamilyJsonWriter.OUTPUT.toAbsolutePath());
 
             System.out.printf(

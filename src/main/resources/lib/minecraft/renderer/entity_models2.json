@@ -857,49 +857,75 @@
           "options": {
             "pale": {
               "textures": {
-                "wild": "wolf/wolf"
+                "wild": "wolf/wolf",
+                "angry": "wolf/wolf_angry",
+                "tame": "wolf/wolf_tame"
               }
             },
             "ashen": {
               "textures": {
-                "wild": "wolf/wolf_ashen"
+                "wild": "wolf/wolf_ashen",
+                "angry": "wolf/wolf_ashen_angry",
+                "tame": "wolf/wolf_ashen_tame"
               }
             },
             "black": {
               "textures": {
-                "wild": "wolf/wolf_black"
+                "wild": "wolf/wolf_black",
+                "angry": "wolf/wolf_black_angry",
+                "tame": "wolf/wolf_black_tame"
               }
             },
             "chestnut": {
               "textures": {
-                "wild": "wolf/wolf_chestnut"
+                "wild": "wolf/wolf_chestnut",
+                "angry": "wolf/wolf_chestnut_angry",
+                "tame": "wolf/wolf_chestnut_tame"
               }
             },
             "rusty": {
               "textures": {
-                "wild": "wolf/wolf_rusty"
+                "wild": "wolf/wolf_rusty",
+                "angry": "wolf/wolf_rusty_angry",
+                "tame": "wolf/wolf_rusty_tame"
               }
             },
             "snowy": {
               "textures": {
-                "wild": "wolf/wolf_snowy"
+                "wild": "wolf/wolf_snowy",
+                "angry": "wolf/wolf_snowy_angry",
+                "tame": "wolf/wolf_snowy_tame"
               }
             },
             "spotted": {
               "textures": {
-                "wild": "wolf/wolf_spotted"
+                "wild": "wolf/wolf_spotted",
+                "angry": "wolf/wolf_spotted_angry",
+                "tame": "wolf/wolf_spotted_tame"
               }
             },
             "striped": {
               "textures": {
-                "wild": "wolf/wolf_striped"
+                "wild": "wolf/wolf_striped",
+                "angry": "wolf/wolf_striped_angry",
+                "tame": "wolf/wolf_striped_tame"
               }
             },
             "woods": {
               "textures": {
-                "wild": "wolf/wolf_woods"
+                "wild": "wolf/wolf_woods",
+                "angry": "wolf/wolf_woods_angry",
+                "tame": "wolf/wolf_woods_tame"
               }
             }
+          }
+        },
+        "state": {
+          "default": "wild",
+          "options": {
+            "wild": {},
+            "angry": {},
+            "tame": {}
           }
         }
       }

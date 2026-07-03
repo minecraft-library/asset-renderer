@@ -89,10 +89,13 @@ public final class TestEntityRender3D {
         int failed = 0;
         long t0 = System.nanoTime();
 
+        Optional<String> state = Optional.ofNullable(System.getProperty("asset.entity.state")).filter(s -> !s.isBlank());
+
         for (String entityId : entityIds) {
-            String safeName = entityId.replace(':', '_');
+            String safeName = entityId.replace(':', '_') + state.map(s -> "_" + s).orElse("");
             EntityOptions options = EntityOptions.builder()
                 .entityId(Optional.of(entityId))
+                .state(state)
                 .outputSize(size)
                 .supersample(2)
                 .antiAlias(true)

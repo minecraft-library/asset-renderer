@@ -275,9 +275,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     /**
      * Resolves the entity texture. Precedence: an explicit
      * {@link EntityOptions#getTextureId() texture id on options} (user override; looked up
-     * against the Java atlas via the pack stack) &gt; the entity's own
-     * {@link EntityModelLoader.EntityDefinition#textureRef() texture_ref} resolved against the
-     * vanilla pack at {@code minecraft:entity/<ref>}.
+     * against the Java atlas via the pack stack) &gt; a {@link EntityOptions#getState() state}
+     * selection matching one of the definition's
+     * {@link EntityModelLoader.EntityDefinition#stateTextures() state textures} (wolf
+     * {@code tame}/{@code angry}) &gt; the entity's own
+     * {@link EntityModelLoader.EntityDefinition#textureRef() texture_ref}, each resolved against
+     * the vanilla pack at {@code minecraft:entity/<ref>}.
      */
     private @NotNull Optional<PixelBuffer> resolveEntityTexture(
         @NotNull EntityModelLoader.EntityDefinition definition,
@@ -286,10 +289,28 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (options.getTextureId().isPresent())
             return this.context.resolveTexture(options.getTextureId().get());
 
+        Optional<String> stateTexture = selectStateTexture(definition, options);
+        if (stateTexture.isPresent())
+            return this.context.resolveTexture("minecraft:entity/" + stateTexture.get());
+
         if (definition.textureRef().isPresent())
             return this.context.resolveTexture("minecraft:entity/" + definition.textureRef().get());
 
         return Optional.empty();
+    }
+
+    /**
+     * Selects the definition's state-specific texture when {@link EntityOptions#getState() state}
+     * names one it carries; empty otherwise (so the caller falls back to the default
+     * {@code texture_ref}). The default {@code wild} state resolves to the same path as
+     * {@code texture_ref}, so an unset or {@code wild} state leaves the render byte-identical.
+     */
+    private @NotNull Optional<String> selectStateTexture(
+        @NotNull EntityModelLoader.EntityDefinition definition,
+        @NotNull EntityOptions options
+    ) {
+        if (options.getState().isEmpty()) return Optional.empty();
+        return Optional.ofNullable(definition.stateTextures().get(options.getState().get()));
     }
 
     /**
