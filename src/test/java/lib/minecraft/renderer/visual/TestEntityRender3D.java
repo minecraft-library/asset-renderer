@@ -5,6 +5,8 @@ import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.EntityRenderer;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.options.Age;
+import lib.minecraft.renderer.options.EntityAppearance;
 import lib.minecraft.renderer.options.EntityOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
@@ -102,12 +104,15 @@ public final class TestEntityRender3D {
                 + carried.map(c -> "_carried-" + c).orElse("")
                 + collarName.map(c -> "_collar-" + c).orElse("")
                 + age.map(a -> "_" + a).orElse("");
-            EntityOptions options = EntityOptions.builder()
-                .entityId(Optional.of(entityId))
+            EntityAppearance appearance = EntityAppearance.builder()
+                .age(age.map(a -> a.equalsIgnoreCase("baby") ? Age.BABY : Age.ADULT).orElse(Age.ADULT))
                 .state(state)
                 .carried(carried)
-                .collarColor(collarColor)
-                .age(age)
+                .collar(collarColor)
+                .build();
+            EntityOptions options = EntityOptions.builder()
+                .entityId(Optional.of(entityId))
+                .appearance(appearance)
                 .outputSize(size)
                 .supersample(2)
                 .antiAlias(true)

@@ -11,7 +11,9 @@ import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.exception.PipelineException;
+import lib.minecraft.renderer.options.EntityAppearance;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
+import lombok.Builder;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -105,14 +107,15 @@ public class EntityModelLoader {
      *     {@code wild}/{@code tame}/{@code angry}), populated for multi-state variant families.
      *     Empty for every other entity; the {@code wild}
      *     entry (when present) equals {@link #textureRef}. Consulted by the renderer when
-     *     {@code EntityOptions.state} selects a non-default state, else {@link #textureRef} is used
+     *     {@code EntityAppearance.state} selects a non-default state, else {@link #textureRef} is used
      * @param collarTexture dyed-collar texture drawn on the body geometry and tinted at render by
-     *     {@code EntityOptions.collarColor} (wolf, cat). Present only in the family form
+     *     {@code EntityAppearance.collar} (wolf, cat). Present only in the family form
      *     for collar-bearing entities; empty otherwise
      * @param babyModel the distinct baked baby mesh, used in place of {@link #model} when
-     *     {@code EntityOptions.age} selects {@code baby}. Present only in the family form
+     *     {@code EntityAppearance.age} selects {@code baby}. Present only in the family form
      *     for ageable entities with a dedicated {@code Baby<X>Model}; empty otherwise
      */
+    @Builder(toBuilder = true)
     public record EntityDefinition(
         @NotNull EntityModelData model,
         @NotNull Optional<String> textureRef,
@@ -133,43 +136,27 @@ public class EntityModelLoader {
          * @return an otherwise-identical definition with an empty block-overlay list
          */
         public @NotNull EntityDefinition withoutBlockOverlays() {
-            return new EntityDefinition(this.model, this.textureRef, this.overlays, List.of(),
-                this.baseTintArgb, this.setupYawAddend, this.rendererScale, this.stateTextures, this.collarTexture, this.babyModel);
+            return toBuilder().blockOverlays(List.of()).build();
         }
 
         /**
-         * Returns a copy with no model {@link #overlays} (and no {@link #blockOverlays}), for the
-         * baby render - overlays carry adult geometry that would render adult-sized around the baby
-         * body (villager profession layer, sheep wool, mooshroom mushrooms).
+         * Resolves this definition for the given {@link EntityAppearance}, folding the age / carried
+         * policy into the returned definition so the renderer iterates its data unconditionally
+         * (no scattered {@code !baby} gates). A baby swaps in the {@link #babyModel} and drops the
+         * model overlays, block overlays, and collar - each carries adult geometry that would render
+         * adult-sized around the smaller baby body; {@code carried == "none"} drops the block
+         * overlays. A non-baby, non-carried appearance returns an equivalent definition unchanged.
          *
-         * @return an otherwise-identical definition with empty overlay lists
+         * @param appearance the axis selections to resolve against
+         * @return the age / carried-resolved definition
          */
-        public @NotNull EntityDefinition withoutOverlays() {
-            return new EntityDefinition(this.model, this.textureRef, List.of(), List.of(),
-                this.baseTintArgb, this.setupYawAddend, this.rendererScale, this.stateTextures, this.collarTexture, this.babyModel);
-        }
-
-        /**
-         * Returns the mesh for the requested age: {@link #babyModel} when {@code baby} is selected
-         * and present, else the adult {@link #model}.
-         *
-         * @param baby whether the baby mesh is requested
-         * @return the baby mesh when {@code baby} and available, else the adult mesh
-         */
-        public @NotNull EntityModelData modelForAge(boolean baby) {
-            return baby && this.babyModel.isPresent() ? this.babyModel.get() : this.model;
-        }
-
-        /**
-         * Returns a copy with a different primary {@link #model} (e.g. the baby mesh), for feeding
-         * the age-swapped geometry through the shared bounds pass.
-         *
-         * @param replacement the mesh to use as the primary model
-         * @return an otherwise-identical definition with {@code replacement} as its model
-         */
-        public @NotNull EntityDefinition withModel(@NotNull EntityModelData replacement) {
-            return new EntityDefinition(replacement, this.textureRef, this.overlays, this.blockOverlays,
-                this.baseTintArgb, this.setupYawAddend, this.rendererScale, this.stateTextures, this.collarTexture, this.babyModel);
+        public @NotNull EntityDefinition resolveFor(@NotNull EntityAppearance appearance) {
+            EntityDefinitionBuilder builder = toBuilder();
+            if (appearance.isBaby() && this.babyModel.isPresent())
+                builder.model(this.babyModel.get()).overlays(List.of()).blockOverlays(List.of()).collarTexture(Optional.empty());
+            if (appearance.dropsCarried())
+                builder.blockOverlays(List.of());
+            return builder.build();
         }
     }
 

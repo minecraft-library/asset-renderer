@@ -8,7 +8,6 @@ import lib.minecraft.renderer.engine.compose.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.LayerSlot;
 import lib.minecraft.renderer.engine.compose.LayerStack;
 import lib.minecraft.renderer.request.ArmorPiece;
-import lib.minecraft.renderer.request.DyeColor;
 import lib.minecraft.renderer.request.EulerRotation;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -57,40 +56,14 @@ public class EntityOptions {
     private final @NotNull Optional<String> textureId = Optional.empty();
 
     /**
-     * Optional behavioural-state selector for entities that ship per-state textures (wolf
-     * {@code "tame"} / {@code "angry"}; the default {@code "wild"} is equivalent to empty). Swaps
-     * the base texture to the matching state entry when the resolved entity carries one, else the
-     * default texture is used. Lower precedence than {@link #getTextureId() textureId}. Only
-     * consulted under the family form.
+     * The entity-specific axis selections (age, state, carried, dyed collar) as one cohesive value,
+     * so this class does not accrete a loose field per axis. Empty / default {@link EntityAppearance}
+     * (the default) leaves the render byte-identical to one built without any appearance. Only
+     * consulted under the family form. Lower precedence than {@link #getTextureId() textureId} for
+     * texture resolution.
      */
     @lombok.Builder.Default
-    private final @NotNull Optional<String> state = Optional.empty();
-
-    /**
-     * Optional carried-block selector for entities with attached block overlays (snow golem's
-     * carved pumpkin, mooshroom's mushrooms). Empty (default) renders the entity's authored
-     * blocks; {@code "none"} drops them (a sheared snow golem), removing both their geometry and
-     * their canvas-bounds contribution.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Optional<String> carried = Optional.empty();
-
-    /**
-     * Optional dyed-collar colour for collar-bearing entities (wolf, cat). When present and the
-     * resolved entity carries a collar texture, a collar overlay is drawn on the body geometry
-     * tinted by this colour's {@link DyeColor#argb() ARGB}; empty (default) draws no collar. Only
-     * consulted under the family form.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Optional<DyeColor> collarColor = Optional.empty();
-
-    /**
-     * Optional age selector. {@code "baby"} renders the entity's distinct baby mesh when it has
-     * one; empty (default, equivalent to {@code "adult"}) renders the adult mesh. Only consulted
-     * under the family form, and only affects entities with a dedicated baby model.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Optional<String> age = Optional.empty();
+    private final @NotNull EntityAppearance appearance = EntityAppearance.defaults();
 
     /**
      * Helmet armor piece to render on humanoid entities.
