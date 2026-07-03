@@ -16,7 +16,8 @@
           "options": {
             "adult": {},
             "baby": {
-              "geometry_ref": "geometry.babyarmadillo"
+              "geometry_ref": "geometry.babyarmadillo",
+              "texture_ref": "armadillo/armadillo_baby"
             }
           }
         }
@@ -61,7 +62,8 @@
           "options": {
             "adult": {},
             "baby": {
-              "geometry_ref": "geometry.babybee"
+              "geometry_ref": "geometry.babybee",
+              "texture_ref": "bee/bee_baby"
             }
           }
         }
@@ -110,7 +112,8 @@
           "options": {
             "adult": {},
             "baby": {
-              "geometry_ref": "geometry.babycamel"
+              "geometry_ref": "geometry.babycamel",
+              "texture_ref": "camel/camel_baby"
             }
           }
         }
@@ -354,7 +357,8 @@
           "options": {
             "adult": {},
             "baby": {
-              "geometry_ref": "geometry.babydolphin"
+              "geometry_ref": "geometry.babydolphin",
+              "texture_ref": "dolphin/dolphin_baby"
             }
           }
         }
@@ -385,7 +389,8 @@
           "options": {
             "adult": {},
             "baby": {
-              "geometry_ref": "geometry.babydrowned"
+              "geometry_ref": "geometry.babydrowned",
+              "texture_ref": "zombie/drowned_baby"
             }
           }
         }
@@ -445,7 +450,8 @@
           "options": {
             "adult": {},
             "baby": {
-              "geometry_ref": "geometry.babyfox"
+              "geometry_ref": "geometry.babyfox",
+              "texture_ref": "fox/fox_baby"
             }
           }
         }
@@ -509,7 +515,8 @@
           "options": {
             "adult": {},
             "baby": {
-              "geometry_ref": "geometry.babygoat"
+              "geometry_ref": "geometry.babygoat",
+              "texture_ref": "goat/goat_baby"
             }
           }
         }
@@ -530,7 +537,8 @@
           "options": {
             "adult": {},
             "baby": {
-              "geometry_ref": "geometry.babyhoglin"
+              "geometry_ref": "geometry.babyhoglin",
+              "texture_ref": "hoglin/hoglin_baby"
             }
           }
         }
@@ -546,7 +554,8 @@
           "options": {
             "adult": {},
             "baby": {
-              "geometry_ref": "geometry.babyhorse"
+              "geometry_ref": "geometry.babyhorse",
+              "texture_ref": "horse/horse_white_baby"
             }
           }
         }
@@ -562,7 +571,8 @@
           "options": {
             "adult": {},
             "baby": {
-              "geometry_ref": "geometry.babyzombie"
+              "geometry_ref": "geometry.babyzombie",
+              "texture_ref": "zombie/husk_baby"
             }
           }
         }
@@ -697,7 +707,8 @@
           "options": {
             "adult": {},
             "baby": {
-              "geometry_ref": "geometry.babycow"
+              "geometry_ref": "geometry.babycow",
+              "texture_ref": "cow/mooshroom_red_baby"
             }
           }
         }
@@ -727,7 +738,8 @@
           "options": {
             "adult": {},
             "baby": {
-              "geometry_ref": "geometry.babyfeline"
+              "geometry_ref": "geometry.babyfeline",
+              "texture_ref": "cat/ocelot_baby"
             }
           }
         }
@@ -743,7 +755,8 @@
           "options": {
             "adult": {},
             "baby": {
-              "geometry_ref": "geometry.babypanda"
+              "geometry_ref": "geometry.babypanda",
+              "texture_ref": "panda/panda_baby"
             }
           }
         }
@@ -841,7 +854,8 @@
           "options": {
             "adult": {},
             "baby": {
-              "geometry_ref": "geometry.babypolarbear"
+              "geometry_ref": "geometry.babypolarbear",
+              "texture_ref": "bear/polarbear_baby"
             }
           }
         }
@@ -895,7 +909,8 @@
           "options": {
             "adult": {},
             "baby": {
-              "geometry_ref": "geometry.babysheep"
+              "geometry_ref": "geometry.babysheep",
+              "texture_ref": "sheep/sheep_baby"
             }
           }
         }
@@ -1025,7 +1040,8 @@
           "options": {
             "adult": {},
             "baby": {
-              "geometry_ref": "geometry.babystrider"
+              "geometry_ref": "geometry.babystrider",
+              "texture_ref": "strider/strider_baby"
             }
           }
         }
@@ -1078,7 +1094,8 @@
           "options": {
             "adult": {},
             "baby": {
-              "geometry_ref": "geometry.babyturtle"
+              "geometry_ref": "geometry.babyturtle",
+              "texture_ref": "turtle/turtle_baby"
             }
           }
         }
@@ -1106,7 +1123,8 @@
           "options": {
             "adult": {},
             "baby": {
-              "geometry_ref": "geometry.babyvillager"
+              "geometry_ref": "geometry.babyvillager",
+              "texture_ref": "villager/villager_baby"
             }
           }
         }
@@ -1272,7 +1290,8 @@
           "options": {
             "adult": {},
             "baby": {
-              "geometry_ref": "geometry.babyhoglin"
+              "geometry_ref": "geometry.babyhoglin",
+              "texture_ref": "hoglin/zoglin_baby"
             }
           }
         }
@@ -1288,7 +1307,8 @@
           "options": {
             "adult": {},
             "baby": {
-              "geometry_ref": "geometry.babyzombie"
+              "geometry_ref": "geometry.babyzombie",
+              "texture_ref": "zombie/zombie_baby"
             }
           }
         }
@@ -1339,7 +1359,8 @@
           "options": {
             "adult": {},
             "baby": {
-              "geometry_ref": "geometry.babyzombievillager"
+              "geometry_ref": "geometry.babyzombievillager",
+              "texture_ref": "zombie_villager/zombie_villager_baby"
             }
           }
         }

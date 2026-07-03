@@ -352,6 +352,11 @@ public final class ToolingEntityModels {
             // through the same layerDefs -> Source path variants use bakes a distinct, self-contained
             // baby geometry the age axis points at (no runtime young-scale).
             Map<String, EntityLayerDefinitionResolver.Result> babyResolutionByEntity = new LinkedHashMap<>();
+            // Baby textures for NON-variant entities (sheep, fox, ...) come from the renderer's
+            // isBaby?BABY:ADULT texture branch (EntityTextureResolver.Result.babyTexturePath), not the
+            // variant table. Variant families (cow/pig/chicken) source their per-variant baby texture
+            // from the variant table's baby_asset_id (EntityFamilyJsonWriter.enrichBabyTextures).
+            Map<String, String> babyTextureByEntity = new LinkedHashMap<>();
             for (Map.Entry<String, EntitySessionWalk.Result> entry : records.entrySet()) {
                 String entityId = entry.getKey();
                 String babyField = EntityLayerDefinitionResolver.findBabyLayerField(
@@ -360,6 +365,8 @@ public final class ToolingEntityModels {
                 EntityLayerDefinitionResolver.Result babyRes = layerDefs.get(babyField);
                 if (babyRes == null) continue;
                 babyRes = EntityLayerDefinitionResolver.unaliasDelegate(context.classNodes(), babyRes);
+                String bindingBaby = entry.getValue().binding().babyTexturePath();
+                if (bindingBaby != null) babyTextureByEntity.put(entityId, EntityTextureResolver.stripPrefix(bindingBaby));
                 // Skip babies baked from the SAME model class as the adult (nautilus:
                 // NautilusModel#createBabyBodyLayer vs #createBodyLayer). Their geometry ids derive
                 // the same class-based stem and the collision suffix would shift the adult's id,
@@ -429,7 +436,7 @@ public final class ToolingEntityModels {
             // Concurrent normalized family form (entity_models2.json), grouped from the flat file
             // just written. Built side-by-side with the reader-flattener so the round-trip can be
             // diffed against this known-good output while the new schema is iterated.
-            EntityFamilyJsonWriter.writeAll(diagnostics, variants, collarByEntity, babyGeometryByEntity);
+            EntityFamilyJsonWriter.writeAll(diagnostics, variants, collarByEntity, babyGeometryByEntity, babyTextureByEntity);
             System.out.println("Wrote " + EntityFamilyJsonWriter.OUTPUT.toAbsolutePath());
 
             System.out.printf(

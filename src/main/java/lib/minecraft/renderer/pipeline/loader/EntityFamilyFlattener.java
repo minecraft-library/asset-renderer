@@ -82,6 +82,10 @@ public final class EntityFamilyFlattener {
                 entities.add(familyId, plainRow(family));
                 if (collar != null) collarTextures.put(familyId, collar);
                 if (baby != null) babyGeometry.put(familyId, baby);
+                // Plain families carry their single baby texture on age.baby.texture_ref; expose it
+                // under the "baby" state key so the renderer binds it the same way as variant families.
+                String babyTex = babyTextureOf(family);
+                if (babyTex != null) stateTextures.computeIfAbsent(familyId, k -> new LinkedHashMap<>()).put("baby", babyTex);
             }
 
             if (family.has("family_of")) crossFamilies.addProperty(familyId, family.get("family_of").getAsString());
@@ -94,13 +98,28 @@ public final class EntityFamilyFlattener {
      * no age axis.
      */
     private static String babyGeometryOf(@NotNull JsonObject family) {
+        JsonObject baby = ageBaby(family);
+        return baby != null && baby.has("geometry_ref") ? baby.get("geometry_ref").getAsString() : null;
+    }
+
+    /**
+     * Returns the family's single baby texture from its {@code age.baby.texture_ref} (non-variant
+     * entities), or {@code null}.
+     */
+    private static String babyTextureOf(@NotNull JsonObject family) {
+        JsonObject baby = ageBaby(family);
+        return baby != null && baby.has("texture_ref") ? baby.get("texture_ref").getAsString() : null;
+    }
+
+    /**
+     * Returns the {@code age.baby} option object, or {@code null} when the family has no age axis.
+     */
+    private static JsonObject ageBaby(@NotNull JsonObject family) {
         if (!family.has("axes")) return null;
         JsonObject axes = family.getAsJsonObject("axes");
         if (!axes.has("age")) return null;
         JsonObject options = axes.getAsJsonObject("age").getAsJsonObject("options");
-        if (!options.has("baby")) return null;
-        JsonObject baby = options.getAsJsonObject("baby");
-        return baby.has("geometry_ref") ? baby.get("geometry_ref").getAsString() : null;
+        return options.has("baby") ? options.getAsJsonObject("baby") : null;
     }
 
     /**
