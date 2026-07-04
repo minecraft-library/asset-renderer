@@ -1,5 +1,7 @@
 package lib.minecraft.renderer.engine.kit;
 
+import dev.simplified.image.pixel.ColorMath;
+import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.face.EntityFace;
 import lib.minecraft.renderer.request.EulerRotation;
@@ -347,6 +349,34 @@ public class BoneKit {
         if (size.x() == 0f) return face != EntityFace.WEST && face != EntityFace.EAST;
         if (size.y() == 0f) return face != EntityFace.UP && face != EntityFace.DOWN;
         if (size.z() == 0f) return face != EntityFace.NORTH && face != EntityFace.SOUTH;
+        return false;
+    }
+
+    /**
+     * Returns whether any texel under a face's UV rectangle is partially transparent
+     * ({@code 0 < alpha < 255}) - the signal vanilla uses to route a surface to a translucent
+     * (back-to-front sorted) pass rather than the plain emission-order rasterization opaque and
+     * pure-cutout ({@code alpha == 0}) faces take. Shared by both kits' per-face translucent
+     * detection: it walks the {@code [floor(min), ceil(max))} texel box of the UV corners' bounding
+     * rectangle ({@link Vector4f#bounds}) and stops at the first partial-alpha sample.
+     *
+     * @param uv the face's four UV corners in {@code [0, 1]} space
+     * @param texture the texture the face samples
+     * @return {@code true} when any covered texel has partial alpha
+     */
+    public static boolean faceHasPartialAlpha(@NotNull Vector2f @NotNull [] uv, @NotNull PixelBuffer texture) {
+        int w = texture.width();
+        int h = texture.height();
+        Vector4f bounds = Vector4f.bounds(uv);
+        int x0 = Math.max(0, (int) Math.floor(bounds.x() * w));
+        int y0 = Math.max(0, (int) Math.floor(bounds.y() * h));
+        int x1 = Math.min(w, (int) Math.ceil(bounds.z() * w));
+        int y1 = Math.min(h, (int) Math.ceil(bounds.w() * h));
+        for (int y = y0; y < y1; y++)
+            for (int x = x0; x < x1; x++) {
+                int a = ColorMath.alpha(texture.getPixel(x, y));
+                if (a > 0 && a < 255) return true;
+            }
         return false;
     }
 

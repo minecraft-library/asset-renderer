@@ -2,7 +2,6 @@ package lib.minecraft.renderer.engine.kit;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.asset.model.EntityModelData;
@@ -221,7 +220,7 @@ public class BlockGeometryKit {
                     }
                     Vector3f normal = face.normal().transformNormal(cubeTransform).normalize();
                     Vector2f[] uv = BoneKit.resolvePolygonUv(face, cube, size, texW, texH);
-                    boolean translucent = faceHasPartialAlpha(uv, texture);
+                    boolean translucent = BoneKit.faceHasPartialAlpha(uv, texture);
                     addQuad(triangles,
                         corners[0], corners[1], corners[2], corners[3],
                         uv[0], uv[1], uv[2], uv[3],
@@ -453,7 +452,7 @@ public class BlockGeometryKit {
                 // translucent layers (honey_block's #down outer over its #up inner) emits them in
                 // model order, which can be front-to-back; without the sort the farther inner face
                 // is depth-rejected and only one layer blends instead of vanilla's two.
-                boolean translucent = faceHasPartialAlpha(uv, texture);
+                boolean translucent = BoneKit.faceHasPartialAlpha(uv, texture);
                 addQuad(
                     triangles,
                     corners[0], corners[1], corners[2], corners[3],
@@ -658,35 +657,6 @@ public class BlockGeometryKit {
         SurfaceTraits traits = new SurfaceTraits(cullBackFaces, false, translucent, glinted);
         out.add(new VisibleTriangle(topLeft, bottomLeft, bottomRight, uvTL, uvBL, uvBR, texture, tintArgb, normal, shading, traits, null));
         out.add(new VisibleTriangle(topLeft, bottomRight, topRight, uvTL, uvBR, uvTR, texture, tintArgb, normal, shading, traits, null));
-    }
-
-    /**
-     * Returns whether the texels under a face's UV rectangle include any partially transparent
-     * sample ({@code 0 < alpha < 255}), the signal vanilla uses to route a block to the translucent
-     * chunk layer (glass, ice, slime / honey shells). Mirrors the entity kit's per-cube detection;
-     * fully opaque ({@code alpha == 255}) and pure-cutout ({@code alpha == 0}) faces stay
-     * {@code false} so opaque and alpha-tested blocks keep their plain emission-order rasterization.
-     */
-    private static boolean faceHasPartialAlpha(@NotNull Vector2f @NotNull [] uv, @NotNull PixelBuffer texture) {
-        int w = texture.width();
-        int h = texture.height();
-        float minU = Float.MAX_VALUE, minV = Float.MAX_VALUE, maxU = -Float.MAX_VALUE, maxV = -Float.MAX_VALUE;
-        for (Vector2f c : uv) {
-            minU = Math.min(minU, c.x());
-            maxU = Math.max(maxU, c.x());
-            minV = Math.min(minV, c.y());
-            maxV = Math.max(maxV, c.y());
-        }
-        int x0 = Math.max(0, (int) Math.floor(minU * w));
-        int y0 = Math.max(0, (int) Math.floor(minV * h));
-        int x1 = Math.min(w, (int) Math.ceil(maxU * w));
-        int y1 = Math.min(h, (int) Math.ceil(maxV * h));
-        for (int y = y0; y < y1; y++)
-            for (int x = x0; x < x1; x++) {
-                int a = ColorMath.alpha(texture.getPixel(x, y));
-                if (a > 0 && a < 255) return true;
-            }
-        return false;
     }
 
 }

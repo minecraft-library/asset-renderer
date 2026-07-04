@@ -1061,33 +1061,8 @@ public class EntityGeometryKit {
         for (EntityFace face : EntityFace.CACHED_VALUES) {
             if ((size.x() == 0f || size.y() == 0f || size.z() == 0f)
                 && BoneKit.isDegeneratePlaneFace(size, face)) continue;
-            if (faceHasPartialAlpha(BoneKit.resolveFaceUv(face, cube, size, texW, texH), texture))
+            if (BoneKit.faceHasPartialAlpha(BoneKit.resolveFaceUv(face, cube, size, texW, texH), texture))
                 return true;
-        }
-        return false;
-    }
-
-    /**
-     * Returns {@code true} when any texel inside the face's UV bounding box has partial alpha
-     * ({@code 0 < alpha < 255}). Per-face helper backing {@link #uvPartialAlphaPresent}.
-     *
-     * @param uv the face's four UV corners
-     * @param texture the entity texture to sample
-     * @return {@code true} if any covered texel is partially transparent
-     */
-    private static boolean faceHasPartialAlpha(@NotNull Vector2f @NotNull [] uv, @NotNull PixelBuffer texture) {
-        int W = texture.width();
-        int H = texture.height();
-        Vector4f bounds = Vector4f.bounds(uv);
-        int x0 = Math.max(0, (int) Math.floor(bounds.x() * W));
-        int y0 = Math.max(0, (int) Math.floor(bounds.y() * H));
-        int x1 = Math.min(W, (int) Math.ceil(bounds.z() * W));
-        int y1 = Math.min(H, (int) Math.ceil(bounds.w() * H));
-        for (int y = y0; y < y1; y++) {
-            for (int x = x0; x < x1; x++) {
-                int a = ColorMath.alpha(texture.getPixel(x, y));
-                if (a > 0 && a < 255) return true;
-            }
         }
         return false;
     }
