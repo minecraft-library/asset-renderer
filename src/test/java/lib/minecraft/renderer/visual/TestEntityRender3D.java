@@ -100,6 +100,7 @@ public final class TestEntityRender3D {
         Optional<lib.minecraft.renderer.request.DyeColor> woolColor =
             woolName.map(s -> lib.minecraft.renderer.request.DyeColor.ofName(s.toUpperCase(java.util.Locale.ROOT)));
         Optional<String> age = Optional.ofNullable(System.getProperty("asset.entity.age")).filter(s -> !s.isBlank());
+        boolean sheared = Boolean.getBoolean("asset.entity.sheared");
 
         for (String entityId : entityIds) {
             String safeName = entityId.replace(':', '_')
@@ -107,6 +108,7 @@ public final class TestEntityRender3D {
                 + carried.map(c -> "_carried-" + c).orElse("")
                 + collarName.map(c -> "_collar-" + c).orElse("")
                 + woolName.map(c -> "_wool-" + c).orElse("")
+                + (sheared ? "_sheared" : "")
                 + age.map(a -> "_" + a).orElse("");
             EntityAppearance appearance = EntityAppearance.builder()
                 .age(age.map(a -> a.equalsIgnoreCase("baby") ? Age.BABY : Age.ADULT).orElse(Age.ADULT))
@@ -114,6 +116,7 @@ public final class TestEntityRender3D {
                 .carried(carried)
                 .collar(collarColor)
                 .woolColor(woolColor)
+                .sheared(sheared)
                 .build();
             EntityOptions options = EntityOptions.builder()
                 .entityId(Optional.of(entityId))

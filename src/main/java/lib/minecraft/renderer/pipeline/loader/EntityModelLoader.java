@@ -148,12 +148,17 @@ public class EntityModelLoader {
          * overlays. A non-baby, non-carried appearance returns an equivalent definition unchanged.
          *
          * @param appearance the axis selections to resolve against
-         * @return the age / carried-resolved definition
+         * @return the age / carried / sheared-resolved definition
          */
         public @NotNull EntityDefinition resolveFor(@NotNull EntityAppearance appearance) {
             EntityDefinitionBuilder builder = toBuilder();
             if (appearance.isBaby() && this.babyModel.isPresent())
                 builder.model(this.babyModel.get()).overlays(List.of()).blockOverlays(List.of()).collarTexture(Optional.empty());
+            else if (appearance.isSheared())
+                // A sheared entity drops its shearable overlays (the sheep wool) - both the rendered
+                // geometry and its canvas-bounds contribution. The baby branch already empties every
+                // overlay, so sheared only matters for a non-baby.
+                builder.overlays(this.overlays.stream().filter(overlay -> !overlay.shearable()).toList());
             if (appearance.dropsCarried())
                 builder.blockOverlays(List.of());
             return builder.build();
@@ -235,6 +240,9 @@ public class EntityModelLoader {
      * @param tintBy the render-axis token whose selected colour overrides {@link #tintArgb} at
      *     render (e.g. {@code "wool_color"} for the sheep wool, tinted by
      *     {@code EntityAppearance.woolColor}), or empty when the tint is fixed at {@link #tintArgb}
+     * @param shearable when {@code true} this overlay is dropped by the {@code sheared} render axis
+     *     (the sheep wool, gated off by vanilla's {@code isSheared} state); {@code false} for
+     *     overlays that always render
      */
     public record OverlayLayer(
         @NotNull EntityModelData model,
@@ -242,7 +250,8 @@ public class EntityModelLoader {
         boolean emissive,
         int tintArgb,
         boolean skipBounds,
-        @NotNull Optional<String> tintBy
+        @NotNull Optional<String> tintBy,
+        boolean shearable
     ) {}
 
     /**
@@ -328,7 +337,8 @@ public class EntityModelLoader {
             Optional<String> tintBy = entry.has("tint_by")
                 ? Optional.of(entry.get("tint_by").getAsString())
                 : Optional.empty();
-            out.add(new OverlayLayer(materialised, overlayTexture, emissive, overlayTint, skipBounds, tintBy));
+            boolean shearable = entry.has("shearable") && entry.get("shearable").getAsBoolean();
+            out.add(new OverlayLayer(materialised, overlayTexture, emissive, overlayTint, skipBounds, tintBy, shearable));
         }
         return out;
     }

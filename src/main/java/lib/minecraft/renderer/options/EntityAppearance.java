@@ -67,6 +67,14 @@ public class EntityAppearance {
     private final @NotNull Optional<DyeColor> woolColor = Optional.empty();
 
     /**
+     * Whether the entity renders sheared. When {@code true} the resolved definition drops its
+     * shearable overlays (the sheep wool) - both the rendered geometry and its canvas-bounds
+     * contribution; {@code false} (default) renders the entity's wool.
+     */
+    @lombok.Builder.Default
+    private final boolean sheared = false;
+
+    /**
      * Whether this appearance selects the baby mesh.
      *
      * @return {@code true} when {@link #getAge() age} is {@link Age#BABY}

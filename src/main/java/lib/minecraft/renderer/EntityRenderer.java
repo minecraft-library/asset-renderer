@@ -150,7 +150,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // its own transform chain after entity-fit normalization, so its bounds aren't included
         // here - only model-overlay (cube tree) geometries that share the entity's frame.
         Box baseBounds = EntityGeometryKit.computeBounds(model);
-        for (EntityModelLoader.OverlayLayer overlay : definition.overlays()) {
+        for (EntityModelLoader.OverlayLayer overlay : resolved.overlays()) {
             if (overlay.model().getBones().isEmpty()) continue;
             Box overlayBounds = EntityGeometryKit.computeBounds(overlay.model());
             baseBounds = new Box(

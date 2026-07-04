@@ -181,6 +181,9 @@ public final class EntityOverlayResolver {
      *     {@code tintArgb} at render (e.g. {@code "wool_color"} for the sheep wool, whose colour
      *     is a user-selectable dye). {@code null} when the tint is fixed. Emitted as the
      *     {@code tint_by} JSON property by {@link EntityRuntimeJsonWriter}
+     * @param shearable {@code true} when the layer's render is gated off by the entity's
+     *     {@code isSheared} state (the sheep wool), so the {@code sheared} render axis drops this
+     *     overlay. Emitted as the {@code shearable} JSON property by {@link EntityRuntimeJsonWriter}
      */
     public record Result(
         @NotNull String layerClass,
@@ -190,7 +193,8 @@ public final class EntityOverlayResolver {
         int tintArgb,
         float inflate,
         boolean skipBounds,
-        @Nullable String tintBy
+        @Nullable String tintBy,
+        boolean shearable
     ) {
         /**
          * Constructs a {@code Result} with no extra deformation and no bounds skip - the common
@@ -211,7 +215,7 @@ public final class EntityOverlayResolver {
             @Nullable String modelLayerField,
             int tintArgb
         ) {
-            this(layerClass, texturePath, emissive, modelLayerField, tintArgb, 0f, false, null);
+            this(layerClass, texturePath, emissive, modelLayerField, tintArgb, 0f, false, null, false);
         }
 
         /**
@@ -236,7 +240,7 @@ public final class EntityOverlayResolver {
             float inflate,
             boolean skipBounds
         ) {
-            this(layerClass, texturePath, emissive, modelLayerField, tintArgb, inflate, skipBounds, null);
+            this(layerClass, texturePath, emissive, modelLayerField, tintArgb, inflate, skipBounds, null, false);
         }
 
         /**
@@ -445,7 +449,8 @@ public final class EntityOverlayResolver {
                 int tintArgb = extractColoredCutoutTint(classNodes, cn);
                 boolean unlit = layerInvokesNoCardinalLightingRenderType(classNodes, cn);
                 String tintBy = extractTintBy(cn);
-                out.add(new Result(layerClass, compositeTexture, unlit, modelLayerField, tintArgb, 0f, false, tintBy));
+                boolean shearable = detectShearableGate(cn);
+                out.add(new Result(layerClass, compositeTexture, unlit, modelLayerField, tintArgb, 0f, false, tintBy, shearable));
                 continue;
             }
         }
@@ -741,6 +746,30 @@ public final class EntityOverlayResolver {
             }
         }
         return null;
+    }
+
+    /**
+     * Detects the {@code if (state.isSheared) return;} early-return gate at the top of a wool
+     * layer's {@code submit} - the sheep wool renders nothing once the entity is sheared. Matched
+     * shape, reading forwards: {@code GETFIELD <StateClass>.isSheared:Z; IFEQ <past>; RETURN}. When
+     * present the overlay is {@code shearable}, so the {@code sheared} render axis drops it. Keys on
+     * the {@code isSheared} field name + the branch-then-void-return shape so an unrelated boolean
+     * read cannot match.
+     */
+    private static boolean detectShearableGate(@NotNull ClassNode layerCn) {
+        for (MethodNode method : layerCn.methods) {
+            if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name)) continue;
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                if (in.getOpcode() != Opcodes.GETFIELD) continue;
+                if (!(in instanceof FieldInsnNode get)) continue;
+                if (!"isSheared".equals(get.name) || !"Z".equals(get.desc)) continue;
+                AbstractInsnNode branch = AsmKit.nextReal(in);
+                if (branch == null || branch.getOpcode() != Opcodes.IFEQ) continue;
+                AbstractInsnNode body = AsmKit.nextReal(branch);
+                if (body != null && body.getOpcode() == Opcodes.RETURN) return true;
+            }
+        }
+        return false;
     }
 
     /**
