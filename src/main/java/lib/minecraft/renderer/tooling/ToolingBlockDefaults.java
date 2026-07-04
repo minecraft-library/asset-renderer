@@ -2,7 +2,6 @@ package lib.minecraft.renderer.tooling;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.exception.ToolingException;
 import lib.minecraft.renderer.pipeline.Pipeline;
@@ -10,6 +9,7 @@ import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockStateLoader;
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.util.ClassNodeCache;
+import lib.minecraft.renderer.tooling.util.ToolingJson;
 import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -68,7 +68,7 @@ public final class ToolingBlockDefaults {
     /**
      * Shared pretty-printing Gson carrying the renderer's registered type adapters.
      */
-    private static final @NotNull Gson PRETTY_GSON = GsonSettings.defaults().mutate().isPrettyPrint().isHtmlEscaping(false).build().create();
+    private static final @NotNull Gson PRETTY_GSON = ToolingJson.PRETTY;
 
     /**
      * Runs the generator.

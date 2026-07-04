@@ -6,8 +6,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
+import lib.minecraft.renderer.tooling.util.ToolingJson;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -48,11 +48,10 @@ public final class EntityFamilyJsonWriter {
         Path.of("src/main/resources/lib/minecraft/renderer/entity_models.json");
 
     /**
-     * Shared pretty-printing Gson, matching {@link EntityRuntimeJsonWriter}'s settings so both
-     * files format identically.
+     * Pretty-printing Gson - the shared {@link ToolingJson#PRETTY} so every tooling writer formats
+     * its output identically.
      */
-    private static final @NotNull Gson PRETTY_GSON =
-        GsonSettings.defaults().mutate().isPrettyPrint().isHtmlEscaping(false).build().create();
+    private static final @NotNull Gson PRETTY_GSON = ToolingJson.PRETTY;
 
     /**
      * Groups the flat entity tables that {@link EntityRuntimeJsonWriter} built in-memory into the

@@ -6,7 +6,6 @@ import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.exception.ToolingException;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
@@ -20,6 +19,7 @@ import lib.minecraft.renderer.tooling.blockentity.YAxis;
 import lib.minecraft.renderer.tooling.parser.GeometryParser;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lib.minecraft.renderer.tooling.util.JsonOptional;
+import lib.minecraft.renderer.tooling.util.ToolingJson;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -83,7 +83,7 @@ public final class ToolingBlockModels {
      * Shared Gson carrying the renderer's registered type adapters. Pretty-printing only affects
      * writes; reads are format-agnostic, so a single instance serves both parse and output.
      */
-    private static final @NotNull Gson PRETTY_GSON = GsonSettings.defaults().mutate().isPrettyPrint().isHtmlEscaping(false).build().create();
+    private static final @NotNull Gson PRETTY_GSON = ToolingJson.PRETTY;
 
     /**
      * Client-jar Minecraft version this generator targets; written to the JSON header for drift tracking.

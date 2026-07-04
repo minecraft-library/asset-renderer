@@ -5,13 +5,13 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.exception.ToolingException;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.loader.ColorMapLoader;
+import lib.minecraft.renderer.tooling.util.ToolingJson;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -45,7 +45,7 @@ public final class ToolingColorMaps {
     /**
      * Shared pretty-printing Gson carrying the renderer's registered type adapters.
      */
-    private static final @NotNull Gson PRETTY_GSON = GsonSettings.defaults().mutate().isPrettyPrint().isHtmlEscaping(false).build().create();
+    private static final @NotNull Gson PRETTY_GSON = ToolingJson.PRETTY;
 
     /**
      * Runs the generator.

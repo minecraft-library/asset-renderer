@@ -7,9 +7,9 @@ import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.pipeline.util.VanillaSourcePaths;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
+import lib.minecraft.renderer.tooling.util.ToolingJson;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -91,7 +91,7 @@ public final class EntityRuntimeJsonWriter {
     /**
      * Shared pretty-printing Gson carrying the renderer's registered type adapters.
      */
-    private static final @NotNull Gson PRETTY_GSON = GsonSettings.defaults().mutate().isPrettyPrint().isHtmlEscaping(false).build().create();
+    private static final @NotNull Gson PRETTY_GSON = ToolingJson.PRETTY;
 
     /**
      * Emits both runtime JSON files and returns the number of variant rows written (in addition
@@ -161,10 +161,7 @@ public final class EntityRuntimeJsonWriter {
             // CubeDeformation args (e.g. {@code DrownedModel.createBodyLayer(NONE)} for the body
             // vs {@code .createBodyLayer(0.25)} for the outer-layer overlay) gets distinct
             // geometry entries instead of collapsing onto a single inflate=0 row.
-            String factoryKey = res.targetClass() + "#" + res.targetMethod()
-                + (res.defaultInflate() != 0f ? "#inflate=" + res.defaultInflate() : "")
-                + (res.defaultFloatParam() != null ? "#fparam=" + res.defaultFloatParam() : "")
-                + (res.appliedMeshTransformerScale() != 1f ? "#appliedMT=" + res.appliedMeshTransformerScale() : "");
+            String factoryKey = factoryKey(res);
             String geometryId = factoryKeyToGeometryId.computeIfAbsent(factoryKey, k -> {
                 String simple = res.targetClass().substring(res.targetClass().lastIndexOf('/') + 1);
                 String entityName = stripModelSuffix(simple).toLowerCase(Locale.ROOT);
@@ -194,11 +191,7 @@ public final class EntityRuntimeJsonWriter {
             String entityId = entry.getKey();
             EntitySessionWalk.Result rec = entry.getValue();
             EntityLayerDefinitionResolver.Result res = entityToResolution.get(entityId);
-            String geometryId = res == null ? null : factoryKeyToGeometryId.get(
-                res.targetClass() + "#" + res.targetMethod()
-                + (res.defaultInflate() != 0f ? "#inflate=" + res.defaultInflate() : "")
-                + (res.defaultFloatParam() != null ? "#fparam=" + res.defaultFloatParam() : "")
-                + (res.appliedMeshTransformerScale() != 1f ? "#appliedMT=" + res.appliedMeshTransformerScale() : ""));
+            String geometryId = res == null ? null : factoryKeyToGeometryId.get(factoryKey(res));
             if (geometryId == null) continue;
 
             JsonObject row = new JsonObject();
@@ -258,10 +251,7 @@ public final class EntityRuntimeJsonWriter {
                         EntityLayerDefinitionResolver.Result overlayRes =
                             overlayFieldToResolution.get(desc.modelLayerField());
                         if (overlayRes == null) continue;
-                        String overlayFactoryKey = overlayRes.targetClass() + "#" + overlayRes.targetMethod()
-                            + (overlayRes.defaultInflate() != 0f ? "#inflate=" + overlayRes.defaultInflate() : "")
-                            + (overlayRes.defaultFloatParam() != null ? "#fparam=" + overlayRes.defaultFloatParam() : "")
-                            + (overlayRes.appliedMeshTransformerScale() != 1f ? "#appliedMT=" + overlayRes.appliedMeshTransformerScale() : "");
+                        String overlayFactoryKey = factoryKey(overlayRes);
                         overlayGeometryId = factoryKeyToGeometryId.get(overlayFactoryKey);
                         if (overlayGeometryId == null) continue;
                     }
@@ -356,10 +346,7 @@ public final class EntityRuntimeJsonWriter {
                 String variantGeometryId = geometryId;
                 EntityLayerDefinitionResolver.Result variantRes = entityToResolution.get(variantEntityId);
                 if (variantRes != null) {
-                    String variantFactoryKey = variantRes.targetClass() + "#" + variantRes.targetMethod()
-                        + (variantRes.defaultInflate() != 0f ? "#inflate=" + variantRes.defaultInflate() : "")
-                        + (variantRes.defaultFloatParam() != null ? "#fparam=" + variantRes.defaultFloatParam() : "")
-                        + (variantRes.appliedMeshTransformerScale() != 1f ? "#appliedMT=" + variantRes.appliedMeshTransformerScale() : "");
+                    String variantFactoryKey = factoryKey(variantRes);
                     String resolvedVariant = factoryKeyToGeometryId.get(variantFactoryKey);
                     if (resolvedVariant != null) variantGeometryId = resolvedVariant;
                 }

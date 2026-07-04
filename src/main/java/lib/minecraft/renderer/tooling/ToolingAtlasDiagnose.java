@@ -3,8 +3,8 @@ package lib.minecraft.renderer.tooling;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.exception.ToolingException;
+import lib.minecraft.renderer.tooling.util.ToolingJson;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -60,7 +60,7 @@ public final class ToolingAtlasDiagnose {
      * Shared Gson carrying the renderer's registered type adapters. Pretty-printing only affects
      * writes; reads are format-agnostic, so a single instance serves both parse and output.
      */
-    private static final @NotNull Gson PRETTY_GSON = GsonSettings.defaults().mutate().isPrettyPrint().build().create();
+    private static final @NotNull Gson PRETTY_GSON = ToolingJson.PRETTY_HTML_SAFE;
 
     /**
      * How often to emit a progress dot while slicing tiles.
