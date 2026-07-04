@@ -321,13 +321,16 @@ public final class EntityRuntimeJsonWriter {
             // bone_toggles - the subset of the hidden bones that a render option can un-hide
             // (donkey/mule/llama chest, gated on state.hasChest). Additive metadata: the same bones
             // stay stripped by hidden_bones above, so the default render is unchanged.
-            Map<String, List<String>> boneToggles = EntityBoneResolver.resolveBoneToggles(context.classNodes(), res.targetClass(), diagnostics);
+            Map<String, EntityBoneResolver.BoneToggle> boneToggles = EntityBoneResolver.resolveBoneToggles(context.classNodes(), res.targetClass(), diagnostics);
             if (!boneToggles.isEmpty()) {
                 JsonObject togglesJson = new JsonObject();
-                for (Map.Entry<String, List<String>> toggle : boneToggles.entrySet()) {
+                for (Map.Entry<String, EntityBoneResolver.BoneToggle> toggle : boneToggles.entrySet()) {
                     JsonArray bones = new JsonArray();
-                    for (String bone : toggle.getValue()) bones.add(bone);
-                    togglesJson.add(toggle.getKey(), bones);
+                    for (String bone : toggle.getValue().bones()) bones.add(bone);
+                    JsonObject toggleObj = new JsonObject();
+                    toggleObj.add("bones", bones);
+                    toggleObj.addProperty("default", toggle.getValue().defaultVisible());
+                    togglesJson.add(toggle.getKey(), toggleObj);
                 }
                 row.add("bone_toggles", togglesJson);
             }

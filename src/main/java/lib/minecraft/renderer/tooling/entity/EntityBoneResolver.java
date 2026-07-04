@@ -160,26 +160,35 @@ public final class EntityBoneResolver {
     }
 
     /**
-     * Returns the entity's {@code bone_toggles} map (toggle name -&gt; bone names) - the subset of
-     * state-equipment-gated hidden bones ({@code bone.visible = state.hasChest}) grouped by their
-     * gating flag, so a render option can un-hide them. This is <b>additive</b> to
-     * {@link #resolveHiddenBones}: the same bones stay in {@code hidden_bones} (stripped by default,
-     * keeping the render byte-identical), and this map only tells the loader which of those hidden
-     * bones a named toggle can reveal. The flag becomes the toggle name ({@code hasChest} -&gt;
-     * {@code "chest"}) and each gated model field becomes its geometry bone name
-     * ({@code rightChest} -&gt; {@code right_chest}).
+     * Returns the entity's {@code bone_toggles} - toggle name -&gt; {@link BoneToggle} (the bones a
+     * render option flips plus their default visibility). Two gate shapes feed it:
+     *
+     * <ul>
+     *   <li><b>Field-gated</b> {@code this.<field>.visible = state.hasChest} (donkey/mule/llama chest).
+     *       These bones are hidden by default (they also appear in {@code hidden_bones}), so the toggle
+     *       REVEALS them - {@code defaultVisible = false}.</li>
+     *   <li><b>Inline-gated</b> {@code root.getChild("<bone>").visible = state.has<X>} (goat horns).
+     *       These are NOT added to {@code hidden_bones} - vanilla renders them by default (the goat
+     *       reference shows horns), so the toggle HIDES them - {@code defaultVisible = true}. Left/right
+     *       pairs group under a shared stem ({@code left_horn}+{@code right_horn} -&gt; {@code "horn"}).</li>
+     * </ul>
+     *
+     * <p>Additive to {@link #resolveHiddenBones}: field-gated bones stay in {@code hidden_bones} and
+     * inline-gated bones stay visible, so the default render is byte-identical; this map only names
+     * which bones a toggle flips and from what default. The loader flips them at render.
      *
      * @param classNodes the ClassNode cache (shared with sibling resolver walks)
      * @param modelClassInternal the model class's JVM internal name
      * @param diag the diagnostic sink for bone-toggle INFO traces
-     * @return toggle name -&gt; bone names, in insertion order; empty when no state-gated bones exist
+     * @return toggle name -&gt; {@link BoneToggle}, insertion order; empty when no gated bones exist
      */
-    public static @NotNull Map<String, List<String>> resolveBoneToggles(
+    public static @NotNull Map<String, BoneToggle> resolveBoneToggles(
         @NotNull ClassNodeCache classNodes,
         @NotNull String modelClassInternal,
         @NotNull Diagnostics diag
     ) {
-        LinkedHashMap<String, LinkedHashSet<String>> flagToFields = new LinkedHashMap<>();
+        LinkedHashMap<String, LinkedHashSet<String>> fieldGated = new LinkedHashMap<>();
+        LinkedHashSet<String> inlineBones = new LinkedHashSet<>();
         LinkedHashMap<String, String> fieldToBoneName = new LinkedHashMap<>();
         String current = modelClassInternal;
         while (current != null && !current.equals(VanillaSourceClasses.ENTITY_MODEL) && !current.equals(AsmKit.OBJECT_INTERNAL)) {
@@ -189,21 +198,39 @@ public final class EntityBoneResolver {
             if (ctor != null) collectFieldToBoneNameMap(cn, ctor, fieldToBoneName);
             for (MethodNode method : cn.methods) {
                 if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name)) continue;
-                collectStateGatedToggles(cn, method, flagToFields);
+                collectStateGatedToggles(cn, method, fieldGated);
+                collectInlineGatedToggles(cn, method, inlineBones);
             }
             current = cn.superName;
         }
-        if (flagToFields.isEmpty()) return Map.of();
 
-        LinkedHashMap<String, List<String>> toggles = new LinkedHashMap<>();
-        for (Map.Entry<String, LinkedHashSet<String>> entry : flagToFields.entrySet()) {
+        LinkedHashMap<String, BoneToggle> toggles = new LinkedHashMap<>();
+        // Field-gated (chest): hidden by default - the toggle reveals.
+        for (Map.Entry<String, LinkedHashSet<String>> entry : fieldGated.entrySet()) {
             List<String> bones = new ArrayList<>();
             for (String field : entry.getValue()) bones.add(fieldToBoneName.getOrDefault(field, field));
-            toggles.put(flagToToggleName(entry.getKey()), bones);
+            toggles.put(flagToToggleName(entry.getKey()), new BoneToggle(bones, false));
         }
-        diag.info("bone-toggles: '%s' -> %s", modelClassInternal, toggles);
+        // Inline-gated (goat horns): visible by default - the toggle hides. Group left/right pairs.
+        LinkedHashMap<String, List<String>> inlineGroups = new LinkedHashMap<>();
+        for (String bone : inlineBones)
+            inlineGroups.computeIfAbsent(stripLeftRight(bone), key -> new ArrayList<>()).add(bone);
+        for (Map.Entry<String, List<String>> entry : inlineGroups.entrySet())
+            toggles.putIfAbsent(entry.getKey(), new BoneToggle(entry.getValue(), true));
+
+        if (!toggles.isEmpty()) diag.info("bone-toggles: '%s' -> %s", modelClassInternal, toggles);
         return toggles;
     }
+
+    /**
+     * A named bone-visibility toggle: the geometry bones it flips and their default visibility. A
+     * {@code defaultVisible = false} toggle (donkey chest) reveals its bones when active; a
+     * {@code defaultVisible = true} toggle (goat horns) hides them.
+     *
+     * @param bones the geometry bone names the toggle flips
+     * @param defaultVisible whether the bones render by default (true = toggle hides; false = toggle reveals)
+     */
+    public record BoneToggle(@NotNull List<String> bones, boolean defaultVisible) {}
 
     /**
      * State-equipment visibility pattern {@code bone.visible = state.hasChest}, recording each gating
@@ -235,6 +262,55 @@ public final class EntityBoneResolver {
             if (!owner.name.equals(get.owner)) continue;
             out.computeIfAbsent(flagGet.name, key -> new LinkedHashSet<>()).add(get.name);
         }
+    }
+
+    /**
+     * Inline-{@code getChild} visibility pattern {@code root.getChild("<bone>").visible = state.has<X>}
+     * (goat horns), recording each gated bone name. The visibility target is a
+     * {@code getChild(LDC)} result rather than a cached {@code this.<field>}, so this does not
+     * double-match the field-gated {@link #collectStateGatedToggles} (whose target is a
+     * {@code GETFIELD} on the model). Matched sequence, reading backwards from the write:
+     *
+     * <pre>{@code
+     *   LDC       "<bone>"                        // the getChild argument = geometry bone name
+     *   INVOKEVIRTUAL ModelPart.getChild          // the bone ModelPart being gated
+     *   ALOAD     <n>                             // the state arg (var != 0)
+     *   GETFIELD  <StateClass>.has<X> : Z         // the state flag (not owned by the model)
+     *   PUTFIELD  ModelPart.visible : Z
+     * }</pre>
+     */
+    private static void collectInlineGatedToggles(@NotNull ClassNode owner, @NotNull MethodNode method, @NotNull Set<String> out) {
+        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (in.getOpcode() != Opcodes.PUTFIELD) continue;
+            if (!(in instanceof FieldInsnNode put)) continue;
+            if (!VanillaSourceClasses.MODEL_PART.equals(put.owner)) continue;
+            if (!"visible".equals(put.name) || !MODEL_PART_VISIBLE_DESC.equals(put.desc)) continue;
+            AbstractInsnNode valueInsn = AsmKit.previousReal(in);
+            if (valueInsn == null || valueInsn.getOpcode() != Opcodes.GETFIELD) continue;
+            if (!(valueInsn instanceof FieldInsnNode flagGet)) continue;
+            if (!"Z".equals(flagGet.desc) || owner.name.equals(flagGet.owner)) continue;
+            if (!flagGet.name.startsWith("has") && !flagGet.name.startsWith("is")) continue;
+            AbstractInsnNode stateLoad = AsmKit.previousReal(valueInsn);
+            if (stateLoad == null || stateLoad.getOpcode() != Opcodes.ALOAD) continue;
+            if (!(stateLoad instanceof VarInsnNode varLoad) || varLoad.var == 0) continue;
+            AbstractInsnNode childCall = AsmKit.previousReal(stateLoad);
+            if (childCall == null || childCall.getOpcode() != Opcodes.INVOKEVIRTUAL) continue;
+            if (!(childCall instanceof MethodInsnNode mi) || !"getChild".equals(mi.name)) continue;
+            if (mi.desc == null || !mi.desc.endsWith(")L" + VanillaSourceClasses.MODEL_PART + ";")) continue;
+            String boneName = AsmKit.readStringLiteral(AsmKit.previousReal(childCall));
+            if (boneName != null) out.add(boneName);
+        }
+    }
+
+    /**
+     * Strips a leading {@code left_}/{@code right_} from a bone name to get the shared toggle stem
+     * ({@code left_horn} -&gt; {@code "horn"}), so a symmetric pair flips under one toggle. Names with
+     * no such prefix pass through unchanged.
+     */
+    private static @NotNull String stripLeftRight(@NotNull String bone) {
+        if (bone.startsWith("left_")) return bone.substring("left_".length());
+        if (bone.startsWith("right_")) return bone.substring("right_".length());
+        return bone;
     }
 
     /**

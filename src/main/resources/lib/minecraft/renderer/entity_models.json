@@ -421,10 +421,13 @@
         "right_chest"
       ],
       "bone_toggles": {
-        "chest": [
-          "left_chest",
-          "right_chest"
-        ]
+        "chest": {
+          "bones": [
+            "left_chest",
+            "right_chest"
+          ],
+          "default": false
+        }
       }
     },
     "minecraft:drowned": {
@@ -574,6 +577,15 @@
       "geometry_ref": "geometry.goat",
       "armor_type": "none",
       "texture_ref": "goat/goat",
+      "bone_toggles": {
+        "horn": {
+          "bones": [
+            "left_horn",
+            "right_horn"
+          ],
+          "default": true
+        }
+      },
       "axes": {
         "age": {
           "default": "adult",
@@ -674,10 +686,13 @@
         "left_chest"
       ],
       "bone_toggles": {
-        "chest": [
-          "right_chest",
-          "left_chest"
-        ]
+        "chest": {
+          "bones": [
+            "right_chest",
+            "left_chest"
+          ],
+          "default": false
+        }
       }
     },
     "minecraft:magma_cube": {
@@ -809,10 +824,13 @@
         "right_chest"
       ],
       "bone_toggles": {
-        "chest": [
-          "left_chest",
-          "right_chest"
-        ]
+        "chest": {
+          "bones": [
+            "left_chest",
+            "right_chest"
+          ],
+          "default": false
+        }
       }
     },
     "minecraft:nautilus": {
@@ -1193,10 +1211,13 @@
         "left_chest"
       ],
       "bone_toggles": {
-        "chest": [
-          "right_chest",
-          "left_chest"
-        ]
+        "chest": {
+          "bones": [
+            "right_chest",
+            "left_chest"
+          ],
+          "default": false
+        }
       },
       "overlays": [
         {

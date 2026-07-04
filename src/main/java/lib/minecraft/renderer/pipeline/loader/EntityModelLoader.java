@@ -115,11 +115,11 @@ public class EntityModelLoader {
      * @param babyModel the distinct baked baby mesh, used in place of {@link #model} when
      *     {@code EntityAppearance.age} selects {@code baby}. Present only in the family form
      *     for ageable entities with a dedicated {@code Baby<X>Model}; empty otherwise
-     * @param boneToggles named bone-visibility toggles (toggle name -&gt; boneName -&gt; the hidden
-     *     {@code Bone}), un-hidden at render when {@code EntityAppearance.toggles} selects the
-     *     toggle (donkey/mule/llama {@code chest}). The bones are stripped from {@link #model} by
-     *     default (so the default render is unchanged) and re-inserted by {@link #resolveFor}; empty
-     *     for entities with no toggleable bones
+     * @param boneToggles named bone-visibility toggles (toggle name -&gt; {@link BoneToggle}), flipped
+     *     at render when {@code EntityAppearance.toggles} selects the toggle: a default-hidden toggle
+     *     (donkey/mule/llama {@code chest}) re-adds its bones, a default-visible toggle (goat
+     *     {@code horn}) removes them. The default render is unchanged (chest stripped, horns present);
+     *     empty for entities with no toggleable bones
      */
     @Builder(toBuilder = true)
     public record EntityDefinition(
@@ -133,7 +133,7 @@ public class EntityModelLoader {
         @NotNull Map<String, String> stateTextures,
         @NotNull Optional<String> collarTexture,
         @NotNull Optional<EntityModelData> babyModel,
-        @NotNull Map<String, Map<String, EntityModelData.Bone>> boneToggles
+        @NotNull Map<String, BoneToggle> boneToggles
     ) {
         /**
          * Returns a copy with no {@link #blockOverlays() block overlays}, for the {@code carried}
@@ -166,10 +166,10 @@ public class EntityModelLoader {
                 // geometry and its canvas-bounds contribution.
                 if (appearance.isSheared())
                     builder.overlays(this.overlays.stream().filter(overlay -> !overlay.shearable()).toList());
-                // Selected bone toggles un-hide their bones (donkey/mule/llama chest). Guarded to the
-                // non-baby path - the baby mesh has its own bones and no adult chest to reveal.
-                EntityModelData revealed = revealToggledBones(appearance.getToggles());
-                if (revealed != null) builder.model(revealed);
+                // Selected bone toggles flip their bones' visibility (donkey/mule/llama chest reveal,
+                // goat horns hide). Guarded to the non-baby path - the baby mesh has its own bones.
+                EntityModelData toggled = applyBoneToggles(appearance.getToggles());
+                if (toggled != null) builder.model(toggled);
             }
             if (appearance.dropsCarried())
                 builder.blockOverlays(List.of());
@@ -178,22 +178,26 @@ public class EntityModelLoader {
 
         /**
          * Rebuilds {@link #model} with the appearance's selected {@link #boneToggles bone toggles}
-         * un-hidden, or {@code null} when no selected toggle applies (leaving the default model). The
-         * revealed bones are appended to the default bone map; their parents are already present, so
-         * the kit resolves them by name. The rebuilt model grows the canvas bounds automatically (the
-         * bounds walk reads the resolved model).
+         * flipped, or {@code null} when no selected toggle applies (leaving the default model). A
+         * default-hidden toggle re-adds its bones (chest); a default-visible toggle removes them
+         * (goat horns). Re-added bones' parents are already present, so the kit resolves them by name;
+         * the rebuilt model grows/shrinks the canvas bounds automatically (the bounds walk reads the
+         * resolved model).
          *
          * @param toggles the appearance's selected toggle names
-         * @return the model with the selected toggle bones revealed, or {@code null} when none apply
+         * @return the model with the selected toggle bones flipped, or {@code null} when none apply
          */
-        private @Nullable EntityModelData revealToggledBones(@NotNull Set<String> toggles) {
+        private @Nullable EntityModelData applyBoneToggles(@NotNull Set<String> toggles) {
             if (toggles.isEmpty() || this.boneToggles.isEmpty()) return null;
             LinkedHashMap<String, EntityModelData.Bone> bones = null;
             for (String toggle : toggles) {
-                Map<String, EntityModelData.Bone> revealed = this.boneToggles.get(toggle);
-                if (revealed == null || revealed.isEmpty()) continue;
+                BoneToggle spec = this.boneToggles.get(toggle);
+                if (spec == null || spec.bones().isEmpty()) continue;
                 if (bones == null) bones = new LinkedHashMap<>(this.model.getBones());
-                bones.putAll(revealed);
+                if (spec.defaultVisible())
+                    spec.bones().keySet().forEach(bones::remove);
+                else
+                    bones.putAll(spec.bones());
             }
             if (bones == null) return null;
             return new EntityModelData(
@@ -503,7 +507,7 @@ public class EntityModelLoader {
             // hidden-bones strip below, so resolveFor can re-insert them when a render option selects
             // the toggle (donkey/mule/llama chest). The bones also appear in hidden_bones and are
             // stripped just below, so the default model - and its render - stay byte-identical.
-            Map<String, Map<String, EntityModelData.Bone>> boneToggles =
+            Map<String, BoneToggle> boneToggles =
                 entityJson.has("bone_toggles") && entityJson.get("bone_toggles").isJsonObject()
                     ? loadBoneToggles(entityJson.getAsJsonObject("bone_toggles"), baseModel, entityId)
                     : Map.of();
@@ -560,27 +564,45 @@ public class EntityModelLoader {
     }
 
     /**
-     * Resolves a {@code bone_toggles} JSON object ({@code toggle -> [boneName, ...]}) into
-     * {@code toggle -> (boneName -> Bone)}, pulling each named bone's {@link EntityModelData.Bone}
-     * from the {@code fullModel} (the geometry BEFORE the {@code hidden_bones} strip, so the toggle
-     * bones are still present). A named bone absent from the geometry logs a warning and drops;
-     * a toggle left with no resolvable bones is omitted.
+     * A named bone-visibility toggle resolved at load: the geometry {@link EntityModelData.Bone bones}
+     * it flips (kept by name so {@link EntityDefinition#resolveFor} can add or remove them) plus their
+     * default visibility. {@code defaultVisible = false} (donkey chest) - the bones are stripped from
+     * the default model and the toggle re-adds them; {@code defaultVisible = true} (goat horns) - the
+     * bones render by default and the toggle removes them.
+     *
+     * @param bones the toggle's bones keyed by name
+     * @param defaultVisible whether the bones render by default (true = toggle hides; false = toggle reveals)
+     */
+    public record BoneToggle(
+        @NotNull Map<String, EntityModelData.Bone> bones,
+        boolean defaultVisible
+    ) {}
+
+    /**
+     * Resolves a {@code bone_toggles} JSON object ({@code toggle -> {bones:[...], default:<bool>}})
+     * into {@code toggle -> }{@link BoneToggle}, pulling each named bone's {@link EntityModelData.Bone}
+     * from the {@code fullModel} (the geometry BEFORE the {@code hidden_bones} strip, so a
+     * default-hidden toggle's bones are still present to re-add). A named bone absent from the
+     * geometry logs a warning and drops; a toggle left with no resolvable bones is omitted.
      *
      * @param toggles the {@code bone_toggles} object
      * @param fullModel the full (pre-strip) geometry the toggle bones live on
      * @param entityId the owning entity id, for warnings
-     * @return toggle name -&gt; (boneName -&gt; Bone), empty when nothing resolves
+     * @return toggle name -&gt; {@link BoneToggle}, empty when nothing resolves
      */
-    private static @NotNull Map<String, Map<String, EntityModelData.Bone>> loadBoneToggles(
+    private static @NotNull Map<String, BoneToggle> loadBoneToggles(
         @NotNull JsonObject toggles,
         @NotNull EntityModelData fullModel,
         @NotNull String entityId
     ) {
-        Map<String, Map<String, EntityModelData.Bone>> out = new LinkedHashMap<>();
+        Map<String, BoneToggle> out = new LinkedHashMap<>();
         for (Map.Entry<String, JsonElement> entry : toggles.entrySet()) {
-            if (!entry.getValue().isJsonArray()) continue;
+            if (!entry.getValue().isJsonObject()) continue;
+            JsonObject spec = entry.getValue().getAsJsonObject();
+            if (!spec.has("bones") || !spec.get("bones").isJsonArray()) continue;
+            boolean defaultVisible = spec.has("default") && spec.get("default").getAsBoolean();
             LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>();
-            for (JsonElement element : entry.getValue().getAsJsonArray()) {
+            for (JsonElement element : spec.getAsJsonArray("bones")) {
                 if (!element.isJsonPrimitive()) continue;
                 String boneName = element.getAsString();
                 EntityModelData.Bone bone = fullModel.getBones().get(boneName);
@@ -591,7 +613,7 @@ public class EntityModelLoader {
                 }
                 bones.put(boneName, bone);
             }
-            if (!bones.isEmpty()) out.put(entry.getKey(), bones);
+            if (!bones.isEmpty()) out.put(entry.getKey(), new BoneToggle(bones, defaultVisible));
         }
         return out;
     }
