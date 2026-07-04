@@ -217,7 +217,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 // that vanilla's BlockEntityRenderer poses around the mesh - the render-time
                 // counterpart of the former BlockModelConverter tooling bake. This replaces the
                 // whole primary model (a non-additive entity's geometry IS the primary geometry).
-                if (be != null && be.boneModel().isPresent()) {
+                // Additive bone entities (bell) keep their blockstate model as the primary and merge
+                // the bone body in the ADDITIVE slot below, so they skip this dispatch.
+                if (be != null && !be.additive() && be.boneModel().isPresent()) {
                     sink.addAll(buildFromBoneEntity(be, tint));
                     return;
                 }
@@ -533,6 +535,10 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * replacing it.
          */
         private @NotNull ConcurrentList<VisibleTriangle> buildFromAdditiveEntity(@NotNull Block.Entity entity, int tint, int untintedTint) {
+            // Bone-format additive body (bell): same hierarchical build + presentation as a primary
+            // bone entity, just contributed as an overlay onto the blockstate model.
+            if (entity.boneModel().isPresent())
+                return buildFromBoneEntity(entity, tint);
             RasterEngine raster = new RasterEngine(this.context);
             ConcurrentMap<String, String> variables = Concurrent.newMap();
             variables.put("entity", entity.textureId());
