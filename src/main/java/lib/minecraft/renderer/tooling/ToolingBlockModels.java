@@ -124,7 +124,8 @@ public final class ToolingBlockModels {
         "minecraft:skull_head",
         "minecraft:skull_humanoid_head",
         "minecraft:skull_piglin_head",
-        "minecraft:shulker_box"
+        "minecraft:shulker_box",
+        "minecraft:copper_golem_statue"
         // skull_dragon_head DEFERRED: only skull with a non-1 bone scale (0.75) on a parent chain
         // (jaw->head); buildFromBones vs the old element bbox diverges (parent-scale propagation).
     );

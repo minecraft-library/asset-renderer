@@ -259,12 +259,18 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 layer.contribute(triangles);
 
             // Block entity multi-block models (beds) need recentering + rotation + scaling
-            // since they extend beyond the standard 0-16 single-block bounds.
-            if (be != null && (be.multiBlock() || be.iconRotation() != 0)) {
+            // since they extend beyond the standard 0-16 single-block bounds. Bone-format BEs
+            // always run recenterAndFit: their model geometry (empty elements) can't be measured
+            // by the loader's element-bbox multiBlock check, and recenterAndFit self-gates on
+            // extent > 1.4 blocks, so it is a no-op for the block-sized families (chest, sign,
+            // shulker, ...) and only recentres a tall/wide statue (copper_golem_statue, whose model
+            // is authored X-centred at 0 and Y up to ~24px, off the single-block frame).
+            boolean recenterFit = be != null && (be.multiBlock() || be.boneModel().isPresent());
+            if (be != null && (recenterFit || be.iconRotation() != 0)) {
                 if (be.iconRotation() != 0)
                     triangles = applyRotation(triangles, Matrix4f.createRotationY(
                         (float) Math.toRadians(be.iconRotation())));
-                if (be.multiBlock())
+                if (recenterFit)
                     triangles = recenterAndFit(triangles);
             }
 
