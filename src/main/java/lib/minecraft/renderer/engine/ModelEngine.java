@@ -52,7 +52,7 @@ import java.util.stream.IntStream;
  * functions with a {@code 1/256} fixed-point sample and an OpenGL top-left fill rule
  * (see {@link RasterMath}). Fragments are depth-tested ({@link #depthFails}, vanilla
  * {@code GL_LEQUAL}), texture-sampled, tinted ({@link BlendMode#MULTIPLY}), shaded
- * ({@link Shading}), and composited with the {@link #selectBlendMode selected blend mode}.
+ * ({@link Shading}), and composited with the {@link BlendMode#NORMAL normal alpha blend}.
  *
  * <p><b>Back-face culling</b> uses a signed screen-space winding test after projection
  * ({@link #isBackFacing}), which is robust against camera and model rotations and does not depend
@@ -771,7 +771,12 @@ public class ModelEngine {
                     int afterShade = tr.emissive()
                         ? afterTint
                         : Shading.apply(afterTint, shading);
-                    BlendMode blendMode = selectBlendMode(tr.emissive());
+                    // Both emissive and non-emissive overlays composite with NORMAL (source-over
+                    // alpha), matching vanilla's TRANSLUCENT blend - NOT additive. The emissive path
+                    // differs only in the skipped shade (above) + strict-LT depth (see depthFails),
+                    // not the colour composition. (An earlier ADD produced enderman eye
+                    // (255,144,255) vs vanilla's pure (204,0,250).)
+                    BlendMode blendMode = BlendMode.NORMAL;
 
                     int outArgb = ColorMath.blend(afterShade, buffer.getPixel(px, py), blendMode);
                     buffer.setPixel(px, py, outArgb);
@@ -901,32 +906,6 @@ public class ModelEngine {
         if (SUBPIXEL_PRECISION <= 0f) return v;
         return new Vector2f(Math.round(v.x() * SUBPIXEL_PRECISION) * SUBPIXEL_INV,
                             Math.round(v.y() * SUBPIXEL_PRECISION) * SUBPIXEL_INV);
-    }
-
-    /**
-     * Picks the destination-blend mode for a fragment based on the source triangle's emissive
-     * flag.
-     * <p>
-     * Both emissive and non-emissive overlays use {@link BlendMode#NORMAL} - the source-over
-     * alpha blend, which at the {@code alpha == 255} cutout-texture-edge case collapses to a
-     * straight REPLACE of the destination pixel. This matches vanilla's
-     * {@code RenderPipelines.EYES} which composes with {@code BlendFunction.TRANSLUCENT}
-     * ({@code glBlendFunc(SRC_ALPHA, ONE_MINUS_SRC_ALPHA)}) - not additive. The emissive
-     * differentiator is the {@code EMISSIVE} + {@code NO_CARDINAL_LIGHTING} shader define
-     * (the caller skips {@code apply} for emissive triangles) plus the strict-LT depth
-     * test in {@link #depthFails} - the actual color composition is the same alpha-blend as
-     * any other entity layer. Earlier revisions used {@link BlendMode#ADD} for emissive on the
-     * assumption that {@code RenderType.eyes} was additive; sampling the rendered eye pixels
-     * vs vanilla showed Java was producing {@code lit_skin + eye_texel} (e.g. enderman
-     * {@code (255,144,255)} vs vanilla's pure {@code (204,0,250)}), confirming that vanilla
-     * is replacing the base pixel rather than adding to it.
-     *
-     * @param emissive ignored - kept for call-site clarity until the parameter is removed
-     * @return {@link BlendMode#NORMAL}
-     */
-    @SuppressWarnings("unused")
-    private static @NotNull BlendMode selectBlendMode(boolean emissive) {
-        return BlendMode.NORMAL;
     }
 
     /**

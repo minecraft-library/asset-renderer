@@ -312,11 +312,10 @@ public class EntityGeometryKit {
                 boolean cubeIsTranslucent = !cubeCullBackFaces
                     && uvPartialAlphaPresent(cube, size, texture, texW, texH);
 
-                Matrix4f perCubeChain = perCubeChainFluent;
                 for (EntityFace face : EntityFace.CACHED_VALUES) {
                     Vector3f[] corners = face.corners(cubeBounds);
                     for (int i = 0; i < 4; i++) {
-                        Vector3f transformed = corners[i].transform(perCubeChain);
+                        Vector3f transformed = corners[i].transform(perCubeChainFluent);
                         float nx = transformed.x();
                         float ny = transformed.y();
                         float nz = transformed.z();
@@ -344,7 +343,7 @@ public class EntityGeometryKit {
                     if (isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)) continue;
 
                     Vector2f[] effUv = BoneKit.resolvePolygonUv(face, cube, size, texW, texH);
-                    float shading = computeFaceShading(shadingNormal, isPlaneCube, cubeCullBackFaces);
+                    float shading = computeFaceShading(shadingNormal, cubeCullBackFaces);
 
                     // Natural CCW emission {@code (0, 1, 2)} and {@code (0, 2, 3)}. The kit itself
                     // is det=+1 (emit-order cross AGREES with the stored normal); the chirality
@@ -956,13 +955,11 @@ public class EntityGeometryKit {
      * chicken_cold and chicken_warm without regressing skeleton_horse.
      *
      * @param normal the post-flip kit-frame outward face normal
-     * @param isPlaneCube unused as of the chicken-family fix; retained for call-site clarity
      * @param cubeCullBackFaces the cube's effective back-face culling flag
      * @return the shade factor in {@code [0.4, 1.0]}
      */
     private static float computeFaceShading(
         @NotNull Vector3f normal,
-        @SuppressWarnings("unused") boolean isPlaneCube,
         boolean cubeCullBackFaces
     ) {
         if (cubeCullBackFaces)

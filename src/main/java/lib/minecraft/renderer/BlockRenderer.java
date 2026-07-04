@@ -262,7 +262,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // the primary model; non-additive entity geometry IS the primary model already.
             if (be != null && options.isMergeParts()) {
                 if (be.additive())
-                    stack.append(BlockOptions.Slot.ADDITIVE_ENTITY, sink -> sink.addAll(buildFromAdditiveEntity(be, tint)));
+                    stack.append(BlockOptions.Slot.ADDITIVE_ENTITY, sink -> sink.addAll(buildFromBoneModel(be.boneModel(), be.textureId(), tint)));
                 if (!be.parts().isEmpty())
                     stack.append(BlockOptions.Slot.PARTS, sink -> sink.addAll(buildFromEntityParts(be, tint)));
             }
@@ -465,21 +465,6 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         }
 
         /**
-         * Builds triangles for a bone-format block entity (chest) from its relative bone/cube tree
-         * via {@link BlockGeometryKit#buildFromBones}, applying the presentation transform that
-         * reproduces vanilla's {@code BlockEntityRenderer} pose (the render-time counterpart of the
-         * former {@code BlockModelConverter} tooling bake). The single entity texture is resolved at
-         * frame 0 and sampled by every cube face.
-         *
-         * @param entity the bone-format block entity (its {@link Block.Entity#boneModel()} must be present)
-         * @param tint the ARGB tint applied to every face ({@link ColorMath#WHITE} for untinted chests)
-         * @return the composed block-frame triangle list
-         */
-        private @NotNull ConcurrentList<VisibleTriangle> buildFromBoneEntity(@NotNull Block.Entity entity, int tint) {
-            return buildFromBoneModel(entity.boneModel(), entity.textureId(), tint);
-        }
-
-        /**
          * Builds triangles from a specific bone-format geometry + presentation, sampling the given
          * entity texture. Shared by the primary bone entity, its state-conditional bone variant
          * (the ceiling hanging sign's straight-chain mesh), the bone parts, and the additive bone
@@ -497,19 +482,6 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // an untinted model (the banner post's wood) samples its texture raw.
             int faceTint = bone.tinted() ? tint : ColorMath.WHITE;
             return BlockGeometryKit.buildFromBones(bone.model(), texture, faceTint, bone.presentation());
-        }
-
-        /**
-         * Builds triangles for an {@linkplain Block.Entity#additive() additive} entity's primary
-         * model and binds its {@link Block.Entity#textureId()} to the {@code "#entity"} face
-         * variable. Used by bells (and any future overlay-style block entity) where the entity
-         * geometry merges on top of an existing blockstate-resolved primary model rather than
-         * replacing it.
-         */
-        private @NotNull ConcurrentList<VisibleTriangle> buildFromAdditiveEntity(@NotNull Block.Entity entity, int tint) {
-            // Additive bone body (bell): same hierarchical build + presentation as a primary bone
-            // entity, just contributed as an overlay onto the blockstate model.
-            return buildFromBoneEntity(entity, tint);
         }
 
         /**

@@ -612,54 +612,7 @@ public class BlockGeometryKit {
         addQuad(out,
             topLeft, bottomLeft, bottomRight, topRight,
             new Vector2f(0f, 0f), new Vector2f(0f, 1f), new Vector2f(1f, 1f), new Vector2f(1f, 0f),
-            texture, tintArgb, normal, glinted);
-    }
-
-    /**
-     * Adds two triangles describing a quad with explicit UV corners. The vertex and UV order
-     * follow the same CCW (top-left, bottom-left, bottom-right, top-right) convention as the
-     * no-UV overload, matching vanilla's {@code FaceInfo} vertex order.
-     */
-    private static void addQuad(
-        @NotNull ConcurrentList<VisibleTriangle> out,
-        @NotNull Vector3f topLeft,
-        @NotNull Vector3f bottomLeft,
-        @NotNull Vector3f bottomRight,
-        @NotNull Vector3f topRight,
-        @NotNull Vector2f uvTL,
-        @NotNull Vector2f uvBL,
-        @NotNull Vector2f uvBR,
-        @NotNull Vector2f uvTR,
-        @NotNull PixelBuffer texture,
-        int tintArgb,
-        @NotNull Vector3f normal,
-        boolean glinted
-    ) {
-        addQuad(out, topLeft, bottomLeft, bottomRight, topRight, uvTL, uvBL, uvBR, uvTR, texture, tintArgb, normal, true, glinted);
-    }
-
-    /**
-     * Adds a quad with explicit UV corners and an explicit back-face cull flag, defaulting to
-     * opaque ({@code translucent == false}) and directional ({@code directionalLight == true})
-     * shading. Delegates to the terminal overload.
-     */
-    private static void addQuad(
-        @NotNull ConcurrentList<VisibleTriangle> out,
-        @NotNull Vector3f topLeft,
-        @NotNull Vector3f bottomLeft,
-        @NotNull Vector3f bottomRight,
-        @NotNull Vector3f topRight,
-        @NotNull Vector2f uvTL,
-        @NotNull Vector2f uvBL,
-        @NotNull Vector2f uvBR,
-        @NotNull Vector2f uvTR,
-        @NotNull PixelBuffer texture,
-        int tintArgb,
-        @NotNull Vector3f normal,
-        boolean cullBackFaces,
-        boolean glinted
-    ) {
-        addQuad(out, topLeft, bottomLeft, bottomRight, topRight, uvTL, uvBL, uvBR, uvTR, texture, tintArgb, normal, cullBackFaces, false, true, glinted);
+            texture, tintArgb, normal, true, false, true, glinted);
     }
 
     /**
