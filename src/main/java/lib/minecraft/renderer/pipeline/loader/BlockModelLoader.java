@@ -150,7 +150,7 @@ public class BlockModelLoader {
                         JsonObject partModelJson = partModel.has("model") ? partModel.getAsJsonObject("model") : null;
                         if (partModelJson == null || !partModelJson.has("bones")) continue;
                         Block.Entity.BoneModel partBone = parseBoneModel(partModelJson, partModel);
-                        parts.add(new Block.Entity.Part(partModelId, partBone, partTexture, offset));
+                        parts.add(new Block.Entity.Part(partBone, partTexture, offset));
                     }
                 }
 
@@ -161,7 +161,7 @@ public class BlockModelLoader {
                 int tintArgb = block.has("tint") ? resolveTint(block.get("tint").getAsString()) : ColorMath.WHITE;
                 boolean additive = block.has("additive") && block.get("additive").getAsBoolean();
 
-                result.put(blockId, new Block.Entity(modelId, boneModel, textureId, tintArgb, iconRotation, Concurrent.adoptList(parts), additive));
+                result.put(blockId, new Block.Entity(boneModel, textureId, tintArgb, iconRotation, Concurrent.adoptList(parts), additive));
             }
         }
 

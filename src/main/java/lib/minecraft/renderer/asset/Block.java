@@ -259,7 +259,6 @@ public final class Block {
      * the ~180 block ids whose visual appearance comes from a tile-entity renderer rather than their
      * {@code block.json}.
      *
-     * @param beType vanilla {@code BlockEntityType} reference for diagnostics ({@code "minecraft:bed"})
      * @param boneModel the relative bone/cube geometry plus its render-time presentation; the renderer
      *     composes it via {@link BlockGeometryKit#buildFromBones}
      * @param textureId entity texture id bound to the {@code "#entity"} texture variable, e.g
@@ -279,7 +278,6 @@ public final class Block {
      *     replace-the-model semantics used by chests / beds / banners / shulkers / signs / skulls.
      */
     public record Entity(
-        @NotNull String beType,
         @NotNull BoneModel boneModel,
         @NotNull String textureId,
         int tintArgb,
@@ -411,7 +409,6 @@ public final class Block {
          * {@code mergeParts=true} (default) to produce the composed icon; future scene callers
          * pass {@code false} to render one variant's geometry at a time.
          *
-         * @param modelId source entity model id for diagnostics ({@code "minecraft:bed_foot"})
          * @param boneModel the part's relative bone geometry + presentation; the renderer composes it
          *     via {@link BlockGeometryKit#buildFromBones}
          * @param texture absolute texture id that rebinds the part's {@code "#entity"} face refs
@@ -419,7 +416,6 @@ public final class Block {
          *     the bed foot one block past the head)
          */
         public record Part(
-            @NotNull String modelId,
             @NotNull BoneModel boneModel,
             @NotNull String texture,
             float @NotNull [] offset
@@ -435,8 +431,7 @@ public final class Block {
             public boolean equals(Object o) {
                 if (o == null || getClass() != o.getClass()) return false;
                 Part part = (Part) o;
-                return Objects.equals(this.modelId, part.modelId)
-                    && Objects.equals(this.boneModel, part.boneModel)
+                return Objects.equals(this.boneModel, part.boneModel)
                     && Objects.equals(this.texture, part.texture)
                     && Arrays.equals(this.offset, part.offset);
             }
@@ -449,7 +444,7 @@ public final class Block {
              */
             @Override
             public int hashCode() {
-                return Objects.hash(this.modelId, this.boneModel, this.texture, Arrays.hashCode(this.offset));
+                return Objects.hash(this.boneModel, this.texture, Arrays.hashCode(this.offset));
             }
 
         }
