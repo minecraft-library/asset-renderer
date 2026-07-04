@@ -278,6 +278,10 @@ public final class EntityRuntimeJsonWriter {
                     // shearable overlays (sheep wool) drop when the sheared render axis is set.
                     if (desc.shearable())
                         overlay.addProperty("shearable", true);
+                    // requires_tint overlays (sheep wool undercoat) only render once a tint_by colour
+                    // is selected - skipped for the default entity so it stays byte-identical.
+                    if (desc.requiresTint())
+                        overlay.addProperty("requires_tint", true);
                     // Overlays sharing the base geometry need a microscopic outward inflate to
                     // clear ModelEngine's equal-Z depth-fail. Without it the overlay lands on
                     // the same depth as the lit skin texel and never wins.

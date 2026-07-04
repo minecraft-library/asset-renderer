@@ -280,6 +280,9 @@ public class EntityModelLoader {
      * @param shearable when {@code true} this overlay is dropped by the {@code sheared} render axis
      *     (the sheep wool, gated off by vanilla's {@code isSheared} state); {@code false} for
      *     overlays that always render
+     * @param requiresTint when {@code true} this overlay only renders once its {@link #tintBy} colour
+     *     is selected (the sheep wool undercoat); it is skipped for the default (untinted) entity so
+     *     the default render stays byte-identical
      */
     public record OverlayLayer(
         @NotNull EntityModelData model,
@@ -288,7 +291,8 @@ public class EntityModelLoader {
         int tintArgb,
         boolean skipBounds,
         @NotNull Optional<String> tintBy,
-        boolean shearable
+        boolean shearable,
+        boolean requiresTint
     ) {}
 
     /**
@@ -375,7 +379,8 @@ public class EntityModelLoader {
                 ? Optional.of(entry.get("tint_by").getAsString())
                 : Optional.empty();
             boolean shearable = entry.has("shearable") && entry.get("shearable").getAsBoolean();
-            out.add(new OverlayLayer(materialised, overlayTexture, emissive, overlayTint, skipBounds, tintBy, shearable));
+            boolean requiresTint = entry.has("requires_tint") && entry.get("requires_tint").getAsBoolean();
+            out.add(new OverlayLayer(materialised, overlayTexture, emissive, overlayTint, skipBounds, tintBy, shearable, requiresTint));
         }
         return out;
     }

@@ -113,19 +113,15 @@ public final class EntityOverlayResolver {
      *       collar layer skips render when {@code state.collarColor == null} (the
      *       zero-state default). Visual impact at zero state would be a colored collar around
      *       every cat where vanilla shows none.</li>
-     *   <li>{@code SHEEP_WOOL_UNDERCOAT} - {@code SheepWoolUndercoatLayer} early-returns unless
-     *       {@code isJebSheep || woolColor != WHITE} (and bails on baby), so a default white
-     *       sheep draws no undercoat. The overlay shares the base {@code geometry.sheep} mesh
-     *       coplanar with the body and tints {@code 0xFFE6E6E6}; emitting it darkened the
-     *       woolless face by {@code 0.902x}. Harmless under the historical first-drawn-wins depth
-     *       tie-break (the coplanar overlay lost the equal-Z fight and stayed hidden); once the
-     *       engine adopted vanilla's GL_LEQUAL last-drawn-wins it began overwriting the base
-     *       face. Suppressed here so the default state matches vanilla.</li>
      * </ul>
+     *
+     * <p>{@code SHEEP_WOOL_UNDERCOAT} used to live here (a default white sheep draws no undercoat),
+     * but is now emitted with {@code requires_tint} (see {@link #detectRequiresTint}): the overlay
+     * skips render at load unless a wool colour is selected, so a white sheep stays byte-identical
+     * while a dyed sheep gets the tinted undercoat vanilla draws.
      */
     private static final @NotNull java.util.Set<String> POLICY_SUPPRESS = java.util.Set.of(
-        "CAT_COLLAR",
-        "SHEEP_WOOL_UNDERCOAT"
+        "CAT_COLLAR"
     );
 
     /** JVM internal name of the {@code BlendFunction} enum carrying {@code TRANSLUCENT} etc. */
@@ -184,6 +180,10 @@ public final class EntityOverlayResolver {
      * @param shearable {@code true} when the layer's render is gated off by the entity's
      *     {@code isSheared} state (the sheep wool), so the {@code sheared} render axis drops this
      *     overlay. Emitted as the {@code shearable} JSON property by {@link EntityRuntimeJsonWriter}
+     * @param requiresTint {@code true} when the layer only renders once a {@link #tintBy} colour is
+     *     selected (the sheep wool undercoat, gated on {@code isJebSheep || woolColor != WHITE}), so
+     *     the overlay is skipped at render for the default (untinted) entity. Emitted as the
+     *     {@code requires_tint} JSON property by {@link EntityRuntimeJsonWriter}
      */
     public record Result(
         @NotNull String layerClass,
@@ -194,7 +194,8 @@ public final class EntityOverlayResolver {
         float inflate,
         boolean skipBounds,
         @Nullable String tintBy,
-        boolean shearable
+        boolean shearable,
+        boolean requiresTint
     ) {
         /**
          * Constructs a {@code Result} with no extra deformation and no bounds skip - the common
@@ -215,7 +216,7 @@ public final class EntityOverlayResolver {
             @Nullable String modelLayerField,
             int tintArgb
         ) {
-            this(layerClass, texturePath, emissive, modelLayerField, tintArgb, 0f, false, null, false);
+            this(layerClass, texturePath, emissive, modelLayerField, tintArgb, 0f, false, null, false, false);
         }
 
         /**
@@ -240,7 +241,7 @@ public final class EntityOverlayResolver {
             float inflate,
             boolean skipBounds
         ) {
-            this(layerClass, texturePath, emissive, modelLayerField, tintArgb, inflate, skipBounds, null, false);
+            this(layerClass, texturePath, emissive, modelLayerField, tintArgb, inflate, skipBounds, null, false, false);
         }
 
         /**
@@ -450,7 +451,8 @@ public final class EntityOverlayResolver {
                 boolean unlit = layerInvokesNoCardinalLightingRenderType(classNodes, cn);
                 String tintBy = extractTintBy(cn);
                 boolean shearable = detectShearableGate(cn);
-                out.add(new Result(layerClass, compositeTexture, unlit, modelLayerField, tintArgb, 0f, false, tintBy, shearable));
+                boolean requiresTint = detectRequiresTint(cn);
+                out.add(new Result(layerClass, compositeTexture, unlit, modelLayerField, tintArgb, 0f, false, tintBy, shearable, requiresTint));
                 continue;
             }
         }
@@ -767,6 +769,26 @@ public final class EntityOverlayResolver {
                 if (branch == null || branch.getOpcode() != Opcodes.IFEQ) continue;
                 AbstractInsnNode body = AsmKit.nextReal(branch);
                 if (body != null && body.getOpcode() == Opcodes.RETURN) return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Detects the sheep wool undercoat's dye-conditional gate - the layer draws nothing unless a
+     * non-default wool colour (or jeb) is selected ({@code if (!(isJebSheep || woolColor != WHITE))
+     * return;}). Keyed on a {@code GETFIELD <state>.isJebSheep:Z} read, which is unique to the
+     * undercoat among sheep layers (the main wool tints on {@code getWoolColor()} but always renders).
+     * When present the overlay carries {@code requires_tint} and is skipped at render for the default
+     * (untinted) entity, so a white sheep stays byte-identical.
+     */
+    private static boolean detectRequiresTint(@NotNull ClassNode layerCn) {
+        for (MethodNode method : layerCn.methods) {
+            if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name)) continue;
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                if (in.getOpcode() != Opcodes.GETFIELD) continue;
+                if (!(in instanceof FieldInsnNode get)) continue;
+                if ("isJebSheep".equals(get.name) && "Z".equals(get.desc)) return true;
             }
         }
         return false;

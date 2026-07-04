@@ -388,6 +388,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         SceneContext scene = ctx.scene();
         EntityAppearance appearance = ctx.options().getAppearance();
         for (EntityModelLoader.OverlayLayer overlay : ctx.definition().overlays()) {
+            // A requires_tint overlay (sheep wool undercoat) only renders once its tint_by colour is
+            // selected; skip it for the default (untinted) entity so the default render is unchanged.
+            if (overlay.requiresTint() && !hasSelectedTint(overlay, appearance)) continue;
             int overlayTint = resolveOverlayTint(overlay, appearance);
             stack.append(EntityOptions.Slot.MODEL_OVERLAY, sink -> {
                 if (overlay.model().getBones().isEmpty()) return;
@@ -410,9 +413,16 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * (mirroring vanilla's {@code coloredCutoutModelRender} colour arg), exactly like the collar tint.
      */
     private static int resolveOverlayTint(@NotNull EntityModelLoader.OverlayLayer overlay, @NotNull EntityAppearance appearance) {
-        if (overlay.tintBy().filter("wool_color"::equals).isPresent() && appearance.getWoolColor().isPresent())
-            return appearance.getWoolColor().get().argb();
-        return overlay.tintArgb();
+        return hasSelectedTint(overlay, appearance) ? appearance.getWoolColor().get().argb() : overlay.tintArgb();
+    }
+
+    /**
+     * Whether the appearance supplies the overlay's {@code tint_by} axis colour ({@code wool_color}
+     * -&gt; {@link EntityAppearance#getWoolColor()}). Drives both the tint override and the
+     * {@code requires_tint} render gate.
+     */
+    private static boolean hasSelectedTint(@NotNull EntityModelLoader.OverlayLayer overlay, @NotNull EntityAppearance appearance) {
+        return overlay.tintBy().filter("wool_color"::equals).isPresent() && appearance.getWoolColor().isPresent();
     }
 
     /**
