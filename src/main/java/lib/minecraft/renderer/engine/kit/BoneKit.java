@@ -1,10 +1,14 @@
 package lib.minecraft.renderer.engine.kit;
 
 import lib.minecraft.renderer.asset.model.EntityModelData;
+import lib.minecraft.renderer.face.EntityFace;
 import lib.minecraft.renderer.request.EulerRotation;
+import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
+import lib.minecraft.renderer.tensor.Vector2f;
 import lib.minecraft.renderer.tensor.Vector3f;
+import lib.minecraft.renderer.tensor.Vector4f;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
@@ -21,10 +25,13 @@ import java.util.Set;
  * {@link Matrix4f#translate} / {@link Matrix4f#rotate} sequence, whose float result is
  * op-order-sensitive.
  * <p>
- * This class produces only the per-bone ancestor-anchor matrices ({@link #buildChainTransforms}) and
- * the per-cube composed transform ({@link #composeCubeTransform}). Each consumer supplies its own
- * frame-specific emit stage (the entity fit + Y-flip + entity lighting, or the block
- * {@code /16 - 0.5} normalization + inventory shade); nothing frame-specific lives here.
+ * This class holds the shared bone/cube geometry primitives both kits drive: the per-bone
+ * ancestor-anchor matrices ({@link #buildChainTransforms}), the per-cube composed transform
+ * ({@link #composeCubeTransform}), the scaled-inflate cube bounds ({@link #scaledCubeBounds}), and
+ * the atlas-UV unwrap + plane-degeneracy rules ({@link #resolvePolygonUv} /
+ * {@link #isDegeneratePlaneFace}). Each consumer supplies its own frame-specific emit stage (the
+ * entity fit + Y-flip + entity lighting, or the block {@code /16 - 0.5} normalization + inventory
+ * shade); nothing frame-specific lives here.
  */
 @UtilityClass
 public class BoneKit {
@@ -220,6 +227,127 @@ public class BoneKit {
             .translate(pivot.x(), pivot.y(), pivot.z())
             .rotate(quat)
             .translate(-pivot.x(), -pivot.y(), -pivot.z());
+    }
+
+    /**
+     * Computes a cube's axis-aligned bounds in bone-local pixel space: the cube origin and size
+     * scaled by the owning bone's uniform {@code scale} and expanded on every side by the scaled
+     * inflate. Shared by both kits' per-cube emit loops (the block {@code /16 - 0.5} normalization
+     * and the entity fit / measure passes) so the scaled-inflate arithmetic lives in one place.
+     *
+     * @param scale the owning bone's uniform scale (vanilla {@code PartPose.scaled} /
+     *     {@code MeshTransformer.scaling})
+     * @param cube the cube whose bounds to compute
+     * @return the scaled, inflated cube bounds in bone-local coordinates
+     */
+    public static @NotNull Box scaledCubeBounds(float scale, @NotNull EntityModelData.Cube cube) {
+        Vector3f origin = cube.getOrigin();
+        Vector3f size = cube.getSize();
+        float scaledInflate = scale * cube.getInflate();
+        float ox = scale * origin.x();
+        float oy = scale * origin.y();
+        float oz = scale * origin.z();
+        return new Box(
+            ox - scaledInflate, oy - scaledInflate, oz - scaledInflate,
+            ox + scale * size.x() + scaledInflate, oy + scale * size.y() + scaledInflate, oz + scale * size.z() + scaledInflate);
+    }
+
+    /**
+     * Resolves the raw four-corner UV rectangle for one cube face in atlas-position order
+     * ({@code TL, BL, BR, TR}). Uses the cube's per-face UV override when present, otherwise
+     * derives the rectangle from the atlas layout via {@link EntityFace#defaultUv}. Forwards the
+     * cube's {@code mirror} flag to {@link Vector4f#toUvCorners} for the U-flip.
+     *
+     * @param face the geometric face being resolved
+     * @param cube the cube whose UV is being resolved
+     * @param size the cube's size vector
+     * @param texWidth the texture width
+     * @param texHeight the texture height
+     * @return the four UV corners in atlas-position order (top-left, bottom-left, bottom-right,
+     *     top-right)
+     */
+    static @NotNull Vector2f @NotNull [] resolveFaceUv(
+        @NotNull EntityFace face,
+        @NotNull EntityModelData.Cube cube,
+        @NotNull Vector3f size,
+        float texWidth,
+        float texHeight
+    ) {
+        EntityModelData.FaceUv override = cube.getFaceUv().get(face.direction());
+        Vector4f rect;
+        if (override == null) {
+            rect = face.defaultUv(cube.getUv(), size);
+        } else {
+            Vector2f uv = override.getUv();
+            Vector2f uvSize = override.getUvSize();
+            rect = new Vector4f(uv.x(), uv.y(), uv.x() + uvSize.x(), uv.y() + uvSize.y());
+        }
+        return rect.toUvCorners(texWidth, texHeight, 0, cube.isMirror());
+    }
+
+    /**
+     * Resolves the per-vertex UV array for one polygon, including mirror handling and the
+     * vanilla-spec slot permutation. The output is indexed in the kit's corner order
+     * ({@link EntityFace#vertexIndices}) so each {@code corners[i]} pairs with the UV vanilla's
+     * cube ctor assigns to the same world-space vertex.
+     * <p>
+     * For {@code cube.isMirror()} cubes, vanilla's {@code ModelPart.Cube} ctor swaps the cube's
+     * {@code x} and {@code maxX} variables before building the 8 vertices, which has the net
+     * effect of swapping which UV strip is applied to the cube's +X vs -X face (vanilla's WEST
+     * polygon UV ends up on the +X face, EAST polygon UV on the -X face). The polygon ctor also
+     * reverses each polygon's vertex array, which U-flips every face's UV mapping. Both effects
+     * are replicated for {@code mirror=true} cubes via {@link EntityFace#mirror} and the
+     * {@link Vector4f#toUvCorners} mirror flag inside {@link #resolveFaceUv}.
+     * <p>
+     * The per-face slot permutation maps {@link #resolveFaceUv}'s {@code (TL, BL, BR, TR)}
+     * output to the (max-u, top-v)-first ordering vanilla's {@code Polygon} ctor produces. For
+     * non-UP faces, vanilla's vertex 0 lands in the TR slot; for UP, it lands in BR because the
+     * polygon ctor's {@code f3 / f5} parameters are V-inverted on the atlas strip. The exact
+     * slot mapping per face lives on {@link EntityFace#polygonVertexSlots} and is applied via
+     * {@link EntityFace#permuteToPolygonOrder} so both kits share the same source of truth.
+     * <p>
+     * Independent of the kit's permanent Y-flip on positions: that flip changes where vertices project to
+     * screen, but each vertex's vanilla-spec UV is unchanged.
+     *
+     * @param face the geometric face being rendered
+     * @param cube the cube whose UV is being resolved
+     * @param size the cube's size vector
+     * @param texWidth the texture width
+     * @param texHeight the texture height
+     * @return the four per-vertex UVs in the kit's corner order
+     */
+    public static @NotNull Vector2f @NotNull [] resolvePolygonUv(
+        @NotNull EntityFace face,
+        @NotNull EntityModelData.Cube cube,
+        @NotNull Vector3f size,
+        float texWidth,
+        float texHeight
+    ) {
+        Vector2f[] uv = resolveFaceUv(face.mirror(cube.isMirror()), cube, size, texWidth, texHeight);
+        return face.permuteToPolygonOrder(uv);
+    }
+
+    /**
+     * Tests whether a plane cube's face polygon is degenerate - its 4 vertices collapse to 2
+     * distinct points because the face's plane normal lies along the cube's zero-extent axis.
+     * <p>
+     * E.g. for a vertical-plane top_fin ({@code size.x=0}), the UP/DOWN/NORTH/SOUTH faces all
+     * collapse - only WEST/EAST have full area. Vanilla emits these polygons too but the GPU
+     * rasterizer drops them at 0-area; ours rasterizes a thin line worth a few pixels due to FP
+     * error in the barycentric inside-test, then paints wrong-shade artifact pixels (cod top_fin
+     * UP painted x=133-135 strip at shade 1.0 over the body's WEST shade 0.45). Caller uses this
+     * predicate to skip emitting these triangles entirely.
+     *
+     * @param size the cube's size vector
+     * @param face the geometric face being rendered
+     * @return {@code true} if the polygon collapses to a line; {@code false} when the face has
+     *     full plane area
+     */
+    public static boolean isDegeneratePlaneFace(@NotNull Vector3f size, @NotNull EntityFace face) {
+        if (size.x() == 0f) return face != EntityFace.WEST && face != EntityFace.EAST;
+        if (size.y() == 0f) return face != EntityFace.UP && face != EntityFace.DOWN;
+        if (size.z() == 0f) return face != EntityFace.NORTH && face != EntityFace.SOUTH;
+        return false;
     }
 
 }

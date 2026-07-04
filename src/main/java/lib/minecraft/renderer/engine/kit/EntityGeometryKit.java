@@ -278,24 +278,15 @@ public class EntityGeometryKit {
             // rotates, then {@code poseStack.scale(s, s, s)} the local cube space - so each cube
             // vertex world-position is {@code pivot + R * (s * v_local)}. Our chain pivot-translates
             // post-rotation via {@link BoneKit#composeCubeTransform}; multiplying {@code origin}, {@code
-            // size}, and {@code inflate} by {@code s} here puts the cube in scaled-local space
+            // size}, and {@code inflate} by {@code s} (in {@link BoneKit#scaledCubeBounds}) puts the
+            // cube in scaled-local space
             // before the bone-pivot translate, which is algebraically equivalent for any rotation
             // R that commutes with uniform scale (every R does). UVs stay tied to the unscaled
             // {@code size} field, matching vanilla's per-vertex scale-after-UV-resolve order.
             float s = bone.getScale();
             for (EntityModelData.Cube cube : bone.getCubes()) {
-                Vector3f origin = cube.getOrigin();
                 Vector3f size = cube.getSize();
-                float inflate = cube.getInflate();
-
-                float scaledInflate = s * inflate;
-                float ox = s * origin.x();
-                float oy = s * origin.y();
-                float oz = s * origin.z();
-                Box cubeBounds = new Box(
-                    ox - scaledInflate, oy - scaledInflate, oz - scaledInflate,
-                    ox + s * size.x() + scaledInflate, oy + s * size.y() + scaledInflate, oz + s * size.z() + scaledInflate
-                );
+                Box cubeBounds = BoneKit.scaledCubeBounds(s, cube);
 
                 Matrix4f fullTransform = BoneKit.composeCubeTransform(cube, bone, boneChain);
                 // Fluent-composed perCubeChain: kitFit chain + bone hierarchy + bind + cube rot,
@@ -350,9 +341,9 @@ public class EntityGeometryKit {
                     Vector3f shadingNormal = new Vector3f(normal.x(), -normal.y(), normal.z());
 
                     boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
-                    if (isPlaneCube && isDegeneratePlaneFace(size, face)) continue;
+                    if (isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)) continue;
 
-                    Vector2f[] effUv = resolvePolygonUv(face, cube, size, texW, texH);
+                    Vector2f[] effUv = BoneKit.resolvePolygonUv(face, cube, size, texW, texH);
                     float shading = computeFaceShading(shadingNormal, isPlaneCube, cubeCullBackFaces);
 
                     // Natural CCW emission {@code (0, 1, 2)} and {@code (0, 2, 3)}. The kit itself
@@ -457,14 +448,7 @@ public class EntityGeometryKit {
                 float inflate = cube.getInflate();
                 Matrix4f cubeTransform = BoneKit.composeCubeTransform(cube, bone, boneChain);
 
-                float scaledInflate = s * inflate;
-                float ox = s * origin.x();
-                float oy = s * origin.y();
-                float oz = s * origin.z();
-                Box cubeBounds = new Box(
-                    ox - scaledInflate, oy - scaledInflate, oz - scaledInflate,
-                    ox + s * size.x() + scaledInflate, oy + s * size.y() + scaledInflate, oz + s * size.z() + scaledInflate
-                );
+                Box cubeBounds = BoneKit.scaledCubeBounds(s, cube);
 
                 if (texture == null) {
                     float[] xs = { cubeBounds.minX(), cubeBounds.maxX() };
@@ -478,9 +462,9 @@ public class EntityGeometryKit {
 
                 boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
                 for (EntityFace face : EntityFace.CACHED_VALUES) {
-                    if (isPlaneCube && isDegeneratePlaneFace(size, face)) continue;
+                    if (isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)) continue;
                     Vector3f[] corners3d = face.corners(cubeBounds);
-                    // Must match the renderer's UV resolver. {@link #resolveFaceUv} alone
+                    // Must match the renderer's UV resolver. {@link BoneKit#resolveFaceUv} alone
                     // pairs uvs[i] with corners3d[i] at DIAGONALLY OPPOSITE vertices of the
                     // face (kit corner order is cyclic-shifted by 1 from vanilla's polygon
                     // vertex array); the BL/BR/TR/TL classifier then maps each 3D corner to
@@ -489,7 +473,7 @@ public class EntityGeometryKit {
                     // than the face UV bbox (warden tendrils, silverfish setae, fish fins).
                     // Fully-opaque faces are unaffected: the 4 contributed positions are then
                     // the 4 cube corners regardless of pairing.
-                    Vector2f[] uvs = resolvePolygonUv(face, cube, size, texW, texH);
+                    Vector2f[] uvs = BoneKit.resolvePolygonUv(face, cube, size, texW, texH);
                     String dumpLabel = RendererDebug.boundsFaceLabel(boneName, cubeIndex, face.direction(), origin, size, inflate, cube.isMirror());
                     contributeFaceAlphaTight(corners3d, uvs, cubeTransform, modelScale, screenTransform, texture, acc, dumpLabel);
                 }
@@ -901,18 +885,12 @@ public class EntityGeometryKit {
             // Same pivot-translation + bone-scale as in {@link #buildTriangles}.
             float s = bone.getScale();
             for (EntityModelData.Cube cube : bone.getCubes()) {
-                Vector3f origin = cube.getOrigin();
-                Vector3f size = cube.getSize();
-                float inflate = cube.getInflate();
                 Matrix4f fullTransform = BoneKit.composeCubeTransform(cube, bone, boneChain);
 
-                float scaledInflate = s * inflate;
-                float ox = s * origin.x();
-                float oy = s * origin.y();
-                float oz = s * origin.z();
-                float[] xs = { ox - scaledInflate, ox + s * size.x() + scaledInflate };
-                float[] ys = { oy - scaledInflate, oy + s * size.y() + scaledInflate };
-                float[] zs = { oz - scaledInflate, oz + s * size.z() + scaledInflate };
+                Box cubeBounds = BoneKit.scaledCubeBounds(s, cube);
+                float[] xs = { cubeBounds.minX(), cubeBounds.maxX() };
+                float[] ys = { cubeBounds.minY(), cubeBounds.maxY() };
+                float[] zs = { cubeBounds.minZ(), cubeBounds.maxZ() };
 
                 for (float x : xs) for (float y : ys) for (float z : zs) {
                     Vector3f c = new Vector3f(x, y, z).transform(fullTransform);
@@ -930,105 +908,6 @@ public class EntityGeometryKit {
             return new Box(0f, 0f, 0f, 0f, 0f, 0f);
 
         return new Box(minX, minY, minZ, maxX, maxY, maxZ);
-    }
-
-    /**
-     * Resolves the raw four-corner UV rectangle for one cube face in atlas-position order
-     * ({@code TL, BL, BR, TR}). Uses the cube's per-face UV override when present, otherwise
-     * derives the rectangle from the atlas layout via {@link EntityFace#defaultUv}. Forwards the
-     * cube's {@code mirror} flag to {@link Vector4f#toUvCorners} for the U-flip.
-     *
-     * @param face the geometric face being resolved
-     * @param cube the cube whose UV is being resolved
-     * @param size the cube's size vector
-     * @param texWidth the texture width
-     * @param texHeight the texture height
-     * @return the four UV corners in atlas-position order (top-left, bottom-left, bottom-right,
-     *     top-right)
-     */
-    private static @NotNull Vector2f @NotNull [] resolveFaceUv(
-        @NotNull EntityFace face,
-        @NotNull EntityModelData.Cube cube,
-        @NotNull Vector3f size,
-        float texWidth,
-        float texHeight
-    ) {
-        EntityModelData.FaceUv override = cube.getFaceUv().get(face.direction());
-        Vector4f rect;
-        if (override == null) {
-            rect = face.defaultUv(cube.getUv(), size);
-        } else {
-            Vector2f uv = override.getUv();
-            Vector2f uvSize = override.getUvSize();
-            rect = new Vector4f(uv.x(), uv.y(), uv.x() + uvSize.x(), uv.y() + uvSize.y());
-        }
-        return rect.toUvCorners(texWidth, texHeight, 0, cube.isMirror());
-    }
-
-    /**
-     * Resolves the per-vertex UV array for one polygon, including mirror handling and the
-     * vanilla-spec slot permutation. The output is indexed in the kit's corner order
-     * ({@link EntityFace#vertexIndices}) so each {@code corners[i]} pairs with the UV vanilla's
-     * cube ctor assigns to the same world-space vertex.
-     * <p>
-     * For {@code cube.isMirror()} cubes, vanilla's {@code ModelPart.Cube} ctor swaps the cube's
-     * {@code x} and {@code maxX} variables before building the 8 vertices, which has the net
-     * effect of swapping which UV strip is applied to the cube's +X vs -X face (vanilla's WEST
-     * polygon UV ends up on the +X face, EAST polygon UV on the -X face). The polygon ctor also
-     * reverses each polygon's vertex array, which U-flips every face's UV mapping. Both effects
-     * are replicated for {@code mirror=true} cubes via {@link EntityFace#mirror} and the
-     * {@link Vector4f#toUvCorners} mirror flag inside {@link #resolveFaceUv}.
-     * <p>
-     * The per-face slot permutation maps {@link #resolveFaceUv}'s {@code (TL, BL, BR, TR)}
-     * output to the (max-u, top-v)-first ordering vanilla's {@code Polygon} ctor produces. For
-     * non-UP faces, vanilla's vertex 0 lands in the TR slot; for UP, it lands in BR because the
-     * polygon ctor's {@code f3 / f5} parameters are V-inverted on the atlas strip. The exact
-     * slot mapping per face lives on {@link EntityFace#polygonVertexSlots} and is applied via
-     * {@link EntityFace#permuteToPolygonOrder} so the tooling-side block-model converter can
-     * share the same source of truth.
-     * <p>
-     * Independent of the kit's permanent Y-flip on positions: that flip changes where vertices project to
-     * screen, but each vertex's vanilla-spec UV is unchanged.
-     *
-     * @param face the geometric face being rendered
-     * @param cube the cube whose UV is being resolved
-     * @param size the cube's size vector
-     * @param texWidth the texture width
-     * @param texHeight the texture height
-     * @return the four per-vertex UVs in the kit's corner order
-     */
-    static @NotNull Vector2f @NotNull [] resolvePolygonUv(
-        @NotNull EntityFace face,
-        @NotNull EntityModelData.Cube cube,
-        @NotNull Vector3f size,
-        float texWidth,
-        float texHeight
-    ) {
-        Vector2f[] uv = resolveFaceUv(face.mirror(cube.isMirror()), cube, size, texWidth, texHeight);
-        return face.permuteToPolygonOrder(uv);
-    }
-
-    /**
-     * Tests whether a plane cube's face polygon is degenerate - its 4 vertices collapse to 2
-     * distinct points because the face's plane normal lies along the cube's zero-extent axis.
-     * <p>
-     * E.g. for a vertical-plane top_fin ({@code size.x=0}), the UP/DOWN/NORTH/SOUTH faces all
-     * collapse - only WEST/EAST have full area. Vanilla emits these polygons too but the GPU
-     * rasterizer drops them at 0-area; ours rasterizes a thin line worth a few pixels due to FP
-     * error in the barycentric inside-test, then paints wrong-shade artifact pixels (cod top_fin
-     * UP painted x=133-135 strip at shade 1.0 over the body's WEST shade 0.45). Caller uses this
-     * predicate to skip emitting these triangles entirely.
-     *
-     * @param size the cube's size vector
-     * @param face the geometric face being rendered
-     * @return {@code true} if the polygon collapses to a line; {@code false} when the face has
-     *     full plane area
-     */
-    static boolean isDegeneratePlaneFace(@NotNull Vector3f size, @NotNull EntityFace face) {
-        if (size.x() == 0f) return face != EntityFace.WEST && face != EntityFace.EAST;
-        if (size.y() == 0f) return face != EntityFace.UP && face != EntityFace.DOWN;
-        if (size.z() == 0f) return face != EntityFace.NORTH && face != EntityFace.SOUTH;
-        return false;
     }
 
     /**
@@ -1145,19 +1024,19 @@ public class EntityGeometryKit {
         // family). Sampling the three iso-visible faces (UP/NORTH/EAST) is sufficient -
         // non-opaque textures are typically symmetric across face pairs and we'd rather miss a
         // one-sided non-opaque face than over-disable culling.
-        if (uvNonOpaqueExceeds(resolveFaceUv(EntityFace.UP, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD)
-            || uvNonOpaqueExceeds(resolveFaceUv(EntityFace.NORTH, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD)
-            || uvNonOpaqueExceeds(resolveFaceUv(EntityFace.EAST, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD))
+        if (uvNonOpaqueExceeds(BoneKit.resolveFaceUv(EntityFace.UP, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD)
+            || uvNonOpaqueExceeds(BoneKit.resolveFaceUv(EntityFace.NORTH, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD)
+            || uvNonOpaqueExceeds(BoneKit.resolveFaceUv(EntityFace.EAST, cube, size, texW, texH), texture, NO_CULL_TRANSPARENCY_THRESHOLD))
             return false;
         boolean visibleHasContent =
-               uvHasContent(resolveFaceUv(EntityFace.UP, cube, size, texW, texH), texture)
-            || uvHasContent(resolveFaceUv(EntityFace.NORTH, cube, size, texW, texH), texture)
-            || uvHasContent(resolveFaceUv(EntityFace.EAST, cube, size, texW, texH), texture);
+               uvHasContent(BoneKit.resolveFaceUv(EntityFace.UP, cube, size, texW, texH), texture)
+            || uvHasContent(BoneKit.resolveFaceUv(EntityFace.NORTH, cube, size, texW, texH), texture)
+            || uvHasContent(BoneKit.resolveFaceUv(EntityFace.EAST, cube, size, texW, texH), texture);
         if (visibleHasContent) return true;
         boolean hiddenHasContent =
-               uvHasContent(resolveFaceUv(EntityFace.DOWN, cube, size, texW, texH), texture)
-            || uvHasContent(resolveFaceUv(EntityFace.SOUTH, cube, size, texW, texH), texture)
-            || uvHasContent(resolveFaceUv(EntityFace.WEST, cube, size, texW, texH), texture);
+               uvHasContent(BoneKit.resolveFaceUv(EntityFace.DOWN, cube, size, texW, texH), texture)
+            || uvHasContent(BoneKit.resolveFaceUv(EntityFace.SOUTH, cube, size, texW, texH), texture)
+            || uvHasContent(BoneKit.resolveFaceUv(EntityFace.WEST, cube, size, texW, texH), texture);
         return !hiddenHasContent;
     }
 
@@ -1184,8 +1063,8 @@ public class EntityGeometryKit {
     ) {
         for (EntityFace face : EntityFace.CACHED_VALUES) {
             if ((size.x() == 0f || size.y() == 0f || size.z() == 0f)
-                && isDegeneratePlaneFace(size, face)) continue;
-            if (faceHasPartialAlpha(resolveFaceUv(face, cube, size, texW, texH), texture))
+                && BoneKit.isDegeneratePlaneFace(size, face)) continue;
+            if (faceHasPartialAlpha(BoneKit.resolveFaceUv(face, cube, size, texW, texH), texture))
                 return true;
         }
         return false;

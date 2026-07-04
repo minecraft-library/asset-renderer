@@ -136,7 +136,7 @@ public class BlockGeometryKit {
      * <p>
      * Each cube is walked with the same entity conventions the {@link EntityGeometryKit} uses -
      * bone-local origins scaled by the bone's {@code scale}, {@link EntityFace} atlas-UV unwrap
-     * (via {@link EntityGeometryKit#resolvePolygonUv}), inflate, mirror, and per-cube / bind-pose
+     * (via {@link BoneKit#resolvePolygonUv}), inflate, mirror, and per-cube / bind-pose
      * rotation (via {@link BoneKit#composeCubeTransform}) - then emitted in the block engine's
      * {@code [-0.5, +0.5]} frame by dividing the composed pixel-space position by
      * {@link #VANILLA_PIXEL_UNITS_PER_BLOCK} and subtracting {@code 0.5}, matching
@@ -201,13 +201,8 @@ public class BlockGeometryKit {
             Matrix4f boneChain = chains.get(boneEntry.getKey());
             float s = bone.getScale();
             for (EntityModelData.Cube cube : bone.getCubes()) {
-                Vector3f origin = cube.getOrigin();
                 Vector3f size = cube.getSize();
-                float scaledInflate = s * cube.getInflate();
-                float ox = s * origin.x(), oy = s * origin.y(), oz = s * origin.z();
-                Box cubeBounds = new Box(
-                    ox - scaledInflate, oy - scaledInflate, oz - scaledInflate,
-                    ox + s * size.x() + scaledInflate, oy + s * size.y() + scaledInflate, oz + s * size.z() + scaledInflate);
+                Box cubeBounds = BoneKit.scaledCubeBounds(s, cube);
                 // Column-vector chain: cubeTransform (the bone chain) applies first to a cube corner,
                 // then presentation (flip / inventory transform / inventory yaw) in the same [0, 16]
                 // block frame; the /16 - 0.5 normalization below matches buildFromElements.
@@ -215,7 +210,7 @@ public class BlockGeometryKit {
                 boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
 
                 for (EntityFace face : EntityFace.CACHED_VALUES) {
-                    if (isPlaneCube && EntityGeometryKit.isDegeneratePlaneFace(size, face)) continue;
+                    if (isPlaneCube && BoneKit.isDegeneratePlaneFace(size, face)) continue;
                     Vector3f[] corners = face.corners(cubeBounds);
                     for (int i = 0; i < corners.length; i++) {
                         Vector3f t = corners[i].transform(cubeTransform);
@@ -225,7 +220,7 @@ public class BlockGeometryKit {
                             t.z() / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f);
                     }
                     Vector3f normal = face.normal().transformNormal(cubeTransform).normalize();
-                    Vector2f[] uv = EntityGeometryKit.resolvePolygonUv(face, cube, size, texW, texH);
+                    Vector2f[] uv = BoneKit.resolvePolygonUv(face, cube, size, texW, texH);
                     boolean translucent = faceHasPartialAlpha(uv, texture);
                     addQuad(triangles,
                         corners[0], corners[1], corners[2], corners[3],
