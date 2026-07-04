@@ -108,6 +108,19 @@ public final class ToolingBlockModels {
     private static final @NotNull String SOURCE_VERSION = "26.1";
 
     /**
+     * Block-entity model ids emitted in the relative <b>bone</b> format (a parent-relative bone/cube
+     * tree composed at render time via {@code BlockGeometryKit#buildFromBones} with a presentation
+     * transform) rather than the absolute-flattened block {@code elements} the
+     * {@link BlockModelConverter} produces. This is the per-family allowlist for the dual-format
+     * BER migration - families move onto the shared entity bone format one at a time, parity-checked
+     * each; ids not listed here keep emitting elements. When every block-entity family has migrated,
+     * this allowlist and {@link BlockModelConverter} both go away.
+     */
+    private static final @NotNull Set<String> BONE_FORMAT_MODEL_IDS = Set.of(
+        "minecraft:chest"
+    );
+
+    /**
      * Runs the generator.
      *
      * @param args optional {@code --lenient} flag to continue past WARN-level diagnostics
@@ -148,6 +161,15 @@ public final class ToolingBlockModels {
             ConcurrentMap<String, JsonObject> models = GeometryParser.parse(jarPath, sources, diagnostics, false);
             System.out.printf("Parsed %d / %d sources%n", models.size(), sources.size());
 
+            // Relative bone emission for the migrated families (dual-format BER transition): the
+            // BONE_FORMAT_MODEL_IDS allowlist emits its parent-relative bone tree (composed at
+            // render time via buildFromBones) instead of absolute-flattened elements. Parsed with
+            // relativeCoords=true into a throwaway diagnostics sink so it doesn't double the
+            // strict-mode WARN count (the absolute parse above already reported those).
+            ConcurrentMap<String, JsonObject> relativeModels = BONE_FORMAT_MODEL_IDS.isEmpty()
+                ? Concurrent.newMap()
+                : GeometryParser.parse(jarPath, sources, new Diagnostics(), true);
+
             // Geometry-aware recenter pass: the InventoryTransformDecomposer extracts the bytecode
             // tuple of each BlockEntityRenderer.modelTransformation (e.g. skull_dragon_head shares
             // SkullBlockRenderer's {8, 0, 8, 180, 0, 0} with the simple skulls), but some models
@@ -187,7 +209,7 @@ public final class ToolingBlockModels {
 
             JsonObject blockModels = BlockModelConverter.convert(models, inventoryTransforms, entityRenderFlips, tinted);
             Map<String, String> bannerTintByBlockId = BlockListDiscovery.bannerTintByBlockId(zip, diagnostics);
-            merged = buildMergedOutput(blockModels, models, blockList, inventoryTransforms, tinted, bannerTintByBlockId);
+            merged = buildMergedOutput(blockModels, models, relativeModels, entityRenderFlips, blockList, inventoryTransforms, tinted, bannerTintByBlockId);
         }
 
         Files.createDirectories(OUTPUT_PATH.getParent());
@@ -463,6 +485,8 @@ public final class ToolingBlockModels {
     private static @NotNull JsonObject buildMergedOutput(
         @NotNull JsonObject blockModels,
         @NotNull ConcurrentMap<String, JsonObject> parsedEntityModels,
+        @NotNull ConcurrentMap<String, JsonObject> relativeModels,
+        @NotNull Map<String, Boolean> entityRenderFlips,
         @NotNull Map<String, BlockListDiscovery.EntityBlockMapping> blockList,
         @NotNull Map<String, float[]> inventoryTransforms,
         @NotNull Set<String> tintedModelIds,
@@ -506,15 +530,31 @@ public final class ToolingBlockModels {
             JsonObject parsedEntity = parsedEntityModels.get(modelId);
             if (converted == null && parsedEntity == null) continue;
 
+            // Bone-format families (the allowlist) emit their parent-relative bone tree, composed at
+            // render time; the render-time knobs the former BlockModelConverter baked into elements -
+            // the real inventory_y_rotation and the entity_flip gate - travel as metadata instead of
+            // being folded away. Element-format families keep the historic shape (elements +
+            // cosmetic inventory_y_rotation: 0, since their yaw/flip is already baked in).
+            boolean boneFormat = BONE_FORMAT_MODEL_IDS.contains(modelId) && relativeModels.containsKey(modelId);
+
             JsonObject modelOut = new JsonObject();
-            if (converted != null)
+            if (boneFormat)
+                modelOut.add("model", buildBonesSubobject(relativeModels.get(modelId)));
+            else if (converted != null)
                 modelOut.add("model", buildModelSubobject(converted));
 
             String yAxis = parsedEntity != null && parsedEntity.has("y_axis")
                 ? parsedEntity.get("y_axis").getAsString()
                 : "DOWN";
             modelOut.addProperty("y_axis", yAxis);
-            modelOut.addProperty("inventory_y_rotation", 0);
+
+            if (boneFormat) {
+                float invYRot = parsedEntity != null ? JsonOptional.optFloat(parsedEntity, "inventory_y_rotation", 0f) : 0f;
+                modelOut.addProperty("inventory_y_rotation", invYRot);
+                modelOut.addProperty("entity_flip", entityRenderFlips.getOrDefault(modelId, Boolean.TRUE));
+            } else {
+                modelOut.addProperty("inventory_y_rotation", 0);
+            }
 
             float[] invTransform = inventoryTransforms.get(modelId);
             if (invTransform != null) {
@@ -667,6 +707,27 @@ public final class ToolingBlockModels {
             model.add("textureHeight", converted.get("textureHeight"));
         if (converted.has("elements"))
             model.add("elements", converted.get("elements"));
+        return model;
+    }
+
+    /**
+     * Extracts the model-body subobject ({@code textureWidth}, {@code textureHeight}, {@code bones})
+     * from a relative-parsed entity model for a bone-format family. Drops the parse-level
+     * {@code y_axis} (which is re-emitted at entry level) and carries the parent-relative bone tree
+     * verbatim - the same schema {@code entity_geometry.json} uses, consumed at load into
+     * {@code EntityModelData}.
+     *
+     * @param relativeModel one relative-parsed entity model ({@code textureWidth}/{@code textureHeight}/{@code bones})
+     * @return the model-body subobject carrying the texture dimensions and the relative bone tree
+     */
+    private static @NotNull JsonObject buildBonesSubobject(@NotNull JsonObject relativeModel) {
+        JsonObject model = new JsonObject();
+        if (relativeModel.has("textureWidth"))
+            model.add("textureWidth", relativeModel.get("textureWidth"));
+        if (relativeModel.has("textureHeight"))
+            model.add("textureHeight", relativeModel.get("textureHeight"));
+        if (relativeModel.has("bones"))
+            model.add("bones", relativeModel.get("bones"));
         return model;
     }
 

@@ -211,6 +211,16 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             LayerStack<GeometryLayer> stack = new LayerStack<>();
 
             stack.append(BlockOptions.Slot.PRIMARY, sink -> {
+                // Bone-format block entities (chest) carry a relative bone/cube tree rather than
+                // pre-flattened block elements: build hierarchically via buildFromBones and apply
+                // the presentation transform (entity flip + inventory transform + inventory yaw)
+                // that vanilla's BlockEntityRenderer poses around the mesh - the render-time
+                // counterpart of the former BlockModelConverter tooling bake. This replaces the
+                // whole primary model (a non-additive entity's geometry IS the primary geometry).
+                if (be != null && be.boneModel().isPresent()) {
+                    sink.addAll(buildFromBoneEntity(be, tint));
+                    return;
+                }
                 if (block.getMultipart().isPresent()) {
                     sink.addAll(assembleMultipart(block.getMultipart().get(), effectiveVariant, tint, untintedTint));
                     return;
@@ -438,6 +448,72 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             if (variant != null && variant.uvlock())
                 return BlockGeometryKit.buildFromElements(model.getElements(), faceTextures, tint, untintedTint, variant.x(), variant.y(), true);
             return BlockGeometryKit.buildFromElements(model.getElements(), faceTextures, tint, untintedTint);
+        }
+
+        /**
+         * Builds triangles for a bone-format block entity (chest) from its relative bone/cube tree
+         * via {@link BlockGeometryKit#buildFromBones}, applying the presentation transform that
+         * reproduces vanilla's {@code BlockEntityRenderer} pose (the render-time counterpart of the
+         * former {@code BlockModelConverter} tooling bake). The single entity texture is resolved at
+         * frame 0 and sampled by every cube face.
+         *
+         * @param entity the bone-format block entity (its {@link Block.Entity#boneModel()} must be present)
+         * @param tint the ARGB tint applied to every face ({@link ColorMath#WHITE} for untinted chests)
+         * @return the composed block-frame triangle list
+         */
+        private @NotNull ConcurrentList<VisibleTriangle> buildFromBoneEntity(@NotNull Block.Entity entity, int tint) {
+            Block.Entity.BoneModel bone = entity.boneModel().orElseThrow();
+            RasterEngine raster = new RasterEngine(this.context);
+            PixelBuffer texture = raster.textures().resolveTextureAtTick(entity.textureId(), 0);
+            return BlockGeometryKit.buildFromBones(bone.model(), texture, tint, blockEntityPresentation(bone));
+        }
+
+        /**
+         * Builds the {@code [0, 16]}-space presentation transform for a bone-format block entity -
+         * the render-time reconstruction of the affine chain the former
+         * {@code BlockModelConverter.CubeTransform} baked into block elements (minus the bone chain,
+         * which {@link BlockGeometryKit#buildFromBones} composes). Column-vector order matches
+         * vanilla's {@code BlockEntityRenderer}: the entity-render {@code scale(-1, -1, 1)} flip (or
+         * a decomposed {@code inventory_transform} of {@code scale -> Rx(pitch) -> translate})
+         * applies first, then the inventory yaw about block centre {@code (8, 8, 8)}.
+         *
+         * @param bone the block entity's bone geometry + presentation metadata
+         * @return the presentation matrix in the {@code [0, 16]} block-authoring frame
+         */
+        private static @NotNull Matrix4f blockEntityPresentation(@NotNull Block.Entity.BoneModel bone) {
+            float[] inv = bone.inventoryTransform();
+            Matrix4f pre;
+            if (inv != null) {
+                // scale(invScale) -> Rx(pitch) -> translate(tx, ty, tz), matching vanilla's
+                // translate * rotate * scale composition (CubeTransform.applyChain).
+                float invScale = inv.length > 6 && inv[6] != 0f ? inv[6] : 1f;
+                float pitch = (float) Math.toRadians(inv[3]);
+                pre = Matrix4f.createTranslation(inv[0], inv[1], inv[2])
+                    .multiply(Matrix4f.createRotationX(pitch))
+                    .multiply(Matrix4f.createScale(invScale, invScale, invScale));
+            } else {
+                // No inventory transform: vanilla's entity-render flip scale(-1, -1, 1). The X
+                // negation is gated on entityFlip (read from the item icon's display.gui roll). The
+                // Y negation maps the bones' source frame to block Y-up - needed only for Y-DOWN
+                // (entity-space) sources; a Y-UP source (chest) is already block-Y-up, so its Y stays
+                // positive (matching the former element bake's net orientation).
+                float sx = bone.entityFlip() ? -1f : 1f;
+                float sy = bone.sourceYUp() ? 1f : -1f;
+                pre = Matrix4f.createScale(sx, sy, 1f);
+            }
+
+            // Inventory yaw about block centre (8, 8, 8) - the chest's +180 that faces the model
+            // under the standard [30, 225, 0] iso pose. All current block-entity yaws are 180
+            // (symmetric, so the createRotationY sign is immaterial); a future non-180 value would
+            // need its rotation sense checked against CubeTransform.applyChain.
+            float yaw = bone.inventoryYRotation();
+            if (yaw != 0f) {
+                Matrix4f yawAboutCentre = Matrix4f.createTranslation(8f, 8f, 8f)
+                    .multiply(Matrix4f.createRotationY((float) Math.toRadians(yaw)))
+                    .multiply(Matrix4f.createTranslation(-8f, -8f, -8f));
+                pre = yawAboutCentre.multiply(pre);
+            }
+            return pre;
         }
 
         /**

@@ -145,7 +145,15 @@ public final class GeometryParser {
                             model.addProperty("textureWidth", source.texWidthOverride());
                         if (source.texHeightOverride() != null)
                             model.addProperty("textureHeight", source.texHeightOverride());
-                        if (source.yAxis() == YAxis.UP)
+                        // The absolute (element) pipeline pre-flips Y-UP sources to Y-DOWN so its
+                        // downstream fold sees one convention. The relative (bone) pipeline instead
+                        // stores bones in their NATIVE source frame - the y_axis marker travels with
+                        // them and the render presentation (BlockGeometryKit#buildFromBones caller)
+                        // applies the source->block Y orientation. Keeping the source frame is what
+                        // makes the entity UV unwrap (resolvePolygonUv) consistent with the geometry
+                        // for a Y-UP block entity like the chest. (No-op for the all-Y-DOWN entity
+                        // sources, so entity_geometry.json is unchanged.)
+                        if (!relativeCoords && source.yAxis() == YAxis.UP)
                             flipToYDown(model);
                         model.addProperty("y_axis", source.yAxis().name());
                         if (source.inventoryYRotation() != 0f)

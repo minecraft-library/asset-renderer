@@ -10,6 +10,7 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.Block;
+import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
@@ -25,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Loads block-entity model geometry from {@code /lib/minecraft/renderer/block_models.json},
@@ -107,6 +109,11 @@ public class BlockModelLoader {
                 String blockId = block.get("blockId").getAsString();
                 String textureId = block.get("textureId").getAsString();
 
+                // Bone-format families (chest) carry a relative bone/cube tree under model.bones
+                // rather than pre-flattened block elements, rendered hierarchically at render time
+                // via BlockGeometryKit#buildFromBones with a presentation transform reproducing the
+                // former BlockModelConverter bake. The element ModelData stays empty for these.
+                Optional<Block.Entity.BoneModel> boneModel = parseBoneModel(modelJson, modelObj);
                 ModelData modelData = parseBlockModelData(modelJson, textureId);
 
                 // A block listed under a blockstate "variant" contributes a state-conditional
@@ -161,7 +168,7 @@ public class BlockModelLoader {
                 int tintArgb = block.has("tint") ? resolveTint(block.get("tint").getAsString()) : ColorMath.WHITE;
                 boolean additive = block.has("additive") && block.get("additive").getAsBoolean();
 
-                result.put(blockId, new Block.Entity(modelId, modelData, textureId, tintArgb, iconRotation, multiBlock, Concurrent.adoptList(parts), additive));
+                result.put(blockId, new Block.Entity(modelId, modelData, boneModel, textureId, tintArgb, iconRotation, multiBlock, Concurrent.adoptList(parts), additive));
             }
         }
 
@@ -242,6 +249,39 @@ public class BlockModelLoader {
      * @param textureId the entity texture id to bind under the {@code entity} variable
      * @return the parsed model data with its {@code entity} texture bound
      */
+    /**
+     * Parses a bone-format block-entity model (a {@code model.bones} relative bone/cube tree, same
+     * schema as {@code entity_geometry.json}) into a {@link Block.Entity.BoneModel} carrying the
+     * geometry plus the render-time presentation metadata read off the entry object
+     * ({@code inventory_y_rotation}, {@code entity_flip}, {@code inventory_transform}).
+     * <p>
+     * Returns {@link Optional#empty()} for the legacy element format (no {@code bones} key), leaving
+     * the caller on the {@link BlockGeometryKit#buildFromElements} path.
+     *
+     * @param modelJson the {@code model} sub-object, carrying either {@code bones} or {@code elements}
+     * @param entry the block-entity catalog entry, carrying the presentation metadata alongside {@code model}
+     * @return the parsed bone model, or empty when the entry is element-format
+     */
+    private static @NotNull Optional<Block.Entity.BoneModel> parseBoneModel(@NotNull JsonObject modelJson, @NotNull JsonObject entry) {
+        if (!modelJson.has("bones")) return Optional.empty();
+
+        EntityModelData model = GSON.fromJson(modelJson, EntityModelData.class);
+
+        boolean sourceYUp = entry.has("y_axis") && "UP".equals(entry.get("y_axis").getAsString());
+        float inventoryYRotation = entry.has("inventory_y_rotation") ? entry.get("inventory_y_rotation").getAsFloat() : 0f;
+        boolean entityFlip = entry.has("entity_flip") && entry.get("entity_flip").getAsBoolean();
+
+        float[] inventoryTransform = null;
+        if (entry.has("inventory_transform") && entry.get("inventory_transform").isJsonArray()) {
+            JsonArray arr = entry.getAsJsonArray("inventory_transform");
+            inventoryTransform = new float[arr.size()];
+            for (int i = 0; i < arr.size(); i++)
+                inventoryTransform[i] = arr.get(i).getAsFloat();
+        }
+
+        return Optional.of(new Block.Entity.BoneModel(model, sourceYUp, inventoryYRotation, entityFlip, inventoryTransform));
+    }
+
     private static @NotNull ModelData parseBlockModelData(@NotNull JsonObject json, @NotNull String textureId) {
         JsonObject modelJson = new JsonObject();
 

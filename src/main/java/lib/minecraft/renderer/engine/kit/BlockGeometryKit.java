@@ -161,6 +161,36 @@ public class BlockGeometryKit {
         @NotNull PixelBuffer texture,
         int tintArgb
     ) {
+        return buildFromBones(model, texture, tintArgb, Matrix4f.IDENTITY);
+    }
+
+    /**
+     * {@code presentation}-aware variant of {@link #buildFromBones(EntityModelData, PixelBuffer, int)}
+     * that applies a block-entity presentation transform to each composed cube corner
+     * <b>before</b> the {@code /16 - 0.5} normalization - the same {@code [0, 16]}-space frame the
+     * former {@code BlockModelConverter} baked into block elements.
+     * <p>
+     * The presentation reproduces the render-time knobs vanilla's {@code BlockEntityRenderer}
+     * applies around the bone geometry: the entity-render {@code scale(-1, -1, 1)} flip (or a
+     * decomposed {@code inventory_transform}), then the inventory yaw about block centre
+     * {@code (8, 8, 8)} that faces the model at the standard {@code [30, 225, 0]} iso pose (the
+     * chest's baked {@code +180}). Since the bone chain, the presentation, and the normalization all
+     * live in the same {@code [0, 16]} frame, this stays byte-compatible with the block element path
+     * a caller would otherwise build.
+     *
+     * @param model the relative bone/cube model (vanilla Y-down frame)
+     * @param texture the entity texture the cube UVs sample
+     * @param tintArgb the ARGB tint applied to every face, or {@code 0xFFFFFFFF} for no tint
+     * @param presentation the {@code [0, 16]}-space model-to-block transform applied after the bone
+     *     chain and before normalization, or {@link Matrix4f#IDENTITY} for the native frame
+     * @return the block-frame triangle list, ready for the downstream render transform
+     */
+    public static @NotNull ConcurrentList<VisibleTriangle> buildFromBones(
+        @NotNull EntityModelData model,
+        @NotNull PixelBuffer texture,
+        int tintArgb,
+        @NotNull Matrix4f presentation
+    ) {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
         Map<String, Matrix4f> chains = BoneChains.buildChainTransforms(model.getBones());
         float texW = model.getTextureWidth() > 0 ? model.getTextureWidth() : Math.max(1f, texture.width());
@@ -178,7 +208,10 @@ public class BlockGeometryKit {
                 Box cubeBounds = new Box(
                     ox - scaledInflate, oy - scaledInflate, oz - scaledInflate,
                     ox + s * size.x() + scaledInflate, oy + s * size.y() + scaledInflate, oz + s * size.z() + scaledInflate);
-                Matrix4f cubeTransform = BoneChains.composeCubeTransform(cube, bone, boneChain);
+                // Column-vector chain: cubeTransform (the bone chain) applies first to a cube corner,
+                // then presentation (flip / inventory transform / inventory yaw) in the same [0, 16]
+                // block frame; the /16 - 0.5 normalization below matches buildFromElements.
+                Matrix4f cubeTransform = presentation.multiply(BoneChains.composeCubeTransform(cube, bone, boneChain));
                 boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
 
                 for (EntityFace face : EntityFace.CACHED_VALUES) {

@@ -4,7 +4,9 @@ import com.google.gson.JsonObject;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.ColorMath;
+import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.ModelData;
+import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.options.BlockOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lombok.AllArgsConstructor;
@@ -231,7 +233,13 @@ public final class Block {
      * visual appearance comes from a tile-entity renderer rather than their {@code block.json}.
      *
      * @param beType vanilla {@code BlockEntityType} reference for diagnostics ({@code "minecraft:bed"})
-     * @param model extracted geometry (elements + face UVs)
+     * @param model extracted element geometry (from/to boxes + face UVs) for families still on the
+     *     block-element format; empty for a bone-format family whose geometry lives on
+     *     {@link #boneModel()}
+     * @param boneModel the relative bone/cube geometry plus its render-time presentation, present for
+     *     families migrated onto the shared entity bone format ({@code chest}); empty for the legacy
+     *     element format. When present, the renderer builds via
+     *     {@link BlockGeometryKit#buildFromBones} rather than the element path
      * @param textureId entity texture id bound to the {@code "#entity"} texture variable, e.g
      *     {@code "minecraft:entity/bed/red"}
      * @param tintArgb ARGB tint multiplied against every sampled texel - used for per-dye banner
@@ -253,6 +261,7 @@ public final class Block {
     public record Entity(
         @NotNull String beType,
         @NotNull ModelData model,
+        @NotNull Optional<BoneModel> boneModel,
         @NotNull String textureId,
         int tintArgb,
         int iconRotation,
@@ -260,6 +269,65 @@ public final class Block {
         @NotNull ConcurrentList<Part> parts,
         boolean additive
     ) {
+
+        /**
+         * The bone-format geometry for a block entity migrated onto the shared entity bone tree,
+         * plus the render-time presentation transform that reproduces vanilla's
+         * {@code BlockEntityRenderer} pose (the former {@code BlockModelConverter} bake, now applied
+         * at render). The renderer composes the relative {@link #model()} through
+         * {@link BlockGeometryKit#buildFromBones}, applying a {@code [0, 16]}-space presentation
+         * built from {@link #inventoryYRotation()} / {@link #entityFlip()} /
+         * {@link #inventoryTransform()}.
+         *
+         * @param model the relative bone/cube geometry in its native source frame (same schema as
+         *     {@code entity_geometry.json}); {@link #sourceYUp()} says which Y convention it uses
+         * @param sourceYUp whether the bones are authored Y-up (block space already, no Y-flip) or
+         *     Y-down (entity space, needing the presentation's {@code cy = -cy} to reach block space)
+         * @param inventoryYRotation the GUI-facing yaw in degrees applied about block centre
+         *     {@code (8, 8, 8)} to face the model at the standard {@code [30, 225, 0]} iso pose
+         *     (the chest's {@code +180})
+         * @param entityFlip whether the entity-render {@code scale(-1, -1, 1)} X negation applies on
+         *     the no-inventory-transform path
+         * @param inventoryTransform the decomposed {@code [tx, ty, tz, pitch, yaw, roll, scale?]}
+         *     inventory transform, or {@code null} when the model takes the entity-flip path
+         */
+        public record BoneModel(
+            @NotNull EntityModelData model,
+            boolean sourceYUp,
+            float inventoryYRotation,
+            boolean entityFlip,
+            float @Nullable [] inventoryTransform
+        ) {
+
+            /**
+             * {@inheritDoc}
+             *
+             * <p>Overrides the record's generated {@code equals} so {@code inventoryTransform}
+             * compares by element ({@link Arrays#equals}) rather than by reference identity.
+             */
+            @Override
+            public boolean equals(Object o) {
+                if (o == null || getClass() != o.getClass()) return false;
+                BoneModel that = (BoneModel) o;
+                return Float.compare(this.inventoryYRotation, that.inventoryYRotation) == 0
+                    && this.sourceYUp == that.sourceYUp
+                    && this.entityFlip == that.entityFlip
+                    && Objects.equals(this.model, that.model)
+                    && Arrays.equals(this.inventoryTransform, that.inventoryTransform);
+            }
+
+            /**
+             * {@inheritDoc}
+             *
+             * <p>Overrides the record's generated {@code hashCode} so {@code inventoryTransform}
+             * hashes by content ({@link Arrays#hashCode}), staying consistent with {@link #equals}.
+             */
+            @Override
+            public int hashCode() {
+                return Objects.hash(this.model, this.sourceYUp, this.inventoryYRotation, this.entityFlip, Arrays.hashCode(this.inventoryTransform));
+            }
+
+        }
 
         /**
          * An atlas-time composition instruction - additional geometry merged into the parent

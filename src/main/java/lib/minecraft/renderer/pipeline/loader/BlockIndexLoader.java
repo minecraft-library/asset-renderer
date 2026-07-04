@@ -74,7 +74,13 @@ public class BlockIndexLoader {
 
         int before = blockIndex.size();
         blockIndex.entrySet().removeIf(entry -> {
-            ModelData model = entry.getValue().getModel();
+            Block block = entry.getValue();
+            // Bone-format block entities (chest) carry empty element geometry - their mesh is a
+            // relative bone tree rendered via BlockGeometryKit#buildFromBones, so the empty-elements
+            // model would trip rendersNothing. Keep them regardless.
+            if (block.getEntity().map(e -> e.boneModel().isPresent()).orElse(false))
+                return false;
+            ModelData model = block.getModel();
             return isInvisible(entry.getKey())
                 || Models.rendersNothing(model.getElements(), model.getTextures(), false);
         });
