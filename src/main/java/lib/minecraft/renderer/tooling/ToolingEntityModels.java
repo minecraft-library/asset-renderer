@@ -386,7 +386,7 @@ public final class ToolingEntityModels {
             }
             System.out.println("Resolved baby geometry for " + babyResolutionByEntity.size() + " entities");
 
-            ConcurrentMap<String, JsonObject> geometries = GeometryParser.parse(clientJar, sources, diagnostics, true);
+            ConcurrentMap<String, JsonObject> geometries = GeometryParser.parse(clientJar, sources, diagnostics);
             System.out.println("Parsed geometry for " + geometries.size() + " entities + overlays");
 
             // Flag geometries whose model class requests vanilla's back-face-culling render type

@@ -37,10 +37,12 @@ import java.util.Optional;
  * ({@code iconRotation} on beds, {@code additive} on bells, {@code tint} on banners) are
  * emitted directly into the block entries by the tooling's id-pattern walker.
  *
- * <p>The output is a flat map of block id to {@link Block.Entity} carrying a populated
- * {@link ModelData} (with real {@link ModelElement elements}) and the entity texture
- * reference. These blocks render through the standard block model path
- * ({@link BlockGeometryKit#buildFromElements}) with no entity model pipeline.
+ * <p>The output is a flat map of block id to {@link Block.Entity} carrying its geometry as a
+ * parent-relative bone tree ({@link Block.Entity.BoneModel}, the same schema as
+ * {@code entity_geometry.json}) plus the render presentation metadata and the entity texture
+ * reference. These blocks render hierarchically through
+ * {@link BlockGeometryKit#buildFromBones} with a presentation transform, rather than the
+ * plain-block {@link BlockGeometryKit#buildFromElements} path.
  */
 @UtilityClass
 public class BlockModelLoader {
