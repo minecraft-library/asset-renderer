@@ -341,7 +341,11 @@ public final class Block {
          * pass {@code false} to render one variant's geometry at a time.
          *
          * @param modelId source entity model id for diagnostics ({@code "minecraft:bed_foot"})
-         * @param model part geometry (elements + face UVs) ready to append to the parent
+         * @param model part geometry (elements + face UVs) ready to append to the parent; empty for
+         *     a bone-format part whose geometry lives on {@link #boneModel()}
+         * @param boneModel the part's relative bone geometry + presentation, present when the part
+         *     model has migrated onto the bone format; empty for the legacy element format. When
+         *     present, the renderer builds the part via {@link BlockGeometryKit#buildFromBones}
          * @param texture absolute texture id that rebinds the part's {@code "#entity"} face refs
          * @param offset model-unit shift applied to every from/to + rotation.origin on the merged
          *     elements ({@code [0, 0, 16]} to place the bed foot one block past the head)
@@ -349,6 +353,7 @@ public final class Block {
         public record Part(
             @NotNull String modelId,
             @NotNull ModelData model,
+            @NotNull Optional<BoneModel> boneModel,
             @NotNull String texture,
             float @NotNull [] offset
         ) {
@@ -365,6 +370,7 @@ public final class Block {
                 Part part = (Part) o;
                 return Objects.equals(this.modelId, part.modelId)
                     && Objects.equals(this.model, part.model)
+                    && Objects.equals(this.boneModel, part.boneModel)
                     && Objects.equals(this.texture, part.texture)
                     && Arrays.equals(this.offset, part.offset);
             }
@@ -377,7 +383,7 @@ public final class Block {
              */
             @Override
             public int hashCode() {
-                return Objects.hash(this.modelId, this.model, this.texture, Arrays.hashCode(this.offset));
+                return Objects.hash(this.modelId, this.model, this.boneModel, this.texture, Arrays.hashCode(this.offset));
             }
 
         }

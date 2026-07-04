@@ -149,8 +149,9 @@ public class BlockModelLoader {
                         if (partModel == null) continue;
                         JsonObject partModelJson = partModel.has("model") ? partModel.getAsJsonObject("model") : null;
                         if (partModelJson == null) continue;
+                        Optional<Block.Entity.BoneModel> partBone = parseBoneModel(partModelJson, partModel);
                         ModelData partData = parseBlockModelData(partModelJson, partTexture);
-                        parts.add(new Block.Entity.Part(partModelId, partData, partTexture, offset));
+                        parts.add(new Block.Entity.Part(partModelId, partData, partBone, partTexture, offset));
                     }
                 }
 

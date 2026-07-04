@@ -560,18 +560,25 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             RasterEngine raster = new RasterEngine(this.context);
 
             for (Block.Entity.Part part : entity.parts()) {
-                // Resolve the part's face textures. {@code "#entity"} in element face refs
-                // binds to the part's own texture id (which may differ from the primary -
-                // decorated_pot sides use {@code entity/decorated_pot/decorated_pot_side}
-                // while the base uses {@code ..._base}).
-                ConcurrentMap<String, String> variables = Concurrent.newMap();
-                variables.put("entity", part.texture());
-                ConcurrentMap<String, PixelBuffer> faceTextures = Textures.loadElementFaceTextures(
-                    part.model().getElements(), variables,
-                    id -> Optional.of(raster.textures().resolveTextureAtTick(id, 0)));
-
-                ConcurrentList<VisibleTriangle> partTriangles =
-                    BlockGeometryKit.buildFromElements(part.model().getElements(), faceTextures, tint, untintedTint);
+                ConcurrentList<VisibleTriangle> partTriangles;
+                if (part.boneModel().isPresent()) {
+                    // Bone-format part (decorated_pot_sides): build hierarchically with the part's
+                    // own presentation, sampling the part's entity texture.
+                    Block.Entity.BoneModel bone = part.boneModel().get();
+                    PixelBuffer texture = raster.textures().resolveTextureAtTick(part.texture(), 0);
+                    partTriangles = BlockGeometryKit.buildFromBones(bone.model(), texture, tint, blockEntityPresentation(bone));
+                } else {
+                    // Resolve the part's face textures. {@code "#entity"} in element face refs
+                    // binds to the part's own texture id (which may differ from the primary -
+                    // decorated_pot sides use {@code entity/decorated_pot/decorated_pot_side}
+                    // while the base uses {@code ..._base}).
+                    ConcurrentMap<String, String> variables = Concurrent.newMap();
+                    variables.put("entity", part.texture());
+                    ConcurrentMap<String, PixelBuffer> faceTextures = Textures.loadElementFaceTextures(
+                        part.model().getElements(), variables,
+                        id -> Optional.of(raster.textures().resolveTextureAtTick(id, 0)));
+                    partTriangles = BlockGeometryKit.buildFromElements(part.model().getElements(), faceTextures, tint, untintedTint);
+                }
 
                 // Apply the part's offset to every vertex. Offset is in model units (0..16);
                 // triangle vertex positions are in block units (0..1) post-GeometryKit, so
