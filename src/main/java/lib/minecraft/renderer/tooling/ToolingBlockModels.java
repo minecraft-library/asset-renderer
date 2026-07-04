@@ -137,9 +137,8 @@ public final class ToolingBlockModels {
         "minecraft:bell_body",
         "minecraft:hanging_sign",
         "minecraft:hanging_sign_attached",
-        "minecraft:wall_hanging_sign"
-        // skull_dragon_head DEFERRED: only skull with a non-1 bone scale (0.75) on a parent chain
-        // (jaw->head); buildFromBones vs the old element bbox diverges (parent-scale propagation).
+        "minecraft:wall_hanging_sign",
+        "minecraft:skull_dragon_head"
     );
 
     /**
