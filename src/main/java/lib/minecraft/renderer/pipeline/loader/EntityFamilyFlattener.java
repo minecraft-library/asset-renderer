@@ -1,5 +1,6 @@
 package lib.minecraft.renderer.pipeline.loader;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import org.jetbrains.annotations.NotNull;
 
@@ -77,7 +78,7 @@ public final class EntityFamilyFlattener {
         Map<String, String> collarTextures = new LinkedHashMap<>();
         Map<String, String> babyGeometry = new LinkedHashMap<>();
 
-        for (Map.Entry<String, com.google.gson.JsonElement> entry : familyForm.entrySet()) {
+        for (Map.Entry<String, JsonElement> entry : familyForm.entrySet()) {
             String familyId = entry.getKey();
             if (!entry.getValue().isJsonObject()) continue;
             JsonObject family = entry.getValue().getAsJsonObject();
@@ -137,7 +138,7 @@ public final class EntityFamilyFlattener {
      */
     private static String collarTextureOf(@NotNull JsonObject family) {
         if (!family.has("layers")) return null;
-        for (com.google.gson.JsonElement element : family.getAsJsonArray("layers")) {
+        for (JsonElement element : family.getAsJsonArray("layers")) {
             JsonObject layer = element.getAsJsonObject();
             if (layer.has("id") && "collar".equals(layer.get("id").getAsString()) && layer.has("overlay")) {
                 JsonObject overlay = layer.getAsJsonObject("overlay");
@@ -169,7 +170,7 @@ public final class EntityFamilyFlattener {
         String armorType = family.get("armor_type").getAsString();
         JsonObject options = variantAxis.getAsJsonObject("options");
 
-        for (Map.Entry<String, com.google.gson.JsonElement> entry : options.entrySet()) {
+        for (Map.Entry<String, JsonElement> entry : options.entrySet()) {
             String option = entry.getKey();
             JsonObject optionObj = entry.getValue().getAsJsonObject();
             String rowId = familyId + "_" + option;
@@ -200,7 +201,7 @@ public final class EntityFamilyFlattener {
         JsonObject textures = optionObj.getAsJsonObject("textures");
         if (textures.size() <= 1) return;
         Map<String, String> states = new LinkedHashMap<>();
-        for (Map.Entry<String, com.google.gson.JsonElement> texture : textures.entrySet())
+        for (Map.Entry<String, JsonElement> texture : textures.entrySet())
             states.put(texture.getKey(), texture.getValue().getAsString());
         stateTextures.put(rowId, states);
     }

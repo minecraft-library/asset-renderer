@@ -51,13 +51,16 @@ public class EntityModelData {
     private int textureHeight = 64;
 
     /**
-     * The pitch/yaw/roll this model's inventory render should apply before rasterization, in
-     * degrees. Mirrors the per-type transformation each vanilla {@code BlockEntityRenderer}
-     * applies in {@code BlockEntityWithoutLevelRenderer.renderByItem}; e.g. {@code ChestRenderer}
-     * reads the chest's default {@code FACING = NORTH} and yaws {@code -NORTH.toYRot() = 180}.
-     * A stored value of {@code 180} therefore reflects chest-family inventory rendering. Models
-     * that don't need a bespoke pose (shulker, sign, bed, banner, conduit, hanging sign) leave
-     * this at its zero default.
+     * The GUI-facing yaw in degrees this model's inventory render applies before rasterization.
+     * Mirrors the per-type transformation each vanilla {@code BlockEntityRenderer} applies in
+     * {@code BlockEntityWithoutLevelRenderer.renderByItem}; e.g. {@code ChestRenderer} reads the
+     * chest's default {@code FACING = NORTH} and yaws {@code -NORTH.toYRot() = 180}.
+     * <p>
+     * Read only on the entity path, where {@code EntityRenderer} folds it into the camera Euler
+     * yaw. Block entities do NOT store their yaw here - it lives on the parallel
+     * {@code Block.Entity.BoneModel.inventoryYRotation}, applied about block centre by the block
+     * presentation. Same name, two homes, two frames (entity camera-yaw vs block presentation-yaw);
+     * on the block path this field stays at its zero default.
      */
     @SerializedName("inventory_y_rotation")
     private float inventoryYRotation = 0f;

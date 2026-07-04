@@ -29,7 +29,6 @@ import lib.minecraft.renderer.engine.light.Lighting;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
-import lib.minecraft.renderer.options.Age;
 import lib.minecraft.renderer.options.EntityAppearance;
 import lib.minecraft.renderer.options.EntityOptions;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;

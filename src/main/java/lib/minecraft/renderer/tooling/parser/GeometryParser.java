@@ -419,13 +419,11 @@ public final class GeometryParser {
      * resolution. No-op when {@code meshTransformerScale == 1f} (the common case) so
      * byte-stable legacy + non-scaling entity parses stay byte-stable.
      * <p>
-     * The feet-anchor {@code +dy} translate is a single root-level translate. In the
-     * <b>absolute</b> pipeline every bone's pivot is world-space so each gets {@code +dy}
-     * directly. In the <b>relative</b> pipeline descendants inherit the translate through the
-     * parent chain, so {@code +dy} is applied to top-level bones only ({@code parent == null});
-     * applying it to every bone would double-count it down the chain. The {@code f *} spacing
-     * scale applies to every bone in both pipelines (chain translations sum, so a uniform
-     * per-bone {@code f} yields a uniform model scale).
+     * The feet-anchor {@code +dy} translate is a single root-level translate. Descendants
+     * inherit the translate through the parent chain, so {@code +dy} is applied to top-level
+     * bones only ({@code parent == null}); applying it to every bone would double-count it
+     * down the chain. The {@code f *} spacing scale applies to every bone (chain translations
+     * sum, so a uniform per-bone {@code f} yields a uniform model scale).
      *
      * @param state the parse state whose emitted bones are re-walked and scaled in place
      */

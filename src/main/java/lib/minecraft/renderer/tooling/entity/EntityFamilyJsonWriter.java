@@ -105,6 +105,7 @@ public final class EntityFamilyJsonWriter {
      *     {@code null} to skip enrichment)
      * @param collarByEntity base entity id -&gt; dyed-collar texture (may be {@code null})
      * @param babyGeometryByEntity base entity id -&gt; baby geometry id (may be {@code null})
+     * @param babyTextureByEntity base entity id -&gt; baby texture id (may be {@code null})
      * @param diagnostics the diagnostic sink for structural warnings
      * @return the {@code families} object of the family form (family id -&gt; family entry)
      */

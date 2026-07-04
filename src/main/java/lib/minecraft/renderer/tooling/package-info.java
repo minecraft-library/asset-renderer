@@ -87,7 +87,7 @@
  *       {@link lib.minecraft.renderer.tooling.entity.EntityRegistryDiscovery mob + renderer registry},
  *       {@link lib.minecraft.renderer.tooling.entity.EntityTextureResolver texture binding},
  *       {@link lib.minecraft.renderer.tooling.entity.EntityVariantResolver variant tables},
- *       {@link lib.minecraft.renderer.tooling.entity.EntityBoneResolver addLayer overlay scan + hidden bones},
+ *       {@link lib.minecraft.renderer.tooling.entity.EntityBoneResolver addLayer overlay scan + hidden bones + bone toggles + armor type},
  *       {@link lib.minecraft.renderer.tooling.entity.EntityLayerDefinitionResolver layer definitions},
  *       {@link lib.minecraft.renderer.tooling.entity.EntityOverlayResolver overlay resolution},
  *       {@link lib.minecraft.renderer.tooling.entity.EntityBlockOverlayResolver block-overlay resolution},

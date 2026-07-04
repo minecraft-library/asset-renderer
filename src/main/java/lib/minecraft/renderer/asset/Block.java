@@ -194,8 +194,7 @@ public final class Block {
      * @param uvlock whether UVs should be locked to the block grid during rotation
      * @param boneModel the variant's relative bone geometry + presentation when a block-entity model
      *     registers state-conditional bone geometry under this variant (the ceiling hanging sign's
-     *     straight-chain mesh under {@code attached=true}); empty for plain blockstate variants and
-     *     for element-format block-entity variants
+     *     straight-chain mesh under {@code attached=true}); empty for plain blockstate variants
      */
     public record Variant(@NotNull String modelId, @NotNull ModelData model, int x, int y, boolean uvlock, @NotNull Optional<Entity.BoneModel> boneModel) {
 
@@ -268,8 +267,8 @@ public final class Block {
         /**
          * The bone-format geometry for a block entity migrated onto the shared entity bone tree,
          * plus the render-time presentation transform that reproduces vanilla's
-         * {@code BlockEntityRenderer} pose (the former {@code BlockModelConverter} bake, now applied
-         * at render). The renderer composes the relative {@link #model()} through
+         * {@code BlockEntityRenderer} pose (formerly baked at tooling time, now applied at render).
+         * The renderer composes the relative {@link #model()} through
          * {@link BlockGeometryKit#buildFromBones}, applying a {@code [0, 16]}-space presentation
          * built from {@link #inventoryYRotation()} / {@link #entityFlip()} /
          * {@link #inventoryTransform()}.
@@ -280,7 +279,9 @@ public final class Block {
          *     Y-down (entity space, needing the presentation's {@code cy = -cy} to reach block space)
          * @param inventoryYRotation the GUI-facing yaw in degrees applied about block centre
          *     {@code (8, 8, 8)} to face the model at the standard {@code [30, 225, 0]} iso pose
-         *     (the chest's {@code +180})
+         *     (the chest's {@code +180}); the block presentation-yaw home, distinct from the entity
+         *     camera-yaw {@link EntityModelData#getInventoryYRotation()} (same name, two renderers,
+         *     two frames - block render reads only this one)
          * @param entityFlip whether the entity-render {@code scale(-1, -1, 1)} X negation applies on
          *     the no-inventory-transform path
          * @param inventoryTransform the decomposed {@code [tx, ty, tz, pitch, yaw, roll, scale?]}

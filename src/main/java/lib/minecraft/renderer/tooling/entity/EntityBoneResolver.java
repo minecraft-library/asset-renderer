@@ -28,8 +28,8 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Per-entity bone-related resolution. One resolver folds two adjacent bone-related signals
- * that both walk the renderer's constructor chain and the same model-class hierarchy:
+ * Per-entity bone-related resolution. One resolver folds four adjacent bone-related signals
+ * that all walk the renderer's constructor chain and the same model-class hierarchy:
  *
  * <ul>
  *   <li><b>{@link #scanOverlayLayers Overlay-layer scan.}</b> Walks the renderer's
@@ -45,6 +45,14 @@ import java.util.Set;
  *       false. Then walks the renderer's own constructor for {@code visible = true}
  *       re-enables (the {@code IllusionerRenderer} pattern that overrides
  *       {@code IllagerModel}'s hat hide) and subtracts those from the hidden set.</li>
+ *   <li><b>{@link #resolveBoneToggles Bone-toggle resolution.}</b> Walks the model class for
+ *       state-gated {@code visible} writes a render option flips - field-gated reveals
+ *       (donkey/mule/llama chest) and inline-gated hides (goat horns) - naming which bones a
+ *       toggle flips and from what default. Additive to the hidden-bone set, so the default
+ *       render stays byte-identical.</li>
+ *   <li><b>{@link #inferArmorType Armor-type classification.}</b> Classifies the overlay-layer
+ *       list from {@link #scanOverlayLayers} into an armor mesh selector ({@code "humanoid"}
+ *       when a {@code HumanoidArmorLayer} is present, else {@code "none"}).</li>
  * </ul>
  *
  * <p>The layer-scan output drives {@code addLayer}-style overlay enumeration during the

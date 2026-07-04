@@ -7,7 +7,6 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.gson.GsonSettings;
-import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.exception.ToolingException;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
@@ -130,7 +129,7 @@ public final class ToolingBlockModels {
             // Relative bone emission: every block entity carries a parent-relative bone tree
             // (the same schema as entity_geometry.json), composed at render time via
             // BlockGeometryKit#buildFromBones with a presentation transform. No absolute-flatten
-            // step - the former element pipeline (BlockModelConverter) is gone.
+            // step - the former element pipeline is gone.
             ConcurrentMap<String, JsonObject> models = GeometryParser.parse(jarPath, sources, diagnostics);
             System.out.printf("Parsed %d / %d sources%n", models.size(), sources.size());
 

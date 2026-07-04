@@ -147,7 +147,7 @@ public class BlockGeometryKit {
      * flip, no inventory transform). The per-block-entity presentation transforms - the entity-render
      * flip, the decomposed {@code inventory_transform} / {@code inventory_y_rotation}, and the iso
      * pose - are applied downstream at render time (the same knobs that were previously baked into the
-     * block elements by {@code BlockModelConverter}). So this method is <b>not</b> triangle-identical
+     * block elements at tooling time). So this method is <b>not</b> triangle-identical
      * to {@code buildFromElements(elements)}; equivalence is a render-parity property validated once
      * the render path applies those transforms.
      *
@@ -168,7 +168,7 @@ public class BlockGeometryKit {
      * {@code presentation}-aware variant of {@link #buildFromBones(EntityModelData, PixelBuffer, int)}
      * that applies a block-entity presentation transform to each composed cube corner
      * <b>before</b> the {@code /16 - 0.5} normalization - the same {@code [0, 16]}-space frame the
-     * former {@code BlockModelConverter} baked into block elements.
+     * bake formerly produced at tooling time.
      * <p>
      * The presentation reproduces the render-time knobs vanilla's {@code BlockEntityRenderer}
      * applies around the bone geometry: the entity-render {@code scale(-1, -1, 1)} flip (or a

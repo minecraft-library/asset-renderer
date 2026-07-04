@@ -214,8 +214,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 // Bone-format block entities (chest) carry a relative bone/cube tree rather than
                 // pre-flattened block elements: build hierarchically via buildFromBones and apply
                 // the presentation transform (entity flip + inventory transform + inventory yaw)
-                // that vanilla's BlockEntityRenderer poses around the mesh - the render-time
-                // counterpart of the former BlockModelConverter tooling bake. This replaces the
+                // that vanilla's BlockEntityRenderer poses around the mesh - formerly baked at
+                // tooling time, now applied at render. This replaces the
                 // whole primary model (a non-additive entity's geometry IS the primary geometry).
                 // Additive bone entities (bell) keep their blockstate model as the primary and merge
                 // the bone body in the ADDITIVE slot below, so they skip this dispatch. A
