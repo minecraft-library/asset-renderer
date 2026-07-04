@@ -9,6 +9,7 @@ import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.options.BlockOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
+import lib.minecraft.renderer.tensor.Matrix4f;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -299,6 +300,51 @@ public final class Block {
             float @Nullable [] inventoryTransform,
             boolean tinted
         ) {
+
+            /**
+             * Builds this bone model's {@code [0, 16]}-space presentation transform - the render-time
+             * pose vanilla's {@code BlockEntityRenderer} applies around the bone geometry (the bone
+             * chain itself is composed by {@link BlockGeometryKit#buildFromBones}). Column-vector
+             * order matches vanilla: the entity-render {@code scale(-1, -1, 1)} flip (or a decomposed
+             * {@link #inventoryTransform()} of {@code scale -> Rx(pitch) -> translate}) applies first,
+             * then the {@link #inventoryYRotation()} yaw about block centre {@code (8, 8, 8)}.
+             *
+             * @return the presentation matrix in the {@code [0, 16]} block-authoring frame
+             */
+            public @NotNull Matrix4f presentation() {
+                float[] inv = this.inventoryTransform();
+                Matrix4f pre;
+                if (inv != null) {
+                    // scale(invScale) -> Rx(pitch) -> translate(tx, ty, tz), matching vanilla's
+                    // translate * rotate * scale composition.
+                    float invScale = inv.length > 6 && inv[6] != 0f ? inv[6] : 1f;
+                    float pitch = (float) Math.toRadians(inv[3]);
+                    pre = Matrix4f.createTranslation(inv[0], inv[1], inv[2])
+                        .multiply(Matrix4f.createRotationX(pitch))
+                        .multiply(Matrix4f.createScale(invScale, invScale, invScale));
+                } else {
+                    // No inventory transform: vanilla's entity-render flip scale(-1, -1, 1). The X
+                    // negation is gated on entityFlip (read from the item icon's display.gui roll). The
+                    // Y negation maps the bones' source frame to block Y-up - needed only for Y-DOWN
+                    // (entity-space) sources; a Y-UP source (chest) is already block-Y-up, so its Y stays
+                    // positive (matching the former element bake's net orientation).
+                    float sx = this.entityFlip() ? -1f : 1f;
+                    float sy = this.sourceYUp() ? 1f : -1f;
+                    pre = Matrix4f.createScale(sx, sy, 1f);
+                }
+
+                // Inventory yaw about block centre (8, 8, 8) - the chest's +180 that faces the model
+                // under the standard [30, 225, 0] iso pose. All current block-entity yaws are 180
+                // (symmetric, so the createRotationY sign is immaterial).
+                float yaw = this.inventoryYRotation();
+                if (yaw != 0f) {
+                    Matrix4f yawAboutCentre = Matrix4f.createTranslation(8f, 8f, 8f)
+                        .multiply(Matrix4f.createRotationY((float) Math.toRadians(yaw)))
+                        .multiply(Matrix4f.createTranslation(-8f, -8f, -8f));
+                    pre = yawAboutCentre.multiply(pre);
+                }
+                return pre;
+            }
 
             /**
              * {@inheritDoc}
