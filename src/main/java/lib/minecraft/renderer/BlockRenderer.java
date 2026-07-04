@@ -222,11 +222,11 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 // state-conditional bone variant (the ceiling hanging sign's straight-chain mesh
                 // under attached=true) overrides the default bone geometry; the blockstate variant
                 // rotation still applies (matching the element path below).
-                if (be != null && !be.additive() && be.boneModel().isPresent()) {
+                if (be != null && !be.additive()) {
                     Block.Variant boneVariant = resolveVariant(block, effectiveVariant);
                     Block.Entity.BoneModel boneToUse = boneVariant != null && boneVariant.boneModel().isPresent()
                         ? boneVariant.boneModel().get()
-                        : be.boneModel().get();
+                        : be.boneModel();
                     ConcurrentList<VisibleTriangle> boneTriangles = buildFromBoneModel(boneToUse, be.textureId(), tint);
                     if (boneVariant != null && boneVariant.hasRotation())
                         boneTriangles = applyRotation(boneTriangles, buildVariantRotation(boneVariant));
@@ -262,28 +262,24 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // the primary model; non-additive entity geometry IS the primary model already.
             if (be != null && options.isMergeParts()) {
                 if (be.additive())
-                    stack.append(BlockOptions.Slot.ADDITIVE_ENTITY, sink -> sink.addAll(buildFromAdditiveEntity(be, tint, untintedTint)));
+                    stack.append(BlockOptions.Slot.ADDITIVE_ENTITY, sink -> sink.addAll(buildFromAdditiveEntity(be, tint)));
                 if (!be.parts().isEmpty())
-                    stack.append(BlockOptions.Slot.PARTS, sink -> sink.addAll(buildFromEntityParts(be, tint, untintedTint)));
+                    stack.append(BlockOptions.Slot.PARTS, sink -> sink.addAll(buildFromEntityParts(be, tint)));
             }
 
             for (GeometryLayer layer : options.getLayerDecorator().apply(stack).ordered())
                 layer.contribute(triangles);
 
-            // Block entity multi-block models (beds) need recentering + rotation + scaling
-            // since they extend beyond the standard 0-16 single-block bounds. Bone-format BEs
-            // always run recenterAndFit: their model geometry (empty elements) can't be measured
-            // by the loader's element-bbox multiBlock check, and recenterAndFit self-gates on
-            // extent > 1.4 blocks, so it is a no-op for the block-sized families (chest, sign,
-            // shulker, ...) and only recentres a tall/wide statue (copper_golem_statue, whose model
-            // is authored X-centred at 0 and Y up to ~24px, off the single-block frame).
-            boolean recenterFit = be != null && (be.multiBlock() || be.boneModel().isPresent());
-            if (be != null && (recenterFit || be.iconRotation() != 0)) {
+            // Every block entity runs recenterAndFit: its composed bone geometry isn't measured up
+            // front, and recenterAndFit self-gates on extent > 1.4 blocks - a no-op for the
+            // block-sized families (chest, sign, shulker, ...) and only recentring a tall/wide model
+            // (copper_golem_statue, authored X-centred at 0 and Y up to ~24px off the single-block
+            // frame; beds, two blocks wide). iconRotation (beds) applies first.
+            if (be != null) {
                 if (be.iconRotation() != 0)
                     triangles = applyRotation(triangles, Matrix4f.createRotationY(
                         (float) Math.toRadians(be.iconRotation())));
-                if (recenterFit)
-                    triangles = recenterAndFit(triangles);
+                triangles = recenterAndFit(triangles);
             }
 
             // Fallback: when the block's registered model produces no faces (variant- or
@@ -480,7 +476,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * @return the composed block-frame triangle list
          */
         private @NotNull ConcurrentList<VisibleTriangle> buildFromBoneEntity(@NotNull Block.Entity entity, int tint) {
-            return buildFromBoneModel(entity.boneModel().orElseThrow(), entity.textureId(), tint);
+            return buildFromBoneModel(entity.boneModel(), entity.textureId(), tint);
         }
 
         /**
@@ -558,18 +554,10 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * geometry merges on top of an existing blockstate-resolved primary model rather than
          * replacing it.
          */
-        private @NotNull ConcurrentList<VisibleTriangle> buildFromAdditiveEntity(@NotNull Block.Entity entity, int tint, int untintedTint) {
-            // Bone-format additive body (bell): same hierarchical build + presentation as a primary
-            // bone entity, just contributed as an overlay onto the blockstate model.
-            if (entity.boneModel().isPresent())
-                return buildFromBoneEntity(entity, tint);
-            RasterEngine raster = new RasterEngine(this.context);
-            ConcurrentMap<String, String> variables = Concurrent.newMap();
-            variables.put("entity", entity.textureId());
-            ConcurrentMap<String, PixelBuffer> faceTextures = Textures.loadElementFaceTextures(
-                entity.model().getElements(), variables,
-                id -> Optional.of(raster.textures().resolveTextureAtTick(id, 0)));
-            return BlockGeometryKit.buildFromElements(entity.model().getElements(), faceTextures, tint, untintedTint);
+        private @NotNull ConcurrentList<VisibleTriangle> buildFromAdditiveEntity(@NotNull Block.Entity entity, int tint) {
+            // Additive bone body (bell): same hierarchical build + presentation as a primary bone
+            // entity, just contributed as an overlay onto the blockstate model.
+            return buildFromBoneEntity(entity, tint);
         }
 
         /**
@@ -588,31 +576,19 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * {@link BlockModelLoader}. Moving it to render time
          * lets scene callers skip the merge for a per-variant-geometry render.
          */
-        private @NotNull ConcurrentList<VisibleTriangle> buildFromEntityParts(@NotNull Block.Entity entity, int tint, int untintedTint) {
+        private @NotNull ConcurrentList<VisibleTriangle> buildFromEntityParts(@NotNull Block.Entity entity, int tint) {
             ConcurrentList<VisibleTriangle> combined = Concurrent.newList();
             RasterEngine raster = new RasterEngine(this.context);
 
             for (Block.Entity.Part part : entity.parts()) {
-                ConcurrentList<VisibleTriangle> partTriangles;
-                if (part.boneModel().isPresent()) {
-                    // Bone-format part (decorated_pot_sides): build hierarchically with the part's
-                    // own presentation, sampling the part's entity texture.
-                    Block.Entity.BoneModel bone = part.boneModel().get();
-                    PixelBuffer texture = raster.textures().resolveTextureAtTick(part.texture(), 0);
-                    int partTint = bone.tinted() ? tint : ColorMath.WHITE;
-                    partTriangles = BlockGeometryKit.buildFromBones(bone.model(), texture, partTint, blockEntityPresentation(bone));
-                } else {
-                    // Resolve the part's face textures. {@code "#entity"} in element face refs
-                    // binds to the part's own texture id (which may differ from the primary -
-                    // decorated_pot sides use {@code entity/decorated_pot/decorated_pot_side}
-                    // while the base uses {@code ..._base}).
-                    ConcurrentMap<String, String> variables = Concurrent.newMap();
-                    variables.put("entity", part.texture());
-                    ConcurrentMap<String, PixelBuffer> faceTextures = Textures.loadElementFaceTextures(
-                        part.model().getElements(), variables,
-                        id -> Optional.of(raster.textures().resolveTextureAtTick(id, 0)));
-                    partTriangles = BlockGeometryKit.buildFromElements(part.model().getElements(), faceTextures, tint, untintedTint);
-                }
+                // Build the part hierarchically with its own presentation, sampling the part's entity
+                // texture (which may differ from the primary - decorated_pot sides use
+                // entity/decorated_pot/decorated_pot_side while the base uses ..._base).
+                Block.Entity.BoneModel bone = part.boneModel();
+                PixelBuffer texture = raster.textures().resolveTextureAtTick(part.texture(), 0);
+                int partTint = bone.tinted() ? tint : ColorMath.WHITE;
+                ConcurrentList<VisibleTriangle> partTriangles =
+                    BlockGeometryKit.buildFromBones(bone.model(), texture, partTint, blockEntityPresentation(bone));
 
                 // Apply the part's offset to every vertex. Offset is in model units (0..16);
                 // triangle vertex positions are in block units (0..1) post-GeometryKit, so

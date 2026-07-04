@@ -75,10 +75,10 @@ public class BlockIndexLoader {
         int before = blockIndex.size();
         blockIndex.entrySet().removeIf(entry -> {
             Block block = entry.getValue();
-            // Bone-format block entities (chest) carry empty element geometry - their mesh is a
-            // relative bone tree rendered via BlockGeometryKit#buildFromBones, so the empty-elements
-            // model would trip rendersNothing. Keep them regardless.
-            if (block.getEntity().map(e -> e.boneModel().isPresent()).orElse(false))
+            // Block entities carry their mesh as a relative bone tree (block.getModel() is an empty
+            // element sentinel that would trip rendersNothing); they render via
+            // BlockGeometryKit#buildFromBones, so keep them regardless.
+            if (block.getEntity().isPresent())
                 return false;
             ModelData model = block.getModel();
             return isInvisible(entry.getKey())
@@ -231,7 +231,10 @@ public class BlockIndexLoader {
             Block.Entity entity = blockEntityEntries.get(blockId);
             Block.Source source = Block.Source.PRIMARY;
             if (entity != null && !entity.additive()) {
-                modelToUse = entity.model();
+                // A block entity's geometry is its bone tree (entity.boneModel()); Block.model is an
+                // empty element sentinel - never rendered for a BE (the bone dispatch precedes it) and
+                // exempted from the empty-model filter.
+                modelToUse = new ModelData();
                 textures = new HashMap<>();
                 textures.put("#entity", entity.textureId());
                 tint = new Block.Tint(Block.TintTarget.NONE, Optional.empty());
@@ -292,7 +295,7 @@ public class BlockIndexLoader {
             textures.put("#entity", be.textureId());
             blockIndex.put(blockId, new Block(
                 ResourceId.parse(blockId),
-                be.model(),
+                new ModelData(),
                 Concurrent.adoptMap(textures),
                 variants,
                 multipart,

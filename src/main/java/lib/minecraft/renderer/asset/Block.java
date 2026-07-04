@@ -230,32 +230,25 @@ public final class Block {
     }
 
     /**
-     * Rendering metadata for a block entity - carries the custom geometry extracted from a vanilla
-     * {@code BlockEntityRenderer} plus per-block presentation knobs (entity texture, dye tint, icon
-     * rotation, multi-block flag, atlas-time composition parts). Populated by
-     * {@link BlockModelLoader} for the ~180 block ids whose
-     * visual appearance comes from a tile-entity renderer rather than their {@code block.json}.
+     * Rendering metadata for a block entity - carries the relative bone geometry extracted from a
+     * vanilla {@code BlockEntityRenderer} plus per-block presentation knobs (entity texture, dye
+     * tint, icon rotation, atlas-time composition parts). Populated by {@link BlockModelLoader} for
+     * the ~180 block ids whose visual appearance comes from a tile-entity renderer rather than their
+     * {@code block.json}.
      *
      * @param beType vanilla {@code BlockEntityType} reference for diagnostics ({@code "minecraft:bed"})
-     * @param model extracted element geometry (from/to boxes + face UVs) for families still on the
-     *     block-element format; empty for a bone-format family whose geometry lives on
-     *     {@link #boneModel()}
-     * @param boneModel the relative bone/cube geometry plus its render-time presentation, present for
-     *     families migrated onto the shared entity bone format ({@code chest}); empty for the legacy
-     *     element format. When present, the renderer builds via
-     *     {@link BlockGeometryKit#buildFromBones} rather than the element path
+     * @param boneModel the relative bone/cube geometry plus its render-time presentation; the renderer
+     *     composes it via {@link BlockGeometryKit#buildFromBones}
      * @param textureId entity texture id bound to the {@code "#entity"} texture variable, e.g
      *     {@code "minecraft:entity/bed/red"}
      * @param tintArgb ARGB tint multiplied against every sampled texel - used for per-dye banner
      *     colouring; {@link ColorMath#WHITE} for no tint
      * @param iconRotation Y-axis rotation in degrees applied only to the atlas icon (beds use 90°
      *     to angle the headboard toward the camera)
-     * @param multiBlock {@code true} when the geometry extends outside the {@code 0..16} block
-     *     bbox and the atlas icon needs runtime {@code recenterAndFit}
      * @param parts atlas-time composition instructions - additional entity models merged at an
      *     offset (bed foot merged onto bed head, decorated_pot sides onto the base, banner flag
      *     onto the post). Empty for single-piece entities.
-     * @param additive when {@code true}, the entity {@link #model()} is merged ON TOP of the
+     * @param additive when {@code true}, the entity {@link #boneModel()} is merged ON TOP of the
      *     block's blockstate-resolved primary model rather than replacing it. Used for blocks
      *     whose vanilla render is "blockstate fixture + entity overlay" - the bell hangs from
      *     posts in {@code block/bell_floor.json} but its bell-cup body comes from
@@ -264,12 +257,10 @@ public final class Block {
      */
     public record Entity(
         @NotNull String beType,
-        @NotNull ModelData model,
-        @NotNull Optional<BoneModel> boneModel,
+        @NotNull BoneModel boneModel,
         @NotNull String textureId,
         int tintArgb,
         int iconRotation,
-        boolean multiBlock,
         @NotNull ConcurrentList<Part> parts,
         boolean additive
     ) {
@@ -351,19 +342,15 @@ public final class Block {
          * pass {@code false} to render one variant's geometry at a time.
          *
          * @param modelId source entity model id for diagnostics ({@code "minecraft:bed_foot"})
-         * @param model part geometry (elements + face UVs) ready to append to the parent; empty for
-         *     a bone-format part whose geometry lives on {@link #boneModel()}
-         * @param boneModel the part's relative bone geometry + presentation, present when the part
-         *     model has migrated onto the bone format; empty for the legacy element format. When
-         *     present, the renderer builds the part via {@link BlockGeometryKit#buildFromBones}
+         * @param boneModel the part's relative bone geometry + presentation; the renderer composes it
+         *     via {@link BlockGeometryKit#buildFromBones}
          * @param texture absolute texture id that rebinds the part's {@code "#entity"} face refs
-         * @param offset model-unit shift applied to every from/to + rotation.origin on the merged
-         *     elements ({@code [0, 0, 16]} to place the bed foot one block past the head)
+         * @param offset model-unit shift applied to every composed vertex ({@code [0, 0, 16]} to place
+         *     the bed foot one block past the head)
          */
         public record Part(
             @NotNull String modelId,
-            @NotNull ModelData model,
-            @NotNull Optional<BoneModel> boneModel,
+            @NotNull BoneModel boneModel,
             @NotNull String texture,
             float @NotNull [] offset
         ) {
@@ -379,7 +366,6 @@ public final class Block {
                 if (o == null || getClass() != o.getClass()) return false;
                 Part part = (Part) o;
                 return Objects.equals(this.modelId, part.modelId)
-                    && Objects.equals(this.model, part.model)
                     && Objects.equals(this.boneModel, part.boneModel)
                     && Objects.equals(this.texture, part.texture)
                     && Arrays.equals(this.offset, part.offset);
@@ -393,7 +379,7 @@ public final class Block {
              */
             @Override
             public int hashCode() {
-                return Objects.hash(this.modelId, this.model, this.boneModel, this.texture, Arrays.hashCode(this.offset));
+                return Objects.hash(this.modelId, this.boneModel, this.texture, Arrays.hashCode(this.offset));
             }
 
         }
