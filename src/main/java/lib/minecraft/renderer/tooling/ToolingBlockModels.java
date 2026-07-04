@@ -117,7 +117,9 @@ public final class ToolingBlockModels {
      * this allowlist and {@link BlockModelConverter} both go away.
      */
     private static final @NotNull Set<String> BONE_FORMAT_MODEL_IDS = Set.of(
-        "minecraft:chest"
+        "minecraft:chest",
+        "minecraft:sign",
+        "minecraft:wall_sign"
     );
 
     /**
