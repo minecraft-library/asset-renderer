@@ -263,8 +263,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         private @NotNull ConcurrentList<VisibleTriangle> buildPrimaryGeometry(@NotNull Block block, @Nullable Block.Entity be, @NotNull String effectiveVariant, int tint, int untintedTint) {
             if (be != null && !be.additive()) {
                 Block.Variant boneVariant = resolveVariant(block, effectiveVariant);
-                Block.Entity.BoneModel boneToUse = boneVariant != null && boneVariant.boneModel().isPresent()
-                    ? boneVariant.boneModel().get()
+                Block.Entity.BoneModel boneToUse = boneVariant != null && boneVariant.geometry() instanceof Block.BoneGeometry bg
+                    ? bg.bone()
                     : be.boneModel();
                 ConcurrentList<VisibleTriangle> boneTriangles = buildFromBoneModel(boneToUse, be.textureId(), tint);
                 if (boneVariant != null && boneVariant.hasRotation())
@@ -281,11 +281,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // inject a geometry variant for a mesh-varying state (hanging sign).
             Block.Variant variant = resolveVariant(block, effectiveVariant);
             ModelData modelToUse = block.getModel();
-            if (variant != null) {
-                ModelData variantModel = variant.model();
-                if (!variantModel.getElements().isEmpty())
-                    modelToUse = variantModel;
-            }
+            if (variant != null && variant.geometry() instanceof Block.ElementGeometry eg && !eg.model().getElements().isEmpty())
+                modelToUse = eg.model();
             ConcurrentList<VisibleTriangle> primary = buildFromBlockElements(modelToUse, variant, tint, untintedTint);
             if (variant != null && variant.hasRotation())
                 primary = applyRotation(primary, buildVariantRotation(variant));
@@ -329,10 +326,10 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 if (!matchesCondition(part.when(), properties)) continue;
 
                 Block.Variant apply = part.apply();
-                // The variant carries its baked model (resolved from the full model set at
-                // context construction); element-less means the apply's model id didn't resolve.
-                ModelData partModel = apply.model();
-                if (partModel.getElements().isEmpty()) continue;
+                // A multipart apply is always an element model (resolved from the full model set at
+                // context construction); skip it when element-less (the apply's model id didn't resolve).
+                if (!(apply.geometry() instanceof Block.ElementGeometry eg) || eg.model().getElements().isEmpty()) continue;
+                ModelData partModel = eg.model();
 
                 // Build triangles for this part's model
                 ConcurrentMap<String, PixelBuffer> faceTextures = Textures.loadElementFaceTextures(
@@ -561,10 +558,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             if (first == null)
                 return Concurrent.newList();
 
-            ModelData partModel = first.model();
-
-            if (partModel.getElements().isEmpty())
+            if (!(first.geometry() instanceof Block.ElementGeometry eg) || eg.model().getElements().isEmpty())
                 return Concurrent.newList();
+            ModelData partModel = eg.model();
 
             RasterEngine raster = new RasterEngine(this.context);
             ConcurrentMap<String, PixelBuffer> faceTextures = Textures.loadElementFaceTextures(

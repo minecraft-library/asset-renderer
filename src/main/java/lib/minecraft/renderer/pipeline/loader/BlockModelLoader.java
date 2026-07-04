@@ -11,7 +11,6 @@ import dev.simplified.gson.GsonSettings;
 import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.asset.model.EntityModelData;
-import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.request.DyeColor;
@@ -25,7 +24,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * Loads block-entity model geometry from {@code /lib/minecraft/renderer/block_models.json},
@@ -120,13 +118,12 @@ public class BlockModelLoader {
                 Block.Entity.BoneModel boneModel = parseBoneModel(modelJson, modelObj);
 
                 // A block listed under a blockstate "variant" contributes a state-conditional model,
-                // not the block's primary geometry: register it as a geometry-bearing Block.Variant
-                // for the runtime variant path (rotation/uvlock unused here, so 0/0/false; the empty
-                // ModelData signals "no element geometry" so the renderer uses the bone variant). The
-                // ceiling hanging sign's straight-chain mesh is bound here under "attached=true".
+                // not the block's primary geometry: register it as a bone-geometry Block.Variant for
+                // the runtime variant path (rotation/uvlock unused here, so 0/0/false). The ceiling
+                // hanging sign's straight-chain mesh is bound here under "attached=true".
                 if (block.has("variant")) {
                     variantModels.computeIfAbsent(blockId, k -> new HashMap<>())
-                        .put(block.get("variant").getAsString(), new Block.Variant(modelId, new ModelData(), 0, 0, false, Optional.of(boneModel)));
+                        .put(block.get("variant").getAsString(), new Block.Variant(modelId, 0, 0, false, new Block.BoneGeometry(boneModel)));
                     continue;
                 }
 

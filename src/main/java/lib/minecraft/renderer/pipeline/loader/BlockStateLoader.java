@@ -317,7 +317,7 @@ public class BlockStateLoader {
         int x = obj.has("x") ? obj.get("x").getAsInt() : 0;
         int y = obj.has("y") ? obj.get("y").getAsInt() : 0;
         boolean uvlock = obj.has("uvlock") && obj.get("uvlock").getAsBoolean();
-        return new Block.Variant(modelId, resolveVariantModel(modelId, blockModels), x, y, uvlock, Optional.empty());
+        return new Block.Variant(modelId, x, y, uvlock, new Block.ElementGeometry(resolveVariantModel(modelId, blockModels)));
     }
 
     /**

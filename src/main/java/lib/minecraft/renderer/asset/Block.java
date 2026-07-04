@@ -176,6 +176,32 @@ public final class Block {
     public record Tint(@NotNull TintTarget target, @NotNull Optional<Integer> constant) {}
 
     /**
+     * The geometry a {@link Variant} carries - either a resolved element model (plain blockstate
+     * variants) or a relative bone tree + presentation (a block entity's state-conditional bone
+     * mesh). A variant holds exactly one, so the renderer pattern-matches on the geometry kind
+     * instead of disambiguating an empty-{@link ModelData} sentinel against an {@link Optional}.
+     */
+    public sealed interface VariantGeometry permits ElementGeometry, BoneGeometry {}
+
+    /**
+     * A {@link Variant} backed by a resolved element {@link ModelData} - the plain blockstate case.
+     * The {@link #model()} is element-less when the variant's {@code modelId} did not resolve against
+     * the loaded model set, in which case the renderer falls back to the block's primary model.
+     *
+     * @param model the resolved element model, or element-less when unresolved
+     */
+    public record ElementGeometry(@NotNull ModelData model) implements VariantGeometry {}
+
+    /**
+     * A {@link Variant} backed by a relative bone tree - a block entity's state-conditional bone
+     * mesh (the ceiling hanging sign's straight-chain mesh under {@code attached=true}), composed at
+     * render time via {@link BlockGeometryKit#buildFromBones}.
+     *
+     * @param bone the variant's relative bone geometry plus its render-time presentation
+     */
+    public record BoneGeometry(@NotNull Entity.BoneModel bone) implements VariantGeometry {}
+
+    /**
      * A single blockstate variant entry, specifying which model to use and what whole-block
      * rotation to apply. Parsed from blockstate JSON files like
      * {@code assets/minecraft/blockstates/furnace.json}.
@@ -183,21 +209,18 @@ public final class Block {
      * The {@code x} and {@code y} rotations are multiples of 90 degrees applied to the entire
      * model before rendering. These are distinct from element-level rotations in the model JSON.
      * <p>
-     * The {@code model} is the resolved {@link ModelData} this variant references, baked in
-     * at pipeline-context construction time so a variant reaches its geometry through its owning
-     * {@link Block} rather than a context-level model registry. Variants whose {@code modelId}
-     * cannot be resolved against the loaded model set carry an element-less {@code ModelData}.
+     * The {@code geometry} - baked in at pipeline-context construction time so a variant reaches its
+     * geometry through its owning {@link Block} rather than a context-level registry - is either an
+     * {@link ElementGeometry} (plain blockstate variants) or a {@link BoneGeometry} (a block entity's
+     * state-conditional bone mesh, e.g. the ceiling hanging sign under {@code attached=true}).
      *
      * @param modelId the namespaced model reference (e.g. {@code "minecraft:block/furnace"})
-     * @param model the resolved model this variant references, or element-less when unresolved
      * @param x the whole-model X rotation in degrees (0, 90, 180, or 270)
      * @param y the whole-model Y rotation in degrees (0, 90, 180, or 270)
      * @param uvlock whether UVs should be locked to the block grid during rotation
-     * @param boneModel the variant's relative bone geometry + presentation when a block-entity model
-     *     registers state-conditional bone geometry under this variant (the ceiling hanging sign's
-     *     straight-chain mesh under {@code attached=true}); empty for plain blockstate variants
+     * @param geometry the variant's geometry - an {@link ElementGeometry} or a {@link BoneGeometry}
      */
-    public record Variant(@NotNull String modelId, @NotNull ModelData model, int x, int y, boolean uvlock, @NotNull Optional<Entity.BoneModel> boneModel) {
+    public record Variant(@NotNull String modelId, int x, int y, boolean uvlock, @NotNull VariantGeometry geometry) {
 
         /**
          * Reports whether this variant applies a whole-model rotation.
