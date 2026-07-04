@@ -6,147 +6,78 @@
       "model": {
         "textureWidth": 64,
         "textureHeight": 64,
-        "elements": [
-          {
-            "from": [
+        "bones": {
+          "lid": {
+            "pivot": [
               0.0,
-              4.0,
+              24.0,
               0.0
             ],
-            "to": [
-              16.0,
-              16.0,
-              16.0
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
             ],
-            "faces": {
-              "up": {
-                "texture": "#entity",
-                "uv": [
-                  4.0,
-                  0.0,
-                  8.0,
-                  4.0
-                ]
-              },
-              "down": {
-                "texture": "#entity",
-                "uv": [
-                  8.0,
-                  4.0,
-                  12.0,
-                  0.0
-                ]
-              },
-              "south": {
-                "texture": "#entity",
-                "uv": [
-                  4.0,
-                  4.0,
-                  8.0,
-                  7.0
-                ]
-              },
-              "north": {
-                "texture": "#entity",
-                "uv": [
-                  12.0,
-                  4.0,
+            "cubes": [
+              {
+                "origin": [
+                  -8.0,
+                  -16.0,
+                  -8.0
+                ],
+                "size": [
                   16.0,
-                  7.0
-                ]
-              },
-              "west": {
-                "texture": "#entity",
-                "uv": [
-                  0.0,
-                  4.0,
-                  4.0,
-                  7.0
-                ]
-              },
-              "east": {
-                "texture": "#entity",
-                "uv": [
-                  8.0,
-                  4.0,
                   12.0,
-                  7.0
-                ]
+                  16.0
+                ],
+                "uv": [
+                  0,
+                  0
+                ],
+                "inflate": 0.0,
+                "mirror": false,
+                "face_uv": {}
               }
-            }
+            ]
           },
-          {
-            "from": [
+          "base": {
+            "pivot": [
+              0.0,
+              24.0,
+              0.0
+            ],
+            "rotation": [
               0.0,
               0.0,
               0.0
             ],
-            "to": [
-              16.0,
-              8.0,
-              16.0
-            ],
-            "faces": {
-              "up": {
-                "texture": "#entity",
-                "uv": [
-                  4.0,
-                  7.0,
-                  8.0,
-                  11.0
-                ]
-              },
-              "down": {
-                "texture": "#entity",
-                "uv": [
-                  8.0,
-                  11.0,
-                  12.0,
-                  7.0
-                ]
-              },
-              "south": {
-                "texture": "#entity",
-                "uv": [
-                  4.0,
-                  11.0,
-                  8.0,
-                  13.0
-                ]
-              },
-              "north": {
-                "texture": "#entity",
-                "uv": [
-                  12.0,
-                  11.0,
+            "cubes": [
+              {
+                "origin": [
+                  -8.0,
+                  -8.0,
+                  -8.0
+                ],
+                "size": [
                   16.0,
-                  13.0
-                ]
-              },
-              "west": {
-                "texture": "#entity",
-                "uv": [
-                  0.0,
-                  11.0,
-                  4.0,
-                  13.0
-                ]
-              },
-              "east": {
-                "texture": "#entity",
-                "uv": [
                   8.0,
-                  11.0,
-                  12.0,
-                  13.0
-                ]
+                  16.0
+                ],
+                "uv": [
+                  0,
+                  28
+                ],
+                "inflate": 0.0,
+                "mirror": false,
+                "face_uv": {}
               }
-            }
+            ]
           }
-        ]
+        }
       },
       "y_axis": "DOWN",
-      "inventory_y_rotation": 0,
+      "inventory_y_rotation": 0.0,
+      "entity_flip": true,
       "inventory_transform": [
         8.0,
         24.0,
