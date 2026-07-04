@@ -275,7 +275,6 @@ public class EntityGeometryKit {
             // chain ({@link #applyBoneRotation}) translates by the bone's pivot as its first
             // fluent op, so cube origins go through the matrix in BONE-LOCAL coords - no
             // pre-translate by bonePivot here. Matches vanilla's PoseStack flow exactly.
-            Vector3f bonePivot = bone.getPivot();
             // Bone-level uniform scale captured from {@code MeshTransformer.scaling(F)} /
             // {@code PartPose.scaled(F)}. Vanilla {@code ModelPart.render} translates by pivot,
             // rotates, then {@code poseStack.scale(s, s, s)} the local cube space - so each cube
@@ -452,7 +451,6 @@ public class EntityGeometryKit {
             EntityModelData.Bone bone = entry.getValue();
             String boneName = entry.getKey();
             Matrix4f boneChain = chainTransforms.get(boneName);
-            Vector3f bonePivot = bone.getPivot();
             float s = bone.getScale();
             int cubeIndex = 0;
             for (EntityModelData.Cube cube : bone.getCubes()) {
@@ -884,23 +882,6 @@ public class EntityGeometryKit {
     }
 
     /**
-     * Resolves the bone's pivot point in the entity's working frame for callers that need to
-     * pre-translate a block overlay relative to the bone's anchor. {@link Vector3f#ZERO} when
-     * the bone is absent.
-     *
-     * @param model the entity model definition
-     * @param boneName the bone whose pivot to resolve
-     * @return the bone's pivot, or {@link Vector3f#ZERO} when the bone is absent
-     */
-    public static @NotNull Vector3f resolveBonePivot(
-        @NotNull EntityModelData model,
-        @NotNull String boneName
-    ) {
-        EntityModelData.Bone bone = model.getBones().get(boneName);
-        return bone != null ? bone.getPivot() : Vector3f.ZERO;
-    }
-
-    /**
      * Computes the AABB of the model in the Java-native Y-down frame using pre-built bone chains.
      * Walks the 8 inflated corners of every cube through its cube transform - the plain-AABB
      * counterpart to {@link #computeScreenBounds}'s alpha-tight screen walk.
@@ -920,7 +901,6 @@ public class EntityGeometryKit {
             EntityModelData.Bone bone = entry.getValue();
             Matrix4f boneChain = chainTransforms.get(entry.getKey());
             // Same pivot-translation + bone-scale as in {@link #buildTriangles}.
-            Vector3f bonePivot = bone.getPivot();
             float s = bone.getScale();
             for (EntityModelData.Cube cube : bone.getCubes()) {
                 Vector3f origin = cube.getOrigin();

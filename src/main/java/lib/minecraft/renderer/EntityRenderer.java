@@ -509,23 +509,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // Compose the per-overlay transform matrix in vanilla block units. PoseStack ops apply
         // in bytecode order to the LOCAL frame: under the column-vector convention each new op
         // post-multiplies, matching vanilla's PoseStack `pose = pose * newOp`. Final composite
-        // applies the most-recently-appended op first to the cube-local vertex.
+        // applies the most-recently-appended op first to the cube-local vertex. The bone anchor is
+        // applied separately in pixel space (see finalMatrix) so it composes the bone's FULL
+        // ancestor chain, not just the attached bone's own local pivot / rotation.
         Matrix4f blockUnitChain = Matrix4f.IDENTITY;
-
-        // Optional bone anchor: append the bone's {@code translateAndRotate} equivalent. The
-        // bone's pivot is in entity pixel-units, so divide by 16 to get block units; the rotation
-        // is built via the same {@code Quaternionf.rotationZYX} entry point vanilla uses.
-        if (overlay.attachedBone() != null) {
-            Vector3f pivot = EntityGeometryKit.resolveBonePivot(model, overlay.attachedBone());
-            blockUnitChain = blockUnitChain.translate(pivot.x() / 16f, pivot.y() / 16f, pivot.z() / 16f);
-            EntityModelData.Bone bone = model.getBones().get(overlay.attachedBone());
-            if (bone != null) {
-                EulerRotation rot = bone.getRotation();
-                if (rot.pitch() != 0f || rot.yaw() != 0f || rot.roll() != 0f)
-                    blockUnitChain = blockUnitChain.rotate(
-                        Quaternionf.rotationZYX(rot.rollRadians(), rot.yawRadians(), rot.pitchRadians()));
-            }
-        }
 
         for (EntityModelLoader.TransformOp op : overlay.transforms()) {
             blockUnitChain = switch (op) {
@@ -544,10 +531,20 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // column-vector composition, this op is rightmost and applies first to the input vertex.
         blockUnitChain = blockUnitChain.translate(0.5f, 0.5f, 0.5f);
 
-        // Convert block-unit positions to entity pixel-units (x16), then run the entity-fit
-        // normalization to land in the rasterizer's working frame. Column-vector chain reads
-        // right-to-left: blockUnitChain first, then blockToPixel, then entityFit.
-        Matrix4f finalMatrix = entityFit.scale(16f, 16f, 16f).multiply(blockUnitChain);
+        // Bone anchor: the attached bone's FULL ancestor chain in entity pixel-units - the same
+        // {@code translateAndRotate} composition the kit applies at render, so an attach bone with
+        // rotated / offset ancestors anchors correctly (not just its own local pivot). Identity
+        // when no bone is attached. For a bone parented directly to the identity mesh root this
+        // reduces to {@code T(pivot) * R}, matching the previous single-bone anchor byte-for-byte.
+        Matrix4f boneAnchor = overlay.attachedBone() != null
+            ? EntityGeometryKit.resolveBoneAnchorMatrix(model, overlay.attachedBone())
+            : Matrix4f.IDENTITY;
+
+        // Place the block-unit chain at the bone anchor, converting block-unit positions to entity
+        // pixel-units (x16), then run the entity-fit normalization to land in the rasterizer's
+        // working frame. Column-vector chain reads right-to-left: blockUnitChain first, then
+        // blockToPixel, then the bone anchor, then entityFit.
+        Matrix4f finalMatrix = entityFit.multiply(boneAnchor).scale(16f, 16f, 16f).multiply(blockUnitChain);
 
         ConcurrentList<VisibleTriangle> out = Concurrent.newList();
         for (VisibleTriangle tri : blockTris) {

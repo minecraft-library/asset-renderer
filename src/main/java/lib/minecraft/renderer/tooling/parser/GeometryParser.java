@@ -110,10 +110,13 @@ public final class GeometryParser {
      * @param jarPath the deobfuscated client jar (MC 26.1+)
      * @param sources the sources to parse (one per entity id)
      * @param diagnostics diagnostic sink
+     * @param relativeCoords {@code true} to emit bones in the parent-local relative frame with
+     *     {@code parent} links + preserved group bones (entity pipeline); {@code false} to emit the
+     *     legacy absolute-flattened frame the block-entity pipeline requires
      * @return a map of entity id to model JSON
      * @throws ToolingException when the client jar can't be read
      */
-    public static @NotNull ConcurrentMap<String, JsonObject> parse(@NotNull Path jarPath, @NotNull List<Source> sources, @NotNull Diagnostics diagnostics) {
+    public static @NotNull ConcurrentMap<String, JsonObject> parse(@NotNull Path jarPath, @NotNull List<Source> sources, @NotNull Diagnostics diagnostics, boolean relativeCoords) {
         ConcurrentMap<String, JsonObject> results = Concurrent.newMap();
 
         try (ZipFile zip = new ZipFile(jarPath.toFile())) {
@@ -133,7 +136,7 @@ public final class GeometryParser {
                         continue;
                     }
 
-                    JsonObject model = parseLayerMethod(method.instructions, zip, source, diagnostics);
+                    JsonObject model = parseLayerMethod(method.instructions, zip, source, diagnostics, relativeCoords);
                     if (model != null) {
                         // Source overrides apply when the parsed method doesn't call
                         // LayerDefinition.create itself (e.g. SkullModel.createHeadModel returns
@@ -217,11 +220,14 @@ public final class GeometryParser {
      * @param zip the client jar, for resolving inlined statics and static-array {@code <clinit>}s
      * @param source the source whose substitution hooks and diagnostics tag seed the parse
      * @param diagnostics diagnostic sink for underflow / overflow / unhandled-dispatch warnings
+     * @param relativeCoords whether to emit bones in the parent-local relative frame (entity
+     *     pipeline) or the absolute-flattened frame (block-entity pipeline)
      * @return the model JSON ({@code textureWidth}, {@code textureHeight}, {@code bones}), or
      *     {@code null} when no bone with cubes was emitted
      */
-    private static @Nullable JsonObject parseLayerMethod(@NotNull InsnList instructions, @NotNull ZipFile zip, @NotNull Source source, @NotNull Diagnostics diagnostics) {
+    private static @Nullable JsonObject parseLayerMethod(@NotNull InsnList instructions, @NotNull ZipFile zip, @NotNull Source source, @NotNull Diagnostics diagnostics, boolean relativeCoords) {
         ParseState state = new ParseState();
+        state.relativeCoords = relativeCoords;
         state.paramIntValues = source.paramIntValues();
         state.paramFloatValues = source.paramFloatValues();
         // Pre-seed pendingInflate from the source's defaultInflate so factory methods that
@@ -456,6 +462,14 @@ public final class GeometryParser {
      * the kit applies the scale to cube vertices at render time without affecting UV
      * resolution. No-op when {@code meshTransformerScale == 1f} (the common case) so
      * byte-stable legacy + non-scaling entity parses stay byte-stable.
+     * <p>
+     * The feet-anchor {@code +dy} translate is a single root-level translate. In the
+     * <b>absolute</b> pipeline every bone's pivot is world-space so each gets {@code +dy}
+     * directly. In the <b>relative</b> pipeline descendants inherit the translate through the
+     * parent chain, so {@code +dy} is applied to top-level bones only ({@code parent == null});
+     * applying it to every bone would double-count it down the chain. The {@code f *} spacing
+     * scale applies to every bone in both pipelines (chain translations sum, so a uniform
+     * per-bone {@code f} yields a uniform model scale).
      *
      * @param state the parse state whose emitted bones are re-walked and scaled in place
      */
@@ -465,6 +479,9 @@ public final class GeometryParser {
         float dy = 24.016f * (1f - f);
         for (Map.Entry<String, JsonElement> entry : state.bones.entrySet()) {
             JsonObject bone = entry.getValue().getAsJsonObject();
+            // Absolute pipeline: every bone is world-space, so all get +dy. Relative pipeline:
+            // only top-level bones (no parent) get +dy; descendants inherit it via the chain.
+            boolean applyDy = !state.relativeCoords || state.boneParents.get(entry.getKey()) == null;
             JsonArray pivot = bone.getAsJsonArray("pivot");
             if (pivot != null && pivot.size() == 3) {
                 float px = pivot.get(0).getAsFloat();
@@ -472,7 +489,7 @@ public final class GeometryParser {
                 float pz = pivot.get(2).getAsFloat();
                 JsonArray scaled = new JsonArray();
                 scaled.add(f * px);
-                scaled.add(f * py + dy);
+                scaled.add(f * py + (applyDy ? dy : 0f));
                 scaled.add(f * pz);
                 bone.add("pivot", scaled);
             }
@@ -2238,13 +2255,17 @@ public final class GeometryParser {
     }
 
     /**
-     * Closes the current pending bone: composes parent pivot + rotation + scale with the
-     * child's local values (vanilla renders children with {@code T(parent.pivot) *
-     * R(parent.rot) * S(parent.scale) * T(child.pivot) * R(child.rot) * S(child.scale) *
-     * cube}), builds the bone JSON, records {@link BoneMeta} for future children, then resets
-     * all pending state for the next {@code addOrReplaceChild}. Cube-less pose-only parents
-     * (e.g. wolf {@code head} holding the pivot for {@code real_head}) get a {@code BoneMeta}
-     * entry but no JSON emission, since a cube-less bone contributes no triangles.
+     * Closes the current pending bone, records {@link BoneMeta} for future children (always the
+     * world-flattened transform, needed by both pipelines), builds the bone JSON, then resets all
+     * pending state for the next {@code addOrReplaceChild}.
+     * <p>
+     * Emission forks on {@link ParseState#relativeCoords}. The <b>relative</b> (entity) pipeline
+     * emits a parent-local pose ({@code parentScale * local_pivot}, local rotation) plus the
+     * {@code parent} link and preserves cube-less pose-only parents / container groups (wolf
+     * {@code head}/{@code tail}, bogged {@code mushrooms}) so the kit can resolve the chain and
+     * hide groups as a unit. The <b>absolute</b> (block-entity) pipeline emits the world-flattened
+     * pivot/rotation with no parent link and skips cube-less bones (they contribute no triangles
+     * and {@code BlockModelConverter} walks bones without composing the parent chain).
      *
      * @param state the parse state whose pending bone fields are flushed and reset
      */
@@ -2254,69 +2275,74 @@ public final class GeometryParser {
         // chain - rare, but cheap to support).
         String name = state.boneName != null ? state.boneName : state.pendingPartName;
         if (name != null) {
-            // Flatten parent-child hierarchy at parse time. Vanilla renders children with
-            // pose T(parent.pivot) * R(parent.rot) * S(parent.scale) * T(child.local_pivot)
-            // * R(child.local_rot) * S(child.scale), then draws child cubes from the bone's
-            // local frame. To present the entity_geometry JSON consumer with a flat
-            // (world_pivot, world_rotation, world_scale) per bone, fold the parent's
-            // already-flattened transform into the child's:
-            //   world_pivot = parent.world_pivot + parent.world_rot * (parent.world_scale * child.local_pivot)
-            //   world_rot   = parent.world_rot * R_zyx(child.local_rot)
-            //   world_scale = parent.world_scale * child.local_scale
-            // For parents with no rotation (every legacy literal-stack walker) this collapses
-            // back to the legacy additive-translation behaviour, so unrotated parents are a
-            // no-op. Java entity factories like FoxModel.createBodyLayer DO have rotated
-            // parents (body 90deg pitch with tail / legs as children) - flattening with
-            // rotation propagation is what places the tail behind the body instead of
-            // pointing straight down at the unrotated body.pivot + tail.local_pivot location.
-            // Fall back to nextParent when parentBone wasn't captured at a
-            // CubeListBuilder.create() call. Vanilla's pre-built-builder pattern
+            // Resolve the parent. Fall back to nextParent when parentBone wasn't captured at a
+            // CubeListBuilder.create() call: vanilla's pre-built-builder pattern
             // ({@code AdultAxolotlModel.createBodyLayer} pre-builds gill / leg cube lists into
-            // local slots 5-9 before reusing them across multiple {@code addOrReplaceChild}
-            // calls) doesn't fire {@code create()} between the parent's {@code aload} and the
-            // child's flush, so parentBone stays null. nextParent is still set from the most
-            // recent {@code aload} of the parent's PartDefinition slot, so it's the right
-            // fallback. For the standard chain (where create() captures parentBone) nextParent
-            // is null at flush time so this fallback is a no-op.
+            // local slots and reuses them across multiple {@code addOrReplaceChild} calls)
+            // doesn't fire {@code create()} between the parent's {@code aload} and the child's
+            // flush, so parentBone stays null; nextParent still holds the most recent
+            // {@code aload} of the parent's PartDefinition slot. For the standard chain (where
+            // create() captures parentBone) nextParent is null at flush so this is a no-op.
             String resolvedParent = state.parentBone != null ? state.parentBone : state.nextParent;
+            BoneMeta parentMeta = resolvedParent != null ? state.boneMeta.get(resolvedParent) : null;
+            float parentScale = parentMeta != null ? parentMeta.scale : 1f;
+
+            // World-flattened transform. Always computed because {@link BoneMeta} feeds BOTH the
+            // absolute pipeline's child fold AND the relative pipeline's ancestor-scale lookup
+            // (children read parent.scale). Vanilla renders children with
+            //   T(parent.pivot) * R(parent.rot) * S(parent.scale) * T(child.local) * R(child.rot)
+            // so the flattened form is
+            //   world_pivot  = parent.world_pivot + parent.world_rot * (parent.world_scale * child.local_pivot)
+            //   world_rot    = parent.world_rot * R_zyx(child.local_rot)
+            //   world_scale  = parent.world_scale * child.local_scale
+            // For parents with no rotation this collapses to additive translation.
             float[] worldPivot = state.pendingPivot;
             float[] worldRotation = state.pendingRotation;
             Matrix4f worldRotMatrix = eulerZyxToMatrix(state.pendingRotation);
-            float worldScale = state.pendingScale;
-            if (resolvedParent != null) {
-                BoneMeta parent = state.boneMeta.get(resolvedParent);
-                if (parent != null) {
-                    float[] scaledLocal = {
-                        parent.scale * state.pendingPivot[0],
-                        parent.scale * state.pendingPivot[1],
-                        parent.scale * state.pendingPivot[2]
-                    };
-                    float[] rotatedLocal = rotateVec(parent.rotMatrix, scaledLocal);
-                    worldPivot = new float[]{
-                        parent.pivot[0] + rotatedLocal[0],
-                        parent.pivot[1] + rotatedLocal[1],
-                        parent.pivot[2] + rotatedLocal[2]
-                    };
-                    worldScale = parent.scale * state.pendingScale;
-                    // Column-vector composition: parent rotation applies AFTER child's local
-                    // rotation, so it's leftmost in the multiply chain. v_world = parent *
-                    // (worldRotMatrix * v_local).
-                    worldRotMatrix = parent.rotMatrix.multiply(worldRotMatrix);
-                    worldRotation = matrixToEulerZyx(worldRotMatrix);
-                }
+            float worldScale = parentScale * state.pendingScale;
+            if (parentMeta != null) {
+                float[] scaledLocal = {
+                    parentScale * state.pendingPivot[0],
+                    parentScale * state.pendingPivot[1],
+                    parentScale * state.pendingPivot[2]
+                };
+                float[] rotatedLocal = rotateVec(parentMeta.rotMatrix, scaledLocal);
+                worldPivot = new float[]{
+                    parentMeta.pivot[0] + rotatedLocal[0],
+                    parentMeta.pivot[1] + rotatedLocal[1],
+                    parentMeta.pivot[2] + rotatedLocal[2]
+                };
+                // Column-vector composition: parent rotation applies AFTER child's local
+                // rotation. v_world = parent * (worldRotMatrix * v_local).
+                worldRotMatrix = parentMeta.rotMatrix.multiply(worldRotMatrix);
+                worldRotation = matrixToEulerZyx(worldRotMatrix);
             }
-            // Pose-only parent bones (e.g. wolf "head" / "tail" - holds the pivot for cube-
-            // bearing children "real_head" / "real_tail") are flushed with empty cubes. They
-            // still need a {@link BoneMeta} entry so the next child's flatten can find them
-            // through the parent chain; just skip the JSON emission since a cube-less bone
-            // contributes no triangles. Without this, child bones that name a pose-only parent
-            // miss the boneMeta lookup and inherit a world pivot of (0, 0, 0).
-            if (!state.pendingCubes.isEmpty())
-                state.bones.add(name, buildBone(worldPivot, worldRotation, worldScale, state.pendingCubes));
             state.boneMeta.put(name, new BoneMeta(worldPivot, worldScale, worldRotMatrix));
-            // Record the resolved parent so the post-walk retainedNames filter
-            // ({@link #parseLayerMethod}) can chase the ancestor chain. Root-level bones
-            // (children of the mesh root, no PartDefinition parent) map to a null parent.
+
+            if (state.relativeCoords) {
+                // Relative (entity) pipeline: emit the bone in its PARENT-LOCAL frame. The local
+                // pivot is scaled only by the ancestor cumulative scale (parentScale); the kit's
+                // ModelPart-style chain ({@link lib.minecraft.renderer.engine.kit.EntityGeometryKit}
+                // resolveChainFrom) supplies the parent rotation + translation at render, so no
+                // fold is baked here and the lossy Euler round-trip is avoided. Cube-less
+                // pose-only parents / container groups (wolf head/tail, bogged mushrooms) are
+                // emitted too - the kit needs the parent present to resolve the chain (a missing
+                // parent silently degrades to root, dropping the group transform), and keeping
+                // groups lets their children be hidden as a unit.
+                float[] localPivot = {
+                    parentScale * state.pendingPivot[0],
+                    parentScale * state.pendingPivot[1],
+                    parentScale * state.pendingPivot[2]
+                };
+                state.bones.add(name, buildBone(localPivot, state.pendingRotation, worldScale, state.pendingCubes, resolvedParent));
+            } else if (!state.pendingCubes.isEmpty()) {
+                // Absolute (block-entity) pipeline: BlockModelConverter walks bones WITHOUT
+                // composing the parent chain, so emit the world-flattened pivot/rotation and no
+                // parent link. Cube-less pose-only parents contribute no triangles - skip them.
+                state.bones.add(name, buildBone(worldPivot, worldRotation, worldScale, state.pendingCubes, null));
+            }
+            // Record the resolved parent so the post-walk retainedNames / clearedBones filters
+            // can chase the ancestor chain. Root-level bones map to a null parent.
             state.boneParents.put(name, resolvedParent);
             state.lastFlushedBone = name;
         }
@@ -2518,6 +2544,17 @@ public final class GeometryParser {
         final @NotNull Map<String, String> boneParents = new LinkedHashMap<>();
 
         /**
+         * Whether bones are emitted in the <b>relative</b> (parent-local pose + {@code parent}
+         * link, cube-less group bones preserved) frame the entity kit composes at render, or the
+         * legacy <b>absolute</b> frame the block-entity pipeline's {@code BlockModelConverter}
+         * flattens to elements. Set per-pipeline in {@link #parseLayerMethod}: {@code true} for
+         * entity sources ({@code ToolingEntityModels}), {@code false} for block-entity sources
+         * ({@code ToolingBlockModels}), which requires absolute pivots since it walks bones
+         * without composing the parent chain.
+         */
+        boolean relativeCoords;
+
+        /**
          * Bone names captured from a {@code Set.of(...)} call immediately preceding a
          * {@link #retainedNames}-bound {@code retainPartsAndChildren} dispatch. Walked back
          * from the {@code Set.of} {@code MethodInsnNode} since the parser doesn't carry a
@@ -2703,25 +2740,34 @@ public final class GeometryParser {
     private record BoneMeta(float @NotNull [] pivot, float scale, @NotNull Matrix4f rotMatrix) {}
 
     /**
-     * Builds the JSON object for one bone from its flattened pivot, rotation, scale, and
-     * cube list. The output shape matches what {@link EntityModelData}'s Gson binding expects.
-     * A {@code scale} of exactly {@code 1f} is omitted from the JSON. Each cube's inflate
-     * (index 8) and mirror (index 9) are read defensively: legacy length-8 cube arrays (from
-     * block-entity sources that never opt into {@code paramFloatValues}) emit
-     * {@code inflate: 0} / {@code mirror: false} to keep the wire format identical.
+     * Builds the JSON object for one bone from its pivot, rotation, scale, cube list, and
+     * optional parent link. The output shape matches what {@link EntityModelData}'s Gson binding
+     * expects. A {@code scale} of exactly {@code 1f} and a {@code null} {@code parent} are omitted
+     * from the JSON. Each cube's inflate (index 8) and mirror (index 9) are read defensively:
+     * legacy length-8 cube arrays (from block-entity sources that never opt into
+     * {@code paramFloatValues}) emit {@code inflate: 0} / {@code mirror: false} to keep the wire
+     * format identical.
+     * <p>
+     * In the relative (entity) pipeline {@code pivot} / {@code rotation} are parent-local and
+     * {@code parent} names the owning bone; in the absolute (block-entity) pipeline they are
+     * world-flattened and {@code parent} is {@code null}.
      *
-     * @param pivot the bone's world-flattened pivot {@code [x, y, z]}
-     * @param rotation the bone's world-flattened rotation in degrees {@code [pitch, yaw, roll]}
-     * @param scale the bone's world-flattened uniform scale
+     * @param pivot the bone's pivot {@code [x, y, z]} (parent-local when relative, else world)
+     * @param rotation the bone's rotation in degrees {@code [pitch, yaw, roll]} (parent-local when
+     *     relative, else world)
+     * @param scale the bone's cumulative uniform scale
      * @param cubes the accumulated cubes, each {@code [x, y, z, w, h, d, u, v, inflate, mirror]}
+     * @param parent the parent bone name, or {@code null} for a root bone / the absolute pipeline
      * @return the bone JSON object
      */
-    private static @NotNull JsonObject buildBone(float @NotNull [] pivot, float @NotNull [] rotation, float scale, @NotNull ConcurrentList<float[]> cubes) {
+    private static @NotNull JsonObject buildBone(float @NotNull [] pivot, float @NotNull [] rotation, float scale, @NotNull ConcurrentList<float[]> cubes, @Nullable String parent) {
         JsonObject bone = new JsonObject();
         bone.add("pivot", floatArray(pivot));
         bone.add("rotation", floatArray(rotation));
         if (scale != 1f)
             bone.addProperty("scale", scale);
+        if (parent != null)
+            bone.addProperty("parent", parent);
 
         JsonArray cubeArray = new JsonArray();
         for (float[] c : cubes) {

@@ -143,7 +143,9 @@ public final class ToolingBlockModels {
             Set<String> tinted = TintDiscovery.discover(zip, sources, entityIdToRenderer, diagnostics);
 
             System.out.printf("Discovered %d sources; parsing...%n", sources.size());
-            ConcurrentMap<String, JsonObject> models = GeometryParser.parse(jarPath, sources, diagnostics);
+            // Absolute-flattened emission: BlockModelConverter walks bones without composing the
+            // parent chain, so it requires each bone's pivot to already be world-absolute.
+            ConcurrentMap<String, JsonObject> models = GeometryParser.parse(jarPath, sources, diagnostics, false);
             System.out.printf("Parsed %d / %d sources%n", models.size(), sources.size());
 
             // Geometry-aware recenter pass: the InventoryTransformDecomposer extracts the bytecode

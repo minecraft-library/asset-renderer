@@ -27,9 +27,11 @@ import java.util.Objects;
  * Used by the entity geometry kit's triangle builders to turn an entity id into a list of cubes
  * that can be fed to the rasterizer.
  * <p>
- * The canonical coordinate convention is vanilla Java's native frame: Y-down, right-handed, with
- * every position field - {@link Bone#getPivot() bone pivot}, {@link Cube#getOrigin() cube origin},
- * {@link Cube#getPivot() cube pivot} - stored in absolute entity-root space.
+ * The canonical coordinate convention is vanilla Java's native frame: Y-down, right-handed. A
+ * {@link Bone#getPivot() bone pivot} is <b>parent-relative</b> (its offset from the parent bone,
+ * matching vanilla {@code PartPose.offset}); {@link Cube#getOrigin() cube origin} and
+ * {@link Cube#getPivot() cube pivot} are <b>bone-local</b> (relative to the owning bone's pivot).
+ * A root bone's pivot is measured from the entity root.
  */
 @Getter
 @NoArgsConstructor
@@ -97,15 +99,16 @@ public class EntityModelData {
     }
 
     /**
-     * A single bone in an entity model, with a pivot, rotation, and one or more cubes. The
-     * {@link #pivot} is the absolute entity-root point about which {@link #rotation} is applied.
-     * Unlike Java {@code ModelPart}, the pivot does not translate cube vertices - cube origins
-     * are already in entity-root space, and a bone with no rotation contributes the identity
-     * transform.
+     * A single bone in an entity model, with a parent-relative pivot, rotation, and zero or more
+     * cubes. Matching vanilla {@code ModelPart}, the {@link #pivot} is the bone's offset from its
+     * {@link #parent} and the point about which {@link #rotation} is applied; cube origins are
+     * bone-local and the bone chain translates by the pivot before drawing them.
      * <p>
      * When {@link #parent} is non-null the bone follows its parent's full anchor chain at
-     * render time - every ancestor's pivot-centred rotation is composed in root-down order.
-     * Rotation-less intermediate bones contribute identity so they do not displace the subtree.
+     * render time - every ancestor's pivot-centred rotation is composed in root-down order, so a
+     * rotation on this bone (or any ancestor) swings the whole subtree. Rotation-less intermediate
+     * bones contribute identity so they do not displace the subtree. A bone with no cubes is a
+     * pure pose-only container (a group anchor for its children).
      */
     @Getter
     @NoArgsConstructor
@@ -113,14 +116,16 @@ public class EntityModelData {
     public static class Bone {
 
         /**
-         * The absolute entity-root anchor point about which this bone's rotations are applied.
+         * The bone's parent-relative offset - the anchor point (in the parent bone's frame) about
+         * which this bone's {@link #rotation} is applied. Measured from the entity root for a root
+         * bone ({@link #parent} {@code == null}).
          */
         private @NotNull Vector3f pivot = Vector3f.ZERO;
 
         /**
-         * The bone's dynamic pose rotation - animated at runtime in vanilla's
-         * {@code setupAnim} step. Propagates through the ancestor anchor chain so descendant
-         * bones swing along with this bone.
+         * The bone's rotation about its {@link #pivot}, in the parent's frame - the vanilla
+         * {@code PartPose} rest rotation plus any runtime {@code setupAnim} pose. Propagates
+         * through the ancestor anchor chain so descendant bones swing along with this bone.
          */
         @JsonAdapter(EulerRotation.Adapter.class)
         private @NotNull EulerRotation rotation = EulerRotation.NONE;
@@ -185,10 +190,10 @@ public class EntityModelData {
     }
 
     /**
-     * A single cube within a bone. {@link #origin} is the cube's minimum corner in absolute
-     * entity-root space, exactly as authored in our JSON schema; {@link #size} is the cube's
-     * extent along each axis in model units; {@link #uv} is the top-left corner of the cube's
-     * texture region on the shared atlas.
+     * A single cube within a bone. {@link #origin} is the cube's minimum corner in bone-local
+     * space (relative to the owning bone's pivot), exactly as authored in our JSON schema;
+     * {@link #size} is the cube's extent along each axis in model units; {@link #uv} is the
+     * top-left corner of the cube's texture region on the shared atlas.
      */
     @Getter
     @NoArgsConstructor
@@ -196,7 +201,7 @@ public class EntityModelData {
     public static class Cube {
 
         /**
-         * The cube's minimum corner in absolute entity-root space.
+         * The cube's minimum corner in bone-local space (relative to the owning bone's pivot).
          */
         private @NotNull Vector3f origin = Vector3f.ZERO;
 
@@ -222,7 +227,7 @@ public class EntityModelData {
         private boolean mirror = false;
 
         /**
-         * The cube's rotation pivot in absolute entity-root space, matching {@link #origin}'s
+         * The cube's rotation pivot in bone-local space, matching {@link #origin}'s
          * coordinate space. Our JSON schema lets individual cubes carry their own
          * {@code pivot}/{@code rotation} pair - used by the 1.21 cow/pig variants to author
          * body cubes vertically and then tilt them into the standard horizontal pose without
