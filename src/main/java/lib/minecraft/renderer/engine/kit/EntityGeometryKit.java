@@ -25,9 +25,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Load-bearing bone/cube {@literal ->} triangle assembler. Builds rasterizer-ready triangles
@@ -235,7 +233,7 @@ public class EntityGeometryKit {
         float modelScale = params.modelScale();
         int tintArgb = params.tintArgb();
 
-        Map<String, Matrix4f> chainTransforms = buildChainTransforms(model.getBones());
+        Map<String, Matrix4f> chainTransforms = BoneChains.buildChainTransforms(model.getBones());
 
         float cx = centre.x();
         float cy = centre.y();
@@ -254,7 +252,7 @@ public class EntityGeometryKit {
             .scale(scale, scale, scale)
             .translate(-cx, -cy, -cz)
             .scale(modelScale);
-        Map<String, Matrix4f> kitFitChainTransforms = buildChainTransformsFrom(kitFit, model.getBones());
+        Map<String, Matrix4f> kitFitChainTransforms = BoneChains.buildChainTransformsFrom(kitFit, model.getBones());
 
         float texW = model.getTextureWidth() > 0 ? model.getTextureWidth() : Math.max(1f, texture.width());
         float texH = model.getTextureHeight() > 0 ? model.getTextureHeight() : Math.max(1f, texture.height());
@@ -272,14 +270,14 @@ public class EntityGeometryKit {
 
             // Java's PartPose / ModelPart authoring stores cube origins LOCAL to the bone's
             // pivot (the literal addBox(x, y, z, w, h, d) args from createBodyLayer). The bone
-            // chain ({@link #applyBoneRotation}) translates by the bone's pivot as its first
+            // chain ({@link BoneChains}) translates by the bone's pivot as its first
             // fluent op, so cube origins go through the matrix in BONE-LOCAL coords - no
             // pre-translate by bonePivot here. Matches vanilla's PoseStack flow exactly.
             // Bone-level uniform scale captured from {@code MeshTransformer.scaling(F)} /
             // {@code PartPose.scaled(F)}. Vanilla {@code ModelPart.render} translates by pivot,
             // rotates, then {@code poseStack.scale(s, s, s)} the local cube space - so each cube
             // vertex world-position is {@code pivot + R * (s * v_local)}. Our chain pivot-translates
-            // post-rotation via {@link #composeCubeTransform}; multiplying {@code origin}, {@code
+            // post-rotation via {@link BoneChains#composeCubeTransform}; multiplying {@code origin}, {@code
             // size}, and {@code inflate} by {@code s} here puts the cube in scaled-local space
             // before the bone-pivot translate, which is algebraically equivalent for any rotation
             // R that commutes with uniform scale (every R does). UVs stay tied to the unscaled
@@ -299,14 +297,14 @@ public class EntityGeometryKit {
                     ox + s * size.x() + scaledInflate, oy + s * size.y() + scaledInflate, oz + s * size.z() + scaledInflate
                 );
 
-                Matrix4f fullTransform = composeCubeTransform(cube, bone, boneChain);
+                Matrix4f fullTransform = BoneChains.composeCubeTransform(cube, bone, boneChain);
                 // Fluent-composed perCubeChain: kitFit chain + bone hierarchy + bind + cube rot,
                 // all post-multiplied via {@link Matrix4f#translate} / {@link Matrix4f#rotate} so
                 // every multiplication matches vanilla's {@code PoseStack} ops bit-for-bit. The
                 // pre-baked {@code kitFitChainTransforms} maps already incorporate kitFit; here we
                 // apply only the cube-local bind + cube rotation.
                 Matrix4f kitFitBoneChain = kitFitChainTransforms.get(boneName);
-                Matrix4f perCubeChainFluent = composeCubeTransform(cube, bone, kitFitBoneChain);
+                Matrix4f perCubeChainFluent = BoneChains.composeCubeTransform(cube, bone, kitFitBoneChain);
 
                 // entityCutoutCull entities (bat, baby_turtle, ...) cull every face the way vanilla's
                 // GL back-face cull does - including zero-thickness planes, whose two coincident sides
@@ -399,7 +397,7 @@ public class EntityGeometryKit {
      * @return the model AABB in the Java Y-down frame
      */
     public static @NotNull Box computeBounds(@NotNull EntityModelData model) {
-        return computeBounds(model, buildChainTransforms(model.getBones()));
+        return computeBounds(model, BoneChains.buildChainTransforms(model.getBones()));
     }
 
     /**
@@ -442,7 +440,7 @@ public class EntityGeometryKit {
         float modelScale,
         PixelBuffer texture
     ) {
-        Map<String, Matrix4f> chainTransforms = buildChainTransforms(model.getBones());
+        Map<String, Matrix4f> chainTransforms = BoneChains.buildChainTransforms(model.getBones());
         float texW = model.getTextureWidth() > 0 ? model.getTextureWidth() : Math.max(1f, texture == null ? 1 : texture.width());
         float texH = model.getTextureHeight() > 0 ? model.getTextureHeight() : Math.max(1f, texture == null ? 1 : texture.height());
         BoundsAccumulator acc = new BoundsAccumulator();
@@ -457,7 +455,7 @@ public class EntityGeometryKit {
                 Vector3f origin = cube.getOrigin();
                 Vector3f size = cube.getSize();
                 float inflate = cube.getInflate();
-                Matrix4f cubeTransform = composeCubeTransform(cube, bone, boneChain);
+                Matrix4f cubeTransform = BoneChains.composeCubeTransform(cube, bone, boneChain);
 
                 float scaledInflate = s * inflate;
                 float ox = s * origin.x();
@@ -878,7 +876,7 @@ public class EntityGeometryKit {
         @NotNull EntityModelData model,
         @NotNull String boneName
     ) {
-        return buildChainTransforms(model.getBones()).getOrDefault(boneName, Matrix4f.IDENTITY);
+        return BoneChains.buildChainTransforms(model.getBones()).getOrDefault(boneName, Matrix4f.IDENTITY);
     }
 
     /**
@@ -906,7 +904,7 @@ public class EntityGeometryKit {
                 Vector3f origin = cube.getOrigin();
                 Vector3f size = cube.getSize();
                 float inflate = cube.getInflate();
-                Matrix4f fullTransform = composeCubeTransform(cube, bone, boneChain);
+                Matrix4f fullTransform = BoneChains.composeCubeTransform(cube, bone, boneChain);
 
                 float scaledInflate = s * inflate;
                 float ox = s * origin.x();
@@ -932,251 +930,6 @@ public class EntityGeometryKit {
             return new Box(0f, 0f, 0f, 0f, 0f, 0f);
 
         return new Box(minX, minY, minZ, maxX, maxY, maxZ);
-    }
-
-    /**
-     * Builds the ancestor-anchor chain matrix for every bone starting from identity. Thin
-     * wrapper over {@link #buildChainTransformsFrom} with {@link Matrix4f#IDENTITY} as the base.
-     *
-     * @param bones the model's bones keyed by name
-     * @return each bone's ancestor-anchor chain matrix keyed by bone name
-     */
-    private static @NotNull Map<String, Matrix4f> buildChainTransforms(
-        @NotNull Map<String, EntityModelData.Bone> bones
-    ) {
-        return buildChainTransformsFrom(Matrix4f.IDENTITY, bones);
-    }
-
-    /**
-     * Builds the ancestor-anchor chain matrix for every bone starting from a non-identity base
-     * matrix (typically the kit-fit chain). Each bone's chain is built by replaying its ancestor
-     * pivot-centred rotations as fluent {@link Matrix4f#translate} + {@link Matrix4f#rotate}
-     * post-multiplies on top of {@code base}, matching vanilla's {@code PoseStack} chain
-     * bit-for-bit. Eliminates the {@code kitFit.multiply(boneChain)} step at the per-cube
-     * loop that drifts 1-4 ULPs versus the fluent path - see {@link Matrix4f} line 313.
-     *
-     * @param base the base matrix each bone's chain builds on (identity, or the kit-fit matrix)
-     * @param bones the model's bones keyed by name
-     * @return each bone's ancestor-anchor chain matrix keyed by bone name
-     */
-    private static @NotNull Map<String, Matrix4f> buildChainTransformsFrom(
-        @NotNull Matrix4f base,
-        @NotNull Map<String, EntityModelData.Bone> bones
-    ) {
-        Map<String, Matrix4f> cache = new HashMap<>();
-        for (String name : bones.keySet())
-            resolveChainFrom(name, bones, cache, new LinkedHashSet<>(), base);
-        return cache;
-    }
-
-    /**
-     * Resolves one bone's ancestor-anchor chain from an identity base. Thin wrapper over
-     * {@link #resolveChainFrom} with {@link Matrix4f#IDENTITY} as the root.
-     *
-     * @param name the bone whose chain to resolve
-     * @param bones the model's bones keyed by name
-     * @param cache the memoization cache of already-resolved chains
-     * @param visiting the current recursion path, guarding against parent cycles
-     * @return the bone's ancestor-anchor chain matrix
-     */
-    private static @NotNull Matrix4f resolveChain(
-        @NotNull String name,
-        @NotNull Map<String, EntityModelData.Bone> bones,
-        @NotNull Map<String, Matrix4f> cache,
-        @NotNull Set<String> visiting
-    ) {
-        return resolveChainFrom(name, bones, cache, visiting, Matrix4f.IDENTITY);
-    }
-
-    /**
-     * Variant of {@link #resolveChain} that builds each bone's chain matrix starting from
-     * {@code root} via fluent {@link Matrix4f#translate} / {@link Matrix4f#rotate} ops. Bone-only
-     * chains use {@link Matrix4f#IDENTITY} as root; kit-fit-pre-baked chains pass the kit-fit
-     * matrix so the fluent op sequence matches vanilla's PoseStack chain exactly. Recurses into
-     * the parent chain first, then applies this bone's pivot-centred rotation on top; memoizes
-     * into {@code cache}. Self-parenting, missing-parent, and cyclic references degrade to the
-     * bone's own rotation on {@code root}.
-     *
-     * @param name the bone whose chain to resolve
-     * @param bones the model's bones keyed by name
-     * @param cache the memoization cache of already-resolved chains
-     * @param visiting the current recursion path, guarding against parent cycles
-     * @param root the base matrix the chain builds on (identity, or the kit-fit matrix)
-     * @return the bone's ancestor-anchor chain matrix built on {@code root}
-     */
-    private static @NotNull Matrix4f resolveChainFrom(
-        @NotNull String name,
-        @NotNull Map<String, EntityModelData.Bone> bones,
-        @NotNull Map<String, Matrix4f> cache,
-        @NotNull Set<String> visiting,
-        @NotNull Matrix4f root
-    ) {
-        Matrix4f cached = cache.get(name);
-        if (cached != null) return cached;
-        EntityModelData.Bone bone = bones.get(name);
-        if (bone == null) return root;
-        if (visiting.contains(name)) return applyBoneRotation(root, bone.getPivot(), bone.getRotation());
-        visiting.add(name);
-
-        String parent = bone.getParent();
-        Matrix4f base;
-        if (parent == null || parent.equals(name) || !bones.containsKey(parent)) {
-            base = root;
-        } else {
-            base = resolveChainFrom(parent, bones, cache, visiting, root);
-        }
-        Matrix4f composed = applyBoneRotation(base, bone.getPivot(), bone.getRotation());
-
-        visiting.remove(name);
-        cache.put(name, composed);
-        return composed;
-    }
-
-    /**
-     * Composes the full cube-to-working-frame transform: the bone's ancestor chain, then the
-     * bone's bind-pose rotation, then the cube's own rotation, each applied pivot-centred. When
-     * neither the cube nor the bind pose rotates, returns {@code boneChain} unchanged so
-     * rotation-free cubes carry zero extra rounding.
-     *
-     * @param cube the cube whose transform to compose
-     * @param bone the owning bone (source of pivot and bind-pose rotation)
-     * @param boneChain the bone's pre-resolved ancestor-anchor chain
-     * @return the composed cube transform in the working frame
-     */
-    private static @NotNull Matrix4f composeCubeTransform(
-        @NotNull EntityModelData.Cube cube,
-        @NotNull EntityModelData.Bone bone,
-        @NotNull Matrix4f boneChain
-    ) {
-        EulerRotation cubeRot = cube.getRotation();
-        EulerRotation bindPose = bone.getBindPoseRotation();
-        boolean hasCube = !isZero(cubeRot);
-        boolean hasBind = !isZero(bindPose);
-        if (!hasCube && !hasBind) return boneChain;
-
-        // Cube rotation applies first to the vertex, then the bone's bind pose, then the bone
-        // chain. Each fluent post-multiply mirrors vanilla's PoseStack.translate/mulPose/translate
-        // sequence, so the chain composes as `boneChain * bindPose * cubeRot` with cubeRot
-        // innermost (rightmost) on a column vector while staying bit-identical to JOML.
-        // <p>
-        // bindPose uses the BONE pivot in BONE-LOCAL coords (vanilla applies bind around the
-        // bone's local frame, same as the bone's own rotation); cube rotation uses the CUBE's
-        // bone-local pivot anchor. Both go through {@link #applyCubePivotCenteredRotation}
-        // (T(+p)*R*T(-p) shape) because they rotate around an anchor while the surrounding
-        // chain is already in bone-local frame.
-        Matrix4f acc = boneChain;
-        if (hasBind) acc = applyCubePivotCenteredRotation(acc, bone.getPivot(), bindPose);
-        if (hasCube) acc = applyCubePivotCenteredRotation(acc, cube.getPivot(), cubeRot);
-        return acc;
-    }
-
-    /**
-     * Tests whether a rotation is the identity (all three Euler angles exactly zero), letting
-     * callers skip quaternion construction and matrix ops for translation-only bones/cubes.
-     *
-     * @param r the rotation to test
-     * @return {@code true} when pitch, yaw, and roll are all zero
-     */
-    private static boolean isZero(@NotNull EulerRotation r) {
-        return r.pitch() == 0f && r.yaw() == 0f && r.roll() == 0f;
-    }
-
-    /**
-     * Java-frame {@code T(+pivot) * R(rotation) * T(-pivot)} column-vector matrix that rotates
-     * a vertex around {@code pivot}. Rightmost {@code T(-pivot)} applies first, moving the
-     * pivot to the origin; then {@code R}; then {@code T(+pivot)} moves the pivot back.
-     * <p>
-     * <b>Rotation composition:</b> the rotation is built from a {@link Quaternionf#rotationZYX}
-     * quaternion so the resulting matrix is bit-identical to vanilla
-     * {@code ModelPart.translateAndRotate}'s {@code mulPose(new Quaternionf().rotationZYX(zRot,
-     * yRot, xRot))}. Vanilla applies pitch (X) first, then yaw (Y), then roll (Z) to the bone
-     * vertex; the quaternion encodes that same order without going through any
-     * matrix-multiplication chain whose float result depends on associativity.
-     * <p>
-     * <b>Sign convention:</b> Java's {@code +xRot} (pitch) tilts a bone forward, {@code +yRot}
-     * (yaw) turns right, {@code +zRot} (roll) rolls right, applied directly with no negation
-     * since the kit operates in vanilla Java's native Y-down frame.
-     *
-     * @param pivot the rotation anchor in bone-local coordinates
-     * @param rotation the Euler rotation to apply about {@code pivot}
-     * @return the {@code T(+pivot) * R * T(-pivot)} matrix
-     */
-    private static @NotNull Matrix4f pivotCenteredRotation(
-        @NotNull Vector3f pivot,
-        @NotNull EulerRotation rotation
-    ) {
-        // Cube-level pivot-centred rotation: T(+p) * R * T(-p). The un-translate is required
-        // because cube-level rotation operates on bone-local cube vertices, rotating around
-        // a bone-local pivot anchor.
-        return applyCubePivotCenteredRotation(Matrix4f.IDENTITY, pivot, rotation);
-    }
-
-    /**
-     * Returns {@code base * T(pivot) * R} - vanilla's bone-level PoseStack shape (no un-
-     * translate). Matches {@code pose.translate(pivot); pose.mulPose(quat)} bit-for-bit.
-     * <p>
-     * Used for the bone hierarchy chain where cube origins are stored in BONE-LOCAL coordinates
-     * (relative to the bone's own pivot, matching vanilla {@code ModelPart.Cube}'s {@code
-     * posX1..posZ2} bone-local fields). The pre-translate by bone pivot happens once inside
-     * this method (as part of the fluent {@code .translate(p)} call); previous absolute-frame
-     * code paths pre-added the bone pivot to cube origin AND included a {@code T(-p)} un-
-     * translate to cancel, doubling the rounding count for no semantic gain.
-     *
-     * @param base the chain matrix to post-multiply onto
-     * @param pivot the bone pivot in the parent frame (skipped when zero)
-     * @param rotation the bone rotation (skipped when identity)
-     * @return {@code base * T(pivot) * R}, or {@code base} unchanged when both are trivial
-     */
-    private static @NotNull Matrix4f applyBoneRotation(
-        @NotNull Matrix4f base,
-        @NotNull Vector3f pivot,
-        @NotNull EulerRotation rotation
-    ) {
-        boolean hasPivot = pivot.x() != 0f || pivot.y() != 0f || pivot.z() != 0f;
-        boolean hasRot = !isZero(rotation);
-        if (!hasPivot && !hasRot) return base;
-        Matrix4f chain = hasPivot ? base.translate(pivot.x(), pivot.y(), pivot.z()) : base;
-        if (hasRot) {
-            Quaternionf quat = Quaternionf.rotationZYX(
-                rotation.rollRadians(), rotation.yawRadians(), rotation.pitchRadians()
-            );
-            chain = chain.rotate(quat);
-        }
-        return chain;
-    }
-
-    /**
-     * Returns {@code base * T(+pivot) * R * T(-pivot)} - cube-level pivot-centred rotation
-     * shape, where the cube rotates around its own anchor point in the bone's frame. Used by
-     * the cube-level rotation in {@link #composeCubeTransform} (donkey/mule ears, etc.) where
-     * the cube has its own rotation independent of the bone's rotation.
-     * <p>
-     * Cube pivots are in BONE-LOCAL coordinates (relative to the bone's own pivot), matching
-     * the vanilla convention. With bone chain {@code T(p)*R_bone} (vanilla shape) and cube
-     * applied as {@code T(+cp)*R_cube*T(-cp)} on top, the composed transform applied to a
-     * bone-local cube vertex {@code v_local} produces
-     * {@code R_bone * (R_cube * (v_local - cp) + cp) + p} - matching vanilla's bone hierarchy
-     * + cube pivot semantics exactly.
-     *
-     * @param base the chain matrix to post-multiply onto
-     * @param pivot the rotation anchor in bone-local coordinates
-     * @param rotation the rotation to apply about {@code pivot} (skipped when identity)
-     * @return {@code base * T(+pivot) * R * T(-pivot)}, or {@code base} unchanged when
-     *     {@code rotation} is identity
-     */
-    private static @NotNull Matrix4f applyCubePivotCenteredRotation(
-        @NotNull Matrix4f base,
-        @NotNull Vector3f pivot,
-        @NotNull EulerRotation rotation
-    ) {
-        if (isZero(rotation)) return base;
-        Quaternionf quat = Quaternionf.rotationZYX(
-            rotation.rollRadians(), rotation.yawRadians(), rotation.pitchRadians()
-        );
-        return base
-            .translate(pivot.x(), pivot.y(), pivot.z())
-            .rotate(quat)
-            .translate(-pivot.x(), -pivot.y(), -pivot.z());
     }
 
     /**
