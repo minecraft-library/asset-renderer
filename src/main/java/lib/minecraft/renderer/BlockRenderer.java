@@ -471,7 +471,10 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             Block.Entity.BoneModel bone = entity.boneModel().orElseThrow();
             RasterEngine raster = new RasterEngine(this.context);
             PixelBuffer texture = raster.textures().resolveTextureAtTick(entity.textureId(), 0);
-            return BlockGeometryKit.buildFromBones(bone.model(), texture, tint, blockEntityPresentation(bone));
+            // Only a tinted model (the banner flag's tintindex-0 cloth) receives the dye/biome tint;
+            // an untinted model (the banner post's wood) samples its texture raw.
+            int faceTint = bone.tinted() ? tint : ColorMath.WHITE;
+            return BlockGeometryKit.buildFromBones(bone.model(), texture, faceTint, blockEntityPresentation(bone));
         }
 
         /**
@@ -566,7 +569,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     // own presentation, sampling the part's entity texture.
                     Block.Entity.BoneModel bone = part.boneModel().get();
                     PixelBuffer texture = raster.textures().resolveTextureAtTick(part.texture(), 0);
-                    partTriangles = BlockGeometryKit.buildFromBones(bone.model(), texture, tint, blockEntityPresentation(bone));
+                    int partTint = bone.tinted() ? tint : ColorMath.WHITE;
+                    partTriangles = BlockGeometryKit.buildFromBones(bone.model(), texture, partTint, blockEntityPresentation(bone));
                 } else {
                     // Resolve the part's face textures. {@code "#entity"} in element face refs
                     // binds to the part's own texture id (which may differ from the primary -

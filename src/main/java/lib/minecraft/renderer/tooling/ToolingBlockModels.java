@@ -129,7 +129,11 @@ public final class ToolingBlockModels {
         "minecraft:decorated_pot",
         "minecraft:decorated_pot_sides",
         "minecraft:bed_head",
-        "minecraft:bed_foot"
+        "minecraft:bed_foot",
+        "minecraft:banner",
+        "minecraft:banner_flag",
+        "minecraft:wall_banner",
+        "minecraft:wall_banner_flag"
         // skull_dragon_head DEFERRED: only skull with a non-1 bone scale (0.75) on a parent chain
         // (jaw->head); buildFromBones vs the old element bbox diverges (parent-scale propagation).
     );

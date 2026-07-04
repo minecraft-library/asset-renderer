@@ -271,6 +271,7 @@ public class BlockModelLoader {
         boolean sourceYUp = entry.has("y_axis") && "UP".equals(entry.get("y_axis").getAsString());
         float inventoryYRotation = entry.has("inventory_y_rotation") ? entry.get("inventory_y_rotation").getAsFloat() : 0f;
         boolean entityFlip = entry.has("entity_flip") && entry.get("entity_flip").getAsBoolean();
+        boolean tinted = entry.has("tinted") && entry.get("tinted").getAsBoolean();
 
         float[] inventoryTransform = null;
         if (entry.has("inventory_transform") && entry.get("inventory_transform").isJsonArray()) {
@@ -280,7 +281,7 @@ public class BlockModelLoader {
                 inventoryTransform[i] = arr.get(i).getAsFloat();
         }
 
-        return Optional.of(new Block.Entity.BoneModel(model, sourceYUp, inventoryYRotation, entityFlip, inventoryTransform));
+        return Optional.of(new Block.Entity.BoneModel(model, sourceYUp, inventoryYRotation, entityFlip, inventoryTransform, tinted));
     }
 
     private static @NotNull ModelData parseBlockModelData(@NotNull JsonObject json, @NotNull String textureId) {

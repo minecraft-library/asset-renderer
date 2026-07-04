@@ -290,13 +290,18 @@ public final class Block {
          *     the no-inventory-transform path
          * @param inventoryTransform the decomposed {@code [tx, ty, tz, pitch, yaw, roll, scale?]}
          *     inventory transform, or {@code null} when the model takes the entity-flip path
+         * @param tinted whether this model's faces carry the block's tint (vanilla {@code tintindex}
+         *     0 - the banner flag's dyed cloth); when {@code false} the geometry samples its texture
+         *     untinted (the banner post's wood), so {@link BlockGeometryKit#buildFromBones} receives
+         *     the dye tint only for a tinted model
          */
         public record BoneModel(
             @NotNull EntityModelData model,
             boolean sourceYUp,
             float inventoryYRotation,
             boolean entityFlip,
-            float @Nullable [] inventoryTransform
+            float @Nullable [] inventoryTransform,
+            boolean tinted
         ) {
 
             /**
@@ -312,6 +317,7 @@ public final class Block {
                 return Float.compare(this.inventoryYRotation, that.inventoryYRotation) == 0
                     && this.sourceYUp == that.sourceYUp
                     && this.entityFlip == that.entityFlip
+                    && this.tinted == that.tinted
                     && Objects.equals(this.model, that.model)
                     && Arrays.equals(this.inventoryTransform, that.inventoryTransform);
             }
@@ -324,7 +330,7 @@ public final class Block {
              */
             @Override
             public int hashCode() {
-                return Objects.hash(this.model, this.sourceYUp, this.inventoryYRotation, this.entityFlip, Arrays.hashCode(this.inventoryTransform));
+                return Objects.hash(this.model, this.sourceYUp, this.inventoryYRotation, this.entityFlip, Arrays.hashCode(this.inventoryTransform), this.tinted);
             }
 
         }
