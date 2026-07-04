@@ -169,29 +169,11 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             EulerRotation guiRotation = resolved.lightingPose();
             ModelEngine engine = new ModelEngine(this.context, resolved);
 
-            // Block-entity mappings may supply a per-entry tint that overrides the block's
-            // biome / constant tint. Used for banners: vanilla resolves DyeColor via
-            // BlockColors at render time rather than baking per-colour textures, so the
-            // mapping JSON carries the DyeColor diffuse colour and we multiply it against
-            // every sampled texel. Non-banner entries default to {@code ColorMath.WHITE},
-            // leaving the normal biome-tint path intact.
-            //
-            // The {@link Block.Entity} is attached directly to the {@link Block} at
-            // {@code PipelineRendererContext} construction time, so the renderer reads it
-            // straight off the block - no sidecar lookup through
-            // {@link RendererContext#findBlockEntityEntry} is needed.
+            // The Block.Entity is attached directly to the Block at PipelineRendererContext
+            // construction time, so the renderer reads it straight off the block - no sidecar
+            // lookup through RendererContext#findBlockEntityEntry is needed.
             Block.Entity be = block.getEntity().orElse(null);
-            boolean entityTinted = be != null && be.tintArgb() != ColorMath.WHITE;
-            int tint = entityTinted
-                ? be.tintArgb()
-                : resolveBlockTint(this.context, block, options);
-            // Only faces carrying a {@code "tintindex"} (>= 0) receive the colour, exactly as
-            // vanilla tints; faces with {@code tintindex = -1} render at their raw texture colour.
-            // This holds for both the banner dye ({@link Block.Entity} tint - pole + bar stay
-            // wood-brown) and biome tints: grass_block's {@code #side} dirt faces are tintindex -1
-            // and must stay brown while only its {@code #top} + {@code #overlay} (tintindex 0) go
-            // green. Leaves / grass / cross plants carry tintindex 0 on every face, so they tint
-            // uniformly regardless.
+            int tint = resolveRenderTint(block, be, options);
             int untintedTint = ColorMath.WHITE;
 
             // Fall back to the block's tooling-derived default blockstate key when the caller
@@ -210,51 +192,8 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
             LayerStack<GeometryLayer> stack = new LayerStack<>();
 
-            stack.append(BlockOptions.Slot.PRIMARY, sink -> {
-                // Bone-format block entities (chest) carry a relative bone/cube tree rather than
-                // pre-flattened block elements: build hierarchically via buildFromBones and apply
-                // the presentation transform (entity flip + inventory transform + inventory yaw)
-                // that vanilla's BlockEntityRenderer poses around the mesh - formerly baked at
-                // tooling time, now applied at render. This replaces the
-                // whole primary model (a non-additive entity's geometry IS the primary geometry).
-                // Additive bone entities (bell) keep their blockstate model as the primary and merge
-                // the bone body in the ADDITIVE slot below, so they skip this dispatch. A
-                // state-conditional bone variant (the ceiling hanging sign's straight-chain mesh
-                // under attached=true) overrides the default bone geometry; the blockstate variant
-                // rotation still applies (matching the element path below).
-                if (be != null && !be.additive()) {
-                    Block.Variant boneVariant = resolveVariant(block, effectiveVariant);
-                    Block.Entity.BoneModel boneToUse = boneVariant != null && boneVariant.boneModel().isPresent()
-                        ? boneVariant.boneModel().get()
-                        : be.boneModel();
-                    ConcurrentList<VisibleTriangle> boneTriangles = buildFromBoneModel(boneToUse, be.textureId(), tint);
-                    if (boneVariant != null && boneVariant.hasRotation())
-                        boneTriangles = applyRotation(boneTriangles, buildVariantRotation(boneVariant));
-                    sink.addAll(boneTriangles);
-                    return;
-                }
-                if (block.getMultipart().isPresent()) {
-                    sink.addAll(assembleMultipart(block.getMultipart().get(), effectiveVariant, tint, untintedTint));
-                    return;
-                }
-                // Resolve the blockstate variant BEFORE building geometry so its model id can override
-                // Block#getModel() (sweet_berry_bush age stages, doors). The variant key is the
-                // caller's when supplied, else the block's default state key; property-less blocks fall
-                // through to the raw model pose. TILE_ENTITY blocks point the variant at an empty
-                // template, so the non-empty-elements check keeps the geometry-bearing BE model - while
-                // still letting a BE inject a geometry variant for a mesh-varying state (hanging sign).
-                Block.Variant variant = resolveVariant(block, effectiveVariant);
-                ModelData modelToUse = block.getModel();
-                if (variant != null) {
-                    ModelData variantModel = variant.model();
-                    if (!variantModel.getElements().isEmpty())
-                        modelToUse = variantModel;
-                }
-                ConcurrentList<VisibleTriangle> primary = buildFromBlockElements(modelToUse, variant, tint, untintedTint);
-                if (variant != null && variant.hasRotation())
-                    primary = applyRotation(primary, buildVariantRotation(variant));
-                sink.addAll(primary);
-            });
+            stack.append(BlockOptions.Slot.PRIMARY,
+                sink -> sink.addAll(buildPrimaryGeometry(block, be, effectiveVariant, tint, untintedTint)));
 
             // Atlas-time composition: merge Block.Entity parts into the primary geometry (bed foot onto
             // head, decorated_pot sides onto base, banner flag onto post). Gated on mergeParts - scene
@@ -290,31 +229,89 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             if (triangles.isEmpty())
                 triangles = tryFirstBlockstateApply(block, tint, untintedTint);
 
-            // Replace BlockGeometryKit's cardinal-bucket shading (1.0/0.8/0.6/0.5 lookup) with
-            // vanilla's Lighting.ITEMS_3D Lambertian on the post-display.gui normal. Vanilla
-            // 26.1 dropped per-face cardinal multiplication from the GUI inventory render path
-            // entirely - the shader's only lighting input is two directional dot products. The
-            // resulting shade is continuous in the surface normal so face-rotated geometry
-            // (stairs corners, slab edges, fence posts) gets per-quad lighting that matches
-            // the harness PNGs instead of bucketing to the closest cardinal's pre-baked value.
-            //
-            // Plain block models (no {@link Block.Entity}) cull back faces like vanilla's block
-            // render type ({@code RenderType.cutout}/{@code solid}/... all bind CULL): a
-            // zero-thickness {@code block/cross} element declares both faces (north+south) and the
-            // GPU keeps only the camera-facing one. {@link BlockGeometryKit} marks every
-            // zero-thickness face two-sided ({@code cullBackFaces=false}); without this the
-            // away-facing polygon's MIRRORED-UV cutout texels draw extra silhouette pixels vanilla
-            // never shows (cobweb +19797 java-only px). Block-ENTITY surfaces (signs, banner cloth,
-            // hanging-sign chains) are genuinely vanilla-no-cull ({@code entityCutoutNoCull}) and
-            // keep their two-sided faces + camera-facing flip, so the cull is gated on the absence
-            // of a {@link Block.Entity}.
-            boolean cullBlockModelFaces = be == null;
-            triangles = Shading.relightForItems3d(triangles, guiRotation, cullBlockModelFaces);
+            return relightAndFinalize(engine, triangles, guiRotation, be == null, options);
+        }
 
+        /**
+         * Resolves the ARGB tint for the block's faces: a block entity's per-entry tint when it
+         * overrides the block's biome / constant tint (banners resolve DyeColor via {@code BlockColors}
+         * at render time rather than baking per-colour textures, so the mapping JSON carries the
+         * DyeColor diffuse colour), else the block's biome / constant tint. Only faces carrying a
+         * {@code tintindex >= 0} receive the colour downstream; {@code tintindex = -1} faces render at
+         * their raw texture colour (banner pole / bar wood, grass_block dirt sides).
+         */
+        private int resolveRenderTint(@NotNull Block block, @Nullable Block.Entity be, @NotNull BlockOptions options) {
+            boolean entityTinted = be != null && be.tintArgb() != ColorMath.WHITE;
+            return entityTinted
+                ? be.tintArgb()
+                : resolveBlockTint(this.context, block, options);
+        }
+
+        /**
+         * Builds the primary-slot geometry for a block: a non-additive bone-format block entity's
+         * hierarchical mesh, a multipart assembly, or the resolved blockstate-variant element model.
+         * <p>
+         * Bone-format block entities (chest) carry a relative bone/cube tree rather than pre-flattened
+         * block elements: build hierarchically via {@link #buildFromBoneModel} (its presentation faces
+         * the model at the standard {@code [30, 225, 0]} iso pose). This replaces the whole primary
+         * model - a non-additive entity's geometry IS the primary geometry. Additive bone entities
+         * (bell) keep their blockstate model as the primary and merge the bone body in the ADDITIVE
+         * slot, so they fall through here. A state-conditional bone variant (the ceiling hanging sign's
+         * straight-chain mesh under {@code attached=true}) overrides the default bone geometry; the
+         * blockstate variant rotation still applies (matching the element path).
+         */
+        private @NotNull ConcurrentList<VisibleTriangle> buildPrimaryGeometry(@NotNull Block block, @Nullable Block.Entity be, @NotNull String effectiveVariant, int tint, int untintedTint) {
+            if (be != null && !be.additive()) {
+                Block.Variant boneVariant = resolveVariant(block, effectiveVariant);
+                Block.Entity.BoneModel boneToUse = boneVariant != null && boneVariant.boneModel().isPresent()
+                    ? boneVariant.boneModel().get()
+                    : be.boneModel();
+                ConcurrentList<VisibleTriangle> boneTriangles = buildFromBoneModel(boneToUse, be.textureId(), tint);
+                if (boneVariant != null && boneVariant.hasRotation())
+                    boneTriangles = applyRotation(boneTriangles, buildVariantRotation(boneVariant));
+                return boneTriangles;
+            }
+            if (block.getMultipart().isPresent())
+                return assembleMultipart(block.getMultipart().get(), effectiveVariant, tint, untintedTint);
+            // Resolve the blockstate variant BEFORE building geometry so its model id can override
+            // Block#getModel() (sweet_berry_bush age stages, doors). The variant key is the caller's
+            // when supplied, else the block's default state key; property-less blocks fall through to
+            // the raw model pose. TILE_ENTITY blocks point the variant at an empty template, so the
+            // non-empty-elements check keeps the geometry-bearing BE model - while still letting a BE
+            // inject a geometry variant for a mesh-varying state (hanging sign).
+            Block.Variant variant = resolveVariant(block, effectiveVariant);
+            ModelData modelToUse = block.getModel();
+            if (variant != null) {
+                ModelData variantModel = variant.model();
+                if (!variantModel.getElements().isEmpty())
+                    modelToUse = variantModel;
+            }
+            ConcurrentList<VisibleTriangle> primary = buildFromBlockElements(modelToUse, variant, tint, untintedTint);
+            if (variant != null && variant.hasRotation())
+                primary = applyRotation(primary, buildVariantRotation(variant));
+            return primary;
+        }
+
+        /**
+         * Re-lights the assembled geometry with vanilla's {@code Lighting.ITEMS_3D} Lambertian on the
+         * post-display.gui normal (26.1 dropped per-face cardinal multiplication from the GUI inventory
+         * render path - the shader's only lighting input is two directional dot products, so
+         * face-rotated geometry gets continuous per-quad lighting rather than bucketing to the closest
+         * cardinal's pre-baked value), then rasterizes and finalizes to a static frame.
+         * <p>
+         * Plain block models cull back faces like vanilla's block render types (all bind CULL): a
+         * zero-thickness {@code block/cross} element declares both faces and the GPU keeps only the
+         * camera-facing one (without the cull, the away-facing polygon's mirrored-UV cutout texels
+         * draw extra silhouette pixels - cobweb +19797 java-only px). Block-ENTITY surfaces (signs,
+         * banner cloth, hanging-sign chains) are genuinely vanilla-no-cull ({@code entityCutoutNoCull})
+         * and keep their two-sided faces, so the cull is gated on {@code cullBlockModelFaces} (set only
+         * when the block has no {@link Block.Entity}).
+         */
+        private @NotNull ImageData relightAndFinalize(@NotNull ModelEngine engine, @NotNull ConcurrentList<VisibleTriangle> triangles, @NotNull EulerRotation guiRotation, boolean cullBlockModelFaces, @NotNull BlockOptions options) {
+            ConcurrentList<VisibleTriangle> relit = Shading.relightForItems3d(triangles, guiRotation, cullBlockModelFaces);
             int ssaa = Math.max(1, options.getSupersample());
-            ConcurrentList<VisibleTriangle> rasterTriangles = triangles;
             return FinalizeStage.run(options.getOutputSize(), options.getOutputSize(), ssaa, options.isAntiAlias(), false,
-                (target, mask) -> engine.rasterize(rasterTriangles, target),
+                (target, mask) -> engine.rasterize(relit, target),
                 (buffer, mask) -> Frames.staticFrame(buffer));
         }
 
