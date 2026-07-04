@@ -123,7 +123,7 @@ public class BlockModelLoader {
                 // the "attached=true" variant key.
                 if (block.has("variant")) {
                     variantModels.computeIfAbsent(blockId, k -> new HashMap<>())
-                        .put(block.get("variant").getAsString(), new Block.Variant(modelId, modelData, 0, 0, false));
+                        .put(block.get("variant").getAsString(), new Block.Variant(modelId, modelData, 0, 0, false, boneModel));
                     continue;
                 }
 

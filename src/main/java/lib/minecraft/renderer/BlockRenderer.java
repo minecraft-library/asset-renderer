@@ -218,9 +218,19 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                 // counterpart of the former BlockModelConverter tooling bake. This replaces the
                 // whole primary model (a non-additive entity's geometry IS the primary geometry).
                 // Additive bone entities (bell) keep their blockstate model as the primary and merge
-                // the bone body in the ADDITIVE slot below, so they skip this dispatch.
+                // the bone body in the ADDITIVE slot below, so they skip this dispatch. A
+                // state-conditional bone variant (the ceiling hanging sign's straight-chain mesh
+                // under attached=true) overrides the default bone geometry; the blockstate variant
+                // rotation still applies (matching the element path below).
                 if (be != null && !be.additive() && be.boneModel().isPresent()) {
-                    sink.addAll(buildFromBoneEntity(be, tint));
+                    Block.Variant boneVariant = resolveVariant(block, effectiveVariant);
+                    Block.Entity.BoneModel boneToUse = boneVariant != null && boneVariant.boneModel().isPresent()
+                        ? boneVariant.boneModel().get()
+                        : be.boneModel().get();
+                    ConcurrentList<VisibleTriangle> boneTriangles = buildFromBoneModel(boneToUse, be.textureId(), tint);
+                    if (boneVariant != null && boneVariant.hasRotation())
+                        boneTriangles = applyRotation(boneTriangles, buildVariantRotation(boneVariant));
+                    sink.addAll(boneTriangles);
                     return;
                 }
                 if (block.getMultipart().isPresent()) {
@@ -470,9 +480,23 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          * @return the composed block-frame triangle list
          */
         private @NotNull ConcurrentList<VisibleTriangle> buildFromBoneEntity(@NotNull Block.Entity entity, int tint) {
-            Block.Entity.BoneModel bone = entity.boneModel().orElseThrow();
+            return buildFromBoneModel(entity.boneModel().orElseThrow(), entity.textureId(), tint);
+        }
+
+        /**
+         * Builds triangles from a specific bone-format geometry + presentation, sampling the given
+         * entity texture. Shared by the primary bone entity, its state-conditional bone variant
+         * (the ceiling hanging sign's straight-chain mesh), the bone parts, and the additive bone
+         * body.
+         *
+         * @param bone the bone geometry + presentation metadata to build
+         * @param textureId the entity texture id the cube UVs sample
+         * @param tint the ARGB tint to apply when the model is {@link Block.Entity.BoneModel#tinted()}
+         * @return the composed block-frame triangle list
+         */
+        private @NotNull ConcurrentList<VisibleTriangle> buildFromBoneModel(@NotNull Block.Entity.BoneModel bone, @NotNull String textureId, int tint) {
             RasterEngine raster = new RasterEngine(this.context);
-            PixelBuffer texture = raster.textures().resolveTextureAtTick(entity.textureId(), 0);
+            PixelBuffer texture = raster.textures().resolveTextureAtTick(textureId, 0);
             // Only a tinted model (the banner flag's tintindex-0 cloth) receives the dye/biome tint;
             // an untinted model (the banner post's wood) samples its texture raw.
             int faceTint = bone.tinted() ? tint : ColorMath.WHITE;

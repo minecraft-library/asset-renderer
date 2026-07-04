@@ -771,243 +771,194 @@
       "model": {
         "textureWidth": 64,
         "textureHeight": 32,
-        "elements": [
-          {
-            "from": [
-              1.0,
+        "bones": {
+          "board": {
+            "pivot": [
               0.0,
-              7.0
+              0.0,
+              0.0
             ],
-            "to": [
-              15.0,
-              10.0,
-              9.0
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
             ],
-            "faces": {
-              "up": {
-                "texture": "#entity",
+            "cubes": [
+              {
+                "origin": [
+                  -7.0,
+                  0.0,
+                  -1.0
+                ],
+                "size": [
+                  14.0,
+                  10.0,
+                  2.0
+                ],
                 "uv": [
-                  0.5,
+                  0,
+                  12
+                ],
+                "inflate": 0.0,
+                "mirror": false,
+                "face_uv": {}
+              }
+            ]
+          },
+          "normalChains": {
+            "pivot": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "cubes": []
+          },
+          "chainL1": {
+            "pivot": [
+              -5.0,
+              -6.0,
+              0.0
+            ],
+            "rotation": [
+              0.0,
+              -45.0,
+              0.0
+            ],
+            "parent": "normalChains",
+            "cubes": [
+              {
+                "origin": [
+                  -1.5,
+                  0.0,
+                  0.0
+                ],
+                "size": [
+                  3.0,
                   6.0,
-                  4.0,
-                  7.0
-                ]
-              },
-              "down": {
-                "texture": "#entity",
+                  0.0
+                ],
                 "uv": [
-                  4.0,
-                  7.0,
-                  7.5,
-                  6.0
-                ]
-              },
-              "south": {
-                "texture": "#entity",
-                "uv": [
-                  0.5,
-                  7.0,
-                  4.0,
-                  12.0
-                ]
-              },
-              "north": {
-                "texture": "#entity",
-                "uv": [
-                  4.5,
-                  7.0,
-                  8.0,
-                  12.0
-                ]
-              },
-              "west": {
-                "texture": "#entity",
-                "uv": [
+                  0,
+                  6
+                ],
+                "inflate": 0.0,
+                "mirror": false,
+                "face_uv": {}
+              }
+            ]
+          },
+          "chainL2": {
+            "pivot": [
+              -5.0,
+              -6.0,
+              0.0
+            ],
+            "rotation": [
+              0.0,
+              45.0,
+              0.0
+            ],
+            "parent": "normalChains",
+            "cubes": [
+              {
+                "origin": [
+                  -1.5,
                   0.0,
-                  7.0,
-                  0.5,
-                  12.0
-                ]
-              },
-              "east": {
-                "texture": "#entity",
+                  0.0
+                ],
+                "size": [
+                  3.0,
+                  6.0,
+                  0.0
+                ],
                 "uv": [
-                  4.0,
-                  7.0,
-                  4.5,
-                  12.0
-                ]
+                  6,
+                  6
+                ],
+                "inflate": 0.0,
+                "mirror": false,
+                "face_uv": {}
               }
-            }
+            ]
           },
-          {
-            "from": [
-              1.5,
-              10.0,
-              8.0
+          "chainR1": {
+            "pivot": [
+              5.0,
+              -6.0,
+              0.0
             ],
-            "to": [
-              4.5,
-              16.0,
-              8.0
+            "rotation": [
+              0.0,
+              -45.0,
+              0.0
             ],
-            "rotation": {
-              "origin": [
-                3.0,
-                16.0,
-                8.0
-              ],
-              "axis": "y",
-              "angle": 45.000004
-            },
-            "faces": {
-              "south": {
-                "texture": "#entity",
-                "uv": [
+            "parent": "normalChains",
+            "cubes": [
+              {
+                "origin": [
+                  -1.5,
                   0.0,
+                  0.0
+                ],
+                "size": [
                   3.0,
-                  0.75,
-                  6.0
-                ]
-              },
-              "north": {
-                "texture": "#entity",
+                  6.0,
+                  0.0
+                ],
                 "uv": [
-                  0.75,
-                  3.0,
-                  1.5,
-                  6.0
-                ]
+                  0,
+                  6
+                ],
+                "inflate": 0.0,
+                "mirror": false,
+                "face_uv": {}
               }
-            }
+            ]
           },
-          {
-            "from": [
-              1.5,
-              10.0,
-              8.0
+          "chainR2": {
+            "pivot": [
+              5.0,
+              -6.0,
+              0.0
             ],
-            "to": [
-              4.5,
-              16.0,
-              8.0
+            "rotation": [
+              0.0,
+              45.0,
+              0.0
             ],
-            "rotation": {
-              "origin": [
-                3.0,
-                16.0,
-                8.0
-              ],
-              "axis": "y",
-              "angle": -45.000004
-            },
-            "faces": {
-              "south": {
-                "texture": "#entity",
-                "uv": [
-                  1.5,
-                  3.0,
-                  2.25,
-                  6.0
-                ]
-              },
-              "north": {
-                "texture": "#entity",
-                "uv": [
-                  2.25,
-                  3.0,
-                  3.0,
-                  6.0
-                ]
-              }
-            }
-          },
-          {
-            "from": [
-              11.5,
-              10.0,
-              8.0
-            ],
-            "to": [
-              14.5,
-              16.0,
-              8.0
-            ],
-            "rotation": {
-              "origin": [
-                13.0,
-                16.0,
-                8.0
-              ],
-              "axis": "y",
-              "angle": 45.000004
-            },
-            "faces": {
-              "south": {
-                "texture": "#entity",
-                "uv": [
+            "parent": "normalChains",
+            "cubes": [
+              {
+                "origin": [
+                  -1.5,
                   0.0,
+                  0.0
+                ],
+                "size": [
                   3.0,
-                  0.75,
-                  6.0
-                ]
-              },
-              "north": {
-                "texture": "#entity",
+                  6.0,
+                  0.0
+                ],
                 "uv": [
-                  0.75,
-                  3.0,
-                  1.5,
-                  6.0
-                ]
+                  6,
+                  6
+                ],
+                "inflate": 0.0,
+                "mirror": false,
+                "face_uv": {}
               }
-            }
-          },
-          {
-            "from": [
-              11.5,
-              10.0,
-              8.0
-            ],
-            "to": [
-              14.5,
-              16.0,
-              8.0
-            ],
-            "rotation": {
-              "origin": [
-                13.0,
-                16.0,
-                8.0
-              ],
-              "axis": "y",
-              "angle": -45.000004
-            },
-            "faces": {
-              "south": {
-                "texture": "#entity",
-                "uv": [
-                  1.5,
-                  3.0,
-                  2.25,
-                  6.0
-                ]
-              },
-              "north": {
-                "texture": "#entity",
-                "uv": [
-                  2.25,
-                  3.0,
-                  3.0,
-                  6.0
-                ]
-              }
-            }
+            ]
           }
-        ]
+        }
       },
       "y_axis": "DOWN",
-      "inventory_y_rotation": 0,
+      "inventory_y_rotation": 0.0,
+      "entity_flip": true,
       "inventory_transform": [
         8.0,
         10.0,
@@ -1072,111 +1023,78 @@
       "model": {
         "textureWidth": 64,
         "textureHeight": 32,
-        "elements": [
-          {
-            "from": [
-              1.0,
+        "bones": {
+          "board": {
+            "pivot": [
               0.0,
-              7.0
+              0.0,
+              0.0
             ],
-            "to": [
-              15.0,
-              10.0,
-              9.0
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
             ],
-            "faces": {
-              "up": {
-                "texture": "#entity",
-                "uv": [
-                  0.5,
-                  6.0,
-                  4.0,
-                  7.0
-                ]
-              },
-              "down": {
-                "texture": "#entity",
-                "uv": [
-                  4.0,
-                  7.0,
-                  7.5,
-                  6.0
-                ]
-              },
-              "south": {
-                "texture": "#entity",
-                "uv": [
-                  0.5,
-                  7.0,
-                  4.0,
-                  12.0
-                ]
-              },
-              "north": {
-                "texture": "#entity",
-                "uv": [
-                  4.5,
-                  7.0,
-                  8.0,
-                  12.0
-                ]
-              },
-              "west": {
-                "texture": "#entity",
-                "uv": [
+            "cubes": [
+              {
+                "origin": [
+                  -7.0,
                   0.0,
-                  7.0,
-                  0.5,
-                  12.0
-                ]
-              },
-              "east": {
-                "texture": "#entity",
+                  -1.0
+                ],
+                "size": [
+                  14.0,
+                  10.0,
+                  2.0
+                ],
                 "uv": [
-                  4.0,
-                  7.0,
-                  4.5,
-                  12.0
-                ]
+                  0,
+                  12
+                ],
+                "inflate": 0.0,
+                "mirror": false,
+                "face_uv": {}
               }
-            }
+            ]
           },
-          {
-            "from": [
-              2.0,
-              10.0,
-              8.0
+          "vChains": {
+            "pivot": [
+              0.0,
+              0.0,
+              0.0
             ],
-            "to": [
-              14.0,
-              16.0,
-              8.0
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
             ],
-            "faces": {
-              "south": {
-                "texture": "#entity",
+            "cubes": [
+              {
+                "origin": [
+                  -6.0,
+                  -6.0,
+                  0.0
+                ],
+                "size": [
+                  12.0,
+                  6.0,
+                  0.0
+                ],
                 "uv": [
-                  3.5,
-                  3.0,
-                  6.5,
-                  6.0
-                ]
-              },
-              "north": {
-                "texture": "#entity",
-                "uv": [
-                  6.5,
-                  3.0,
-                  9.5,
-                  6.0
-                ]
+                  14,
+                  6
+                ],
+                "inflate": 0.0,
+                "mirror": false,
+                "face_uv": {}
               }
-            }
+            ]
           }
-        ]
+        }
       },
       "y_axis": "DOWN",
-      "inventory_y_rotation": 0,
+      "inventory_y_rotation": 0.0,
+      "entity_flip": true,
       "inventory_transform": [
         8.0,
         10.0,
@@ -1253,311 +1171,227 @@
       "model": {
         "textureWidth": 64,
         "textureHeight": 32,
-        "elements": [
-          {
-            "from": [
-              1.0,
+        "bones": {
+          "board": {
+            "pivot": [
               0.0,
-              7.0
-            ],
-            "to": [
-              15.0,
-              10.0,
-              9.0
-            ],
-            "faces": {
-              "up": {
-                "texture": "#entity",
-                "uv": [
-                  0.5,
-                  6.0,
-                  4.0,
-                  7.0
-                ]
-              },
-              "down": {
-                "texture": "#entity",
-                "uv": [
-                  4.0,
-                  7.0,
-                  7.5,
-                  6.0
-                ]
-              },
-              "south": {
-                "texture": "#entity",
-                "uv": [
-                  0.5,
-                  7.0,
-                  4.0,
-                  12.0
-                ]
-              },
-              "north": {
-                "texture": "#entity",
-                "uv": [
-                  4.5,
-                  7.0,
-                  8.0,
-                  12.0
-                ]
-              },
-              "west": {
-                "texture": "#entity",
-                "uv": [
-                  0.0,
-                  7.0,
-                  0.5,
-                  12.0
-                ]
-              },
-              "east": {
-                "texture": "#entity",
-                "uv": [
-                  4.0,
-                  7.0,
-                  4.5,
-                  12.0
-                ]
-              }
-            }
-          },
-          {
-            "from": [
               0.0,
-              14.0,
-              6.0
+              0.0
             ],
-            "to": [
-              16.0,
-              16.0,
-              10.0
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
             ],
-            "faces": {
-              "up": {
-                "texture": "#entity",
-                "uv": [
-                  1.0,
+            "cubes": [
+              {
+                "origin": [
+                  -7.0,
                   0.0,
-                  5.0,
-                  2.0
-                ]
-              },
-              "down": {
-                "texture": "#entity",
-                "uv": [
-                  5.0,
-                  2.0,
-                  9.0,
-                  0.0
-                ]
-              },
-              "south": {
-                "texture": "#entity",
-                "uv": [
-                  1.0,
-                  2.0,
-                  5.0,
-                  3.0
-                ]
-              },
-              "north": {
-                "texture": "#entity",
-                "uv": [
-                  6.0,
-                  2.0,
+                  -1.0
+                ],
+                "size": [
+                  14.0,
                   10.0,
-                  3.0
-                ]
-              },
-              "west": {
-                "texture": "#entity",
+                  2.0
+                ],
                 "uv": [
+                  0,
+                  12
+                ],
+                "inflate": 0.0,
+                "mirror": false,
+                "face_uv": {}
+              }
+            ]
+          },
+          "plank": {
+            "pivot": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "cubes": [
+              {
+                "origin": [
+                  -8.0,
+                  -6.0,
+                  -2.0
+                ],
+                "size": [
+                  16.0,
+                  2.0,
+                  4.0
+                ],
+                "uv": [
+                  0,
+                  0
+                ],
+                "inflate": 0.0,
+                "mirror": false,
+                "face_uv": {}
+              }
+            ]
+          },
+          "normalChains": {
+            "pivot": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "cubes": []
+          },
+          "chainL1": {
+            "pivot": [
+              -5.0,
+              -6.0,
+              0.0
+            ],
+            "rotation": [
+              0.0,
+              -45.0,
+              0.0
+            ],
+            "parent": "normalChains",
+            "cubes": [
+              {
+                "origin": [
+                  -1.5,
                   0.0,
-                  2.0,
-                  1.0,
-                  3.0
-                ]
-              },
-              "east": {
-                "texture": "#entity",
-                "uv": [
-                  5.0,
-                  2.0,
+                  0.0
+                ],
+                "size": [
+                  3.0,
                   6.0,
-                  3.0
-                ]
-              }
-            }
-          },
-          {
-            "from": [
-              1.5,
-              10.0,
-              8.0
-            ],
-            "to": [
-              4.5,
-              16.0,
-              8.0
-            ],
-            "rotation": {
-              "origin": [
-                3.0,
-                16.0,
-                8.0
-              ],
-              "axis": "y",
-              "angle": 45.000004
-            },
-            "faces": {
-              "south": {
-                "texture": "#entity",
+                  0.0
+                ],
                 "uv": [
+                  0,
+                  6
+                ],
+                "inflate": 0.0,
+                "mirror": false,
+                "face_uv": {}
+              }
+            ]
+          },
+          "chainL2": {
+            "pivot": [
+              -5.0,
+              -6.0,
+              0.0
+            ],
+            "rotation": [
+              0.0,
+              45.0,
+              0.0
+            ],
+            "parent": "normalChains",
+            "cubes": [
+              {
+                "origin": [
+                  -1.5,
                   0.0,
+                  0.0
+                ],
+                "size": [
                   3.0,
-                  0.75,
-                  6.0
-                ]
-              },
-              "north": {
-                "texture": "#entity",
+                  6.0,
+                  0.0
+                ],
                 "uv": [
-                  0.75,
-                  3.0,
-                  1.5,
-                  6.0
-                ]
+                  6,
+                  6
+                ],
+                "inflate": 0.0,
+                "mirror": false,
+                "face_uv": {}
               }
-            }
+            ]
           },
-          {
-            "from": [
-              1.5,
-              10.0,
-              8.0
+          "chainR1": {
+            "pivot": [
+              5.0,
+              -6.0,
+              0.0
             ],
-            "to": [
-              4.5,
-              16.0,
-              8.0
+            "rotation": [
+              0.0,
+              -45.0,
+              0.0
             ],
-            "rotation": {
-              "origin": [
-                3.0,
-                16.0,
-                8.0
-              ],
-              "axis": "y",
-              "angle": -45.000004
-            },
-            "faces": {
-              "south": {
-                "texture": "#entity",
-                "uv": [
-                  1.5,
-                  3.0,
-                  2.25,
-                  6.0
-                ]
-              },
-              "north": {
-                "texture": "#entity",
-                "uv": [
-                  2.25,
-                  3.0,
-                  3.0,
-                  6.0
-                ]
-              }
-            }
-          },
-          {
-            "from": [
-              11.5,
-              10.0,
-              8.0
-            ],
-            "to": [
-              14.5,
-              16.0,
-              8.0
-            ],
-            "rotation": {
-              "origin": [
-                13.0,
-                16.0,
-                8.0
-              ],
-              "axis": "y",
-              "angle": 45.000004
-            },
-            "faces": {
-              "south": {
-                "texture": "#entity",
-                "uv": [
+            "parent": "normalChains",
+            "cubes": [
+              {
+                "origin": [
+                  -1.5,
                   0.0,
+                  0.0
+                ],
+                "size": [
                   3.0,
-                  0.75,
-                  6.0
-                ]
-              },
-              "north": {
-                "texture": "#entity",
+                  6.0,
+                  0.0
+                ],
                 "uv": [
-                  0.75,
-                  3.0,
-                  1.5,
-                  6.0
-                ]
+                  0,
+                  6
+                ],
+                "inflate": 0.0,
+                "mirror": false,
+                "face_uv": {}
               }
-            }
+            ]
           },
-          {
-            "from": [
-              11.5,
-              10.0,
-              8.0
+          "chainR2": {
+            "pivot": [
+              5.0,
+              -6.0,
+              0.0
             ],
-            "to": [
-              14.5,
-              16.0,
-              8.0
+            "rotation": [
+              0.0,
+              45.0,
+              0.0
             ],
-            "rotation": {
-              "origin": [
-                13.0,
-                16.0,
-                8.0
-              ],
-              "axis": "y",
-              "angle": -45.000004
-            },
-            "faces": {
-              "south": {
-                "texture": "#entity",
+            "parent": "normalChains",
+            "cubes": [
+              {
+                "origin": [
+                  -1.5,
+                  0.0,
+                  0.0
+                ],
+                "size": [
+                  3.0,
+                  6.0,
+                  0.0
+                ],
                 "uv": [
-                  1.5,
-                  3.0,
-                  2.25,
-                  6.0
-                ]
-              },
-              "north": {
-                "texture": "#entity",
-                "uv": [
-                  2.25,
-                  3.0,
-                  3.0,
-                  6.0
-                ]
+                  6,
+                  6
+                ],
+                "inflate": 0.0,
+                "mirror": false,
+                "face_uv": {}
               }
-            }
+            ]
           }
-        ]
+        }
       },
       "y_axis": "DOWN",
-      "inventory_y_rotation": 0,
+      "inventory_y_rotation": 0.0,
+      "entity_flip": true,
       "inventory_transform": [
         8.0,
         10.0,

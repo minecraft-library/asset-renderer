@@ -192,8 +192,12 @@ public final class Block {
      * @param x the whole-model X rotation in degrees (0, 90, 180, or 270)
      * @param y the whole-model Y rotation in degrees (0, 90, 180, or 270)
      * @param uvlock whether UVs should be locked to the block grid during rotation
+     * @param boneModel the variant's relative bone geometry + presentation when a block-entity model
+     *     registers state-conditional bone geometry under this variant (the ceiling hanging sign's
+     *     straight-chain mesh under {@code attached=true}); empty for plain blockstate variants and
+     *     for element-format block-entity variants
      */
-    public record Variant(@NotNull String modelId, @NotNull ModelData model, int x, int y, boolean uvlock) {
+    public record Variant(@NotNull String modelId, @NotNull ModelData model, int x, int y, boolean uvlock, @NotNull Optional<Entity.BoneModel> boneModel) {
 
         /**
          * Reports whether this variant applies a whole-model rotation.
