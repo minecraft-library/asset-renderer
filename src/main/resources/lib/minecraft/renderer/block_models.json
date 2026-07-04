@@ -1799,79 +1799,45 @@
       "model": {
         "textureWidth": 32,
         "textureHeight": 16,
-        "elements": [
-          {
-            "from": [
-              5.0,
-              5.0,
-              5.0
+        "bones": {
+          "shell": {
+            "pivot": [
+              0.0,
+              0.0,
+              0.0
             ],
-            "to": [
-              11.0,
-              11.0,
-              11.0
+            "rotation": [
+              0.0,
+              0.0,
+              0.0
             ],
-            "faces": {
-              "down": {
-                "texture": "#entity",
-                "uv": [
-                  3.0,
-                  0.0,
-                  6.0,
-                  6.0
-                ]
-              },
-              "up": {
-                "texture": "#entity",
-                "uv": [
+            "cubes": [
+              {
+                "origin": [
+                  -3.0,
+                  -3.0,
+                  -3.0
+                ],
+                "size": [
                   6.0,
                   6.0,
-                  9.0,
-                  0.0
-                ]
-              },
-              "north": {
-                "texture": "#entity",
-                "uv": [
-                  6.0,
-                  12.0,
-                  3.0,
                   6.0
-                ]
-              },
-              "south": {
-                "texture": "#entity",
+                ],
                 "uv": [
-                  12.0,
-                  12.0,
-                  9.0,
-                  6.0
-                ]
-              },
-              "west": {
-                "texture": "#entity",
-                "uv": [
-                  3.0,
-                  12.0,
-                  0.0,
-                  6.0
-                ]
-              },
-              "east": {
-                "texture": "#entity",
-                "uv": [
-                  9.0,
-                  12.0,
-                  6.0,
-                  6.0
-                ]
+                  0,
+                  0
+                ],
+                "inflate": 0.0,
+                "mirror": false,
+                "face_uv": {}
               }
-            }
+            ]
           }
-        ]
+        }
       },
       "y_axis": "DOWN",
-      "inventory_y_rotation": 0,
+      "inventory_y_rotation": 0.0,
+      "entity_flip": true,
       "inventory_transform": [
         8.0,
         8.0,

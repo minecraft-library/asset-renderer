@@ -119,7 +119,8 @@ public final class ToolingBlockModels {
     private static final @NotNull Set<String> BONE_FORMAT_MODEL_IDS = Set.of(
         "minecraft:chest",
         "minecraft:sign",
-        "minecraft:wall_sign"
+        "minecraft:wall_sign",
+        "minecraft:conduit"
     );
 
     /**
