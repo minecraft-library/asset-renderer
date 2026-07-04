@@ -177,6 +177,10 @@ public final class EntityOverlayResolver {
      *     (e.g. {@code LlamaDecorLayer}); {@code false} for overlays that contribute to the
      *     silhouette. Emitted as the {@code skip_bounds} JSON property by
      *     {@link EntityRuntimeJsonWriter}
+     * @param tintBy the render-axis token whose selected colour overrides this overlay's baked
+     *     {@code tintArgb} at render (e.g. {@code "wool_color"} for the sheep wool, whose colour
+     *     is a user-selectable dye). {@code null} when the tint is fixed. Emitted as the
+     *     {@code tint_by} JSON property by {@link EntityRuntimeJsonWriter}
      */
     public record Result(
         @NotNull String layerClass,
@@ -185,12 +189,13 @@ public final class EntityOverlayResolver {
         @Nullable String modelLayerField,
         int tintArgb,
         float inflate,
-        boolean skipBounds
+        boolean skipBounds,
+        @Nullable String tintBy
     ) {
         /**
          * Constructs a {@code Result} with no extra deformation and no bounds skip - the common
          * case for eye and same-geometry composite overlays (defaults {@code inflate} to
-         * {@code 0} and {@code skipBounds} to {@code false}).
+         * {@code 0}, {@code skipBounds} to {@code false}, and {@code tintBy} to {@code null}).
          *
          * @param layerClass JVM internal name of the source layer subclass
          * @param texturePath the raw texture path
@@ -206,7 +211,32 @@ public final class EntityOverlayResolver {
             @Nullable String modelLayerField,
             int tintArgb
         ) {
-            this(layerClass, texturePath, emissive, modelLayerField, tintArgb, 0f, false);
+            this(layerClass, texturePath, emissive, modelLayerField, tintArgb, 0f, false, null);
+        }
+
+        /**
+         * Constructs a {@code Result} carrying explicit deformation / bounds-skip but a fixed tint
+         * (defaults {@code tintBy} to {@code null}) - the {@code LlamaDecorLayer} /
+         * {@code TropicalFishPatternLayer} shape.
+         *
+         * @param layerClass JVM internal name of the source layer subclass
+         * @param texturePath the raw texture path
+         * @param emissive whether the render type is an emissive additive-blend variant
+         * @param modelLayerField the {@code ModelLayers.X} field name, or {@code null}
+         * @param tintArgb the multiplicative ARGB tint, or {@code 0xFFFFFFFF} for no tint
+         * @param inflate the per-cube outward inflate baked into the overlay geometry
+         * @param skipBounds whether to exclude this overlay from the projected bounds walk
+         */
+        public Result(
+            @NotNull String layerClass,
+            @NotNull String texturePath,
+            boolean emissive,
+            @Nullable String modelLayerField,
+            int tintArgb,
+            float inflate,
+            boolean skipBounds
+        ) {
+            this(layerClass, texturePath, emissive, modelLayerField, tintArgb, inflate, skipBounds, null);
         }
 
         /**
@@ -414,7 +444,8 @@ public final class EntityOverlayResolver {
                 }
                 int tintArgb = extractColoredCutoutTint(classNodes, cn);
                 boolean unlit = layerInvokesNoCardinalLightingRenderType(classNodes, cn);
-                out.add(new Result(layerClass, compositeTexture, unlit, modelLayerField, tintArgb));
+                String tintBy = extractTintBy(cn);
+                out.add(new Result(layerClass, compositeTexture, unlit, modelLayerField, tintArgb, 0f, false, tintBy));
                 continue;
             }
         }
@@ -676,6 +707,40 @@ public final class EntityOverlayResolver {
             }
         }
         return 0xFFFFFFFF;
+    }
+
+    /**
+     * The recognised {@code state.get<X>Color()} tint sources that map to a user-selectable render
+     * axis, keyed by the state method name. An overlay whose {@code coloredCutoutModelCopyLayerRender}
+     * colour comes from one of these emits the mapped {@code tint_by} token, so a render option can
+     * override the baked default tint (the sheep wool's default {@code 0xFFE6E6E6} white). Sources
+     * absent from this map keep only their fixed {@code tint_color}.
+     */
+    private static final @NotNull java.util.Map<String, String> TINT_SOURCE_TO_AXIS =
+        java.util.Map.of("getWoolColor", "wool_color");
+
+    /**
+     * Extracts the {@code tint_by} render-axis token for a dyed composite overlay: the
+     * {@code state.get<X>Color()} method feeding the layer's {@code coloredCutoutModelCopyLayerRender}
+     * colour argument, mapped through {@link #TINT_SOURCE_TO_AXIS}. Mirrors
+     * {@link #extractColoredCutoutTint}'s walk but returns the axis token instead of the baked
+     * literal. Returns {@code null} when the layer does not use the cutout helper or its colour
+     * source is not a recognised user-selectable dye axis.
+     */
+    private static @Nullable String extractTintBy(@NotNull ClassNode layerCn) {
+        for (MethodNode method : layerCn.methods) {
+            if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name)) continue;
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+                if (in.getOpcode() != Opcodes.INVOKESTATIC) continue;
+                if (!(in instanceof MethodInsnNode mi)) continue;
+                if (!"coloredCutoutModelCopyLayerRender".equals(mi.name)) continue;
+                if (findPrecedingStateColorCall(in) instanceof MethodInsnNode colorCall) {
+                    String axis = TINT_SOURCE_TO_AXIS.get(colorCall.name);
+                    if (axis != null) return axis;
+                }
+            }
+        }
+        return null;
     }
 
     /**

@@ -58,6 +58,15 @@ public class EntityAppearance {
     private final @NotNull Optional<DyeColor> collar = Optional.empty();
 
     /**
+     * Wool colour for dyeable-wool entities (sheep). When present and the resolved entity carries a
+     * {@code tint_by: wool_color} overlay, that overlay is multiplied by this colour's
+     * {@link DyeColor#argb() ARGB} instead of its baked default white-wool tint; empty (default)
+     * renders the entity's default wool colour.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Optional<DyeColor> woolColor = Optional.empty();
+
+    /**
      * Whether this appearance selects the baby mesh.
      *
      * @return {@code true} when {@link #getAge() age} is {@link Age#BABY}

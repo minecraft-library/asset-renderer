@@ -232,13 +232,17 @@ public class EntityModelLoader {
      *     the harness also skips (llama carpet), and for same-geometry overlays carrying only the
      *     auto-emitted {@value #DEPTH_CLEARANCE_INFLATE} depth-clearance inflate whose silhouette
      *     the base mesh already covers
+     * @param tintBy the render-axis token whose selected colour overrides {@link #tintArgb} at
+     *     render (e.g. {@code "wool_color"} for the sheep wool, tinted by
+     *     {@code EntityAppearance.woolColor}), or empty when the tint is fixed at {@link #tintArgb}
      */
     public record OverlayLayer(
         @NotNull EntityModelData model,
         @NotNull Optional<String> textureRef,
         boolean emissive,
         int tintArgb,
-        boolean skipBounds
+        boolean skipBounds,
+        @NotNull Optional<String> tintBy
     ) {}
 
     /**
@@ -321,7 +325,10 @@ public class EntityModelLoader {
             boolean depthClearanceOnly = sameGeometry && inflate <= DEPTH_CLEARANCE_INFLATE;
             boolean skipBounds = (entry.has("skip_bounds") && entry.get("skip_bounds").getAsBoolean())
                 || depthClearanceOnly;
-            out.add(new OverlayLayer(materialised, overlayTexture, emissive, overlayTint, skipBounds));
+            Optional<String> tintBy = entry.has("tint_by")
+                ? Optional.of(entry.get("tint_by").getAsString())
+                : Optional.empty();
+            out.add(new OverlayLayer(materialised, overlayTexture, emissive, overlayTint, skipBounds, tintBy));
         }
         return out;
     }

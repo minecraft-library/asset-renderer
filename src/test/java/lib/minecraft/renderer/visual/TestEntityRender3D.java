@@ -96,6 +96,9 @@ public final class TestEntityRender3D {
         Optional<String> collarName = Optional.ofNullable(System.getProperty("asset.entity.collar")).filter(s -> !s.isBlank());
         Optional<lib.minecraft.renderer.request.DyeColor> collarColor =
             collarName.map(s -> lib.minecraft.renderer.request.DyeColor.ofName(s.toUpperCase(java.util.Locale.ROOT)));
+        Optional<String> woolName = Optional.ofNullable(System.getProperty("asset.entity.wool")).filter(s -> !s.isBlank());
+        Optional<lib.minecraft.renderer.request.DyeColor> woolColor =
+            woolName.map(s -> lib.minecraft.renderer.request.DyeColor.ofName(s.toUpperCase(java.util.Locale.ROOT)));
         Optional<String> age = Optional.ofNullable(System.getProperty("asset.entity.age")).filter(s -> !s.isBlank());
 
         for (String entityId : entityIds) {
@@ -103,12 +106,14 @@ public final class TestEntityRender3D {
                 + state.map(s -> "_" + s).orElse("")
                 + carried.map(c -> "_carried-" + c).orElse("")
                 + collarName.map(c -> "_collar-" + c).orElse("")
+                + woolName.map(c -> "_wool-" + c).orElse("")
                 + age.map(a -> "_" + a).orElse("");
             EntityAppearance appearance = EntityAppearance.builder()
                 .age(age.map(a -> a.equalsIgnoreCase("baby") ? Age.BABY : Age.ADULT).orElse(Age.ADULT))
                 .state(state)
                 .carried(carried)
                 .collar(collarColor)
+                .woolColor(woolColor)
                 .build();
             EntityOptions options = EntityOptions.builder()
                 .entityId(Optional.of(entityId))

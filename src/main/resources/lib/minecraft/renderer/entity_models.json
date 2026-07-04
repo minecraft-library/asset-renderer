@@ -995,7 +995,8 @@
         {
           "geometry_ref": "geometry.sheepfur",
           "texture_ref": "sheep/sheep_wool",
-          "tint_color": "0xFFE6E6E6"
+          "tint_color": "0xFFE6E6E6",
+          "tint_by": "wool_color"
         }
       ],
       "axes": {

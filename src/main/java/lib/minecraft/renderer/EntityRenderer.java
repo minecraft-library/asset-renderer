@@ -386,7 +386,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     private void contributeModelOverlays(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
         SceneContext scene = ctx.scene();
-        for (EntityModelLoader.OverlayLayer overlay : ctx.definition().overlays())
+        EntityAppearance appearance = ctx.options().getAppearance();
+        for (EntityModelLoader.OverlayLayer overlay : ctx.definition().overlays()) {
+            int overlayTint = resolveOverlayTint(overlay, appearance);
             stack.append(EntityOptions.Slot.MODEL_OVERLAY, sink -> {
                 if (overlay.model().getBones().isEmpty()) return;
                 Optional<PixelBuffer> overlayTex = overlay.textureRef().isPresent()
@@ -395,8 +397,22 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 if (overlayTex.isEmpty()) return;
                 sink.addAll(EntityGeometryKit.buildTriangles(
                     overlay.model(), overlayTex.get(), scene.modelAnchor(), overlay.emissive(),
-                    scene.ndcScale(), scene.modelScale(), overlay.tintArgb()).triangles());
+                    scene.ndcScale(), scene.modelScale(), overlayTint).triangles());
             });
+        }
+    }
+
+    /**
+     * The effective multiplicative tint for a model overlay: the {@code tint_by} axis colour when
+     * the overlay is dye-driven ({@code "wool_color"}) and the appearance supplies that colour, else
+     * the overlay's baked {@link EntityModelLoader.OverlayLayer#tintArgb() default tint}. The default
+     * keeps a white sheep byte-identical; a dyed sheep multiplies the wool by the dye's ARGB
+     * (mirroring vanilla's {@code coloredCutoutModelRender} colour arg), exactly like the collar tint.
+     */
+    private static int resolveOverlayTint(@NotNull EntityModelLoader.OverlayLayer overlay, @NotNull EntityAppearance appearance) {
+        if (overlay.tintBy().filter("wool_color"::equals).isPresent() && appearance.getWoolColor().isPresent())
+            return appearance.getWoolColor().get().argb();
+        return overlay.tintArgb();
     }
 
     /**

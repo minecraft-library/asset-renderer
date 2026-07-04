@@ -271,6 +271,10 @@ public final class EntityRuntimeJsonWriter {
                     if (desc.emissive()) overlay.addProperty("emissive", true);
                     if (desc.tintArgb() != 0xFFFFFFFF)
                         overlay.addProperty("tint_color", String.format("0x%08X", desc.tintArgb()));
+                    // tint_by names the render axis whose selected colour overrides tint_color at
+                    // render (sheep wool: "wool_color"); the baked tint_color stays the default.
+                    if (desc.tintBy() != null)
+                        overlay.addProperty("tint_by", desc.tintBy());
                     // Overlays sharing the base geometry need a microscopic outward inflate to
                     // clear ModelEngine's equal-Z depth-fail. Without it the overlay lands on
                     // the same depth as the lit skin texel and never wins.
