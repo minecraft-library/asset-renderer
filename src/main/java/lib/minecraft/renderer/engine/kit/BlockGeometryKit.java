@@ -5,6 +5,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.BlockRenderer;
+import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
@@ -13,6 +14,7 @@ import lib.minecraft.renderer.engine.light.Shading;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.face.BlockFace;
+import lib.minecraft.renderer.face.EntityFace;
 import lib.minecraft.renderer.face.SixFaces;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Matrix4f;
@@ -120,6 +122,85 @@ public class BlockGeometryKit {
                 face.normal(),
                 glinted
             );
+        }
+
+        return triangles;
+    }
+
+    /**
+     * Builds block-frame triangles directly from a <b>relative</b> bone/cube tree
+     * ({@link EntityModelData}), composing the parent hierarchy through the shared
+     * {@link BoneChains} chain math - the hierarchical counterpart to {@link #buildFromElements},
+     * for block entities whose geometry is stored as a relative bone tree rather than
+     * pre-flattened block elements.
+     * <p>
+     * Each cube is walked with the same entity conventions the {@link EntityGeometryKit} uses -
+     * bone-local origins scaled by the bone's {@code scale}, {@link EntityFace} atlas-UV unwrap
+     * (via {@link EntityGeometryKit#resolvePolygonUv}), inflate, mirror, and per-cube / bind-pose
+     * rotation (via {@link BoneChains#composeCubeTransform}) - then emitted in the block engine's
+     * {@code [-0.5, +0.5]} frame by dividing the composed pixel-space position by
+     * {@link #VANILLA_PIXEL_UNITS_PER_BLOCK} and subtracting {@code 0.5}, matching
+     * {@link #buildFromElements}'s normalization. Degenerate plane-cube faces are skipped; plane
+     * cubes render two-sided; the inventory shade is baked via {@link Lighting#inventory}.
+     * <p>
+     * <b>Frame scope:</b> this emits in the bone tree's <b>native</b> orientation (Y-down, no entity
+     * flip, no inventory transform). The per-block-entity presentation transforms - the entity-render
+     * flip, the decomposed {@code inventory_transform} / {@code inventory_y_rotation}, and the iso
+     * pose - are applied downstream at render time (the same knobs that were previously baked into the
+     * block elements by {@code BlockModelConverter}). So this method is <b>not</b> triangle-identical
+     * to {@code buildFromElements(elements)}; equivalence is a render-parity property validated once
+     * the render path applies those transforms.
+     *
+     * @param model the relative bone/cube model (vanilla Y-down frame)
+     * @param texture the entity texture the cube UVs sample
+     * @param tintArgb the ARGB tint applied to every face, or {@code 0xFFFFFFFF} for no tint
+     * @return the block-frame triangle list, ready for the downstream render transform
+     */
+    public static @NotNull ConcurrentList<VisibleTriangle> buildFromBones(
+        @NotNull EntityModelData model,
+        @NotNull PixelBuffer texture,
+        int tintArgb
+    ) {
+        ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
+        Map<String, Matrix4f> chains = BoneChains.buildChainTransforms(model.getBones());
+        float texW = model.getTextureWidth() > 0 ? model.getTextureWidth() : Math.max(1f, texture.width());
+        float texH = model.getTextureHeight() > 0 ? model.getTextureHeight() : Math.max(1f, texture.height());
+
+        for (Map.Entry<String, EntityModelData.Bone> boneEntry : model.getBones().entrySet()) {
+            EntityModelData.Bone bone = boneEntry.getValue();
+            Matrix4f boneChain = chains.get(boneEntry.getKey());
+            float s = bone.getScale();
+            for (EntityModelData.Cube cube : bone.getCubes()) {
+                Vector3f origin = cube.getOrigin();
+                Vector3f size = cube.getSize();
+                float scaledInflate = s * cube.getInflate();
+                float ox = s * origin.x(), oy = s * origin.y(), oz = s * origin.z();
+                Box cubeBounds = new Box(
+                    ox - scaledInflate, oy - scaledInflate, oz - scaledInflate,
+                    ox + s * size.x() + scaledInflate, oy + s * size.y() + scaledInflate, oz + s * size.z() + scaledInflate);
+                Matrix4f cubeTransform = BoneChains.composeCubeTransform(cube, bone, boneChain);
+                boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
+
+                for (EntityFace face : EntityFace.CACHED_VALUES) {
+                    if (isPlaneCube && EntityGeometryKit.isDegeneratePlaneFace(size, face)) continue;
+                    Vector3f[] corners = face.corners(cubeBounds);
+                    for (int i = 0; i < corners.length; i++) {
+                        Vector3f t = corners[i].transform(cubeTransform);
+                        corners[i] = new Vector3f(
+                            t.x() / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f,
+                            t.y() / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f,
+                            t.z() / VANILLA_PIXEL_UNITS_PER_BLOCK - 0.5f);
+                    }
+                    Vector3f normal = face.normal().transformNormal(cubeTransform).normalize();
+                    Vector2f[] uv = EntityGeometryKit.resolvePolygonUv(face, cube, size, texW, texH);
+                    boolean translucent = faceHasPartialAlpha(uv, texture);
+                    addQuad(triangles,
+                        corners[0], corners[1], corners[2], corners[3],
+                        uv[0], uv[1], uv[2], uv[3],
+                        texture, tintArgb, normal,
+                        !isPlaneCube, translucent, true, false);
+                }
+            }
         }
 
         return triangles;

@@ -997,7 +997,7 @@ public class EntityGeometryKit {
      * @param texHeight the texture height
      * @return the four per-vertex UVs in the kit's corner order
      */
-    private static @NotNull Vector2f @NotNull [] resolvePolygonUv(
+    static @NotNull Vector2f @NotNull [] resolvePolygonUv(
         @NotNull EntityFace face,
         @NotNull EntityModelData.Cube cube,
         @NotNull Vector3f size,
@@ -1024,7 +1024,7 @@ public class EntityGeometryKit {
      * @return {@code true} if the polygon collapses to a line; {@code false} when the face has
      *     full plane area
      */
-    private static boolean isDegeneratePlaneFace(@NotNull Vector3f size, @NotNull EntityFace face) {
+    static boolean isDegeneratePlaneFace(@NotNull Vector3f size, @NotNull EntityFace face) {
         if (size.x() == 0f) return face != EntityFace.WEST && face != EntityFace.EAST;
         if (size.y() == 0f) return face != EntityFace.UP && face != EntityFace.DOWN;
         if (size.z() == 0f) return face != EntityFace.NORTH && face != EntityFace.SOUTH;

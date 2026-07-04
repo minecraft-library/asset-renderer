@@ -1,21 +1,32 @@
 package lib.minecraft.renderer.engine.kit;
 
 import dev.simplified.collection.Concurrent;
+import dev.simplified.collection.ConcurrentLinkedMap;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.ModelElement;
 import lib.minecraft.renderer.asset.model.ModelFace;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
+import lib.minecraft.renderer.request.EulerRotation;
+import lib.minecraft.renderer.tensor.Vector2f;
+import lib.minecraft.renderer.tensor.Vector3f;
 import lib.minecraft.renderer.tensor.Vector4f;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
@@ -133,11 +144,66 @@ class BlockGeometryKitTest {
         assertThat(firstHalf.position2().z(), equalTo(0.25f));
     }
 
+    @Test
+    @DisplayName("buildFromBones: full-block cube bone yields 12 triangles in [-0.5,0.5], all six faces, tinted")
+    void buildFromBones_fullBlockCube() {
+        // A cube spanning bone-local [-8,+8] under a bone pivot of (8,8,8) composes to entity-pixel
+        // [0,16], which the /16 - 0.5 block-frame normalization maps to the [-0.5,+0.5] unit cube.
+        ConcurrentList<VisibleTriangle> triangles =
+            BlockGeometryKit.buildFromBones(fullBlockCubeModel(), solid(16, 16), TINT_ARGB);
+
+        assertThat(triangles.size(), equalTo(12));
+        Set<String> faces = new HashSet<>();
+        for (VisibleTriangle t : triangles) {
+            assertThat(t.tintArgb(), equalTo(TINT_ARGB));
+            for (Vector3f p : new Vector3f[]{ t.position0(), t.position1(), t.position2() }) {
+                assertThat(p.x(), both(greaterThanOrEqualTo(-0.501f)).and(lessThanOrEqualTo(0.501f)));
+                assertThat(p.y(), both(greaterThanOrEqualTo(-0.501f)).and(lessThanOrEqualTo(0.501f)));
+                assertThat(p.z(), both(greaterThanOrEqualTo(-0.501f)).and(lessThanOrEqualTo(0.501f)));
+            }
+            faces.add(cardinal(t.normal()));
+        }
+        assertThat("all six cardinal faces present", faces.size(), equalTo(6));
+    }
+
     // --- fixtures ---
 
     /** A single opaque-white texel, sufficient since these tests assert geometry, not sampling. */
     private static PixelBuffer texture1x1() {
         return PixelBuffer.of(new int[]{ 0xFFFFFFFF }, 1, 1);
+    }
+
+    /** An opaque-white {@code w x h} texture so cube-face UV sampling never drops texels. */
+    private static PixelBuffer solid(int w, int h) {
+        int[] px = new int[w * h];
+        Arrays.fill(px, 0xFFFFFFFF);
+        return PixelBuffer.of(px, w, h);
+    }
+
+    /**
+     * A one-bone model whose single cube spans a full block: bone-local origin {@code [-8,-8,-8]},
+     * size {@code [16,16,16]}, under bone pivot {@code (8,8,8)} so the composed cube fills the
+     * {@code [0,16]} entity-pixel block, on a {@code 16x16} atlas.
+     */
+    private static EntityModelData fullBlockCubeModel() {
+        EntityModelData.Cube cube = new EntityModelData.Cube(
+            new Vector3f(-8f, -8f, -8f), new Vector3f(16f, 16f, 16f), Vector2f.ZERO,
+            0f, false, Vector3f.ZERO, EulerRotation.NONE, Concurrent.newMap());
+        ConcurrentList<EntityModelData.Cube> cubes = Concurrent.newList();
+        cubes.add(cube);
+        EntityModelData.Bone bone = new EntityModelData.Bone(
+            new Vector3f(8f, 8f, 8f), EulerRotation.NONE, EulerRotation.NONE, 1f, cubes, null);
+        ConcurrentLinkedMap<String, EntityModelData.Bone> bones = Concurrent.newLinkedMap();
+        bones.put("body", bone);
+        return new EntityModelData(16, 16, 0f, bones, false);
+    }
+
+    /** Maps a (mostly-)axis-aligned normal to its cardinal-direction label. */
+    private static String cardinal(Vector3f n) {
+        float ax = Math.abs(n.x()), ay = Math.abs(n.y()), az = Math.abs(n.z());
+        if (ax >= ay && ax >= az) return n.x() > 0 ? "+x" : "-x";
+        if (ay >= az) return n.y() > 0 ? "+y" : "-y";
+        return n.z() > 0 ? "+z" : "-z";
     }
 
     /** Builds a {@link ModelFace} bound to the given texture key with no explicit UV or rotation. */
