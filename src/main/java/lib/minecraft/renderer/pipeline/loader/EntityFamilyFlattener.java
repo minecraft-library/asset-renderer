@@ -27,7 +27,7 @@ public final class EntityFamilyFlattener {
      * {@code EntityFamilyJsonWriter}'s copied-field list.
      */
     private static final @NotNull List<String> CARRIED_FIELDS =
-        List.of("renderer_scale", "setup_yaw_addend", "base_tint", "hidden_bones", "overlays", "block_overlays");
+        List.of("renderer_scale", "setup_yaw_addend", "base_tint", "hidden_bones", "bone_toggles", "overlays", "block_overlays");
 
     private EntityFamilyFlattener() {
     }

@@ -366,7 +366,7 @@ public final class EntityFamilyJsonWriter {
      * from a flat row onto a family entry, preserving their exact JSON representation.
      */
     private static void copyBaseOptionalFields(@NotNull JsonObject row, @NotNull JsonObject family) {
-        for (String key : List.of("renderer_scale", "setup_yaw_addend", "base_tint", "hidden_bones", "overlays", "block_overlays"))
+        for (String key : List.of("renderer_scale", "setup_yaw_addend", "base_tint", "hidden_bones", "bone_toggles", "overlays", "block_overlays"))
             if (row.has(key)) family.add(key, row.get(key).deepCopy());
     }
 

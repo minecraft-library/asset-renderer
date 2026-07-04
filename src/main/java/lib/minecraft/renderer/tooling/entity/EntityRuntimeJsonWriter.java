@@ -314,6 +314,20 @@ public final class EntityRuntimeJsonWriter {
                 row.add("hidden_bones", hidden);
             }
 
+            // bone_toggles - the subset of the hidden bones that a render option can un-hide
+            // (donkey/mule/llama chest, gated on state.hasChest). Additive metadata: the same bones
+            // stay stripped by hidden_bones above, so the default render is unchanged.
+            Map<String, List<String>> boneToggles = EntityBoneResolver.resolveBoneToggles(context.classNodes(), res.targetClass(), diagnostics);
+            if (!boneToggles.isEmpty()) {
+                JsonObject togglesJson = new JsonObject();
+                for (Map.Entry<String, List<String>> toggle : boneToggles.entrySet()) {
+                    JsonArray bones = new JsonArray();
+                    for (String bone : toggle.getValue()) bones.add(bone);
+                    togglesJson.add(toggle.getKey(), bones);
+                }
+                row.add("bone_toggles", togglesJson);
+            }
+
             // Variant-registry entities emit the base row under {@code <id>_<canonicalVariant>}
             // (matching the harness's per-variant reference naming, e.g. cow_temperate / wolf_pale),
             // with the non-default variants rolling up to it via {@code variant_of}. There is NO plain

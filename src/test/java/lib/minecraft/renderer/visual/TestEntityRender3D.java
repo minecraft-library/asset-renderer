@@ -101,6 +101,11 @@ public final class TestEntityRender3D {
             woolName.map(s -> lib.minecraft.renderer.request.DyeColor.ofName(s.toUpperCase(java.util.Locale.ROOT)));
         Optional<String> age = Optional.ofNullable(System.getProperty("asset.entity.age")).filter(s -> !s.isBlank());
         boolean sheared = Boolean.getBoolean("asset.entity.sheared");
+        java.util.Set<String> toggles = Optional.ofNullable(System.getProperty("asset.entity.toggles")).filter(s -> !s.isBlank())
+            .map(s -> java.util.Arrays.stream(s.split(",")).map(String::trim).filter(t -> !t.isEmpty())
+                .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new)))
+            .map(s -> (java.util.Set<String>) s)
+            .orElse(java.util.Set.of());
 
         for (String entityId : entityIds) {
             String safeName = entityId.replace(':', '_')
@@ -109,6 +114,7 @@ public final class TestEntityRender3D {
                 + collarName.map(c -> "_collar-" + c).orElse("")
                 + woolName.map(c -> "_wool-" + c).orElse("")
                 + (sheared ? "_sheared" : "")
+                + (toggles.isEmpty() ? "" : "_toggle-" + String.join("-", toggles))
                 + age.map(a -> "_" + a).orElse("");
             EntityAppearance appearance = EntityAppearance.builder()
                 .age(age.map(a -> a.equalsIgnoreCase("baby") ? Age.BABY : Age.ADULT).orElse(Age.ADULT))
@@ -117,6 +123,7 @@ public final class TestEntityRender3D {
                 .collar(collarColor)
                 .woolColor(woolColor)
                 .sheared(sheared)
+                .toggles(toggles)
                 .build();
             EntityOptions options = EntityOptions.builder()
                 .entityId(Optional.of(entityId))

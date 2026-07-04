@@ -419,7 +419,13 @@
       "hidden_bones": [
         "left_chest",
         "right_chest"
-      ]
+      ],
+      "bone_toggles": {
+        "chest": [
+          "left_chest",
+          "right_chest"
+        ]
+      }
     },
     "minecraft:drowned": {
       "geometry_ref": "geometry.drowned",
@@ -666,7 +672,13 @@
       "hidden_bones": [
         "right_chest",
         "left_chest"
-      ]
+      ],
+      "bone_toggles": {
+        "chest": [
+          "right_chest",
+          "left_chest"
+        ]
+      }
     },
     "minecraft:magma_cube": {
       "geometry_ref": "geometry.magmacube",
@@ -795,7 +807,13 @@
       "hidden_bones": [
         "left_chest",
         "right_chest"
-      ]
+      ],
+      "bone_toggles": {
+        "chest": [
+          "left_chest",
+          "right_chest"
+        ]
+      }
     },
     "minecraft:nautilus": {
       "geometry_ref": "geometry.nautilus",
@@ -1167,6 +1185,12 @@
         "right_chest",
         "left_chest"
       ],
+      "bone_toggles": {
+        "chest": [
+          "right_chest",
+          "left_chest"
+        ]
+      },
       "overlays": [
         {
           "geometry_ref": "geometry.llama",

@@ -19,8 +19,10 @@ import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -155,6 +157,106 @@ public final class EntityBoneResolver {
         ConcurrentList<String> out = Concurrent.newList();
         out.addAll(hidden);
         return out;
+    }
+
+    /**
+     * Returns the entity's {@code bone_toggles} map (toggle name -&gt; bone names) - the subset of
+     * state-equipment-gated hidden bones ({@code bone.visible = state.hasChest}) grouped by their
+     * gating flag, so a render option can un-hide them. This is <b>additive</b> to
+     * {@link #resolveHiddenBones}: the same bones stay in {@code hidden_bones} (stripped by default,
+     * keeping the render byte-identical), and this map only tells the loader which of those hidden
+     * bones a named toggle can reveal. The flag becomes the toggle name ({@code hasChest} -&gt;
+     * {@code "chest"}) and each gated model field becomes its geometry bone name
+     * ({@code rightChest} -&gt; {@code right_chest}).
+     *
+     * @param classNodes the ClassNode cache (shared with sibling resolver walks)
+     * @param modelClassInternal the model class's JVM internal name
+     * @param diag the diagnostic sink for bone-toggle INFO traces
+     * @return toggle name -&gt; bone names, in insertion order; empty when no state-gated bones exist
+     */
+    public static @NotNull Map<String, List<String>> resolveBoneToggles(
+        @NotNull ClassNodeCache classNodes,
+        @NotNull String modelClassInternal,
+        @NotNull Diagnostics diag
+    ) {
+        LinkedHashMap<String, LinkedHashSet<String>> flagToFields = new LinkedHashMap<>();
+        LinkedHashMap<String, String> fieldToBoneName = new LinkedHashMap<>();
+        String current = modelClassInternal;
+        while (current != null && !current.equals(VanillaSourceClasses.ENTITY_MODEL) && !current.equals(AsmKit.OBJECT_INTERNAL)) {
+            ClassNode cn = classNodes.load(current);
+            if (cn == null) break;
+            MethodNode ctor = AsmKit.findMethod(cn, AsmKit.INIT);
+            if (ctor != null) collectFieldToBoneNameMap(cn, ctor, fieldToBoneName);
+            for (MethodNode method : cn.methods) {
+                if (AsmKit.INIT.equals(method.name) || AsmKit.CLINIT.equals(method.name)) continue;
+                collectStateGatedToggles(cn, method, flagToFields);
+            }
+            current = cn.superName;
+        }
+        if (flagToFields.isEmpty()) return Map.of();
+
+        LinkedHashMap<String, List<String>> toggles = new LinkedHashMap<>();
+        for (Map.Entry<String, LinkedHashSet<String>> entry : flagToFields.entrySet()) {
+            List<String> bones = new ArrayList<>();
+            for (String field : entry.getValue()) bones.add(fieldToBoneName.getOrDefault(field, field));
+            toggles.put(flagToToggleName(entry.getKey()), bones);
+        }
+        diag.info("bone-toggles: '%s' -> %s", modelClassInternal, toggles);
+        return toggles;
+    }
+
+    /**
+     * State-equipment visibility pattern {@code bone.visible = state.hasChest}, recording each gating
+     * {@code flag -> model-field} instead of merging into one set. The parallel of
+     * {@link #collectStateGatedHidden} (same matched instruction shape and guards); kept separate so
+     * {@code resolveHiddenBones} stays byte-identical while {@code resolveBoneToggles} can group the
+     * gated bones by their flag.
+     */
+    private static void collectStateGatedToggles(@NotNull ClassNode owner, @NotNull MethodNode method, @NotNull Map<String, LinkedHashSet<String>> out) {
+        for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext()) {
+            if (in.getOpcode() != Opcodes.PUTFIELD) continue;
+            if (!(in instanceof FieldInsnNode put)) continue;
+            if (!VanillaSourceClasses.MODEL_PART.equals(put.owner)) continue;
+            if (!"visible".equals(put.name)) continue;
+            if (!MODEL_PART_VISIBLE_DESC.equals(put.desc)) continue;
+            AbstractInsnNode valueInsn = AsmKit.previousReal(in);
+            if (valueInsn == null || valueInsn.getOpcode() != Opcodes.GETFIELD) continue;
+            if (!(valueInsn instanceof FieldInsnNode flagGet)) continue;
+            if (!"Z".equals(flagGet.desc)) continue;
+            if (!"hasChest".equals(flagGet.name)) continue;
+            if (owner.name.equals(flagGet.owner)) continue;
+            AbstractInsnNode stateLoad = AsmKit.previousReal(valueInsn);
+            if (stateLoad == null || stateLoad.getOpcode() != Opcodes.ALOAD) continue;
+            if (!(stateLoad instanceof VarInsnNode varLoad)) continue;
+            if (varLoad.var == 0) continue;
+            AbstractInsnNode targetInsn = AsmKit.previousReal(stateLoad);
+            if (targetInsn == null || targetInsn.getOpcode() != Opcodes.GETFIELD) continue;
+            if (!(targetInsn instanceof FieldInsnNode get)) continue;
+            if (!owner.name.equals(get.owner)) continue;
+            out.computeIfAbsent(flagGet.name, key -> new LinkedHashSet<>()).add(get.name);
+        }
+    }
+
+    /**
+     * Derives a toggle name from a state boolean flag: strips the {@code has}/{@code is} prefix and
+     * converts the remaining CamelCase to snake_case ({@code hasChest} -&gt; {@code "chest"},
+     * {@code hasLeftHorn} -&gt; {@code "left_horn"}).
+     */
+    private static @NotNull String flagToToggleName(@NotNull String flag) {
+        String stem = flag.startsWith("has") ? flag.substring(3)
+            : flag.startsWith("is") ? flag.substring(2)
+            : flag;
+        StringBuilder snake = new StringBuilder(stem.length() + 4);
+        for (int i = 0; i < stem.length(); i++) {
+            char c = stem.charAt(i);
+            if (Character.isUpperCase(c)) {
+                if (i > 0) snake.append('_');
+                snake.append(Character.toLowerCase(c));
+            } else {
+                snake.append(c);
+            }
+        }
+        return snake.toString();
     }
 
     /**

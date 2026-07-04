@@ -6,6 +6,7 @@ import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * The entity-specific axis selections for a single {@code EntityRenderer} invocation, held as one
@@ -73,6 +74,14 @@ public class EntityAppearance {
      */
     @lombok.Builder.Default
     private final boolean sheared = false;
+
+    /**
+     * The set of bone-toggle names to un-hide for entities with toggleable bones (donkey / mule /
+     * llama {@code chest}). Each name matches a family-form {@code bone_toggles} key; a toggle a
+     * given entity does not declare is ignored. Empty (default) leaves every toggleable bone hidden.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Set<String> toggles = Set.of();
 
     /**
      * Whether this appearance selects the baby mesh.

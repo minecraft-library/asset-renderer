@@ -27,6 +27,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Loads bundled entity model definitions from two paired classpath resources produced by
@@ -114,6 +115,11 @@ public class EntityModelLoader {
      * @param babyModel the distinct baked baby mesh, used in place of {@link #model} when
      *     {@code EntityAppearance.age} selects {@code baby}. Present only in the family form
      *     for ageable entities with a dedicated {@code Baby<X>Model}; empty otherwise
+     * @param boneToggles named bone-visibility toggles (toggle name -&gt; boneName -&gt; the hidden
+     *     {@code Bone}), un-hidden at render when {@code EntityAppearance.toggles} selects the
+     *     toggle (donkey/mule/llama {@code chest}). The bones are stripped from {@link #model} by
+     *     default (so the default render is unchanged) and re-inserted by {@link #resolveFor}; empty
+     *     for entities with no toggleable bones
      */
     @Builder(toBuilder = true)
     public record EntityDefinition(
@@ -126,7 +132,8 @@ public class EntityModelLoader {
         float rendererScale,
         @NotNull Map<String, String> stateTextures,
         @NotNull Optional<String> collarTexture,
-        @NotNull Optional<EntityModelData> babyModel
+        @NotNull Optional<EntityModelData> babyModel,
+        @NotNull Map<String, Map<String, EntityModelData.Bone>> boneToggles
     ) {
         /**
          * Returns a copy with no {@link #blockOverlays() block overlays}, for the {@code carried}
@@ -152,16 +159,46 @@ public class EntityModelLoader {
          */
         public @NotNull EntityDefinition resolveFor(@NotNull EntityAppearance appearance) {
             EntityDefinitionBuilder builder = toBuilder();
-            if (appearance.isBaby() && this.babyModel.isPresent())
+            if (appearance.isBaby() && this.babyModel.isPresent()) {
                 builder.model(this.babyModel.get()).overlays(List.of()).blockOverlays(List.of()).collarTexture(Optional.empty());
-            else if (appearance.isSheared())
+            } else {
                 // A sheared entity drops its shearable overlays (the sheep wool) - both the rendered
-                // geometry and its canvas-bounds contribution. The baby branch already empties every
-                // overlay, so sheared only matters for a non-baby.
-                builder.overlays(this.overlays.stream().filter(overlay -> !overlay.shearable()).toList());
+                // geometry and its canvas-bounds contribution.
+                if (appearance.isSheared())
+                    builder.overlays(this.overlays.stream().filter(overlay -> !overlay.shearable()).toList());
+                // Selected bone toggles un-hide their bones (donkey/mule/llama chest). Guarded to the
+                // non-baby path - the baby mesh has its own bones and no adult chest to reveal.
+                EntityModelData revealed = revealToggledBones(appearance.getToggles());
+                if (revealed != null) builder.model(revealed);
+            }
             if (appearance.dropsCarried())
                 builder.blockOverlays(List.of());
             return builder.build();
+        }
+
+        /**
+         * Rebuilds {@link #model} with the appearance's selected {@link #boneToggles bone toggles}
+         * un-hidden, or {@code null} when no selected toggle applies (leaving the default model). The
+         * revealed bones are appended to the default bone map; their parents are already present, so
+         * the kit resolves them by name. The rebuilt model grows the canvas bounds automatically (the
+         * bounds walk reads the resolved model).
+         *
+         * @param toggles the appearance's selected toggle names
+         * @return the model with the selected toggle bones revealed, or {@code null} when none apply
+         */
+        private @Nullable EntityModelData revealToggledBones(@NotNull Set<String> toggles) {
+            if (toggles.isEmpty() || this.boneToggles.isEmpty()) return null;
+            LinkedHashMap<String, EntityModelData.Bone> bones = null;
+            for (String toggle : toggles) {
+                Map<String, EntityModelData.Bone> revealed = this.boneToggles.get(toggle);
+                if (revealed == null || revealed.isEmpty()) continue;
+                if (bones == null) bones = new LinkedHashMap<>(this.model.getBones());
+                bones.putAll(revealed);
+            }
+            if (bones == null) return null;
+            return new EntityModelData(
+                this.model.getTextureWidth(), this.model.getTextureHeight(),
+                this.model.getInventoryYRotation(), Concurrent.adoptLinkedMap(bones), this.model.isCull());
         }
     }
 
@@ -457,6 +494,15 @@ public class EntityModelLoader {
                 ? Optional.of(entityJson.get("texture_ref").getAsString())
                 : Optional.empty();
 
+            // bone_toggles: capture each toggle's Bone objects from the FULL geometry BEFORE the
+            // hidden-bones strip below, so resolveFor can re-insert them when a render option selects
+            // the toggle (donkey/mule/llama chest). The bones also appear in hidden_bones and are
+            // stripped just below, so the default model - and its render - stay byte-identical.
+            Map<String, Map<String, EntityModelData.Bone>> boneToggles =
+                entityJson.has("bone_toggles") && entityJson.get("bone_toggles").isJsonObject()
+                    ? loadBoneToggles(entityJson.getAsJsonObject("bone_toggles"), baseModel, entityId)
+                    : Map.of();
+
             // Tooling-derived hidden bones from the model class's <init>
             // (EntityHiddenBonesResolver: visible = false unconditionally, plus the
             // setupAnim equipment-gated scan for state.hasChest etc.).
@@ -503,9 +549,46 @@ public class EntityModelLoader {
             String babyRef = babyGeometryRefs.get(entityId);
             Optional<EntityModelData> babyModel = babyRef == null ? Optional.empty() : Optional.ofNullable(geometries.get(babyRef));
             definitions.put(entityId, new EntityDefinition(baseModel, textureRef, overlays, blockOverlays, baseTint, setupYawAddend, rendererScale,
-                stateTextures.getOrDefault(entityId, Map.of()), Optional.ofNullable(collarTextures.get(entityId)), babyModel));
+                stateTextures.getOrDefault(entityId, Map.of()), Optional.ofNullable(collarTextures.get(entityId)), babyModel, boneToggles));
         }
         return Concurrent.adoptMap(definitions);
+    }
+
+    /**
+     * Resolves a {@code bone_toggles} JSON object ({@code toggle -> [boneName, ...]}) into
+     * {@code toggle -> (boneName -> Bone)}, pulling each named bone's {@link EntityModelData.Bone}
+     * from the {@code fullModel} (the geometry BEFORE the {@code hidden_bones} strip, so the toggle
+     * bones are still present). A named bone absent from the geometry logs a warning and drops;
+     * a toggle left with no resolvable bones is omitted.
+     *
+     * @param toggles the {@code bone_toggles} object
+     * @param fullModel the full (pre-strip) geometry the toggle bones live on
+     * @param entityId the owning entity id, for warnings
+     * @return toggle name -&gt; (boneName -&gt; Bone), empty when nothing resolves
+     */
+    private static @NotNull Map<String, Map<String, EntityModelData.Bone>> loadBoneToggles(
+        @NotNull JsonObject toggles,
+        @NotNull EntityModelData fullModel,
+        @NotNull String entityId
+    ) {
+        Map<String, Map<String, EntityModelData.Bone>> out = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonElement> entry : toggles.entrySet()) {
+            if (!entry.getValue().isJsonArray()) continue;
+            LinkedHashMap<String, EntityModelData.Bone> bones = new LinkedHashMap<>();
+            for (JsonElement element : entry.getValue().getAsJsonArray()) {
+                if (!element.isJsonPrimitive()) continue;
+                String boneName = element.getAsString();
+                EntityModelData.Bone bone = fullModel.getBones().get(boneName);
+                if (bone == null) {
+                    System.err.printf("  Warning: entity '%s' bone_toggles '%s' names bone '%s' which is not on the geometry%n",
+                        entityId, entry.getKey(), boneName);
+                    continue;
+                }
+                bones.put(boneName, bone);
+            }
+            if (!bones.isEmpty()) out.put(entry.getKey(), bones);
+        }
+        return out;
     }
 
     /**
