@@ -27,7 +27,7 @@ import java.util.Set;
  * {@code /16 - 0.5} normalization + inventory shade); nothing frame-specific lives here.
  */
 @UtilityClass
-public class BoneChains {
+public class BoneKit {
 
     /**
      * Builds the ancestor-anchor chain matrix for every bone starting from identity. Thin wrapper

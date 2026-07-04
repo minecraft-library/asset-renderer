@@ -130,14 +130,14 @@ public class BlockGeometryKit {
     /**
      * Builds block-frame triangles directly from a <b>relative</b> bone/cube tree
      * ({@link EntityModelData}), composing the parent hierarchy through the shared
-     * {@link BoneChains} chain math - the hierarchical counterpart to {@link #buildFromElements},
+     * {@link BoneKit} chain math - the hierarchical counterpart to {@link #buildFromElements},
      * for block entities whose geometry is stored as a relative bone tree rather than
      * pre-flattened block elements.
      * <p>
      * Each cube is walked with the same entity conventions the {@link EntityGeometryKit} uses -
      * bone-local origins scaled by the bone's {@code scale}, {@link EntityFace} atlas-UV unwrap
      * (via {@link EntityGeometryKit#resolvePolygonUv}), inflate, mirror, and per-cube / bind-pose
-     * rotation (via {@link BoneChains#composeCubeTransform}) - then emitted in the block engine's
+     * rotation (via {@link BoneKit#composeCubeTransform}) - then emitted in the block engine's
      * {@code [-0.5, +0.5]} frame by dividing the composed pixel-space position by
      * {@link #VANILLA_PIXEL_UNITS_PER_BLOCK} and subtracting {@code 0.5}, matching
      * {@link #buildFromElements}'s normalization. Degenerate plane-cube faces are skipped; plane
@@ -192,7 +192,7 @@ public class BlockGeometryKit {
         @NotNull Matrix4f presentation
     ) {
         ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
-        Map<String, Matrix4f> chains = BoneChains.buildChainTransforms(model.getBones());
+        Map<String, Matrix4f> chains = BoneKit.buildChainTransforms(model.getBones());
         float texW = model.getTextureWidth() > 0 ? model.getTextureWidth() : Math.max(1f, texture.width());
         float texH = model.getTextureHeight() > 0 ? model.getTextureHeight() : Math.max(1f, texture.height());
 
@@ -211,7 +211,7 @@ public class BlockGeometryKit {
                 // Column-vector chain: cubeTransform (the bone chain) applies first to a cube corner,
                 // then presentation (flip / inventory transform / inventory yaw) in the same [0, 16]
                 // block frame; the /16 - 0.5 normalization below matches buildFromElements.
-                Matrix4f cubeTransform = presentation.multiply(BoneChains.composeCubeTransform(cube, bone, boneChain));
+                Matrix4f cubeTransform = presentation.multiply(BoneKit.composeCubeTransform(cube, bone, boneChain));
                 boolean isPlaneCube = size.x() == 0f || size.y() == 0f || size.z() == 0f;
 
                 for (EntityFace face : EntityFace.CACHED_VALUES) {

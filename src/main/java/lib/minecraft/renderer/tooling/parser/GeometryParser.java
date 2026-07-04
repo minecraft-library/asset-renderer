@@ -2242,7 +2242,7 @@ public final class GeometryParser {
             // Cumulative model scale (ancestor scale times this bone's local scale). Only the scale
             // is folded here - the kit's ModelPart-style chain
             // ({@link lib.minecraft.renderer.engine.kit.EntityGeometryKit} resolveChainFrom / the
-            // shared {@link lib.minecraft.renderer.engine.kit.BoneChains}) supplies each ancestor's
+            // shared {@link lib.minecraft.renderer.engine.kit.BoneKit}) supplies each ancestor's
             // rotation + translation at render. Children read the cumulative scale back via
             // {@link BoneMeta}.
             float worldScale = parentScale * state.pendingScale;

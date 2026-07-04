@@ -233,7 +233,7 @@ public class EntityGeometryKit {
         float modelScale = params.modelScale();
         int tintArgb = params.tintArgb();
 
-        Map<String, Matrix4f> chainTransforms = BoneChains.buildChainTransforms(model.getBones());
+        Map<String, Matrix4f> chainTransforms = BoneKit.buildChainTransforms(model.getBones());
 
         float cx = centre.x();
         float cy = centre.y();
@@ -252,7 +252,7 @@ public class EntityGeometryKit {
             .scale(scale, scale, scale)
             .translate(-cx, -cy, -cz)
             .scale(modelScale);
-        Map<String, Matrix4f> kitFitChainTransforms = BoneChains.buildChainTransformsFrom(kitFit, model.getBones());
+        Map<String, Matrix4f> kitFitChainTransforms = BoneKit.buildChainTransformsFrom(kitFit, model.getBones());
 
         float texW = model.getTextureWidth() > 0 ? model.getTextureWidth() : Math.max(1f, texture.width());
         float texH = model.getTextureHeight() > 0 ? model.getTextureHeight() : Math.max(1f, texture.height());
@@ -270,14 +270,14 @@ public class EntityGeometryKit {
 
             // Java's PartPose / ModelPart authoring stores cube origins LOCAL to the bone's
             // pivot (the literal addBox(x, y, z, w, h, d) args from createBodyLayer). The bone
-            // chain ({@link BoneChains}) translates by the bone's pivot as its first
+            // chain ({@link BoneKit}) translates by the bone's pivot as its first
             // fluent op, so cube origins go through the matrix in BONE-LOCAL coords - no
             // pre-translate by bonePivot here. Matches vanilla's PoseStack flow exactly.
             // Bone-level uniform scale captured from {@code MeshTransformer.scaling(F)} /
             // {@code PartPose.scaled(F)}. Vanilla {@code ModelPart.render} translates by pivot,
             // rotates, then {@code poseStack.scale(s, s, s)} the local cube space - so each cube
             // vertex world-position is {@code pivot + R * (s * v_local)}. Our chain pivot-translates
-            // post-rotation via {@link BoneChains#composeCubeTransform}; multiplying {@code origin}, {@code
+            // post-rotation via {@link BoneKit#composeCubeTransform}; multiplying {@code origin}, {@code
             // size}, and {@code inflate} by {@code s} here puts the cube in scaled-local space
             // before the bone-pivot translate, which is algebraically equivalent for any rotation
             // R that commutes with uniform scale (every R does). UVs stay tied to the unscaled
@@ -297,14 +297,14 @@ public class EntityGeometryKit {
                     ox + s * size.x() + scaledInflate, oy + s * size.y() + scaledInflate, oz + s * size.z() + scaledInflate
                 );
 
-                Matrix4f fullTransform = BoneChains.composeCubeTransform(cube, bone, boneChain);
+                Matrix4f fullTransform = BoneKit.composeCubeTransform(cube, bone, boneChain);
                 // Fluent-composed perCubeChain: kitFit chain + bone hierarchy + bind + cube rot,
                 // all post-multiplied via {@link Matrix4f#translate} / {@link Matrix4f#rotate} so
                 // every multiplication matches vanilla's {@code PoseStack} ops bit-for-bit. The
                 // pre-baked {@code kitFitChainTransforms} maps already incorporate kitFit; here we
                 // apply only the cube-local bind + cube rotation.
                 Matrix4f kitFitBoneChain = kitFitChainTransforms.get(boneName);
-                Matrix4f perCubeChainFluent = BoneChains.composeCubeTransform(cube, bone, kitFitBoneChain);
+                Matrix4f perCubeChainFluent = BoneKit.composeCubeTransform(cube, bone, kitFitBoneChain);
 
                 // entityCutoutCull entities (bat, baby_turtle, ...) cull every face the way vanilla's
                 // GL back-face cull does - including zero-thickness planes, whose two coincident sides
@@ -397,7 +397,7 @@ public class EntityGeometryKit {
      * @return the model AABB in the Java Y-down frame
      */
     public static @NotNull Box computeBounds(@NotNull EntityModelData model) {
-        return computeBounds(model, BoneChains.buildChainTransforms(model.getBones()));
+        return computeBounds(model, BoneKit.buildChainTransforms(model.getBones()));
     }
 
     /**
@@ -440,7 +440,7 @@ public class EntityGeometryKit {
         float modelScale,
         PixelBuffer texture
     ) {
-        Map<String, Matrix4f> chainTransforms = BoneChains.buildChainTransforms(model.getBones());
+        Map<String, Matrix4f> chainTransforms = BoneKit.buildChainTransforms(model.getBones());
         float texW = model.getTextureWidth() > 0 ? model.getTextureWidth() : Math.max(1f, texture == null ? 1 : texture.width());
         float texH = model.getTextureHeight() > 0 ? model.getTextureHeight() : Math.max(1f, texture == null ? 1 : texture.height());
         BoundsAccumulator acc = new BoundsAccumulator();
@@ -455,7 +455,7 @@ public class EntityGeometryKit {
                 Vector3f origin = cube.getOrigin();
                 Vector3f size = cube.getSize();
                 float inflate = cube.getInflate();
-                Matrix4f cubeTransform = BoneChains.composeCubeTransform(cube, bone, boneChain);
+                Matrix4f cubeTransform = BoneKit.composeCubeTransform(cube, bone, boneChain);
 
                 float scaledInflate = s * inflate;
                 float ox = s * origin.x();
@@ -876,7 +876,7 @@ public class EntityGeometryKit {
         @NotNull EntityModelData model,
         @NotNull String boneName
     ) {
-        return BoneChains.buildChainTransforms(model.getBones()).getOrDefault(boneName, Matrix4f.IDENTITY);
+        return BoneKit.buildChainTransforms(model.getBones()).getOrDefault(boneName, Matrix4f.IDENTITY);
     }
 
     /**
@@ -904,7 +904,7 @@ public class EntityGeometryKit {
                 Vector3f origin = cube.getOrigin();
                 Vector3f size = cube.getSize();
                 float inflate = cube.getInflate();
-                Matrix4f fullTransform = BoneChains.composeCubeTransform(cube, bone, boneChain);
+                Matrix4f fullTransform = BoneKit.composeCubeTransform(cube, bone, boneChain);
 
                 float scaledInflate = s * inflate;
                 float ox = s * origin.x();
