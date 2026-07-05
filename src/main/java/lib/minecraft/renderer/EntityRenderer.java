@@ -246,8 +246,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         Layers.foldInto(stack, options.getLayerDecorator(), triangles);
 
         boolean enchanted = ArmorKit.hasEnchantedArmor(
-            options.getHelmet(), options.getChestplate(),
-            options.getLeggings(), options.getBoots()
+            options.getArmor().getHelmet(), options.getArmor().getChestplate(),
+            options.getArmor().getLeggings(), options.getArmor().getBoots()
         );
 
         // Rasterize + optional FXAA + supersample-downscale + masked glint via the shared tail.
@@ -419,8 +419,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 EntityOptions options = ctx.options();
                 stack.append(this.slot, sink ->
                     sink.addAll(ArmorKit.buildEntityArmor3D(ctx.buildResult().boneBounds(),
-                        options.getHelmet(), options.getChestplate(),
-                        options.getLeggings(), options.getBoots(), ctx.textures())));
+                        options.getArmor().getHelmet(), options.getArmor().getChestplate(),
+                        options.getArmor().getLeggings(), options.getArmor().getBoots(), ctx.textures())));
             }
         };
 

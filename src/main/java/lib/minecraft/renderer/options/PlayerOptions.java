@@ -9,9 +9,9 @@ import lib.minecraft.renderer.engine.kit.ArmorKit;
 import lib.minecraft.renderer.engine.kit.TrimKit;
 import lib.minecraft.renderer.options.slot.PlayerSlot2D;
 import lib.minecraft.renderer.options.slot.PlayerSlot3D;
+import lib.minecraft.renderer.options.spec.ArmorOptions;
 import lib.minecraft.renderer.options.spec.RenderOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
-import lib.minecraft.renderer.request.ArmorPiece;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -84,29 +84,9 @@ public class PlayerOptions implements Option {
     @lombok.Builder.Default
     private final @NotNull Optional<String> skinTextureId = Optional.empty();
 
-    /**
-     * Helmet armor piece to render on the head.
-     */
+    /** The worn armor pieces (helmet, chestplate, leggings, boots). */
     @lombok.Builder.Default
-    private final @NotNull Optional<ArmorPiece> helmet = Optional.empty();
-
-    /**
-     * Chestplate armor piece to render on the torso and arms.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Optional<ArmorPiece> chestplate = Optional.empty();
-
-    /**
-     * Leggings armor piece to render on the waist and legs.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Optional<ArmorPiece> leggings = Optional.empty();
-
-    /**
-     * Boots armor piece to render on the feet.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Optional<ArmorPiece> boots = Optional.empty();
+    private final @NotNull ArmorOptions armor = ArmorOptions.defaults();
 
     /**
      * Whether to render the player cape behind the torso (3D bust and full only).

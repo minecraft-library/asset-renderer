@@ -13,6 +13,7 @@ import lib.minecraft.renderer.engine.camera.Facing;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.options.PlayerOptions;
+import lib.minecraft.renderer.options.spec.ArmorOptions;
 import lib.minecraft.renderer.options.spec.RenderOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
@@ -232,18 +233,18 @@ public final class TestPlayerRender {
     private static @NotNull List<Cell> armorPerSlot(int size) {
         ArmorPiece iron = ArmorPiece.of(ArmorMaterial.IRON);
         List<Cell> cells = new ArrayList<>();
-        cells.add(new Cell("helmet only 3D", base(size).type(PlayerOptions.Type.FULL).helmet(Optional.of(iron)).build()));
-        cells.add(new Cell("chestplate only 3D", base(size).type(PlayerOptions.Type.FULL).chestplate(Optional.of(iron)).build()));
-        cells.add(new Cell("leggings only 3D", base(size).type(PlayerOptions.Type.FULL).leggings(Optional.of(iron)).build()));
-        cells.add(new Cell("boots only 3D", base(size).type(PlayerOptions.Type.FULL).boots(Optional.of(iron)).build()));
+        cells.add(new Cell("helmet only 3D", base(size).type(PlayerOptions.Type.FULL).armor(ArmorOptions.builder().helmet(Optional.of(iron)).build()).build()));
+        cells.add(new Cell("chestplate only 3D", base(size).type(PlayerOptions.Type.FULL).armor(ArmorOptions.builder().chestplate(Optional.of(iron)).build()).build()));
+        cells.add(new Cell("leggings only 3D", base(size).type(PlayerOptions.Type.FULL).armor(ArmorOptions.builder().leggings(Optional.of(iron)).build()).build()));
+        cells.add(new Cell("boots only 3D", base(size).type(PlayerOptions.Type.FULL).armor(ArmorOptions.builder().boots(Optional.of(iron)).build()).build()));
         cells.add(new Cell("helmet only 2D", base(size).type(PlayerOptions.Type.FULL)
-            .dimension(PlayerOptions.Dimension.TWO_D).helmet(Optional.of(iron)).build()));
+            .dimension(PlayerOptions.Dimension.TWO_D).armor(ArmorOptions.builder().helmet(Optional.of(iron)).build()).build()));
         cells.add(new Cell("chestplate only 2D", base(size).type(PlayerOptions.Type.FULL)
-            .dimension(PlayerOptions.Dimension.TWO_D).chestplate(Optional.of(iron)).build()));
+            .dimension(PlayerOptions.Dimension.TWO_D).armor(ArmorOptions.builder().chestplate(Optional.of(iron)).build()).build()));
         cells.add(new Cell("leggings only 2D", base(size).type(PlayerOptions.Type.FULL)
-            .dimension(PlayerOptions.Dimension.TWO_D).leggings(Optional.of(iron)).build()));
+            .dimension(PlayerOptions.Dimension.TWO_D).armor(ArmorOptions.builder().leggings(Optional.of(iron)).build()).build()));
         cells.add(new Cell("boots only 2D", base(size).type(PlayerOptions.Type.FULL)
-            .dimension(PlayerOptions.Dimension.TWO_D).boots(Optional.of(iron)).build()));
+            .dimension(PlayerOptions.Dimension.TWO_D).armor(ArmorOptions.builder().boots(Optional.of(iron)).build()).build()));
         cells.add(new Cell("enchanted iron 3D", allSlots(base(size).type(PlayerOptions.Type.FULL),
             new ArmorPiece(ArmorMaterial.IRON, Optional.empty(), Optional.empty(), Optional.empty(), true)).build()));
         return cells;
@@ -259,10 +260,10 @@ public final class TestPlayerRender {
         List<Cell> cells = new ArrayList<>();
         for (PlayerOptions.Dimension dim : PlayerOptions.Dimension.values()) {
             String d = dim == PlayerOptions.Dimension.THREE_D ? "3D" : "2D";
-            cells.add(new Cell("helmet " + d, base(size).type(PlayerOptions.Type.FULL).dimension(dim).helmet(Optional.of(iron)).build()));
-            cells.add(new Cell("chestplate " + d, base(size).type(PlayerOptions.Type.FULL).dimension(dim).chestplate(Optional.of(iron)).build()));
-            cells.add(new Cell("leggings " + d, base(size).type(PlayerOptions.Type.FULL).dimension(dim).leggings(Optional.of(iron)).build()));
-            cells.add(new Cell("boots " + d, base(size).type(PlayerOptions.Type.FULL).dimension(dim).boots(Optional.of(iron)).build()));
+            cells.add(new Cell("helmet " + d, base(size).type(PlayerOptions.Type.FULL).dimension(dim).armor(ArmorOptions.builder().helmet(Optional.of(iron)).build()).build()));
+            cells.add(new Cell("chestplate " + d, base(size).type(PlayerOptions.Type.FULL).dimension(dim).armor(ArmorOptions.builder().chestplate(Optional.of(iron)).build()).build()));
+            cells.add(new Cell("leggings " + d, base(size).type(PlayerOptions.Type.FULL).dimension(dim).armor(ArmorOptions.builder().leggings(Optional.of(iron)).build()).build()));
+            cells.add(new Cell("boots " + d, base(size).type(PlayerOptions.Type.FULL).dimension(dim).armor(ArmorOptions.builder().boots(Optional.of(iron)).build()).build()));
             cells.add(new Cell("all slots " + d, allSlots(base(size).type(PlayerOptions.Type.FULL).dimension(dim), iron).build()));
         }
         return cells;
@@ -306,7 +307,7 @@ public final class TestPlayerRender {
             ArmorTrim.Color.COPPER, ArmorTrim.Color.GOLD, ArmorTrim.Color.DIAMOND, ArmorTrim.Color.NETHERITE_DARKER}) {
             ArmorPiece piece = ArmorPiece.of(ArmorMaterial.NETHERITE, color, ArmorTrim.Pattern.SILENCE);
             cells.add(new Cell("silence/" + color.name().toLowerCase() + " chest",
-                base(size).type(PlayerOptions.Type.FULL).chestplate(Optional.of(piece)).build()));
+                base(size).type(PlayerOptions.Type.FULL).armor(ArmorOptions.builder().chestplate(Optional.of(piece)).build()).build()));
         }
         // Trim on every slot at once.
         cells.add(new Cell("all slots tide/copper",
@@ -549,10 +550,12 @@ public final class TestPlayerRender {
         @NotNull ArmorPiece piece
     ) {
         return builder
-            .helmet(Optional.of(piece))
-            .chestplate(Optional.of(piece))
-            .leggings(Optional.of(piece))
-            .boots(Optional.of(piece));
+            .armor(ArmorOptions.builder()
+                .helmet(Optional.of(piece))
+                .chestplate(Optional.of(piece))
+                .leggings(Optional.of(piece))
+                .boots(Optional.of(piece))
+                .build());
     }
 
     private static @NotNull PipelineRendererContext buildContext(@NotNull ConcurrentList<File> userPacks) {

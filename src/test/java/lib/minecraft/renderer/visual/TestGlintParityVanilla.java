@@ -17,6 +17,7 @@ import lib.minecraft.renderer.engine.kit.GlintKit;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.options.ItemOptions;
 import lib.minecraft.renderer.options.PlayerOptions;
+import lib.minecraft.renderer.options.spec.ArmorOptions;
 import lib.minecraft.renderer.options.spec.RenderOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
@@ -270,13 +271,15 @@ public final class TestGlintParityVanilla {
                 .antiAlias(false)
                 .outputSize(RENDER_SIZE)
                 .build());
+        ArmorOptions.ArmorOptionsBuilder armor = ArmorOptions.builder();
         switch (itemId) {
-            case "minecraft:leather_helmet" -> builder.helmet(Optional.of(leather));
-            case "minecraft:leather_chestplate" -> builder.chestplate(Optional.of(leather));
-            case "minecraft:leather_leggings" -> builder.leggings(Optional.of(leather));
-            case "minecraft:leather_boots" -> builder.boots(Optional.of(leather));
+            case "minecraft:leather_helmet" -> armor.helmet(Optional.of(leather));
+            case "minecraft:leather_chestplate" -> armor.chestplate(Optional.of(leather));
+            case "minecraft:leather_leggings" -> armor.leggings(Optional.of(leather));
+            case "minecraft:leather_boots" -> armor.boots(Optional.of(leather));
             default -> throw new IllegalArgumentException("not a leather armor id: " + itemId);
         }
+        builder.armor(armor.build());
         PixelBuffer base = PixelBuffer.wrap(new PlayerRenderer(context).render(builder.build()).toBufferedImage());
 
         PixelBuffer glintTexture = new RasterEngine(context).textures().resolveTexture(GlintKit.ARMOR_GLINT_TEXTURE_ID);

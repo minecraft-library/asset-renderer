@@ -233,8 +233,8 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      */
     private static boolean hasEnchantedArmor(@NotNull PlayerOptions options) {
         return ArmorKit.hasEnchantedArmor(
-            options.getHelmet(), options.getChestplate(),
-            options.getLeggings(), options.getBoots()
+            options.getArmor().getHelmet(), options.getArmor().getChestplate(),
+            options.getArmor().getLeggings(), options.getArmor().getBoots()
         );
     }
 
@@ -471,10 +471,10 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     ) {
         for (ArmorTrim.Slot slot : ArmorTrim.Slot.values()) {
             Optional<ArmorPiece> piece = switch (slot) {
-                case HELMET -> options.getHelmet();
-                case CHESTPLATE -> options.getChestplate();
-                case LEGGINGS -> options.getLeggings();
-                case BOOTS -> options.getBoots();
+                case HELMET -> options.getArmor().getHelmet();
+                case CHESTPLATE -> options.getArmor().getChestplate();
+                case LEGGINGS -> options.getArmor().getLeggings();
+                case BOOTS -> options.getArmor().getBoots();
             };
             if (piece.isEmpty()) continue;
 
@@ -525,8 +525,8 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 Map<SkinFace, Vector3f[]> bp = new EnumMap<>(SkinFace.class);
                 bp.put(SkinFace.HEAD, new Vector3f[]{ SKULL_HEAD_MIN, SKULL_HEAD_MAX });
                 sink.addAll(ArmorKit.buildHumanoidArmor3D(bp,
-                    options.getHelmet(), options.getChestplate(),
-                    options.getLeggings(), options.getBoots(), engine.textures()));
+                    options.getArmor().getHelmet(), options.getArmor().getChestplate(),
+                    options.getArmor().getLeggings(), options.getArmor().getBoots(), engine.textures()));
             });
 
             Layers.foldInto(stack, options.getGeometryLayerDecorator(), triangles);
@@ -571,8 +571,8 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 bp.put(SkinFace.RIGHT_ARM, new Vector3f[]{ BUST_R_ARM_MIN, BUST_R_ARM_MAX });
                 bp.put(SkinFace.LEFT_ARM, new Vector3f[]{ BUST_L_ARM_MIN, BUST_L_ARM_MAX });
                 sink.addAll(ArmorKit.buildHumanoidArmor3D(bp,
-                    options.getHelmet(), options.getChestplate(),
-                    options.getLeggings(), options.getBoots(), engine.textures()));
+                    options.getArmor().getHelmet(), options.getArmor().getChestplate(),
+                    options.getArmor().getLeggings(), options.getArmor().getBoots(), engine.textures()));
             });
             resolveCape(this.parent, options)
                 .ifPresent(cape -> stack.append(PlayerSlot3D.CAPE,
@@ -624,8 +624,8 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 bp.put(SkinFace.RIGHT_LEG, new Vector3f[]{ FULL_R_LEG_MIN, FULL_R_LEG_MAX });
                 bp.put(SkinFace.LEFT_LEG, new Vector3f[]{ FULL_L_LEG_MIN, FULL_L_LEG_MAX });
                 sink.addAll(ArmorKit.buildHumanoidArmor3D(bp,
-                    options.getHelmet(), options.getChestplate(),
-                    options.getLeggings(), options.getBoots(), engine.textures()));
+                    options.getArmor().getHelmet(), options.getArmor().getChestplate(),
+                    options.getArmor().getLeggings(), options.getArmor().getBoots(), engine.textures()));
             });
             resolveCape(this.parent, options)
                 .ifPresent(cape -> stack.append(PlayerSlot3D.CAPE,

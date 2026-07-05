@@ -4,8 +4,8 @@ import dev.simplified.image.Background;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.options.slot.EntitySlot;
+import lib.minecraft.renderer.options.spec.ArmorOptions;
 import lib.minecraft.renderer.options.spec.RenderOptions;
-import lib.minecraft.renderer.request.ArmorPiece;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -63,29 +63,9 @@ public class EntityOptions implements Option {
     @lombok.Builder.Default
     private final @NotNull EntityAppearance appearance = EntityAppearance.defaults();
 
-    /**
-     * Helmet armor piece to render on humanoid entities.
-     */
+    /** The worn armor pieces (helmet, chestplate, leggings, boots). */
     @lombok.Builder.Default
-    private final @NotNull Optional<ArmorPiece> helmet = Optional.empty();
-
-    /**
-     * Chestplate armor piece to render on humanoid entities.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Optional<ArmorPiece> chestplate = Optional.empty();
-
-    /**
-     * Leggings armor piece to render on humanoid entities.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Optional<ArmorPiece> leggings = Optional.empty();
-
-    /**
-     * Boots armor piece to render on humanoid entities.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Optional<ArmorPiece> boots = Optional.empty();
+    private final @NotNull ArmorOptions armor = ArmorOptions.defaults();
 
     /**
      * Canvas-sizing strategy. {@link FitMode#OUTPUT_SIZE} (default) honours
