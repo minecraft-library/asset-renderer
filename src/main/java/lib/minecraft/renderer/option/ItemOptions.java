@@ -1,7 +1,5 @@
 package lib.minecraft.renderer.option;
 
-import dev.simplified.collection.Concurrent;
-import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.asset.rule.ItemContext;
@@ -12,10 +10,8 @@ import lib.minecraft.renderer.engine.kit.BannerKit;
 import lib.minecraft.renderer.engine.kit.GlintKit;
 import lib.minecraft.renderer.engine.kit.TrimKit;
 import lib.minecraft.renderer.option.slot.ItemSlot;
+import lib.minecraft.renderer.option.spec.ItemDecoration;
 import lib.minecraft.renderer.option.spec.RenderOptions;
-import lib.minecraft.renderer.request.ArmorTrim;
-import lib.minecraft.renderer.request.BannerLayer;
-import lib.minecraft.renderer.request.DyeColor;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -82,63 +78,9 @@ public class ItemOptions implements Option {
     @lombok.Builder.Default
     private final @NotNull Optional<Boolean> glintOverride = Optional.empty();
 
-    /**
-     * Optional ARGB tint applied to colour-overlay items (leather armour, spawn eggs). Empty
-     * (default) uses the item's intrinsic tint.
-     */
+    /** The item-icon decoration inputs (tint, trim, leather/potion/firework colour, banner). */
     @lombok.Builder.Default
-    private final @NotNull Optional<Integer> tintColor = Optional.empty();
-
-    /**
-     * The armor slot whose trim pattern to composite on top of the base item layers. When both
-     * this and {@link #trimColor} are present, the renderer resolves the trim texture via
-     * paletted permutation and composites it as an overlay.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Optional<ArmorTrim.Slot> trimSlot = Optional.empty();
-
-    /**
-     * The trim colour that selects the palette for the trim overlay. Use the {@code _DARKER}
-     * variants when the trim material matches the armor material (e.g.
-     * {@link ArmorTrim.Color#IRON_DARKER} for an iron trim on iron armor) so the pattern stays
-     * visible. Ignored when {@link #trimSlot} is absent.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Optional<ArmorTrim.Color> trimColor = Optional.empty();
-
-    /**
-     * ARGB override colour for the leather-armour tint layer. Empty (default) uses vanilla's
-     * default leather colour.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Optional<Integer> leatherColor = Optional.empty();
-
-    /**
-     * ARGB override colour for potion contents (the liquid overlay). Empty (default) uses the
-     * effect's registered colour.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Optional<Integer> potionColor = Optional.empty();
-
-    /**
-     * ARGB override colour for firework stars. Empty (default) uses the star's own colour.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Optional<Integer> fireworkColor = Optional.empty();
-
-    /**
-     * The base dye colour (banner field / shield base) for banner and shield items. Defaults
-     * to white when absent.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Optional<DyeColor> baseDye = Optional.empty();
-
-    /**
-     * Ordered list of pattern layers composited on top of the base dye for banner and shield
-     * items. Empty for plain banners / shields.
-     */
-    @lombok.Builder.Default
-    private final @NotNull ConcurrentList<BannerLayer> bannerLayers = Concurrent.newList();
+    private final @NotNull ItemDecoration decoration = ItemDecoration.defaults();
 
     /**
      * Target frame rate for animated output in frames per second; drives glint scroll speed and

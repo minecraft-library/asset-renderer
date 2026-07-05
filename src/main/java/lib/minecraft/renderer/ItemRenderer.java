@@ -232,12 +232,12 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         @NotNull String itemId,
         @NotNull ItemOptions options
     ) {
-        DyeColor baseDye = options.getBaseDye().orElse(DyeColor.Vanilla.WHITE);
+        DyeColor baseDye = options.getDecoration().getBaseDye().orElse(DyeColor.Vanilla.WHITE);
         BannerKit.Variant variant = itemId.equals(SHIELD_ITEM_ID)
             ? BannerKit.Variant.SHIELD_ITEM
             : BannerKit.Variant.BANNER_ITEM;
 
-        PixelBuffer composite = BannerKit.composite2D(engine, baseDye, options.getBannerLayers(), variant);
+        PixelBuffer composite = BannerKit.composite2D(engine, baseDye, options.getDecoration().getBannerLayers(), variant);
         buffer.blitScaled(composite, 0, 0, options.getRender().getOutputSize(), options.getRender().getOutputSize());
         return buffer;
     }
@@ -260,13 +260,13 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         @NotNull String itemId,
         @NotNull ItemOptions options
     ) {
-        DyeColor baseDye = options.getBaseDye().orElse(DyeColor.Vanilla.WHITE);
+        DyeColor baseDye = options.getDecoration().getBaseDye().orElse(DyeColor.Vanilla.WHITE);
         boolean isShield = itemId.equals(SHIELD_ITEM_ID);
         BannerKit.Variant variant = isShield
             ? BannerKit.Variant.SHIELD_BLOCK_3D
             : BannerKit.Variant.BANNER_BLOCK_3D;
 
-        PixelBuffer composite = BannerKit.composite2D(engine.textures(), baseDye, options.getBannerLayers(), variant);
+        PixelBuffer composite = BannerKit.composite2D(engine.textures(), baseDye, options.getDecoration().getBannerLayers(), variant);
 
         return BlockGeometryKit.buildBoxTriangles(
             new Vector3f(FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_X, FLAT_ITEM_SLAB_MIN_Z),
@@ -332,17 +332,17 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         if (layerIndex < tints.size()) {
             return switch (tints.get(layerIndex)) {
                 case LayerTint.Dye dye ->
-                    options.getLeatherColor().or(options::getTintColor).orElse(dye.defaultColor());
+                    options.getDecoration().getLeatherColor().or(options.getDecoration()::getTintColor).orElse(dye.defaultColor());
                 case LayerTint.Potion potion ->
-                    options.getPotionColor()
+                    options.getDecoration().getPotionColor()
                         .or(() -> options.getContext().potionEffects().stream().findFirst().flatMap(context::findPotionEffectColor))
-                        .or(options::getTintColor).orElse(potion.defaultColor());
+                        .or(options.getDecoration()::getTintColor).orElse(potion.defaultColor());
                 case LayerTint.Firework firework ->
-                    options.getFireworkColor().or(options::getTintColor).orElse(firework.defaultColor());
+                    options.getDecoration().getFireworkColor().or(options.getDecoration()::getTintColor).orElse(firework.defaultColor());
                 case LayerTint.Constant constant -> constant.argb();
             };
         }
-        int tint = options.getTintColor().orElse(ColorMath.WHITE);
+        int tint = options.getDecoration().getTintColor().orElse(ColorMath.WHITE);
         return tint != ColorMath.WHITE && tintIndexForLayer(item, layerIndex) == 0 ? tint : ColorMath.WHITE;
     }
 
@@ -509,9 +509,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
                 stack.append(ItemSlot.BASE, frame ->
                     renderStandardLayers(ctx.context(), ctx.textures(), frame, ctx.item(), options));
 
-            if (options.getTrimSlot().isPresent() && options.getTrimColor().isPresent())
+            if (options.getDecoration().getTrimSlot().isPresent() && options.getDecoration().getTrimColor().isPresent())
                 stack.append(ItemSlot.TRIM, frame ->
-                    TrimKit.resolve(ctx.textures(), options.getTrimSlot().get().getKey(), options.getTrimColor().get().getKey())
+                    TrimKit.resolve(ctx.textures(), options.getDecoration().getTrimSlot().get().getKey(), options.getDecoration().getTrimColor().get().getKey())
                         .ifPresent(trim -> frame.blitScaled(trim, 0, 0, options.getRender().getOutputSize(), options.getRender().getOutputSize())));
 
             if (options.isShowDamageBar())
@@ -577,7 +577,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // camera pose stays identity and only the rotation-independent lens comes from resolve().
             ModelEngine engine = new ModelEngine(this.context,
                 Camera.identity(options.getRender().getProjection().resolve(EulerRotation.NONE, options.getRender().getFacing()).lens()));
-            int tint = options.getTintColor().orElse(ColorMath.WHITE);
+            int tint = options.getDecoration().getTintColor().orElse(ColorMath.WHITE);
 
             ConcurrentList<VisibleTriangle> triangles;
             if (isBannerOrShield(options.getItemId())) {
