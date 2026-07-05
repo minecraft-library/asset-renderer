@@ -53,7 +53,7 @@ public final class AnimationStage {
         @NotNull FrameRenderer frameRenderer
     ) {
         if (frameCount <= 1)
-            return Frames.staticFrame(frameRenderer.render(startTick));
+            return FrameCompositor.staticFrame(frameRenderer.render(startTick));
 
         // Frame-parallel bake: each frame is independent; mapToObj().toList() preserves encounter
         // order so the resulting strip stays tick-ordered for GIF/WebP playback.
@@ -61,6 +61,6 @@ public final class AnimationStage {
         frames.addAll(IntStream.range(0, frameCount).parallel()
             .mapToObj(f -> frameRenderer.render(startTick + f * ticksPerFrame))
             .toList());
-        return Frames.wrapFrames(frames, delayMs);
+        return FrameCompositor.wrapFrames(frames, delayMs);
     }
 }

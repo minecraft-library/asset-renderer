@@ -17,7 +17,7 @@ import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.FinalizeStage;
-import lib.minecraft.renderer.engine.compose.Frames;
+import lib.minecraft.renderer.engine.compose.FrameCompositor;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
@@ -309,7 +309,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             int ssaa = Math.max(1, options.getSupersample());
             return FinalizeStage.run(options.getOutputSize(), options.getOutputSize(), ssaa, options.isAntiAlias(), false,
                 (target, mask) -> engine.rasterize(relit, target),
-                (buffer, mask) -> Frames.staticFrame(buffer));
+                (buffer, mask) -> FrameCompositor.staticFrame(buffer));
         }
 
         /**
@@ -727,7 +727,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             int size = options.getOutputSize();
             buffer.blitScaled(tinted, 0, 0, size, size);
 
-            return Frames.staticFrame(buffer);
+            return FrameCompositor.staticFrame(buffer);
         }
 
     }

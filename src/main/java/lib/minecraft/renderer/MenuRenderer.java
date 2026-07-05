@@ -11,7 +11,6 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.compose.FrameCompositor;
 import lib.minecraft.renderer.engine.compose.FramePlacement;
-import lib.minecraft.renderer.engine.compose.Frames;
 import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
@@ -244,7 +243,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             for (FramePlacement placement : placements)
                 buffer.blit(placement.source().toPixelBuffer(), placement.x(), placement.y());
 
-            return Frames.staticFrame(buffer);
+            return FrameCompositor.staticFrame(buffer);
         }
 
         return FrameCompositor.merge(placements, canvasW, canvasH, options.getFramesPerSecond(), Background.TRANSPARENT);
@@ -574,7 +573,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
         }
 
         int delayMs = Math.max(1, Math.round(1000f / options.getFramesPerSecond()));
-        return Frames.wrapFrames(frames, delayMs);
+        return FrameCompositor.wrapFrames(frames, delayMs);
     }
 
     /**

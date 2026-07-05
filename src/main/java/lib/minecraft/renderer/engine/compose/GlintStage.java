@@ -126,17 +126,17 @@ public final class GlintStage {
         @Nullable GlintMask glintMask
     ) {
         if (!enchanted)
-            return Frames.staticFrame(buffer);
+            return FrameCompositor.staticFrame(buffer);
 
         Optional<PixelBuffer> glintTexture = resolver.resolve(glintOptions.glintTextureId());
         if (glintTexture.isEmpty())
-            return Frames.staticFrame(buffer);
+            return FrameCompositor.staticFrame(buffer);
 
         ConcurrentList<PixelBuffer> frames = GlintKit.applyGlint(buffer, glintTexture.get(), glintOptions, glintMask);
         if (!animate)
-            return Frames.staticFrame(frames.getFirst());
+            return FrameCompositor.staticFrame(frames.getFirst());
 
         int frameDelayMs = Math.max(1, Math.round(1000f / glintOptions.framesPerSecond()));
-        return Frames.wrapFrames(frames, frameDelayMs);
+        return FrameCompositor.wrapFrames(frames, frameDelayMs);
     }
 }

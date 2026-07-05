@@ -17,7 +17,7 @@ import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.Placement;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.FinalizeStage;
-import lib.minecraft.renderer.engine.compose.Frames;
+import lib.minecraft.renderer.engine.compose.FrameCompositor;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.GlintStage;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
@@ -109,11 +109,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      */
     private @NotNull ImageData renderEntity(@NotNull EntityOptions options) {
         if (options.getEntityId().isEmpty())
-            return Frames.emptyFrame();
+            return FrameCompositor.emptyFrame();
 
         EntityModelLoader.EntityDefinition definition = this.javaEntities.get(options.getEntityId().get());
         if (definition == null)
-            return Frames.emptyFrame();
+            return FrameCompositor.emptyFrame();
 
         // Fold the age / carried policy into a single resolved definition up front, so every
         // downstream site (texture, ortho bounds, geometry contributors) reads it unconditionally
@@ -123,10 +123,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
 
         Optional<PixelBuffer> texture = resolveEntityTexture(resolved, options);
         if (texture.isEmpty())
-            return Frames.emptyFrame();
+            return FrameCompositor.emptyFrame();
 
         if (model.getBones().isEmpty())
-            return Frames.emptyFrame();
+            return FrameCompositor.emptyFrame();
 
         // Combined bounds across the base entity AND every overlay so the shared auto-fit
         // window contains both. Slime's outer shell (8x8x8) extends beyond the inner body
@@ -219,7 +219,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         EntityGeometryKit.BuildResult buildResult = EntityGeometryKit.buildTriangles(
             model, texture.get(), kitAnchor, false, kitNdcScale, modelScale, definition.baseTintArgb());
         if (buildResult.triangles().isEmpty())
-            return Frames.staticFrame(PixelBuffer.create(canvasW, canvasH));
+            return FrameCompositor.staticFrame(PixelBuffer.create(canvasW, canvasH));
 
         ConcurrentList<VisibleTriangle> triangles = buildResult.triangles();
 

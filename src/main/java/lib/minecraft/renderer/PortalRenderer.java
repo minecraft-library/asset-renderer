@@ -11,7 +11,7 @@ import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.FinalizeStage;
-import lib.minecraft.renderer.engine.compose.Frames;
+import lib.minecraft.renderer.engine.compose.FrameCompositor;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
@@ -499,7 +499,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
         @Override
         public @NotNull ImageData render(@NotNull PortalOptions options) {
             if (options.getFrameCount() <= 1)
-                return Frames.staticFrame(renderFrame(options, options.getStartTick()));
+                return FrameCompositor.staticFrame(renderFrame(options, options.getStartTick()));
 
             int outputCount = options.getFrameCount();
             int bridge = bridgeFrameCount(options);
@@ -512,7 +512,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             }
             applyBridgeCrossfade(frames, outputCount, bridge);
             trimBridgeFrames(frames, outputCount);
-            return Frames.wrapFrames(frames, FRAME_DELAY_MS);
+            return FrameCompositor.wrapFrames(frames, FRAME_DELAY_MS);
         }
 
         /**
@@ -626,7 +626,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
         @Override
         public @NotNull ImageData render(@NotNull PortalOptions options) {
             if (options.getFrameCount() <= 1)
-                return Frames.staticFrame(renderFrame(options, options.getStartTick()));
+                return FrameCompositor.staticFrame(renderFrame(options, options.getStartTick()));
 
             int outputCount = options.getFrameCount();
             int bridge = bridgeFrameCount(options);
@@ -639,7 +639,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             }
             applyBridgeCrossfade(frames, outputCount, bridge);
             trimBridgeFrames(frames, outputCount);
-            return Frames.wrapFrames(frames, FRAME_DELAY_MS);
+            return FrameCompositor.wrapFrames(frames, FRAME_DELAY_MS);
         }
 
         /**
