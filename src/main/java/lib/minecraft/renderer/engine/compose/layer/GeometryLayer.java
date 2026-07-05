@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.engine.compose;
+package lib.minecraft.renderer.engine.compose.layer;
 
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;

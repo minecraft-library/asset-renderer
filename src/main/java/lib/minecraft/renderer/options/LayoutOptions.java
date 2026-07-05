@@ -6,7 +6,7 @@ import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.LayoutRenderer;
 import lib.minecraft.renderer.Renderer;
-import lib.minecraft.renderer.engine.compose.FrameLayer;
+import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 

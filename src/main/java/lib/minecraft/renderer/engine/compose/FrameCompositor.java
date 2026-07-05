@@ -8,6 +8,7 @@ import dev.simplified.image.data.AnimatedImageData;
 import dev.simplified.image.data.ImageFrame;
 import dev.simplified.image.data.StaticImageData;
 import dev.simplified.image.pixel.PixelBuffer;
+import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 

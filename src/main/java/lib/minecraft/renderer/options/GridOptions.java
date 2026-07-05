@@ -6,7 +6,7 @@ import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.GridRenderer;
 import lib.minecraft.renderer.engine.compose.FrameCompositor;
-import lib.minecraft.renderer.engine.compose.FrameLayer;
+import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;

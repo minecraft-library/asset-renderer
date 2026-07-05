@@ -2,9 +2,9 @@ package lib.minecraft.renderer.options;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import lib.minecraft.renderer.engine.compose.ImageLayer;
-import lib.minecraft.renderer.engine.compose.LayerSlot;
-import lib.minecraft.renderer.engine.compose.LayerStack;
+import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
+import lib.minecraft.renderer.engine.compose.layer.LayerSlot;
+import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.text.LineSegment;
 import lombok.AccessLevel;
 import lombok.Builder;

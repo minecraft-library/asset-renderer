@@ -7,7 +7,7 @@ import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.engine.compose.FrameLayer;
+import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
 import lib.minecraft.renderer.options.ItemOptions;
 import lombok.AccessLevel;
 import lombok.Builder;

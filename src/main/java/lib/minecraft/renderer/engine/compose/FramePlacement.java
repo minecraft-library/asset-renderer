@@ -2,6 +2,7 @@ package lib.minecraft.renderer.engine.compose;
 
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.ImageData;
+import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
 import org.jetbrains.annotations.NotNull;
 
 /**

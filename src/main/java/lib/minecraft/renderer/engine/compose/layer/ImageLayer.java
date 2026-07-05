@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.engine.compose;
+package lib.minecraft.renderer.engine.compose.layer;
 
 import dev.simplified.image.pixel.PixelBuffer;
 import org.jetbrains.annotations.NotNull;

@@ -1,6 +1,8 @@
-package lib.minecraft.renderer.engine.compose;
+package lib.minecraft.renderer.engine.compose.layer;
 
 import dev.simplified.collection.ConcurrentList;
+import lib.minecraft.renderer.engine.compose.FrameCompositor;
+import lib.minecraft.renderer.engine.compose.FramePlacement;
 import org.jetbrains.annotations.NotNull;
 
 /**

@@ -1,4 +1,4 @@
-package lib.minecraft.renderer.engine.compose;
+package lib.minecraft.renderer.engine.compose.layer;
 
 import org.jetbrains.annotations.NotNull;
 
