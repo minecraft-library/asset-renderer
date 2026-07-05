@@ -8,6 +8,8 @@ import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.MenuRenderer;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
+import lib.minecraft.renderer.engine.compose.layer.LayerSlot;
+import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.options.ItemOptions;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -110,12 +112,43 @@ public class MenuOptions {
     private final int framesPerSecond = 30;
 
     /**
-     * Transform applied to the default menu {@link FrameLayer} stack (chrome, slots, filler) before
-     * it runs, letting callers splice custom layers. Defaults to {@linkplain UnaryOperator#identity()
-     * identity}.
+     * Transform applied to the default menu {@link LayerStack} of {@link FrameLayer}s before it runs,
+     * letting callers splice custom layers relative to the built-in {@link Slot}s (chrome, item slots,
+     * content, text). Defaults to {@linkplain UnaryOperator#identity() identity}.
      */
     @lombok.Builder.Default
-    private final @NotNull UnaryOperator<ConcurrentList<FrameLayer>> layerDecorator = UnaryOperator.identity();
+    private final @NotNull UnaryOperator<LayerStack<FrameLayer>> layerDecorator = UnaryOperator.identity();
+
+    /**
+     * Paint-order slots for the menu's {@link FrameLayer} stack. The full-canvas chrome paints first,
+     * then item-slot renders, then remaining content (crafting shapes, anvil decoration, filler panes),
+     * then text overlays. {@code TEXT} is reserved: title / label / XP-cost text is currently drawn onto
+     * the chrome buffer, so nothing is appended to it yet - it is the named insertion point a caller can
+     * splice a text pass into.
+     */
+    public enum Slot implements LayerSlot {
+
+        /** Full-canvas menu chrome (background + borders + baked-in title / labels). */
+        CHROME,
+        /** Item-icon renders in the functional slots. */
+        SLOT,
+        /** Remaining decorative content: crafting shapes, anvil decoration, filler panes. */
+        CONTENT,
+        /** Reserved for text overlays; unused by the built-in renderers (text is baked into the chrome). */
+        TEXT;
+
+        /** {@inheritDoc} */
+        @Override
+        public int order() {
+            return ordinal();
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull String id() {
+            return name();
+        }
+    }
 
     /**
      * A builder pre-populated with this instance's field values, for deriving a variant.
