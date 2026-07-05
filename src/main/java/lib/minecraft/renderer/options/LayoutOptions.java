@@ -7,6 +7,8 @@ import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.LayoutRenderer;
 import lib.minecraft.renderer.Renderer;
 import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
+import lib.minecraft.renderer.engine.compose.layer.LayerSlot;
+import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 
@@ -49,14 +51,14 @@ public class LayoutOptions {
     /**
      * Transform applied to the default child {@link FrameLayer} stack before it runs.
      */
-    private final @NotNull UnaryOperator<ConcurrentList<FrameLayer>> layerDecorator;
+    private final @NotNull UnaryOperator<LayerStack<FrameLayer>> layerDecorator;
 
     private LayoutOptions(
         @NotNull Layout layout,
         @NotNull ConcurrentList<Supplier<ImageData>> children,
         int framesPerSecond,
         @NotNull Background background,
-        @NotNull UnaryOperator<ConcurrentList<FrameLayer>> layerDecorator
+        @NotNull UnaryOperator<LayerStack<FrameLayer>> layerDecorator
     ) {
         this.layout = layout;
         this.children = children;
@@ -94,7 +96,7 @@ public class LayoutOptions {
         private final @NotNull ConcurrentList<Supplier<ImageData>> children = Concurrent.newList();
         private int framesPerSecond = 30;
         private @NotNull Background background = Background.TRANSPARENT;
-        private @NotNull UnaryOperator<ConcurrentList<FrameLayer>> layerDecorator = UnaryOperator.identity();
+        private @NotNull UnaryOperator<LayerStack<FrameLayer>> layerDecorator = UnaryOperator.identity();
 
         /**
          * Sets the layout strategy (row, column, grid, stack, custom).
@@ -164,7 +166,7 @@ public class LayoutOptions {
          * @param layerDecorator the layer-stack transform
          * @return this builder
          */
-        public @NotNull Builder layerDecorator(@NotNull UnaryOperator<ConcurrentList<FrameLayer>> layerDecorator) {
+        public @NotNull Builder layerDecorator(@NotNull UnaryOperator<LayerStack<FrameLayer>> layerDecorator) {
             this.layerDecorator = layerDecorator;
             return this;
         }
@@ -178,6 +180,30 @@ public class LayoutOptions {
             return new LayoutOptions(this.layout, this.children, this.framesPerSecond, this.background, this.layerDecorator);
         }
 
+    }
+
+    /**
+     * Paint-order slots for the layout's {@link FrameLayer} stack. Every child is a {@link #CHILD};
+     * the single built-in slot exists so callers can splice layers relative to the children via
+     * {@link #layerDecorator} (for {@code Stack} / overlapping {@code Custom} layouts, child append
+     * order is the paint order).
+     */
+    public enum Slot implements LayerSlot {
+
+        /** A single laid-out child render. */
+        CHILD;
+
+        /** {@inheritDoc} */
+        @Override
+        public int order() {
+            return ordinal();
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull String id() {
+            return name();
+        }
     }
 
     /**

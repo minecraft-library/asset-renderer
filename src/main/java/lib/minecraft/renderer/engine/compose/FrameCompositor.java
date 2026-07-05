@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.engine.compose;
 
-import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.Background;
 import dev.simplified.image.ImageData;
@@ -8,14 +7,13 @@ import dev.simplified.image.data.AnimatedImageData;
 import dev.simplified.image.data.ImageFrame;
 import dev.simplified.image.data.StaticImageData;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 /**
  * Composites {@link FramePlacement} layers into a single output, transparently handling mixed static
- * and animated inputs - the "frame tier" of the layer model, where {@link ImageLayer} mutates one
- * buffer and {@link GeometryLayer} feeds a shared depth pass.
+ * and animated inputs - the "frame tier" of the layer model, where {@code ImageLayer} mutates one
+ * buffer and {@code GeometryLayer} feeds a shared depth pass.
  * <p>
  * Used by the compositor renderers ({@code GridRenderer}, {@code LayoutRenderer},
  * {@code MenuRenderer}) whenever children may be either static PNGs or animated WebPs. When every
@@ -30,34 +28,6 @@ public class FrameCompositor {
      * Upper bound on the merged loop duration to prevent runaway LCM math.
      */
     private static final long MAX_LOOP_MS = 10_000L;
-
-    /**
-     * Runs each frame layer's contribution into a fresh sink, then merges the collected placements.
-     *
-     * @param layers the frame layers to contribute and composite, in back-to-front order
-     * @param canvasW the canvas width in pixels
-     * @param canvasH the canvas height in pixels
-     * @param framesPerSecond the output frame rate, used only when producing animated output
-     * @param background the canvas background fill applied before blitting any layer
-     * @return the composited image data
-     */
-    public static @NotNull ImageData composite(@NotNull ConcurrentList<? extends FrameLayer> layers, int canvasW, int canvasH, int framesPerSecond, @NotNull Background background) {
-        return merge(flatten(layers), canvasW, canvasH, framesPerSecond, background);
-    }
-
-    /**
-     * Runs each frame layer's contribution into a fresh placement list, in order. Useful for callers
-     * that need the flattened placements directly (e.g. a renderer with its own static fast-path)
-     * rather than the merged image.
-     *
-     * @param layers the frame layers to contribute, in back-to-front order
-     * @return the collected placements
-     */
-    public static @NotNull ConcurrentList<FramePlacement> flatten(@NotNull ConcurrentList<? extends FrameLayer> layers) {
-        ConcurrentList<FramePlacement> placements = Concurrent.newList();
-        for (FrameLayer layer : layers) layer.contribute(placements);
-        return placements;
-    }
 
     /**
      * Composites the given placements onto a canvas of the specified size.
