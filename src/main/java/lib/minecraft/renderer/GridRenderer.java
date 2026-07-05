@@ -9,8 +9,8 @@ import lib.minecraft.renderer.engine.compose.FramePlacement;
 import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
-import lib.minecraft.renderer.options.GridOptions;
-import lib.minecraft.renderer.options.slot.GridSlot;
+import lib.minecraft.renderer.option.GridOptions;
+import lib.minecraft.renderer.option.slot.GridSlot;
 import org.jetbrains.annotations.NotNull;
 
 /**

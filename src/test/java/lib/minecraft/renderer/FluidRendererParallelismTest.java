@@ -2,8 +2,8 @@ package lib.minecraft.renderer;
 
 import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
-import lib.minecraft.renderer.options.FluidOptions;
-import lib.minecraft.renderer.options.spec.RenderOptions;
+import lib.minecraft.renderer.option.FluidOptions;
+import lib.minecraft.renderer.option.spec.RenderOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;

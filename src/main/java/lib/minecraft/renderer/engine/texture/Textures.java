@@ -18,7 +18,7 @@ import lib.minecraft.renderer.asset.ColorMap;
 import lib.minecraft.renderer.asset.rule.ItemContext;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.kit.AnimationKit;
-import lib.minecraft.renderer.options.ItemOptions;
+import lib.minecraft.renderer.option.ItemOptions;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;

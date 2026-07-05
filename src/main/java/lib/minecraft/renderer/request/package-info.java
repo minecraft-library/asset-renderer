@@ -1,6 +1,6 @@
 /**
  * Caller-composed render-input value types - the typed vocabulary a caller binds into a render
- * {@link lib.minecraft.renderer.options options} object to drive a render. These are not
+ * {@link lib.minecraft.renderer.option options} object to drive a render. These are not
  * parsed-from-pack assets (those live in {@link lib.minecraft.renderer.asset asset}); they are fixed
  * parameter shapes and small composition records the caller supplies per render, consumed downstream
  * by the {@link lib.minecraft.renderer.engine.kit kit} layer. The package stays free of engine state

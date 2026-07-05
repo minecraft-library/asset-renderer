@@ -17,8 +17,8 @@ import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.kit.FluidGeometryKit;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
-import lib.minecraft.renderer.options.FluidOptions;
-import lib.minecraft.renderer.options.slot.FluidSlot;
+import lib.minecraft.renderer.option.FluidOptions;
+import lib.minecraft.renderer.option.slot.FluidSlot;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 

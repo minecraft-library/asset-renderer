@@ -4,7 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.Renderer;
-import lib.minecraft.renderer.options.ItemOptions;
+import lib.minecraft.renderer.option.ItemOptions;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Optional;

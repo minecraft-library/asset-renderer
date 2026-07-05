@@ -2,8 +2,8 @@ package lib.minecraft.renderer.bench;
 
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.engine.ModelEngine;
-import lib.minecraft.renderer.options.ItemOptions;
-import lib.minecraft.renderer.options.spec.RenderOptions;
+import lib.minecraft.renderer.option.ItemOptions;
+import lib.minecraft.renderer.option.spec.RenderOptions;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;

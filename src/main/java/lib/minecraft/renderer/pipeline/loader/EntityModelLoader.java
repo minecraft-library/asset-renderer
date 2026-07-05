@@ -11,7 +11,7 @@ import dev.simplified.gson.GsonSettings;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.options.EntityAppearance;
+import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lombok.Builder;
 import lombok.experimental.UtilityClass;

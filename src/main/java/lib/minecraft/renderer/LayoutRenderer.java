@@ -8,8 +8,8 @@ import lib.minecraft.renderer.engine.compose.FramePlacement;
 import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
-import lib.minecraft.renderer.options.LayoutOptions;
-import lib.minecraft.renderer.options.slot.LayoutSlot;
+import lib.minecraft.renderer.option.LayoutOptions;
+import lib.minecraft.renderer.option.slot.LayoutSlot;
 import org.jetbrains.annotations.NotNull;
 import org.jspecify.annotations.NonNull;
 

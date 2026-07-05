@@ -34,7 +34,7 @@
  *       glint, dyed leather tint, banner-pattern composite, armor-trim palette permutation.</li>
  *   <li>{@link lib.minecraft.renderer.LayoutRenderer LayoutRenderer} - free-form composition of child
  *       renderers (or pre-rendered images) into a single canvas via a
- *       {@link lib.minecraft.renderer.options.LayoutOptions.Layout LayoutOptions.Layout} strategy.</li>
+ *       {@link lib.minecraft.renderer.option.LayoutOptions.Layout LayoutOptions.Layout} strategy.</li>
  *   <li>{@link lib.minecraft.renderer.MenuRenderer MenuRenderer} - inventory-style screens (player, chest,
  *       crafting table, anvil) with the vanilla theme chrome and per-slot item icons.</li>
  *   <li>{@link lib.minecraft.renderer.PlayerRenderer PlayerRenderer} - player skin renders at three body
@@ -71,7 +71,7 @@
  * gets a consistent tile dimension across renderers.
  *
  * @see lib.minecraft.renderer.Renderer
- * @see lib.minecraft.renderer.options
+ * @see lib.minecraft.renderer.option
  * @see lib.minecraft.renderer.engine
  * @see lib.minecraft.renderer.pipeline
  */

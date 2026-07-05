@@ -2,8 +2,8 @@ package lib.minecraft.renderer.visual;
 
 import lib.minecraft.renderer.PortalRenderer;
 import lib.minecraft.renderer.exception.PipelineException;
-import lib.minecraft.renderer.options.PortalOptions;
-import lib.minecraft.renderer.options.spec.RenderOptions;
+import lib.minecraft.renderer.option.PortalOptions;
+import lib.minecraft.renderer.option.spec.RenderOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;

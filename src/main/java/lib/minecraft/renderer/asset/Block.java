@@ -7,7 +7,7 @@ import dev.simplified.image.pixel.ColorMath;
 import lib.minecraft.renderer.asset.model.EntityModelData;
 import lib.minecraft.renderer.asset.model.ModelData;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
-import lib.minecraft.renderer.options.BlockOptions;
+import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lombok.AllArgsConstructor;
