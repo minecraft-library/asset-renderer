@@ -484,7 +484,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // layer, because it expands the single buffer into one or many animation frames.
             ImageLayerContext ctx = new ImageLayerContext(this.context, engine.textures(), item, options);
             LayerStack<ImageLayer> stack = options.getLayerDecorator().apply(buildGuiLayers(ctx));
-            for (ImageLayer layer : stack.ordered()) layer.apply(buffer);
+            for (ImageLayer layer : stack.ordered()) layer.contribute(buffer);
 
             return finalize2DItem(engine.textures(), buffer, item, options);
         }

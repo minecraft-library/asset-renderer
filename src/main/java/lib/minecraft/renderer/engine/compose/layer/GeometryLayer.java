@@ -3,10 +3,10 @@ package lib.minecraft.renderer.engine.compose.layer;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.engine.raster.SurfaceTraits;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
-import org.jetbrains.annotations.NotNull;
 
 /**
- * Contributor of 3D geometry to a single shared rasterization pass.
+ * Contributor of 3D geometry to a single shared rasterization pass - a {@link Layer} over the shared
+ * triangle sink.
  * <p>
  * Unlike a 2D {@link ImageLayer}, a geometry layer does not produce its own pixel frame. It appends
  * triangles to a {@code sink} that every layer shares, and the renderer rasterizes the combined list
@@ -25,12 +25,5 @@ import org.jetbrains.annotations.NotNull;
  * layer is glinted, an eye-overlay layer is emissive).
  */
 @FunctionalInterface
-public interface GeometryLayer {
-
-    /**
-     * Appends this layer's triangles to {@code sink} in emission order.
-     *
-     * @param sink shared triangle list every layer appends to, rasterized together in one pass
-     */
-    void contribute(@NotNull ConcurrentList<VisibleTriangle> sink);
+public interface GeometryLayer extends Layer<ConcurrentList<VisibleTriangle>> {
 }

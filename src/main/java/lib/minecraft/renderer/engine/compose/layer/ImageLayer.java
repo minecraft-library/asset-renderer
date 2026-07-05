@@ -1,10 +1,10 @@
 package lib.minecraft.renderer.engine.compose.layer;
 
 import dev.simplified.image.pixel.PixelBuffer;
-import org.jetbrains.annotations.NotNull;
 
 /**
- * A 2D composite layer that draws onto a shared frame in stack order.
+ * A 2D composite layer that draws onto a shared frame in stack order - a {@link Layer} over the shared
+ * pixel buffer.
  * <p>
  * This is the literal "stackable stencil" model: each layer reads and writes the same
  * {@link PixelBuffer}, and applying the whole ordered stack yields the final frame. Layers run in the
@@ -14,12 +14,5 @@ import org.jetbrains.annotations.NotNull;
  * {@code ImageLayer}, because they change the output from one buffer to many.
  */
 @FunctionalInterface
-public interface ImageLayer {
-
-    /**
-     * Composites this layer onto {@code frame} in place.
-     *
-     * @param frame the shared pixel buffer accumulated by the layer stack
-     */
-    void apply(@NotNull PixelBuffer frame);
+public interface ImageLayer extends Layer<PixelBuffer> {
 }

@@ -106,4 +106,5 @@ public final class LayerStack<L> {
     public int size() {
         return this.entries.size();
     }
+
 }

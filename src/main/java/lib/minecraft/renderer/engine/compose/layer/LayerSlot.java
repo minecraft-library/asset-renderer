@@ -25,4 +25,5 @@ public interface LayerSlot {
      * @return the slot identifier, conventionally the enum constant name
      */
     @NotNull String id();
+
 }

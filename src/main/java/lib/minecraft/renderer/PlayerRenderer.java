@@ -451,7 +451,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         });
 
         for (ImageLayer layer : options.getLayerDecorator().apply(stack).ordered())
-            layer.apply(buffer);
+            layer.contribute(buffer);
 
         if (options.isAntiAlias())
             buffer.applyFxaa();

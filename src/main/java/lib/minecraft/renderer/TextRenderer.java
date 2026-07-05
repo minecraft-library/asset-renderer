@@ -149,7 +149,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
         });
 
         for (ImageLayer layer : options.getLayerDecorator().apply(stack).ordered())
-            layer.apply(buffer);
+            layer.contribute(buffer);
 
         ConcurrentList<PixelBuffer> frames = Concurrent.newList();
         frames.add(buffer);
