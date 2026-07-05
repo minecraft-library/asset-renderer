@@ -1,27 +1,16 @@
 /**
- * Layer composition and the terminal render stages: how the per-asset geometry and pixel
- * contributions are assembled into the final {@link dev.simplified.image.ImageData ImageData}.
+ * Frame compositing, the terminal render stages, and per-render context: how per-asset contributions
+ * become the final {@link dev.simplified.image.ImageData ImageData}. The layer model itself lives in
+ * the {@link lib.minecraft.renderer.engine.compose.layer compose.layer} sub-package.
  *
- * <p><b>Layers.</b> A renderer builds a {@link lib.minecraft.renderer.engine.compose.layer.LayerStack LayerStack}
- * keyed by {@link lib.minecraft.renderer.engine.compose.layer.LayerSlot LayerSlot} (implemented as per-renderer
- * enums in {@code options}) so callers can splice their own passes in relative to named insertion
- * points. Two layer kinds exist:
- * <ul>
- *   <li>{@link lib.minecraft.renderer.engine.compose.layer.GeometryLayer GeometryLayer} - contributes
- *       {@link lib.minecraft.renderer.engine.raster.VisibleTriangle triangles} to one shared sink that
- *       rasterizes in a single depth pass. Emission order is load-bearing (depth tie-break,
- *       translucent sort, emissive depth-skip). Per-render state travels via
- *       {@link lib.minecraft.renderer.engine.compose.SceneContext SceneContext}.</li>
- *   <li>{@link lib.minecraft.renderer.engine.compose.layer.ImageLayer ImageLayer} - mutates a shared 2D
- *       {@link dev.simplified.image.pixel.PixelBuffer PixelBuffer} in stack order, with state via
- *       {@link lib.minecraft.renderer.engine.compose.layer.ImageLayerContext ImageLayerContext}.</li>
- * </ul>
- * {@link lib.minecraft.renderer.engine.compose.layer.FrameLayer FrameLayer} and
- * {@link lib.minecraft.renderer.engine.compose.FramePlacement FramePlacement} position possibly-animated
- * sub-renders, merged by {@link lib.minecraft.renderer.engine.compose.FrameCompositor FrameCompositor}.
+ * <p><b>Frame compositing.</b>
+ * {@link lib.minecraft.renderer.engine.compose.FramePlacement FramePlacement} positions a possibly-
+ * animated sub-render; {@link lib.minecraft.renderer.engine.compose.FrameCompositor FrameCompositor}
+ * merges a list of them - a static fast-path when every placement is static, else an LCM-merged
+ * animated loop sampled per output frame.
  *
- * <p><b>Stages.</b> The terminal pipeline is an explicit hardcoded composition of three shared stages.
- * {@link lib.minecraft.renderer.engine.compose.FinalizeStage FinalizeStage} rasterizes and
+ * <p><b>Terminal stages.</b> The terminal pipeline is an explicit hardcoded composition of three shared
+ * stages. {@link lib.minecraft.renderer.engine.compose.FinalizeStage FinalizeStage} rasterizes and
  * post-processes one buffer (supersample, FXAA, downscale), then hands it to a finalizer callback that
  * typically runs {@link lib.minecraft.renderer.engine.compose.GlintStage GlintStage} (enchantment foil).
  * {@link lib.minecraft.renderer.engine.compose.AnimationStage AnimationStage} sits outermost, invoking
@@ -29,7 +18,11 @@
  * {@link lib.minecraft.renderer.engine.compose.Frames Frames} wraps the resulting buffer(s) into the
  * final {@code ImageData}.
  *
- * @see lib.minecraft.renderer.engine.compose.layer.LayerStack
+ * <p><b>Context.</b> {@link lib.minecraft.renderer.engine.compose.SceneContext SceneContext} (3D scene
+ * state) and {@link lib.minecraft.renderer.engine.compose.ImageLayerContext ImageLayerContext} (item
+ * layer state) carry per-render inputs to the layers that capture them at construction.
+ *
+ * @see lib.minecraft.renderer.engine.compose.layer
  * @see lib.minecraft.renderer.engine.compose.Frames
  */
 package lib.minecraft.renderer.engine.compose;
