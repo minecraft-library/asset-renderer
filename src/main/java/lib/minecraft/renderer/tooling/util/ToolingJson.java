@@ -62,9 +62,26 @@ public class ToolingJson {
         root.addProperty("source_version", version);
         root.add(memberKey, payload);
 
-        Files.createDirectories(outputPath.getParent());
-        Files.writeString(outputPath, PRETTY.toJson(root) + System.lineSeparator());
+        writeJson(outputPath, root, PRETTY);
         System.out.println("Wrote " + outputPath.toAbsolutePath());
+    }
+
+    /**
+     * Writes a JSON root to disk in the low-level shape every tooling generator shares: pretty-printed
+     * via the given Gson and terminated with the platform line separator, creating the parent directory
+     * if missing. This is the byte-level write beneath both the snapshot {@link #writeResource} envelope
+     * (which adds the {@code //} + {@code source_version} header) and the entity writers (whose roots
+     * carry no {@code source_version}); centralising it keeps formatting + the trailing newline
+     * identical across every generated file.
+     *
+     * @param outputPath the file path to write
+     * @param root the JSON root document to serialise
+     * @param gson the Gson to serialise with ({@link #PRETTY} or {@link #PRETTY_HTML_SAFE})
+     * @throws IOException if creating the directory or writing the file fails
+     */
+    public static void writeJson(@NotNull Path outputPath, @NotNull JsonObject root, @NotNull Gson gson) throws IOException {
+        Files.createDirectories(outputPath.getParent());
+        Files.writeString(outputPath, gson.toJson(root) + System.lineSeparator());
     }
 
 }

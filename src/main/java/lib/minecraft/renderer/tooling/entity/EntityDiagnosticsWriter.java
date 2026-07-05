@@ -1,6 +1,5 @@
 package lib.minecraft.renderer.tooling.entity;
 
-import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -14,7 +13,6 @@ import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 
@@ -39,11 +37,6 @@ public final class EntityDiagnosticsWriter {
      */
     public static final @NotNull Path GEOMETRY_DIAGNOSTIC_OUTPUT =
         Path.of("cache/asset-renderer/diagnostics/java_entity_geometry.json");
-
-    /**
-     * Shared pretty-printing Gson carrying the renderer's registered type adapters.
-     */
-    private static final @NotNull Gson PRETTY_GSON = ToolingJson.PRETTY_HTML_SAFE;
 
     /**
      * Builds and writes the discovery + per-entity-binding diagnostic JSON document
@@ -75,11 +68,7 @@ public final class EntityDiagnosticsWriter {
         @NotNull Diagnostics diagnostics
     ) throws IOException {
         JsonObject root = buildDiscoveryDoc(options, registry, records, variants, withPrimaryTexture, variantDriven, unresolvedTexture, diagnostics);
-        Files.createDirectories(DISCOVERY_OUTPUT.getParent());
-        Files.writeString(
-            DISCOVERY_OUTPUT,
-            PRETTY_GSON.toJson(root) + System.lineSeparator()
-        );
+        ToolingJson.writeJson(DISCOVERY_OUTPUT, root, ToolingJson.PRETTY_HTML_SAFE);
         return DISCOVERY_OUTPUT.toAbsolutePath();
     }
 
@@ -104,10 +93,7 @@ public final class EntityDiagnosticsWriter {
         @NotNull Diagnostics diagnostics
     ) throws IOException {
         JsonObject root = buildGeometryDoc(options, mobsTotal, mobsWithRenderer, entityToResolution, geometries, diagnostics);
-        Files.writeString(
-            GEOMETRY_DIAGNOSTIC_OUTPUT,
-            PRETTY_GSON.toJson(root) + System.lineSeparator()
-        );
+        ToolingJson.writeJson(GEOMETRY_DIAGNOSTIC_OUTPUT, root, ToolingJson.PRETTY_HTML_SAFE);
         return GEOMETRY_DIAGNOSTIC_OUTPUT.toAbsolutePath();
     }
 
