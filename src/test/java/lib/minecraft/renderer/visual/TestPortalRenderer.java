@@ -81,18 +81,27 @@ public final class TestPortalRenderer {
                 render(renderer, imageFactory, portalSlug + "_" + typeSlug + "_static", PortalOptions.builder()
                     .portal(portal)
                     .type(type)
-                    .output(OutputOptions.builder()
-                        .canvasSize(STATIC_SIZE)
-                        .build())
+                    .output(
+                        OutputOptions.builder()
+                            .canvasSize(STATIC_SIZE)
+                            .build()
+                    )
                     .build());
 
                 render(renderer, imageFactory, portalSlug + "_" + typeSlug + "_animated", PortalOptions.builder()
                     .portal(portal)
                     .type(type)
-                    .output(OutputOptions.builder()
-                        .canvasSize(ANIMATED_SIZE)
-                        .build())
-                    .animation(PortalOptions.DEFAULT_ANIMATION.mutate().frameCount(ANIMATED_FRAME_COUNT).build())
+                    .output(
+                        OutputOptions.builder()
+                            .canvasSize(ANIMATED_SIZE)
+                            .supersample(2)
+                            .build()
+                    )
+                    .animation(
+                        PortalOptions.DEFAULT_ANIMATION.mutate()
+                            .frameCount(ANIMATED_FRAME_COUNT)
+                            .build()
+                    )
                     .build());
             }
         }
