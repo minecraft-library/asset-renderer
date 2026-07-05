@@ -91,21 +91,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     private static final @NotNull Placement ENTITY_PLACEMENT = new Placement(ENTITY_FACING);
 
     /**
-     * The ordered geometry contributors appended to the entity's {@link GeometryLayer} stack, in
-     * emission order: model overlays, then the dyed collar (both in the {@code MODEL_OVERLAY} slot,
-     * where insertion order is the coplanar depth tie-break), then block overlays, then worn armor.
-     * Each contributor self-gates on the resolved definition's data + the {@link EntityAppearance},
-     * so adding an appearance-driven geometry feature is one entry here - never a new gate in
-     * {@link #renderEntity}.
-     */
-    private final @NotNull List<EntityFeature> features = List.of(
-        this::contributeModelOverlays,
-        this::contributeCollar,
-        this::contributeBlockOverlays,
-        this::contributeArmor
-    );
-
-    /**
      * Renders the entity and composites it over the caller's background. Returns an empty frame
      * (composited over the background) when the entity id is absent, unknown, has no texture, or
      * carries no bones.
@@ -254,7 +239,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // built above is always first; callers can splice custom layers via layerDecorator.
         LayerStack<GeometryLayer> stack = new LayerStack<>();
         FeatureContext featureCtx = new FeatureContext(resolved, options, scene, model, buildResult);
-        for (EntityFeature feature : this.features)
+        for (EntityFeature feature : EntityFeature.values())
             feature.contribute(featureCtx, stack);
 
         for (GeometryLayer layer : options.getLayerDecorator().apply(stack).ordered())
@@ -339,22 +324,123 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * A conditional geometry contributor appended to the entity {@link LayerStack} in {@link #features
-     * registry order}. Each feature self-gates on the {@link FeatureContext}'s resolved-definition
-     * data + the appearance and appends its triangles to its slot; a feature that does not apply
-     * appends nothing. Growing {@link EntityAppearance} is one new feature here, not a new gate in
-     * {@link #renderEntity}.
+     * The entity's geometry contributors, each constant packing its target {@link EntityOptions.Slot
+     * slot}, its self-gating policy, and its geometry contribution in one place - the entity analogue of
+     * the self-contained {@link Projection} / engine kits. Declaration order IS emission order: model
+     * overlays, then the dyed collar (both in the {@code MODEL_OVERLAY} slot, where the insertion-order
+     * tie-break lets the collar band win the coplanar depth tie over the overlays), then block overlays,
+     * then worn armor. The base body is built imperatively in {@link #renderEntity} and is always emitted
+     * first. Each constant self-gates on the resolved {@link FeatureContext#definition() definition} +
+     * the {@link EntityAppearance}, so growing the appearance is one new constant here - never a new gate
+     * in {@link #renderEntity}.
      */
-    @FunctionalInterface
-    private interface EntityFeature {
+    private enum EntityFeature {
 
         /**
-         * Contributes this feature's geometry layers to the stack for the given render context.
+         * Model overlays (spider / enderman eyes, saddles, sheep wool) sharing the entity frame. The
+         * resolved definition carries no overlays for a baby (adult overlay geometry would render
+         * adult-sized around the baby body), so this contributes nothing then without an age gate.
+         */
+        MODEL_OVERLAYS(EntityOptions.Slot.MODEL_OVERLAY) {
+            @Override
+            void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
+                SceneContext scene = ctx.scene();
+                EntityAppearance appearance = ctx.options().getAppearance();
+                for (EntityModelLoader.OverlayLayer overlay : ctx.definition().overlays()) {
+                    // A requires_tint overlay (sheep wool undercoat) only renders once its tint_by colour
+                    // is selected; skip it for the default (untinted) entity so the default is unchanged.
+                    if (overlay.requiresTint() && !hasSelectedTint(overlay, appearance)) continue;
+                    int overlayTint = resolveOverlayTint(overlay, appearance);
+                    stack.append(this.slot, sink -> {
+                        if (overlay.model().getBones().isEmpty()) return;
+                        Optional<PixelBuffer> overlayTex = overlay.textureRef().isPresent()
+                            ? scene.context().resolveTexture("minecraft:entity/" + overlay.textureRef().get())
+                            : Optional.of(scene.baseTexture());
+                        if (overlayTex.isEmpty()) return;
+                        sink.addAll(EntityGeometryKit.buildTriangles(
+                            overlay.model(), overlayTex.get(), scene.modelAnchor(), overlay.emissive(),
+                            scene.ndcScale(), scene.modelScale(), overlayTint).triangles());
+                    });
+                }
+            }
+        },
+
+        /**
+         * The dyed collar (wolf, cat): a body-geometry cutout tinted by the collar colour, drawn on top
+         * of the base body when a collar colour is supplied and the resolved definition carries a collar
+         * texture (empty for a baby). The collar texture is transparent except the neck band, so the
+         * tinted band wins the coplanar depth tie (last-drawn LEQUAL) over the body beneath it.
+         */
+        COLLAR(EntityOptions.Slot.MODEL_OVERLAY) {
+            @Override
+            void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
+                Optional<DyeColor> collar = ctx.options().getAppearance().getCollar();
+                Optional<String> collarRef = ctx.definition().collarTexture();
+                if (collar.isEmpty() || collarRef.isEmpty()) return;
+                SceneContext scene = ctx.scene();
+                EntityModelData model = ctx.model();
+                int collarTint = collar.get().argb();
+                String ref = collarRef.get();
+                stack.append(this.slot, sink -> {
+                    Optional<PixelBuffer> collarTex = scene.context().resolveTexture("minecraft:entity/" + ref);
+                    if (collarTex.isEmpty()) return;
+                    sink.addAll(EntityGeometryKit.buildTriangles(
+                        model, collarTex.get(), scene.modelAnchor(), false,
+                        scene.ndcScale(), scene.modelScale(), collarTint).triangles());
+                });
+            }
+        },
+
+        /**
+         * Block-model overlays (mooshroom mushrooms, copper-golem flower): a block model rendered at a
+         * pose-stack-applied position on top of the body; the shared {@code entityFit} is computed once.
+         * The resolved definition carries no block overlays for a baby or when the carried option drops
+         * them (a sheared snow golem), so this contributes nothing then without an age / carried gate.
+         */
+        BLOCK_OVERLAYS(EntityOptions.Slot.BLOCK_OVERLAY) {
+            @Override
+            void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
+                if (ctx.definition().blockOverlays().isEmpty()) return;
+                SceneContext scene = ctx.scene();
+                EntityModelData model = ctx.model();
+                Matrix4f entityFit = EntityGeometryKit.buildEntityFitMatrix(
+                    scene.modelAnchor(), scene.ndcScale() * scene.modelScale());
+                for (EntityModelLoader.BlockOverlayLayer blockOverlay : ctx.definition().blockOverlays())
+                    stack.append(this.slot, sink ->
+                        sink.addAll(buildBlockOverlayTriangles(scene.context(), blockOverlay, model, entityFit)));
+            }
+        },
+
+        /**
+         * Worn armor (+ trim). Always appended; resolves to no triangles when no pieces are equipped.
+         */
+        ARMOR(EntityOptions.Slot.ARMOR) {
+            @Override
+            void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
+                EntityOptions options = ctx.options();
+                SceneContext scene = ctx.scene();
+                stack.append(this.slot, sink ->
+                    sink.addAll(ArmorKit.buildEntityArmor3D(ctx.buildResult().boneBounds(),
+                        options.getHelmet(), options.getChestplate(),
+                        options.getLeggings(), options.getBoots(), scene.textures())));
+            }
+        };
+
+        /** The layer-stack slot this feature appends its geometry to. */
+        final @NotNull EntityOptions.Slot slot;
+
+        EntityFeature(@NotNull EntityOptions.Slot slot) {
+            this.slot = slot;
+        }
+
+        /**
+         * Contributes this feature's geometry layers to the stack, self-gating on the resolved
+         * definition + appearance; a feature that does not apply appends nothing.
          *
          * @param ctx the resolved render context
          * @param stack the layer stack to append to
          */
-        void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack);
+        abstract void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack);
     }
 
     /**
@@ -379,32 +465,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * Model overlays (spider / enderman eyes, saddles, sheep wool) sharing the entity frame. The
-     * resolved definition carries no overlays for a baby (adult overlay geometry would render
-     * adult-sized around the baby body), so this contributes nothing then without an age gate.
-     */
-    private void contributeModelOverlays(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
-        SceneContext scene = ctx.scene();
-        EntityAppearance appearance = ctx.options().getAppearance();
-        for (EntityModelLoader.OverlayLayer overlay : ctx.definition().overlays()) {
-            // A requires_tint overlay (sheep wool undercoat) only renders once its tint_by colour is
-            // selected; skip it for the default (untinted) entity so the default render is unchanged.
-            if (overlay.requiresTint() && !hasSelectedTint(overlay, appearance)) continue;
-            int overlayTint = resolveOverlayTint(overlay, appearance);
-            stack.append(EntityOptions.Slot.MODEL_OVERLAY, sink -> {
-                if (overlay.model().getBones().isEmpty()) return;
-                Optional<PixelBuffer> overlayTex = overlay.textureRef().isPresent()
-                    ? scene.context().resolveTexture("minecraft:entity/" + overlay.textureRef().get())
-                    : Optional.of(scene.baseTexture());
-                if (overlayTex.isEmpty()) return;
-                sink.addAll(EntityGeometryKit.buildTriangles(
-                    overlay.model(), overlayTex.get(), scene.modelAnchor(), overlay.emissive(),
-                    scene.ndcScale(), scene.modelScale(), overlayTint).triangles());
-            });
-        }
-    }
-
-    /**
      * The effective multiplicative tint for a model overlay: the {@code tint_by} axis colour when
      * the overlay is dye-driven ({@code "wool_color"}) and the appearance supplies that colour, else
      * the overlay's baked {@link EntityModelLoader.OverlayLayer#tintArgb() default tint}. The default
@@ -425,71 +485,31 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * The dyed collar (wolf, cat): a body-geometry cutout tinted by the collar colour, drawn on top
-     * of the base body when a collar colour is supplied and the resolved definition carries a collar
-     * texture (empty for a baby). The collar texture is transparent except the neck band, so the
-     * tinted band wins the coplanar depth tie (last-drawn LEQUAL) over the body beneath it.
-     */
-    private void contributeCollar(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
-        Optional<DyeColor> collar = ctx.options().getAppearance().getCollar();
-        Optional<String> collarRef = ctx.definition().collarTexture();
-        if (collar.isEmpty() || collarRef.isEmpty()) return;
-        SceneContext scene = ctx.scene();
-        EntityModelData model = ctx.model();
-        int collarTint = collar.get().argb();
-        String ref = collarRef.get();
-        stack.append(EntityOptions.Slot.MODEL_OVERLAY, sink -> {
-            Optional<PixelBuffer> collarTex = scene.context().resolveTexture("minecraft:entity/" + ref);
-            if (collarTex.isEmpty()) return;
-            sink.addAll(EntityGeometryKit.buildTriangles(
-                model, collarTex.get(), scene.modelAnchor(), false,
-                scene.ndcScale(), scene.modelScale(), collarTint).triangles());
-        });
-    }
-
-    /**
-     * Block-model overlays (mooshroom mushrooms, copper-golem flower): a block model rendered at a
-     * pose-stack-applied position on top of the body; the shared {@code entityFit} is computed once.
-     * The resolved definition carries no block overlays for a baby or when the carried option drops
-     * them (a sheared snow golem), so this contributes nothing then without an age / carried gate.
-     */
-    private void contributeBlockOverlays(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
-        if (ctx.definition().blockOverlays().isEmpty()) return;
-        SceneContext scene = ctx.scene();
-        EntityModelData model = ctx.model();
-        Matrix4f entityFit = EntityGeometryKit.buildEntityFitMatrix(
-            scene.modelAnchor(), scene.ndcScale() * scene.modelScale());
-        for (EntityModelLoader.BlockOverlayLayer blockOverlay : ctx.definition().blockOverlays())
-            stack.append(EntityOptions.Slot.BLOCK_OVERLAY, sink ->
-                sink.addAll(buildBlockOverlayTriangles(blockOverlay, model, entityFit)));
-    }
-
-    /**
-     * Worn armor (+ trim). Always appended; resolves to no triangles when no pieces are equipped.
-     */
-    private void contributeArmor(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
-        EntityOptions options = ctx.options();
-        SceneContext scene = ctx.scene();
-        stack.append(EntityOptions.Slot.ARMOR, sink ->
-            sink.addAll(ArmorKit.buildEntityArmor3D(ctx.buildResult().boneBounds(),
-                options.getHelmet(), options.getChestplate(),
-                options.getLeggings(), options.getBoots(), scene.textures())));
-    }
-
-    /**
      * Builds the rasterizer-ready triangles for one {@link EntityModelLoader.BlockOverlayLayer}.
      * Composes the overlay's transform chain (in vanilla block units) with the optional bone
      * anchor (whose pivot+rotation comes from the entity geometry, divided by 16 to convert from
      * pixel-units to block-units), then converts back to entity pixel-units (x16) and applies
      * the entity-fit normalization so the block sits in the same auto-fit window as the entity
      * body. Missing block / texture refs return an empty list rather than failing the render.
+     *
+     * <p>Static so the {@link EntityFeature#BLOCK_OVERLAYS} constant can call it; both callers pass the
+     * same {@link RendererContext} the method previously read from {@code this.context} - the render
+     * path via {@link SceneContext#context()} (which is this renderer's {@code context}) and the
+     * orthographic bounds pre-pass ({@link #computeUnionScreenBounds}) directly.
+     *
+     * @param context the renderer context for block + face-texture lookups
+     * @param overlay the block-overlay layer to build
+     * @param model the entity mesh supplying the attach-bone anchor chain
+     * @param entityFit the entity-fit normalization matrix
+     * @return the rasterizer-ready triangles, or an empty list when the block or its textures are missing
      */
-    private @NotNull ConcurrentList<VisibleTriangle> buildBlockOverlayTriangles(
+    private static @NotNull ConcurrentList<VisibleTriangle> buildBlockOverlayTriangles(
+        @NotNull RendererContext context,
         @NotNull EntityModelLoader.BlockOverlayLayer overlay,
         @NotNull EntityModelData model,
         @NotNull Matrix4f entityFit
     ) {
-        Optional<Block> block = this.context.findBlock(overlay.blockId());
+        Optional<Block> block = context.findBlock(overlay.blockId());
         if (block.isEmpty()) return Concurrent.newList();
 
         // Pre-load each face's texture by dereferencing #variable bindings against the model's
@@ -498,7 +518,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // texture loading; the kit treats them as no-texture faces.
         ConcurrentMap<String, PixelBuffer> faceTextures = Textures.loadElementFaceTextures(
             block.get().getModel().getElements(), block.get().getModel().getTextures(),
-            this.context::resolveTexture);
+            context::resolveTexture);
         if (faceTextures.isEmpty()) return Concurrent.newList();
 
         ConcurrentList<VisibleTriangle> blockTris = BlockGeometryKit.buildFromElements(
@@ -720,7 +740,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         if (!definition.blockOverlays().isEmpty()) {
             Matrix4f fitNeutral = EntityGeometryKit.buildEntityFitMatrix(Vector3f.ZERO, modelScale);
             for (EntityModelLoader.BlockOverlayLayer blockOverlay : definition.blockOverlays()) {
-                ConcurrentList<VisibleTriangle> tris = buildBlockOverlayTriangles(blockOverlay, definition.model(), fitNeutral);
+                ConcurrentList<VisibleTriangle> tris = buildBlockOverlayTriangles(this.context, blockOverlay, definition.model(), fitNeutral);
                 Box boBounds = EntityGeometryKit.computeBlockOverlayScreenBounds(tris, transform);
                 bounds = unionBoxes(bounds, boBounds);
             }
