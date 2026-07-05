@@ -7,10 +7,12 @@ import dev.simplified.image.pixel.PixelBuffer;
 import dev.simplified.image.pixel.PixelBufferPool;
 import lib.minecraft.renderer.engine.kit.GlintKit;
 import lib.minecraft.renderer.engine.raster.GlintMask;
+import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 import java.util.stream.IntStream;
 
 /**
@@ -23,13 +25,11 @@ import java.util.stream.IntStream;
  * Glint and tick-driven animation are mutually exclusive at every call site (a glinted render bakes one
  * frame; an animated render carries no glint), so the two frame-multiplying tails never compose.
  */
+@UtilityClass
 public final class Finalize {
 
     /** Output frame rate for worn-armor glint, matching every vanilla armor render site. */
     private static final int ARMOR_GLINT_FPS = 30;
-
-    private Finalize() {
-    }
 
     /**
      * Draws one frame into a target buffer at a given animation tick, optionally recording a glint
@@ -48,6 +48,7 @@ public final class Finalize {
          * @param tick the absolute animation tick to sample
          */
         void rasterize(@NotNull PixelBuffer target, @Nullable GlintMask mask, int tick);
+
     }
 
     /**
@@ -63,6 +64,7 @@ public final class Finalize {
          * @return the resolved texture, or empty when the active pack stack provides none
          */
         @NotNull Optional<PixelBuffer> resolve(@NotNull String textureId);
+
     }
 
     /**
@@ -89,6 +91,7 @@ public final class Finalize {
         public static @NotNull Glint item(@NotNull TextureResolver resolver, boolean enchanted, boolean animate, int framesPerSecond) {
             return new Glint(resolver, enchanted, animate, GlintKit.GlintOptions.itemDefault(framesPerSecond));
         }
+
     }
 
     /**
@@ -145,15 +148,8 @@ public final class Finalize {
      * @return the finished image
      */
     public static @NotNull ImageData render(@NotNull FinalizeSpec spec, @NotNull FrameRasterizer raster) {
-        if (spec.frameCount() > 1) {
-            // Frame-parallel bake: each frame is independent; mapToObj().toList() preserves encounter
-            // order so the strip stays tick-ordered for GIF/WebP playback. Glint never applies here.
-            ConcurrentList<PixelBuffer> frames = Concurrent.newList();
-            frames.addAll(IntStream.range(0, spec.frameCount()).parallel()
-                .mapToObj(f -> rasterizeAndPost(spec, raster, spec.startTick() + f * spec.ticksPerFrame()).buffer())
-                .toList());
-            return FrameCompositor.wrapFrames(frames, spec.delayMs());
-        }
+        if (spec.frameCount() > 1)
+            return renderStrip(spec, raster, UnaryOperator.identity());
 
         Finished finished = rasterizeAndPost(spec, raster, spec.startTick());
         Glint glint = spec.glint();
@@ -161,6 +157,38 @@ public final class Finalize {
             return FrameCompositor.staticFrame(finished.buffer());
 
         return applyGlint(glint, finished.buffer(), finished.mask());
+    }
+
+    /**
+     * Bakes {@code spec.frameCount()} frames in parallel, applies {@code framePostProcess} to the full
+     * baked list, then wraps the result into an animation strip at {@code spec.delayMs()}. The
+     * post-processor is the seam for renderers whose frames are NOT independent: a seamless-loop
+     * crossfade that blends each frame against a later one and trims the extra bridge frames, say. A
+     * plain strip passes {@link UnaryOperator#identity()} - which is exactly what {@link #render} does
+     * for {@code frameCount > 1}. Glint never applies to a strip.
+     *
+     * @param spec the terminal recipe; {@code frameCount} frames are baked from {@code startTick},
+     *        {@code ticksPerFrame} apart
+     * @param raster draws each frame at its tick
+     * @param framePostProcess transforms the baked frame list before it is wrapped
+     * @return the finished animation strip
+     */
+    public static @NotNull ImageData renderStrip(
+        @NotNull FinalizeSpec spec,
+        @NotNull FrameRasterizer raster,
+        @NotNull UnaryOperator<ConcurrentList<PixelBuffer>> framePostProcess
+    ) {
+        // Frame-parallel bake: each frame is independent; mapToObj().toList() preserves encounter
+        // order so the strip stays tick-ordered for GIF/WebP playback.
+        ConcurrentList<PixelBuffer> frames = Concurrent.newList();
+        frames.addAll(
+            IntStream.range(0, spec.frameCount())
+                .parallel()
+                .mapToObj(f -> rasterizeAndPost(spec, raster, spec.startTick() + f * spec.ticksPerFrame()).buffer())
+                .toList()
+        );
+
+        return FrameCompositor.wrapFrames(framePostProcess.apply(frames), spec.delayMs());
     }
 
     /**
@@ -187,6 +215,7 @@ public final class Finalize {
         if (spec.ssaa() > 1) {
             int hiWidth = spec.width() * spec.ssaa();
             int hiHeight = spec.height() * spec.ssaa();
+
             try (PixelBufferPool.Lease lease = PixelBufferPool.acquire(hiWidth, hiHeight)) {
                 PixelBuffer hiRes = lease.buffer();
                 GlintMask hiMask = spec.recordMask() ? new GlintMask(hiWidth, hiHeight) : null;
@@ -226,4 +255,5 @@ public final class Finalize {
         int frameDelayMs = Math.max(1, Math.round(1000f / glint.preset().framesPerSecond()));
         return FrameCompositor.wrapFrames(frames, frameDelayMs);
     }
+
 }
