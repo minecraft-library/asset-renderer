@@ -4,6 +4,7 @@ import dev.simplified.image.Background;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.option.slot.FluidSlot;
+import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.RenderOptions;
 import lib.minecraft.renderer.request.Biome;
 import lombok.AccessLevel;
@@ -88,23 +89,14 @@ public class FluidOptions implements Option {
     private final @NotNull RenderOptions render = DEFAULT_RENDER;
 
     /**
-     * Animation seed tick. Frame 0 samples the still/flow strip at this tick.
+     * The default animation timing for a fluid render - a static frame (seed tick 0, 1 frame,
+     * 1 tick per frame).
      */
-    @lombok.Builder.Default
-    private final int startTick = 0;
+    public static final @NotNull AnimationOptions DEFAULT_ANIMATION = AnimationOptions.defaults();
 
-    /**
-     * Number of output frames. {@code 1} produces a static image; {@code >1} produces an
-     * animated image with {@link #ticksPerFrame} ticks between successive frames.
-     */
+    /** The animation timing (seed tick, frame count, ticks per frame). */
     @lombok.Builder.Default
-    private final int frameCount = 1;
-
-    /**
-     * Ticks between successive output frames. One vanilla tick is {@code 50 ms}.
-     */
-    @lombok.Builder.Default
-    private final int ticksPerFrame = 1;
+    private final @NotNull AnimationOptions animation = DEFAULT_ANIMATION;
 
     /**
      * Background fill composited behind the finished render (solid colour or checkerboard).

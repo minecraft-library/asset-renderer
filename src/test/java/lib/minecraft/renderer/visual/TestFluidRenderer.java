@@ -9,6 +9,7 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.engine.kit.FluidGeometryKit;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.FluidOptions;
+import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.RenderOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
@@ -112,16 +113,20 @@ public final class TestFluidRenderer {
             .render(RenderOptions.builder()
                 .outputSize(ANIMATED_SIZE)
                 .build())
-            .frameCount(32)
-            .ticksPerFrame(2)
+            .animation(AnimationOptions.builder()
+                .frameCount(32)
+                .ticksPerFrame(2)
+                .build())
             .build());
         render(renderer, imageFactory, "lava_animated_iso", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.LAVA)
             .render(RenderOptions.builder()
                 .outputSize(ANIMATED_SIZE)
                 .build())
-            .frameCount(20)
-            .ticksPerFrame(3)
+            .animation(AnimationOptions.builder()
+                .frameCount(20)
+                .ticksPerFrame(3)
+                .build())
             .build());
 
         // Sloped top + flow direction. Will look flat-topped until FluidGeometryKit is

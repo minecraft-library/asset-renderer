@@ -1,6 +1,7 @@
 package lib.minecraft.renderer.option;
 
 import dev.simplified.image.Background;
+import lib.minecraft.renderer.option.spec.AnimationOptions;
 import lib.minecraft.renderer.option.spec.RenderOptions;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -54,50 +55,15 @@ public class PortalOptions implements Option {
     private final @NotNull RenderOptions render = DEFAULT_RENDER;
 
     /**
-     * Animation seed tick. Frame 0 feeds {@code GameTime} into the parallax layer transform at this tick.
+     * The default animation timing for a portal render - seed tick 0, 1 frame, 8 ticks per frame
+     * (the calm parallax playback rate), with the 0.2 loop-crossfade fraction.
      */
-    @lombok.Builder.Default
-    private final int startTick = 0;
+    public static final @NotNull AnimationOptions DEFAULT_ANIMATION =
+            AnimationOptions.builder().ticksPerFrame(8).build();
 
-    /**
-     * Number of output frames. {@code 1} produces a static image; {@code >1} produces an
-     * animated image with {@link #ticksPerFrame} ticks between successive frames.
-     */
+    /** The animation timing (seed tick, frame count, ticks per frame, loop crossfade). */
     @lombok.Builder.Default
-    private final int frameCount = 1;
-
-    /**
-     * Vanilla ticks advanced between successive output frames. Drives the {@code GameTime} step
-     * fed into the parallax shader; the visual speed of the animation scales linearly with this
-     * value.
-     * <p>
-     * {@code 1} is vanilla-accurate (one tick's worth of {@code GameTime} per output frame) but
-     * produces almost imperceptible motion since vanilla's in-game animation is inherently slow
-     * (layer-15 UV drift is {@code ~7.5e-4} per tick). The default {@code 8} gives a calm
-     * playback rate that reads as visible parallax without feeling rushed.
-     */
-    @lombok.Builder.Default
-    private final int ticksPerFrame = 8;
-
-    /**
-     * Fraction of {@link #frameCount} used as a shifted-continuation crossfade at the start of
-     * each animated output, producing a seamless loop without a visible static anchor.
-     * <p>
-     * With {@code K = round(loopFadeBridgePct * frameCount)}, the renderer bakes
-     * {@code frameCount + K} raw shader frames. For output frame {@code i in [0, K)},
-     * {@code output[i] = alpha * raw[i] + (1 - alpha) * raw[i + frameCount]} where
-     * {@code alpha = i / K}. Both layers being blended are animated (the primary is the new
-     * loop's opening content; the partner is what the shader WOULD produce if the previous loop
-     * had continued past its natural end), so nothing looks static during the transition.
-     * <p>
-     * The loop seam is hidden because {@code output[frameCount - 1] = raw[frameCount - 1]} and
-     * the next iteration's {@code output[0] = raw[frameCount]} - those are one shader-tick
-     * apart, matching the smoothness of any within-loop adjacent pair. No separate fade-out
-     * region is needed. Set to {@code 0} to disable and have raw frames play from tick
-     * {@code startTick}.
-     */
-    @lombok.Builder.Default
-    private final float loopFadeBridgePct = 0.2f;
+    private final @NotNull AnimationOptions animation = DEFAULT_ANIMATION;
 
     /**
      * Background fill composited behind the finished render (solid colour or checkerboard).

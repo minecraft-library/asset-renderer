@@ -404,9 +404,9 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
      * animation is too short to blend meaningfully.
      */
     private static int bridgeFrameCount(@NotNull PortalOptions options) {
-        int total = options.getFrameCount();
+        int total = options.getAnimation().getFrameCount();
         if (total < 3) return 0;
-        float bridge = options.getLoopFadeBridgePct();
+        float bridge = options.getAnimation().getLoopFadeBridgePct();
         if (bridge <= 0f) return 0;
         return Math.clamp(Math.round(bridge * total), 0, total - 1);
     }
@@ -498,16 +498,16 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
         /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull PortalOptions options) {
-            if (options.getFrameCount() <= 1)
-                return FrameCompositor.staticFrame(renderFrame(options, options.getStartTick()));
+            if (options.getAnimation().getFrameCount() <= 1)
+                return FrameCompositor.staticFrame(renderFrame(options, options.getAnimation().getStartTick()));
 
-            int outputCount = options.getFrameCount();
+            int outputCount = options.getAnimation().getFrameCount();
             int bridge = bridgeFrameCount(options);
             int bakeCount = outputCount + bridge;
 
             ConcurrentList<PixelBuffer> frames = Concurrent.newList();
             for (int f = 0; f < bakeCount; f++) {
-                int tick = options.getStartTick() + f * options.getTicksPerFrame();
+                int tick = options.getAnimation().getStartTick() + f * options.getAnimation().getTicksPerFrame();
                 frames.add(renderFrame(options, tick));
             }
             applyBridgeCrossfade(frames, outputCount, bridge);
@@ -626,16 +626,16 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
         /** {@inheritDoc} */
         @Override
         public @NotNull ImageData render(@NotNull PortalOptions options) {
-            if (options.getFrameCount() <= 1)
-                return FrameCompositor.staticFrame(renderFrame(options, options.getStartTick()));
+            if (options.getAnimation().getFrameCount() <= 1)
+                return FrameCompositor.staticFrame(renderFrame(options, options.getAnimation().getStartTick()));
 
-            int outputCount = options.getFrameCount();
+            int outputCount = options.getAnimation().getFrameCount();
             int bridge = bridgeFrameCount(options);
             int bakeCount = outputCount + bridge;
 
             ConcurrentList<PixelBuffer> frames = Concurrent.newList();
             for (int f = 0; f < bakeCount; f++) {
-                int tick = options.getStartTick() + f * options.getTicksPerFrame();
+                int tick = options.getAnimation().getStartTick() + f * options.getAnimation().getTicksPerFrame();
                 frames.add(renderFrame(options, tick));
             }
             applyBridgeCrossfade(frames, outputCount, bridge);

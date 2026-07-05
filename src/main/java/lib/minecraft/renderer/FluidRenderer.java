@@ -156,8 +156,8 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             int ssaa = Math.max(1, options.getRender().getSupersample());
             return Finalize.render(
                 Finalize.FinalizeSpec.animated(options.getRender().getOutputSize(), options.getRender().getOutputSize(), ssaa, options.getRender().isAntiAlias(),
-                    options.getFrameCount(), options.getStartTick(), options.getTicksPerFrame(),
-                    options.getTicksPerFrame() * MILLIS_PER_TICK),
+                    options.getAnimation().getFrameCount(), options.getAnimation().getStartTick(), options.getAnimation().getTicksPerFrame(),
+                    options.getAnimation().getTicksPerFrame() * MILLIS_PER_TICK),
                 (target, mask, tick) -> rasterizeFrame(options, tick, target));
         }
 
@@ -208,8 +208,8 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             // blit: no supersample / FXAA (ssaa = 1, antiAlias = false).
             return Finalize.render(
                 Finalize.FinalizeSpec.animated(options.getRender().getOutputSize(), options.getRender().getOutputSize(), 1, false,
-                    options.getFrameCount(), options.getStartTick(), options.getTicksPerFrame(),
-                    options.getTicksPerFrame() * MILLIS_PER_TICK),
+                    options.getAnimation().getFrameCount(), options.getAnimation().getStartTick(), options.getAnimation().getTicksPerFrame(),
+                    options.getAnimation().getTicksPerFrame() * MILLIS_PER_TICK),
                 (target, mask, tick) -> rasterizeFrame(options, tick, target));
         }
 

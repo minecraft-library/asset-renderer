@@ -92,7 +92,7 @@ public final class TestPortalRenderer {
                     .render(RenderOptions.builder()
                         .outputSize(ANIMATED_SIZE)
                         .build())
-                    .frameCount(ANIMATED_FRAME_COUNT)
+                    .animation(PortalOptions.DEFAULT_ANIMATION.mutate().frameCount(ANIMATED_FRAME_COUNT).build())
                     .build());
             }
         }
