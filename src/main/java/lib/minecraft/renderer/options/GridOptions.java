@@ -7,6 +7,8 @@ import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.GridRenderer;
 import lib.minecraft.renderer.engine.compose.FrameCompositor;
 import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
+import lib.minecraft.renderer.engine.compose.layer.LayerSlot;
+import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -68,12 +70,12 @@ public class GridOptions {
     private final @NotNull Background background = Background.TRANSPARENT;
 
     /**
-     * Transform applied to the default tile {@link FrameLayer} stack before it runs, letting callers
-     * splice custom layers (overlays, watermarks). Defaults to {@linkplain UnaryOperator#identity()
-     * identity}.
+     * Transform applied to the default tile {@link LayerStack} of {@link FrameLayer}s (built under
+     * {@link Slot#CELL}) before it runs, letting callers splice custom layers (overlays, watermarks)
+     * relative to the built-in cells. Defaults to {@linkplain UnaryOperator#identity() identity}.
      */
     @lombok.Builder.Default
-    private final @NotNull UnaryOperator<ConcurrentList<FrameLayer>> layerDecorator = UnaryOperator.identity();
+    private final @NotNull UnaryOperator<LayerStack<FrameLayer>> layerDecorator = UnaryOperator.identity();
 
     /**
      * Opens a builder seeded from this instance's current values, for deriving a variant with a
@@ -92,6 +94,29 @@ public class GridOptions {
      */
     public static @NotNull GridOptions defaults() {
         return builder().build();
+    }
+
+    /**
+     * Render-order slots for the grid's {@link FrameLayer} stack. Every tile is a {@link #CELL}; the
+     * single built-in slot exists so callers can splice layers relative to the cells via
+     * {@link #layerDecorator}.
+     */
+    public enum Slot implements LayerSlot {
+
+        /** A single grid cell (tile placement). */
+        CELL;
+
+        /** {@inheritDoc} */
+        @Override
+        public int order() {
+            return ordinal();
+        }
+
+        /** {@inheritDoc} */
+        @Override
+        public @NotNull String id() {
+            return name();
+        }
     }
 
     /**
