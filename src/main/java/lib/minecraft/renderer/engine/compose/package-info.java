@@ -15,9 +15,9 @@
  * supersample / FXAA / downscale tail, then either scrolls an enchantment glint or bakes an animation
  * strip (the two are mutually exclusive), and wraps the result via {@code FrameCompositor}.
  *
- * <p><b>Context.</b> {@link lib.minecraft.renderer.engine.compose.SceneContext SceneContext} (3D scene
- * state) and {@link lib.minecraft.renderer.engine.compose.ImageLayerContext ImageLayerContext} (item
- * layer state) carry per-render inputs to the layers that capture them at construction.
+ * <p><b>Per-render context.</b> Renderers that thread bundled per-render inputs into their layers keep
+ * that context private to themselves (entity's {@code FeatureContext}, item's {@code Gui2D.LayerContext}),
+ * because each is consumed by exactly one renderer - the compose package holds no shared context type.
  *
  * @see lib.minecraft.renderer.engine.compose.layer
  * @see lib.minecraft.renderer.engine.compose.Finalize

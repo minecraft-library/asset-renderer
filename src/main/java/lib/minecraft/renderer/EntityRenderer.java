@@ -21,7 +21,6 @@ import lib.minecraft.renderer.engine.compose.FrameCompositor;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
-import lib.minecraft.renderer.engine.compose.SceneContext;
 import lib.minecraft.renderer.engine.kit.ArmorKit;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.engine.kit.EntityGeometryKit;
@@ -230,15 +229,16 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // reproduces the historic base -> overlays -> block-overlays -> armor sequence exactly.
         // Callers can splice their own layers via EntityOptions.layerDecorator. All layers are built
         // fit-neutral and fitted together by the single rasterizeFitted call below.
-        SceneContext scene = new SceneContext(
-            texture.get(), kitAnchor, kitNdcScale, modelScale, engine.textures(), this.context);
-
         // Assemble the appended geometry layers via the feature registry. Each feature self-gates on
         // the resolved definition's data + the appearance and appends to its slot; the registry order
         // fixes emission order (model overlays -> collar -> block overlays -> armor). The base body
-        // built above is always first; callers can splice custom layers via layerDecorator.
+        // built above is always first; callers can splice custom layers via layerDecorator. FeatureContext
+        // also carries the shared geometry-build frame (anchor, scales, textures, pack context) the static
+        // feature constants cannot capture from the renderer instance.
         LayerStack<GeometryLayer> stack = new LayerStack<>();
-        FeatureContext featureCtx = new FeatureContext(resolved, options, scene, model, buildResult);
+        FeatureContext featureCtx = new FeatureContext(
+            resolved, options, model, buildResult,
+            texture.get(), kitAnchor, kitNdcScale, modelScale, engine.textures(), this.context);
         for (EntityFeature feature : EntityFeature.values())
             feature.contribute(featureCtx, stack);
 
@@ -345,7 +345,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         MODEL_OVERLAYS(EntityOptions.Slot.MODEL_OVERLAY) {
             @Override
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
-                SceneContext scene = ctx.scene();
                 EntityAppearance appearance = ctx.options().getAppearance();
                 for (EntityModelLoader.OverlayLayer overlay : ctx.definition().overlays()) {
                     // A requires_tint overlay (sheep wool undercoat) only renders once its tint_by colour
@@ -355,12 +354,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     stack.append(this.slot, sink -> {
                         if (overlay.model().getBones().isEmpty()) return;
                         Optional<PixelBuffer> overlayTex = overlay.textureRef().isPresent()
-                            ? scene.context().resolveTexture("minecraft:entity/" + overlay.textureRef().get())
-                            : Optional.of(scene.baseTexture());
+                            ? ctx.context().resolveTexture("minecraft:entity/" + overlay.textureRef().get())
+                            : Optional.of(ctx.baseTexture());
                         if (overlayTex.isEmpty()) return;
                         sink.addAll(EntityGeometryKit.buildTriangles(
-                            overlay.model(), overlayTex.get(), scene.modelAnchor(), overlay.emissive(),
-                            scene.ndcScale(), scene.modelScale(), overlayTint).triangles());
+                            overlay.model(), overlayTex.get(), ctx.modelAnchor(), overlay.emissive(),
+                            ctx.ndcScale(), ctx.modelScale(), overlayTint).triangles());
                     });
                 }
             }
@@ -378,16 +377,15 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 Optional<DyeColor> collar = ctx.options().getAppearance().getCollar();
                 Optional<String> collarRef = ctx.definition().collarTexture();
                 if (collar.isEmpty() || collarRef.isEmpty()) return;
-                SceneContext scene = ctx.scene();
                 EntityModelData model = ctx.model();
                 int collarTint = collar.get().argb();
                 String ref = collarRef.get();
                 stack.append(this.slot, sink -> {
-                    Optional<PixelBuffer> collarTex = scene.context().resolveTexture("minecraft:entity/" + ref);
+                    Optional<PixelBuffer> collarTex = ctx.context().resolveTexture("minecraft:entity/" + ref);
                     if (collarTex.isEmpty()) return;
                     sink.addAll(EntityGeometryKit.buildTriangles(
-                        model, collarTex.get(), scene.modelAnchor(), false,
-                        scene.ndcScale(), scene.modelScale(), collarTint).triangles());
+                        model, collarTex.get(), ctx.modelAnchor(), false,
+                        ctx.ndcScale(), ctx.modelScale(), collarTint).triangles());
                 });
             }
         },
@@ -402,13 +400,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             @Override
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
                 if (ctx.definition().blockOverlays().isEmpty()) return;
-                SceneContext scene = ctx.scene();
                 EntityModelData model = ctx.model();
                 Matrix4f entityFit = EntityGeometryKit.buildEntityFitMatrix(
-                    scene.modelAnchor(), scene.ndcScale() * scene.modelScale());
+                    ctx.modelAnchor(), ctx.ndcScale() * ctx.modelScale());
                 for (EntityModelLoader.BlockOverlayLayer blockOverlay : ctx.definition().blockOverlays())
                     stack.append(this.slot, sink ->
-                        sink.addAll(buildBlockOverlayTriangles(scene.context(), blockOverlay, model, entityFit)));
+                        sink.addAll(buildBlockOverlayTriangles(ctx.context(), blockOverlay, model, entityFit)));
             }
         },
 
@@ -419,11 +416,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             @Override
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
                 EntityOptions options = ctx.options();
-                SceneContext scene = ctx.scene();
                 stack.append(this.slot, sink ->
                     sink.addAll(ArmorKit.buildEntityArmor3D(ctx.buildResult().boneBounds(),
                         options.getHelmet(), options.getChestplate(),
-                        options.getLeggings(), options.getBoots(), scene.textures())));
+                        options.getLeggings(), options.getBoots(), ctx.textures())));
             }
         };
 
@@ -442,23 +438,37 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * The per-render inputs an {@link EntityFeature} needs: the age / carried-resolved
+     * The per-render inputs an {@link EntityFeature} needs, bundling the feature-dispatch data with the
+     * shared geometry-build frame the layers rasterize in: the age / carried-resolved
      * {@link EntityModelLoader.EntityDefinition definition}, the {@link EntityOptions} (appearance +
-     * armor pieces), the shared {@link SceneContext scene}, the primary {@link EntityModelData model}
-     * (adult or baby), and the base body build result whose bone bounds the armor feature consumes.
+     * armor pieces), the primary {@link EntityModelData model} (adult or baby), and the base body build
+     * result whose bone bounds the armor feature consumes, plus the resolved base texture, model anchor,
+     * NDC + model scale, {@link Textures} service, and {@link RendererContext}. The scene-frame fields
+     * travel here because the static {@link EntityFeature} constants cannot capture them from the
+     * renderer instance.
      *
      * @param definition the age / carried-resolved definition the features read
      * @param options the render options (appearance + armor pieces)
-     * @param scene the shared scene context (anchor, scales, textures, pack context)
      * @param model the primary mesh being rendered (adult or baby)
      * @param buildResult the base body build result (bone bounds for the armor feature)
+     * @param baseTexture the resolved base entity texture the layers sample from
+     * @param modelAnchor the model-space point the rasterizer maps to canvas centre
+     * @param ndcScale the normalized-device scale from the auto-fit window
+     * @param modelScale the per-subject render scale (renderer scale combined with state scale)
+     * @param textures the texture-resolution service the layers sample overlay / armor textures through
+     * @param context the renderer context for overlay-texture and block lookups
      */
     private record FeatureContext(
         @NotNull EntityModelLoader.EntityDefinition definition,
         @NotNull EntityOptions options,
-        @NotNull SceneContext scene,
         @NotNull EntityModelData model,
-        @NotNull EntityGeometryKit.BuildResult buildResult
+        @NotNull EntityGeometryKit.BuildResult buildResult,
+        @NotNull PixelBuffer baseTexture,
+        @NotNull Vector3f modelAnchor,
+        float ndcScale,
+        float modelScale,
+        @NotNull Textures textures,
+        @NotNull RendererContext context
     ) { }
 
     /**
@@ -491,7 +501,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      *
      * <p>Static so the {@link EntityFeature#BLOCK_OVERLAYS} constant can call it; both callers pass the
      * same {@link RendererContext} the method previously read from {@code this.context} - the render
-     * path via {@link SceneContext#context()} (which is this renderer's {@code context}) and the
+     * path via {@link FeatureContext#context()} (which is this renderer's {@code context}) and the
      * orthographic bounds pre-pass ({@link #computeUnionScreenBounds}) directly.
      *
      * @param context the renderer context for block + face-texture lookups

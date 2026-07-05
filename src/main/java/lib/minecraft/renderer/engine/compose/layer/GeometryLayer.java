@@ -15,8 +15,10 @@ import lib.minecraft.renderer.engine.raster.VisibleTriangle;
  * the whole triangle list, so layers cannot be rendered to independent frames and stacked.
  * <p>
  * Layers capture whatever per-render inputs they need (textures, transforms, scene values) at
- * construction; the contract is intentionally context-free so a single {@code GeometryLayer} type
- * serves every 3D renderer (entity, block, fluid) without a renderer-specific context object.
+ * construction; the {@code contribute} contract itself is context-free - it takes only the shared sink -
+ * so a single {@code GeometryLayer} type serves every 3D renderer (entity, block, fluid). How a renderer
+ * supplies those captured inputs is its own concern: block and fluid capture them directly, while entity
+ * bundles them into a private per-render context (its {@code FeatureContext}) its feature constants read.
  * <p>
  * <b>Emission order is load-bearing.</b> The order in which layers append - and the order in which a
  * layer appends within itself - determines coplanar depth tie-breaks and translucent ordering.

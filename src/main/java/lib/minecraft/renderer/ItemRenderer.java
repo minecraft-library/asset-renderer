@@ -18,7 +18,6 @@ import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.compose.Finalize;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
-import lib.minecraft.renderer.engine.compose.ImageLayerContext;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.kit.BannerKit;
@@ -484,7 +483,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // via ItemOptions.layerDecorator, folded into Finalize's target. The terminal glint is the
             // finalisation step, not a layer, because it expands the buffer into one or many frames.
             // A GUI icon is a flat sprite blit, so no supersample (ssaa = 1); FXAA stays opt-in.
-            ImageLayerContext ctx = new ImageLayerContext(this.context, engine.textures(), item, options);
+            LayerContext ctx = new LayerContext(this.context, engine.textures(), item, options);
             return Finalize.render(
                 Finalize.FinalizeSpec.staticFrame(options.getOutputSize(), options.getOutputSize(), 1, options.isAntiAlias())
                     .withGlint(itemGlint(engine.textures(), item, options), false),
@@ -496,7 +495,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
          * layer, then the conditional trim, damage-bar, and stack-count decorations. Each layer is the
          * verbatim pass that previously ran inline in {@link #render}, capturing the render {@code ctx}.
          */
-        private static @NotNull LayerStack<ImageLayer> buildGuiLayers(@NotNull ImageLayerContext ctx) {
+        private static @NotNull LayerStack<ImageLayer> buildGuiLayers(@NotNull LayerContext ctx) {
             ItemOptions options = ctx.options();
             LayerStack<ImageLayer> stack = new LayerStack<>();
 
@@ -524,6 +523,22 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
 
             return stack;
         }
+
+        /**
+         * Per-render state passed to every {@link ImageLayer} in the 2D item composite stack. Captured
+         * once by {@link #render} and read by {@link #buildGuiLayers}.
+         *
+         * @param context renderer context for texture and override resolution
+         * @param textures texture-resolution service for layer texture lookups
+         * @param item resolved item definition being rendered
+         * @param options caller-supplied item render options
+         */
+        private record LayerContext(
+            @NotNull RendererContext context,
+            @NotNull Textures textures,
+            @NotNull Item item,
+            @NotNull ItemOptions options
+        ) { }
 
     }
 
