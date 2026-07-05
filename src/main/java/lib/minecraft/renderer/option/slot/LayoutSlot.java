@@ -2,7 +2,6 @@ package lib.minecraft.renderer.option.slot;
 
 import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerSlot;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * Paint-order slots for the layout's {@link FrameLayer} stack. Every child is a {@link #CHILD}; the
@@ -13,17 +12,5 @@ import org.jetbrains.annotations.NotNull;
 public enum LayoutSlot implements LayerSlot {
 
     /** A single laid-out child render. */
-    CHILD;
-
-    /** {@inheritDoc} */
-    @Override
-    public int order() {
-        return ordinal();
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    public @NotNull String id() {
-        return name();
-    }
+    CHILD
 }

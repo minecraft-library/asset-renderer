@@ -1,7 +1,6 @@
 package lib.minecraft.renderer.option.slot;
 
 import lib.minecraft.renderer.engine.compose.layer.LayerSlot;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * Render-order slots for the 2D GUI icon {@code ImageLayer} stack: base sprite/banner/shield,
@@ -16,17 +15,5 @@ public enum ItemSlot implements LayerSlot {
     /** Durability damage bar. */
     DAMAGE_BAR,
     /** Stack-count badge. */
-    STACK_COUNT;
-
-    /** {@inheritDoc} */
-    @Override
-    public int order() {
-        return ordinal();
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    public @NotNull String id() {
-        return name();
-    }
+    STACK_COUNT
 }

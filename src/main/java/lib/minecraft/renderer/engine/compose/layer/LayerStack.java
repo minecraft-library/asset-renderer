@@ -23,7 +23,7 @@ public final class LayerStack<L> {
      * One stored layer and its sort keys.
      *
      * @param <L> the layer type
-     * @param key the primary render-order key (a {@link LayerSlot#order() slot order}, offset by
+     * @param key the primary render-order key (the slot {@linkplain Enum#ordinal() ordinal}, offset by
      *        {@code -0.5} / {@code +0.5} for before / after insertions)
      * @param seq the monotonic insertion sequence, breaking ties among equal keys
      * @param layer the stored layer
@@ -45,10 +45,11 @@ public final class LayerStack<L> {
      *
      * @param slot the slot whose order this layer takes
      * @param layer the layer to add
+     * @param <S> the slot enum type
      * @return this stack, for chaining
      */
-    public @NotNull LayerStack<L> append(@NotNull LayerSlot slot, @NotNull L layer) {
-        this.entries.add(new Entry<>(slot.order(), this.seq++, layer));
+    public @NotNull <S extends Enum<S> & LayerSlot> LayerStack<L> append(@NotNull S slot, @NotNull L layer) {
+        this.entries.add(new Entry<>(slot.ordinal(), this.seq++, layer));
         return this;
     }
 
@@ -57,10 +58,11 @@ public final class LayerStack<L> {
      *
      * @param slot the slot to render before
      * @param layer the layer to add
+     * @param <S> the slot enum type
      * @return this stack, for chaining
      */
-    public @NotNull LayerStack<L> addBefore(@NotNull LayerSlot slot, @NotNull L layer) {
-        this.entries.add(new Entry<>(slot.order() - 0.5, this.seq++, layer));
+    public @NotNull <S extends Enum<S> & LayerSlot> LayerStack<L> addBefore(@NotNull S slot, @NotNull L layer) {
+        this.entries.add(new Entry<>(slot.ordinal() - 0.5, this.seq++, layer));
         return this;
     }
 
@@ -69,10 +71,11 @@ public final class LayerStack<L> {
      *
      * @param slot the slot to render after
      * @param layer the layer to add
+     * @param <S> the slot enum type
      * @return this stack, for chaining
      */
-    public @NotNull LayerStack<L> addAfter(@NotNull LayerSlot slot, @NotNull L layer) {
-        this.entries.add(new Entry<>(slot.order() + 0.5, this.seq++, layer));
+    public @NotNull <S extends Enum<S> & LayerSlot> LayerStack<L> addAfter(@NotNull S slot, @NotNull L layer) {
+        this.entries.add(new Entry<>(slot.ordinal() + 0.5, this.seq++, layer));
         return this;
     }
 

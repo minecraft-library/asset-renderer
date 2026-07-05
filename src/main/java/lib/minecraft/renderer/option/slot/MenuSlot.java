@@ -2,7 +2,6 @@ package lib.minecraft.renderer.option.slot;
 
 import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerSlot;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * Paint-order slots for the menu's {@link FrameLayer} stack. The full-canvas chrome paints first,
@@ -20,17 +19,5 @@ public enum MenuSlot implements LayerSlot {
     /** Remaining decorative content: crafting shapes, anvil decoration, filler panes. */
     CONTENT,
     /** Reserved for text overlays; unused by the built-in renderers (text is baked into the chrome). */
-    TEXT;
-
-    /** {@inheritDoc} */
-    @Override
-    public int order() {
-        return ordinal();
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    public @NotNull String id() {
-        return name();
-    }
+    TEXT
 }
