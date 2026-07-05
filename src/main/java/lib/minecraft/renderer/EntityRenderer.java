@@ -334,6 +334,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * the {@link EntityAppearance}, so growing the appearance is one new constant here - never a new gate
      * in {@link #renderEntity}.
      */
+    @RequiredArgsConstructor
     private enum EntityFeature {
 
         /**
@@ -429,10 +430,6 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         /** The layer-stack slot this feature appends its geometry to. */
         final @NotNull EntityOptions.Slot slot;
 
-        EntityFeature(@NotNull EntityOptions.Slot slot) {
-            this.slot = slot;
-        }
-
         /**
          * Contributes this feature's geometry layers to the stack, self-gating on the resolved
          * definition + appearance; a feature that does not apply appends nothing.
@@ -441,6 +438,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
          * @param stack the layer stack to append to
          */
         abstract void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack);
+
     }
 
     /**
@@ -461,8 +459,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull SceneContext scene,
         @NotNull EntityModelData model,
         @NotNull EntityGeometryKit.BuildResult buildResult
-    ) {
-    }
+    ) { }
 
     /**
      * The effective multiplicative tint for a model overlay: the {@code tint_by} axis colour when
@@ -472,7 +469,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * (mirroring vanilla's {@code coloredCutoutModelRender} colour arg), exactly like the collar tint.
      */
     private static int resolveOverlayTint(@NotNull EntityModelLoader.OverlayLayer overlay, @NotNull EntityAppearance appearance) {
-        return hasSelectedTint(overlay, appearance) ? appearance.getWoolColor().get().argb() : overlay.tintArgb();
+        return hasSelectedTint(overlay, appearance) ? appearance.getWoolColor().orElseThrow().argb() : overlay.tintArgb();
     }
 
     /**
