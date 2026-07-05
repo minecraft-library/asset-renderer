@@ -19,6 +19,8 @@ import lib.minecraft.renderer.options.ItemOptions;
 import lib.minecraft.renderer.options.PlayerOptions;
 import lib.minecraft.renderer.options.spec.ArmorOptions;
 import lib.minecraft.renderer.options.spec.RenderOptions;
+import lib.minecraft.renderer.options.spec.SkinOptions;
+import lib.minecraft.renderer.options.spec.TextureOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
@@ -265,8 +267,10 @@ public final class TestGlintParityVanilla {
         PlayerOptions.PlayerOptionsBuilder builder = PlayerOptions.builder()
             .type(PlayerOptions.Type.FULL)
             .dimension(PlayerOptions.Dimension.THREE_D)
-            .skinBytes(Optional.of(TRANSPARENT_SKIN))
-            .renderOverlay(false)
+            .skin(SkinOptions.builder()
+                .skin(TextureOptions.builder().bytes(Optional.of(TRANSPARENT_SKIN)).build())
+                .renderOverlay(false)
+                .build())
             .render(RenderOptions.builder()
                 .antiAlias(false)
                 .outputSize(RENDER_SIZE)

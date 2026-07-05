@@ -15,6 +15,8 @@ import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.options.PlayerOptions;
 import lib.minecraft.renderer.options.spec.ArmorOptions;
 import lib.minecraft.renderer.options.spec.RenderOptions;
+import lib.minecraft.renderer.options.spec.SkinOptions;
+import lib.minecraft.renderer.options.spec.TextureOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
@@ -198,13 +200,13 @@ public final class TestPlayerRender {
         byte[] cape = capeTexture();
         List<Cell> cells = new ArrayList<>();
         cells.add(new Cell("FULL 3D base", base(size).type(PlayerOptions.Type.FULL).build()));
-        cells.add(new Cell("overlay off", base(size).type(PlayerOptions.Type.FULL).renderOverlay(false).build()));
+        cells.add(new Cell("overlay off", base(size).type(PlayerOptions.Type.FULL).skin(skinBase().renderOverlay(false).build()).build()));
         // The cape sits on the anatomical back, so the default front view hides it; the rear view
         // (180 yaw) turns the back to the camera to show it renders.
         cells.add(new Cell("cape (rear)", base(size).type(PlayerOptions.Type.FULL)
-            .renderCape(true).capeBytes(Optional.of(cape)).render(sweepRender(size).mutate().rotation(new EulerRotation(0f, 180f, 0f)).build()).build()));
+            .skin(skinBase().cape(TextureOptions.builder().bytes(Optional.of(cape)).build()).renderCape(true).build()).render(sweepRender(size).mutate().rotation(new EulerRotation(0f, 180f, 0f)).build()).build()));
         cells.add(new Cell("cape (front)", base(size).type(PlayerOptions.Type.FULL)
-            .renderCape(true).capeBytes(Optional.of(cape)).build()));
+            .skin(skinBase().cape(TextureOptions.builder().bytes(Optional.of(cape)).build()).renderCape(true).build()).build()));
         cells.add(new Cell("ssaa 1 (raw)", base(size).type(PlayerOptions.Type.FULL).render(sweepRender(size).mutate().supersample(1).build()).build()));
         cells.add(new Cell("ssaa 4 + fxaa", base(size).type(PlayerOptions.Type.FULL).render(sweepRender(size).mutate().antiAlias(true).build()).build()));
         cells.add(new Cell("rot 0/0/0 (front)", base(size).type(PlayerOptions.Type.FULL)
@@ -340,10 +342,10 @@ public final class TestPlayerRender {
             .type(PlayerOptions.Type.FULL).dimension(PlayerOptions.Dimension.TWO_D).build()));
         if (capeUrl.isPresent()) {
             cells.add(new Cell(username + " cape (rear)", accountBase(size, skinUrl)
-                .type(PlayerOptions.Type.FULL).renderCape(true).capeUrl(capeUrl)
+                .type(PlayerOptions.Type.FULL).skin(accountSkinBase(skinUrl).cape(TextureOptions.builder().url(capeUrl).build()).renderCape(true).build())
                 .render(sweepRender(size).mutate().rotation(new EulerRotation(0f, 180f, 0f)).build()).build()));
             cells.add(new Cell(username + " cape (3/4)", accountBase(size, skinUrl)
-                .type(PlayerOptions.Type.FULL).renderCape(true).capeUrl(capeUrl)
+                .type(PlayerOptions.Type.FULL).skin(accountSkinBase(skinUrl).cape(TextureOptions.builder().url(capeUrl).build()).renderCape(true).build())
                 .render(sweepRender(size).mutate().rotation(new EulerRotation(0f, 150f, 0f)).build()).build()));
         } else {
             System.out.println("  (account has no cape)");
@@ -353,8 +355,18 @@ public final class TestPlayerRender {
 
     /** Builder seeded with the account's live skin URL (or the default skin when the account has none). */
     private static PlayerOptions.@NotNull PlayerOptionsBuilder accountBase(int size, @NotNull Optional<String> skinUrl) {
-        PlayerOptions.PlayerOptionsBuilder builder = PlayerOptions.builder().render(sweepRender(size));
-        return skinUrl.isPresent() ? builder.skinUrl(skinUrl) : builder.skinTextureId(Optional.of(SKIN_ID));
+        return PlayerOptions.builder().render(sweepRender(size)).skin(accountSkinBase(skinUrl).build());
+    }
+
+    /**
+     * A {@link SkinOptions} builder seeded with the account's live skin URL, or the default skin id
+     * when the account has none.
+     */
+    private static SkinOptions.SkinOptionsBuilder accountSkinBase(@NotNull Optional<String> skinUrl) {
+        TextureOptions skin = skinUrl.isPresent()
+            ? TextureOptions.builder().url(skinUrl).build()
+            : TextureOptions.builder().id(Optional.of(SKIN_ID)).build();
+        return SkinOptions.builder().skin(skin);
     }
 
     // ---------------------------------------------------------------------------------------
@@ -536,8 +548,13 @@ public final class TestPlayerRender {
 
     private static PlayerOptions.@NotNull PlayerOptionsBuilder base(int size) {
         return PlayerOptions.builder()
-            .skinTextureId(Optional.of(SKIN_ID))
+            .skin(skinBase().build())
             .render(sweepRender(size));
+    }
+
+    /** A {@link SkinOptions} builder seeded with the sweep's default (Steve) skin source. */
+    private static SkinOptions.SkinOptionsBuilder skinBase() {
+        return SkinOptions.builder().skin(TextureOptions.builder().id(Optional.of(SKIN_ID)).build());
     }
 
     /** The shared sweep render frame - the per-cell size at {@link #SSAA}x supersample. */

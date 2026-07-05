@@ -11,6 +11,8 @@ import lib.minecraft.renderer.options.slot.PlayerSlot2D;
 import lib.minecraft.renderer.options.slot.PlayerSlot3D;
 import lib.minecraft.renderer.options.spec.ArmorOptions;
 import lib.minecraft.renderer.options.spec.RenderOptions;
+import lib.minecraft.renderer.options.spec.SkinOptions;
+import lib.minecraft.renderer.options.spec.TextureOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -18,7 +20,6 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Optional;
 import java.util.function.UnaryOperator;
 
 /**
@@ -38,15 +39,13 @@ import java.util.function.UnaryOperator;
  *       armor and trim layers composited via {@link ArmorKit} and {@link TrimKit}.</li>
  * </ul>
  *
- * <p>Skin input is supplied through one of three sources, tried in priority order:
- * {@link #getSkinBytes() skinBytes} (1), {@link #getSkinUrl() skinUrl} (2), then
- * {@link #getSkinTextureId() skinTextureId} (3); with none present the renderer falls back to the
- * registered {@code minecraft:entity/steve} texture. The {@code skinUrl} path extracts the URL's
- * trailing path segment (the texture hash) and streams the PNG through the
- * {@link Pipeline#mojang() Pipeline.mojang()} proxy. Cape input mirrors this via
- * {@link #getCapeBytes() capeBytes} / {@link #getCapeUrl() capeUrl} /
- * {@link #getCapeTextureId() capeTextureId}, consulted only when {@link #isRenderCape() renderCape}
- * is set.
+ * <p>Skin and cape input is supplied through the {@link #getSkin() skin} {@link SkinOptions}, whose
+ * skin and cape are each a three-source {@link TextureOptions} tried in priority order - raw PNG
+ * bytes (1), an absolute URL (2), then a pack-resolvable texture id (3). With no skin source present
+ * the renderer falls back to the registered {@code minecraft:entity/steve} texture. The URL path
+ * extracts the URL's trailing path segment (the texture hash) and streams the PNG through the
+ * {@link Pipeline#mojang() Pipeline.mojang()} proxy. The cape is consulted only when the skin's
+ * {@code renderCape} toggle is set.
  *
  * @see lib.minecraft.renderer.PlayerRenderer
  */
@@ -66,57 +65,13 @@ public class PlayerOptions implements Option {
     @lombok.Builder.Default
     private final @NotNull Dimension dimension = Dimension.THREE_D;
 
-    /**
-     * Raw PNG bytes of a player skin (priority 1 when resolving a skin).
-     */
+    /** The skin + cape texture sources and their render toggles. */
     @lombok.Builder.Default
-    private final @NotNull Optional<byte[]> skinBytes = Optional.empty();
-
-    /**
-     * Absolute URL to a player skin PNG (priority 2, streamed through {@code MojangContract.downloadTexture}).
-     */
-    @lombok.Builder.Default
-    private final @NotNull Optional<String> skinUrl = Optional.empty();
-
-    /**
-     * Texture id resolvable through the active pack stack (priority 3).
-     */
-    @lombok.Builder.Default
-    private final @NotNull Optional<String> skinTextureId = Optional.empty();
+    private final @NotNull SkinOptions skin = SkinOptions.defaults();
 
     /** The worn armor pieces (helmet, chestplate, leggings, boots). */
     @lombok.Builder.Default
     private final @NotNull ArmorOptions armor = ArmorOptions.defaults();
-
-    /**
-     * Whether to render the player cape behind the torso (3D bust and full only).
-     */
-    @lombok.Builder.Default
-    private final boolean renderCape = false;
-
-    /**
-     * Raw PNG bytes of the 64x32 cape texture. Ignored when {@link #renderCape} is false.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Optional<byte[]> capeBytes = Optional.empty();
-
-    /**
-     * Absolute URL to a cape texture PNG. Ignored when {@link #renderCape} is false.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Optional<String> capeUrl = Optional.empty();
-
-    /**
-     * Pack-resolvable cape texture id. Ignored when {@link #renderCape} is false.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Optional<String> capeTextureId = Optional.empty();
-
-    /**
-     * Whether to render the second skin layer (hat, jacket, sleeves, trousers).
-     */
-    @lombok.Builder.Default
-    private final boolean renderOverlay = true;
 
     /**
      * The default render frame for a player render - neutral output size, {@code VANILLA_ISO}

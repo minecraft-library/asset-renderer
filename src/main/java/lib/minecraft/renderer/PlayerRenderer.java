@@ -178,11 +178,10 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     // ---------------------------------------------------------------------------------------
 
     /**
-     * Resolves the player skin by priority: explicit
-     * {@link PlayerOptions#getSkinBytes() skin bytes} &gt; {@link PlayerOptions#getSkinUrl() skin URL}
-     * (fetched via {@link #fetchTexture} and cached for the renderer's lifetime) &gt;
-     * {@link PlayerOptions#getSkinTextureId() skin texture id} (resolved against the pack stack) &gt;
-     * the default {@code minecraft:entity/steve} skin.
+     * Resolves the player skin by priority from the {@link PlayerOptions#getSkin() skin} sources:
+     * explicit skin bytes &gt; skin URL (fetched via {@link #fetchTexture} and cached for the
+     * renderer's lifetime) &gt; skin texture id (resolved against the pack stack) &gt; the default
+     * {@code minecraft:entity/steve} skin.
      *
      * @param parent the owning renderer, for its image factory / skin cache / context
      * @param options the render options
@@ -190,20 +189,20 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * @throws RenderException if the default Steve skin is requested but not registered
      */
     static @NotNull PixelBuffer resolveSkin(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
-        if (options.getSkinBytes().isPresent())
-            return parent.imageFactory.fromByteArray(options.getSkinBytes().get()).toPixelBuffer();
+        if (options.getSkin().getSkin().getBytes().isPresent())
+            return parent.imageFactory.fromByteArray(options.getSkin().getSkin().getBytes().get()).toPixelBuffer();
 
-        if (options.getSkinUrl().isPresent()) {
-            String url = options.getSkinUrl().get();
+        if (options.getSkin().getSkin().getUrl().isPresent()) {
+            String url = options.getSkin().getSkin().getUrl().get();
             return parent.skinCache.computeIfAbsent(url, u -> {
                 byte[] bytes = fetchTexture(u);
                 return parent.imageFactory.fromByteArray(bytes).toPixelBuffer();
             });
         }
 
-        if (options.getSkinTextureId().isPresent()) {
+        if (options.getSkin().getSkin().getId().isPresent()) {
             RasterEngine engine = new RasterEngine(parent.context);
-            return engine.textures().resolveTexture(options.getSkinTextureId().get());
+            return engine.textures().resolveTexture(options.getSkin().getSkin().getId().get());
         }
 
         return parent.context.resolveTexture("minecraft:entity/steve")
@@ -257,22 +256,22 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * {@code renderCape} is false or no texture source is available.
      */
     static @NotNull Optional<PixelBuffer> resolveCape(@NotNull PlayerRenderer parent, @NotNull PlayerOptions options) {
-        if (!options.isRenderCape()) return Optional.empty();
+        if (!options.getSkin().isRenderCape()) return Optional.empty();
 
-        if (options.getCapeBytes().isPresent())
-            return Optional.of(parent.imageFactory.fromByteArray(options.getCapeBytes().get()).toPixelBuffer());
+        if (options.getSkin().getCape().getBytes().isPresent())
+            return Optional.of(parent.imageFactory.fromByteArray(options.getSkin().getCape().getBytes().get()).toPixelBuffer());
 
-        if (options.getCapeUrl().isPresent()) {
-            String url = options.getCapeUrl().get();
+        if (options.getSkin().getCape().getUrl().isPresent()) {
+            String url = options.getSkin().getCape().getUrl().get();
             return Optional.of(parent.skinCache.computeIfAbsent("cape:" + url, ignored -> {
                 byte[] bytes = fetchTexture(url);
                 return parent.imageFactory.fromByteArray(bytes).toPixelBuffer();
             }));
         }
 
-        if (options.getCapeTextureId().isPresent()) {
+        if (options.getSkin().getCape().getId().isPresent()) {
             RasterEngine engine = new RasterEngine(parent.context);
-            return engine.textures().tryResolveTexture(options.getCapeTextureId().get());
+            return engine.textures().tryResolveTexture(options.getSkin().getCape().getId().get());
         }
 
         return Optional.empty();
@@ -423,7 +422,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         int[] so = scaleAndOffset2D(options.getType(), size);
         BodyPart2D[] parts = layout2D(options.getType(), so[0], so[1]);
 
-        boolean overlay = options.isRenderOverlay();
+        boolean overlay = options.getSkin().isRenderOverlay();
         boolean enchanted = hasEnchantedArmor(options);
 
         // Compose the front-facing body as an ordered ImageLayer stack folded into Finalize's target;
@@ -515,7 +514,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
             LayerStack<GeometryLayer> stack = new LayerStack<>();
             stack.append(PlayerSlot3D.BODY, sink -> {
                 sink.addAll(BlockGeometryKit.unitCube(SkinFace.HEAD.cropAll(skin, false), ColorMath.WHITE));
-                if (options.isRenderOverlay() && hasHatOverlay(skin))
+                if (options.getSkin().isRenderOverlay() && hasHatOverlay(skin))
                     sink.addAll(BlockGeometryKit.buildBoxTriangles(
                         new Vector3f(-0.52f, -0.52f, -0.52f),
                         new Vector3f(0.52f, 0.52f, 0.52f),
@@ -674,7 +673,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         @NotNull PlayerOptions options
     ) {
         triangles.addAll(BlockGeometryKit.buildBoxTriangles(min, max, part.cropAll(skin, false), ColorMath.WHITE));
-        if (options.isRenderOverlay() && hasOverlay(skin))
+        if (options.getSkin().isRenderOverlay() && hasOverlay(skin))
             triangles.addAll(BlockGeometryKit.buildBoxTriangles(
                 new Vector3f(min.x() - OVERLAY_INFLATE, min.y() - OVERLAY_INFLATE, min.z() - OVERLAY_INFLATE),
                 new Vector3f(max.x() + OVERLAY_INFLATE, max.y() + OVERLAY_INFLATE, max.z() + OVERLAY_INFLATE),
