@@ -470,17 +470,51 @@ public final class EntityRuntimeJsonWriter {
         for (String prefix : GEOMETRY_NAME_PREFIXES) {
             if (stem.startsWith(prefix)) stem = stem.substring(prefix.length());
         }
+        String root = matchFamilyRoot(stem, members);
+        if (root != null) return root;
+        // Collision-suffixed geometry ids hide the canonical stem: when another factory claims
+        // {@code geometry.skeleton} first, the shared skeleton mesh becomes {@code geometry.skeleton_1},
+        // whose stem ({@code skeleton_1}) matches no member. Retry after dropping a trailing {@code _<n>}
+        // collision suffix so the shared mesh still resolves to its canonical entity root, independent of
+        // which factory won the unsuffixed id (the geometry table is insertion-ordered, so that is stable
+        // but need not favour the canonical entity).
+        String destemmed = stripCollisionSuffix(stem);
+        return destemmed.equals(stem) ? null : matchFamilyRoot(destemmed, members);
+    }
+
+    /**
+     * Matches a geometry {@code stem} against the family members: an exact {@code minecraft:<stem>}
+     * plain-id root (mooshroom -&gt; cow), else a {@code minecraft:<stem>_<variant>} variant base
+     * (geometry.cow -&gt; cow_temperate, since variant-registry entities have no plain {@code <id>}
+     * row and the non-canonical variants are already filtered out of {@code members}).
+     *
+     * @param stem the geometry stem (after the {@code geometry.} + name-prefix strip)
+     * @param members the entities sharing the geometry
+     * @return the matched canonical root member, or {@code null} when none matches
+     */
+    private static @Nullable String matchFamilyRoot(@NotNull String stem, @NotNull List<String> members) {
         String targetId = VanillaSourcePaths.MINECRAFT_NAMESPACE + stem;
-        // Exact match: the geometry stem names a plain-id root (mooshroom -> cow when cow is plain).
         for (String member : members)
             if (member.equals(targetId)) return member;
-        // Variant-base fallback: variant-registry entities have no plain {@code <id>} row - their base
-        // is named {@code <id>_<canonicalVariant>} (geometry.cow's root is cow_temperate, not cow). The
-        // non-canonical variants carry {@code variant_of} and are already filtered out of {@code members},
-        // so a member starting with {@code <targetId>_} is the canonical base of that variant family.
         for (String member : members)
             if (member.startsWith(targetId + "_")) return member;
         return null;
+    }
+
+    /**
+     * Strips a trailing {@code _<digits>} collision suffix (the disambiguator the geometry-id
+     * assignment appends when two factories derive the same class stem), or returns {@code stem}
+     * unchanged when it carries none.
+     *
+     * @param stem the geometry stem to de-suffix
+     * @return the stem without its trailing {@code _<n>} collision suffix
+     */
+    private static @NotNull String stripCollisionSuffix(@NotNull String stem) {
+        int underscore = stem.lastIndexOf('_');
+        if (underscore <= 0 || underscore == stem.length() - 1) return stem;
+        for (int i = underscore + 1; i < stem.length(); i++)
+            if (!Character.isDigit(stem.charAt(i))) return stem;
+        return stem.substring(0, underscore);
     }
 
 }

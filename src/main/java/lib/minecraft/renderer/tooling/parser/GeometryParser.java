@@ -112,7 +112,12 @@ public final class GeometryParser {
      * @throws ToolingException when the client jar can't be read
      */
     public static @NotNull ConcurrentMap<String, JsonObject> parse(@NotNull Path jarPath, @NotNull List<Source> sources, @NotNull Diagnostics diagnostics) {
-        ConcurrentMap<String, JsonObject> results = Concurrent.newMap();
+        // Insertion-ordered (parse follows the sources list sequentially) so the emitted geometry
+        // table is deterministic and stable across additions: a new source appends its entry at the
+        // end rather than perturbing a hash order and reshuffling every existing entry. Downstream
+        // geometry-id assignment iterates this in sources order, so unchanged entities keep both their
+        // id and their file position when new geometry is added.
+        ConcurrentMap<String, JsonObject> results = Concurrent.newLinkedMap();
 
         try (ZipFile zip = new ZipFile(jarPath.toFile())) {
             for (Source source : sources) {

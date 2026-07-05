@@ -91,7 +91,7 @@
       "texture_ref": "skeleton/bogged",
       "overlays": [
         {
-          "geometry_ref": "geometry.humanoid_1",
+          "geometry_ref": "geometry.humanoid_3",
           "texture_ref": "skeleton/bogged_overlay"
         }
       ]
@@ -458,7 +458,7 @@
       }
     },
     "minecraft:elder_guardian": {
-      "geometry_ref": "geometry.guardian_1",
+      "geometry_ref": "geometry.guardian",
       "armor_type": "none",
       "texture_ref": "guardian/guardian_elder"
     },
@@ -641,7 +641,7 @@
       }
     },
     "minecraft:guardian": {
-      "geometry_ref": "geometry.guardian",
+      "geometry_ref": "geometry.guardian_1",
       "armor_type": "none",
       "texture_ref": "guardian/guardian"
     },
@@ -686,7 +686,7 @@
       }
     },
     "minecraft:husk": {
-      "geometry_ref": "geometry.humanoid_2",
+      "geometry_ref": "geometry.humanoid_1",
       "armor_type": "humanoid",
       "texture_ref": "zombie/husk",
       "axes": {
@@ -954,7 +954,7 @@
       }
     },
     "minecraft:parched": {
-      "geometry_ref": "geometry.skeleton_1",
+      "geometry_ref": "geometry.skeleton",
       "armor_type": "humanoid",
       "texture_ref": "skeleton/parched"
     },
@@ -1146,7 +1146,7 @@
       "texture_ref": "silverfish/silverfish"
     },
     "minecraft:skeleton": {
-      "geometry_ref": "geometry.skeleton",
+      "geometry_ref": "geometry.skeleton_1",
       "armor_type": "humanoid",
       "texture_ref": "skeleton/skeleton"
     },
@@ -1156,13 +1156,13 @@
       "texture_ref": "horse/horse_skeleton"
     },
     "minecraft:slime": {
-      "geometry_ref": "geometry.slime_1",
+      "geometry_ref": "geometry.slime",
       "armor_type": "none",
       "texture_ref": "slime/slime",
       "renderer_scale": 0.999,
       "overlays": [
         {
-          "geometry_ref": "geometry.slime",
+          "geometry_ref": "geometry.slime_1",
           "texture_ref": "slime/slime"
         }
       ]
@@ -1241,12 +1241,12 @@
       "texture_ref": "squid/squid"
     },
     "minecraft:stray": {
-      "geometry_ref": "geometry.skeleton",
+      "geometry_ref": "geometry.skeleton_1",
       "armor_type": "humanoid",
       "texture_ref": "skeleton/stray",
       "overlays": [
         {
-          "geometry_ref": "geometry.humanoid_3",
+          "geometry_ref": "geometry.humanoid_4",
           "texture_ref": "skeleton/stray_overlay"
         }
       ],
@@ -1556,7 +1556,7 @@
       }
     },
     "minecraft:zombie": {
-      "geometry_ref": "geometry.humanoid_4",
+      "geometry_ref": "geometry.humanoid_2",
       "armor_type": "humanoid",
       "texture_ref": "zombie/zombie",
       "axes": {
