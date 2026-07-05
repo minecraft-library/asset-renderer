@@ -16,7 +16,7 @@ import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
-import lib.minecraft.renderer.engine.compose.FinalizeStage;
+import lib.minecraft.renderer.engine.compose.Finalize;
 import lib.minecraft.renderer.engine.compose.FrameCompositor;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
@@ -307,9 +307,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         private @NotNull ImageData relightAndFinalize(@NotNull ModelEngine engine, @NotNull ConcurrentList<VisibleTriangle> triangles, @NotNull EulerRotation guiRotation, boolean cullBlockModelFaces, @NotNull BlockOptions options) {
             ConcurrentList<VisibleTriangle> relit = Shading.relightForItems3d(triangles, guiRotation, cullBlockModelFaces);
             int ssaa = Math.max(1, options.getSupersample());
-            return FinalizeStage.run(options.getOutputSize(), options.getOutputSize(), ssaa, options.isAntiAlias(), false,
-                (target, mask) -> engine.rasterize(relit, target),
-                (buffer, mask) -> FrameCompositor.staticFrame(buffer));
+            return Finalize.render(
+                Finalize.FinalizeSpec.staticFrame(options.getOutputSize(), options.getOutputSize(), ssaa, options.isAntiAlias()),
+                (target, mask, tick) -> engine.rasterize(relit, target));
         }
 
         /**

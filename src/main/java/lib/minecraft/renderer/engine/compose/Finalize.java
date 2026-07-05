@@ -164,6 +164,21 @@ public final class Finalize {
     }
 
     /**
+     * Runs the rasterize + supersample / FXAA / downscale tail for a single frame and returns the
+     * finished buffer, without wrapping it into {@link ImageData}. For renderers that assemble their
+     * own multi-frame output (e.g. a cross-frame loop crossfade) and need the raw finished buffers.
+     *
+     * @param spec the terminal recipe (the animation + glint fields are ignored; {@code recordMask}
+     *        still applies)
+     * @param raster draws the frame at {@code tick}
+     * @param tick the animation tick to draw
+     * @return the finished (downscaled) buffer
+     */
+    public static @NotNull PixelBuffer frame(@NotNull FinalizeSpec spec, @NotNull FrameRasterizer raster, int tick) {
+        return rasterizeAndPost(spec, raster, tick).buffer();
+    }
+
+    /**
      * Draws one frame at {@code tick} and runs the supersample / FXAA / downscale tail. When
      * {@code ssaa > 1} the frame is drawn into a pooled hi-res buffer, FXAA'd there, blit-scaled down,
      * and any mask downsampled; otherwise it is drawn straight into the output buffer.

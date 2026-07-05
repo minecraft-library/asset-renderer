@@ -10,7 +10,7 @@ import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Projection;
-import lib.minecraft.renderer.engine.compose.FinalizeStage;
+import lib.minecraft.renderer.engine.compose.Finalize;
 import lib.minecraft.renderer.engine.compose.FrameCompositor;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
@@ -547,20 +547,21 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
 
             // Pass 2: rasterize the cube with a uniform-white sampler so each pixel's red channel is
             // the per-face shading coefficient * 255, compose shader * mask into the target, then FXAA
-            // + downscale via the shared FinalizeStage. The shading mask is scope-local pooled scratch.
+            // + downscale via the shared Finalize tail. The shading mask is scope-local pooled scratch.
             PixelBuffer white = PixelBuffer.create(1, 1);
             white.setPixel(0, 0, ColorMath.WHITE);
             ConcurrentList<VisibleTriangle> triangles = buildGeometry(options.getPortal(), SixFaces.uniform(white));
 
-            return FinalizeStage.run(options.getOutputSize(), options.getOutputSize(), ssaa, options.isAntiAlias(), false,
-                (target, ignoredMask) -> {
+            return Finalize.frame(
+                Finalize.FinalizeSpec.staticFrame(options.getOutputSize(), options.getOutputSize(), ssaa, options.isAntiAlias()),
+                (target, ignoredMask, ignoredTick) -> {
                     try (PixelBufferPool.Lease maskLease = PixelBufferPool.acquire(target.width(), target.height())) {
                         PixelBuffer shadingMask = maskLease.buffer();
                         engine.rasterize(triangles, shadingMask);
                         composeShaderMask(target, shadingMask, shaderCanvas, target.width());
                     }
                 },
-                (buffer, ignoredMask) -> buffer);
+                tick);
         }
 
         /**
