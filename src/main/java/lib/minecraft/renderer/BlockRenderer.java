@@ -19,6 +19,7 @@ import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.FinalizeStage;
 import lib.minecraft.renderer.engine.compose.Frames;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
+import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
 import lib.minecraft.renderer.engine.light.Shading;
@@ -206,8 +207,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
                     stack.append(BlockOptions.Slot.PARTS, sink -> sink.addAll(buildFromEntityParts(be, tint)));
             }
 
-            for (GeometryLayer layer : options.getLayerDecorator().apply(stack).ordered())
-                layer.contribute(triangles);
+            Layers.foldInto(stack, options.getLayerDecorator(), triangles);
 
             // Every block entity runs recenterAndFit: its composed bone geometry isn't measured up
             // front, and recenterAndFit self-gates on extent > 1.4 blocks - a no-op for the

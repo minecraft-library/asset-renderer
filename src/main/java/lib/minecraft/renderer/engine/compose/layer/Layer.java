@@ -24,4 +24,5 @@ public interface Layer<A> {
      * @param target the shared accumulator every layer in the stack contributes to
      */
     void contribute(@NotNull A target);
+
 }

@@ -15,4 +15,5 @@ import dev.simplified.image.pixel.PixelBuffer;
  */
 @FunctionalInterface
 public interface ImageLayer extends Layer<PixelBuffer> {
+
 }

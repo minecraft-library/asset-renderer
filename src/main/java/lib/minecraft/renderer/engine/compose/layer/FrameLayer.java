@@ -18,4 +18,5 @@ import lib.minecraft.renderer.engine.compose.FramePlacement;
  */
 @FunctionalInterface
 public interface FrameLayer extends Layer<ConcurrentList<FramePlacement>> {
+
 }

@@ -13,6 +13,7 @@ import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.AnimationStage;
 import lib.minecraft.renderer.engine.compose.FinalizeStage;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
+import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.kit.FluidGeometryKit;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
@@ -178,8 +179,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             LayerStack<GeometryLayer> stack = new LayerStack<>();
             stack.append(FluidOptions.Slot.CUBE, sink -> sink.addAll(FluidGeometryKit.buildFluidCube(
                 options.getCornerHeights(), still, flow, options.getFlowAngleRadians(), tint)));
-            for (GeometryLayer layer : options.getLayerDecorator().apply(stack).ordered())
-                layer.contribute(triangles);
+            Layers.foldInto(stack, options.getLayerDecorator(), triangles);
 
             int ssaa = Math.max(1, options.getSupersample());
             return FinalizeStage.run(options.getOutputSize(), options.getOutputSize(), ssaa, options.isAntiAlias(), false,

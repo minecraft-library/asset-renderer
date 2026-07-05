@@ -18,6 +18,7 @@ import lib.minecraft.renderer.engine.compose.FinalizeStage;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.GlintStage;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
+import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.kit.ArmorKit;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
@@ -450,8 +451,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 compositeArmor2D(frame, bp.part, bp.x, bp.y, bp.w, bp.h, options, engine, glintMask);
         });
 
-        for (ImageLayer layer : options.getLayerDecorator().apply(stack).ordered())
-            layer.contribute(buffer);
+        Layers.foldInto(stack, options.getLayerDecorator(), buffer);
 
         if (options.isAntiAlias())
             buffer.applyFxaa();
@@ -531,8 +531,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                     options.getLeggings(), options.getBoots(), engine.textures()));
             });
 
-            for (GeometryLayer layer : options.getGeometryLayerDecorator().apply(stack).ordered())
-                layer.contribute(triangles);
+            Layers.foldInto(stack, options.getGeometryLayerDecorator(), triangles);
 
             return rasterize3D(engine, triangles, options);
         }
@@ -581,8 +580,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 .ifPresent(cape -> stack.append(PlayerOptions.Slot3D.CAPE,
                     sink -> addCape(sink, cape, BUST_TORSO_MIN, BUST_TORSO_MAX)));
 
-            for (GeometryLayer layer : options.getGeometryLayerDecorator().apply(stack).ordered())
-                layer.contribute(triangles);
+            Layers.foldInto(stack, options.getGeometryLayerDecorator(), triangles);
 
             return rasterize3D(engine, triangles, options);
         }
@@ -635,8 +633,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
                 .ifPresent(cape -> stack.append(PlayerOptions.Slot3D.CAPE,
                     sink -> addCape(sink, cape, FULL_TORSO_MIN, FULL_TORSO_MAX)));
 
-            for (GeometryLayer layer : options.getGeometryLayerDecorator().apply(stack).ordered())
-                layer.contribute(triangles);
+            Layers.foldInto(stack, options.getGeometryLayerDecorator(), triangles);
 
             return rasterize3D(engine, triangles, options);
         }

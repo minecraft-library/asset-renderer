@@ -7,6 +7,7 @@ import dev.simplified.image.pixel.ColorMath;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.compose.Frames;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
+import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.kit.ObfuscationKit;
 import lib.minecraft.renderer.engine.kit.TextKit;
@@ -148,8 +149,7 @@ public final class TextRenderer implements Renderer<TextOptions> {
             }
         });
 
-        for (ImageLayer layer : options.getLayerDecorator().apply(stack).ordered())
-            layer.contribute(buffer);
+        Layers.foldInto(stack, options.getLayerDecorator(), buffer);
 
         ConcurrentList<PixelBuffer> frames = Concurrent.newList();
         frames.add(buffer);

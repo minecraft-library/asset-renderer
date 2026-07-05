@@ -26,4 +26,5 @@ import lib.minecraft.renderer.engine.raster.VisibleTriangle;
  */
 @FunctionalInterface
 public interface GeometryLayer extends Layer<ConcurrentList<VisibleTriangle>> {
+
 }

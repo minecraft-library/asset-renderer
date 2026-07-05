@@ -19,6 +19,7 @@ import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.compose.GlintStage;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
 import lib.minecraft.renderer.engine.compose.ImageLayerContext;
+import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.kit.BannerKit;
 import lib.minecraft.renderer.engine.kit.BlockGeometryKit;
@@ -483,8 +484,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // in via ItemOptions.layerDecorator. The terminal glint is the finalisation step, not a
             // layer, because it expands the single buffer into one or many animation frames.
             ImageLayerContext ctx = new ImageLayerContext(this.context, engine.textures(), item, options);
-            LayerStack<ImageLayer> stack = options.getLayerDecorator().apply(buildGuiLayers(ctx));
-            for (ImageLayer layer : stack.ordered()) layer.contribute(buffer);
+            Layers.foldInto(buildGuiLayers(ctx), options.getLayerDecorator(), buffer);
 
             return finalize2DItem(engine.textures(), buffer, item, options);
         }

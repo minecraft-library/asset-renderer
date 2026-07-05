@@ -20,6 +20,7 @@ import lib.minecraft.renderer.engine.compose.FinalizeStage;
 import lib.minecraft.renderer.engine.compose.Frames;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.GlintStage;
+import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.compose.SceneContext;
 import lib.minecraft.renderer.engine.kit.ArmorKit;
@@ -242,8 +243,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         for (EntityFeature feature : EntityFeature.values())
             feature.contribute(featureCtx, stack);
 
-        for (GeometryLayer layer : options.getLayerDecorator().apply(stack).ordered())
-            layer.contribute(triangles);
+        Layers.foldInto(stack, options.getLayerDecorator(), triangles);
 
         boolean enchanted = ArmorKit.hasEnchantedArmor(
             options.getHelmet(), options.getChestplate(),
