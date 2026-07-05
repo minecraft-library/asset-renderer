@@ -151,8 +151,11 @@ public class EntityModelLoader {
          * policy into the returned definition so the renderer iterates its data unconditionally
          * (no scattered {@code !baby} gates). A baby swaps in the {@link #babyModel} and drops the
          * model overlays, block overlays, and collar - each carries adult geometry that would render
-         * adult-sized around the smaller baby body; {@code carried == "none"} drops the block
-         * overlays. A non-baby, non-carried appearance returns an equivalent definition unchanged.
+         * adult-sized around the smaller baby body. The block overlays are resolved against the
+         * carried selection (see {@link #resolveBlockOverlays}): {@code carried == "none"} drops the
+         * always-present decorations, and a selected block id fills the selectable held-block slots
+         * (enderman carried block, iron golem flower). A non-baby, non-carried appearance returns an
+         * equivalent definition unchanged.
          *
          * @param appearance the axis selections to resolve against
          * @return the age / carried / sheared-resolved definition
@@ -170,10 +173,35 @@ public class EntityModelLoader {
                 // goat horns hide). Guarded to the non-baby path - the baby mesh has its own bones.
                 EntityModelData toggled = applyBoneToggles(appearance.getToggles());
                 if (toggled != null) builder.model(toggled);
+                builder.blockOverlays(resolveBlockOverlays(appearance));
             }
-            if (appearance.dropsCarried())
-                builder.blockOverlays(List.of());
             return builder.build();
+        }
+
+        /**
+         * Resolves this definition's block overlays against the appearance's carried selection. A
+         * <b>fixed</b> overlay (mooshroom mushrooms, snow golem pumpkin) is kept unless
+         * {@link EntityAppearance#dropsCarried() carried == "none"} drops it; a <b>selectable</b>
+         * overlay (enderman carried block, iron golem flower) is kept only when
+         * {@link EntityAppearance#selectedCarriedBlock() a block is selected}, with its block id
+         * replaced by that selection. The default (empty) appearance therefore renders the fixed
+         * decorations and no selectable held block - byte-identical to the pre-selectable behaviour.
+         *
+         * @param appearance the axis selections to resolve against
+         * @return the resolved block-overlay list
+         */
+        private @NotNull List<BlockOverlayLayer> resolveBlockOverlays(@NotNull EntityAppearance appearance) {
+            if (this.blockOverlays.isEmpty()) return this.blockOverlays;
+            Optional<String> selected = appearance.selectedCarriedBlock();
+            boolean dropsFixed = appearance.dropsCarried();
+            List<BlockOverlayLayer> out = new ArrayList<>(this.blockOverlays.size());
+            for (BlockOverlayLayer overlay : this.blockOverlays) {
+                if (overlay.selectable())
+                    selected.ifPresent(id -> out.add(overlay.withBlockId(id)));
+                else if (!dropsFixed)
+                    out.add(overlay);
+            }
+            return List.copyOf(out);
         }
 
         /**
@@ -218,30 +246,50 @@ public class EntityModelLoader {
      * head-attached overlays (mooshroom's third mushroom between the horns) follow the head's
      * runtime / bind-pose rotation.
      *
-     * @param blockId the block id to render (e.g. {@code "minecraft:red_mushroom_block"})
+     * @param blockId the block id to render (e.g. {@code "minecraft:red_mushroom_block"}); the
+     *     documented default for a {@link #selectable} row (empty when the layer has no vanilla
+     *     literal, as for the enderman carried block), always overridden at render by the caller's
+     *     selection
      * @param attachedBone optional entity-bone whose pose stack pre-multiplies the transforms
-     *     (e.g. {@code "head"} for the mooshroom horn-mushroom). {@code null} when the overlay
-     *     is positioned in the entity's root frame
-     * @param transforms ordered list of {@code translate} / {@code rotate_y} / {@code scale} ops
-     *     applied to the block model after the optional bone pose
+     *     (e.g. {@code "head"} for the mooshroom horn-mushroom, {@code "right_arm"} for the iron
+     *     golem flower). {@code null} when the overlay is positioned in the entity's root frame
+     * @param transforms ordered list of {@code translate} / {@code rotate_y} / {@code rotate_x} /
+     *     {@code scale} ops applied to the block model after the optional bone pose
+     * @param selectable when {@code true} this overlay is a caller-selected held block (enderman
+     *     carried block, iron golem flower) rather than an always-present body decoration
+     *     (mooshroom mushrooms, snow golem pumpkin): it renders only when
+     *     {@link EntityAppearance#selectedCarriedBlock()} supplies a block id, which replaces
+     *     {@link #blockId}. The default (unselected) render draws no selectable overlay
      */
     public record BlockOverlayLayer(
         @NotNull String blockId,
         @Nullable String attachedBone,
-        @NotNull List<TransformOp> transforms
-    ) {}
+        @NotNull List<TransformOp> transforms,
+        boolean selectable
+    ) {
+        /**
+         * Returns a copy with {@link #blockId} replaced by {@code newBlockId}, for resolving a
+         * {@link #selectable} overlay against the caller's chosen carried block.
+         *
+         * @param newBlockId the block id to render in place of the documented default
+         * @return an otherwise-identical overlay rendering {@code newBlockId}
+         */
+        public @NotNull BlockOverlayLayer withBlockId(@NotNull String newBlockId) {
+            return new BlockOverlayLayer(newBlockId, this.attachedBone, this.transforms, this.selectable);
+        }
+    }
 
     /**
      * One transform operation in a {@link BlockOverlayLayer}'s chain. Mirrors the vanilla
      * {@code PoseStack} ops a render layer issues between {@code pushPose} / {@code popPose}:
      * {@code translate(F, F, F)} -> {@link Translate}, {@code mulPose(rotationDegrees(deg))} on
-     * the Y axis -> {@link RotateY}, {@code scale(F, F, F)} -> {@link Scale}.
+     * the Y axis -> {@link RotateY} / on the X axis -> {@link RotateX}, {@code scale(F, F, F)} ->
+     * {@link Scale}.
      *
      * <p>Sealed so the renderer can pattern-match without a default branch. Add a new op kind
-     * (e.g. {@code RotateX}) by extending the seal and updating both the JSON serialiser and
-     * the renderer dispatch.
+     * by extending the seal and updating both the JSON serialiser and the renderer dispatch.
      */
-    public sealed interface TransformOp permits Translate, RotateY, Scale {}
+    public sealed interface TransformOp permits Translate, RotateY, RotateX, Scale {}
 
     /**
      * Translation by {@code (x, y, z)} in entity-local units.
@@ -252,6 +300,12 @@ public class EntityModelLoader {
      * Rotation around the Y axis by {@code degrees}.
      */
     public record RotateY(float degrees) implements TransformOp {}
+
+    /**
+     * Rotation around the X axis by {@code degrees} (the enderman carried block's {@code Axis.XP}
+     * tilt, the iron golem flower's {@code Axis.XP} lay-flat).
+     */
+    public record RotateX(float degrees) implements TransformOp {}
 
     /**
      * Per-axis scale {@code (x, y, z)}. Negative components flip the axis.
@@ -629,8 +683,13 @@ public class EntityModelLoader {
         for (JsonElement element : array) {
             if (!element.isJsonObject()) continue;
             JsonObject row = element.getAsJsonObject();
-            if (!row.has("block_id")) continue;
-            String blockId = row.get("block_id").getAsString();
+            boolean selectable = row.has("selectable") && row.get("selectable").getAsBoolean();
+            // A fixed row needs its block_id; a selectable row's block is supplied at render from
+            // EntityAppearance.carried, so its emitted block_id (poppy for the iron golem flower) is
+            // only a documented default and may be omitted entirely (the enderman carried block has
+            // no vanilla literal). Skip only rows that carry neither.
+            if (!row.has("block_id") && !selectable) continue;
+            String blockId = row.has("block_id") ? row.get("block_id").getAsString() : "";
             String attachedBone = row.has("attached_bone") && !row.get("attached_bone").isJsonNull()
                 ? row.get("attached_bone").getAsString()
                 : null;
@@ -646,6 +705,7 @@ public class EntityModelLoader {
                             opObj.get("y").getAsFloat(),
                             opObj.get("z").getAsFloat()));
                         case "rotate_y" -> ops.add(new RotateY(opObj.get("degrees").getAsFloat()));
+                        case "rotate_x" -> ops.add(new RotateX(opObj.get("degrees").getAsFloat()));
                         case "scale" -> ops.add(new Scale(
                             opObj.get("x").getAsFloat(),
                             opObj.get("y").getAsFloat(),
@@ -654,7 +714,7 @@ public class EntityModelLoader {
                     }
                 }
             }
-            out.add(new BlockOverlayLayer(blockId, attachedBone, List.copyOf(ops)));
+            out.add(new BlockOverlayLayer(blockId, attachedBone, List.copyOf(ops), selectable));
         }
         return List.copyOf(out);
     }

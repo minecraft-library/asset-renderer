@@ -42,10 +42,17 @@ public class EntityAppearance {
     private final @NotNull Optional<String> state = Optional.empty();
 
     /**
-     * Carried-block selector for entities with attached block overlays (snow golem's carved pumpkin,
-     * mooshroom's mushrooms). Empty (default) renders the entity's authored blocks; {@code "none"}
-     * drops them (a sheared snow golem), removing both their geometry and their canvas-bounds
-     * contribution.
+     * Carried-block selector. Two roles depending on the entity's block overlays:
+     *
+     * <ul>
+     *   <li>For always-present body decorations (snow golem's carved pumpkin, mooshroom's
+     *       mushrooms): empty (default) renders the authored blocks; {@code "none"} drops them (a
+     *       sheared snow golem), removing both their geometry and their canvas-bounds contribution.</li>
+     *   <li>For caller-selected held blocks (enderman carried block, iron golem flower): a block id
+     *       ({@code "minecraft:poppy"}) renders that block in the entity's selectable overlay slot;
+     *       empty (default) and {@code "none"} draw no held block, matching vanilla's empty-handed
+     *       default. See {@link #selectedCarriedBlock()}.</li>
+     * </ul>
      */
     @lombok.Builder.Default
     private final @NotNull Optional<String> carried = Optional.empty();
@@ -100,6 +107,17 @@ public class EntityAppearance {
      */
     public boolean dropsCarried() {
         return this.carried.filter("none"::equals).isPresent();
+    }
+
+    /**
+     * The block id to render in a {@code selectable} block overlay (enderman carried block, iron
+     * golem flower), or empty when no held block is selected. A selectable overlay renders only when
+     * this is present; the default (empty) and {@code "none"} both leave the entity empty-handed.
+     *
+     * @return the selected carried block id, or empty for the default / dropped state
+     */
+    public @NotNull Optional<String> selectedCarriedBlock() {
+        return this.carried.filter(id -> !"none".equals(id));
     }
 
     /**

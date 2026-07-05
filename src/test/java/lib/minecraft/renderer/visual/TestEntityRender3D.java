@@ -111,7 +111,7 @@ public final class TestEntityRender3D {
         for (String entityId : entityIds) {
             String safeName = entityId.replace(':', '_')
                 + state.map(s -> "_" + s).orElse("")
-                + carried.map(c -> "_carried-" + c).orElse("")
+                + carried.map(c -> "_carried-" + c.replace(':', '_')).orElse("")
                 + collarName.map(c -> "_collar-" + c).orElse("")
                 + woolName.map(c -> "_wool-" + c).orElse("")
                 + (sheared ? "_sheared" : "")

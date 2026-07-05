@@ -33,14 +33,17 @@ import java.util.Map;
  * {@code addLayer(new XLayer(...))} where {@code XLayer} renders a vanilla block model on top
  * of the entity body - conceptually the family that includes mooshroom mushrooms, iron golem
  * poppy, and enderman carried block. Recognition is <b>structural, not an allowlist</b>: a layer
- * qualifies when its {@code submit} reads a {@code BlockModelRenderState}-typed field and the
- * block id resolves either from a matching {@code $Variant} enum on the RenderState
- * (mooshroom's {@code MushroomCowMushroomLayer}) or from a literal {@code Blocks.X} bound in the
- * renderer's {@code extractRenderState} for an always-present decoration (snow-golem's
- * {@code SnowGolemHeadLayer} carved_pumpkin) - see {@link #detectKnownLayer}. Conditional
- * decorations (iron-golem poppy, enderman carried block) fail the presence gate and are skipped.
- * The walker stays generic (no layer-class allowlist) so future block-overlay layers of either
- * shape auto-classify without a code change.
+ * qualifies when its {@code submit} reads a {@code BlockModelRenderState}-typed field; the block id
+ * then resolves from one of three shapes (see {@link #detectKnownLayer}): a matching {@code $Variant}
+ * enum on the RenderState (mooshroom's {@code MushroomCowMushroomLayer}), a presence-gated literal
+ * {@code Blocks.X} bound in the renderer's {@code extractRenderState} for an always-present
+ * decoration (snow-golem's {@code SnowGolemHeadLayer} carved_pumpkin), or a <b>selectable held
+ * block</b> - a conditional decoration whose block is supplied at render from
+ * {@code EntityAppearance.carried} (iron-golem poppy, enderman carried block). Selectable rows carry
+ * a {@code "selectable": true} flag and render only when the caller picks a block; the default render
+ * draws none, so the always-present decorations stay byte-identical. The walker stays generic (no
+ * layer-class allowlist) so future block-overlay layers of any shape auto-classify without a code
+ * change.
  *
  * <p>Walks the renderer constructor for {@code addLayer(new RecognisedLayer(this[, args]))}
  * dispatches, then walks the matched layer's {@code submit} method for each
@@ -51,12 +54,14 @@ import java.util.Map;
  * <ul>
  *   <li>{@code pose.translate(F, F, F)} - emitted as {@link OpKind#TRANSLATE}.</li>
  *   <li>{@code pose.scale(F, F, F)} - emitted as {@link OpKind#SCALE}.</li>
- *   <li>{@code pose.mulPose(Axis.YP.rotationDegrees(F))} - emitted as {@link OpKind#ROTATE_Y}.
- *       Other axes / quaternion paths are skipped (vanilla block-overlay layers all use Y).</li>
+ *   <li>{@code pose.mulPose(Axis.YP.rotationDegrees(F))} - emitted as {@link OpKind#ROTATE_Y}, and
+ *       {@code Axis.XP.rotationDegrees(F)} as {@link OpKind#ROTATE_X} ({@code ?N} sign folded in). A
+ *       Z rotation / quaternion path is skipped (no vanilla block-overlay layer uses one).</li>
  *   <li>{@code parent.getHead().translateAndRotate(pose)} - flagged on the descriptor as
- *       {@code attachedBone="head"} (the {@code get} prefix stripped and the first letter
- *       lower-cased); the pose-stack equivalent of the bone's pivot translate + rotation is
- *       reconstructed at render time.</li>
+ *       {@code attachedBone}, resolved through the model class to the {@code getChild} bone name
+ *       ({@code getHead} -&gt; {@code "head"}, {@code getFlowerHoldingArm} -&gt; {@code "right_arm"});
+ *       the pose-stack equivalent of the bone's pivot translate + rotation is reconstructed at
+ *       render time.</li>
  * </ul>
  *
  * <p>Block id determination resolves the <b>canonical default</b> per layer, not the live
@@ -130,7 +135,10 @@ public final class EntityBlockOverlayResolver {
             if (layerInfo == null) continue;
 
             String defaultBlockId = resolveDefaultBlockId(classNodes, layerInfo, entityId, diagnostics);
-            if (defaultBlockId == null) {
+            // A selectable overlay's block is supplied at render (enderman's runtime carried block
+            // has no vanilla literal), so a null id is expected - emit it with no default block_id.
+            // A fixed overlay with an unresolvable id is a genuine parse failure; warn and skip.
+            if (defaultBlockId == null && !layerInfo.selectable()) {
                 diagnostics.warn("%s: layer '%s' default block id could not be resolved (variant class '%s')",
                     entityId, layerInternalName, layerInfo.variantClass());
                 continue;
@@ -150,7 +158,7 @@ public final class EntityBlockOverlayResolver {
                 continue;
             }
 
-            List<Result> extracted = extractPoseBlocks(submitMethod, defaultBlockId);
+            List<Result> extracted = extractPoseBlocks(submitMethod, defaultBlockId, layerInfo.selectable(), classNodes);
             out.addAll(extracted);
         }
         return out;
@@ -160,7 +168,7 @@ public final class EntityBlockOverlayResolver {
      * Detects whether {@code layerInternalName} is a block-rendering overlay layer and resolves
      * how its canonical default-state block id is determined. A layer qualifies when its
      * typed-state {@code submit} overload reads a {@code BlockModelRenderState}-typed field from
-     * the entity's RenderState class. Two block-id sources are recognised:
+     * the entity's RenderState class. Three block-id sources are recognised:
      *
      * <ul>
      *   <li><b>Variant-driven</b> - the state class also declares an enum-typed field whose
@@ -168,28 +176,33 @@ public final class EntityBlockOverlayResolver {
      *       resolves the block id (see {@link #resolveDefaultBlockId}). Vanilla
      *       MushroomCowMushroomLayer is the match: submit reads
      *       {@code state.mushroomModel:BlockModelRenderState}, MushroomCowRenderState declares
-     *       {@code variant:MushroomCow$Variant}. Returned as {@code KnownLayer(variantClass, null)}.</li>
-     *   <li><b>Fixed literal block</b> - the state has no {@code $Variant} field, and the renderer's
+     *       {@code variant:MushroomCow$Variant}. Returned as {@code KnownLayer(variantClass, null, false)}.</li>
+     *   <li><b>Fixed literal block</b> - the state has no {@code $Variant} field, the renderer's
      *       {@code extractRenderState} binds a literal {@code Blocks.X.defaultBlockState()} into the
-     *       same {@code BlockModelRenderState} field the layer reads (see
-     *       {@link #resolveLiteralBlockId}). Vanilla SnowGolemHeadLayer is the match: submit reads
-     *       {@code state.headBlock}, and {@code SnowGolemRenderer.extractRenderState} binds
-     *       {@code Blocks.CARVED_PUMPKIN} whenever {@code SnowGolem.hasPumpkin()} (default true).
-     *       Returned as {@code KnownLayer(null, "minecraft:carved_pumpkin")}.</li>
+     *       same {@code BlockModelRenderState} field the layer reads, and that bind is
+     *       <b>presence-gated</b> on an entity {@code ()Z} predicate (see {@link #resolveLiteralBlock}).
+     *       Vanilla SnowGolemHeadLayer is the match: submit reads {@code state.headBlock}, and
+     *       {@code SnowGolemRenderer.extractRenderState} binds {@code Blocks.CARVED_PUMPKIN} whenever
+     *       {@code SnowGolem.hasPumpkin()} (default true). Returned as
+     *       {@code KnownLayer(null, "minecraft:carved_pumpkin", false)}.</li>
+     *   <li><b>Selectable held block</b> - the layer reads a {@code BlockModelRenderState} field but
+     *       the block is not an always-present literal: either a timer-gated literal (iron-golem's
+     *       {@code Blocks.POPPY} under {@code offerFlowerTick > 0}, emitted with that literal as the
+     *       documented default) or a fully-runtime block (enderman's {@code getCarriedBlock()}, no
+     *       literal, emitted with no default). Returned as {@code KnownLayer(null, <literal-or-null>,
+     *       true)}; the render-time {@code EntityAppearance.carried} selection supplies the block.</li>
      * </ul>
      *
-     * <p>The fixed-literal path is gated so only always-present decorations emit: iron-golem's
-     * flower ({@code Blocks.POPPY} but gated on {@code offerFlowerTick > 0}, default off) and
-     * enderman's carried block (a runtime block, not a {@code Blocks.X} literal) both fail the
-     * {@link #resolveLiteralBlockId} presence gate and are skipped. Detection stays structural
-     * (no layer-class allowlist).
+     * <p>Detection stays structural (no layer-class allowlist): the four vanilla layers that read a
+     * {@code BlockModelRenderState} field in submit - mooshroom (variant), snow-golem (guarded
+     * literal), iron-golem (unguarded literal), enderman (runtime) - each classify by shape alone.
      *
      * @param classNodes the ClassNode cache (shared with sibling resolver walks)
      * @param layerInternalName the candidate layer class's JVM internal name
      * @param renderer the entity renderer whose {@code extractRenderState} sources the literal
-     *     block id for the fixed-block path
-     * @return the {@link KnownLayer} carrying the resolved variant class or literal block id, or
-     *     {@code null} when the class is not a recognised (or always-present) block-overlay layer
+     *     block id for the fixed / selectable-literal path
+     * @return the {@link KnownLayer} carrying the resolved variant class, literal block id, and
+     *     selectable flag, or {@code null} when the class is not a recognised block-overlay layer
      */
     private static @Nullable KnownLayer detectKnownLayer(
         @NotNull ClassNodeCache classNodes,
@@ -218,11 +231,18 @@ public final class EntityBlockOverlayResolver {
             if (field.desc == null) continue;
             if (!field.desc.startsWith("L") || !field.desc.endsWith("$Variant;")) continue;
             String variantClass = field.desc.substring(1, field.desc.length() - 1);
-            return new KnownLayer(variantClass, null);
+            return new KnownLayer(variantClass, null, false);
         }
-        String literalBlockId = resolveLiteralBlockId(classNodes, renderer, blockFieldName);
-        if (literalBlockId == null) return null;
-        return new KnownLayer(null, literalBlockId);
+        // Non-variant: classify by how (and whether) the renderer binds a literal Blocks.X. A
+        // presence-gated literal ({@code SnowGolem.hasPumpkin()}, default true) is an always-present
+        // decoration (fixed). A timer-gated literal ({@code IronGolem.offerFlowerTick > 0}, default
+        // off) is a conditional held block - emitted as selectable so it renders only when the
+        // caller picks it. No literal at all ({@code enderman.getCarriedBlock()}) is a fully-dynamic
+        // held block - also selectable, with the block supplied entirely at render.
+        LiteralBlock literal = resolveLiteralBlock(renderer, blockFieldName);
+        if (literal != null)
+            return new KnownLayer(null, literal.blockId(), !literal.guarded());
+        return new KnownLayer(null, null, true);
     }
 
     /**
@@ -235,19 +255,17 @@ public final class EntityBlockOverlayResolver {
      * <p><b>Presence gate.</b> Vanilla gates always-on cosmetic parts on a boolean "presence
      * flag" method on the entity ({@code SnowGolem.hasPumpkin()}, default true), whereas transient
      * decorations gate on a timer / counter ({@code IronGolem.offerFlowerTick > 0}, default 0).
-     * Requiring an entity-typed boolean predicate ({@code ()Z} INVOKEVIRTUAL whose owner is the
-     * {@code extractRenderState} entity parameter) emits snow-golem's pumpkin while excluding
-     * iron-golem's flower; enderman's carried block is already excluded because its block comes
-     * from a runtime {@code getCarriedBlock()} rather than a {@code Blocks.X} literal.
+     * The returned {@link LiteralBlock#guarded()} flag records which shape was found - an entity-typed
+     * {@code ()Z} predicate present ({@code true}, snow-golem's always-present pumpkin) or absent
+     * ({@code false}, iron-golem's conditional flower). The caller renders a guarded literal as a
+     * fixed decoration and an unguarded one as a selectable held block.
      *
-     * @param classNodes the ClassNode cache (shared with sibling resolver walks)
      * @param renderer the entity renderer whose {@code extractRenderState} is walked
      * @param blockFieldName the {@code BlockModelRenderState} field name the layer's submit reads
-     * @return the {@code minecraft:<block>} id, or {@code null} when no literal-block update binds
-     *     {@code blockFieldName} or the presence gate fails
+     * @return the literal block id and its presence-guard flag, or {@code null} when no literal-block
+     *     update binds {@code blockFieldName} (the enderman carried block, a runtime source)
      */
-    private static @Nullable String resolveLiteralBlockId(
-        @NotNull ClassNodeCache classNodes,
+    private static @Nullable LiteralBlock resolveLiteralBlock(
         @NotNull ClassNode renderer,
         @Nullable String blockFieldName
     ) {
@@ -256,8 +274,7 @@ public final class EntityBlockOverlayResolver {
             if (!"extractRenderState".equals(method.name)) continue;
             String blocksField = findLiteralBlockUpdate(method, blockFieldName);
             if (blocksField == null) continue;
-            if (!hasEntityBooleanGuard(method)) continue;
-            return "minecraft:" + blocksField.toLowerCase(Locale.ROOT);
+            return new LiteralBlock("minecraft:" + blocksField.toLowerCase(Locale.ROOT), hasEntityBooleanGuard(method));
         }
         return null;
     }
@@ -351,13 +368,19 @@ public final class EntityBlockOverlayResolver {
      * applies them in the order vanilla's PoseStack would.
      *
      * @param submit the layer's typed-state {@code submit} method to walk
-     * @param blockId the canonical block id stamped onto every extracted {@link Result}
+     * @param blockId the canonical block id stamped onto every extracted {@link Result}, or
+     *     {@code null} for a selectable overlay with no vanilla literal (enderman carried block)
+     * @param selectable whether the extracted rows are caller-selected held blocks (stamped onto
+     *     every {@link Result})
+     * @param classNodes the ClassNode cache, used to resolve an attach-bone accessor to its bone
      * @return one {@link Result} per {@code pushPose}/{@code popPose} pair that emitted at least
      *     one recognised op
      */
     private static @NotNull List<Result> extractPoseBlocks(
         @NotNull MethodNode submit,
-        @NotNull String blockId
+        @Nullable String blockId,
+        boolean selectable,
+        @NotNull ClassNodeCache classNodes
     ) {
         List<Result> out = new ArrayList<>();
         boolean insideBlock = false;
@@ -385,7 +408,7 @@ public final class EntityBlockOverlayResolver {
             }
             if (methodInsn.owner.equals(POSE_STACK) && methodInsn.name.equals("popPose")) {
                 if (insideBlock && !currentOps.isEmpty())
-                    out.add(new Result(blockId, currentAttachedBone, List.copyOf(currentOps)));
+                    out.add(new Result(blockId, currentAttachedBone, List.copyOf(currentOps), selectable));
                 insideBlock = false;
                 currentOps = new ArrayList<>();
                 currentAttachedBone = null;
@@ -412,24 +435,28 @@ public final class EntityBlockOverlayResolver {
                     }
                 }
                 case AXIS + ".rotationDegrees" -> {
-                    // Resolves the {@code Axis.YP.rotationDegrees(F)} / similar pattern. The
-                    // Axis static field (YP / YN / etc) determines the axis; YP and YN both map
-                    // to a Y rotation (sign baked into the angle for YN). Other axes are skipped
-                    // since vanilla block-overlay layers consistently use Y - flagged via WARN
-                    // by the caller if a non-Y axis becomes load-bearing.
+                    // Resolves the {@code Axis.<A>.rotationDegrees(F)} pattern. The Axis static field
+                    // (XP / XN / YP / YN) determines the axis and sign: {@code ?P} maps to a positive
+                    // rotation about that axis, {@code ?N} negates the angle. X and Y are recognised
+                    // (the enderman carried block tilts on X then swings on Y; the iron golem flower
+                    // lays flat on X); a Z rotation is skipped (no vanilla block-overlay layer uses one).
                     if (floatStack.isEmpty()) continue;
                     float degrees = floatStack.removeLast();
                     String axis = findPrecedingAxisField(methodInsn);
-                    if (axis == null || axis.charAt(0) != 'Y') continue;
-                    if (axis.equals("YN")) degrees = -degrees;
-                    currentOps.add(new TransformOpRecord(OpKind.ROTATE_Y, degrees, 0f, 0f));
+                    if (axis == null) continue;
+                    if (axis.charAt(1) == 'N') degrees = -degrees;
+                    switch (axis.charAt(0)) {
+                        case 'Y' -> currentOps.add(new TransformOpRecord(OpKind.ROTATE_Y, degrees, 0f, 0f));
+                        case 'X' -> currentOps.add(new TransformOpRecord(OpKind.ROTATE_X, degrees, 0f, 0f));
+                        default -> { }
+                    }
                 }
                 case MODEL_PART + ".translateAndRotate" -> {
                     // Flag the parent bone whose pose pre-applies. The bone name comes from the
-                    // preceding {@code parent.getXxx()} accessor; recognise the typical
-                    // {@code getHead}/{@code getBody}/etc convention by stripping the {@code get}
-                    // prefix and lower-casing the first letter. Mooshroom uses {@code getHead}.
-                    String bone = findPrecedingBoneAccessor(methodInsn);
+                    // preceding {@code parent.getXxx()} accessor, resolved through the model class to
+                    // the geometry bone it returns (mooshroom / snow-golem {@code getHead} -> "head";
+                    // iron-golem {@code getFlowerHoldingArm} -> the {@code rightArm} field -> "right_arm").
+                    String bone = findPrecedingBoneAccessor(methodInsn, classNodes);
                     if (bone != null) currentAttachedBone = bone;
                 }
                 default -> { }
@@ -460,16 +487,21 @@ public final class EntityBlockOverlayResolver {
 
     /**
      * Walks backward from a {@code translateAndRotate} call to find the preceding
-     * {@code parent.getXxx()} accessor that returned the bone. Returns the bone name lower-cased
-     * with the {@code get} prefix stripped (e.g. {@code getHead} -> {@code head}). Heuristic:
-     * the most recent {@code INVOKEVIRTUAL} on the parent renderer's model class that returns
-     * a {@code ModelPart} instance is the bone accessor.
+     * {@code parent.getXxx()} accessor that returned the bone, then resolves it to the geometry bone
+     * name. The most recent {@code INVOKEVIRTUAL get*()->ModelPart} on the parent model is the bone
+     * accessor; {@link #resolveAccessorBone} follows it through the model class to the
+     * {@code getChild("bone")} string that names the returned field (mooshroom / snow-golem
+     * {@code getHead} -&gt; {@code "head"}; iron-golem {@code getFlowerHoldingArm} -&gt; the
+     * {@code rightArm} field -&gt; {@code "right_arm"}). When the model walk can't resolve it, falls
+     * back to the {@code get}-stripped, first-letter-lower-cased accessor name (matches the direct
+     * {@code getHead} -&gt; {@code head} convention).
      *
      * @param call the {@code ModelPart.translateAndRotate} invocation to walk backward from
-     * @return the lower-cased bone name, or {@code null} when no {@code get*()->ModelPart} accessor
+     * @param classNodes the ClassNode cache, used to load the model class for the accessor walk
+     * @return the resolved bone name, or {@code null} when no {@code get*()->ModelPart} accessor
      *     precedes the call
      */
-    private static @Nullable String findPrecedingBoneAccessor(@NotNull MethodInsnNode call) {
+    private static @Nullable String findPrecedingBoneAccessor(@NotNull MethodInsnNode call, @NotNull ClassNodeCache classNodes) {
         // Walk backward over real instructions (AsmKit.previousReal skips pseudo-nodes) and
         // stop at the first INVOKEVIRTUAL get*()->ModelPart accessor. No early abort on other
         // real ops: unlike findPrecedingAxisField, the bone accessor may sit several real
@@ -479,12 +511,122 @@ public final class EntityBlockOverlayResolver {
                 && methodCall.getOpcode() == Opcodes.INVOKEVIRTUAL
                 && methodCall.name.startsWith("get")
                 && AsmKit.descriptorReturns(methodCall.desc, VanillaSourceClasses.MODEL_PART)) {
+                String resolved = resolveAccessorBone(classNodes, methodCall.owner, methodCall.name);
+                if (resolved != null) return resolved;
                 String accessor = methodCall.name.substring(3);
                 if (accessor.isEmpty()) return null;
                 return Character.toLowerCase(accessor.charAt(0)) + accessor.substring(1);
             }
         }
         return null;
+    }
+
+    /**
+     * Resolves a {@code getXxx()->ModelPart} accessor on {@code modelInternalName} to the geometry
+     * bone name it returns, by (1) reading the field the getter returns ({@code getFlowerHoldingArm}
+     * -&gt; {@code rightArm}) and (2) finding the {@code getChild("bone")} string that field is
+     * assigned in the model's {@code <init>} ({@code rightArm} -&gt; {@code "right_arm"}). Falls back
+     * to a camelCase-&gt;snake_case conversion of the field name when the {@code <init>} assignment
+     * can't be located (a field bound in a superclass constructor), matching the vanilla
+     * {@code this.rightArm = root.getChild("right_arm")} naming convention.
+     *
+     * @param classNodes the ClassNode cache
+     * @param modelInternalName the model class the accessor is invoked on
+     * @param accessorName the {@code getXxx} accessor method name
+     * @return the resolved bone name, or {@code null} when the accessor is not a simple field getter
+     */
+    private static @Nullable String resolveAccessorBone(
+        @NotNull ClassNodeCache classNodes,
+        @NotNull String modelInternalName,
+        @NotNull String accessorName
+    ) {
+        ClassNode model = classNodes.load(modelInternalName);
+        if (model == null) return null;
+        String field = fieldReturnedByGetter(model, accessorName);
+        if (field == null) return null;
+        String bone = boneAssignedToField(model, field);
+        return bone != null ? bone : camelToSnake(field);
+    }
+
+    /**
+     * Returns the {@code ModelPart} field name a simple getter {@code accessorName} returns - the
+     * {@code aload_0; getfield <field>:ModelPart; areturn} shape ({@code getFlowerHoldingArm} -&gt;
+     * {@code rightArm}) - or {@code null} when {@code accessorName} is absent from {@code model} or
+     * is not such a getter.
+     *
+     * @param model the model class node
+     * @param accessorName the getter method name
+     * @return the returned field name, or {@code null}
+     */
+    private static @Nullable String fieldReturnedByGetter(@NotNull ClassNode model, @NotNull String accessorName) {
+        String modelPartDesc = "L" + MODEL_PART + ";";
+        for (MethodNode method : model.methods) {
+            if (!accessorName.equals(method.name)) continue;
+            if (!method.desc.equals("()" + modelPartDesc)) continue;
+            for (AbstractInsnNode in = method.instructions.getFirst(); in != null; in = in.getNext())
+                if (in.getOpcode() == Opcodes.GETFIELD
+                    && in instanceof FieldInsnNode gf
+                    && modelPartDesc.equals(gf.desc))
+                    return gf.name;
+        }
+        return null;
+    }
+
+    /**
+     * Returns the {@code getChild("bone")} string that {@code field} is assigned in {@code model}'s
+     * {@code <init>} - the {@code ldc "right_arm"; getChild; ... putfield rightArm} shape - or
+     * {@code null} when the field is not assigned from a {@code getChild} call in this class's
+     * constructor (e.g. it is bound in a superclass constructor).
+     *
+     * @param model the model class node
+     * @param field the {@code ModelPart} field name to trace
+     * @return the {@code getChild} bone name assigned to {@code field}, or {@code null}
+     */
+    private static @Nullable String boneAssignedToField(@NotNull ClassNode model, @NotNull String field) {
+        MethodNode init = AsmKit.findMethod(model, AsmKit.INIT);
+        if (init == null) return null;
+        String pendingLdc = null;
+        String lastGetChildArg = null;
+        for (AbstractInsnNode in = init.instructions.getFirst(); in != null; in = in.getNext()) {
+            String literal = AsmKit.readStringLiteral(in);
+            if (literal != null) {
+                pendingLdc = literal;
+                continue;
+            }
+            if (in.getOpcode() == Opcodes.INVOKEVIRTUAL
+                && in instanceof MethodInsnNode mi
+                && MODEL_PART.equals(mi.owner) && "getChild".equals(mi.name)) {
+                lastGetChildArg = pendingLdc;
+                pendingLdc = null;
+                continue;
+            }
+            if (in.getOpcode() == Opcodes.PUTFIELD
+                && in instanceof FieldInsnNode pf
+                && field.equals(pf.name))
+                return lastGetChildArg;
+        }
+        return null;
+    }
+
+    /**
+     * Converts a camelCase model field name to the vanilla {@code getChild} snake_case bone name
+     * ({@code rightArm} -&gt; {@code right_arm}, {@code head} -&gt; {@code head}).
+     *
+     * @param field the camelCase field name
+     * @return the snake_case bone name
+     */
+    private static @NotNull String camelToSnake(@NotNull String field) {
+        StringBuilder out = new StringBuilder(field.length() + 4);
+        for (int i = 0; i < field.length(); i++) {
+            char c = field.charAt(i);
+            if (Character.isUpperCase(c)) {
+                if (i > 0) out.append('_');
+                out.append(Character.toLowerCase(c));
+            } else {
+                out.append(c);
+            }
+        }
+        return out.toString();
     }
 
     /**
@@ -557,35 +699,50 @@ public final class EntityBlockOverlayResolver {
 
     /**
      * Metadata for one recognised block-decoration layer: the variant enum class whose DEFAULT
-     * backs the canonical block id, and an optional literal fallback for layers without a
-     * variant enum (iron-golem poppy etc). Both fields nullable - at least one must be set.
+     * backs the canonical block id, an optional literal fallback for layers without a variant enum
+     * (iron-golem poppy etc), and whether the block is caller-selected at render (enderman carried
+     * block, iron-golem flower) rather than an always-present decoration (mooshroom, snow-golem).
      *
      * @param variantClass JVM internal name of the {@code $Variant} enum whose {@code DEFAULT}
-     *     constant resolves the canonical block id, or {@code null} for a literal-only layer
-     * @param defaultBlockId literal {@code minecraft:<block>} fallback used when there is no
-     *     variant class or the variant walk fails, or {@code null} when only a variant class is set
+     *     constant resolves the canonical block id, or {@code null} for a literal-only / runtime layer
+     * @param defaultBlockId literal {@code minecraft:<block>} used when there is no variant class,
+     *     or {@code null} when the block has no vanilla literal (enderman's runtime carried block)
+     * @param selectable whether the block is supplied at render from {@code EntityAppearance.carried}
+     *     rather than always drawn
      */
-    private record KnownLayer(@Nullable String variantClass, @Nullable String defaultBlockId) {}
+    private record KnownLayer(@Nullable String variantClass, @Nullable String defaultBlockId, boolean selectable) {}
+
+    /**
+     * A literal {@code Blocks.X} binding found in a renderer's {@code extractRenderState}, with
+     * whether it is presence-gated on an entity {@code ()Z} predicate (an always-present decoration)
+     * or not (a conditional held block).
+     *
+     * @param blockId the {@code minecraft:<block>} id the renderer binds
+     * @param guarded whether the bind is gated on an entity presence predicate ({@code hasPumpkin()})
+     */
+    private record LiteralBlock(@NotNull String blockId, boolean guarded) {}
 
     /**
      * One pose-stack op recognised by the walker. The {@code a}/{@code b}/{@code c} components
      * hold per-{@link OpKind} data.
      *
      * @param kind the op kind, selecting how {@code a}/{@code b}/{@code c} are interpreted
-     * @param a first component - {@code x} for {@code TRANSLATE}/{@code SCALE}, degrees for {@code ROTATE_Y}
-     * @param b second component - {@code y} for {@code TRANSLATE}/{@code SCALE}, unused ({@code 0}) for {@code ROTATE_Y}
-     * @param c third component - {@code z} for {@code TRANSLATE}/{@code SCALE}, unused ({@code 0}) for {@code ROTATE_Y}
+     * @param a first component - {@code x} for {@code TRANSLATE}/{@code SCALE}, degrees for {@code ROTATE_Y}/{@code ROTATE_X}
+     * @param b second component - {@code y} for {@code TRANSLATE}/{@code SCALE}, unused ({@code 0}) for rotations
+     * @param c third component - {@code z} for {@code TRANSLATE}/{@code SCALE}, unused ({@code 0}) for rotations
      */
     public record TransformOpRecord(@NotNull OpKind kind, float a, float b, float c) {}
 
     /**
-     * Recognised pose-stack op kinds. {@code ROTATE_Y} stores degrees in {@code a}; the others use all three components.
+     * Recognised pose-stack op kinds. {@code ROTATE_Y} / {@code ROTATE_X} store degrees in {@code a}; the others use all three components.
      */
     public enum OpKind {
         /** {@code PoseStack.translate(x, y, z)} - components are {@code (x, y, z)}. */
         TRANSLATE,
         /** {@code PoseStack.mulPose(Axis.YP.rotationDegrees(a))} - degrees in {@code a} ({@code YN} sign folded in). */
         ROTATE_Y,
+        /** {@code PoseStack.mulPose(Axis.XP.rotationDegrees(a))} - degrees in {@code a} ({@code XN} sign folded in). */
+        ROTATE_X,
         /** {@code PoseStack.scale(x, y, z)} - components are {@code (x, y, z)}. */
         SCALE
     }
@@ -598,15 +755,20 @@ public final class EntityBlockOverlayResolver {
      * {@code block_overlays} JSON array consumed by {@link
      * lib.minecraft.renderer.pipeline.loader.EntityModelLoader.BlockOverlayLayer}.
      *
-     * @param blockId the canonical {@code minecraft:<block>} id whose model composites onto the entity
+     * @param blockId the canonical {@code minecraft:<block>} id whose model composites onto the
+     *     entity, or {@code null} for a {@link #selectable} overlay with no vanilla literal (enderman
+     *     carried block) - the render-time selection supplies it
      * @param attachedBone the parent bone whose bind pose pre-applies to the overlay, or
      *     {@code null} when the overlay attaches at the entity root
      * @param ops the ordered pose-stack ops between one {@code pushPose}/{@code popPose} pair
+     * @param selectable whether the block is caller-selected at render (enderman carried block, iron
+     *     golem flower) rather than an always-present decoration
      */
     public record Result(
-        @NotNull String blockId,
+        @Nullable String blockId,
         @Nullable String attachedBone,
-        @NotNull List<TransformOpRecord> ops
+        @NotNull List<TransformOpRecord> ops,
+        boolean selectable
     ) {}
 
     /**
@@ -622,13 +784,15 @@ public final class EntityBlockOverlayResolver {
         JsonArray rows = new JsonArray();
         for (Result desc : descriptors) {
             JsonObject row = new JsonObject();
-            row.addProperty("block_id", desc.blockId());
+            if (desc.blockId() != null) row.addProperty("block_id", desc.blockId());
             if (desc.attachedBone() != null) row.addProperty("attached_bone", desc.attachedBone());
+            if (desc.selectable()) row.addProperty("selectable", true);
             JsonArray opsJson = new JsonArray();
             for (TransformOpRecord op : desc.ops()) {
                 JsonObject opJson = switch (op.kind()) {
                     case TRANSLATE -> translateJson(op.a(), op.b(), op.c());
                     case ROTATE_Y -> rotateYJson(op.a());
+                    case ROTATE_X -> rotateXJson(op.a());
                     case SCALE -> scaleJson(op.a(), op.b(), op.c());
                 };
                 opsJson.add(opJson);
@@ -665,6 +829,19 @@ public final class EntityBlockOverlayResolver {
     private static @NotNull JsonObject rotateYJson(float degrees) {
         JsonObject op = new JsonObject();
         op.addProperty("op", "rotate_y");
+        op.addProperty("degrees", degrees);
+        return op;
+    }
+
+    /**
+     * Builds the {@code {"op":"rotate_x","degrees":...}} JSON for an X-rotation op.
+     *
+     * @param degrees the X rotation in degrees ({@code XN} sign already folded in)
+     * @return the rotate_x op object
+     */
+    private static @NotNull JsonObject rotateXJson(float degrees) {
+        JsonObject op = new JsonObject();
+        op.addProperty("op", "rotate_x");
         op.addProperty("degrees", degrees);
         return op;
     }

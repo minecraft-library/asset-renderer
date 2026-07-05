@@ -473,6 +473,43 @@
           "emissive": true,
           "inflate": 0.001
         }
+      ],
+      "block_overlays": [
+        {
+          "selectable": true,
+          "transforms": [
+            {
+              "op": "translate",
+              "x": 0.0,
+              "y": 0.6875,
+              "z": -0.75
+            },
+            {
+              "op": "rotate_x",
+              "degrees": 20.0
+            },
+            {
+              "op": "rotate_y",
+              "degrees": 45.0
+            },
+            {
+              "op": "translate",
+              "x": 0.25,
+              "y": 0.1875,
+              "z": 0.25
+            },
+            {
+              "op": "scale",
+              "x": -0.5,
+              "y": -0.5,
+              "z": 0.5
+            },
+            {
+              "op": "rotate_y",
+              "degrees": 90.0
+            }
+          ]
+        }
       ]
     },
     "minecraft:endermite": {
@@ -676,7 +713,44 @@
     "minecraft:iron_golem": {
       "geometry_ref": "geometry.irongolem",
       "armor_type": "none",
-      "texture_ref": "iron_golem/iron_golem"
+      "texture_ref": "iron_golem/iron_golem",
+      "block_overlays": [
+        {
+          "block_id": "minecraft:poppy",
+          "attached_bone": "right_arm",
+          "selectable": true,
+          "transforms": [
+            {
+              "op": "translate",
+              "x": -1.1875,
+              "y": 1.0625,
+              "z": -0.9375
+            },
+            {
+              "op": "translate",
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            {
+              "op": "scale",
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            },
+            {
+              "op": "rotate_x",
+              "degrees": -90.0
+            },
+            {
+              "op": "translate",
+              "x": -0.5,
+              "y": -0.5,
+              "z": -0.5
+            }
+          ]
+        }
+      ]
     },
     "minecraft:llama": {
       "geometry_ref": "geometry.llama",

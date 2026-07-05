@@ -546,6 +546,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                 case EntityModelLoader.Translate t -> blockUnitChain.translate(t.x(), t.y(), t.z());
                 case EntityModelLoader.RotateY r -> blockUnitChain.rotate(
                     Quaternionf.rotationXYZ(0f, (float) Math.toRadians(r.degrees()), 0f));
+                case EntityModelLoader.RotateX r -> blockUnitChain.rotate(
+                    Quaternionf.rotationXYZ((float) Math.toRadians(r.degrees()), 0f, 0f));
                 case EntityModelLoader.Scale s -> blockUnitChain.scale(s.x(), s.y(), s.z());
             };
         }
