@@ -14,7 +14,6 @@ import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
-import org.objectweb.asm.tree.TypeInsnNode;
 
 import java.util.Locale;
 
@@ -78,40 +77,53 @@ public final class EntityEquipmentResolver {
         MethodNode init = AsmKit.findMethod(renderer, AsmKit.INIT);
         if (init == null) return out;
 
-        // Walk the constructor, opening a capture span at each `new SimpleEquipmentLayer` and closing
-        // it at the matching `invokespecial SimpleEquipmentLayer.<init>`. Within a span the FIRST
-        // LayerType static is the texture subdir and the FIRST ModelLayers static is the adult model's
-        // geometry (a body-equipment layer may bake a second baby-model ModelLayers after it).
-        boolean inSpan = false;
+        // Walk the constructor tracking the current equipment candidate's LayerType + ModelLayers. A
+        // `LayerType.<X>` static opens a candidate (it always precedes the equipment's geometry), and
+        // the FIRST `ModelLayers.<X>` after it is the adult mesh (a body layer may bake a second
+        // baby-model ModelLayers, ignored). The candidate emits when a SimpleEquipmentLayer is
+        // constructed - either directly (`new SimpleEquipmentLayer(...)` -> its `<init>`) or through a
+        // factory helper returning one (`createCamelSaddleLayer(...)` for camel / camel_husk, whose
+        // LayerType + ModelLayers are passed at the call site rather than baked inline).
         String layerTypeField = null;
         String modelLayerField = null;
         for (AbstractInsnNode node = init.instructions.getFirst(); node != null; node = node.getNext()) {
-            if (node instanceof TypeInsnNode typeInsn
-                && typeInsn.getOpcode() == Opcodes.NEW
-                && VanillaSourceClasses.SIMPLE_EQUIPMENT_LAYER.equals(typeInsn.desc)) {
-                inSpan = true;
-                layerTypeField = null;
-                modelLayerField = null;
-                continue;
-            }
-            if (!inSpan) continue;
             if (node.getOpcode() == Opcodes.GETSTATIC && node instanceof FieldInsnNode field) {
-                if (layerTypeField == null && VanillaSourceClasses.EQUIPMENT_LAYER_TYPE.equals(field.owner))
+                if (VanillaSourceClasses.EQUIPMENT_LAYER_TYPE.equals(field.owner)) {
+                    // A LayerType static starts a fresh candidate: reset the geometry so a primary /
+                    // baby ModelLayers baked earlier (the super(...) body mesh) can't leak into it.
                     layerTypeField = field.name;
-                else if (modelLayerField == null && VanillaSourceClasses.MODEL_LAYERS.equals(field.owner))
+                    modelLayerField = null;
+                } else if (layerTypeField != null && modelLayerField == null
+                    && VanillaSourceClasses.MODEL_LAYERS.equals(field.owner)) {
                     modelLayerField = field.name;
+                }
                 continue;
             }
-            if (node.getOpcode() == Opcodes.INVOKESPECIAL
-                && node instanceof MethodInsnNode init2
-                && VanillaSourceClasses.SIMPLE_EQUIPMENT_LAYER.equals(init2.owner)
-                && AsmKit.INIT.equals(init2.name)) {
-                inSpan = false;
+            if (isEquipmentConstruction(node)) {
                 if (layerTypeField != null && modelLayerField != null)
                     out.add(build(layerTypeField, modelLayerField));
+                layerTypeField = null;
+                modelLayerField = null;
             }
         }
         return out;
+    }
+
+    /**
+     * Whether {@code node} constructs a {@code SimpleEquipmentLayer} - directly (its {@code <init>})
+     * or through a factory helper method that returns one (camel's {@code createCamelSaddleLayer}).
+     *
+     * @param node the instruction to test
+     * @return whether it produces a {@code SimpleEquipmentLayer}
+     */
+    private static boolean isEquipmentConstruction(@NotNull AbstractInsnNode node) {
+        if (!(node instanceof MethodInsnNode method)) return false;
+        if (node.getOpcode() == Opcodes.INVOKESPECIAL
+            && VanillaSourceClasses.SIMPLE_EQUIPMENT_LAYER.equals(method.owner)
+            && AsmKit.INIT.equals(method.name))
+            return true;
+        return (node.getOpcode() == Opcodes.INVOKESTATIC || node.getOpcode() == Opcodes.INVOKEVIRTUAL)
+            && AsmKit.descriptorReturns(method.desc, VanillaSourceClasses.SIMPLE_EQUIPMENT_LAYER);
     }
 
     /**

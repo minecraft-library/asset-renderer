@@ -117,6 +117,19 @@
       "geometry_ref": "geometry.adultcamel",
       "armor_type": "none",
       "texture_ref": "camel/camel",
+      "layers": [
+        {
+          "id": "saddle",
+          "when": {
+            "equipment": "saddle"
+          },
+          "overlay": {
+            "geometry_ref": "geometry.camelsaddle",
+            "texture_template": "equipment/camel_saddle/<material>",
+            "default_material": "saddle"
+          }
+        }
+      ],
       "axes": {
         "age": {
           "default": "adult",
@@ -137,7 +150,20 @@
       "geometry_ref": "geometry.adultcamel",
       "armor_type": "none",
       "texture_ref": "camel/camel_husk",
-      "family_of": "minecraft:camel"
+      "family_of": "minecraft:camel",
+      "layers": [
+        {
+          "id": "saddle",
+          "when": {
+            "equipment": "saddle"
+          },
+          "overlay": {
+            "geometry_ref": "geometry.camelsaddle",
+            "texture_template": "equipment/camel_husk_saddle/<material>",
+            "default_material": "saddle"
+          }
+        }
+      ]
     },
     "minecraft:cat": {
       "geometry_ref": "geometry.adultfeline",
