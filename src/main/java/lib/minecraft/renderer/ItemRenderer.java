@@ -16,7 +16,7 @@ import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Camera;
 import lib.minecraft.renderer.engine.camera.Lens;
-import lib.minecraft.renderer.engine.compose.GlintStage;
+import lib.minecraft.renderer.engine.compose.Finalize;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
 import lib.minecraft.renderer.engine.compose.ImageLayerContext;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
@@ -116,14 +116,15 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
     }
 
     /**
-     * Resolves the item glint flag and composites the animated foil onto the finished 2D buffer.
-     * Shared terminal step of the GUI and held-item paths, which derive the glint identically.
+     * Builds the item enchantment-glint tail for {@link Finalize}, deriving the glint flag
+     * ({@code glintOverride}, else the item's always-glinted flag or {@code enchanted}) the GUI and
+     * held-item paths share.
      */
-    static @NotNull ImageData finalize2DItem(
-        @NotNull Textures engine, @NotNull PixelBuffer buffer,
-        @NotNull Item item, @NotNull ItemOptions options
+    static @NotNull Finalize.Glint itemGlint(
+        @NotNull Textures textures, @NotNull Item item, @NotNull ItemOptions options
     ) {
-        return GlintStage.forItem(engine::tryResolveTexture, buffer, item, options);
+        boolean glinted = options.getGlintOverride().orElse(item.isAlwaysGlinted() || options.isEnchanted());
+        return Finalize.Glint.item(textures::tryResolveTexture, glinted, options.isAnimateGlint(), options.getFramesPerSecond());
     }
 
     /**
@@ -477,16 +478,17 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         public @NotNull ImageData render(@NotNull ItemOptions options) {
             Item item = requireItem(this.context, options.getItemId());
             RasterEngine engine = new RasterEngine(this.context);
-            PixelBuffer buffer = engine.createBuffer(options.getOutputSize(), options.getOutputSize());
 
             // Compose the icon as an ordered ImageLayer stack (base sprite/banner/shield, then the
-            // trim, damage-bar, and stack-count decorations) so callers can splice their own passes
-            // in via ItemOptions.layerDecorator. The terminal glint is the finalisation step, not a
-            // layer, because it expands the single buffer into one or many animation frames.
+            // trim, damage-bar, and stack-count decorations) so callers can splice their own passes in
+            // via ItemOptions.layerDecorator, folded into Finalize's target. The terminal glint is the
+            // finalisation step, not a layer, because it expands the buffer into one or many frames.
+            // A GUI icon is a flat sprite blit, so no supersample (ssaa = 1); FXAA stays opt-in.
             ImageLayerContext ctx = new ImageLayerContext(this.context, engine.textures(), item, options);
-            Layers.foldInto(buildGuiLayers(ctx), options.getLayerDecorator(), buffer);
-
-            return finalize2DItem(engine.textures(), buffer, item, options);
+            return Finalize.render(
+                Finalize.FinalizeSpec.staticFrame(options.getOutputSize(), options.getOutputSize(), 1, options.isAntiAlias())
+                    .withGlint(itemGlint(engine.textures(), item, options), false),
+                (target, mask, tick) -> Layers.foldInto(buildGuiLayers(ctx), options.getLayerDecorator(), target));
         }
 
         /**
@@ -559,7 +561,6 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // camera pose stays identity and only the rotation-independent lens comes from resolve().
             ModelEngine engine = new ModelEngine(this.context,
                 Camera.identity(options.getProjection().resolve(EulerRotation.NONE, options.getFacing()).lens()));
-            PixelBuffer buffer = PixelBuffer.create(options.getOutputSize(), options.getOutputSize());
             int tint = options.getTintColor().orElse(ColorMath.WHITE);
 
             ConcurrentList<VisibleTriangle> triangles;
@@ -587,9 +588,11 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             }
 
             Matrix4f displayTransform = resolveDisplayTransform(item, DISPLAY_SLOT_HELD_3D);
-            engine.rasterize(triangles, buffer, displayTransform);
-
-            return finalize2DItem(engine.textures(), buffer, item, options);
+            int ssaa = Math.max(1, options.getSupersample());
+            return Finalize.render(
+                Finalize.FinalizeSpec.staticFrame(options.getOutputSize(), options.getOutputSize(), ssaa, options.isAntiAlias())
+                    .withGlint(itemGlint(engine.textures(), item, options), false),
+                (target, mask, tick) -> engine.rasterize(triangles, target, displayTransform));
         }
 
         /**

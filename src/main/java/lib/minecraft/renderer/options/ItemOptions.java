@@ -170,6 +170,23 @@ public class ItemOptions {
     private final int outputSize = Renderer.DEFAULT_OUTPUT_SIZE;
 
     /**
+     * Supersample scale factor. The 3D held-item render is rasterized at {@code outputSize *
+     * supersample} resolution, then downsampled for sharper output (SSAA). A value of {@code 1}
+     * (default) disables supersampling. Applies to the held-item path only; the flat GUI icon is a
+     * sprite blit and ignores it. Composes orthogonally with {@link #antiAlias}.
+     */
+    @lombok.Builder.Default
+    private final int supersample = 1;
+
+    /**
+     * Whether to apply FXAA post-processing on the rasterized buffer. Default {@code false} so one-off
+     * renders ship without FXAA blur; opt in for soft edges. When {@link #supersample} is {@code > 1}
+     * (3D held items), FXAA runs on the hi-res buffer before downsampling.
+     */
+    @lombok.Builder.Default
+    private final boolean antiAlias = false;
+
+    /**
      * Render-time item context used by CIT matching, the damage bar, and the stack-count overlay.
      * Defaults to {@link ItemContext#EMPTY}
      */
