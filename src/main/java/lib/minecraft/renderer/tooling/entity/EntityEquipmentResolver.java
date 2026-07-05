@@ -100,13 +100,28 @@ public final class EntityEquipmentResolver {
                 continue;
             }
             if (isEquipmentConstruction(node)) {
-                if (layerTypeField != null && modelLayerField != null)
+                if (layerTypeField != null && modelLayerField != null && !isDeferredEquipment(layerTypeField))
                     out.add(build(layerTypeField, modelLayerField));
                 layerTypeField = null;
                 modelLayerField = null;
             }
         }
         return out;
+    }
+
+    /**
+     * Whether a {@code SimpleEquipmentLayer} is deferred from equipment emission. The happy-ghast
+     * harness ({@code HAPPY_GHAST_BODY}) is: its {@code createHarnessLayer} mesh is authored in the
+     * body model's own (internally 4x-scaled) coordinate frame and dyed by per-colour
+     * {@code <colour>_harness} textures, so it renders correctly only through the body model's pose -
+     * the standalone-mesh equipment path renders it 4x too small and mispositioned. It needs the
+     * body-pose render path (a follow-up), so it is excluded rather than emitted as a hidden layer.
+     *
+     * @param layerTypeField the {@code EquipmentClientInfo$LayerType} constant name
+     * @return whether the equipment layer is deferred
+     */
+    private static boolean isDeferredEquipment(@NotNull String layerTypeField) {
+        return layerTypeField.startsWith("HAPPY_GHAST");
     }
 
     /**

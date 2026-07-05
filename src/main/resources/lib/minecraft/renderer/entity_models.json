@@ -624,20 +624,7 @@
     "minecraft:happy_ghast": {
       "geometry_ref": "geometry.happyghast",
       "armor_type": "none",
-      "texture_ref": "ghast/happy_ghast",
-      "layers": [
-        {
-          "id": "body",
-          "when": {
-            "equipment": "body"
-          },
-          "overlay": {
-            "geometry_ref": "geometry.happyghastharness",
-            "texture_template": "equipment/happy_ghast_body/<material>",
-            "default_material": "leather"
-          }
-        }
-      ]
+      "texture_ref": "ghast/happy_ghast"
     },
     "minecraft:giant": {
       "geometry_ref": "geometry.humanoid",
