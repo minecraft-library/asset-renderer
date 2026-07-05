@@ -250,13 +250,16 @@ tasks {
     }
 
     register<JavaExec>("itemRender2D") {
-        description = "Renders items to cache/visual/item-render-2d/ for visual inspection. -PitemId=minecraft:diamond_sword -PrenderSize=256"
+        description = "Renders items to cache/visual/item-render-2d/ for visual inspection. -PitemId=minecraft:diamond_sword -PrenderSize=256 -Ptype=gui|held -Psupersample=2 -PantiAlias=true. -Psupersample only affects -Ptype=held (the GUI icon is a sprite blit and ignores it); -PantiAlias (FXAA) applies to both."
         group = "visual"
         mainClass.set("lib.minecraft.renderer.visual.TestItemRender2D")
         classpath = sourceSets["test"].runtimeClasspath
         val itemId = project.findProperty("itemId") as String?
         val renderSize = (project.findProperty("renderSize") as String?) ?: "256"
-        args = if (itemId != null) listOf(itemId, renderSize) else listOf()
+        val supersample = (project.findProperty("supersample") as String?) ?: "1"
+        val antiAlias = (project.findProperty("antiAlias") as String?) ?: "false"
+        val type = (project.findProperty("type") as String?) ?: "gui"
+        args = if (itemId != null) listOf(itemId, renderSize, supersample, antiAlias, type) else listOf()
     }
 
     register<JavaExec>("playerRender") {
