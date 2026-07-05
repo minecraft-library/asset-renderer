@@ -25,7 +25,7 @@ import org.jetbrains.annotations.Nullable;
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
-public class PortalOptions {
+public class PortalOptions implements Option {
 
     /**
      * The portal variant - drives {@code PORTAL_LAYERS} count and per-layer colour table selection.

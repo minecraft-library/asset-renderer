@@ -39,7 +39,7 @@ import java.util.function.UnaryOperator;
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
-public class EntityOptions {
+public class EntityOptions implements Option {
 
     /**
      * Namespaced entity id for lookup, e.g. {@code "minecraft:zombie"}. Empty (default) resolves

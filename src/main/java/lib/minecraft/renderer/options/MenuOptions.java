@@ -41,7 +41,7 @@ import java.util.function.UnaryOperator;
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
-public class MenuOptions {
+public class MenuOptions implements Option {
 
     /**
      * Menu layout type - selects the chrome and slot geometry.

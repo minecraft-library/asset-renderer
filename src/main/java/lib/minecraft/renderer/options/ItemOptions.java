@@ -52,7 +52,7 @@ import java.util.function.UnaryOperator;
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
-public class ItemOptions {
+public class ItemOptions implements Option {
 
     /**
      * Namespaced item id to render, e.g. {@code "minecraft:diamond_sword"}. Empty (default)

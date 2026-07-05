@@ -29,7 +29,7 @@ import java.util.function.UnaryOperator;
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
-public class FluidOptions {
+public class FluidOptions implements Option {
 
     /**
      * The fluid to render - drives texture selection and tintability. Defaults to

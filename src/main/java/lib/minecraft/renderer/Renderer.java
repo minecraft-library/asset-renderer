@@ -3,6 +3,7 @@ package lib.minecraft.renderer;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.data.AnimatedImageData;
 import dev.simplified.image.data.StaticImageData;
+import lib.minecraft.renderer.options.Option;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -16,9 +17,9 @@ import org.jetbrains.annotations.NotNull;
  * object, and all ambient pack / model / texture lookups come from the {@code RendererContext} the
  * implementation is constructed with.
  *
- * @param <O> the options type accepted by this renderer
+ * @param <O> the options type accepted by this renderer; implements {@link Option}
  */
-public interface Renderer<O> {
+public interface Renderer<O extends Option> {
 
     /**
      * Shared square-pixel default output size (in pixels) for single-subject renders. Consumed by

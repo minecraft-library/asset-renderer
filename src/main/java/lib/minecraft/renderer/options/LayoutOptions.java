@@ -26,7 +26,7 @@ import java.util.function.UnaryOperator;
  * @see lib.minecraft.renderer.LayoutRenderer
  */
 @Getter
-public class LayoutOptions {
+public class LayoutOptions implements Option {
 
     /**
      * Layout strategy positioning the children on the output canvas.
@@ -119,7 +119,7 @@ public class LayoutOptions {
          * @param <O> the options type
          * @return this builder
          */
-        public <O> @NotNull Builder child(@NotNull Renderer<O> renderer, @NotNull O options) {
+        public <O extends Option> @NotNull Builder child(@NotNull Renderer<O> renderer, @NotNull O options) {
             this.children.add(() -> renderer.render(options));
             return this;
         }

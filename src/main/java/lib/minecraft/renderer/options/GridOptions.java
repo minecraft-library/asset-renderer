@@ -30,7 +30,7 @@ import java.util.function.UnaryOperator;
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
-public class GridOptions {
+public class GridOptions implements Option {
 
     /**
      * Tile images to place on the grid, each carrying its own cell coordinate. Empty by default

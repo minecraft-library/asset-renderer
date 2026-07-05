@@ -47,7 +47,7 @@ import java.util.function.UnaryOperator;
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
-public class BlockOptions {
+public class BlockOptions implements Option {
 
     /**
      * Namespaced block id to render, e.g. {@code "minecraft:stone"}. Empty string by default,

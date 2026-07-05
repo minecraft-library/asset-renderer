@@ -54,7 +54,7 @@ import java.util.function.UnaryOperator;
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
-public class PlayerOptions {
+public class PlayerOptions implements Option {
 
     /**
      * Which body parts to include in the render

@@ -26,7 +26,7 @@ import java.util.function.UnaryOperator;
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
-public class TextOptions {
+public class TextOptions implements Option {
 
     /**
      * Default per-side inner padding between the tooltip border and the first glyph (mcPixels).
