@@ -418,7 +418,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     ) {
         PixelBuffer skin = resolveSkin(parent, options);
         RasterEngine engine = new RasterEngine(parent.context);
-        int size = options.getOutputSize();
+        int size = options.getRender().getOutputSize();
 
         int[] so = scaleAndOffset2D(options.getType(), size);
         BodyPart2D[] parts = layout2D(options.getType(), so[0], so[1]);
@@ -432,7 +432,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         // skin). Body-part rectangles tile the canvas without overlap, so the per-pass order is
         // equivalent to the historic per-part order.
         return Finalize.render(
-            Finalize.FinalizeSpec.staticFrame(size, size, 1, options.isAntiAlias())
+            Finalize.FinalizeSpec.staticFrame(size, size, 1, options.getRender().isAntiAlias())
                 .withGlint(Finalize.Glint.armor(engine.textures()::tryResolveTexture, enchanted), enchanted),
             (target, mask, tick) -> {
                 LayerStack<ImageLayer> stack = new LayerStack<>();
@@ -509,7 +509,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getRotation(), options.getFacing()), PLAYER_FACING);
+            ModelEngine engine = new ModelEngine(this.parent.context, options.getRender().getProjection().resolve(options.getRender().getRotation(), options.getRender().getFacing()), PLAYER_FACING);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
@@ -554,7 +554,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getRotation(), options.getFacing()), PLAYER_FACING);
+            ModelEngine engine = new ModelEngine(this.parent.context, options.getRender().getProjection().resolve(options.getRender().getRotation(), options.getRender().getFacing()), PLAYER_FACING);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
@@ -603,7 +603,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            ModelEngine engine = new ModelEngine(this.parent.context, options.getProjection().resolve(options.getRotation(), options.getFacing()), PLAYER_FACING);
+            ModelEngine engine = new ModelEngine(this.parent.context, options.getRender().getProjection().resolve(options.getRender().getRotation(), options.getRender().getFacing()), PLAYER_FACING);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
@@ -648,13 +648,13 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PlayerOptions options
     ) {
-        int size = options.getOutputSize();
+        int size = options.getRender().getOutputSize();
         boolean enchanted = hasEnchantedArmor(options);
-        int ssaa = Math.max(1, options.getSupersample());
+        int ssaa = Math.max(1, options.getRender().getSupersample());
         // The glint mask is recorded at the raster size, then box-downsampled to the output so the
         // foil is confined to the armor (not the bare body) after the SSAA blit.
         return Finalize.render(
-            Finalize.FinalizeSpec.staticFrame(size, size, ssaa, options.isAntiAlias())
+            Finalize.FinalizeSpec.staticFrame(size, size, ssaa, options.getRender().isAntiAlias())
                 .withGlint(Finalize.Glint.armor(engine.textures()::tryResolveTexture, enchanted), enchanted),
             // The caller's rotation is composed into the engine's camera pose at construction (above),
             // so the fitted rasterize applies no separate model-spin - EulerRotation.NONE. Default

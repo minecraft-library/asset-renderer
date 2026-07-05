@@ -6,6 +6,7 @@ import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.options.PlayerOptions;
+import lib.minecraft.renderer.options.spec.RenderOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
@@ -74,11 +75,13 @@ class PlayerRasterizeFittedGoldenTest {
         PlayerOptions options = PlayerOptions.builder()
             .type(PlayerOptions.Type.FULL)
             .dimension(PlayerOptions.Dimension.THREE_D)
-            .projection(Projection.VANILLA_ISO)
+            .render(RenderOptions.builder()
+                .projection(Projection.VANILLA_ISO)
+                .outputSize(256)
+                .supersample(1)
+                .antiAlias(false)
+                .build())
             .skinTextureId(Optional.of(SKIN_ID))
-            .outputSize(256)
-            .supersample(1)
-            .antiAlias(false)
             .build();
         assertDeterministicAndPinned(options, 0xF9665E93L);
     }
@@ -89,11 +92,13 @@ class PlayerRasterizeFittedGoldenTest {
         PlayerOptions options = PlayerOptions.builder()
             .type(PlayerOptions.Type.SKULL)
             .dimension(PlayerOptions.Dimension.THREE_D)
-            .projection(Projection.PORTRAIT)
+            .render(RenderOptions.builder()
+                .projection(Projection.PORTRAIT)
+                .outputSize(256)
+                .supersample(1)
+                .antiAlias(false)
+                .build())
             .skinTextureId(Optional.of(SKIN_ID))
-            .outputSize(256)
-            .supersample(1)
-            .antiAlias(false)
             .build();
         assertDeterministicAndPinned(options, 0x88CDA794L);
     }

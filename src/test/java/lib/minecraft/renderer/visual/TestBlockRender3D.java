@@ -5,6 +5,7 @@ import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.face.BlockFace;
 import lib.minecraft.renderer.options.BlockOptions;
+import lib.minecraft.renderer.options.spec.RenderOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
@@ -98,9 +99,11 @@ public final class TestBlockRender3D {
                 .blockId(blockId)
                 .variant(variant)
                 .type(BlockOptions.Type.ISOMETRIC_3D)
-                .outputSize(size)
-                .supersample(ssaa)
-                .antiAlias(true)
+                .render(RenderOptions.builder()
+                    .outputSize(size)
+                    .supersample(ssaa)
+                    .antiAlias(true)
+                    .build())
                 .build();
 
             System.out.printf("Rendering %s%s at %dx%d (ssaa=%d)...%n", blockId,
@@ -122,7 +125,9 @@ public final class TestBlockRender3D {
                         .blockId(blockId)
                         .type(BlockOptions.Type.BLOCK_FACE_2D)
                         .face(face)
-                        .outputSize(128)
+                        .render(RenderOptions.builder()
+                            .outputSize(128)
+                            .build())
                         .build();
                     ImageData faceImage = renderer.render(faceOpt);
                     File faceFile = outputDir.resolve(safeName + "_" + face.direction() + ".png").toFile();

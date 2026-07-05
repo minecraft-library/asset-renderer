@@ -1,14 +1,11 @@
 package lib.minecraft.renderer.options;
 
 import dev.simplified.image.Background;
-import lib.minecraft.renderer.Renderer;
-import lib.minecraft.renderer.engine.camera.Facing;
-import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.options.slot.FluidSlot;
+import lib.minecraft.renderer.options.spec.RenderOptions;
 import lib.minecraft.renderer.request.Biome;
-import lib.minecraft.renderer.request.EulerRotation;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -81,32 +78,14 @@ public class FluidOptions implements Option {
     private final @Nullable Integer waterTintArgbOverride;
 
     /**
-     * User-override model rotation applied before the camera transform, in degrees. Defaults to
-     * {@link EulerRotation#NONE}.
+     * The default render frame for a fluid render - neutral output size, {@code VANILLA_ISO}
+     * projection, no supersampling and no FXAA.
      */
-    @lombok.Builder.Default
-    private final @NotNull EulerRotation rotation = EulerRotation.NONE;
+    public static final @NotNull RenderOptions DEFAULT_RENDER = RenderOptions.defaults();
 
-    /**
-     * Output image dimensions in pixels (square), defaulting to {@link Renderer#DEFAULT_OUTPUT_SIZE}.
-     */
+    /** The shared render frame - output size, projection, facing, rotation, and SSAA / FXAA. */
     @lombok.Builder.Default
-    private final int outputSize = Renderer.DEFAULT_OUTPUT_SIZE;
-
-    /**
-     * Whether to apply FXAA post-processing. On by default (unlike the other 3D renderers).
-     * No-op on the 2D face path.
-     */
-    @lombok.Builder.Default
-    private final boolean antiAlias = true;
-
-    /**
-     * Supersample scale factor for isometric 3D rendering. The cube is rasterized at
-     * {@code outputSize * supersample} resolution, then downsampled for sharper output. A value
-     * of 1 disables supersampling. No-op on the 2D face path.
-     */
-    @lombok.Builder.Default
-    private final int supersample = 2;
+    private final @NotNull RenderOptions render = DEFAULT_RENDER;
 
     /**
      * Animation seed tick. Frame 0 samples the still/flow strip at this tick.
@@ -141,22 +120,6 @@ public class FluidOptions implements Option {
      */
     @lombok.Builder.Default
     private final @NotNull UnaryOperator<LayerStack<GeometryLayer>> layerDecorator = UnaryOperator.identity();
-
-    /**
-     * Graphical projection for the 3D render. Defaults to {@link Projection#VANILLA_ISO} -
-     * byte-identical to the shipped render; selecting another re-poses the camera and its
-     * orthographic flatten together. Only consulted by the {@link Type#ISOMETRIC_3D} path.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Projection projection = Projection.VANILLA_ISO;
-
-    /**
-     * View-facing reflection applied to the {@link #getProjection() projection}. Defaults to
-     * {@link Facing#DEFAULT} (no reflection); {@link Facing#MIRRORED} mirrors the view horizontally and
-     * {@link Facing#FLIPPED} flips it vertically. Only consulted by the {@link Type#ISOMETRIC_3D} path.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Facing facing = Facing.DEFAULT;
 
     /**
      * Opens a builder seeded from this instance's current values, for deriving a variant with a

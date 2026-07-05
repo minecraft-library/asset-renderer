@@ -6,6 +6,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.options.BlockOptions;
+import lib.minecraft.renderer.options.spec.RenderOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
@@ -214,7 +215,9 @@ public final class TestBlockParityVanilla {
             BlockOptions options = BlockOptions.builder()
                 .blockId(blockId)
                 .type(BlockOptions.Type.ISOMETRIC_3D)
-                .outputSize(RENDER_SIZE)
+                .render(RenderOptions.builder()
+                    .outputSize(RENDER_SIZE)
+                    .build())
                 .biome(INVENTORY_DEFAULT_BIOME)
                 .build();
             ImageData java = javaRenderer.render(options);

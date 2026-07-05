@@ -7,6 +7,7 @@ import lib.minecraft.renderer.engine.camera.Facing;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.options.EntityOptions;
+import lib.minecraft.renderer.options.spec.RenderOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
@@ -89,10 +90,12 @@ public final class TestEntityProjections {
             try {
                 EntityOptions options = EntityOptions.builder()
                     .entityId(Optional.of(entityId))
-                    .outputSize(size)
-                    .supersample(2)
-                    .antiAlias(true)
-                    .projection(projection)
+                    .render(RenderOptions.builder()
+                        .outputSize(size)
+                        .supersample(2)
+                        .antiAlias(true)
+                        .projection(projection)
+                        .build())
                     .build();
                 ImageData image = renderer.render(options);
                 img = image.toBufferedImage();
@@ -122,11 +125,13 @@ public final class TestEntityProjections {
                 try {
                     EntityOptions options = EntityOptions.builder()
                         .entityId(Optional.of(entityId))
-                        .outputSize(size)
-                        .supersample(2)
-                        .antiAlias(true)
-                        .projection(projection)
-                        .facing(facing)
+                        .render(RenderOptions.builder()
+                            .outputSize(size)
+                            .supersample(2)
+                            .antiAlias(true)
+                            .projection(projection)
+                            .facing(facing)
+                            .build())
                         .build();
                     img = renderer.render(options).toBufferedImage();
                     ImageIO.write(img, "PNG", cellDir.resolve("facing_" + safe(label) + ".png").toFile());

@@ -2,17 +2,14 @@ package lib.minecraft.renderer.options;
 
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.BlockRenderer;
-import lib.minecraft.renderer.Renderer;
 import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.engine.RendererContext;
-import lib.minecraft.renderer.engine.camera.Facing;
-import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.face.BlockFace;
 import lib.minecraft.renderer.options.slot.BlockSlot;
+import lib.minecraft.renderer.options.spec.RenderOptions;
 import lib.minecraft.renderer.request.Biome;
-import lib.minecraft.renderer.request.EulerRotation;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -84,51 +81,14 @@ public class BlockOptions implements Option {
     private final @NotNull Biome biome = Biome.Vanilla.PLAINS;
 
     /**
-     * User-override model rotation applied before the camera transform, in degrees. Composes on
-     * top of any blockstate {@link #variant} rotation. Defaults to {@link EulerRotation#NONE}
+     * The default render frame for a block icon - neutral output size, {@code VANILLA_ISO}
+     * projection, no supersampling and no FXAA.
      */
-    @lombok.Builder.Default
-    private final @NotNull EulerRotation rotation = EulerRotation.NONE;
+    public static final @NotNull RenderOptions DEFAULT_RENDER = RenderOptions.defaults();
 
-    /**
-     * Graphical projection for the 3D isometric render. Defaults to {@link Projection#VANILLA_ISO} -
-     * vanilla's iso block pose, byte-identical to the shipped render. Selecting another projection
-     * (true isometric, dimetric, cabinet, ...) re-poses the camera and its orthographic flatten
-     * together. Only consulted by the {@link Type#ISOMETRIC_3D} path
-     */
+    /** The shared render frame - output size, projection, facing, rotation, and SSAA / FXAA. */
     @lombok.Builder.Default
-    private final @NotNull Projection projection = Projection.VANILLA_ISO;
-
-    /**
-     * View-facing reflection applied to the {@link #getProjection() projection}. Defaults to
-     * {@link Facing#DEFAULT} (no reflection); {@link Facing#MIRRORED} mirrors the view horizontally and
-     * {@link Facing#FLIPPED} flips it vertically. Only consulted by the {@link Type#ISOMETRIC_3D} path
-     */
-    @lombok.Builder.Default
-    private final @NotNull Facing facing = Facing.DEFAULT;
-
-    /**
-     * Output image dimensions in pixels (square), defaulting to {@link Renderer#DEFAULT_OUTPUT_SIZE}
-     */
-    @lombok.Builder.Default
-    private final int outputSize = Renderer.DEFAULT_OUTPUT_SIZE;
-
-    /**
-     * Whether to apply FXAA post-processing. Off by default: vanilla's GUI block icon path
-     * does no post-process AA, so leaving FXAA on diverges from the {@code Lighting.ITEMS_3D}
-     * harness baseline by blurring sub-texel edges that vanilla leaves sharp. Callers that
-     * want soft edges for non-parity use cases can opt in via the builder.
-     */
-    @lombok.Builder.Default
-    private final boolean antiAlias = false;
-
-    /**
-     * Supersample scale factor for isometric 3D rendering. The block is rasterized at
-     * {@code outputSize * supersample} resolution, then downsampled for sharper output at small
-     * tile sizes. A value of 1 disables supersampling.
-     */
-    @lombok.Builder.Default
-    private final int supersample = 1;
+    private final @NotNull RenderOptions render = DEFAULT_RENDER;
 
     /**
      * Whether the renderer should compose a {@link Block.Entity}'s

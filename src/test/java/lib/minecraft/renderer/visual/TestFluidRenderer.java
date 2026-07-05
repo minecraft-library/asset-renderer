@@ -9,6 +9,7 @@ import lib.minecraft.renderer.asset.Block;
 import lib.minecraft.renderer.engine.kit.FluidGeometryKit;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.options.FluidOptions;
+import lib.minecraft.renderer.options.spec.RenderOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
@@ -79,34 +80,46 @@ public final class TestFluidRenderer {
         // Source blocks + 2D face.
         render(renderer, imageFactory, "water_source_iso", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)
-            .outputSize(STATIC_SIZE)
+            .render(RenderOptions.builder()
+                .outputSize(STATIC_SIZE)
+                .build())
             .build());
         render(renderer, imageFactory, "lava_source_iso", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.LAVA)
-            .outputSize(STATIC_SIZE)
+            .render(RenderOptions.builder()
+                .outputSize(STATIC_SIZE)
+                .build())
             .build());
         render(renderer, imageFactory, "water_face_2d", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)
             .type(FluidOptions.Type.FLUID_FACE_2D)
-            .outputSize(STATIC_SIZE)
+            .render(RenderOptions.builder()
+                .outputSize(STATIC_SIZE)
+                .build())
             .build());
         render(renderer, imageFactory, "lava_face_2d", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.LAVA)
             .type(FluidOptions.Type.FLUID_FACE_2D)
-            .outputSize(STATIC_SIZE)
+            .render(RenderOptions.builder()
+                .outputSize(STATIC_SIZE)
+                .build())
             .build());
 
         // Animation. water_still has 32 frames at frametime=2; lava_still has 20 frames at
         // frametime=3. Sample at native frametime so the strip is walked exactly once.
         render(renderer, imageFactory, "water_animated_iso", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)
-            .outputSize(ANIMATED_SIZE)
+            .render(RenderOptions.builder()
+                .outputSize(ANIMATED_SIZE)
+                .build())
             .frameCount(32)
             .ticksPerFrame(2)
             .build());
         render(renderer, imageFactory, "lava_animated_iso", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.LAVA)
-            .outputSize(ANIMATED_SIZE)
+            .render(RenderOptions.builder()
+                .outputSize(ANIMATED_SIZE)
+                .build())
             .frameCount(20)
             .ticksPerFrame(3)
             .build());
@@ -115,7 +128,9 @@ public final class TestFluidRenderer {
         // expanded; kept in the matrix so the fix lights these up without any driver changes.
         render(renderer, imageFactory, "water_level_4_flow_ne", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)
-            .outputSize(STATIC_SIZE)
+            .render(RenderOptions.builder()
+                .outputSize(STATIC_SIZE)
+                .build())
             .cornerHeights(new FluidOptions.CornerHeights(0.875f, 0.5f, 0.375f, 0.75f))
             .flowAngleRadians(Optional.of((float) Math.toRadians(45)))
             .build());
@@ -124,27 +139,37 @@ public final class TestFluidRenderer {
         // default water colour; only the override variant differs.
         render(renderer, imageFactory, "water_plains", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)
-            .outputSize(STATIC_SIZE)
+            .render(RenderOptions.builder()
+                .outputSize(STATIC_SIZE)
+                .build())
             .biome(Biome.Vanilla.PLAINS)
             .build());
         render(renderer, imageFactory, "water_swamp", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)
-            .outputSize(STATIC_SIZE)
+            .render(RenderOptions.builder()
+                .outputSize(STATIC_SIZE)
+                .build())
             .biome(Biome.Vanilla.SWAMP)
             .build());
         render(renderer, imageFactory, "water_cherry_grove", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)
-            .outputSize(STATIC_SIZE)
+            .render(RenderOptions.builder()
+                .outputSize(STATIC_SIZE)
+                .build())
             .biome(Biome.Vanilla.CHERRY_GROVE)
             .build());
         render(renderer, imageFactory, "water_warm_ocean", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)
-            .outputSize(STATIC_SIZE)
+            .render(RenderOptions.builder()
+                .outputSize(STATIC_SIZE)
+                .build())
             .biome(Biome.Vanilla.WARM_OCEAN)
             .build());
         render(renderer, imageFactory, "water_override_magenta", FluidOptions.builder()
             .fluid(FluidOptions.Fluid.WATER)
-            .outputSize(STATIC_SIZE)
+            .render(RenderOptions.builder()
+                .outputSize(STATIC_SIZE)
+                .build())
             .waterTintArgbOverride(0xFFFF00FF)
             .build());
 

@@ -1,10 +1,7 @@
 package lib.minecraft.renderer.options;
 
 import dev.simplified.image.Background;
-import lib.minecraft.renderer.Renderer;
-import lib.minecraft.renderer.engine.camera.Facing;
-import lib.minecraft.renderer.engine.camera.Projection;
-import lib.minecraft.renderer.request.EulerRotation;
+import lib.minecraft.renderer.options.spec.RenderOptions;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -47,30 +44,14 @@ public class PortalOptions implements Option {
     private final @Nullable Integer tintArgbOverride;
 
     /**
-     * Model rotation applied before the camera transform, in degrees. No-op on the 2D face path.
+     * The default render frame for a portal render - neutral output size, {@code VANILLA_ISO}
+     * projection, no supersampling and no FXAA.
      */
-    @lombok.Builder.Default
-    private final @NotNull EulerRotation rotation = EulerRotation.NONE;
+    public static final @NotNull RenderOptions DEFAULT_RENDER = RenderOptions.defaults();
 
-    /**
-     * Output image dimensions in pixels (square).
-     */
+    /** The shared render frame - output size, projection, facing, rotation, and SSAA / FXAA. */
     @lombok.Builder.Default
-    private final int outputSize = Renderer.DEFAULT_OUTPUT_SIZE;
-
-    /**
-     * Whether to apply FXAA post-processing. No-op on the 2D face path.
-     */
-    @lombok.Builder.Default
-    private final boolean antiAlias = true;
-
-    /**
-     * Supersample scale factor for isometric 3D rendering. The cube / slab is rasterized at
-     * {@code outputSize * supersample} resolution, then downsampled for sharper output. A value
-     * of 1 disables supersampling. No-op on the 2D face path.
-     */
-    @lombok.Builder.Default
-    private final int supersample = 2;
+    private final @NotNull RenderOptions render = DEFAULT_RENDER;
 
     /**
      * Animation seed tick. Frame 0 feeds {@code GameTime} into the parallax layer transform at this tick.
@@ -126,22 +107,6 @@ public class PortalOptions implements Option {
     private final @NotNull Background background = Background.TRANSPARENT;
 
     /**
-     * Graphical projection for the isometric 3D render. Defaults to {@link Projection#VANILLA_ISO}
-     * - byte-identical to the shipped render; selecting another re-poses the camera and its lens
-     * together. No-op on the 2D face path.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Projection projection = Projection.VANILLA_ISO;
-
-    /**
-     * View-facing reflection applied to the {@link #getProjection() projection}. Defaults to
-     * {@link Facing#DEFAULT} (no reflection); {@link Facing#MIRRORED} mirrors the view horizontally and
-     * {@link Facing#FLIPPED} flips it vertically. No-op on the 2D face path.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Facing facing = Facing.DEFAULT;
-
-    /**
      * A builder pre-populated with this instance's field values, for deriving a variant.
      *
      * @return the seeded builder
@@ -152,8 +117,7 @@ public class PortalOptions implements Option {
 
     /**
      * The default portal options - a static isometric 3D {@linkplain Portal#END_PORTAL end portal}
-     * at {@link Renderer#DEFAULT_OUTPUT_SIZE} pixels with 2x supersampling and FXAA, under the
-     * {@linkplain Projection#VANILLA_ISO vanilla isometric} projection over a
+     * with the neutral {@link #getRender() render} frame over a
      * {@linkplain Background#TRANSPARENT transparent} background.
      *
      * @return the default options

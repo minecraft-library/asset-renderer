@@ -24,6 +24,7 @@ import lib.minecraft.renderer.options.FluidOptions;
 import lib.minecraft.renderer.options.GridOptions;
 import lib.minecraft.renderer.options.ItemOptions;
 import lib.minecraft.renderer.options.PortalOptions;
+import lib.minecraft.renderer.options.spec.RenderOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import org.jetbrains.annotations.NotNull;
 
@@ -230,7 +231,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
                 BlockOptions blockOptions = BlockOptions.builder()
                     .blockId(blockId)
                     .type(BlockOptions.Type.ISOMETRIC_3D)
-                    .outputSize(options.getTileSize())
+                    .render(RenderOptions.builder().outputSize(options.getTileSize()).build())
                     .build();
                 image = renderer.render(blockOptions);
                 source = classifyBlockSource(blockId);
@@ -259,7 +260,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         return FluidOptions.builder()
             .fluid(fluid)
             .type(FluidOptions.Type.FLUID_FACE_2D)
-            .outputSize(tileSize)
+            .render(RenderOptions.builder().outputSize(tileSize).build())
             .build();
     }
 
@@ -277,7 +278,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         return PortalOptions.builder()
             .portal(portal)
             .type(PortalOptions.Type.PORTAL_FACE_2D)
-            .outputSize(tileSize)
+            .render(RenderOptions.builder().outputSize(tileSize).build())
             .build();
     }
 
@@ -350,7 +351,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         ItemOptions itemOptions = ItemOptions.builder()
             .itemId(itemId)
             .type(ItemOptions.Type.GUI_2D)
-            .outputSize(options.getTileSize())
+            .render(ItemOptions.DEFAULT_RENDER.mutate().outputSize(options.getTileSize()).build())
             .animateGlint(false)
             .build();
         try {

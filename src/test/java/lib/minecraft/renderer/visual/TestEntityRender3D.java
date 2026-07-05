@@ -8,6 +8,7 @@ import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.options.Age;
 import lib.minecraft.renderer.options.EntityAppearance;
 import lib.minecraft.renderer.options.EntityOptions;
+import lib.minecraft.renderer.options.spec.RenderOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
@@ -128,10 +129,12 @@ public final class TestEntityRender3D {
             EntityOptions options = EntityOptions.builder()
                 .entityId(Optional.of(entityId))
                 .appearance(appearance)
-                .outputSize(size)
-                .supersample(2)
-                .antiAlias(true)
-                .projection(projection)
+                .render(RenderOptions.builder()
+                    .outputSize(size)
+                    .supersample(2)
+                    .antiAlias(true)
+                    .projection(projection)
+                    .build())
                 .build();
 
             long perT0 = System.nanoTime();

@@ -2,6 +2,7 @@ package lib.minecraft.renderer.bench;
 
 import lib.minecraft.renderer.FluidRenderer;
 import lib.minecraft.renderer.options.FluidOptions;
+import lib.minecraft.renderer.options.spec.RenderOptions;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;
@@ -42,7 +43,9 @@ public class FluidAnimationBenchmark extends AbstractRendererBenchmark {
         int ticksPerFrame = this.fluid == FluidOptions.Fluid.WATER ? 2 : 3;
         this.options = FluidOptions.builder()
             .fluid(this.fluid)
-            .outputSize(256)
+            .render(RenderOptions.builder()
+                .outputSize(256)
+                .build())
             .frameCount(frameCount)
             .ticksPerFrame(ticksPerFrame)
             .build();

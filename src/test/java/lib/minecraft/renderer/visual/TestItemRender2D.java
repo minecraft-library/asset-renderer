@@ -3,6 +3,7 @@ package lib.minecraft.renderer.visual;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.options.ItemOptions;
+import lib.minecraft.renderer.options.spec.RenderOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
@@ -87,9 +88,7 @@ public final class TestItemRender2D {
             ItemOptions options = ItemOptions.builder()
                 .itemId(itemId)
                 .type(type)
-                .outputSize(size)
-                .supersample(supersample)
-                .antiAlias(antiAlias)
+                .render(ItemOptions.DEFAULT_RENDER.mutate().outputSize(size).supersample(supersample).antiAlias(antiAlias).build())
                 .build();
 
             System.out.printf("Rendering item %s (%s) at %dx%d (ssaa=%d, fxaa=%b)...%n",

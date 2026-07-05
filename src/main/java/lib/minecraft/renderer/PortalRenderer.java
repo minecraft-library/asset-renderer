@@ -529,14 +529,14 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             // Resolve the projection once: the caller's rotation is composed onto the base pose, so it
             // poses the camera directly and the rasterize call applies no separate model-spin. Default
             // renders pass EulerRotation.NONE, leaving the byte-identical base block-icon pose.
-            var resolved = options.getProjection().resolve(options.getRotation(), options.getFacing());
+            var resolved = options.getRender().getProjection().resolve(options.getRender().getRotation(), options.getRender().getFacing());
             ModelEngine engine = new ModelEngine(this.context, resolved);
             Textures textures = new Textures(this.context);
             PixelBuffer endSky = textures.resolveTexture(END_SKY_TEXTURE_ID);
             PixelBuffer endPortalNoise = textures.resolveTexture(END_PORTAL_NOISE_TEXTURE_ID);
 
-            int ssaa = Math.max(1, options.getSupersample());
-            int hiRes = options.getOutputSize() * ssaa;
+            int ssaa = Math.max(1, options.getRender().getSupersample());
+            int hiRes = options.getRender().getOutputSize() * ssaa;
 
             // Pass 1: bake the parallax shader once at the raster resolution. This is the
             // "screen-space canvas" - every output pixel that lands on the cube samples this single
@@ -553,7 +553,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             ConcurrentList<VisibleTriangle> triangles = buildGeometry(options.getPortal(), SixFaces.uniform(white));
 
             return Finalize.frame(
-                Finalize.FinalizeSpec.staticFrame(options.getOutputSize(), options.getOutputSize(), ssaa, options.isAntiAlias()),
+                Finalize.FinalizeSpec.staticFrame(options.getRender().getOutputSize(), options.getRender().getOutputSize(), ssaa, options.getRender().isAntiAlias()),
                 (target, ignoredMask, ignoredTick) -> {
                     try (PixelBufferPool.Lease maskLease = PixelBufferPool.acquire(target.width(), target.height())) {
                         PixelBuffer shadingMask = maskLease.buffer();
@@ -656,7 +656,7 @@ public final class PortalRenderer implements Renderer<PortalOptions> {
             PixelBuffer endSky = engine.textures().resolveTexture(END_SKY_TEXTURE_ID);
             PixelBuffer endPortalNoise = engine.textures().resolveTexture(END_PORTAL_NOISE_TEXTURE_ID);
 
-            PixelBuffer baked = bakeFace(options.getPortal(), tick, endSky, endPortalNoise, options.getOutputSize());
+            PixelBuffer baked = bakeFace(options.getPortal(), tick, endSky, endPortalNoise, options.getRender().getOutputSize());
             return applyTintIfNeeded(baked, resolveTint(options));
         }
 

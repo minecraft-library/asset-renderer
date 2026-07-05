@@ -2,9 +2,6 @@ package lib.minecraft.renderer.options;
 
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.PlayerRenderer;
-import lib.minecraft.renderer.Renderer;
-import lib.minecraft.renderer.engine.camera.Facing;
-import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
@@ -12,9 +9,9 @@ import lib.minecraft.renderer.engine.kit.ArmorKit;
 import lib.minecraft.renderer.engine.kit.TrimKit;
 import lib.minecraft.renderer.options.slot.PlayerSlot2D;
 import lib.minecraft.renderer.options.slot.PlayerSlot3D;
+import lib.minecraft.renderer.options.spec.RenderOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.request.ArmorPiece;
-import lib.minecraft.renderer.request.EulerRotation;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -142,36 +139,14 @@ public class PlayerOptions implements Option {
     private final boolean renderOverlay = true;
 
     /**
-     * Output image dimensions in pixels (square)
+     * The default render frame for a player render - neutral output size, {@code VANILLA_ISO}
+     * projection, no supersampling and no FXAA.
      */
-    @lombok.Builder.Default
-    private final int outputSize = Renderer.DEFAULT_OUTPUT_SIZE;
+    public static final @NotNull RenderOptions DEFAULT_RENDER = RenderOptions.defaults();
 
-    /**
-     * Model rotation applied before the camera transform, in degrees
-     */
+    /** The shared render frame - output size, projection, facing, rotation, and SSAA / FXAA. */
     @lombok.Builder.Default
-    private final @NotNull EulerRotation rotation = EulerRotation.NONE;
-
-    /**
-     * Supersample scale factor for the 3D render. The model is rasterized at
-     * {@code outputSize * supersample} resolution then downsampled to {@link #outputSize} for
-     * sharper edges (SSAA). A value of {@code 1} (default) disables supersampling. Composes
-     * orthogonally with {@link #antiAlias} - when both are set, FXAA runs on the hi-res buffer
-     * before downsampling, which gives the cleanest silhouette at the cost of extra cycles.
-     * Ignored by the 2D composite path.
-     */
-    @lombok.Builder.Default
-    private final int supersample = 1;
-
-    /**
-     * Whether to apply FXAA post-processing on the rendered buffer. Default {@code false} so
-     * end-user one-off renders ship without FXAA blur; opt in for soft edges on small thumbnails
-     * or when {@link #supersample} alone isn't enough. When supersample is {@code > 1}, FXAA runs
-     * on the hi-res buffer before downsampling.
-     */
-    @lombok.Builder.Default
-    private final boolean antiAlias = false;
+    private final @NotNull RenderOptions render = DEFAULT_RENDER;
 
     /**
      * Background fill composited behind the finished render (solid colour or checkerboard).
@@ -197,22 +172,6 @@ public class PlayerOptions implements Option {
     private final @NotNull UnaryOperator<LayerStack<GeometryLayer>> geometryLayerDecorator = UnaryOperator.identity();
 
     /**
-     * Graphical projection for the 3D render. Defaults to {@link Projection#VANILLA_ISO} -
-     * byte-identical to the shipped render; selecting another re-poses the camera and its lens
-     * together. Only consulted by the 3D path.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Projection projection = Projection.VANILLA_ISO;
-
-    /**
-     * View-facing reflection applied to the {@link #getProjection() projection}. Defaults to
-     * {@link Facing#DEFAULT} (no reflection); {@link Facing#MIRRORED} mirrors the view horizontally and
-     * {@link Facing#FLIPPED} flips it vertically. Only consulted by the 3D path.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Facing facing = Facing.DEFAULT;
-
-    /**
      * A builder pre-populated with this instance's field values, for deriving a variant.
      *
      * @return the seeded builder
@@ -222,9 +181,8 @@ public class PlayerOptions implements Option {
     }
 
     /**
-     * The default player options - a 3D {@linkplain Type#SKULL skull} at
-     * {@link Renderer#DEFAULT_OUTPUT_SIZE} pixels, overlay layer on, no armor or cape, under the
-     * {@linkplain Projection#VANILLA_ISO vanilla isometric} projection over a
+     * The default player options - a 3D {@linkplain Type#SKULL skull} with the neutral
+     * {@link #getRender() render} frame, overlay layer on, no armor or cape, over a
      * {@linkplain Background#TRANSPARENT transparent} background.
      *
      * @return the default options

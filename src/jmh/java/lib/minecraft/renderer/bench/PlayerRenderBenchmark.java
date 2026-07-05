@@ -2,6 +2,7 @@ package lib.minecraft.renderer.bench;
 
 import lib.minecraft.renderer.PlayerRenderer;
 import lib.minecraft.renderer.options.PlayerOptions;
+import lib.minecraft.renderer.options.spec.RenderOptions;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;
@@ -39,7 +40,9 @@ public class PlayerRenderBenchmark extends AbstractRendererBenchmark {
         this.options = PlayerOptions.builder()
             .type(this.type)
             .dimension(PlayerOptions.Dimension.THREE_D)
-            .outputSize(256)
+            .render(RenderOptions.builder()
+                .outputSize(256)
+                .build())
             .build();
     }
 

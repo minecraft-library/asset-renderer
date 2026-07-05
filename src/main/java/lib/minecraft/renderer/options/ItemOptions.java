@@ -4,9 +4,7 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.ItemRenderer;
-import lib.minecraft.renderer.Renderer;
 import lib.minecraft.renderer.asset.rule.ItemContext;
-import lib.minecraft.renderer.engine.camera.Facing;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
@@ -14,6 +12,7 @@ import lib.minecraft.renderer.engine.kit.BannerKit;
 import lib.minecraft.renderer.engine.kit.GlintKit;
 import lib.minecraft.renderer.engine.kit.TrimKit;
 import lib.minecraft.renderer.options.slot.ItemSlot;
+import lib.minecraft.renderer.options.spec.RenderOptions;
 import lib.minecraft.renderer.request.ArmorTrim;
 import lib.minecraft.renderer.request.BannerLayer;
 import lib.minecraft.renderer.request.DyeColor;
@@ -32,7 +31,7 @@ import java.util.function.UnaryOperator;
  * the GUI icon:
  * <ul>
  *   <li><b>2D GUI icon</b> - the inventory tile a caller sees at {@code 16x16} logical
- *       pixels, scaled to {@link #getOutputSize outputSize}. Supports the full item overlay
+ *       pixels, scaled to {@link RenderOptions#getOutputSize() outputSize}. Supports the full item overlay
  *       stack: durability bar, stack count, enchantment glint, leather dye tint, banner
  *       pattern composite, armor trim palette permutation.</li>
  *   <li><b>3D held-item view</b> - the model rendered at the vanilla
@@ -164,27 +163,15 @@ public class ItemOptions implements Option {
     private final boolean showDamageBar = true;
 
     /**
-     * Output image dimensions in pixels (square), defaulting to {@link Renderer#DEFAULT_OUTPUT_SIZE}
+     * The default render frame for an item icon - the GUI-item projection
+     * ({@link Projection#VANILLA_GUI_ITEM}) with neutral output size, no supersampling and no FXAA.
      */
-    @lombok.Builder.Default
-    private final int outputSize = Renderer.DEFAULT_OUTPUT_SIZE;
+    public static final @NotNull RenderOptions DEFAULT_RENDER =
+            RenderOptions.builder().projection(Projection.VANILLA_GUI_ITEM).build();
 
-    /**
-     * Supersample scale factor. The 3D held-item render is rasterized at {@code outputSize *
-     * supersample} resolution, then downsampled for sharper output (SSAA). A value of {@code 1}
-     * (default) disables supersampling. Applies to the held-item path only; the flat GUI icon is a
-     * sprite blit and ignores it. Composes orthogonally with {@link #antiAlias}.
-     */
+    /** The shared render frame - output size, projection, facing, rotation, and SSAA / FXAA. */
     @lombok.Builder.Default
-    private final int supersample = 1;
-
-    /**
-     * Whether to apply FXAA post-processing on the rasterized buffer. Default {@code false} so one-off
-     * renders ship without FXAA blur; opt in for soft edges. When {@link #supersample} is {@code > 1}
-     * (3D held items), FXAA runs on the hi-res buffer before downsampling.
-     */
-    @lombok.Builder.Default
-    private final boolean antiAlias = false;
+    private final @NotNull RenderOptions render = DEFAULT_RENDER;
 
     /**
      * Render-time item context used by CIT matching, the damage bar, and the stack-count overlay.
@@ -208,26 +195,6 @@ public class ItemOptions implements Option {
      */
     @lombok.Builder.Default
     private final @NotNull UnaryOperator<LayerStack<ImageLayer>> layerDecorator = UnaryOperator.identity();
-
-    /**
-     * Graphical projection for the {@link Type#HELD_3D} render. Defaults to
-     * {@link Projection#VANILLA_GUI_ITEM} - byte-identical to the shipped render. The held-item
-     * pose itself comes from the model's {@code thirdperson_righthand} display transform; this
-     * projection supplies the camera lens (orthographic flatten). Selecting another re-poses the
-     * lens; not consulted by the {@link Type#GUI_2D} path.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Projection projection = Projection.VANILLA_GUI_ITEM;
-
-    /**
-     * View-facing reflection applied to the {@link #getProjection() projection}. Defaults to
-     * {@link Facing#DEFAULT} (no reflection). For the 3D held-item path the pose comes from the model's
-     * {@code display} transform, so only an {@linkplain lib.minecraft.renderer.engine.camera.Lens.Kind#OBLIQUE
-     * oblique} lens's depth-shear is affected - inert for the default perspective GUI item. Not consulted
-     * by the {@link Type#GUI_2D} path.
-     */
-    @lombok.Builder.Default
-    private final @NotNull Facing facing = Facing.DEFAULT;
 
     /**
      * Opens a builder seeded from this instance's current values, for deriving a variant with a

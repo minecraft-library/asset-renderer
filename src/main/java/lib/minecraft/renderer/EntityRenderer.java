@@ -147,7 +147,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             );
         }
 
-        EulerRotation user = options.getRotation();
+        EulerRotation user = options.getRender().getRotation();
         EulerRotation effective = new EulerRotation(
             user.pitch(),
             user.yaw() + model.getInventoryYRotation() + definition.setupYawAddend(),
@@ -167,7 +167,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // render = pose · ENTITY_FACING · model_Ydown lands the entity upright AND facing under ANY
         // projection (exactly like the player's R_Y(180) facing, plus the Y-down flip). For the default,
         // R(30,225,0) · ENTITY_FACING = R(30,45,0) · flip180 reproduces the harness orientation.
-        Camera entityCamera = options.getProjection().resolve(EulerRotation.NONE, options.getFacing());
+        Camera entityCamera = options.getRender().getProjection().resolve(EulerRotation.NONE, options.getRender().getFacing());
         ModelEngine engine = new ModelEngine(this.context, entityCamera, ENTITY_PLACEMENT);
         Lens lens = entityCamera.lens();
 
@@ -205,7 +205,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             kitNdcScale = 1f;
             fitRequest = FitRequest.nativeScale(fit.ndcScale(), screenBounds);
         } else {
-            int outputSize = Math.max(1, options.getOutputSize());
+            int outputSize = Math.max(1, options.getRender().getOutputSize());
             int padding = Math.max(0, options.getPadding());
             canvasW = outputSize;
             canvasH = outputSize;
@@ -253,9 +253,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // Rasterize + optional FXAA + supersample-downscale + masked glint via the shared tail.
         // The glint mask is recorded at the raster size and downsampled so the foil is confined to
         // the (glinted) armor rather than the whole entity silhouette.
-        int ssaa = Math.max(1, options.getSupersample());
+        int ssaa = Math.max(1, options.getRender().getSupersample());
         return Finalize.render(
-            Finalize.FinalizeSpec.staticFrame(canvasW, canvasH, ssaa, options.isAntiAlias())
+            Finalize.FinalizeSpec.staticFrame(canvasW, canvasH, ssaa, options.getRender().isAntiAlias())
                 .withGlint(Finalize.Glint.armor(engine.textures()::tryResolveTexture, enchanted), enchanted),
             (target, mask, tick) -> engine.rasterizeFitted(triangles, target, effective, fitRequest, mask));
     }
@@ -688,7 +688,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         float projectionScale = lens.projectionScale();
 
         if (options.getFitMode() == EntityOptions.FitMode.OUTPUT_SIZE) {
-            int outputSize = Math.max(1, options.getOutputSize());
+            int outputSize = Math.max(1, options.getRender().getOutputSize());
             int avail = Math.max(1, outputSize - 2 * padding);
             float extent = Math.max(Math.max(extentX, extentY), 1e-6f);
             float pxPerEntityUnit = avail / extent;

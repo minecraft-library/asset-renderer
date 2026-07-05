@@ -4,6 +4,7 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.options.BlockOptions;
+import lib.minecraft.renderer.options.spec.RenderOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
@@ -63,9 +64,11 @@ class ModelEngineParallelismTest {
         BlockOptions options = BlockOptions.builder()
             .blockId("minecraft:piston")
             .type(BlockOptions.Type.ISOMETRIC_3D)
-            .outputSize(256)
-            .supersample(2)
-            .antiAlias(false)
+            .render(RenderOptions.builder()
+                .outputSize(256)
+                .supersample(2)
+                .antiAlias(false)
+                .build())
             .build();
         assertDeterministicAndPinned(options, 0x81C04777L);
     }
@@ -76,9 +79,11 @@ class ModelEngineParallelismTest {
         BlockOptions options = BlockOptions.builder()
             .blockId("minecraft:white_banner")
             .type(BlockOptions.Type.ISOMETRIC_3D)
-            .outputSize(256)
-            .supersample(2)
-            .antiAlias(false)
+            .render(RenderOptions.builder()
+                .outputSize(256)
+                .supersample(2)
+                .antiAlias(false)
+                .build())
             .build();
         assertDeterministicAndPinned(options, 0x8189C31EL);
     }
@@ -90,8 +95,10 @@ class ModelEngineParallelismTest {
         BlockOptions options = BlockOptions.builder()
             .blockId("minecraft:piston")
             .type(BlockOptions.Type.ISOMETRIC_3D)
-            .outputSize(128)
-            .antiAlias(false)
+            .render(RenderOptions.builder()
+                .outputSize(128)
+                .antiAlias(false)
+                .build())
             .build();
         assertDeterministicAndPinned(options, 0xC41E4FA9L);
     }
