@@ -16,10 +16,9 @@ import lib.minecraft.renderer.engine.camera.FitRequest;
 import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.Placement;
 import lib.minecraft.renderer.engine.camera.Projection;
-import lib.minecraft.renderer.engine.compose.FinalizeStage;
+import lib.minecraft.renderer.engine.compose.Finalize;
 import lib.minecraft.renderer.engine.compose.FrameCompositor;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
-import lib.minecraft.renderer.engine.compose.GlintStage;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.compose.SceneContext;
@@ -254,9 +253,10 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // The glint mask is recorded at the raster size and downsampled so the foil is confined to
         // the (glinted) armor rather than the whole entity silhouette.
         int ssaa = Math.max(1, options.getSupersample());
-        return FinalizeStage.run(canvasW, canvasH, ssaa, options.isAntiAlias(), enchanted,
-            (target, mask) -> engine.rasterizeFitted(triangles, target, effective, fitRequest, mask),
-            (buffer, mask) -> GlintStage.forArmor(engine.textures()::tryResolveTexture, buffer, enchanted, mask));
+        return Finalize.render(
+            Finalize.FinalizeSpec.staticFrame(canvasW, canvasH, ssaa, options.isAntiAlias())
+                .withGlint(Finalize.Glint.armor(engine.textures()::tryResolveTexture, enchanted), enchanted),
+            (target, mask, tick) -> engine.rasterizeFitted(triangles, target, effective, fitRequest, mask));
     }
 
     /**

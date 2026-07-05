@@ -14,9 +14,8 @@ import lib.minecraft.renderer.engine.RasterEngine;
 import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Placement;
 import lib.minecraft.renderer.engine.camera.Projection;
-import lib.minecraft.renderer.engine.compose.FinalizeStage;
+import lib.minecraft.renderer.engine.compose.Finalize;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
-import lib.minecraft.renderer.engine.compose.GlintStage;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
@@ -417,46 +416,43 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     ) {
         PixelBuffer skin = resolveSkin(parent, options);
         RasterEngine engine = new RasterEngine(parent.context);
-        PixelBuffer buffer = engine.createBuffer(options.getOutputSize(), options.getOutputSize());
+        int size = options.getOutputSize();
 
-        int[] so = scaleAndOffset2D(options.getType(), options.getOutputSize());
+        int[] so = scaleAndOffset2D(options.getType(), size);
         BodyPart2D[] parts = layout2D(options.getType(), so[0], so[1]);
 
         boolean overlay = options.isRenderOverlay();
-        // Glint only the armor, not the bare skin: when enchanted, the armor / trim composites stamp
-        // their coverage into this mask and the foil is confined to it. Null when nothing glints.
         boolean enchanted = hasEnchantedArmor(options);
-        GlintMask glintMask = enchanted ? new GlintMask(options.getOutputSize(), options.getOutputSize()) : null;
 
-        // Compose the front-facing body as an ordered ImageLayer stack so the skin / overlay / armor
-        // passes are governed by slot order (and extensible via PlayerOptions.layerDecorator) rather
-        // than interleaved per body part. Body-part rectangles tile the canvas without overlap, so the
-        // per-pass order is equivalent to the historic per-part order.
-        LayerStack<ImageLayer> stack = new LayerStack<>();
-        stack.append(PlayerOptions.Slot2D.SKIN, frame -> {
-            for (BodyPart2D bp : parts)
-                frame.blitScaled(bp.part.crop(skin, BlockFace.SOUTH, false), bp.x, bp.y, bp.w, bp.h);
-        });
-        if (overlay)
-            stack.append(PlayerOptions.Slot2D.OVERLAY, frame -> {
-                for (BodyPart2D bp : parts) {
-                    if (hasOverlay(skin))
-                        frame.blitScaled(bp.part.crop(skin, BlockFace.SOUTH, true), bp.x, bp.y, bp.w, bp.h);
-                    else if (bp.part == SkinFace.HEAD && hasHatOverlay(skin))
-                        frame.blitScaled(SkinFace.HEAD.crop(skin, BlockFace.SOUTH, true), bp.x, bp.y, bp.w, bp.h);
-                }
+        // Compose the front-facing body as an ordered ImageLayer stack folded into Finalize's target;
+        // Finalize owns the single glint mask (recordMask = enchanted), which the ARMOR / trim
+        // composites stamp their coverage into so the foil is confined to the armor (not the bare
+        // skin). Body-part rectangles tile the canvas without overlap, so the per-pass order is
+        // equivalent to the historic per-part order.
+        return Finalize.render(
+            Finalize.FinalizeSpec.staticFrame(size, size, 1, options.isAntiAlias())
+                .withGlint(Finalize.Glint.armor(engine.textures()::tryResolveTexture, enchanted), enchanted),
+            (target, mask, tick) -> {
+                LayerStack<ImageLayer> stack = new LayerStack<>();
+                stack.append(PlayerOptions.Slot2D.SKIN, frame -> {
+                    for (BodyPart2D bp : parts)
+                        frame.blitScaled(bp.part.crop(skin, BlockFace.SOUTH, false), bp.x, bp.y, bp.w, bp.h);
+                });
+                if (overlay)
+                    stack.append(PlayerOptions.Slot2D.OVERLAY, frame -> {
+                        for (BodyPart2D bp : parts) {
+                            if (hasOverlay(skin))
+                                frame.blitScaled(bp.part.crop(skin, BlockFace.SOUTH, true), bp.x, bp.y, bp.w, bp.h);
+                            else if (bp.part == SkinFace.HEAD && hasHatOverlay(skin))
+                                frame.blitScaled(SkinFace.HEAD.crop(skin, BlockFace.SOUTH, true), bp.x, bp.y, bp.w, bp.h);
+                        }
+                    });
+                stack.append(PlayerOptions.Slot2D.ARMOR, frame -> {
+                    for (BodyPart2D bp : parts)
+                        compositeArmor2D(frame, bp.part, bp.x, bp.y, bp.w, bp.h, options, engine, mask);
+                });
+                Layers.foldInto(stack, options.getLayerDecorator(), target);
             });
-        stack.append(PlayerOptions.Slot2D.ARMOR, frame -> {
-            for (BodyPart2D bp : parts)
-                compositeArmor2D(frame, bp.part, bp.x, bp.y, bp.w, bp.h, options, engine, glintMask);
-        });
-
-        Layers.foldInto(stack, options.getLayerDecorator(), buffer);
-
-        if (options.isAntiAlias())
-            buffer.applyFxaa();
-
-        return GlintStage.forArmor(engine.textures()::tryResolveTexture, buffer, enchanted, glintMask);
     }
 
     /**
@@ -655,12 +651,13 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         int ssaa = Math.max(1, options.getSupersample());
         // The glint mask is recorded at the raster size, then box-downsampled to the output so the
         // foil is confined to the armor (not the bare body) after the SSAA blit.
-        return FinalizeStage.run(size, size, ssaa, options.isAntiAlias(), enchanted,
+        return Finalize.render(
+            Finalize.FinalizeSpec.staticFrame(size, size, ssaa, options.isAntiAlias())
+                .withGlint(Finalize.Glint.armor(engine.textures()::tryResolveTexture, enchanted), enchanted),
             // The caller's rotation is composed into the engine's camera pose at construction (above),
             // so the fitted rasterize applies no separate model-spin - EulerRotation.NONE. Default
             // renders leave the byte-identical base player pose.
-            (target, mask) -> engine.rasterizeFitted(triangles, target, EulerRotation.NONE, PLAYER_FILL, mask),
-            (buffer, mask) -> GlintStage.forArmor(engine.textures()::tryResolveTexture, buffer, enchanted, mask));
+            (target, mask, tick) -> engine.rasterizeFitted(triangles, target, EulerRotation.NONE, PLAYER_FILL, mask));
     }
 
     /**
