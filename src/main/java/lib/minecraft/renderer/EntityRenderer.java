@@ -393,6 +393,34 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         },
 
         /**
+         * Equipment overlays (saddle / body armor): a saddle or armor mesh with its own baked geometry
+         * rendered on the body only when the {@code equipment} axis selects its slot. The texture is the
+         * axis-selected material resolved through the layer's {@code <material>} template (or the layer
+         * default - leather armor / the saddle - when the slot is selected without one); a material whose
+         * equipment texture is absent from the vanilla pack drops out (no fallback). The resolved
+         * definition carries no equipment for a baby, so this contributes nothing then without an age gate.
+         */
+        EQUIPMENT(EntitySlot.MODEL_OVERLAY) {
+            @Override
+            void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
+                EntityAppearance appearance = ctx.options().getAppearance();
+                for (EntityModelLoader.EquipmentOverlay equipment : ctx.definition().equipment()) {
+                    Optional<String> material = appearance.equipmentMaterial(equipment.slot());
+                    if (material.isEmpty()) continue;
+                    String textureRef = equipment.textureFor(material.get());
+                    stack.append(this.slot, sink -> {
+                        if (equipment.model().getBones().isEmpty()) return;
+                        Optional<PixelBuffer> equipmentTex = ctx.context().resolveTexture("minecraft:entity/" + textureRef);
+                        if (equipmentTex.isEmpty()) return;
+                        sink.addAll(EntityGeometryKit.buildTriangles(
+                            equipment.model(), equipmentTex.get(), ctx.modelAnchor(), false,
+                            ctx.ndcScale(), ctx.modelScale(), ColorMath.WHITE).triangles());
+                    });
+                }
+            }
+        },
+
+        /**
          * Block-model overlays (mooshroom mushrooms, copper-golem flower): a block model rendered at a
          * pose-stack-applied position on top of the body; the shared {@code entityFit} is computed once.
          * The resolved definition carries no block overlays for a baby or when the carried option drops

@@ -133,7 +133,8 @@ public class EntityModelLoader {
         @NotNull Map<String, String> stateTextures,
         @NotNull Optional<String> collarTexture,
         @NotNull Optional<EntityModelData> babyModel,
-        @NotNull Map<String, BoneToggle> boneToggles
+        @NotNull Map<String, BoneToggle> boneToggles,
+        @NotNull List<EquipmentOverlay> equipment
     ) {
         /**
          * Returns a copy with no {@link #blockOverlays() block overlays}, for the {@code carried}
@@ -163,7 +164,7 @@ public class EntityModelLoader {
         public @NotNull EntityDefinition resolveFor(@NotNull EntityAppearance appearance) {
             EntityDefinitionBuilder builder = toBuilder();
             if (appearance.isBaby() && this.babyModel.isPresent()) {
-                builder.model(this.babyModel.get()).overlays(List.of()).blockOverlays(List.of()).collarTexture(Optional.empty());
+                builder.model(this.babyModel.get()).overlays(List.of()).blockOverlays(List.of()).collarTexture(Optional.empty()).equipment(List.of());
             } else {
                 // A sheared entity drops its shearable overlays (the sheep wool) - both the rendered
                 // geometry and its canvas-bounds contribution.
@@ -354,6 +355,41 @@ public class EntityModelLoader {
     ) {}
 
     /**
+     * One equipment overlay on an {@link EntityDefinition}: a saddle / body-armor mesh (its own baked
+     * geometry) rendered on the body only when the {@code equipment} render axis selects its
+     * {@link #slot}. Unlike an always-on {@link OverlayLayer}, the texture is chosen at render from
+     * the axis-selected material through {@link #textureTemplate} (or {@link #defaultMaterial} when
+     * the slot is selected without a material). Sourced from the family form's {@code equipment}
+     * layers (see {@link EntityFamilyFlattener.EquipmentSpec}).
+     *
+     * @param slot the equipment slot this overlay is gated on ({@code saddle} / {@code body})
+     * @param model the equipment mesh, resolved from the layer's baked {@code geometry_ref}
+     * @param textureTemplate the equipment texture sub-path with a {@code <material>} placeholder
+     *     ({@code equipment/pig_saddle/<material>}), resolved against {@code textures/entity/}
+     * @param defaultMaterial the material substituted when the slot is selected without one
+     *     ({@code saddle} for a saddle, {@code leather} for body armor)
+     */
+    public record EquipmentOverlay(
+        @NotNull String slot,
+        @NotNull EntityModelData model,
+        @NotNull String textureTemplate,
+        @NotNull String defaultMaterial
+    ) {
+        /**
+         * Resolves the {@code textures/entity/} sub-path for a selected material, substituting it into
+         * {@link #textureTemplate}; falls back to {@link #defaultMaterial} when {@code material} is
+         * blank (the slot selected without an explicit material).
+         *
+         * @param material the axis-selected material, or blank to use {@link #defaultMaterial}
+         * @return the resolved texture sub-path (without the {@code minecraft:entity/} prefix)
+         */
+        public @NotNull String textureFor(@NotNull String material) {
+            String chosen = material.isBlank() ? this.defaultMaterial : material;
+            return this.textureTemplate.replace("<material>", chosen);
+        }
+    }
+
+    /**
      * Resolves an overlays JSON array into a list of {@link OverlayLayer}s. Each entry is an
      * object with a {@code geometry_ref} (resolved against the geometry table), an optional
      * {@code texture_ref} (the vanilla {@code textures/entity/} sub-path; absent means the
@@ -474,6 +510,35 @@ public class EntityModelLoader {
     }
 
     /**
+     * Resolves the flattened equipment specs for an entity into {@link EquipmentOverlay}s, binding
+     * each spec's {@code geometry_ref} to its baked mesh from the geometry table. A spec naming an
+     * unknown geometry logs a warning and drops (a stale layer after a geometry regen).
+     *
+     * @param specs the entity's equipment specs from the flattener (may be {@code null} for none)
+     * @param geometries the deduped geometry table
+     * @param entityId the entity id being loaded (diagnostics)
+     * @return the resolved equipment overlays (empty when the entity has none)
+     */
+    private static @NotNull List<EquipmentOverlay> loadEquipment(
+        @Nullable List<EntityFamilyFlattener.EquipmentSpec> specs,
+        @NotNull Map<String, EntityModelData> geometries,
+        @NotNull String entityId
+    ) {
+        if (specs == null || specs.isEmpty()) return List.of();
+        List<EquipmentOverlay> out = new ArrayList<>(specs.size());
+        for (EntityFamilyFlattener.EquipmentSpec spec : specs) {
+            EntityModelData model = geometries.get(spec.geometryRef());
+            if (model == null) {
+                System.err.printf("  Warning: entity '%s' equipment layer references geometry '%s' which is not present in '%s'%n",
+                    entityId, spec.geometryRef(), GEOMETRY_RESOURCE_PATH);
+                continue;
+            }
+            out.add(new EquipmentOverlay(spec.slot(), model, spec.textureTemplate(), spec.defaultMaterial()));
+        }
+        return List.copyOf(out);
+    }
+
+    /**
      * Parses a JSON tint string into an ARGB int the rasterizer's {@code MULTIPLY} blend
      * consumes. Accepted forms:
      * <ul>
@@ -539,6 +604,7 @@ public class EntityModelLoader {
         Map<String, Map<String, String>> stateTextures = flat.stateTextures();
         Map<String, String> collarTextures = flat.collarTextures();
         Map<String, String> babyGeometryRefs = flat.babyGeometry();
+        Map<String, List<EntityFamilyFlattener.EquipmentSpec>> equipmentSpecs = flat.equipment();
         HashMap<String, EntityDefinition> definitions = new HashMap<>();
         for (Map.Entry<String, JsonElement> entry : entities.entrySet()) {
             String entityId = entry.getKey();
@@ -611,8 +677,9 @@ public class EntityModelLoader {
 
             String babyRef = babyGeometryRefs.get(entityId);
             Optional<EntityModelData> babyModel = babyRef == null ? Optional.empty() : Optional.ofNullable(geometries.get(babyRef));
+            List<EquipmentOverlay> equipment = loadEquipment(equipmentSpecs.get(entityId), geometries, entityId);
             definitions.put(entityId, new EntityDefinition(baseModel, textureRef, overlays, blockOverlays, baseTint, setupYawAddend, rendererScale,
-                stateTextures.getOrDefault(entityId, Map.of()), Optional.ofNullable(collarTextures.get(entityId)), babyModel, boneToggles));
+                stateTextures.getOrDefault(entityId, Map.of()), Optional.ofNullable(collarTextures.get(entityId)), babyModel, boneToggles, equipment));
         }
         return Concurrent.adoptMap(definitions);
     }

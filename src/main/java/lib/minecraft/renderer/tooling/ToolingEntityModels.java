@@ -292,6 +292,8 @@ public final class ToolingEntityModels {
             Map<String, ConcurrentList<EntityBlockOverlayResolver.Result>> blockOverlaysByEntity =
                 new LinkedHashMap<>();
             Map<String, String> collarByEntity = new LinkedHashMap<>();
+            Map<String, ConcurrentList<EntityEquipmentResolver.Result>> equipmentByEntity = new LinkedHashMap<>();
+            Set<String> equipmentFields = new LinkedHashSet<>();
             Set<String> compositeOverlayFields = new LinkedHashSet<>();
             for (Map.Entry<String, EntitySessionWalk.Result> entry : records.entrySet()) {
                 String entityId = entry.getKey();
@@ -303,6 +305,15 @@ public final class ToolingEntityModels {
                 if (collar != null) collarByEntity.put(entityId, collar);
                 for (EntityOverlayResolver.Result desc : overlays)
                     if (desc.modelLayerField() != null) compositeOverlayFields.add(desc.modelLayerField());
+
+                // Generic equipment overlays (saddle / body armor via SimpleEquipmentLayer). Each
+                // carries its own ModelLayers.X_SADDLE/_ARMOR geometry field, added to the same
+                // composite-overlay source set so its mesh gets a deduped geometry id.
+                ConcurrentList<EntityEquipmentResolver.Result> equipment =
+                    EntityEquipmentResolver.resolve(context.classNodes(), rec.rendererInternalName());
+                if (!equipment.isEmpty()) equipmentByEntity.put(entityId, equipment);
+                for (EntityEquipmentResolver.Result desc : equipment)
+                    equipmentFields.add(desc.modelLayerField());
 
                 // Block-decoration layer overlays (mooshroom mushrooms, iron golem flower, etc.)
                 // Walked by EntityBlockOverlayResolver from the renderer's addLayer calls and
@@ -386,6 +397,45 @@ public final class ToolingEntityModels {
             }
             System.out.println("Resolved baby geometry for " + babyResolutionByEntity.size() + " entities");
 
+            // Equipment overlay geometry (saddle / body armor via SimpleEquipmentLayer). Baked
+            // through the same layerDefs -> Source path as composite overlays, but added LAST (after
+            // baby) so the appended equipment meshes only ever take collision suffixes and never shift
+            // an existing entity / overlay / baby geometry id - keeping unequipped entities byte-stable.
+            Map<String, EntityLayerDefinitionResolver.Result> equipmentFieldToResolution = new LinkedHashMap<>();
+            for (String field : equipmentFields) {
+                EntityLayerDefinitionResolver.Result res = layerDefs.get(field);
+                if (res == null) {
+                    diagnostics.info("equipment ModelLayers.%s missing from LayerDefinitions.createRoots - skipped", field);
+                    continue;
+                }
+                res = EntityLayerDefinitionResolver.unaliasDelegate(context.classNodes(), res);
+                equipmentFieldToResolution.put(field, res);
+                // Apply the layer's MeshTransformer scale + float param, exactly like the primary /
+                // variant body sources: the horse body is baked from HorseModel wrapped in
+                // MeshTransformer.scaling(1.1) (body pivot 11.0 -> 9.6984), and its saddle / armor
+                // layers carry the same scale - so the equipment mesh must bake it too or it lands
+                // at the raw, too-low pivot instead of aligning with the scaled body.
+                float[] equipmentParams = new float[8];
+                if (res.defaultFloatParam() != null) equipmentParams[0] = res.defaultFloatParam();
+                sources.add(new Source(
+                    res.targetClass() + ".class",
+                    res.targetMethod(),
+                    EntityOverlayResolver.Result.entityKey(field),
+                    YAxis.DOWN,
+                    0f,
+                    res.texWidthOverride(),
+                    res.texHeightOverride(),
+                    null,
+                    equipmentParams,
+                    res.defaultInflate(),
+                    res.appliedMeshTransformerScale(),
+                    null
+                ));
+                entityToResolution.put(EntityOverlayResolver.Result.entityKey(field), res);
+            }
+            System.out.println("Equipment overlay layers: " + equipmentFieldToResolution.size()
+                + " (" + equipmentFieldToResolution.keySet() + ")");
+
             ConcurrentMap<String, JsonObject> geometries = GeometryParser.parse(clientJar, sources, diagnostics);
             System.out.println("Parsed geometry for " + geometries.size() + " entities + overlays");
 
@@ -433,9 +483,17 @@ public final class ToolingEntityModels {
                 if (babyGeom != null && !babyGeom.equals(adultGeom)) babyGeometryByEntity.put(baby.getKey(), babyGeom);
             }
 
+            // Resolve each equipment overlay's baked mesh to its deduped geometry id, keyed by the
+            // ModelLayers field, so the family writer can point each equipment layer at its geometry.
+            Map<String, String> equipmentGeometryByField = new LinkedHashMap<>();
+            for (Map.Entry<String, EntityLayerDefinitionResolver.Result> equip : equipmentFieldToResolution.entrySet()) {
+                String geomId = writeResult.factoryKeyToGeometryId().get(EntityRuntimeJsonWriter.factoryKey(equip.getValue()));
+                if (geomId != null) equipmentGeometryByField.put(equip.getKey(), geomId);
+            }
+
             // Group the in-memory flat tables into the canonical family-form entity_models.json.
             EntityFamilyJsonWriter.writeAll(options.getVersion(), diagnostics, writeResult.flatEntities(), writeResult.flatFamilies(),
-                variants, collarByEntity, babyGeometryByEntity, babyTextureByEntity);
+                variants, collarByEntity, babyGeometryByEntity, babyTextureByEntity, equipmentByEntity, equipmentGeometryByField);
 
             System.out.printf(
                 "Coverage: %d / %d mapped; texture %d hard / %d variant / %d unresolved; geometry %d%n",

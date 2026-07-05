@@ -4,6 +4,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,7 +50,8 @@ public final class EntityFamilyFlattener {
         @NotNull JsonObject families,
         @NotNull Map<String, Map<String, String>> stateTextures,
         @NotNull Map<String, String> collarTextures,
-        @NotNull Map<String, String> babyGeometry
+        @NotNull Map<String, String> babyGeometry,
+        @NotNull Map<String, List<EquipmentSpec>> equipment
     ) {
 
         /**
@@ -60,9 +62,28 @@ public final class EntityFamilyFlattener {
          * @return an empty flat form
          */
         public static @NotNull Flat empty() {
-            return new Flat(new JsonObject(), new JsonObject(), Map.of(), Map.of(), Map.of());
+            return new Flat(new JsonObject(), new JsonObject(), Map.of(), Map.of(), Map.of(), Map.of());
         }
     }
+
+    /**
+     * One equipment overlay layer read from a family's {@code layers} (a {@code when.equipment}-gated
+     * layer): its slot, baked geometry, and the {@code <material>}-templated texture path plus the
+     * default material the static icon shows when the equipment axis selects the slot without one.
+     *
+     * @param slot the equipment slot id the layer is gated on ({@code saddle} / {@code body})
+     * @param geometryRef the baked equipment mesh geometry id
+     * @param textureTemplate the equipment texture path with a {@code <material>} placeholder
+     *     ({@code equipment/pig_saddle/<material>})
+     * @param defaultMaterial the material substituted for {@code <material>} when the caller selects
+     *     the slot without one ({@code saddle} for a saddle, {@code leather} for body armor)
+     */
+    public record EquipmentSpec(
+        @NotNull String slot,
+        @NotNull String geometryRef,
+        @NotNull String textureTemplate,
+        @NotNull String defaultMaterial
+    ) {}
 
     /**
      * Flattens the family form into the runtime flat shape.
@@ -77,6 +98,7 @@ public final class EntityFamilyFlattener {
         Map<String, Map<String, String>> stateTextures = new LinkedHashMap<>();
         Map<String, String> collarTextures = new LinkedHashMap<>();
         Map<String, String> babyGeometry = new LinkedHashMap<>();
+        Map<String, List<EquipmentSpec>> equipment = new LinkedHashMap<>();
 
         for (Map.Entry<String, JsonElement> entry : familyForm.entrySet()) {
             String familyId = entry.getKey();
@@ -84,14 +106,16 @@ public final class EntityFamilyFlattener {
             JsonObject family = entry.getValue().getAsJsonObject();
             String collar = collarTextureOf(family);
             String baby = babyGeometryOf(family);
+            List<EquipmentSpec> equip = equipmentOf(family);
 
             JsonObject variantAxis = variantAxis(family);
             if (variantAxis != null) {
-                expandVariantFamily(familyId, family, variantAxis, entities, stateTextures, collar, collarTextures, baby, babyGeometry);
+                expandVariantFamily(familyId, family, variantAxis, entities, stateTextures, collar, collarTextures, baby, babyGeometry, equip, equipment);
             } else {
                 entities.add(familyId, plainRow(family));
                 if (collar != null) collarTextures.put(familyId, collar);
                 if (baby != null) babyGeometry.put(familyId, baby);
+                if (!equip.isEmpty()) equipment.put(familyId, equip);
                 // Plain families carry their single baby texture on age.baby.texture_ref; expose it
                 // under the "baby" state key so the renderer binds it the same way as variant families.
                 String babyTex = babyTextureOf(family);
@@ -100,7 +124,7 @@ public final class EntityFamilyFlattener {
 
             if (family.has("family_of")) crossFamilies.addProperty(familyId, family.get("family_of").getAsString());
         }
-        return new Flat(entities, crossFamilies, stateTextures, collarTextures, babyGeometry);
+        return new Flat(entities, crossFamilies, stateTextures, collarTextures, babyGeometry, equipment);
     }
 
     /**
@@ -149,6 +173,33 @@ public final class EntityFamilyFlattener {
     }
 
     /**
+     * Returns the equipment overlay specs from a family's {@code layers}: each {@code layer} whose
+     * {@code when.equipment} names a slot and whose {@code overlay} carries a {@code geometry_ref} +
+     * {@code texture_template} + {@code default_material}. Empty when the family has no equipment layer.
+     *
+     * @param family the family entry
+     * @return the equipment overlay specs, in layer order (empty when none)
+     */
+    private static @NotNull List<EquipmentSpec> equipmentOf(@NotNull JsonObject family) {
+        if (!family.has("layers")) return List.of();
+        List<EquipmentSpec> out = new ArrayList<>();
+        for (JsonElement element : family.getAsJsonArray("layers")) {
+            JsonObject layer = element.getAsJsonObject();
+            if (!layer.has("when") || !layer.has("overlay")) continue;
+            JsonObject when = layer.getAsJsonObject("when");
+            if (!when.has("equipment")) continue;
+            JsonObject overlay = layer.getAsJsonObject("overlay");
+            if (!overlay.has("geometry_ref") || !overlay.has("texture_template") || !overlay.has("default_material")) continue;
+            out.add(new EquipmentSpec(
+                when.get("equipment").getAsString(),
+                overlay.get("geometry_ref").getAsString(),
+                overlay.get("texture_template").getAsString(),
+                overlay.get("default_material").getAsString()));
+        }
+        return out;
+    }
+
+    /**
      * Returns the {@code axes.variant} object when the family carries an id-encoded variant axis,
      * else {@code null}.
      */
@@ -163,7 +214,7 @@ public final class EntityFamilyFlattener {
      * row (carries the family's optional fields, no {@code variant_of}); every other option rolls
      * up to it via {@code variant_of}.
      */
-    private static void expandVariantFamily(@NotNull String familyId, @NotNull JsonObject family, @NotNull JsonObject variantAxis, @NotNull JsonObject entities, @NotNull Map<String, Map<String, String>> stateTextures, String collar, @NotNull Map<String, String> collarTextures, String baby, @NotNull Map<String, String> babyGeometry) {
+    private static void expandVariantFamily(@NotNull String familyId, @NotNull JsonObject family, @NotNull JsonObject variantAxis, @NotNull JsonObject entities, @NotNull Map<String, Map<String, String>> stateTextures, String collar, @NotNull Map<String, String> collarTextures, String baby, @NotNull Map<String, String> babyGeometry, @NotNull List<EquipmentSpec> equipment, @NotNull Map<String, List<EquipmentSpec>> equipmentByRow) {
         String defaultOption = variantAxis.get("default").getAsString();
         String baseId = familyId + "_" + defaultOption;
         String familyGeometry = family.get("geometry_ref").getAsString();
@@ -187,6 +238,7 @@ public final class EntityFamilyFlattener {
             collectStateTextures(rowId, optionObj, stateTextures);
             if (collar != null) collarTextures.put(rowId, collar);
             if (baby != null) babyGeometry.put(rowId, baby);
+            if (!equipment.isEmpty()) equipmentByRow.put(rowId, equipment);
         }
     }
 

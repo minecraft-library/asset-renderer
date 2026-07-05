@@ -201,6 +201,22 @@ public final class VanillaSourceClasses {
     public static final @NotNull String LLAMA_DECOR_LAYER =
         ENTITY_RENDERER_ROOT + "layers/LlamaDecorLayer";
 
+    /**
+     * Generic equipment overlay layer (saddle / body armor) added by pig / horse / camel / strider /
+     * happy_ghast / nautilus renderers - carries the {@code EquipmentClientInfo$LayerType} subdir and
+     * an {@code EntityModel} baked from a {@code ModelLayers.X_SADDLE}/{@code X_ARMOR} field.
+     */
+    public static final @NotNull String SIMPLE_EQUIPMENT_LAYER =
+        ENTITY_RENDERER_ROOT + "layers/SimpleEquipmentLayer";
+
+    /** Bespoke wolf body-armor layer (own baked {@code ModelLayers.WOLF_ARMOR} + crackiness overlay). */
+    public static final @NotNull String WOLF_ARMOR_LAYER =
+        ENTITY_RENDERER_ROOT + "layers/WolfArmorLayer";
+
+    /** Equipment texture-subdir enum ({@code PIG_SADDLE}, {@code HORSE_BODY}, ...); its lowercased name is the subdir. */
+    public static final @NotNull String EQUIPMENT_LAYER_TYPE =
+        CLIENT_RESOURCES_ROOT + "model/EquipmentClientInfo$LayerType";
+
     /** Static field holder for equipment-asset keys ({@code TRADER_LLAMA}, ...). */
     public static final @NotNull String EQUIPMENT_ASSETS = "net/minecraft/world/item/equipment/EquipmentAssets";
 

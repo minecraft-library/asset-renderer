@@ -107,6 +107,21 @@ public final class TestEntityRender3D {
                 .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new)))
             .map(s -> (java.util.Set<String>) s)
             .orElse(java.util.Set.of());
+        // -Dasset.entity.equipment=saddle,body:diamond -> {saddle:"", body:"diamond"}; a bare slot uses
+        // the layer default material (leather armor / the saddle), "slot:material" picks the material.
+        java.util.Map<String, String> equipment = Optional.ofNullable(System.getProperty("asset.entity.equipment")).filter(s -> !s.isBlank())
+            .map(s -> {
+                java.util.Map<String, String> map = new java.util.LinkedHashMap<>();
+                for (String part : s.split(",")) {
+                    String entry = part.trim();
+                    if (entry.isEmpty()) continue;
+                    int colon = entry.indexOf(':');
+                    if (colon < 0) map.put(entry, "");
+                    else map.put(entry.substring(0, colon), entry.substring(colon + 1));
+                }
+                return map;
+            })
+            .orElse(java.util.Map.of());
 
         for (String entityId : entityIds) {
             String safeName = entityId.replace(':', '_')
@@ -116,6 +131,9 @@ public final class TestEntityRender3D {
                 + woolName.map(c -> "_wool-" + c).orElse("")
                 + (sheared ? "_sheared" : "")
                 + (toggles.isEmpty() ? "" : "_toggle-" + String.join("-", toggles))
+                + (equipment.isEmpty() ? "" : "_equip-" + equipment.entrySet().stream()
+                    .map(en -> en.getValue().isEmpty() ? en.getKey() : en.getKey() + "-" + en.getValue())
+                    .collect(java.util.stream.Collectors.joining("-")))
                 + age.map(a -> "_" + a).orElse("");
             EntityAppearance appearance = EntityAppearance.builder()
                 .age(age.map(a -> a.equalsIgnoreCase("baby") ? Age.BABY : Age.ADULT).orElse(Age.ADULT))
@@ -125,6 +143,7 @@ public final class TestEntityRender3D {
                 .woolColor(woolColor)
                 .sheared(sheared)
                 .toggles(toggles)
+                .equipment(equipment)
                 .build();
             EntityOptions options = EntityOptions.builder()
                 .entityId(Optional.of(entityId))

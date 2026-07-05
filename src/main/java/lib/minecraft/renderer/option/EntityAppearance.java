@@ -91,6 +91,17 @@ public class EntityAppearance {
     private final @NotNull Set<String> toggles = Set.of();
 
     /**
+     * Equipment selection keyed by slot ({@code saddle} / {@code body}) for entities with equipment
+     * overlays (pig/horse/camel/strider/happy_ghast/nautilus saddle; horse/nautilus/wolf armor). The
+     * value is the material/asset ({@code leather}, {@code iron}, {@code diamond}; {@code saddle} for
+     * the single saddle item), or an empty string to use the layer's default material (leather armor,
+     * the saddle). A slot a given entity does not offer is ignored; empty (default) renders no
+     * equipment. See {@link #equipmentMaterial(String)}.
+     */
+    @lombok.Builder.Default
+    private final @NotNull java.util.Map<String, String> equipment = java.util.Map.of();
+
+    /**
      * Whether this appearance selects the baby mesh.
      *
      * @return {@code true} when {@link #getAge() age} is {@link Age#BABY}
@@ -118,6 +129,17 @@ public class EntityAppearance {
      */
     public @NotNull Optional<String> selectedCarriedBlock() {
         return this.carried.filter(id -> !"none".equals(id));
+    }
+
+    /**
+     * The selected material for an equipment {@code slot}, or empty when the slot is not equipped.
+     * A present-but-blank value means "use the layer's default material" (leather armor, the saddle).
+     *
+     * @param slot the equipment slot ({@code saddle} / {@code body})
+     * @return the selected material (possibly blank for "default"), or empty when the slot is unequipped
+     */
+    public @NotNull Optional<String> equipmentMaterial(@NotNull String slot) {
+        return Optional.ofNullable(this.equipment.get(slot));
     }
 
     /**
