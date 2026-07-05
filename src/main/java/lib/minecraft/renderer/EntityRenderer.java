@@ -30,6 +30,7 @@ import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.options.EntityAppearance;
 import lib.minecraft.renderer.options.EntityOptions;
+import lib.minecraft.renderer.options.slot.EntitySlot;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lib.minecraft.renderer.request.DyeColor;
 import lib.minecraft.renderer.request.EulerRotation;
@@ -324,7 +325,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
     }
 
     /**
-     * The entity's geometry contributors, each constant packing its target {@link EntityOptions.Slot
+     * The entity's geometry contributors, each constant packing its target {@link EntitySlot
      * slot}, its self-gating policy, and its geometry contribution in one place - the entity analogue of
      * the self-contained {@link Projection} / engine kits. Declaration order IS emission order: model
      * overlays, then the dyed collar (both in the {@code MODEL_OVERLAY} slot, where the insertion-order
@@ -342,7 +343,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
          * resolved definition carries no overlays for a baby (adult overlay geometry would render
          * adult-sized around the baby body), so this contributes nothing then without an age gate.
          */
-        MODEL_OVERLAYS(EntityOptions.Slot.MODEL_OVERLAY) {
+        MODEL_OVERLAYS(EntitySlot.MODEL_OVERLAY) {
             @Override
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
                 EntityAppearance appearance = ctx.options().getAppearance();
@@ -371,7 +372,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
          * texture (empty for a baby). The collar texture is transparent except the neck band, so the
          * tinted band wins the coplanar depth tie (last-drawn LEQUAL) over the body beneath it.
          */
-        COLLAR(EntityOptions.Slot.MODEL_OVERLAY) {
+        COLLAR(EntitySlot.MODEL_OVERLAY) {
             @Override
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
                 Optional<DyeColor> collar = ctx.options().getAppearance().getCollar();
@@ -396,7 +397,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
          * The resolved definition carries no block overlays for a baby or when the carried option drops
          * them (a sheared snow golem), so this contributes nothing then without an age / carried gate.
          */
-        BLOCK_OVERLAYS(EntityOptions.Slot.BLOCK_OVERLAY) {
+        BLOCK_OVERLAYS(EntitySlot.BLOCK_OVERLAY) {
             @Override
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
                 if (ctx.definition().blockOverlays().isEmpty()) return;
@@ -412,7 +413,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         /**
          * Worn armor (+ trim). Always appended; resolves to no triangles when no pieces are equipped.
          */
-        ARMOR(EntityOptions.Slot.ARMOR) {
+        ARMOR(EntitySlot.ARMOR) {
             @Override
             void contribute(@NotNull FeatureContext ctx, @NotNull LayerStack<GeometryLayer> stack) {
                 EntityOptions options = ctx.options();
@@ -424,7 +425,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         };
 
         /** The layer-stack slot this feature appends its geometry to. */
-        final @NotNull EntityOptions.Slot slot;
+        final @NotNull EntitySlot slot;
 
         /**
          * Contributes this feature's geometry layers to the stack, self-gating on the resolved

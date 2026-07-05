@@ -7,10 +7,11 @@ import lib.minecraft.renderer.engine.camera.Facing;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
-import lib.minecraft.renderer.engine.compose.layer.LayerSlot;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.kit.ArmorKit;
 import lib.minecraft.renderer.engine.kit.TrimKit;
+import lib.minecraft.renderer.options.slot.PlayerSlot2D;
+import lib.minecraft.renderer.options.slot.PlayerSlot3D;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.request.ArmorPiece;
 import lib.minecraft.renderer.request.EulerRotation;
@@ -181,7 +182,7 @@ public class PlayerOptions implements Option {
 
     /**
      * Transform applied to the default 2D {@link ImageLayer} stack (skin, overlay, armor) before it
-     * runs, letting callers splice custom layers relative to the {@link Slot2D} slots.
+     * runs, letting callers splice custom layers relative to the {@link PlayerSlot2D} slots.
      * Defaults to {@linkplain UnaryOperator#identity() identity}. Only consulted by the 2D path.
      */
     @lombok.Builder.Default
@@ -189,7 +190,7 @@ public class PlayerOptions implements Option {
 
     /**
      * Transform applied to the default 3D {@link GeometryLayer} stack (body, armor, cape) before it
-     * runs, letting callers splice custom layers relative to the {@link Slot3D} slots.
+     * runs, letting callers splice custom layers relative to the {@link PlayerSlot3D} slots.
      * Defaults to {@linkplain UnaryOperator#identity() identity}. Only consulted by the 3D path.
      */
     @lombok.Builder.Default
@@ -230,53 +231,6 @@ public class PlayerOptions implements Option {
      */
     public static @NotNull PlayerOptions defaults() {
         return builder().build();
-    }
-
-    /**
-     * Paint-order slots for the 2D player {@code ImageLayer} stack.
-     */
-    public enum Slot2D implements LayerSlot {
-
-        /** Base skin face of every body part. */
-        SKIN,
-        /** Skin overlay (hat / jacket / sleeve) face of every body part. */
-        OVERLAY,
-        /** Worn armor + trim composited over every covered body part. */
-        ARMOR;
-
-        @Override
-        public int order() {
-            return ordinal();
-        }
-
-        @Override
-        public @NotNull String id() {
-            return name();
-        }
-    }
-
-    /**
-     * Emission-order slots for the 3D player {@code GeometryLayer} stack. Body stays one contributor
-     * because 3D triangle emission order is load-bearing.
-     */
-    public enum Slot3D implements LayerSlot {
-
-        /** All body-part skin cubes and their overlays, in fixed emission order. */
-        BODY,
-        /** Worn armor + trim. */
-        ARMOR,
-        /** Cape geometry behind the torso. */
-        CAPE;
-
-        @Override
-        public int order() {
-            return ordinal();
-        }
-
-        @Override
-        public @NotNull String id() {
-            return name();
-        }
     }
 
     /**

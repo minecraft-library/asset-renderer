@@ -12,6 +12,7 @@ import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.engine.kit.ObfuscationKit;
 import lib.minecraft.renderer.engine.kit.TextKit;
 import lib.minecraft.renderer.options.TextOptions;
+import lib.minecraft.renderer.options.slot.TextSlot;
 import lib.minecraft.text.ChatColor;
 import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.LineSegment;
@@ -135,10 +136,10 @@ public final class TextRenderer implements Renderer<TextOptions> {
         if (isLore) {
             int bgArgb = (Math.clamp(options.getBackgroundAlpha(), 0, 255) << 24) | VANILLA_TOOLTIP_BG_RGB;
             int borderAlpha = Math.clamp(options.getBorderAlpha(), 0, 255);
-            stack.append(TextOptions.Slot.BACKGROUND, frame -> frame.fill(bgArgb));
-            stack.append(TextOptions.Slot.BORDER, frame -> drawGradientBorder(frame, w, h, borderAlpha));
+            stack.append(TextSlot.BACKGROUND, frame -> frame.fill(bgArgb));
+            stack.append(TextSlot.BORDER, frame -> drawGradientBorder(frame, w, h, borderAlpha));
         }
-        stack.append(TextOptions.Slot.TEXT, frame -> {
+        stack.append(TextSlot.TEXT, frame -> {
             MinecraftGraphics g = new MinecraftGraphics(frame);
             int baselineMcPx = padMcPx + MinecraftFont.REGULAR.getFontMetrics().getAscentMcPixels();
             for (int i = 0; i < options.getLines().size(); i++) {

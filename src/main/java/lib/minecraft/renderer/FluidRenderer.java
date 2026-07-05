@@ -18,6 +18,7 @@ import lib.minecraft.renderer.engine.kit.FluidGeometryKit;
 import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.options.FluidOptions;
+import lib.minecraft.renderer.options.slot.FluidSlot;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
@@ -181,7 +182,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             // same stack-driven ordering as every other renderer and callers can splice extra layers.
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
             LayerStack<GeometryLayer> stack = new LayerStack<>();
-            stack.append(FluidOptions.Slot.CUBE, sink -> sink.addAll(FluidGeometryKit.buildFluidCube(
+            stack.append(FluidSlot.CUBE, sink -> sink.addAll(FluidGeometryKit.buildFluidCube(
                 options.getCornerHeights(), still, flow, options.getFlowAngleRadians(), tint)));
             Layers.foldInto(stack, options.getLayerDecorator(), triangles);
 

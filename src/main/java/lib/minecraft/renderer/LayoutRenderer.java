@@ -9,6 +9,7 @@ import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.options.LayoutOptions;
+import lib.minecraft.renderer.options.slot.LayoutSlot;
 import org.jetbrains.annotations.NotNull;
 import org.jspecify.annotations.NonNull;
 
@@ -50,7 +51,7 @@ public final class LayoutRenderer implements Renderer<LayoutOptions> {
             int x = positions[i][0];
             int y = positions[i][1];
             ImageData child = resolved.get(i);
-            stack.append(LayoutOptions.Slot.CHILD, sink -> sink.add(new FramePlacement(x, y, child)));
+            stack.append(LayoutSlot.CHILD, sink -> sink.add(new FramePlacement(x, y, child)));
         }
 
         ConcurrentList<FramePlacement> placements = Concurrent.newList();

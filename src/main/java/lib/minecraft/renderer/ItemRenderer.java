@@ -31,6 +31,7 @@ import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.face.SixFaces;
 import lib.minecraft.renderer.options.ItemOptions;
+import lib.minecraft.renderer.options.slot.ItemSlot;
 import lib.minecraft.renderer.request.DyeColor;
 import lib.minecraft.renderer.request.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
@@ -500,25 +501,25 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             LayerStack<ImageLayer> stack = new LayerStack<>();
 
             if (options.getItemId().equals(SHIELD_ITEM_ID))
-                stack.append(ItemOptions.Slot.BASE, frame -> renderShield3D(ctx.context(), frame, options));
+                stack.append(ItemSlot.BASE, frame -> renderShield3D(ctx.context(), frame, options));
             else if (isBannerOrShield(options.getItemId()))
-                stack.append(ItemOptions.Slot.BASE, frame ->
+                stack.append(ItemSlot.BASE, frame ->
                     renderBannerOrShield(ctx.textures(), frame, options.getItemId(), options));
             else
-                stack.append(ItemOptions.Slot.BASE, frame ->
+                stack.append(ItemSlot.BASE, frame ->
                     renderStandardLayers(ctx.context(), ctx.textures(), frame, ctx.item(), options));
 
             if (options.getTrimSlot().isPresent() && options.getTrimColor().isPresent())
-                stack.append(ItemOptions.Slot.TRIM, frame ->
+                stack.append(ItemSlot.TRIM, frame ->
                     TrimKit.resolve(ctx.textures(), options.getTrimSlot().get().getKey(), options.getTrimColor().get().getKey())
                         .ifPresent(trim -> frame.blitScaled(trim, 0, 0, options.getOutputSize(), options.getOutputSize())));
 
             if (options.isShowDamageBar())
-                stack.append(ItemOptions.Slot.DAMAGE_BAR, frame ->
+                stack.append(ItemSlot.DAMAGE_BAR, frame ->
                     ItemStackKit.drawDamageBar(frame, options.getContext().damage(), ctx.item().getMaxDurability()));
 
             if (options.getContext().stackCount() > 1)
-                stack.append(ItemOptions.Slot.STACK_COUNT, frame ->
+                stack.append(ItemSlot.STACK_COUNT, frame ->
                     ItemStackKit.drawStackCount(frame, options.getContext().stackCount(), MinecraftFont.REGULAR));
 
             return stack;

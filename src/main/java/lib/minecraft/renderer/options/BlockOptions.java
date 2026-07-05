@@ -8,9 +8,9 @@ import lib.minecraft.renderer.engine.RendererContext;
 import lib.minecraft.renderer.engine.camera.Facing;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
-import lib.minecraft.renderer.engine.compose.layer.LayerSlot;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.face.BlockFace;
+import lib.minecraft.renderer.options.slot.BlockSlot;
 import lib.minecraft.renderer.request.Biome;
 import lib.minecraft.renderer.request.EulerRotation;
 import lombok.AccessLevel;
@@ -154,7 +154,7 @@ public class BlockOptions implements Option {
     /**
      * Transform applied to the default {@link GeometryLayer} stack (primary model, additive entity,
      * merged parts) before it runs, letting callers splice custom layers relative to the
-     * {@link Slot} slots. Defaults to {@linkplain UnaryOperator#identity() identity}. Only
+     * {@link BlockSlot} slots. Defaults to {@linkplain UnaryOperator#identity() identity}. Only
      * consulted by the 3D isometric path.
      */
     @lombok.Builder.Default
@@ -177,32 +177,6 @@ public class BlockOptions implements Option {
      */
     public static @NotNull BlockOptions defaults() {
         return builder().build();
-    }
-
-    /**
-     * Emission-order slots for the block {@code GeometryLayer} stack: primary model, then additive
-     * block-entity geometry, then merged block-entity parts.
-     */
-    public enum Slot implements LayerSlot {
-
-        /** The primary block model (multipart assembly or blockstate-variant elements). */
-        PRIMARY,
-        /** Additive block-entity geometry overlaid on the primary model (e.g. bell body). */
-        ADDITIVE_ENTITY,
-        /** Merged block-entity part geometry (bed foot onto head, decorated-pot sides onto base). */
-        PARTS;
-
-        /** {@inheritDoc} */
-        @Override
-        public int order() {
-            return ordinal();
-        }
-
-        /** {@inheritDoc} */
-        @Override
-        public @NotNull String id() {
-            return name();
-        }
     }
 
     /**

@@ -10,6 +10,7 @@ import lib.minecraft.renderer.engine.compose.layer.FrameLayer;
 import lib.minecraft.renderer.engine.compose.layer.Layers;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.options.GridOptions;
+import lib.minecraft.renderer.options.slot.GridSlot;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -55,7 +56,7 @@ public final class GridRenderer implements Renderer<GridOptions> {
         for (GridOptions.GridTile tile : options.getTiles()) {
             int x = tile.col() * (cellSize + separation) + separation;
             int y = tile.row() * (cellSize + separation) + separation;
-            stack.append(GridOptions.Slot.CELL, sink -> sink.add(new FramePlacement(x, y, tile.image())));
+            stack.append(GridSlot.CELL, sink -> sink.add(new FramePlacement(x, y, tile.image())));
         }
         ConcurrentList<FramePlacement> placements = Concurrent.newList();
         Layers.foldInto(stack, options.getLayerDecorator(), placements);

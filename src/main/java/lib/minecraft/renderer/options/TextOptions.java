@@ -3,8 +3,8 @@ package lib.minecraft.renderer.options;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lib.minecraft.renderer.engine.compose.layer.ImageLayer;
-import lib.minecraft.renderer.engine.compose.layer.LayerSlot;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
+import lib.minecraft.renderer.options.slot.TextSlot;
 import lib.minecraft.text.LineSegment;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -112,7 +112,7 @@ public class TextOptions implements Option {
 
     /**
      * Transform applied to the default {@link ImageLayer} stack (background, border, text) before it
-     * runs, letting callers splice custom passes relative to the {@link Slot} slots. Defaults to
+     * runs, letting callers splice custom passes relative to the {@link TextSlot} slots. Defaults to
      * {@linkplain UnaryOperator#identity() identity}.
      */
     @lombok.Builder.Default
@@ -136,30 +136,6 @@ public class TextOptions implements Option {
      */
     public static @NotNull TextOptions defaults() {
         return builder().build();
-    }
-
-    /**
-     * Paint-order slots for the text {@link ImageLayer} stack: tooltip background and border (LORE
-     * only), then the glyph rows.
-     */
-    public enum Slot implements LayerSlot {
-
-        /** Tooltip background fill (LORE only). */
-        BACKGROUND,
-        /** Tooltip gradient border (LORE only). */
-        BORDER,
-        /** Text glyph rows. */
-        TEXT;
-
-        @Override
-        public int order() {
-            return ordinal();
-        }
-
-        @Override
-        public @NotNull String id() {
-            return name();
-        }
     }
 
     /**

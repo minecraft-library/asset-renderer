@@ -28,6 +28,7 @@ import lib.minecraft.renderer.engine.raster.VisibleTriangle;
 import lib.minecraft.renderer.engine.texture.Textures;
 import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.options.BlockOptions;
+import lib.minecraft.renderer.options.slot.BlockSlot;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import lib.minecraft.renderer.request.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
@@ -193,7 +194,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
             LayerStack<GeometryLayer> stack = new LayerStack<>();
 
-            stack.append(BlockOptions.Slot.PRIMARY,
+            stack.append(BlockSlot.PRIMARY,
                 sink -> sink.addAll(buildPrimaryGeometry(block, be, effectiveVariant, tint, untintedTint)));
 
             // Atlas-time composition: merge Block.Entity parts into the primary geometry (bed foot onto
@@ -202,9 +203,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // the primary model; non-additive entity geometry IS the primary model already.
             if (be != null && options.isMergeParts()) {
                 if (be.additive())
-                    stack.append(BlockOptions.Slot.ADDITIVE_ENTITY, sink -> sink.addAll(buildFromBoneModel(be.boneModel(), be.textureId(), tint)));
+                    stack.append(BlockSlot.ADDITIVE_ENTITY, sink -> sink.addAll(buildFromBoneModel(be.boneModel(), be.textureId(), tint)));
                 if (!be.parts().isEmpty())
-                    stack.append(BlockOptions.Slot.PARTS, sink -> sink.addAll(buildFromEntityParts(be, tint)));
+                    stack.append(BlockSlot.PARTS, sink -> sink.addAll(buildFromEntityParts(be, tint)));
             }
 
             Layers.foldInto(stack, options.getLayerDecorator(), triangles);
