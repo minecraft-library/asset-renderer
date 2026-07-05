@@ -30,6 +30,7 @@ import lib.minecraft.renderer.exception.RenderException;
 import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.slot.BlockSlot;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
+import lib.minecraft.renderer.request.Biome;
 import lib.minecraft.renderer.request.EulerRotation;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
@@ -107,9 +108,24 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
      * Resolves the ARGB tint applied to a block's faces based on its
      * {@link Block.TintTarget}. Returns opaque white for {@code NONE}, the block's hardcoded
      * constant for {@code CONSTANT}, or a colormap sample for {@code GRASS} / {@code FOLIAGE} /
-     * {@code DRY_FOLIAGE}.
+     * {@code DRY_FOLIAGE} against the {@link BlockOptions#getBiome() options biome}.
      */
     static int resolveBlockTint(@NotNull RendererContext context, @NotNull Block block, @NotNull BlockOptions options) {
+        return resolveBlockTint(context, block, options.getBiome());
+    }
+
+    /**
+     * Resolves the ARGB tint applied to a block's faces based on its {@link Block.TintTarget},
+     * sampling colormap targets against an explicit {@code biome}. Shared by the block icon path
+     * (via {@link BlockOptions}) and the entity carried-block overlay (which has no
+     * {@code BlockOptions} and passes the default biome directly).
+     *
+     * @param context the renderer context supplying the colormaps
+     * @param block the block whose tint target is resolved
+     * @param biome the biome to sample colormap tints against
+     * @return the ARGB tint, opaque white when the block is untinted
+     */
+    static int resolveBlockTint(@NotNull RendererContext context, @NotNull Block block, @NotNull Biome biome) {
         Block.TintTarget target = block.getTint().target();
 
         if (target == Block.TintTarget.NONE)
@@ -118,7 +134,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         if (target == Block.TintTarget.CONSTANT)
             return block.getTint().constant().orElse(ColorMath.WHITE);
 
-        return new Textures(context).sampleBiomeTint(target, options.getBiome());
+        return new Textures(context).sampleBiomeTint(target, biome);
     }
 
     /**

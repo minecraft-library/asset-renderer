@@ -32,6 +32,7 @@ import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.option.EntityOptions;
 import lib.minecraft.renderer.option.slot.EntitySlot;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
+import lib.minecraft.renderer.request.Biome;
 import lib.minecraft.renderer.request.DyeColor;
 import lib.minecraft.renderer.request.EulerRotation;
 import lib.minecraft.renderer.tensor.Box;
@@ -529,8 +530,13 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             context::resolveTexture);
         if (faceTextures.isEmpty()) return Concurrent.newList();
 
+        // Apply the block's tint to its tint-indexed faces, exactly as the block icon does - a
+        // carried grass block's top face (tintindex 0) samples the grass colormap green, while its
+        // untinted dirt sides stay white. Sampled against the default biome (there is no world
+        // context for a held block); untinted (tintindex -1) faces keep white.
+        int blockTint = BlockRenderer.resolveBlockTint(context, block.get(), Biome.Vanilla.PLAINS);
         ConcurrentList<VisibleTriangle> blockTris = BlockGeometryKit.buildFromElements(
-            block.get().getModel().getElements(), faceTextures, ColorMath.WHITE);
+            block.get().getModel().getElements(), faceTextures, blockTint, ColorMath.WHITE);
         if (blockTris.isEmpty()) return Concurrent.newList();
 
         // Compose the per-overlay transform matrix in vanilla block units. PoseStack ops apply
