@@ -167,7 +167,7 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
             // camera AND the inventory-relight lighting together (resolved.lightingPose()); the
             // rasterize call below applies no separate model-spin. A default render passes
             // EulerRotation.NONE, leaving the pose at the base [30, 225, 0] iso - byte-identical.
-            var resolved = options.getRender().getProjection().resolve(options.getRender().getRotation(), options.getRender().getFacing());
+            var resolved = options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing());
             EulerRotation guiRotation = resolved.lightingPose();
             ModelEngine engine = new ModelEngine(this.context, resolved);
 
@@ -307,9 +307,9 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
          */
         private @NotNull ImageData relightAndFinalize(@NotNull ModelEngine engine, @NotNull ConcurrentList<VisibleTriangle> triangles, @NotNull EulerRotation guiRotation, boolean cullBlockModelFaces, @NotNull BlockOptions options) {
             ConcurrentList<VisibleTriangle> relit = Shading.relightForItems3d(triangles, guiRotation, cullBlockModelFaces);
-            int ssaa = Math.max(1, options.getRender().getSupersample());
+            int ssaa = Math.max(1, options.getOutput().getSupersample());
             return Finalize.render(
-                Finalize.FinalizeSpec.staticFrame(options.getRender().getOutputSize(), options.getRender().getOutputSize(), ssaa, options.getRender().isAntiAlias()),
+                Finalize.FinalizeSpec.staticFrame(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), ssaa, options.getOutput().isAntiAlias()),
                 (target, mask, tick) -> engine.rasterize(relit, target));
         }
 
@@ -719,13 +719,13 @@ public final class BlockRenderer implements Renderer<BlockOptions> {
         public @NotNull ImageData render(@NotNull BlockOptions options) {
             Block block = requireBlock(this.context, options.getBlockId());
             RasterEngine engine = new RasterEngine(this.context);
-            PixelBuffer buffer = engine.createBuffer(options.getRender().getOutputSize(), options.getRender().getOutputSize());
+            PixelBuffer buffer = engine.createBuffer(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize());
 
             String textureId = resolveTextureRef(block, options.getFace().direction());
             PixelBuffer face = engine.textures().resolveTexture(textureId);
             int tint = resolveBlockTint(this.context, block, options);
             PixelBuffer tinted = ColorMath.tint(face, tint);
-            int size = options.getRender().getOutputSize();
+            int size = options.getOutput().getCanvasSize();
             buffer.blitScaled(tinted, 0, 0, size, size);
 
             return FrameCompositor.staticFrame(buffer);

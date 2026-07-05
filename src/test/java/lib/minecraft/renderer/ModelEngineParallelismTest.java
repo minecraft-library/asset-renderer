@@ -4,7 +4,7 @@ import dev.simplified.image.ImageData;
 import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.option.BlockOptions;
-import lib.minecraft.renderer.option.spec.RenderOptions;
+import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
@@ -64,8 +64,8 @@ class ModelEngineParallelismTest {
         BlockOptions options = BlockOptions.builder()
             .blockId("minecraft:piston")
             .type(BlockOptions.Type.ISOMETRIC_3D)
-            .render(RenderOptions.builder()
-                .outputSize(256)
+            .output(OutputOptions.builder()
+                .canvasSize(256)
                 .supersample(2)
                 .antiAlias(false)
                 .build())
@@ -79,8 +79,8 @@ class ModelEngineParallelismTest {
         BlockOptions options = BlockOptions.builder()
             .blockId("minecraft:white_banner")
             .type(BlockOptions.Type.ISOMETRIC_3D)
-            .render(RenderOptions.builder()
-                .outputSize(256)
+            .output(OutputOptions.builder()
+                .canvasSize(256)
                 .supersample(2)
                 .antiAlias(false)
                 .build())
@@ -91,12 +91,12 @@ class ModelEngineParallelismTest {
     @Test
     @DisplayName("serial rasterization of piston (below MIN_TILED_HEIGHT) stays deterministic")
     void pistonSerialPathStillDeterministic() {
-        // outputSize=128 SSAA=1 -> 128 rows, below MIN_TILED_HEIGHT=256 -> hits the serial branch.
+        // canvasSize=128 SSAA=1 -> 128 rows, below MIN_TILED_HEIGHT=256 -> hits the serial branch.
         BlockOptions options = BlockOptions.builder()
             .blockId("minecraft:piston")
             .type(BlockOptions.Type.ISOMETRIC_3D)
-            .render(RenderOptions.builder()
-                .outputSize(128)
+            .output(OutputOptions.builder()
+                .canvasSize(128)
                 .antiAlias(false)
                 .build())
             .build();

@@ -18,7 +18,7 @@ import java.util.Optional;
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
-public class AtlasOptions implements Option {
+public class AtlasOptions implements RenderOptions {
 
     /**
      * Which model kind(s) to include in the atlas - blocks, items, or both

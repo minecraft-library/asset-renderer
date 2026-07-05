@@ -5,7 +5,7 @@ import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.face.BlockFace;
 import lib.minecraft.renderer.option.BlockOptions;
-import lib.minecraft.renderer.option.spec.RenderOptions;
+import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
@@ -99,8 +99,8 @@ public final class TestBlockRender3D {
                 .blockId(blockId)
                 .variant(variant)
                 .type(BlockOptions.Type.ISOMETRIC_3D)
-                .render(RenderOptions.builder()
-                    .outputSize(size)
+                .output(OutputOptions.builder()
+                    .canvasSize(size)
                     .supersample(ssaa)
                     .antiAlias(true)
                     .build())
@@ -125,8 +125,8 @@ public final class TestBlockRender3D {
                         .blockId(blockId)
                         .type(BlockOptions.Type.BLOCK_FACE_2D)
                         .face(face)
-                        .render(RenderOptions.builder()
-                            .outputSize(128)
+                        .output(OutputOptions.builder()
+                            .canvasSize(128)
                             .build())
                         .build();
                     ImageData faceImage = renderer.render(faceOpt);

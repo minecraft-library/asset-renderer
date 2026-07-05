@@ -10,7 +10,7 @@ import lib.minecraft.renderer.engine.kit.TrimKit;
 import lib.minecraft.renderer.option.slot.PlayerSlot2D;
 import lib.minecraft.renderer.option.slot.PlayerSlot3D;
 import lib.minecraft.renderer.option.spec.ArmorOptions;
-import lib.minecraft.renderer.option.spec.RenderOptions;
+import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.option.spec.SkinOptions;
 import lib.minecraft.renderer.option.spec.TextureOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
@@ -51,7 +51,7 @@ import java.util.function.UnaryOperator;
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
-public class PlayerOptions implements Option {
+public class PlayerOptions implements RenderOptions {
 
     /**
      * Which body parts to include in the render
@@ -74,14 +74,14 @@ public class PlayerOptions implements Option {
     private final @NotNull ArmorOptions armor = ArmorOptions.defaults();
 
     /**
-     * The default render frame for a player render - neutral output size, {@code VANILLA_ISO}
+     * The default output frame for a player render - neutral output size, {@code VANILLA_ISO}
      * projection, no supersampling and no FXAA.
      */
-    public static final @NotNull RenderOptions DEFAULT_RENDER = RenderOptions.defaults();
+    public static final @NotNull OutputOptions DEFAULT_OUTPUT = OutputOptions.defaults();
 
-    /** The shared render frame - output size, projection, facing, rotation, and SSAA / FXAA. */
+    /** The shared output frame - output size, projection, facing, rotation, and SSAA / FXAA. */
     @lombok.Builder.Default
-    private final @NotNull RenderOptions render = DEFAULT_RENDER;
+    private final @NotNull OutputOptions output = DEFAULT_OUTPUT;
 
     /**
      * Background fill composited behind the finished render (solid colour or checkerboard).
@@ -117,7 +117,7 @@ public class PlayerOptions implements Option {
 
     /**
      * The default player options - a 3D {@linkplain Type#SKULL skull} with the neutral
-     * {@link #getRender() render} frame, overlay layer on, no armor or cape, over a
+     * {@link #getOutput() render} frame, overlay layer on, no armor or cape, over a
      * {@linkplain Background#TRANSPARENT transparent} background.
      *
      * @return the default options

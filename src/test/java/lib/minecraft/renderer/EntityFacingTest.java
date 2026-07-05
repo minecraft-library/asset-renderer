@@ -5,7 +5,7 @@ import dev.simplified.image.pixel.PixelBuffer;
 import lib.minecraft.renderer.engine.camera.Facing;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.option.EntityOptions;
-import lib.minecraft.renderer.option.spec.RenderOptions;
+import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
@@ -66,15 +66,15 @@ class EntityFacingTest {
     private static EntityOptions.EntityOptionsBuilder base() {
         return EntityOptions.builder()
             .entityId(Optional.of(ENTITY))
-            .render(baseRender())
+            .output(baseRender())
             .padding(PADDING)
             .fitMode(EntityOptions.FitMode.OUTPUT_SIZE);
     }
 
     /** The shared entity render frame - {@link #SIZE}px, no supersampling, no FXAA. */
-    private static RenderOptions baseRender() {
-        return RenderOptions.builder()
-            .outputSize(SIZE)
+    private static OutputOptions baseRender() {
+        return OutputOptions.builder()
+            .canvasSize(SIZE)
             .supersample(1)
             .antiAlias(false)
             .build();
@@ -88,7 +88,7 @@ class EntityFacingTest {
     @DisplayName("facing(DEFAULT) is byte-identical to no facing")
     void defaultIsNoOp() {
         int[] noFacing = pixels(render(base().build()));
-        int[] explicitDefault = pixels(render(base().render(baseRender().mutate().facing(Facing.DEFAULT).build()).build()));
+        int[] explicitDefault = pixels(render(base().output(baseRender().mutate().facing(Facing.DEFAULT).build()).build()));
         assertArrayEquals(noFacing, explicitDefault);
     }
 
@@ -96,7 +96,7 @@ class EntityFacingTest {
     @DisplayName("MIRRORED / FLIPPED / MIRRORED_FLIPPED render present and uncropped (the 3 resolve sites stay synced)")
     void facingVariantsRenderUnclipped() {
         for (Facing f : new Facing[]{Facing.MIRRORED, Facing.FLIPPED, Facing.MIRRORED_FLIPPED}) {
-            PixelBuffer buf = render(base().render(baseRender().mutate().facing(f).build()).build());
+            PixelBuffer buf = render(base().output(baseRender().mutate().facing(f).build()).build());
             assertThat(f + " should render a non-empty silhouette", coverage(buf), greaterThan(0));
             assertThat(f + " must not touch the canvas border (fit desync would clip)",
                 borderCoverage(buf), equalTo(0));
@@ -113,8 +113,8 @@ class EntityFacingTest {
             for (Facing f : new Facing[]{Facing.DEFAULT, Facing.MIRRORED}) {
                 PixelBuffer buf = entityRenderer.render(EntityOptions.builder()
                     .entityId(Optional.of("minecraft:cod"))
-                    .render(RenderOptions.builder()
-                        .outputSize(SIZE)
+                    .output(OutputOptions.builder()
+                        .canvasSize(SIZE)
                         .supersample(1)
                         .antiAlias(false)
                         .projection(p)
@@ -137,8 +137,8 @@ class EntityFacingTest {
         for (Facing f : new Facing[]{Facing.DEFAULT, Facing.MIRRORED}) {
             PixelBuffer buf = entityRenderer.render(EntityOptions.builder()
                 .entityId(Optional.of("minecraft:cod"))
-                .render(RenderOptions.builder()
-                    .outputSize(SIZE)
+                .output(OutputOptions.builder()
+                    .canvasSize(SIZE)
                     .supersample(1)
                     .antiAlias(false)
                     .projection(Projection.PORTRAIT)
@@ -154,8 +154,8 @@ class EntityFacingTest {
     @Test
     @DisplayName("MIRRORED preserves silhouette area (congruent mirror) - fit/scale stays synced")
     void mirrorPreservesCoverage() {
-        int covDefault = coverage(render(base().render(baseRender().mutate().facing(Facing.DEFAULT).build()).build()));
-        int covMirrored = coverage(render(base().render(baseRender().mutate().facing(Facing.MIRRORED).build()).build()));
+        int covDefault = coverage(render(base().output(baseRender().mutate().facing(Facing.DEFAULT).build()).build()));
+        int covMirrored = coverage(render(base().output(baseRender().mutate().facing(Facing.MIRRORED).build()).build()));
         float ratio = Math.abs(covMirrored - covDefault) / (float) covDefault;
         assertThat("mirror coverage drift (fit desync would clip / rescale)", (double) ratio, lessThan(0.15));
     }

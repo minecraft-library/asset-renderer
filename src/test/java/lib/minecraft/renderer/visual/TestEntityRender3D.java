@@ -8,7 +8,7 @@ import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.Age;
 import lib.minecraft.renderer.option.EntityAppearance;
 import lib.minecraft.renderer.option.EntityOptions;
-import lib.minecraft.renderer.option.spec.RenderOptions;
+import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
@@ -129,8 +129,8 @@ public final class TestEntityRender3D {
             EntityOptions options = EntityOptions.builder()
                 .entityId(Optional.of(entityId))
                 .appearance(appearance)
-                .render(RenderOptions.builder()
-                    .outputSize(size)
+                .output(OutputOptions.builder()
+                    .canvasSize(size)
                     .supersample(2)
                     .antiAlias(true)
                     .projection(projection)

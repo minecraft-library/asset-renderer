@@ -402,9 +402,9 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
      * Computes the pixel scale and horizontal offset for 2D rendering so the body fills the
      * output canvas height with horizontal centering.
      */
-    private static int @NotNull [] scaleAndOffset2D(@NotNull PlayerOptions.Type type, int outputSize) {
-        int scale = outputSize / type.getBodyHeight();
-        int offsetX = (outputSize - type.getBodyWidth() * scale) / 2;
+    private static int @NotNull [] scaleAndOffset2D(@NotNull PlayerOptions.Type type, int canvasSize) {
+        int scale = canvasSize / type.getBodyHeight();
+        int offsetX = (canvasSize - type.getBodyWidth() * scale) / 2;
         return new int[]{ scale, offsetX };
     }
 
@@ -417,7 +417,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
     ) {
         PixelBuffer skin = resolveSkin(parent, options);
         RasterEngine engine = new RasterEngine(parent.context);
-        int size = options.getRender().getOutputSize();
+        int size = options.getOutput().getCanvasSize();
 
         int[] so = scaleAndOffset2D(options.getType(), size);
         BodyPart2D[] parts = layout2D(options.getType(), so[0], so[1]);
@@ -431,7 +431,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         // skin). Body-part rectangles tile the canvas without overlap, so the per-pass order is
         // equivalent to the historic per-part order.
         return Finalize.render(
-            Finalize.FinalizeSpec.staticFrame(size, size, 1, options.getRender().isAntiAlias())
+            Finalize.FinalizeSpec.staticFrame(size, size, 1, options.getOutput().isAntiAlias())
                 .withGlint(Finalize.Glint.armor(engine.textures()::tryResolveTexture, enchanted), enchanted),
             (target, mask, tick) -> {
                 LayerStack<ImageLayer> stack = new LayerStack<>();
@@ -508,7 +508,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            ModelEngine engine = new ModelEngine(this.parent.context, options.getRender().getProjection().resolve(options.getRender().getRotation(), options.getRender().getFacing()), PLAYER_FACING);
+            ModelEngine engine = new ModelEngine(this.parent.context, options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing()), PLAYER_FACING);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
@@ -553,7 +553,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            ModelEngine engine = new ModelEngine(this.parent.context, options.getRender().getProjection().resolve(options.getRender().getRotation(), options.getRender().getFacing()), PLAYER_FACING);
+            ModelEngine engine = new ModelEngine(this.parent.context, options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing()), PLAYER_FACING);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
@@ -602,7 +602,7 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
 
         private @NotNull ImageData render3D(@NotNull PlayerOptions options) {
             PixelBuffer skin = resolveSkin(this.parent, options);
-            ModelEngine engine = new ModelEngine(this.parent.context, options.getRender().getProjection().resolve(options.getRender().getRotation(), options.getRender().getFacing()), PLAYER_FACING);
+            ModelEngine engine = new ModelEngine(this.parent.context, options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing()), PLAYER_FACING);
             ConcurrentList<VisibleTriangle> triangles = Concurrent.newList();
 
             LayerStack<GeometryLayer> stack = new LayerStack<>();
@@ -647,13 +647,13 @@ public final class PlayerRenderer implements Renderer<PlayerOptions> {
         @NotNull ConcurrentList<VisibleTriangle> triangles,
         @NotNull PlayerOptions options
     ) {
-        int size = options.getRender().getOutputSize();
+        int size = options.getOutput().getCanvasSize();
         boolean enchanted = hasEnchantedArmor(options);
-        int ssaa = Math.max(1, options.getRender().getSupersample());
+        int ssaa = Math.max(1, options.getOutput().getSupersample());
         // The glint mask is recorded at the raster size, then box-downsampled to the output so the
         // foil is confined to the armor (not the bare body) after the SSAA blit.
         return Finalize.render(
-            Finalize.FinalizeSpec.staticFrame(size, size, ssaa, options.getRender().isAntiAlias())
+            Finalize.FinalizeSpec.staticFrame(size, size, ssaa, options.getOutput().isAntiAlias())
                 .withGlint(Finalize.Glint.armor(engine.textures()::tryResolveTexture, enchanted), enchanted),
             // The caller's rotation is composed into the engine's camera pose at construction (above),
             // so the fitted rasterize applies no separate model-spin - EulerRotation.NONE. Default

@@ -153,9 +153,9 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             // context is the only shared reference and it is read-only, so Finalize bakes every frame
             // in parallel. The per-tick build MUST stay inside the rasterizer callback (capturing it
             // once would freeze the animation on frame 0's textures).
-            int ssaa = Math.max(1, options.getRender().getSupersample());
+            int ssaa = Math.max(1, options.getOutput().getSupersample());
             return Finalize.render(
-                Finalize.FinalizeSpec.animated(options.getRender().getOutputSize(), options.getRender().getOutputSize(), ssaa, options.getRender().isAntiAlias(),
+                Finalize.FinalizeSpec.animated(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), ssaa, options.getOutput().isAntiAlias(),
                     options.getAnimation().getFrameCount(), options.getAnimation().getStartTick(), options.getAnimation().getTicksPerFrame(),
                     options.getAnimation().getTicksPerFrame() * MILLIS_PER_TICK),
                 (target, mask, tick) -> rasterizeFrame(options, tick, target));
@@ -171,7 +171,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             // Resolve the projection once: the caller's rotation is composed onto the base pose, so it
             // poses the camera directly and the rasterize call applies no separate model-spin. Default
             // renders pass EulerRotation.NONE, leaving the byte-identical base block-icon pose.
-            var resolved = options.getRender().getProjection().resolve(options.getRender().getRotation(), options.getRender().getFacing());
+            var resolved = options.getOutput().getProjection().resolve(options.getOutput().getRotation(), options.getOutput().getFacing());
             ModelEngine engine = new ModelEngine(this.context, resolved);
             Textures textures = new Textures(this.context);
             PixelBuffer still = textures.resolveTextureAtTick(stillTextureId(options.getFluid()), tick);
@@ -207,7 +207,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             // Each tick constructs its own RasterEngine, so Finalize bakes frames in parallel. Flat 2D
             // blit: no supersample / FXAA (ssaa = 1, antiAlias = false).
             return Finalize.render(
-                Finalize.FinalizeSpec.animated(options.getRender().getOutputSize(), options.getRender().getOutputSize(), 1, false,
+                Finalize.FinalizeSpec.animated(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), 1, false,
                     options.getAnimation().getFrameCount(), options.getAnimation().getStartTick(), options.getAnimation().getTicksPerFrame(),
                     options.getAnimation().getTicksPerFrame() * MILLIS_PER_TICK),
                 (target, mask, tick) -> rasterizeFrame(options, tick, target));
@@ -222,7 +222,7 @@ public final class FluidRenderer implements Renderer<FluidOptions> {
             PixelBuffer still = engine.textures().resolveTextureAtTick(stillTextureId(options.getFluid()), tick);
             int tint = resolveFluidTint(this.context, options);
             PixelBuffer tinted = ColorMath.tint(still, tint);
-            target.blitScaled(tinted, 0, 0, options.getRender().getOutputSize(), options.getRender().getOutputSize());
+            target.blitScaled(tinted, 0, 0, options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize());
         }
 
     }

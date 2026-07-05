@@ -238,7 +238,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             : BannerKit.Variant.BANNER_ITEM;
 
         PixelBuffer composite = BannerKit.composite2D(engine, baseDye, options.getDecoration().getBannerLayers(), variant);
-        buffer.blitScaled(composite, 0, 0, options.getRender().getOutputSize(), options.getRender().getOutputSize());
+        buffer.blitScaled(composite, 0, 0, options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize());
         return buffer;
     }
 
@@ -431,7 +431,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
         @NotNull Item item,
         @NotNull ItemOptions options
     ) {
-        int size = options.getRender().getOutputSize();
+        int size = options.getOutput().getCanvasSize();
         int layerIndex = 0;
         while (true) {
             String layerKey = LAYER_TEXTURE_PREFIX + layerIndex;
@@ -486,7 +486,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // A GUI icon is a flat sprite blit, so no supersample (ssaa = 1); FXAA stays opt-in.
             LayerContext ctx = new LayerContext(this.context, engine.textures(), item, options);
             return Finalize.render(
-                Finalize.FinalizeSpec.staticFrame(options.getRender().getOutputSize(), options.getRender().getOutputSize(), 1, options.getRender().isAntiAlias())
+                Finalize.FinalizeSpec.staticFrame(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), 1, options.getOutput().isAntiAlias())
                     .withGlint(itemGlint(engine.textures(), item, options), false),
                 (target, mask, tick) -> Layers.foldInto(buildGuiLayers(ctx), options.getLayerDecorator(), target));
         }
@@ -512,7 +512,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             if (options.getDecoration().getTrimSlot().isPresent() && options.getDecoration().getTrimColor().isPresent())
                 stack.append(ItemSlot.TRIM, frame ->
                     TrimKit.resolve(ctx.textures(), options.getDecoration().getTrimSlot().get().getKey(), options.getDecoration().getTrimColor().get().getKey())
-                        .ifPresent(trim -> frame.blitScaled(trim, 0, 0, options.getRender().getOutputSize(), options.getRender().getOutputSize())));
+                        .ifPresent(trim -> frame.blitScaled(trim, 0, 0, options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize())));
 
             if (options.isShowDamageBar())
                 stack.append(ItemSlot.DAMAGE_BAR, frame ->
@@ -576,7 +576,7 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             // entirely in the model's display transform (applied as the modelTransform below), so the
             // camera pose stays identity and only the rotation-independent lens comes from resolve().
             ModelEngine engine = new ModelEngine(this.context,
-                Camera.identity(options.getRender().getProjection().resolve(EulerRotation.NONE, options.getRender().getFacing()).lens()));
+                Camera.identity(options.getOutput().getProjection().resolve(EulerRotation.NONE, options.getOutput().getFacing()).lens()));
             int tint = options.getDecoration().getTintColor().orElse(ColorMath.WHITE);
 
             ConcurrentList<VisibleTriangle> triangles;
@@ -604,9 +604,9 @@ public final class ItemRenderer implements Renderer<ItemOptions> {
             }
 
             Matrix4f displayTransform = resolveDisplayTransform(item, DISPLAY_SLOT_HELD_3D);
-            int ssaa = Math.max(1, options.getRender().getSupersample());
+            int ssaa = Math.max(1, options.getOutput().getSupersample());
             return Finalize.render(
-                Finalize.FinalizeSpec.staticFrame(options.getRender().getOutputSize(), options.getRender().getOutputSize(), ssaa, options.getRender().isAntiAlias())
+                Finalize.FinalizeSpec.staticFrame(options.getOutput().getCanvasSize(), options.getOutput().getCanvasSize(), ssaa, options.getOutput().isAntiAlias())
                     .withGlint(itemGlint(engine.textures(), item, options), false),
                 (target, mask, tick) -> engine.rasterize(triangles, target, displayTransform));
         }

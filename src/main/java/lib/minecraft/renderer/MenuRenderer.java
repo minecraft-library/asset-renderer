@@ -20,7 +20,7 @@ import lib.minecraft.renderer.option.BlockOptions;
 import lib.minecraft.renderer.option.ItemOptions;
 import lib.minecraft.renderer.option.MenuOptions;
 import lib.minecraft.renderer.option.slot.MenuSlot;
-import lib.minecraft.renderer.option.spec.RenderOptions;
+import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.text.ColorSegment;
 import lib.minecraft.text.LineSegment;
 import lib.minecraft.text.font.MinecraftFont;
@@ -206,7 +206,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             case BLACK_STAINED_GLASS_PANE -> ItemOptions.builder()
                 .itemId("minecraft:black_stained_glass_pane")
                 .type(ItemOptions.Type.GUI_2D)
-                .render(ItemOptions.DEFAULT_RENDER.mutate().outputSize(SLOT_SIZE - 4).build())
+                .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(SLOT_SIZE - 4).build())
                 .build();
             case EMPTY -> throw new RenderException("EMPTY handled above");
         };
@@ -1037,7 +1037,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             BlockOptions decorationOptions = BlockOptions.builder()
                 .blockId("minecraft:anvil")
                 .type(BlockOptions.Type.ISOMETRIC_3D)
-                .render(RenderOptions.builder().outputSize(SLOT_SIZE - 4).antiAlias(false).build())
+                .output(OutputOptions.builder().canvasSize(SLOT_SIZE - 4).antiAlias(false).build())
                 .build();
             ImageData decoration = blockRenderer.render(decorationOptions);
             if (decoration.isAnimated()) anyAnimated = true;
@@ -1050,7 +1050,7 @@ public final class MenuRenderer implements Renderer<MenuOptions> {
             ItemOptions redPaneOptions = ItemOptions.builder()
                 .itemId("minecraft:red_stained_glass_pane")
                 .type(ItemOptions.Type.GUI_2D)
-                .render(ItemOptions.DEFAULT_RENDER.mutate().outputSize(SLOT_SIZE - 4).build())
+                .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(SLOT_SIZE - 4).build())
                 .build();
             ImageData redPane = itemRenderer.render(redPaneOptions);
             if (redPane.isAnimated()) anyAnimated = true;

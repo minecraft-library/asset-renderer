@@ -3,7 +3,7 @@ package lib.minecraft.renderer.bench;
 import lib.minecraft.renderer.BlockRenderer;
 import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.option.BlockOptions;
-import lib.minecraft.renderer.option.spec.RenderOptions;
+import lib.minecraft.renderer.option.spec.OutputOptions;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;
@@ -39,8 +39,8 @@ public class ModelRasterizeMicroBenchmark extends AbstractRendererBenchmark {
         this.options = BlockOptions.builder()
             .blockId("minecraft:piston")
             .type(BlockOptions.Type.ISOMETRIC_3D)
-            .render(RenderOptions.builder()
-                .outputSize(128)
+            .output(OutputOptions.builder()
+                .canvasSize(128)
                 .antiAlias(false)
                 .build())
             .build();

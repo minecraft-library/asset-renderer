@@ -6,7 +6,7 @@ import lib.minecraft.renderer.engine.ModelEngine;
 import lib.minecraft.renderer.engine.camera.Lens;
 import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.option.PlayerOptions;
-import lib.minecraft.renderer.option.spec.RenderOptions;
+import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.option.spec.SkinOptions;
 import lib.minecraft.renderer.option.spec.TextureOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
@@ -77,9 +77,9 @@ class PlayerRasterizeFittedGoldenTest {
         PlayerOptions options = PlayerOptions.builder()
             .type(PlayerOptions.Type.FULL)
             .dimension(PlayerOptions.Dimension.THREE_D)
-            .render(RenderOptions.builder()
+            .output(OutputOptions.builder()
                 .projection(Projection.VANILLA_ISO)
-                .outputSize(256)
+                .canvasSize(256)
                 .supersample(1)
                 .antiAlias(false)
                 .build())
@@ -94,9 +94,9 @@ class PlayerRasterizeFittedGoldenTest {
         PlayerOptions options = PlayerOptions.builder()
             .type(PlayerOptions.Type.SKULL)
             .dimension(PlayerOptions.Dimension.THREE_D)
-            .render(RenderOptions.builder()
+            .output(OutputOptions.builder()
                 .projection(Projection.PORTRAIT)
-                .outputSize(256)
+                .canvasSize(256)
                 .supersample(1)
                 .antiAlias(false)
                 .build())

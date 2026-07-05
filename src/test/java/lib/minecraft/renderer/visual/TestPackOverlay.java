@@ -6,7 +6,7 @@ import dev.simplified.image.ImageData;
 import lib.minecraft.renderer.ItemRenderer;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.ItemOptions;
-import lib.minecraft.renderer.option.spec.RenderOptions;
+import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
@@ -134,7 +134,7 @@ public final class TestPackOverlay {
         ItemOptions options = ItemOptions.builder()
             .itemId(itemId)
             .type(ItemOptions.Type.GUI_2D)
-            .render(ItemOptions.DEFAULT_RENDER.mutate().outputSize(size).build())
+            .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(size).build())
             .build();
         ImageData image = renderer.render(options);
         return image.toBufferedImage();

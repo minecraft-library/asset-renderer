@@ -11,7 +11,7 @@ import lib.minecraft.renderer.engine.kit.GlintKit;
 import lib.minecraft.renderer.engine.kit.TrimKit;
 import lib.minecraft.renderer.option.slot.ItemSlot;
 import lib.minecraft.renderer.option.spec.ItemDecoration;
-import lib.minecraft.renderer.option.spec.RenderOptions;
+import lib.minecraft.renderer.option.spec.OutputOptions;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -27,7 +27,7 @@ import java.util.function.UnaryOperator;
  * the GUI icon:
  * <ul>
  *   <li><b>2D GUI icon</b> - the inventory tile a caller sees at {@code 16x16} logical
- *       pixels, scaled to {@link RenderOptions#getOutputSize() outputSize}. Supports the full item overlay
+ *       pixels, scaled to {@link OutputOptions#getCanvasSize() canvasSize}. Supports the full item overlay
  *       stack: durability bar, stack count, enchantment glint, leather dye tint, banner
  *       pattern composite, armor trim palette permutation.</li>
  *   <li><b>3D held-item view</b> - the model rendered at the vanilla
@@ -47,7 +47,7 @@ import java.util.function.UnaryOperator;
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
-public class ItemOptions implements Option {
+public class ItemOptions implements RenderOptions {
 
     /**
      * Namespaced item id to render, e.g. {@code "minecraft:diamond_sword"}. Empty (default)
@@ -105,15 +105,15 @@ public class ItemOptions implements Option {
     private final boolean showDamageBar = true;
 
     /**
-     * The default render frame for an item icon - the GUI-item projection
+     * The default output frame for an item icon - the GUI-item projection
      * ({@link Projection#VANILLA_GUI_ITEM}) with neutral output size, no supersampling and no FXAA.
      */
-    public static final @NotNull RenderOptions DEFAULT_RENDER =
-            RenderOptions.builder().projection(Projection.VANILLA_GUI_ITEM).build();
+    public static final @NotNull OutputOptions DEFAULT_OUTPUT =
+            OutputOptions.builder().projection(Projection.VANILLA_GUI_ITEM).build();
 
-    /** The shared render frame - output size, projection, facing, rotation, and SSAA / FXAA. */
+    /** The shared output frame - output size, projection, facing, rotation, and SSAA / FXAA. */
     @lombok.Builder.Default
-    private final @NotNull RenderOptions render = DEFAULT_RENDER;
+    private final @NotNull OutputOptions output = DEFAULT_OUTPUT;
 
     /**
      * Render-time item context used by CIT matching, the damage bar, and the stack-count overlay.

@@ -3,7 +3,7 @@ package lib.minecraft.renderer;
 import dev.simplified.image.ImageData;
 import dev.simplified.image.data.AnimatedImageData;
 import dev.simplified.image.data.StaticImageData;
-import lib.minecraft.renderer.option.Option;
+import lib.minecraft.renderer.option.RenderOptions;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -17,18 +17,18 @@ import org.jetbrains.annotations.NotNull;
  * object, and all ambient pack / model / texture lookups come from the {@code RendererContext} the
  * implementation is constructed with.
  *
- * @param <O> the options type accepted by this renderer; implements {@link Option}
+ * @param <O> the options type accepted by this renderer; implements {@link RenderOptions}
  */
-public interface Renderer<O extends Option> {
+public interface Renderer<O extends RenderOptions> {
 
     /**
      * Shared square-pixel default output size (in pixels) for single-subject renders. Consumed by
      * {@code BlockOptions}, {@code EntityOptions}, {@code ItemOptions}, {@code PlayerOptions},
      * {@code FluidOptions}, and {@code PortalOptions} as the default value of their
-     * {@code outputSize} field so the subject-scoped renderers all agree on one tile dimension out
+     * {@code canvasSize} field so the subject-scoped renderers all agree on one tile dimension out
      * of the box.
      */
-    int DEFAULT_OUTPUT_SIZE = 256;
+    int DEFAULT_CANVAS_SIZE = 256;
 
     /**
      * Renders the given options into an image, either a {@link StaticImageData} single frame or an

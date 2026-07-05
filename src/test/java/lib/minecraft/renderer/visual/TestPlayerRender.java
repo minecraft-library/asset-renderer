@@ -14,7 +14,7 @@ import lib.minecraft.renderer.engine.camera.Projection;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.PlayerOptions;
 import lib.minecraft.renderer.option.spec.ArmorOptions;
-import lib.minecraft.renderer.option.spec.RenderOptions;
+import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.option.spec.SkinOptions;
 import lib.minecraft.renderer.option.spec.TextureOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
@@ -173,7 +173,7 @@ public final class TestPlayerRender {
         for (Projection projection : Projection.values())
             cells.add(new Cell(projection.name().toLowerCase(),
                 base(size).type(PlayerOptions.Type.SKULL).dimension(PlayerOptions.Dimension.THREE_D)
-                    .render(sweepRender(size).mutate().projection(projection).build()).build()));
+                    .output(sweepRender(size).mutate().projection(projection).build()).build()));
         return cells;
     }
 
@@ -187,11 +187,11 @@ public final class TestPlayerRender {
         for (Facing f : new Facing[]{Facing.DEFAULT, Facing.MIRRORED, Facing.FLIPPED, Facing.MIRRORED_FLIPPED})
             cells.add(new Cell("portrait " + (f.mirrored() ? "M" : "-") + (f.flipped() ? "F" : "-"),
                 base(size).type(PlayerOptions.Type.SKULL).dimension(PlayerOptions.Dimension.THREE_D)
-                    .render(sweepRender(size).mutate().projection(Projection.PORTRAIT).facing(f).build()).build()));
+                    .output(sweepRender(size).mutate().projection(Projection.PORTRAIT).facing(f).build()).build()));
         cells.add(new Cell("cavalier default", base(size).type(PlayerOptions.Type.SKULL)
-            .dimension(PlayerOptions.Dimension.THREE_D).render(sweepRender(size).mutate().projection(Projection.CAVALIER).build()).build()));
+            .dimension(PlayerOptions.Dimension.THREE_D).output(sweepRender(size).mutate().projection(Projection.CAVALIER).build()).build()));
         cells.add(new Cell("cavalier mirrored", base(size).type(PlayerOptions.Type.SKULL)
-            .dimension(PlayerOptions.Dimension.THREE_D).render(sweepRender(size).mutate().projection(Projection.CAVALIER).facing(Facing.MIRRORED).build()).build()));
+            .dimension(PlayerOptions.Dimension.THREE_D).output(sweepRender(size).mutate().projection(Projection.CAVALIER).facing(Facing.MIRRORED).build()).build()));
         return cells;
     }
 
@@ -204,15 +204,15 @@ public final class TestPlayerRender {
         // The cape sits on the anatomical back, so the default front view hides it; the rear view
         // (180 yaw) turns the back to the camera to show it renders.
         cells.add(new Cell("cape (rear)", base(size).type(PlayerOptions.Type.FULL)
-            .skin(skinBase().cape(TextureOptions.builder().bytes(Optional.of(cape)).build()).renderCape(true).build()).render(sweepRender(size).mutate().rotation(new EulerRotation(0f, 180f, 0f)).build()).build()));
+            .skin(skinBase().cape(TextureOptions.builder().bytes(Optional.of(cape)).build()).renderCape(true).build()).output(sweepRender(size).mutate().rotation(new EulerRotation(0f, 180f, 0f)).build()).build()));
         cells.add(new Cell("cape (front)", base(size).type(PlayerOptions.Type.FULL)
             .skin(skinBase().cape(TextureOptions.builder().bytes(Optional.of(cape)).build()).renderCape(true).build()).build()));
-        cells.add(new Cell("ssaa 1 (raw)", base(size).type(PlayerOptions.Type.FULL).render(sweepRender(size).mutate().supersample(1).build()).build()));
-        cells.add(new Cell("ssaa 4 + fxaa", base(size).type(PlayerOptions.Type.FULL).render(sweepRender(size).mutate().antiAlias(true).build()).build()));
+        cells.add(new Cell("ssaa 1 (raw)", base(size).type(PlayerOptions.Type.FULL).output(sweepRender(size).mutate().supersample(1).build()).build()));
+        cells.add(new Cell("ssaa 4 + fxaa", base(size).type(PlayerOptions.Type.FULL).output(sweepRender(size).mutate().antiAlias(true).build()).build()));
         cells.add(new Cell("rot 0/0/0 (front)", base(size).type(PlayerOptions.Type.FULL)
-            .render(sweepRender(size).mutate().rotation(EulerRotation.NONE).build()).build()));
+            .output(sweepRender(size).mutate().rotation(EulerRotation.NONE).build()).build()));
         cells.add(new Cell("rot 15/210/0", base(size).type(PlayerOptions.Type.FULL)
-            .render(sweepRender(size).mutate().rotation(new EulerRotation(15f, 210f, 0f)).build()).build()));
+            .output(sweepRender(size).mutate().rotation(new EulerRotation(15f, 210f, 0f)).build()).build()));
         cells.add(new Cell("bg solid grey", base(size).type(PlayerOptions.Type.FULL)
             .background(Background.solid(0xFF40444C)).build()));
         cells.add(new Cell("bg checkerboard", base(size).type(PlayerOptions.Type.FULL)
@@ -343,10 +343,10 @@ public final class TestPlayerRender {
         if (capeUrl.isPresent()) {
             cells.add(new Cell(username + " cape (rear)", accountBase(size, skinUrl)
                 .type(PlayerOptions.Type.FULL).skin(accountSkinBase(skinUrl).cape(TextureOptions.builder().url(capeUrl).build()).renderCape(true).build())
-                .render(sweepRender(size).mutate().rotation(new EulerRotation(0f, 180f, 0f)).build()).build()));
+                .output(sweepRender(size).mutate().rotation(new EulerRotation(0f, 180f, 0f)).build()).build()));
             cells.add(new Cell(username + " cape (3/4)", accountBase(size, skinUrl)
                 .type(PlayerOptions.Type.FULL).skin(accountSkinBase(skinUrl).cape(TextureOptions.builder().url(capeUrl).build()).renderCape(true).build())
-                .render(sweepRender(size).mutate().rotation(new EulerRotation(0f, 150f, 0f)).build()).build()));
+                .output(sweepRender(size).mutate().rotation(new EulerRotation(0f, 150f, 0f)).build()).build()));
         } else {
             System.out.println("  (account has no cape)");
         }
@@ -355,7 +355,7 @@ public final class TestPlayerRender {
 
     /** Builder seeded with the account's live skin URL (or the default skin when the account has none). */
     private static PlayerOptions.@NotNull PlayerOptionsBuilder accountBase(int size, @NotNull Optional<String> skinUrl) {
-        return PlayerOptions.builder().render(sweepRender(size)).skin(accountSkinBase(skinUrl).build());
+        return PlayerOptions.builder().output(sweepRender(size)).skin(accountSkinBase(skinUrl).build());
     }
 
     /**
@@ -549,7 +549,7 @@ public final class TestPlayerRender {
     private static PlayerOptions.@NotNull PlayerOptionsBuilder base(int size) {
         return PlayerOptions.builder()
             .skin(skinBase().build())
-            .render(sweepRender(size));
+            .output(sweepRender(size));
     }
 
     /** A {@link SkinOptions} builder seeded with the sweep's default (Steve) skin source. */
@@ -558,8 +558,8 @@ public final class TestPlayerRender {
     }
 
     /** The shared sweep render frame - the per-cell size at {@link #SSAA}x supersample. */
-    private static @NotNull RenderOptions sweepRender(int size) {
-        return RenderOptions.builder().outputSize(size).supersample(SSAA).build();
+    private static @NotNull OutputOptions sweepRender(int size) {
+        return OutputOptions.builder().canvasSize(size).supersample(SSAA).build();
     }
 
     private static PlayerOptions.@NotNull PlayerOptionsBuilder allSlots(

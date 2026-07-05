@@ -147,7 +147,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             );
         }
 
-        EulerRotation user = options.getRender().getRotation();
+        EulerRotation user = options.getOutput().getRotation();
         EulerRotation effective = new EulerRotation(
             user.pitch(),
             user.yaw() + model.getInventoryYRotation() + definition.setupYawAddend(),
@@ -167,7 +167,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // render = pose · ENTITY_FACING · model_Ydown lands the entity upright AND facing under ANY
         // projection (exactly like the player's R_Y(180) facing, plus the Y-down flip). For the default,
         // R(30,225,0) · ENTITY_FACING = R(30,45,0) · flip180 reproduces the harness orientation.
-        Camera entityCamera = options.getRender().getProjection().resolve(EulerRotation.NONE, options.getRender().getFacing());
+        Camera entityCamera = options.getOutput().getProjection().resolve(EulerRotation.NONE, options.getOutput().getFacing());
         ModelEngine engine = new ModelEngine(this.context, entityCamera, ENTITY_PLACEMENT);
         Lens lens = entityCamera.lens();
 
@@ -177,7 +177,7 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         //
         // ORTHOGRAPHIC (VANILLA_ISO + axonometric): size a native pixels-per-block canvas from the
         // entity's alpha-tight (optionally family-unioned) silhouette - measured through the EXACT render
-        // orientation ({@code engine.orient}), dispatched on FitMode (OUTPUT_SIZE honours outputSize +
+        // orientation ({@code engine.orient}), dispatched on FitMode (OUTPUT_SIZE honours canvasSize +
         // padding; UNION_BOUNDS / FAMILY_BOUNDS auto-size from the entity's own / family-unioned bounds).
         // The engine bakes that explicit scale in 3D and centres the measured silhouette midpoint in
         // screen space (NATIVE_SCALE) - so a non-brick silhouette (cod's z=[-4,11] AABB vs its z=[0,7]
@@ -205,14 +205,14 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
             kitNdcScale = 1f;
             fitRequest = FitRequest.nativeScale(fit.ndcScale(), screenBounds);
         } else {
-            int outputSize = Math.max(1, options.getRender().getOutputSize());
+            int canvasSize = Math.max(1, options.getOutput().getCanvasSize());
             int padding = Math.max(0, options.getPadding());
-            canvasW = outputSize;
-            canvasH = outputSize;
+            canvasW = canvasSize;
+            canvasH = canvasSize;
             EntityGeometryKit.UnitFit unit = EntityGeometryKit.unitFit(scaledBounds);
             kitAnchor = unit.centre();
             kitNdcScale = unit.ndcScale();
-            fitRequest = FitRequest.autoFill(Math.max(1e-3f, (outputSize - 2f * padding) / (float) outputSize));
+            fitRequest = FitRequest.autoFill(Math.max(1e-3f, (canvasSize - 2f * padding) / (float) canvasSize));
         }
 
         EntityGeometryKit.BuildResult buildResult = EntityGeometryKit.buildTriangles(
@@ -253,9 +253,9 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         // Rasterize + optional FXAA + supersample-downscale + masked glint via the shared tail.
         // The glint mask is recorded at the raster size and downsampled so the foil is confined to
         // the (glinted) armor rather than the whole entity silhouette.
-        int ssaa = Math.max(1, options.getRender().getSupersample());
+        int ssaa = Math.max(1, options.getOutput().getSupersample());
         return Finalize.render(
-            Finalize.FinalizeSpec.staticFrame(canvasW, canvasH, ssaa, options.getRender().isAntiAlias())
+            Finalize.FinalizeSpec.staticFrame(canvasW, canvasH, ssaa, options.getOutput().isAntiAlias())
                 .withGlint(Finalize.Glint.armor(engine.textures()::tryResolveTexture, enchanted), enchanted),
             (target, mask, tick) -> engine.rasterizeFitted(triangles, target, effective, fitRequest, mask));
     }
@@ -665,8 +665,8 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
      * {@code 2 * padding} on each axis, then uniformly shrink so the longer side stays at or below
      * {@link EntityOptions#getMaxCanvasSize() maxCanvasSize}.
      *
-     * <p>{@code OUTPUT_SIZE}: canvas is fixed at {@code outputSize x outputSize}. Available silhouette
-     * area is {@code outputSize - 2 * padding} on the longer axis; the entity is scaled to fit.
+     * <p>{@code OUTPUT_SIZE}: canvas is fixed at {@code canvasSize x canvasSize}. Available silhouette
+     * area is {@code canvasSize - 2 * padding} on the longer axis; the entity is scaled to fit.
      *
      * <p>Returned {@link CanvasFit#ndcScale} is the inverse of the rasterizer's own projection
      * ({@code screen_px = ndc * min(canvasW, canvasH) * projectionScale}), so applying it as the fit's
@@ -688,12 +688,12 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         float projectionScale = lens.projectionScale();
 
         if (options.getFitMode() == EntityOptions.FitMode.OUTPUT_SIZE) {
-            int outputSize = Math.max(1, options.getRender().getOutputSize());
-            int avail = Math.max(1, outputSize - 2 * padding);
+            int canvasSize = Math.max(1, options.getOutput().getCanvasSize());
+            int avail = Math.max(1, canvasSize - 2 * padding);
             float extent = Math.max(Math.max(extentX, extentY), 1e-6f);
             float pxPerEntityUnit = avail / extent;
-            float ndcScale = pxPerEntityUnit / (outputSize * projectionScale);
-            return new CanvasFit(outputSize, outputSize, ndcScale);
+            float ndcScale = pxPerEntityUnit / (canvasSize * projectionScale);
+            return new CanvasFit(canvasSize, canvasSize, ndcScale);
         }
 
         int maxCanvasSize = Math.max(1, options.getMaxCanvasSize());

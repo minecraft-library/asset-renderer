@@ -2,7 +2,7 @@ package lib.minecraft.renderer.option;
 
 import dev.simplified.image.Background;
 import lib.minecraft.renderer.option.spec.AnimationOptions;
-import lib.minecraft.renderer.option.spec.RenderOptions;
+import lib.minecraft.renderer.option.spec.OutputOptions;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -23,7 +23,7 @@ import org.jetbrains.annotations.Nullable;
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
-public class PortalOptions implements Option {
+public class PortalOptions implements RenderOptions {
 
     /**
      * The portal variant - drives {@code PORTAL_LAYERS} count and per-layer colour table selection.
@@ -45,14 +45,14 @@ public class PortalOptions implements Option {
     private final @Nullable Integer tintArgbOverride;
 
     /**
-     * The default render frame for a portal render - neutral output size, {@code VANILLA_ISO}
+     * The default output frame for a portal render - neutral output size, {@code VANILLA_ISO}
      * projection, no supersampling and no FXAA.
      */
-    public static final @NotNull RenderOptions DEFAULT_RENDER = RenderOptions.defaults();
+    public static final @NotNull OutputOptions DEFAULT_OUTPUT = OutputOptions.defaults();
 
-    /** The shared render frame - output size, projection, facing, rotation, and SSAA / FXAA. */
+    /** The shared output frame - output size, projection, facing, rotation, and SSAA / FXAA. */
     @lombok.Builder.Default
-    private final @NotNull RenderOptions render = DEFAULT_RENDER;
+    private final @NotNull OutputOptions output = DEFAULT_OUTPUT;
 
     /**
      * The default animation timing for a portal render - seed tick 0, 1 frame, 8 ticks per frame
@@ -83,7 +83,7 @@ public class PortalOptions implements Option {
 
     /**
      * The default portal options - a static isometric 3D {@linkplain Portal#END_PORTAL end portal}
-     * with the neutral {@link #getRender() render} frame over a
+     * with the neutral {@link #getOutput() render} frame over a
      * {@linkplain Background#TRANSPARENT transparent} background.
      *
      * @return the default options

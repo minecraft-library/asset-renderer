@@ -24,7 +24,7 @@ import lib.minecraft.renderer.option.FluidOptions;
 import lib.minecraft.renderer.option.GridOptions;
 import lib.minecraft.renderer.option.ItemOptions;
 import lib.minecraft.renderer.option.PortalOptions;
-import lib.minecraft.renderer.option.spec.RenderOptions;
+import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.pipeline.loader.BlockModelLoader;
 import org.jetbrains.annotations.NotNull;
 
@@ -231,7 +231,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
                 BlockOptions blockOptions = BlockOptions.builder()
                     .blockId(blockId)
                     .type(BlockOptions.Type.ISOMETRIC_3D)
-                    .render(RenderOptions.builder().outputSize(options.getTileSize()).build())
+                    .output(OutputOptions.builder().canvasSize(options.getTileSize()).build())
                     .build();
                 image = renderer.render(blockOptions);
                 source = classifyBlockSource(blockId);
@@ -260,7 +260,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         return FluidOptions.builder()
             .fluid(fluid)
             .type(FluidOptions.Type.FLUID_FACE_2D)
-            .render(RenderOptions.builder().outputSize(tileSize).build())
+            .output(OutputOptions.builder().canvasSize(tileSize).build())
             .build();
     }
 
@@ -278,7 +278,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         return PortalOptions.builder()
             .portal(portal)
             .type(PortalOptions.Type.PORTAL_FACE_2D)
-            .render(RenderOptions.builder().outputSize(tileSize).build())
+            .output(OutputOptions.builder().canvasSize(tileSize).build())
             .build();
     }
 
@@ -351,7 +351,7 @@ public final class AtlasRenderer implements Renderer<AtlasOptions> {
         ItemOptions itemOptions = ItemOptions.builder()
             .itemId(itemId)
             .type(ItemOptions.Type.GUI_2D)
-            .render(ItemOptions.DEFAULT_RENDER.mutate().outputSize(options.getTileSize()).build())
+            .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(options.getTileSize()).build())
             .animateGlint(false)
             .build();
         try {

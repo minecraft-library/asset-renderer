@@ -5,7 +5,7 @@ import lib.minecraft.renderer.engine.compose.layer.GeometryLayer;
 import lib.minecraft.renderer.engine.compose.layer.LayerStack;
 import lib.minecraft.renderer.option.slot.EntitySlot;
 import lib.minecraft.renderer.option.spec.ArmorOptions;
-import lib.minecraft.renderer.option.spec.RenderOptions;
+import lib.minecraft.renderer.option.spec.OutputOptions;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -17,19 +17,19 @@ import java.util.function.UnaryOperator;
 /**
  * Configures a single {@code EntityRenderer} invocation for mob entities. The entity is resolved
  * by {@link #getEntityId() entityId} through the active {@code RendererContext} and rendered as a
- * 3D icon via its {@code EntityModelData} bone/cube tree, posed by {@link RenderOptions#getProjection()
- * projection} (default {@code VANILLA_ISO}). The {@link RenderOptions#getRotation() rotation} field
+ * 3D icon via its {@code EntityModelData} bone/cube tree, posed by {@link OutputOptions#getProjection()
+ * projection} (default {@code VANILLA_ISO}). The {@link OutputOptions#getRotation() rotation} field
  * is the user-override layer applied on top of the projection's baked pose.
  *
  * <p>The {@link #getFitMode() fitMode} field selects how the output canvas is sized:
- * {@link FitMode#OUTPUT_SIZE} (default) renders into a fixed {@code outputSize x outputSize}
+ * {@link FitMode#OUTPUT_SIZE} (default) renders into a fixed {@code canvasSize x canvasSize}
  * square with the entity scaled to fit and {@code padding} pixels of clear space inside;
  * {@link FitMode#UNION_BOUNDS} and {@link FitMode#FAMILY_BOUNDS} size the canvas dynamically
  * from the entity's bounds at native pixel resolution and are intended for vanilla-reference
  * parity work. See each enum constant's javadoc for the precise math.
  *
- * <p>{@link RenderOptions#getSupersample() supersample} composes orthogonally with
- * {@link RenderOptions#isAntiAlias() antiAlias}: supersample renders at {@code supersample x} the
+ * <p>{@link OutputOptions#getSupersample() supersample} composes orthogonally with
+ * {@link OutputOptions#isAntiAlias() antiAlias}: supersample renders at {@code supersample x} the
  * final canvas dim then downsamples (SSAA), while antiAlias applies an FXAA post-process on
  * whichever buffer the rasterizer wrote into. Defaults are {@code supersample = 1} and
  * {@code antiAlias = false}, so an end-user one-off render ships with no AA unless explicitly
@@ -37,7 +37,7 @@ import java.util.function.UnaryOperator;
  */
 @Getter
 @Builder(toBuilder = true, access = AccessLevel.PUBLIC)
-public class EntityOptions implements Option {
+public class EntityOptions implements RenderOptions {
 
     /**
      * Namespaced entity id for lookup, e.g. {@code "minecraft:zombie"}. Empty (default) resolves
@@ -69,7 +69,7 @@ public class EntityOptions implements Option {
 
     /**
      * Canvas-sizing strategy. {@link FitMode#OUTPUT_SIZE} (default) honours
-     * {@link RenderOptions#getOutputSize() outputSize} and centres the entity inside a fixed
+     * {@link OutputOptions#getCanvasSize() canvasSize} and centres the entity inside a fixed
      * square canvas; {@link FitMode#UNION_BOUNDS} and {@link FitMode#FAMILY_BOUNDS} size the
      * canvas dynamically from the entity's screen bounds for parity work. See each constant's
      * javadoc for the precise sizing math.
@@ -82,7 +82,7 @@ public class EntityOptions implements Option {
      * mode-specific semantics:
      * <ul>
      *   <li>{@link FitMode#OUTPUT_SIZE} - shrinks the available silhouette area inside the
-     *       fixed {@link RenderOptions#getOutputSize() outputSize} canvas by {@code padding}
+     *       fixed {@link OutputOptions#getCanvasSize() canvasSize} canvas by {@code padding}
      *       pixels on each side.</li>
      *   <li>{@link FitMode#UNION_BOUNDS}, {@link FitMode#FAMILY_BOUNDS} - expands the
      *       dynamically-computed canvas by {@code padding} pixels on each side around the
@@ -114,14 +114,14 @@ public class EntityOptions implements Option {
     private final int maxCanvasSize = Integer.getInteger("refharness.maxCanvasSize", 1024);
 
     /**
-     * The default render frame for an entity icon - neutral output size, {@code VANILLA_ISO}
+     * The default output frame for an entity icon - neutral output size, {@code VANILLA_ISO}
      * projection, no supersampling and no FXAA.
      */
-    public static final @NotNull RenderOptions DEFAULT_RENDER = RenderOptions.defaults();
+    public static final @NotNull OutputOptions DEFAULT_OUTPUT = OutputOptions.defaults();
 
-    /** The shared render frame - output size, projection, facing, rotation, and SSAA / FXAA. */
+    /** The shared output frame - output size, projection, facing, rotation, and SSAA / FXAA. */
     @lombok.Builder.Default
-    private final @NotNull RenderOptions render = DEFAULT_RENDER;
+    private final @NotNull OutputOptions output = DEFAULT_OUTPUT;
 
     /**
      * Background fill composited behind the finished render (solid colour or checkerboard).
@@ -165,7 +165,7 @@ public class EntityOptions implements Option {
     public enum FitMode {
 
         /**
-         * Canvas is {@code outputSize x outputSize}. The entity's union silhouette (base
+         * Canvas is {@code canvasSize x canvasSize}. The entity's union silhouette (base
          * model plus non-{@code skipBounds} overlays) is scaled to fit, leaving
          * {@link EntityOptions#getPadding() padding} pixels of clear space inside the canvas on
          * each side. Family siblings are not considered. No upper cap on canvas dimensions - the
@@ -180,8 +180,8 @@ public class EntityOptions implements Option {
          * the vanilla-reference-harness's per-entity bounds), then expanded by
          * {@link EntityOptions#getPadding() padding} pixels on each side. The longer axis is
          * uniformly capped at {@link EntityOptions#getMaxCanvasSize() maxCanvasSize} post-padding
-         * so large entities (ender_dragon) stay manageable. {@link RenderOptions#getOutputSize()
-         * outputSize} is ignored. Use for native-resolution single-entity renders.
+         * so large entities (ender_dragon) stay manageable. {@link OutputOptions#getCanvasSize()
+         * canvasSize} is ignored. Use for native-resolution single-entity renders.
          */
         UNION_BOUNDS,
 

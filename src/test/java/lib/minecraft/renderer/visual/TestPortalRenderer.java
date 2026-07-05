@@ -3,7 +3,7 @@ package lib.minecraft.renderer.visual;
 import lib.minecraft.renderer.PortalRenderer;
 import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.PortalOptions;
-import lib.minecraft.renderer.option.spec.RenderOptions;
+import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
@@ -81,16 +81,16 @@ public final class TestPortalRenderer {
                 render(renderer, imageFactory, portalSlug + "_" + typeSlug + "_static", PortalOptions.builder()
                     .portal(portal)
                     .type(type)
-                    .render(RenderOptions.builder()
-                        .outputSize(STATIC_SIZE)
+                    .output(OutputOptions.builder()
+                        .canvasSize(STATIC_SIZE)
                         .build())
                     .build());
 
                 render(renderer, imageFactory, portalSlug + "_" + typeSlug + "_animated", PortalOptions.builder()
                     .portal(portal)
                     .type(type)
-                    .render(RenderOptions.builder()
-                        .outputSize(ANIMATED_SIZE)
+                    .output(OutputOptions.builder()
+                        .canvasSize(ANIMATED_SIZE)
                         .build())
                     .animation(PortalOptions.DEFAULT_ANIMATION.mutate().frameCount(ANIMATED_FRAME_COUNT).build())
                     .build());

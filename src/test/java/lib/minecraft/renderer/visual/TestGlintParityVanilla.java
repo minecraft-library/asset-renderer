@@ -18,7 +18,7 @@ import lib.minecraft.renderer.exception.PipelineException;
 import lib.minecraft.renderer.option.ItemOptions;
 import lib.minecraft.renderer.option.PlayerOptions;
 import lib.minecraft.renderer.option.spec.ArmorOptions;
-import lib.minecraft.renderer.option.spec.RenderOptions;
+import lib.minecraft.renderer.option.spec.OutputOptions;
 import lib.minecraft.renderer.option.spec.SkinOptions;
 import lib.minecraft.renderer.option.spec.TextureOptions;
 import lib.minecraft.renderer.pipeline.Pipeline;
@@ -271,9 +271,9 @@ public final class TestGlintParityVanilla {
                 .skin(TextureOptions.builder().bytes(Optional.of(TRANSPARENT_SKIN)).build())
                 .renderOverlay(false)
                 .build())
-            .render(RenderOptions.builder()
+            .output(OutputOptions.builder()
                 .antiAlias(false)
-                .outputSize(RENDER_SIZE)
+                .canvasSize(RENDER_SIZE)
                 .build());
         ArmorOptions.ArmorOptionsBuilder armor = ArmorOptions.builder();
         switch (itemId) {
@@ -320,7 +320,7 @@ public final class TestGlintParityVanilla {
         ItemOptions baseOptions = ItemOptions.builder()
             .itemId(itemId)
             .type(ItemOptions.Type.GUI_2D)
-            .render(ItemOptions.DEFAULT_RENDER.mutate().outputSize(RENDER_SIZE).build())
+            .output(ItemOptions.DEFAULT_OUTPUT.mutate().canvasSize(RENDER_SIZE).build())
             .glintOverride(Optional.of(false))
             .build();
         PixelBuffer base = PixelBuffer.wrap(renderer.render(baseOptions).toBufferedImage());

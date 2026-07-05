@@ -64,7 +64,7 @@
  *       regenerators rerun on every Minecraft version bump).</li>
  * </ul>
  *
- * <p><b>Common defaults.</b> {@link lib.minecraft.renderer.Renderer#DEFAULT_OUTPUT_SIZE Renderer#DEFAULT_OUTPUT_SIZE} is the
+ * <p><b>Common defaults.</b> {@link lib.minecraft.renderer.Renderer#DEFAULT_CANVAS_SIZE Renderer#DEFAULT_CANVAS_SIZE} is the
  * shared square-pixel default for single-subject renders. Every subject-scoped options record
  * ({@code BlockOptions}, {@code EntityOptions}, {@code ItemOptions}, {@code PlayerOptions},
  * {@code FluidOptions}, {@code PortalOptions}) picks it up so a caller building with all defaults
