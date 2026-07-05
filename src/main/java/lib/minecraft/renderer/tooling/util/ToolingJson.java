@@ -57,13 +57,30 @@ public class ToolingJson {
         @NotNull String memberKey,
         @NotNull JsonElement payload
     ) throws IOException {
-        JsonObject root = new JsonObject();
-        root.addProperty("//", headerComment);
-        root.addProperty("source_version", version);
+        JsonObject root = header(headerComment, version);
         root.add(memberKey, payload);
 
         writeJson(outputPath, root, PRETTY);
         System.out.println("Wrote " + outputPath.toAbsolutePath());
+    }
+
+    /**
+     * Builds a JSON root seeded with the shared header every generated resource carries: the
+     * {@code "//"} provenance comment followed by the {@code source_version} of the client jar it was
+     * generated from. Single-member snapshot writers go through {@link #writeResource}; richer,
+     * multi-member writers (the entity diagnostics) seed their root here, add their own members, and
+     * hand it to {@link #writeJson}. Centralising the header keeps its keys, order, and naming
+     * identical across every writer.
+     *
+     * @param comment the {@code "//"} provenance comment noting the source and refresh task
+     * @param version the source client-jar version, stored under {@code source_version}
+     * @return a fresh root carrying only the {@code "//"} + {@code source_version} header
+     */
+    public static @NotNull JsonObject header(@NotNull String comment, @NotNull String version) {
+        JsonObject root = new JsonObject();
+        root.addProperty("//", comment);
+        root.addProperty("source_version", version);
+        return root;
     }
 
     /**
