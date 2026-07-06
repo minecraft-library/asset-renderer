@@ -83,18 +83,21 @@ public final class EntityOverlayResolver {
     /**
      * Composite-overlay layers whose pipeline isn't statically cutout-safe (e.g., uses
      * {@code BlendFunction.TRANSLUCENT} without {@code NO_CARDINAL_LIGHTING}) but which
-     * we emit anyway as a known divergence. Bytecode derivation in
-     * {@link #derivationAcceptsCompositeOverlay} rejects them; this set re-allows them.
+     * we emit anyway. Bytecode derivation in {@link #derivationAcceptsCompositeOverlay}
+     * rejects them because it can't prove the translucent pipeline is cutout-safe; this
+     * set re-allows the emit.
      * <p>Entries:
      * <ul>
      *   <li>{@code SLIME_OUTER} - the 8x8x8 translucent outer shell over the inner 6x6x6
-     *       body. Vanilla renders it via {@code RenderTypes.entityTranslucent} (constant
-     *       180/255 alpha multiplier); the static renderer treats it as opaque so the
-     *       visible result is a solid green cube larger than the vanilla reference.
-     *       Geometry is correct relative to the Java client; the delta is a
-     *       known-divergence on rendering semantics rather than geometry. Maintainer can
-     *       move {@code minecraft:slime} into {@code TestEntityParity.ACHIEVED_PARITY}
-     *       once the geometry difference is reviewed.</li>
+     *       body (magma_cube shares the shape). Vanilla renders it via
+     *       {@code RenderTypes.entityTranslucent} (constant 180/255 alpha multiplier). The
+     *       runtime now renders it translucent - partial-alpha no-cull with a depth-write
+     *       skip and back-to-front sort - so {@code minecraft:slime} / {@code minecraft:magma_cube}
+     *       sit at ~0.065 / ~0.013 mean-delta parity with matched java/vanilla coverage, NOT the
+     *       solid opaque cube an earlier build produced. The force-emit is still required only
+     *       because the static bytecode gate can't tell the translucent pipeline is cutout-safe; a
+     *       future per-overlay blend node (letting the shell declare its exact blend, so the shell
+     *       drops out of this policy) would remove the need for it.</li>
      * </ul>
      */
     private static final @NotNull java.util.Set<String> POLICY_FORCE_EMIT = java.util.Set.of(
