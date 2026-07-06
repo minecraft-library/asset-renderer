@@ -2,11 +2,11 @@ package lib.minecraft.renderer.tooling.entity;
 
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.util.StringUtil;
 import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.util.ClassNodeCache;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
-import lib.minecraft.renderer.tooling.util.ToolingText;
 import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -416,7 +416,7 @@ public final class EntityBoneResolver {
         String stem = flag.startsWith("has") ? flag.substring(3)
             : flag.startsWith("is") ? flag.substring(2)
             : flag;
-        return ToolingText.camelToSnake(stem);
+        return StringUtil.toSnakeCase(stem);
     }
 
     /**

@@ -86,15 +86,15 @@ dependencies {
     // Each upstream lib also strict-pins its own internal deps to these same hashes so
     // master-SNAPSHOT consumers of any single lib see a consistent transitive chain.
     api("com.github.simplified-dev:collections") { version { strictly("2f2aa58") } }
-    api("com.github.simplified-dev:utils") { version { strictly("a932b44") } }
-    api("com.github.simplified-dev:image") { version { strictly("84134f2") } }
-    api("com.github.simplified-dev:gson-extras") { version { strictly("b68510e") } }
-    api("com.github.simplified-dev:reflection") { version { strictly("c02511a") } }
-    api("com.github.simplified-dev:client") { version { strictly("64ae978") } }
+    api("com.github.simplified-dev:utils") { version { strictly("37dc4a8") } }
+    api("com.github.simplified-dev:image") { version { strictly("2341d20") } }
+    api("com.github.simplified-dev:gson-extras") { version { strictly("f42ee07") } }
+    api("com.github.simplified-dev:reflection") { version { strictly("b2cf834") } }
+    api("com.github.simplified-dev:client") { version { strictly("5a5d32e") } }
 
     // Simplified API (extracted to github.com/simplified-api) - typed Feign contract for
     // Mojang's launcher / Piston / textures endpoints, owns all renderer HTTP via Pipeline.
-    api("com.github.simplified-api:mojang") { version { strictly("73bd9e2") } }
+    api("com.github.simplified-api:mojang") { version { strictly("71ec2c9") } }
 
     // Minecraft-Library (extracted to github.com/minecraft-library)
     // Owns lib.minecraft.text.**, lib.minecraft.text.font.**, and the

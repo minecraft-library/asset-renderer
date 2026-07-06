@@ -7,10 +7,10 @@ import com.google.gson.JsonSyntaxException;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
+import dev.simplified.util.StringUtil;
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.util.ClassNodeCache;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
-import lib.minecraft.renderer.tooling.util.ToolingText;
 import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -253,7 +253,7 @@ public final class EntityVariantResolver {
             if (entry.isDirectory() || !name.endsWith("Variants.class")) continue;
             String simple = name.substring(name.lastIndexOf('/') + 1, name.length() - ".class".length());
             // simple ends with "Variants"; strip and snake-case to get the variant stem
-            String stem = ToolingText.camelToSnake(simple.substring(0, simple.length() - "Variants".length()));
+            String stem = StringUtil.toSnakeCase(simple.substring(0, simple.length() - "Variants".length()));
             String holderInternal = name.substring(0, name.length() - ".class".length());
             String defaultId = findDataDrivenDefaultId(context.classNodes(), holderInternal);
             if (defaultId != null) out.put(stem, defaultId);
@@ -459,7 +459,7 @@ public final class EntityVariantResolver {
         if (simple.endsWith("Variants")) simple = simple.substring(0, simple.length() - "Variants".length());
         else if (simple.endsWith("Variant")) simple = simple.substring(0, simple.length() - "Variant".length());
         else return null;
-        return ToolingText.camelToSnake(simple);
+        return StringUtil.toSnakeCase(simple);
     }
 
     /**

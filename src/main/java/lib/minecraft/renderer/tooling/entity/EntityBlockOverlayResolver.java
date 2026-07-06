@@ -4,13 +4,13 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
+import dev.simplified.util.StringUtil;
 import lib.minecraft.renderer.tooling.ToolingEntityModels;
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.util.ClassNodeCache;
 import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lib.minecraft.renderer.tooling.util.ToolingJson;
-import lib.minecraft.renderer.tooling.util.ToolingText;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -547,7 +547,7 @@ public final class EntityBlockOverlayResolver {
         String field = fieldReturnedByGetter(model, accessorName);
         if (field == null) return null;
         String bone = boneAssignedToField(model, field);
-        return bone != null ? bone : ToolingText.camelToSnake(field);
+        return bone != null ? bone : StringUtil.toSnakeCase(field);
     }
 
     /**
