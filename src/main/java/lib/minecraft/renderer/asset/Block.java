@@ -71,7 +71,7 @@ public final class Block {
     /**
      * Rendering override for blocks whose visual geometry comes from a vanilla
      * {@code BlockEntityRenderer} (beds, chests, banners, shulkers, signs, skulls, conduit,
-     * decorated_pot, etc.). When present, renderers prefer {@link Entity#model()} over
+     * decorated_pot, etc.). When present, renderers prefer {@link Entity#boneModel()} over
      * {@link #getModel()}, multiply {@link Entity#tintArgb()} against sampled texels, honour
      * {@link Entity#iconRotation()} for the atlas icon, and optionally compose
      * {@link Entity#parts()} for multi-part atlas views (bed head + foot, decorated_pot body +
