@@ -10,6 +10,7 @@ import dev.simplified.collection.ConcurrentMap;
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.util.ClassNodeCache;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
+import lib.minecraft.renderer.tooling.util.ToolingText;
 import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -252,7 +253,7 @@ public final class EntityVariantResolver {
             if (entry.isDirectory() || !name.endsWith("Variants.class")) continue;
             String simple = name.substring(name.lastIndexOf('/') + 1, name.length() - ".class".length());
             // simple ends with "Variants"; strip and snake-case to get the variant stem
-            String stem = camelToSnake(simple.substring(0, simple.length() - "Variants".length()));
+            String stem = ToolingText.camelToSnake(simple.substring(0, simple.length() - "Variants".length()));
             String holderInternal = name.substring(0, name.length() - ".class".length());
             String defaultId = findDataDrivenDefaultId(context.classNodes(), holderInternal);
             if (defaultId != null) out.put(stem, defaultId);
@@ -458,7 +459,7 @@ public final class EntityVariantResolver {
         if (simple.endsWith("Variants")) simple = simple.substring(0, simple.length() - "Variants".length());
         else if (simple.endsWith("Variant")) simple = simple.substring(0, simple.length() - "Variant".length());
         else return null;
-        return camelToSnake(simple);
+        return ToolingText.camelToSnake(simple);
     }
 
     /**
@@ -535,22 +536,6 @@ public final class EntityVariantResolver {
         return element.getAsJsonPrimitive().isString() ? element.getAsString() : null;
     }
 
-    /**
-     * {@code "ColdCow"} -&gt; {@code "cold_cow"}, {@code "Cow"} -&gt; {@code "cow"}.
-     */
-    private static @NotNull String camelToSnake(@NotNull String camel) {
-        StringBuilder out = new StringBuilder();
-        for (int i = 0; i < camel.length(); i++) {
-            char c = camel.charAt(i);
-            if (Character.isUpperCase(c)) {
-                if (i > 0) out.append('_');
-                out.append(Character.toLowerCase(c));
-            } else {
-                out.append(c);
-            }
-        }
-        return out.toString();
-    }
 
     // ----------------------------------------------------------------------------------------
     // Enum-DEFAULT variant detection (axolotl / rabbit pattern)

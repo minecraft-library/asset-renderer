@@ -10,6 +10,7 @@ import lib.minecraft.renderer.tooling.util.ClassNodeCache;
 import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
 import lib.minecraft.renderer.tooling.util.ToolingJson;
+import lib.minecraft.renderer.tooling.util.ToolingText;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -546,7 +547,7 @@ public final class EntityBlockOverlayResolver {
         String field = fieldReturnedByGetter(model, accessorName);
         if (field == null) return null;
         String bone = boneAssignedToField(model, field);
-        return bone != null ? bone : camelToSnake(field);
+        return bone != null ? bone : ToolingText.camelToSnake(field);
     }
 
     /**
@@ -607,27 +608,6 @@ public final class EntityBlockOverlayResolver {
                 return lastGetChildArg;
         }
         return null;
-    }
-
-    /**
-     * Converts a camelCase model field name to the vanilla {@code getChild} snake_case bone name
-     * ({@code rightArm} -&gt; {@code right_arm}, {@code head} -&gt; {@code head}).
-     *
-     * @param field the camelCase field name
-     * @return the snake_case bone name
-     */
-    private static @NotNull String camelToSnake(@NotNull String field) {
-        StringBuilder out = new StringBuilder(field.length() + 4);
-        for (int i = 0; i < field.length(); i++) {
-            char c = field.charAt(i);
-            if (Character.isUpperCase(c)) {
-                if (i > 0) out.append('_');
-                out.append(Character.toLowerCase(c));
-            } else {
-                out.append(c);
-            }
-        }
-        return out.toString();
     }
 
     /**

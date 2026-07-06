@@ -6,6 +6,7 @@ import lib.minecraft.renderer.asset.Entity;
 import lib.minecraft.renderer.tooling.util.AsmKit;
 import lib.minecraft.renderer.tooling.util.ClassNodeCache;
 import lib.minecraft.renderer.tooling.util.Diagnostics;
+import lib.minecraft.renderer.tooling.util.ToolingText;
 import lib.minecraft.renderer.tooling.util.VanillaSourceClasses;
 import lombok.experimental.UtilityClass;
 import org.jetbrains.annotations.NotNull;
@@ -415,17 +416,7 @@ public final class EntityBoneResolver {
         String stem = flag.startsWith("has") ? flag.substring(3)
             : flag.startsWith("is") ? flag.substring(2)
             : flag;
-        StringBuilder snake = new StringBuilder(stem.length() + 4);
-        for (int i = 0; i < stem.length(); i++) {
-            char c = stem.charAt(i);
-            if (Character.isUpperCase(c)) {
-                if (i > 0) snake.append('_');
-                snake.append(Character.toLowerCase(c));
-            } else {
-                snake.append(c);
-            }
-        }
-        return snake.toString();
+        return ToolingText.camelToSnake(stem);
     }
 
     /**
