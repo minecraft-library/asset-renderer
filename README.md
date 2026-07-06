@@ -16,7 +16,6 @@ Headless rendering library for Minecraft blocks, items, entities, fluids, and po
 - [Gradle Tasks](#gradle-tasks)
   - [Build and Test](#build-and-test)
   - [Visual Inspection](#visual-inspection)
-  - [Parity Testing](#parity-testing)
   - [JMH Benchmarks](#jmh-benchmarks)
 - [Package Structure](#package-structure)
 - [Resource Tooling](#resource-tooling)
@@ -156,7 +155,9 @@ ImageIO.write(entity.toBufferedImage(), "PNG", new File("zombie.png"));
 
 ### Visual Inspection
 
-Each task writes into `cache/visual/<task-name>/` for side-by-side comparison. Flags use Gradle's `-P` property syntax. Run `./gradlew tasks --group visual` to list. The underlying `main()` entry points live in `src/test/java/lib/minecraft/renderer/visual/`.
+Every task here is in the `visual` Gradle group (`./gradlew tasks --group visual`) and writes into `cache/visual/<task-name>/` for side-by-side inspection; the underlying `main()` entry points live in `src/test/java/lib/minecraft/renderer/visual/`. Flags use Gradle's `-P` property syntax.
+
+**Free-form renders** - render a subject (or the whole set) to eyeball:
 
 ```bash
 ./gradlew blockRender3D     -PblockId=minecraft:tnt -PrenderSize=512 -Pssaa=2
@@ -167,8 +168,7 @@ Each task writes into `cache/visual/<task-name>/` for side-by-side comparison. F
 ./gradlew entityProjections -PentityId=minecraft:zombie -PrenderSize=256   # one entity under every projection
 ./gradlew bedParity         -PrenderSize=1024
 ./gradlew loreTooltip
-./gradlew stackCountBadge   -Plabel=experiment1
-./gradlew stackCountBadge   -Pdiff=experiment1,experiment2
+./gradlew stackCountBadge   -Plabel=experiment1                            # or -Pdiff=A,B to pixel-diff two labels
 ./gradlew fluidRenderer
 ./gradlew portalRenderer
 ./gradlew packOverlay       -PrenderSize=256   # vanilla vs overlay pack, side-by-side
@@ -178,9 +178,7 @@ Each task writes into `cache/visual/<task-name>/` for side-by-side comparison. F
 > [!TIP]
 > `entityRender3D` selects per-entity `EntityAppearance` axes through `-Dasset.entity.*` system properties, e.g. `-Dasset.entity.state=tame`, `-Dasset.entity.age=baby`, `-Dasset.entity.collar=magenta`, `-Dasset.entity.wool=lime`, `-Dasset.entity.base_color=orange`, `-Dasset.entity.pattern=clayfish`, `-Dasset.entity.pattern_color=white`, `-Dasset.entity.sheared=true`, `-Dasset.entity.toggles=horn`, `-Dasset.entity.equipment=body:diamond`. All `-Dasset.*` flags auto-forward to the fork.
 
-### Parity Testing
-
-The Java pipeline is validated against pixel-perfect ground truth driven by the sibling [vanilla-reference-harness] - a headless Fabric mod that drives the actual MC client to render every block, item, and living entity (with variants) at a locked iso pose. Ground-truth PNGs land under `cache/asset-renderer/vanilla/<mc-version>/references/{blocks,items,entities,glint}/`; each `*ParityVanilla` task diffs the pipeline output against them and groups results into mean-ARGB delta buckets (`<0.25 / <0.5 / <0.75 / <1` per pixel). Output lands under `cache/visual/<subject>-parity-vanilla/`. These are `visual`-group tasks (`./gradlew tasks --group visual`).
+**Parity** - diff the pipeline against pixel-perfect ground truth from the sibling [vanilla-reference-harness] (a headless Fabric mod that drives the actual MC client to render every block, item, and living entity at a locked iso pose). Reference PNGs live under `cache/asset-renderer/vanilla/<mc-version>/references/{blocks,items,entities,glint}/`; each `*ParityVanilla` task writes per-subject vanilla/java/diff panels to `cache/visual/<subject>-parity-vanilla/` and groups results into mean-ARGB delta buckets (`<0.25 / <0.5 / <0.75 / <1` per pixel).
 
 ```bash
 ./gradlew entityParityVanilla -PentityId=minecraft:zombie          # omit -P for the full sweep
@@ -189,7 +187,8 @@ The Java pipeline is validated against pixel-perfect ground truth driven by the 
 ./gradlew glintParityVanilla  -PitemId=minecraft:nether_star       # animated enchant-glint parity
 ```
 
-Re-render ground truth (only needed on MC version bumps or harness fixes - `tooling`-group tasks):
+Re-render the ground truth (only on MC version bumps or harness fixes; `tooling`-group tasks):
+
 ```bash
 ./gradlew renderVanillaReferences        # blocks + items + entities
 ./gradlew renderVanillaGlintReferences   # animated glint strips (then run glintParityVanilla)
