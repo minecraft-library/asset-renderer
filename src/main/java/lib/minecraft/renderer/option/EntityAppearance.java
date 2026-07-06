@@ -13,7 +13,7 @@ import java.util.Set;
  * The entity-specific axis selections for a single {@code EntityRenderer} invocation, held as one
  * cohesive value on {@link EntityOptions#getAppearance()} so {@code EntityOptions} does not accrete a
  * loose field per axis. Each selection maps onto the {@code entity_models.json} family form: the
- * typed {@link #getAge() age} axis, the option-sourced dyed {@link #getCollar() collar} tint, and the
+ * typed {@link #getAge() age} axis, the option-sourced dyed {@link #tint(TintAxis) collar} tint, and the
  * id-encoded / option-encoded string axes ({@link #getState() state}, {@link #getCarried() carried})
  * whose valid values are declared per-entity in the family JSON rather than a hard-coded enum.
  *

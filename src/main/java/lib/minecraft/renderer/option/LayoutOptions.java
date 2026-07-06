@@ -18,7 +18,7 @@ import java.util.function.UnaryOperator;
 /**
  * Configures a single {@link LayoutRenderer} invocation.
  *
- * <p>Uses a hand-written (non-Lombok) builder so the {@link Builder#child(Renderer, Object)
+ * <p>Uses a hand-written (non-Lombok) builder so the {@link Builder#child(Renderer, RenderOptions)
  * child(Renderer, Options)} overload can erase the child's options type parameter cleanly -
  * each child is captured as a {@link Supplier} of {@link ImageData} whose render is deferred until
  * the layout renderer walks the tree.
