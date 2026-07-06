@@ -872,7 +872,25 @@
     "minecraft:magma_cube": {
       "geometry_ref": "geometry.magmacube",
       "armor_type": "none",
-      "texture_ref": "slime/magmacube"
+      "texture_ref": "slime/magmacube",
+      "axes": {
+        "size": {
+          "default": "small",
+          "values": [
+            "small",
+            "medium",
+            "large"
+          ],
+          "options": {
+            "medium": {
+              "scale": 2.0
+            },
+            "large": {
+              "scale": 4.0
+            }
+          }
+        }
+      }
     },
     "minecraft:mooshroom": {
       "geometry_ref": "geometry.cow",
@@ -1250,7 +1268,25 @@
     "minecraft:salmon": {
       "geometry_ref": "geometry.salmon",
       "armor_type": "none",
-      "texture_ref": "fish/salmon"
+      "texture_ref": "fish/salmon",
+      "axes": {
+        "size": {
+          "default": "medium",
+          "values": [
+            "small",
+            "medium",
+            "large"
+          ],
+          "options": {
+            "small": {
+              "scale": 0.5
+            },
+            "large": {
+              "scale": 1.5
+            }
+          }
+        }
+      }
     },
     "minecraft:sheep": {
       "geometry_ref": "geometry.sheep",
@@ -1332,7 +1368,25 @@
           "geometry_ref": "geometry.slime_1",
           "texture_ref": "slime/slime"
         }
-      ]
+      ],
+      "axes": {
+        "size": {
+          "default": "small",
+          "values": [
+            "small",
+            "medium",
+            "large"
+          ],
+          "options": {
+            "medium": {
+              "scale": 2.0
+            },
+            "large": {
+              "scale": 4.0
+            }
+          }
+        }
+      }
     },
     "minecraft:sniffer": {
       "geometry_ref": "geometry.sniffer",

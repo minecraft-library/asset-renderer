@@ -133,6 +133,12 @@ public class EntityModelLoader {
      *     {@code EntityAppearance.size} selects one. The entity's default size is the base {@link #model}
      *     and is absent from the map, so an unset / default size leaves the render byte-identical; empty
      *     for entities with no size axis
+     * @param sizeScales the {@code size} axis's non-default render scale factors keyed by {@link Size}
+     *     (salmon {@link Size#SMALL} 0.5 / {@link Size#LARGE} 1.5; slime + magma_cube {@link Size#MEDIUM}
+     *     2 / {@link Size#LARGE} 4), multiplied onto {@link #rendererScale} by {@link #resolveFor} when
+     *     {@code EntityAppearance.size} selects one. The default size is scale {@code 1.0} (absent), so an
+     *     unset / default size leaves the render byte-identical; empty for mesh-select and no-size-axis
+     *     entities. (A uniform scale is a visual no-op under the auto-fit renderer - see the size axis note)
      */
     @Builder(toBuilder = true)
     public record EntityDefinition(
@@ -149,7 +155,8 @@ public class EntityModelLoader {
         @NotNull Map<String, BoneToggle> boneToggles,
         @NotNull List<EquipmentOverlay> equipment,
         @NotNull Optional<LargeShape> largeShape,
-        @NotNull Map<Size, EntityModelData> sizeModels
+        @NotNull Map<Size, EntityModelData> sizeModels,
+        @NotNull Map<Size, Float> sizeScales
     ) {
         /**
          * Returns a copy with no {@link #blockOverlays() block overlays}, for the {@code carried}
@@ -220,6 +227,13 @@ public class EntityModelLoader {
                 // size, or the entity's default size (pufferfish large = the base mesh, absent from the
                 // map), leaves the base model untouched, so the default render is byte-identical.
                 appearance.getSize().map(this.sizeModels::get).ifPresent(builder::model);
+                // The size axis (salmon / slime / magma_cube) instead multiplies rendererScale by the
+                // selected size's factor. An unset / default size (scale 1.0, absent from the map) leaves
+                // rendererScale untouched, so the default render is byte-identical. A uniform scale is a
+                // visual no-op under the auto-fit renderer (self-similar); the factor is applied for a
+                // future absolute-scale scene renderer.
+                appearance.getSize().map(this.sizeScales::get)
+                    .ifPresent(scale -> builder.rendererScale(this.rendererScale * scale));
             }
             // The base_color axis (tropical fish) overrides the family base_tint with the selected
             // dye; absent (default) keeps the baked base_tint, so the default render is byte-identical.
@@ -602,6 +616,22 @@ public class EntityModelLoader {
     }
 
     /**
+     * Resolves a family's flattened {@code size} axis scale factors ({@code size option -> factor}) into
+     * {@code Size -> factor} (salmon / slime / magma_cube). The entity's default size is scale {@code 1.0}
+     * and never appears here.
+     *
+     * @param scales the flattened {@code size option -> scale factor} map (may be {@code null})
+     * @return the resolved per-size scale factors, empty when the entity has no scale-based size axis
+     */
+    private static @NotNull Map<Size, Float> buildSizeScales(@Nullable Map<String, Float> scales) {
+        if (scales == null || scales.isEmpty()) return Map.of();
+        Map<Size, Float> out = new LinkedHashMap<>();
+        for (Map.Entry<String, Float> entry : scales.entrySet())
+            out.put(Size.valueOf(entry.getKey().toUpperCase(Locale.ROOT)), entry.getValue());
+        return out;
+    }
+
+    /**
      * Returns a deep-cloned copy of {@code model} with every cube's {@link
      * EntityModelData.Cube#getInflate() inflate} field bumped by {@code delta}. Used by the
      * overlay loader to surround the base mesh with an inflated overlay (creeper armor mesh
@@ -729,6 +759,7 @@ public class EntityModelLoader {
         Map<String, List<EntityFamilyFlattener.EquipmentSpec>> equipmentSpecs = flat.equipment();
         Map<String, EntityFamilyFlattener.ShapeSpec> shapeAlternatives = flat.shapeAlternatives();
         Map<String, Map<String, String>> sizeAlternatives = flat.sizeAlternatives();
+        Map<String, Map<String, Float>> sizeScaleRefs = flat.sizeScales();
         HashMap<String, EntityDefinition> definitions = new HashMap<>();
         for (Map.Entry<String, JsonElement> entry : entities.entrySet()) {
             String entityId = entry.getKey();
@@ -809,8 +840,11 @@ public class EntityModelLoader {
             // The size axis's non-default meshes (pufferfish small / medium), resolved so resolveFor can
             // swap the base mesh for the selected size.
             Map<Size, EntityModelData> sizeModels = buildSizeModels(sizeAlternatives.get(entityId), geometries);
+            // The size axis's non-default scale factors (salmon / slime / magma_cube), so resolveFor can
+            // multiply rendererScale by the selected size.
+            Map<Size, Float> sizeScales = buildSizeScales(sizeScaleRefs.get(entityId));
             definitions.put(entityId, new EntityDefinition(baseModel, textureRef, overlays, blockOverlays, baseTint, setupYawAddend, rendererScale,
-                stateTextures.getOrDefault(entityId, Map.of()), Optional.ofNullable(collarTextures.get(entityId)), babyModel, boneToggles, equipment, largeShape, sizeModels));
+                stateTextures.getOrDefault(entityId, Map.of()), Optional.ofNullable(collarTextures.get(entityId)), babyModel, boneToggles, equipment, largeShape, sizeModels, sizeScales));
         }
         return Concurrent.adoptMap(definitions);
     }

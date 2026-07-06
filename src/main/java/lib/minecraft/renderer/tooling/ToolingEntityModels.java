@@ -472,10 +472,33 @@ public final class ToolingEntityModels {
                 if (!geomIds.isEmpty()) sizeGeometryByEntity.put(sizeEntry.getKey(), geomIds);
             }
 
+            // Scale-based size axis (salmon / slime / magma_cube) - a uniform per-size render scale, NOT
+            // distinct meshes (a visual no-op under the auto-fit renderer; wired for a future
+            // absolute-scale scene renderer). Hardcoded to the vanilla values, which are uniform scales
+            // whose exact factor the auto-fit normalises away: salmon
+            // SalmonModel.SMALL_TRANSFORMER/LARGE_TRANSFORMER = MeshTransformer.scaling(0.5)/(1.5), medium
+            // (base) = 1.0; slime/magma_cube SlimeRenderer.scale(size) at squish 0 = scale(size) for the
+            // natural sizes 1/2/4 = small/medium/large, small (base, renderer_scale 0.999) = 1.0. The
+            // default (base) size carries no option, so the default render stays byte-identical.
+            Map<String, Map<String, Float>> sizeScaleByEntity = new LinkedHashMap<>();
+            if (records.containsKey("minecraft:salmon")) {
+                Map<String, Float> salmon = new LinkedHashMap<>();
+                salmon.put("small", 0.5f);
+                salmon.put("large", 1.5f);
+                sizeScaleByEntity.put("minecraft:salmon", salmon);
+            }
+            for (String slimeLike : new String[]{"minecraft:slime", "minecraft:magma_cube"}) {
+                if (!records.containsKey(slimeLike)) continue;
+                Map<String, Float> scales = new LinkedHashMap<>();
+                scales.put("medium", 2.0f);
+                scales.put("large", 4.0f);
+                sizeScaleByEntity.put(slimeLike, scales);
+            }
+
             // Group the in-memory flat tables into the canonical family-form entity_models.json.
             EntityFamilyJsonWriter.writeAll(options.getVersion(), diagnostics, writeResult.flatEntities(), writeResult.flatFamilies(),
                 variants, collarByEntity, babyGeometryByEntity, babyTextureByEntity, equipmentByEntity, equipmentGeometryByField,
-                shapeGeometryByEntity, sizeGeometryByEntity);
+                shapeGeometryByEntity, sizeGeometryByEntity, sizeScaleByEntity);
 
             System.out.printf(
                 "Coverage: %d / %d mapped; texture %d hard / %d variant / %d unresolved; geometry %d%n",

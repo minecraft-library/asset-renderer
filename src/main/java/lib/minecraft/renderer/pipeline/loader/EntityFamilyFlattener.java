@@ -48,6 +48,10 @@ public final class EntityFamilyFlattener {
      * @param sizeAlternatives base entity id -&gt; ({@code size} option -&gt; alternate mesh geometry ref)
      *     from the {@code size} axis (pufferfish small / medium); the renderer swaps to these when the
      *     {@code size} axis selects a non-default mesh
+     * @param sizeScales base entity id -&gt; ({@code size} option -&gt; per-size render scale factor) from
+     *     the {@code size} axis (salmon small / large; slime + magma_cube medium / large); the renderer
+     *     multiplies {@code rendererScale} by this when the {@code size} axis selects a non-default size.
+     *     A size-scale entity has no {@link #sizeAlternatives} entry and vice versa
      */
     public record Flat(
         @NotNull JsonObject entities,
@@ -57,7 +61,8 @@ public final class EntityFamilyFlattener {
         @NotNull Map<String, String> babyGeometry,
         @NotNull Map<String, List<EquipmentSpec>> equipment,
         @NotNull Map<String, ShapeSpec> shapeAlternatives,
-        @NotNull Map<String, Map<String, String>> sizeAlternatives
+        @NotNull Map<String, Map<String, String>> sizeAlternatives,
+        @NotNull Map<String, Map<String, Float>> sizeScales
     ) {
 
         /**
@@ -68,7 +73,7 @@ public final class EntityFamilyFlattener {
          * @return an empty flat form
          */
         public static @NotNull Flat empty() {
-            return new Flat(new JsonObject(), new JsonObject(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+            return new Flat(new JsonObject(), new JsonObject(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
         }
     }
 
@@ -123,6 +128,7 @@ public final class EntityFamilyFlattener {
         Map<String, List<EquipmentSpec>> equipment = new LinkedHashMap<>();
         Map<String, ShapeSpec> shapeAlternatives = new LinkedHashMap<>();
         Map<String, Map<String, String>> sizeAlternatives = new LinkedHashMap<>();
+        Map<String, Map<String, Float>> sizeScales = new LinkedHashMap<>();
 
         for (Map.Entry<String, JsonElement> entry : familyForm.entrySet()) {
             String familyId = entry.getKey();
@@ -133,6 +139,7 @@ public final class EntityFamilyFlattener {
             List<EquipmentSpec> equip = equipmentOf(family);
             ShapeSpec shape = shapeLargeOf(family);
             Map<String, String> size = sizeAlternativesOf(family);
+            Map<String, Float> sizeScale = sizeScalesOf(family);
 
             JsonObject variantAxis = variantAxis(family);
             if (variantAxis != null) {
@@ -144,6 +151,7 @@ public final class EntityFamilyFlattener {
                 if (!equip.isEmpty()) equipment.put(familyId, equip);
                 if (shape != null) shapeAlternatives.put(familyId, shape);
                 if (!size.isEmpty()) sizeAlternatives.put(familyId, size);
+                if (!sizeScale.isEmpty()) sizeScales.put(familyId, sizeScale);
                 // Plain families carry their single baby texture on age.baby.texture_ref; expose it
                 // under the "baby" state key so the renderer binds it the same way as variant families.
                 String babyTex = babyTextureOf(family);
@@ -152,7 +160,28 @@ public final class EntityFamilyFlattener {
 
             if (family.has("family_of")) crossFamilies.addProperty(familyId, family.get("family_of").getAsString());
         }
-        return new Flat(entities, crossFamilies, stateTextures, collarTextures, babyGeometry, equipment, shapeAlternatives, sizeAlternatives);
+        return new Flat(entities, crossFamilies, stateTextures, collarTextures, babyGeometry, equipment, shapeAlternatives, sizeAlternatives, sizeScales);
+    }
+
+    /**
+     * Returns the family's {@code size} axis options as a {@code size option -> render scale factor}
+     * map (salmon {@code small} / {@code large}; slime + magma_cube {@code medium} / {@code large}), or
+     * an empty map when the family has no scale-based {@code size} axis. The default size is the base
+     * (scale {@code 1.0}) and carries no {@code scale} option, so it is absent from the map. A
+     * geometry-based size axis (pufferfish) carries {@code geometry_ref} not {@code scale}, so it yields
+     * an empty map here.
+     */
+    private static @NotNull Map<String, Float> sizeScalesOf(@NotNull JsonObject family) {
+        if (!family.has("axes")) return Map.of();
+        JsonObject axes = family.getAsJsonObject("axes");
+        if (!axes.has("size")) return Map.of();
+        JsonObject options = axes.getAsJsonObject("size").getAsJsonObject("options");
+        Map<String, Float> out = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonElement> option : options.entrySet()) {
+            JsonObject value = option.getValue().getAsJsonObject();
+            if (value.has("scale")) out.put(option.getKey(), value.get("scale").getAsFloat());
+        }
+        return out;
     }
 
     /**
