@@ -1948,44 +1948,6 @@ class AsmKitTest {
     }
 
     @Nested
-    @DisplayName("findInHierarchy")
-    class FindInHierarchy {
-
-        @Test
-        @DisplayName("returns the first ancestor matching the predicate (short-circuit)")
-        void firstMatchWins(@TempDir Path tmp) throws IOException {
-            byte[] gc = writeClass("Grandchild", "Child", List.of(), List.of());
-            byte[] c = writeClass("Child", "Parent", List.of(new FieldDef("MARK", "I")), List.of());
-            byte[] p = writeClass("Parent", "java/lang/Object", List.of(), List.of());
-            try (ZipFile zip = makeJar(tmp, Map.of("Grandchild", gc, "Child", c, "Parent", p))) {
-                ClassNode found = AsmKit.findInHierarchy(zip, "Grandchild", cn -> AsmKit.findField(cn, "MARK") != null);
-                assertThat(found, notNullValue());
-                assertThat(found.name, equalTo("Child"));
-
-                // predicate matching everything returns the START class, not an ancestor
-                assertThat(AsmKit.findInHierarchy(zip, "Grandchild", cn -> true).name, equalTo("Grandchild"));
-                assertThat(AsmKit.findInHierarchy(zip, "Grandchild", cn -> false), is(nullValue()));
-
-                // cache-backed overload agrees
-                ClassNodeCache cache = new ClassNodeCache(zip);
-                assertThat(AsmKit.findInHierarchy(cache, "Grandchild", cn -> AsmKit.findField(cn, "MARK") != null).name,
-                    equalTo("Child"));
-            }
-        }
-
-        @Test
-        @DisplayName("returns null when a chain link is missing from the jar")
-        void missingLinkIsNull(@TempDir Path tmp) throws IOException {
-            byte[] lonely = writeClass("Lonely", "ForeignParent", List.of(), List.of());
-            try (ZipFile zip = makeJar(tmp, Map.of("Lonely", lonely))) {
-                // Lonely doesn't match; its ForeignParent can't load -> null (not an exception).
-                assertThat(AsmKit.findInHierarchy(zip, "Lonely", cn -> cn.name.equals("ForeignParent")), is(nullValue()));
-            }
-        }
-
-    }
-
-    @Nested
     @DisplayName("findBsmHandleByName")
     class FindBsmHandleByName {
 

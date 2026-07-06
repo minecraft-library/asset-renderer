@@ -41,10 +41,9 @@ import java.util.zip.ZipFile;
  *       for the {@code GETSTATIC value; PUTSTATIC DEFAULT} enum-default idiom. Cache-backed
  *       overloads route through {@link ClassNodeCache} to share parses across resolver passes.</li>
  *   <li><b>Class-hierarchy walks</b> - {@link #walkConstructorChain walkConstructorChain},
- *       {@link #walkSuperChain walkSuperChain}, {@link #extendsClass extendsClass}, and the
- *       short-circuit {@link #findInHierarchy findInHierarchy}, each stopping before
- *       {@link #OBJECT_INTERNAL java/lang/Object}, with plain-{@link ZipFile} and
- *       {@link ClassNodeCache} variants.</li>
+ *       {@link #walkSuperChain walkSuperChain}, and {@link #extendsClass extendsClass}, each
+ *       stopping before {@link #OBJECT_INTERNAL java/lang/Object}, with plain-{@link ZipFile}
+ *       and {@link ClassNodeCache} variants.</li>
  *   <li><b>Literal decoding</b> - turn {@code ICONST_*} / {@code BIPUSH} / {@code SIPUSH} /
  *       {@code LDC} bytecode literal pushes back into boxed {@link Integer} / {@link Long} /
  *       {@link Float} / {@link Double} / {@link String} / {@link Type} values, plus the
@@ -621,59 +620,6 @@ public final class AsmKit {
             current = classNode.superName;
         }
         return false;
-    }
-
-    /**
-     * Walks the superclass chain from {@code startInternalName} (stopping before
-     * {@link #OBJECT_INTERNAL java/lang/Object}) and returns the first {@link ClassNode} that
-     * satisfies {@code predicate}, short-circuiting on the first match. Returns {@code null}
-     * when no class matches or any link of the chain is missing from the jar. Predicate-driven
-     * sibling of {@link #walkSuperChain(ZipFile, String, Consumer) walkSuperChain}: a boolean
-     * "does any class in the hierarchy match" is simply {@code findInHierarchy(...) != null}.
-     *
-     * @param zip the jar to read from
-     * @param startInternalName the class to begin the walk at
-     * @param predicate the class test; the walk returns the first class it accepts
-     * @return the first matching class, or {@code null} when none matches or a link is missing
-     */
-    public static @Nullable ClassNode findInHierarchy(
-        @NotNull ZipFile zip,
-        @NotNull String startInternalName,
-        @NotNull Predicate<ClassNode> predicate
-    ) {
-        String current = startInternalName;
-        while (current != null && !OBJECT_INTERNAL.equals(current)) {
-            ClassNode classNode = loadClass(zip, current);
-            if (classNode == null) return null;
-            if (predicate.test(classNode)) return classNode;
-            current = classNode.superName;
-        }
-        return null;
-    }
-
-    /**
-     * Cache-backed variant of {@link #findInHierarchy(ZipFile, String, Predicate)}: every class
-     * along the chain is resolved through the supplied {@link ClassNodeCache} (which owns its jar
-     * handle).
-     *
-     * @param cache the per-context cache to consult / populate
-     * @param startInternalName the class to begin the walk at
-     * @param predicate the class test; the walk returns the first class it accepts
-     * @return the first matching class, or {@code null} when none matches or a link is missing
-     */
-    public static @Nullable ClassNode findInHierarchy(
-        @NotNull ClassNodeCache cache,
-        @NotNull String startInternalName,
-        @NotNull Predicate<ClassNode> predicate
-    ) {
-        String current = startInternalName;
-        while (current != null && !OBJECT_INTERNAL.equals(current)) {
-            ClassNode classNode = cache.load(current);
-            if (classNode == null) return null;
-            if (predicate.test(classNode)) return classNode;
-            current = classNode.superName;
-        }
-        return null;
     }
 
     // ----------------------------------------------------------------------------------------
