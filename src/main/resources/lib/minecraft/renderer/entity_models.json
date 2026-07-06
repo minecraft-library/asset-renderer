@@ -1481,6 +1481,7 @@
           "texture_ref": "fish/tropical_a_pattern_1",
           "tint_color": "0xFFF9FFFE",
           "tint_by": "pattern_color",
+          "texture_by": "pattern",
           "inflate": 0.008
         }
       ]

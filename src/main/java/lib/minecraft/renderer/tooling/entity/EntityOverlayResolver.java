@@ -184,6 +184,10 @@ public final class EntityOverlayResolver {
      *     selected (the sheep wool undercoat, gated on {@code isJebSheep || woolColor != WHITE}), so
      *     the overlay is skipped at render for the default (untinted) entity. Emitted as the
      *     {@code requires_tint} JSON property by {@link EntityRuntimeJsonWriter}
+     * @param textureBy the render-axis token whose selection overrides this overlay's baked
+     *     {@code texturePath} at render (e.g. {@code "pattern"} for the tropical-fish pattern, whose
+     *     texture is a user-selectable {@code TropicalFishPattern}). {@code null} when the texture is
+     *     fixed. Emitted as the {@code texture_by} JSON property by {@link EntityRuntimeJsonWriter}
      */
     public record Result(
         @NotNull String layerClass,
@@ -195,7 +199,8 @@ public final class EntityOverlayResolver {
         boolean skipBounds,
         @Nullable String tintBy,
         boolean shearable,
-        boolean requiresTint
+        boolean requiresTint,
+        @Nullable String textureBy
     ) {
         /**
          * Constructs a {@code Result} with no extra deformation and no bounds skip - the common
@@ -216,7 +221,7 @@ public final class EntityOverlayResolver {
             @Nullable String modelLayerField,
             int tintArgb
         ) {
-            this(layerClass, texturePath, emissive, modelLayerField, tintArgb, 0f, false, null, false, false);
+            this(layerClass, texturePath, emissive, modelLayerField, tintArgb, 0f, false, null, false, false, null);
         }
 
         /**
@@ -241,7 +246,7 @@ public final class EntityOverlayResolver {
             float inflate,
             boolean skipBounds
         ) {
-            this(layerClass, texturePath, emissive, modelLayerField, tintArgb, inflate, skipBounds, null, false, false);
+            this(layerClass, texturePath, emissive, modelLayerField, tintArgb, inflate, skipBounds, null, false, false, null);
         }
 
         /**
@@ -383,10 +388,12 @@ public final class EntityOverlayResolver {
                     int tint = walkDyeColorWhiteTextureDiffuseColor(classNodes);
                     // tint_by: pattern_color lets the pattern_color render axis override the baked
                     // white-diffuse default tint at render (EntityAppearance's TintAxis.PATTERN),
-                    // mirroring vanilla's state.patternColor; the default keeps the baked tint so the
-                    // unselected render is byte-identical.
+                    // mirroring vanilla's state.patternColor. texture_by: pattern lets the pattern
+                    // render axis swap the pattern overlay texture (TropicalFishPattern). Both
+                    // default to the baked value (pattern_1 / white tint), so the unselected render
+                    // is byte-identical.
                     out.add(new Result(layerClass, patternTexture, false, null, tint,
-                        inflate != 0f ? inflate : 0.008f, false, "pattern_color", false, false));
+                        inflate != 0f ? inflate : 0.008f, false, "pattern_color", false, false, "pattern"));
                 }
                 continue;
             }
@@ -456,7 +463,7 @@ public final class EntityOverlayResolver {
                 String tintBy = extractTintBy(cn);
                 boolean shearable = detectShearableGate(cn);
                 boolean requiresTint = detectRequiresTint(cn);
-                out.add(new Result(layerClass, compositeTexture, unlit, modelLayerField, tintArgb, 0f, false, tintBy, shearable, requiresTint));
+                out.add(new Result(layerClass, compositeTexture, unlit, modelLayerField, tintArgb, 0f, false, tintBy, shearable, requiresTint, null));
                 continue;
             }
         }

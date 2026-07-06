@@ -2,6 +2,7 @@ package lib.minecraft.renderer.option;
 
 import lib.minecraft.renderer.request.DyeColor;
 import lib.minecraft.renderer.request.TintAxis;
+import lib.minecraft.renderer.request.TropicalFishPattern;
 import lombok.Builder;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
@@ -70,6 +71,15 @@ public class EntityAppearance {
      */
     @lombok.Builder.Default
     private final @NotNull Map<TintAxis, DyeColor> tints = Map.of();
+
+    /**
+     * Tropical-fish pattern selector. When present and the resolved entity carries a
+     * {@code texture_by: pattern} overlay (the tropical fish pattern), that overlay draws the
+     * selected pattern's texture instead of its baked default; empty (default) renders the baked
+     * pattern ({@code KOB}), so the default appearance is byte-identical.
+     */
+    @lombok.Builder.Default
+    private final @NotNull Optional<TropicalFishPattern> pattern = Optional.empty();
 
     /**
      * Whether the entity renders sheared. When {@code true} the resolved definition drops its

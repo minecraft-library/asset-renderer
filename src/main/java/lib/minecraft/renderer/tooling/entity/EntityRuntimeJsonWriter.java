@@ -253,6 +253,8 @@ public final class EntityRuntimeJsonWriter {
                     // render (sheep wool: "wool_color"); the baked tint_color stays the default.
                     if (desc.tintBy() != null)
                         overlay.addProperty("tint_by", desc.tintBy());
+                    if (desc.textureBy() != null)
+                        overlay.addProperty("texture_by", desc.textureBy());
                     // shearable overlays (sheep wool) drop when the sheared render axis is set.
                     if (desc.shearable())
                         overlay.addProperty("shearable", true);

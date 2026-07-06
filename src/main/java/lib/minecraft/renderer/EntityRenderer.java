@@ -36,6 +36,7 @@ import lib.minecraft.renderer.request.Biome;
 import lib.minecraft.renderer.request.DyeColor;
 import lib.minecraft.renderer.request.EulerRotation;
 import lib.minecraft.renderer.request.TintAxis;
+import lib.minecraft.renderer.request.TropicalFishPattern;
 import lib.minecraft.renderer.tensor.Box;
 import lib.minecraft.renderer.tensor.Matrix4f;
 import lib.minecraft.renderer.tensor.Quaternionf;
@@ -354,10 +355,11 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
                     // is selected; skip it for the default (untinted) entity so the default is unchanged.
                     if (overlay.requiresTint() && !hasSelectedTint(overlay, appearance)) continue;
                     int overlayTint = resolveOverlayTint(overlay, appearance);
+                    Optional<String> overlayRef = resolveOverlayTextureRef(overlay, appearance);
                     stack.append(this.slot, sink -> {
                         if (overlay.model().getBones().isEmpty()) return;
-                        Optional<PixelBuffer> overlayTex = overlay.textureRef().isPresent()
-                            ? ctx.context().resolveTexture("minecraft:entity/" + overlay.textureRef().get())
+                        Optional<PixelBuffer> overlayTex = overlayRef.isPresent()
+                            ? ctx.context().resolveTexture("minecraft:entity/" + overlayRef.get())
                             : Optional.of(ctx.baseTexture());
                         if (overlayTex.isEmpty()) return;
                         sink.addAll(EntityGeometryKit.buildTriangles(
@@ -501,6 +503,19 @@ public final class EntityRenderer implements Renderer<EntityOptions> {
         @NotNull Textures textures,
         @NotNull RendererContext context
     ) { }
+
+    /**
+     * The effective texture ref for a model overlay: the {@code texture_by} axis selection when the
+     * overlay is axis-driven ({@code pattern} tropical fish) and the appearance supplies it, else the
+     * overlay's baked {@link EntityModelLoader.OverlayLayer#textureRef() default texture} (empty =
+     * reuse the base entity texture). The default keeps an unselected overlay byte-identical; a
+     * selected pattern swaps in that pattern's overlay texture.
+     */
+    private static @NotNull Optional<String> resolveOverlayTextureRef(@NotNull EntityModelLoader.OverlayLayer overlay, @NotNull EntityAppearance appearance) {
+        if (overlay.textureBy().filter("pattern"::equals).isPresent())
+            return appearance.getPattern().map(TropicalFishPattern::overlayTexture).or(overlay::textureRef);
+        return overlay.textureRef();
+    }
 
     /**
      * The effective multiplicative tint for a model overlay: the {@code tint_by} axis colour when the

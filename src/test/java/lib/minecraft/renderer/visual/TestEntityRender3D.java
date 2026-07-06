@@ -13,6 +13,7 @@ import lib.minecraft.renderer.pipeline.Pipeline;
 import lib.minecraft.renderer.pipeline.PipelineOptions;
 import lib.minecraft.renderer.request.DyeColor;
 import lib.minecraft.renderer.request.TintAxis;
+import lib.minecraft.renderer.request.TropicalFishPattern;
 import lib.minecraft.renderer.pipeline.PipelineRendererContext;
 import lib.minecraft.renderer.pipeline.loader.EntityModelLoader;
 import lombok.experimental.UtilityClass;
@@ -107,6 +108,9 @@ public final class TestEntityRender3D {
         woolName.flatMap(TestEntityRender3D::dye).ifPresent(d -> tints.put(TintAxis.WOOL, d));
         baseColorName.flatMap(TestEntityRender3D::dye).ifPresent(d -> tints.put(TintAxis.BASE, d));
         patternColorName.flatMap(TestEntityRender3D::dye).ifPresent(d -> tints.put(TintAxis.PATTERN, d));
+        // -Dasset.entity.pattern=sunstreak names a tropical-fish pattern (TropicalFishPattern).
+        Optional<String> patternName = Optional.ofNullable(System.getProperty("asset.entity.pattern")).filter(s -> !s.isBlank());
+        Optional<TropicalFishPattern> pattern = patternName.map(TropicalFishPattern::ofName);
         Optional<String> age = Optional.ofNullable(System.getProperty("asset.entity.age")).filter(s -> !s.isBlank());
         boolean sheared = Boolean.getBoolean("asset.entity.sheared");
         java.util.Set<String> toggles = Optional.ofNullable(System.getProperty("asset.entity.toggles")).filter(s -> !s.isBlank())
@@ -137,7 +141,8 @@ public final class TestEntityRender3D {
                 + collarName.map(c -> "_collar-" + c).orElse("")
                 + woolName.map(c -> "_wool-" + c).orElse("")
                 + baseColorName.map(c -> "_base-" + c).orElse("")
-                + patternColorName.map(c -> "_pattern-" + c).orElse("")
+                + patternColorName.map(c -> "_patterncolor-" + c).orElse("")
+                + patternName.map(c -> "_pattern-" + c).orElse("")
                 + (sheared ? "_sheared" : "")
                 + (toggles.isEmpty() ? "" : "_toggle-" + String.join("-", toggles))
                 + (equipment.isEmpty() ? "" : "_equip-" + equipment.entrySet().stream()
@@ -149,6 +154,7 @@ public final class TestEntityRender3D {
                 .state(state)
                 .carried(carried)
                 .tints(tints)
+                .pattern(pattern)
                 .sheared(sheared)
                 .toggles(toggles)
                 .equipment(equipment)
